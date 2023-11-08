@@ -44,11 +44,13 @@ impl TestSigner {
         to: TransactionKind,
         data: Vec<u8>,
         nonce: u64,
+        value: u128,
     ) -> Result<RlpEvmTransaction, SignError> {
         let reth_tx = RethTxEip1559 {
             to,
             input: RethBytes::from(data),
             nonce,
+            value,
             chain_id: 1,
             gas_limit: 1_000_000u64,
             max_fee_per_gas: u128::from(reth_primitives::constants::MIN_PROTOCOL_BASE_FEE * 2),

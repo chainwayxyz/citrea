@@ -23,7 +23,7 @@ pub use signer::DevSigner;
 #[cfg(feature = "smart_contracts")]
 mod smart_contracts;
 #[cfg(feature = "smart_contracts")]
-pub use smart_contracts::SimpleStorageContract;
+pub use smart_contracts::{SelfDestructorContract, SimpleStorageContract};
 #[cfg(feature = "experimental")]
 #[cfg(test)]
 mod tests;
