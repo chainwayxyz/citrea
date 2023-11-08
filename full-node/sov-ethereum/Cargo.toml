@@ -8,19 +8,15 @@ repository = { workspace = true }
 
 version = { workspace = true }
 readme = "README.md"
-resolver = "2"
 publish = false
+resolver = "2"
 
 [dependencies]
+sov-evm = { path = "../../module-system/module-implementations/sov-evm" }
+
 anyhow = { workspace = true }
 tracing = { workspace = true }
 jsonrpsee = { workspace = true, features = ["http-client", "server"] }
-sov-rollup-interface = { path = "../../rollup-interface", features = ["native"] }
-
-sov-evm = { path = "../../module-system/module-implementations/sov-evm" }
-demo-stf = { path = "../../examples/demo-rollup/stf", features = ["native"] }
-sov-modules-api = { path = "../../module-system/sov-modules-api" }
-sov-accounts = { path = "../../module-system/module-implementations/sov-accounts" }
 
 borsh = { workspace = true }
 serde = { workspace = true }
@@ -32,6 +28,12 @@ reth-rpc-types = { workspace = true }
 ethers = { workspace = true }
 tokio = { workspace = true }
 schnellru = "0.2.1"
+
+sov-rollup-interface = { path = "../../rollup-interface", features = ["native"] }
+
+demo-stf = { path = "../../examples/demo-rollup/stf", features = ["native"] }
+sov-modules-api = { path = "../../module-system/sov-modules-api" }
+sov-accounts = { path = "../../module-system/module-implementations/sov-accounts" }
 
 [dev-dependencies]
 tokio = { workspace = true }

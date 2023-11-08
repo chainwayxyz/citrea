@@ -1,7 +1,7 @@
 use reth_primitives::{Address, BaseFeeParams, H256, U256};
 use revm::primitives::specification::SpecId;
 use serde::{Deserialize, Serialize};
-use sov_modules_api::StateMap;
+use sov_modules_api::{StateMap, StateVec};
 use sov_state::Prefix;
 
 pub(crate) mod call;
@@ -32,6 +32,7 @@ pub(crate) struct AccountInfo {
 pub(crate) struct DbAccount {
     pub(crate) info: AccountInfo,
     pub(crate) storage: StateMap<U256, U256, BcsCodec>,
+    pub(crate) keys: StateVec<U256, BcsCodec>,
 }
 
 impl DbAccount {
@@ -39,7 +40,8 @@ impl DbAccount {
         let prefix = Self::create_storage_prefix(parent_prefix, address);
         Self {
             info: Default::default(),
-            storage: StateMap::with_codec(prefix, BcsCodec {}),
+            storage: StateMap::with_codec(prefix.clone(), BcsCodec {}),
+            keys: StateVec::with_codec(prefix, BcsCodec {}),
         }
     }
 
@@ -51,7 +53,8 @@ impl DbAccount {
         let prefix = Self::create_storage_prefix(parent_prefix, address);
         Self {
             info,
-            storage: StateMap::with_codec(prefix, BcsCodec {}),
+            storage: StateMap::with_codec(prefix.clone(), BcsCodec {}),
+            keys: StateVec::with_codec(prefix, BcsCodec {}),
         }
     }
 

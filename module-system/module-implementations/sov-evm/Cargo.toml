@@ -1,6 +1,6 @@
 [package]
 name = "sov-evm"
-description = "A Sovereign SDK managing fungible tokens"
+description = "EVM Module for the Sovereign SDK"
 authors = { workspace = true }
 edition = { workspace = true }
 homepage = { workspace = true }
@@ -9,7 +9,6 @@ repository = { workspace = true }
 
 version = { workspace = true }
 readme = "README.md"
-resolver = "2"
 publish = false
 
 [dependencies]
@@ -31,14 +30,16 @@ jsonrpsee = { workspace = true, features = [
     "server",
 ], optional = true }
 tracing = { workspace = true }
-derive_more = { workspace = true, default-features = true }
+derive_more = { workspace = true }
 lazy_static = "1.4.0"
 
 
 ethereum-types = { workspace = true }
 ethers-core = { workspace = true }
 ethers-contract = { workspace = true }
+ethers-middleware = { workspace = true }
 ethers-signers = { workspace = true }
+ethers = { workspace = true }
 
 revm = { workspace = true, features = [
     "optional_block_gas_limit",

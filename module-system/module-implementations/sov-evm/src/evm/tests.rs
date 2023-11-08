@@ -12,7 +12,7 @@ use super::db_init::InitEvmDb;
 use super::executor;
 use crate::evm::primitive_types::BlockEnv;
 use crate::evm::AccountInfo;
-use crate::smart_contracts::SimpleStorageContract;
+use crate::smart_contracts::{SimpleStorageContract, TestContract};
 use crate::tests::test_signer::TestSigner;
 use crate::Evm;
 type C = sov_modules_api::default_context::DefaultContext;
@@ -52,7 +52,7 @@ fn simple_contract_execution<DB: Database<Error = Infallible> + DatabaseCommit +
 
     let contract_address: B160 = {
         let tx = dev_signer
-            .sign_default_transaction(TransactionKind::Create, contract.byte_code().to_vec(), 1)
+            .sign_default_transaction(TransactionKind::Create, contract.byte_code().to_vec(), 1, 0)
             .unwrap();
 
         let tx = &tx.try_into().unwrap();
@@ -75,6 +75,7 @@ fn simple_contract_execution<DB: Database<Error = Infallible> + DatabaseCommit +
                 TransactionKind::Call(contract_address.into()),
                 hex::decode(hex::encode(&call_data)).unwrap(),
                 2,
+                0,
             )
             .unwrap();
 
@@ -90,6 +91,7 @@ fn simple_contract_execution<DB: Database<Error = Infallible> + DatabaseCommit +
                 TransactionKind::Call(contract_address.into()),
                 hex::decode(hex::encode(&call_data)).unwrap(),
                 3,
+                0,
             )
             .unwrap();
 
@@ -111,6 +113,7 @@ fn simple_contract_execution<DB: Database<Error = Infallible> + DatabaseCommit +
                 TransactionKind::Call(contract_address.into()),
                 hex::decode(hex::encode(&failing_call_data)).unwrap(),
                 4,
+                0,
             )
             .unwrap();
 

@@ -130,9 +130,9 @@ pub(crate) fn prepare_call_env(block_env: &BlockEnv, request: CallRequest) -> Et
     let CallRequest {
         from,
         to,
-        gas_price,
-        max_fee_per_gas,
-        max_priority_fee_per_gas,
+        mut gas_price,
+        mut max_fee_per_gas,
+        mut max_priority_fee_per_gas,
         gas,
         value,
         input,
@@ -141,6 +141,17 @@ pub(crate) fn prepare_call_env(block_env: &BlockEnv, request: CallRequest) -> Et
         chain_id,
         ..
     } = request;
+
+    // TODO: write hardhat and unit tests for this
+    if max_fee_per_gas == Some(U256::ZERO) {
+        max_fee_per_gas = None;
+    }
+    if gas_price == Some(U256::ZERO) {
+        gas_price = None;
+    }
+    if max_priority_fee_per_gas == Some(U256::ZERO) {
+        max_priority_fee_per_gas = None;
+    }
 
     let CallFees {
         max_priority_fee_per_gas,
