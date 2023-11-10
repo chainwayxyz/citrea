@@ -18,6 +18,7 @@ use crate::evm::db::EvmDb;
 use crate::evm::primitive_types::{BlockEnv, Receipt, SealedBlock, TransactionSignedAndRecovered};
 use crate::evm::{executor, prepare_call_env};
 use crate::experimental::{MIN_CREATE_GAS, MIN_TRANSACTION_GAS};
+use crate::rpc_helpers::{log_matches_filter, Filter, LogResponse};
 use crate::{EthApiError, Evm};
 
 #[rpc_gen(client, server)]
@@ -551,6 +552,69 @@ impl<C: sov_modules_api::Context> Evm<C> {
         }
 
         Ok(U64::from(highest_gas_limit))
+    }
+
+    /// Returns logs matching given filter object.
+    ///
+    /// Handler for `eth_getLogs`
+    #[rpc_method(name = "eth_getLogs")]
+    pub fn eth_get_logs(
+        &self,
+        filter: Filter,
+        working_set: &mut WorkingSet<C>,
+    ) -> RpcResult<Vec<LogResponse>> {
+        // TODO: Add max block limit
+        // for now get the logs of the head only
+        let block = self
+            .blocks
+            .last(&mut working_set.accessory_state())
+            .expect("Head block must be set");
+
+        // range of transactions in the block
+        let tx_range = block.transactions;
+
+        // all of the logs we have in the block
+        let mut all_logs: Vec<LogResponse> = Vec::new();
+
+        // tracks the index of a log in the entire block
+        let mut log_index: u32 = 0;
+
+        // TODO: Understand how to handle this
+        // TAG - true when the log was removed, due to a chain reorganization. false if its a valid log.
+        let removed = false;
+
+        let topics = filter.topics.clone();
+
+        for i in tx_range {
+            let receipt = self
+                .receipts
+                .get(i as usize, &mut working_set.accessory_state())
+                .expect("Transaction must be set");
+            let tx = self
+                .transactions
+                .get(i as usize, &mut working_set.accessory_state())
+                .unwrap();
+            let logs = receipt.receipt.logs;
+
+            for log in logs.into_iter() {
+                if log_matches_filter(&log, &filter, &topics, &block.header.hash) {
+                    let log = LogResponse {
+                        address: log.address,
+                        topics: log.topics,
+                        data: log.data.into(),
+                        block_hash: Some(block.header.hash),
+                        block_number: Some(U256::from(block.header.number)),
+                        transaction_hash: Some(tx.signed_transaction.hash),
+                        transaction_index: Some(U256::from(i)),
+                        log_index: Some(U256::from(log_index)),
+                        removed,
+                    };
+                    all_logs.push(log);
+                }
+                log_index += 1;
+            }
+        }
+        Ok(all_logs)
     }
 
     fn get_sealed_block_by_number(

@@ -9,7 +9,8 @@ mod genesis;
 #[cfg(feature = "experimental")]
 mod hooks;
 #[cfg(feature = "experimental")]
-pub use {call::*, error::rpc::*, evm::*, genesis::*, hooks::*};
+mod rpc_helpers;
+pub use {call::*, error::rpc::*, evm::*, genesis::*, hooks::*, rpc_helpers::*};
 #[cfg(feature = "native")]
 #[cfg(feature = "experimental")]
 mod query;
@@ -23,7 +24,7 @@ pub use signer::DevSigner;
 #[cfg(feature = "smart_contracts")]
 mod smart_contracts;
 #[cfg(feature = "smart_contracts")]
-pub use smart_contracts::{SelfDestructorContract, SimpleStorageContract};
+pub use smart_contracts::{LogsContract, SelfDestructorContract, SimpleStorageContract};
 #[cfg(feature = "experimental")]
 #[cfg(test)]
 mod tests;
