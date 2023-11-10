@@ -1,4 +1,5 @@
 use lazy_static::lazy_static;
+use rand::Rng;
 use reth_primitives::hex_literal::hex;
 use reth_primitives::{
     Address, Bloom, Bytes, Header, SealedHeader, Signature, TransactionSigned, EMPTY_OMMER_ROOT,
@@ -10,7 +11,7 @@ use crate::evm::primitive_types::{
     Block, BlockEnv, Receipt, SealedBlock, TransactionSignedAndRecovered,
 };
 use crate::experimental::PendingTransaction;
-use crate::tests::genesis_tests::{BENEFICIARY, GENESIS_HASH};
+use crate::tests::genesis_tests::{BENEFICIARY, GENESIS_HASH, GENESIS_STATE_ROOT};
 
 lazy_static! {
     pub(crate) static ref DA_ROOT_HASH: H256 = H256::from([5u8; 32]);
@@ -37,7 +38,10 @@ fn begin_slot_hook_creates_pending_block() {
 #[test]
 fn end_slot_hook_sets_head() {
     let (evm, mut working_set) = get_evm(&TEST_CONFIG);
-    evm.begin_slot_hook(DA_ROOT_HASH.0, &[10u8; 32].into(), &mut working_set);
+    let mut pre_state_root = [0u8; 32];
+    pre_state_root.copy_from_slice(&GENESIS_STATE_ROOT.as_bytes());
+
+    evm.begin_slot_hook(DA_ROOT_HASH.0, &pre_state_root.into(), &mut working_set);
 
     evm.pending_transactions.push(
         &create_pending_transaction(H256::from([1u8; 32]), 1),
@@ -178,8 +182,10 @@ fn create_pending_transaction(hash: H256, index: u64) -> PendingTransaction {
 #[test]
 fn finalize_hook_creates_final_block() {
     let (evm, mut working_set) = get_evm(&TEST_CONFIG);
-    let p = [10u8; 32].into();
-    evm.begin_slot_hook(DA_ROOT_HASH.0, &p, &mut working_set);
+    let mut pre_state_root = [0u8; 32];
+    pre_state_root.copy_from_slice(&GENESIS_STATE_ROOT.as_bytes());
+
+    evm.begin_slot_hook(DA_ROOT_HASH.0, &pre_state_root.into(), &mut working_set);
     evm.pending_transactions.push(
         &create_pending_transaction(H256::from([1u8; 32]), 1),
         &mut working_set,
@@ -237,7 +243,7 @@ fn finalize_hook_creates_final_block() {
                     parent_beacon_block_root: None,
                 },
                 hash: H256(hex!(
-                    "38cd68642013a65c7fdeea92f9f0e1b5709156ac9140f00ffb182c7a605337b0"
+                    "0da4e80c5cbd00d9538cb0215d069bfee5be5b59ae4da00244f9b8db429e6889"
                 )),
             },
             transactions: 0..2
@@ -252,4 +258,77 @@ fn finalize_hook_creates_final_block() {
     );
 
     assert_eq!(evm.pending_head.get(&mut accessory_state), None);
+}
+
+#[test]
+fn begin_slot_hook_appends_last_block_hashes() {
+    let (evm, mut working_set) = get_evm(&TEST_CONFIG);
+
+    let mut state_root = [0u8; 32];
+    state_root.copy_from_slice(&GENESIS_STATE_ROOT.0);
+
+    evm.begin_slot_hook(DA_ROOT_HASH.0, &state_root.into(), &mut working_set);
+
+    // on block 1, only block 0 exists, so the last block hash should be the genesis hash
+    // the others should not exist
+    assert_eq!(
+        evm.last_block_hashes
+            .get(&U256::from(0), &mut working_set)
+            .unwrap(),
+        evm.blocks
+            .get(0, &mut working_set.accessory_state())
+            .unwrap()
+            .header
+            .hash
+    );
+
+    assert!(evm
+        .last_block_hashes
+        .get(&U256::from(1), &mut working_set)
+        .is_none());
+
+    evm.end_slot_hook(&mut working_set);
+
+    let mut random_32_bytes: [u8; 32] = rand::thread_rng().gen::<[u8; 32]>();
+    evm.finalize_hook(&random_32_bytes.into(), &mut working_set.accessory_state());
+
+    // finalize blocks 1-256 with random state root hashes
+    for _ in 1..256 {
+        evm.begin_slot_hook(DA_ROOT_HASH.0, &random_32_bytes.into(), &mut working_set);
+
+        evm.end_slot_hook(&mut working_set);
+
+        random_32_bytes = rand::thread_rng().gen::<[u8; 32]>();
+        evm.finalize_hook(&random_32_bytes.into(), &mut working_set.accessory_state());
+    }
+
+    // start environment for block 257
+    evm.begin_slot_hook(DA_ROOT_HASH.0, &random_32_bytes.into(), &mut working_set);
+
+    // only the last 256 blocks should exist on block 257
+    // which is [1, 256]
+    // not 0
+    assert_eq!(
+        evm.last_block_hashes
+            .get(&U256::from(256), &mut working_set)
+            .unwrap(),
+        evm.blocks
+            .get(256, &mut working_set.accessory_state())
+            .unwrap()
+            .header
+            .hash
+    );
+
+    assert!(evm
+        .last_block_hashes
+        .get(&U256::from(0), &mut working_set)
+        .is_none());
+    assert!(evm
+        .last_block_hashes
+        .get(&U256::from(257), &mut working_set)
+        .is_none());
+    assert!(evm
+        .last_block_hashes
+        .get(&U256::from(1), &mut working_set)
+        .is_some());
 }

@@ -59,7 +59,7 @@ sov-evm = { path = ".", features = ["smart_contracts"] }
 tokio = { workspace = true }
 tempfile = { workspace = true }
 bytes = { workspace = true }
-
+rand.workspace = true
 
 [features]
 default = []

@@ -22,8 +22,19 @@ where
             .get(working_set)
             .expect("Head block should always be set");
 
-        parent_block.header.state_root = H256(pre_state_root.clone().into());
+        let root_hash_bytes: [u8; 32] = pre_state_root.clone().into();
+        parent_block.header.state_root = root_hash_bytes.into();
         self.head.set(&parent_block, working_set);
+
+        let sealed_parent_block = parent_block.clone().seal();
+        let last_block_hash = sealed_parent_block.header.hash;
+
+        // since we know the previous state root only here, we can set the last block hash
+        self.last_block_hashes.set(
+            &U256::from(parent_block.header.number),
+            &last_block_hash,
+            working_set,
+        );
 
         let cfg = self.cfg.get(working_set).unwrap_or_default();
         let new_pending_env = BlockEnv {
@@ -38,6 +49,17 @@ where
             gas_limit: cfg.block_gas_limit,
         };
         self.block_env.set(&new_pending_env, working_set);
+
+        // if hight > 256, start removing the oldest block
+        // keeping only 256 most recent blocks
+        // this first happens on txs in block 257
+        // remove block 0, keep blocks 1-256
+        // then on block 258
+        // remove block 1, keep blocks 2-257
+        if new_pending_env.number > 256 {
+            self.last_block_hashes
+                .remove(&U256::from(new_pending_env.number - 257), working_set);
+        }
     }
 
     /// Logic executed at the end of the slot. Here, we generate an authenticated block and set it as the new head of the chain.
