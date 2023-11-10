@@ -5,6 +5,7 @@ members = [
     "adapters/avail",
     "adapters/risc0",
     "adapters/celestia",
+    "adapters/bitcoin",
     "adapters/mock-da",
     "adapters/mock-zkvm",
     # Examples
@@ -89,7 +90,7 @@ sha2 = { version = "0.10.6", default-features = false }
 thiserror = "1.0.50"
 tiny-keccak = "2.0.2"
 tracing = { version = "0.1.40", default-features = false }
-bech32 = { version = "0.9.1", default-features = false }
+bech32 = { version = "0.9.1", default-features = false}
 derive_more = { version = "0.99.11", default-features = false }
 clap = { version = "4.4.7", features = ["derive"] }
 toml = "0.8.0"
