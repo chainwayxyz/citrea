@@ -1,3 +1,4 @@
+use std::any::Any;
 use std::path::PathBuf;
 
 mod logs_contract;
@@ -24,6 +25,10 @@ fn make_contract_from_abi(path: PathBuf) -> BaseContract {
     BaseContract::from(abi)
 }
 
+/// Trait for testing smart contracts.
 pub trait TestContract {
+    /// Common method of all smart contracts. Returns bytecode
     fn byte_code(&self) -> Bytes;
+    /// Dynamically dispatch from trait.
+    fn as_any(&self) -> &dyn Any;
 }

@@ -1,3 +1,5 @@
+use std::any::Any;
+
 use ethers_contract::BaseContract;
 use ethers_core::types::Bytes;
 use reth_primitives::Address;
@@ -39,6 +41,10 @@ impl TestContract for SelfDestructorContract {
     /// SimpleStorage bytecode.
     fn byte_code(&self) -> Bytes {
         self.bytecode.clone()
+    }
+    /// Dynamically dispatch from trait. Downcast to SelfDestructorContract.
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 

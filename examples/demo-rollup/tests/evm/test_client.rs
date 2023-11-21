@@ -12,26 +12,26 @@ use jsonrpsee::core::client::ClientT;
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use jsonrpsee::rpc_params;
 use reth_primitives::Bytes;
-use sov_evm::SimpleStorageContract;
+use sov_evm::{LogResponse, LogsContract, SimpleStorageContract, TestContract};
 
 const MAX_FEE_PER_GAS: u64 = 100000001;
 const GAS: u64 = 900000u64;
 
-pub(crate) struct TestClient {
+pub(crate) struct TestClient<T: TestContract> {
     chain_id: u64,
     pub(crate) from_addr: Address,
-    contract: SimpleStorageContract,
+    contract: T,
     client: SignerMiddleware<Provider<Http>, Wallet<SigningKey>>,
     http_client: HttpClient,
 }
 
-impl TestClient {
+impl<T: TestContract> TestClient<T> {
     #[allow(dead_code)]
     pub(crate) async fn new(
         chain_id: u64,
         key: Wallet<SigningKey>,
         from_addr: Address,
-        contract: SimpleStorageContract,
+        contract: T,
         rpc_addr: std::net::SocketAddr,
     ) -> Self {
         let host = format!("http://localhost:{}", rpc_addr.port());
@@ -99,6 +99,29 @@ impl TestClient {
         Ok(receipt_req)
     }
 
+    pub(crate) async fn call_logs_contract(
+        &self,
+        contract_address: H160,
+        message: String,
+    ) -> PendingTransaction<'_, Http> {
+        let contract: &LogsContract = match self.contract.as_any().downcast_ref::<LogsContract>() {
+            Some(lc) => lc,
+            None => panic!("Contract isn't a Logs Contract!"),
+        };
+
+        let req = Eip1559TransactionRequest::new()
+            .from(self.from_addr)
+            .to(contract_address)
+            .chain_id(self.chain_id)
+            .data(contract.publish_event(message))
+            .max_priority_fee_per_gas(10u64)
+            .max_fee_per_gas(MAX_FEE_PER_GAS);
+
+        let typed_transaction = TypedTransaction::Eip1559(req);
+
+        self.eth_send_transaction(typed_transaction).await
+    }
+
     pub(crate) async fn set_value_unsigned(
         &self,
         contract_address: H160,
@@ -106,11 +129,19 @@ impl TestClient {
     ) -> PendingTransaction<'_, Http> {
         // Tx without gas_limit should estimate and include it in send_transaction endpoint
         // Tx without nonce should fetch and include it in send_transaction endpoint
+        let contract: &SimpleStorageContract = match self
+            .contract
+            .as_any()
+            .downcast_ref::<SimpleStorageContract>()
+        {
+            Some(ssc) => ssc,
+            None => panic!("Contract isn't a Simple Storage Contract!"),
+        };
         let req = Eip1559TransactionRequest::new()
             .from(self.from_addr)
             .to(contract_address)
             .chain_id(self.chain_id)
-            .data(self.contract.set_call_data(set_arg))
+            .data(contract.set_call_data(set_arg))
             .max_priority_fee_per_gas(10u64)
             .max_fee_per_gas(MAX_FEE_PER_GAS);
 
@@ -127,13 +158,21 @@ impl TestClient {
         max_fee_per_gas: Option<u64>,
     ) -> PendingTransaction<'_, Http> {
         let nonce = self.eth_get_transaction_count(self.from_addr).await;
+        let contract: &SimpleStorageContract = match self
+            .contract
+            .as_any()
+            .downcast_ref::<SimpleStorageContract>()
+        {
+            Some(ssc) => ssc,
+            None => panic!("Contract isn't a Simple Storage Contract!"),
+        };
 
         let req = Eip1559TransactionRequest::new()
             .from(self.from_addr)
             .to(contract_address)
             .chain_id(self.chain_id)
             .nonce(nonce)
-            .data(self.contract.set_call_data(set_arg))
+            .data(contract.set_call_data(set_arg))
             .max_priority_fee_per_gas(max_priority_fee_per_gas.unwrap_or(10u64))
             .max_fee_per_gas(max_fee_per_gas.unwrap_or(MAX_FEE_PER_GAS))
             .gas(GAS);
@@ -153,13 +192,22 @@ impl TestClient {
     ) -> Result<Bytes, Box<dyn std::error::Error>> {
         let nonce = self.eth_get_transaction_count(self.from_addr).await;
 
+        let contract: &SimpleStorageContract = match self
+            .contract
+            .as_any()
+            .downcast_ref::<SimpleStorageContract>()
+        {
+            Some(ssc) => ssc,
+            None => panic!("Contract isn't a Simple Storage Contract!"),
+        };
+
         // Any type of transaction can be used for eth_call
         let req = TransactionRequest::new()
             .from(self.from_addr)
             .to(contract_address)
             .chain_id(self.chain_id)
             .nonce(nonce)
-            .data(self.contract.set_call_data(set_arg))
+            .data(contract.set_call_data(set_arg))
             .gas_price(10u64);
 
         let typed_transaction = TypedTransaction::Legacy(req.clone());
@@ -186,13 +234,22 @@ impl TestClient {
     ) -> Result<Bytes, Box<dyn std::error::Error>> {
         let nonce = self.eth_get_transaction_count(self.from_addr).await;
 
+        let contract: &SimpleStorageContract = match self
+            .contract
+            .as_any()
+            .downcast_ref::<SimpleStorageContract>()
+        {
+            Some(ssc) => ssc,
+            None => panic!("Contract isn't a Simple Storage Contract!"),
+        };
+
         // Any type of transaction can be used for eth_call
         let req = Eip1559TransactionRequest::new()
             .from(self.from_addr)
             .to(contract_address)
             .chain_id(self.chain_id)
             .nonce(nonce)
-            .data(self.contract.failing_function_call_data())
+            .data(contract.failing_function_call_data())
             .max_priority_fee_per_gas(10u64)
             .max_fee_per_gas(MAX_FEE_PER_GAS)
             .gas(GAS);
@@ -209,12 +266,21 @@ impl TestClient {
     ) -> Result<ethereum_types::U256, Box<dyn std::error::Error>> {
         let nonce = self.eth_get_transaction_count(self.from_addr).await;
 
+        let contract: &SimpleStorageContract = match self
+            .contract
+            .as_any()
+            .downcast_ref::<SimpleStorageContract>()
+        {
+            Some(ssc) => ssc,
+            None => panic!("Contract isn't a Simple Storage Contract!"),
+        };
+
         let req = Eip1559TransactionRequest::new()
             .from(self.from_addr)
             .to(contract_address)
             .chain_id(self.chain_id)
             .nonce(nonce)
-            .data(self.contract.get_call_data())
+            .data(contract.get_call_data())
             .gas(GAS);
 
         let typed_transaction = TypedTransaction::Eip1559(req);
@@ -339,4 +405,31 @@ impl TestClient {
 
         gas.as_u64()
     }
+
+    /// params is a tuple of (fromBlock, toBlock, address, topics, blockHash)
+    /// any of these params are optional
+    pub(crate) async fn eth_get_logs<P>(&self, params: P) -> Vec<LogResponse>
+    where
+        P: serde::Serialize,
+    {
+        let rpc_params = rpc_params!(params);
+        let eth_logs: Vec<LogResponse> = self
+            .http_client
+            .request("eth_getLogs", rpc_params)
+            .await
+            .unwrap();
+        eth_logs
+    }
 }
+
+#[derive(serde::Serialize, serde::Deserialize, Debug)]
+pub struct GetLogsParams {
+    pub(crate) fromBlock: Option<String>,
+    pub(crate) toBlock: Option<String>,
+    pub(crate) address: Option<Address>,
+    pub(crate) topics: Option<Vec<Bytes>>,
+    pub(crate) blockHash: Option<Vec<Bytes>>,
+}
+
+#[derive(Clone, serde::Serialize, serde::Deserialize, Debug)]
+pub struct EmptyStruct {}

@@ -6,7 +6,7 @@ use std::str::FromStr;
 use demo_stf::genesis_config::GenesisPaths;
 use ethers_core::abi::Address;
 use ethers_signers::{LocalWallet, Signer};
-use sov_evm::SimpleStorageContract;
+use sov_evm::{SimpleStorageContract, TestContract};
 use test_client::TestClient;
 
 use crate::test_helpers::start_rollup;
@@ -44,7 +44,8 @@ async fn send_tx_test_to_eth(rpc_address: SocketAddr) -> Result<(), Box<dyn std:
 
     let from_addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
 
-    let test_client = TestClient::new(chain_id, key, from_addr, contract, rpc_address).await;
+    let test_client =
+        Box::new(TestClient::new(chain_id, key, from_addr, contract, rpc_address).await);
 
     let etc_accounts = test_client.eth_accounts().await;
     assert_eq!(vec![from_addr], etc_accounts);
@@ -66,7 +67,141 @@ async fn send_tx_test_to_eth(rpc_address: SocketAddr) -> Result<(), Box<dyn std:
     execute(&test_client).await
 }
 
-async fn execute(client: &TestClient) -> Result<(), Box<dyn std::error::Error>> {
+#[cfg(feature = "experimental")]
+#[tokio::test]
+async fn test_eth_get_logs() -> Result<(), anyhow::Error> {
+    use sov_evm::LogsContract;
+
+    let (port_tx, port_rx) = tokio::sync::oneshot::channel();
+
+    let rollup_task = tokio::spawn(async {
+        // Don't provide a prover since the EVM is not currently provable
+        start_rollup(
+            port_tx,
+            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
+            None,
+        )
+        .await;
+    });
+
+    // Wait for rollup task to start:
+    let port = port_rx.await.unwrap();
+
+    let chain_id: u64 = 1;
+    let key = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+        .parse::<LocalWallet>()
+        .unwrap()
+        .with_chain_id(chain_id);
+
+    let contract = LogsContract::default();
+
+    let from_addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
+
+    let test_client = Box::new(TestClient::new(chain_id, key, from_addr, contract, port).await);
+
+    let etc_accounts = test_client.eth_accounts().await;
+    assert_eq!(vec![from_addr], etc_accounts);
+
+    let eth_chain_id = test_client.eth_chain_id().await;
+    assert_eq!(chain_id, eth_chain_id);
+
+    // No block exists yet
+    let latest_block = test_client
+        .eth_get_block_by_number(Some("latest".to_owned()))
+        .await;
+    let earliest_block = test_client
+        .eth_get_block_by_number(Some("earliest".to_owned()))
+        .await;
+
+    assert_eq!(latest_block, earliest_block);
+    assert_eq!(latest_block.number.unwrap().as_u64(), 0);
+    test_getlogs(&test_client).await.unwrap();
+
+    rollup_task.abort();
+    Ok(())
+}
+
+async fn test_getlogs<T: TestContract>(
+    client: &Box<TestClient<T>>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let (contract_address, runtime_code) = {
+        let runtime_code = client.deploy_contract_call().await?;
+
+        let deploy_contract_req = client.deploy_contract().await?;
+        client.send_publish_batch_request().await;
+
+        let contract_address = deploy_contract_req
+            .await?
+            .unwrap()
+            .contract_address
+            .unwrap();
+
+        (contract_address, runtime_code)
+    };
+
+    // Assert contract deployed correctly
+    let code = client.eth_get_code(contract_address).await;
+    // code has natural following 0x00 bytes, so we need to trim it
+    assert_eq!(code.to_vec()[..runtime_code.len()], runtime_code.to_vec());
+
+    // Nonce should be 1 after the deploy
+    let nonce = client.eth_get_transaction_count(client.from_addr).await;
+    assert_eq!(1, nonce);
+    let pt = client
+        .call_logs_contract(contract_address, "hello".to_string())
+        .await;
+    client.send_publish_batch_request().await;
+
+    let empty_filter = serde_json::json!({});
+    // supposed to get all the logs
+    let logs = client.eth_get_logs(empty_filter).await;
+
+    assert_eq!(logs.len(), 2);
+
+    let one_topic_filter = serde_json::json!({
+        "topics": [
+            "0xa9943ee9804b5d456d8ad7b3b1b975a5aefa607e16d13936959976e776c4bec7"
+        ]
+    });
+    // supposed to get the first log only
+    let logs = client.eth_get_logs(one_topic_filter).await;
+
+    assert_eq!(logs.len(), 1);
+
+    let just_address_filter = serde_json::json!({
+        "address": contract_address
+    });
+    let logs = client.eth_get_logs(just_address_filter).await;
+    // supposed to get both the logs coming from the contract
+    assert_eq!(logs.len(), 2);
+
+    /*
+     the fkin logs: [LogResponse { address: 0x5fbdb2315678afecb367f032d93f642f64180aa3,
+     topics: [0xa9943ee9804b5d456d8ad7b3b1b975a5aefa607e16d13936959976e776c4bec7,
+     0x000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266, 0x0000000000000000000000005fbdb2315678afecb367f032d93f642f64180aa3
+     , 0xc2baf6c66618acd49fb133cebc22f55bd907fe9f0d69a726d45b7539ba6bbe08], data: b"\0\0\
+     0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0 \0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0
+     \0\0\0\0\0\0\0\0\0\0\0\0\0\x0cHello World!\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0",
+     block_hash: Some(0xa185e6aa2f4d87407dfdf4879c7ea851cfde7c619e453c2b5a6729677cb9b1b6),
+     block_number: Some(0x0000000000000000000000000000000000000000000000000000000000000002_U256),
+     transaction_hash: Some(0x4e7350e9305c219ebc885de75e7440a4cf0ab87b842564ca70ae02abf17c611e),
+     transaction_index: Some(0x0000000000000000000000000000000000000000000000000000000000000001_U256),
+     log_index: Some(0x0_U256), removed: false },
+     LogResponse { address: 0x5fbdb2315678afecb367f032d93f642f64180aa3,
+     topics: [0xf16dfb875e436384c298237e04527f538a5eb71f60593cfbaae1ff23250d22a9,
+     0x0000000000000000000000005fbdb2315678afecb367f032d93f642f64180aa3],
+     data: b"", block_hash: Some(0xa185e6aa2f4d87407dfdf4879c7ea851cfde7c619e453c2b5a6729677cb9b1b6),
+     block_number: Some(0x0000000000000000000000000000000000000000000000000000000000000002_U256),
+      transaction_hash: Some(0x4e7350e9305c219ebc885de75e7440a4cf0ab87b842564ca70ae02abf17c611e),
+      transaction_index: Some(0x0000000000000000000000000000000000000000000000000000000000000001_U256),
+     log_index: Some(0x0000000000000000000000000000000000000000000000000000000000000001_U256), removed: false }]
+    */
+    Ok(())
+}
+
+async fn execute<T: TestContract>(
+    client: &Box<TestClient<T>>,
+) -> Result<(), Box<dyn std::error::Error>> {
     // Nonce should be 0 in genesis
     let nonce = client.eth_get_transaction_count(client.from_addr).await;
     assert_eq!(0, nonce);
