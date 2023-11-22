@@ -22,6 +22,7 @@ pub use query::*;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sov_modules_api::da::Time;
+use sov_modules_api::prelude::*;
 use sov_modules_api::{DaSpec, Error, ModuleInfo, ValidityConditionChecker, WorkingSet};
 use sov_state::codec::BcsCodec;
 use sov_state::Storage;
@@ -206,6 +207,15 @@ impl<C: sov_modules_api::Context, Da: sov_modules_api::DaSpec> sov_modules_api::
     type CallMessage = ();
 
     type Event = ();
+
+    fn call(
+        &self,
+        _msg: Self::CallMessage,
+        _context: &Self::Context,
+        _working_set: &mut WorkingSet<C>,
+    ) -> Result<sov_modules_api::CallResponse, Error> {
+        Ok(sov_modules_api::CallResponse {})
+    }
 
     fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<C>) -> Result<(), Error> {
         // The initialization logic

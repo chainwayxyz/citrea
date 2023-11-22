@@ -42,12 +42,12 @@ use sov_chain_state::{ChainStateRpcImpl, ChainStateRpcServer};
 #[cfg(feature = "native")]
 #[cfg(feature = "experimental")]
 use sov_evm::{EvmRpcImpl, EvmRpcServer};
-use sov_modules_api::capabilities::{BlobRefOrOwned, BlobSelector};
 #[cfg(feature = "native")]
 pub use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::macros::DefaultRuntime;
 #[cfg(feature = "native")]
 use sov_modules_api::macros::{expose_rpc, CliWallet};
+use sov_modules_api::runtime::capabilities::{BlobRefOrOwned, BlobSelector};
 #[cfg(feature = "native")]
 use sov_modules_api::Spec;
 use sov_modules_api::{Context, DispatchCall, Genesis, MessageCodec};
@@ -90,7 +90,7 @@ pub struct Runtime<C: Context, Da: DaSpec> {
     pub evm: sov_evm::Evm<C>,
 }
 
-impl<C, Da> sov_modules_stf_template::Runtime<C, Da> for Runtime<C, Da>
+impl<C, Da> sov_modules_stf_blueprint::Runtime<C, Da> for Runtime<C, Da>
 where
     C: Context,
     Da: DaSpec,
