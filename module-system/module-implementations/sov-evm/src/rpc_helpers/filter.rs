@@ -1,6 +1,8 @@
-use std::collections::HashSet;
 use std::hash::Hash;
+use std::ops::RangeInclusive;
+use std::{collections::HashSet, iter::StepBy};
 
+use alloy_primitives::{Bloom, BloomInput};
 use itertools::{EitherOrBoth::*, Itertools};
 use reth_primitives::{Address, BlockHash, H256};
 use revm::primitives::B256;
@@ -9,6 +11,27 @@ use serde::{
     ser::SerializeStruct,
     Deserialize, Deserializer, Serialize, Serializer,
 };
+
+use crate::evm::error::result::rpc_error_with_code;
+
+/// Helper type to represent a bloom filter used for matching logs.
+#[derive(Default, Debug)]
+pub struct BloomFilter(Vec<Bloom>);
+
+impl From<Vec<Bloom>> for BloomFilter {
+    fn from(src: Vec<Bloom>) -> Self {
+        BloomFilter(src)
+    }
+}
+
+impl BloomFilter {
+    /// Returns whether the given bloom matches the list of Blooms in the current filter.
+    /// If the filter is empty (the list is empty), then any bloom matches
+    /// Otherwise, there must be at least one matche for the BloomFilter to match.
+    pub fn matches(&self, bloom: Bloom) -> bool {
+        self.0.is_empty() || self.0.iter().any(|a| bloom.contains(a))
+    }
+}
 
 #[derive(Default, Debug, PartialEq, Eq, Clone, serde::Deserialize, serde::Serialize)]
 /// FilterSet is a set of values that will be used to filter logs
@@ -127,6 +150,17 @@ impl<T: Eq + Hash> FilterSet<T> {
     /// any value matches. Otherwise, the filter must include the value
     pub fn matches(&self, value: &T) -> bool {
         self.is_empty() || self.0.contains(value)
+    }
+}
+
+impl<T: AsRef<[u8]> + Eq + Hash> FilterSet<T> {
+    /// Returns a list of Bloom (BloomFilter) corresponding to the filter's values
+    pub fn to_bloom_filter(&self) -> BloomFilter {
+        self.0
+            .iter()
+            .map(|a| BloomInput::Raw(a.as_ref()).into())
+            .collect::<Vec<Bloom>>()
+            .into()
     }
 }
 
@@ -472,4 +506,121 @@ pub fn log_matches_filter(
         return false;
     }
     true
+}
+
+/// TODO: docs + discuss finalized, safe and pending
+pub fn convert_block_number(
+    num: BlockNumberOrTag,
+    start_block: u64,
+) -> Result<Option<u64>, FilterError> {
+    let num = match num {
+        BlockNumberOrTag::Latest => start_block,
+        BlockNumberOrTag::Earliest => 0,
+        // Is this okay? start_block + 1 = Latest blocks number + 1
+        BlockNumberOrTag::Pending => start_block + 1,
+        BlockNumberOrTag::Number(num) => num,
+        // TODO: Is there a better way to handle this instead of giving the latest block?
+        BlockNumberOrTag::Finalized => start_block,
+        // TODO: Is there a better way to handle this instead of giving the latest block?
+        BlockNumberOrTag::Safe => start_block,
+    };
+    Ok(Some(num))
+}
+
+/// An iterator that yields _inclusive_ block ranges of a given step size
+#[derive(Debug)]
+pub struct BlockRangeInclusiveIter {
+    iter: StepBy<RangeInclusive<u64>>,
+    step: u64,
+    end: u64,
+}
+
+impl BlockRangeInclusiveIter {
+    /// TODO: docs
+    pub fn new(range: RangeInclusive<u64>, step: u64) -> Self {
+        Self {
+            end: *range.end(),
+            iter: range.step_by(step as usize + 1),
+            step,
+        }
+    }
+}
+
+impl Iterator for BlockRangeInclusiveIter {
+    type Item = (u64, u64);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let start = self.iter.next()?;
+        let end = (start + self.step).min(self.end);
+        if start > end {
+            return None;
+        }
+        Some((start, end))
+    }
+}
+
+/// Returns `true` if the bloom matches the topics
+pub fn matches_topics(bloom: Bloom, topic_filters: &Vec<BloomFilter>) -> bool {
+    if topic_filters.is_empty() {
+        return true;
+    }
+
+    // for each filter, iterate through the list of filter blooms. for each set of filter
+    // (each BloomFilter), the given `bloom` must match at least one of them, unless the list is
+    // empty (no filters).
+    for filter in topic_filters.iter() {
+        if !filter.matches(bloom) {
+            return false;
+        }
+    }
+    true
+}
+
+/// Returns `true` if the bloom contains one of the address blooms, or the address blooms
+/// list is empty (thus, no filters)
+pub fn matches_address(bloom: Bloom, address_filter: &BloomFilter) -> bool {
+    address_filter.matches(bloom)
+}
+
+/// Errors that can occur in the handler implementation
+#[derive(Debug, thiserror::Error)]
+pub enum FilterError {
+    // #[error("filter not found")]
+    // FilterNotFound(FilterId),
+    /// TODO
+    #[error("query exceeds max block range {0}")]
+    QueryExceedsMaxBlocks(u64),
+    /// TODO
+    #[error("query exceeds max results {0}")]
+    QueryExceedsMaxResults(usize),
+    // #[error(transparent)]
+    // EthAPIError(#[from] EthApiError),
+    /// Error thrown when a spawned task failed to deliver a response.
+    #[error("internal filter error")]
+    InternalError,
+}
+
+// convert the error
+impl From<FilterError> for jsonrpsee::types::error::ErrorObject<'static> {
+    fn from(err: FilterError) -> Self {
+        match err {
+            // FilterError::FilterNotFound(_) => rpc_error_with_code(
+            //     jsonrpsee::types::error::INVALID_PARAMS_CODE,
+            //     "filter not found",
+            // ),
+            err @ FilterError::InternalError => rpc_error_with_code(
+                jsonrpsee::types::error::INTERNAL_ERROR_CODE,
+                err.to_string(),
+            ),
+            // FilterError::EthAPIError(err) => err.into(),
+            err @ FilterError::QueryExceedsMaxBlocks(_) => rpc_error_with_code(
+                jsonrpsee::types::error::INVALID_PARAMS_CODE,
+                err.to_string(),
+            ),
+            err @ FilterError::QueryExceedsMaxResults(_) => rpc_error_with_code(
+                jsonrpsee::types::error::INVALID_PARAMS_CODE,
+                err.to_string(),
+            ),
+        }
+    }
 }
