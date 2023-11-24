@@ -13,6 +13,14 @@ use serde::{
 };
 
 use crate::evm::error::result::rpc_error_with_code;
+use crate::evm::error::rpc::EthApiError;
+
+/// The maximum number of blocks that can be queried in a single eth_getLogs request.
+pub const DEFAULT_MAX_BLOCKS_PER_FILTER: u64 = 100_000;
+/// The maximum number of logs that can be returned in a single eth_getLogs response.
+pub const DEFAULT_MAX_LOGS_PER_RESPONSE: usize = 20_000;
+/// The maximum number of headers we read at once when handling a range filter.
+pub const MAX_HEADERS_RANGE: u64 = 1_000; // with ~530bytes? per header this is ~500kb?
 
 /// Helper type to represent a bloom filter used for matching logs.
 #[derive(Default, Debug)]
@@ -82,6 +90,24 @@ impl Default for FilterBlockOption {
         FilterBlockOption::Range {
             from_block: None,
             to_block: None,
+        }
+    }
+}
+
+impl FilterBlockOption {
+    /// Returns the `fromBlock` value, if any
+    pub fn get_to_block(&self) -> Option<&BlockNumberOrTag> {
+        match self {
+            FilterBlockOption::Range { to_block, .. } => to_block.as_ref(),
+            FilterBlockOption::AtBlockHash(_) => None,
+        }
+    }
+
+    /// Returns the `toBlock` value, if any
+    pub fn get_from_block(&self) -> Option<&BlockNumberOrTag> {
+        match self {
+            FilterBlockOption::Range { from_block, .. } => from_block.as_ref(),
+            FilterBlockOption::AtBlockHash(_) => None,
         }
     }
 }
@@ -231,8 +257,29 @@ impl Filter {
     }
 
     /// TODO: Implement after deciding on what to do with archival nodes
-    pub fn filter_block_range(&self) -> bool {
-        true
+    pub fn filter_block_range(&self, block_number: &u64) -> bool {
+        let mut res = true;
+
+        if let Some(BlockNumberOrTag::Number(num)) = self.block_option.get_from_block() {
+            if num > block_number {
+                res = false;
+            }
+        }
+
+        if let Some(to) = self.block_option.get_to_block() {
+            match to {
+                BlockNumberOrTag::Number(num) => {
+                    if num < block_number {
+                        res = false;
+                    }
+                }
+                BlockNumberOrTag::Earliest => {
+                    res = false;
+                }
+                _ => {}
+            }
+        }
+        res
     }
 
     /// Checks if the given filter block hash matches the block hash of the log
@@ -492,13 +539,14 @@ where
 }
 
 /// Returns true if the log matches the filter and should be included
-pub fn log_matches_filter(
+pub(crate) fn log_matches_filter(
     log: &reth_primitives::Log,
     filter: &Filter,
     topics: &[FilterSet<B256>; 4],
     block_hash: &BlockHash,
+    block_number: &u64,
 ) -> bool {
-    if !filter.filter_block_range()
+    if !filter.filter_block_range(block_number)
         || !filter.filter_block_hash(block_hash)
         || !filter.filter_topics(&log, topics)
         || !filter.filter_address(&log, &filter.address)
@@ -587,14 +635,15 @@ pub fn matches_address(bloom: Bloom, address_filter: &BloomFilter) -> bool {
 pub enum FilterError {
     // #[error("filter not found")]
     // FilterNotFound(FilterId),
-    /// TODO
+    /// There is a maximum number of blocks that can be queried in a single eth_getLogs request.
     #[error("query exceeds max block range {0}")]
     QueryExceedsMaxBlocks(u64),
-    /// TODO
+    /// There is a maximum number of logs that can be returned in a single eth_getLogs response.
     #[error("query exceeds max results {0}")]
     QueryExceedsMaxResults(usize),
-    // #[error(transparent)]
-    // EthAPIError(#[from] EthApiError),
+    /// Error thrown when the eth api returns an error
+    #[error(transparent)]
+    EthAPIError(#[from] EthApiError),
     /// Error thrown when a spawned task failed to deliver a response.
     #[error("internal filter error")]
     InternalError,
@@ -612,7 +661,7 @@ impl From<FilterError> for jsonrpsee::types::error::ErrorObject<'static> {
                 jsonrpsee::types::error::INTERNAL_ERROR_CODE,
                 err.to_string(),
             ),
-            // FilterError::EthAPIError(err) => err.into(),
+            FilterError::EthAPIError(err) => err.into(),
             err @ FilterError::QueryExceedsMaxBlocks(_) => rpc_error_with_code(
                 jsonrpsee::types::error::INVALID_PARAMS_CODE,
                 err.to_string(),

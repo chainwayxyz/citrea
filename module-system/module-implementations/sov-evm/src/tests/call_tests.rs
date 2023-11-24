@@ -567,10 +567,9 @@ fn log_filter_test_with_range() {
         topics: empty_topics.clone(),
     };
 
-    // let rpc_logs = evm.eth_get_logs(filter, &mut working_set).unwrap();
+    let rpc_logs = evm.eth_get_logs(filter, &mut working_set).unwrap();
 
-    // println!("rpc_logs: {:?}", rpc_logs);
-    // assert_eq!(rpc_logs.len(), 4);
+    assert_eq!(rpc_logs.len(), 4);
 
     evm.begin_slot_hook([5u8; 32], &[99u8; 32].into(), &mut working_set);
     {
@@ -599,6 +598,100 @@ fn log_filter_test_with_range() {
     let rpc_logs = evm.eth_get_logs(filter, &mut working_set).unwrap();
     // In the last block we have 2 logs
     assert_eq!(rpc_logs.len(), 2);
+}
+
+#[test]
+fn test_log_limits() {
+    let signer_balance: u64 = 10000000000000000;
+
+    let dev_signer: TestSigner = TestSigner::new_random();
+
+    let contract_addr: Address = Address::from_slice(
+        hex::decode("819c5497b157177315e1204f52e588b393771719")
+            .unwrap()
+            .as_slice(),
+    );
+    let config = EvmConfig {
+        data: vec![AccountData {
+            address: dev_signer.address(),
+            balance: U256::from(signer_balance),
+            code_hash: KECCAK_EMPTY,
+            code: Bytes::default(),
+            nonce: 0,
+        }],
+        spec: vec![(0, SpecId::SHANGHAI)].into_iter().collect(),
+        ..Default::default()
+    };
+
+    let (evm, mut working_set) = get_evm(&config);
+
+    evm.begin_slot_hook([5u8; 32], &[10u8; 32].into(), &mut working_set);
+    {
+        let sender_address = generate_address::<C>("sender");
+        let context = C::new(sender_address);
+
+        // deploy selfdestruct contract
+        evm.call(
+            create_contract_message(&dev_signer, 0, LogsContract::default()),
+            &context,
+            &mut working_set,
+        )
+        .unwrap();
+
+        // call the contracts 10_001 times so we got 20_002 logs (response limit is 20_000)
+
+        for i in 0..10001 {
+            evm.call(
+                publish_event_message(contract_addr, &dev_signer, i + 1, "hello".to_string()),
+                &context,
+                &mut working_set,
+            )
+            .unwrap();
+        }
+    }
+    evm.end_slot_hook(&mut working_set);
+    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+
+    // Test with block range from start to finish, should get all logs
+    let empty_topics = [
+        FilterSet::default(),
+        FilterSet::default(),
+        FilterSet::default(),
+        FilterSet::default(),
+    ];
+    let filter = Filter {
+        block_option: crate::FilterBlockOption::Range {
+            from_block: Some(BlockNumberOrTag::Earliest),
+            to_block: Some(BlockNumberOrTag::Latest),
+        },
+        address: FilterSet::default(),
+        topics: empty_topics.clone(),
+    };
+
+    let rpc_logs = evm.eth_get_logs(filter, &mut working_set);
+
+    assert!(rpc_logs.is_err());
+
+    // Test with block range from start to finish, should get all logs
+    let empty_topics = [
+        FilterSet::default(),
+        FilterSet::default(),
+        FilterSet::default(),
+        FilterSet::default(),
+    ];
+    // The range is greater than the default max blocks to be scanned (100_001 > 100_000)
+    let filter = Filter {
+        block_option: crate::FilterBlockOption::Range {
+            from_block: Some(BlockNumberOrTag::Number(0)),
+            to_block: Some(BlockNumberOrTag::Number(100_000)),
+        },
+        address: FilterSet::default(),
+        topics: empty_topics.clone(),
+    };
+
+    let rpc_logs = evm.eth_get_logs(filter, &mut working_set);
+
+    assert!(rpc_logs.is_err());
 }
 
 fn create_contract_message<T: TestContract>(

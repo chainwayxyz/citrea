@@ -11,18 +11,16 @@ use revm::primitives::{
 use sov_modules_api::macros::rpc_gen;
 use sov_modules_api::WorkingSet;
 use tracing::info;
-
+// import provider error:
 use crate::call::get_cfg_env;
-use crate::error::rpc::{ensure_success, RevertError, RpcInvalidTransactionError};
+use crate::error::rpc::{ensure_success, EthApiError, RevertError, RpcInvalidTransactionError};
 use crate::evm::db::EvmDb;
 use crate::evm::primitive_types::{BlockEnv, Receipt, SealedBlock, TransactionSignedAndRecovered};
 use crate::evm::{executor, prepare_call_env};
 use crate::experimental::{MIN_CREATE_GAS, MIN_TRANSACTION_GAS};
-use crate::rpc_helpers::{
-    convert_block_number, get_filter_block_range, log_matches_filter, matches_address,
-    matches_topics, BlockRangeInclusiveIter, Filter, LogResponse,
-};
-use crate::{BloomFilter, EthApiError, Evm, FilterBlockOption, FilterError};
+use crate::rpc_helpers::*;
+use crate::{BloomFilter, Evm, FilterBlockOption, FilterError};
+use reth_interfaces::provider::ProviderError;
 
 #[rpc_gen(client, server)]
 impl<C: sov_modules_api::Context> Evm<C> {
@@ -579,19 +577,31 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 let block_number = self
                     .block_hashes
                     .get(&block_hash, &mut working_set.accessory_state());
+                if block_number.is_none() {
+                    return Err(FilterError::EthAPIError(
+                        ProviderError::BlockHashNotFound(block_hash).into(),
+                    ));
+                }
 
-                let block = self
-                    .blocks
-                    .get(
-                        block_number.unwrap() as usize,
-                        &mut working_set.accessory_state(),
-                    )
-                    .unwrap();
+                let block = self.blocks.get(
+                    block_number.unwrap() as usize,
+                    &mut working_set.accessory_state(),
+                );
+                if block.is_none() {
+                    return Err(FilterError::EthAPIError(
+                        ProviderError::BlockBodyIndicesNotFound(block_number.unwrap()).into(),
+                    ));
+                }
 
                 // all of the logs we have in the block
                 let mut all_logs: Vec<LogResponse> = Vec::new();
 
-                self.append_matching_block_logs(working_set, &mut all_logs, &filter, block);
+                self.append_matching_block_logs(
+                    working_set,
+                    &mut all_logs,
+                    &filter,
+                    block.unwrap(),
+                );
 
                 Ok(all_logs)
             }
@@ -638,9 +648,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         from_block_number: u64,
         to_block_number: u64,
     ) -> Result<Vec<LogResponse>, FilterError> {
-        //  fn get_logs_in_block_range() {}
-        // TODO: Update with constants
-        let max_blocks_per_filter: u64 = 100_000;
+        let max_blocks_per_filter: u64 = DEFAULT_MAX_BLOCKS_PER_FILTER;
         if to_block_number - from_block_number > max_blocks_per_filter {
             return Err(FilterError::QueryExceedsMaxBlocks(max_blocks_per_filter));
         }
@@ -651,8 +659,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let topics_filter: Vec<BloomFilter> =
             filter.topics.iter().map(|t| t.to_bloom_filter()).collect();
 
-        // TODO: Update with constants
-        let max_headers_range = 1_000;
+        let max_headers_range = MAX_HEADERS_RANGE;
 
         // loop over the range of new blocks and check logs if the filter matches the log's bloom
         // filter
@@ -660,16 +667,17 @@ impl<C: sov_modules_api::Context> Evm<C> {
             BlockRangeInclusiveIter::new(from_block_number..=to_block_number, max_headers_range)
         {
             for idx in from..=to {
-                let block = self
-                    .blocks
-                    .get(
-                        // Index from +1 or just from?
-                        (idx) as usize,
-                        &mut working_set.accessory_state(),
-                    )
-                    // todo: do not unwrap
-                    .unwrap();
-
+                let block = self.blocks.get(
+                    // Index from +1 or just from?
+                    (idx) as usize,
+                    &mut working_set.accessory_state(),
+                );
+                if block.is_none() {
+                    return Err(FilterError::EthAPIError(
+                        ProviderError::BlockBodyIndicesNotFound(idx).into(),
+                    ));
+                }
+                let block = block.unwrap();
                 let logs_bloom = block.header.logs_bloom;
 
                 let alloy_logs_bloom = alloy_primitives::Bloom::from(logs_bloom.data());
@@ -678,10 +686,9 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     && matches_topics(alloy_logs_bloom, &topics_filter)
                 {
                     self.append_matching_block_logs(working_set, &mut all_logs, &filter, block);
-                    let max_logs_per_response = 20_000;
+                    let max_logs_per_response = DEFAULT_MAX_LOGS_PER_RESPONSE;
                     // size check but only if range is multiple blocks, so we always return all
                     // logs of a single block
-                    // TODO: Use constants
                     let is_multi_block_range = from_block_number != to_block_number;
                     if is_multi_block_range && all_logs.len() > max_logs_per_response {
                         return Err(FilterError::QueryExceedsMaxResults(max_logs_per_response));
@@ -721,7 +728,13 @@ impl<C: sov_modules_api::Context> Evm<C> {
             let logs = receipt.receipt.logs;
 
             for log in logs.into_iter() {
-                if log_matches_filter(&log, &filter, &topics, &block.header.hash) {
+                if log_matches_filter(
+                    &log,
+                    &filter,
+                    &topics,
+                    &block.header.hash,
+                    &block.header.number,
+                ) {
                     let log = LogResponse {
                         address: log.address,
                         topics: log.topics,
