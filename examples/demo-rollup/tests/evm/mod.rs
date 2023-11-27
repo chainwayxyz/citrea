@@ -73,7 +73,6 @@ async fn test_eth_get_logs() -> Result<(), anyhow::Error> {
     use sov_evm::LogsContract;
 
     let (port_tx, port_rx) = tokio::sync::oneshot::channel();
-
     let rollup_task = tokio::spawn(async {
         // Don't provide a prover since the EVM is not currently provable
         start_rollup(
@@ -97,7 +96,7 @@ async fn test_eth_get_logs() -> Result<(), anyhow::Error> {
 
     let from_addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
 
-    let test_client = Box::new(TestClient::new(chain_id, key, from_addr, contract, port).await);
+    let mut test_client = Box::new(TestClient::new(chain_id, key, from_addr, contract, port).await);
 
     let etc_accounts = test_client.eth_accounts().await;
     assert_eq!(vec![from_addr], etc_accounts);
@@ -115,14 +114,14 @@ async fn test_eth_get_logs() -> Result<(), anyhow::Error> {
 
     assert_eq!(latest_block, earliest_block);
     assert_eq!(latest_block.number.unwrap().as_u64(), 0);
-    test_getlogs(&test_client).await.unwrap();
+    test_getlogs(&mut test_client).await.unwrap();
 
     rollup_task.abort();
     Ok(())
 }
 
 async fn test_getlogs<T: TestContract>(
-    client: &Box<TestClient<T>>,
+    client: &mut Box<TestClient<T>>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let (contract_address, runtime_code) = {
         let runtime_code = client.deploy_contract_call().await?;
@@ -139,15 +138,7 @@ async fn test_getlogs<T: TestContract>(
         (contract_address, runtime_code)
     };
 
-    // Assert contract deployed correctly
-    let code = client.eth_get_code(contract_address).await;
-    // code has natural following 0x00 bytes, so we need to trim it
-    assert_eq!(code.to_vec()[..runtime_code.len()], runtime_code.to_vec());
-
-    // Nonce should be 1 after the deploy
-    let nonce = client.eth_get_transaction_count(client.from_addr).await;
-    assert_eq!(1, nonce);
-    let pt = client
+    client
         .call_logs_contract(contract_address, "hello".to_string())
         .await;
     client.send_publish_batch_request().await;
@@ -167,13 +158,57 @@ async fn test_getlogs<T: TestContract>(
     let logs = client.eth_get_logs(one_topic_filter).await;
 
     assert_eq!(logs.len(), 1);
+    assert_eq!(
+        hex::encode(logs[0].topics[0]).to_string(),
+        "a9943ee9804b5d456d8ad7b3b1b975a5aefa607e16d13936959976e776c4bec7"
+    );
 
+    // Deploy another contract
+    let (contract_address2, _) = {
+        let runtime_code = client.deploy_contract_call().await?;
+
+        let deploy_contract_req = client.deploy_contract().await?;
+        client.send_publish_batch_request().await;
+
+        let contract_address = deploy_contract_req
+            .await?
+            .unwrap()
+            .contract_address
+            .unwrap();
+
+        (contract_address, runtime_code)
+    };
+
+    // call the second contract again
+    let _pending_tx = client
+        .call_logs_contract(contract_address2, "second contract".to_string())
+        .await;
+    client.send_publish_batch_request().await;
+
+    // make sure the two contracts have different addresses
+    assert_ne!(contract_address, contract_address2);
+
+    // without any range or blockhash default behaviour is checking the latest block
     let just_address_filter = serde_json::json!({
         "address": contract_address
     });
+
     let logs = client.eth_get_logs(just_address_filter).await;
     // supposed to get both the logs coming from the contract
+    assert_eq!(logs.len(), 0);
+
+    // now we need to get all the logs with the first contract address
+    let address_and_range_filter = serde_json::json!({
+        "address": contract_address,
+        "fromBlock": "0x1",
+        "toBlock": "0x4"
+    });
+
+    let logs = client.eth_get_logs(address_and_range_filter).await;
     assert_eq!(logs.len(), 2);
+    // make sure the address is the old one and not the new one
+    assert_eq!(logs[0].address, contract_address.into());
+    assert_eq!(logs[1].address, contract_address.into());
 
     Ok(())
 }

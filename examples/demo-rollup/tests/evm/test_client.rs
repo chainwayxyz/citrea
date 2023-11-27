@@ -63,10 +63,11 @@ impl<T: TestContract> TestClient<T> {
     pub(crate) async fn deploy_contract(
         &self,
     ) -> Result<PendingTransaction<'_, Http>, Box<dyn std::error::Error>> {
+        let nonce = self.eth_get_transaction_count(self.from_addr).await;
         let req = Eip1559TransactionRequest::new()
             .from(self.from_addr)
             .chain_id(self.chain_id)
-            .nonce(0u64)
+            .nonce(nonce)
             .max_priority_fee_per_gas(10u64)
             .max_fee_per_gas(MAX_FEE_PER_GAS)
             .gas(GAS)
@@ -83,10 +84,11 @@ impl<T: TestContract> TestClient<T> {
     }
 
     pub(crate) async fn deploy_contract_call(&self) -> Result<Bytes, Box<dyn std::error::Error>> {
+        let nonce = self.eth_get_transaction_count(self.from_addr).await;
         let req = Eip1559TransactionRequest::new()
             .from(self.from_addr)
             .chain_id(self.chain_id)
-            .nonce(0u64)
+            .nonce(nonce)
             .max_priority_fee_per_gas(10u64)
             .max_fee_per_gas(MAX_FEE_PER_GAS)
             .gas(GAS)
@@ -421,15 +423,3 @@ impl<T: TestContract> TestClient<T> {
         eth_logs
     }
 }
-
-#[derive(serde::Serialize, serde::Deserialize, Debug)]
-pub struct GetLogsParams {
-    pub(crate) fromBlock: Option<String>,
-    pub(crate) toBlock: Option<String>,
-    pub(crate) address: Option<Address>,
-    pub(crate) topics: Option<Vec<Bytes>>,
-    pub(crate) blockHash: Option<Vec<Bytes>>,
-}
-
-#[derive(Clone, serde::Serialize, serde::Deserialize, Debug)]
-pub struct EmptyStruct {}

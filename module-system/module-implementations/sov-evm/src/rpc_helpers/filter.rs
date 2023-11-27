@@ -1,8 +1,9 @@
 use std::hash::Hash;
 use std::ops::RangeInclusive;
+use std::ops::{Range, RangeFrom, RangeTo};
 use std::{collections::HashSet, iter::StepBy};
 
-use alloy_primitives::{Bloom, BloomInput};
+use alloy_primitives::{Bloom, BloomInput, U64};
 use itertools::{EitherOrBoth::*, Itertools};
 use reth_primitives::{Address, BlockHash, H256};
 use revm::primitives::B256;
@@ -14,6 +15,7 @@ use serde::{
 
 use crate::evm::error::result::rpc_error_with_code;
 use crate::evm::error::rpc::EthApiError;
+use crate::BlockNumberOrTag;
 
 /// The maximum number of blocks that can be queried in a single eth_getLogs request.
 pub const DEFAULT_MAX_BLOCKS_PER_FILTER: u64 = 100_000;
@@ -48,26 +50,6 @@ pub struct FilterSet<T: Eq + Hash>(pub HashSet<T>);
 /// A single topic
 /// Which is a set of topics
 pub type Topic = FilterSet<H256>;
-
-/// A block Number (or tag - "latest", "earliest", "pending")
-#[derive(
-    Copy, Clone, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize,
-)]
-pub enum BlockNumberOrTag {
-    /// Latest block
-    #[default]
-    Latest,
-    /// Finalized block accepted as canonical
-    Finalized,
-    /// Safe head block
-    Safe,
-    /// Earliest block (genesis)
-    Earliest,
-    /// Pending block (not yet part of the blockchain)
-    Pending,
-    /// Block by number from canon chain
-    Number(u64),
-}
 
 /// Represents the target range of blocks for the filter
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
@@ -109,6 +91,114 @@ impl FilterBlockOption {
             FilterBlockOption::Range { from_block, .. } => from_block.as_ref(),
             FilterBlockOption::AtBlockHash(_) => None,
         }
+    }
+
+    /// Returns the range (`fromBlock`, `toBlock`) if this is a range filter.
+    pub fn as_range(&self) -> (Option<&BlockNumberOrTag>, Option<&BlockNumberOrTag>) {
+        match self {
+            FilterBlockOption::Range {
+                from_block,
+                to_block,
+            } => (from_block.as_ref(), to_block.as_ref()),
+            FilterBlockOption::AtBlockHash(_) => (None, None),
+        }
+    }
+}
+
+impl From<BlockNumberOrTag> for FilterBlockOption {
+    fn from(block: BlockNumberOrTag) -> Self {
+        let block = Some(block);
+        FilterBlockOption::Range {
+            from_block: block,
+            to_block: block,
+        }
+    }
+}
+
+impl From<U64> for FilterBlockOption {
+    fn from(block: U64) -> Self {
+        BlockNumberOrTag::from(block).into()
+    }
+}
+
+impl From<u64> for FilterBlockOption {
+    fn from(block: u64) -> Self {
+        BlockNumberOrTag::from(block).into()
+    }
+}
+
+impl<T: Into<BlockNumberOrTag>> From<Range<T>> for FilterBlockOption {
+    fn from(r: Range<T>) -> Self {
+        let from_block = Some(r.start.into());
+        let to_block = Some(r.end.into());
+        FilterBlockOption::Range {
+            from_block,
+            to_block,
+        }
+    }
+}
+
+impl<T: Into<BlockNumberOrTag>> From<RangeTo<T>> for FilterBlockOption {
+    fn from(r: RangeTo<T>) -> Self {
+        let to_block = Some(r.end.into());
+        FilterBlockOption::Range {
+            from_block: Some(BlockNumberOrTag::Earliest),
+            to_block,
+        }
+    }
+}
+
+impl<T: Into<BlockNumberOrTag>> From<RangeFrom<T>> for FilterBlockOption {
+    fn from(r: RangeFrom<T>) -> Self {
+        let from_block = Some(r.start.into());
+        FilterBlockOption::Range {
+            from_block,
+            to_block: Some(BlockNumberOrTag::Latest),
+        }
+    }
+}
+
+impl From<B256> for FilterBlockOption {
+    fn from(hash: B256) -> Self {
+        FilterBlockOption::AtBlockHash(hash)
+    }
+}
+
+impl FilterBlockOption {
+    /// Sets the block number this range filter should start at.
+    #[must_use]
+    pub fn set_from_block(&self, block: BlockNumberOrTag) -> Self {
+        let to_block = if let FilterBlockOption::Range { to_block, .. } = self {
+            *to_block
+        } else {
+            None
+        };
+
+        FilterBlockOption::Range {
+            from_block: Some(block),
+            to_block,
+        }
+    }
+
+    /// Sets the block number this range filter should end at.
+    #[must_use]
+    pub fn set_to_block(&self, block: BlockNumberOrTag) -> Self {
+        let from_block = if let FilterBlockOption::Range { from_block, .. } = self {
+            *from_block
+        } else {
+            None
+        };
+
+        FilterBlockOption::Range {
+            from_block,
+            to_block: Some(block),
+        }
+    }
+
+    /// Pins the block hash this filter should target.
+    #[must_use]
+    pub fn set_hash(&self, hash: B256) -> Self {
+        FilterBlockOption::AtBlockHash(hash)
     }
 }
 
