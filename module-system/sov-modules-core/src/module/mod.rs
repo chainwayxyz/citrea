@@ -31,6 +31,9 @@ pub trait Module {
     /// Module defined argument to the call method.
     type CallMessage: Debug + BorshSerialize + BorshDeserialize;
 
+    /// Module defined argument to the call_multiple method.
+    type CallMessages: Debug + BorshSerialize + BorshDeserialize;
+
     /// Module defined event resulting from a call method.
     type Event: Debug + BorshSerialize + BorshDeserialize;
 
@@ -48,6 +51,16 @@ pub trait Module {
     fn call(
         &self,
         _message: Self::CallMessage,
+        _context: &Self::Context,
+        _working_set: &mut WorkingSet<Self::Context>,
+    ) -> Result<CallResponse, ModuleError> {
+        unreachable!()
+    }
+
+    /// Invoke state changes for multiple calls.
+    fn call_multiple(
+        &self,
+        _message: Self::CallMessages,
         _context: &Self::Context,
         _working_set: &mut WorkingSet<Self::Context>,
     ) -> Result<CallResponse, ModuleError> {

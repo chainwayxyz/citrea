@@ -144,6 +144,9 @@ where
             tx_index += 1
         }
 
+        println!("Transactions: {:?}", self.transactions.iter(&mut working_set.accessory_state()).collect::<Vec<_>>());
+        println!("Receipts: {:?}", self.receipts.iter(&mut working_set.accessory_state()).collect::<Vec<_>>());
+
         self.pending_transactions.clear(working_set);
     }
 

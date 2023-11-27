@@ -130,6 +130,8 @@ mod experimental {
 
         type CallMessage = super::call::CallMessage;
 
+        type CallMessages = super::call::CallMessages;
+
         type Event = ();
 
         fn genesis(
@@ -147,6 +149,15 @@ mod experimental {
             working_set: &mut WorkingSet<C>,
         ) -> Result<sov_modules_api::CallResponse, Error> {
             Ok(self.execute_call(msg.tx, context, working_set)?)
+        }
+
+        fn call_multiple(
+            &self,
+            msg: Self::CallMessages,
+            context: &Self::Context,
+            working_set: &mut WorkingSet<C>,
+        ) -> Result<sov_modules_api::CallResponse, Error> {
+            Ok(self.execute_call_multiple(msg, context, working_set)?)
         }
     }
 

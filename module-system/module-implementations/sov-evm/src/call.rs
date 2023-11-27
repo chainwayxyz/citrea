@@ -24,7 +24,26 @@ pub struct CallMessage {
     pub tx: RlpEvmTransaction,
 }
 
+/// Multiple EVM call messages.
+#[derive(borsh::BorshDeserialize, borsh::BorshSerialize, Debug, PartialEq, Clone)]
+pub struct CallMessages {
+    /// RLP encoded transactions.
+    pub txs: Vec<RlpEvmTransaction>,
+}
+
 impl<C: sov_modules_api::Context> Evm<C> {
+    pub(crate) fn execute_call_multiple(
+        &self,
+        call_messages: CallMessages,
+        context: &C,
+        working_set: &mut WorkingSet<C>,
+    ) -> Result<CallResponse> {
+        for call_message in call_messages.txs {
+            self.execute_call(call_message, context, working_set)?;
+        }
+        Ok(CallResponse::default())
+    }
+
     pub(crate) fn execute_call(
         &self,
         tx: RlpEvmTransaction,
