@@ -22,8 +22,7 @@ where
             .get(working_set)
             .expect("Head block should always be set");
 
-        let root_hash_bytes: [u8; 32] = pre_state_root.clone().into();
-        parent_block.header.state_root = root_hash_bytes.into();
+        parent_block.header.state_root = H256(pre_state_root.clone().into());
         self.head.set(&parent_block, working_set);
 
         let sealed_parent_block = parent_block.clone().seal();
