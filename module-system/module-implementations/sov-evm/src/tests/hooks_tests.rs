@@ -272,7 +272,7 @@ fn begin_slot_hook_appends_last_block_hashes() {
     // on block 1, only block 0 exists, so the last block hash should be the genesis hash
     // the others should not exist
     assert_eq!(
-        evm.last_block_hashes
+        evm.latest_block_hashes
             .get(&U256::from(0), &mut working_set)
             .unwrap(),
         evm.blocks
@@ -283,7 +283,7 @@ fn begin_slot_hook_appends_last_block_hashes() {
     );
 
     assert!(evm
-        .last_block_hashes
+        .latest_block_hashes
         .get(&U256::from(1), &mut working_set)
         .is_none());
 
@@ -309,7 +309,7 @@ fn begin_slot_hook_appends_last_block_hashes() {
     // which is [1, 256]
     // not 0
     assert_eq!(
-        evm.last_block_hashes
+        evm.latest_block_hashes
             .get(&U256::from(256), &mut working_set)
             .unwrap(),
         evm.blocks
@@ -320,15 +320,15 @@ fn begin_slot_hook_appends_last_block_hashes() {
     );
 
     assert!(evm
-        .last_block_hashes
+        .latest_block_hashes
         .get(&U256::from(0), &mut working_set)
         .is_none());
     assert!(evm
-        .last_block_hashes
+        .latest_block_hashes
         .get(&U256::from(257), &mut working_set)
         .is_none());
     assert!(evm
-        .last_block_hashes
+        .latest_block_hashes
         .get(&U256::from(1), &mut working_set)
         .is_some());
 }

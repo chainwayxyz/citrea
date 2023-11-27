@@ -30,7 +30,7 @@ where
         let last_block_hash = sealed_parent_block.header.hash;
 
         // since we know the previous state root only here, we can set the last block hash
-        self.last_block_hashes.set(
+        self.latest_block_hashes.set(
             &U256::from(parent_block.header.number),
             &last_block_hash,
             working_set,
@@ -57,7 +57,7 @@ where
         // then on block 258
         // remove block 1, keep blocks 2-257
         if new_pending_env.number > 256 {
-            self.last_block_hashes
+            self.latest_block_hashes
                 .remove(&U256::from(new_pending_env.number - 257), working_set);
         }
     }
