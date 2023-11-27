@@ -10,7 +10,7 @@ use crate::evm::primitive_types::Receipt;
 use crate::smart_contracts::{SelfDestructorContract, SimpleStorageContract, TestContract};
 use crate::tests::genesis_tests::get_evm;
 use crate::tests::test_signer::TestSigner;
-use crate::{AccountData, EvmConfig, CallMessages, RlpEvmTransaction};
+use crate::{AccountData, CallMessages, EvmConfig, RlpEvmTransaction};
 type C = DefaultContext;
 
 #[test]
@@ -67,15 +67,15 @@ fn call_multiple_test() {
         ];
 
         evm.call_multiple(
-            CallMessages {
-                txs: transactions,
-            },            
-            &context, 
-            &mut working_set
-        ).unwrap();
+            CallMessages { txs: transactions },
+            &context,
+            &mut working_set,
+        )
+        .unwrap();
     }
 
     evm.end_slot_hook(&mut working_set);
+    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
 
     let db_account = evm.accounts.get(&contract_addr, &mut working_set).unwrap();
     let storage_value = db_account
@@ -140,8 +140,6 @@ fn call_multiple_test() {
             }
         ]
     )
-
-
 }
 
 #[test]
@@ -185,6 +183,7 @@ fn call_test() {
         }
     }
     evm.end_slot_hook(&mut working_set);
+    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
 
     let db_account = evm.accounts.get(&contract_addr, &mut working_set).unwrap();
     let storage_value = db_account
