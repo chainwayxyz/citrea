@@ -9,60 +9,23 @@ use ethers_signers::{LocalWallet, Signer};
 use sov_evm::{SimpleStorageContract, TestContract};
 use test_client::TestClient;
 
-use crate::test_helpers::start_rollup;
+use crate::test_helpers::create_and_start_rollup;
 
 #[cfg(feature = "experimental")]
 #[tokio::test]
 async fn evm_tx_tests() -> Result<(), anyhow::Error> {
-    let (port_tx, port_rx) = tokio::sync::oneshot::channel();
+    use crate::test_helpers::create_and_start_rollup;
 
-    let rollup_task = tokio::spawn(async {
-        // Don't provide a prover since the EVM is not currently provable
-        start_rollup(
-            port_tx,
-            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
-            None,
-        )
-        .await;
-    });
-
-    // Wait for rollup task to start:
-    let port = port_rx.await.unwrap();
+    let (rollup_task, port) = create_and_start_rollup().await;
     send_tx_test_to_eth(port).await.unwrap();
     rollup_task.abort();
     Ok(())
 }
 
 async fn send_tx_test_to_eth(rpc_address: SocketAddr) -> Result<(), Box<dyn std::error::Error>> {
-    let chain_id: u64 = 1;
-    let key = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
-        .parse::<LocalWallet>()
-        .unwrap()
-        .with_chain_id(chain_id);
-
     let contract = SimpleStorageContract::default();
 
-    let from_addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
-
-    let test_client =
-        Box::new(TestClient::new(chain_id, key, from_addr, contract, rpc_address).await);
-
-    let etc_accounts = test_client.eth_accounts().await;
-    assert_eq!(vec![from_addr], etc_accounts);
-
-    let eth_chain_id = test_client.eth_chain_id().await;
-    assert_eq!(chain_id, eth_chain_id);
-
-    // No block exists yet
-    let latest_block = test_client
-        .eth_get_block_by_number(Some("latest".to_owned()))
-        .await;
-    let earliest_block = test_client
-        .eth_get_block_by_number(Some("earliest".to_owned()))
-        .await;
-
-    assert_eq!(latest_block, earliest_block);
-    assert_eq!(latest_block.number.unwrap().as_u64(), 0);
+    let test_client = init_test_rollup(rpc_address, contract).await;
 
     execute(&test_client).await
 }
@@ -72,56 +35,22 @@ async fn send_tx_test_to_eth(rpc_address: SocketAddr) -> Result<(), Box<dyn std:
 async fn test_eth_get_logs() -> Result<(), anyhow::Error> {
     use sov_evm::LogsContract;
 
-    let (port_tx, port_rx) = tokio::sync::oneshot::channel();
-    let rollup_task = tokio::spawn(async {
-        // Don't provide a prover since the EVM is not currently provable
-        start_rollup(
-            port_tx,
-            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
-            None,
-        )
-        .await;
-    });
+    use crate::test_helpers::create_and_start_rollup;
 
-    // Wait for rollup task to start:
-    let port = port_rx.await.unwrap();
-
-    let chain_id: u64 = 1;
-    let key = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
-        .parse::<LocalWallet>()
-        .unwrap()
-        .with_chain_id(chain_id);
+    let (rollup_task, port) = create_and_start_rollup().await;
 
     let contract = LogsContract::default();
 
-    let from_addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
+    let test_client = init_test_rollup(port, contract).await;
 
-    let mut test_client = Box::new(TestClient::new(chain_id, key, from_addr, contract, port).await);
-
-    let etc_accounts = test_client.eth_accounts().await;
-    assert_eq!(vec![from_addr], etc_accounts);
-
-    let eth_chain_id = test_client.eth_chain_id().await;
-    assert_eq!(chain_id, eth_chain_id);
-
-    // No block exists yet
-    let latest_block = test_client
-        .eth_get_block_by_number(Some("latest".to_owned()))
-        .await;
-    let earliest_block = test_client
-        .eth_get_block_by_number(Some("earliest".to_owned()))
-        .await;
-
-    assert_eq!(latest_block, earliest_block);
-    assert_eq!(latest_block.number.unwrap().as_u64(), 0);
-    test_getlogs(&mut test_client).await.unwrap();
+    test_getlogs(&test_client).await.unwrap();
 
     rollup_task.abort();
     Ok(())
 }
 
 async fn test_getlogs<T: TestContract>(
-    client: &mut Box<TestClient<T>>,
+    client: &Box<TestClient<T>>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let (contract_address, runtime_code) = {
         let runtime_code = client.deploy_contract_call().await?;
@@ -363,4 +292,40 @@ async fn execute<T: TestContract>(
     );
 
     Ok(())
+}
+
+pub async fn init_test_rollup<T: TestContract>(
+    rpc_address: SocketAddr,
+    contract: T,
+) -> Box<TestClient<T>> {
+    let chain_id: u64 = 1;
+    let key = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+        .parse::<LocalWallet>()
+        .unwrap()
+        .with_chain_id(chain_id);
+
+    let contract = contract.default_();
+
+    let from_addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
+
+    let test_client =
+        Box::new(TestClient::new(chain_id, key, from_addr, contract, rpc_address).await);
+
+    let etc_accounts = test_client.eth_accounts().await;
+    assert_eq!(vec![from_addr], etc_accounts);
+
+    let eth_chain_id = test_client.eth_chain_id().await;
+    assert_eq!(chain_id, eth_chain_id);
+
+    // No block exists yet
+    let latest_block = test_client
+        .eth_get_block_by_number(Some("latest".to_owned()))
+        .await;
+    let earliest_block = test_client
+        .eth_get_block_by_number(Some("earliest".to_owned()))
+        .await;
+
+    assert_eq!(latest_block, earliest_block);
+    assert_eq!(latest_block.number.unwrap().as_u64(), 0);
+    test_client
 }

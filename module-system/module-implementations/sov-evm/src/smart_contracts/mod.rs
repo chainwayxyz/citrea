@@ -31,4 +31,8 @@ pub trait TestContract {
     fn byte_code(&self) -> Bytes;
     /// Dynamically dispatch from trait.
     fn as_any(&self) -> &dyn Any;
+    /// Create the default instance of the smart contract.
+    fn default_(&self) -> Self
+    where
+        Self: Sized;
 }

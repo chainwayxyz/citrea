@@ -564,7 +564,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         filter: Filter,
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<Vec<LogResponse>> {
-        Ok(self.logs_for_filter(filter.clone(), working_set)?)
+        Ok(self.logs_for_filter(filter, working_set)?)
     }
 
     fn logs_for_filter(
