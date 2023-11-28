@@ -3,70 +3,174 @@ mod test_client;
 use std::net::SocketAddr;
 use std::str::FromStr;
 
-use demo_stf::genesis_config::GenesisPaths;
 use ethers_core::abi::Address;
 use ethers_signers::{LocalWallet, Signer};
-use sov_evm::SimpleStorageContract;
+use reqwest::Client;
+use sov_evm::{SimpleStorageContract, TestContract};
 use test_client::TestClient;
-
-use crate::test_helpers::start_rollup;
 
 #[cfg(feature = "experimental")]
 #[tokio::test]
 async fn evm_tx_tests() -> Result<(), anyhow::Error> {
-    let (port_tx, port_rx) = tokio::sync::oneshot::channel();
+    use crate::test_helpers::create_and_start_rollup;
 
-    let rollup_task = tokio::spawn(async {
-        // Don't provide a prover since the EVM is not currently provable
-        start_rollup(
-            port_tx,
-            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
-            None,
-        )
-        .await;
-    });
-
-    // Wait for rollup task to start:
-    let port = port_rx.await.unwrap();
+    let (rollup_task, port) = create_and_start_rollup().await;
     send_tx_test_to_eth(port).await.unwrap();
     rollup_task.abort();
     Ok(())
 }
 
 async fn send_tx_test_to_eth(rpc_address: SocketAddr) -> Result<(), Box<dyn std::error::Error>> {
-    let chain_id: u64 = 1;
-    let key = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
-        .parse::<LocalWallet>()
-        .unwrap()
-        .with_chain_id(chain_id);
-
     let contract = SimpleStorageContract::default();
 
-    let from_addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
-
-    let test_client = TestClient::new(chain_id, key, from_addr, contract, rpc_address).await;
-
-    let etc_accounts = test_client.eth_accounts().await;
-    assert_eq!(vec![from_addr], etc_accounts);
-
-    let eth_chain_id = test_client.eth_chain_id().await;
-    assert_eq!(chain_id, eth_chain_id);
-
-    // No block exists yet
-    let latest_block = test_client
-        .eth_get_block_by_number(Some("latest".to_owned()))
-        .await;
-    let earliest_block = test_client
-        .eth_get_block_by_number(Some("earliest".to_owned()))
-        .await;
-
-    assert_eq!(latest_block, earliest_block);
-    assert_eq!(latest_block.number.unwrap().as_u64(), 0);
+    let test_client = init_test_rollup(rpc_address, contract).await;
 
     execute(&test_client).await
 }
 
-async fn execute(client: &TestClient) -> Result<(), Box<dyn std::error::Error>> {
+#[cfg(feature = "experimental")]
+#[tokio::test]
+async fn test_eth_get_logs() -> Result<(), anyhow::Error> {
+    use sov_evm::LogsContract;
+
+    use crate::test_helpers::create_and_start_rollup;
+
+    let (rollup_task, port) = create_and_start_rollup().await;
+
+    let contract = LogsContract::default();
+
+    let test_client = init_test_rollup(port, contract).await;
+
+    test_getlogs(&test_client).await.unwrap();
+
+    rollup_task.abort();
+    Ok(())
+}
+
+async fn test_getlogs<T: TestContract>(
+    client: &Box<TestClient<T>>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let (contract_address, runtime_code) = {
+        let runtime_code = client.deploy_contract_call().await?;
+
+        let deploy_contract_req = client.deploy_contract().await?;
+        client.send_publish_batch_request().await;
+
+        let contract_address = deploy_contract_req
+            .await?
+            .unwrap()
+            .contract_address
+            .unwrap();
+
+        (contract_address, runtime_code)
+    };
+
+    client
+        .call_logs_contract(contract_address, "hello".to_string())
+        .await;
+    client.send_publish_batch_request().await;
+
+    let empty_filter = serde_json::json!({});
+    // supposed to get all the logs
+    let logs = client.eth_get_logs(empty_filter).await;
+
+    assert_eq!(logs.len(), 2);
+
+    let one_topic_filter = serde_json::json!({
+        "topics": [
+            "0xa9943ee9804b5d456d8ad7b3b1b975a5aefa607e16d13936959976e776c4bec7"
+        ]
+    });
+    // supposed to get the first log only
+    let logs = client.eth_get_logs(one_topic_filter).await;
+
+    assert_eq!(logs.len(), 1);
+    assert_eq!(
+        hex::encode(logs[0].topics[0]).to_string(),
+        "a9943ee9804b5d456d8ad7b3b1b975a5aefa607e16d13936959976e776c4bec7"
+    );
+    println!("data: {:?}", hex::encode(logs[0].data.clone()));
+    println!("json_data : {:?}", serde_json::to_string(&logs[0]).unwrap());
+
+    let deployed_filter = serde_json::json!({
+        "blockHash": "0x4a80830bd0f144bf3ee9bf1e37b3196d0e465ed9068074f3d1a54b7aea2dc9fd".to_string(),
+         "address":"0x8808412aA0dFf27068BD36a069eEe4C6aD173ca8".to_string()
+    });
+    let sepolia_rpc_url = "https://rpc.notadegen.com/eth/sepolia";
+
+    let http_client = Client::new();
+    let sepolia_logs = http_client
+        .post(sepolia_rpc_url)
+        .json(&serde_json::json!({
+            "jsonrpc": "2.0",
+            "method": "eth_getLogs",
+            "params": [deployed_filter],
+            "id": 1
+        }))
+        .send()
+        .await
+        .unwrap()
+        .json::<serde_json::Value>()
+        .await
+        .unwrap();
+    println!("sepolia_logs: {:?}", sepolia_logs);
+    // the data should be the same that we have
+    let sepolia_log_data = sepolia_logs["result"][0]["data"].to_string();
+    let len = sepolia_log_data.len();
+    assert_eq!(sepolia_log_data[2..len - 1], logs[0].data.to_string());
+    // Deploy another contract
+    let (contract_address2, _) = {
+        let runtime_code = client.deploy_contract_call().await?;
+
+        let deploy_contract_req = client.deploy_contract().await?;
+        client.send_publish_batch_request().await;
+
+        let contract_address = deploy_contract_req
+            .await?
+            .unwrap()
+            .contract_address
+            .unwrap();
+
+        (contract_address, runtime_code)
+    };
+
+    // call the second contract again
+    let _pending_tx = client
+        .call_logs_contract(contract_address2, "second contract".to_string())
+        .await;
+    client.send_publish_batch_request().await;
+
+    // make sure the two contracts have different addresses
+    assert_ne!(contract_address, contract_address2);
+
+    // without any range or blockhash default behaviour is checking the latest block
+    let just_address_filter = serde_json::json!({
+        "address": contract_address
+    });
+
+    let logs = client.eth_get_logs(just_address_filter).await;
+    // supposed to get both the logs coming from the contract
+    assert_eq!(logs.len(), 0);
+
+    // now we need to get all the logs with the first contract address
+    let address_and_range_filter = serde_json::json!({
+        "address": contract_address,
+        "fromBlock": "0x1",
+        "toBlock": "0x4"
+    });
+
+    let logs = client.eth_get_logs(address_and_range_filter).await;
+    assert_eq!(logs.len(), 2);
+    // make sure the address is the old one and not the new one
+    assert_eq!(logs[0].address, contract_address.into());
+    assert_eq!(logs[1].address, contract_address.into());
+
+    Ok(())
+}
+
+async fn execute<T: TestContract>(
+    client: &Box<TestClient<T>>,
+) -> Result<(), Box<dyn std::error::Error>> {
     // Nonce should be 0 in genesis
     let nonce = client.eth_get_transaction_count(client.from_addr).await;
     assert_eq!(0, nonce);
@@ -214,4 +318,40 @@ async fn execute(client: &TestClient) -> Result<(), Box<dyn std::error::Error>> 
     );
 
     Ok(())
+}
+
+pub async fn init_test_rollup<T: TestContract>(
+    rpc_address: SocketAddr,
+    contract: T,
+) -> Box<TestClient<T>> {
+    let chain_id: u64 = 1;
+    let key = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+        .parse::<LocalWallet>()
+        .unwrap()
+        .with_chain_id(chain_id);
+
+    let contract = contract.default_();
+
+    let from_addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
+
+    let test_client =
+        Box::new(TestClient::new(chain_id, key, from_addr, contract, rpc_address).await);
+
+    let etc_accounts = test_client.eth_accounts().await;
+    assert_eq!(vec![from_addr], etc_accounts);
+
+    let eth_chain_id = test_client.eth_chain_id().await;
+    assert_eq!(chain_id, eth_chain_id);
+
+    // No block exists yet
+    let latest_block = test_client
+        .eth_get_block_by_number(Some("latest".to_owned()))
+        .await;
+    let earliest_block = test_client
+        .eth_get_block_by_number(Some("earliest".to_owned()))
+        .await;
+
+    assert_eq!(latest_block, earliest_block);
+    assert_eq!(latest_block.number.unwrap().as_u64(), 0);
+    test_client
 }

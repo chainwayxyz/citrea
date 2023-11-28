@@ -11,6 +11,7 @@ use super::DbAccount;
 pub(crate) struct EvmDb<'a, C: sov_modules_api::Context> {
     pub(crate) accounts: sov_modules_api::StateMap<Address, DbAccount, BcsCodec>,
     pub(crate) code: sov_modules_api::StateMap<H256, Bytes, BcsCodec>,
+    pub(crate) last_block_hashes: sov_modules_api::StateMap<U256, H256, BcsCodec>,
     pub(crate) working_set: &'a mut WorkingSet<C>,
 }
 
@@ -18,11 +19,13 @@ impl<'a, C: sov_modules_api::Context> EvmDb<'a, C> {
     pub(crate) fn new(
         accounts: sov_modules_api::StateMap<Address, DbAccount, BcsCodec>,
         code: sov_modules_api::StateMap<H256, Bytes, BcsCodec>,
+        last_block_hashes: sov_modules_api::StateMap<U256, H256, BcsCodec>,
         working_set: &'a mut WorkingSet<C>,
     ) -> Self {
         Self {
             accounts,
             code,
+            last_block_hashes,
             working_set,
         }
     }
@@ -60,7 +63,12 @@ impl<'a, C: sov_modules_api::Context> Database for EvmDb<'a, C> {
         Ok(storage_value)
     }
 
-    fn block_hash(&mut self, _number: U256) -> Result<B256, Self::Error> {
-        todo!("block_hash not yet implemented")
+    fn block_hash(&mut self, number: U256) -> Result<B256, Self::Error> {
+        let block_hash = self
+            .last_block_hashes
+            .get(&number, self.working_set)
+            .unwrap_or(B256::zero());
+
+        Ok(block_hash)
     }
 }

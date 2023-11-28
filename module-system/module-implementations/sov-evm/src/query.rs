@@ -13,12 +13,14 @@ use sov_modules_api::WorkingSet;
 use tracing::info;
 
 use crate::call::get_cfg_env;
-use crate::error::rpc::{ensure_success, RevertError, RpcInvalidTransactionError};
+use crate::error::rpc::{ensure_success, EthApiError, RevertError, RpcInvalidTransactionError};
 use crate::evm::db::EvmDb;
 use crate::evm::primitive_types::{BlockEnv, Receipt, SealedBlock, TransactionSignedAndRecovered};
 use crate::evm::{executor, prepare_call_env};
 use crate::experimental::{MIN_CREATE_GAS, MIN_TRANSACTION_GAS};
-use crate::{EthApiError, Evm};
+use crate::rpc_helpers::*;
+use crate::{BloomFilter, Evm, FilterBlockOption, FilterError};
+use reth_interfaces::provider::ProviderError;
 
 #[rpc_gen(client, server)]
 impl<C: sov_modules_api::Context> Evm<C> {
@@ -551,6 +553,208 @@ impl<C: sov_modules_api::Context> Evm<C> {
         }
 
         Ok(U64::from(highest_gas_limit))
+    }
+
+    /// Returns logs matching given filter object.
+    ///
+    /// Handler for `eth_getLogs`
+    #[rpc_method(name = "eth_getLogs")]
+    pub fn eth_get_logs(
+        &self,
+        filter: Filter,
+        working_set: &mut WorkingSet<C>,
+    ) -> RpcResult<Vec<LogResponse>> {
+        // https://github.com/paradigmxyz/reth/blob/8892d04a88365ba507f28c3314d99a6b54735d3f/crates/rpc/rpc/src/eth/filter.rs#L302
+        Ok(self.logs_for_filter(filter, working_set)?)
+    }
+
+    // https://github.com/paradigmxyz/reth/blob/8892d04a88365ba507f28c3314d99a6b54735d3f/crates/rpc/rpc/src/eth/filter.rs#L349
+    fn logs_for_filter(
+        &self,
+        filter: Filter,
+        working_set: &mut WorkingSet<C>,
+    ) -> Result<Vec<LogResponse>, FilterError> {
+        match filter.block_option {
+            FilterBlockOption::AtBlockHash(block_hash) => {
+                let block_number = self
+                    .block_hashes
+                    .get(&block_hash, &mut working_set.accessory_state());
+                if block_number.is_none() {
+                    return Err(FilterError::EthAPIError(
+                        ProviderError::BlockHashNotFound(block_hash).into(),
+                    ));
+                }
+
+                let block = self.blocks.get(
+                    block_number.unwrap() as usize,
+                    &mut working_set.accessory_state(),
+                );
+                if block.is_none() {
+                    return Err(FilterError::EthAPIError(
+                        ProviderError::BlockBodyIndicesNotFound(block_number.unwrap()).into(),
+                    ));
+                }
+
+                // all of the logs we have in the block
+                let mut all_logs: Vec<LogResponse> = Vec::new();
+
+                self.append_matching_block_logs(
+                    working_set,
+                    &mut all_logs,
+                    &filter,
+                    block.unwrap(),
+                );
+
+                Ok(all_logs)
+            }
+            FilterBlockOption::Range {
+                from_block,
+                to_block,
+            } => {
+                // we start at the most recent block if unset in filter
+                let start_block = self
+                    .blocks
+                    .last(&mut working_set.accessory_state())
+                    .expect("Head block must be set")
+                    .header
+                    .number;
+                let from = from_block
+                    .map(|num| convert_block_number(num, start_block))
+                    .transpose()?
+                    .flatten();
+                let to = to_block
+                    .map(|num| convert_block_number(num, start_block))
+                    .transpose()?
+                    .flatten();
+                let (from_block_number, to_block_number) =
+                    get_filter_block_range(from, to, start_block);
+                self.get_logs_in_block_range(
+                    working_set,
+                    &filter,
+                    from_block_number,
+                    to_block_number,
+                )
+            }
+        }
+    }
+
+    // https://github.com/paradigmxyz/reth/blob/8892d04a88365ba507f28c3314d99a6b54735d3f/crates/rpc/rpc/src/eth/filter.rs#L423
+    /// Returns all logs in the given _inclusive_ range that match the filter
+    ///
+    /// Returns an error if:
+    ///  - underlying database error
+    ///  - amount of matches exceeds configured limit
+    fn get_logs_in_block_range(
+        &self,
+        working_set: &mut WorkingSet<C>,
+        filter: &Filter,
+        from_block_number: u64,
+        to_block_number: u64,
+    ) -> Result<Vec<LogResponse>, FilterError> {
+        let max_blocks_per_filter: u64 = DEFAULT_MAX_BLOCKS_PER_FILTER;
+        if to_block_number - from_block_number >= max_blocks_per_filter {
+            return Err(FilterError::QueryExceedsMaxBlocks(max_blocks_per_filter));
+        }
+        // all of the logs we have in the block
+        let mut all_logs: Vec<LogResponse> = Vec::new();
+
+        let address_filter: BloomFilter = filter.address.to_bloom_filter();
+        let topics_filter: Vec<BloomFilter> =
+            filter.topics.iter().map(|t| t.to_bloom_filter()).collect();
+
+        let max_headers_range = MAX_HEADERS_RANGE;
+
+        // loop over the range of new blocks and check logs if the filter matches the log's bloom
+        // filter
+        for (from, to) in
+            BlockRangeInclusiveIter::new(from_block_number..=to_block_number, max_headers_range)
+        {
+            for idx in from..=to {
+                let block = self.blocks.get(
+                    // Index from +1 or just from?
+                    (idx) as usize,
+                    &mut working_set.accessory_state(),
+                );
+                if block.is_none() {
+                    return Err(FilterError::EthAPIError(
+                        ProviderError::BlockBodyIndicesNotFound(idx).into(),
+                    ));
+                }
+                let block = block.unwrap();
+                let logs_bloom = block.header.logs_bloom;
+
+                let alloy_logs_bloom = alloy_primitives::Bloom::from(logs_bloom.data());
+
+                if matches_address(alloy_logs_bloom, &address_filter)
+                    && matches_topics(alloy_logs_bloom, &topics_filter)
+                {
+                    self.append_matching_block_logs(working_set, &mut all_logs, &filter, block);
+                    let max_logs_per_response = DEFAULT_MAX_LOGS_PER_RESPONSE;
+                    // size check but only if range is multiple blocks, so we always return all
+                    // logs of a single block
+                    let is_multi_block_range = from_block_number != to_block_number;
+                    if is_multi_block_range && all_logs.len() > max_logs_per_response {
+                        return Err(FilterError::QueryExceedsMaxResults(max_logs_per_response));
+                    }
+                }
+            }
+        }
+        Ok(all_logs)
+    }
+
+    // https://github.com/paradigmxyz/reth/blob/main/crates/rpc/rpc/src/eth/logs_utils.rs#L21
+    fn append_matching_block_logs(
+        &self,
+        working_set: &mut WorkingSet<C>,
+        all_logs: &mut Vec<LogResponse>,
+        filter: &Filter,
+        block: SealedBlock,
+    ) {
+        // tracks the index of a log in the entire block
+        let mut log_index: u32 = 0;
+
+        // TODO: Understand how to handle this
+        // TAG - true when the log was removed, due to a chain reorganization. false if its a valid log.
+        let removed = false;
+
+        let topics = filter.topics.clone();
+        let tx_range = block.transactions;
+
+        for i in tx_range {
+            let receipt = self
+                .receipts
+                .get(i as usize, &mut working_set.accessory_state())
+                .expect("Transaction must be set");
+            let tx = self
+                .transactions
+                .get(i as usize, &mut working_set.accessory_state())
+                .unwrap();
+            let logs = receipt.receipt.logs;
+
+            for log in logs.into_iter() {
+                if log_matches_filter(
+                    &log,
+                    &filter,
+                    &topics,
+                    &block.header.hash,
+                    &block.header.number,
+                ) {
+                    let log = LogResponse {
+                        address: log.address,
+                        topics: log.topics,
+                        data: log.data.to_vec().into(),
+                        block_hash: Some(block.header.hash),
+                        block_number: Some(U256::from(block.header.number)),
+                        transaction_hash: Some(tx.signed_transaction.hash),
+                        transaction_index: Some(U256::from(i)),
+                        log_index: Some(U256::from(log_index)),
+                        removed,
+                    };
+                    all_logs.push(log);
+                }
+                log_index += 1;
+            }
+        }
     }
 
     fn get_sealed_block_by_number(

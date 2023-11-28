@@ -2,22 +2,21 @@ use std::any::Any;
 
 use ethers_contract::BaseContract;
 use ethers_core::types::Bytes;
-use reth_primitives::Address;
 
 use super::TestContract;
 use super::{make_contract_from_abi, test_data_path};
 
-/// SelfDestructor wrapper.
-pub struct SelfDestructorContract {
+/// Logs wrapper.
+pub struct LogsContract {
     bytecode: Bytes,
     base_contract: BaseContract,
 }
 
-impl Default for SelfDestructorContract {
+impl Default for LogsContract {
     fn default() -> Self {
         let contract_data = {
             let mut path = test_data_path();
-            path.push("SelfDestructor.bin");
+            path.push("Logs.bin");
 
             let contract_data = std::fs::read_to_string(path).unwrap();
             hex::decode(contract_data).unwrap()
@@ -25,7 +24,7 @@ impl Default for SelfDestructorContract {
 
         let contract = {
             let mut path = test_data_path();
-            path.push("SelfDestructor.abi");
+            path.push("Logs.abi");
 
             make_contract_from_abi(path)
         };
@@ -37,12 +36,12 @@ impl Default for SelfDestructorContract {
     }
 }
 
-impl TestContract for SelfDestructorContract {
+impl TestContract for LogsContract {
     /// SimpleStorage bytecode.
     fn byte_code(&self) -> Bytes {
         self.bytecode.clone()
     }
-    /// Dynamically dispatch from trait. Downcast to SelfDestructorContract.
+    /// Dynamically dispatch from trait. Downcast to LogsContract.
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -55,15 +54,9 @@ impl TestContract for SelfDestructorContract {
     }
 }
 
-impl SelfDestructorContract {
-    /// Setter of the smart contract.
-    pub fn set_call_data(&self, val: u32) -> Bytes {
-        let set_arg = ethereum_types::U256::from(val);
-        self.base_contract.encode("set", set_arg).unwrap()
-    }
-    /// Selfdestructor of the smart contract.
-    pub fn selfdestruct(&self, to: Address) -> Bytes {
-        let set_arg = ethereum_types::Address::from(to);
-        self.base_contract.encode("die", set_arg).unwrap()
+impl LogsContract {
+    /// Log publishing function of the smart contract.
+    pub fn publish_event(&self, message: String) -> Bytes {
+        self.base_contract.encode("publishEvent", message).unwrap()
     }
 }
