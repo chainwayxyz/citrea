@@ -164,6 +164,27 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0942ffc6dcaadf03badf6e6a2d0228460359d5e34b57ccdc720b7382dfbd5ec5"
 
 [[package]]
+name = "alloy-primitives"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a0628ec0ba5b98b3370bb6be17b12f23bfce8ee4ad83823325a20546d9b03b78"
+dependencies = [
+ "alloy-rlp",
+ "bytes",
+ "cfg-if",
+ "const-hex",
+ "derive_more",
+ "getrandom 0.2.11",
+ "hex-literal",
+ "itoa",
+ "proptest",
+ "rand 0.8.5",
+ "ruint",
+ "serde",
+ "tiny-keccak",
+]
+
+[[package]]
 name = "alloy-rlp"
 version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8811,6 +8832,7 @@ dependencies = [
 name = "sov-evm"
 version = "0.3.0"
 dependencies = [
+ "alloy-primitives",
  "anyhow",
  "borsh",
  "bytes",
@@ -8823,8 +8845,10 @@ dependencies = [
  "ethers-middleware",
  "ethers-signers",
  "hex",
+ "itertools 0.11.0",
  "jsonrpsee 0.20.3",
  "lazy_static",
+ "rand 0.8.5",
  "reth-interfaces",
  "reth-primitives",
  "reth-revm",

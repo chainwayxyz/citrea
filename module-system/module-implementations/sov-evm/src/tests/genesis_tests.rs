@@ -39,7 +39,7 @@ lazy_static! {
 }
 
 pub(crate) const GENESIS_HASH: H256 = H256(hex!(
-    "3441c3084e43183a53aabbbe3e94512bb3db4aca826af8f23b38f0613811571d"
+    "d57423e4375c45bc114cd137146aab671dbd3f6304f05b31bdd416301b4a99f0"
 ));
 
 pub(crate) const GENESIS_STATE_ROOT: H256 = H256(hex!(
@@ -147,9 +147,7 @@ fn genesis_block() {
             header: SealedHeader {
                 header: Header {
                     parent_hash: H256::default(),
-                    state_root: H256(hex!(
-                        "0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a"
-                    )),
+                    state_root: GENESIS_STATE_ROOT,
                     transactions_root: EMPTY_TRANSACTIONS,
                     receipts_root: EMPTY_RECEIPTS,
                     logs_bloom: Bloom::default(),
@@ -216,6 +214,13 @@ pub(crate) fn get_evm(config: &EvmConfig) -> (Evm<C>, WorkingSet<DefaultContext>
     let mut working_set = WorkingSet::new(ProverStorage::with_path(tmpdir.path()).unwrap());
     let evm = Evm::<C>::default();
     evm.genesis(config, &mut working_set).unwrap();
-    evm.finalize_hook(&[10u8; 32].into(), &mut working_set.accessory_state());
+
+    let mut genesis_state_root = [0u8; 32];
+    genesis_state_root.copy_from_slice(&GENESIS_STATE_ROOT.as_bytes());
+
+    evm.finalize_hook(
+        &genesis_state_root.into(),
+        &mut working_set.accessory_state(),
+    );
     (evm, working_set)
 }

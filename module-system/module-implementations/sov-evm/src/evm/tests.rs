@@ -12,7 +12,7 @@ use super::db_init::InitEvmDb;
 use super::executor;
 use crate::evm::primitive_types::BlockEnv;
 use crate::evm::AccountInfo;
-use crate::smart_contracts::{SimpleStorageContract, TestContract};
+use crate::smart_contracts::SimpleStorageContract;
 use crate::tests::test_signer::TestSigner;
 use crate::Evm;
 type C = sov_modules_api::default_context::DefaultContext;

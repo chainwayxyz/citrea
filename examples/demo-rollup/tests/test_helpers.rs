@@ -6,6 +6,7 @@ use sov_mock_da::{MockAddress, MockDaConfig};
 use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_stf_runner::{RollupConfig, RollupProverConfig, RpcConfig, RunnerConfig, StorageConfig};
 use tokio::sync::oneshot;
+use tokio::task::JoinHandle;
 
 pub async fn start_rollup(
     rpc_reporting_channel: oneshot::Sender<SocketAddr>,
@@ -45,4 +46,22 @@ pub async fn start_rollup(
 
     // Close the tempdir explicitly to ensure that rustc doesn't see that it's unused and drop it unexpectedly
     temp_dir.close().unwrap();
+}
+
+pub async fn create_and_start_rollup() -> (JoinHandle<()>, SocketAddr) {
+    let (port_tx, port_rx) = tokio::sync::oneshot::channel();
+
+    let rollup_task: tokio::task::JoinHandle<()> = tokio::spawn(async {
+        // Don't provide a prover since the EVM is not currently provable
+        start_rollup(
+            port_tx,
+            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
+            None,
+        )
+        .await;
+    });
+
+    // Wait for rollup task to start:
+    let port = port_rx.await.unwrap();
+    (rollup_task, port)
 }
