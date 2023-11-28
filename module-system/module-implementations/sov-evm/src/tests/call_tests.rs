@@ -718,7 +718,7 @@ fn test_log_limits() {
 }
 
 #[test]
-fn test_evm_block_hash() {
+fn test_block_hash_in_evm() {
     let signer_balance: u64 = 10000000000000000;
 
     let dev_signer: TestSigner = TestSigner::new_random();
@@ -877,7 +877,7 @@ fn test_evm_block_hash() {
         block400.unwrap().header.hash.to_vec()
     );
 
-    // Should be 0, there is more than 256 blocks between the last block and the block number
+    // Should be 0, the block doesn't exist yet.
     assert_eq!(resp1000.unwrap().to_vec(), vec![0u8; 32]);
 }
 
