@@ -1,4 +1,5 @@
-use reth_primitives::{Address, Bytes, TransactionKind};
+use reth_primitives::{Address, Bytes, TransactionKind, U64};
+use reth_rpc_types::{CallInput, CallRequest};
 use revm::primitives::{SpecId, B256, KECCAK_EMPTY, U256};
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::utils::generate_address;
@@ -9,7 +10,11 @@ use crate::evm::primitive_types::Receipt;
 use crate::smart_contracts::{SelfDestructorContract, SimpleStorageContract, TestContract};
 use crate::tests::genesis_tests::get_evm;
 use crate::tests::test_signer::TestSigner;
-use crate::{AccountData, BlockNumberOrTag, EvmConfig, Filter, FilterSet, LogsContract};
+use crate::{
+    executor, get_cfg_env, prepare_call_env, AccountData, BlockHashContract, BlockNumberOrTag,
+    EvmConfig, Filter, FilterSet, LogsContract,
+};
+
 type C = DefaultContext;
 
 #[test]
@@ -710,6 +715,170 @@ fn test_log_limits() {
         rpc_logs.err().unwrap().message(),
         "query exceeds max block range 100000".to_string()
     );
+}
+
+#[test]
+fn test_evm_block_hash() {
+    let signer_balance: u64 = 10000000000000000;
+
+    let dev_signer: TestSigner = TestSigner::new_random();
+
+    let contract_addr: Address = Address::from_slice(
+        hex::decode("819c5497b157177315e1204f52e588b393771719")
+            .unwrap()
+            .as_slice(),
+    );
+    let config = EvmConfig {
+        data: vec![AccountData {
+            address: dev_signer.address(),
+            balance: U256::from(signer_balance),
+            code_hash: KECCAK_EMPTY,
+            code: Bytes::default(),
+            nonce: 0,
+        }],
+        spec: vec![(0, SpecId::SHANGHAI)].into_iter().collect(),
+        ..Default::default()
+    };
+
+    let (evm, mut working_set) = get_evm(&config);
+    evm.begin_slot_hook([5u8; 32], &[10u8; 32].into(), &mut working_set);
+    {
+        let sender_address = generate_address::<C>("sender");
+        let context = C::new(sender_address);
+
+        let deploy_message = create_contract_message(&dev_signer, 0, BlockHashContract::default());
+
+        evm.call(deploy_message, &context, &mut working_set)
+            .unwrap();
+    }
+    evm.end_slot_hook(&mut working_set);
+    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+
+    for i in 0..514 {
+        // generate 514 more blocks
+        evm.begin_slot_hook([5u8; 32], &[99u8; 32].into(), &mut working_set);
+        evm.end_slot_hook(&mut working_set);
+        evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+    }
+    let last_block_number = evm
+        .blocks
+        .last(&mut working_set.accessory_state())
+        .unwrap()
+        .header
+        .number;
+    let block_number = last_block_number + 1;
+
+    let mut request = CallRequest {
+        from: None,
+        to: Some(contract_addr),
+        gas_price: None,
+        max_fee_per_gas: None,
+        max_priority_fee_per_gas: None,
+        value: None,
+        gas: None,
+        input: CallInput {
+            data: None,
+            input: Some(
+                BlockHashContract::default()
+                    .get_block_hash(0)
+                    .to_vec()
+                    .into(),
+            ),
+        },
+        nonce: Some(U64::from(0u64)),
+        chain_id: Some(U64::from(1u64)),
+        access_list: None,
+        max_fee_per_blob_gas: None,
+        blob_versioned_hashes: vec![],
+        transaction_type: None,
+    };
+
+    println!("block number: {:?}", block_number);
+
+    let resp0 = evm.get_call(
+        request.clone(),
+        Some("0x203".to_string()),
+        None,
+        None,
+        &mut working_set,
+    );
+    request.input.input = Some(
+        BlockHashContract::default()
+            .get_block_hash(1)
+            .to_vec()
+            .into(),
+    );
+    let resp1 = evm.get_call(
+        request.clone(),
+        Some("0x203".to_string()),
+        None,
+        None,
+        &mut working_set,
+    );
+
+    request.input.input = Some(
+        BlockHashContract::default()
+            .get_block_hash(260)
+            .to_vec()
+            .into(),
+    );
+    let resp260 = evm.get_call(
+        request.clone(),
+        Some("0x203".to_string()),
+        None,
+        None,
+        &mut working_set,
+    );
+
+    request.input.input = Some(
+        BlockHashContract::default()
+            .get_block_hash(400)
+            .to_vec()
+            .into(),
+    );
+    let resp400 = evm.get_call(
+        request.clone(),
+        Some("0x203".to_string()),
+        None,
+        None,
+        &mut working_set,
+    );
+
+    request.input.input = Some(
+        BlockHashContract::default()
+            .get_block_hash(1000)
+            .to_vec()
+            .into(),
+    );
+    let resp1000 = evm.get_call(
+        request.clone(),
+        Some("0x203".to_string()),
+        None,
+        None,
+        &mut working_set,
+    );
+    // Should be 0, there is more than 256 blocks between the last block and the block number
+    assert_eq!(resp0.unwrap().to_vec(), vec![0u8; 32]);
+
+    // Should be 0, there is more than 256 blocks between the last block and the block number
+    assert_eq!(resp1.unwrap().to_vec(), vec![0u8; 32]);
+
+    // Should be equal to the hash in accessory state
+    let block260 = evm.blocks.get(260, &mut working_set.accessory_state());
+    assert_eq!(
+        resp260.unwrap().to_vec(),
+        block260.unwrap().header.hash.to_vec()
+    );
+
+    // Should be equal to the hash in accessory state
+    let block400 = evm.blocks.get(400, &mut working_set.accessory_state());
+    assert_eq!(
+        resp400.unwrap().to_vec(),
+        block400.unwrap().header.hash.to_vec()
+    );
+
+    // Should be 0, there is more than 256 blocks between the last block and the block number
+    assert_eq!(resp1000.unwrap().to_vec(), vec![0u8; 32]);
 }
 
 fn create_contract_message<T: TestContract>(
