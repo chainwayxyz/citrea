@@ -19,8 +19,10 @@ pub mod experimental {
     use ethers::types::{Bytes, H256};
     use jsonrpsee::types::ErrorObjectOwned;
     use jsonrpsee::RpcModule;
-    use reth_primitives::{TransactionSignedNoHash as RethTransactionSignedNoHash, U128, U256};
-    use reth_rpc_types::{CallRequest, TransactionRequest, TypedTransactionRequest};
+    use reth_primitives::{
+        BlockNumberOrTag, TransactionSignedNoHash as RethTransactionSignedNoHash, U128, U256,
+    };
+    use reth_rpc_types::{CallRequest, FeeHistory, TransactionRequest, TypedTransactionRequest};
     use sov_evm::{CallMessage, Evm, RlpEvmTransaction};
     use sov_modules_api::utils::to_jsonrpsee_error_object;
     use sov_modules_api::{EncodeCall, PrivateKey, WorkingSet};
@@ -29,6 +31,8 @@ pub mod experimental {
     use super::batch_builder::EthBatchBuilder;
     #[cfg(feature = "local")]
     use super::DevSigner;
+    use crate::gas_price::cache::BlockCache;
+    use crate::gas_price::fee_history::{self, FeeHistoryCache, FeeHistoryCacheConfig};
     use crate::gas_price::gas_oracle::GasPriceOracle;
     use crate::GasPriceOracleConfig;
 
@@ -208,6 +212,33 @@ pub mod experimental {
             };
 
             Ok::<U256, ErrorObjectOwned>(price)
+        })?;
+
+        rpc.register_async_method("eth_feeHistory", |params, ethereum| async move {
+            /*
+                params:
+                block_count: u64 hex or number
+                newest_block: block number or tag (latest, earliest, pending)
+                reward_percentiles: Option<Vec<u64>>
+            */
+            let block_count: u64 = params.one().unwrap();
+            let newest_block: BlockNumberOrTag = params.one().unwrap();
+            let reward_percentiles: Option<Vec<f64>> = params.one().unwrap();
+
+            let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
+
+            let fee_history = ethereum
+                .gas_price_oracle
+                .fee_history(
+                    block_count,
+                    newest_block,
+                    reward_percentiles,
+                    &mut working_set,
+                )
+                .await
+                .unwrap();
+
+            Ok::<FeeHistory, ErrorObjectOwned>(fee_history)
         })?;
 
         rpc.register_async_method("eth_publishBatch", |params, ethereum| async move {

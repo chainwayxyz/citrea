@@ -4,10 +4,14 @@
 // Adopted from: https://github.com/paradigmxyz/reth/blob/main/crates/rpc/rpc/src/eth/gas_oracle.rs
 
 use std::array::TryFromSliceError;
+use std::sync::Arc;
 
+use reth_primitives::basefee::calculate_next_block_base_fee;
 use reth_primitives::constants::GWEI_TO_WEI;
-use reth_primitives::{H256, U256, U64};
-use reth_rpc_types::BlockTransactions;
+use reth_primitives::{BlockNumberOrTag, Receipt, TransactionSigned, H256, U256, U64};
+use reth_rpc_types::{
+    BlockTransactions, FeeHistory, Transaction, TransactionReceipt, TxGasAndReward,
+};
 use serde::{Deserialize, Serialize};
 use sov_evm::{EthApiError, EthResult, Evm, RpcInvalidTransactionError};
 use sov_modules_api::WorkingSet;
@@ -15,9 +19,13 @@ use tokio::sync::Mutex;
 use tracing::warn;
 
 use super::cache::BlockCache;
+use super::fee_history::{FeeHistoryCache, FeeHistoryEntry};
 
 /// The number of transactions sampled in a block
 pub const SAMPLE_NUMBER: u32 = 3;
+
+/// The default maximum number of blocks to use for the gas price oracle.
+pub const MAX_HEADER_HISTORY: u64 = 1024;
 
 /// The default maximum gas price to use for the estimate
 pub const DEFAULT_MAX_PRICE: U256 = U256::from_limbs([500_000_000_000u64, 0, 0, 0]);
@@ -36,7 +44,7 @@ pub struct GasPriceOracleConfig {
     pub percentile: u32,
 
     /// The maximum number of headers to keep in the cache
-    pub max_header_history: u32,
+    pub max_header_history: u64,
 
     /// The maximum number of blocks for estimating gas price
     pub max_block_history: u64,
@@ -56,8 +64,8 @@ impl Default for GasPriceOracleConfig {
         GasPriceOracleConfig {
             blocks: 20,
             percentile: 60,
-            max_header_history: 1024,
-            max_block_history: 1024,
+            max_header_history: MAX_HEADER_HISTORY,
+            max_block_history: MAX_HEADER_HISTORY,
             default: None,
             max_price: Some(DEFAULT_MAX_PRICE),
             ignore_price: Some(DEFAULT_IGNORE_PRICE),
@@ -93,8 +101,10 @@ pub struct GasPriceOracle<C: sov_modules_api::Context> {
     oracle_config: GasPriceOracleConfig,
     /// The latest calculated price and its block hash
     last_price: Mutex<GasPriceOracleResult>,
-    /// Cache
-    cache: BlockCache<C>,
+    /// Fee history cache with lifetime
+    fee_history_cache: Mutex<FeeHistoryCache<C>>,
+    /// Block cache
+    cache: Arc<BlockCache<C>>,
 }
 
 impl<C: sov_modules_api::Context> GasPriceOracle<C> {
@@ -106,14 +116,207 @@ impl<C: sov_modules_api::Context> GasPriceOracle<C> {
             oracle_config.percentile = 100;
         }
 
-        let max_header_history = oracle_config.max_header_history;
+        let max_header_history = oracle_config.max_header_history as u32;
+
+        let cache = BlockCache::new(max_header_history, provider.clone());
+
+        let arc_cache = Arc::new(cache);
+
+        let fee_history_cache = FeeHistoryCache::new(
+            super::fee_history::FeeHistoryCacheConfig::default(),
+            arc_cache.clone(),
+        );
 
         Self {
             provider: provider.clone(),
             oracle_config,
             last_price: Default::default(),
-            cache: BlockCache::<C>::new(max_header_history, provider),
+            fee_history_cache: Mutex::new(fee_history_cache),
+            cache: arc_cache,
         }
+    }
+
+    /// Returns the config for the oracle
+    pub fn config(&self) -> &GasPriceOracleConfig {
+        &self.oracle_config
+    }
+
+    /// Reports the fee history
+    pub async fn fee_history(
+        &self,
+        mut block_count: u64,
+        newest_block: BlockNumberOrTag,
+        reward_percentiles: Option<Vec<f64>>,
+        working_set: &mut WorkingSet<C>,
+    ) -> EthResult<FeeHistory> {
+        if block_count == 0 {
+            return Ok(FeeHistory::default());
+        }
+
+        // See https://github.com/ethereum/go-ethereum/blob/2754b197c935ee63101cbbca2752338246384fec/eth/gasprice/feehistory.go#L218C8-L225
+        let max_fee_history = if reward_percentiles.is_none() {
+            self.config().max_header_history
+        } else {
+            self.config().max_block_history
+        };
+
+        if block_count > max_fee_history {
+            block_count = max_fee_history
+        }
+
+        let Some(end_block) = self
+            .provider
+            .block_number_for_id(&newest_block.to_string(), working_set)
+        else {
+            return Err(EthApiError::UnknownBlockNumber);
+        };
+
+        // need to add 1 to the end block to get the correct (inclusive) range
+        let end_block_plus = end_block + 1;
+        // Ensure that we would not be querying outside of genesis
+        if end_block_plus < block_count {
+            block_count = end_block_plus;
+        }
+
+        // If reward percentiles were specified, we
+        // need to validate that they are monotonically
+        // increasing and 0 <= p <= 100
+        // Note: The types used ensure that the percentiles are never < 0
+        if let Some(percentiles) = &reward_percentiles {
+            if percentiles.windows(2).any(|w| w[0] > w[1] || w[0] > 100.) {
+                return Err(EthApiError::InvalidRewardPercentiles);
+            }
+        }
+
+        // Fetch the headers and ensure we got all of them
+        //
+        // Treat a request for 1 block as a request for `newest_block..=newest_block`,
+        // otherwise `newest_block - 2
+        // SAFETY: We ensured that block count is capped
+        let start_block = end_block_plus - block_count;
+
+        // Collect base fees, gas usage ratios and (optionally) reward percentile data
+        let mut base_fee_per_gas: Vec<U256> = Vec::new();
+        let mut gas_used_ratio: Vec<f64> = Vec::new();
+        let mut rewards: Vec<Vec<U256>> = Vec::new();
+
+        let fee_history_cache = self.fee_history_cache.lock().await;
+
+        // Check if the requested range is within the cache bounds
+        let fee_entries = fee_history_cache
+            .get_history(start_block, end_block, working_set)
+            .await;
+        let resolution = fee_history_cache.resolution();
+        drop(fee_history_cache);
+
+        if let Some(fee_entries) = fee_entries {
+            if fee_entries.len() != block_count as usize {
+                return Err(EthApiError::InvalidBlockRange);
+            }
+
+            for entry in &fee_entries {
+                base_fee_per_gas.push(U256::from(entry.base_fee_per_gas));
+                gas_used_ratio.push(entry.gas_used_ratio);
+
+                if let Some(percentiles) = &reward_percentiles {
+                    let mut block_rewards = Vec::with_capacity(percentiles.len());
+                    for &percentile in percentiles.iter() {
+                        block_rewards
+                            .push(self.approximate_percentile(entry, percentile, resolution));
+                    }
+                    rewards.push(block_rewards);
+                }
+            }
+            let last_entry = fee_entries.last().expect("is not empty");
+            base_fee_per_gas.push(U256::from(calculate_next_block_base_fee(
+                last_entry.gas_used,
+                last_entry.gas_limit,
+                last_entry.base_fee_per_gas,
+                self.provider.get_chain_config(working_set).base_fee_params,
+            )));
+        } else {
+            // read the requested header range
+            let headers = self
+                .provider
+                .sealed_headers_range(start_block..=end_block, working_set)?;
+            if headers.len() != block_count as usize {
+                return Err(EthApiError::InvalidBlockRange);
+            }
+
+            for header in &headers {
+                base_fee_per_gas.push(U256::from(header.base_fee_per_gas.unwrap_or_default()));
+                gas_used_ratio.push(header.gas_used as f64 / header.gas_limit as f64);
+
+                // Percentiles were specified, so we need to collect reward percentile ino
+                if let Some(percentiles) = &reward_percentiles {
+                    let (transactions, receipts) = match self
+                        .cache
+                        .get_transactions_and_receipts(header.hash, working_set)
+                        .unwrap()
+                    {
+                        Some((transactions, receipts)) => (transactions, receipts),
+                        None => {
+                            return Err(EthApiError::UnknownBlockNumber);
+                        }
+                    };
+
+                    rewards.push(
+                        calculate_reward_percentiles_for_block(
+                            percentiles,
+                            header.gas_used,
+                            header.base_fee_per_gas.unwrap_or_default(),
+                            &transactions,
+                            &receipts,
+                        )
+                        .unwrap_or_default(),
+                    );
+                }
+            }
+
+            // The spec states that `base_fee_per_gas` "[..] includes the next block after the
+            // newest of the returned range, because this value can be derived from the
+            // newest block"
+            //
+            // The unwrap is safe since we checked earlier that we got at least 1 header.
+
+            // The spec states that `base_fee_per_gas` "[..] includes the next block after the
+            // newest of the returned range, because this value can be derived from the
+            // newest block"
+            //
+            // The unwrap is safe since we checked earlier that we got at least 1 header.
+            let last_header = headers.last().expect("is present");
+            base_fee_per_gas.push(U256::from(calculate_next_block_base_fee(
+                last_header.gas_used,
+                last_header.gas_limit,
+                last_header.base_fee_per_gas.unwrap_or_default(),
+                self.provider.get_chain_config(working_set).base_fee_params,
+            )));
+        };
+
+        Ok(FeeHistory {
+            base_fee_per_gas,
+            gas_used_ratio,
+            oldest_block: U256::from(start_block),
+            reward: reward_percentiles.map(|_| rewards),
+        })
+    }
+
+    /// Approximates reward at a given percentile for a specific block
+    /// Based on the configured resolution
+    fn approximate_percentile(
+        &self,
+        entry: &FeeHistoryEntry,
+        requested_percentile: f64,
+        resolution: u64,
+    ) -> U256 {
+        let rounded_percentile =
+            (requested_percentile * resolution as f64).round() / resolution as f64;
+        let clamped_percentile = rounded_percentile.clamp(0.0, 100.0);
+
+        // Calculate the index in the precomputed rewards array
+        let index = (clamped_percentile / (1.0 / resolution as f64)).round() as usize;
+        // Fetch the reward from the FeeHistoryEntry
+        entry.rewards.get(index).cloned().unwrap_or(U256::ZERO)
     }
 
     /// Suggests a gas price estimate based on recent blocks, using the configured percentile.
@@ -277,7 +480,7 @@ impl Default for GasPriceOracleResult {
 }
 
 // Adopted from: https://github.com/paradigmxyz/reth/blob/main/crates/primitives/src/transaction/mod.rs#L297
-fn effective_gas_tip(
+pub(crate) fn effective_gas_tip(
     transaction: &reth_rpc_types::Transaction,
     base_fee: Option<U256>,
 ) -> Option<U256> {
@@ -303,6 +506,73 @@ fn effective_gas_tip(
     }
 }
 
+/// Calculates reward percentiles for transactions in a block header.
+/// Given a list of percentiles and a sealed block header, this function computes
+/// the corresponding rewards for the transactions at each percentile.
+///
+/// The results are returned as a vector of U256 values.
+fn calculate_reward_percentiles_for_block(
+    percentiles: &[f64],
+    gas_used: u64,
+    base_fee_per_gas: u64,
+    transactions: &[Transaction],
+    receipts: &[TransactionReceipt],
+) -> Result<Vec<U256>, EthApiError> {
+    let mut transactions = transactions
+        .iter()
+        .zip(receipts)
+        .scan(0, |previous_gas, (tx, receipt)| {
+            // Convert the cumulative gas used in the receipts
+            // to the gas usage by the transaction
+            //
+            // While we will sum up the gas again later, it is worth
+            // noting that the order of the transactions will be different,
+            // so the sum will also be different for each receipt.
+            let gas_used =
+                convert_u256_to_u64(receipt.cumulative_gas_used).unwrap() - *previous_gas;
+            *previous_gas = convert_u256_to_u64(receipt.cumulative_gas_used).unwrap();
+
+            Some(TxGasAndReward {
+                gas_used,
+                reward: convert_u256_to_u128(
+                    effective_gas_tip(tx, Some(convert_u64_to_u256(base_fee_per_gas)))
+                        .unwrap_or_default(),
+                )
+                .unwrap(),
+            })
+        })
+        .collect::<Vec<_>>();
+
+    // Sort the transactions by their rewards in ascending order
+    transactions.sort_by_key(|tx| tx.reward);
+
+    // Find the transaction that corresponds to the given percentile
+    //
+    // We use a `tx_index` here that is shared across all percentiles, since we know
+    // the percentiles are monotonically increasing.
+    let mut tx_index = 0;
+    let mut cumulative_gas_used = transactions
+        .first()
+        .map(|tx| tx.gas_used)
+        .unwrap_or_default();
+    let mut rewards_in_block = Vec::new();
+    for percentile in percentiles {
+        // Empty blocks should return in a zero row
+        if transactions.is_empty() {
+            rewards_in_block.push(U256::ZERO);
+            continue;
+        }
+
+        let threshold = (gas_used as f64 * percentile / 100.) as u64;
+        while cumulative_gas_used < threshold && tx_index < transactions.len() - 1 {
+            tx_index += 1;
+            cumulative_gas_used += transactions[tx_index].gas_used;
+        }
+        rewards_in_block.push(U256::from(transactions[tx_index].reward));
+    }
+
+    Ok(rewards_in_block)
+}
 #[cfg(test)]
 mod tests {
     use reth_primitives::constants::GWEI_TO_WEI;
@@ -321,8 +591,21 @@ mod tests {
     }
 }
 
-fn convert_u256_to_u64(u256: reth_primitives::U256) -> Result<u64, TryFromSliceError> {
+pub(crate) fn convert_u256_to_u64(u256: reth_primitives::U256) -> Result<u64, TryFromSliceError> {
     let bytes: [u8; 32] = u256.to_be_bytes();
     let bytes: [u8; 8] = bytes[24..].try_into()?;
     Ok(u64::from_be_bytes(bytes))
+}
+
+pub(crate) fn convert_u64_to_u256(u64: u64) -> reth_primitives::U256 {
+    let bytes: [u8; 8] = u64.to_be_bytes();
+    let mut new_bytes = [0u8; 32];
+    new_bytes[24..].copy_from_slice(&bytes);
+    reth_primitives::U256::from_be_bytes(new_bytes)
+}
+
+pub(crate) fn convert_u256_to_u128(u256: reth_primitives::U256) -> Result<u128, TryFromSliceError> {
+    let bytes: [u8; 32] = u256.to_be_bytes();
+    let bytes: [u8; 16] = bytes[16..].try_into()?;
+    Ok(u128::from_be_bytes(bytes))
 }
