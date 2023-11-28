@@ -1,4 +1,4 @@
-use ethers_core::utils::rlp::RlpIterator;
+use revm::primitives::EVMError::Transaction;
 use reth_primitives::{Address, Bytes, TransactionKind};
 use revm::primitives::{SpecId, KECCAK_EMPTY, U256};
 use sov_modules_api::default_context::DefaultContext;
@@ -10,25 +10,17 @@ use crate::evm::primitive_types::Receipt;
 use crate::smart_contracts::{SelfDestructorContract, SimpleStorageContract, TestContract};
 use crate::tests::genesis_tests::get_evm;
 use crate::tests::test_signer::TestSigner;
-use crate::{AccountData, CallMessages, EvmConfig, RlpEvmTransaction};
+use crate::{AccountData, EvmConfig, RlpEvmTransaction};
 type C = DefaultContext;
 
 #[test]
 fn call_multiple_test() {
     let dev_signer1: TestSigner = TestSigner::new_random();
-    let dev_signer2: TestSigner = TestSigner::new_random();
 
     let config = EvmConfig {
         data: vec![
             AccountData {
                 address: dev_signer1.address(),
-                balance: U256::from(1000000000),
-                code_hash: KECCAK_EMPTY,
-                code: Bytes::default(),
-                nonce: 0,
-            },
-            AccountData {
-                address: dev_signer2.address(),
                 balance: U256::from(1000000000),
                 code_hash: KECCAK_EMPTY,
                 code: Bytes::default(),
@@ -62,12 +54,10 @@ fn call_multiple_test() {
             set_arg_transaction(contract_addr, &dev_signer1, 1, set_arg + 1),
             set_arg_transaction(contract_addr, &dev_signer1, 3, set_arg + 2),
             set_arg_transaction(contract_addr, &dev_signer1, 2, set_arg + 3),
-            // create_contract_transaction(&dev_signer2, 2, SimpleStorageContract::default()),
-            // set_arg_transaction(contract_addr, &dev_signer2, 3, set_arg),
         ];
 
-        evm.call_multiple(
-            CallMessages { txs: transactions },
+        evm.call(
+            CallMessage { txs: transactions },
             &context,
             &mut working_set,
         )
@@ -83,11 +73,15 @@ fn call_multiple_test() {
         .get(&U256::ZERO, &mut working_set)
         .unwrap();
 
-    // assert_eq!(U256::from(set_arg + 3), storage_value);
+    assert_eq!(U256::from(set_arg + 3), storage_value);
 
     // Check block
-    let block = evm.get_block_by_number(Some("latest".to_owned()), Some(false), &mut working_set);
-    println!("block: {:?}", block);
+    // let block = evm.get_block_by_number(Some("latest".to_owned()), Some(false), &mut working_set);
+    // println!("block: {:?}", block);
+
+    for x in evm.receipts.iter(&mut working_set.accessory_state()) {
+        println!("\n receipt: {:?} \n", x);
+    }
 
     assert_eq!(
         evm.receipts
@@ -119,25 +113,46 @@ fn call_multiple_test() {
             Receipt {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::EIP1559,
-                    success: true,
-                    cumulative_gas_used: 309616,
+                    success: false,
+                    cumulative_gas_used: 176673,
                     logs: vec![]
                 },
-                gas_used: 132943,
+                gas_used: 0,
                 log_index_start: 0,
-                error: None
+                error: Some(Transaction(
+                    revm::primitives::InvalidTransaction::NonceTooLow {
+                        tx: 1,
+                        state: 2,
+                    }
+                ))
+            },
+            Receipt {
+                receipt: reth_primitives::Receipt {
+                    tx_type: reth_primitives::TxType::EIP1559,
+                    success: false,
+                    cumulative_gas_used: 176673,
+                    logs: vec![]
+                },
+                gas_used: 0,
+                log_index_start: 0,
+                error: Some(Transaction(
+                    revm::primitives::InvalidTransaction::NonceTooHigh {
+                        tx: 3,
+                        state: 2,
+                    }
+                ))
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::EIP1559,
                     success: true,
-                    cumulative_gas_used: 333446,
+                    cumulative_gas_used: 203303,
                     logs: vec![]
                 },
-                gas_used: 23830,
+                gas_used: 26630,
                 log_index_start: 0,
                 error: None
-            }
+            },
         ]
     )
 }
@@ -419,7 +434,9 @@ fn create_contract_message<T: TestContract>(
             0,
         )
         .unwrap();
-    CallMessage { txs: signed_tx }
+    CallMessage {
+        txs: vec![signed_tx],
+    }
 }
 
 fn create_contract_transaction<T: TestContract>(
@@ -454,7 +471,9 @@ fn set_selfdestruct_arg_message(
         )
         .unwrap();
 
-    CallMessage { txs: signed_tx }
+    CallMessage {
+        txs: vec![signed_tx],
+    }
 }
 
 fn set_arg_message(
@@ -473,7 +492,9 @@ fn set_arg_message(
         )
         .unwrap();
 
-    CallMessage { txs: signed_tx }
+    CallMessage {
+        txs: vec![signed_tx],
+    }
 }
 
 fn set_arg_transaction(
@@ -510,7 +531,9 @@ fn selfdestruct_message(
             0,
         )
         .unwrap();
-    CallMessage { txs: vec![signed_tx] }
+    CallMessage {
+        txs: vec![signed_tx],
+    }
 }
 
 fn send_money_to_contract_message(
@@ -527,5 +550,7 @@ fn send_money_to_contract_message(
             value,
         )
         .unwrap();
-    CallMessage { txs: vec![signed_tx] }
+    CallMessage {
+        txs: vec![signed_tx],
+    }
 }
