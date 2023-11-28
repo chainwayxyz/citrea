@@ -101,7 +101,7 @@ fn failed_transaction_test() {
     evm.begin_slot_hook([5u8; 32], &[10u8; 32].into(), working_set);
     {
         let sender_address = generate_address::<C>("sender");
-        let context = C::new(sender_address);
+        let context = C::new(sender_address, 1);
         let messages = vec![create_contract_message(
             &dev_signer,
             0,
@@ -173,7 +173,7 @@ fn self_destruct_test() {
     evm.begin_slot_hook([5u8; 32], &[10u8; 32].into(), &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
-        let context = C::new(sender_address);
+        let context = C::new(sender_address, 1);
 
         // deploy selfdestruct contract
         evm.call(
@@ -225,7 +225,7 @@ fn self_destruct_test() {
     evm.begin_slot_hook([5u8; 32], &[99u8; 32].into(), &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
-        let context = C::new(sender_address);
+        let context = C::new(sender_address, 1);
         // selfdestruct
         evm.call(
             selfdestruct_message(contract_addr, &dev_signer, 3, die_to_address),
@@ -303,7 +303,7 @@ fn log_filter_test_at_block_hash() {
     evm.begin_slot_hook([5u8; 32], &[10u8; 32].into(), &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
-        let context = C::new(sender_address);
+        let context = C::new(sender_address, 1);
 
         // deploy logs contract
         evm.call(
@@ -520,7 +520,7 @@ fn log_filter_test_with_range() {
     evm.begin_slot_hook([5u8; 32], &[10u8; 32].into(), &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
-        let context = C::new(sender_address);
+        let context = C::new(sender_address, 1);
 
         // deploy selfdestruct contract
         evm.call(
@@ -574,7 +574,7 @@ fn log_filter_test_with_range() {
     evm.begin_slot_hook([5u8; 32], &[99u8; 32].into(), &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
-        let context = C::new(sender_address);
+        let context = C::new(sender_address, 1);
         // call the contract function
         evm.call(
             publish_event_message(contract_addr, &dev_signer, 3, "message".to_string()),
@@ -628,7 +628,7 @@ fn test_log_limits() {
     evm.begin_slot_hook([5u8; 32], &[10u8; 32].into(), &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
-        let context = C::new(sender_address);
+        let context = C::new(sender_address, 1);
 
         // deploy selfdestruct contract
         evm.call(
@@ -686,7 +686,7 @@ fn test_log_limits() {
         FilterSet::default(),
     ];
 
-    for i in 1..100_001 {
+    for _ in 1..100_001 {
         // generate 100_000 blocks to test the max block range limit
         evm.begin_slot_hook([5u8; 32], &[99u8; 32].into(), &mut working_set);
         evm.end_slot_hook(&mut working_set);
