@@ -875,7 +875,6 @@ fn publish_event_message(
 }
 
 fn get_evm_config(signer_balance: u64) -> (EvmConfig, TestSigner, Address) {
-    let signer_balance: u64 = signer_balance;
     let dev_signer: TestSigner = TestSigner::new_random();
 
     let contract_addr: Address = Address::from_slice(
