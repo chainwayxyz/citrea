@@ -19,28 +19,9 @@ type C = DefaultContext;
 
 #[test]
 fn call_test() {
-    let dev_signer: TestSigner = TestSigner::new_random();
-    let config = EvmConfig {
-        data: vec![AccountData {
-            address: dev_signer.address(),
-            balance: U256::from(1000000000),
-            code_hash: KECCAK_EMPTY,
-            code: Bytes::default(),
-            nonce: 0,
-        }],
-        // SHANGAI instead of LATEST
-        // https://github.com/Sovereign-Labs/sovereign-sdk/issues/912
-        spec: vec![(0, SpecId::SHANGHAI)].into_iter().collect(),
-        ..Default::default()
-    };
+    let (config, dev_signer, contract_addr) = get_evm_config(1000000000);
 
     let (evm, mut working_set) = get_evm(&config);
-
-    let contract_addr: Address = Address::from_slice(
-        hex::decode("819c5497b157177315e1204f52e588b393771719")
-            .unwrap()
-            .as_slice(),
-    );
 
     evm.begin_slot_hook([5u8; 32], &[10u8; 32].into(), &mut working_set);
 
@@ -144,16 +125,8 @@ fn failed_transaction_test() {
 
 #[test]
 fn self_destruct_test() {
-    let signer_balance: u64 = 10000000000000000;
     let contract_balance: u64 = 1000000000000000;
 
-    let dev_signer: TestSigner = TestSigner::new_random();
-
-    let contract_addr: Address = Address::from_slice(
-        hex::decode("819c5497b157177315e1204f52e588b393771719")
-            .unwrap()
-            .as_slice(),
-    );
     // address used in selfdestruct
     let die_to_address = Address::from_slice(
         hex::decode("11115497b157177315e1204f52e588b393111111")
@@ -161,18 +134,7 @@ fn self_destruct_test() {
             .as_slice(),
     );
 
-    let config = EvmConfig {
-        data: vec![AccountData {
-            address: dev_signer.address(),
-            balance: U256::from(signer_balance),
-            code_hash: KECCAK_EMPTY,
-            code: Bytes::default(),
-            nonce: 0,
-        }],
-        spec: vec![(0, SpecId::SHANGHAI)].into_iter().collect(),
-        ..Default::default()
-    };
-
+    let (config, dev_signer, contract_addr) = get_evm_config(10000000000000000);
     let (evm, mut working_set) = get_evm(&config);
 
     evm.begin_slot_hook([5u8; 32], &[10u8; 32].into(), &mut working_set);
@@ -282,26 +244,7 @@ fn self_destruct_test() {
 
 #[test]
 fn log_filter_test_at_block_hash() {
-    let signer_balance: u64 = 10000000000000000;
-
-    let dev_signer: TestSigner = TestSigner::new_random();
-
-    let contract_addr: Address = Address::from_slice(
-        hex::decode("819c5497b157177315e1204f52e588b393771719")
-            .unwrap()
-            .as_slice(),
-    );
-    let config = EvmConfig {
-        data: vec![AccountData {
-            address: dev_signer.address(),
-            balance: U256::from(signer_balance),
-            code_hash: KECCAK_EMPTY,
-            code: Bytes::default(),
-            nonce: 0,
-        }],
-        spec: vec![(0, SpecId::SHANGHAI)].into_iter().collect(),
-        ..Default::default()
-    };
+    let (config, dev_signer, contract_addr) = get_evm_config(10000000000000000);
 
     let (evm, mut working_set) = get_evm(&config);
 
@@ -499,26 +442,7 @@ fn log_filter_test_at_block_hash() {
 
 #[test]
 fn log_filter_test_with_range() {
-    let signer_balance: u64 = 10000000000000000;
-
-    let dev_signer: TestSigner = TestSigner::new_random();
-
-    let contract_addr: Address = Address::from_slice(
-        hex::decode("819c5497b157177315e1204f52e588b393771719")
-            .unwrap()
-            .as_slice(),
-    );
-    let config = EvmConfig {
-        data: vec![AccountData {
-            address: dev_signer.address(),
-            balance: U256::from(signer_balance),
-            code_hash: KECCAK_EMPTY,
-            code: Bytes::default(),
-            nonce: 0,
-        }],
-        spec: vec![(0, SpecId::SHANGHAI)].into_iter().collect(),
-        ..Default::default()
-    };
+    let (config, dev_signer, contract_addr) = get_evm_config(10000000000000000);
 
     let (evm, mut working_set) = get_evm(&config);
 
@@ -607,26 +531,7 @@ fn log_filter_test_with_range() {
 
 #[test]
 fn test_log_limits() {
-    let signer_balance: u64 = 10000000000000000;
-
-    let dev_signer: TestSigner = TestSigner::new_random();
-
-    let contract_addr: Address = Address::from_slice(
-        hex::decode("819c5497b157177315e1204f52e588b393771719")
-            .unwrap()
-            .as_slice(),
-    );
-    let config = EvmConfig {
-        data: vec![AccountData {
-            address: dev_signer.address(),
-            balance: U256::from(signer_balance),
-            code_hash: KECCAK_EMPTY,
-            code: Bytes::default(),
-            nonce: 0,
-        }],
-        spec: vec![(0, SpecId::SHANGHAI)].into_iter().collect(),
-        ..Default::default()
-    };
+    let (config, dev_signer, contract_addr) = get_evm_config(10000000000000000);
 
     let (evm, mut working_set) = get_evm(&config);
 
@@ -719,26 +624,7 @@ fn test_log_limits() {
 
 #[test]
 fn test_block_hash_in_evm() {
-    let signer_balance: u64 = 10000000000000000;
-
-    let dev_signer: TestSigner = TestSigner::new_random();
-
-    let contract_addr: Address = Address::from_slice(
-        hex::decode("819c5497b157177315e1204f52e588b393771719")
-            .unwrap()
-            .as_slice(),
-    );
-    let config = EvmConfig {
-        data: vec![AccountData {
-            address: dev_signer.address(),
-            balance: U256::from(signer_balance),
-            code_hash: KECCAK_EMPTY,
-            code: Bytes::default(),
-            nonce: 0,
-        }],
-        spec: vec![(0, SpecId::SHANGHAI)].into_iter().collect(),
-        ..Default::default()
-    };
+    let (config, dev_signer, contract_addr) = get_evm_config(10000000000000000);
 
     let (evm, mut working_set) = get_evm(&config);
     evm.begin_slot_hook([5u8; 32], &[10u8; 32].into(), &mut working_set);
@@ -986,4 +872,27 @@ fn publish_event_message(
         )
         .unwrap();
     CallMessage { tx: signed_tx }
+}
+
+fn get_evm_config(signer_balance: u64) -> (EvmConfig, TestSigner, Address) {
+    let signer_balance: u64 = signer_balance;
+    let dev_signer: TestSigner = TestSigner::new_random();
+
+    let contract_addr: Address = Address::from_slice(
+        hex::decode("819c5497b157177315e1204f52e588b393771719")
+            .unwrap()
+            .as_slice(),
+    );
+    let config = EvmConfig {
+        data: vec![AccountData {
+            address: dev_signer.address(),
+            balance: U256::from(signer_balance),
+            code_hash: KECCAK_EMPTY,
+            code: Bytes::default(),
+            nonce: 0,
+        }],
+        spec: vec![(0, SpecId::SHANGHAI)].into_iter().collect(),
+        ..Default::default()
+    };
+    (config, dev_signer, contract_addr)
 }
