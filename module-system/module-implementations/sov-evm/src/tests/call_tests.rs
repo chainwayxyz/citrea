@@ -671,6 +671,12 @@ fn test_log_limits() {
     let rpc_logs = evm.eth_get_logs(filter, &mut working_set);
 
     assert!(rpc_logs.is_err());
+    if let Err(rpc_err) = rpc_logs {
+        assert_eq!(
+            rpc_err.message(),
+            "query exceeds max results 20000".to_string()
+        );
+    }
 
     // Test with block range from start to finish, should get all logs
     let empty_topics = [
@@ -679,11 +685,19 @@ fn test_log_limits() {
         FilterSet::default(),
         FilterSet::default(),
     ];
+
+    for i in 1..100_001 {
+        // generate 100_000 blocks to test the max block range limit
+        evm.begin_slot_hook([5u8; 32], &[99u8; 32].into(), &mut working_set);
+        evm.end_slot_hook(&mut working_set);
+        evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+    }
+
     // The range is greater than the default max blocks to be scanned (100_001 > 100_000)
     let filter = Filter {
         block_option: crate::FilterBlockOption::Range {
-            from_block: Some(BlockNumberOrTag::Number(0)),
-            to_block: Some(BlockNumberOrTag::Number(100_000)),
+            from_block: Some(BlockNumberOrTag::Number(1)),
+            to_block: Some(BlockNumberOrTag::Number(100_001)),
         },
         address: FilterSet::default(),
         topics: empty_topics.clone(),
@@ -692,6 +706,10 @@ fn test_log_limits() {
     let rpc_logs = evm.eth_get_logs(filter, &mut working_set);
 
     assert!(rpc_logs.is_err());
+    assert_eq!(
+        rpc_logs.err().unwrap().message(),
+        "query exceeds max block range 100000".to_string()
+    );
 }
 
 fn create_contract_message<T: TestContract>(

@@ -11,7 +11,7 @@ use revm::primitives::{
 use sov_modules_api::macros::rpc_gen;
 use sov_modules_api::WorkingSet;
 use tracing::info;
-// import provider error:
+
 use crate::call::get_cfg_env;
 use crate::error::rpc::{ensure_success, EthApiError, RevertError, RpcInvalidTransactionError};
 use crate::evm::db::EvmDb;
@@ -564,9 +564,11 @@ impl<C: sov_modules_api::Context> Evm<C> {
         filter: Filter,
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<Vec<LogResponse>> {
+        // https://github.com/paradigmxyz/reth/blob/8892d04a88365ba507f28c3314d99a6b54735d3f/crates/rpc/rpc/src/eth/filter.rs#L302
         Ok(self.logs_for_filter(filter, working_set)?)
     }
 
+    // https://github.com/paradigmxyz/reth/blob/8892d04a88365ba507f28c3314d99a6b54735d3f/crates/rpc/rpc/src/eth/filter.rs#L349
     fn logs_for_filter(
         &self,
         filter: Filter,
@@ -636,6 +638,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         }
     }
 
+    // https://github.com/paradigmxyz/reth/blob/8892d04a88365ba507f28c3314d99a6b54735d3f/crates/rpc/rpc/src/eth/filter.rs#L423
     /// Returns all logs in the given _inclusive_ range that match the filter
     ///
     /// Returns an error if:
@@ -649,7 +652,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         to_block_number: u64,
     ) -> Result<Vec<LogResponse>, FilterError> {
         let max_blocks_per_filter: u64 = DEFAULT_MAX_BLOCKS_PER_FILTER;
-        if to_block_number - from_block_number > max_blocks_per_filter {
+        if to_block_number - from_block_number >= max_blocks_per_filter {
             return Err(FilterError::QueryExceedsMaxBlocks(max_blocks_per_filter));
         }
         // all of the logs we have in the block
@@ -699,6 +702,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         Ok(all_logs)
     }
 
+    // https://github.com/paradigmxyz/reth/blob/main/crates/rpc/rpc/src/eth/logs_utils.rs#L21
     fn append_matching_block_logs(
         &self,
         working_set: &mut WorkingSet<C>,
@@ -738,7 +742,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     let log = LogResponse {
                         address: log.address,
                         topics: log.topics,
-                        data: log.data.into(),
+                        data: log.data.to_vec().into(),
                         block_hash: Some(block.header.hash),
                         block_number: Some(U256::from(block.header.number)),
                         transaction_hash: Some(tx.signed_transaction.hash),

@@ -131,14 +131,7 @@ impl<T: TestContract> TestClient<T> {
     ) -> PendingTransaction<'_, Http> {
         // Tx without gas_limit should estimate and include it in send_transaction endpoint
         // Tx without nonce should fetch and include it in send_transaction endpoint
-        let contract: &SimpleStorageContract = match self
-            .contract
-            .as_any()
-            .downcast_ref::<SimpleStorageContract>()
-        {
-            Some(ssc) => ssc,
-            None => panic!("Contract isn't a Simple Storage Contract!"),
-        };
+        let contract: &SimpleStorageContract = self.get_simple_storage_contract();
         let req = Eip1559TransactionRequest::new()
             .from(self.from_addr)
             .to(contract_address)
@@ -160,14 +153,7 @@ impl<T: TestContract> TestClient<T> {
         max_fee_per_gas: Option<u64>,
     ) -> PendingTransaction<'_, Http> {
         let nonce = self.eth_get_transaction_count(self.from_addr).await;
-        let contract: &SimpleStorageContract = match self
-            .contract
-            .as_any()
-            .downcast_ref::<SimpleStorageContract>()
-        {
-            Some(ssc) => ssc,
-            None => panic!("Contract isn't a Simple Storage Contract!"),
-        };
+        let contract: &SimpleStorageContract = self.get_simple_storage_contract();
 
         let req = Eip1559TransactionRequest::new()
             .from(self.from_addr)
@@ -194,15 +180,7 @@ impl<T: TestContract> TestClient<T> {
     ) -> Result<Bytes, Box<dyn std::error::Error>> {
         let nonce = self.eth_get_transaction_count(self.from_addr).await;
 
-        let contract: &SimpleStorageContract = match self
-            .contract
-            .as_any()
-            .downcast_ref::<SimpleStorageContract>()
-        {
-            Some(ssc) => ssc,
-            None => panic!("Contract isn't a Simple Storage Contract!"),
-        };
-
+        let contract: &SimpleStorageContract = self.get_simple_storage_contract();
         // Any type of transaction can be used for eth_call
         let req = TransactionRequest::new()
             .from(self.from_addr)
@@ -236,14 +214,7 @@ impl<T: TestContract> TestClient<T> {
     ) -> Result<Bytes, Box<dyn std::error::Error>> {
         let nonce = self.eth_get_transaction_count(self.from_addr).await;
 
-        let contract: &SimpleStorageContract = match self
-            .contract
-            .as_any()
-            .downcast_ref::<SimpleStorageContract>()
-        {
-            Some(ssc) => ssc,
-            None => panic!("Contract isn't a Simple Storage Contract!"),
-        };
+        let contract: &SimpleStorageContract = self.get_simple_storage_contract();
 
         // Any type of transaction can be used for eth_call
         let req = Eip1559TransactionRequest::new()
@@ -268,14 +239,7 @@ impl<T: TestContract> TestClient<T> {
     ) -> Result<ethereum_types::U256, Box<dyn std::error::Error>> {
         let nonce = self.eth_get_transaction_count(self.from_addr).await;
 
-        let contract: &SimpleStorageContract = match self
-            .contract
-            .as_any()
-            .downcast_ref::<SimpleStorageContract>()
-        {
-            Some(ssc) => ssc,
-            None => panic!("Contract isn't a Simple Storage Contract!"),
-        };
+        let contract: &SimpleStorageContract = self.get_simple_storage_contract();
 
         let req = Eip1559TransactionRequest::new()
             .from(self.from_addr)
@@ -421,5 +385,17 @@ impl<T: TestContract> TestClient<T> {
             .await
             .unwrap();
         eth_logs
+    }
+
+    pub(crate) fn get_simple_storage_contract(&self) -> &SimpleStorageContract {
+        let contract: &SimpleStorageContract = match self
+            .contract
+            .as_any()
+            .downcast_ref::<SimpleStorageContract>()
+        {
+            Some(ssc) => ssc,
+            None => panic!("Contract isn't a Simple Storage Contract!"),
+        };
+        contract
     }
 }

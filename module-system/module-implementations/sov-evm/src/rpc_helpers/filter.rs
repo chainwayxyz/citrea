@@ -1,3 +1,4 @@
+// https://github.com/paradigmxyz/reth/blob/main/crates/rpc/rpc-types/src/eth/filter.rs
 use std::hash::Hash;
 use std::ops::RangeInclusive;
 use std::ops::{Range, RangeFrom, RangeTo};
@@ -37,7 +38,7 @@ impl From<Vec<Bloom>> for BloomFilter {
 impl BloomFilter {
     /// Returns whether the given bloom matches the list of Blooms in the current filter.
     /// If the filter is empty (the list is empty), then any bloom matches
-    /// Otherwise, there must be at least one matche for the BloomFilter to match.
+    /// Otherwise, there must be at least one matchee for the BloomFilter to match.
     pub fn matches(&self, bloom: Bloom) -> bool {
         self.0.is_empty() || self.0.iter().any(|a| bloom.contains(a))
     }
@@ -77,7 +78,7 @@ impl Default for FilterBlockOption {
 }
 
 impl FilterBlockOption {
-    /// Returns the `fromBlock` value, if any
+    /// Returns the `toBlock` value, if any
     pub fn get_to_block(&self) -> Option<&BlockNumberOrTag> {
         match self {
             FilterBlockOption::Range { to_block, .. } => to_block.as_ref(),
@@ -85,7 +86,7 @@ impl FilterBlockOption {
         }
     }
 
-    /// Returns the `toBlock` value, if any
+    /// Returns the `fromBlock` value, if any
     pub fn get_from_block(&self) -> Option<&BlockNumberOrTag> {
         match self {
             FilterBlockOption::Range { from_block, .. } => from_block.as_ref(),
@@ -202,6 +203,7 @@ impl FilterBlockOption {
     }
 }
 
+// https://github.com/paradigmxyz/reth/blob/main/crates/rpc/rpc-types/src/eth/filter.rs#L249
 /// filter for eth_getLogs
 #[derive(Default, Debug, Clone, PartialEq, Eq)]
 pub struct Filter {
@@ -346,7 +348,7 @@ impl Filter {
         false
     }
 
-    /// TODO: Implement after deciding on what to do with archival nodes
+    /// TODO: Update after deciding on what to do with archival nodes
     pub fn filter_block_range(&self, block_number: &u64) -> bool {
         let mut res = true;
 
@@ -628,6 +630,7 @@ where
     }
 }
 
+// https://github.com/paradigmxyz/reth/blob/main/crates/rpc/rpc/src/eth/logs_utils.rs#L56
 /// Returns true if the log matches the filter and should be included
 pub(crate) fn log_matches_filter(
     log: &reth_primitives::Log,

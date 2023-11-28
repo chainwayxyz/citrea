@@ -3,13 +3,11 @@ mod test_client;
 use std::net::SocketAddr;
 use std::str::FromStr;
 
-use demo_stf::genesis_config::GenesisPaths;
 use ethers_core::abi::Address;
 use ethers_signers::{LocalWallet, Signer};
+use reqwest::Client;
 use sov_evm::{SimpleStorageContract, TestContract};
 use test_client::TestClient;
-
-use crate::test_helpers::create_and_start_rollup;
 
 #[cfg(feature = "experimental")]
 #[tokio::test]
@@ -91,7 +89,35 @@ async fn test_getlogs<T: TestContract>(
         hex::encode(logs[0].topics[0]).to_string(),
         "a9943ee9804b5d456d8ad7b3b1b975a5aefa607e16d13936959976e776c4bec7"
     );
+    println!("data: {:?}", hex::encode(logs[0].data.clone()));
+    println!("json_data : {:?}", serde_json::to_string(&logs[0]).unwrap());
 
+    let deployed_filter = serde_json::json!({
+        "blockHash": "0x4a80830bd0f144bf3ee9bf1e37b3196d0e465ed9068074f3d1a54b7aea2dc9fd".to_string(),
+         "address":"0x8808412aA0dFf27068BD36a069eEe4C6aD173ca8".to_string()
+    });
+    let sepolia_rpc_url = "https://rpc.notadegen.com/eth/sepolia";
+
+    let http_client = Client::new();
+    let sepolia_logs = http_client
+        .post(sepolia_rpc_url)
+        .json(&serde_json::json!({
+            "jsonrpc": "2.0",
+            "method": "eth_getLogs",
+            "params": [deployed_filter],
+            "id": 1
+        }))
+        .send()
+        .await
+        .unwrap()
+        .json::<serde_json::Value>()
+        .await
+        .unwrap();
+    println!("sepolia_logs: {:?}", sepolia_logs);
+    // the data should be the same that we have
+    let sepolia_log_data = sepolia_logs["result"][0]["data"].to_string();
+    let len = sepolia_log_data.len();
+    assert_eq!(sepolia_log_data[2..len - 1], logs[0].data.to_string());
     // Deploy another contract
     let (contract_address2, _) = {
         let runtime_code = client.deploy_contract_call().await?;
