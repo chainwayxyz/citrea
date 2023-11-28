@@ -32,7 +32,7 @@ pub trait Module {
     type CallMessage: Debug + BorshSerialize + BorshDeserialize;
 
     /// Module defined argument to the call_multiple method.
-    type CallMessages: Debug + BorshSerialize + BorshDeserialize;
+    // type CallMessages: Debug + BorshSerialize + BorshDeserialize;
 
     /// Module defined event resulting from a call method.
     type Event: Debug + BorshSerialize + BorshDeserialize;
@@ -58,14 +58,14 @@ pub trait Module {
     }
 
     /// Invoke state changes for multiple calls.
-    fn call_multiple(
-        &self,
-        _message: Self::CallMessages,
-        _context: &Self::Context,
-        _working_set: &mut WorkingSet<Self::Context>,
-    ) -> Result<CallResponse, ModuleError> {
-        unreachable!()
-    }
+    // fn call_multiple(
+    //     &self,
+    //     _message: Self::CallMessages,
+    //     _context: &Self::Context,
+    //     _working_set: &mut WorkingSet<Self::Context>,
+    // ) -> Result<CallResponse, ModuleError> {
+    //     unreachable!()
+    // }
 
     /// Attempts to charge the provided amount of gas from the working set.
     ///

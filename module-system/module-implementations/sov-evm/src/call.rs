@@ -21,101 +21,108 @@ use crate::Evm;
 #[derive(borsh::BorshDeserialize, borsh::BorshSerialize, Debug, PartialEq, Clone)]
 pub struct CallMessage {
     /// RLP encoded transaction.
-    pub tx: RlpEvmTransaction,
-}
-
-/// Multiple EVM call messages.
-#[derive(borsh::BorshDeserialize, borsh::BorshSerialize, Debug, PartialEq, Clone)]
-pub struct CallMessages {
-    /// RLP encoded transactions.
     pub txs: Vec<RlpEvmTransaction>,
 }
 
+/// Multiple EVM call messages.
+// #[derive(borsh::BorshDeserialize, borsh::BorshSerialize, Debug, PartialEq, Clone)]
+// pub struct CallMessages {
+//     /// RLP encoded transactions.
+//     pub txs: Vec<RlpEvmTransaction>,
+// }
+
 impl<C: sov_modules_api::Context> Evm<C> {
-    pub(crate) fn execute_call_multiple(
-        &self,
-        call_messages: CallMessages,
-        context: &C,
-        working_set: &mut WorkingSet<C>,
-    ) -> Result<CallResponse> {
-        for call_message in call_messages.txs {
-            self.execute_call(call_message, context, working_set)?;
-        }
-        Ok(CallResponse::default())
-    }
+    // pub(crate) fn execute_call_multiple(
+    //     &self,
+    //     call_messages: CallMessages,
+    //     context: &C,
+    //     working_set: &mut WorkingSet<C>,
+    // ) -> Result<CallResponse> {
+    //     for call_message in call_messages.txs {
+    //         self.execute_call(call_message, context, working_set)?;
+    //     }
+    //     Ok(CallResponse::default())
+    // }
 
     pub(crate) fn execute_call(
         &self,
-        tx: RlpEvmTransaction,
+        txs: Vec<RlpEvmTransaction>,
         _context: &C,
         working_set: &mut WorkingSet<C>,
     ) -> Result<CallResponse> {
-        let evm_tx_recovered: TransactionSignedEcRecovered = tx.try_into()?;
-        let block_env = self
-            .block_env
-            .get(working_set)
-            .expect("Pending block must be set");
 
-        let cfg = self.cfg.get(working_set).expect("Evm config must be set");
-        let cfg_env = get_cfg_env(&block_env, cfg, None);
+        let evm_txs_recovered: Result<Vec<TransactionSignedEcRecovered>, _> = txs.into_iter().map(|tx| tx.try_into()).collect();
+        
+        for evm_tx_recovered in evm_txs_recovered? {
+            let block_env = self
+                .block_env
+                .get(working_set)
+                .expect("Pending block must be set");
 
-        let evm_db: EvmDb<'_, C> = self.get_db(working_set);
-        let result = executor::execute_tx(evm_db, &block_env, &evm_tx_recovered, cfg_env);
-        let previous_transaction = self.pending_transactions.last(working_set);
-        let previous_transaction_cumulative_gas_used = previous_transaction
-            .as_ref()
-            .map_or(0u64, |tx| tx.receipt.receipt.cumulative_gas_used);
-        let log_index_start = previous_transaction.as_ref().map_or(0u64, |tx| {
-            tx.receipt.log_index_start + tx.receipt.receipt.logs.len() as u64
-        });
+            let cfg = self.cfg.get(working_set).expect("Evm config must be set");
+            let cfg_env = get_cfg_env(&block_env, cfg, None);
 
-        let receipt = match result {
-            Ok(result) => {
-                let logs: Vec<_> = result.logs().into_iter().map(into_reth_log).collect();
-                let gas_used = result.gas_used();
+            let evm_db: EvmDb<'_, C> = self.get_db(working_set);
+            let result = executor::execute_tx(evm_db, &block_env, &evm_tx_recovered, cfg_env);
+            let previous_transaction = self.pending_transactions.last(working_set);
+            let previous_transaction_cumulative_gas_used = previous_transaction
+                .as_ref()
+                .map_or(0u64, |tx| tx.receipt.receipt.cumulative_gas_used);
+            let log_index_start = previous_transaction.as_ref().map_or(0u64, |tx| {
+                tx.receipt.log_index_start + tx.receipt.receipt.logs.len() as u64
+            });
 
-                Receipt {
+            let receipt = match result {
+                Ok(result) => {
+                    let logs: Vec<_> = result.logs().into_iter().map(into_reth_log).collect();
+                    let gas_used = result.gas_used();
+
+                    Receipt {
+                        receipt: reth_primitives::Receipt {
+                            tx_type: evm_tx_recovered.tx_type(),
+                            success: result.is_success(),
+                            cumulative_gas_used: previous_transaction_cumulative_gas_used + gas_used,
+                            logs,
+                        },
+                        gas_used,
+                        log_index_start,
+                        error: None,
+                    }
+                }
+                Err(err) => Receipt {
                     receipt: reth_primitives::Receipt {
                         tx_type: evm_tx_recovered.tx_type(),
-                        success: result.is_success(),
-                        cumulative_gas_used: previous_transaction_cumulative_gas_used + gas_used,
-                        logs,
+                        success: false,
+                        cumulative_gas_used: previous_transaction_cumulative_gas_used,
+                        logs: vec![],
                     },
-                    gas_used,
+                    // TODO: Do we want failed transactions to use all gas?
+                    // https://github.com/Sovereign-Labs/sovereign-sdk/issues/505
+                    gas_used: 0,
                     log_index_start,
-                    error: None,
-                }
-            }
-            Err(err) => Receipt {
-                receipt: reth_primitives::Receipt {
-                    tx_type: evm_tx_recovered.tx_type(),
-                    success: false,
-                    cumulative_gas_used: previous_transaction_cumulative_gas_used,
-                    logs: vec![],
+                    error: Some(match err {
+                        EVMError::Transaction(err) => EVMError::Transaction(err),
+                        EVMError::Header(e) => EVMError::Header(e),
+                        EVMError::Database(_) => EVMError::Database(0u8),
+                    }),
                 },
-                // TODO: Do we want failed transactions to use all gas?
-                // https://github.com/Sovereign-Labs/sovereign-sdk/issues/505
-                gas_used: 0,
-                log_index_start,
-                error: Some(match err {
-                    EVMError::Transaction(err) => EVMError::Transaction(err),
-                    EVMError::Header(e) => EVMError::Header(e),
-                    EVMError::Database(_) => EVMError::Database(0u8),
-                }),
-            },
-        };
+            };
 
-        let pending_transaction = PendingTransaction {
-            transaction: TransactionSignedAndRecovered {
-                signer: evm_tx_recovered.signer(),
-                signed_transaction: evm_tx_recovered.into(),
-                block_number: block_env.number,
-            },
-            receipt,
-        };
+            let pending_transaction = PendingTransaction {
+                transaction: TransactionSignedAndRecovered {
+                    signer: evm_tx_recovered.signer(),
+                    signed_transaction: evm_tx_recovered.into(),
+                    block_number: block_env.number,
+                },
+                receipt,
+            };
 
-        self.pending_transactions
-            .push(&pending_transaction, working_set);
+            self.pending_transactions
+                .push(&pending_transaction, working_set);
+
+        }
+
+        
 
         Ok(CallResponse::default())
     }

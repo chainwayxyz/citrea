@@ -419,7 +419,7 @@ fn create_contract_message<T: TestContract>(
             0,
         )
         .unwrap();
-    CallMessage { tx: signed_tx }
+    CallMessage { txs: signed_tx }
 }
 
 fn create_contract_transaction<T: TestContract>(
@@ -454,7 +454,7 @@ fn set_selfdestruct_arg_message(
         )
         .unwrap();
 
-    CallMessage { tx: signed_tx }
+    CallMessage { txs: signed_tx }
 }
 
 fn set_arg_message(
@@ -473,7 +473,7 @@ fn set_arg_message(
         )
         .unwrap();
 
-    CallMessage { tx: signed_tx }
+    CallMessage { txs: signed_tx }
 }
 
 fn set_arg_transaction(
@@ -510,7 +510,7 @@ fn selfdestruct_message(
             0,
         )
         .unwrap();
-    CallMessage { tx: signed_tx }
+    CallMessage { txs: vec![signed_tx] }
 }
 
 fn send_money_to_contract_message(
@@ -527,5 +527,5 @@ fn send_money_to_contract_message(
             value,
         )
         .unwrap();
-    CallMessage { tx: signed_tx }
+    CallMessage { txs: vec![signed_tx] }
 }
