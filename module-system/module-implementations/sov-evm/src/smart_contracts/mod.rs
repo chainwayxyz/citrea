@@ -1,10 +1,13 @@
+use std::any::Any;
 use std::path::PathBuf;
 
+mod logs_contract;
 mod self_destructor_contract;
 mod simple_storage_contract;
 use ethers_contract::BaseContract;
 use ethers_core::abi::Abi;
 use ethers_core::types::Bytes;
+pub use logs_contract::LogsContract;
 pub use self_destructor_contract::SelfDestructorContract;
 pub use simple_storage_contract::SimpleStorageContract;
 
@@ -22,6 +25,14 @@ fn make_contract_from_abi(path: PathBuf) -> BaseContract {
     BaseContract::from(abi)
 }
 
+/// Trait for testing smart contracts.
 pub trait TestContract {
+    /// Common method of all smart contracts. Returns bytecode
     fn byte_code(&self) -> Bytes;
+    /// Dynamically dispatch from trait.
+    fn as_any(&self) -> &dyn Any;
+    /// Create the default instance of the smart contract.
+    fn default_(&self) -> Self
+    where
+        Self: Sized;
 }
