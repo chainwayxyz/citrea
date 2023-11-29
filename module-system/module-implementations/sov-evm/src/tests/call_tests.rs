@@ -67,6 +67,7 @@ fn call_multiple_test() {
             &mut working_set,
         )
         .unwrap();
+        
     }
 
     evm.end_slot_hook(&mut working_set);
@@ -80,9 +81,6 @@ fn call_multiple_test() {
 
     assert_eq!(U256::from(set_arg + 3), storage_value);
 
-    // Check block
-    // let block = evm.get_block_by_number(Some("latest".to_owned()), Some(false), &mut working_set);
-    // println!("block: {:?}", block);
 
     for x in evm.receipts.iter(&mut working_set.accessory_state()) {
         println!("\n receipt: {:?} \n", x);

@@ -9,7 +9,7 @@ use crate::evm::executor::{self};
 use crate::evm::primitive_types::{BlockEnv, Receipt, TransactionSignedAndRecovered};
 use crate::evm::{EvmChainConfig, RlpEvmTransaction};
 use crate::experimental::PendingTransaction;
-use crate::Evm;
+use crate::{Evm, EthApiError};
 
 #[cfg_attr(
     feature = "serde",
@@ -24,26 +24,8 @@ pub struct CallMessage {
     pub txs: Vec<RlpEvmTransaction>,
 }
 
-/// Multiple EVM call messages.
-// #[derive(borsh::BorshDeserialize, borsh::BorshSerialize, Debug, PartialEq, Clone)]
-// pub struct CallMessages {
-//     /// RLP encoded transactions.
-//     pub txs: Vec<RlpEvmTransaction>,
-// }
-
 impl<C: sov_modules_api::Context> Evm<C> {
-    // pub(crate) fn execute_call_multiple(
-    //     &self,
-    //     call_messages: CallMessages,
-    //     context: &C,
-    //     working_set: &mut WorkingSet<C>,
-    // ) -> Result<CallResponse> {
-    //     for call_message in call_messages.txs {
-    //         self.execute_call(call_message, context, working_set)?;
-    //     }
-    //     Ok(CallResponse::default())
-    // }
-
+    /// Executes a call message.
     pub(crate) fn execute_call(
         &self,
         txs: Vec<RlpEvmTransaction>,
@@ -51,9 +33,17 @@ impl<C: sov_modules_api::Context> Evm<C> {
         working_set: &mut WorkingSet<C>,
     ) -> Result<CallResponse> {
 
-        let evm_txs_recovered: Result<Vec<TransactionSignedEcRecovered>, _> = txs.into_iter().map(|tx| tx.try_into()).collect();
+        let evm_txs_recovered: Vec<Result<TransactionSignedEcRecovered, EthApiError>> = txs.into_iter().map(|tx| tx.try_into()).collect();
         
-        for evm_tx_recovered in evm_txs_recovered? {
+        for evm_tx_recovered in evm_txs_recovered {
+            
+            // TODO: Check here.
+            if let Err(_) = evm_tx_recovered {
+                continue;
+            } 
+            
+            let evm_tx_recovered = evm_tx_recovered.unwrap();
+            
             let block_env = self
                 .block_env
                 .get(working_set)
@@ -121,8 +111,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 .push(&pending_transaction, working_set);
 
         }
-
-        
 
         Ok(CallResponse::default())
     }
