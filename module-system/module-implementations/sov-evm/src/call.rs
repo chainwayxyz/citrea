@@ -9,7 +9,7 @@ use crate::evm::executor::{self};
 use crate::evm::primitive_types::{BlockEnv, Receipt, TransactionSignedAndRecovered};
 use crate::evm::{EvmChainConfig, RlpEvmTransaction};
 use crate::experimental::PendingTransaction;
-use crate::{Evm, EthApiError};
+use crate::Evm;
 
 #[cfg_attr(
     feature = "serde",
@@ -32,28 +32,32 @@ impl<C: sov_modules_api::Context> Evm<C> {
         _context: &C,
         working_set: &mut WorkingSet<C>,
     ) -> Result<CallResponse> {
-
-        let evm_txs_recovered: Vec<Result<TransactionSignedEcRecovered, EthApiError>> = txs.into_iter().map(|tx| tx.try_into()).collect();
         
-        for evm_tx_recovered in evm_txs_recovered {
-            
-            // TODO: Check here.
-            if let Err(_) = evm_tx_recovered {
-                continue;
-            } 
-            
-            let evm_tx_recovered = evm_tx_recovered.unwrap();
-            
-            let block_env = self
-                .block_env
-                .get(working_set)
-                .expect("Pending block must be set");
+        let evm_txs_recovered: Vec<TransactionSignedEcRecovered> = txs.into_iter().filter_map(|tx| {
+            match tx.try_into() {
+                Ok(tx) => Some(tx),
+                Err(_) => None,
+            }
+        }).collect();
 
-            let cfg = self.cfg.get(working_set).expect("Evm config must be set");
-            let cfg_env = get_cfg_env(&block_env, cfg, None);
+        let block_env = self
+            .block_env
+            .get(working_set)
+            .expect("Pending block must be set");
 
-            let evm_db: EvmDb<'_, C> = self.get_db(working_set);
-            let result = executor::execute_tx(evm_db, &block_env, &evm_tx_recovered, cfg_env);
+        let cfg = self.cfg.get(working_set).expect("Evm config must be set");
+        let cfg_env = get_cfg_env(&block_env, cfg, None);
+
+        let evm_db: EvmDb<'_, C> = self.get_db(working_set);
+
+        let results = executor::execute_multiple_tx(evm_db, &block_env, &evm_txs_recovered, cfg_env);
+
+        // Iterate each evm_txs_recovered and results pair
+        // Create a PendingTransaction for each pair
+        // Push each PendingTransaction to pending_transactions
+        evm_txs_recovered.into_iter().zip(
+            results.into_iter()
+        ).for_each(|(evm_tx_recovered, result)| {
             let previous_transaction = self.pending_transactions.last(working_set);
             let previous_transaction_cumulative_gas_used = previous_transaction
                 .as_ref()
@@ -86,8 +90,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
                         cumulative_gas_used: previous_transaction_cumulative_gas_used,
                         logs: vec![],
                     },
-                    // TODO: Do we want failed transactions to use all gas?
-                    // https://github.com/Sovereign-Labs/sovereign-sdk/issues/505
                     gas_used: 0,
                     log_index_start,
                     error: Some(match err {
@@ -95,7 +97,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                         EVMError::Header(e) => EVMError::Header(e),
                         EVMError::Database(_) => EVMError::Database(0u8),
                     }),
-                },
+                }
             };
 
             let pending_transaction = PendingTransaction {
@@ -106,11 +108,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 },
                 receipt,
             };
-
+    
             self.pending_transactions
                 .push(&pending_transaction, working_set);
-
-        }
+        });
 
         Ok(CallResponse::default())
     }
