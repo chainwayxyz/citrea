@@ -679,7 +679,7 @@ fn test_block_hash_in_evm() {
         transaction_type: None,
     };
 
-    for i in 0..515 {
+    for i in 0..=1000 {
         request.input.input = Some(
             BlockHashContract::default()
                 .get_block_hash(i)
@@ -687,7 +687,7 @@ fn test_block_hash_in_evm() {
                 .into(),
         );
         let resp = evm.get_call(request.clone(), None, None, None, &mut working_set);
-        if i < 259 {
+        if i < 259 || i > 514 {
             // Should be 0, there is more than 256 blocks between the last block and the block number
             assert_eq!(resp.unwrap().to_vec(), vec![0u8; 32]);
         } else {
@@ -698,17 +698,6 @@ fn test_block_hash_in_evm() {
             assert_eq!(resp.unwrap().to_vec(), block.unwrap().header.hash.to_vec());
         }
     }
-
-    request.input.input = Some(
-        BlockHashContract::default()
-            .get_block_hash(1000)
-            .to_vec()
-            .into(),
-    );
-    let resp1000 = evm.get_call(request.clone(), None, None, None, &mut working_set);
-
-    // Should be 0, the block doesn't exist yet.
-    assert_eq!(resp1000.unwrap().to_vec(), vec![0u8; 32]);
 }
 
 fn create_contract_message<T: TestContract>(
