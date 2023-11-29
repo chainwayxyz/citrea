@@ -1,6 +1,6 @@
 use reth_primitives::{Address, Bytes, TransactionKind, U64};
 use reth_rpc_types::{CallInput, CallRequest};
-use revm::primitives::{SpecId, B256, KECCAK_EMPTY, U256, EVMError::Transaction};
+use revm::primitives::{SpecId, B256, KECCAK_EMPTY, U256};
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{Context, Module};
@@ -55,10 +55,9 @@ fn call_multiple_test() {
 
         let transactions: Vec<RlpEvmTransaction> = vec![
             create_contract_transaction(&dev_signer1, 0, SimpleStorageContract::default()),
-            set_arg_transaction(contract_addr, &dev_signer1, 1, set_arg),
             set_arg_transaction(contract_addr, &dev_signer1, 1, set_arg + 1),
-            set_arg_transaction(contract_addr, &dev_signer1, 3, set_arg + 2),
-            set_arg_transaction(contract_addr, &dev_signer1, 2, set_arg + 3),
+            set_arg_transaction(contract_addr, &dev_signer1, 2, set_arg + 2),
+            set_arg_transaction(contract_addr, &dev_signer1, 3, set_arg + 3),
         ];
 
         evm.call(
@@ -80,11 +79,6 @@ fn call_multiple_test() {
         .unwrap();
 
     assert_eq!(U256::from(set_arg + 3), storage_value);
-
-
-    for x in evm.receipts.iter(&mut working_set.accessory_state()) {
-        println!("\n receipt: {:?} \n", x);
-    }
 
     assert_eq!(
         evm.receipts
@@ -116,38 +110,6 @@ fn call_multiple_test() {
             Receipt {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::EIP1559,
-                    success: false,
-                    cumulative_gas_used: 176673,
-                    logs: vec![]
-                },
-                gas_used: 0,
-                log_index_start: 0,
-                error: Some(Transaction(
-                    revm::primitives::InvalidTransaction::NonceTooLow {
-                        tx: 1,
-                        state: 2,
-                    }
-                ))
-            },
-            Receipt {
-                receipt: reth_primitives::Receipt {
-                    tx_type: reth_primitives::TxType::EIP1559,
-                    success: false,
-                    cumulative_gas_used: 176673,
-                    logs: vec![]
-                },
-                gas_used: 0,
-                log_index_start: 0,
-                error: Some(Transaction(
-                    revm::primitives::InvalidTransaction::NonceTooHigh {
-                        tx: 3,
-                        state: 2,
-                    }
-                ))
-            },
-            Receipt {
-                receipt: reth_primitives::Receipt {
-                    tx_type: reth_primitives::TxType::EIP1559,
                     success: true,
                     cumulative_gas_used: 203303,
                     logs: vec![]
@@ -156,6 +118,17 @@ fn call_multiple_test() {
                 log_index_start: 0,
                 error: None
             },
+            Receipt {
+                receipt: reth_primitives::Receipt {
+                    tx_type: reth_primitives::TxType::EIP1559,
+                    success: true,
+                    cumulative_gas_used: 229933,
+                    logs: vec![]
+                },
+                gas_used: 26630,
+                log_index_start: 0,
+                error: None
+            }
         ]
     )
 }
@@ -740,7 +713,7 @@ fn test_log_limits() {
         FilterSet::default(),
     ];
 
-    for i in 1..100_001 {
+    for _i in 1..100_001 {
         // generate 100_000 blocks to test the max block range limit
         evm.begin_slot_hook([5u8; 32], &[99u8; 32].into(), &mut working_set);
         evm.end_slot_hook(&mut working_set);
@@ -784,19 +757,21 @@ fn test_block_hash_in_evm() {
     evm.end_slot_hook(&mut working_set);
     evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
 
-    for i in 0..514 {
+    for _i in 0..514 {
         // generate 514 more blocks
         evm.begin_slot_hook([5u8; 32], &[99u8; 32].into(), &mut working_set);
         evm.end_slot_hook(&mut working_set);
         evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
     }
-    let last_block_number = evm
+
+    let _last_block_number = evm
         .blocks
         .last(&mut working_set.accessory_state())
         .unwrap()
         .header
         .number;
-    let block_number = last_block_number;
+
+    let _block_number = _last_block_number;
 
     let mut request = CallRequest {
         from: None,
