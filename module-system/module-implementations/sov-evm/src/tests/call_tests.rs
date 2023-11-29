@@ -890,8 +890,6 @@ fn create_contract_transaction<T: TestContract>(
         )
         .unwrap();
     signed_tx
-
-    CallMessage { txs: vec![signed_tx] }
 }
 
 fn set_selfdestruct_arg_message(
