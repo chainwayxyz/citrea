@@ -4,6 +4,7 @@ use reth_primitives::{Receipt, SealedBlock, TransactionSigned, U256};
 use reth_rpc_types::{
     Block, BlockTransactions, Rich, Transaction, TransactionReceipt, TxGasAndReward,
 };
+use schnellru::{ByLength, LruMap};
 use serde::{Deserialize, Serialize};
 use sov_evm::EthApiError;
 use sov_modules_api::WorkingSet;
@@ -12,7 +13,7 @@ use std::{
     fmt::Debug,
     sync::{
         atomic::{AtomicU64, Ordering::SeqCst},
-        Arc,
+        Arc, Mutex,
     },
 };
 
@@ -49,21 +50,22 @@ impl Default for FeeHistoryCacheConfig {
 
 /// Wrapper struct for BTreeMap
 pub struct FeeHistoryCache<C: sov_modules_api::Context> {
-    inner: Arc<FeeHistoryCacheInner>,
+    /// Config for FeeHistoryCache, consists of resolution for percentile approximation
+    /// and max number of blocks
+    config: FeeHistoryCacheConfig,
+    /// Stores the entries of the cache
+    entries: Mutex<LruMap<u64, FeeHistoryEntry, ByLength>>,
+    /// Block cache
     block_cache: Arc<BlockCache<C>>,
 }
 
 impl<C: sov_modules_api::Context> FeeHistoryCache<C> {
     /// Creates new FeeHistoryCache instance, initialize it with the mose recent data, set bounds
     pub fn new(config: FeeHistoryCacheConfig, block_cache: Arc<BlockCache<C>>) -> Self {
-        let inner = FeeHistoryCacheInner {
-            lower_bound: Default::default(),
-            upper_bound: Default::default(),
-            config,
-            entries: Default::default(),
-        };
+        let max_blocks = config.max_blocks;
         Self {
-            inner: Arc::new(inner),
+            config,
+            entries: Mutex::new(LruMap::new(ByLength::new(max_blocks as u32))),
             block_cache,
         }
     }
@@ -71,7 +73,7 @@ impl<C: sov_modules_api::Context> FeeHistoryCache<C> {
     /// How the cache is configured.
     #[inline]
     pub fn config(&self) -> &FeeHistoryCacheConfig {
-        &self.inner.config
+        &self.config
     }
 
     /// Returns the configured resolution for percentile approximation.
@@ -81,11 +83,11 @@ impl<C: sov_modules_api::Context> FeeHistoryCache<C> {
     }
 
     /// Processing of the arriving blocks
-    pub async fn insert_blocks<I>(&self, blocks: I)
+    pub fn insert_blocks<I>(&self, blocks: I)
     where
         I: Iterator<Item = (Rich<Block>, Vec<TransactionReceipt>)>,
     {
-        let mut entries = self.inner.entries.write().await;
+        let mut entries = self.entries.lock().unwrap();
 
         let percentiles = self.predefined_percentiles();
         // Insert all new blocks and calculate approximated rewards
@@ -107,38 +109,6 @@ impl<C: sov_modules_api::Context> FeeHistoryCache<C> {
                 convert_u256_to_u64(block.header.number.unwrap_or_default()).unwrap_or_default();
             entries.insert(block_number, fee_history_entry);
         }
-
-        // enforce bounds by popping the oldest entries
-        while entries.len() > self.inner.config.max_blocks as usize {
-            entries.pop_first();
-        }
-
-        if entries.len() == 0 {
-            self.inner.upper_bound.store(0, SeqCst);
-            self.inner.lower_bound.store(0, SeqCst);
-            return;
-        }
-
-        let upper_bound = *entries
-            .last_entry()
-            .expect("Contains at least one entry")
-            .key();
-        let lower_bound = *entries
-            .first_entry()
-            .expect("Contains at least one entry")
-            .key();
-        self.inner.upper_bound.store(upper_bound, SeqCst);
-        self.inner.lower_bound.store(lower_bound, SeqCst);
-    }
-
-    /// Get UpperBound value for FeeHistoryCache
-    pub fn upper_bound(&self) -> u64 {
-        self.inner.upper_bound.load(SeqCst)
-    }
-
-    /// Get LowerBound value for FeeHistoryCache
-    pub fn lower_bound(&self) -> u64 {
-        self.inner.lower_bound.load(SeqCst)
     }
 
     /// Collect fee history for given range.
@@ -147,45 +117,48 @@ impl<C: sov_modules_api::Context> FeeHistoryCache<C> {
     /// If the requested range (start_block to end_block) is within the cache bounds,
     /// it returns the corresponding entries.
     /// Otherwise it returns None.
-    pub async fn get_history(
+    pub fn get_history(
         &self,
         start_block: u64,
         end_block: u64,
         working_set: &mut WorkingSet<C>,
-    ) -> Option<Vec<FeeHistoryEntry>> {
-        let lower_bound = self.lower_bound();
-        let upper_bound = self.upper_bound();
-        if start_block >= lower_bound && end_block <= upper_bound {
-            let entries = self.inner.entries.read().await;
+    ) -> Vec<FeeHistoryEntry> {
+        let mut entries = self.entries.lock().unwrap();
 
-            // Find empty blocks heights in the range
-            let blocks_with_receipts = entries
-                .range(start_block..=end_block)
-                .filter(|(_, entry)| entry.gas_used == 0)
-                .map(|(block_number, _)| *block_number)
-                // Get block with receipts from cache
-                .filter_map(|block_number| {
-                    self.block_cache
-                        .get_block_with_receipts(block_number, working_set)
-                        .unwrap_or(None)
-                });
+        let mut result = Vec::new();
+        let mut empty_blocks = Vec::new();
+        for block_number in start_block..=end_block {
+            let entry = entries.get(&block_number);
 
-            // Insert blocks with receipts into cache
-            self.insert_blocks(blocks_with_receipts).await;
-
-            let result = entries
-                .range(start_block..=end_block + 1)
-                .map(|(_, fee_entry)| fee_entry.clone())
-                .collect::<Vec<_>>();
-
-            if result.is_empty() {
-                return None;
+            // if entry, push to result
+            if let Some(entry) = entry {
+                result.push(entry.clone());
+                continue;
+            } else {
+                result.push(FeeHistoryEntry::default());
+                empty_blocks.push(block_number);
             }
-
-            Some(result)
-        } else {
-            None
         }
+
+        // Get blocks from cache and receipts from rpc
+        let blocks_with_receipts = empty_blocks.clone().into_iter().filter_map(|block_number| {
+            self.block_cache
+                .get_block_with_receipts(block_number, working_set)
+                .unwrap_or(None)
+        });
+
+        // Insert blocks with receipts into cache
+        self.insert_blocks(blocks_with_receipts);
+
+        // Get entries from cache for empty blocks
+        for block_number in empty_blocks {
+            let entry = entries.get(&block_number);
+            if let Some(entry) = entry {
+                result.push(entry.clone());
+            }
+        }
+
+        result
     }
 
     /// Generates predefined set of percentiles
@@ -197,19 +170,6 @@ impl<C: sov_modules_api::Context> FeeHistoryCache<C> {
             .map(|p| p as f64 / res)
             .collect()
     }
-}
-
-/// Container type for shared state in [FeeHistoryCache]
-#[derive(Debug)]
-struct FeeHistoryCacheInner {
-    /// Stores the lower bound of the cache
-    lower_bound: AtomicU64,
-    upper_bound: AtomicU64,
-    /// Config for FeeHistoryCache, consists of resolution for percentile approximation
-    /// and max number of blocks
-    config: FeeHistoryCacheConfig,
-    /// Stores the entries of the cache
-    entries: tokio::sync::RwLock<BTreeMap<u64, FeeHistoryEntry>>,
 }
 
 /// Calculates reward percentiles for transactions in a block header.
@@ -281,7 +241,7 @@ pub(crate) fn calculate_reward_percentiles_for_block(
 }
 
 /// A cached entry for a block's fee history.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct FeeHistoryEntry {
     /// The base fee per gas for this block.
     pub base_fee_per_gas: u64,
