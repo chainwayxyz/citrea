@@ -30,7 +30,7 @@ pub trait Module {
 
     /// Module defined argument to the call method.
     type CallMessage: Debug + BorshSerialize + BorshDeserialize;
-    
+
     /// Module defined event resulting from a call method.
     type Event: Debug + BorshSerialize + BorshDeserialize;
 
@@ -53,7 +53,6 @@ pub trait Module {
     ) -> Result<CallResponse, ModuleError> {
         unreachable!()
     }
-
 
     /// Attempts to charge the provided amount of gas from the working set.
     ///

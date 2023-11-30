@@ -3,8 +3,7 @@ use std::any::Any;
 use ethers_contract::BaseContract;
 use ethers_core::types::Bytes;
 
-use super::TestContract;
-use super::{make_contract_from_abi, test_data_path};
+use super::{make_contract_from_abi, test_data_path, TestContract};
 
 /// Logs wrapper.
 pub struct LogsContract {

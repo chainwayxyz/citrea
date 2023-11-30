@@ -10,7 +10,12 @@ mod genesis;
 mod hooks;
 #[cfg(feature = "experimental")]
 mod rpc_helpers;
-pub use {call::*, error::rpc::*, evm::*, genesis::*, hooks::*, rpc_helpers::*};
+pub use call::*;
+pub use error::rpc::*;
+pub use evm::*;
+pub use genesis::*;
+pub use hooks::*;
+pub use rpc_helpers::*;
 #[cfg(feature = "native")]
 #[cfg(feature = "experimental")]
 mod query;
@@ -158,7 +163,6 @@ mod experimental {
         ) -> Result<sov_modules_api::CallResponse, Error> {
             Ok(self.execute_call(msg.txs, context, working_set)?)
         }
-
     }
 
     impl<C: sov_modules_api::Context> Evm<C> {

@@ -1,10 +1,9 @@
 use std::any::Any;
 
-use super::TestContract;
 use ethers_contract::BaseContract;
 use ethers_core::types::Bytes;
 
-use super::{make_contract_from_abi, test_data_path};
+use super::{make_contract_from_abi, test_data_path, TestContract};
 
 /// SimpleStorageContract wrapper.
 pub struct SimpleStorageContract {

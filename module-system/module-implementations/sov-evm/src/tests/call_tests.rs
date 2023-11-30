@@ -10,10 +10,9 @@ use crate::evm::primitive_types::Receipt;
 use crate::smart_contracts::{SelfDestructorContract, SimpleStorageContract, TestContract};
 use crate::tests::genesis_tests::get_evm;
 use crate::tests::test_signer::TestSigner;
-use crate::{AccountData, RlpEvmTransaction};
 use crate::{
-    BlockHashContract, BlockNumberOrTag,
-    EvmConfig, Filter, FilterSet, LogsContract,
+    AccountData, BlockHashContract, BlockNumberOrTag, EvmConfig, Filter, FilterSet, LogsContract,
+    RlpEvmTransaction,
 };
 
 type C = DefaultContext;
@@ -23,15 +22,13 @@ fn call_multiple_test() {
     let dev_signer1: TestSigner = TestSigner::new_random();
 
     let config = EvmConfig {
-        data: vec![
-            AccountData {
-                address: dev_signer1.address(),
-                balance: U256::from(1000000000),
-                code_hash: KECCAK_EMPTY,
-                code: Bytes::default(),
-                nonce: 0,
-            },
-        ],
+        data: vec![AccountData {
+            address: dev_signer1.address(),
+            balance: U256::from(1000000000),
+            code_hash: KECCAK_EMPTY,
+            code: Bytes::default(),
+            nonce: 0,
+        }],
         // SHANGAI instead of LATEST
         // https://github.com/Sovereign-Labs/sovereign-sdk/issues/912
         spec: vec![(0, SpecId::SHANGHAI)].into_iter().collect(),
@@ -66,7 +63,6 @@ fn call_multiple_test() {
             &mut working_set,
         )
         .unwrap();
-        
     }
 
     evm.end_slot_hook(&mut working_set);
@@ -150,11 +146,12 @@ fn call_test() {
             create_contract_message(&dev_signer, 0, SimpleStorageContract::default()),
             set_arg_message(contract_addr, &dev_signer, 1, set_arg),
         ];
-        
-        let call_message = CallMessage { txs: rlp_transactions };
+
+        let call_message = CallMessage {
+            txs: rlp_transactions,
+        };
 
         evm.call(call_message, &context, &mut working_set).unwrap();
-
     }
     evm.end_slot_hook(&mut working_set);
     evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
@@ -213,7 +210,9 @@ fn failed_transaction_test() {
             SimpleStorageContract::default(),
         )];
 
-        let call_message = CallMessage { txs: rlp_transactions };
+        let call_message = CallMessage {
+            txs: rlp_transactions,
+        };
         evm.call(call_message, &context, working_set).unwrap();
     }
     evm.end_slot_hook(working_set);
@@ -270,7 +269,9 @@ fn self_destruct_test() {
         ];
 
         evm.call(
-            CallMessage { txs: rlp_transactions },
+            CallMessage {
+                txs: rlp_transactions,
+            },
             &context,
             &mut working_set,
         )
@@ -306,7 +307,12 @@ fn self_destruct_test() {
         // selfdestruct
         evm.call(
             CallMessage {
-                txs: vec![selfdestruct_message(contract_addr, &dev_signer, 3, die_to_address)],
+                txs: vec![selfdestruct_message(
+                    contract_addr,
+                    &dev_signer,
+                    3,
+                    die_to_address,
+                )],
             },
             &context,
             &mut working_set,
@@ -365,7 +371,6 @@ fn log_filter_test_at_block_hash() {
         let sender_address = generate_address::<C>("sender");
         let context = C::new(sender_address);
 
-
         // deploy logs contract
         // call the contract function
         // the last topic will be Keccak256("hello")
@@ -378,7 +383,9 @@ fn log_filter_test_at_block_hash() {
         ];
 
         evm.call(
-            CallMessage { txs: rlp_transcations },
+            CallMessage {
+                txs: rlp_transcations,
+            },
             &context,
             &mut working_set,
         )
@@ -556,7 +563,6 @@ fn log_filter_test_with_range() {
         let sender_address = generate_address::<C>("sender");
         let context = C::new(sender_address);
 
-
         // deploy selfdestruct contract
         // call the contract function
         // the last topic will be Keccak256("hello")
@@ -569,12 +575,13 @@ fn log_filter_test_with_range() {
         ];
 
         evm.call(
-            CallMessage { txs: rlp_transactions },
+            CallMessage {
+                txs: rlp_transactions,
+            },
             &context,
             &mut working_set,
         )
         .unwrap();
-
     }
     evm.end_slot_hook(&mut working_set);
     evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
@@ -605,7 +612,14 @@ fn log_filter_test_with_range() {
         let context = C::new(sender_address);
         // call the contract function
         evm.call(
-            CallMessage { txs: vec![publish_event_message(contract_addr, &dev_signer, 3, "message".to_string())]},
+            CallMessage {
+                txs: vec![publish_event_message(
+                    contract_addr,
+                    &dev_signer,
+                    3,
+                    "message".to_string(),
+                )],
+            },
             &context,
             &mut working_set,
         )
@@ -639,9 +653,11 @@ fn test_log_limits() {
         let sender_address = generate_address::<C>("sender");
         let context = C::new(sender_address);
 
-        let mut rlp_transactions = vec![
-            create_contract_message(&dev_signer, 0, LogsContract::default()),
-        ];
+        let mut rlp_transactions = vec![create_contract_message(
+            &dev_signer,
+            0,
+            LogsContract::default(),
+        )];
 
         for i in 0..10001 {
             rlp_transactions.push(publish_event_message(
@@ -650,13 +666,15 @@ fn test_log_limits() {
                 i + 1,
                 "hello".to_string(),
             ));
-        };
+        }
 
         // deploy selfdestruct contract
         // call the contracts 10_001 times so we got 20_002 logs (response limit is 20_000)
 
         evm.call(
-            CallMessage { txs: rlp_transactions },
+            CallMessage {
+                txs: rlp_transactions,
+            },
             &context,
             &mut working_set,
         )
@@ -737,8 +755,14 @@ fn test_block_hash_in_evm() {
 
         let deploy_message = create_contract_message(&dev_signer, 0, BlockHashContract::default());
 
-        evm.call(CallMessage {txs: vec![deploy_message]}, &context, &mut working_set)
-            .unwrap();
+        evm.call(
+            CallMessage {
+                txs: vec![deploy_message],
+            },
+            &context,
+            &mut working_set,
+        )
+        .unwrap();
     }
     evm.end_slot_hook(&mut working_set);
     evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());

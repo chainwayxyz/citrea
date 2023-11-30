@@ -202,28 +202,22 @@ impl DaVerifier for BitcoinVerifier {
 #[cfg(test)]
 mod tests {
 
-    use bitcoin::{
-        block::{Header, Version},
-        hash_types::TxMerkleNode,
-        hashes::{sha256d, Hash},
-        string::FromHexStr,
-        BlockHash, CompactTarget,
-    };
     use core::str::FromStr;
+
+    use bitcoin::block::{Header, Version};
+    use bitcoin::hash_types::TxMerkleNode;
+    use bitcoin::hashes::{sha256d, Hash};
+    use bitcoin::string::FromHexStr;
+    use bitcoin::{BlockHash, CompactTarget};
     use sov_rollup_interface::da::{DaSpec, DaVerifier};
 
-    use crate::{
-        helpers::{
-            builders::decompress_blob,
-            parsers::{parse_hex_transaction, parse_transaction},
-        },
-        spec::{
-            blob::BlobWithSender, header::HeaderWrapper, proof::InclusionMultiProof,
-            transaction::Transaction,
-        },
-    };
-
     use super::BitcoinVerifier;
+    use crate::helpers::builders::decompress_blob;
+    use crate::helpers::parsers::{parse_hex_transaction, parse_transaction};
+    use crate::spec::blob::BlobWithSender;
+    use crate::spec::header::HeaderWrapper;
+    use crate::spec::proof::InclusionMultiProof;
+    use crate::spec::transaction::Transaction;
 
     fn get_mock_txs() -> Vec<Transaction> {
         // relevant txs are on 6, 8, 10, 12 indices

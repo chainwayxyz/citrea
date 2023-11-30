@@ -32,13 +32,13 @@ impl<C: sov_modules_api::Context> Evm<C> {
         _context: &C,
         working_set: &mut WorkingSet<C>,
     ) -> Result<CallResponse> {
-        
-        let evm_txs_recovered: Vec<TransactionSignedEcRecovered> = txs.into_iter().filter_map(|tx| {
-            match tx.try_into() {
+        let evm_txs_recovered: Vec<TransactionSignedEcRecovered> = txs
+            .into_iter()
+            .filter_map(|tx| match tx.try_into() {
                 Ok(tx) => Some(tx),
                 Err(_) => None,
-            }
-        }).collect();
+            })
+            .collect();
 
         let block_env = self
             .block_env
@@ -49,69 +49,71 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let cfg_env = get_cfg_env(&block_env, cfg, None);
 
         let evm_db: EvmDb<'_, C> = self.get_db(working_set);
-
-        let results = executor::execute_multiple_tx(evm_db, &block_env, &evm_txs_recovered, cfg_env);
+        let results =
+            executor::execute_multiple_tx(evm_db, &block_env, &evm_txs_recovered, cfg_env);
 
         // Iterate each evm_txs_recovered and results pair
         // Create a PendingTransaction for each pair
         // Push each PendingTransaction to pending_transactions
-        evm_txs_recovered.into_iter().zip(
-            results.into_iter()
-        ).for_each(|(evm_tx_recovered, result)| {
-            let previous_transaction = self.pending_transactions.last(working_set);
-            let previous_transaction_cumulative_gas_used = previous_transaction
-                .as_ref()
-                .map_or(0u64, |tx| tx.receipt.receipt.cumulative_gas_used);
-            let log_index_start = previous_transaction.as_ref().map_or(0u64, |tx| {
-                tx.receipt.log_index_start + tx.receipt.receipt.logs.len() as u64
-            });
+        evm_txs_recovered
+            .into_iter()
+            .zip(results.into_iter())
+            .for_each(|(evm_tx_recovered, result)| {
+                let previous_transaction = self.pending_transactions.last(working_set);
+                let previous_transaction_cumulative_gas_used = previous_transaction
+                    .as_ref()
+                    .map_or(0u64, |tx| tx.receipt.receipt.cumulative_gas_used);
+                let log_index_start = previous_transaction.as_ref().map_or(0u64, |tx| {
+                    tx.receipt.log_index_start + tx.receipt.receipt.logs.len() as u64
+                });
 
-            let receipt = match result {
-                Ok(result) => {
-                    let logs: Vec<_> = result.logs().into_iter().map(into_reth_log).collect();
-                    let gas_used = result.gas_used();
+                let receipt = match result {
+                    Ok(result) => {
+                        let logs: Vec<_> = result.logs().into_iter().map(into_reth_log).collect();
+                        let gas_used = result.gas_used();
 
-                    Receipt {
+                        Receipt {
+                            receipt: reth_primitives::Receipt {
+                                tx_type: evm_tx_recovered.tx_type(),
+                                success: result.is_success(),
+                                cumulative_gas_used: previous_transaction_cumulative_gas_used
+                                    + gas_used,
+                                logs,
+                            },
+                            gas_used,
+                            log_index_start,
+                            error: None,
+                        }
+                    }
+                    Err(err) => Receipt {
                         receipt: reth_primitives::Receipt {
                             tx_type: evm_tx_recovered.tx_type(),
-                            success: result.is_success(),
-                            cumulative_gas_used: previous_transaction_cumulative_gas_used + gas_used,
-                            logs,
+                            success: false,
+                            cumulative_gas_used: previous_transaction_cumulative_gas_used,
+                            logs: vec![],
                         },
-                        gas_used,
+                        gas_used: 0,
                         log_index_start,
-                        error: None,
-                    }
-                }
-                Err(err) => Receipt {
-                    receipt: reth_primitives::Receipt {
-                        tx_type: evm_tx_recovered.tx_type(),
-                        success: false,
-                        cumulative_gas_used: previous_transaction_cumulative_gas_used,
-                        logs: vec![],
+                        error: Some(match err {
+                            EVMError::Transaction(err) => EVMError::Transaction(err),
+                            EVMError::Header(e) => EVMError::Header(e),
+                            EVMError::Database(_) => EVMError::Database(0u8),
+                        }),
                     },
-                    gas_used: 0,
-                    log_index_start,
-                    error: Some(match err {
-                        EVMError::Transaction(err) => EVMError::Transaction(err),
-                        EVMError::Header(e) => EVMError::Header(e),
-                        EVMError::Database(_) => EVMError::Database(0u8),
-                    }),
-                }
-            };
+                };
 
-            let pending_transaction = PendingTransaction {
-                transaction: TransactionSignedAndRecovered {
-                    signer: evm_tx_recovered.signer(),
-                    signed_transaction: evm_tx_recovered.into(),
-                    block_number: block_env.number,
-                },
-                receipt,
-            };
-    
-            self.pending_transactions
-                .push(&pending_transaction, working_set);
-        });
+                let pending_transaction = PendingTransaction {
+                    transaction: TransactionSignedAndRecovered {
+                        signer: evm_tx_recovered.signer(),
+                        signed_transaction: evm_tx_recovered.into(),
+                        block_number: block_env.number,
+                    },
+                    receipt,
+                };
+
+                self.pending_transactions
+                    .push(&pending_transaction, working_set);
+            });
 
         Ok(CallResponse::default())
     }
