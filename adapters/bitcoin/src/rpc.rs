@@ -126,6 +126,43 @@ impl BitcoinNode {
             .await
     }
 
+    // get_best_blockhash returns the best blockhash of the chain
+    pub async fn get_best_blockhash(&self) -> Result<String, anyhow::Error> {
+        self.call::<String>("getbestblockhash", vec![]).await
+    }
+
+    // get_block_header returns a particular block header with a given hash
+    pub async fn get_block_header(&self, hash: String) -> Result<HeaderWrapper, anyhow::Error> {
+        let result = self
+            .call::<Box<RawValue>>("getblockheader", vec![to_value(hash.clone())?])
+            .await?
+            .to_string();
+
+        let full_header: serde_json::Value = serde_json::from_str(&result)?;
+
+        let header: Header = Header {
+            bits: CompactTarget::from_consensus(u32::from_str_radix(
+                full_header["bits"].as_str().unwrap(),
+                16,
+            )?),
+            merkle_root: TxMerkleNode::from_str(full_header["merkleroot"].as_str().unwrap())?,
+            nonce: full_header["nonce"].as_u64().unwrap() as u32,
+            prev_blockhash: BlockHash::from_str(
+                full_header["previousblockhash"].as_str().unwrap(),
+            )?,
+            time: full_header["time"].as_u64().unwrap() as u32,
+            version: Version::from_consensus(full_header["version"].as_u64().unwrap() as i32),
+        };
+
+        let header_wrapper: HeaderWrapper = HeaderWrapper::new(
+            header,
+            full_header["nTx"].as_u64().unwrap() as u32,
+            full_header["height"].as_u64().unwrap(),
+        );
+
+        Ok(header_wrapper)
+    }
+
     // get_block returns the block at the given hash
     pub async fn get_block(&self, hash: String) -> Result<BitcoinBlock, anyhow::Error> {
         let result = self

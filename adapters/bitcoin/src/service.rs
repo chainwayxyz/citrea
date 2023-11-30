@@ -10,6 +10,7 @@ use bitcoin::secp256k1::SecretKey;
 use bitcoin::Address;
 use hex::ToHex;
 use serde::{Deserialize, Serialize};
+use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::services::da::DaService;
 use tracing::info;
 
@@ -209,29 +210,41 @@ impl DaService for BitcoinService {
 
     type FilteredBlock = BitcoinBlock;
 
+    type TransactionId = ();
+
     type Error = anyhow::Error;
 
-    // Make an RPC call to the node to get the finalized block at the given height, if one exists.
-    // If no such block exists, block until one does.
-    async fn get_finalized_at(&self, height: u64) -> Result<Self::FilteredBlock, Self::Error> {
-        let client = self.client.clone();
-        info!("Getting finalized block at height {}", height);
-        loop {
-            let block_count = client.get_block_count().await?;
+    // // Make an RPC call to the node to get the finalized block at the given height, if one exists.
+    // // If no such block exists, block until one does.
+    // async fn get_finalized_at(&self, height: u64) -> Result<Self::FilteredBlock, Self::Error> {
+    //     let client = self.client.clone();
+    //     info!("Getting finalized block at height {}", height);
+    //     loop {
+    //         let block_count = client.get_block_count().await?;
+    //
+    //         // if at least `FINALITY_DEPTH` blocks are mined, we can be sure that the block is finalized
+    //         if block_count >= height + FINALITY_DEPTH {
+    //             break;
+    //         }
+    //
+    //         info!("Block not finalized, waiting");
+    //         tokio::time::sleep(Duration::from_secs(POLLING_INTERVAL)).await;
+    //     }
+    //
+    //     let block_hash = client.get_block_hash(height).await?;
+    //     let block: BitcoinBlock = client.get_block(block_hash).await?;
+    //
+    //     Ok(block)
+    // }
 
-            // if at least `FINALITY_DEPTH` blocks are mined, we can be sure that the block is finalized
-            if block_count >= height + FINALITY_DEPTH {
-                break;
-            }
+    async fn get_head_block_header(
+        &self,
+    ) -> Result<<Self::Spec as DaSpec>::BlockHeader, Self::Error> {
+        let best_blockhash = self.client.get_best_blockhash().await?;
 
-            info!("Block not finalized, waiting");
-            tokio::time::sleep(Duration::from_secs(POLLING_INTERVAL)).await;
-        }
+        let head_block_header = self.client.get_block_header(best_blockhash).await?;
 
-        let block_hash = client.get_block_hash(height).await?;
-        let block: BitcoinBlock = client.get_block(block_hash).await?;
-
-        Ok(block)
+        Ok(head_block_header)
     }
 
     // Make an RPC call to the node to get the block at the given height
@@ -429,15 +442,15 @@ mod tests {
         .await
     }
 
-    #[tokio::test]
-    async fn get_finalized_at() {
-        let da_service = get_service().await;
-
-        da_service
-            .get_finalized_at(132)
-            .await
-            .expect("Failed to get block");
-    }
+    // #[tokio::test]
+    // async fn get_finalized_at() {
+    //     let da_service = get_service().await;
+    //
+    //     da_service
+    //         .get_finalized_at(132)
+    //         .await
+    //         .expect("Failed to get block");
+    // }
 
     #[tokio::test]
     async fn get_block_at() {
