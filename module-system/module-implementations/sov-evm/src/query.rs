@@ -224,22 +224,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
         Ok(code)
     }
 
-    /// Handler for: `eth_feeHistory`
-    // TODO https://github.com/Sovereign-Labs/sovereign-sdk/issues/502
-    #[rpc_method(name = "eth_feeHistory")]
-    pub fn fee_history(
-        &self,
-        _working_set: &mut WorkingSet<C>,
-    ) -> RpcResult<reth_rpc_types::FeeHistory> {
-        info!("evm module: eth_feeHistory");
-        Ok(reth_rpc_types::FeeHistory {
-            base_fee_per_gas: Default::default(),
-            gas_used_ratio: Default::default(),
-            oldest_block: Default::default(),
-            reward: Default::default(),
-        })
-    }
-
     /// Handler for: `eth_getTransactionByHash`
     // TODO https://github.com/Sovereign-Labs/sovereign-sdk/issues/502
     #[rpc_method(name = "eth_getTransactionByHash")]
