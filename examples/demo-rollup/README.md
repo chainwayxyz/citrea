@@ -72,15 +72,16 @@ to authorize yourself in github's container registry. (we use original celestia 
 $ echo $MY_PERSONAL_GITHUB_TOKEN | docker login ghcr.io -u $MY_GITHUB_USERNAME --password-stdin
 ```
 
-3. Switch to the `examples/demo-rollup` directory (which is where this `README.md` is located!).
+3. Switch to the `examples/demo-rollup` directory (which is where this `README.md` is located!), and compile the application:
 
 ```shell,test-ci
 $ cd examples/demo-rollup/
+$ cargo build --bins
 ```
 
 4. Spin up a local Celestia instance as your DA layer. We've built a small Makefile to simplify that process:
 
-```sh,test-ci,bashtestmd:long-running
+```sh,test-ci,bashtestmd:long-running,bashtestmd:wait-until=genesis.json
 $ make clean
 # Make sure to run `make stop` or `make clean` when you're done with this demo!
 $ make start
@@ -100,7 +101,7 @@ $ git status
 
 Now run the demo-rollup full node, as shown below. You will see it consuming blocks from the Celestia node running inside Docker:
 
-```sh,test-ci,bashtestmd:long-running,bashtestmd:wait-until=RPC
+```sh,test-ci,bashtestmd:long-running
 # Make sure you're still in the examples/demo-rollup directory.
 $ cargo run
 2023-06-07T10:03:25.473920Z  INFO sov_celestia_adapter::da_service: Fetching header at height=1...
