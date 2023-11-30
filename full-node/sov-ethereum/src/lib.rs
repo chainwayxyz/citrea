@@ -27,6 +27,7 @@ pub mod experimental {
     use sov_modules_api::utils::to_jsonrpsee_error_object;
     use sov_modules_api::{EncodeCall, PrivateKey, WorkingSet};
     use sov_rollup_interface::services::da::DaService;
+    use tracing::info;
 
     use super::batch_builder::EthBatchBuilder;
     #[cfg(feature = "local")]
@@ -215,9 +216,16 @@ pub mod experimental {
         })?;
 
         rpc.register_async_method("eth_feeHistory", |params, ethereum| async move {
-            let block_count: u64 = params.one().unwrap();
-            let newest_block: BlockNumberOrTag = params.one().unwrap();
-            let reward_percentiles: Option<Vec<f64>> = params.one().unwrap();
+            info!("eth module: eth_feeHistory");
+            let (block_count, newest_block, reward_percentiles): (
+                String,
+                BlockNumberOrTag,
+                Option<Vec<f64>>,
+            ) = params.parse()?;
+
+            // convert block count to u64 from hex
+            let block_count = u64::from_str_radix(&block_count[2..], 16)
+                .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
 
             let fee_history = {
                 let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());

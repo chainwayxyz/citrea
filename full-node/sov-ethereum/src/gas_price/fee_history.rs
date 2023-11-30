@@ -83,12 +83,10 @@ impl<C: sov_modules_api::Context> FeeHistoryCache<C> {
     }
 
     /// Processing of the arriving blocks
-    pub fn insert_blocks<I>(&self, blocks: I)
+    pub fn insert_blocks<I>(&self, entries: &mut LruMap<u64, FeeHistoryEntry, ByLength>, blocks: I)
     where
         I: Iterator<Item = (Rich<Block>, Vec<TransactionReceipt>)>,
     {
-        let mut entries = self.entries.lock().unwrap();
-
         let percentiles = self.predefined_percentiles();
         // Insert all new blocks and calculate approximated rewards
         for (block, receipts) in blocks {
@@ -148,13 +146,13 @@ impl<C: sov_modules_api::Context> FeeHistoryCache<C> {
         });
 
         // Insert blocks with receipts into cache
-        self.insert_blocks(blocks_with_receipts);
+        self.insert_blocks(&mut entries, blocks_with_receipts);
 
         // Get entries from cache for empty blocks
         for block_number in empty_blocks {
             let entry = entries.get(&block_number);
             if let Some(entry) = entry {
-                result.push(entry.clone());
+                result[block_number as usize - start_block as usize] = entry.clone();
             }
         }
 
