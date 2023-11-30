@@ -237,6 +237,7 @@ impl DaService for BitcoinService {
     //     Ok(block)
     // }
 
+    // Fetch the head block of DA.
     async fn get_head_block_header(
         &self,
     ) -> Result<<Self::Spec as DaSpec>::BlockHeader, Self::Error> {
@@ -245,6 +246,22 @@ impl DaService for BitcoinService {
         let head_block_header = self.client.get_block_header(best_blockhash).await?;
 
         Ok(head_block_header)
+    }
+
+    // Fetch the [`DaSpec::BlockHeader`] of the last finalized block.
+    async fn get_last_finalized_block_header(
+        &self,
+    ) -> Result<<Self::Spec as DaSpec>::BlockHeader, Self::Error> {
+        let block_count = self.client.get_block_count().await?;
+
+        let finalized_blockhash = self
+            .client
+            .get_block_hash(block_count - FINALITY_DEPTH)
+            .await?;
+
+        let finalized_block_header = self.client.get_block_header(finalized_blockhash).await?;
+
+        Ok(finalized_block_header)
     }
 
     // Make an RPC call to the node to get the block at the given height
