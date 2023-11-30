@@ -653,7 +653,7 @@ fn test_log_limits() {
         let sender_address = generate_address::<C>("sender");
         let context = C::new(sender_address);
 
-        // deploy selfdestruct contract
+        // deploy logs contract
         let mut rlp_transactions = vec![create_contract_message(
             &dev_signer,
             0,
