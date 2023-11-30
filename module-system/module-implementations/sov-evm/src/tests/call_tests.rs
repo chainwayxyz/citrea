@@ -653,12 +653,14 @@ fn test_log_limits() {
         let sender_address = generate_address::<C>("sender");
         let context = C::new(sender_address);
 
+        // deploy selfdestruct contract
         let mut rlp_transactions = vec![create_contract_message(
             &dev_signer,
             0,
             LogsContract::default(),
         )];
 
+        // call the contracts 10_001 times so we got 20_002 logs (response limit is 20_000)
         for i in 0..10001 {
             rlp_transactions.push(publish_event_message(
                 contract_addr,
@@ -667,9 +669,6 @@ fn test_log_limits() {
                 "hello".to_string(),
             ));
         }
-
-        // deploy selfdestruct contract
-        // call the contracts 10_001 times so we got 20_002 logs (response limit is 20_000)
 
         evm.call(
             CallMessage {
