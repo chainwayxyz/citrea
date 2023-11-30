@@ -1,4 +1,5 @@
-use bitcoin::{hashes::Hash, BlockHash};
+use bitcoin::hashes::Hash;
+use bitcoin::BlockHash;
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::BlockHashTrait;
 

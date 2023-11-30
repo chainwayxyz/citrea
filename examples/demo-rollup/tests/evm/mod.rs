@@ -5,11 +5,9 @@ use std::str::FromStr;
 
 use ethers_core::abi::Address;
 use ethers_signers::{LocalWallet, Signer};
-
 use reqwest::Client;
 use sov_evm::{SimpleStorageContract, TestContract};
 use sov_stf_runner::RollupProverConfig;
-
 use test_client::TestClient;
 
 #[cfg(feature = "experimental")]

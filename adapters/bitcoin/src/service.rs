@@ -87,7 +87,8 @@ impl BitcoinService {
             network,
             address,
             private_key,
-        ).await
+        )
+        .await
     }
 
     pub async fn with_client(
@@ -103,7 +104,10 @@ impl BitcoinService {
             .require_network(network)
             .expect("Invalid address for network!");
 
-        let wallets = client.list_wallets().await.expect("Failed to list loaded wallets");
+        let wallets = client
+            .list_wallets()
+            .await
+            .expect("Failed to list loaded wallets");
 
         if wallets.is_empty() {
             panic!("No loaded wallet found!");
@@ -421,7 +425,8 @@ mod tests {
             RollupParams {
                 rollup_name: "sov-btc".to_string(),
             },
-        ).await
+        )
+        .await
     }
 
     #[tokio::test]

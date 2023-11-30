@@ -1,37 +1,29 @@
-use core::{result::Result::Ok, str::FromStr};
-use std::{
-    fs::File,
-    io::{BufWriter, Write},
-};
+use core::result::Result::Ok;
+use core::str::FromStr;
+use std::fs::File;
+use std::io::{BufWriter, Write};
 
 use anyhow::anyhow;
+use bitcoin::absolute::LockTime;
+use bitcoin::blockdata::opcodes::all::{OP_CHECKSIG, OP_ENDIF, OP_IF};
+use bitcoin::blockdata::opcodes::OP_FALSE;
+use bitcoin::blockdata::script;
+use bitcoin::hashes::{sha256d, Hash};
+use bitcoin::key::{TapTweak, TweakedPublicKey, UntweakedKeyPair};
+use bitcoin::psbt::Prevouts;
+use bitcoin::script::PushBytesBuf;
+use bitcoin::secp256k1::constants::SCHNORR_SIGNATURE_SIZE;
+use bitcoin::secp256k1::schnorr::Signature;
+use bitcoin::secp256k1::{self, Secp256k1, SecretKey, XOnlyPublicKey};
+use bitcoin::sighash::SighashCache;
+use bitcoin::taproot::{ControlBlock, LeafVersion, TapLeafHash, TaprootBuilder};
 use bitcoin::{
-    absolute::LockTime,
-    blockdata::{
-        opcodes::{
-            all::{OP_CHECKSIG, OP_ENDIF, OP_IF},
-            OP_FALSE,
-        },
-        script,
-    },
-    hashes::{sha256d, Hash},
-    key::{TapTweak, TweakedPublicKey, UntweakedKeyPair},
-    psbt::Prevouts,
-    script::PushBytesBuf,
-    secp256k1::{
-        self, constants::SCHNORR_SIGNATURE_SIZE, schnorr::Signature, Secp256k1, SecretKey,
-        XOnlyPublicKey,
-    },
-    sighash::SighashCache,
-    taproot::{ControlBlock, LeafVersion, TapLeafHash, TaprootBuilder},
     Address, Network, OutPoint, ScriptBuf, Sequence, Transaction, TxIn, TxOut, Txid, Witness,
 };
 use brotli::{CompressorWriter, DecompressorWriter};
 
-use crate::{
-    helpers::{BODY_TAG, PUBLICKEY_TAG, RANDOM_TAG, ROLLUP_NAME_TAG, SIGNATURE_TAG},
-    spec::utxo::UTXO,
-};
+use crate::helpers::{BODY_TAG, PUBLICKEY_TAG, RANDOM_TAG, ROLLUP_NAME_TAG, SIGNATURE_TAG};
+use crate::spec::utxo::UTXO;
 
 pub fn compress_blob(blob: &[u8]) -> Vec<u8> {
     let mut writer = CompressorWriter::new(Vec::new(), 4096, 11, 22);
@@ -469,20 +461,15 @@ pub fn write_reveal_tx(tx: &[u8], tx_id: String) {
 mod tests {
     use core::str::FromStr;
 
-    use bitcoin::{
-        hashes::Hash,
-        secp256k1::{constants::SCHNORR_SIGNATURE_SIZE, schnorr::Signature},
-        taproot::ControlBlock,
-        Address, ScriptBuf, TxOut, Txid,
-    };
+    use bitcoin::hashes::Hash;
+    use bitcoin::secp256k1::constants::SCHNORR_SIGNATURE_SIZE;
+    use bitcoin::secp256k1::schnorr::Signature;
+    use bitcoin::taproot::ControlBlock;
+    use bitcoin::{Address, ScriptBuf, TxOut, Txid};
 
-    use crate::{
-        helpers::{
-            builders::{compress_blob, decompress_blob},
-            parsers::parse_transaction,
-        },
-        spec::utxo::UTXO,
-    };
+    use crate::helpers::builders::{compress_blob, decompress_blob};
+    use crate::helpers::parsers::parse_transaction;
+    use crate::spec::utxo::UTXO;
 
     #[test]
     fn compression_decompression() {

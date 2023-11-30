@@ -1,4 +1,6 @@
-use bitcoin::{block::Header, hash_types::TxMerkleNode, BlockHash};
+use bitcoin::block::Header;
+use bitcoin::hash_types::TxMerkleNode;
+use bitcoin::BlockHash;
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::BlockHeaderTrait;
 

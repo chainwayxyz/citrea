@@ -1,8 +1,7 @@
 use reth_primitives::U256;
 use revm::primitives::{Account, HashMap, B160};
 use revm::DatabaseCommit;
-use sov_modules_api::StateMapAccessor;
-use sov_modules_api::StateVecAccessor;
+use sov_modules_api::{StateMapAccessor, StateVecAccessor};
 
 use super::db::EvmDb;
 use super::DbAccount;
