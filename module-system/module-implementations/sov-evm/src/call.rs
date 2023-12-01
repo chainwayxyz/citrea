@@ -1,7 +1,7 @@
 use anyhow::Result;
 use reth_primitives::TransactionSignedEcRecovered;
 use reth_revm::into_reth_log;
-use revm::primitives::{CfgEnv, EVMError, SpecId};
+use revm::primitives::{CfgEnv, SpecId};
 use sov_modules_api::{CallResponse, WorkingSet};
 
 use crate::evm::db::EvmDb;
@@ -67,12 +67,12 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     tx.receipt.log_index_start + tx.receipt.receipt.logs.len() as u64
                 });
 
-                let receipt = match result {
+                let _receipt = match result {
                     Ok(result) => {
                         let logs: Vec<_> = result.logs().into_iter().map(into_reth_log).collect();
                         let gas_used = result.gas_used();
 
-                        Receipt {
+                        let receipt = Receipt {
                             receipt: reth_primitives::Receipt {
                                 tx_type: evm_tx_recovered.tx_type(),
                                 success: result.is_success(),
@@ -83,38 +83,22 @@ impl<C: sov_modules_api::Context> Evm<C> {
                             gas_used,
                             log_index_start,
                             error: None,
-                        }
+                        };
+
+                        let pending_transaction = PendingTransaction {
+                            transaction: TransactionSignedAndRecovered {
+                                signer: evm_tx_recovered.signer(),
+                                signed_transaction: evm_tx_recovered.into(),
+                                block_number: block_env.number,
+                            },
+                            receipt,
+                        };
+
+                        self.pending_transactions
+                            .push(&pending_transaction, working_set);
                     }
-                    Err(err) => Receipt {
-                        receipt: reth_primitives::Receipt {
-                            tx_type: evm_tx_recovered.tx_type(),
-                            success: false,
-                            cumulative_gas_used: previous_transaction_cumulative_gas_used,
-                            logs: vec![],
-                        },
-                        // TODO: Do we want failed transactions to use all gas?
-                        // https://github.com/Sovereign-Labs/sovereign-sdk/issues/505
-                        gas_used: 0,
-                        log_index_start,
-                        error: Some(match err {
-                            EVMError::Transaction(err) => EVMError::Transaction(err),
-                            EVMError::Header(e) => EVMError::Header(e),
-                            EVMError::Database(_) => EVMError::Database(0u8),
-                        }),
-                    },
+                    Err(_) => {}
                 };
-
-                let pending_transaction = PendingTransaction {
-                    transaction: TransactionSignedAndRecovered {
-                        signer: evm_tx_recovered.signer(),
-                        signed_transaction: evm_tx_recovered.into(),
-                        block_number: block_env.number,
-                    },
-                    receipt,
-                };
-
-                self.pending_transactions
-                    .push(&pending_transaction, working_set);
             });
 
         Ok(CallResponse::default())
