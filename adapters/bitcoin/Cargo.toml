@@ -22,6 +22,7 @@ reqwest = { version = "0.11.13", features = [
 ], optional = true }
 base64 = "0.13.1"
 hex = { workspace = true, features = ["serde"] }
+pin-project = { workspace = true, optional = true, features = [] }
 tracing = {workspace = true}
 rand = {workspace = true}
 serde = {workspace = true}
@@ -34,8 +35,9 @@ thiserror = {workspace = true}
 bitcoin = { version = "0.30.1", features = ["serde", "rand"] }
 brotli = "3.3.4"
 async-recursion = "1.0.5"
+futures.workspace = true
 
 
 [features]
 default = []
-native = ["dep:tokio", "dep:reqwest", "sov-rollup-interface/native"]
+native = ["dep:tokio", "dep:reqwest", "dep:pin-project", "sov-rollup-interface/native"]

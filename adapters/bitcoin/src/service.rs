@@ -28,6 +28,14 @@ use crate::spec::{BitcoinSpec, RollupParams};
 use crate::verifier::BitcoinVerifier;
 use crate::REVEAL_OUTPUT_AMOUNT;
 
+use std::sync::Arc;
+use std::task::{Context, Poll};
+use futures::Stream;
+use tokio::time;
+use std::pin::Pin;
+use pin_project::pin_project;
+use futures::FutureExt;
+
 /// A service that provides data and data availability proofs for Bitcoin
 #[derive(Debug, Clone)]
 pub struct BitcoinService {
@@ -89,7 +97,7 @@ impl BitcoinService {
             address,
             private_key,
         )
-        .await
+            .await
     }
 
     pub async fn with_client(
@@ -202,6 +210,37 @@ impl BitcoinService {
     }
 }
 
+#[pin_project]
+pub struct BitcoinHeaderStream {
+    #[pin]
+    service: Arc<BitcoinService>,
+    interval: Duration,
+    timer: tokio::time::Interval,
+}
+
+impl BitcoinHeaderStream {
+    pub fn new(service: Arc<BitcoinService>, interval: Duration) -> Self {
+        Self {
+            service,
+            interval,
+            timer: tokio::time::interval(interval),
+        }
+    }
+}
+
+impl Stream for BitcoinHeaderStream {
+    type Item = Result<<<BitcoinService as DaService>::Spec as DaSpec>::BlockHeader, <BitcoinService as DaService>::Error>;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let this = self.project();
+        if let Poll::Ready(_) = this.timer.poll_tick(cx) {
+            let header = futures::ready!(this.service.get_last_finalized_block_header().boxed().poll_unpin(cx));
+            return Poll::Ready(Some(header));
+        }
+        Poll::Pending
+    }
+}
+
 #[async_trait]
 impl DaService for BitcoinService {
     type Spec = BitcoinSpec;
@@ -212,30 +251,13 @@ impl DaService for BitcoinService {
 
     type TransactionId = ();
 
+    type HeaderStream = BitcoinHeaderStream;
+
     type Error = anyhow::Error;
 
-    // // Make an RPC call to the node to get the finalized block at the given height, if one exists.
-    // // If no such block exists, block until one does.
-    // async fn get_finalized_at(&self, height: u64) -> Result<Self::FilteredBlock, Self::Error> {
-    //     let client = self.client.clone();
-    //     info!("Getting finalized block at height {}", height);
-    //     loop {
-    //         let block_count = client.get_block_count().await?;
-    //
-    //         // if at least `FINALITY_DEPTH` blocks are mined, we can be sure that the block is finalized
-    //         if block_count >= height + FINALITY_DEPTH {
-    //             break;
-    //         }
-    //
-    //         info!("Block not finalized, waiting");
-    //         tokio::time::sleep(Duration::from_secs(POLLING_INTERVAL)).await;
-    //     }
-    //
-    //     let block_hash = client.get_block_hash(height).await?;
-    //     let block: BitcoinBlock = client.get_block(block_hash).await?;
-    //
-    //     Ok(block)
-    // }
+    async fn subscribe_finalized_header(&self) -> Result<Self::HeaderStream, Self::Error> {
+        Ok(BitcoinHeaderStream::new(Arc::new(self.clone()), Duration::from_secs(10)))
+    }
 
     // Fetch the head block of DA.
     async fn get_head_block_header(
@@ -435,8 +457,8 @@ mod tests {
                 .unwrap(),
             1,
         )
-        .await
-        .unwrap();
+            .await
+            .unwrap();
 
         let runtime_config = DaServiceConfig {
             node_url: "http://localhost:38332".to_string(),
@@ -456,7 +478,7 @@ mod tests {
                 rollup_name: "sov-btc".to_string(),
             },
         )
-        .await
+            .await
     }
 
     // #[tokio::test]
