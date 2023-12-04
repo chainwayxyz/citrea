@@ -1,7 +1,9 @@
+use core::panic;
+
 use anyhow::Result;
 use reth_primitives::TransactionSignedEcRecovered;
 use reth_revm::into_reth_log;
-use revm::primitives::{CfgEnv, SpecId};
+use revm::primitives::{CfgEnv, EVMError, SpecId};
 use sov_modules_api::{CallResponse, WorkingSet};
 
 use crate::evm::db::EvmDb;
@@ -97,7 +99,21 @@ impl<C: sov_modules_api::Context> Evm<C> {
                         self.pending_transactions
                             .push(&pending_transaction, working_set);
                     }
-                    Err(_) => {}
+                    // Adopted from https://github.com/paradigmxyz/reth/blob/main/crates/payload/basic/src/lib.rs#L884
+                    Err(err) => {
+                        match err {
+                            EVMError::Transaction(_) => {
+                                // This is a transactional error, so we can skip it without doing anything.
+                            }
+                            err => {
+                                // This is a fatal error, so we need to return it.
+                                // return Err(err.into());
+
+                                // Panic.
+                                panic!("Fatal error: {:?}", err);
+                            }
+                        }
+                    }
                 };
             });
 

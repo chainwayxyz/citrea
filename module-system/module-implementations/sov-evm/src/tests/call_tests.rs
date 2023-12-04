@@ -217,27 +217,14 @@ fn failed_transaction_test() {
     }
     evm.end_slot_hook(working_set);
 
-    assert_eq!(
-        evm.receipts
-            .iter(&mut working_set.accessory_state())
-            .collect::<Vec<_>>(),
-        [Receipt {
-            receipt: reth_primitives::Receipt {
-                tx_type: reth_primitives::TxType::EIP1559,
-                success: false,
-                cumulative_gas_used: 0,
-                logs: vec![]
-            },
-            gas_used: 0,
-            log_index_start: 0,
-            error: Some(revm::primitives::EVMError::Transaction(
-                revm::primitives::InvalidTransaction::LackOfFundForMaxFee {
-                    fee: 1_000_000u64,
-                    balance: U256::ZERO
-                }
-            ))
-        }]
-    )
+    // assert no pending transaction
+    let pending_txs = evm.pending_transactions.iter(working_set);
+    assert_eq!(pending_txs.len(), 0);
+
+    // Assert block does not have any transaction
+    let block = evm.blocks.last(&mut working_set.accessory_state()).unwrap();
+    assert_eq!(block.transactions.start, 0);
+    assert_eq!(block.transactions.end, 0);
 }
 
 #[test]
