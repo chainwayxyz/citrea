@@ -11,11 +11,123 @@ use crate::smart_contracts::{SelfDestructorContract, SimpleStorageContract, Test
 use crate::tests::genesis_tests::get_evm;
 use crate::tests::test_signer::TestSigner;
 use crate::{
-    executor, get_cfg_env, prepare_call_env, AccountData, BlockHashContract, BlockNumberOrTag,
-    EvmConfig, Filter, FilterSet, LogsContract,
+    AccountData, BlockHashContract, BlockNumberOrTag, EvmConfig, Filter, FilterSet, LogsContract,
+    RlpEvmTransaction,
 };
 
 type C = DefaultContext;
+
+#[test]
+fn call_multiple_test() {
+    let dev_signer1: TestSigner = TestSigner::new_random();
+
+    let config = EvmConfig {
+        data: vec![AccountData {
+            address: dev_signer1.address(),
+            balance: U256::from(1000000000),
+            code_hash: KECCAK_EMPTY,
+            code: Bytes::default(),
+            nonce: 0,
+        }],
+        // SHANGAI instead of LATEST
+        // https://github.com/Sovereign-Labs/sovereign-sdk/issues/912
+        spec: vec![(0, SpecId::SHANGHAI)].into_iter().collect(),
+        ..Default::default()
+    };
+
+    let (evm, mut working_set) = get_evm(&config);
+
+    let contract_addr: Address = Address::from_slice(
+        hex::decode("819c5497b157177315e1204f52e588b393771719")
+            .unwrap()
+            .as_slice(),
+    );
+
+    evm.begin_slot_hook([5u8; 32], &[10u8; 32].into(), &mut working_set);
+
+    let set_arg = 999;
+    {
+        let sender_address = generate_address::<C>("sender");
+        let context = C::new(sender_address);
+
+        let transactions: Vec<RlpEvmTransaction> = vec![
+            create_contract_transaction(&dev_signer1, 0, SimpleStorageContract::default()),
+            set_arg_transaction(contract_addr, &dev_signer1, 1, set_arg + 1),
+            set_arg_transaction(contract_addr, &dev_signer1, 2, set_arg + 2),
+            set_arg_transaction(contract_addr, &dev_signer1, 3, set_arg + 3),
+        ];
+
+        evm.call(
+            CallMessage { txs: transactions },
+            &context,
+            &mut working_set,
+        )
+        .unwrap();
+    }
+
+    evm.end_slot_hook(&mut working_set);
+    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+
+    let db_account = evm.accounts.get(&contract_addr, &mut working_set).unwrap();
+    let storage_value = db_account
+        .storage
+        .get(&U256::ZERO, &mut working_set)
+        .unwrap();
+
+    assert_eq!(U256::from(set_arg + 3), storage_value);
+
+    assert_eq!(
+        evm.receipts
+            .iter(&mut working_set.accessory_state())
+            .collect::<Vec<_>>(),
+        [
+            Receipt {
+                receipt: reth_primitives::Receipt {
+                    tx_type: reth_primitives::TxType::EIP1559,
+                    success: true,
+                    cumulative_gas_used: 132943,
+                    logs: vec![]
+                },
+                gas_used: 132943,
+                log_index_start: 0,
+                error: None
+            },
+            Receipt {
+                receipt: reth_primitives::Receipt {
+                    tx_type: reth_primitives::TxType::EIP1559,
+                    success: true,
+                    cumulative_gas_used: 176673,
+                    logs: vec![]
+                },
+                gas_used: 43730,
+                log_index_start: 0,
+                error: None
+            },
+            Receipt {
+                receipt: reth_primitives::Receipt {
+                    tx_type: reth_primitives::TxType::EIP1559,
+                    success: true,
+                    cumulative_gas_used: 203303,
+                    logs: vec![]
+                },
+                gas_used: 26630,
+                log_index_start: 0,
+                error: None
+            },
+            Receipt {
+                receipt: reth_primitives::Receipt {
+                    tx_type: reth_primitives::TxType::EIP1559,
+                    success: true,
+                    cumulative_gas_used: 229933,
+                    logs: vec![]
+                },
+                gas_used: 26630,
+                log_index_start: 0,
+                error: None
+            }
+        ]
+    )
+}
 
 #[test]
 fn call_test() {
@@ -30,15 +142,19 @@ fn call_test() {
         let sender_address = generate_address::<C>("sender");
         let context = C::new(sender_address);
 
-        let messages = vec![
+        let rlp_transactions = vec![
             create_contract_message(&dev_signer, 0, SimpleStorageContract::default()),
             set_arg_message(contract_addr, &dev_signer, 1, set_arg),
         ];
-        for tx in messages {
-            evm.call(tx, &context, &mut working_set).unwrap();
-        }
+
+        let call_message = CallMessage {
+            txs: rlp_transactions,
+        };
+
+        evm.call(call_message, &context, &mut working_set).unwrap();
     }
     evm.end_slot_hook(&mut working_set);
+    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
 
     let db_account = evm.accounts.get(&contract_addr, &mut working_set).unwrap();
     let storage_value = db_account
@@ -88,39 +204,27 @@ fn failed_transaction_test() {
     {
         let sender_address = generate_address::<C>("sender");
         let context = C::new(sender_address);
-        let messages = vec![create_contract_message(
+        let rlp_transactions = vec![create_contract_message(
             &dev_signer,
             0,
             SimpleStorageContract::default(),
         )];
 
-        for tx in messages {
-            evm.call(tx, &context, working_set).unwrap();
-        }
+        let call_message = CallMessage {
+            txs: rlp_transactions,
+        };
+        evm.call(call_message, &context, working_set).unwrap();
     }
     evm.end_slot_hook(working_set);
 
-    assert_eq!(
-        evm.receipts
-            .iter(&mut working_set.accessory_state())
-            .collect::<Vec<_>>(),
-        [Receipt {
-            receipt: reth_primitives::Receipt {
-                tx_type: reth_primitives::TxType::EIP1559,
-                success: false,
-                cumulative_gas_used: 0,
-                logs: vec![]
-            },
-            gas_used: 0,
-            log_index_start: 0,
-            error: Some(revm::primitives::EVMError::Transaction(
-                revm::primitives::InvalidTransaction::LackOfFundForMaxFee {
-                    fee: 1_000_000u64,
-                    balance: U256::ZERO
-                }
-            ))
-        }]
-    )
+    // assert no pending transaction
+    let pending_txs = evm.pending_transactions.iter(working_set);
+    assert_eq!(pending_txs.len(), 0);
+
+    // Assert block does not have any transaction
+    let block = evm.blocks.last(&mut working_set.accessory_state()).unwrap();
+    assert_eq!(block.transactions.start, 0);
+    assert_eq!(block.transactions.end, 0);
 }
 
 #[test]
@@ -143,24 +247,18 @@ fn self_destruct_test() {
         let context = C::new(sender_address);
 
         // deploy selfdestruct contract
-        evm.call(
-            create_contract_message(&dev_signer, 0, SelfDestructorContract::default()),
-            &context,
-            &mut working_set,
-        )
-        .unwrap();
-
         // send some money to the selfdestruct contract
-        evm.call(
-            send_money_to_contract_message(contract_addr, &dev_signer, 1, contract_balance as u128),
-            &context,
-            &mut working_set,
-        )
-        .unwrap();
-
         // set some variable in the contract
-        evm.call(
+        let rlp_transactions = vec![
+            create_contract_message(&dev_signer, 0, SelfDestructorContract::default()),
+            send_money_to_contract_message(contract_addr, &dev_signer, 1, contract_balance as u128),
             set_selfdestruct_arg_message(contract_addr, &dev_signer, 2, 123),
+        ];
+
+        evm.call(
+            CallMessage {
+                txs: rlp_transactions,
+            },
             &context,
             &mut working_set,
         )
@@ -195,7 +293,14 @@ fn self_destruct_test() {
         let context = C::new(sender_address);
         // selfdestruct
         evm.call(
-            selfdestruct_message(contract_addr, &dev_signer, 3, die_to_address),
+            CallMessage {
+                txs: vec![selfdestruct_message(
+                    contract_addr,
+                    &dev_signer,
+                    3,
+                    die_to_address,
+                )],
+            },
             &context,
             &mut working_set,
         )
@@ -254,30 +359,24 @@ fn log_filter_test_at_block_hash() {
         let context = C::new(sender_address);
 
         // deploy logs contract
-        evm.call(
-            create_contract_message(&dev_signer, 0, LogsContract::default()),
-            &context,
-            &mut working_set,
-        )
-        .unwrap();
-
         // call the contract function
-        evm.call(
-            publish_event_message(contract_addr, &dev_signer, 1, "hello".to_string()),
-            &context,
-            &mut working_set,
-        )
-        .unwrap();
         // the last topic will be Keccak256("hello")
-
         // call the contract function
-        evm.call(
+        // the last topic will be Keccak256("hi")
+        let rlp_transcations = vec![
+            create_contract_message(&dev_signer, 0, LogsContract::default()),
+            publish_event_message(contract_addr, &dev_signer, 1, "hello".to_string()),
             publish_event_message(contract_addr, &dev_signer, 2, "hi".to_string()),
+        ];
+
+        evm.call(
+            CallMessage {
+                txs: rlp_transcations,
+            },
             &context,
             &mut working_set,
         )
         .unwrap();
-        // the last topic will be Keccak256("hi")
     }
     evm.end_slot_hook(&mut working_set);
     evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
@@ -452,30 +551,24 @@ fn log_filter_test_with_range() {
         let context = C::new(sender_address);
 
         // deploy selfdestruct contract
-        evm.call(
-            create_contract_message(&dev_signer, 0, LogsContract::default()),
-            &context,
-            &mut working_set,
-        )
-        .unwrap();
-
         // call the contract function
-        evm.call(
-            publish_event_message(contract_addr, &dev_signer, 1, "hello".to_string()),
-            &context,
-            &mut working_set,
-        )
-        .unwrap();
         // the last topic will be Keccak256("hello")
-
         // call the contract function
-        evm.call(
+        // the last topic will be Keccak256("hi")
+        let rlp_transactions = vec![
+            create_contract_message(&dev_signer, 0, LogsContract::default()),
+            publish_event_message(contract_addr, &dev_signer, 1, "hello".to_string()),
             publish_event_message(contract_addr, &dev_signer, 2, "hi".to_string()),
+        ];
+
+        evm.call(
+            CallMessage {
+                txs: rlp_transactions,
+            },
             &context,
             &mut working_set,
         )
         .unwrap();
-        // the last topic will be Keccak256("hi")
     }
     evm.end_slot_hook(&mut working_set);
     evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
@@ -506,7 +599,14 @@ fn log_filter_test_with_range() {
         let context = C::new(sender_address);
         // call the contract function
         evm.call(
-            publish_event_message(contract_addr, &dev_signer, 3, "message".to_string()),
+            CallMessage {
+                txs: vec![publish_event_message(
+                    contract_addr,
+                    &dev_signer,
+                    3,
+                    "message".to_string(),
+                )],
+            },
             &context,
             &mut working_set,
         )
@@ -540,24 +640,31 @@ fn test_log_limits() {
         let sender_address = generate_address::<C>("sender");
         let context = C::new(sender_address);
 
-        // deploy selfdestruct contract
+        // deploy logs contract
+        let mut rlp_transactions = vec![create_contract_message(
+            &dev_signer,
+            0,
+            LogsContract::default(),
+        )];
+
+        // call the contracts 10_001 times so we got 20_002 logs (response limit is 20_000)
+        for i in 0..10001 {
+            rlp_transactions.push(publish_event_message(
+                contract_addr,
+                &dev_signer,
+                i + 1,
+                "hello".to_string(),
+            ));
+        }
+
         evm.call(
-            create_contract_message(&dev_signer, 0, LogsContract::default()),
+            CallMessage {
+                txs: rlp_transactions,
+            },
             &context,
             &mut working_set,
         )
         .unwrap();
-
-        // call the contracts 10_001 times so we got 20_002 logs (response limit is 20_000)
-
-        for i in 0..10001 {
-            evm.call(
-                publish_event_message(contract_addr, &dev_signer, i + 1, "hello".to_string()),
-                &context,
-                &mut working_set,
-            )
-            .unwrap();
-        }
     }
     evm.end_slot_hook(&mut working_set);
     evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
@@ -596,7 +703,7 @@ fn test_log_limits() {
         FilterSet::default(),
     ];
 
-    for i in 1..100_001 {
+    for _i in 1..100_001 {
         // generate 100_000 blocks to test the max block range limit
         evm.begin_slot_hook([5u8; 32], &[99u8; 32].into(), &mut working_set);
         evm.end_slot_hook(&mut working_set);
@@ -634,25 +741,33 @@ fn test_block_hash_in_evm() {
 
         let deploy_message = create_contract_message(&dev_signer, 0, BlockHashContract::default());
 
-        evm.call(deploy_message, &context, &mut working_set)
-            .unwrap();
+        evm.call(
+            CallMessage {
+                txs: vec![deploy_message],
+            },
+            &context,
+            &mut working_set,
+        )
+        .unwrap();
     }
     evm.end_slot_hook(&mut working_set);
     evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
 
-    for i in 0..514 {
+    for _i in 0..514 {
         // generate 514 more blocks
         evm.begin_slot_hook([5u8; 32], &[99u8; 32].into(), &mut working_set);
         evm.end_slot_hook(&mut working_set);
         evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
     }
-    let last_block_number = evm
+
+    let _last_block_number = evm
         .blocks
         .last(&mut working_set.accessory_state())
         .unwrap()
         .header
         .number;
-    let block_number = last_block_number;
+
+    let _block_number = _last_block_number;
 
     let mut request = CallRequest {
         from: None,
@@ -704,7 +819,7 @@ fn create_contract_message<T: TestContract>(
     dev_signer: &TestSigner,
     nonce: u64,
     contract: T,
-) -> CallMessage {
+) -> RlpEvmTransaction {
     let signed_tx = dev_signer
         .sign_default_transaction(
             TransactionKind::Create,
@@ -713,8 +828,23 @@ fn create_contract_message<T: TestContract>(
             0,
         )
         .unwrap();
+    signed_tx
+}
 
-    CallMessage { tx: signed_tx }
+fn create_contract_transaction<T: TestContract>(
+    dev_signer: &TestSigner,
+    nonce: u64,
+    contract: T,
+) -> RlpEvmTransaction {
+    let signed_tx = dev_signer
+        .sign_default_transaction(
+            TransactionKind::Create,
+            contract.byte_code().to_vec(),
+            nonce,
+            0,
+        )
+        .unwrap();
+    signed_tx
 }
 
 fn set_selfdestruct_arg_message(
@@ -722,7 +852,7 @@ fn set_selfdestruct_arg_message(
     dev_signer: &TestSigner,
     nonce: u64,
     set_arg: u32,
-) -> CallMessage {
+) -> RlpEvmTransaction {
     let contract = SimpleStorageContract::default();
     let signed_tx = dev_signer
         .sign_default_transaction(
@@ -733,7 +863,7 @@ fn set_selfdestruct_arg_message(
         )
         .unwrap();
 
-    CallMessage { tx: signed_tx }
+    signed_tx
 }
 
 fn set_arg_message(
@@ -741,7 +871,7 @@ fn set_arg_message(
     dev_signer: &TestSigner,
     nonce: u64,
     set_arg: u32,
-) -> CallMessage {
+) -> RlpEvmTransaction {
     let contract = SimpleStorageContract::default();
     let signed_tx = dev_signer
         .sign_default_transaction(
@@ -751,7 +881,26 @@ fn set_arg_message(
             0,
         )
         .unwrap();
-    CallMessage { tx: signed_tx }
+    signed_tx
+}
+
+fn set_arg_transaction(
+    contract_addr: Address,
+    dev_signer: &TestSigner,
+    nonce: u64,
+    set_arg: u32,
+) -> RlpEvmTransaction {
+    let contract = SimpleStorageContract::default();
+    let signed_tx = dev_signer
+        .sign_default_transaction(
+            TransactionKind::Call(contract_addr),
+            hex::decode(hex::encode(&contract.set_call_data(set_arg))).unwrap(),
+            nonce,
+            0,
+        )
+        .unwrap();
+
+    signed_tx
 }
 
 fn send_money_to_contract_message(
@@ -759,7 +908,7 @@ fn send_money_to_contract_message(
     signer: &TestSigner,
     nonce: u64,
     value: u128,
-) -> CallMessage {
+) -> RlpEvmTransaction {
     let signed_tx = signer
         .sign_default_transaction(
             TransactionKind::Call(contract_addr),
@@ -768,7 +917,7 @@ fn send_money_to_contract_message(
             value,
         )
         .unwrap();
-    CallMessage { tx: signed_tx }
+    signed_tx
 }
 
 fn selfdestruct_message(
@@ -776,7 +925,7 @@ fn selfdestruct_message(
     dev_signer: &TestSigner,
     nonce: u64,
     to_address: Address,
-) -> CallMessage {
+) -> RlpEvmTransaction {
     let contract = SelfDestructorContract::default();
     let signed_tx = dev_signer
         .sign_default_transaction(
@@ -786,7 +935,7 @@ fn selfdestruct_message(
             0,
         )
         .unwrap();
-    CallMessage { tx: signed_tx }
+    signed_tx
 }
 
 fn publish_event_message(
@@ -794,7 +943,7 @@ fn publish_event_message(
     signer: &TestSigner,
     nonce: u64,
     message: String,
-) -> CallMessage {
+) -> RlpEvmTransaction {
     let contract = LogsContract::default();
     let signed_tx = signer
         .sign_default_transaction(
@@ -804,7 +953,7 @@ fn publish_event_message(
             0,
         )
         .unwrap();
-    CallMessage { tx: signed_tx }
+    signed_tx
 }
 
 fn get_evm_config(signer_balance: u64) -> (EvmConfig, TestSigner, Address) {

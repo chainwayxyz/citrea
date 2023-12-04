@@ -4,8 +4,7 @@ use ethers_contract::BaseContract;
 use ethers_core::types::Bytes;
 use reth_primitives::Address;
 
-use super::TestContract;
-use super::{make_contract_from_abi, test_data_path};
+use super::{make_contract_from_abi, test_data_path, TestContract};
 
 /// SelfDestructor wrapper.
 pub struct SelfDestructorContract {

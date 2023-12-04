@@ -164,22 +164,17 @@ pub fn parse_hex_transaction(
 }
 #[cfg(test)]
 mod tests {
-    use bitcoin::{
-        key::XOnlyPublicKey,
-        opcodes::{
-            all::{OP_CHECKSIG, OP_ENDIF, OP_IF},
-            OP_FALSE, OP_TRUE,
-        },
-        script::{self, PushBytesBuf},
-        Transaction,
-    };
-
-    use crate::helpers::parsers::{parse_transaction, ParserError};
+    use bitcoin::key::XOnlyPublicKey;
+    use bitcoin::opcodes::all::{OP_CHECKSIG, OP_ENDIF, OP_IF};
+    use bitcoin::opcodes::{OP_FALSE, OP_TRUE};
+    use bitcoin::script::{self, PushBytesBuf};
+    use bitcoin::Transaction;
 
     use super::{
         parse_relevant_inscriptions, BODY_TAG, PUBLICKEY_TAG, RANDOM_TAG, ROLLUP_NAME_TAG,
         SIGNATURE_TAG,
     };
+    use crate::helpers::parsers::{parse_transaction, ParserError};
 
     #[test]
     fn correct() {

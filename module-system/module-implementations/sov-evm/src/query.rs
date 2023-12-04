@@ -2,6 +2,7 @@ use std::array::TryFromSliceError;
 
 use ethereum_types::U64;
 use jsonrpsee::core::RpcResult;
+use reth_interfaces::provider::ProviderError;
 use reth_primitives::contract::create_address;
 use reth_primitives::TransactionKind::{Call, Create};
 use reth_primitives::{TransactionSignedEcRecovered, U128, U256};
@@ -20,7 +21,6 @@ use crate::evm::{executor, prepare_call_env};
 use crate::experimental::{MIN_CREATE_GAS, MIN_TRANSACTION_GAS};
 use crate::rpc_helpers::*;
 use crate::{BloomFilter, Evm, FilterBlockOption, FilterError};
-use reth_interfaces::provider::ProviderError;
 
 #[rpc_gen(client, server)]
 impl<C: sov_modules_api::Context> Evm<C> {

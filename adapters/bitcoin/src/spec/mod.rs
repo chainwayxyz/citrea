@@ -6,7 +6,6 @@ use self::blob::BlobWithSender;
 use self::block_hash::BlockHashWrapper;
 use self::header::HeaderWrapper;
 use self::proof::InclusionMultiProof;
-
 use crate::verifier::ChainValidityCondition;
 
 pub mod address;
