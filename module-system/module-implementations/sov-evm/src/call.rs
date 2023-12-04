@@ -57,65 +57,58 @@ impl<C: sov_modules_api::Context> Evm<C> {
         // Iterate each evm_txs_recovered and results pair
         // Create a PendingTransaction for each pair
         // Push each PendingTransaction to pending_transactions
-        evm_txs_recovered
-            .into_iter()
-            .zip(results.into_iter())
-            .for_each(|(evm_tx_recovered, result)| {
-                let previous_transaction = self.pending_transactions.last(working_set);
-                let previous_transaction_cumulative_gas_used = previous_transaction
-                    .as_ref()
-                    .map_or(0u64, |tx| tx.receipt.receipt.cumulative_gas_used);
-                let log_index_start = previous_transaction.as_ref().map_or(0u64, |tx| {
-                    tx.receipt.log_index_start + tx.receipt.receipt.logs.len() as u64
-                });
-
-                let _receipt = match result {
-                    Ok(result) => {
-                        let logs: Vec<_> = result.logs().into_iter().map(into_reth_log).collect();
-                        let gas_used = result.gas_used();
-
-                        let receipt = Receipt {
-                            receipt: reth_primitives::Receipt {
-                                tx_type: evm_tx_recovered.tx_type(),
-                                success: result.is_success(),
-                                cumulative_gas_used: previous_transaction_cumulative_gas_used
-                                    + gas_used,
-                                logs,
-                            },
-                            gas_used,
-                            log_index_start,
-                            error: None,
-                        };
-
-                        let pending_transaction = PendingTransaction {
-                            transaction: TransactionSignedAndRecovered {
-                                signer: evm_tx_recovered.signer(),
-                                signed_transaction: evm_tx_recovered.into(),
-                                block_number: block_env.number,
-                            },
-                            receipt,
-                        };
-
-                        self.pending_transactions
-                            .push(&pending_transaction, working_set);
-                    }
-                    // Adopted from https://github.com/paradigmxyz/reth/blob/main/crates/payload/basic/src/lib.rs#L884
-                    Err(err) => {
-                        match err {
-                            EVMError::Transaction(_) => {
-                                // This is a transactional error, so we can skip it without doing anything.
-                            }
-                            err => {
-                                // This is a fatal error, so we need to return it.
-                                // return Err(err.into());
-
-                                // Panic.
-                                panic!("Fatal error: {:?}", err);
-                            }
-                        }
-                    }
-                };
+        for (evm_tx_recovered, result) in evm_txs_recovered.into_iter().zip(results.into_iter()) {
+            let previous_transaction = self.pending_transactions.last(working_set);
+            let previous_transaction_cumulative_gas_used = previous_transaction
+                .as_ref()
+                .map_or(0u64, |tx| tx.receipt.receipt.cumulative_gas_used);
+            let log_index_start = previous_transaction.as_ref().map_or(0u64, |tx| {
+                tx.receipt.log_index_start + tx.receipt.receipt.logs.len() as u64
             });
+
+            match result {
+                Ok(result) => {
+                    let logs: Vec<_> = result.logs().into_iter().map(into_reth_log).collect();
+                    let gas_used = result.gas_used();
+
+                    let receipt = Receipt {
+                        receipt: reth_primitives::Receipt {
+                            tx_type: evm_tx_recovered.tx_type(),
+                            success: result.is_success(),
+                            cumulative_gas_used: previous_transaction_cumulative_gas_used
+                                + gas_used,
+                            logs,
+                        },
+                        gas_used,
+                        log_index_start,
+                        error: None,
+                    };
+
+                    let pending_transaction = PendingTransaction {
+                        transaction: TransactionSignedAndRecovered {
+                            signer: evm_tx_recovered.signer(),
+                            signed_transaction: evm_tx_recovered.into(),
+                            block_number: block_env.number,
+                        },
+                        receipt,
+                    };
+
+                    self.pending_transactions
+                        .push(&pending_transaction, working_set);
+                }
+                // Adopted from https://github.com/paradigmxyz/reth/blob/main/crates/payload/basic/src/lib.rs#L884
+                Err(err) => match err {
+                    EVMError::Transaction(_) => {
+                        // This is a transactional error, so we can skip it without doing anything.
+                        continue;
+                    }
+                    err => {
+                        // This is a fatal error, so we need to return it.
+                        return Err(err.into());
+                    }
+                },
+            }
+        }
 
         Ok(CallResponse::default())
     }
