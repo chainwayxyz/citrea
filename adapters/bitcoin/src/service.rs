@@ -1,6 +1,7 @@
 use core::result::Result::Ok;
 use core::str::FromStr;
 use core::time::Duration;
+use std::sync::Arc;
 
 use async_trait::async_trait;
 use bitcoin::address::NetworkUnchecked;
@@ -28,12 +29,7 @@ use crate::spec::{BitcoinSpec, RollupParams};
 use crate::verifier::BitcoinVerifier;
 use crate::REVEAL_OUTPUT_AMOUNT;
 
-use futures::FutureExt;
-use futures::Stream;
-use pin_project::pin_project;
-use std::pin::Pin;
-use std::sync::Arc;
-use std::task::{Context, Poll};
+use crate::spec::header_stream::BitcoinHeaderStream;
 
 /// A service that provides data and data availability proofs for Bitcoin
 #[derive(Debug, Clone)]
@@ -209,44 +205,6 @@ impl BitcoinService {
     }
 }
 
-#[pin_project]
-pub struct BitcoinHeaderStream {
-    #[pin]
-    service: Arc<BitcoinService>,
-    interval: Duration,
-    timer: tokio::time::Interval,
-}
-
-impl BitcoinHeaderStream {
-    pub fn new(service: Arc<BitcoinService>, interval: Duration) -> Self {
-        Self {
-            service,
-            interval,
-            timer: tokio::time::interval(interval),
-        }
-    }
-}
-
-impl Stream for BitcoinHeaderStream {
-    type Item = Result<
-        <<BitcoinService as DaService>::Spec as DaSpec>::BlockHeader,
-        <BitcoinService as DaService>::Error,
-    >;
-
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let this = self.project();
-        if let Poll::Ready(_) = this.timer.poll_tick(cx) {
-            let header = futures::ready!(this
-                .service
-                .get_last_finalized_block_header()
-                .boxed()
-                .poll_unpin(cx));
-            return Poll::Ready(Some(header));
-        }
-        Poll::Pending
-    }
-}
-
 #[async_trait]
 impl DaService for BitcoinService {
     type Spec = BitcoinSpec;
@@ -255,45 +213,11 @@ impl DaService for BitcoinService {
 
     type FilteredBlock = BitcoinBlock;
 
-    type TransactionId = ();
-
     type HeaderStream = BitcoinHeaderStream;
 
+    type TransactionId = ();
+
     type Error = anyhow::Error;
-
-    async fn subscribe_finalized_header(&self) -> Result<Self::HeaderStream, Self::Error> {
-        Ok(BitcoinHeaderStream::new(
-            Arc::new(self.clone()),
-            Duration::from_secs(2),
-        ))
-    }
-
-    // Fetch the head block of DA.
-    async fn get_head_block_header(
-        &self,
-    ) -> Result<<Self::Spec as DaSpec>::BlockHeader, Self::Error> {
-        let best_blockhash = self.client.get_best_blockhash().await?;
-
-        let head_block_header = self.client.get_block_header(best_blockhash).await?;
-
-        Ok(head_block_header)
-    }
-
-    // Fetch the [`DaSpec::BlockHeader`] of the last finalized block.
-    async fn get_last_finalized_block_header(
-        &self,
-    ) -> Result<<Self::Spec as DaSpec>::BlockHeader, Self::Error> {
-        let block_count = self.client.get_block_count().await?;
-
-        let finalized_blockhash = self
-            .client
-            .get_block_hash(block_count - FINALITY_DEPTH)
-            .await?;
-
-        let finalized_block_header = self.client.get_block_header(finalized_blockhash).await?;
-
-        Ok(finalized_block_header)
-    }
 
     // Make an RPC call to the node to get the block at the given height
     // If no such block exists, block until one does.
@@ -329,6 +253,40 @@ impl DaService for BitcoinService {
         let block = client.get_block(block_hash).await?;
 
         Ok(block)
+    }
+
+    // Fetch the [`DaSpec::BlockHeader`] of the last finalized block.
+    async fn get_last_finalized_block_header(
+        &self,
+    ) -> Result<<Self::Spec as DaSpec>::BlockHeader, Self::Error> {
+        let block_count = self.client.get_block_count().await?;
+
+        let finalized_blockhash = self
+            .client
+            .get_block_hash(block_count - FINALITY_DEPTH)
+            .await?;
+
+        let finalized_block_header = self.client.get_block_header(finalized_blockhash).await?;
+
+        Ok(finalized_block_header)
+    }
+
+    async fn subscribe_finalized_header(&self) -> Result<Self::HeaderStream, Self::Error> {
+        Ok(BitcoinHeaderStream::new(
+            Arc::new(self.clone()),
+            Duration::from_secs(2),
+        ))
+    }
+
+    // Fetch the head block of DA.
+    async fn get_head_block_header(
+        &self,
+    ) -> Result<<Self::Spec as DaSpec>::BlockHeader, Self::Error> {
+        let best_blockhash = self.client.get_best_blockhash().await?;
+
+        let head_block_header = self.client.get_block_header(best_blockhash).await?;
+
+        Ok(head_block_header)
     }
 
     // Extract the blob transactions relevant to a particular rollup from a block.
