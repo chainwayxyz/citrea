@@ -28,13 +28,12 @@ use crate::spec::{BitcoinSpec, RollupParams};
 use crate::verifier::BitcoinVerifier;
 use crate::REVEAL_OUTPUT_AMOUNT;
 
+use futures::FutureExt;
+use futures::Stream;
+use pin_project::pin_project;
+use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
-use futures::Stream;
-use tokio::time;
-use std::pin::Pin;
-use pin_project::pin_project;
-use futures::FutureExt;
 
 /// A service that provides data and data availability proofs for Bitcoin
 #[derive(Debug, Clone)]
@@ -97,7 +96,7 @@ impl BitcoinService {
             address,
             private_key,
         )
-            .await
+        .await
     }
 
     pub async fn with_client(
@@ -229,12 +228,19 @@ impl BitcoinHeaderStream {
 }
 
 impl Stream for BitcoinHeaderStream {
-    type Item = Result<<<BitcoinService as DaService>::Spec as DaSpec>::BlockHeader, <BitcoinService as DaService>::Error>;
+    type Item = Result<
+        <<BitcoinService as DaService>::Spec as DaSpec>::BlockHeader,
+        <BitcoinService as DaService>::Error,
+    >;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = self.project();
         if let Poll::Ready(_) = this.timer.poll_tick(cx) {
-            let header = futures::ready!(this.service.get_last_finalized_block_header().boxed().poll_unpin(cx));
+            let header = futures::ready!(this
+                .service
+                .get_last_finalized_block_header()
+                .boxed()
+                .poll_unpin(cx));
             return Poll::Ready(Some(header));
         }
         Poll::Pending
@@ -256,7 +262,10 @@ impl DaService for BitcoinService {
     type Error = anyhow::Error;
 
     async fn subscribe_finalized_header(&self) -> Result<Self::HeaderStream, Self::Error> {
-        Ok(BitcoinHeaderStream::new(Arc::new(self.clone()), Duration::from_secs(10)))
+        Ok(BitcoinHeaderStream::new(
+            Arc::new(self.clone()),
+            Duration::from_secs(2),
+        ))
     }
 
     // Fetch the head block of DA.
@@ -457,8 +466,8 @@ mod tests {
                 .unwrap(),
             1,
         )
-            .await
-            .unwrap();
+        .await
+        .unwrap();
 
         let runtime_config = DaServiceConfig {
             node_url: "http://localhost:38332".to_string(),
@@ -478,7 +487,7 @@ mod tests {
                 rollup_name: "sov-btc".to_string(),
             },
         )
-            .await
+        .await
     }
 
     // #[tokio::test]
