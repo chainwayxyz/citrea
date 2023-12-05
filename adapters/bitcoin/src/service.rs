@@ -402,7 +402,7 @@ mod tests {
     use bitcoin::{merkle_tree, Address, Txid};
     use sov_rollup_interface::services::da::DaService;
 
-    use super::BitcoinService;
+    use super::{BitcoinService, FINALITY_DEPTH};
     use crate::helpers::parsers::parse_transaction;
     use crate::rpc::BitcoinNode;
     use crate::service::DaServiceConfig;
@@ -457,6 +457,38 @@ mod tests {
     //         .await
     //         .expect("Failed to get block");
     // }
+
+    #[tokio::test]
+    async fn get_finalized_header() {
+        let da_service = get_service().await;
+
+        let get_curr_header = da_service
+            .get_last_finalized_block_header()
+            .await
+            .expect("Failed to get block");
+
+        let get_head_header = da_service
+            .get_head_block_header()
+            .await
+            .expect("Failed to get block");
+
+        assert_ne!(get_curr_header, get_head_header);
+
+        let _new_block_hashes = da_service.client.generate_to_address(
+            Address::from_str("bcrt1qxuds94z3pqwqea2p4f4ev4f25s6uu7y3avljrl")
+                .unwrap()
+                .require_network(bitcoin::Network::Regtest)
+                .unwrap(),
+            FINALITY_DEPTH as u32,
+        ).await.unwrap();
+
+        let new_finalized_header = da_service
+            .get_last_finalized_block_header()
+            .await
+            .expect("Failed to get block");
+
+        assert_eq!(get_head_header, new_finalized_header);
+    }
 
     #[tokio::test]
     async fn get_block_at() {
