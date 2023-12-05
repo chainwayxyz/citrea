@@ -1,8 +1,10 @@
 // https://github.com/paradigmxyz/reth/blob/main/crates/rpc/rpc-types/src/eth/block.rs
-use std::fmt::{self};
 use std::hash::Hash;
-use std::num::ParseIntError;
-use std::str::FromStr;
+use std::{
+    fmt::{self},
+    num::ParseIntError,
+    str::FromStr,
+};
 
 use alloy_primitives::U64;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};

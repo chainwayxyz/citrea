@@ -10,12 +10,7 @@ mod genesis;
 mod hooks;
 #[cfg(feature = "experimental")]
 mod rpc_helpers;
-pub use call::*;
-pub use error::rpc::*;
-pub use evm::*;
-pub use genesis::*;
-pub use hooks::*;
-pub use rpc_helpers::*;
+pub use {call::*, error::rpc::*, evm::*, genesis::*, hooks::*, rpc_helpers::*};
 #[cfg(feature = "native")]
 #[cfg(feature = "experimental")]
 mod query;
@@ -30,7 +25,7 @@ pub use signer::DevSigner;
 mod smart_contracts;
 #[cfg(feature = "smart_contracts")]
 pub use smart_contracts::{
-    LogsContract, SelfDestructorContract, SimpleStorageContract, TestContract,
+    BlockHashContract, LogsContract, SelfDestructorContract, SimpleStorageContract, TestContract,
 };
 #[cfg(feature = "experimental")]
 #[cfg(test)]

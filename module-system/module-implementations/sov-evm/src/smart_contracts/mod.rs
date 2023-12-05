@@ -1,13 +1,14 @@
 use std::any::Any;
 use std::path::PathBuf;
 
+mod blockhash_contract;
 mod logs_contract;
 mod self_destructor_contract;
 mod simple_storage_contract;
+
 use ethers_contract::BaseContract;
 use ethers_core::abi::Abi;
 use ethers_core::types::Bytes;
-pub use logs_contract::LogsContract;
 pub use self_destructor_contract::SelfDestructorContract;
 pub use simple_storage_contract::SimpleStorageContract;
 

@@ -3,6 +3,7 @@ mod test_client;
 use std::net::SocketAddr;
 use std::str::FromStr;
 
+use crate::test_helpers::create_and_start_rollup;
 use ethers_core::abi::Address;
 use ethers_signers::{LocalWallet, Signer};
 use reqwest::Client;
@@ -13,7 +14,7 @@ use test_client::TestClient;
 #[cfg(feature = "experimental")]
 #[tokio::test]
 async fn evm_tx_tests() -> Result<(), anyhow::Error> {
-    use crate::test_helpers::create_and_start_rollup;
+    let (port_tx, port_rx) = tokio::sync::oneshot::channel();
 
     let rollup_task = tokio::spawn(async {
         // Don't provide a prover since the EVM is not currently provable
