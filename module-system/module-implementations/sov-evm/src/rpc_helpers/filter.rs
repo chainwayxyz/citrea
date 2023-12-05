@@ -1,19 +1,18 @@
 // https://github.com/paradigmxyz/reth/blob/main/crates/rpc/rpc-types/src/eth/filter.rs
 
+use std::collections::HashSet;
 use std::hash::Hash;
-use std::ops::RangeInclusive;
-use std::ops::{Range, RangeFrom, RangeTo};
-use std::{collections::HashSet, iter::StepBy};
+use std::iter::StepBy;
+use std::ops::{Range, RangeFrom, RangeInclusive, RangeTo};
 
 use alloy_primitives::{Bloom, BloomInput, U64};
-use itertools::{EitherOrBoth::*, Itertools};
+use itertools::EitherOrBoth::*;
+use itertools::Itertools;
 use reth_primitives::{Address, BlockHash, H256};
 use revm::primitives::B256;
-use serde::{
-    de::{DeserializeOwned, MapAccess, Visitor},
-    ser::SerializeStruct,
-    Deserialize, Deserializer, Serialize, Serializer,
-};
+use serde::de::{DeserializeOwned, MapAccess, Visitor};
+use serde::ser::SerializeStruct;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::evm::error::result::rpc_error_with_code;
 use crate::evm::error::rpc::EthApiError;

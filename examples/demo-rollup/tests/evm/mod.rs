@@ -3,13 +3,14 @@ mod test_client;
 use std::net::SocketAddr;
 use std::str::FromStr;
 
-use crate::test_helpers::create_and_start_rollup;
 use ethers_core::abi::Address;
 use ethers_signers::{LocalWallet, Signer};
 use reqwest::Client;
 use sov_evm::{SimpleStorageContract, TestContract};
 use sov_stf_runner::RollupProverConfig;
 use test_client::TestClient;
+
+use crate::test_helpers::create_and_start_rollup;
 
 #[cfg(feature = "experimental")]
 #[tokio::test]

@@ -1,6 +1,5 @@
 use std::any::Any;
 
-use super::TestContract;
 use ethers_contract::BaseContract;
 use ethers_core::types::Bytes;
 
