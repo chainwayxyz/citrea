@@ -400,6 +400,7 @@ mod tests {
     use bitcoin::hashes::{sha256d, Hash};
     use bitcoin::secp256k1::KeyPair;
     use bitcoin::{merkle_tree, Address, Txid};
+    use futures::{Stream, StreamExt};
     use sov_rollup_interface::services::da::DaService;
 
     use super::{BitcoinService, FINALITY_DEPTH};
@@ -474,13 +475,17 @@ mod tests {
 
         assert_ne!(get_curr_header, get_head_header);
 
-        let _new_block_hashes = da_service.client.generate_to_address(
-            Address::from_str("bcrt1qxuds94z3pqwqea2p4f4ev4f25s6uu7y3avljrl")
-                .unwrap()
-                .require_network(bitcoin::Network::Regtest)
-                .unwrap(),
-            FINALITY_DEPTH as u32,
-        ).await.unwrap();
+        let _new_block_hashes = da_service
+            .client
+            .generate_to_address(
+                Address::from_str("bcrt1qxuds94z3pqwqea2p4f4ev4f25s6uu7y3avljrl")
+                    .unwrap()
+                    .require_network(bitcoin::Network::Regtest)
+                    .unwrap(),
+                FINALITY_DEPTH as u32,
+            )
+            .await
+            .unwrap();
 
         let new_finalized_header = da_service
             .get_last_finalized_block_header()
@@ -488,6 +493,38 @@ mod tests {
             .expect("Failed to get block");
 
         assert_eq!(get_head_header, new_finalized_header);
+    }
+
+    #[tokio::test]
+    async fn subscription_test() {
+        // Setup and get the service
+        let service = get_service().await;
+
+        // Subscribe to the stream
+        let mut stream = service.subscribe_finalized_header().await.unwrap();
+        println!("Subscribed to finalized header stream");
+
+        // Generate a new block and wait for the operation to complete
+        service
+            .client
+            .generate_to_address(
+                Address::from_str("bcrt1qxuds94z3pqwqea2p4f4ev4f25s6uu7y3avljrl")
+                    .unwrap()
+                    .require_network(bitcoin::Network::Regtest)
+                    .unwrap(),
+                1,
+            )
+            .await
+            .unwrap();
+        println!("Generated a new block");
+
+        // Await the next item from the stream
+        if let Some(header_result) = stream.next().await {
+            println!("Got header: {:?}", header_result);
+            assert!(header_result.is_ok());
+        } else {
+            panic!("Failed to receive header from stream");
+        }
     }
 
     #[tokio::test]
