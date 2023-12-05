@@ -10,7 +10,6 @@ mod genesis;
 mod hooks;
 #[cfg(feature = "experimental")]
 mod rpc_helpers;
-
 pub use call::*;
 pub use error::rpc::*;
 pub use evm::*;
@@ -162,7 +161,7 @@ mod experimental {
             context: &Self::Context,
             working_set: &mut WorkingSet<C>,
         ) -> Result<sov_modules_api::CallResponse, Error> {
-            Ok(self.execute_call(msg.tx, context, working_set)?)
+            Ok(self.execute_call(msg.txs, context, working_set)?)
         }
     }
 

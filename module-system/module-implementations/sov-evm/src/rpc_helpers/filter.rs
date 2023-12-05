@@ -1,5 +1,4 @@
 // https://github.com/paradigmxyz/reth/blob/main/crates/rpc/rpc-types/src/eth/filter.rs
-
 use std::collections::HashSet;
 use std::hash::Hash;
 use std::iter::StepBy;
