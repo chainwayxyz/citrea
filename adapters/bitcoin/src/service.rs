@@ -130,7 +130,7 @@ impl BitcoinService {
         &self,
         blob: &[u8],
         fee_sat_per_vbyte: f64,
-    ) -> Result<<BitcoinService as DaService>::TransactionId, anyhow::Error> {
+    ) -> Result<<Self as DaService>::TransactionId, anyhow::Error> {
         let client = self.client.clone();
 
         let blob = blob.to_vec();
@@ -383,7 +383,10 @@ impl DaService for BitcoinService {
         (txs, inclusion_proof, completeness_proof)
     }
 
-    async fn send_transaction(&self, blob: &[u8]) -> Result<<BitcoinService as DaService>::TransactionId, Self::Error> {
+    async fn send_transaction(
+        &self,
+        blob: &[u8],
+    ) -> Result<<Self as DaService>::TransactionId, Self::Error> {
         let fee_sat_per_vbyte = self.get_fee_rate().await?;
         self.send_transaction_with_fee_rate(blob, fee_sat_per_vbyte)
             .await
