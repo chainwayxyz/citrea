@@ -9,6 +9,7 @@ use bitcoin::consensus::encode;
 use bitcoin::hashes::{sha256d, Hash};
 use bitcoin::secp256k1::SecretKey;
 use bitcoin::Address;
+use bitcoin::Txid;
 use hex::ToHex;
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::DaSpec;
@@ -129,7 +130,7 @@ impl BitcoinService {
         &self,
         blob: &[u8],
         fee_sat_per_vbyte: f64,
-    ) -> Result<(), anyhow::Error> {
+    ) -> Result<<BitcoinService as DaService>::TransactionId, anyhow::Error> {
         let client = self.client.clone();
 
         let blob = blob.to_vec();
@@ -191,7 +192,8 @@ impl BitcoinService {
 
         info!("Blob inscribe tx sent. Hash: {}", reveal_tx_hash);
 
-        Ok(())
+        Ok(Txid::from_str(&reveal_tx_hash.as_str())
+            .expect("Failed to parse txid from reveal tx hash"))
     }
 
     pub async fn get_fee_rate(&self) -> Result<f64, anyhow::Error> {
@@ -214,7 +216,7 @@ impl DaService for BitcoinService {
 
     type HeaderStream = BitcoinHeaderStream;
 
-    type TransactionId = ();
+    type TransactionId = Txid;
 
     type Error = anyhow::Error;
 
@@ -381,7 +383,7 @@ impl DaService for BitcoinService {
         (txs, inclusion_proof, completeness_proof)
     }
 
-    async fn send_transaction(&self, blob: &[u8]) -> Result<(), Self::Error> {
+    async fn send_transaction(&self, blob: &[u8]) -> Result<<BitcoinService as DaService>::TransactionId, Self::Error> {
         let fee_sat_per_vbyte = self.get_fee_rate().await?;
         self.send_transaction_with_fee_rate(blob, fee_sat_per_vbyte)
             .await
