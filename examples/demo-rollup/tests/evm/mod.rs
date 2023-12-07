@@ -3,6 +3,7 @@ mod test_client;
 use std::net::SocketAddr;
 use std::str::FromStr;
 
+use demo_stf::genesis_config::GenesisPaths;
 use ethers_core::abi::Address;
 use ethers_signers::{LocalWallet, Signer};
 use reqwest::Client;
@@ -11,7 +12,7 @@ use sov_stf_runner::RollupProverConfig;
 use test_client::TestClient;
 use tokio::time::{sleep, Duration};
 
-use crate::test_helpers::create_and_start_rollup;
+use crate::test_helpers::start_rollup;
 
 #[cfg(feature = "experimental")]
 #[tokio::test]
@@ -48,9 +49,19 @@ async fn send_tx_test_to_eth(rpc_address: SocketAddr) -> Result<(), Box<dyn std:
 async fn test_eth_get_logs() -> Result<(), anyhow::Error> {
     use sov_evm::LogsContract;
 
-    use crate::test_helpers::create_and_start_rollup;
+    let (port_tx, port_rx) = tokio::sync::oneshot::channel();
 
-    let (rollup_task, port) = create_and_start_rollup().await;
+    let rollup_task = tokio::spawn(async {
+        // Don't provide a prover since the EVM is not currently provable
+        start_rollup(
+            port_tx,
+            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
+            RollupProverConfig::Skip,
+        )
+        .await;
+    });
+
+    let port = port_rx.await.unwrap();
 
     let contract = LogsContract::default();
 
