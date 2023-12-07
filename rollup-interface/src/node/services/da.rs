@@ -8,6 +8,7 @@ use serde::Serialize;
 use crate::da::{BlockHeaderTrait, DaSpec, DaVerifier};
 use crate::maybestd::boxed::Box;
 use crate::maybestd::vec::Vec;
+use crate::state_machine;
 use crate::zk::ValidityCondition;
 
 /// A DaService is the local side of an RPC connection talking to a node of the DA layer
@@ -85,6 +86,18 @@ pub trait DaService: Send + Sync + 'static {
     /// blob is the serialized and signed transaction.
     /// Returns nothing if the transaction was successfully sent.
     async fn send_transaction(&self, blob: &[u8]) -> Result<(), Self::Error>;
+
+    /// Convert blob to a DA layer transaction.
+    fn convert_to_transaction(
+        &self,
+        blob: &[u8],
+    ) -> Result<
+        (
+            <Self::Spec as state_machine::da::DaSpec>::BlobTransaction,
+            Vec<u8>,
+        ),
+        Self::Error,
+    >;
 }
 
 /// `SlotData` is the subset of a DA layer block which is stored in the rollup's database.

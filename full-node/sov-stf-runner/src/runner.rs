@@ -154,6 +154,40 @@ where
         });
     }
 
+    /// Processes sequence
+    /// gets a blob of txs as parameter
+    pub async fn process(&mut self, blob: &[u8]) -> Result<(), anyhow::Error> {
+        let pre_state = self.storage_manager.get_native_storage();
+        let filtered_block: <Da as DaService>::FilteredBlock =
+            self.da_service.get_finalized_at(self.start_height).await?;
+        let blobz = self.da_service.convert_to_transaction(blob).unwrap();
+
+        info!(
+            "sequencer={} blob_hash=0x{}",
+            blobz.0.sender(),
+            hex::encode(blobz.0.hash())
+        );
+
+        let slot_result = self.stf.apply_slot(
+            &self.state_root,
+            pre_state,
+            Default::default(),
+            filtered_block.header(),              // mock this
+            &filtered_block.validity_condition(), // mock this
+            &mut vec![blobz.0],
+        );
+        debug!("slot_result: {:?}", slot_result.batch_receipts.len());
+
+        let mut data_to_commit = SlotCommit::new(filtered_block.clone());
+        for receipt in slot_result.batch_receipts {
+            data_to_commit.add_batch(receipt);
+        }
+        let next_state_root = slot_result.state_root;
+        self.ledger_db.commit_slot(data_to_commit)?;
+        self.state_root = next_state_root;
+        Ok(())
+    }
+
     /// Runs the rollup.
     pub async fn run_in_process(&mut self) -> Result<(), anyhow::Error> {
         for height in self.start_height.. {

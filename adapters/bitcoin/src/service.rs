@@ -5,6 +5,7 @@ use core::time::Duration;
 use async_trait::async_trait;
 use bitcoin::address::NetworkUnchecked;
 use bitcoin::consensus::encode;
+use bitcoin::ecdsa::Signature;
 use bitcoin::hashes::{sha256d, Hash};
 use bitcoin::secp256k1::SecretKey;
 use bitcoin::Address;
@@ -370,6 +371,28 @@ impl DaService for BitcoinService {
         let fee_sat_per_vbyte = self.get_fee_rate().await?;
         self.send_transaction_with_fee_rate(blob, fee_sat_per_vbyte)
             .await
+    }
+
+    fn convert_to_transaction(
+        &self,
+        blob: &[u8],
+    ) -> Result<
+        (
+            <Self::Spec as sov_rollup_interface::da::DaSpec>::BlobTransaction,
+            Vec<u8>,
+        ),
+        Self::Error,
+    > {
+        let (signature, pubkey) =
+            sign_blob_with_private_key(blob, &self.sequencer_da_private_key).unwrap();
+        Ok((
+            BlobWithSender::new(
+                blob.to_vec(),
+                pubkey,
+                sha256d::Hash::hash(blob).to_byte_array(),
+            ),
+            signature,
+        ))
     }
 }
 

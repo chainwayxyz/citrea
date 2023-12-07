@@ -1,0 +1,51 @@
+[package]
+name = "chainway-sequencer"
+authors = { workspace = true }
+edition = { workspace = true }
+homepage = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+
+version = { workspace = true }
+readme = "README.md"
+publish = false
+resolver = "2"
+
+[dependencies]
+sov-evm = { path = "../../module-system/module-implementations/sov-evm" }
+sov-modules-rollup-blueprint = { path = "../../module-system/sov-modules-rollup-blueprint" }
+bitcoin-da = { path = "../../adapters/bitcoin" }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+jsonrpsee = { workspace = true, features = ["http-client", "server"] }
+
+borsh = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+reth-primitives = { workspace = true }
+reth-rpc-types = { workspace = true }
+
+ethers = { workspace = true }
+tokio = { workspace = true }
+schnellru = "0.2.1"
+
+sov-rollup-interface = { path = "../../rollup-interface", features = [
+    "native",
+] }
+
+sov-modules-stf-template = { path = "../../module-system/sov-modules-stf-template" }
+
+demo-stf = { path = "../../examples/demo-rollup/stf", features = ["native"] }
+sov-modules-api = { path = "../../module-system/sov-modules-api" }
+sov-accounts = { path = "../../module-system/module-implementations/sov-accounts" }
+
+[dev-dependencies]
+tokio = { workspace = true }
+
+
+[features]
+default = []
+local = []
+experimental = ["demo-stf/experimental", "sov-evm/experimental", "local"]
+native = ["demo-stf/native", "sov-evm/native"]

@@ -5,6 +5,7 @@ use reth_primitives::TransactionSignedEcRecovered;
 use reth_revm::into_reth_log;
 use revm::primitives::{CfgEnv, EVMError, SpecId};
 use sov_modules_api::{CallResponse, WorkingSet};
+use tracing::log::info;
 
 use crate::evm::db::EvmDb;
 use crate::evm::executor::{self};
@@ -109,7 +110,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 },
             }
         }
-
+        info!("EVM call executed");
         Ok(CallResponse::default())
     }
 }

@@ -123,6 +123,24 @@ impl DaService for RngDaService {
     async fn send_transaction(&self, _blob: &[u8]) -> Result<(), Self::Error> {
         unimplemented!()
     }
+
+    fn convert_to_transaction(
+        &self,
+        blob: &[u8],
+        hash: [u8; 32],
+    ) -> Result<
+        (
+            <Self::Spec as sov_rollup_interface::da::DaSpec>::BlobTransaction,
+            Vec<u8>,
+        ),
+        Self::Error,
+    > {
+        unimplemented!()
+    }
+
+    fn hash_blob(&self, blob: &[u8]) -> Result<[u8; 32], anyhow::Error> {
+        unimplemented!()
+    }
 }
 
 pub struct RngDaVerifier;

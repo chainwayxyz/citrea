@@ -1495,6 +1495,31 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
+name = "chainway-sequencer"
+version = "0.3.0"
+dependencies = [
+ "anyhow",
+ "bitcoin-da",
+ "borsh",
+ "demo-stf",
+ "ethers",
+ "jsonrpsee 0.20.3",
+ "reth-primitives",
+ "reth-rpc-types",
+ "schnellru",
+ "serde",
+ "serde_json",
+ "sov-accounts",
+ "sov-evm",
+ "sov-modules-api",
+ "sov-modules-rollup-blueprint",
+ "sov-modules-stf-template",
+ "sov-rollup-interface",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "chrono"
 version = "0.4.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8737,7 +8762,9 @@ dependencies = [
  "anyhow",
  "async-trait",
  "bincode",
+ "bitcoin-da",
  "borsh",
+ "chainway-sequencer",
  "clap 4.4.7",
  "const-rollup-config",
  "criterion",
@@ -8766,7 +8793,6 @@ dependencies = [
  "serde_json",
  "sha2 0.10.8",
  "sov-bank",
- "sov-celestia-adapter",
  "sov-cli",
  "sov-db",
  "sov-ethereum",

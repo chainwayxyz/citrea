@@ -74,4 +74,18 @@ impl DaService for MockDaService {
         self.sender.send(blob.to_vec()).await.unwrap();
         Ok(())
     }
+    /// Convert blob to a DA layer transaction.
+    fn convert_to_transaction(
+        &self,
+        blob: &[u8],
+    ) -> Result<
+        (
+            <Self::Spec as sov_rollup_interface::da::DaSpec>::BlobTransaction,
+            Vec<u8>,
+        ),
+        Self::Error,
+    > {
+        let blob = MockBlob::new(blob.to_vec(), self.sequencer_da_address, [1u8; 32]);
+        Ok((blob, vec![]))
+    }
 }
