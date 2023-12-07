@@ -3,12 +3,12 @@ use std::sync::Arc;
 use std::task::{Context, Poll};
 use std::time::Duration;
 
-use crate::service::BitcoinService;
-use futures::FutureExt;
-use futures::Stream;
+use futures::{FutureExt, Stream};
 use pin_project::pin_project;
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::services::da::DaService;
+
+use crate::service::BitcoinService;
 
 #[pin_project]
 pub struct BitcoinHeaderStream {
@@ -36,7 +36,7 @@ impl Stream for BitcoinHeaderStream {
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = self.project();
-        if let Poll::Ready(_) = this.timer.poll_tick(cx) {
+        if this.timer.poll_tick(cx).is_ready() {
             let header = futures::ready!(this
                 .service
                 .get_last_finalized_block_header()

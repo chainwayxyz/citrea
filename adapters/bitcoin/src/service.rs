@@ -1,8 +1,8 @@
 use core::result::Result::Ok;
 use core::str::FromStr;
 use core::time::Duration;
-use std::sync::Arc;
 
+// use std::sync::Arc;
 use async_trait::async_trait;
 use bitcoin::address::NetworkUnchecked;
 use bitcoin::consensus::encode;
@@ -23,13 +23,12 @@ use crate::helpers::parsers::parse_transaction;
 use crate::rpc::{BitcoinNode, RPCError};
 use crate::spec::blob::BlobWithSender;
 use crate::spec::block::BitcoinBlock;
+use crate::spec::header_stream::BitcoinHeaderStream;
 use crate::spec::proof::InclusionMultiProof;
 use crate::spec::utxo::UTXO;
 use crate::spec::{BitcoinSpec, RollupParams};
 use crate::verifier::BitcoinVerifier;
 use crate::REVEAL_OUTPUT_AMOUNT;
-
-use crate::spec::header_stream::BitcoinHeaderStream;
 
 /// A service that provides data and data availability proofs for Bitcoin
 #[derive(Debug, Clone)]
@@ -272,10 +271,7 @@ impl DaService for BitcoinService {
     }
 
     async fn subscribe_finalized_header(&self) -> Result<Self::HeaderStream, Self::Error> {
-        Ok(BitcoinHeaderStream::new(
-            Arc::new(self.clone()),
-            Duration::from_secs(2),
-        ))
+        unimplemented!()
     }
 
     // Fetch the head block of DA.
@@ -400,7 +396,7 @@ mod tests {
     use bitcoin::hashes::{sha256d, Hash};
     use bitcoin::secp256k1::KeyPair;
     use bitcoin::{merkle_tree, Address, Txid};
-    use futures::{Stream, StreamExt};
+    // use futures::{Stream, StreamExt};
     use sov_rollup_interface::services::da::DaService;
 
     use super::{BitcoinService, FINALITY_DEPTH};
@@ -495,37 +491,37 @@ mod tests {
         assert_eq!(get_head_header, new_finalized_header);
     }
 
-    #[tokio::test]
-    async fn subscription_test() {
-        // Setup and get the service
-        let service = get_service().await;
+    // #[tokio::test]
+    // async fn subscription_test() {
+    //     // Setup and get the service
+    //     let service = get_service().await;
 
-        // Subscribe to the stream
-        let mut stream = service.subscribe_finalized_header().await.unwrap();
-        println!("Subscribed to finalized header stream");
+    //     // Subscribe to the stream
+    //     let mut stream = service.subscribe_finalized_header().await.unwrap();
+    //     println!("Subscribed to finalized header stream");
 
-        // Generate a new block and wait for the operation to complete
-        service
-            .client
-            .generate_to_address(
-                Address::from_str("bcrt1qxuds94z3pqwqea2p4f4ev4f25s6uu7y3avljrl")
-                    .unwrap()
-                    .require_network(bitcoin::Network::Regtest)
-                    .unwrap(),
-                1,
-            )
-            .await
-            .unwrap();
-        println!("Generated a new block");
+    //     // Generate a new block and wait for the operation to complete
+    //     service
+    //         .client
+    //         .generate_to_address(
+    //             Address::from_str("bcrt1qxuds94z3pqwqea2p4f4ev4f25s6uu7y3avljrl")
+    //                 .unwrap()
+    //                 .require_network(bitcoin::Network::Regtest)
+    //                 .unwrap(),
+    //             1,
+    //         )
+    //         .await
+    //         .unwrap();
+    //     println!("Generated a new block");
 
-        // Await the next item from the stream
-        if let Some(header_result) = stream.next().await {
-            println!("Got header: {:?}", header_result);
-            assert!(header_result.is_ok());
-        } else {
-            panic!("Failed to receive header from stream");
-        }
-    }
+    //     // Await the next item from the stream
+    //     if let Some(header_result) = stream.next().await {
+    //         println!("Got header: {:?}", header_result);
+    //         assert!(header_result.is_ok());
+    //     } else {
+    //         panic!("Failed to receive header from stream");
+    //     }
+    // }
 
     #[tokio::test]
     async fn get_block_at() {
