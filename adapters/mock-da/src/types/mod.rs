@@ -1,5 +1,8 @@
 mod address;
 
+use std::fmt::{Debug, Formatter};
+use std::hash::Hasher;
+
 pub use address::{MockAddress, MOCK_SEQUENCER_DA_ADDRESS};
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
@@ -15,7 +18,6 @@ const JAN_1_2023: i64 = 1672531200;
 #[derive(
     Clone,
     Copy,
-    Debug,
     PartialEq,
     Eq,
     serde::Serialize,
@@ -24,6 +26,12 @@ const JAN_1_2023: i64 = 1672531200;
     BorshSerialize,
 )]
 pub struct MockHash([u8; 32]);
+
+impl Debug for MockHash {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "0x{}", hex::encode(self.0))
+    }
+}
 
 impl AsRef<[u8]> for MockHash {
     fn as_ref(&self) -> &[u8] {
@@ -40,6 +48,13 @@ impl From<[u8; 32]> for MockHash {
 impl From<MockHash> for [u8; 32] {
     fn from(value: MockHash) -> Self {
         value.0
+    }
+}
+
+impl std::hash::Hash for MockHash {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        state.write(&self.0);
+        state.finish();
     }
 }
 
@@ -63,6 +78,18 @@ impl Default for MockBlockHeader {
             hash: MockHash([1u8; 32]),
             height: 0,
         }
+    }
+}
+
+impl std::fmt::Display for MockBlockHeader {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "MockBlockHeader {{ height: {}, prev_hash: {}, next_hash: {} }}",
+            self.height,
+            hex::encode(self.prev_hash),
+            hex::encode(self.hash)
+        )
     }
 }
 

@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::BlockHashTrait;
 
 // BlockHashWrapper is a wrapper around BlockHash to implement BlockHashTrait
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Hash)]
 pub struct BlockHashWrapper(pub BlockHash);
 
 impl BlockHashTrait for BlockHashWrapper {}

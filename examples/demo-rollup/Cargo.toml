@@ -20,7 +20,7 @@ sov-stf-runner = { path = "../../full-node/sov-stf-runner", features = ["native"
 sov-rollup-interface = { path = "../../rollup-interface", features = ["native"] }
 
 sov-modules-rollup-blueprint = { path = "../../module-system/sov-modules-rollup-blueprint" }
-sov-modules-stf-template = { path = "../../module-system/sov-modules-stf-template", features = ["native"] }
+sov-modules-stf-blueprint = { path = "../../module-system/sov-modules-stf-blueprint", features = ["native"] }
 sov-modules-api = { path = "../../module-system/sov-modules-api", features = ["native"] }
 sov-nft-module = { path = "../../module-system/module-implementations/sov-nft-module" }
 demo-stf = { path = "./stf", features = ["native"] }
@@ -34,7 +34,6 @@ serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 tracing = { workspace = true }
 hex = { workspace = true, optional = true }
-
 tokio = { workspace = true }
 reth-primitives = { workspace = true, optional = true }
 tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
