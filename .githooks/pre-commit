@@ -1,0 +1,16 @@
+#!/bin/sh
+
+if ! command -v cargo-fmt &> /dev/null; then
+    echo "cargo fmt is not installed. Please install it."
+    exit 1
+fi
+
+echo "Checking code formatting..."
+if ! cargo +nightly fmt --all -- --check; then
+    echo "Code is not properly formatted. Please run 'cargo +nightly fmt --all'."
+    echo "**After formatting, add the changes to your commit using 'git add' and commit again.**"
+    exit 1
+fi
+
+echo "Code formatting check passed."
+exit 0
