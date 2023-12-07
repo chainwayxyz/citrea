@@ -64,3 +64,6 @@ dry-run-publish:
 
 docs:  ## Generates documentation locally
 	cargo doc --open
+
+set-git-hook: 
+	git config core.hooksPath .githooks
