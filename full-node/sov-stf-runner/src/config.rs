@@ -3,7 +3,6 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 
 use anyhow::Context;
-use borsh::BorshDeserialize;
 use jsonrpsee::core::client::ClientT;
 use jsonrpsee::rpc_params;
 use serde::de::DeserializeOwned;
@@ -11,9 +10,6 @@ use serde::Deserialize;
 
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use serde_json::Value;
-use sov_db::schema::types::StoredTransaction;
-use sov_rollup_interface::rpc::QueryMode;
-
 #[derive(Debug, Clone)]
 pub struct SoftConfirmationClient {
     /// Start height for soft confirmation
@@ -55,46 +51,6 @@ impl SoftConfirmationClient {
             .collect();
 
         Ok(body)
-        // match raw_res {
-        //     Ok(bytes) => {
-        //         let txs: Vec<Option<StoredTransaction>> =
-        //             BorshDeserialize::try_from_slice(&bytes).unwrap();
-
-        //         let mut confirmed_txs = vec![];
-
-        //         for tx in txs {
-        //             if let Some(tx) = tx {
-        //                 confirmed_txs.push(tx);
-        //             }
-        //         }
-
-        //         Ok(confirmed_txs)
-        //     }
-        //     Err(e) => anyhow::bail!("Error: {:?}", e),
-        // }
-
-        // match raw_res {
-        //     Ok(bytes) => {
-        //         let tx: Option<StoredTransaction> =
-        //             BorshDeserialize::try_from_slice(&bytes).unwrap();
-
-        //         // let mut confirmed_txs = vec![];
-
-        //         // for tx in txs {
-        //         //     if let Some(tx) = tx {
-        //         //         confirmed_txs.push(tx);
-        //         //     }
-        //         // }
-
-        //         if let Some(tx) = tx {
-        //             Ok(tx)
-        //         } else {
-        //             panic!("anan")
-        //         }
-        //         // Ok(confirmed_txs)
-        //     }
-        //     Err(e) => anyhow::bail!("Error: {:?}", e),
-        // }
     }
 }
 

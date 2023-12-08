@@ -4,7 +4,7 @@ use borsh::BorshSerialize;
 use jsonrpsee::RpcModule;
 use sov_db::ledger_db::{LedgerDB, SlotCommit};
 use sov_modules_stf_template::{Batch, RawTx};
-use sov_rollup_interface::da::{BlobReaderTrait, DaSpec};
+use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::StorageManager;
@@ -14,7 +14,7 @@ use tracing::{debug, info};
 
 use crate::config::SoftConfirmationClient;
 use crate::verifier::StateTransitionVerifier;
-use crate::{RpcConfig, RunnerConfig, StateTransitionData};
+use crate::{RpcConfig, RunnerConfig};
 
 type StateRoot<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::StateRoot;
 type InitialState<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::GenesisParams;
@@ -223,18 +223,15 @@ where
                 continue;
             }
 
-            // batch
             let batch = Batch {
                 txs: vec![RawTx { data: tx.unwrap() }],
             };
 
-            // let temp_blob = tx.clone().body.unwrap();
             let new_blobs = self
                 .da_service
                 .convert_to_transaction(&batch.try_to_vec().unwrap())
                 .unwrap();
 
-            // for height in self.start_height.. {
             debug!("Requesting data for height {}", height,);
 
             let filtered_block = self.da_service.get_finalized_at(2).await?;
@@ -271,41 +268,12 @@ where
                 data_to_commit.add_batch(receipt);
             }
 
-            // if let Some(Prover { vm, config }) = self.prover.as_mut() {
-            //     let (inclusion_proof, completeness_proof) = self
-            //         .da_service
-            //         .get_extraction_proof(&filtered_block, &new_blobs)
-            //         .await;
-
-            //     let transition_data: StateTransitionData<Stf::StateRoot, Stf::Witness, Da::Spec> =
-            //         StateTransitionData {
-            //             pre_state_root: self.state_root.clone(),
-            //             da_block_header: filtered_block.header().clone(),
-            //             inclusion_proof,
-            //             completeness_proof,
-            //             blobs: vec![new_blobs.0],
-            //             state_transition_witness: slot_result.witness,
-            //         };
-            //     vm.add_hint(transition_data);
-            //     tracing::info_span!("guest_execution").in_scope(|| match config {
-            //         ProofGenConfig::Simulate(verifier) => verifier
-            //             .run_block(vm.simulate_with_hints(), self.zk_storage.clone())
-            //             .map_err(|e| {
-            //                 anyhow::anyhow!("Guest execution must succeed but failed with {:?}", e)
-            //             })
-            //             .map(|_| ()),
-            //         ProofGenConfig::Execute => vm.run(false),
-            //         ProofGenConfig::Prover => vm.run(true),
-            //     })?;
-            // }
             let next_state_root = slot_result.state_root;
 
             self.ledger_db.commit_slot(data_to_commit)?;
             self.state_root = next_state_root;
             println!("\nSTATE ROOT: {:?}\n", self.state_root.as_ref());
-            // }
             height += 1;
         }
-        Ok(())
     }
 }
