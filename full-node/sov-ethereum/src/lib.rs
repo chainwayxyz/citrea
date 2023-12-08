@@ -226,22 +226,22 @@ pub mod experimental {
             Ok::<String, ErrorObjectOwned>("Submitted transaction".to_string())
         })?;
 
-        rpc.register_async_method(
-            "eth_sendRawTransaction",
-            |parameters, ethereum| async move {
-                let data: Bytes = parameters.one().unwrap();
+        // rpc.register_async_method(
+        //     "eth_sendRawTransaction",
+        //     |parameters, ethereum| async move {
+        //         let data: Bytes = parameters.one().unwrap();
 
-                let raw_evm_tx = RlpEvmTransaction { rlp: data.to_vec() };
+        //         let raw_evm_tx = RlpEvmTransaction { rlp: data.to_vec() };
 
-                let (tx_hash, raw_message) = ethereum
-                    .make_raw_tx(raw_evm_tx)
-                    .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
+        //         let (tx_hash, raw_message) = ethereum
+        //             .make_raw_tx(raw_evm_tx)
+        //             .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
 
-                ethereum.add_messages(vec![raw_message]);
+        //         ethereum.add_messages(vec![raw_message]);
 
-                Ok::<_, ErrorObjectOwned>(tx_hash)
-            },
-        )?;
+        //         Ok::<_, ErrorObjectOwned>(tx_hash)
+        //     },
+        // )?;
 
         #[cfg(feature = "local")]
         rpc.register_async_method("eth_accounts", |_parameters, ethereum| async move {

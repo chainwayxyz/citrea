@@ -12,8 +12,10 @@ pub mod experimental {
 
     use borsh::ser::BorshSerialize;
     use demo_stf::runtime::Runtime;
-    use ethers::types::H256;
+    use ethers::types::{Bytes, H256};
+    use jsonrpsee::types::ErrorObjectOwned;
     use jsonrpsee::RpcModule;
+
     use reth_primitives::TransactionSignedNoHash as RethTransactionSignedNoHash;
     use sov_evm::{CallMessage, Evm, RlpEvmTransaction};
     use sov_modules_api::transaction::Transaction;
@@ -21,6 +23,7 @@ pub mod experimental {
     use sov_modules_rollup_blueprint::{Rollup, RollupBlueprint};
     use sov_modules_stf_template::{Batch, RawTx};
     use sov_rollup_interface::services::da::DaService;
+    use tracing::{debug, info};
     const ETH_RPC_ERROR: &str = "ETH_RPC_ERROR";
 
     #[derive(Clone)]
@@ -29,46 +32,56 @@ pub mod experimental {
         pub sov_tx_signer_priv_key: C::PrivateKey,
     }
 
-    pub fn get_sequencer_rpc<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint>(
-        rollup: Rollup<S>,
-        da_service: Da,
-        eth_rpc_config: SequencerRpcConfig<C>,
-        storage: C::Storage,
-    ) -> RpcModule<ChainwaySequencer<C, Da, S>> {
-        // Unpack config
-        let SequencerRpcConfig {
-            min_blob_size,
-            sov_tx_signer_priv_key,
-        } = eth_rpc_config;
-
-        // Fetch nonce from storage
-        let accounts = sov_accounts::Accounts::<C>::default();
-        let sov_tx_signer_account = accounts
-            .get_account(
-                sov_tx_signer_priv_key.pub_key(),
-                &mut WorkingSet::<C>::new(storage.clone()),
-            )
-            .unwrap();
-        let sov_tx_signer_nonce: u64 = match sov_tx_signer_account {
-            sov_accounts::Response::AccountExists { nonce, .. } => nonce,
-            sov_accounts::Response::AccountEmpty { .. } => 0,
-        };
-
-        let mut rpc = RpcModule::new(ChainwaySequencer::new(
-            rollup,
-            da_service,
-            sov_tx_signer_priv_key,
-            sov_tx_signer_nonce,
-        ));
-
-        register_rpc_methods(&mut rpc).expect("Failed to register sequencer RPC methods");
-        rpc
+    struct Mempool {
+        pool: Vec<RlpEvmTransaction>,
     }
+
+    impl Mempool {
+        pub fn new() -> Self {
+            Mempool { pool: vec![] }
+        }
+    }
+
+    // pub fn get_sequencer_rpc<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint>(
+    //     rollup: Rollup<S>,
+    //     da_service: Da,
+    //     eth_rpc_config: SequencerRpcConfig<C>,
+    //     storage: C::Storage,
+    // ) -> RpcModule<ChainwaySequencer<C, Da, S>> {
+    //     // Unpack config
+    //     let SequencerRpcConfig {
+    //         min_blob_size,
+    //         sov_tx_signer_priv_key,
+    //     } = eth_rpc_config;
+
+    //     // Fetch nonce from storage
+    //     let accounts = sov_accounts::Accounts::<C>::default();
+    //     let sov_tx_signer_account = accounts
+    //         .get_account(
+    //             sov_tx_signer_priv_key.pub_key(),
+    //             &mut WorkingSet::<C>::new(storage.clone()),
+    //         )
+    //         .unwrap();
+    //     let sov_tx_signer_nonce: u64 = match sov_tx_signer_account {
+    //         sov_accounts::Response::AccountExists { nonce, .. } => nonce,
+    //         sov_accounts::Response::AccountEmpty { .. } => 0,
+    //     };
+
+    //     let mut rpc = RpcModule::new(ChainwaySequencer::new(
+    //         rollup,
+    //         da_service,
+    //         sov_tx_signer_priv_key,
+    //         sov_tx_signer_nonce,
+    //     ));
+
+    //     register_rpc_methods(&mut rpc).expect("Failed to register sequencer RPC methods");
+    //     rpc
+    // }
 
     pub struct ChainwaySequencer<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> {
         rollup: Rollup<S>,
         da_service: Da,
-        mempool: Arc<Mutex<VecDeque<Vec<u8>>>>,
+        mempool: Arc<Mutex<Mempool>>,
         p: PhantomData<C>,
         sov_tx_signer_priv_key: C::PrivateKey,
         sov_tx_signer_nonce: u64,
@@ -83,28 +96,16 @@ pub mod experimental {
         ) -> Self {
             let evm = Evm::<C>::default();
 
+            let mempool = Mempool::new();
+
             Self {
                 rollup,
                 da_service,
-                mempool: Arc::new(Mutex::new(VecDeque::new())),
+                mempool: Arc::new(Mutex::new(Mempool::new())),
                 p: PhantomData,
                 sov_tx_signer_priv_key,
                 sov_tx_signer_nonce,
             }
-        }
-
-        fn make_raw_tx(
-            &self,
-            raw_tx: RlpEvmTransaction,
-        ) -> Result<(H256, Vec<u8>), jsonrpsee::core::Error> {
-            let signed_transaction: RethTransactionSignedNoHash = raw_tx.clone().try_into()?;
-
-            let tx_hash = signed_transaction.hash();
-
-            let tx = CallMessage { txs: vec![raw_tx] };
-            let message = <Runtime<C, Da::Spec> as EncodeCall<sov_evm::Evm<C>>>::encode_call(tx);
-
-            Ok((H256::from(tx_hash), message))
         }
 
         pub async fn run(&mut self) -> Result<(), anyhow::Error> {
@@ -113,45 +114,28 @@ pub mod experimental {
                 .start_rpc_server(self.rollup.rpc_methods.clone(), None)
                 .await;
             loop {
-                std::thread::sleep(Duration::new(15, 0));
-                let mut batch_txs = vec![];
+                std::thread::sleep(Duration::new(3, 0));
+                let mut rlp_txs = vec![];
                 // TODO: Open an issue about a better batch building algorithm
-                while !self.mempool.lock().unwrap().is_empty() && batch_txs.len() < 5 {
+                let mut mem = self.mempool.lock().unwrap();
+                while !mem.pool.is_empty() && rlp_txs.len() < 5 {
                     // TODO: Handle error
-                    batch_txs.push(self.mempool.lock().unwrap().pop_front().unwrap());
+                    rlp_txs.push(mem.pool.pop().unwrap());
                 }
-                // if batch_txs.is_empty() {
-                //     continue;
-                // }
+                core::mem::drop(mem);
 
-                use sov_evm::{LogsContract, TestContract};
-                use reth_primitives::{
-                    Address, Bytes as RethBytes, Transaction as RethTransaction, TransactionKind,
-                    TxEip1559 as RethTxEip1559,
-                };
+                if rlp_txs.is_empty() {
+                    continue;
+                }
 
-                let logs_contract = LogsContract::default();
-                let data = logs_contract.byte_code().to_vec();
+                info!("evm txs count: {}", rlp_txs.len());
 
-                let reth_tx = RethTxEip1559 {
-                    TransactionKind::Create,
-                    input: RethBytes::from(data),
-                    1,
-                    0,
-                    chain_id: 1,
-                    gas_limit: 1_000_000u64,
-                    max_fee_per_gas: u128::from(reth_primitives::constants::MIN_PROTOCOL_BASE_FEE * 2),
-                    ..Default::default()
-                };
-        
-         
-                
-
+                info!("these txs are: {:?}", rlp_txs);
                 //batch_txs.push()
-                let rlp_txs = batch_txs
-                    .iter()
-                    .map(|x| RlpEvmTransaction { rlp: x.clone() })
-                    .collect();
+                // let rlp_txs = batch_txs
+                //     .iter()
+                //     .map(|x| RlpEvmTransaction { rlp: x.clone() })
+                //     .collect();
 
                 let call_txs = CallMessage { txs: rlp_txs };
                 let raw_message =
@@ -179,9 +163,9 @@ pub mod experimental {
             }
         }
 
-        fn add_tx(&self, tx: Vec<u8>) {
-            self.mempool.lock().unwrap().push_back(tx);
-        }
+        // fn add_tx(&self, tx: Vec<u8>) {
+        //     self.mempool.lock().unwrap().pool.push_back()
+        // }
 
         /// Signs batch of messages with sovereign priv key turns them into a sov blob
         /// Returns a single sovereign transaction made up of multiple ethereum transactions
@@ -197,39 +181,52 @@ pub mod experimental {
 
             raw_tx
         }
+
+        // pub fn rollup_process<S: RollupBlueprint>(rollup: &mut Rollup<S>, signed_blob) {}
+
+        // async fn apply_transactions<S>(rollup: &mut Rollup<S>)
+        // where
+        //     S: RollupBlueprint,
+        // {
+        //     // get transactions from somewhere
+        //     let mut a = vec![];
+        //     rollup.runner.process(&mut a);
+        // }
+
+        pub fn register_rpc_methods(&mut self) -> Result<(), jsonrpsee::core::Error> {
+            let mut rpc = RpcModule::new(self.mempool.clone());
+            rpc.register_async_method(
+                "eth_sendRawTransaction",
+                |parameters, mempool| async move {
+                    let data: Bytes = parameters.one().unwrap();
+
+                    let raw_evm_tx = RlpEvmTransaction { rlp: data.to_vec() };
+
+                    let h = get_tx_hash(&raw_evm_tx).unwrap();
+
+                    // I hade to make mempool arc mutex because otherwise I could not mutate chainway sequencer
+                    mempool.lock().unwrap().pool.push(raw_evm_tx);
+
+                    Ok::<H256, ErrorObjectOwned>(h)
+                },
+            )?;
+
+            // // Query sov-txs in state
+            // rpc.register_async_method(
+            //     "cw_getSoftConfirmation",
+            //     |parameters, chainway_sequencer| async move { Ok::<_, ErrorObjectOwned>(()) },
+            // )?;
+
+            self.rollup.rpc_methods.merge(rpc);
+            Ok(())
+        }
     }
 
-    // pub fn rollup_process<S: RollupBlueprint>(rollup: &mut Rollup<S>, signed_blob) {}
+    fn get_tx_hash(raw_tx: &RlpEvmTransaction) -> Result<H256, jsonrpsee::core::Error> {
+        let signed_transaction: RethTransactionSignedNoHash = raw_tx.clone().try_into()?;
 
-    // async fn apply_transactions<S>(rollup: &mut Rollup<S>)
-    // where
-    //     S: RollupBlueprint,
-    // {
-    //     // get transactions from somewhere
-    //     let mut a = vec![];
-    //     rollup.runner.process(&mut a);
-    // }
+        let tx_hash = signed_transaction.hash();
 
-    fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint>(
-        rpc: &mut RpcModule<ChainwaySequencer<C, Da, S>>,
-    ) -> Result<(), jsonrpsee::core::Error> {
-        // rpc.register_async_method(
-        //     "eth_sendRawTransaction",
-        //     |parameters, chainway_sequencer| async move {
-        //         let data: Bytes = parameters.one().unwrap();
-
-        //         let raw_evm_tx = RlpEvmTransaction { rlp: data.to_vec() };
-        //         // I hade to make mempool arc mutex because otherwise I could not mutate chainway sequencer
-        //         chainway_sequencer.add_tx(raw_evm_tx.rlp);
-
-        //         Ok::<_, ErrorObjectOwned>(data)
-        //     },
-        // )?;
-        // // Query sov-txs in state
-        // rpc.register_async_method(
-        //     "cw_getSoftConfirmation",
-        //     |parameters, chainway_sequencer| async move { Ok::<_, ErrorObjectOwned>(()) },
-        // )?;
-        Ok(())
+        Ok(H256::from(tx_hash))
     }
 }

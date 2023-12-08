@@ -84,6 +84,8 @@ async fn main() -> Result<(), anyhow::Error> {
                     0,
                 );
 
+            seq.register_rpc_methods();
+
             seq.run().await?;
         }
         da => panic!("DA Layer not supported: {}", da),
