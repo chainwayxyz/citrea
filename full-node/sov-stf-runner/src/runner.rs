@@ -2,6 +2,7 @@ use std::net::SocketAddr;
 
 use jsonrpsee::RpcModule;
 use sov_db::ledger_db::{LedgerDB, SlotCommit};
+use sov_modules_stf_template::{Batch, RawTx};
 use sov_rollup_interface::da::{BlobReaderTrait, DaSpec};
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::stf::StateTransitionFunction;
@@ -10,8 +11,9 @@ use sov_rollup_interface::zk::ZkvmHost;
 use tokio::sync::oneshot;
 use tracing::{debug, info};
 
+use crate::config::SoftConfirmationClient;
 use crate::verifier::StateTransitionVerifier;
-use crate::{RunnerConfig, StateTransitionData};
+use crate::{RpcConfig, RunnerConfig, StateTransitionData};
 
 type StateRoot<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::StateRoot;
 type InitialState<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::GenesisParams;
@@ -34,6 +36,7 @@ where
     listen_address: SocketAddr,
     prover: Option<Prover<V, Da, Vm>>,
     zk_storage: V::PreState,
+    soft_confirmation_client: SoftConfirmationClient,
 }
 
 /// Represents the possible modes of execution for a zkVM program
@@ -117,6 +120,14 @@ where
         let last_slot_processed_before_shutdown = item_numbers.slot_number - 1;
         let start_height = runner_config.start_height + last_slot_processed_before_shutdown;
 
+        let soft_confirmation_client = SoftConfirmationClient::new(
+            start_height,
+            RpcConfig {
+                bind_host: "0.0.0.0".to_owned(),
+                bind_port: 12345,
+            },
+        );
+
         Ok(Self {
             start_height,
             da_service,
@@ -127,6 +138,7 @@ where
             listen_address,
             prover,
             zk_storage,
+            soft_confirmation_client,
         })
     }
 
@@ -190,74 +202,91 @@ where
 
     /// Runs the rollup.
     pub async fn run_in_process(&mut self) -> Result<(), anyhow::Error> {
-        for height in self.start_height.. {
-            debug!("Requesting data for height {}", height,);
+        let client = &self.soft_confirmation_client;
 
-            let filtered_block = self.da_service.get_finalized_at(height).await?;
-            let mut blobs = self.da_service.extract_relevant_blobs(&filtered_block);
+        let height = 0;
 
-            info!(
-                "Extracted {} relevant blobs at height {}: {:?}",
-                blobs.len(),
-                height,
-                blobs
-                    .iter()
-                    .map(|b| format!(
-                        "sequencer={} blob_hash=0x{}",
-                        b.sender(),
-                        hex::encode(b.hash())
-                    ))
-                    .collect::<Vec<_>>()
-            );
+        let txs = client.get_txs_range(height, height).await?;
 
-            let mut data_to_commit = SlotCommit::new(filtered_block.clone());
+        // batch
+        // let batch = Batch {
+        //     txs: vec![RawTx {
+        //         data: txs[0].clone().body.unwrap(),
+        //     }],
+        // };
 
-            let pre_state = self.storage_manager.get_native_storage();
-            let slot_result = self.stf.apply_slot(
-                &self.state_root,
-                pre_state,
-                Default::default(),
-                filtered_block.header(),
-                &filtered_block.validity_condition(),
-                &mut blobs,
-            );
+        let temp_blob = txs[0].clone().body.unwrap();
+        let new_blobs = self.da_service.convert_to_transaction(&temp_blob).unwrap();
 
-            for receipt in slot_result.batch_receipts {
-                data_to_commit.add_batch(receipt);
-            }
+        // for height in self.start_height.. {
+        debug!("Requesting data for height {}", height,);
 
-            if let Some(Prover { vm, config }) = self.prover.as_mut() {
-                let (inclusion_proof, completeness_proof) = self
-                    .da_service
-                    .get_extraction_proof(&filtered_block, &blobs)
-                    .await;
+        let filtered_block = self.da_service.get_finalized_at(height).await?;
+        // let mut blobs = self.da_service.extract_relevant_blobs(&filtered_block);
 
-                let transition_data: StateTransitionData<Stf::StateRoot, Stf::Witness, Da::Spec> =
-                    StateTransitionData {
-                        pre_state_root: self.state_root.clone(),
-                        da_block_header: filtered_block.header().clone(),
-                        inclusion_proof,
-                        completeness_proof,
-                        blobs,
-                        state_transition_witness: slot_result.witness,
-                    };
-                vm.add_hint(transition_data);
-                tracing::info_span!("guest_execution").in_scope(|| match config {
-                    ProofGenConfig::Simulate(verifier) => verifier
-                        .run_block(vm.simulate_with_hints(), self.zk_storage.clone())
-                        .map_err(|e| {
-                            anyhow::anyhow!("Guest execution must succeed but failed with {:?}", e)
-                        })
-                        .map(|_| ()),
-                    ProofGenConfig::Execute => vm.run(false),
-                    ProofGenConfig::Prover => vm.run(true),
-                })?;
-            }
-            let next_state_root = slot_result.state_root;
+        // info!(
+        //     "Extracted {} relevant blobs at height {}: {:?}",
+        //     new_blobs.0.len(),
+        //     height,
+        //     new_blobs
+        //         .0
+        //         .iter()
+        //         .map(|b| format!(
+        //             "sequencer={} blob_hash=0x{}",
+        //             b.sender(),
+        //             hex::encode(b.hash())
+        //         ))
+        //         .collect::<Vec<_>>()
+        // );
 
-            self.ledger_db.commit_slot(data_to_commit)?;
-            self.state_root = next_state_root;
+        let mut data_to_commit = SlotCommit::new(filtered_block.clone());
+
+        let pre_state = self.storage_manager.get_native_storage();
+        let slot_result = self.stf.apply_slot(
+            &self.state_root,
+            pre_state,
+            Default::default(),
+            filtered_block.header(),
+            &filtered_block.validity_condition(),
+            &mut vec![new_blobs.0],
+        );
+
+        for receipt in slot_result.batch_receipts {
+            data_to_commit.add_batch(receipt);
         }
+
+        // if let Some(Prover { vm, config }) = self.prover.as_mut() {
+        //     let (inclusion_proof, completeness_proof) = self
+        //         .da_service
+        //         .get_extraction_proof(&filtered_block, &new_blobs)
+        //         .await;
+
+        //     let transition_data: StateTransitionData<Stf::StateRoot, Stf::Witness, Da::Spec> =
+        //         StateTransitionData {
+        //             pre_state_root: self.state_root.clone(),
+        //             da_block_header: filtered_block.header().clone(),
+        //             inclusion_proof,
+        //             completeness_proof,
+        //             blobs: vec![new_blobs.0],
+        //             state_transition_witness: slot_result.witness,
+        //         };
+        //     vm.add_hint(transition_data);
+        //     tracing::info_span!("guest_execution").in_scope(|| match config {
+        //         ProofGenConfig::Simulate(verifier) => verifier
+        //             .run_block(vm.simulate_with_hints(), self.zk_storage.clone())
+        //             .map_err(|e| {
+        //                 anyhow::anyhow!("Guest execution must succeed but failed with {:?}", e)
+        //             })
+        //             .map(|_| ()),
+        //         ProofGenConfig::Execute => vm.run(false),
+        //         ProofGenConfig::Prover => vm.run(true),
+        //     })?;
+        // }
+        let next_state_root = slot_result.state_root;
+
+        self.ledger_db.commit_slot(data_to_commit)?;
+        self.state_root = next_state_root;
+        // }
 
         Ok(())
     }

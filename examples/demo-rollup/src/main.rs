@@ -33,6 +33,10 @@ struct Args {
     /// The path to the rollup config.
     #[arg(long, default_value = "rollup_config.toml")]
     rollup_config_path: String,
+
+    /// Node type as str
+    #[arg(long, default_value = "full")]
+    node_type: String,
 }
 
 #[tokio::main]
@@ -63,30 +67,34 @@ async fn main() -> Result<(), anyhow::Error> {
                 Some(RollupProverConfig::Execute),
             )
             .await?;
-            let rollup_config: RollupConfig<DaServiceConfig> =
-                from_toml_path(rollup_config_path)
-                    .context("Failed to read rollup configuration")?;
-            let da_service = BitcoinService::new(
-                rollup_config.da,
-                RollupParams {
-                    rollup_name: "test".to_string(),
-                },
-            )
-            .await;
-            let mut seq: ChainwaySequencer<DefaultContext, BitcoinService, BitcoinRollup> =
-                ChainwaySequencer::new(
-                    rollup,
-                    da_service,
-                    DefaultPrivateKey::from_hex(
-                        "1212121212121212121212121212121212121212121212121212121212121212",
-                    )
-                    .unwrap(),
-                    0,
-                );
 
-            seq.register_rpc_methods();
+            if args.node_type == "sequencer" {
+                let rollup_config: RollupConfig<DaServiceConfig> =
+                    from_toml_path(rollup_config_path)
+                        .context("Failed to read rollup configuration")?;
+                let da_service = BitcoinService::new(
+                    rollup_config.da,
+                    RollupParams {
+                        rollup_name: "test".to_string(),
+                    },
+                )
+                .await;
+                let mut seq: ChainwaySequencer<DefaultContext, BitcoinService, BitcoinRollup> =
+                    ChainwaySequencer::new(
+                        rollup,
+                        da_service,
+                        DefaultPrivateKey::from_hex(
+                            "1212121212121212121212121212121212121212121212121212121212121212",
+                        )
+                        .unwrap(),
+                        0,
+                    );
 
-            seq.run().await?;
+                seq.register_rpc_methods();
+                seq.run().await?;
+            } else {
+                rollup.run().await?;
+            }
         }
         da => panic!("DA Layer not supported: {}", da),
     }

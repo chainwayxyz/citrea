@@ -2,8 +2,72 @@ use std::fs::File;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
+use borsh::BorshDeserialize;
+use jsonrpsee::core::client::ClientT;
+use jsonrpsee::rpc_params;
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
+
+use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
+use sov_db::schema::types::StoredTransaction;
+use sov_rollup_interface::rpc::QueryMode;
+
+#[derive(Debug, Clone)]
+pub struct SoftConfirmationClient {
+    /// Start height for soft confirmation
+    pub start_height: u64,
+    /// Config for soft confirmation
+    pub rpc_config: RpcConfig,
+    /// Client object for soft confirmation
+    pub client: HttpClient,
+}
+
+impl SoftConfirmationClient {
+    pub fn new(start_height: u64, rpc_config: RpcConfig) -> Self {
+        let client = HttpClientBuilder::default()
+            .build(format!(
+                "http://{}:{}",
+                rpc_config.bind_host, rpc_config.bind_port
+            ))
+            .unwrap();
+        Self {
+            start_height,
+            rpc_config,
+            client,
+        }
+    }
+
+    pub async fn get_txs_range(
+        &self,
+        from: u64,
+        to: u64,
+    ) -> anyhow::Result<Vec<StoredTransaction>> {
+        let query_mode = QueryMode::Compact;
+
+        let raw_res: Result<Vec<u8>, _> = self
+            .client
+            .request("getTransactionsRange", rpc_params![from, to, query_mode])
+            .await;
+
+        match raw_res {
+            Ok(bytes) => {
+                let txs: Vec<Option<StoredTransaction>> =
+                    BorshDeserialize::try_from_slice(&bytes).unwrap();
+
+                let mut confirmed_txs = vec![];
+
+                for tx in txs {
+                    if let Some(tx) = tx {
+                        confirmed_txs.push(tx);
+                    }
+                }
+
+                Ok(confirmed_txs)
+            }
+            Err(e) => anyhow::bail!("Error: {:?}", e),
+        }
+    }
+}
 
 /// Configuration for StateTransitionRunner.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
