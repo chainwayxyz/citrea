@@ -2,6 +2,7 @@ use std::fs::File;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
+use anyhow::Context;
 use borsh::BorshDeserialize;
 use jsonrpsee::core::client::ClientT;
 use jsonrpsee::rpc_params;
@@ -36,26 +37,24 @@ impl SoftConfirmationClient {
     }
 
     pub async fn get_txs_range(&self, num: u64) -> anyhow::Result<Vec<u8>> {
-        // let query_mode = QueryMode::Compact;
-
         let raw_res: Result<Value, _> = self
             .client
             .request("ledger_getTransactionByNumber", rpc_params![num])
-            .await;
+            .await
+            .context("Failed to make RPC request");
 
         println!("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA raw_res: {:?}", raw_res);
 
-        let anan: Vec<u8> = raw_res
-            .unwrap()
+        let body = raw_res?
             .get("body")
-            .unwrap()
+            .context("Body field missing in response")?
             .as_array()
-            .unwrap()
+            .context("Body field is not an array")?
             .iter()
             .map(|x| x.as_u64().unwrap() as u8)
             .collect();
 
-        Ok(anan)
+        Ok(body)
         // match raw_res {
         //     Ok(bytes) => {
         //         let txs: Vec<Option<StoredTransaction>> =
