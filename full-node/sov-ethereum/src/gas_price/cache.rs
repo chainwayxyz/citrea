@@ -10,8 +10,8 @@ use super::gas_oracle::convert_u256_to_u64;
 
 /// Cache for gas oracle
 pub struct BlockCache<C: sov_modules_api::Context> {
-    // Number -> hash mapping
-    number_to_hash: Mutex<LruMap<u64, H256, ByLength>>,
+    // Assuming number_to_hash and cache are always in sync
+    number_to_hash: Mutex<LruMap<u64, H256, ByLength>>, // Number -> hash mapping
     cache: Mutex<LruMap<H256, Rich<Block>, ByLength>>,
     provider: sov_evm::Evm<C>,
 }
@@ -64,7 +64,6 @@ impl<C: sov_modules_api::Context> BlockCache<C> {
     ) -> EthResult<Option<Rich<Block>>> {
         // Check if block is in cache
         if let Some(block_hash) = self.number_to_hash.lock().unwrap().get(&block_number) {
-            // This immediately drops the mutex before calling get_block
             return Ok(Some(
                 self.cache.lock().unwrap().get(block_hash).unwrap().clone(),
             ));
@@ -122,71 +121,5 @@ impl<C: sov_modules_api::Context> BlockCache<C> {
         }
 
         Ok(None)
-    }
-
-    pub fn get_transactions_and_receipts(
-        &self,
-        block_hash: H256,
-        working_set: &mut WorkingSet<C>,
-    ) -> EthResult<
-        Option<(
-            Vec<reth_rpc_types::Transaction>,
-            Vec<reth_rpc_types::TransactionReceipt>,
-        )>,
-    > {
-        // Check if block is in cache
-        let mut cache = self.cache.lock().unwrap();
-        if let Some(block) = cache.get(&block_hash) {
-            let (transactions, receipts) =
-                self.extract_transactions_and_receipts(block, working_set)?;
-            return Ok(Some((transactions, receipts)));
-        }
-
-        // Get block from provider
-        let block = self
-            .provider
-            .get_block_by_hash(block_hash, Some(true), working_set)
-            .unwrap_or(None);
-
-        // Add block to cache if it exists
-        if let Some(block) = &block {
-            cache.insert(block_hash, block.clone());
-        }
-
-        if let Some(block) = block {
-            let (transactions, receipts) =
-                self.extract_transactions_and_receipts(&block, working_set)?;
-            return Ok(Some((transactions, receipts)));
-        }
-
-        Ok(None)
-    }
-
-    fn extract_transactions_and_receipts(
-        &self,
-        block: &Rich<Block>,
-        working_set: &mut WorkingSet<C>,
-    ) -> EthResult<(
-        Vec<reth_rpc_types::Transaction>,
-        Vec<reth_rpc_types::TransactionReceipt>,
-    )> {
-        // block.transactions is enum but we know it's always Full
-
-        let transactions: Vec<reth_rpc_types::Transaction> = match block.transactions.clone() {
-            reth_rpc_types::BlockTransactions::Full(transactions) => transactions,
-            _ => unreachable!(),
-        };
-
-        let receipts: Vec<TransactionReceipt> = transactions
-            .iter()
-            .map(|tx| {
-                self.provider
-                    .get_transaction_receipt(tx.hash, working_set)
-                    .unwrap()
-                    .unwrap() // There is no way to get None here
-            })
-            .collect();
-
-        Ok((transactions, receipts))
     }
 }
