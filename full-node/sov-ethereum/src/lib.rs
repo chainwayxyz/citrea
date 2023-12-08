@@ -5,6 +5,8 @@ mod gas_price;
 #[cfg(feature = "experimental")]
 pub use experimental::{get_ethereum_rpc, Ethereum};
 #[cfg(feature = "experimental")]
+pub use gas_price::fee_history::FeeHistoryCacheConfig;
+#[cfg(feature = "experimental")]
 pub use gas_price::gas_oracle::GasPriceOracleConfig;
 #[cfg(feature = "experimental")]
 pub use sov_evm::DevSigner;
@@ -32,8 +34,7 @@ pub mod experimental {
     use super::batch_builder::EthBatchBuilder;
     #[cfg(feature = "local")]
     use super::DevSigner;
-    use crate::gas_price::cache::BlockCache;
-    use crate::gas_price::fee_history::{self, FeeHistoryCache, FeeHistoryCacheConfig};
+    use crate::gas_price::fee_history::FeeHistoryCacheConfig;
     use crate::gas_price::gas_oracle::GasPriceOracle;
     use crate::GasPriceOracleConfig;
 
@@ -44,6 +45,7 @@ pub mod experimental {
         pub min_blob_size: Option<usize>,
         pub sov_tx_signer_priv_key: C::PrivateKey,
         pub gas_price_oracle_config: GasPriceOracleConfig,
+        pub fee_history_cache_config: FeeHistoryCacheConfig,
         #[cfg(feature = "local")]
         pub eth_signer: DevSigner,
     }
@@ -60,6 +62,7 @@ pub mod experimental {
             #[cfg(feature = "local")]
             eth_signer,
             gas_price_oracle_config,
+            fee_history_cache_config,
         } = eth_rpc_config;
 
         // Fetch nonce from storage
@@ -83,6 +86,7 @@ pub mod experimental {
                 min_blob_size,
             ))),
             gas_price_oracle_config,
+            fee_history_cache_config,
             #[cfg(feature = "local")]
             eth_signer,
             storage,
@@ -106,11 +110,13 @@ pub mod experimental {
             da_service: Da,
             batch_builder: Arc<Mutex<EthBatchBuilder<C>>>,
             gas_price_oracle_config: GasPriceOracleConfig,
+            fee_history_cache_config: FeeHistoryCacheConfig,
             #[cfg(feature = "local")] eth_signer: DevSigner,
             storage: C::Storage,
         ) -> Self {
             let evm = Evm::<C>::default();
-            let gas_price_oracle = GasPriceOracle::new(evm, gas_price_oracle_config);
+            let gas_price_oracle =
+                GasPriceOracle::new(evm, gas_price_oracle_config, fee_history_cache_config);
             Self {
                 da_service,
                 batch_builder,

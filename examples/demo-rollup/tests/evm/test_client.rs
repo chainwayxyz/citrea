@@ -11,7 +11,7 @@ use ethers_signers::Wallet;
 use jsonrpsee::core::client::ClientT;
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use jsonrpsee::rpc_params;
-use reth_primitives::Bytes;
+use reth_primitives::{BlockNumberOrTag, Bytes};
 use sov_evm::{LogResponse, LogsContract, SimpleStorageContract, TestContract};
 
 const MAX_FEE_PER_GAS: u64 = 100000001;
@@ -327,6 +327,19 @@ impl<T: TestContract> TestClient<T> {
             .unwrap()
     }
 
+    pub(crate) async fn eth_fee_history(
+        &self,
+        block_count: String,
+        newest_block: BlockNumberOrTag,
+        reward_percentiles: Option<Vec<f64>>,
+    ) -> FeeHistory {
+        let rpc_params = rpc_params![block_count, newest_block, reward_percentiles];
+        self.http_client
+            .request("eth_feeHistory", rpc_params)
+            .await
+            .unwrap()
+    }
+
     pub(crate) async fn eth_get_block_by_number(
         &self,
         block_number: Option<String>,
@@ -398,4 +411,14 @@ impl<T: TestContract> TestClient<T> {
         };
         contract
     }
+}
+
+#[derive(serde::Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+// ethers version of FeeHistory doesn't accept None reward
+pub struct FeeHistory {
+    pub base_fee_per_gas: Vec<ethers::types::U256>,
+    pub gas_used_ratio: Vec<f64>,
+    pub oldest_block: ethers::types::U256,
+    pub reward: Option<Vec<Vec<ethers::types::U256>>>,
 }

@@ -1,8 +1,6 @@
-use std::collections::BTreeMap;
-use std::sync::atomic::AtomicU64;
 use std::sync::Mutex;
 
-use reth_primitives::{SealedBlock, H256, U256};
+use reth_primitives::{H256, U256};
 use reth_rpc_types::{Block, BlockTransactions, Rich, TransactionReceipt};
 use schnellru::{ByLength, LruMap};
 use sov_evm::EthResult;
@@ -67,7 +65,9 @@ impl<C: sov_modules_api::Context> BlockCache<C> {
         // Check if block is in cache
         if let Some(block_hash) = self.number_to_hash.lock().unwrap().get(&block_number) {
             // This immediately drops the mutex before calling get_block
-            return self.get_block(*block_hash, working_set);
+            return Ok(Some(
+                self.cache.lock().unwrap().get(block_hash).unwrap().clone(),
+            ));
         }
 
         // block_number to hex string

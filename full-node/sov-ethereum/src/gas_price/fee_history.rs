@@ -1,12 +1,9 @@
 //! Consist of types adjacent to the fee history cache and its configs
-use std::collections::BTreeMap;
 use std::fmt::Debug;
-use std::sync::atomic::AtomicU64;
-use std::sync::atomic::Ordering::SeqCst;
 use std::sync::{Arc, Mutex};
 
 use ethers::types::H256;
-use reth_primitives::{Receipt, SealedBlock, TransactionSigned, U256};
+use reth_primitives::U256;
 use reth_rpc_types::{
     Block, BlockTransactions, Rich, Transaction, TransactionReceipt, TxGasAndReward,
 };

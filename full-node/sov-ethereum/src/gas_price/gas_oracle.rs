@@ -8,10 +8,8 @@ use std::sync::Arc;
 
 use reth_primitives::basefee::calculate_next_block_base_fee;
 use reth_primitives::constants::GWEI_TO_WEI;
-use reth_primitives::{BlockNumberOrTag, Receipt, TransactionSigned, H256, U256, U64};
-use reth_rpc_types::{
-    BlockTransactions, FeeHistory, Transaction, TransactionReceipt, TxGasAndReward,
-};
+use reth_primitives::{BlockNumberOrTag, H256, U256, U64};
+use reth_rpc_types::{BlockTransactions, FeeHistory};
 use serde::{Deserialize, Serialize};
 use sov_evm::{EthApiError, EthResult, Evm, RpcInvalidTransactionError};
 use sov_modules_api::WorkingSet;
@@ -19,7 +17,7 @@ use tokio::sync::Mutex;
 use tracing::warn;
 
 use super::cache::BlockCache;
-use super::fee_history::{FeeHistoryCache, FeeHistoryEntry};
+use super::fee_history::{FeeHistoryCache, FeeHistoryCacheConfig, FeeHistoryEntry};
 
 /// The number of transactions sampled in a block
 pub const SAMPLE_NUMBER: u32 = 3;
@@ -109,7 +107,11 @@ pub struct GasPriceOracle<C: sov_modules_api::Context> {
 
 impl<C: sov_modules_api::Context> GasPriceOracle<C> {
     /// Creates and returns the [GasPriceOracle].
-    pub fn new(provider: Evm<C>, mut oracle_config: GasPriceOracleConfig) -> Self {
+    pub fn new(
+        provider: Evm<C>,
+        mut oracle_config: GasPriceOracleConfig,
+        fee_history_config: FeeHistoryCacheConfig,
+    ) -> Self {
         // sanitize the percentile to be less than 100
         if oracle_config.percentile > 100 {
             warn!(prev_percentile = ?oracle_config.percentile, "Invalid configured gas price percentile, assuming 100.");
@@ -122,10 +124,7 @@ impl<C: sov_modules_api::Context> GasPriceOracle<C> {
 
         let arc_cache = Arc::new(cache);
 
-        let fee_history_cache = FeeHistoryCache::new(
-            super::fee_history::FeeHistoryCacheConfig::default(),
-            arc_cache.clone(),
-        );
+        let fee_history_cache = FeeHistoryCache::new(fee_history_config, arc_cache.clone());
 
         Self {
             provider: provider.clone(),

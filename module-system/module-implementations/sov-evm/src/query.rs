@@ -1,5 +1,5 @@
 use std::array::TryFromSliceError;
-use std::ops::{RangeInclusive};
+use std::ops::RangeInclusive;
 
 use ethereum_types::U64;
 use jsonrpsee::core::RpcResult;
