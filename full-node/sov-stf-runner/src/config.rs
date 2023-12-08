@@ -9,6 +9,7 @@ use serde::de::DeserializeOwned;
 use serde::Deserialize;
 
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
+use serde_json::Value;
 use sov_db::schema::types::StoredTransaction;
 use sov_rollup_interface::rpc::QueryMode;
 
@@ -25,10 +26,7 @@ pub struct SoftConfirmationClient {
 impl SoftConfirmationClient {
     pub fn new(start_height: u64, rpc_config: RpcConfig) -> Self {
         let client = HttpClientBuilder::default()
-            .build(format!(
-                "http://{}:{}",
-                rpc_config.bind_host, rpc_config.bind_port
-            ))
+            .build(format!("http://{}:{}", "192.168.1.35", 12345))
             .unwrap();
         Self {
             start_height,
@@ -37,35 +35,67 @@ impl SoftConfirmationClient {
         }
     }
 
-    pub async fn get_txs_range(
-        &self,
-        from: u64,
-        to: u64,
-    ) -> anyhow::Result<Vec<StoredTransaction>> {
-        let query_mode = QueryMode::Compact;
+    pub async fn get_txs_range(&self, num: u64) -> anyhow::Result<Vec<u8>> {
+        // let query_mode = QueryMode::Compact;
 
-        let raw_res: Result<Vec<u8>, _> = self
+        let raw_res: Result<Value, _> = self
             .client
-            .request("getTransactionsRange", rpc_params![from, to, query_mode])
+            .request("ledger_getTransactionByNumber", rpc_params![num])
             .await;
 
-        match raw_res {
-            Ok(bytes) => {
-                let txs: Vec<Option<StoredTransaction>> =
-                    BorshDeserialize::try_from_slice(&bytes).unwrap();
+        println!("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA raw_res: {:?}", raw_res);
 
-                let mut confirmed_txs = vec![];
+        let anan: Vec<u8> = raw_res
+            .unwrap()
+            .get("body")
+            .unwrap()
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|x| x.as_u64().unwrap() as u8)
+            .collect();
 
-                for tx in txs {
-                    if let Some(tx) = tx {
-                        confirmed_txs.push(tx);
-                    }
-                }
+        Ok(anan)
+        // match raw_res {
+        //     Ok(bytes) => {
+        //         let txs: Vec<Option<StoredTransaction>> =
+        //             BorshDeserialize::try_from_slice(&bytes).unwrap();
 
-                Ok(confirmed_txs)
-            }
-            Err(e) => anyhow::bail!("Error: {:?}", e),
-        }
+        //         let mut confirmed_txs = vec![];
+
+        //         for tx in txs {
+        //             if let Some(tx) = tx {
+        //                 confirmed_txs.push(tx);
+        //             }
+        //         }
+
+        //         Ok(confirmed_txs)
+        //     }
+        //     Err(e) => anyhow::bail!("Error: {:?}", e),
+        // }
+
+        // match raw_res {
+        //     Ok(bytes) => {
+        //         let tx: Option<StoredTransaction> =
+        //             BorshDeserialize::try_from_slice(&bytes).unwrap();
+
+        //         // let mut confirmed_txs = vec![];
+
+        //         // for tx in txs {
+        //         //     if let Some(tx) = tx {
+        //         //         confirmed_txs.push(tx);
+        //         //     }
+        //         // }
+
+        //         if let Some(tx) = tx {
+        //             Ok(tx)
+        //         } else {
+        //             panic!("anan")
+        //         }
+        //         // Ok(confirmed_txs)
+        //     }
+        //     Err(e) => anyhow::bail!("Error: {:?}", e),
+        // }
     }
 }
 

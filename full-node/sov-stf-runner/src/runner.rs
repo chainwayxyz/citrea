@@ -1,5 +1,6 @@
 use std::net::SocketAddr;
 
+use borsh::BorshSerialize;
 use jsonrpsee::RpcModule;
 use sov_db::ledger_db::{LedgerDB, SlotCommit};
 use sov_modules_stf_template::{Batch, RawTx};
@@ -204,19 +205,20 @@ where
     pub async fn run_in_process(&mut self) -> Result<(), anyhow::Error> {
         let client = &self.soft_confirmation_client;
 
-        let height = 0;
+        let height = 1;
 
-        let txs = client.get_txs_range(height, height).await?;
+        let tx = client.get_txs_range(height).await?;
 
         // batch
-        // let batch = Batch {
-        //     txs: vec![RawTx {
-        //         data: txs[0].clone().body.unwrap(),
-        //     }],
-        // };
+        let batch = Batch {
+            txs: vec![RawTx { data: tx }],
+        };
 
-        let temp_blob = txs[0].clone().body.unwrap();
-        let new_blobs = self.da_service.convert_to_transaction(&temp_blob).unwrap();
+        // let temp_blob = tx.clone().body.unwrap();
+        let new_blobs = self
+            .da_service
+            .convert_to_transaction(&batch.try_to_vec().unwrap())
+            .unwrap();
 
         // for height in self.start_height.. {
         debug!("Requesting data for height {}", height,);
