@@ -1,5 +1,5 @@
 use std::array::TryFromSliceError;
-use std::ops::{Range, RangeInclusive};
+use std::ops::{RangeInclusive};
 
 use ethereum_types::U64;
 use jsonrpsee::core::RpcResult;
@@ -22,7 +22,7 @@ use crate::evm::primitive_types::{BlockEnv, Receipt, SealedBlock, TransactionSig
 use crate::evm::{executor, prepare_call_env};
 use crate::experimental::{MIN_CREATE_GAS, MIN_TRANSACTION_GAS};
 use crate::rpc_helpers::*;
-use crate::{BloomFilter, EthApiError, Evm, EvmChainConfig, FilterBlockOption, FilterError};
+use crate::{BloomFilter, Evm, EvmChainConfig, FilterBlockOption, FilterError};
 
 #[rpc_gen(client, server)]
 impl<C: sov_modules_api::Context> Evm<C> {

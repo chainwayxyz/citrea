@@ -1,7 +1,6 @@
-use std::{
-    collections::BTreeMap,
-    sync::{atomic::AtomicU64, Mutex},
-};
+use std::collections::BTreeMap;
+use std::sync::atomic::AtomicU64;
+use std::sync::Mutex;
 
 use reth_primitives::{SealedBlock, H256, U256};
 use reth_rpc_types::{Block, BlockTransactions, Rich, TransactionReceipt};

@@ -1,4 +1,10 @@
 //! Consist of types adjacent to the fee history cache and its configs
+use std::collections::BTreeMap;
+use std::fmt::Debug;
+use std::sync::atomic::AtomicU64;
+use std::sync::atomic::Ordering::SeqCst;
+use std::sync::{Arc, Mutex};
+
 use ethers::types::H256;
 use reth_primitives::{Receipt, SealedBlock, TransactionSigned, U256};
 use reth_rpc_types::{
@@ -8,20 +14,10 @@ use schnellru::{ByLength, LruMap};
 use serde::{Deserialize, Serialize};
 use sov_evm::EthApiError;
 use sov_modules_api::WorkingSet;
-use std::{
-    collections::BTreeMap,
-    fmt::Debug,
-    sync::{
-        atomic::{AtomicU64, Ordering::SeqCst},
-        Arc, Mutex,
-    },
-};
 
-use super::{
-    cache::BlockCache,
-    gas_oracle::{
-        convert_u256_to_u128, convert_u256_to_u64, effective_gas_tip, MAX_HEADER_HISTORY,
-    },
+use super::cache::BlockCache;
+use super::gas_oracle::{
+    convert_u256_to_u128, convert_u256_to_u64, effective_gas_tip, MAX_HEADER_HISTORY,
 };
 
 /// Settings for the [FeeHistoryCache].
