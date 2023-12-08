@@ -9,7 +9,13 @@ mod genesis;
 #[cfg(feature = "experimental")]
 mod hooks;
 #[cfg(feature = "experimental")]
-pub use {call::*, error::rpc::*, evm::*, genesis::*, hooks::*};
+mod rpc_helpers;
+pub use call::*;
+pub use error::rpc::*;
+pub use evm::*;
+pub use genesis::*;
+pub use hooks::*;
+pub use rpc_helpers::*;
 #[cfg(feature = "native")]
 #[cfg(feature = "experimental")]
 mod query;
@@ -23,7 +29,9 @@ pub use signer::DevSigner;
 #[cfg(feature = "smart_contracts")]
 mod smart_contracts;
 #[cfg(feature = "smart_contracts")]
-pub use smart_contracts::{SelfDestructorContract, SimpleStorageContract};
+pub use smart_contracts::{
+    BlockHashContract, LogsContract, SelfDestructorContract, SimpleStorageContract, TestContract,
+};
 #[cfg(feature = "experimental")]
 #[cfg(test)]
 mod tests;
@@ -35,7 +43,8 @@ pub use revm::primitives::SpecId;
 #[cfg(feature = "experimental")]
 mod experimental {
 
-    use reth_primitives::Address;
+    use reth_primitives::{Address, H256};
+    use revm::primitives::U256;
     use sov_modules_api::{Error, ModuleInfo, WorkingSet};
     use sov_state::codec::BcsCodec;
 
@@ -92,6 +101,12 @@ mod experimental {
         #[state]
         pub(crate) head: sov_modules_api::StateValue<Block, BcsCodec>,
 
+        /// Last 256 block hashes. Latest blockhash is populated in `begin_slot_hook`.
+        /// Removes the oldest blockhash in `finalize_hook`
+        /// Used by the EVM to calculate the `blockhash` opcode.
+        #[state]
+        pub(crate) latest_block_hashes: sov_modules_api::StateMap<U256, H256, BcsCodec>,
+
         /// Used only by the RPC: This represents the head of the chain and is set in two distinct stages:
         /// 1. `end_slot_hook`: the pending head is populated with data from pending_transactions.
         /// 2. `finalize_hook` the `root_hash` is populated.
@@ -146,13 +161,18 @@ mod experimental {
             context: &Self::Context,
             working_set: &mut WorkingSet<C>,
         ) -> Result<sov_modules_api::CallResponse, Error> {
-            Ok(self.execute_call(msg.tx, context, working_set)?)
+            Ok(self.execute_call(msg.txs, context, working_set)?)
         }
     }
 
     impl<C: sov_modules_api::Context> Evm<C> {
         pub(crate) fn get_db<'a>(&self, working_set: &'a mut WorkingSet<C>) -> EvmDb<'a, C> {
-            EvmDb::new(self.accounts.clone(), self.code.clone(), working_set)
+            EvmDb::new(
+                self.accounts.clone(),
+                self.code.clone(),
+                self.latest_block_hashes.clone(),
+                working_set,
+            )
         }
     }
 }

@@ -21,8 +21,8 @@ use regex::Regex;
 use risc0::MOCK_DA_ELF;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::SlotData;
-use sov_modules_stf_template::kernels::basic::BasicKernel;
-use sov_modules_stf_template::AppTemplate;
+use sov_modules_stf_blueprint::kernels::basic::BasicKernel;
+use sov_modules_stf_blueprint::StfBlueprint;
 use sov_risc0_adapter::host::Risc0Host;
 #[cfg(feature = "bench")]
 use sov_risc0_adapter::metrics::GLOBAL_HASHMAP;
@@ -141,7 +141,7 @@ async fn main() -> Result<(), anyhow::Error> {
     }
 
     let rollup_config_path = "benches/prover/rollup_config.toml".to_string();
-    let mut rollup_config: RollupConfig<MockDaConfig> = from_toml_path(&rollup_config_path)
+    let mut rollup_config: RollupConfig<MockDaConfig> = from_toml_path(rollup_config_path)
         .context("Failed to read rollup configuration")
         .unwrap();
 
@@ -159,7 +159,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let storage_manager = sov_state::storage_manager::ProverStorageManager::new(storage_config)
         .expect("ProverStorageManager initialization has failed");
-    let stf = AppTemplate::<
+    let stf = StfBlueprint::<
         DefaultContext,
         MockDaSpec,
         Risc0Host,

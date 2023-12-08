@@ -131,7 +131,7 @@ pub mod experimental {
 
             let tx_hash = signed_transaction.hash();
 
-            let tx = CallMessage { tx: raw_tx };
+            let tx = CallMessage { txs: vec![raw_tx] };
             let message = <Runtime<C, Da::Spec> as EncodeCall<sov_evm::Evm<C>>>::encode_call(tx);
 
             Ok((H256::from(tx_hash), message))
