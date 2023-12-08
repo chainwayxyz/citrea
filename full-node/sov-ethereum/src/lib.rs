@@ -210,38 +210,38 @@ pub mod experimental {
             Ok::<U256, ErrorObjectOwned>(price)
         })?;
 
-        rpc.register_async_method("eth_publishBatch", |params, ethereum| async move {
-            let mut params_iter = params.sequence();
+        // rpc.register_async_method("eth_publishBatch", |params, ethereum| async move {
+        //     let mut params_iter = params.sequence();
 
-            let mut txs = Vec::default();
-            while let Some(tx) = params_iter.optional_next::<Vec<u8>>()? {
-                txs.push(tx)
-            }
+        //     let mut txs = Vec::default();
+        //     while let Some(tx) = params_iter.optional_next::<Vec<u8>>()? {
+        //         txs.push(tx)
+        //     }
 
-            ethereum
-                .build_and_submit_batch(txs, Some(1))
-                .await
-                .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
+        //     ethereum
+        //         .build_and_submit_batch(txs, Some(1))
+        //         .await
+        //         .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
 
-            Ok::<String, ErrorObjectOwned>("Submitted transaction".to_string())
-        })?;
+        //     Ok::<String, ErrorObjectOwned>("Submitted transaction".to_string())
+        // })?;
 
-        rpc.register_async_method(
-            "eth_sendRawTransaction",
-            |parameters, ethereum| async move {
-                let data: Bytes = parameters.one().unwrap();
+        // rpc.register_async_method(
+        //     "eth_sendRawTransaction",
+        //     |parameters, ethereum| async move {
+        //         let data: Bytes = parameters.one().unwrap();
 
-                let raw_evm_tx = RlpEvmTransaction { rlp: data.to_vec() };
+        //         let raw_evm_tx = RlpEvmTransaction { rlp: data.to_vec() };
 
-                let (tx_hash, raw_message) = ethereum
-                    .make_raw_tx(raw_evm_tx)
-                    .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
+        //         let (tx_hash, raw_message) = ethereum
+        //             .make_raw_tx(raw_evm_tx)
+        //             .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
 
-                ethereum.add_messages(vec![raw_message]);
+        //         ethereum.add_messages(vec![raw_message]);
 
-                Ok::<_, ErrorObjectOwned>(tx_hash)
-            },
-        )?;
+        //         Ok::<_, ErrorObjectOwned>(tx_hash)
+        //     },
+        // )?;
 
         #[cfg(feature = "local")]
         rpc.register_async_method("eth_accounts", |_parameters, ethereum| async move {

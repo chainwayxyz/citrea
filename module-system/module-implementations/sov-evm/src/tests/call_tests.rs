@@ -3,7 +3,7 @@ use reth_rpc_types::{CallInput, CallRequest};
 use revm::primitives::{SpecId, B256, KECCAK_EMPTY, U256};
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::utils::generate_address;
-use sov_modules_api::{Context, Module};
+use sov_modules_api::{Context, Module, StateMapAccessor, StateValueAccessor, StateVecAccessor};
 
 use crate::call::CallMessage;
 use crate::evm::primitive_types::Receipt;
@@ -48,7 +48,7 @@ fn call_multiple_test() {
     let set_arg = 999;
     {
         let sender_address = generate_address::<C>("sender");
-        let context = C::new(sender_address);
+        let context = C::new(sender_address, 1);
 
         let transactions: Vec<RlpEvmTransaction> = vec![
             create_contract_transaction(&dev_signer1, 0, SimpleStorageContract::default()),
@@ -140,7 +140,7 @@ fn call_test() {
     let set_arg = 999;
     {
         let sender_address = generate_address::<C>("sender");
-        let context = C::new(sender_address);
+        let context = C::new(sender_address, 1);
 
         let rlp_transactions = vec![
             create_contract_message(&dev_signer, 0, SimpleStorageContract::default()),
@@ -203,7 +203,7 @@ fn failed_transaction_test() {
     evm.begin_slot_hook([5u8; 32], &[10u8; 32].into(), working_set);
     {
         let sender_address = generate_address::<C>("sender");
-        let context = C::new(sender_address);
+        let context = C::new(sender_address, 1);
         let rlp_transactions = vec![create_contract_message(
             &dev_signer,
             0,
@@ -215,6 +215,11 @@ fn failed_transaction_test() {
         };
         evm.call(call_message, &context, working_set).unwrap();
     }
+
+    // assert no pending transaction
+    let pending_txs = evm.pending_transactions.iter(working_set);
+    assert_eq!(pending_txs.len(), 0);
+
     evm.end_slot_hook(working_set);
 
     // assert no pending transaction
@@ -244,7 +249,7 @@ fn self_destruct_test() {
     evm.begin_slot_hook([5u8; 32], &[10u8; 32].into(), &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
-        let context = C::new(sender_address);
+        let context = C::new(sender_address, 1);
 
         // deploy selfdestruct contract
         // send some money to the selfdestruct contract
@@ -290,7 +295,7 @@ fn self_destruct_test() {
     evm.begin_slot_hook([5u8; 32], &[99u8; 32].into(), &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
-        let context = C::new(sender_address);
+        let context = C::new(sender_address, 1);
         // selfdestruct
         evm.call(
             CallMessage {
@@ -356,7 +361,7 @@ fn log_filter_test_at_block_hash() {
     evm.begin_slot_hook([5u8; 32], &[10u8; 32].into(), &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
-        let context = C::new(sender_address);
+        let context = C::new(sender_address, 1);
 
         // deploy logs contract
         // call the contract function
@@ -548,7 +553,7 @@ fn log_filter_test_with_range() {
     evm.begin_slot_hook([5u8; 32], &[10u8; 32].into(), &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
-        let context = C::new(sender_address);
+        let context = C::new(sender_address, 1);
 
         // deploy selfdestruct contract
         // call the contract function
@@ -596,7 +601,7 @@ fn log_filter_test_with_range() {
     evm.begin_slot_hook([5u8; 32], &[99u8; 32].into(), &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
-        let context = C::new(sender_address);
+        let context = C::new(sender_address, 1);
         // call the contract function
         evm.call(
             CallMessage {
@@ -638,7 +643,24 @@ fn test_log_limits() {
     evm.begin_slot_hook([5u8; 32], &[10u8; 32].into(), &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
-        let context = C::new(sender_address);
+        let context = C::new(sender_address, 1);
+
+        // deploy logs contract
+        let mut rlp_transactions = vec![create_contract_message(
+            &dev_signer,
+            0,
+            LogsContract::default(),
+        )];
+
+        // call the contracts 10_001 times so we got 20_002 logs (response limit is 20_000)
+        for i in 0..10001 {
+            rlp_transactions.push(publish_event_message(
+                contract_addr,
+                &dev_signer,
+                i + 1,
+                "hello".to_string(),
+            ));
+        }
 
         // deploy logs contract
         let mut rlp_transactions = vec![create_contract_message(
@@ -703,14 +725,13 @@ fn test_log_limits() {
         FilterSet::default(),
     ];
 
-    for _i in 1..100_001 {
+    for _ in 1..100_001 {
         // generate 100_000 blocks to test the max block range limit
         evm.begin_slot_hook([5u8; 32], &[99u8; 32].into(), &mut working_set);
         evm.end_slot_hook(&mut working_set);
         evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
     }
 
-    // The range is greater than the default max blocks to be scanned (100_001 > 100_000)
     let filter = Filter {
         block_option: crate::FilterBlockOption::Range {
             from_block: Some(BlockNumberOrTag::Number(1)),
@@ -737,7 +758,7 @@ fn test_block_hash_in_evm() {
     evm.begin_slot_hook([5u8; 32], &[10u8; 32].into(), &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
-        let context = C::new(sender_address);
+        let context = C::new(sender_address, 1);
 
         let deploy_message = create_contract_message(&dev_signer, 0, BlockHashContract::default());
 

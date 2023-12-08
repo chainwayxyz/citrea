@@ -10,6 +10,7 @@ use revm::primitives::{
     EVMError, ExecutionResult, Halt, InvalidTransaction, TransactTo, KECCAK_EMPTY,
 };
 use sov_modules_api::macros::rpc_gen;
+use sov_modules_api::prelude::*;
 use sov_modules_api::WorkingSet;
 use tracing::info;
 
@@ -85,6 +86,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<Option<reth_rpc_types::RichBlock>> {
         info!("evm module: eth_getBlockByNumber");
+        println!("oooo");
 
         let block = self.get_sealed_block_by_number(block_number, working_set);
 
@@ -291,10 +293,11 @@ impl<C: sov_modules_api::Context> Evm<C> {
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<Option<reth_rpc_types::TransactionReceipt>> {
         info!("evm module: eth_getTransactionReceipt");
-
+        println!("yoooo");
         let mut accessory_state = working_set.accessory_state();
 
         let tx_number = self.transaction_hashes.get(&hash, &mut accessory_state);
+        println!("tx number: {:?}", tx_number);
 
         let receipt = tx_number.map(|number| {
             let tx = self
@@ -311,7 +314,11 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 .get(tx_number.unwrap() as usize, &mut accessory_state)
                 .expect("Receipt for known transaction must be set");
 
-            build_rpc_receipt(block, tx, tx_number.unwrap(), receipt)
+            let annen = build_rpc_receipt(block, tx, tx_number.unwrap(), receipt);
+
+            println!("receipt: {:?}", annen);
+
+            annen
         });
 
         Ok(receipt)
@@ -574,6 +581,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         filter: Filter,
         working_set: &mut WorkingSet<C>,
     ) -> Result<Vec<LogResponse>, FilterError> {
+        println!("\n\nAAAAAAfilter:{:?}\n\n", filter);
         match filter.block_option {
             FilterBlockOption::AtBlockHash(block_hash) => {
                 let block_number = self
@@ -628,6 +636,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     .flatten();
                 let (from_block_number, to_block_number) =
                     get_filter_block_range(from, to, start_block);
+                println!("from block number: {:?}", from_block_number);
+                println!("to block number: {:?}", to_block_number);
                 self.get_logs_in_block_range(
                     working_set,
                     &filter,
@@ -670,11 +680,13 @@ impl<C: sov_modules_api::Context> Evm<C> {
             BlockRangeInclusiveIter::new(from_block_number..=to_block_number, max_headers_range)
         {
             for idx in from..=to {
+                println!("\nQQQQQQQidx: {:?}\n", idx);
                 let block = self.blocks.get(
                     // Index from +1 or just from?
                     (idx) as usize,
                     &mut working_set.accessory_state(),
                 );
+                println!("\nAAblock: {:?}\n", block);
                 if block.is_none() {
                     return Err(FilterError::EthAPIError(
                         ProviderError::BlockBodyIndicesNotFound(idx).into(),
@@ -684,7 +696,14 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 let logs_bloom = block.header.logs_bloom;
 
                 let alloy_logs_bloom = alloy_primitives::Bloom::from(logs_bloom.data());
-
+                println!(
+                    "matches_address: {}",
+                    matches_address(alloy_logs_bloom, &address_filter)
+                );
+                println!(
+                    "matches_topics: {}",
+                    matches_topics(alloy_logs_bloom, &topics_filter)
+                );
                 if matches_address(alloy_logs_bloom, &address_filter)
                     && matches_topics(alloy_logs_bloom, &topics_filter)
                 {
@@ -699,6 +718,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 }
             }
         }
+        println!("all_logs: {:?}", all_logs);
         Ok(all_logs)
     }
 
@@ -719,12 +739,14 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         let topics = filter.topics.clone();
         let tx_range = block.transactions;
+        println!("tx_range: {:?}", tx_range);
 
         for i in tx_range {
             let receipt = self
                 .receipts
                 .get(i as usize, &mut working_set.accessory_state())
                 .expect("Transaction must be set");
+            println!("receipt: {:?}", receipt);
             let tx = self
                 .transactions
                 .get(i as usize, &mut working_set.accessory_state())
@@ -732,6 +754,17 @@ impl<C: sov_modules_api::Context> Evm<C> {
             let logs = receipt.receipt.logs;
 
             for log in logs.into_iter() {
+                println!("\n\nTTTTTTTTTTlog: {:?}\n\n", log);
+                println!(
+                    "log matches filter:{:?}",
+                    log_matches_filter(
+                        &log,
+                        &filter,
+                        &topics,
+                        &block.header.hash,
+                        &block.header.number,
+                    )
+                );
                 if log_matches_filter(
                     &log,
                     &filter,

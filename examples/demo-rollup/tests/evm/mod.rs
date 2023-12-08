@@ -3,28 +3,48 @@ mod test_client;
 use std::net::SocketAddr;
 use std::str::FromStr;
 
+use demo_stf::genesis_config::GenesisPaths;
 use ethers_core::abi::Address;
 use ethers_signers::{LocalWallet, Signer};
 use reqwest::Client;
 use sov_evm::{SimpleStorageContract, TestContract};
+use sov_stf_runner::RollupProverConfig;
 use test_client::TestClient;
+use tokio::time::{sleep, Duration};
+
+use crate::test_helpers::start_rollup;
 
 #[cfg(feature = "experimental")]
 #[tokio::test]
 async fn evm_tx_tests() -> Result<(), anyhow::Error> {
-    use crate::test_helpers::create_and_start_rollup;
+    let (port_tx, port_rx) = tokio::sync::oneshot::channel();
+    println!("1");
+    let rollup_task = tokio::spawn(async {
+        // Don't provide a prover since the EVM is not currently provable
+        start_rollup(
+            port_tx,
+            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
+            RollupProverConfig::Skip,
+        )
+        .await;
+    });
 
-    let (rollup_task, port) = create_and_start_rollup().await;
+    println!("Started rollup task");
+
+    // Wait for rollup task to start:
+    let port = port_rx.await.unwrap();
+    println!("Got port: {:?}", port);
     send_tx_test_to_eth(port).await.unwrap();
     rollup_task.abort();
     Ok(())
 }
 
 async fn send_tx_test_to_eth(rpc_address: SocketAddr) -> Result<(), Box<dyn std::error::Error>> {
+    println!("asd");
     let contract = SimpleStorageContract::default();
-
+    println!("asd1");
     let test_client = init_test_rollup(rpc_address, contract).await;
-
+    println!("asd2");
     execute(&test_client).await
 }
 
@@ -33,9 +53,22 @@ async fn send_tx_test_to_eth(rpc_address: SocketAddr) -> Result<(), Box<dyn std:
 async fn test_eth_get_logs() -> Result<(), anyhow::Error> {
     use sov_evm::LogsContract;
 
-    use crate::test_helpers::create_and_start_rollup;
+    use crate::test_helpers::start_rollup;
 
-    let (rollup_task, port) = create_and_start_rollup().await;
+    let (port_tx, port_rx) = tokio::sync::oneshot::channel();
+
+    let rollup_task = tokio::spawn(async {
+        // Don't provide a prover since the EVM is not currently provable
+        start_rollup(
+            port_tx,
+            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
+            RollupProverConfig::Skip,
+        )
+        .await;
+    });
+
+    // Wait for rollup task to start:
+    let port = port_rx.await.unwrap();
 
     let contract = LogsContract::default();
 
@@ -171,20 +204,23 @@ async fn test_getlogs<T: TestContract>(
 async fn execute<T: TestContract>(
     client: &Box<TestClient<T>>,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    println!("asd3");
     // Nonce should be 0 in genesis
     let nonce = client.eth_get_transaction_count(client.from_addr).await;
+    println!("asd4");
     assert_eq!(0, nonce);
 
     // Balance should be > 0 in genesis
     let balance = client.eth_get_balance(client.from_addr).await;
+    println!("asd5");
     assert!(balance > ethereum_types::U256::zero());
 
     let (contract_address, runtime_code) = {
         let runtime_code = client.deploy_contract_call().await?;
-
+        println!("asd6");
         let deploy_contract_req = client.deploy_contract().await?;
         client.send_publish_batch_request().await;
-
+        println!("deploy contract {:?}: ", deploy_contract_req);
         let contract_address = deploy_contract_req
             .await?
             .unwrap()
@@ -297,8 +333,9 @@ async fn execute<T: TestContract>(
                 requests.push(set_value_req);
             }
             client.send_publish_batch_request().await;
+            sleep(Duration::from_millis(1000)).await;
         }
-
+        sleep(Duration::from_millis(6000)).await;
         // get gas price
         let latest_gas_price = client.eth_gas_price().await;
 

@@ -19,6 +19,8 @@ anyhow = { workspace = true }
 tracing = { workspace = true }
 jsonrpsee = { workspace = true, features = ["http-client", "server"] }
 
+futures = { workspace = true }
+
 borsh = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -34,7 +36,7 @@ sov-rollup-interface = { path = "../../rollup-interface", features = [
     "native",
 ] }
 
-sov-modules-stf-template = { path = "../../module-system/sov-modules-stf-template" }
+sov-modules-stf-blueprint = { path = "../../module-system/sov-modules-stf-blueprint" }
 
 demo-stf = { path = "../../examples/demo-rollup/stf", features = ["native"] }
 sov-modules-api = { path = "../../module-system/sov-modules-api" }
