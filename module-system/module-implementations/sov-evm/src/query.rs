@@ -5,7 +5,7 @@ use jsonrpsee::core::RpcResult;
 use reth_interfaces::provider::ProviderError;
 use reth_primitives::contract::create_address;
 use reth_primitives::TransactionKind::{Call, Create};
-use reth_primitives::{TransactionSignedEcRecovered, U128, U256};
+use reth_primitives::{BlockNumberOrTag, TransactionSignedEcRecovered, U128, U256};
 use revm::primitives::{
     EVMError, ExecutionResult, Halt, InvalidTransaction, TransactTo, KECCAK_EMPTY,
 };
@@ -68,20 +68,23 @@ impl<C: sov_modules_api::Context> Evm<C> {
     ) -> RpcResult<Option<reth_rpc_types::RichBlock>> {
         info!("evm module: eth_getBlockByHash");
 
-        let block_number_hex = self
+        let block_number = self
             .block_hashes
             .get(&block_hash, &mut working_set.accessory_state())
-            .map(|number| hex::encode(number.to_be_bytes()))
             .expect("Block number for known block hash must be set");
 
-        self.get_block_by_number(Some(block_number_hex), details, working_set)
+        self.get_block_by_number(
+            Some(BlockNumberOrTag::Number(block_number)),
+            details,
+            working_set,
+        )
     }
 
     /// Handler for: `eth_getBlockByNumber`
     #[rpc_method(name = "eth_getBlockByNumber")]
     pub fn get_block_by_number(
         &self,
-        block_number: Option<String>,
+        block_number: Option<BlockNumberOrTag>,
         details: Option<bool>,
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<Option<reth_rpc_types::RichBlock>> {
@@ -325,18 +328,18 @@ impl<C: sov_modules_api::Context> Evm<C> {
     pub fn get_call(
         &self,
         request: reth_rpc_types::CallRequest,
-        block_number: Option<String>,
+        block_number_or_tag: Option<BlockNumberOrTag>,
         _state_overrides: Option<reth_rpc_types::state::StateOverride>,
         _block_overrides: Option<Box<reth_rpc_types::BlockOverrides>>,
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<reth_primitives::Bytes> {
         info!("evm module: eth_call");
-        let block_env = match block_number {
-            Some(ref block_number) if block_number == "pending" => {
+        let block_env = match block_number_or_tag {
+            Some(BlockNumberOrTag::Pending) => {
                 self.block_env.get(working_set).unwrap_or_default().clone()
             }
             _ => {
-                let block = self.get_sealed_block_by_number(block_number, working_set);
+                let block = self.get_sealed_block_by_number(block_number_or_tag, working_set);
                 BlockEnv::from(&block)
             }
         };
@@ -378,16 +381,16 @@ impl<C: sov_modules_api::Context> Evm<C> {
     pub fn eth_estimate_gas(
         &self,
         request: reth_rpc_types::CallRequest,
-        block_number: Option<String>,
+        block_number_or_tag: Option<BlockNumberOrTag>,
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<reth_primitives::U64> {
         info!("evm module: eth_estimateGas");
-        let mut block_env = match block_number {
-            Some(ref block_number) if block_number == "pending" => {
+        let mut block_env = match block_number_or_tag {
+            Some(BlockNumberOrTag::Pending) => {
                 self.block_env.get(working_set).unwrap_or_default().clone()
             }
             _ => {
-                let block = self.get_sealed_block_by_number(block_number, working_set);
+                let block = self.get_sealed_block_by_number(block_number_or_tag, working_set);
                 BlockEnv::from(&block)
             }
         };
@@ -760,31 +763,28 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
     fn get_sealed_block_by_number(
         &self,
-        block_number: Option<String>,
+        block_number: Option<BlockNumberOrTag>,
         working_set: &mut WorkingSet<C>,
     ) -> SealedBlock {
         // safe, finalized, and pending are not supported
         match block_number {
-            Some(ref block_number) if block_number == "earliest" => self
+            Some(BlockNumberOrTag::Number(block_number)) => self
+                .blocks
+                .get(block_number as usize, &mut working_set.accessory_state())
+                .expect("Block must be set"),
+            Some(BlockNumberOrTag::Earliest) => self
                 .blocks
                 .get(0, &mut working_set.accessory_state())
                 .expect("Genesis block must be set"),
-            Some(ref block_number) if block_number == "latest" => self
+            Some(BlockNumberOrTag::Latest) => self
                 .blocks
                 .last(&mut working_set.accessory_state())
                 .expect("Head block must be set"),
-            Some(ref block_number) => {
-                // hex representation may have 0x prefix
-                let block_number = usize::from_str_radix(block_number.trim_start_matches("0x"), 16)
-                    .expect("Block number must be a valid hex number, with or without 0x prefix");
-                self.blocks
-                    .get(block_number, &mut working_set.accessory_state())
-                    .expect("Block must be set")
-            }
             None => self
                 .blocks
                 .last(&mut working_set.accessory_state())
                 .expect("Head block must be set"),
+            _ => panic!("Unsupported block number type"),
         }
     }
 }

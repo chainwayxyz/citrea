@@ -143,7 +143,7 @@ async fn test_getlogs<T: TestContract>(
     // the data should be the same that we have
     let sepolia_log_data = sepolia_logs["result"][0]["data"].to_string();
     let len = sepolia_log_data.len();
-    assert_eq!(sepolia_log_data[2..len - 1], logs[0].data.to_string());
+    assert_eq!(sepolia_log_data[1..len - 1], logs[0].data.to_string());
     // Deploy another contract
     let (contract_address2, _) = {
         let runtime_code = client.deploy_contract_call().await?;
@@ -231,7 +231,7 @@ async fn execute<T: TestContract>(
 
     // Check that the first block has published
     // It should have a single transaction, deploying the contract
-    let first_block = client.eth_get_block_by_number(Some("1".to_owned())).await;
+    let first_block = client.eth_get_block_by_number(Some("0x1".to_owned())).await;
     assert_eq!(first_block.number.unwrap().as_u64(), 1);
     assert_eq!(first_block.transactions.len(), 1);
 
@@ -334,8 +334,8 @@ async fn execute<T: TestContract>(
         assert!(latest_gas_price > initial_gas_price);
     }
 
-    let first_block = client.eth_get_block_by_number(Some("0".to_owned())).await;
-    let second_block = client.eth_get_block_by_number(Some("1".to_owned())).await;
+    let first_block = client.eth_get_block_by_number(Some("0x0".to_owned())).await;
+    let second_block = client.eth_get_block_by_number(Some("0x1".to_owned())).await;
 
     // assert parent hash works correctly
     assert_eq!(
