@@ -204,6 +204,20 @@ impl DaService for DaProvider {
         })
     }
 
+    #[allow(unused_variables)]
+    fn convert_to_transaction(
+        &self,
+        blob: &[u8],
+    ) -> Result<
+        (
+            <Self::Spec as sov_rollup_interface::da::DaSpec>::BlobTransaction,
+            Vec<u8>,
+        ),
+        Self::Error,
+    > {
+        todo!()
+    }
+
     // Make an RPC call to the node to get the block at the given height
     // If no such block exists, block until one does.
     async fn get_block_at(&self, height: u64) -> Result<Self::FilteredBlock, Self::Error> {

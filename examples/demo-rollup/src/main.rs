@@ -35,7 +35,7 @@ struct Args {
     rollup_config_path: String,
 
     /// If set, runs the node in sequencer mode, otherwise in full node mode.
-    #[arg(long, default_value = false)]
+    #[arg(long)]
     sequence: bool,
 }
 

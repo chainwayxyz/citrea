@@ -12,6 +12,7 @@ use sov_rollup_interface::zk::ZkvmHost;
 use tokio::sync::oneshot;
 use tracing::{debug, info};
 
+use crate::config::SequencerRpcConfig;
 use crate::scc::SoftConfirmationClient;
 use crate::verifier::StateTransitionVerifier;
 use crate::RunnerConfig;
@@ -37,7 +38,7 @@ where
     listen_address: SocketAddr,
     prover: Option<Prover<V, Da, Vm>>,
     zk_storage: V::PreState,
-    soft_confirmation_client: SoftConfirmationClient,
+    soft_confirmation_client: Option<SoftConfirmationClient>,
 }
 
 /// Represents the possible modes of execution for a zkVM program
@@ -96,6 +97,7 @@ where
         genesis_config: InitialState<Stf, Vm, Da::Spec>,
         prover: Option<Prover<V, Da, Vm>>,
         zk_storage: V::PreState,
+        scc_config: Option<SequencerRpcConfig>,
     ) -> Result<Self, anyhow::Error> {
         let rpc_config = runner_config.rpc_config;
 
@@ -121,8 +123,14 @@ where
         let last_slot_processed_before_shutdown = item_numbers.slot_number - 1;
         let start_height = runner_config.start_height + last_slot_processed_before_shutdown;
 
-        let soft_confirmation_client =
-            SoftConfirmationClient::new(start_height, "0.0.0.0".to_owned(), 12345);
+        let soft_confirmation_client = match scc_config {
+            Some(scc_config) => Some(SoftConfirmationClient::new(
+                scc_config.start_height,
+                scc_config.scc_host,
+                scc_config.scc_port,
+            )),
+            None => None,
+        };
 
         Ok(Self {
             start_height,
@@ -170,11 +178,11 @@ where
             self.da_service.get_finalized_at(self.start_height).await?;
         let blobz = self.da_service.convert_to_transaction(blob).unwrap();
 
-        info!(
-            "sequencer={} blob_hash=0x{}",
-            blobz.0.sender(),
-            hex::encode(blobz.0.hash())
-        );
+        // info!(
+        //     "sequencer={} blob_hash=0x{}",
+        //     blobz.0.sender(),
+        //     hex::encode(blobz.0.hash())
+        // );
 
         let slot_result = self.stf.apply_slot(
             &self.state_root,
@@ -198,7 +206,14 @@ where
 
     /// Runs the rollup.
     pub async fn run_in_process(&mut self) -> Result<(), anyhow::Error> {
-        let client = &self.soft_confirmation_client;
+        let client = match &self.soft_confirmation_client {
+            Some(client) => client,
+            None => {
+                return Err(anyhow::anyhow!(
+                    "Soft Confirmation Client is not initialized"
+                ))
+            }
+        };
 
         let mut height = self.start_height;
         loop {
@@ -223,20 +238,20 @@ where
 
             let filtered_block = self.da_service.get_finalized_at(2).await?;
 
-            info!(
-                "Extracted {} relevant blobs at height {}: {:?}",
-                new_blobs.0.len(),
-                height,
-                new_blobs
-                    .0
-                    .iter()
-                    .map(|b| format!(
-                        "sequencer={} blob_hash=0x{}",
-                        b.sender(),
-                        hex::encode(b.hash())
-                    ))
-                    .collect::<Vec<_>>()
-            );
+            // info!(
+            //     "Extracted {} relevant blobs at height {}: {:?}",
+            //     new_blobs.0.len(),
+            //     height,
+            //     new_blobs
+            //         .0
+            //         .iter()
+            //         .map(|b| format!(
+            //             "sequencer={} blob_hash=0x{}",
+            //             b.sender(),
+            //             hex::encode(b.hash())
+            //         ))
+            //         .collect::<Vec<_>>()
+            // );
 
             let mut data_to_commit = SlotCommit::new(filtered_block.clone());
 

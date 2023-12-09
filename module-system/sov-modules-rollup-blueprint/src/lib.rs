@@ -146,6 +146,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
             genesis_config,
             prover,
             zk_storage,
+            rollup_config.soft_confirmation,
         )?;
 
         Ok(Rollup {
