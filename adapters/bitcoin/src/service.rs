@@ -6,7 +6,6 @@ use core::time::Duration;
 use async_trait::async_trait;
 use bitcoin::address::NetworkUnchecked;
 use bitcoin::consensus::encode;
-use bitcoin::ecdsa::Signature;
 use bitcoin::hashes::{sha256d, Hash};
 use bitcoin::secp256k1::SecretKey;
 use bitcoin::{Address, Txid};

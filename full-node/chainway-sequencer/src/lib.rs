@@ -8,7 +8,6 @@ pub mod experimental {
     use std::borrow::BorrowMut;
     use std::collections::VecDeque;
     use std::marker::PhantomData;
-    use std::sync::mpsc::{Receiver, Sender};
     use std::sync::Arc;
     use std::time::Duration;
 
@@ -27,7 +26,7 @@ pub mod experimental {
     use reth_primitives::TransactionSignedNoHash as RethTransactionSignedNoHash;
     use sov_evm::{CallMessage, Evm, RlpEvmTransaction};
     use sov_modules_api::transaction::Transaction;
-    use sov_modules_api::{DaSpec, EncodeCall, PrivateKey, WorkingSet};
+    use sov_modules_api::EncodeCall;
     use sov_modules_rollup_blueprint::{Rollup, RollupBlueprint};
     use sov_modules_stf_blueprint::{Batch, RawTx};
     use sov_rollup_interface::services::da::DaService;
@@ -146,18 +145,15 @@ pub mod experimental {
             &mut self,
             channel: oneshot::Sender<SocketAddr>,
         ) -> Result<(), anyhow::Error> {
-            println!("7");
             self.rollup
                 .runner
                 .start_rpc_server(self.rollup.rpc_methods.clone(), Some(channel))
                 .await;
-            println!("8");
 
             loop {
                 tokio::time::sleep(Duration::from_millis(100)).await;
 
                 if let Ok(Some(resp)) = self.receiver.try_next() {
-                    println!("9");
                     let mut rlp_txs = vec![];
                     // TODO: Open an issue about a better batch building algorithm
                     let mut mem = self.mempool.lock().await;
@@ -167,20 +163,14 @@ pub mod experimental {
                     }
                     core::mem::drop(mem);
 
-                    if rlp_txs.is_empty() {
-                        continue;
-                    }
-
-                    println!("txs from mempool: {:?}", rlp_txs);
+                    // TODO: Do we create empty blocks?
+                    // if rlp_txs.is_empty() {
+                    //     continue;
+                    // }
 
                     info!("evm txs count: {}", rlp_txs.len());
 
                     info!("these txs are: {:?}", rlp_txs);
-                    //batch_txs.push()
-                    // let rlp_txs = batch_txs
-                    //     .iter()
-                    //     .map(|x| RlpEvmTransaction { rlp: x.clone() })
-                    //     .collect();
 
                     let call_txs = CallMessage { txs: rlp_txs };
                     let raw_message =
@@ -194,29 +184,17 @@ pub mod experimental {
                             data: signed_blob.clone(),
                         }],
                     };
-                    // let hash = self.da_service.hash_blob(signed_blob.as_slice()).unwrap();
-                    // let mut blobz = self
-                    //     .da_service
-                    //     .convert_to_transaction(signed_blob.as_slice(), hash)
-                    //     .unwrap();
-                    // self.rollup.lock().unwrap().runner.process(&mut blobz.0);
 
                     // TODO: Handle error
                     self.rollup
                         .runner
                         .process(&batch.try_to_vec().unwrap())
                         .await?;
-                    println!("processedddddd");
-                    // if no error save blob to ledger db
                 }
             }
 
             Ok(())
         }
-
-        // fn add_tx(&self, tx: Vec<u8>) {
-        //     self.mempool.lock().unwrap().push_back(tx);
-        // }
 
         /// Signs batch of messages with sovereign priv key turns them into a sov blob
         /// Returns a single sovereign transaction made up of multiple ethereum transactions
@@ -247,7 +225,6 @@ pub mod experimental {
 
                     // I hade to make mempool arc mutex because otherwise I could not mutate chainway sequencer
                     mempool.0.lock().await.pool.push_back(raw_evm_tx);
-                    println!("MEMPOOL: {:?}", mempool.0.lock().await.pool);
 
                     Ok::<H256, ErrorObjectOwned>(h)
                 },
@@ -255,7 +232,6 @@ pub mod experimental {
             // let sc_sender = self.sender.clone();
             rpc.register_async_method("eth_publishBatch", |parameters, mempool| async move {
                 //     sc_sender.unbounded_send("a".to_string()).unwrap();
-                println!("PUBLISHING BATCH");
                 mempool.1.unbounded_send("msg".to_string()).unwrap();
                 Ok::<(), ErrorObjectOwned>(())
             })?;
@@ -264,39 +240,6 @@ pub mod experimental {
         }
     }
 
-    // pub fn rollup_process<S: RollupBlueprint>(rollup: &mut Rollup<S>, signed_blob) {}
-
-    // async fn apply_transactions<S>(rollup: &mut Rollup<S>)
-    // where
-    //     S: RollupBlueprint,
-    // {
-    //     // get transactions from somewhere
-    //     let mut a = vec![];
-    //     rollup.runner.process(&mut a);
-    // }
-
-    // fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint>(
-    //     rpc: &mut RpcModule<ChainwaySequencer<C, Da, S>>,
-    // ) -> Result<(), jsonrpsee::core::Error> {
-    //     // rpc.register_async_method(
-    //     //     "eth_sendRawTransaction",
-    //     //     |parameters, chainway_sequencer| async move {
-    //     //         let data: Bytes = parameters.one().unwrap();
-
-    //     //         let raw_evm_tx = RlpEvmTransaction { rlp: data.to_vec() };
-    //     //         // I hade to make mempool arc mutex because otherwise I could not mutate chainway sequencer
-    //     //         chainway_sequencer.add_tx(raw_evm_tx.rlp);
-
-    //     //         Ok::<_, ErrorObjectOwned>(data)
-    //     //     },
-    //     // )?;
-    //     // // Query sov-txs in state
-    //     // rpc.register_async_method(
-    //     //     "cw_getSoftConfirmation",
-    //     //     |parameters, chainway_sequencer| async move { Ok::<_, ErrorObjectOwned>(()) },
-    //     // )?;
-    //     Ok(())
-    // }
     fn get_tx_hash(raw_tx: &RlpEvmTransaction) -> Result<H256, jsonrpsee::core::Error> {
         let signed_transaction: RethTransactionSignedNoHash = raw_tx.clone().try_into()?;
 

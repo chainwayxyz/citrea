@@ -64,7 +64,6 @@ impl<T: TestContract> TestClient<T> {
         &self,
     ) -> Result<PendingTransaction<'_, Http>, Box<dyn std::error::Error>> {
         let nonce = self.eth_get_transaction_count(self.from_addr).await;
-        println!("nonce: {}", nonce);
         let req = Eip1559TransactionRequest::new()
             .from(self.from_addr)
             .chain_id(self.chain_id)
@@ -80,7 +79,6 @@ impl<T: TestContract> TestClient<T> {
             .client
             .send_transaction(typed_transaction, None)
             .await?;
-        println!("receipt_req: {:?}", receipt_req);
         Ok(receipt_req)
     }
 
@@ -122,7 +120,10 @@ impl<T: TestContract> TestClient<T> {
 
         let typed_transaction = TypedTransaction::Eip1559(req);
 
-        self.eth_send_transaction(typed_transaction).await
+        self.client
+            .send_transaction(typed_transaction, None)
+            .await
+            .unwrap()
     }
 
     pub(crate) async fn set_value_unsigned(
