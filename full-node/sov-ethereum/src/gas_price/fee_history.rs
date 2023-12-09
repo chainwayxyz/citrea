@@ -131,7 +131,7 @@ impl<C: sov_modules_api::Context> FeeHistoryCache<C> {
             }
         }
 
-        // Get blocks from cache and receipts from rpc
+        // Get blocks from cache (fallback rpc) and receipts from rpc
         let blocks_with_receipts = empty_blocks.clone().into_iter().filter_map(|block_number| {
             self.block_cache
                 .get_block_with_receipts(block_number, working_set)

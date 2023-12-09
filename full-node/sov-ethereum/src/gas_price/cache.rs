@@ -35,6 +35,10 @@ impl<C: sov_modules_api::Context> BlockCache<C> {
         let mut cache = self.cache.lock().unwrap();
         let mut number_to_hash = self.number_to_hash.lock().unwrap();
         if let Some(block) = cache.get(&block_hash) {
+            // Even though block is in cache, ask number_to_hash to keep it in sync
+            let number =
+                convert_u256_to_u64(block.header.number.unwrap_or_default()).unwrap_or_default();
+            number_to_hash.get(&number);
             return Ok(Some(block.clone()));
         }
 
@@ -62,11 +66,11 @@ impl<C: sov_modules_api::Context> BlockCache<C> {
         block_number: u64,
         working_set: &mut WorkingSet<C>,
     ) -> EthResult<Option<Rich<Block>>> {
+        let mut number_to_hash = self.number_to_hash.lock().unwrap();
+        let mut cache = self.cache.lock().unwrap();
         // Check if block is in cache
-        if let Some(block_hash) = self.number_to_hash.lock().unwrap().get(&block_number) {
-            return Ok(Some(
-                self.cache.lock().unwrap().get(block_hash).unwrap().clone(),
-            ));
+        if let Some(block_hash) = number_to_hash.get(&block_number) {
+            return Ok(Some(cache.get(block_hash).unwrap().clone()));
         }
 
         // block_number to hex string
@@ -84,10 +88,7 @@ impl<C: sov_modules_api::Context> BlockCache<C> {
                 convert_u256_to_u64(block.header.number.unwrap_or_default()).unwrap_or_default();
             let hash = block.header.hash.unwrap_or_default();
 
-            let mut number_to_hash = self.number_to_hash.lock().unwrap();
             number_to_hash.insert(number, hash);
-
-            let mut cache = self.cache.lock().unwrap();
             cache.insert(hash, block.clone());
         }
 
@@ -102,6 +103,7 @@ impl<C: sov_modules_api::Context> BlockCache<C> {
         // if height not in cache, get hash from provider and call get_block
         let block = self.get_block_by_number(block_number, working_set)?;
         if let Some(block) = block {
+            // Receipts are not added to cache but their fee history is will be kept in cache in fee_history.rs
             let receipts: Vec<TransactionReceipt> = match &block.transactions {
                 BlockTransactions::Full(transactions) => {
                     transactions
