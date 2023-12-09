@@ -34,9 +34,9 @@ struct Args {
     #[arg(long, default_value = "rollup_config.toml")]
     rollup_config_path: String,
 
-    /// Node type as str
-    #[arg(long, default_value = "full")]
-    node_type: String,
+    /// If set, runs the node in sequencer mode, otherwise in full node mode.
+    #[arg(long, default_value = false)]
+    sequence: bool,
 }
 
 #[tokio::main]
@@ -68,7 +68,7 @@ async fn main() -> Result<(), anyhow::Error> {
             )
             .await?;
 
-            if args.node_type == "sequencer" {
+            if args.sequence {
                 let rollup_config: RollupConfig<DaServiceConfig> =
                     from_toml_path(rollup_config_path)
                         .context("Failed to read rollup configuration")?;
