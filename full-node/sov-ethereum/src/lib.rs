@@ -223,6 +223,20 @@ pub mod experimental {
             Ok::<U256, ErrorObjectOwned>(price)
         })?;
 
+        rpc.register_async_method("eth_maxFeePerGas", |_, ethereum| async move {
+            let max_fee_per_gas = {
+                let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
+
+                ethereum
+                    .gas_price_oracle
+                    .suggest_tip_cap(&mut working_set)
+                    .await
+                    .unwrap()
+            };
+
+            Ok::<U256, ErrorObjectOwned>(max_fee_per_gas)
+        })?;
+
         rpc.register_async_method("eth_feeHistory", |params, ethereum| async move {
             info!("eth module: eth_feeHistory");
             let (block_count, newest_block, reward_percentiles): (

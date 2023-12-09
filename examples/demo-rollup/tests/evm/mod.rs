@@ -5,7 +5,7 @@ use std::str::FromStr;
 
 use demo_stf::genesis_config::GenesisPaths;
 use ethers_core::abi::Address;
-use ethers_core::types::U256;
+use ethers_core::types::{BlockId, U256};
 use ethers_signers::{LocalWallet, Signer};
 use reqwest::Client;
 use sov_evm::{SimpleStorageContract, TestContract};
@@ -245,6 +245,29 @@ async fn execute<T: TestContract>(
         set_value_req.await.unwrap().unwrap().transaction_hash
     };
 
+    // Now we have a second block
+    let second_block = client.eth_get_block_by_number(Some("2".to_owned())).await;
+    assert_eq!(second_block.number.unwrap().as_u64(), 2);
+
+    // Assert getTransactionByBlockHashAndIndex
+    let tx_by_hash = client
+        .eth_get_tx_by_block_hash_and_index(
+            second_block.hash.unwrap(),
+            ethereum_types::U256::from(0),
+        )
+        .await;
+    assert_eq!(tx_by_hash.hash, tx_hash);
+
+    // Assert getTransactionByBlockNumberAndIndex
+    let tx_by_number = client
+        .eth_get_tx_by_block_number_and_index("0x2".to_string(), ethereum_types::U256::from(0))
+        .await;
+    let tx_by_number_tag = client
+        .eth_get_tx_by_block_number_and_index("latest".to_string(), ethereum_types::U256::from(0))
+        .await;
+    assert_eq!(tx_by_number.hash, tx_hash);
+    assert_eq!(tx_by_number_tag.hash, tx_hash);
+
     let get_arg = client.query_contract(contract_address).await?;
     assert_eq!(set_arg, get_arg.as_u32());
 
@@ -305,6 +328,14 @@ async fn execute<T: TestContract>(
         let latest_block = client.eth_get_block_by_number(None).await;
         assert_eq!(latest_block.transactions.len(), 1);
         assert_eq!(latest_block.transactions[0], tx_hash);
+
+        let latest_block_receipts = client
+            .eth_get_block_receipts(BlockId::Number(ethers_core::types::BlockNumber::Latest))
+            .await;
+        assert_eq!(latest_block_receipts.len(), 1);
+        assert_eq!(latest_block_receipts[0].transaction_hash, tx_hash);
+        let tx_receipt = client.eth_get_transaction_receipt(tx_hash).await.unwrap();
+        assert_eq!(tx_receipt, latest_block_receipts[0]);
 
         let get_arg = client.query_contract(contract_address).await?;
         assert_eq!(value, get_arg.as_u32());
