@@ -6,7 +6,9 @@ use jsonrpsee::core::RpcResult;
 use reth_interfaces::provider::ProviderError;
 use reth_primitives::contract::create_address;
 use reth_primitives::TransactionKind::{Call, Create};
-use reth_primitives::{BlockNumberOrTag, TransactionSignedEcRecovered, U128, U256};
+use reth_primitives::{
+    BlockId, BlockNumberOrTag, SealedHeader, TransactionSignedEcRecovered, U128, U256,
+};
 use revm::primitives::{
     EVMError, ExecutionResult, Halt, InvalidTransaction, TransactTo, KECCAK_EMPTY,
 };
@@ -162,7 +164,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     .expect("Block must be set")
             }
             BlockId::Number(block_number) => {
-                self.get_sealed_block_by_number(Some(block_number.to_string()), working_set)
+                self.get_sealed_block_by_number(Some(block_number), working_set)
             }
         };
 
