@@ -1,18 +1,21 @@
 use std::net::SocketAddr;
 
+use chainway_sequencer::experimental::ChainwaySequencer;
 use demo_stf::genesis_config::GenesisPaths;
 use sov_demo_rollup::MockDemoRollup;
-use sov_mock_da::{MockAddress, MockDaConfig};
-use sov_modules_rollup_blueprint::{RollupBlueprint, RollupProverConfig};
-use sov_stf_runner::{RollupConfig, RpcConfig, RunnerConfig, StorageConfig};
+use sov_mock_da::{MockAddress, MockDaConfig, MockDaService};
+use sov_modules_api::default_context::DefaultContext;
+use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
+use sov_modules_rollup_blueprint::RollupBlueprint;
+use sov_stf_runner::{RollupConfig, RollupProverConfig, RpcConfig, RunnerConfig, StorageConfig};
 use tokio::sync::oneshot;
-use tokio::task::JoinHandle;
 
 pub async fn start_rollup(
     rpc_reporting_channel: oneshot::Sender<SocketAddr>,
     genesis_paths: GenesisPaths,
-    rollup_prover_config: Option<RollupProverConfig>,
+    rollup_prover_config: RollupProverConfig,
 ) {
+    println!("2");
     let temp_dir = tempfile::tempdir().unwrap();
     let temp_path = temp_dir.path();
 
@@ -34,35 +37,28 @@ pub async fn start_rollup(
     };
 
     let mock_demo_rollup = MockDemoRollup {};
-
+    println!("3");
     let rollup = mock_demo_rollup
         .create_new_rollup(&genesis_paths, rollup_config, rollup_prover_config)
         .await
         .unwrap();
-
-    rollup
-        .run_and_report_rpc_port(Some(rpc_reporting_channel))
-        .await
-        .unwrap();
+    // ssequencer'a pasla run de
+    println!("4");
+    let da_service = MockDaService::new(MockAddress::new([0u8; 32]));
+    let mut cs: ChainwaySequencer<DefaultContext, MockDaService, _> = ChainwaySequencer::new(
+        rollup,
+        da_service,
+        DefaultPrivateKey::from_hex(
+            "1212121212121212121212121212121212121212121212121212121212121212",
+        )
+        .unwrap(),
+        0,
+    );
+    println!("5");
+    cs.register_rpc_methods().unwrap();
+    cs.run(rpc_reporting_channel).await.unwrap();
+    println!("6");
 
     // Close the tempdir explicitly to ensure that rustc doesn't see that it's unused and drop it unexpectedly
     temp_dir.close().unwrap();
-}
-
-pub async fn create_and_start_rollup() -> (JoinHandle<()>, SocketAddr) {
-    let (port_tx, port_rx) = tokio::sync::oneshot::channel();
-
-    let rollup_task: tokio::task::JoinHandle<()> = tokio::spawn(async {
-        // Don't provide a prover since the EVM is not currently provable
-        start_rollup(
-            port_tx,
-            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
-            None,
-        )
-        .await;
-    });
-
-    // Wait for rollup task to start:
-    let port = port_rx.await.unwrap();
-    (rollup_task, port)
 }

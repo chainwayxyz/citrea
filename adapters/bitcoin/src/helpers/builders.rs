@@ -565,14 +565,14 @@ mod tests {
             },
         ];
 
-        return (
+        (
             rollup_name,
             body,
             signature,
             sequencer_public_key,
             address,
             utxos,
-        );
+        )
     }
 
     #[test]
@@ -796,7 +796,7 @@ mod tests {
         )
         .unwrap();
 
-        tx.input[0].witness.push(&[0; SCHNORR_SIGNATURE_SIZE]);
+        tx.input[0].witness.push([0; SCHNORR_SIGNATURE_SIZE]);
         tx.input[0].witness.push(script.clone());
         tx.input[0].witness.push(control_block.serialize());
 

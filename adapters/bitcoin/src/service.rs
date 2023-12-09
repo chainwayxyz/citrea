@@ -2,15 +2,17 @@ use core::result::Result::Ok;
 use core::str::FromStr;
 use core::time::Duration;
 
+// use std::sync::Arc;
 use async_trait::async_trait;
 use bitcoin::address::NetworkUnchecked;
 use bitcoin::consensus::encode;
 use bitcoin::ecdsa::Signature;
 use bitcoin::hashes::{sha256d, Hash};
 use bitcoin::secp256k1::SecretKey;
-use bitcoin::Address;
+use bitcoin::{Address, Txid};
 use hex::ToHex;
 use serde::{Deserialize, Serialize};
+use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::services::da::DaService;
 use tracing::info;
 
@@ -22,6 +24,7 @@ use crate::helpers::parsers::parse_transaction;
 use crate::rpc::{BitcoinNode, RPCError};
 use crate::spec::blob::BlobWithSender;
 use crate::spec::block::BitcoinBlock;
+use crate::spec::header_stream::BitcoinHeaderStream;
 use crate::spec::proof::InclusionMultiProof;
 use crate::spec::utxo::UTXO;
 use crate::spec::{BitcoinSpec, RollupParams};
@@ -127,7 +130,7 @@ impl BitcoinService {
         &self,
         blob: &[u8],
         fee_sat_per_vbyte: f64,
-    ) -> Result<(), anyhow::Error> {
+    ) -> Result<<Self as DaService>::TransactionId, anyhow::Error> {
         let client = self.client.clone();
 
         let blob = blob.to_vec();
@@ -189,7 +192,8 @@ impl BitcoinService {
 
         info!("Blob inscribe tx sent. Hash: {}", reveal_tx_hash);
 
-        Ok(())
+        Ok(Txid::from_str(&reveal_tx_hash.as_str())
+            .expect("Failed to parse txid from reveal tx hash"))
     }
 
     pub async fn get_fee_rate(&self) -> Result<f64, anyhow::Error> {
@@ -210,30 +214,11 @@ impl DaService for BitcoinService {
 
     type FilteredBlock = BitcoinBlock;
 
+    type HeaderStream = BitcoinHeaderStream;
+
+    type TransactionId = Txid;
+
     type Error = anyhow::Error;
-
-    // Make an RPC call to the node to get the finalized block at the given height, if one exists.
-    // If no such block exists, block until one does.
-    async fn get_finalized_at(&self, height: u64) -> Result<Self::FilteredBlock, Self::Error> {
-        let client = self.client.clone();
-        info!("Getting finalized block at height {}", height);
-        loop {
-            let block_count = client.get_block_count().await?;
-
-            // if at least `FINALITY_DEPTH` blocks are mined, we can be sure that the block is finalized
-            if block_count >= height + FINALITY_DEPTH {
-                break;
-            }
-
-            info!("Block not finalized, waiting");
-            tokio::time::sleep(Duration::from_secs(POLLING_INTERVAL)).await;
-        }
-
-        let block_hash = client.get_block_hash(height).await?;
-        let block: BitcoinBlock = client.get_block(block_hash).await?;
-
-        Ok(block)
-    }
 
     // Make an RPC call to the node to get the block at the given height
     // If no such block exists, block until one does.
@@ -269,6 +254,37 @@ impl DaService for BitcoinService {
         let block = client.get_block(block_hash).await?;
 
         Ok(block)
+    }
+
+    // Fetch the [`DaSpec::BlockHeader`] of the last finalized block.
+    async fn get_last_finalized_block_header(
+        &self,
+    ) -> Result<<Self::Spec as DaSpec>::BlockHeader, Self::Error> {
+        let block_count = self.client.get_block_count().await?;
+
+        let finalized_blockhash = self
+            .client
+            .get_block_hash(block_count - FINALITY_DEPTH)
+            .await?;
+
+        let finalized_block_header = self.client.get_block_header(finalized_blockhash).await?;
+
+        Ok(finalized_block_header)
+    }
+
+    async fn subscribe_finalized_header(&self) -> Result<Self::HeaderStream, Self::Error> {
+        unimplemented!()
+    }
+
+    // Fetch the head block of DA.
+    async fn get_head_block_header(
+        &self,
+    ) -> Result<<Self::Spec as DaSpec>::BlockHeader, Self::Error> {
+        let best_blockhash = self.client.get_best_blockhash().await?;
+
+        let head_block_header = self.client.get_block_header(best_blockhash).await?;
+
+        Ok(head_block_header)
     }
 
     // Extract the blob transactions relevant to a particular rollup from a block.
@@ -367,7 +383,10 @@ impl DaService for BitcoinService {
         (txs, inclusion_proof, completeness_proof)
     }
 
-    async fn send_transaction(&self, blob: &[u8]) -> Result<(), Self::Error> {
+    async fn send_transaction(
+        &self,
+        blob: &[u8],
+    ) -> Result<<Self as DaService>::TransactionId, Self::Error> {
         let fee_sat_per_vbyte = self.get_fee_rate().await?;
         self.send_transaction_with_fee_rate(blob, fee_sat_per_vbyte)
             .await
@@ -404,9 +423,10 @@ mod tests {
     use bitcoin::hashes::{sha256d, Hash};
     use bitcoin::secp256k1::KeyPair;
     use bitcoin::{merkle_tree, Address, Txid};
+    // use futures::{Stream, StreamExt};
     use sov_rollup_interface::services::da::DaService;
 
-    use super::BitcoinService;
+    use super::{BitcoinService, FINALITY_DEPTH};
     use crate::helpers::parsers::parse_transaction;
     use crate::rpc::BitcoinNode;
     use crate::service::DaServiceConfig;
@@ -452,15 +472,83 @@ mod tests {
         .await
     }
 
+    // #[tokio::test]
+    // async fn get_finalized_at() {
+    //     let da_service = get_service().await;
+    //
+    //     da_service
+    //         .get_finalized_at(132)
+    //         .await
+    //         .expect("Failed to get block");
+    // }
+
     #[tokio::test]
-    async fn get_finalized_at() {
+    async fn get_finalized_header() {
         let da_service = get_service().await;
 
-        da_service
-            .get_finalized_at(132)
+        let get_curr_header = da_service
+            .get_last_finalized_block_header()
             .await
             .expect("Failed to get block");
+
+        let get_head_header = da_service
+            .get_head_block_header()
+            .await
+            .expect("Failed to get block");
+
+        assert_ne!(get_curr_header, get_head_header);
+
+        let _new_block_hashes = da_service
+            .client
+            .generate_to_address(
+                Address::from_str("bcrt1qxuds94z3pqwqea2p4f4ev4f25s6uu7y3avljrl")
+                    .unwrap()
+                    .require_network(bitcoin::Network::Regtest)
+                    .unwrap(),
+                FINALITY_DEPTH as u32,
+            )
+            .await
+            .unwrap();
+
+        let new_finalized_header = da_service
+            .get_last_finalized_block_header()
+            .await
+            .expect("Failed to get block");
+
+        assert_eq!(get_head_header, new_finalized_header);
     }
+
+    // #[tokio::test]
+    // async fn subscription_test() {
+    //     // Setup and get the service
+    //     let service = get_service().await;
+
+    //     // Subscribe to the stream
+    //     let mut stream = service.subscribe_finalized_header().await.unwrap();
+    //     println!("Subscribed to finalized header stream");
+
+    //     // Generate a new block and wait for the operation to complete
+    //     service
+    //         .client
+    //         .generate_to_address(
+    //             Address::from_str("bcrt1qxuds94z3pqwqea2p4f4ev4f25s6uu7y3avljrl")
+    //                 .unwrap()
+    //                 .require_network(bitcoin::Network::Regtest)
+    //                 .unwrap(),
+    //             1,
+    //         )
+    //         .await
+    //         .unwrap();
+    //     println!("Generated a new block");
+
+    //     // Await the next item from the stream
+    //     if let Some(header_result) = stream.next().await {
+    //         println!("Got header: {:?}", header_result);
+    //         assert!(header_result.is_ok());
+    //     } else {
+    //         panic!("Failed to receive header from stream");
+    //     }
+    // }
 
     #[tokio::test]
     async fn get_block_at() {

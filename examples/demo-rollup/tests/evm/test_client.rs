@@ -53,7 +53,7 @@ impl<T: TestContract> TestClient<T> {
     }
 
     pub(crate) async fn send_publish_batch_request(&self) {
-        let _: String = self
+        let _: () = self
             .http_client
             .request("eth_publishBatch", rpc_params![])
             .await
@@ -64,6 +64,7 @@ impl<T: TestContract> TestClient<T> {
         &self,
     ) -> Result<PendingTransaction<'_, Http>, Box<dyn std::error::Error>> {
         let nonce = self.eth_get_transaction_count(self.from_addr).await;
+        println!("nonce: {}", nonce);
         let req = Eip1559TransactionRequest::new()
             .from(self.from_addr)
             .chain_id(self.chain_id)
@@ -79,7 +80,7 @@ impl<T: TestContract> TestClient<T> {
             .client
             .send_transaction(typed_transaction, None)
             .await?;
-
+        println!("receipt_req: {:?}", receipt_req);
         Ok(receipt_req)
     }
 
@@ -343,6 +344,13 @@ impl<T: TestContract> TestClient<T> {
     ) -> Block<Transaction> {
         self.http_client
             .request("eth_getBlockByNumber", rpc_params![block_number, true])
+            .await
+            .unwrap()
+    }
+
+    pub(crate) async fn eth_get_transaction_by_hash(&self, tx_hash: TxHash) -> Option<Transaction> {
+        self.http_client
+            .request("eth_getTransactionByHash", rpc_params![tx_hash])
             .await
             .unwrap()
     }

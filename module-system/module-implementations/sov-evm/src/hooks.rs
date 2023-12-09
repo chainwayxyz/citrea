@@ -1,4 +1,5 @@
 use reth_primitives::{Bloom, Bytes, H256, U256};
+use sov_modules_api::prelude::*;
 use sov_modules_api::{AccessoryWorkingSet, Spec, WorkingSet};
 use sov_state::Storage;
 
@@ -86,6 +87,7 @@ where
 
         let pending_transactions: Vec<PendingTransaction> =
             self.pending_transactions.iter(working_set).collect();
+        println!("pending_transactions: {:?}", pending_transactions);
 
         self.pending_transactions.clear(working_set);
 

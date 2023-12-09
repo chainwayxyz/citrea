@@ -13,6 +13,7 @@ pub mod blob;
 pub mod block;
 mod block_hash;
 pub mod header;
+pub mod header_stream;
 pub mod proof;
 pub mod transaction;
 pub mod utxo;

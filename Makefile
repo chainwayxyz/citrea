@@ -13,7 +13,7 @@ test-legacy: ## Runs test suite with output from tests printed
 	@cargo test -- --nocapture -Zunstable-options --report-time
 
 test:  ## Runs test suite using next test
-	@cargo nextest run --workspace --all-features
+	@cargo nextest run --workspace --all-features --no-fail-fast
 
 install-dev-tools:  ## Installs all necessary cargo helpers
 	cargo install cargo-llvm-cov
@@ -64,3 +64,6 @@ dry-run-publish:
 
 docs:  ## Generates documentation locally
 	cargo doc --open
+
+set-git-hook: 
+	git config core.hooksPath .githooks

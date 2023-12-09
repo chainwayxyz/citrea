@@ -1,11 +1,10 @@
 use std::net::SocketAddr;
+use std::time::Duration;
 
 use borsh::BorshSerialize;
 use jsonrpsee::RpcModule;
 use sov_db::ledger_db::{LedgerDB, SlotCommit};
-use sov_modules_stf_template::{Batch, RawTx};
-use sov_rollup_interface::da::BlobReaderTrait;
-use sov_rollup_interface::da::DaSpec;
+use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::StorageManager;
@@ -18,17 +17,18 @@ use crate::scc::SoftConfirmationClient;
 use crate::verifier::StateTransitionVerifier;
 use crate::RunnerConfig;
 
+use crate::{ProofSubmissionStatus, ProverService, RunnerConfig, StateTransitionData};
 type StateRoot<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::StateRoot;
 type InitialState<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::GenesisParams;
 
 /// Combines `DaService` with `StateTransitionFunction` and "runs" the rollup.
-pub struct StateTransitionRunner<Stf, Sm, Da, Vm, V>
+pub struct StateTransitionRunner<Stf, Sm, Da, Vm, Ps>
 where
     Da: DaService,
     Vm: ZkvmHost,
     Sm: StorageManager,
     Stf: StateTransitionFunction<Vm, Da::Spec, Condition = <Da::Spec as DaSpec>::ValidityCondition>,
-    V: StateTransitionFunction<Vm::Guest, Da::Spec>,
+    Ps: ProverService,
 {
     start_height: u64,
     da_service: Da,
@@ -37,8 +37,7 @@ where
     ledger_db: LedgerDB,
     state_root: StateRoot<Stf, Vm, Da::Spec>,
     listen_address: SocketAddr,
-    prover: Option<Prover<V, Da, Vm>>,
-    zk_storage: V::PreState,
+    prover_service: Ps,
     soft_confirmation_client: Option<SoftConfirmationClient>,
 }
 
@@ -47,6 +46,8 @@ pub enum ProofGenConfig<Stf, Da: DaService, Vm: ZkvmHost>
 where
     Stf: StateTransitionFunction<Vm::Guest, Da::Spec>,
 {
+    /// Skips proving.
+    Skip,
     /// The simulator runs the rollup verifier logic without even emulating the zkVM
     Simulate(StateTransitionVerifier<Stf, Da::Verifier, Vm::Guest>),
     /// The executor runs the rollup verification logic in the zkVM, but does not actually
@@ -56,18 +57,7 @@ where
     Prover,
 }
 
-/// A prover for the demo rollup. Consists of a VM and a config
-pub struct Prover<Stf, Da: DaService, Vm: ZkvmHost>
-where
-    Stf: StateTransitionFunction<Vm::Guest, Da::Spec>,
-{
-    /// The Zkvm Host to use
-    pub vm: Vm,
-    /// The prover configuration
-    pub config: ProofGenConfig<Stf, Da, Vm>,
-}
-
-impl<Stf, Sm, Da, Vm, V, Root, Witness> StateTransitionRunner<Stf, Sm, Da, Vm, V>
+impl<Stf, Sm, Da, Vm, Ps> StateTransitionRunner<Stf, Sm, Da, Vm, Ps>
 where
     Da: DaService<Error = anyhow::Error> + Clone + Send + Sync + 'static,
     Vm: ZkvmHost,
@@ -79,8 +69,8 @@ where
         PreState = Sm::NativeStorage,
         ChangeSet = Sm::NativeChangeSet,
     >,
-    V: StateTransitionFunction<Vm::Guest, Da::Spec, StateRoot = Root, Witness = Witness>,
-    V::PreState: Clone,
+
+    Ps: ProverService<StateRoot = Stf::StateRoot, Witness = Stf::Witness, DaService = Da>,
 {
     /// Creates a new `StateTransitionRunner`.
     ///
@@ -96,8 +86,7 @@ where
         storage_manager: Sm,
         prev_state_root: Option<StateRoot<Stf, Vm, Da::Spec>>,
         genesis_config: InitialState<Stf, Vm, Da::Spec>,
-        prover: Option<Prover<V, Da, Vm>>,
-        zk_storage: V::PreState,
+        prover_service: Ps,
         scc_config: Option<SequencerRpcConfig>,
     ) -> Result<Self, anyhow::Error> {
         let rpc_config = runner_config.rpc_config;
@@ -141,8 +130,7 @@ where
             ledger_db,
             state_root: prev_state_root,
             listen_address,
-            prover,
-            zk_storage,
+            prover_service,
             soft_confirmation_client,
         })
     }
@@ -174,16 +162,20 @@ where
     /// Processes sequence
     /// gets a blob of txs as parameter
     pub async fn process(&mut self, blob: &[u8]) -> Result<(), anyhow::Error> {
+        println!("blob: {:?}", blob);
         let pre_state = self.storage_manager.get_native_storage();
+        println!("got pre_state ");
         let filtered_block: <Da as DaService>::FilteredBlock =
-            self.da_service.get_finalized_at(self.start_height).await?;
+            self.da_service.get_block_at(2u64).await?;
+        println!("got filtered_block ");
         let blobz = self.da_service.convert_to_transaction(blob).unwrap();
+        println!("got blobz ");
 
-        // info!(
-        //     "sequencer={} blob_hash=0x{}",
-        //     blobz.0.sender(),
-        //     hex::encode(blobz.0.hash())
-        // );
+        info!(
+            "sequencer={} blob_hash=0x{}",
+            blobz.0.sender(),
+            hex::encode(blobz.0.hash())
+        );
 
         let slot_result = self.stf.apply_slot(
             &self.state_root,
@@ -194,14 +186,23 @@ where
             &mut vec![blobz.0],
         );
         debug!("slot_result: {:?}", slot_result.batch_receipts.len());
+        println!("slot_result: {:?}", slot_result.batch_receipts.len());
 
         let mut data_to_commit = SlotCommit::new(filtered_block.clone());
         for receipt in slot_result.batch_receipts {
             data_to_commit.add_batch(receipt);
         }
+        println!("added batch");
         let next_state_root = slot_result.state_root;
+        let pre_head_slot = self.ledger_db.get_head_slot()?;
+        println!("pre_head_slot: {:?}", pre_head_slot);
         self.ledger_db.commit_slot(data_to_commit)?;
+        let head_slot = self.ledger_db.get_head_slot()?;
+        println!("head_slot: {:?}", head_slot);
+        println!("Committed slot");
+        println!("state_root: {:?}", next_state_root);
         self.state_root = next_state_root;
+
         Ok(())
     }
 
@@ -264,6 +265,51 @@ where
             for receipt in slot_result.batch_receipts {
                 data_to_commit.add_batch(receipt);
             }
+
+            // let (inclusion_proof, completeness_proof) = self
+            //     .da_service
+            //     .get_extraction_proof(&filtered_block, &blobs)
+            //     .await;
+
+            // let transition_data: StateTransitionData<Stf::StateRoot, Stf::Witness, Da::Spec> =
+            //     StateTransitionData {
+            //         pre_state_root: self.state_root.clone(),
+            //         da_block_header: filtered_block.header().clone(),
+            //         inclusion_proof,
+            //         completeness_proof,
+            //         blobs,
+            //         state_transition_witness: slot_result.witness,
+            //     };
+
+            // // Create ZKP proof.
+            // {
+            //     let header_hash = transition_data.da_block_header.hash();
+            //     self.prover_service.submit_witness(transition_data).await;
+            //     // TODO(#1185): This section will be moved and called upon block finalization once we have fork management ready.
+            //     self.prover_service
+            //         .prove(header_hash.clone())
+            //         .await
+            //         .expect("The proof creation should succeed");
+
+            //     loop {
+            //         let status = self
+            //             .prover_service
+            //             .send_proof_to_da(header_hash.clone())
+            //             .await;
+
+            //         match status {
+            //             Ok(ProofSubmissionStatus::Success) => {
+            //                 break;
+            //             }
+            //             // TODO(#1185): Add timeout handling.
+            //             Ok(ProofSubmissionStatus::ProofGenerationInProgress) => {
+            //                 tokio::time::sleep(tokio::time::Duration::from_millis(100)).await
+            //             }
+            //             // TODO(#1185): Add handling for DA submission errors.
+            //             Err(e) => panic!("{:?}", e),
+            //         }
+            //     }
+            // }
 
             let next_state_root = slot_result.state_root;
 

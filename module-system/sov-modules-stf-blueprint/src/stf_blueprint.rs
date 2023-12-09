@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
-use borsh::{BorshDeserialize, BorshSerialize};
-use sov_modules_api::capabilities::Kernel;
+use borsh::BorshDeserialize;
+use sov_modules_api::runtime::capabilities::Kernel;
 use sov_modules_api::{
     BasicAddress, BlobReaderTrait, Context, DaSpec, DispatchCall, StateCheckpoint,
 };
@@ -24,7 +24,7 @@ use sov_zk_cycle_macros::cycle_tracker;
 /// An implementation of the
 /// [`StateTransitionFunction`](sov_rollup_interface::stf::StateTransitionFunction)
 /// that is specifically designed to work with the module-system.
-pub struct AppTemplate<C: Context, Da: DaSpec, Vm, RT: Runtime<C, Da>, K: Kernel<C, Da>> {
+pub struct StfBlueprint<C: Context, Da: DaSpec, Vm, RT: Runtime<C, Da>, K: Kernel<C, Da>> {
     /// State storage used by the rollup.
     /// The runtime includes all the modules that the rollup supports.
     pub(crate) runtime: RT,
@@ -69,7 +69,7 @@ impl<A: BasicAddress> From<ApplyBatchError<A>> for BatchReceipt<SequencerOutcome
     }
 }
 
-impl<C, Vm, Da, RT, K> Default for AppTemplate<C, Da, Vm, RT, K>
+impl<C, Vm, Da, RT, K> Default for StfBlueprint<C, Da, Vm, RT, K>
 where
     C: Context,
     Da: DaSpec,
@@ -81,14 +81,14 @@ where
     }
 }
 
-impl<C, Vm, Da, RT, K> AppTemplate<C, Da, Vm, RT, K>
+impl<C, Vm, Da, RT, K> StfBlueprint<C, Da, Vm, RT, K>
 where
     C: Context,
     Da: DaSpec,
     RT: Runtime<C, Da>,
     K: Kernel<C, Da>,
 {
-    /// [`AppTemplate`] constructor.
+    /// [`StfBlueprint`] constructor.
     pub fn new() -> Self {
         Self {
             runtime: RT::default(),
@@ -166,6 +166,8 @@ where
             }
         };
 
+        println!("blob preprocessed");
+
         // Sanity check after pre processing
         assert_eq!(
             txs.len(),
@@ -178,6 +180,7 @@ where
         for (TransactionAndRawHash { tx, raw_tx_hash }, msg) in
             txs.into_iter().zip(messages.into_iter())
         {
+            println!("dispatching tx: {:?}", tx);
             // Pre dispatch hook
             let sender_address = match self.runtime.pre_dispatch_tx_hook(&tx, &mut batch_workspace)
             {
@@ -200,7 +203,7 @@ where
             // Commit changes after pre_dispatch_tx_hook
             batch_workspace = batch_workspace.checkpoint().to_revertable();
 
-            let ctx = C::new(sender_address.clone());
+            let ctx = C::new(sender_address.clone(), 1);
             let tx_result = self.runtime.dispatch_call(msg, &mut batch_workspace, &ctx);
 
             let events = batch_workspace.take_events();
