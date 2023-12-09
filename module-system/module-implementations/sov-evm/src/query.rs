@@ -268,6 +268,94 @@ impl<C: sov_modules_api::Context> Evm<C> {
         Ok(transaction)
     }
 
+    /// Handler for: `eth_getTransactionByBlockHashAndIndex`
+    #[rpc_method(name = "eth_getTransactionByBlockHashAndIndex")]
+    pub fn get_transaction_by_block_hash_and_index(
+        &self,
+        block_hash: reth_primitives::H256,
+        index: reth_primitives::U64,
+        working_set: &mut WorkingSet<C>,
+    ) -> RpcResult<Option<reth_rpc_types::Transaction>> {
+        info!("evm module: eth_getTransactionByBlockHashAndIndex");
+
+        let mut accessory_state = working_set.accessory_state();
+
+        let block_number = self
+            .block_hashes
+            .get(&block_hash, &mut accessory_state)
+            .expect("Block number for known block hash must be set");
+
+        let block = self
+            .blocks
+            .get(block_number as usize, &mut accessory_state)
+            .expect("Block must be set");
+
+        let tx_number = block.transactions.start + index.as_u64();
+
+        let tx = self
+            .transactions
+            .get(tx_number as usize, &mut accessory_state)
+            .expect("Transaction must be set");
+
+        let block = self
+            .blocks
+            .get(tx.block_number as usize, &mut accessory_state)
+            .expect("Block number for known transaction must be set");
+
+        let transaction = reth_rpc_types_compat::from_recovered_with_block_context(
+            tx.into(),
+            block.header.hash,
+            block.header.number,
+            block.header.base_fee_per_gas,
+            U256::from(tx_number - block.transactions.start),
+        );
+
+        Ok(Some(transaction))
+    }
+
+    /// Handler for: `eth_getTransactionByBlockNumberAndIndex`
+    #[rpc_method(name = "eth_getTransactionByBlockNumberAndIndex")]
+    pub fn get_transaction_by_block_number_and_index(
+        &self,
+        block_number: String,
+        index: reth_primitives::U64,
+        working_set: &mut WorkingSet<C>,
+    ) -> RpcResult<Option<reth_rpc_types::Transaction>> {
+        info!("evm module: eth_getTransactionByBlockNumberAndIndex");
+
+        let block_number = self.block_number_for_id(&block_number, working_set);
+
+        let block = self
+            .blocks
+            .get(
+                block_number.unwrap() as usize,
+                &mut working_set.accessory_state(),
+            )
+            .expect("Block must be set");
+
+        let tx_number = block.transactions.start + index.as_u64();
+
+        let tx = self
+            .transactions
+            .get(tx_number as usize, &mut working_set.accessory_state())
+            .expect("Transaction must be set");
+
+        let block = self
+            .blocks
+            .get(tx.block_number as usize, &mut working_set.accessory_state())
+            .expect("Block number for known transaction must be set");
+
+        let transaction = reth_rpc_types_compat::from_recovered_with_block_context(
+            tx.into(),
+            block.header.hash,
+            block.header.number,
+            block.header.base_fee_per_gas,
+            U256::from(tx_number - block.transactions.start),
+        );
+
+        Ok(Some(transaction))
+    }
+
     /// Handler for: `eth_getTransactionReceipt`
     // TODO https://github.com/Sovereign-Labs/sovereign-sdk/issues/502
     #[rpc_method(name = "eth_getTransactionReceipt")]

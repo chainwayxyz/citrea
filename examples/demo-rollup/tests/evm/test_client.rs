@@ -360,6 +360,34 @@ impl<T: TestContract> TestClient<T> {
             .unwrap()
     }
 
+    pub(crate) async fn eth_get_tx_by_block_hash_and_index(
+        &self,
+        block_hash: ethereum_types::H256,
+        index: ethereum_types::U256,
+    ) -> Transaction {
+        self.http_client
+            .request(
+                "eth_getTransactionByBlockHashAndIndex",
+                rpc_params![block_hash, index],
+            )
+            .await
+            .unwrap()
+    }
+
+    pub(crate) async fn eth_get_tx_by_block_number_and_index(
+        &self,
+        block_number: String,
+        index: ethereum_types::U256,
+    ) -> Transaction {
+        self.http_client
+            .request(
+                "eth_getTransactionByBlockNumberAndIndex",
+                rpc_params![block_number, index],
+            )
+            .await
+            .unwrap()
+    }
+
     pub(crate) async fn eth_call(
         &self,
         tx: TypedTransaction,

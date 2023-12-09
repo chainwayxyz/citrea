@@ -245,6 +245,29 @@ async fn execute<T: TestContract>(
         set_value_req.await.unwrap().unwrap().transaction_hash
     };
 
+    // Now we have a second block
+    let second_block = client.eth_get_block_by_number(Some("2".to_owned())).await;
+    assert_eq!(second_block.number.unwrap().as_u64(), 2);
+
+    // Assert getTransactionByBlockHashAndIndex
+    let tx_by_hash = client
+        .eth_get_tx_by_block_hash_and_index(
+            second_block.hash.unwrap(),
+            ethereum_types::U256::from(0),
+        )
+        .await;
+    assert_eq!(tx_by_hash.hash, tx_hash);
+
+    // Assert getTransactionByBlockNumberAndIndex
+    let tx_by_number = client
+        .eth_get_tx_by_block_number_and_index("0x2".to_string(), ethereum_types::U256::from(0))
+        .await;
+    let tx_by_number_tag = client
+        .eth_get_tx_by_block_number_and_index("latest".to_string(), ethereum_types::U256::from(0))
+        .await;
+    assert_eq!(tx_by_number.hash, tx_hash);
+    assert_eq!(tx_by_number_tag.hash, tx_hash);
+
     let get_arg = client.query_contract(contract_address).await?;
     assert_eq!(set_arg, get_arg.as_u32());
 
