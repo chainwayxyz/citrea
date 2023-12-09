@@ -2,59 +2,9 @@ use std::fs::File;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
-use anyhow::Context;
-use jsonrpsee::core::client::ClientT;
-use jsonrpsee::rpc_params;
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
 
-use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
-use serde_json::Value;
-#[derive(Debug, Clone)]
-pub struct SoftConfirmationClient {
-    /// Start height for soft confirmation
-    pub start_height: u64,
-    /// Config for soft confirmation
-    pub rpc_config: RpcConfig,
-    /// Client object for soft confirmation
-    pub client: HttpClient,
-}
-
-impl SoftConfirmationClient {
-    pub fn new(start_height: u64, rpc_config: RpcConfig) -> Self {
-        let client = HttpClientBuilder::default()
-            .build(format!("http://{}:{}", "192.168.1.35", 12345))
-            .unwrap();
-        Self {
-            start_height,
-            rpc_config,
-            client,
-        }
-    }
-
-    pub async fn get_txs_range(&self, num: u64) -> anyhow::Result<Vec<u8>> {
-        let raw_res: Result<Value, _> = self
-            .client
-            .request("ledger_getTransactionByNumber", rpc_params![num])
-            .await
-            .context("Failed to make RPC request");
-
-        println!("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA raw_res: {:?}", raw_res);
-
-        let body = raw_res?
-            .get("body")
-            .context("Body field missing in response")?
-            .as_array()
-            .context("Body field is not an array")?
-            .iter()
-            .map(|x| x.as_u64().unwrap() as u8)
-            .collect();
-
-        Ok(body)
-    }
-}
-
-/// Configuration for StateTransitionRunner.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct RunnerConfig {
     /// DA start height.

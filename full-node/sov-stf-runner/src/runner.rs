@@ -12,9 +12,9 @@ use sov_rollup_interface::zk::ZkvmHost;
 use tokio::sync::oneshot;
 use tracing::{debug, info};
 
-use crate::config::SoftConfirmationClient;
+use crate::scc::SoftConfirmationClient;
 use crate::verifier::StateTransitionVerifier;
-use crate::{RpcConfig, RunnerConfig};
+use crate::RunnerConfig;
 
 type StateRoot<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::StateRoot;
 type InitialState<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::GenesisParams;
@@ -121,13 +121,8 @@ where
         let last_slot_processed_before_shutdown = item_numbers.slot_number - 1;
         let start_height = runner_config.start_height + last_slot_processed_before_shutdown;
 
-        let soft_confirmation_client = SoftConfirmationClient::new(
-            start_height,
-            RpcConfig {
-                bind_host: "0.0.0.0".to_owned(),
-                bind_port: 12345,
-            },
-        );
+        let soft_confirmation_client =
+            SoftConfirmationClient::new(start_height, "0.0.0.0".to_owned(), 12345);
 
         Ok(Self {
             start_height,
@@ -205,20 +200,12 @@ where
     pub async fn run_in_process(&mut self) -> Result<(), anyhow::Error> {
         let client = &self.soft_confirmation_client;
 
-        let mut height = 1;
+        let mut height = self.start_height;
         loop {
-            if let Ok(tx) = client.get_txs_range(height).await {
-                info!("height: {}", height);
-            } else {
-                info!("height: {} not found", height);
-                tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
-                continue;
-            }
-
-            let tx = client.get_txs_range(height).await;
+            let tx = client.get_sov_tx(height).await;
 
             if tx.is_err() {
-                info!("height: {} not found", height);
+                info!("STFRunner - Height: {} not found", height);
                 tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
                 continue;
             }
@@ -235,22 +222,21 @@ where
             debug!("Requesting data for height {}", height,);
 
             let filtered_block = self.da_service.get_finalized_at(2).await?;
-            // let mut blobs = self.da_service.extract_relevant_blobs(&filtered_block);
 
-            // info!(
-            //     "Extracted {} relevant blobs at height {}: {:?}",
-            //     new_blobs.0.len(),
-            //     height,
-            //     new_blobs
-            //         .0
-            //         .iter()
-            //         .map(|b| format!(
-            //             "sequencer={} blob_hash=0x{}",
-            //             b.sender(),
-            //             hex::encode(b.hash())
-            //         ))
-            //         .collect::<Vec<_>>()
-            // );
+            info!(
+                "Extracted {} relevant blobs at height {}: {:?}",
+                new_blobs.0.len(),
+                height,
+                new_blobs
+                    .0
+                    .iter()
+                    .map(|b| format!(
+                        "sequencer={} blob_hash=0x{}",
+                        b.sender(),
+                        hex::encode(b.hash())
+                    ))
+                    .collect::<Vec<_>>()
+            );
 
             let mut data_to_commit = SlotCommit::new(filtered_block.clone());
 
@@ -272,7 +258,8 @@ where
 
             self.ledger_db.commit_slot(data_to_commit)?;
             self.state_root = next_state_root;
-            println!("\nSTATE ROOT: {:?}\n", self.state_root.as_ref());
+
+            info!("State Root has been set to {:?}", self.state_root.as_ref());
             height += 1;
         }
     }

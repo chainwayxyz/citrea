@@ -5,6 +5,9 @@
 mod config;
 
 #[cfg(feature = "native")]
+mod scc;
+
+#[cfg(feature = "native")]
 use std::path::Path;
 
 #[cfg(feature = "native")]
