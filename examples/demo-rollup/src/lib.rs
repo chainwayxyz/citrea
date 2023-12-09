@@ -1,7 +1,7 @@
 #![deny(missing_docs)]
 #![doc = include_str!("../README.md")]
 
-use const_rollup_config::*;
+pub use const_rollup_config::ROLLUP_NAMESPACE_RAW;
 use sov_celestia_adapter::types::Namespace;
 mod mock_rollup;
 pub use mock_rollup::*;

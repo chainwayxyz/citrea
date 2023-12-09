@@ -11,7 +11,6 @@ use sov_demo_rollup::{BitcoinRollup, CelestiaDemoRollup, MockDemoRollup};
 use sov_mock_da::{MockAddress, MockDaConfig, MockDaService};
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
-use sov_modules_api::Context;
 use sov_modules_rollup_blueprint::{Rollup, RollupBlueprint};
 use sov_stf_runner::{from_toml_path, RollupConfig, RollupProverConfig};
 use tracing::log::debug;
@@ -73,19 +72,23 @@ async fn main() -> Result<(), anyhow::Error> {
                 RollupProverConfig::Execute,
             )
             .await?;
-            let da_service = MockDaService::new(MockAddress::new([0u8; 32]));
-            let mut seq: ChainwaySequencer<DefaultContext, MockDaService, _> =
-                ChainwaySequencer::new(
-                    rollup,
-                    da_service,
-                    DefaultPrivateKey::from_hex(
-                        "1212121212121212121212121212121212121212121212121212121212121212",
-                    )
-                    .unwrap(),
-                    0,
-                );
-            let (port_tx, port_rx) = tokio::sync::oneshot::channel();
-            seq.run(port_tx).await?;
+            if args.sequence {
+                let da_service = MockDaService::new(MockAddress::new([0u8; 32]));
+                let mut seq: ChainwaySequencer<DefaultContext, MockDaService, _> =
+                    ChainwaySequencer::new(
+                        rollup,
+                        da_service,
+                        DefaultPrivateKey::from_hex(
+                            "1212121212121212121212121212121212121212121212121212121212121212",
+                        )
+                        .unwrap(),
+                        0,
+                    );
+                seq.register_rpc_methods().unwrap();
+                seq.run(None).await?;
+            } else {
+                rollup.run().await?;
+            }
         }
         SupportedDaLayer::Bitcoin => {
             let rollup = new_rollup_with_bitcoin_da(
@@ -116,14 +119,11 @@ async fn main() -> Result<(), anyhow::Error> {
                         .unwrap(),
                         0,
                     );
-
-                seq.register_rpc_methods();
-                seq.run().await?;
+                seq.register_rpc_methods().unwrap();
+                seq.run(None).await?;
             } else {
                 rollup.run().await?;
             }
-            let (port_tx, port_rx) = tokio::sync::oneshot::channel();
-            seq.run(port_tx).await?;
         }
         SupportedDaLayer::Celestia => {
             // let rollup = new_rollup_with_celestia_da(

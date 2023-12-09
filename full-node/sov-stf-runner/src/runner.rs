@@ -1,9 +1,9 @@
 use std::net::SocketAddr;
-use std::time::Duration;
 
 use borsh::BorshSerialize;
 use jsonrpsee::RpcModule;
 use sov_db::ledger_db::{LedgerDB, SlotCommit};
+use sov_modules_stf_blueprint::{Batch, RawTx};
 use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::stf::StateTransitionFunction;
@@ -12,12 +12,10 @@ use sov_rollup_interface::zk::ZkvmHost;
 use tokio::sync::oneshot;
 use tracing::{debug, info};
 
-use crate::config::SequencerRpcConfig;
-use crate::scc::SoftConfirmationClient;
+use crate::config::SoftConfirmationRpcClientConfig;
+use crate::soft_confirmation_client::SoftConfirmationClient;
 use crate::verifier::StateTransitionVerifier;
-use crate::{
-    ProofSubmissionStatus, ProverService, RunnerConfig, RunnerConfig, StateTransitionData,
-};
+use crate::{ProverService, RunnerConfig};
 type StateRoot<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::StateRoot;
 type InitialState<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::GenesisParams;
 
@@ -87,7 +85,7 @@ where
         prev_state_root: Option<StateRoot<Stf, Vm, Da::Spec>>,
         genesis_config: InitialState<Stf, Vm, Da::Spec>,
         prover_service: Ps,
-        scc_config: Option<SequencerRpcConfig>,
+        scc_config: Option<SoftConfirmationRpcClientConfig>,
     ) -> Result<Self, anyhow::Error> {
         let rpc_config = runner_config.rpc_config;
 
@@ -238,14 +236,17 @@ where
 
             debug!("Requesting data for height {}", height,);
 
-            let filtered_block = self.da_service.get_finalized_at(2).await?;
+            // TODO: Change here
+            let filtered_block = self.da_service.get_block_at(2).await?;
 
             let blob_with_sender: <<Da as DaService>::Spec as DaSpec>::BlobTransaction =
                 new_blobs.0;
 
+            let blob_sender_hash = blob_with_sender.hash();
+
             info!(
                 "Extracted blob-tx {} with length {} at height {}",
-                hex::encode(blob_with_sender.hash()),
+                hex::encode(&blob_sender_hash),
                 blob_with_sender.total_len(),
                 height,
             );
@@ -316,7 +317,11 @@ where
             self.ledger_db.commit_slot(data_to_commit)?;
             self.state_root = next_state_root;
 
-            info!("State Root has been set to {:?}", self.state_root.as_ref());
+            info!(
+                "New State Root after {:?} is: {:?}",
+                hex::encode(blob_sender_hash),
+                self.state_root.as_ref()
+            );
             height += 1;
         }
     }

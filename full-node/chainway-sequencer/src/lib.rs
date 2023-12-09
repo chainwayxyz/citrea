@@ -143,12 +143,12 @@ pub mod experimental {
 
         pub async fn run(
             &mut self,
-            channel: oneshot::Sender<SocketAddr>,
+            channel: Option<oneshot::Sender<SocketAddr>>,
         ) -> Result<(), anyhow::Error> {
             println!("7");
             self.rollup
                 .runner
-                .start_rpc_server(self.rollup.rpc_methods.clone(), Some(channel))
+                .start_rpc_server(self.rollup.rpc_methods.clone(), channel)
                 .await;
             println!("8");
 
@@ -263,28 +263,6 @@ pub mod experimental {
         }
     }
 
-    // fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint>(
-    //     rpc: &mut RpcModule<ChainwaySequencer<C, Da, S>>,
-    // ) -> Result<(), jsonrpsee::core::Error> {
-    //     // rpc.register_async_method(
-    //     //     "eth_sendRawTransaction",
-    //     //     |parameters, chainway_sequencer| async move {
-    //     //         let data: Bytes = parameters.one().unwrap();
-
-    //     //         let raw_evm_tx = RlpEvmTransaction { rlp: data.to_vec() };
-    //     //         // I hade to make mempool arc mutex because otherwise I could not mutate chainway sequencer
-    //     //         chainway_sequencer.add_tx(raw_evm_tx.rlp);
-
-    //     //         Ok::<_, ErrorObjectOwned>(data)
-    //     //     },
-    //     // )?;
-    //     // // Query sov-txs in state
-    //     // rpc.register_async_method(
-    //     //     "cw_getSoftConfirmation",
-    //     //     |parameters, chainway_sequencer| async move { Ok::<_, ErrorObjectOwned>(()) },
-    //     // )?;
-    //     Ok(())
-    // }
     fn get_tx_hash(raw_tx: &RlpEvmTransaction) -> Result<H256, jsonrpsee::core::Error> {
         let signed_transaction: RethTransactionSignedNoHash = raw_tx.clone().try_into()?;
 

@@ -56,7 +56,7 @@ pub async fn start_rollup(
     );
     println!("5");
     cs.register_rpc_methods().unwrap();
-    cs.run(rpc_reporting_channel).await.unwrap();
+    cs.run(Some(rpc_reporting_channel)).await.unwrap();
     println!("6");
 
     // Close the tempdir explicitly to ensure that rustc doesn't see that it's unused and drop it unexpectedly
