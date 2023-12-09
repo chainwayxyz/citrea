@@ -328,18 +328,18 @@ impl<C: sov_modules_api::Context> Evm<C> {
     pub fn get_call(
         &self,
         request: reth_rpc_types::CallRequest,
-        block_number_or_tag: Option<BlockNumberOrTag>,
+        block_number: Option<BlockNumberOrTag>,
         _state_overrides: Option<reth_rpc_types::state::StateOverride>,
         _block_overrides: Option<Box<reth_rpc_types::BlockOverrides>>,
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<reth_primitives::Bytes> {
         info!("evm module: eth_call");
-        let block_env = match block_number_or_tag {
+        let block_env = match block_number {
             Some(BlockNumberOrTag::Pending) => {
                 self.block_env.get(working_set).unwrap_or_default().clone()
             }
             _ => {
-                let block = self.get_sealed_block_by_number(block_number_or_tag, working_set);
+                let block = self.get_sealed_block_by_number(block_number, working_set);
                 BlockEnv::from(&block)
             }
         };
@@ -381,16 +381,16 @@ impl<C: sov_modules_api::Context> Evm<C> {
     pub fn eth_estimate_gas(
         &self,
         request: reth_rpc_types::CallRequest,
-        block_number_or_tag: Option<BlockNumberOrTag>,
+        block_number: Option<BlockNumberOrTag>,
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<reth_primitives::U64> {
         info!("evm module: eth_estimateGas");
-        let mut block_env = match block_number_or_tag {
+        let mut block_env = match block_number {
             Some(BlockNumberOrTag::Pending) => {
                 self.block_env.get(working_set).unwrap_or_default().clone()
             }
             _ => {
-                let block = self.get_sealed_block_by_number(block_number_or_tag, working_set);
+                let block = self.get_sealed_block_by_number(block_number, working_set);
                 BlockEnv::from(&block)
             }
         };
