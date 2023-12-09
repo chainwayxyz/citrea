@@ -263,14 +263,6 @@ pub mod experimental {
         }
     }
 
-    fn get_tx_hash(raw_tx: &RlpEvmTransaction) -> Result<H256, jsonrpsee::core::Error> {
-        let signed_transaction: RethTransactionSignedNoHash = raw_tx.clone().try_into()?;
-
-        let tx_hash = signed_transaction.hash();
-
-        tx_hash;
-    }
-
     // fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint>(
     //     rpc: &mut RpcModule<ChainwaySequencer<C, Da, S>>,
     // ) -> Result<(), jsonrpsee::core::Error> {
