@@ -11,9 +11,9 @@ use sov_evm::{SimpleStorageContract, TestContract};
 use sov_stf_runner::RollupProverConfig;
 use test_client::TestClient;
 use tokio::time::{sleep, Duration};
+use tracing_test::traced_test;
 
 use crate::test_helpers::start_rollup;
-use tracing_test::traced_test;
 
 #[cfg(feature = "experimental")]
 #[traced_test]

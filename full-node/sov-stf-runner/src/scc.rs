@@ -1,8 +1,7 @@
 use anyhow::Context;
 use jsonrpsee::core::client::ClientT;
-use jsonrpsee::rpc_params;
-
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
+use jsonrpsee::rpc_params;
 use serde_json::Value;
 
 /// Configuration for StateTransitionRunner.

@@ -30,7 +30,7 @@ async-trait = { workspace = true, optional = true }
 rayon = { workspace = true, optional = true }
 sov-db = { path = "../db/sov-db", version = "0.3", optional = true }
 sov-rollup-interface = { path = "../../rollup-interface", version = "0.3" }
-sov-modules-stf-template = { path = "../../module-system/sov-modules-stf-template", features = [
+sov-modules-stf-blueprint = { path = "../../module-system/sov-modules-stf-blueprint", features = [
     "native",
 ] }
 

@@ -15,9 +15,9 @@ use tracing::{debug, info};
 use crate::config::SequencerRpcConfig;
 use crate::scc::SoftConfirmationClient;
 use crate::verifier::StateTransitionVerifier;
-use crate::RunnerConfig;
-
-use crate::{ProofSubmissionStatus, ProverService, RunnerConfig, StateTransitionData};
+use crate::{
+    ProofSubmissionStatus, ProverService, RunnerConfig, RunnerConfig, StateTransitionData,
+};
 type StateRoot<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::StateRoot;
 type InitialState<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::GenesisParams;
 

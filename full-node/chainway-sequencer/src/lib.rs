@@ -3,11 +3,11 @@ pub use sov_evm::DevSigner;
 
 #[cfg(feature = "experimental")]
 pub mod experimental {
-    use futures::lock::Mutex;
     use std::array::TryFromSliceError;
     use std::borrow::BorrowMut;
     use std::collections::VecDeque;
     use std::marker::PhantomData;
+    use std::net::SocketAddr;
     use std::sync::mpsc::{Receiver, Sender};
     use std::sync::Arc;
     use std::time::Duration;
@@ -15,16 +15,13 @@ pub mod experimental {
     use borsh::ser::BorshSerialize;
     use demo_stf::runtime::Runtime;
     use ethers::types::{Bytes, H256};
-
+    use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
+    use futures::lock::Mutex;
     // socketaddr
     use futures::StreamExt;
-    use futures::{
-        channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender},
-        select, AsyncBufReadExt, Stream,
-    };
+    use futures::{select, AsyncBufReadExt, Stream};
     use jsonrpsee::types::ErrorObjectOwned;
     use jsonrpsee::RpcModule;
-
     use reth_primitives::TransactionSignedNoHash as RethTransactionSignedNoHash;
     use sov_evm::{CallMessage, Evm, RlpEvmTransaction};
     use sov_modules_api::transaction::Transaction;
@@ -32,7 +29,6 @@ pub mod experimental {
     use sov_modules_rollup_blueprint::{Rollup, RollupBlueprint};
     use sov_modules_stf_blueprint::{Batch, RawTx};
     use sov_rollup_interface::services::da::DaService;
-    use std::net::SocketAddr;
     use tokio::sync::oneshot;
     use tracing::{debug, info};
     const ETH_RPC_ERROR: &str = "ETH_RPC_ERROR";
@@ -271,6 +267,9 @@ pub mod experimental {
         let signed_transaction: RethTransactionSignedNoHash = raw_tx.clone().try_into()?;
 
         let tx_hash = signed_transaction.hash();
+
+        tx_hash;
+    }
 
     // fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint>(
     //     rpc: &mut RpcModule<ChainwaySequencer<C, Da, S>>,
