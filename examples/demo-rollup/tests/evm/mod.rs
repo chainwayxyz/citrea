@@ -5,7 +5,7 @@ use std::str::FromStr;
 
 use demo_stf::genesis_config::GenesisPaths;
 use ethers_core::abi::Address;
-use ethers_core::types::U256;
+use ethers_core::types::{BlockId, U256};
 use ethers_signers::{LocalWallet, Signer};
 use reqwest::Client;
 use sov_evm::{SimpleStorageContract, TestContract};
@@ -328,6 +328,14 @@ async fn execute<T: TestContract>(
         let latest_block = client.eth_get_block_by_number(None).await;
         assert_eq!(latest_block.transactions.len(), 1);
         assert_eq!(latest_block.transactions[0], tx_hash);
+
+        let latest_block_receipts = client
+            .eth_get_block_receipts(BlockId::Number(ethers_core::types::BlockNumber::Latest))
+            .await;
+        assert_eq!(latest_block_receipts.len(), 1);
+        assert_eq!(latest_block_receipts[0].transaction_hash, tx_hash);
+        let tx_receipt = client.eth_get_transaction_receipt(tx_hash).await.unwrap();
+        assert_eq!(tx_receipt, latest_block_receipts[0]);
 
         let get_arg = client.query_contract(contract_address).await?;
         assert_eq!(value, get_arg.as_u32());

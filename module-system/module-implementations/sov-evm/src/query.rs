@@ -6,7 +6,7 @@ use jsonrpsee::core::RpcResult;
 use reth_interfaces::provider::ProviderError;
 use reth_primitives::contract::create_address;
 use reth_primitives::TransactionKind::{Call, Create};
-use reth_primitives::{SealedHeader, TransactionSignedEcRecovered, U128, U256};
+use reth_primitives::{BlockId, SealedHeader, TransactionSignedEcRecovered, U128, U256};
 use revm::primitives::{
     EVMError, ExecutionResult, Halt, InvalidTransaction, TransactTo, KECCAK_EMPTY,
 };
@@ -136,6 +136,52 @@ impl<C: sov_modules_api::Context> Evm<C> {
         };
 
         Ok(Some(block.into()))
+    }
+
+    /// Handler for: `eth_getBlockReceipts`
+    #[rpc_method(name = "eth_getBlockReceipts")]
+    pub fn get_block_receipts(
+        &self,
+        block_number_or_hash: BlockId,
+        working_set: &mut WorkingSet<C>,
+    ) -> RpcResult<Option<Vec<reth_rpc_types::TransactionReceipt>>> {
+        info!("evm module: eth_getBlockReceipts");
+
+        let block = match block_number_or_hash {
+            BlockId::Hash(block_hash) => {
+                let block_number = self
+                    .block_hashes
+                    .get(&block_hash.block_hash, &mut working_set.accessory_state())
+                    .expect("Block number for known block hash must be set");
+
+                self.blocks
+                    .get(block_number as usize, &mut working_set.accessory_state())
+                    .expect("Block must be set")
+            }
+            BlockId::Number(block_number) => {
+                self.get_sealed_block_by_number(Some(block_number.to_string()), working_set)
+            }
+        };
+
+        let receipts = &block
+            .transactions
+            .clone()
+            .map(|id| {
+                let tx = self
+                    .transactions
+                    .get(id as usize, &mut working_set.accessory_state())
+                    .expect("Transaction must be set");
+
+                let receipt = self
+                    .receipts
+                    .get(id as usize, &mut working_set.accessory_state())
+                    .expect("Receipt for known transaction must be set");
+
+                build_rpc_receipt(&block, tx, id, receipt)
+            })
+            .collect::<Vec<_>>();
+
+        Ok(Some(receipts.clone()))
     }
 
     /// Handler for: `eth_getBalance`
@@ -385,7 +431,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 .get(tx_number.unwrap() as usize, &mut accessory_state)
                 .expect("Receipt for known transaction must be set");
 
-            build_rpc_receipt(block, tx, tx_number.unwrap(), receipt)
+            build_rpc_receipt(&block, tx, tx_number.unwrap(), receipt)
         });
 
         Ok(receipt)
@@ -930,7 +976,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     .get(id as usize, &mut accessory_state)
                     .expect("Receipt for known transaction must be set");
 
-                build_rpc_receipt(block, tx, id, receipt)
+                build_rpc_receipt(&block, tx, id, receipt)
             })
             .collect::<Vec<_>>();
 
@@ -1009,7 +1055,7 @@ fn get_cfg_env_template() -> revm::primitives::CfgEnv {
 
 // modified from: https://github.com/paradigmxyz/reth/blob/cc576bc8690a3e16e6e5bf1cbbbfdd029e85e3d4/crates/rpc/rpc/src/eth/api/transactions.rs#L849
 pub(crate) fn build_rpc_receipt(
-    block: SealedBlock,
+    block: &SealedBlock,
     tx: TransactionSignedAndRecovered,
     tx_number: u64,
     receipt: Receipt,

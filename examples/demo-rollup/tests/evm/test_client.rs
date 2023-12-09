@@ -3,7 +3,7 @@ use ethers_core::abi::Address;
 use ethers_core::k256::ecdsa::SigningKey;
 use ethers_core::types::transaction::eip2718::TypedTransaction;
 use ethers_core::types::{
-    Block, Eip1559TransactionRequest, Transaction, TransactionRequest, TxHash,
+    Block, BlockId, Eip1559TransactionRequest, Transaction, TransactionRequest, TxHash,
 };
 use ethers_middleware::SignerMiddleware;
 use ethers_providers::{Http, Middleware, PendingTransaction, Provider};
@@ -356,6 +356,26 @@ impl<T: TestContract> TestClient<T> {
     ) -> Block<Transaction> {
         self.http_client
             .request("eth_getBlockByNumber", rpc_params![block_number, true])
+            .await
+            .unwrap()
+    }
+
+    pub(crate) async fn eth_get_block_receipts(
+        &self,
+        block_number_or_hash: BlockId,
+    ) -> Vec<ethers_core::types::TransactionReceipt> {
+        self.http_client
+            .request("eth_getBlockReceipts", rpc_params![block_number_or_hash])
+            .await
+            .unwrap()
+    }
+
+    pub(crate) async fn eth_get_transaction_receipt(
+        &self,
+        tx_hash: TxHash,
+    ) -> Option<ethers_core::types::TransactionReceipt> {
+        self.http_client
+            .request("eth_getTransactionReceipt", rpc_params![tx_hash])
             .await
             .unwrap()
     }
