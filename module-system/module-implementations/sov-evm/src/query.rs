@@ -1,11 +1,12 @@
 use std::array::TryFromSliceError;
+use std::ops::RangeInclusive;
 
 use ethereum_types::U64;
 use jsonrpsee::core::RpcResult;
 use reth_interfaces::provider::ProviderError;
 use reth_primitives::contract::create_address;
 use reth_primitives::TransactionKind::{Call, Create};
-use reth_primitives::{TransactionSignedEcRecovered, U128, U256};
+use reth_primitives::{SealedHeader, TransactionSignedEcRecovered, U128, U256};
 use revm::primitives::{
     EVMError, ExecutionResult, Halt, InvalidTransaction, TransactTo, KECCAK_EMPTY,
 };
@@ -21,7 +22,7 @@ use crate::evm::primitive_types::{BlockEnv, Receipt, SealedBlock, TransactionSig
 use crate::evm::{executor, prepare_call_env};
 use crate::experimental::{MIN_CREATE_GAS, MIN_TRANSACTION_GAS};
 use crate::rpc_helpers::*;
-use crate::{BloomFilter, Evm, FilterBlockOption, FilterError};
+use crate::{BloomFilter, Evm, EvmChainConfig, FilterBlockOption, FilterError};
 
 #[rpc_gen(client, server)]
 impl<C: sov_modules_api::Context> Evm<C> {
@@ -224,22 +225,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .unwrap_or_default();
 
         Ok(code)
-    }
-
-    /// Handler for: `eth_feeHistory`
-    // TODO https://github.com/Sovereign-Labs/sovereign-sdk/issues/502
-    #[rpc_method(name = "eth_feeHistory")]
-    pub fn fee_history(
-        &self,
-        _working_set: &mut WorkingSet<C>,
-    ) -> RpcResult<reth_rpc_types::FeeHistory> {
-        info!("evm module: eth_feeHistory");
-        Ok(reth_rpc_types::FeeHistory {
-            base_fee_per_gas: Default::default(),
-            gas_used_ratio: Default::default(),
-            oldest_block: Default::default(),
-            reward: Default::default(),
-        })
     }
 
     /// Handler for: `eth_getTransactionByHash`
@@ -755,6 +740,136 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 }
                 log_index += 1;
             }
+        }
+    }
+
+    /// Helper function to get chain config
+    pub fn get_chain_config(&self, working_set: &mut WorkingSet<C>) -> EvmChainConfig {
+        self.cfg.get(working_set).unwrap_or_default()
+    }
+
+    /// Helper function to get block hash from block number
+    pub fn block_hash_from_number(
+        &self,
+        block_number: u64,
+        working_set: &mut WorkingSet<C>,
+    ) -> Option<reth_primitives::H256> {
+        let block = self
+            .blocks
+            .get(block_number as usize, &mut working_set.accessory_state())?;
+        Some(block.header.hash)
+    }
+
+    /// Helper function to get headers in range
+    pub fn sealed_headers_range(
+        &self,
+        range: RangeInclusive<u64>,
+        working_set: &mut WorkingSet<C>,
+    ) -> Result<Vec<SealedHeader>, EthApiError> {
+        let mut headers = Vec::new();
+        for i in range {
+            let block = self
+                .blocks
+                .get(i as usize, &mut working_set.accessory_state())
+                .ok_or_else(|| EthApiError::InvalidBlockRange)?;
+            headers.push(block.header);
+        }
+        Ok(headers)
+    }
+
+    /// Helper function to get transactions and receipts for a given block hash
+    pub fn get_transactions_and_receipts(
+        &self,
+        block_hash: reth_primitives::H256,
+        working_set: &mut WorkingSet<C>,
+    ) -> Result<
+        (
+            Vec<reth_rpc_types::Transaction>,
+            Vec<reth_rpc_types::TransactionReceipt>,
+        ),
+        EthApiError,
+    > {
+        let mut accessory_state = working_set.accessory_state();
+
+        let block_number = self
+            .block_hashes
+            .get(&block_hash, &mut accessory_state)
+            .ok_or_else(|| EthApiError::InvalidBlockRange)?;
+
+        let block = self
+            .blocks
+            .get(block_number as usize, &mut accessory_state)
+            .ok_or_else(|| EthApiError::InvalidBlockRange)?;
+
+        let transactions = block
+            .transactions
+            .clone()
+            .map(|id| {
+                let tx = self
+                    .transactions
+                    .get(id as usize, &mut accessory_state)
+                    .expect("Transaction must be set");
+                let block = self
+                    .blocks
+                    .get(tx.block_number as usize, &mut accessory_state)
+                    .expect("Block number for known transaction must be set");
+
+                reth_rpc_types_compat::from_recovered_with_block_context(
+                    tx.into(),
+                    block.header.hash,
+                    block.header.number,
+                    block.header.base_fee_per_gas,
+                    U256::from(id - block.transactions.start),
+                )
+            })
+            .collect::<Vec<_>>();
+
+        let receipts = block
+            .transactions
+            .clone()
+            .map(|id| {
+                let tx = self
+                    .transactions
+                    .get(id as usize, &mut accessory_state)
+                    .expect("Transaction must be set");
+                let block = self
+                    .blocks
+                    .get(tx.block_number as usize, &mut accessory_state)
+                    .expect("Block number for known transaction must be set");
+
+                let receipt = self
+                    .receipts
+                    .get(id as usize, &mut accessory_state)
+                    .expect("Receipt for known transaction must be set");
+
+                build_rpc_receipt(block, tx, id, receipt)
+            })
+            .collect::<Vec<_>>();
+
+        Ok((transactions, receipts))
+    }
+
+    /// Helper function to check if the block number is valid
+    pub fn block_number_for_id(
+        &self,
+        block_id: &str,
+        working_set: &mut WorkingSet<C>,
+    ) -> Option<u64> {
+        match block_id {
+            "earliest" => Some(0),
+            "latest" => self
+                .blocks
+                .last(&mut working_set.accessory_state())
+                .map(|block| block.header.number),
+            _ => usize::from_str_radix(block_id.trim_start_matches("0x"), 16)
+                .ok()
+                .and_then(|block_number| {
+                    if block_number < self.blocks.len(&mut working_set.accessory_state()) {
+                        Some(block_number as u64)
+                    } else {
+                        None
+                    }
+                }),
         }
     }
 

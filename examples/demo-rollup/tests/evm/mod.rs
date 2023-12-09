@@ -5,6 +5,7 @@ use std::str::FromStr;
 
 use demo_stf::genesis_config::GenesisPaths;
 use ethers_core::abi::Address;
+use ethers_core::types::U256;
 use ethers_signers::{LocalWallet, Signer};
 use reqwest::Client;
 use sov_evm::{SimpleStorageContract, TestContract};
@@ -313,6 +314,17 @@ async fn execute<T: TestContract>(
         // get initial gas price
         let initial_gas_price = client.eth_gas_price().await;
 
+        // get initial fee history
+        let initial_fee_history = client
+            .eth_fee_history(
+                // block count hex
+                "0x100".to_string(),
+                reth_primitives::BlockNumberOrTag::Latest,
+                None,
+            )
+            .await;
+        assert_eq!(initial_fee_history.oldest_block, U256::zero());
+
         // send 100 set transaction with high gas fee in a four batch to increase gas price
         for _ in 0..4 {
             let mut requests = Vec::default();
@@ -328,6 +340,23 @@ async fn execute<T: TestContract>(
         sleep(Duration::from_millis(6000)).await;
         // get gas price
         let latest_gas_price = client.eth_gas_price().await;
+
+        // get fee history
+        let latest_fee_history = client
+            .eth_fee_history(
+                // block count hex
+                "0x100".to_string(),
+                reth_primitives::BlockNumberOrTag::Latest,
+                None,
+            )
+            .await;
+        assert_eq!(latest_fee_history.oldest_block, U256::zero());
+
+        // there are 4 blocks in between
+        assert_eq!(
+            latest_fee_history.gas_used_ratio.len() - initial_fee_history.gas_used_ratio.len(),
+            4
+        );
 
         // assert gas price is higher
         // TODO: emulate gas price oracle here to have exact value
