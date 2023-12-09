@@ -51,18 +51,20 @@ impl MockDaService {
                 tracing::debug!("Finalized MockHeader: {}", header);
             }
         });
-        Self {
+        let mut ret = Self {
             sequencer_da_address,
             blocks: Arc::new(Default::default()),
             blocks_to_finality,
             last_finalized_height: Arc::new(AtomicU64::new(0)),
             finalized_header_sender: tx,
             wait_attempts: 100_0000,
-        }
+        };
+        ret
     }
 
     async fn wait_for_height(&self, height: u64) -> anyhow::Result<()> {
         // Waits self.wait_attempts * 10ms to get finalized header
+        println!("gba11");
         for _ in 0..self.wait_attempts {
             {
                 if self
@@ -76,7 +78,9 @@ impl MockDaService {
                 }
             }
             time::sleep(Duration::from_millis(10)).await;
+            println!("blocks len: {:?}", self.blocks.read().await.len());
         }
+
         anyhow::bail!("No blob at height={height} has been sent in time")
     }
 }
@@ -122,10 +126,18 @@ impl DaService for MockDaService {
     /// It is possible to read non-finalized and last finalized blocks multiple times
     /// Finalized blocks must be read in order.
     async fn get_block_at(&self, height: u64) -> Result<Self::FilteredBlock, Self::Error> {
+        if self.blocks.read().await.len() < 10 {
+            for _ in 0..10 {
+                self.send_transaction(&[1]).await;
+            }
+        }
+        println!("gba1");
         // Block until there's something
         self.wait_for_height(height).await?;
+        println!("gba2");
         // Locking blocks here, so submissions has to wait
         let mut blocks = self.blocks.write().await;
+
         let oldest_available_height = blocks[0].header.height;
         let index = height
             .checked_sub(oldest_available_height)
@@ -133,6 +145,7 @@ impl DaService for MockDaService {
                 "Block at height {} is not available anymore",
                 height
             ))?;
+        println!("gba3");
 
         // We still return error, as it is possible, that block has been consumed between `wait` and locking blocks
         let block = blocks
@@ -142,6 +155,7 @@ impl DaService for MockDaService {
                 height
             ))?
             .clone();
+        println!("gba4");
 
         // Block that precedes last finalized block is evicted at first read.
         // Caller can always get last finalized block, or read everything if it is called in order
@@ -152,6 +166,7 @@ impl DaService for MockDaService {
         if last_finalized_height > 0 && oldest_available_height < (last_finalized_height - 1) {
             blocks.pop_front();
         }
+        println!("gba5");
 
         Ok(block)
     }
@@ -219,6 +234,7 @@ impl DaService for MockDaService {
 
     async fn send_transaction(&self, blob: &[u8]) -> Result<(), Self::Error> {
         let mut blocks = self.blocks.write().await;
+        println!("blocks: {:?}", blocks);
 
         let (previous_block_hash, height) = match blocks.iter().last().map(|b| *b.header()) {
             None => (MockHash::from([0; 32]), 0),

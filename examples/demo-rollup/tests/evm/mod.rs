@@ -13,8 +13,10 @@ use test_client::TestClient;
 use tokio::time::{sleep, Duration};
 
 use crate::test_helpers::start_rollup;
+use tracing_test::traced_test;
 
 #[cfg(feature = "experimental")]
+#[traced_test]
 #[tokio::test]
 async fn evm_tx_tests() -> Result<(), anyhow::Error> {
     let (port_tx, port_rx) = tokio::sync::oneshot::channel();
@@ -87,6 +89,10 @@ async fn test_getlogs<T: TestContract>(
         let runtime_code = client.deploy_contract_call().await?;
 
         let deploy_contract_req = client.deploy_contract().await?;
+        println!("deploy contract {:?}: ", deploy_contract_req);
+        let tx_hash = deploy_contract_req.tx_hash();
+        println!("tx_hash: {:?}", tx_hash);
+
         client.send_publish_batch_request().await;
 
         let contract_address = deploy_contract_req
@@ -221,6 +227,15 @@ async fn execute<T: TestContract>(
         let deploy_contract_req = client.deploy_contract().await?;
         client.send_publish_batch_request().await;
         println!("deploy contract {:?}: ", deploy_contract_req);
+        tokio::time::sleep(Duration::from_secs(5)).await;
+        let transaction = client
+            .eth_get_transaction_by_hash(deploy_contract_req.tx_hash())
+            .await;
+        println!("transaction: {:?}", transaction);
+        let latest_block = client.eth_get_block_by_number_with_detail(None).await;
+        println!("latest_block: {:?}", latest_block);
+
+        tokio::time::sleep(Duration::from_secs(30)).await;
         let contract_address = deploy_contract_req
             .await?
             .unwrap()

@@ -54,7 +54,7 @@ pub async fn start_rollup(
         0,
     );
     println!("5");
-    cs.register_rpc_methods();
+    cs.register_rpc_methods().unwrap();
     cs.run(rpc_reporting_channel).await.unwrap();
     println!("6");
 

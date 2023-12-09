@@ -154,7 +154,7 @@ pub mod experimental {
             println!("8");
 
             loop {
-                tokio::time::sleep(Duration::from_millis(10)).await;
+                tokio::time::sleep(Duration::from_millis(100)).await;
 
                 if let Ok(Some(resp)) = self.receiver.try_next() {
                     println!("9");
@@ -170,6 +170,8 @@ pub mod experimental {
                     if rlp_txs.is_empty() {
                         continue;
                     }
+
+                    println!("txs from mempool: {:?}", rlp_txs);
 
                     info!("evm txs count: {}", rlp_txs.len());
 
@@ -204,6 +206,7 @@ pub mod experimental {
                         .runner
                         .process(&batch.try_to_vec().unwrap())
                         .await?;
+                    println!("processedddddd");
                     // if no error save blob to ledger db
                 }
             }

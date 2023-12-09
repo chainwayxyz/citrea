@@ -166,6 +166,8 @@ where
             }
         };
 
+        println!("blob preprocessed");
+
         // Sanity check after pre processing
         assert_eq!(
             txs.len(),
@@ -178,6 +180,7 @@ where
         for (TransactionAndRawHash { tx, raw_tx_hash }, msg) in
             txs.into_iter().zip(messages.into_iter())
         {
+            println!("dispatching tx: {:?}", tx);
             // Pre dispatch hook
             let sender_address = match self.runtime.pre_dispatch_tx_hook(&tx, &mut batch_workspace)
             {

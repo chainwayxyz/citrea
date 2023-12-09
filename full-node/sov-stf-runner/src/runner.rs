@@ -145,17 +145,25 @@ where
     /// Processes sequence
     /// gets a blob of txs as parameter
     pub async fn process(&mut self, blob: &[u8]) -> Result<(), anyhow::Error> {
+        println!("blob: {:?}", blob);
         let pre_state = self.storage_manager.get_native_storage();
+        println!("got pre_state ");
         let filtered_block: <Da as DaService>::FilteredBlock =
-            self.da_service.get_block_at(self.start_height).await?;
+            self.da_service.get_block_at(2u64).await?;
+        println!("got filtered_block ");
         let blobz = self.da_service.convert_to_transaction(blob).unwrap();
+        println!("got blobz ");
 
         info!(
             "sequencer={} blob_hash=0x{}",
             blobz.0.sender(),
             hex::encode(blobz.0.hash())
         );
-
+        println!(
+            "sequencer={} blob_hash=0x{}",
+            blobz.0.sender(),
+            hex::encode(blobz.0.hash())
+        );
         let slot_result = self.stf.apply_slot(
             &self.state_root,
             pre_state,
@@ -165,14 +173,23 @@ where
             &mut vec![blobz.0],
         );
         debug!("slot_result: {:?}", slot_result.batch_receipts.len());
+        println!("slot_result: {:?}", slot_result.batch_receipts.len());
 
         let mut data_to_commit = SlotCommit::new(filtered_block.clone());
         for receipt in slot_result.batch_receipts {
             data_to_commit.add_batch(receipt);
         }
+        println!("added batch");
         let next_state_root = slot_result.state_root;
+        let pre_head_slot = self.ledger_db.get_head_slot()?;
+        println!("pre_head_slot: {:?}", pre_head_slot);
         self.ledger_db.commit_slot(data_to_commit)?;
+        let head_slot = self.ledger_db.get_head_slot()?;
+        println!("head_slot: {:?}", head_slot);
+        println!("Committed slot");
+        println!("state_root: {:?}", next_state_root);
         self.state_root = next_state_root;
+
         Ok(())
     }
 
