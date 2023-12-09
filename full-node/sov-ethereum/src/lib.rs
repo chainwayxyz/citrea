@@ -197,6 +197,8 @@ pub mod experimental {
         rpc: &mut RpcModule<Ethereum<C, Da>>,
     ) -> Result<(), jsonrpsee::core::Error> {
         rpc.register_async_method("eth_gasPrice", |_, ethereum| async move {
+            info!("eth module: eth_gasPrice");
+
             let price = {
                 let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
 
@@ -252,6 +254,8 @@ pub mod experimental {
         })?;
 
         rpc.register_async_method("eth_publishBatch", |params, ethereum| async move {
+            info!("eth module: eth_publishBatch");
+
             let mut params_iter = params.sequence();
 
             let mut txs = Vec::default();
@@ -270,6 +274,8 @@ pub mod experimental {
         rpc.register_async_method(
             "eth_sendRawTransaction",
             |parameters, ethereum| async move {
+                info!("eth module: eth_sendRawTransaction");
+
                 let data: Bytes = parameters.one().unwrap();
 
                 let raw_evm_tx = RlpEvmTransaction { rlp: data.to_vec() };
@@ -286,11 +292,15 @@ pub mod experimental {
 
         #[cfg(feature = "local")]
         rpc.register_async_method("eth_accounts", |_parameters, ethereum| async move {
+            info!("eth module: eth_accounts");
+
             Ok::<_, ErrorObjectOwned>(ethereum.eth_signer.signers())
         })?;
 
         #[cfg(feature = "local")]
         rpc.register_async_method("eth_sendTransaction", |parameters, ethereum| async move {
+            info!("eth module: eth_sendTransaction");
+
             let mut transaction_request: TransactionRequest = parameters.one().unwrap();
 
             let evm = Evm::<C>::default();
