@@ -4,6 +4,7 @@ use borsh::BorshSerialize;
 use jsonrpsee::RpcModule;
 use sov_db::ledger_db::{LedgerDB, SlotCommit};
 use sov_modules_stf_template::{Batch, RawTx};
+use sov_rollup_interface::da::BlobReaderTrait;
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::stf::StateTransitionFunction;
@@ -238,20 +239,15 @@ where
 
             let filtered_block = self.da_service.get_finalized_at(2).await?;
 
-            // info!(
-            //     "Extracted {} relevant blobs at height {}: {:?}",
-            //     new_blobs.0.len(),
-            //     height,
-            //     new_blobs
-            //         .0
-            //         .iter()
-            //         .map(|b| format!(
-            //             "sequencer={} blob_hash=0x{}",
-            //             b.sender(),
-            //             hex::encode(b.hash())
-            //         ))
-            //         .collect::<Vec<_>>()
-            // );
+            let blob_with_sender: <<Da as DaService>::Spec as DaSpec>::BlobTransaction =
+                new_blobs.0;
+
+            info!(
+                "Extracted blob-tx {} with length {} at height {}",
+                hex::encode(blob_with_sender.hash()),
+                blob_with_sender.total_len(),
+                height,
+            );
 
             let mut data_to_commit = SlotCommit::new(filtered_block.clone());
 
@@ -262,7 +258,7 @@ where
                 Default::default(),
                 filtered_block.header(),
                 &filtered_block.validity_condition(),
-                &mut vec![new_blobs.0],
+                &mut vec![blob_with_sender],
             );
 
             for receipt in slot_result.batch_receipts {
