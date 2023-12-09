@@ -3,7 +3,7 @@ use ethers_core::abi::Address;
 use ethers_core::k256::ecdsa::SigningKey;
 use ethers_core::types::transaction::eip2718::TypedTransaction;
 use ethers_core::types::{
-    Block, Eip1559TransactionRequest, Transaction, TransactionRequest, TxHash,
+    Block, BlockId, Eip1559TransactionRequest, Transaction, TransactionRequest, TxHash,
 };
 use ethers_middleware::SignerMiddleware;
 use ethers_providers::{Http, Middleware, PendingTransaction, Provider};
@@ -11,7 +11,7 @@ use ethers_signers::Wallet;
 use jsonrpsee::core::client::ClientT;
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use jsonrpsee::rpc_params;
-use reth_primitives::Bytes;
+use reth_primitives::{BlockNumberOrTag, Bytes};
 use sov_evm::{LogResponse, LogsContract, SimpleStorageContract, TestContract};
 
 const MAX_FEE_PER_GAS: u64 = 100000001;
@@ -327,6 +327,19 @@ impl<T: TestContract> TestClient<T> {
             .unwrap()
     }
 
+    pub(crate) async fn eth_fee_history(
+        &self,
+        block_count: String,
+        newest_block: BlockNumberOrTag,
+        reward_percentiles: Option<Vec<f64>>,
+    ) -> FeeHistory {
+        let rpc_params = rpc_params![block_count, newest_block, reward_percentiles];
+        self.http_client
+            .request("eth_feeHistory", rpc_params)
+            .await
+            .unwrap()
+    }
+
     pub(crate) async fn eth_get_block_by_number(
         &self,
         block_number: Option<String>,
@@ -343,6 +356,54 @@ impl<T: TestContract> TestClient<T> {
     ) -> Block<Transaction> {
         self.http_client
             .request("eth_getBlockByNumber", rpc_params![block_number, true])
+            .await
+            .unwrap()
+    }
+
+    pub(crate) async fn eth_get_block_receipts(
+        &self,
+        block_number_or_hash: BlockId,
+    ) -> Vec<ethers_core::types::TransactionReceipt> {
+        self.http_client
+            .request("eth_getBlockReceipts", rpc_params![block_number_or_hash])
+            .await
+            .unwrap()
+    }
+
+    pub(crate) async fn eth_get_transaction_receipt(
+        &self,
+        tx_hash: TxHash,
+    ) -> Option<ethers_core::types::TransactionReceipt> {
+        self.http_client
+            .request("eth_getTransactionReceipt", rpc_params![tx_hash])
+            .await
+            .unwrap()
+    }
+
+    pub(crate) async fn eth_get_tx_by_block_hash_and_index(
+        &self,
+        block_hash: ethereum_types::H256,
+        index: ethereum_types::U256,
+    ) -> Transaction {
+        self.http_client
+            .request(
+                "eth_getTransactionByBlockHashAndIndex",
+                rpc_params![block_hash, index],
+            )
+            .await
+            .unwrap()
+    }
+
+    pub(crate) async fn eth_get_tx_by_block_number_and_index(
+        &self,
+        block_number: String,
+        index: ethereum_types::U256,
+    ) -> Transaction {
+        self.http_client
+            .request(
+                "eth_getTransactionByBlockNumberAndIndex",
+                rpc_params![block_number, index],
+            )
             .await
             .unwrap()
     }
@@ -398,4 +459,14 @@ impl<T: TestContract> TestClient<T> {
         };
         contract
     }
+}
+
+#[derive(serde::Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+// ethers version of FeeHistory doesn't accept None reward
+pub struct FeeHistory {
+    pub base_fee_per_gas: Vec<ethers::types::U256>,
+    pub gas_used_ratio: Vec<f64>,
+    pub oldest_block: ethers::types::U256,
+    pub reward: Option<Vec<Vec<ethers::types::U256>>>,
 }
