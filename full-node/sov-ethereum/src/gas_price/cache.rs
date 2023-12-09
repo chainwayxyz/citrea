@@ -103,7 +103,7 @@ impl<C: sov_modules_api::Context> BlockCache<C> {
         // if height not in cache, get hash from provider and call get_block
         let block = self.get_block_by_number(block_number, working_set)?;
         if let Some(block) = block {
-            // Receipts are not added to cache but their fee history is will be kept in cache in fee_history.rs
+            // Receipts are not added to cache but their fee history will be kept in cache in fee_history.rs
             let receipts: Vec<TransactionReceipt> = match &block.transactions {
                 BlockTransactions::Full(transactions) => {
                     transactions
