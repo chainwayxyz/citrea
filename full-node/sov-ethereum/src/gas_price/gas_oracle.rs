@@ -165,7 +165,7 @@ impl<C: sov_modules_api::Context> GasPriceOracle<C> {
 
         let Some(end_block) = self
             .provider
-            .block_number_for_id(&newest_block.to_string(), working_set)
+            .block_number_for_id(&newest_block, working_set)
         else {
             return Err(EthApiError::UnknownBlockNumber);
         };

@@ -164,7 +164,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     .expect("Block must be set")
             }
             BlockId::Number(block_number) => {
-                self.get_sealed_block_by_number(Some(block_number), working_set)
+                // TODO(cc: @orkunkilic): Check here - does it automatically convert into BlockNumberOrTag?
+                self.get_sealed_block_by_number(Some(block_number.into()), working_set)
             }
         };
 
@@ -194,7 +195,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     pub fn get_balance(
         &self,
         address: reth_primitives::Address,
-        _block_number: Option<String>,
+        _block_number: Option<BlockNumberOrTag>,
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<reth_primitives::U256> {
         info!("evm module: eth_getBalance");
@@ -217,7 +218,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         &self,
         address: reth_primitives::Address,
         index: reth_primitives::U256,
-        _block_number: Option<String>,
+        _block_number: Option<BlockNumberOrTag>,
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<reth_primitives::U256> {
         info!("evm module: eth_getStorageAt");
@@ -239,7 +240,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     pub fn get_transaction_count(
         &self,
         address: reth_primitives::Address,
-        _block_number: Option<String>,
+        _block_number: Option<BlockNumberOrTag>,
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<reth_primitives::U64> {
         info!("evm module: eth_getTransactionCount");
@@ -261,7 +262,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     pub fn get_code(
         &self,
         address: reth_primitives::Address,
-        _block_number: Option<String>,
+        _block_number: Option<BlockNumberOrTag>,
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<reth_primitives::Bytes> {
         info!("evm module: eth_getCode");
@@ -368,7 +369,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     #[rpc_method(name = "eth_getTransactionByBlockNumberAndIndex")]
     pub fn get_transaction_by_block_number_and_index(
         &self,
-        block_number: String,
+        block_number: BlockNumberOrTag,
         index: reth_primitives::U64,
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<Option<reth_rpc_types::Transaction>> {
@@ -991,24 +992,25 @@ impl<C: sov_modules_api::Context> Evm<C> {
     /// Helper function to check if the block number is valid
     pub fn block_number_for_id(
         &self,
-        block_id: &str,
+        block_id: &BlockNumberOrTag,
         working_set: &mut WorkingSet<C>,
     ) -> Option<u64> {
         match block_id {
-            "earliest" => Some(0),
-            "latest" => self
+            BlockNumberOrTag::Earliest => Some(0),
+            BlockNumberOrTag::Latest => self
                 .blocks
                 .last(&mut working_set.accessory_state())
                 .map(|block| block.header.number),
-            _ => usize::from_str_radix(block_id.trim_start_matches("0x"), 16)
-                .ok()
-                .and_then(|block_number| {
-                    if block_number < self.blocks.len(&mut working_set.accessory_state()) {
-                        Some(block_number as u64)
-                    } else {
-                        None
-                    }
-                }),
+            BlockNumberOrTag::Number(block_number) => {
+                if *block_number < self.blocks.len(&mut working_set.accessory_state()) as u64 {
+                    Some(*block_number)
+                } else {
+                    None
+                }
+            }
+            _ => {
+                todo!();
+            }
         }
     }
 
