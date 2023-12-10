@@ -185,7 +185,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     .expect("Block must be set")
             }
             BlockId::Number(block_number) => {
-                // TODO(cc: @orkunkilic): Check here - does it automatically convert into BlockNumberOrTag?
                 let block = self.get_sealed_block_by_number(Some(block_number.into()), working_set);
 
                 if block.is_none() {
