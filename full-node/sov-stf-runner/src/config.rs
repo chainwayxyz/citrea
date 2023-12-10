@@ -98,7 +98,7 @@ mod tests {
             bind_port = 12345
             [soft_confirmation_client]
             start_height = 5
-            scc_url = "0.0.0.0:12346"
+            scc_url = "http://0.0.0.0:12346"
         "#;
 
         let config_file = create_config_from(config);
@@ -125,7 +125,7 @@ mod tests {
             },
             soft_confirmation_client: Some(SoftConfirmationClientRpcConfig {
                 start_height: 5,
-                scc_url: "0.0.0.0:12346".to_owned(),
+                scc_url: "http://0.0.0.0:12346".to_owned(),
             }),
         };
         assert_eq!(config, expected);
