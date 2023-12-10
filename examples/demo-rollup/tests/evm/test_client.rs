@@ -194,7 +194,7 @@ impl<T: TestContract> TestClient<T> {
 
         // Estimate gas on rpc
         let gas = self
-            .eth_estimate_gas(typed_transaction, Some("latest".to_owned()))
+            .eth_estimate_gas(typed_transaction, Some(BlockNumberOrTag::Latest))
             .await;
 
         // Call with the estimated gas
@@ -202,7 +202,7 @@ impl<T: TestContract> TestClient<T> {
         let typed_transaction = TypedTransaction::Legacy(req);
 
         let response = self
-            .eth_call(typed_transaction, Some("latest".to_owned()))
+            .eth_call(typed_transaction, Some(BlockNumberOrTag::Latest))
             .await?;
 
         Ok(response)
@@ -229,7 +229,7 @@ impl<T: TestContract> TestClient<T> {
 
         let typed_transaction = TypedTransaction::Eip1559(req);
 
-        self.eth_call(typed_transaction, Some("latest".to_owned()))
+        self.eth_call(typed_transaction, Some(BlockNumberOrTag::Latest))
             .await
     }
 
@@ -342,7 +342,7 @@ impl<T: TestContract> TestClient<T> {
 
     pub(crate) async fn eth_get_block_by_number(
         &self,
-        block_number: Option<String>,
+        block_number: Option<BlockNumberOrTag>,
     ) -> Block<TxHash> {
         self.http_client
             .request("eth_getBlockByNumber", rpc_params![block_number, false])
@@ -352,7 +352,7 @@ impl<T: TestContract> TestClient<T> {
 
     pub(crate) async fn eth_get_block_by_number_with_detail(
         &self,
-        block_number: Option<String>,
+        block_number: Option<BlockNumberOrTag>,
     ) -> Block<Transaction> {
         self.http_client
             .request("eth_getBlockByNumber", rpc_params![block_number, true])
@@ -396,7 +396,7 @@ impl<T: TestContract> TestClient<T> {
 
     pub(crate) async fn eth_get_tx_by_block_number_and_index(
         &self,
-        block_number: String,
+        block_number: BlockNumberOrTag,
         index: ethereum_types::U256,
     ) -> Transaction {
         self.http_client
@@ -411,7 +411,7 @@ impl<T: TestContract> TestClient<T> {
     pub(crate) async fn eth_call(
         &self,
         tx: TypedTransaction,
-        block_number: Option<String>,
+        block_number: Option<BlockNumberOrTag>,
     ) -> Result<Bytes, Box<dyn std::error::Error>> {
         self.http_client
             .request("eth_call", rpc_params![tx, block_number])
@@ -422,7 +422,7 @@ impl<T: TestContract> TestClient<T> {
     pub(crate) async fn eth_estimate_gas(
         &self,
         tx: TypedTransaction,
-        block_number: Option<String>,
+        block_number: Option<BlockNumberOrTag>,
     ) -> u64 {
         let gas: ethereum_types::U64 = self
             .http_client

@@ -1,6 +1,6 @@
 use std::sync::Mutex;
 
-use reth_primitives::{H256, U256};
+use reth_primitives::{BlockNumberOrTag, H256};
 use reth_rpc_types::{Block, BlockTransactions, Rich, TransactionReceipt};
 use schnellru::{ByLength, LruMap};
 use sov_evm::EthResult;
@@ -73,13 +73,14 @@ impl<C: sov_modules_api::Context> BlockCache<C> {
             return Ok(Some(cache.get(block_hash).unwrap().clone()));
         }
 
-        // block_number to hex string
-        let block_number = U256::from(block_number).to_string();
-
         // Get block from provider
         let block = self
             .provider
-            .get_block_by_number(Some(block_number), Some(true), working_set)
+            .get_block_by_number(
+                Some(BlockNumberOrTag::Number(block_number)),
+                Some(true),
+                working_set,
+            )
             .unwrap_or(None);
 
         // Add block to cache if it exists
