@@ -12,7 +12,7 @@ use sov_rollup_interface::zk::ZkvmHost;
 use tokio::sync::oneshot;
 use tracing::{debug, info};
 
-use crate::config::SoftConfirmationRpcClientConfig;
+use crate::config::SoftConfirmationClientRpcConfig;
 use crate::soft_confirmation_client::SoftConfirmationClient;
 use crate::verifier::StateTransitionVerifier;
 use crate::{ProverService, RunnerConfig};
@@ -85,7 +85,7 @@ where
         prev_state_root: Option<StateRoot<Stf, Vm, Da::Spec>>,
         genesis_config: InitialState<Stf, Vm, Da::Spec>,
         prover_service: Ps,
-        scc_config: Option<SoftConfirmationRpcClientConfig>,
+        scc_config: Option<SoftConfirmationClientRpcConfig>,
     ) -> Result<Self, anyhow::Error> {
         let rpc_config = runner_config.rpc_config;
 
@@ -318,7 +318,7 @@ where
             self.state_root = next_state_root;
 
             info!(
-                "New State Root after {:?} is: {:?}",
+                "New State Root after blob {:?} is: {:?}",
                 hex::encode(blob_sender_hash),
                 self.state_root.as_ref()
             );

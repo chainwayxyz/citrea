@@ -33,7 +33,7 @@ pub async fn start_rollup(
         da: MockDaConfig {
             sender_address: MockAddress::from([0; 32]),
         },
-        soft_confirmation: None,
+        soft_confirmation_client: None,
     };
 
     let mock_demo_rollup = MockDemoRollup {};

@@ -32,7 +32,7 @@ pub struct StorageConfig {
 
 /// Sequencer RPC configuration.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
-pub struct SoftConfirmationRpcClientConfig {
+pub struct SoftConfirmationClientRpcConfig {
     /// Sequencer start height.
     pub start_height: u64,
     /// RPC host configuration.
@@ -50,8 +50,8 @@ pub struct RollupConfig<DaServiceConfig> {
     pub runner: RunnerConfig,
     /// Data Availability service configuration.
     pub da: DaServiceConfig,
-    /// Sequencer RPC Config
-    pub soft_confirmation: Option<SoftConfirmationRpcClientConfig>,
+    /// Soft Confirmation Client RPC Config for sequencer connection
+    pub soft_confirmation_client: Option<SoftConfirmationClientRpcConfig>,
 }
 
 /// Reads toml file as a specific type.
@@ -98,7 +98,7 @@ mod tests {
             [runner.rpc_config]
             bind_host = "127.0.0.1"
             bind_port = 12345
-            [soft_confirmation]
+            [soft_confirmation_client]
             start_height = 5
             scc_host = "0.0.0.0"
             scc_port = 12346
@@ -126,7 +126,7 @@ mod tests {
             storage: StorageConfig {
                 path: PathBuf::from("/tmp"),
             },
-            soft_confirmation: Some(SoftConfirmationRpcClientConfig {
+            soft_confirmation_client: Some(SoftConfirmationClientRpcConfig {
                 start_height: 5,
                 scc_host: "0.0.0.0".to_string(),
                 scc_port: 12346,
