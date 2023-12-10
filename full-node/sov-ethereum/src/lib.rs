@@ -132,51 +132,6 @@ pub mod experimental {
             Ok((H256::from(tx_hash), message))
         }
 
-        async fn build_and_submit_batch(
-            &self,
-            messages: Vec<Vec<u8>>,
-            min_blob_size: Option<usize>,
-        ) -> Result<(), jsonrpsee::core::Error> {
-            let batch = self.build_batch(messages, min_blob_size)?;
-
-            self.submit_batch(batch)
-                .await
-                .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
-
-            Ok(())
-        }
-
-        async fn submit_batch(&self, batch: Vec<Vec<u8>>) -> Result<(), jsonrpsee::core::Error> {
-            if batch.is_empty() {
-                return Ok(());
-            }
-
-            let blob = batch
-                .try_to_vec()
-                .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
-
-            self.da_service
-                .send_transaction(&blob)
-                .await
-                .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
-
-            Ok(())
-        }
-
-        fn build_batch(
-            &self,
-            messages: Vec<Vec<u8>>,
-            min_blob_size: Option<usize>,
-        ) -> Result<Vec<Vec<u8>>, jsonrpsee::core::Error> {
-            let batch = self
-                .batch_builder
-                .lock()
-                .unwrap()
-                .add_messages_and_get_next_blob(min_blob_size, messages);
-
-            Ok(batch)
-        }
-
         fn add_messages(&self, messages: Vec<Vec<u8>>) {
             self.batch_builder.lock().unwrap().add_messages(messages);
         }
@@ -209,39 +164,6 @@ pub mod experimental {
 
             Ok::<U256, ErrorObjectOwned>(price)
         })?;
-
-        // rpc.register_async_method("eth_publishBatch", |params, ethereum| async move {
-        //     let mut params_iter = params.sequence();
-
-        //     let mut txs = Vec::default();
-        //     while let Some(tx) = params_iter.optional_next::<Vec<u8>>()? {
-        //         txs.push(tx)
-        //     }
-
-        //     ethereum
-        //         .build_and_submit_batch(txs, Some(1))
-        //         .await
-        //         .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
-
-        //     Ok::<String, ErrorObjectOwned>("Submitted transaction".to_string())
-        // })?;
-
-        // rpc.register_async_method(
-        //     "eth_sendRawTransaction",
-        //     |parameters, ethereum| async move {
-        //         let data: Bytes = parameters.one().unwrap();
-
-        //         let raw_evm_tx = RlpEvmTransaction { rlp: data.to_vec() };
-
-        //         let (tx_hash, raw_message) = ethereum
-        //             .make_raw_tx(raw_evm_tx)
-        //             .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
-
-        //         ethereum.add_messages(vec![raw_message]);
-
-        //         Ok::<_, ErrorObjectOwned>(tx_hash)
-        //     },
-        // )?;
 
         #[cfg(feature = "local")]
         rpc.register_async_method("eth_accounts", |_parameters, ethereum| async move {

@@ -147,13 +147,17 @@ where
     pub async fn process(&mut self, blob: &[u8]) -> Result<(), anyhow::Error> {
         let pre_state = self.storage_manager.get_native_storage();
         let filtered_block: <Da as DaService>::FilteredBlock =
+            // TODO:4u64 issue
             self.da_service.get_block_at(4u64).await?;
-        let blobz = self.da_service.convert_to_transaction(blob).unwrap();
+        let (blob, _signature) = self
+            .da_service
+            .convert_rollup_batch_to_da_blob(blob)
+            .unwrap();
 
         info!(
             "sequencer={} blob_hash=0x{}",
-            blobz.0.sender(),
-            hex::encode(blobz.0.hash())
+            blob.sender(),
+            hex::encode(blob.hash())
         );
 
         let slot_result = self.stf.apply_slot(
@@ -162,9 +166,13 @@ where
             Default::default(),
             filtered_block.header(),              // mock this
             &filtered_block.validity_condition(), // mock this
-            &mut vec![blobz.0],
+            &mut vec![blob],
         );
-        debug!("slot_result: {:?}", slot_result.batch_receipts.len());
+
+        info!(
+            "State root after applying slot: {:?}",
+            slot_result.state_root
+        );
 
         let mut data_to_commit = SlotCommit::new(filtered_block.clone());
         for receipt in slot_result.batch_receipts {

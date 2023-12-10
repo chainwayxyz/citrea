@@ -6,7 +6,6 @@ use ethers_core::types::Bytes;
 use super::{make_contract_from_abi, test_data_path, TestContract};
 
 /// Logs wrapper.
-#[derive(Debug)]
 pub struct LogsContract {
     bytecode: Bytes,
     base_contract: BaseContract,

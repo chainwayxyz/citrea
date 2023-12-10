@@ -15,6 +15,7 @@ use sov_state::{DefaultStorageSpec, Storage, ZkStorage};
 use sov_stf_runner::{ParallelProverService, RollupConfig, RollupProverConfig};
 
 use crate::ROLLUP_NAMESPACE;
+
 /// Rollup with CelestiaDa
 pub struct CelestiaDemoRollup {}
 

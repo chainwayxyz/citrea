@@ -311,9 +311,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 .get(tx_number.unwrap() as usize, &mut accessory_state)
                 .expect("Receipt for known transaction must be set");
 
-            let annen = build_rpc_receipt(block, tx, tx_number.unwrap(), receipt);
-
-            annen
+            build_rpc_receipt(block, tx, tx_number.unwrap(), receipt)
         });
 
         Ok(receipt)

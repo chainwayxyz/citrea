@@ -4,9 +4,12 @@ use std::str::FromStr;
 use anyhow::Context as _;
 use bitcoin_da::service::{BitcoinService, DaServiceConfig};
 use bitcoin_da::spec::RollupParams;
+#[cfg(feature = "experimental")]
 use chainway_sequencer::experimental::ChainwaySequencer;
 use clap::Parser;
+use const_rollup_config::{ROLLUP_NAME, TEST_PRIVATE_KEY};
 use demo_stf::genesis_config::GenesisPaths;
+use sov_celestia_adapter::{CelestiaConfig, CelestiaService};
 use sov_demo_rollup::{BitcoinRollup, CelestiaDemoRollup, MockDemoRollup};
 use sov_mock_da::{MockAddress, MockDaConfig, MockDaService};
 use sov_modules_api::default_context::DefaultContext;
@@ -74,20 +77,18 @@ async fn main() -> Result<(), anyhow::Error> {
                 ChainwaySequencer::new(
                     rollup,
                     da_service,
-                    DefaultPrivateKey::from_hex(
-                        "1212121212121212121212121212121212121212121212121212121212121212",
-                    )
-                    .unwrap(),
+                    DefaultPrivateKey::from_hex(TEST_PRIVATE_KEY).unwrap(),
+                    // TODO: #43 https://github.com/chainwayxyz/secret-sovereign-sdk/issues/43
                     0,
                 );
-            let (port_tx, port_rx) = tokio::sync::oneshot::channel();
-            seq.run(port_tx).await?;
+            seq.start_rpc_server(None).await.unwrap();
+            seq.run().await?;
         }
         SupportedDaLayer::Bitcoin => {
             let rollup = new_rollup_with_bitcoin_da(
                 &GenesisPaths::from_dir("../test-data/genesis/demo-tests"),
                 rollup_config_path,
-                Some(RollupProverConfig::Execute),
+                RollupProverConfig::Execute,
             )
             .await?;
             let rollup_config: RollupConfig<DaServiceConfig> =
@@ -96,7 +97,7 @@ async fn main() -> Result<(), anyhow::Error> {
             let da_service = BitcoinService::new(
                 rollup_config.da,
                 RollupParams {
-                    rollup_name: "test".to_string(),
+                    rollup_name: ROLLUP_NAME.to_string(),
                 },
             )
             .await;
@@ -104,45 +105,33 @@ async fn main() -> Result<(), anyhow::Error> {
                 ChainwaySequencer::new(
                     rollup,
                     da_service,
-                    DefaultPrivateKey::from_hex(
-                        "1212121212121212121212121212121212121212121212121212121212121212",
-                    )
-                    .unwrap(),
+                    DefaultPrivateKey::from_hex(TEST_PRIVATE_KEY).unwrap(),
+                    // TODO: #43 https://github.com/chainwayxyz/secret-sovereign-sdk/issues/43
                     0,
                 );
-
-            let (port_tx, port_rx) = tokio::sync::oneshot::channel();
-            seq.run(port_tx).await?;
+            seq.start_rpc_server(None).await.unwrap();
+            seq.run().await?;
         }
         SupportedDaLayer::Celestia => {
-            // let rollup = new_rollup_with_celestia_da(
-            //     &GenesisPaths::from_dir("../test-data/genesis/demo-tests/celestia"),
-            //     rollup_config_path,
-            //     RollupProverConfig::Execute,
-            // )
-            // .await?;
-            // let rollup_config: RollupConfig<DaServiceConfig> =
-            //     from_toml_path(rollup_config_path)
-            //         .context("Failed to read rollup configuration")?;
-            // let da_service = BitcoinService::new(
-            //     rollup_config.da,
-            //     RollupParams {
-            //         rollup_name: "test".to_string(),
-            //     },
-            // )
-            // .await;
-            // let mut seq: ChainwaySequencer<DefaultContext, BitcoinService, BitcoinRollup> =
-            //     ChainwaySequencer::new(
-            //         rollup,
-            //         da_service,
-            //         DefaultPrivateKey::from_hex(
-            //             "1212121212121212121212121212121212121212121212121212121212121212",
-            //         )
-            //         .unwrap(),
-            //         0,
-            //     );
-
-            // seq.run().await?;
+            let rollup = new_rollup_with_celestia_da(
+                &GenesisPaths::from_dir("../test-data/genesis/demo-tests/celestia"),
+                rollup_config_path,
+                RollupProverConfig::Execute,
+            )
+            .await?;
+            let rollup_config: RollupConfig<CelestiaConfig> = from_toml_path(rollup_config_path)
+                .context("Failed to read rollup configuration")?;
+            let celestia_rollup = CelestiaDemoRollup {};
+            let da_service = celestia_rollup.create_da_service(&rollup_config).await;
+            let mut seq: ChainwaySequencer<DefaultContext, CelestiaService, CelestiaDemoRollup> =
+                ChainwaySequencer::new(
+                    rollup,
+                    da_service,
+                    DefaultPrivateKey::from_hex(TEST_PRIVATE_KEY).unwrap(),
+                    0,
+                );
+            seq.start_rpc_server(None).await.unwrap();
+            seq.run().await?;
         }
     }
 
@@ -152,7 +141,7 @@ async fn main() -> Result<(), anyhow::Error> {
 async fn new_rollup_with_bitcoin_da(
     genesis_paths: &GenesisPaths,
     rollup_config_path: &str,
-    prover_config: Option<RollupProverConfig>,
+    prover_config: RollupProverConfig,
 ) -> Result<Rollup<BitcoinRollup>, anyhow::Error> {
     debug!("Starting bitcoin rollup with config {}", rollup_config_path);
 
@@ -161,7 +150,7 @@ async fn new_rollup_with_bitcoin_da(
 
     let mock_rollup = BitcoinRollup {};
     mock_rollup
-        .create_new_rollup(genesis_paths, rollup_config, prover_config.unwrap())
+        .create_new_rollup(genesis_paths, rollup_config, prover_config)
         .await
 }
 

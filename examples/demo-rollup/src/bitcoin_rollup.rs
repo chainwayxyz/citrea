@@ -2,12 +2,13 @@ use async_trait::async_trait;
 use bitcoin_da::service::{BitcoinService, DaServiceConfig};
 use bitcoin_da::spec::{BitcoinSpec, RollupParams};
 use bitcoin_da::verifier::BitcoinVerifier;
+use const_rollup_config::ROLLUP_NAME;
 use demo_stf::genesis_config::StorageConfig;
 use demo_stf::runtime::Runtime;
 use sov_db::ledger_db::LedgerDB;
 use sov_modules_api::default_context::{DefaultContext, ZkDefaultContext};
 use sov_modules_api::Spec;
-use sov_modules_rollup_blueprint::{RollupBlueprint, WalletBlueprint};
+use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_modules_stf_blueprint::kernels::basic::BasicKernel;
 use sov_modules_stf_blueprint::StfBlueprint;
 use sov_risc0_adapter::host::Risc0Host;
@@ -16,7 +17,7 @@ use sov_state::storage_manager::ProverStorageManager;
 use sov_state::{DefaultStorageSpec, Storage, ZkStorage};
 use sov_stf_runner::{ParallelProverService, RollupConfig, RollupProverConfig};
 
-/// Rollup with MockDa
+/// Rollup with BitcoinDa
 pub struct BitcoinRollup {}
 
 #[async_trait]
@@ -91,7 +92,7 @@ impl RollupBlueprint for BitcoinRollup {
         BitcoinService::new(
             rollup_config.da.clone(),
             RollupParams {
-                rollup_name: "test".to_string(),
+                rollup_name: ROLLUP_NAME.to_string(),
             },
         )
         .await
@@ -107,7 +108,7 @@ impl RollupBlueprint for BitcoinRollup {
         let zk_storage = ZkStorage::new();
 
         let da_verifier = BitcoinVerifier {
-            rollup_name: "test".to_string(),
+            rollup_name: ROLLUP_NAME.to_string(),
         };
 
         ParallelProverService::new_with_default_workers(

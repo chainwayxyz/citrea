@@ -56,6 +56,15 @@ pub fn from_toml_path<P: AsRef<Path>, R: DeserializeOwned>(path: P) -> anyhow::R
     Ok(result)
 }
 
+/// Configuration for Chainway Sequencer RPC Module
+#[derive(Clone)]
+pub struct SequencerRpcConfig<C: sov_modules_api::Context> {
+    /// Minimum blob size to be included in the state transition.
+    pub min_blob_size: Option<usize>,
+    /// Private key of the account that will sign the state transition.
+    pub sov_tx_signer_priv_key: C::PrivateKey,
+}
+
 #[cfg(test)]
 mod tests {
     use std::io::Write;

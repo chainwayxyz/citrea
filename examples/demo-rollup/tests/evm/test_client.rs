@@ -53,11 +53,10 @@ impl<T: TestContract> TestClient<T> {
     }
 
     pub(crate) async fn send_publish_batch_request(&self) {
-        let _: () = self
-            .http_client
+        self.http_client
             .request("eth_publishBatch", rpc_params![])
             .await
-            .unwrap();
+            .unwrap()
     }
 
     pub(crate) async fn deploy_contract(

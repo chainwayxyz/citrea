@@ -259,9 +259,9 @@ impl DaService for CelestiaService {
         Ok(())
     }
 
-    fn convert_to_transaction(
+    fn convert_rollup_batch_to_da_blob(
         &self,
-        blob: &[u8],
+        _blob: &[u8],
     ) -> Result<
         (
             <Self::Spec as sov_rollup_interface::da::DaSpec>::BlobTransaction,

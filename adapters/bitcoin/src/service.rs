@@ -391,7 +391,7 @@ impl DaService for BitcoinService {
             .await
     }
 
-    fn convert_to_transaction(
+    fn convert_rollup_batch_to_da_blob(
         &self,
         blob: &[u8],
     ) -> Result<

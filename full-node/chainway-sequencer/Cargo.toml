@@ -36,6 +36,8 @@ sov-rollup-interface = { path = "../../rollup-interface", features = [
     "native",
 ] }
 
+sov-stf-runner = { path = "../sov-stf-runner" }
+
 sov-modules-stf-blueprint = { path = "../../module-system/sov-modules-stf-blueprint" }
 
 demo-stf = { path = "../../examples/demo-rollup/stf", features = ["native"] }
