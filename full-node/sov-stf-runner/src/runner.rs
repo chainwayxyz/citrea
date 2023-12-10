@@ -142,6 +142,49 @@ where
         });
     }
 
+    /// Processes sequence
+    /// gets a blob of txs as parameter
+    pub async fn process(&mut self, blob: &[u8]) -> Result<(), anyhow::Error> {
+        let pre_state = self.storage_manager.get_native_storage();
+        let filtered_block: <Da as DaService>::FilteredBlock =
+            // TODO: 4 is used to mock da related info, will be replaced
+            self.da_service.get_block_at(4u64).await?;
+        let (blob, _signature) = self
+            .da_service
+            .convert_rollup_batch_to_da_blob(blob)
+            .unwrap();
+
+        info!(
+            "sequencer={} blob_hash=0x{}",
+            blob.sender(),
+            hex::encode(blob.hash())
+        );
+
+        let slot_result = self.stf.apply_slot(
+            &self.state_root,
+            pre_state,
+            Default::default(),
+            filtered_block.header(),              // mock this
+            &filtered_block.validity_condition(), // mock this
+            &mut vec![blob],
+        );
+
+        info!(
+            "State root after applying slot: {:?}",
+            slot_result.state_root
+        );
+
+        let mut data_to_commit = SlotCommit::new(filtered_block.clone());
+        for receipt in slot_result.batch_receipts {
+            data_to_commit.add_batch(receipt);
+        }
+        let next_state_root = slot_result.state_root;
+        self.ledger_db.commit_slot(data_to_commit)?;
+        self.state_root = next_state_root;
+
+        Ok(())
+    }
+
     /// Runs the rollup.
     pub async fn run_in_process(&mut self) -> Result<(), anyhow::Error> {
         for height in self.start_height.. {

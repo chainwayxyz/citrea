@@ -390,6 +390,28 @@ impl DaService for BitcoinService {
         self.send_transaction_with_fee_rate(blob, fee_sat_per_vbyte)
             .await
     }
+
+    fn convert_rollup_batch_to_da_blob(
+        &self,
+        blob: &[u8],
+    ) -> Result<
+        (
+            <Self::Spec as sov_rollup_interface::da::DaSpec>::BlobTransaction,
+            Vec<u8>,
+        ),
+        Self::Error,
+    > {
+        let (signature, pubkey) =
+            sign_blob_with_private_key(blob, &self.sequencer_da_private_key).unwrap();
+        Ok((
+            BlobWithSender::new(
+                blob.to_vec(),
+                pubkey,
+                sha256d::Hash::hash(blob).to_byte_array(),
+            ),
+            signature,
+        ))
+    }
 }
 
 #[cfg(test)]

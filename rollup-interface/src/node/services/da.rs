@@ -109,6 +109,12 @@ pub trait DaService: Send + Sync + 'static {
     /// blob is the serialized and signed transaction.
     /// Returns nothing if the transaction was successfully sent.
     async fn send_transaction(&self, blob: &[u8]) -> Result<Self::TransactionId, Self::Error>;
+
+    /// Convert blob to a DA layer transaction.
+    fn convert_rollup_batch_to_da_blob(
+        &self,
+        blob: &[u8],
+    ) -> Result<(<Self::Spec as DaSpec>::BlobTransaction, Vec<u8>), Self::Error>;
 }
 
 /// `SlotData` is the subset of a DA layer block which is stored in the rollup's database.

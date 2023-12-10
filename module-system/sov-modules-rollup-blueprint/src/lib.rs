@@ -174,6 +174,12 @@ impl<S: RollupBlueprint> Rollup<S> {
         self.run_and_report_rpc_port(None).await
     }
 
+    /// Only run the rpc.
+    pub async fn run_rpc(self) -> Result<(), anyhow::Error> {
+        self.runner.start_rpc_server(self.rpc_methods, None).await;
+        Ok(())
+    }
+
     /// Runs the rollup. Reports rpc port to the caller using the provided channel.
     pub async fn run_and_report_rpc_port(
         self,

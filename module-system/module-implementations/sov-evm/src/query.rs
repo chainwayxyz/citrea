@@ -416,7 +416,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<Option<reth_rpc_types::TransactionReceipt>> {
         info!("evm module: eth_getTransactionReceipt");
-
         let mut accessory_state = working_set.accessory_state();
 
         let tx_number = self.transaction_hashes.get(&hash, &mut accessory_state);
@@ -809,7 +808,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 let logs_bloom = block.header.logs_bloom;
 
                 let alloy_logs_bloom = alloy_primitives::Bloom::from(logs_bloom.data());
-
                 if matches_address(alloy_logs_bloom, &address_filter)
                     && matches_topics(alloy_logs_bloom, &topics_filter)
                 {

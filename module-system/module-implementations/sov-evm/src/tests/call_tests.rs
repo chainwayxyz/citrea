@@ -221,11 +221,13 @@ fn failed_transaction_test() {
 
     evm.end_slot_hook(working_set);
 
+    // assert no pending transaction
     let pending_txs = evm.pending_transactions.iter(working_set);
     assert_eq!(pending_txs.len(), 0);
 
     // Assert block does not have any transaction
     let block = evm.blocks.last(&mut working_set.accessory_state()).unwrap();
+    assert_eq!(block.transactions.start, 0);
     assert_eq!(block.transactions.end, 0);
 }
 
@@ -641,6 +643,23 @@ fn test_log_limits() {
     {
         let sender_address = generate_address::<C>("sender");
         let context = C::new(sender_address, 1);
+
+        // deploy logs contract
+        let mut rlp_transactions = vec![create_contract_message(
+            &dev_signer,
+            0,
+            LogsContract::default(),
+        )];
+
+        // call the contracts 10_001 times so we got 20_002 logs (response limit is 20_000)
+        for i in 0..10001 {
+            rlp_transactions.push(publish_event_message(
+                contract_addr,
+                &dev_signer,
+                i + 1,
+                "hello".to_string(),
+            ));
+        }
 
         // deploy logs contract
         let mut rlp_transactions = vec![create_contract_message(

@@ -53,11 +53,10 @@ impl<T: TestContract> TestClient<T> {
     }
 
     pub(crate) async fn send_publish_batch_request(&self) {
-        let _: String = self
-            .http_client
+        self.http_client
             .request("eth_publishBatch", rpc_params![])
             .await
-            .unwrap();
+            .unwrap()
     }
 
     pub(crate) async fn deploy_contract(
@@ -79,7 +78,6 @@ impl<T: TestContract> TestClient<T> {
             .client
             .send_transaction(typed_transaction, None)
             .await?;
-
         Ok(receipt_req)
     }
 
@@ -121,7 +119,10 @@ impl<T: TestContract> TestClient<T> {
 
         let typed_transaction = TypedTransaction::Eip1559(req);
 
-        self.eth_send_transaction(typed_transaction).await
+        self.client
+            .send_transaction(typed_transaction, None)
+            .await
+            .unwrap()
     }
 
     pub(crate) async fn set_value_unsigned(
@@ -357,6 +358,14 @@ impl<T: TestContract> TestClient<T> {
         self.http_client
             .request("eth_getBlockByNumber", rpc_params![block_number, true])
             .await
+            .unwrap()
+    }
+
+
+    pub(crate) async fn eth_get_transaction_by_hash(&self, tx_hash: TxHash) -> Option<Transaction> {
+        self.http_client
+            .request("eth_getTransactionByHash", rpc_params![tx_hash])
+             .await
             .unwrap()
     }
 

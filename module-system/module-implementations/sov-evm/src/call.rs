@@ -110,7 +110,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 },
             }
         }
-
         Ok(CallResponse::default())
     }
 }

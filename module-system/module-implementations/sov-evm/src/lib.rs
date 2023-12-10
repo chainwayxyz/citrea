@@ -10,11 +10,17 @@ mod genesis;
 mod hooks;
 #[cfg(feature = "experimental")]
 mod rpc_helpers;
+#[cfg(feature = "experimental")]
 pub use call::*;
+#[cfg(feature = "experimental")]
 pub use error::rpc::*;
+#[cfg(feature = "experimental")]
 pub use evm::*;
+#[cfg(feature = "experimental")]
 pub use genesis::*;
+#[cfg(feature = "experimental")]
 pub use hooks::*;
+#[cfg(feature = "experimental")]
 pub use rpc_helpers::*;
 #[cfg(feature = "native")]
 #[cfg(feature = "experimental")]
