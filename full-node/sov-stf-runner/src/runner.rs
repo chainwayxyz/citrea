@@ -235,18 +235,18 @@ where
 
             debug!("Requesting data for height {}", height,);
 
-            // TODO: Change here
+            // TODO: Change the block here from 2 to legit option.
             let filtered_block = self.da_service.get_block_at(2).await?;
 
-            let blob_with_sender: <<Da as DaService>::Spec as DaSpec>::BlobTransaction =
+            let tx_blob_with_sender: <<Da as DaService>::Spec as DaSpec>::BlobTransaction =
                 new_blobs.0;
 
-            let blob_sender_hash = blob_with_sender.hash();
+            let blob_hash = tx_blob_with_sender.hash();
 
             info!(
                 "Extracted blob-tx {} with length {} at height {}",
-                hex::encode(&blob_sender_hash),
-                blob_with_sender.total_len(),
+                hex::encode(&blob_hash),
+                tx_blob_with_sender.total_len(),
                 height,
             );
 
@@ -259,7 +259,7 @@ where
                 Default::default(),
                 filtered_block.header(),
                 &filtered_block.validity_condition(),
-                &mut vec![blob_with_sender],
+                &mut vec![tx_blob_with_sender],
             );
 
             for receipt in slot_result.batch_receipts {
@@ -318,7 +318,7 @@ where
 
             info!(
                 "New State Root after blob {:?} is: {:?}",
-                hex::encode(blob_sender_hash),
+                hex::encode(blob_hash),
                 self.state_root.as_ref()
             );
             height += 1;

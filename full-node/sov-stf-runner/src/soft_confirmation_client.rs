@@ -4,7 +4,7 @@ use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use jsonrpsee::rpc_params;
 use serde_json::Value;
 
-/// Configuration for StateTransitionRunner.
+/// Configuration for SoftConfirmationClient.
 #[derive(Debug, Clone)]
 pub struct SoftConfirmationClient {
     /// Start height for soft confirmation
