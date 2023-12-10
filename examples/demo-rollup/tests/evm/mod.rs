@@ -8,6 +8,7 @@ use ethers_core::abi::Address;
 use ethers_core::types::{BlockId, U256};
 use ethers_signers::{LocalWallet, Signer};
 use reqwest::Client;
+use reth_primitives::BlockNumberOrTag;
 use sov_evm::{SimpleStorageContract, TestContract};
 use sov_stf_runner::RollupProverConfig;
 use test_client::TestClient;
@@ -232,7 +233,9 @@ async fn execute<T: TestContract>(
 
     // Check that the first block has published
     // It should have a single transaction, deploying the contract
-    let first_block = client.eth_get_block_by_number(Some("0x1".to_owned())).await;
+    let first_block = client
+        .eth_get_block_by_number(Some(BlockNumberOrTag::Number(1)))
+        .await;
     assert_eq!(first_block.number.unwrap().as_u64(), 1);
     assert_eq!(first_block.transactions.len(), 1);
 
@@ -246,7 +249,9 @@ async fn execute<T: TestContract>(
     };
 
     // Now we have a second block
-    let second_block = client.eth_get_block_by_number(Some("0x2".to_owned())).await;
+    let second_block = client
+        .eth_get_block_by_number(Some(BlockNumberOrTag::Number(2)))
+        .await;
     assert_eq!(second_block.number.unwrap().as_u64(), 2);
 
     // Assert getTransactionByBlockHashAndIndex
@@ -260,10 +265,16 @@ async fn execute<T: TestContract>(
 
     // Assert getTransactionByBlockNumberAndIndex
     let tx_by_number = client
-        .eth_get_tx_by_block_number_and_index("0x2".to_string(), ethereum_types::U256::from(0))
+        .eth_get_tx_by_block_number_and_index(
+            BlockNumberOrTag::Number(2),
+            ethereum_types::U256::from(0),
+        )
         .await;
     let tx_by_number_tag = client
-        .eth_get_tx_by_block_number_and_index("latest".to_string(), ethereum_types::U256::from(0))
+        .eth_get_tx_by_block_number_and_index(
+            BlockNumberOrTag::Latest,
+            ethereum_types::U256::from(0),
+        )
         .await;
     assert_eq!(tx_by_number.hash, tx_hash);
     assert_eq!(tx_by_number_tag.hash, tx_hash);
@@ -332,6 +343,12 @@ async fn execute<T: TestContract>(
         let latest_block_receipts = client
             .eth_get_block_receipts(BlockId::Number(ethers_core::types::BlockNumber::Latest))
             .await;
+        let latest_block_receipt_by_number = client
+            .eth_get_block_receipts(BlockId::Number(ethers_core::types::BlockNumber::Number(
+                latest_block.number.unwrap(),
+            )))
+            .await;
+        assert_eq!(latest_block_receipts, latest_block_receipt_by_number);
         assert_eq!(latest_block_receipts.len(), 1);
         assert_eq!(latest_block_receipts[0].transaction_hash, tx_hash);
         let tx_receipt = client.eth_get_transaction_receipt(tx_hash).await.unwrap();
@@ -394,8 +411,12 @@ async fn execute<T: TestContract>(
         assert!(latest_gas_price > initial_gas_price);
     }
 
-    let first_block = client.eth_get_block_by_number(Some("0x0".to_owned())).await;
-    let second_block = client.eth_get_block_by_number(Some("0x1".to_owned())).await;
+    let first_block = client
+        .eth_get_block_by_number(Some(BlockNumberOrTag::Number(0)))
+        .await;
+    let second_block = client
+        .eth_get_block_by_number(Some(BlockNumberOrTag::Number(1)))
+        .await;
 
     // assert parent hash works correctly
     assert_eq!(
@@ -432,10 +453,10 @@ pub async fn init_test_rollup<T: TestContract>(
 
     // No block exists yet
     let latest_block = test_client
-        .eth_get_block_by_number(Some("latest".to_owned()))
+        .eth_get_block_by_number(Some(BlockNumberOrTag::Latest))
         .await;
     let earliest_block = test_client
-        .eth_get_block_by_number(Some("earliest".to_owned()))
+        .eth_get_block_by_number(Some(BlockNumberOrTag::Earliest))
         .await;
 
     assert_eq!(latest_block, earliest_block);
