@@ -37,6 +37,8 @@ pub enum EthApiError {
     PoolError(RpcPoolError),
     #[error("Unknown block number")]
     UnknownBlockNumber,
+    #[error("Block {} not found", .0)]
+    UnknownBlockHash(String),
     /// Thrown when querying for `finalized` or `safe` block before the merge transition is
     /// finalized, <https://github.com/ethereum/execution-apis/blob/6d17705a875e52c26826124c2a8a15ed542aeca2/src/schemas/block.yaml#L109>
     #[error("Unknown block")]
@@ -122,7 +124,9 @@ impl From<EthApiError> for ErrorObject<'static> {
             | EthApiError::InvalidBlockData(_)
             | EthApiError::Internal(_)
             | EthApiError::TransactionNotFound => internal_rpc_err(error.to_string()),
-            EthApiError::UnknownBlockNumber | EthApiError::UnknownBlockOrTxIndex => {
+            EthApiError::UnknownBlockNumber
+            | EthApiError::UnknownBlockOrTxIndex
+            | EthApiError::UnknownBlockHash(_) => {
                 rpc_error_with_code(EthRpcErrorCode::ResourceNotFound.code(), error.to_string())
             }
             EthApiError::UnknownSafeOrFinalizedBlock => {
