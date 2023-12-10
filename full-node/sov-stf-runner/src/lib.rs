@@ -19,8 +19,6 @@ use borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(feature = "native")]
 pub use config::RpcConfig;
 #[cfg(feature = "native")]
-pub use config::SequencerRpcConfig;
-#[cfg(feature = "native")]
 pub use prover_service::*;
 #[cfg(feature = "native")]
 mod runner;

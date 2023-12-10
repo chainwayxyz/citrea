@@ -123,9 +123,9 @@ impl DaService for MockDaService {
     /// It is possible to read non-finalized and last finalized blocks multiple times
     /// Finalized blocks must be read in order.
     async fn get_block_at(&self, height: u64) -> Result<Self::FilteredBlock, Self::Error> {
-        // We added this modification that creates 100 blocks in the end because normally mock da creates blocks whena a transaction is sent
-        // however in our case we want to create blocks before sending transactions to da layer
-        // this is because we have soft confirmation before sending transactions to da layer
+        // This modification that creates 100 blocks was added because normally mock da creates blocks whena a transaction is sent
+        // however in the current rollup architecture l2 blocks are created before sending transactions to da layer
+        // this is because of the soft confirmation logic.
         if self.blocks.read().await.len() < 3 {
             for _ in 0..100 {
                 self.send_transaction(&[1]).await;
@@ -381,9 +381,9 @@ mod tests {
     }
 
     async fn test_push_and_read(finalization: u64, num_blocks: usize) {
-        // we had to alter these test a little bit because at get_block_at we are creating 100 blocks
-        // so we initially call the get_block_at(1) to create 100 blocks
-        // then we start from block 101, the rest of the logic is the same
+        // these tests had to be altered a little bit because at get_block_at there are  100 blocks being created
+        // so initially  the get_block_at(1) is called to create 100 blocks
+        // then the test starts from block 101, the rest of the logic is the same
         let mut da = MockDaService::with_finality(MockAddress::new([1; 32]), finalization as u32);
 
         // mock as if we were starting from 100 instead of 0
@@ -424,9 +424,9 @@ mod tests {
     }
 
     async fn test_push_many_then_read(finalization: u64, num_blocks: usize) {
-        // we had to alter these test a little bit because at get_block_at we are creating 100 blocks
-        // so we initially call the get_block_at(1) to create 100 blocks
-        // then we start from block 101, the rest of the logic is the same
+        // these tests had to be altered a little bit because at get_block_at there are  100 blocks being created
+        // so initially  the get_block_at(1) is called to create 100 blocks
+        // then the test starts from block 101, the rest of the logic is the same
         let mut da = MockDaService::with_finality(MockAddress::new([1; 32]), finalization as u32);
 
         // mock as if we were starting from 100 instead of 0

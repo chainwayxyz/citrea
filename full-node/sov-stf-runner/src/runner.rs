@@ -147,7 +147,7 @@ where
     pub async fn process(&mut self, blob: &[u8]) -> Result<(), anyhow::Error> {
         let pre_state = self.storage_manager.get_native_storage();
         let filtered_block: <Da as DaService>::FilteredBlock =
-            // TODO:4u64 issue
+            // TODO: 4 is used to mock da related info, will be replaced
             self.da_service.get_block_at(4u64).await?;
         let (blob, _signature) = self
             .da_service

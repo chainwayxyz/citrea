@@ -28,7 +28,6 @@ pub mod experimental {
     use sov_modules_rollup_blueprint::{Rollup, RollupBlueprint};
     use sov_modules_stf_blueprint::{Batch, RawTx};
     use sov_rollup_interface::services::da::DaService;
-    use sov_stf_runner::SequencerRpcConfig;
     use tokio::sync::oneshot;
     use tracing::{debug, info};
 
