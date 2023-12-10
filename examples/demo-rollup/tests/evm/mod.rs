@@ -246,7 +246,7 @@ async fn execute<T: TestContract>(
     };
 
     // Now we have a second block
-    let second_block = client.eth_get_block_by_number(Some("2".to_owned())).await;
+    let second_block = client.eth_get_block_by_number(Some("0x2".to_owned())).await;
     assert_eq!(second_block.number.unwrap().as_u64(), 2);
 
     // Assert getTransactionByBlockHashAndIndex
