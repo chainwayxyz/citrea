@@ -238,6 +238,8 @@ where
             // TODO: Change the block here from 2 to legit option.
             let filtered_block = self.da_service.get_block_at(2).await?;
 
+            // 0 is the BlobTransaction
+            // 1 is the Signature
             let tx_blob_with_sender: <<Da as DaService>::Spec as DaSpec>::BlobTransaction =
                 new_blobs.0;
 
