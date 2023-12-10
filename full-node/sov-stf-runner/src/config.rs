@@ -35,10 +35,8 @@ pub struct StorageConfig {
 pub struct SoftConfirmationClientRpcConfig {
     /// Sequencer start height.
     pub start_height: u64,
-    /// RPC host configuration.
-    pub scc_host: String,
-    /// RPC port configuration.
-    pub scc_port: u16,
+    /// RPC host url (with port, if applicable).
+    pub scc_url: String,
 }
 
 /// Rollup Configuration
@@ -100,8 +98,7 @@ mod tests {
             bind_port = 12345
             [soft_confirmation_client]
             start_height = 5
-            scc_host = "0.0.0.0"
-            scc_port = 12346
+            scc_url = "0.0.0.0:12346"
         "#;
 
         let config_file = create_config_from(config);
@@ -128,8 +125,7 @@ mod tests {
             },
             soft_confirmation_client: Some(SoftConfirmationClientRpcConfig {
                 start_height: 5,
-                scc_host: "0.0.0.0".to_string(),
-                scc_port: 12346,
+                scc_url: "0.0.0.0:12346".to_owned(),
             }),
         };
         assert_eq!(config, expected);

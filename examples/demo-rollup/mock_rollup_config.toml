@@ -17,5 +17,4 @@ bind_port = 12345
 
 [soft_confirmation]
 start_height = 1
-scc_host = "0.0.0.0"
-scc_port = 12346
+scc_url = "0.0.0.0:12346"

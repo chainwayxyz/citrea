@@ -10,22 +10,17 @@ pub struct SoftConfirmationClient {
     /// Start height for soft confirmation
     pub start_height: u64,
     /// Host config for soft confirmation
-    pub rpc_host: String,
-    /// Port config for soft confirmation
-    pub rpc_port: u16,
+    pub rpc_url: String,
     /// Client object for soft confirmation
     pub client: HttpClient,
 }
 
 impl SoftConfirmationClient {
-    pub fn new(start_height: u64, host_config: String, port_config: u16) -> Self {
-        let client = HttpClientBuilder::default()
-            .build(format!("http://{}:{}", host_config, port_config))
-            .unwrap();
+    pub fn new(start_height: u64, rpc_url: String) -> Self {
+        let client = HttpClientBuilder::default().build(&rpc_url).unwrap();
         Self {
             start_height,
-            rpc_host: host_config,
-            rpc_port: port_config,
+            rpc_url,
             client,
         }
     }

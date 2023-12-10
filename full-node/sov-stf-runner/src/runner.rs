@@ -114,8 +114,7 @@ where
         let soft_confirmation_client = match scc_config {
             Some(scc_config) => Some(SoftConfirmationClient::new(
                 scc_config.start_height,
-                scc_config.scc_host,
-                scc_config.scc_port,
+                scc_config.scc_url,
             )),
             None => None,
         };
