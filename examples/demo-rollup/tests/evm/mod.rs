@@ -5,8 +5,10 @@ use std::str::FromStr;
 
 use demo_stf::genesis_config::GenesisPaths;
 use ethers_core::abi::Address;
+use ethers_core::types::{BlockId, U256};
 use ethers_signers::{LocalWallet, Signer};
 use reqwest::Client;
+use reth_primitives::BlockNumberOrTag;
 use sov_evm::{SimpleStorageContract, TestContract};
 use sov_stf_runner::RollupProverConfig;
 use test_client::TestClient;
@@ -232,7 +234,9 @@ async fn execute<T: TestContract>(
 
     // Check that the first block has published
     // It should have a single transaction, deploying the contract
-    let first_block = client.eth_get_block_by_number(Some("1".to_owned())).await;
+    let first_block = client
+        .eth_get_block_by_number(Some(BlockNumberOrTag::Number(1)))
+        .await;
     assert_eq!(first_block.number.unwrap().as_u64(), 1);
     assert_eq!(first_block.transactions.len(), 1);
 
@@ -244,6 +248,37 @@ async fn execute<T: TestContract>(
         client.send_publish_batch_request().await;
         set_value_req.await.unwrap().unwrap().transaction_hash
     };
+
+    // Now we have a second block
+    let second_block = client
+        .eth_get_block_by_number(Some(BlockNumberOrTag::Number(2)))
+        .await;
+    assert_eq!(second_block.number.unwrap().as_u64(), 2);
+
+    // Assert getTransactionByBlockHashAndIndex
+    let tx_by_hash = client
+        .eth_get_tx_by_block_hash_and_index(
+            second_block.hash.unwrap(),
+            ethereum_types::U256::from(0),
+        )
+        .await;
+    assert_eq!(tx_by_hash.hash, tx_hash);
+
+    // Assert getTransactionByBlockNumberAndIndex
+    let tx_by_number = client
+        .eth_get_tx_by_block_number_and_index(
+            BlockNumberOrTag::Number(2),
+            ethereum_types::U256::from(0),
+        )
+        .await;
+    let tx_by_number_tag = client
+        .eth_get_tx_by_block_number_and_index(
+            BlockNumberOrTag::Latest,
+            ethereum_types::U256::from(0),
+        )
+        .await;
+    assert_eq!(tx_by_number.hash, tx_hash);
+    assert_eq!(tx_by_number_tag.hash, tx_hash);
 
     let get_arg = client.query_contract(contract_address).await?;
     assert_eq!(set_arg, get_arg.as_u32());
@@ -306,6 +341,20 @@ async fn execute<T: TestContract>(
         assert_eq!(latest_block.transactions.len(), 1);
         assert_eq!(latest_block.transactions[0], tx_hash);
 
+        let latest_block_receipts = client
+            .eth_get_block_receipts(BlockId::Number(ethers_core::types::BlockNumber::Latest))
+            .await;
+        let latest_block_receipt_by_number = client
+            .eth_get_block_receipts(BlockId::Number(ethers_core::types::BlockNumber::Number(
+                latest_block.number.unwrap(),
+            )))
+            .await;
+        assert_eq!(latest_block_receipts, latest_block_receipt_by_number);
+        assert_eq!(latest_block_receipts.len(), 1);
+        assert_eq!(latest_block_receipts[0].transaction_hash, tx_hash);
+        let tx_receipt = client.eth_get_transaction_receipt(tx_hash).await.unwrap();
+        assert_eq!(tx_receipt, latest_block_receipts[0]);
+
         let get_arg = client.query_contract(contract_address).await?;
         assert_eq!(value, get_arg.as_u32());
     }
@@ -313,6 +362,17 @@ async fn execute<T: TestContract>(
     {
         // get initial gas price
         let initial_gas_price = client.eth_gas_price().await;
+
+        // get initial fee history
+        let initial_fee_history = client
+            .eth_fee_history(
+                // block count hex
+                "0x100".to_string(),
+                reth_primitives::BlockNumberOrTag::Latest,
+                None,
+            )
+            .await;
+        assert_eq!(initial_fee_history.oldest_block, U256::zero());
 
         // send 100 set transaction with high gas fee in a four batch to increase gas price
         for _ in 0..4 {
@@ -330,14 +390,35 @@ async fn execute<T: TestContract>(
         // get gas price
         let latest_gas_price = client.eth_gas_price().await;
 
+        // get fee history
+        let latest_fee_history = client
+            .eth_fee_history(
+                // block count hex
+                "0x100".to_string(),
+                reth_primitives::BlockNumberOrTag::Latest,
+                None,
+            )
+            .await;
+        assert_eq!(latest_fee_history.oldest_block, U256::zero());
+
+        // there are 4 blocks in between
+        assert_eq!(
+            latest_fee_history.gas_used_ratio.len() - initial_fee_history.gas_used_ratio.len(),
+            4
+        );
+
         // assert gas price is higher
         // TODO: emulate gas price oracle here to have exact value
         // TODO: https://github.com/chainwayxyz/secret-sovereign-sdk/issues/34
         // assert!(latest_gas_price > initial_gas_price);
     }
 
-    let first_block = client.eth_get_block_by_number(Some("0".to_owned())).await;
-    let second_block = client.eth_get_block_by_number(Some("1".to_owned())).await;
+    let first_block = client
+        .eth_get_block_by_number(Some(BlockNumberOrTag::Number(0)))
+        .await;
+    let second_block = client
+        .eth_get_block_by_number(Some(BlockNumberOrTag::Number(1)))
+        .await;
 
     // assert parent hash works correctly
     assert_eq!(
@@ -374,10 +455,10 @@ pub async fn init_test_rollup<T: TestContract>(
 
     // No block exists yet
     let latest_block = test_client
-        .eth_get_block_by_number(Some("latest".to_owned()))
+        .eth_get_block_by_number(Some(BlockNumberOrTag::Latest))
         .await;
     let earliest_block = test_client
-        .eth_get_block_by_number(Some("earliest".to_owned()))
+        .eth_get_block_by_number(Some(BlockNumberOrTag::Earliest))
         .await;
 
     assert_eq!(latest_block, earliest_block);

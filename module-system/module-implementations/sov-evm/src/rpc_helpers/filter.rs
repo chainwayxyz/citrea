@@ -7,7 +7,7 @@ use std::ops::{Range, RangeFrom, RangeInclusive, RangeTo};
 use alloy_primitives::{Bloom, BloomInput, U64};
 use itertools::EitherOrBoth::*;
 use itertools::Itertools;
-use reth_primitives::{Address, BlockHash, H256};
+use reth_primitives::{Address, BlockHash, BlockNumberOrTag, H256};
 use revm::primitives::B256;
 use serde::de::{DeserializeOwned, MapAccess, Visitor};
 use serde::ser::SerializeStruct;
@@ -15,7 +15,6 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::evm::error::result::rpc_error_with_code;
 use crate::evm::error::rpc::EthApiError;
-use crate::BlockNumberOrTag;
 
 /// The maximum number of blocks that can be queried in a single eth_getLogs request.
 pub const DEFAULT_MAX_BLOCKS_PER_FILTER: u64 = 100_000;
@@ -117,7 +116,8 @@ impl From<BlockNumberOrTag> for FilterBlockOption {
 
 impl From<U64> for FilterBlockOption {
     fn from(block: U64) -> Self {
-        BlockNumberOrTag::from(block).into()
+        let block_be_bytes: [u8; 8] = block.to_be_bytes();
+        BlockNumberOrTag::from(reth_primitives::U64::from_big_endian(&block_be_bytes)).into()
     }
 }
 

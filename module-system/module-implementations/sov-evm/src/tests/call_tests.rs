@@ -1,4 +1,4 @@
-use reth_primitives::{Address, Bytes, TransactionKind, U64};
+use reth_primitives::{Address, BlockNumberOrTag, Bytes, TransactionKind, U64};
 use reth_rpc_types::{CallInput, CallRequest};
 use revm::primitives::{SpecId, B256, KECCAK_EMPTY, U256};
 use sov_modules_api::default_context::DefaultContext;
@@ -11,8 +11,7 @@ use crate::smart_contracts::{SelfDestructorContract, SimpleStorageContract, Test
 use crate::tests::genesis_tests::get_evm;
 use crate::tests::test_signer::TestSigner;
 use crate::{
-    AccountData, BlockHashContract, BlockNumberOrTag, EvmConfig, Filter, FilterSet, LogsContract,
-    RlpEvmTransaction,
+    AccountData, BlockHashContract, EvmConfig, Filter, FilterSet, LogsContract, RlpEvmTransaction,
 };
 
 type C = DefaultContext;

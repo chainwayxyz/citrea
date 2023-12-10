@@ -3,7 +3,7 @@ use std::str::FromStr;
 use anyhow::Context as _;
 use sov_cli::wallet_state::PrivateKeyAndAddress;
 use sov_ethereum::experimental::EthRpcConfig;
-use sov_ethereum::GasPriceOracleConfig;
+use sov_ethereum::{FeeHistoryCacheConfig, GasPriceOracleConfig};
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
 use sov_rollup_interface::services::da::DaService;
@@ -35,6 +35,7 @@ pub(crate) fn register_ethereum<Da: DaService>(
             sov_tx_signer_priv_key: read_sov_tx_signer_priv_key()?,
             eth_signer,
             gas_price_oracle_config: GasPriceOracleConfig::default(),
+            fee_history_cache_config: FeeHistoryCacheConfig::default(),
         }
     };
 
