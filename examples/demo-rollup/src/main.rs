@@ -4,8 +4,7 @@ use std::str::FromStr;
 use anyhow::Context as _;
 use bitcoin_da::service::{BitcoinService, DaServiceConfig};
 use bitcoin_da::spec::RollupParams;
-#[cfg(feature = "experimental")]
-use chainway_sequencer::experimental::ChainwaySequencer;
+use chainway_sequencer::ChainwaySequencer;
 use clap::Parser;
 use const_rollup_config::{ROLLUP_NAME, TEST_PRIVATE_KEY};
 use demo_stf::genesis_config::GenesisPaths;
@@ -14,7 +13,6 @@ use sov_demo_rollup::{BitcoinRollup, CelestiaDemoRollup, MockDemoRollup};
 use sov_mock_da::{MockAddress, MockDaConfig, MockDaService};
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
-use sov_modules_api::Context;
 use sov_modules_rollup_blueprint::{Rollup, RollupBlueprint};
 use sov_stf_runner::{from_toml_path, RollupConfig, RollupProverConfig};
 use tracing::log::debug;

@@ -361,11 +361,10 @@ impl<T: TestContract> TestClient<T> {
             .unwrap()
     }
 
-
     pub(crate) async fn eth_get_transaction_by_hash(&self, tx_hash: TxHash) -> Option<Transaction> {
         self.http_client
             .request("eth_getTransactionByHash", rpc_params![tx_hash])
-             .await
+            .await
             .unwrap()
     }
 

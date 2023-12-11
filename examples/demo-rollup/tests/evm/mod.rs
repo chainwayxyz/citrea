@@ -16,7 +16,6 @@ use tokio::time::{sleep, Duration};
 
 use crate::test_helpers::start_rollup;
 
-#[cfg(feature = "experimental")]
 #[tokio::test]
 async fn evm_tx_tests() -> Result<(), anyhow::Error> {
     let (port_tx, port_rx) = tokio::sync::oneshot::channel();
@@ -43,7 +42,6 @@ async fn send_tx_test_to_eth(rpc_address: SocketAddr) -> Result<(), Box<dyn std:
     execute(&test_client).await
 }
 
-#[cfg(feature = "experimental")]
 #[tokio::test]
 async fn test_eth_get_logs() -> Result<(), anyhow::Error> {
     use sov_evm::LogsContract;
@@ -400,6 +398,11 @@ async fn execute<T: TestContract>(
             )
             .await;
         assert_eq!(latest_fee_history.oldest_block, U256::zero());
+
+        println!(
+            "initial fee history: {:?}, latest fee history: {:?}",
+            initial_fee_history, latest_fee_history
+        );
 
         // there are 4 blocks in between
         assert_eq!(

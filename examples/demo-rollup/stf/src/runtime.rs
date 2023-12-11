@@ -40,7 +40,6 @@ use sov_blob_storage::{BlobStorageRpcImpl, BlobStorageRpcServer};
 #[cfg(feature = "native")]
 use sov_chain_state::{ChainStateRpcImpl, ChainStateRpcServer};
 #[cfg(feature = "native")]
-#[cfg(feature = "experimental")]
 use sov_evm::{EvmRpcImpl, EvmRpcServer};
 #[cfg(feature = "native")]
 pub use sov_modules_api::default_context::DefaultContext;
@@ -84,7 +83,6 @@ pub struct Runtime<C: Context, Da: DaSpec> {
     pub accounts: sov_accounts::Accounts<C>,
     /// The NFT module.
     pub nft: sov_nft_module::NonFungibleToken<C>,
-    #[cfg(feature = "experimental")]
     #[cfg_attr(feature = "native", cli_skip)]
     /// The EVM module.
     pub evm: sov_evm::Evm<C>,

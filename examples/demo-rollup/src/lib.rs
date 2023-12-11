@@ -7,7 +7,7 @@ mod mock_rollup;
 pub use mock_rollup::*;
 mod celestia_rollup;
 pub use celestia_rollup::*;
-#[cfg(feature = "experimental")]
+
 mod eth;
 
 mod bitcoin_rollup;

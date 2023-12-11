@@ -11,8 +11,7 @@ use crate::evm::db::EvmDb;
 use crate::evm::executor::{self};
 use crate::evm::primitive_types::{BlockEnv, Receipt, TransactionSignedAndRecovered};
 use crate::evm::{EvmChainConfig, RlpEvmTransaction};
-use crate::experimental::PendingTransaction;
-use crate::Evm;
+use crate::{Evm, PendingTransaction};
 
 #[cfg_attr(
     feature = "serde",
