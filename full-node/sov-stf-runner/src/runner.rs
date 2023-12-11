@@ -85,7 +85,7 @@ where
         prev_state_root: Option<StateRoot<Stf, Vm, Da::Spec>>,
         genesis_config: InitialState<Stf, Vm, Da::Spec>,
         prover_service: Ps,
-        scc_config: Option<SoftConfirmationClientRpcConfig>,
+        soft_confirmation_client_config: Option<SoftConfirmationClientRpcConfig>,
     ) -> Result<Self, anyhow::Error> {
         let rpc_config = runner_config.rpc_config;
 
@@ -111,10 +111,10 @@ where
         let last_slot_processed_before_shutdown = item_numbers.slot_number - 1;
         let start_height = runner_config.start_height + last_slot_processed_before_shutdown;
 
-        let soft_confirmation_client = match scc_config {
-            Some(scc_config) => Some(SoftConfirmationClient::new(
-                scc_config.start_height,
-                scc_config.scc_url,
+        let soft_confirmation_client = match soft_confirmation_client_config {
+            Some(soft_confirmation_client_config) => Some(SoftConfirmationClient::new(
+                soft_confirmation_client_config.start_height,
+                soft_confirmation_client_config.soft_confirmation_client_url,
             )),
             None => None,
         };

@@ -21,4 +21,4 @@ bind_port = 12345
 
 [soft_confirmation]
 start_height = 1
-scc_url = "http://0.0.0.0:12346"
+soft_confirmation_client_url = "http://0.0.0.0:12346"
