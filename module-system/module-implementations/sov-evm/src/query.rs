@@ -22,9 +22,11 @@ use crate::error::rpc::{ensure_success, EthApiError, RevertError, RpcInvalidTran
 use crate::evm::db::EvmDb;
 use crate::evm::primitive_types::{BlockEnv, Receipt, SealedBlock, TransactionSignedAndRecovered};
 use crate::evm::{executor, prepare_call_env};
-use crate::experimental::{MIN_CREATE_GAS, MIN_TRANSACTION_GAS};
 use crate::rpc_helpers::*;
-use crate::{BloomFilter, Evm, EvmChainConfig, FilterBlockOption, FilterError};
+use crate::{
+    BloomFilter, Evm, EvmChainConfig, FilterBlockOption, FilterError, MIN_CREATE_GAS,
+    MIN_TRANSACTION_GAS,
+};
 
 #[rpc_gen(client, server)]
 impl<C: sov_modules_api::Context> Evm<C> {

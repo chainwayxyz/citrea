@@ -2,8 +2,7 @@ use std::str::FromStr;
 
 use anyhow::Context as _;
 use sov_cli::wallet_state::PrivateKeyAndAddress;
-use sov_ethereum::experimental::EthRpcConfig;
-use sov_ethereum::{FeeHistoryCacheConfig, GasPriceOracleConfig};
+use sov_ethereum::{EthRpcConfig, FeeHistoryCacheConfig, GasPriceOracleConfig};
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
 use sov_rollup_interface::services::da::DaService;

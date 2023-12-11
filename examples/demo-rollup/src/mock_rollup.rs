@@ -62,7 +62,6 @@ impl RollupBlueprint for MockDemoRollup {
             Self::DaService,
         >(storage, ledger_db, da_service)?;
 
-        #[cfg(feature = "experimental")]
         crate::eth::register_ethereum::<Self::DaService>(
             da_service.clone(),
             storage.clone(),

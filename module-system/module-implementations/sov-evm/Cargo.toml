@@ -20,8 +20,8 @@ thiserror = { workspace = true }
 bytes = { workspace = true }
 schemars = { workspace = true, optional = true }
 clap = { workspace = true, optional = true }
-serde = { workspace = true, optional = true }
-serde_json = { workspace = true, optional = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
 borsh = { workspace = true, features = ["rc"] }
 hex = { workspace = true }
 jsonrpsee = { workspace = true, features = [
@@ -63,16 +63,13 @@ bytes = { workspace = true }
 rand = { workspace = true }
 
 [features]
-default = []
+default = ["native"]
 native = [
-    "serde",
-    "serde_json",
     "jsonrpsee",
     "schemars",
     "clap",
     "sov-state/native",
     "sov-modules-api/native",
 ]
-experimental = ["native"]
-serde = ["dep:serde"]
-smart_contracts = ["experimental"]
+serde = []
+smart_contracts = ["native"]

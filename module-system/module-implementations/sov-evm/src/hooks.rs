@@ -4,8 +4,7 @@ use sov_modules_api::{AccessoryWorkingSet, Spec, WorkingSet};
 use sov_state::Storage;
 
 use crate::evm::primitive_types::{Block, BlockEnv};
-use crate::experimental::PendingTransaction;
-use crate::Evm;
+use crate::{Evm, PendingTransaction};
 
 impl<C: sov_modules_api::Context> Evm<C>
 where
