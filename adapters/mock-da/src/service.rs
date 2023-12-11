@@ -150,7 +150,7 @@ impl DaService for MockDaService {
         let block = blocks
             .get(index as usize)
             .ok_or(anyhow::anyhow!(
-                "AAAAAAAAAAAAAAAAAAAAAaBlock at height {} is not available anymore",
+                "Block at height {} is not available anymore",
                 height
             ))?
             .clone();

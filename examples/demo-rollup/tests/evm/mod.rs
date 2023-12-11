@@ -399,11 +399,6 @@ async fn execute<T: TestContract>(
             .await;
         assert_eq!(latest_fee_history.oldest_block, U256::zero());
 
-        println!(
-            "initial fee history: {:?}, latest fee history: {:?}",
-            initial_fee_history, latest_fee_history
-        );
-
         // there are 4 blocks in between
         assert_eq!(
             latest_fee_history.gas_used_ratio.len() - initial_fee_history.gas_used_ratio.len(),
