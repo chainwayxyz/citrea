@@ -215,8 +215,8 @@ where
             let tx = client.get_sov_tx(height).await;
 
             if tx.is_err() {
-                info!("STFRunner - Height: {} not found", height);
-                tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+                // TODO: Add logs here: https://github.com/chainwayxyz/secret-sovereign-sdk/issues/47
+                tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
                 continue;
             }
 
@@ -228,8 +228,6 @@ where
                 .da_service
                 .convert_rollup_batch_to_da_blob(&batch.try_to_vec().unwrap())
                 .unwrap();
-
-            debug!("Requesting data for height {}", height,);
 
             // TODO: Change the block here from 2 to legit option.
             let filtered_block = self.da_service.get_block_at(2).await?;

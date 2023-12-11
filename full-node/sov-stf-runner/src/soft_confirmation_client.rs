@@ -30,14 +30,15 @@ impl SoftConfirmationClient {
             .client
             .request("ledger_getTransactionByNumber", rpc_params![num])
             .await
-            .context("Failed to make RPC request");
+            .context("Failed to make RPC request")?;
 
-        let body = raw_res?
+        let body = raw_res
             .get("body")
             .context("Body field missing in response")?
             .as_array()
             .context("Body field is not an array")?
             .iter()
+            // TODO: handle overflow from u64 to u8 https://github.com/chainwayxyz/secret-sovereign-sdk/issues/48
             .map(|x| x.as_u64().unwrap() as u8)
             .collect();
 

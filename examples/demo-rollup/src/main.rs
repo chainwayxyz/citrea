@@ -75,7 +75,9 @@ async fn main() -> Result<(), anyhow::Error> {
             )
             .await?;
             if args.sequence {
-                let da_service = MockDaService::new(MockAddress::new([0u8; 32]));
+                let rollup_config: RollupConfig<MockDaConfig> = from_toml_path(rollup_config_path)
+                    .context("Failed to read rollup configuration")?;
+                let da_service = MockDaService::new(rollup_config.da.sender_address);
                 let mut seq: ChainwaySequencer<DefaultContext, MockDaService, _> =
                     ChainwaySequencer::new(
                         rollup,
