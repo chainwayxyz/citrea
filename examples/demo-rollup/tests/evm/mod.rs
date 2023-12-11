@@ -13,7 +13,6 @@ use sov_evm::{SimpleStorageContract, TestContract};
 use sov_stf_runner::RollupProverConfig;
 use test_client::TestClient;
 use tokio::time::{sleep, Duration};
-use tracing_test::traced_test;
 
 use crate::test_helpers::start_rollup;
 
@@ -123,28 +122,6 @@ async fn test_getlogs<T: TestContract>(
         hex::encode(logs[0].topics[0]).to_string(),
         "a9943ee9804b5d456d8ad7b3b1b975a5aefa607e16d13936959976e776c4bec7"
     );
-
-    let deployed_filter = serde_json::json!({
-        "blockHash": "0x4a80830bd0f144bf3ee9bf1e37b3196d0e465ed9068074f3d1a54b7aea2dc9fd".to_string(),
-         "address":"0x8808412aA0dFf27068BD36a069eEe4C6aD173ca8".to_string()
-    });
-    let sepolia_rpc_url = "https://rpc.notadegen.com/eth/sepolia";
-
-    let http_client = Client::new();
-    let _sepolia_logs = http_client
-        .post(sepolia_rpc_url)
-        .json(&serde_json::json!({
-            "jsonrpc": "2.0",
-            "method": "eth_getLogs",
-            "params": [deployed_filter],
-            "id": 1
-        }))
-        .send()
-        .await
-        .unwrap()
-        .json::<serde_json::Value>()
-        .await
-        .unwrap();
 
     let sepolia_log_data = "\"0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000c48656c6c6f20576f726c64210000000000000000000000000000000000000000\"".to_string();
     let len = sepolia_log_data.len();
