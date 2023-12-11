@@ -100,7 +100,7 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
             if let Ok(Some(resp)) = self.receiver.try_next() {
                 let mut rlp_txs = vec![];
                 let mut mem = self.mempool.lock().await;
-                while !mem.pool.is_empty() && rlp_txs.len() < 5 {
+                while !mem.pool.is_empty() {
                     // TODO: Handle error
                     rlp_txs.push(mem.pool.pop_front().unwrap());
                 }
