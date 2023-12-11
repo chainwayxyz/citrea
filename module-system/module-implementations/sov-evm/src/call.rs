@@ -35,7 +35,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
         _context: &C,
         working_set: &mut WorkingSet<C>,
     ) -> Result<CallResponse> {
-        println!("execute_call {:?}", txs);
         let evm_txs_recovered: Vec<TransactionSignedEcRecovered> = txs
             .into_iter()
             .filter_map(|tx| match tx.try_into() {
@@ -68,11 +67,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 tx.receipt.log_index_start + tx.receipt.receipt.logs.len() as u64
             });
 
-            println!("evm_tx_recovered: {:?}", evm_tx_recovered);
-
             match result {
                 Ok(result) => {
-                    println!("result: {:?}", result);
                     let logs: Vec<_> = result.logs().into_iter().map(into_reth_log).collect();
                     let gas_used = result.gas_used();
 
@@ -98,8 +94,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
                         receipt,
                     };
 
-                    println!("pending_transaction: {:?}", pending_transaction);
-
                     self.pending_transactions
                         .push(&pending_transaction, working_set);
                 }
@@ -107,12 +101,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 Err(err) => match err {
                     EVMError::Transaction(_) => {
                         // This is a transactional error, so we can skip it without doing anything.
-                        println!("EVM tx error: {:?}", err);
                         continue;
                     }
                     err => {
                         // This is a fatal error, so we need to return it.
-                        println!("EVM call error: {:?}", err);
                         return Err(err.into());
                     }
                 },

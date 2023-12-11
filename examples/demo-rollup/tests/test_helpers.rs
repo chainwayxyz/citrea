@@ -16,7 +16,6 @@ pub async fn start_rollup(
     genesis_paths: GenesisPaths,
     rollup_prover_config: RollupProverConfig,
 ) {
-    println!("2");
     let temp_dir = tempfile::tempdir().unwrap();
     let temp_path = temp_dir.path();
 

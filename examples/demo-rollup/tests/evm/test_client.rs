@@ -63,7 +63,6 @@ impl<T: TestContract> TestClient<T> {
         &self,
     ) -> Result<PendingTransaction<'_, Http>, Box<dyn std::error::Error>> {
         let nonce = self.eth_get_transaction_count(self.from_addr).await;
-        println!("nonce: {}", nonce);
         let req = Eip1559TransactionRequest::new()
             .from(self.from_addr)
             .chain_id(self.chain_id)

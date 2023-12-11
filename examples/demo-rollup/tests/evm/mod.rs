@@ -18,11 +18,9 @@ use tracing_test::traced_test;
 use crate::test_helpers::start_rollup;
 
 #[cfg(feature = "experimental")]
-#[traced_test]
 #[tokio::test]
 async fn evm_tx_tests() -> Result<(), anyhow::Error> {
     let (port_tx, port_rx) = tokio::sync::oneshot::channel();
-
     let rollup_task = tokio::spawn(async {
         // Don't provide a prover since the EVM is not currently provable
         start_rollup(
@@ -204,31 +202,19 @@ async fn test_getlogs<T: TestContract>(
 async fn execute<T: TestContract>(
     client: &Box<TestClient<T>>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    println!("asd3");
     // Nonce should be 0 in genesis
     let nonce = client.eth_get_transaction_count(client.from_addr).await;
-    println!("asd4");
     assert_eq!(0, nonce);
 
     // Balance should be > 0 in genesis
     let balance = client.eth_get_balance(client.from_addr).await;
-    println!("asd5");
     assert!(balance > ethereum_types::U256::zero());
 
     let (contract_address, runtime_code) = {
         let runtime_code = client.deploy_contract_call().await?;
         let deploy_contract_req = client.deploy_contract().await?;
         client.send_publish_batch_request().await;
-        println!("deploy contract {:?}: ", deploy_contract_req);
-        tokio::time::sleep(Duration::from_secs(5)).await;
-        let transaction = client
-            .eth_get_transaction_by_hash(deploy_contract_req.tx_hash())
-            .await;
-        println!("transaction: {:?}", transaction);
-        let latest_block = client.eth_get_block_by_number_with_detail(None).await;
-        println!("latest_block: {:?}", latest_block);
 
-        tokio::time::sleep(Duration::from_secs(30)).await;
         let contract_address = deploy_contract_req
             .await?
             .unwrap()

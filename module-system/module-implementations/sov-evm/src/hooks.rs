@@ -87,7 +87,6 @@ where
 
         let pending_transactions: Vec<PendingTransaction> =
             self.pending_transactions.iter(working_set).collect();
-        println!("pending_transactions: {:?}", pending_transactions);
 
         self.pending_transactions.clear(working_set);
 
