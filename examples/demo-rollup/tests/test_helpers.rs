@@ -1,6 +1,6 @@
 use std::net::SocketAddr;
 
-use chainway_sequencer::experimental::ChainwaySequencer;
+use chainway_sequencer::ChainwaySequencer;
 use const_rollup_config::TEST_PRIVATE_KEY;
 use demo_stf::genesis_config::GenesisPaths;
 use sov_demo_rollup::MockDemoRollup;

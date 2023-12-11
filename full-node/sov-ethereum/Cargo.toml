@@ -29,7 +29,9 @@ ethers = { workspace = true }
 tokio = { workspace = true }
 schnellru = "0.2.1"
 
-sov-rollup-interface = { path = "../../rollup-interface", features = ["native"] }
+sov-rollup-interface = { path = "../../rollup-interface", features = [
+    "native",
+] }
 
 demo-stf = { path = "../../examples/demo-rollup/stf", features = ["native"] }
 sov-modules-api = { path = "../../module-system/sov-modules-api" }
@@ -40,7 +42,6 @@ tokio = { workspace = true }
 
 
 [features]
-default = []
+default = ["local"]
 local = []
-experimental = ["demo-stf/experimental", "sov-evm/experimental", "local"]
 native = ["demo-stf/native", "sov-evm/native"]

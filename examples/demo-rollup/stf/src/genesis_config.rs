@@ -9,7 +9,6 @@ use anyhow::{bail, Context as _};
 use sov_accounts::AccountConfig;
 use sov_bank::BankConfig;
 use sov_chain_state::ChainStateConfig;
-#[cfg(feature = "experimental")]
 use sov_evm::EvmConfig;
 pub use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::Context;
@@ -39,7 +38,6 @@ pub struct GenesisPaths {
     pub chain_state_genesis_path: PathBuf,
     /// NFT genesis path.
     pub nft_path: PathBuf,
-    #[cfg(feature = "experimental")]
     /// EVM genesis path.
     pub evm_genesis_path: PathBuf,
 }
@@ -58,7 +56,6 @@ impl GenesisPaths {
             accounts_genesis_path: dir.as_ref().join("accounts.json"),
             chain_state_genesis_path: dir.as_ref().join("chain_state.json"),
             nft_path: dir.as_ref().join("nft.json"),
-            #[cfg(feature = "experimental")]
             evm_genesis_path: dir.as_ref().join("evm.json"),
         }
     }
@@ -115,7 +112,6 @@ fn create_genesis_config<C: Context, Da: DaSpec>(
     let chain_state_config: ChainStateConfig =
         read_json_file(&genesis_paths.chain_state_genesis_path)?;
 
-    #[cfg(feature = "experimental")]
     let evm_config: EvmConfig = read_json_file(&genesis_paths.evm_genesis_path)?;
 
     Ok(GenesisConfig::new(
@@ -126,7 +122,6 @@ fn create_genesis_config<C: Context, Da: DaSpec>(
         value_setter_config,
         accounts_config,
         nft_config,
-        #[cfg(feature = "experimental")]
         evm_config,
     ))
 }

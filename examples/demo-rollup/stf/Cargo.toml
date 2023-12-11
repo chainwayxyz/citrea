@@ -17,12 +17,15 @@ serde = { workspace = true }
 serde_json = { workspace = true, optional = true }
 clap = { workspace = true, optional = true }
 toml = { workspace = true, optional = true }
-jsonrpsee = { workspace = true, features = ["http-client", "server"], optional = true }
+jsonrpsee = { workspace = true, features = [
+    "http-client",
+    "server",
+], optional = true }
 tokio = { workspace = true, optional = true }
 hex = { workspace = true }
 tracing = { workspace = true }
-reth-primitives = { workspace = true, optional = true }
-secp256k1 = { workspace = true, optional = true }
+reth-primitives = { workspace = true }
+secp256k1 = { workspace = true }
 
 sov-stf-runner = { path = "../../../full-node/sov-stf-runner" }
 sov-rollup-interface = { path = "../../../rollup-interface" }
@@ -39,8 +42,7 @@ sov-value-setter = { path = "../../../module-system/module-implementations/examp
 sov-accounts = { path = "../../../module-system/module-implementations/sov-accounts" }
 sov-state = { path = "../../../module-system/sov-state" }
 sov-modules-api = { path = "../../../module-system/sov-modules-api" }
-# Only enable the evm on "experimental" feature
-sov-evm = { path = "../../../module-system/module-implementations/sov-evm", optional = true }
+sov-evm = { path = "../../../module-system/module-implementations/sov-evm" }
 
 
 [dev-dependencies]
@@ -53,7 +55,6 @@ rand = "0.8"
 [features]
 default = []
 offchain = ["sov-nft-module/offchain"]
-experimental = ["sov-evm/experimental", "reth-primitives", "secp256k1"]
 native = [
     "sov-stf-runner/native",
     "sov-bank/native",
@@ -82,5 +83,5 @@ serde = [
     "sov-value-setter/serde",
     "sov-accounts/serde",
     "sov-nft-module/serde",
-    "sov-evm?/serde",
+    "sov-evm/serde",
 ]

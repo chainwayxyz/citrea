@@ -123,16 +123,17 @@ impl DaService for MockDaService {
     /// It is possible to read non-finalized and last finalized blocks multiple times
     /// Finalized blocks must be read in order.
     async fn get_block_at(&self, height: u64) -> Result<Self::FilteredBlock, Self::Error> {
-        // This modification that creates 100 blocks was added because normally mock da creates blocks whena a transaction is sent
+        // This modification was added because normally mock da creates blocks whena a transaction is sent
         // however in the current rollup architecture l2 blocks are created before sending transactions to da layer
         // this is because of the soft confirmation logic.
-        if self.blocks.read().await.len() < 3 {
-            for _ in 0..100 {
-                self.send_transaction(&[1]).await;
+        // Simply create the blocks that were asked, as if they are always available
+        if height > self.blocks.read().await.len() as u64 {
+            let blocks_to_publish = height - (self.blocks.read().await.len() as u64) + 1;
+
+            for _ in 0..blocks_to_publish {
+                self.send_transaction(&[1]).await?;
             }
         }
-        // Block until there's something
-        self.wait_for_height(height).await?;
 
         // Locking blocks here, so submissions has to wait
         let mut blocks = self.blocks.write().await;
@@ -161,7 +162,10 @@ impl DaService for MockDaService {
         // Maybe simply storing all blocks is fine, all only keep 100 last finalized.
         let last_finalized_height = self.last_finalized_height.load(Ordering::Acquire);
         if last_finalized_height > 0 && oldest_available_height < (last_finalized_height - 1) {
-            blocks.pop_front();
+            // another modification added is that we don't remove the block from the queue
+            // as we mock the block field of stf.apply_slot, we always need the block at the
+            // same height
+            // blocks.pop_front();
         }
 
         Ok(block)
@@ -352,13 +356,13 @@ mod tests {
         let timeout_duration = Duration::from_millis(1000);
         tokio::spawn(async move {
             let mut received = Vec::with_capacity(expected_num_headers);
-            for _ in 0..expected_num_headers + 5 {
+            for _ in 0..expected_num_headers {
                 match time::timeout(timeout_duration, receiver.next()).await {
                     Ok(Some(Ok(header))) => received.push(header),
                     _ => break,
                 }
             }
-            received[0..expected_num_headers].to_vec()
+            received
         })
     }
 
@@ -381,25 +385,15 @@ mod tests {
     }
 
     async fn test_push_and_read(finalization: u64, num_blocks: usize) {
-        // these tests had to be altered a little bit because at get_block_at there are  100 blocks being created
-        // so initially  the get_block_at(1) is called to create 100 blocks
-        // then the test starts from block 101, the rest of the logic is the same
         let mut da = MockDaService::with_finality(MockAddress::new([1; 32]), finalization as u32);
-
-        // mock as if we were starting from 100 instead of 0
-        da.send_transaction(&[1u8; 1]).await.unwrap();
-        // this function creates 100 mock blocks
-        da.get_block_at(1).await.unwrap();
-        // end of mock
-
         da.wait_attempts = 2;
         let number_of_finalized_blocks = num_blocks - finalization as usize;
         let collector_handle =
             get_finalized_headers_collector(&mut da, number_of_finalized_blocks).await;
 
         for i in 0..num_blocks {
-            let published_blob: Vec<u8> = vec![(i + 101) as u8; i + 1];
-            let i = i as u64 + 101;
+            let published_blob: Vec<u8> = vec![i as u8; i + 1];
+            let i = i as u64;
 
             da.send_transaction(&published_blob).await.unwrap();
 
@@ -417,24 +411,12 @@ mod tests {
 
         let received = collector_handle.await.unwrap();
         let heights: Vec<u64> = received.iter().map(|h| h.height()).collect();
-        let expected_heights: Vec<u64> = ((0 + 101 - finalization as usize) as u64
-            ..(number_of_finalized_blocks + 101 - finalization as usize) as u64)
-            .collect();
+        let expected_heights: Vec<u64> = (0..number_of_finalized_blocks as u64).collect();
         assert_eq!(expected_heights, heights);
     }
 
     async fn test_push_many_then_read(finalization: u64, num_blocks: usize) {
-        // these tests had to be altered a little bit because at get_block_at there are  100 blocks being created
-        // so initially  the get_block_at(1) is called to create 100 blocks
-        // then the test starts from block 101, the rest of the logic is the same
         let mut da = MockDaService::with_finality(MockAddress::new([1; 32]), finalization as u32);
-
-        // mock as if we were starting from 100 instead of 0
-        da.send_transaction(&[1u8; 1]).await.unwrap();
-        // this function creates 100 mock blocks
-        da.get_block_at(1).await.unwrap();
-        // end of mock
-
         da.wait_attempts = 2;
         let number_of_finalized_blocks = num_blocks - finalization as usize;
         let collector_handle =
@@ -444,7 +426,7 @@ mod tests {
 
         // Submitting blobs first
         for (i, blob) in blobs.iter().enumerate() {
-            let i = (i + 101) as u64;
+            let i = i as u64;
             // Send transaction should pass
             da.send_transaction(blob).await.unwrap();
             let last_finalized_block_response = da.get_last_finalized_block_header().await;
@@ -455,12 +437,12 @@ mod tests {
         }
 
         // Starts from 0
-        let expected_head_height = (num_blocks + 101) as u64 - 1;
+        let expected_head_height = num_blocks as u64 - 1;
         let expected_finalized_height = expected_head_height - finalization;
 
         // Then read
         for (i, blob) in blobs.into_iter().enumerate() {
-            let i = (i + 101) as u64;
+            let i = i as u64;
 
             let mut fetched_block = da.get_block_at(i).await.unwrap();
             assert_eq!(i, fetched_block.header().height());
@@ -476,9 +458,7 @@ mod tests {
 
         let received = collector_handle.await.unwrap();
         let finalized_heights: Vec<u64> = received.iter().map(|h| h.height()).collect();
-        let fin = finalization as usize;
-        let expected_finalized_heights: Vec<u64> =
-            ((0 + 101 - fin) as u64..(number_of_finalized_blocks + 101 - fin) as u64).collect();
+        let expected_finalized_heights: Vec<u64> = (0..number_of_finalized_blocks as u64).collect();
         assert_eq!(expected_finalized_heights, finalized_heights);
     }
 
@@ -510,10 +490,6 @@ mod tests {
         async fn push_many_then_read() {
             test_push_many_then_read(1, 10).await;
             test_push_many_then_read(3, 10).await;
-        }
-
-        #[tokio::test]
-        async fn push_many_then_read2() {
             test_push_many_then_read(5, 10).await;
         }
     }
