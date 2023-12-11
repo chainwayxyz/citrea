@@ -10,8 +10,9 @@ pub mod mock;
 #[cfg(feature = "native")]
 mod prover_service;
 
+/// Soft confirmation client for full node
 #[cfg(feature = "native")]
-mod soft_confirmation_client;
+pub mod soft_confirmation_client;
 
 #[cfg(feature = "native")]
 use std::path::Path;
@@ -31,6 +32,7 @@ pub use config::{from_toml_path, RollupConfig, RunnerConfig, StorageConfig};
 pub use runner::*;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
+pub use soft_confirmation_client::SoftConfirmationClient;
 use sov_rollup_interface::da::DaSpec;
 
 /// Implements the `StateTransitionVerifier` type for checking the validity of a state transition

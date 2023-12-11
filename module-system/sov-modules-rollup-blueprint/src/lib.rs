@@ -16,7 +16,9 @@ use sov_rollup_interface::storage::StorageManager;
 use sov_rollup_interface::zk::ZkvmHost;
 use sov_state::storage::NativeStorage;
 use sov_state::Storage;
-use sov_stf_runner::{ProverService, RollupConfig, RollupProverConfig, StateTransitionRunner};
+use sov_stf_runner::{
+    ProverService, RollupConfig, RollupProverConfig, SoftConfirmationClient, StateTransitionRunner,
+};
 use tokio::sync::oneshot;
 pub use wallet::*;
 
@@ -67,6 +69,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         storage: &<Self::NativeContext as Spec>::Storage,
         ledger_db: &LedgerDB,
         da_service: &Self::DaService,
+        soft_confirmation_client: Option<SoftConfirmationClient>,
     ) -> Result<jsonrpsee::RpcModule<()>, anyhow::Error>;
 
     /// Creates GenesisConfig from genesis files.
@@ -131,7 +134,24 @@ pub trait RollupBlueprint: Sized + Send + Sync {
             .map(|(number, _)| native_storage.get_root_hash(number.0))
             .transpose()?;
 
-        let rpc_methods = self.create_rpc_methods(&native_storage, &ledger_db, &da_service)?;
+        // if node does not have a soft confirmation client, then it is a sequencer
+        let soft_confirmation_client = match rollup_config.soft_confirmation_client.clone() {
+            Some(soft_confirmation_client_config) => {
+                let soft_confirmation_client = SoftConfirmationClient::new(
+                    soft_confirmation_client_config.start_height,
+                    soft_confirmation_client_config.soft_confirmation_client_url,
+                );
+                Some(soft_confirmation_client)
+            }
+            None => None,
+        };
+
+        let rpc_methods = self.create_rpc_methods(
+            &native_storage,
+            &ledger_db,
+            &da_service,
+            soft_confirmation_client,
+        )?;
 
         let native_stf = StfBlueprint::new();
 

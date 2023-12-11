@@ -22,6 +22,7 @@ use sov_evm::{CallMessage, Evm, RlpEvmTransaction};
 use sov_modules_api::utils::to_jsonrpsee_error_object;
 use sov_modules_api::{EncodeCall, PrivateKey, WorkingSet};
 use sov_rollup_interface::services::da::DaService;
+use sov_stf_runner::soft_confirmation_client::SoftConfirmationClient;
 use tracing::info;
 
 use crate::batch_builder::EthBatchBuilder;
@@ -42,6 +43,7 @@ pub fn get_ethereum_rpc<C: sov_modules_api::Context, Da: DaService>(
     da_service: Da,
     eth_rpc_config: EthRpcConfig<C>,
     storage: C::Storage,
+    soft_confirmation_client: Option<SoftConfirmationClient>,
 ) -> RpcModule<Ethereum<C, Da>> {
     // Unpack config
     let EthRpcConfig {
@@ -66,6 +68,7 @@ pub fn get_ethereum_rpc<C: sov_modules_api::Context, Da: DaService>(
         sov_accounts::Response::AccountEmpty { .. } => 0,
     };
 
+    // rpc context should also have soft confirmation client so that it can send txs to sequencer
     let mut rpc = RpcModule::new(Ethereum::new(
         da_service,
         Arc::new(Mutex::new(EthBatchBuilder::new(
@@ -78,9 +81,11 @@ pub fn get_ethereum_rpc<C: sov_modules_api::Context, Da: DaService>(
         #[cfg(feature = "local")]
         eth_signer,
         storage,
+        soft_confirmation_client.clone(),
     ));
 
-    register_rpc_methods(&mut rpc).expect("Failed to register sequencer RPC methods");
+    register_rpc_methods(&mut rpc, soft_confirmation_client)
+        .expect("Failed to register sequencer RPC methods");
     rpc
 }
 
@@ -91,6 +96,7 @@ pub struct Ethereum<C: sov_modules_api::Context, Da: DaService> {
     #[cfg(feature = "local")]
     eth_signer: DevSigner,
     storage: C::Storage,
+    soft_confirmation_client: Option<SoftConfirmationClient>,
 }
 
 impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
@@ -101,6 +107,7 @@ impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
         fee_history_cache_config: FeeHistoryCacheConfig,
         #[cfg(feature = "local")] eth_signer: DevSigner,
         storage: C::Storage,
+        soft_confirmation_client: Option<SoftConfirmationClient>,
     ) -> Self {
         let evm = Evm::<C>::default();
         let gas_price_oracle =
@@ -112,6 +119,7 @@ impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
             #[cfg(feature = "local")]
             eth_signer,
             storage,
+            soft_confirmation_client,
         }
     }
 }
@@ -138,10 +146,10 @@ impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
 
 fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
     rpc: &mut RpcModule<Ethereum<C, Da>>,
+    soft_confirmation_client: Option<SoftConfirmationClient>,
 ) -> Result<(), jsonrpsee::core::Error> {
     rpc.register_async_method("eth_gasPrice", |_, ethereum| async move {
         info!("eth module: eth_gasPrice");
-
         let price = {
             let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
 
@@ -358,6 +366,25 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
 
         Ok::<_, ErrorObjectOwned>(tx_hash)
     })?;
+
+    if soft_confirmation_client.is_some() {
+        rpc.register_async_method(
+            "eth_sendRawTransaction",
+            |parameters, ethereum| async move {
+                info!("Full Node: eth_sendRawTransaction");
+                // send this directly to the sequencer
+                let data: Bytes = parameters.one().unwrap();
+                // soft confirmation client should send it
+                ethereum
+                    .soft_confirmation_client
+                    .unwrap()
+                    .send_raw_tx(data)
+                    .await?;
+
+                Ok::<(), ErrorObjectOwned>(())
+            },
+        )?;
+    }
 
     Ok(())
 }

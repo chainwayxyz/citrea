@@ -11,6 +11,7 @@ readme = "README.md"
 resolver = "2"
 
 [dependencies]
+ethers = { workspace = true }
 anyhow = { workspace = true }
 num_cpus = { workspace = true }
 thiserror = { workspace = true, optional = true }

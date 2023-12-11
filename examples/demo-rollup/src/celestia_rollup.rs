@@ -56,6 +56,7 @@ impl RollupBlueprint for CelestiaDemoRollup {
         storage: &<Self::NativeContext as sov_modules_api::Spec>::Storage,
         ledger_db: &sov_db::ledger_db::LedgerDB,
         da_service: &Self::DaService,
+        soft_confirmation_client: Option<SoftConfirmationClient>,
     ) -> Result<jsonrpsee::RpcModule<()>, anyhow::Error> {
         #[allow(unused_mut)]
         let mut rpc_methods = sov_modules_rollup_blueprint::register_rpc::<
@@ -68,6 +69,7 @@ impl RollupBlueprint for CelestiaDemoRollup {
             da_service.clone(),
             storage.clone(),
             &mut rpc_methods,
+            soft_confirmation_client,
         )?;
 
         Ok(rpc_methods)

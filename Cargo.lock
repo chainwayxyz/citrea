@@ -8906,6 +8906,7 @@ dependencies = [
  "sov-evm",
  "sov-modules-api",
  "sov-rollup-interface",
+ "sov-stf-runner",
  "tokio",
  "tracing",
 ]
@@ -9348,6 +9349,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "borsh",
+ "ethers",
  "futures",
  "hex",
  "jsonrpsee 0.20.3",

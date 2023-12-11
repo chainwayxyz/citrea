@@ -26,6 +26,7 @@ pub(crate) fn register_ethereum<Da: DaService>(
     da_service: Da,
     storage: ProverStorage<sov_state::DefaultStorageSpec>,
     methods: &mut jsonrpsee::RpcModule<()>,
+    soft_confirmation_client: Option<SoftConfirmationClient>,
 ) -> Result<(), anyhow::Error> {
     let eth_rpc_config = {
         let eth_signer = eth_dev_signer();
@@ -38,8 +39,12 @@ pub(crate) fn register_ethereum<Da: DaService>(
         }
     };
 
-    let ethereum_rpc =
-        sov_ethereum::get_ethereum_rpc::<DefaultContext, Da>(da_service, eth_rpc_config, storage);
+    let ethereum_rpc = sov_ethereum::get_ethereum_rpc::<DefaultContext, Da>(
+        da_service,
+        eth_rpc_config,
+        storage,
+        soft_confirmation_client,
+    );
     methods
         .merge(ethereum_rpc)
         .context("Failed to merge Ethereum RPC modules")

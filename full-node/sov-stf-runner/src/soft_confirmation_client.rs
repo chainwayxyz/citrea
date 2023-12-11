@@ -1,4 +1,5 @@
 use anyhow::Context;
+use ethers::types::{Bytes, H256};
 use jsonrpsee::core::client::ClientT;
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use jsonrpsee::rpc_params;
@@ -16,6 +17,7 @@ pub struct SoftConfirmationClient {
 }
 
 impl SoftConfirmationClient {
+    /// Creates the soft confirmation client
     pub fn new(start_height: u64, rpc_url: String) -> Self {
         let client = HttpClientBuilder::default().build(&rpc_url).unwrap();
         Self {
@@ -25,6 +27,7 @@ impl SoftConfirmationClient {
         }
     }
 
+    /// Gets l2 block given l2 height
     pub async fn get_sov_tx(&self, num: u64) -> anyhow::Result<Vec<u8>> {
         let raw_res: Value = self
             .client
@@ -43,5 +46,15 @@ impl SoftConfirmationClient {
             .collect();
 
         Ok(body)
+    }
+
+    /// Sends raw tx to sequencer
+    pub async fn send_raw_tx(&self, tx: Bytes) -> anyhow::Result<H256> {
+        let tx_hash: H256 = self
+            .client
+            .request("eth_sendRawTransaction", rpc_params![tx])
+            .await?;
+        println!("tx_hash: {:?}", tx_hash);
+        Ok(tx_hash)
     }
 }
