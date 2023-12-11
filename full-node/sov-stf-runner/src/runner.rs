@@ -210,7 +210,7 @@ where
             }
         };
 
-        let mut height = self.start_height;
+        let mut height = self.start_height + 1;
         loop {
             let tx = client.get_sov_tx(height).await;
 
@@ -230,7 +230,7 @@ where
                 .unwrap();
 
             // TODO: Change the block here from 2 to legit option.
-            let filtered_block = self.da_service.get_block_at(2).await?;
+            let filtered_block = self.da_service.get_block_at(4).await?;
 
             // 0 is the BlobTransaction
             // 1 is the Signature
@@ -245,6 +245,8 @@ where
                 tx_blob_with_sender.total_len(),
                 height,
             );
+
+            info!("header:{:?}", filtered_block.header());
 
             let mut data_to_commit = SlotCommit::new(filtered_block.clone());
 
@@ -315,7 +317,7 @@ where
             info!(
                 "New State Root after blob {:?} is: {:?}",
                 hex::encode(blob_hash),
-                self.state_root.as_ref()
+                self.state_root
             );
             height += 1;
         }

@@ -4,6 +4,7 @@ use jsonrpsee::core::client::ClientT;
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use jsonrpsee::rpc_params;
 use serde_json::Value;
+use tracing::info;
 
 /// Configuration for SoftConfirmationClient.
 #[derive(Debug, Clone)]
@@ -44,7 +45,7 @@ impl SoftConfirmationClient {
             // TODO: handle overflow from u64 to u8 https://github.com/chainwayxyz/secret-sovereign-sdk/issues/48
             .map(|x| x.as_u64().unwrap() as u8)
             .collect();
-
+        info!("body: {:?}", body);
         Ok(body)
     }
 

@@ -135,7 +135,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
             .transpose()?;
 
         // if node does not have a soft confirmation client, then it is a sequencer
-        let soft_confirmation_client = match rollup_config.soft_confirmation_client.clone() {
+        let soft_confirmation_client = match rollup_config.soft_confirmation.clone() {
             Some(soft_confirmation_client_config) => {
                 let soft_confirmation_client = SoftConfirmationClient::new(
                     soft_confirmation_client_config.start_height,
@@ -164,7 +164,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
             prev_root,
             genesis_config,
             prover_service,
-            rollup_config.soft_confirmation_client,
+            rollup_config.soft_confirmation,
         )?;
 
         Ok(Rollup {

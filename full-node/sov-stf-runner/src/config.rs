@@ -49,7 +49,7 @@ pub struct RollupConfig<DaServiceConfig> {
     /// Data Availability service configuration.
     pub da: DaServiceConfig,
     /// Soft Confirmation Client RPC Config for sequencer connection
-    pub soft_confirmation_client: Option<SoftConfirmationClientRpcConfig>,
+    pub soft_confirmation: Option<SoftConfirmationClientRpcConfig>,
 }
 
 /// Reads toml file as a specific type.
@@ -123,7 +123,7 @@ mod tests {
             storage: StorageConfig {
                 path: PathBuf::from("/tmp"),
             },
-            soft_confirmation_client: Some(SoftConfirmationClientRpcConfig {
+            soft_confirmation: Some(SoftConfirmationClientRpcConfig {
                 start_height: 5,
                 soft_confirmation_client_url: "http://0.0.0.0:12346".to_owned(),
             }),
