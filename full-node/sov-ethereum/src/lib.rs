@@ -375,13 +375,17 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                 // send this directly to the sequencer
                 let data: Bytes = parameters.one().unwrap();
                 // soft confirmation client should send it
-                ethereum
+                let tx_hash = ethereum
                     .soft_confirmation_client
+                    .clone()
                     .unwrap()
                     .send_raw_tx(data)
-                    .await?;
+                    .await;
+                if let Err(e) = tx_hash {
+                    return Err(to_jsonrpsee_error_object(e, ETH_RPC_ERROR));
+                }
 
-                Ok::<(), ErrorObjectOwned>(())
+                Ok::<H256, ErrorObjectOwned>(tx_hash.unwrap())
             },
         )?;
     }
