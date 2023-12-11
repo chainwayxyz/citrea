@@ -1,7 +1,6 @@
 #![deny(missing_docs)]
 #![doc = include_str!("../README.md")]
 
-pub use const_rollup_config::ROLLUP_NAMESPACE_RAW;
 use sov_celestia_adapter::types::Namespace;
 mod mock_rollup;
 pub use mock_rollup::*;
@@ -15,4 +14,5 @@ pub use bitcoin_rollup::*;
 
 /// The rollup stores its data in the namespace b"sov-test" on Celestia
 /// You can change this constant to point your rollup at a different namespace
-pub const ROLLUP_NAMESPACE: Namespace = Namespace::const_v0(ROLLUP_NAMESPACE_RAW);
+pub const ROLLUP_NAMESPACE: Namespace =
+    Namespace::const_v0(const_rollup_config::ROLLUP_NAMESPACE_RAW);

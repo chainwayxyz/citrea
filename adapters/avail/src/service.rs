@@ -289,10 +289,9 @@ impl DaService for DaProvider {
         ((), ())
     }
 
-    #[allow(unused_variables)]
-    fn convert_to_transaction(
+    fn convert_rollup_batch_to_da_blob(
         &self,
-        blob: &[u8],
+        _blob: &[u8],
     ) -> Result<(<Self::Spec as DaSpec>::BlobTransaction, Vec<u8>), Self::Error> {
         unimplemented!();
     }

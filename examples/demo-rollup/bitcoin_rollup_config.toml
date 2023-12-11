@@ -5,7 +5,6 @@ node_password = "topsecret"
 network = "regtest"
 address = "bcrt1q02g8qhycr0v8cnflt86kksfe2sqhm486fdkx4l"
 sequencer_da_private_key = "E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67FC233AA33262"
-sender_address = "anan"
 [storage]
 # The path to the rollup's data directory. Paths that do not begin with `/` are interpreted as relative paths.
 path = "demo_data"

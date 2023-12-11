@@ -1,6 +1,7 @@
 use std::net::SocketAddr;
 
 use chainway_sequencer::experimental::ChainwaySequencer;
+use const_rollup_config::TEST_PRIVATE_KEY;
 use demo_stf::genesis_config::GenesisPaths;
 use sov_demo_rollup::MockDemoRollup;
 use sov_mock_da::{MockAddress, MockDaConfig, MockDaService};
@@ -37,27 +38,23 @@ pub async fn start_rollup(
     };
 
     let mock_demo_rollup = MockDemoRollup {};
-    println!("3");
     let rollup = mock_demo_rollup
         .create_new_rollup(&genesis_paths, rollup_config, rollup_prover_config)
         .await
         .unwrap();
-    // ssequencer'a pasla run de
-    println!("4");
     let da_service = MockDaService::new(MockAddress::new([0u8; 32]));
-    let mut cs: ChainwaySequencer<DefaultContext, MockDaService, _> = ChainwaySequencer::new(
+
+    let mut sequencer: ChainwaySequencer<DefaultContext, MockDaService, _> = ChainwaySequencer::new(
         rollup,
         da_service,
-        DefaultPrivateKey::from_hex(
-            "1212121212121212121212121212121212121212121212121212121212121212",
-        )
-        .unwrap(),
+        DefaultPrivateKey::from_hex(TEST_PRIVATE_KEY).unwrap(),
         0,
     );
-    println!("5");
-    cs.register_rpc_methods().unwrap();
-    cs.run(Some(rpc_reporting_channel)).await.unwrap();
-    println!("6");
+    sequencer
+        .start_rpc_server(Some(rpc_reporting_channel))
+        .await
+        .unwrap();
+    sequencer.run().await.unwrap();
 
     // Close the tempdir explicitly to ensure that rustc doesn't see that it's unused and drop it unexpectedly
     temp_dir.close().unwrap();

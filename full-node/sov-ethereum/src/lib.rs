@@ -5,6 +5,8 @@ mod gas_price;
 #[cfg(feature = "experimental")]
 pub use experimental::{get_ethereum_rpc, Ethereum};
 #[cfg(feature = "experimental")]
+pub use gas_price::fee_history::FeeHistoryCacheConfig;
+#[cfg(feature = "experimental")]
 pub use gas_price::gas_oracle::GasPriceOracleConfig;
 #[cfg(feature = "experimental")]
 pub use sov_evm::DevSigner;
@@ -14,21 +16,24 @@ pub mod experimental {
     use std::array::TryFromSliceError;
     use std::sync::{Arc, Mutex};
 
-    use borsh::ser::BorshSerialize;
     use demo_stf::runtime::Runtime;
-    use ethers::types::{Bytes, H256};
+    use ethers::types::H256;
     use jsonrpsee::types::ErrorObjectOwned;
     use jsonrpsee::RpcModule;
-    use reth_primitives::{TransactionSignedNoHash as RethTransactionSignedNoHash, U128, U256};
-    use reth_rpc_types::{CallRequest, TransactionRequest, TypedTransactionRequest};
+    use reth_primitives::{
+        BlockNumberOrTag, TransactionSignedNoHash as RethTransactionSignedNoHash, U128, U256,
+    };
+    use reth_rpc_types::{CallRequest, FeeHistory, TransactionRequest, TypedTransactionRequest};
     use sov_evm::{CallMessage, Evm, RlpEvmTransaction};
     use sov_modules_api::utils::to_jsonrpsee_error_object;
     use sov_modules_api::{EncodeCall, PrivateKey, WorkingSet};
     use sov_rollup_interface::services::da::DaService;
+    use tracing::info;
 
     use super::batch_builder::EthBatchBuilder;
     #[cfg(feature = "local")]
     use super::DevSigner;
+    use crate::gas_price::fee_history::FeeHistoryCacheConfig;
     use crate::gas_price::gas_oracle::GasPriceOracle;
     use crate::GasPriceOracleConfig;
 
@@ -39,6 +44,7 @@ pub mod experimental {
         pub min_blob_size: Option<usize>,
         pub sov_tx_signer_priv_key: C::PrivateKey,
         pub gas_price_oracle_config: GasPriceOracleConfig,
+        pub fee_history_cache_config: FeeHistoryCacheConfig,
         #[cfg(feature = "local")]
         pub eth_signer: DevSigner,
     }
@@ -55,6 +61,7 @@ pub mod experimental {
             #[cfg(feature = "local")]
             eth_signer,
             gas_price_oracle_config,
+            fee_history_cache_config,
         } = eth_rpc_config;
 
         // Fetch nonce from storage
@@ -78,6 +85,7 @@ pub mod experimental {
                 min_blob_size,
             ))),
             gas_price_oracle_config,
+            fee_history_cache_config,
             #[cfg(feature = "local")]
             eth_signer,
             storage,
@@ -101,11 +109,13 @@ pub mod experimental {
             da_service: Da,
             batch_builder: Arc<Mutex<EthBatchBuilder<C>>>,
             gas_price_oracle_config: GasPriceOracleConfig,
+            fee_history_cache_config: FeeHistoryCacheConfig,
             #[cfg(feature = "local")] eth_signer: DevSigner,
             storage: C::Storage,
         ) -> Self {
             let evm = Evm::<C>::default();
-            let gas_price_oracle = GasPriceOracle::new(evm, gas_price_oracle_config);
+            let gas_price_oracle =
+                GasPriceOracle::new(evm, gas_price_oracle_config, fee_history_cache_config);
             Self {
                 da_service,
                 batch_builder,
@@ -132,51 +142,6 @@ pub mod experimental {
             Ok((H256::from(tx_hash), message))
         }
 
-        async fn build_and_submit_batch(
-            &self,
-            messages: Vec<Vec<u8>>,
-            min_blob_size: Option<usize>,
-        ) -> Result<(), jsonrpsee::core::Error> {
-            let batch = self.build_batch(messages, min_blob_size)?;
-
-            self.submit_batch(batch)
-                .await
-                .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
-
-            Ok(())
-        }
-
-        async fn submit_batch(&self, batch: Vec<Vec<u8>>) -> Result<(), jsonrpsee::core::Error> {
-            if batch.is_empty() {
-                return Ok(());
-            }
-
-            let blob = batch
-                .try_to_vec()
-                .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
-
-            self.da_service
-                .send_transaction(&blob)
-                .await
-                .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
-
-            Ok(())
-        }
-
-        fn build_batch(
-            &self,
-            messages: Vec<Vec<u8>>,
-            min_blob_size: Option<usize>,
-        ) -> Result<Vec<Vec<u8>>, jsonrpsee::core::Error> {
-            let batch = self
-                .batch_builder
-                .lock()
-                .unwrap()
-                .add_messages_and_get_next_blob(min_blob_size, messages);
-
-            Ok(batch)
-        }
-
         fn add_messages(&self, messages: Vec<Vec<u8>>) {
             self.batch_builder.lock().unwrap().add_messages(messages);
         }
@@ -186,6 +151,8 @@ pub mod experimental {
         rpc: &mut RpcModule<Ethereum<C, Da>>,
     ) -> Result<(), jsonrpsee::core::Error> {
         rpc.register_async_method("eth_gasPrice", |_, ethereum| async move {
+            info!("eth module: eth_gasPrice");
+
             let price = {
                 let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
 
@@ -210,46 +177,61 @@ pub mod experimental {
             Ok::<U256, ErrorObjectOwned>(price)
         })?;
 
-        // rpc.register_async_method("eth_publishBatch", |params, ethereum| async move {
-        //     let mut params_iter = params.sequence();
+        rpc.register_async_method("eth_maxFeePerGas", |_, ethereum| async move {
+            let max_fee_per_gas = {
+                let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
 
-        //     let mut txs = Vec::default();
-        //     while let Some(tx) = params_iter.optional_next::<Vec<u8>>()? {
-        //         txs.push(tx)
-        //     }
+                ethereum
+                    .gas_price_oracle
+                    .suggest_tip_cap(&mut working_set)
+                    .await
+                    .unwrap()
+            };
 
-        //     ethereum
-        //         .build_and_submit_batch(txs, Some(1))
-        //         .await
-        //         .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
+            Ok::<U256, ErrorObjectOwned>(max_fee_per_gas)
+        })?;
 
-        //     Ok::<String, ErrorObjectOwned>("Submitted transaction".to_string())
-        // })?;
+        rpc.register_async_method("eth_feeHistory", |params, ethereum| async move {
+            info!("eth module: eth_feeHistory");
+            let (block_count, newest_block, reward_percentiles): (
+                String,
+                BlockNumberOrTag,
+                Option<Vec<f64>>,
+            ) = params.parse()?;
 
-        // rpc.register_async_method(
-        //     "eth_sendRawTransaction",
-        //     |parameters, ethereum| async move {
-        //         let data: Bytes = parameters.one().unwrap();
+            // convert block count to u64 from hex
+            let block_count = u64::from_str_radix(&block_count[2..], 16)
+                .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
 
-        //         let raw_evm_tx = RlpEvmTransaction { rlp: data.to_vec() };
+            let fee_history = {
+                let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
 
-        //         let (tx_hash, raw_message) = ethereum
-        //             .make_raw_tx(raw_evm_tx)
-        //             .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
+                ethereum
+                    .gas_price_oracle
+                    .fee_history(
+                        block_count,
+                        newest_block,
+                        reward_percentiles,
+                        &mut working_set,
+                    )
+                    .await
+                    .unwrap()
+            };
 
-        //         ethereum.add_messages(vec![raw_message]);
-
-        //         Ok::<_, ErrorObjectOwned>(tx_hash)
-        //     },
-        // )?;
+            Ok::<FeeHistory, ErrorObjectOwned>(fee_history)
+        })?;
 
         #[cfg(feature = "local")]
         rpc.register_async_method("eth_accounts", |_parameters, ethereum| async move {
+            info!("eth module: eth_accounts");
+
             Ok::<_, ErrorObjectOwned>(ethereum.eth_signer.signers())
         })?;
 
         #[cfg(feature = "local")]
         rpc.register_async_method("eth_sendTransaction", |parameters, ethereum| async move {
+            info!("eth module: eth_sendTransaction");
+
             let mut transaction_request: TransactionRequest = parameters.one().unwrap();
 
             let evm = Evm::<C>::default();

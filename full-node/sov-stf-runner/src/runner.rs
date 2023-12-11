@@ -4,7 +4,7 @@ use borsh::BorshSerialize;
 use jsonrpsee::RpcModule;
 use sov_db::ledger_db::{LedgerDB, SlotCommit};
 use sov_modules_stf_blueprint::{Batch, RawTx};
-use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaSpec};
+use sov_rollup_interface::da::{BlobReaderTrait, DaSpec};
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::StorageManager;
@@ -159,19 +159,19 @@ where
     /// Processes sequence
     /// gets a blob of txs as parameter
     pub async fn process(&mut self, blob: &[u8]) -> Result<(), anyhow::Error> {
-        println!("blob: {:?}", blob);
         let pre_state = self.storage_manager.get_native_storage();
-        println!("got pre_state ");
         let filtered_block: <Da as DaService>::FilteredBlock =
-            self.da_service.get_block_at(2u64).await?;
-        println!("got filtered_block ");
-        let blobz = self.da_service.convert_to_transaction(blob).unwrap();
-        println!("got blobz ");
+            // TODO: 4 is used to mock da related info, will be replaced
+            self.da_service.get_block_at(4u64).await?;
+        let (blob, _signature) = self
+            .da_service
+            .convert_rollup_batch_to_da_blob(blob)
+            .unwrap();
 
         info!(
             "sequencer={} blob_hash=0x{}",
-            blobz.0.sender(),
-            hex::encode(blobz.0.hash())
+            blob.sender(),
+            hex::encode(blob.hash())
         );
 
         let slot_result = self.stf.apply_slot(
@@ -180,24 +180,20 @@ where
             Default::default(),
             filtered_block.header(),              // mock this
             &filtered_block.validity_condition(), // mock this
-            &mut vec![blobz.0],
+            &mut vec![blob],
         );
-        debug!("slot_result: {:?}", slot_result.batch_receipts.len());
-        println!("slot_result: {:?}", slot_result.batch_receipts.len());
+
+        info!(
+            "State root after applying slot: {:?}",
+            slot_result.state_root
+        );
 
         let mut data_to_commit = SlotCommit::new(filtered_block.clone());
         for receipt in slot_result.batch_receipts {
             data_to_commit.add_batch(receipt);
         }
-        println!("added batch");
         let next_state_root = slot_result.state_root;
-        let pre_head_slot = self.ledger_db.get_head_slot()?;
-        println!("pre_head_slot: {:?}", pre_head_slot);
         self.ledger_db.commit_slot(data_to_commit)?;
-        let head_slot = self.ledger_db.get_head_slot()?;
-        println!("head_slot: {:?}", head_slot);
-        println!("Committed slot");
-        println!("state_root: {:?}", next_state_root);
         self.state_root = next_state_root;
 
         Ok(())
@@ -230,7 +226,7 @@ where
 
             let new_blobs = self
                 .da_service
-                .convert_to_transaction(&batch.try_to_vec().unwrap())
+                .convert_rollup_batch_to_da_blob(&batch.try_to_vec().unwrap())
                 .unwrap();
 
             debug!("Requesting data for height {}", height,);

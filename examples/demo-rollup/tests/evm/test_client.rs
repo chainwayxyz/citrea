@@ -3,7 +3,7 @@ use ethers_core::abi::Address;
 use ethers_core::k256::ecdsa::SigningKey;
 use ethers_core::types::transaction::eip2718::TypedTransaction;
 use ethers_core::types::{
-    Block, Eip1559TransactionRequest, Transaction, TransactionRequest, TxHash,
+    Block, BlockId, Eip1559TransactionRequest, Transaction, TransactionRequest, TxHash,
 };
 use ethers_middleware::SignerMiddleware;
 use ethers_providers::{Http, Middleware, PendingTransaction, Provider};
@@ -11,7 +11,7 @@ use ethers_signers::Wallet;
 use jsonrpsee::core::client::ClientT;
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use jsonrpsee::rpc_params;
-use reth_primitives::Bytes;
+use reth_primitives::{BlockNumberOrTag, Bytes};
 use sov_evm::{LogResponse, LogsContract, SimpleStorageContract, TestContract};
 
 const MAX_FEE_PER_GAS: u64 = 100000001;
@@ -53,11 +53,10 @@ impl<T: TestContract> TestClient<T> {
     }
 
     pub(crate) async fn send_publish_batch_request(&self) {
-        let _: () = self
-            .http_client
+        self.http_client
             .request("eth_publishBatch", rpc_params![])
             .await
-            .unwrap();
+            .unwrap()
     }
 
     pub(crate) async fn deploy_contract(
@@ -80,7 +79,6 @@ impl<T: TestContract> TestClient<T> {
             .client
             .send_transaction(typed_transaction, None)
             .await?;
-        println!("receipt_req: {:?}", receipt_req);
         Ok(receipt_req)
     }
 
@@ -122,7 +120,10 @@ impl<T: TestContract> TestClient<T> {
 
         let typed_transaction = TypedTransaction::Eip1559(req);
 
-        self.eth_send_transaction(typed_transaction).await
+        self.client
+            .send_transaction(typed_transaction, None)
+            .await
+            .unwrap()
     }
 
     pub(crate) async fn set_value_unsigned(
@@ -195,7 +196,7 @@ impl<T: TestContract> TestClient<T> {
 
         // Estimate gas on rpc
         let gas = self
-            .eth_estimate_gas(typed_transaction, Some("latest".to_owned()))
+            .eth_estimate_gas(typed_transaction, Some(BlockNumberOrTag::Latest))
             .await;
 
         // Call with the estimated gas
@@ -203,7 +204,7 @@ impl<T: TestContract> TestClient<T> {
         let typed_transaction = TypedTransaction::Legacy(req);
 
         let response = self
-            .eth_call(typed_transaction, Some("latest".to_owned()))
+            .eth_call(typed_transaction, Some(BlockNumberOrTag::Latest))
             .await?;
 
         Ok(response)
@@ -230,7 +231,7 @@ impl<T: TestContract> TestClient<T> {
 
         let typed_transaction = TypedTransaction::Eip1559(req);
 
-        self.eth_call(typed_transaction, Some("latest".to_owned()))
+        self.eth_call(typed_transaction, Some(BlockNumberOrTag::Latest))
             .await
     }
 
@@ -328,9 +329,22 @@ impl<T: TestContract> TestClient<T> {
             .unwrap()
     }
 
+    pub(crate) async fn eth_fee_history(
+        &self,
+        block_count: String,
+        newest_block: BlockNumberOrTag,
+        reward_percentiles: Option<Vec<f64>>,
+    ) -> FeeHistory {
+        let rpc_params = rpc_params![block_count, newest_block, reward_percentiles];
+        self.http_client
+            .request("eth_feeHistory", rpc_params)
+            .await
+            .unwrap()
+    }
+
     pub(crate) async fn eth_get_block_by_number(
         &self,
-        block_number: Option<String>,
+        block_number: Option<BlockNumberOrTag>,
     ) -> Block<TxHash> {
         self.http_client
             .request("eth_getBlockByNumber", rpc_params![block_number, false])
@@ -340,7 +354,7 @@ impl<T: TestContract> TestClient<T> {
 
     pub(crate) async fn eth_get_block_by_number_with_detail(
         &self,
-        block_number: Option<String>,
+        block_number: Option<BlockNumberOrTag>,
     ) -> Block<Transaction> {
         self.http_client
             .request("eth_getBlockByNumber", rpc_params![block_number, true])
@@ -355,10 +369,58 @@ impl<T: TestContract> TestClient<T> {
             .unwrap()
     }
 
+    pub(crate) async fn eth_get_block_receipts(
+        &self,
+        block_number_or_hash: BlockId,
+    ) -> Vec<ethers_core::types::TransactionReceipt> {
+        self.http_client
+            .request("eth_getBlockReceipts", rpc_params![block_number_or_hash])
+            .await
+            .unwrap()
+    }
+
+    pub(crate) async fn eth_get_transaction_receipt(
+        &self,
+        tx_hash: TxHash,
+    ) -> Option<ethers_core::types::TransactionReceipt> {
+        self.http_client
+            .request("eth_getTransactionReceipt", rpc_params![tx_hash])
+            .await
+            .unwrap()
+    }
+
+    pub(crate) async fn eth_get_tx_by_block_hash_and_index(
+        &self,
+        block_hash: ethereum_types::H256,
+        index: ethereum_types::U256,
+    ) -> Transaction {
+        self.http_client
+            .request(
+                "eth_getTransactionByBlockHashAndIndex",
+                rpc_params![block_hash, index],
+            )
+            .await
+            .unwrap()
+    }
+
+    pub(crate) async fn eth_get_tx_by_block_number_and_index(
+        &self,
+        block_number: BlockNumberOrTag,
+        index: ethereum_types::U256,
+    ) -> Transaction {
+        self.http_client
+            .request(
+                "eth_getTransactionByBlockNumberAndIndex",
+                rpc_params![block_number, index],
+            )
+            .await
+            .unwrap()
+    }
+
     pub(crate) async fn eth_call(
         &self,
         tx: TypedTransaction,
-        block_number: Option<String>,
+        block_number: Option<BlockNumberOrTag>,
     ) -> Result<Bytes, Box<dyn std::error::Error>> {
         self.http_client
             .request("eth_call", rpc_params![tx, block_number])
@@ -369,7 +431,7 @@ impl<T: TestContract> TestClient<T> {
     pub(crate) async fn eth_estimate_gas(
         &self,
         tx: TypedTransaction,
-        block_number: Option<String>,
+        block_number: Option<BlockNumberOrTag>,
     ) -> u64 {
         let gas: ethereum_types::U64 = self
             .http_client
@@ -406,4 +468,14 @@ impl<T: TestContract> TestClient<T> {
         };
         contract
     }
+}
+
+#[derive(serde::Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+// ethers version of FeeHistory doesn't accept None reward
+pub struct FeeHistory {
+    pub base_fee_per_gas: Vec<ethers::types::U256>,
+    pub gas_used_ratio: Vec<f64>,
+    pub oldest_block: ethers::types::U256,
+    pub reward: Option<Vec<Vec<ethers::types::U256>>>,
 }
