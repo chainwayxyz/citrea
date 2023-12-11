@@ -26,7 +26,7 @@ impl SoftConfirmationClient {
     }
 
     pub async fn get_sov_tx(&self, num: u64) -> anyhow::Result<Vec<u8>> {
-        let raw_res: Result<Value, _> = self
+        let raw_res: Value = self
             .client
             .request("ledger_getTransactionByNumber", rpc_params![num])
             .await
