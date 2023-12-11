@@ -144,6 +144,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
             prev_root,
             genesis_config,
             prover_service,
+            rollup_config.soft_confirmation_client,
         )?;
 
         Ok(Rollup {

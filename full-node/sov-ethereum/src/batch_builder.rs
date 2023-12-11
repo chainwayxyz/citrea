@@ -1,8 +1,4 @@
-use std::borrow::BorrowMut;
 use std::collections::VecDeque;
-
-use borsh::BorshSerialize;
-use sov_modules_api::transaction::Transaction;
 
 pub struct EthBatchBuilder<C: sov_modules_api::Context> {
     mempool: VecDeque<Vec<u8>>,

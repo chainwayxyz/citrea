@@ -11,6 +11,9 @@ pub mod mock;
 mod prover_service;
 
 #[cfg(feature = "native")]
+mod soft_confirmation_client;
+
+#[cfg(feature = "native")]
 use std::path::Path;
 
 #[cfg(feature = "native")]
