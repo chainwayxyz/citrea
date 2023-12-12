@@ -83,7 +83,6 @@ async fn main() -> Result<(), anyhow::Error> {
                         rollup,
                         da_service,
                         DefaultPrivateKey::from_hex(TEST_PRIVATE_KEY).unwrap(),
-                        // TODO: #43 https://github.com/chainwayxyz/secret-sovereign-sdk/issues/43
                         storage,
                     );
                 seq.start_rpc_server(None).await.unwrap();
@@ -116,7 +115,6 @@ async fn main() -> Result<(), anyhow::Error> {
                         rollup,
                         da_service,
                         DefaultPrivateKey::from_hex(TEST_PRIVATE_KEY).unwrap(),
-                        // TODO: #43 https://github.com/chainwayxyz/secret-sovereign-sdk/issues/43
                         storage,
                     );
                 seq.start_rpc_server(None).await.unwrap();
