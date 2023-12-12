@@ -136,7 +136,7 @@ impl DaService for MockDaService {
         }
 
         // Locking blocks here, so submissions has to wait
-        let mut blocks = self.blocks.write().await;
+        let blocks = self.blocks.write().await;
 
         let oldest_available_height = blocks[0].header.height;
         let index = height
