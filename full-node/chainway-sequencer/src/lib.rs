@@ -19,9 +19,11 @@ use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::RpcModule;
 use mempool::Mempool;
 use reth_primitives::TransactionSignedNoHash as RethTransactionSignedNoHash;
+use sov_accounts::Accounts;
+use sov_accounts::Response::{AccountEmpty, AccountExists};
 use sov_evm::{CallMessage, Evm, RlpEvmTransaction};
 use sov_modules_api::transaction::Transaction;
-use sov_modules_api::EncodeCall;
+use sov_modules_api::{EncodeCall, PrivateKey, Spec, WorkingSet};
 use sov_modules_rollup_blueprint::{Rollup, RollupBlueprint};
 use sov_modules_stf_blueprint::{Batch, RawTx};
 use sov_rollup_interface::services::da::DaService;
@@ -44,6 +46,7 @@ pub struct ChainwaySequencer<C: sov_modules_api::Context, Da: DaService, S: Roll
     sov_tx_signer_nonce: u64,
     sender: UnboundedSender<String>,
     receiver: UnboundedReceiver<String>,
+    storage: C::Storage,
 }
 
 impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySequencer<C, Da, S> {
@@ -51,10 +54,22 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
         rollup: Rollup<S>,
         da_service: Da,
         sov_tx_signer_priv_key: C::PrivateKey,
-        sov_tx_signer_nonce: u64,
+        storage: C::Storage,
     ) -> Self {
         let mempool = Mempool::new();
         let (sender, receiver) = unbounded();
+
+        let accounts = Accounts::<C>::default();
+        let mut working_set = WorkingSet::<C>::new(storage.clone());
+        let nonce = match accounts
+            .get_account(sov_tx_signer_priv_key.pub_key(), &mut working_set)
+            .expect("Sequencer: Failed to get sov-account")
+        {
+            AccountExists { addr, nonce } => nonce,
+            AccountEmpty => 0,
+        };
+
+        info!("Sequencer nonce: {}", nonce);
 
         Self {
             rollup,
@@ -62,9 +77,10 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
             mempool: Arc::new(Mutex::new(mempool)),
             p: PhantomData,
             sov_tx_signer_priv_key,
-            sov_tx_signer_nonce,
+            sov_tx_signer_nonce: nonce,
             sender,
             receiver,
+            storage,
         }
     }
 

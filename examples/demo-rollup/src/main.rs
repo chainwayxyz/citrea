@@ -13,7 +13,7 @@ use sov_demo_rollup::{BitcoinRollup, CelestiaDemoRollup, MockDemoRollup};
 use sov_mock_da::{MockAddress, MockDaConfig, MockDaService};
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
-use sov_modules_rollup_blueprint::{Rollup, RollupBlueprint};
+use sov_modules_rollup_blueprint::{Rollup, RollupAndStorage, RollupBlueprint};
 use sov_stf_runner::{from_toml_path, RollupConfig, RollupProverConfig};
 use tracing::log::debug;
 use tracing_subscriber::prelude::*;
@@ -68,7 +68,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     match args.da_layer {
         SupportedDaLayer::Mock => {
-            let rollup = new_rollup_with_mock_da(
+            let RollupAndStorage { rollup, storage } = new_rollup_with_mock_da(
                 &GenesisPaths::from_dir("../test-data/genesis/demo-tests/mock"),
                 rollup_config_path,
                 RollupProverConfig::Execute,
@@ -84,7 +84,7 @@ async fn main() -> Result<(), anyhow::Error> {
                         da_service,
                         DefaultPrivateKey::from_hex(TEST_PRIVATE_KEY).unwrap(),
                         // TODO: #43 https://github.com/chainwayxyz/secret-sovereign-sdk/issues/43
-                        0,
+                        storage,
                     );
                 seq.start_rpc_server(None).await.unwrap();
                 seq.run().await?;
@@ -93,7 +93,7 @@ async fn main() -> Result<(), anyhow::Error> {
             }
         }
         SupportedDaLayer::Bitcoin => {
-            let rollup = new_rollup_with_bitcoin_da(
+            let RollupAndStorage { rollup, storage } = new_rollup_with_bitcoin_da(
                 &GenesisPaths::from_dir("../test-data/genesis/demo-tests"),
                 rollup_config_path,
                 RollupProverConfig::Execute,
@@ -117,7 +117,7 @@ async fn main() -> Result<(), anyhow::Error> {
                         da_service,
                         DefaultPrivateKey::from_hex(TEST_PRIVATE_KEY).unwrap(),
                         // TODO: #43 https://github.com/chainwayxyz/secret-sovereign-sdk/issues/43
-                        0,
+                        storage,
                     );
                 seq.start_rpc_server(None).await.unwrap();
                 seq.run().await?;
@@ -126,7 +126,7 @@ async fn main() -> Result<(), anyhow::Error> {
             }
         }
         SupportedDaLayer::Celestia => {
-            let rollup = new_rollup_with_celestia_da(
+            let RollupAndStorage { rollup, storage } = new_rollup_with_celestia_da(
                 &GenesisPaths::from_dir("../test-data/genesis/demo-tests/celestia"),
                 rollup_config_path,
                 RollupProverConfig::Execute,
@@ -146,7 +146,7 @@ async fn main() -> Result<(), anyhow::Error> {
                     rollup,
                     da_service,
                     DefaultPrivateKey::from_hex(TEST_PRIVATE_KEY).unwrap(),
-                    0,
+                    storage,
                 );
                 seq.start_rpc_server(None).await.unwrap();
                 seq.run().await?;
@@ -163,7 +163,7 @@ async fn new_rollup_with_bitcoin_da(
     genesis_paths: &GenesisPaths,
     rollup_config_path: &str,
     prover_config: RollupProverConfig,
-) -> Result<Rollup<BitcoinRollup>, anyhow::Error> {
+) -> Result<RollupAndStorage<BitcoinRollup>, anyhow::Error> {
     debug!("Starting bitcoin rollup with config {}", rollup_config_path);
 
     let rollup_config: RollupConfig<DaServiceConfig> =
@@ -179,7 +179,7 @@ async fn new_rollup_with_celestia_da(
     genesis_paths: &GenesisPaths,
     rollup_config_path: &str,
     prover_config: RollupProverConfig,
-) -> Result<Rollup<CelestiaDemoRollup>, anyhow::Error> {
+) -> Result<RollupAndStorage<CelestiaDemoRollup>, anyhow::Error> {
     debug!(
         "Starting celestia rollup with config {}",
         rollup_config_path
@@ -198,7 +198,7 @@ async fn new_rollup_with_mock_da(
     genesis_paths: &GenesisPaths,
     rollup_config_path: &str,
     prover_config: RollupProverConfig,
-) -> Result<Rollup<MockDemoRollup>, anyhow::Error> {
+) -> Result<RollupAndStorage<MockDemoRollup>, anyhow::Error> {
     debug!("Starting mock rollup with config {}", rollup_config_path);
 
     let rollup_config: RollupConfig<MockDaConfig> =
