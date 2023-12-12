@@ -14,13 +14,13 @@ use reth_primitives::{
     BlockNumberOrTag, TransactionSignedNoHash as RethTransactionSignedNoHash, U128, U256,
 };
 use reth_rpc_types::{CallRequest, FeeHistory, TransactionRequest, TypedTransactionRequest};
+use sequencer_client::SequencerClient;
 #[cfg(feature = "local")]
 pub use sov_evm::DevSigner;
 use sov_evm::{CallMessage, Evm, RlpEvmTransaction};
 use sov_modules_api::utils::to_jsonrpsee_error_object;
 use sov_modules_api::{EncodeCall, PrivateKey, WorkingSet};
 use sov_rollup_interface::services::da::DaService;
-use sov_stf_runner::sequencer_client::SequencerClient;
 use tracing::info;
 
 use crate::batch_builder::EthBatchBuilder;

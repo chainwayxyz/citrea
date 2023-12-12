@@ -2,6 +2,7 @@ use std::net::SocketAddr;
 
 use borsh::BorshSerialize;
 use jsonrpsee::RpcModule;
+use sequencer_client::SequencerClient;
 use sov_db::ledger_db::{LedgerDB, SlotCommit};
 use sov_modules_stf_blueprint::{Batch, RawTx};
 use sov_rollup_interface::da::{BlobReaderTrait, DaSpec};
@@ -12,8 +13,6 @@ use sov_rollup_interface::zk::ZkvmHost;
 use tokio::sync::oneshot;
 use tracing::{debug, info};
 
-use crate::config::SequencerClientRpcConfig;
-use crate::sequencer_client::SequencerClient;
 use crate::verifier::StateTransitionVerifier;
 use crate::{ProverService, RunnerConfig};
 type StateRoot<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::StateRoot;
@@ -85,7 +84,7 @@ where
         prev_state_root: Option<StateRoot<Stf, Vm, Da::Spec>>,
         genesis_config: InitialState<Stf, Vm, Da::Spec>,
         prover_service: Ps,
-        sequencer_client_config: Option<SequencerClientRpcConfig>,
+        sequencer_client: Option<SequencerClient>,
     ) -> Result<Self, anyhow::Error> {
         let rpc_config = runner_config.rpc_config;
 
@@ -110,14 +109,6 @@ where
         let item_numbers = ledger_db.get_next_items_numbers();
         let last_slot_processed_before_shutdown = item_numbers.slot_number - 1;
         let start_height = runner_config.start_height + last_slot_processed_before_shutdown;
-
-        let sequencer_client = match sequencer_client_config {
-            Some(sequencer_client_config) => Some(SequencerClient::new(
-                sequencer_client_config.start_height,
-                sequencer_client_config.url,
-            )),
-            None => None,
-        };
 
         Ok(Self {
             start_height,

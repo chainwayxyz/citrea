@@ -1,13 +1,13 @@
 use std::str::FromStr;
 
 use anyhow::Context as _;
+use sequencer_client::SequencerClient;
 use sov_cli::wallet_state::PrivateKeyAndAddress;
 use sov_ethereum::{EthRpcConfig, FeeHistoryCacheConfig, GasPriceOracleConfig};
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
 use sov_rollup_interface::services::da::DaService;
 use sov_state::ProverStorage;
-use sov_stf_runner::SequencerClient;
 
 const TX_SIGNER_PRIV_KEY_PATH: &str = "../test-data/keys/tx_signer_private_key.json";
 

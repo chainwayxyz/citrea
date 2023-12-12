@@ -1,5 +1,5 @@
 [package]
-name = "sov-ethereum"
+name = "sequencer-client"
 authors = { workspace = true }
 edition = { workspace = true }
 homepage = { workspace = true }
@@ -12,12 +12,13 @@ publish = false
 resolver = "2"
 
 [dependencies]
-sov-evm = { path = "../../module-system/module-implementations/sov-evm" }
-sov-stf-runner = { path = "../sov-stf-runner" }
-sequencer-client = { path = "../sequencer-client" }
+bitcoin-da = { path = "../../adapters/bitcoin" }
 anyhow = { workspace = true }
 tracing = { workspace = true }
 jsonrpsee = { workspace = true, features = ["http-client", "server"] }
+
+
+futures = { workspace = true }
 
 borsh = { workspace = true }
 serde = { workspace = true }
@@ -30,19 +31,12 @@ ethers = { workspace = true }
 tokio = { workspace = true }
 schnellru = "0.2.1"
 
-sov-rollup-interface = { path = "../../rollup-interface", features = [
-    "native",
-] }
-
-demo-stf = { path = "../../examples/demo-rollup/stf", features = ["native"] }
-sov-modules-api = { path = "../../module-system/sov-modules-api" }
-sov-accounts = { path = "../../module-system/module-implementations/sov-accounts" }
 
 [dev-dependencies]
 tokio = { workspace = true }
 
 
 [features]
-default = ["local"]
+default = []
 local = []
-native = ["demo-stf/native", "sov-evm/native"]
+native = []

@@ -7,6 +7,7 @@ use std::net::SocketAddr;
 
 use async_trait::async_trait;
 pub use runtime_rpc::*;
+use sequencer_client::SequencerClient;
 use sov_db::ledger_db::LedgerDB;
 use sov_modules_api::runtime::capabilities::Kernel;
 use sov_modules_api::{Context, DaSpec, Spec};
@@ -16,9 +17,7 @@ use sov_rollup_interface::storage::StorageManager;
 use sov_rollup_interface::zk::ZkvmHost;
 use sov_state::storage::NativeStorage;
 use sov_state::Storage;
-use sov_stf_runner::{
-    ProverService, RollupConfig, RollupProverConfig, SequencerClient, StateTransitionRunner,
-};
+use sov_stf_runner::{ProverService, RollupConfig, RollupProverConfig, StateTransitionRunner};
 use tokio::sync::oneshot;
 pub use wallet::*;
 
@@ -135,19 +134,23 @@ pub trait RollupBlueprint: Sized + Send + Sync {
             .transpose()?;
 
         // if node does not have a sequencer client, then it is a sequencer
-        let sequencer_client = match rollup_config.sequencer.as_ref() {
+        let sequencer_client = match rollup_config.sequencer {
             Some(sequencer_client_config) => {
                 let sequencer_client = SequencerClient::new(
                     sequencer_client_config.start_height,
-                    sequencer_client_config.url.clone(),
+                    sequencer_client_config.url,
                 );
                 Some(sequencer_client)
             }
             None => None,
         };
 
-        let rpc_methods =
-            self.create_rpc_methods(&native_storage, &ledger_db, &da_service, sequencer_client)?;
+        let rpc_methods = self.create_rpc_methods(
+            &native_storage,
+            &ledger_db,
+            &da_service,
+            sequencer_client.clone(),
+        )?;
 
         let native_stf = StfBlueprint::new();
 
@@ -160,7 +163,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
             prev_root,
             genesis_config,
             prover_service,
-            rollup_config.sequencer,
+            sequencer_client,
         )?;
 
         Ok(Rollup {

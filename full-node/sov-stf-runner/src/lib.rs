@@ -10,10 +10,6 @@ pub mod mock;
 #[cfg(feature = "native")]
 mod prover_service;
 
-/// Sequencer Client for full node
-#[cfg(feature = "native")]
-pub mod sequencer_client;
-
 #[cfg(feature = "native")]
 use std::path::Path;
 
@@ -30,7 +26,6 @@ mod runner;
 pub use config::{from_toml_path, RollupConfig, RunnerConfig, StorageConfig};
 #[cfg(feature = "native")]
 pub use runner::*;
-pub use sequencer_client::SequencerClient;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::DaSpec;
