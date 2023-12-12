@@ -41,8 +41,6 @@ pub struct ChainwaySequencer<C: sov_modules_api::Context, Da: DaService, S: Roll
     sov_tx_signer_nonce: u64,
     sender: UnboundedSender<String>,
     receiver: UnboundedReceiver<String>,
-    // not used for now, will probably need it later
-    _storage: C::Storage,
 }
 
 impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySequencer<C, Da, S> {
@@ -65,8 +63,6 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
             AccountEmpty => 0,
         };
 
-        info!("Sequencer nonce: {}", nonce);
-
         Self {
             rollup,
             _da_service: da_service,
@@ -76,7 +72,6 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
             sov_tx_signer_nonce: nonce,
             sender,
             receiver,
-            _storage: storage,
         }
     }
 
