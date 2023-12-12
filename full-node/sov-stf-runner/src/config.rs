@@ -36,7 +36,7 @@ pub struct SequencerClientRpcConfig {
     /// Sequencer start height.
     pub start_height: u64,
     /// RPC host url (with port, if applicable).
-    pub sequencer_client_url: String,
+    pub url: String,
 }
 
 /// Rollup Configuration
@@ -48,7 +48,7 @@ pub struct RollupConfig<DaServiceConfig> {
     pub runner: RunnerConfig,
     /// Data Availability service configuration.
     pub da: DaServiceConfig,
-    /// Soft Confirmation Client RPC Config for sequencer connection
+    /// Sequencer Client RPC Config for sequencer connection
     pub sequencer: Option<SequencerClientRpcConfig>,
 }
 
@@ -98,7 +98,7 @@ mod tests {
             bind_port = 12345
             [sequencer]
             start_height = 5
-            sequencer_client_url = "http://0.0.0.0:12346"
+            url = "http://0.0.0.0:12346"
         "#;
 
         let config_file = create_config_from(config);
@@ -125,7 +125,7 @@ mod tests {
             },
             sequencer: Some(SequencerClientRpcConfig {
                 start_height: 5,
-                sequencer_client_url: "http://0.0.0.0:12346".to_owned(),
+                url: "http://0.0.0.0:12346".to_owned(),
             }),
         };
         assert_eq!(config, expected);

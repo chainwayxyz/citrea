@@ -134,12 +134,12 @@ pub trait RollupBlueprint: Sized + Send + Sync {
             .map(|(number, _)| native_storage.get_root_hash(number.0))
             .transpose()?;
 
-        // if node does not have a soft confirmation client, then it is a sequencer
-        let sequencer_client = match rollup_config.sequencer.clone() {
+        // if node does not have a sequencer client, then it is a sequencer
+        let sequencer_client = match rollup_config.sequencer.as_ref() {
             Some(sequencer_client_config) => {
                 let sequencer_client = SequencerClient::new(
                     sequencer_client_config.start_height,
-                    sequencer_client_config.sequencer_client_url,
+                    sequencer_client_config.url.clone(),
                 );
                 Some(sequencer_client)
             }

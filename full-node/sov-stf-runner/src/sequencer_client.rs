@@ -18,7 +18,7 @@ pub struct SequencerClient {
 }
 
 impl SequencerClient {
-    /// Creates the soft confirmation client
+    /// Creates the sequencer client
     pub fn new(start_height: u64, rpc_url: String) -> Self {
         let client = HttpClientBuilder::default().build(&rpc_url).unwrap();
         Self {
@@ -45,7 +45,6 @@ impl SequencerClient {
             // TODO: handle overflow from u64 to u8 https://github.com/chainwayxyz/secret-sovereign-sdk/issues/48
             .map(|x| x.as_u64().unwrap() as u8)
             .collect();
-        info!("body: {:?}", body);
         Ok(body)
     }
 
@@ -55,7 +54,6 @@ impl SequencerClient {
             .client
             .request("eth_sendRawTransaction", rpc_params![tx])
             .await?;
-        println!("tx_hash: {:?}", tx_hash);
         Ok(tx_hash)
     }
 }

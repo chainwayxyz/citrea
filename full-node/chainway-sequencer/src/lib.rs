@@ -93,7 +93,7 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
         loop {
             tokio::time::sleep(Duration::from_millis(100)).await;
 
-            if let Ok(Some(_resp)) = self.receiver.try_next() {
+            if let Ok(Some(_)) = self.receiver.try_next() {
                 let mut rlp_txs = vec![];
                 let mut mem = self.mempool.lock().await;
                 while !mem.pool.is_empty() {
@@ -164,7 +164,7 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
 
             Ok::<H256, ErrorObjectOwned>(hash)
         })?;
-        rpc.register_async_method("eth_publishBatch", |_parameters, ctx| async move {
+        rpc.register_async_method("eth_publishBatch", |_, ctx| async move {
             info!("Sequencer: eth_publishBatch");
             ctx.sender.unbounded_send("msg".to_string()).unwrap();
             Ok::<(), ErrorObjectOwned>(())

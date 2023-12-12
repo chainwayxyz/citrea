@@ -10,7 +10,7 @@ pub mod mock;
 #[cfg(feature = "native")]
 mod prover_service;
 
-/// Soft confirmation client for full node
+/// Sequencer Client for full node
 #[cfg(feature = "native")]
 pub mod sequencer_client;
 

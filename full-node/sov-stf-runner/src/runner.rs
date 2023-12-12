@@ -114,7 +114,7 @@ where
         let sequencer_client = match sequencer_client_config {
             Some(sequencer_client_config) => Some(SequencerClient::new(
                 sequencer_client_config.start_height,
-                sequencer_client_config.sequencer_client_url,
+                sequencer_client_config.url,
             )),
             None => None,
         };
@@ -203,11 +203,7 @@ where
     pub async fn run_in_process(&mut self) -> Result<(), anyhow::Error> {
         let client = match &self.sequencer_client {
             Some(client) => client,
-            None => {
-                return Err(anyhow::anyhow!(
-                    "Soft Confirmation Client is not initialized"
-                ))
-            }
+            None => return Err(anyhow::anyhow!("Sequencer Client is not initialized")),
         };
 
         let mut height = self.start_height + 1;
@@ -245,8 +241,6 @@ where
                 tx_blob_with_sender.total_len(),
                 height,
             );
-
-            info!("header:{:?}", filtered_block.header());
 
             let mut data_to_commit = SlotCommit::new(filtered_block.clone());
 
