@@ -12,7 +12,7 @@ mod prover_service;
 
 /// Soft confirmation client for full node
 #[cfg(feature = "native")]
-pub mod soft_confirmation_client;
+pub mod sequencer_client;
 
 #[cfg(feature = "native")]
 use std::path::Path;
@@ -30,9 +30,9 @@ mod runner;
 pub use config::{from_toml_path, RollupConfig, RunnerConfig, StorageConfig};
 #[cfg(feature = "native")]
 pub use runner::*;
+pub use sequencer_client::SequencerClient;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-pub use soft_confirmation_client::SoftConfirmationClient;
 use sov_rollup_interface::da::DaSpec;
 
 /// Implements the `StateTransitionVerifier` type for checking the validity of a state transition

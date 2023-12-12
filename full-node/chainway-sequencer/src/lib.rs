@@ -1,9 +1,7 @@
 pub use sov_evm::DevSigner;
 mod mempool;
 
-use std::array::TryFromSliceError;
 use std::borrow::BorrowMut;
-use std::collections::VecDeque;
 use std::marker::PhantomData;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -14,19 +12,17 @@ use demo_stf::runtime::Runtime;
 use ethers::types::{Bytes, H256};
 use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
 use futures::lock::Mutex;
-use futures::{select, AsyncBufReadExt, Stream, StreamExt};
 use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::RpcModule;
 use mempool::Mempool;
 use reth_primitives::TransactionSignedNoHash as RethTransactionSignedNoHash;
-use sov_evm::{CallMessage, Evm, RlpEvmTransaction};
+use sov_evm::{CallMessage, RlpEvmTransaction};
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::EncodeCall;
 use sov_modules_rollup_blueprint::{Rollup, RollupBlueprint};
 use sov_modules_stf_blueprint::{Batch, RawTx};
 use sov_rollup_interface::services::da::DaService;
-use tokio::sync::oneshot;
-use tracing::{debug, info};
+use tracing::info;
 
 const ETH_RPC_ERROR: &str = "ETH_RPC_ERROR";
 
@@ -97,7 +93,7 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
         loop {
             tokio::time::sleep(Duration::from_millis(100)).await;
 
-            if let Ok(Some(resp)) = self.receiver.try_next() {
+            if let Ok(Some(_resp)) = self.receiver.try_next() {
                 let mut rlp_txs = vec![];
                 let mut mem = self.mempool.lock().await;
                 while !mem.pool.is_empty() {
@@ -168,7 +164,7 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
 
             Ok::<H256, ErrorObjectOwned>(hash)
         })?;
-        rpc.register_async_method("eth_publishBatch", |parameters, ctx| async move {
+        rpc.register_async_method("eth_publishBatch", |_parameters, ctx| async move {
             info!("Sequencer: eth_publishBatch");
             ctx.sender.unbounded_send("msg".to_string()).unwrap();
             Ok::<(), ErrorObjectOwned>(())

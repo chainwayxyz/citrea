@@ -166,7 +166,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     .expect("Block must be set")
             }
             BlockId::Number(block_number) => {
-                self.get_sealed_block_by_number(Some(block_number.into()), working_set)
+                self.get_sealed_block_by_number(Some(block_number), working_set)
             }
         };
 
@@ -813,7 +813,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 if matches_address(alloy_logs_bloom, &address_filter)
                     && matches_topics(alloy_logs_bloom, &topics_filter)
                 {
-                    self.append_matching_block_logs(working_set, &mut all_logs, &filter, block);
+                    self.append_matching_block_logs(working_set, &mut all_logs, filter, block);
                     let max_logs_per_response = DEFAULT_MAX_LOGS_PER_RESPONSE;
                     // size check but only if range is multiple blocks, so we always return all
                     // logs of a single block
@@ -859,7 +859,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             for log in logs.into_iter() {
                 if log_matches_filter(
                     &log,
-                    &filter,
+                    filter,
                     &topics,
                     &block.header.hash,
                     &block.header.number,

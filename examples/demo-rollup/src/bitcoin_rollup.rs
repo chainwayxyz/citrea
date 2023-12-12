@@ -15,9 +15,7 @@ use sov_risc0_adapter::host::Risc0Host;
 use sov_rollup_interface::zk::ZkvmHost;
 use sov_state::storage_manager::ProverStorageManager;
 use sov_state::{DefaultStorageSpec, Storage, ZkStorage};
-use sov_stf_runner::{
-    ParallelProverService, RollupConfig, RollupProverConfig, SoftConfirmationClient,
-};
+use sov_stf_runner::{ParallelProverService, RollupConfig, RollupProverConfig, SequencerClient};
 
 /// Rollup with BitcoinDa
 pub struct BitcoinRollup {}
@@ -59,7 +57,7 @@ impl RollupBlueprint for BitcoinRollup {
         storage: &<Self::NativeContext as Spec>::Storage,
         ledger_db: &LedgerDB,
         da_service: &Self::DaService,
-        soft_confirmation_client: Option<SoftConfirmationClient>,
+        sequencer_client: Option<SequencerClient>,
     ) -> Result<jsonrpsee::RpcModule<()>, anyhow::Error> {
         #[allow(unused_mut)]
         let mut rpc_methods = sov_modules_rollup_blueprint::register_rpc::<
@@ -72,7 +70,7 @@ impl RollupBlueprint for BitcoinRollup {
             da_service.clone(),
             storage.clone(),
             &mut rpc_methods,
-            soft_confirmation_client,
+            sequencer_client,
         )?;
 
         Ok(rpc_methods)

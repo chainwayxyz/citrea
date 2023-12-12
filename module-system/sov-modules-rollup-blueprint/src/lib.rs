@@ -17,7 +17,7 @@ use sov_rollup_interface::zk::ZkvmHost;
 use sov_state::storage::NativeStorage;
 use sov_state::Storage;
 use sov_stf_runner::{
-    ProverService, RollupConfig, RollupProverConfig, SoftConfirmationClient, StateTransitionRunner,
+    ProverService, RollupConfig, RollupProverConfig, SequencerClient, StateTransitionRunner,
 };
 use tokio::sync::oneshot;
 pub use wallet::*;
@@ -69,7 +69,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         storage: &<Self::NativeContext as Spec>::Storage,
         ledger_db: &LedgerDB,
         da_service: &Self::DaService,
-        soft_confirmation_client: Option<SoftConfirmationClient>,
+        sequencer_client: Option<SequencerClient>,
     ) -> Result<jsonrpsee::RpcModule<()>, anyhow::Error>;
 
     /// Creates GenesisConfig from genesis files.
@@ -135,23 +135,19 @@ pub trait RollupBlueprint: Sized + Send + Sync {
             .transpose()?;
 
         // if node does not have a soft confirmation client, then it is a sequencer
-        let soft_confirmation_client = match rollup_config.soft_confirmation.clone() {
-            Some(soft_confirmation_client_config) => {
-                let soft_confirmation_client = SoftConfirmationClient::new(
-                    soft_confirmation_client_config.start_height,
-                    soft_confirmation_client_config.soft_confirmation_client_url,
+        let sequencer_client = match rollup_config.sequencer.clone() {
+            Some(sequencer_client_config) => {
+                let sequencer_client = SequencerClient::new(
+                    sequencer_client_config.start_height,
+                    sequencer_client_config.sequencer_client_url,
                 );
-                Some(soft_confirmation_client)
+                Some(sequencer_client)
             }
             None => None,
         };
 
-        let rpc_methods = self.create_rpc_methods(
-            &native_storage,
-            &ledger_db,
-            &da_service,
-            soft_confirmation_client,
-        )?;
+        let rpc_methods =
+            self.create_rpc_methods(&native_storage, &ledger_db, &da_service, sequencer_client)?;
 
         let native_stf = StfBlueprint::new();
 
@@ -164,7 +160,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
             prev_root,
             genesis_config,
             prover_service,
-            rollup_config.soft_confirmation,
+            rollup_config.sequencer,
         )?;
 
         Ok(Rollup {

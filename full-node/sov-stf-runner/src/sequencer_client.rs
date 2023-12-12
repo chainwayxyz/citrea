@@ -6,9 +6,9 @@ use jsonrpsee::rpc_params;
 use serde_json::Value;
 use tracing::info;
 
-/// Configuration for SoftConfirmationClient.
+/// Configuration for SequencerClient.
 #[derive(Debug, Clone)]
-pub struct SoftConfirmationClient {
+pub struct SequencerClient {
     /// Start height for soft confirmation
     pub start_height: u64,
     /// Host config for soft confirmation
@@ -17,7 +17,7 @@ pub struct SoftConfirmationClient {
     pub client: HttpClient,
 }
 
-impl SoftConfirmationClient {
+impl SequencerClient {
     /// Creates the soft confirmation client
     pub fn new(start_height: u64, rpc_url: String) -> Self {
         let client = HttpClientBuilder::default().build(&rpc_url).unwrap();
