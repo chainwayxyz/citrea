@@ -69,15 +69,18 @@ async fn main() -> Result<(), anyhow::Error> {
 
     match args.da_layer {
         SupportedDaLayer::Mock => {
+            let rollup_config: RollupConfig<MockDaConfig> = from_toml_path(rollup_config_path)
+                .context("Failed to read rollup configuration")?;
             let rollup = new_rollup_with_mock_da(
                 &GenesisPaths::from_dir("../test-data/genesis/demo-tests/mock"),
-                rollup_config_path,
+                rollup_config.clone(),
                 RollupProverConfig::Execute,
             )
             .await?;
             if args.sequence {
-                let rollup_config: RollupConfig<MockDaConfig> = from_toml_path(rollup_config_path)
-                    .context("Failed to read rollup configuration")?;
+                if rollup_config.sequencer.is_some() {
+                    panic!("Sequencer client is not necessary for sequencer nodes.");
+                }
                 let da_service = MockDaService::new(rollup_config.da.sender_address);
                 let mut seq: ChainwaySequencer<DefaultContext, MockDaService, _> =
                     ChainwaySequencer::new(
@@ -90,20 +93,26 @@ async fn main() -> Result<(), anyhow::Error> {
                 seq.start_rpc_server(None).await.unwrap();
                 seq.run().await?;
             } else {
+                if rollup_config.sequencer.is_none() {
+                    panic!("Sequencer client is necessary for full nodes.");
+                }
                 rollup.run().await?;
             }
         }
         SupportedDaLayer::Bitcoin => {
+            let rollup_config: RollupConfig<DaServiceConfig> =
+                from_toml_path(rollup_config_path)
+                    .context("Failed to read rollup configuration")?;
             let rollup = new_rollup_with_bitcoin_da(
                 &GenesisPaths::from_dir("../test-data/genesis/demo-tests"),
-                rollup_config_path,
+                rollup_config.clone(),
                 RollupProverConfig::Execute,
             )
             .await?;
             if args.sequence {
-                let rollup_config: RollupConfig<DaServiceConfig> =
-                    from_toml_path(rollup_config_path)
-                        .context("Failed to read rollup configuration")?;
+                if rollup_config.sequencer.is_some() {
+                    panic!("Sequencer client is not necessary for sequencer nodes.");
+                }
 
                 let da_service = BitcoinService::new(
                     rollup_config.da,
@@ -123,20 +132,27 @@ async fn main() -> Result<(), anyhow::Error> {
                 seq.start_rpc_server(None).await.unwrap();
                 seq.run().await?;
             } else {
+                if rollup_config.sequencer.is_none() {
+                    panic!("Sequencer client is necessary for full nodes.");
+                }
                 rollup.run().await?;
             }
         }
         SupportedDaLayer::Celestia => {
+            let rollup_config: RollupConfig<sov_celestia_adapter::CelestiaConfig> =
+                from_toml_path(rollup_config_path)
+                    .context("Failed to read rollup configuration")?;
+
             let rollup = new_rollup_with_celestia_da(
                 &GenesisPaths::from_dir("../test-data/genesis/demo-tests/celestia"),
-                rollup_config_path,
+                rollup_config.clone(),
                 RollupProverConfig::Execute,
             )
             .await?;
             if args.sequence {
-                let rollup_config: RollupConfig<CelestiaConfig> =
-                    from_toml_path(rollup_config_path)
-                        .context("Failed to read rollup configuration")?;
+                if rollup_config.sequencer.is_some() {
+                    panic!("Sequencer client is not necessary for sequencer nodes.");
+                }
                 let celestia_rollup = CelestiaDemoRollup {};
                 let da_service = celestia_rollup.create_da_service(&rollup_config).await;
                 let mut seq: ChainwaySequencer<
@@ -152,6 +168,9 @@ async fn main() -> Result<(), anyhow::Error> {
                 seq.start_rpc_server(None).await.unwrap();
                 seq.run().await?;
             } else {
+                if rollup_config.sequencer.is_none() {
+                    panic!("Sequencer client is necessary for full nodes.");
+                }
                 rollup.run().await?;
             }
         }
@@ -162,13 +181,10 @@ async fn main() -> Result<(), anyhow::Error> {
 
 async fn new_rollup_with_bitcoin_da(
     genesis_paths: &GenesisPaths,
-    rollup_config_path: &str,
+    rollup_config: RollupConfig<DaServiceConfig>,
     prover_config: RollupProverConfig,
 ) -> Result<Rollup<BitcoinRollup>, anyhow::Error> {
-    debug!("Starting bitcoin rollup with config {}", rollup_config_path);
-
-    let rollup_config: RollupConfig<DaServiceConfig> =
-        from_toml_path(rollup_config_path).context("Failed to read rollup configuration")?;
+    debug!("Starting bitcoin rollup with config {:?}", rollup_config);
 
     let mock_rollup = BitcoinRollup {};
     mock_rollup
@@ -178,16 +194,10 @@ async fn new_rollup_with_bitcoin_da(
 
 async fn new_rollup_with_celestia_da(
     genesis_paths: &GenesisPaths,
-    rollup_config_path: &str,
+    rollup_config: RollupConfig<sov_celestia_adapter::CelestiaConfig>,
     prover_config: RollupProverConfig,
 ) -> Result<Rollup<CelestiaDemoRollup>, anyhow::Error> {
-    debug!(
-        "Starting celestia rollup with config {}",
-        rollup_config_path
-    );
-
-    let rollup_config: RollupConfig<sov_celestia_adapter::CelestiaConfig> =
-        from_toml_path(rollup_config_path).context("Failed to read rollup configuration")?;
+    debug!("Starting celestia rollup with config {:?}", rollup_config);
 
     let mock_rollup = CelestiaDemoRollup {};
     mock_rollup
@@ -197,13 +207,10 @@ async fn new_rollup_with_celestia_da(
 
 async fn new_rollup_with_mock_da(
     genesis_paths: &GenesisPaths,
-    rollup_config_path: &str,
+    rollup_config: RollupConfig<MockDaConfig>,
     prover_config: RollupProverConfig,
 ) -> Result<Rollup<MockDemoRollup>, anyhow::Error> {
-    debug!("Starting mock rollup with config {}", rollup_config_path);
-
-    let rollup_config: RollupConfig<MockDaConfig> =
-        from_toml_path(rollup_config_path).context("Failed to read rollup configuration")?;
+    debug!("Starting mock rollup with config {:?}", rollup_config);
 
     let mock_rollup = MockDemoRollup {};
     mock_rollup
