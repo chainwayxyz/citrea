@@ -198,9 +198,9 @@ impl<S: RollupBlueprint> Rollup<S> {
 
 /// Rollup and its storage.
 /// Used for better return type.
-pub struct RollupAndStorage<RB: RollupBlueprint> {
+pub struct RollupAndStorage<S: RollupBlueprint> {
     /// Rollup derived from rollup blueprint
-    pub rollup: Rollup<RB>,
+    pub rollup: Rollup<S>,
     /// Storage of the rollup
-    pub storage: <<RB as RollupBlueprint>::NativeContext as Spec>::Storage,
+    pub storage: <<S as RollupBlueprint>::NativeContext as Spec>::Storage,
 }
