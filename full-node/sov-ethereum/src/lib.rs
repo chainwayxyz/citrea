@@ -68,7 +68,7 @@ pub fn get_ethereum_rpc<C: sov_modules_api::Context, Da: DaService>(
     // If the node does not have a sequencer client, then it is the sequencer.
     let is_sequencer = sequencer_client.is_none();
 
-    // rpc context should also have sequencer client so that it can send txs to sequencer
+    // If the running node is a full node rpc context should also have sequencer client so that it can send txs to sequencer
     let mut rpc = RpcModule::new(Ethereum::new(
         da_service,
         Arc::new(Mutex::new(EthBatchBuilder::new(
@@ -145,6 +145,7 @@ impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
 
 fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
     rpc: &mut RpcModule<Ethereum<C, Da>>,
+    // Checks wether the running node is a sequencer or not, if it is not a sequencer it should also have methods like eth_sendRawTransaction here.
     is_sequencer: bool,
 ) -> Result<(), jsonrpsee::core::Error> {
     rpc.register_async_method("eth_gasPrice", |_, ethereum| async move {

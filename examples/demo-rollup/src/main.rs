@@ -1,7 +1,7 @@
 use std::env;
 use std::str::FromStr;
 
-use anyhow::Context as _;
+use anyhow::{anyhow, Context as _};
 use bitcoin_da::service::{BitcoinService, DaServiceConfig};
 use bitcoin_da::spec::RollupParams;
 use chainway_sequencer::ChainwaySequencer;
@@ -79,7 +79,9 @@ async fn main() -> Result<(), anyhow::Error> {
             .await?;
             if args.sequence {
                 if rollup_config.sequencer.is_some() {
-                    panic!("Sequencer client is not necessary for sequencer nodes.");
+                    return Err(anyhow!(
+                        "Sequencer client is not necessary for sequencer nodes."
+                    ));
                 }
                 let da_service = MockDaService::new(rollup_config.da.sender_address);
                 let mut seq: ChainwaySequencer<DefaultContext, MockDaService, _> =
@@ -94,7 +96,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 seq.run().await?;
             } else {
                 if rollup_config.sequencer.is_none() {
-                    panic!("Sequencer client is necessary for full nodes.");
+                    return Err(anyhow!("Sequencer client is necessary for full nodes."));
                 }
                 rollup.run().await?;
             }
@@ -111,7 +113,9 @@ async fn main() -> Result<(), anyhow::Error> {
             .await?;
             if args.sequence {
                 if rollup_config.sequencer.is_some() {
-                    panic!("Sequencer client is not necessary for sequencer nodes.");
+                    return Err(anyhow!(
+                        "Sequencer client is not necessary for sequencer nodes."
+                    ));
                 }
 
                 let da_service = BitcoinService::new(
@@ -133,15 +137,14 @@ async fn main() -> Result<(), anyhow::Error> {
                 seq.run().await?;
             } else {
                 if rollup_config.sequencer.is_none() {
-                    panic!("Sequencer client is necessary for full nodes.");
+                    return Err(anyhow!("Sequencer client is necessary for full nodes."));
                 }
                 rollup.run().await?;
             }
         }
         SupportedDaLayer::Celestia => {
-            let rollup_config: RollupConfig<sov_celestia_adapter::CelestiaConfig> =
-                from_toml_path(rollup_config_path)
-                    .context("Failed to read rollup configuration")?;
+            let rollup_config: RollupConfig<CelestiaConfig> = from_toml_path(rollup_config_path)
+                .context("Failed to read rollup configuration")?;
 
             let rollup = new_rollup_with_celestia_da(
                 &GenesisPaths::from_dir("../test-data/genesis/demo-tests/celestia"),
@@ -151,7 +154,9 @@ async fn main() -> Result<(), anyhow::Error> {
             .await?;
             if args.sequence {
                 if rollup_config.sequencer.is_some() {
-                    panic!("Sequencer client is not necessary for sequencer nodes.");
+                    return Err(anyhow!(
+                        "Sequencer client is not necessary for sequencer nodes."
+                    ));
                 }
                 let celestia_rollup = CelestiaDemoRollup {};
                 let da_service = celestia_rollup.create_da_service(&rollup_config).await;
@@ -169,7 +174,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 seq.run().await?;
             } else {
                 if rollup_config.sequencer.is_none() {
-                    panic!("Sequencer client is necessary for full nodes.");
+                    return Err(anyhow!("Sequencer client is necessary for full nodes."));
                 }
                 rollup.run().await?;
             }
@@ -184,7 +189,7 @@ async fn new_rollup_with_bitcoin_da(
     rollup_config: RollupConfig<DaServiceConfig>,
     prover_config: RollupProverConfig,
 ) -> Result<Rollup<BitcoinRollup>, anyhow::Error> {
-    debug!("Starting bitcoin rollup with config {:?}", rollup_config);
+    debug!("Starting rollup with Bitcoin DA");
 
     let mock_rollup = BitcoinRollup {};
     mock_rollup
@@ -194,10 +199,10 @@ async fn new_rollup_with_bitcoin_da(
 
 async fn new_rollup_with_celestia_da(
     genesis_paths: &GenesisPaths,
-    rollup_config: RollupConfig<sov_celestia_adapter::CelestiaConfig>,
+    rollup_config: RollupConfig<CelestiaConfig>,
     prover_config: RollupProverConfig,
 ) -> Result<Rollup<CelestiaDemoRollup>, anyhow::Error> {
-    debug!("Starting celestia rollup with config {:?}", rollup_config);
+    debug!("Starting rollup with Celestia DA");
 
     let mock_rollup = CelestiaDemoRollup {};
     mock_rollup
@@ -210,7 +215,7 @@ async fn new_rollup_with_mock_da(
     rollup_config: RollupConfig<MockDaConfig>,
     prover_config: RollupProverConfig,
 ) -> Result<Rollup<MockDemoRollup>, anyhow::Error> {
-    debug!("Starting mock rollup with config {:?}", rollup_config);
+    debug!("Starting rollup with Mock DA");
 
     let mock_rollup = MockDemoRollup {};
     mock_rollup
