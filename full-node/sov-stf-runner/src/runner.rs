@@ -210,13 +210,13 @@ where
             }
         };
 
-        let mut height = self.start_height;
+        let mut height = self.start_height + 1;
         loop {
             let tx = client.get_sov_tx(height).await;
 
             if tx.is_err() {
                 // TODO: Add logs here: https://github.com/chainwayxyz/secret-sovereign-sdk/issues/47
-                tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
                 continue;
             }
 
@@ -230,7 +230,7 @@ where
                 .unwrap();
 
             // TODO: Change the block here from 2 to legit option.
-            let filtered_block = self.da_service.get_block_at(2).await?;
+            let filtered_block = self.da_service.get_block_at(4).await?;
 
             // 0 is the BlobTransaction
             // 1 is the Signature

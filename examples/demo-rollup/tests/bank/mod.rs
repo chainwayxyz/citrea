@@ -14,6 +14,7 @@ use sov_sequencer::utils::SimpleClient;
 use sov_stf_runner::RollupProverConfig;
 
 use crate::test_helpers::start_rollup;
+use crate::test_helpers::NodeMode;
 
 const TOKEN_SALT: u64 = 0;
 const TOKEN_NAME: &str = "test_token";
@@ -27,6 +28,7 @@ async fn bank_tx_tests() -> Result<(), anyhow::Error> {
             port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             RollupProverConfig::Execute,
+            NodeMode::FullNode,
         )
         .await;
     });

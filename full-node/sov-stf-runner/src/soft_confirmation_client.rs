@@ -31,7 +31,6 @@ impl SoftConfirmationClient {
             .request("ledger_getTransactionByNumber", rpc_params![num])
             .await
             .context("Failed to make RPC request")?;
-
         let body = raw_res
             .get("body")
             .context("Body field missing in response")?

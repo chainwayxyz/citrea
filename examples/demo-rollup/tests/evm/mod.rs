@@ -11,10 +11,10 @@ use reqwest::Client;
 use reth_primitives::BlockNumberOrTag;
 use sov_evm::{SimpleStorageContract, TestContract};
 use sov_stf_runner::RollupProverConfig;
-use test_client::TestClient;
+pub use test_client::TestClient;
 use tokio::time::{sleep, Duration};
 
-use crate::test_helpers::start_rollup;
+use crate::test_helpers::{start_rollup, NodeMode};
 
 #[tokio::test]
 async fn evm_tx_tests() -> Result<(), anyhow::Error> {
@@ -25,6 +25,7 @@ async fn evm_tx_tests() -> Result<(), anyhow::Error> {
             port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             RollupProverConfig::Skip,
+            NodeMode::SequencerNode,
         )
         .await;
     });
@@ -56,6 +57,7 @@ async fn test_eth_get_logs() -> Result<(), anyhow::Error> {
             port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             RollupProverConfig::Skip,
+            NodeMode::SequencerNode,
         )
         .await;
     });
