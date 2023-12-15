@@ -32,15 +32,19 @@ impl SoftConfirmationClient {
             .await
             .context("Failed to make RPC request")?;
 
-        let body = raw_res
+        let vals = raw_res
             .get("body")
             .context("Body field missing in response")?
             .as_array()
-            .context("Body field is not an array")?
-            .iter()
-            // TODO: handle overflow from u64 to u8 https://github.com/chainwayxyz/secret-sovereign-sdk/issues/48
-            .map(|x| x.as_u64().unwrap() as u8)
-            .collect();
+            .context("Body field is not an array")?;
+
+        let mut body = vec![];
+
+        for val in vals.iter() {
+            body.push(u8::try_from(
+                val.as_u64().context("Failed to convert Value to u64")?,
+            )?);
+        }
 
         Ok(body)
     }
