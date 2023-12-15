@@ -188,7 +188,7 @@ async fn new_rollup_with_bitcoin_da(
     genesis_paths: &GenesisPaths,
     rollup_config: RollupConfig<DaServiceConfig>,
     prover_config: RollupProverConfig,
-) -> Result<Rollup<BitcoinRollup>, anyhow::Error> {
+) -> Result<RollupAndStorage<BitcoinRollup>, anyhow::Error> {
     debug!("Starting rollup with Bitcoin DA");
 
     let mock_rollup = BitcoinRollup {};
@@ -201,7 +201,7 @@ async fn new_rollup_with_celestia_da(
     genesis_paths: &GenesisPaths,
     rollup_config: RollupConfig<CelestiaConfig>,
     prover_config: RollupProverConfig,
-) -> Result<Rollup<CelestiaDemoRollup>, anyhow::Error> {
+) -> Result<RollupAndStorage<CelestiaDemoRollup>, anyhow::Error> {
     debug!("Starting rollup with Celestia DA");
 
     let mock_rollup = CelestiaDemoRollup {};
@@ -214,7 +214,7 @@ async fn new_rollup_with_mock_da(
     genesis_paths: &GenesisPaths,
     rollup_config: RollupConfig<MockDaConfig>,
     prover_config: RollupProverConfig,
-) -> Result<Rollup<MockDemoRollup>, anyhow::Error> {
+) -> Result<RollupAndStorage<MockDemoRollup>, anyhow::Error> {
     debug!("Starting rollup with Mock DA");
 
     let mock_rollup = MockDemoRollup {};
