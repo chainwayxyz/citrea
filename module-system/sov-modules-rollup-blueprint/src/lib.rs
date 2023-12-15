@@ -62,6 +62,9 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         DaService = Self::DaService,
     >;
 
+    /// Creates a new instance of the blueprint.
+    fn new() -> Self;
+
     /// Creates RPC methods for the rollup.
     fn create_rpc_methods(
         &self,

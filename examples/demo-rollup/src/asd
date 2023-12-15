@@ -1,4 +1,3 @@
-use core::fmt::Debug as DebugTrait;
 use std::env;
 use std::path::Path;
 use std::str::FromStr;
@@ -27,6 +26,8 @@ use sov_stf_runner::{from_toml_path, RollupConfig, RollupProverConfig};
 use tracing::log::debug;
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::{fmt, EnvFilter};
+// import runtimetrait
+use sov_modules_stf_blueprint::Runtime as RuntimeTrait;
 
 #[cfg(test)]
 mod test_rpc;
@@ -77,107 +78,88 @@ async fn main() -> Result<(), anyhow::Error> {
 
     match args.da_layer {
         SupportedDaLayer::Mock => {
-            // create_config_generic::<MockDaConfig>(rollup_config_path);
-
-            // let rollup_config: RollupConfig<MockDaConfig> = from_toml_path(rollup_config_path)
-            //     .context("Failed to read rollup configuration")?;
-            start_rollup::<MockDemoRollup, MockDaConfig>(
-                //rollup_config,
-                rollup_config_path,
+            let rollup_config: RollupConfig<MockDaConfig> = from_toml_path(rollup_config_path)
+                .context("Failed to read rollup configuration")?;
+            start_rollup::<MockDemoRollup, MockDaService, MockDaConfig>(
+                rollup_config,
                 RollupProverConfig::Execute,
                 &GenesisPaths::from_dir("../test-data/genesis/demo-tests/mock"),
                 args.sequence,
             )
-            .await;
+            .await?;
         }
         SupportedDaLayer::Bitcoin => {
-            start_rollup::<BitcoinRollup, DaServiceConfig>(
-                //rollup_config,
-                rollup_config_path,
+            let rollup_config: RollupConfig<DaServiceConfig> =
+                from_toml_path(rollup_config_path)
+                    .context("Failed to read rollup configuration")?;
+            start_rollup::<BitcoinRollup, BitcoinService, DaServiceConfig>(
+                rollup_config,
                 RollupProverConfig::Execute,
-                &GenesisPaths::from_dir("../test-data/genesis/demo-tests/bitcoin"),
+                &GenesisPaths::from_dir("../test-data/genesis/demo-tests/mock"),
                 args.sequence,
             )
-            .await;
+            .await?;
         }
         SupportedDaLayer::Celestia => {
-            // let rollup_config: RollupConfig<CelestiaConfig> = from_toml_path(rollup_config_path)
-            //     .context("Failed to read rollup configuration")?;
-            start_rollup::<CelestiaDemoRollup, CelestiaConfig>(
-                //rollup_config,
-                rollup_config_path,
+            let rollup_config: RollupConfig<CelestiaConfig> = from_toml_path(rollup_config_path)
+                .context("Failed to read rollup configuration")?;
+            start_rollup::<CelestiaDemoRollup, CelestiaService, CelestiaConfig>(
+                rollup_config,
                 RollupProverConfig::Execute,
-                &GenesisPaths::from_dir("../test-data/genesis/demo-tests/celestia"),
+                &GenesisPaths::from_dir("../test-data/genesis/demo-tests/mock"),
                 args.sequence,
             )
-            .await;
+            .await?;
         }
     }
 
     Ok(())
 }
 
-fn create_config_generic<DaC>(rollup_config_path: &str) -> ()
-where
-    DaC: serde::de::DeserializeOwned + DebugTrait + Clone,
-{
-    let rollup_config: RollupConfig<DaC> = from_toml_path(rollup_config_path)
-        .context("Failed to read rollup configuration")
-        .unwrap();
-}
-
-async fn start_rollup<R, DaC>(
-    rollup_config_path: &str,
-    // rollup_config: RollupConfig<DaC>,
+async fn start_rollup<R, Da, DaC>(
+    rollup_config: RollupConfig<DaC>,
     prover_config: RollupProverConfig,
-    genesis_paths: &<<R as RollupBlueprint>::NativeRuntime as sov_modules_stf_blueprint::Runtime<
-        <R as RollupBlueprint>::NativeContext,
-        <R as RollupBlueprint>::DaSpec,
-    >>::GenesisPaths,
+    genesis_paths: &<R::NativeRuntime as RuntimeTrait<R::NativeContext, R::DaSpec>>::GenesisPaths,
     is_sequencer: bool,
 ) -> Result<(), anyhow::Error>
 where
-    DaC: serde::de::DeserializeOwned + DebugTrait + Clone,
-    R: RollupBlueprint<DaConfig = DaC>,
-    <<R as RollupBlueprint>::NativeContext as Spec>::Storage: NativeStorage,
+    R: RollupBlueprint<DaService = Da> + RollupBlueprint<DaConfig = DaC>,
+    <R::NativeContext as Spec>::Storage: NativeStorage,
+    Da: DaService,
 {
-    let rollup_config: RollupConfig<DaC> = from_toml_path(rollup_config_path)
-        .context("Failed to read rollup configuration")
-        .unwrap();
     let rollup_bp = R::new();
     let da_service = rollup_bp.create_da_service(&rollup_config).await;
 
     let rollup = rollup_bp
-        .create_new_rollup(genesis_paths, rollup_config.clone(), prover_config)
+        .create_new_rollup(&genesis_paths, rollup_config, prover_config)
         .await
+        .map_err(|e| anyhow!("Failed to create rollup: {}", e))
         .unwrap();
-
     if is_sequencer {
-        if rollup_config.sequencer.is_some() {
-            return Err(anyhow!(
-                "Sequencer client is not necessary for sequencer nodes."
-            ));
-        }
-        let mut seq: ChainwaySequencer<DefaultContext, <R as RollupBlueprint>::DaService, R> =
-            ChainwaySequencer::new(
-                rollup,
-                da_service,
-                DefaultPrivateKey::from_hex(TEST_PRIVATE_KEY).unwrap(),
-                0,
-            );
+        // if rollup_config.sequencer.is_some() {
+        //     return Err(anyhow!(
+        //         "Sequencer client is not necessary for sequencer nodes."
+        //     ));
+        // }
+
+        let mut seq: ChainwaySequencer<DefaultContext, Da, R> = ChainwaySequencer::new(
+            rollup,
+            da_service,
+            DefaultPrivateKey::from_hex(TEST_PRIVATE_KEY).unwrap(),
+            0,
+        );
+
         seq.start_rpc_server(None).await?;
         seq.run()
             .await
-            .map_err(|e| anyhow!("Failed to run sequencer: {}", e));
+            .map_err(|e| anyhow!("Failed to run sequencer: {}", e))
     } else {
-        if rollup_config.sequencer.is_none() {
-            return Err(anyhow!("Sequencer client is necessary for full nodes."));
-        }
+        // if rollup_config.sequencer.is_none() {
+        //     return Err(anyhow!("Sequencer client is necessary for full nodes."));
+        // }
         rollup
             .run()
             .await
-            .map_err(|e| anyhow!("Failed to run rollup: {}", e));
+            .map_err(|e| anyhow!("Failed to run rollup: {}", e))
     }
-
-    Ok(())
 }
