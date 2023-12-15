@@ -8201,14 +8201,8 @@ name = "sequencer-client"
 version = "0.3.0"
 dependencies = [
  "anyhow",
- "bitcoin-da",
- "borsh",
  "ethers",
- "futures",
  "jsonrpsee 0.20.3",
- "reth-primitives",
- "reth-rpc-types",
- "schnellru",
  "serde",
  "serde_json",
  "tokio",
@@ -9371,7 +9365,6 @@ dependencies = [
  "anyhow",
  "async-trait",
  "borsh",
- "ethers",
  "futures",
  "hex",
  "jsonrpsee 0.20.3",
