@@ -49,7 +49,7 @@ pub struct RollupConfig<DaServiceConfig> {
     /// Data Availability service configuration.
     pub da: DaServiceConfig,
     /// Sequencer Client RPC Config for sequencer connection
-    pub sequencer: Option<SequencerClientRpcConfig>,
+    pub sequencer_client: Option<SequencerClientRpcConfig>,
 }
 
 /// Reads toml file as a specific type.
@@ -96,7 +96,7 @@ mod tests {
             [runner.rpc_config]
             bind_host = "127.0.0.1"
             bind_port = 12345
-            [sequencer]
+            [sequencer_client]
             start_height = 5
             url = "http://0.0.0.0:12346"
         "#;
@@ -123,7 +123,7 @@ mod tests {
             storage: StorageConfig {
                 path: PathBuf::from("/tmp"),
             },
-            sequencer: Some(SequencerClientRpcConfig {
+            sequencer_client: Some(SequencerClientRpcConfig {
                 start_height: 5,
                 url: "http://0.0.0.0:12346".to_owned(),
             }),

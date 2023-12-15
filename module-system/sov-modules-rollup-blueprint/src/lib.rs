@@ -137,7 +137,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
             .transpose()?;
 
         // if node does not have a sequencer client, then it is a sequencer
-        let sequencer_client = match rollup_config.sequencer {
+        let sequencer_client = match rollup_config.sequencer_client {
             Some(sequencer_client_config) => {
                 let sequencer_client = SequencerClient::new(
                     sequencer_client_config.start_height,

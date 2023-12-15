@@ -145,7 +145,7 @@ where
         .unwrap();
 
     if is_sequencer {
-        rollup_config.sequencer = None;
+        rollup_config.sequencer_client = None;
 
         let mut seq: ChainwaySequencer<
             <S as RollupBlueprint>::NativeContext,
@@ -165,7 +165,7 @@ where
             .await
             .map_err(|e| anyhow!("Failed to run sequencer: {}", e));
     } else {
-        if rollup_config.sequencer.is_none() {
+        if rollup_config.sequencer_client.is_none() {
             return Err(anyhow!("Sequencer client is necessary for full nodes."));
         }
         rollup
