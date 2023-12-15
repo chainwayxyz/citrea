@@ -16,9 +16,11 @@ use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::RpcModule;
 use mempool::Mempool;
 use reth_primitives::TransactionSignedNoHash as RethTransactionSignedNoHash;
+use sov_accounts::Accounts;
+use sov_accounts::Response::{AccountEmpty, AccountExists};
 use sov_evm::{CallMessage, RlpEvmTransaction};
 use sov_modules_api::transaction::Transaction;
-use sov_modules_api::EncodeCall;
+use sov_modules_api::{EncodeCall, PrivateKey, WorkingSet};
 use sov_modules_rollup_blueprint::{Rollup, RollupBlueprint};
 use sov_modules_stf_blueprint::{Batch, RawTx};
 use sov_rollup_interface::services::da::DaService;
@@ -33,7 +35,8 @@ pub struct RpcContext {
 
 pub struct ChainwaySequencer<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> {
     rollup: Rollup<S>,
-    da_service: Da,
+    // not used for now, will probably need it later
+    _da_service: Da,
     mempool: Arc<Mutex<Mempool>>,
     p: PhantomData<C>,
     sov_tx_signer_priv_key: C::PrivateKey,
@@ -47,36 +50,33 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
         rollup: Rollup<S>,
         da_service: Da,
         sov_tx_signer_priv_key: C::PrivateKey,
-        sov_tx_signer_nonce: u64,
+        storage: C::Storage,
     ) -> Self {
         let mempool = Mempool::new();
         let (sender, receiver) = unbounded();
 
+        let accounts = Accounts::<C>::default();
+        let mut working_set = WorkingSet::<C>::new(storage.clone());
+        let nonce = match accounts
+            .get_account(sov_tx_signer_priv_key.pub_key(), &mut working_set)
+            .expect("Sequencer: Failed to get sov-account")
+        {
+            AccountExists { addr: _, nonce } => nonce,
+            AccountEmpty => 0,
+        };
+
         Self {
             rollup,
-            da_service,
+            _da_service: da_service,
             mempool: Arc::new(Mutex::new(mempool)),
             p: PhantomData,
             sov_tx_signer_priv_key,
-            sov_tx_signer_nonce,
+            sov_tx_signer_nonce: nonce,
             sender,
             receiver,
         }
     }
 
-    fn make_raw_tx(
-        &self,
-        raw_tx: RlpEvmTransaction,
-    ) -> Result<(H256, Vec<u8>), jsonrpsee::core::Error> {
-        let signed_transaction: RethTransactionSignedNoHash = raw_tx.clone().try_into()?;
-
-        let tx_hash = signed_transaction.hash();
-
-        let tx = CallMessage { txs: vec![raw_tx] };
-        let message = <Runtime<C, Da::Spec> as EncodeCall<sov_evm::Evm<C>>>::encode_call(tx);
-
-        Ok((H256::from(tx_hash), message))
-    }
     pub async fn start_rpc_server(
         &mut self,
         channel: Option<tokio::sync::oneshot::Sender<SocketAddr>>,
