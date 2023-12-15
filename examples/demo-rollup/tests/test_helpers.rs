@@ -7,7 +7,7 @@ use sov_demo_rollup::MockDemoRollup;
 use sov_mock_da::{MockAddress, MockDaConfig, MockDaService};
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
-use sov_modules_rollup_blueprint::RollupBlueprint;
+use sov_modules_rollup_blueprint::{RollupAndStorage, RollupBlueprint};
 use sov_stf_runner::{
     RollupConfig, RollupProverConfig, RpcConfig, RunnerConfig, SoftConfirmationClientRpcConfig,
     StorageConfig,
@@ -53,7 +53,7 @@ pub async fn start_rollup(
     };
 
     let mock_demo_rollup = MockDemoRollup {};
-    let rollup = mock_demo_rollup
+    let RollupAndStorage { rollup, storage } = mock_demo_rollup
         .create_new_rollup(&genesis_paths, rollup_config, rollup_prover_config)
         .await
         .unwrap();
@@ -73,7 +73,7 @@ pub async fn start_rollup(
                     rollup,
                     da_service,
                     DefaultPrivateKey::from_hex(TEST_PRIVATE_KEY).unwrap(),
-                    0,
+                    storage,
                 );
             sequencer
                 .start_rpc_server(Some(rpc_reporting_channel))

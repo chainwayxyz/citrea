@@ -1,9 +1,7 @@
 pub use sov_evm::DevSigner;
 mod mempool;
 
-use std::array::TryFromSliceError;
 use std::borrow::BorrowMut;
-use std::collections::VecDeque;
 use std::marker::PhantomData;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -14,21 +12,19 @@ use demo_stf::runtime::Runtime;
 use ethers::types::{Bytes, H256};
 use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
 use futures::lock::Mutex;
-use futures::{select, AsyncBufReadExt, Stream, StreamExt};
 use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::RpcModule;
 use mempool::Mempool;
 use reth_primitives::TransactionSignedNoHash as RethTransactionSignedNoHash;
-use sov_evm::{CallMessage, Evm, RlpEvmTransaction};
+use sov_accounts::Accounts;
+use sov_accounts::Response::{AccountEmpty, AccountExists};
+use sov_evm::{CallMessage, RlpEvmTransaction};
 use sov_modules_api::transaction::Transaction;
-use sov_modules_api::EncodeCall;
+use sov_modules_api::{EncodeCall, PrivateKey, WorkingSet};
 use sov_modules_rollup_blueprint::{Rollup, RollupBlueprint};
 use sov_modules_stf_blueprint::{Batch, RawTx};
 use sov_rollup_interface::services::da::DaService;
-use tokio::sync::oneshot;
-use tracing::{debug, info};
-
-const ETH_RPC_ERROR: &str = "ETH_RPC_ERROR";
+use tracing::info;
 
 pub struct RpcContext {
     pub mempool: Arc<Mutex<Mempool>>,
@@ -37,7 +33,8 @@ pub struct RpcContext {
 
 pub struct ChainwaySequencer<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> {
     rollup: Rollup<S>,
-    da_service: Da,
+    // not used for now, will probably need it later
+    _da_service: Da,
     mempool: Arc<Mutex<Mempool>>,
     p: PhantomData<C>,
     sov_tx_signer_priv_key: C::PrivateKey,
@@ -51,36 +48,33 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
         rollup: Rollup<S>,
         da_service: Da,
         sov_tx_signer_priv_key: C::PrivateKey,
-        sov_tx_signer_nonce: u64,
+        storage: C::Storage,
     ) -> Self {
         let mempool = Mempool::new();
         let (sender, receiver) = unbounded();
 
+        let accounts = Accounts::<C>::default();
+        let mut working_set = WorkingSet::<C>::new(storage.clone());
+        let nonce = match accounts
+            .get_account(sov_tx_signer_priv_key.pub_key(), &mut working_set)
+            .expect("Sequencer: Failed to get sov-account")
+        {
+            AccountExists { addr: _, nonce } => nonce,
+            AccountEmpty => 0,
+        };
+
         Self {
             rollup,
-            da_service,
+            _da_service: da_service,
             mempool: Arc::new(Mutex::new(mempool)),
             p: PhantomData,
             sov_tx_signer_priv_key,
-            sov_tx_signer_nonce,
+            sov_tx_signer_nonce: nonce,
             sender,
             receiver,
         }
     }
 
-    fn make_raw_tx(
-        &self,
-        raw_tx: RlpEvmTransaction,
-    ) -> Result<(H256, Vec<u8>), jsonrpsee::core::Error> {
-        let signed_transaction: RethTransactionSignedNoHash = raw_tx.clone().try_into()?;
-
-        let tx_hash = signed_transaction.hash();
-
-        let tx = CallMessage { txs: vec![raw_tx] };
-        let message = <Runtime<C, Da::Spec> as EncodeCall<sov_evm::Evm<C>>>::encode_call(tx);
-
-        Ok((H256::from(tx_hash), message))
-    }
     pub async fn start_rpc_server(
         &mut self,
         channel: Option<tokio::sync::oneshot::Sender<SocketAddr>>,
@@ -97,7 +91,7 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
         loop {
             tokio::time::sleep(Duration::from_millis(100)).await;
 
-            if let Ok(Some(resp)) = self.receiver.try_next() {
+            if let Ok(Some(_resp)) = self.receiver.try_next() {
                 let mut rlp_txs = vec![];
                 let mut mem = self.mempool.lock().await;
                 while !mem.pool.is_empty() {
@@ -168,7 +162,7 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
 
             Ok::<H256, ErrorObjectOwned>(hash)
         })?;
-        rpc.register_async_method("eth_publishBatch", |parameters, ctx| async move {
+        rpc.register_async_method("eth_publishBatch", |_parameters, ctx| async move {
             info!("Sequencer: eth_publishBatch");
             ctx.sender.unbounded_send("msg".to_string()).unwrap();
             Ok::<(), ErrorObjectOwned>(())
