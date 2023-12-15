@@ -11,7 +11,7 @@ use crate::evm::{init_test_rollup, TestClient};
 use crate::test_helpers::{start_rollup, NodeMode};
 
 #[tokio::test]
-async fn test_e2e() -> Result<(), anyhow::Error> {
+async fn test_e2e_same_block_sync() -> Result<(), anyhow::Error> {
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
     let seq_task = tokio::spawn(async {
@@ -139,6 +139,62 @@ async fn execute_four_blocks<T: TestContract>(
     assert_eq!(full_node_last_block.number.unwrap().as_u64(), 4);
 
     assert_eq!(seq_last_block.state_root, full_node_last_block.state_root);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_delayed_sync_ten_blocks() -> Result<(), anyhow::Error> {
+    let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
+
+    let seq_task = tokio::spawn(async {
+        start_rollup(
+            seq_port_tx,
+            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
+            RollupProverConfig::Execute,
+            NodeMode::SequencerNode,
+        )
+        .await;
+    });
+
+    let seq_port = seq_port_rx.await.unwrap();
+
+    let contract = SimpleStorageContract::default();
+    let seq_test_client = init_test_rollup(seq_port, contract).await;
+    for _ in 0..10 {
+        seq_test_client.send_publish_batch_request().await;
+    }
+
+    let (full_node_port_tx, full_node_port_rx) = tokio::sync::oneshot::channel();
+
+    let full_node_task = tokio::spawn(async move {
+        start_rollup(
+            full_node_port_tx,
+            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
+            RollupProverConfig::Execute,
+            NodeMode::FullNode(seq_port),
+        )
+        .await;
+    });
+
+    let full_node_port = full_node_port_rx.await.unwrap();
+
+    let full_node_contract = SimpleStorageContract::default();
+    let full_node_test_client = init_test_rollup(full_node_port, full_node_contract).await;
+
+    sleep(Duration::from_secs(10)).await;
+
+    let seq_block = seq_test_client
+        .eth_get_block_by_number(Some(BlockNumberOrTag::Number(10)))
+        .await;
+    let full_node_block = full_node_test_client
+        .eth_get_block_by_number(Some(BlockNumberOrTag::Number(10)))
+        .await;
+
+    assert_eq!(seq_block.state_root, full_node_block.state_root);
+
+    seq_task.abort();
+    full_node_task.abort();
 
     Ok(())
 }
