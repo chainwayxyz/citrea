@@ -115,7 +115,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         genesis_paths: &<Self::NativeRuntime as RuntimeTrait<Self::NativeContext, Self::DaSpec>>::GenesisPaths,
         rollup_config: RollupConfig<Self::DaConfig>,
         prover_config: RollupProverConfig,
-    ) -> Result<Rollup<Self>, anyhow::Error>
+    ) -> Result<RollupAndStorage<Self>, anyhow::Error>
     where
         <Self::NativeContext as Spec>::Storage: NativeStorage,
     {
@@ -166,9 +166,12 @@ pub trait RollupBlueprint: Sized + Send + Sync {
             sequencer_client,
         )?;
 
-        Ok(Rollup {
-            runner,
-            rpc_methods,
+        Ok(RollupAndStorage {
+            rollup: Rollup {
+                runner,
+                rpc_methods,
+            },
+            storage: native_storage,
         })
     }
 }
@@ -210,4 +213,13 @@ impl<S: RollupBlueprint> Rollup<S> {
         runner.run_in_process().await?;
         Ok(())
     }
+}
+
+/// Rollup and its storage.
+/// Used for better return type.
+pub struct RollupAndStorage<S: RollupBlueprint> {
+    /// Rollup derived from rollup blueprint
+    pub rollup: Rollup<S>,
+    /// Storage of the rollup
+    pub storage: <<S as RollupBlueprint>::NativeContext as Spec>::Storage,
 }

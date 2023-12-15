@@ -14,7 +14,7 @@ use sov_demo_rollup::{BitcoinRollup, CelestiaDemoRollup, MockDemoRollup};
 use sov_mock_da::{MockDaConfig, MockDaService};
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
-use sov_modules_rollup_blueprint::{Rollup, RollupBlueprint};
+use sov_modules_rollup_blueprint::{RollupAndStorage, RollupBlueprint};
 use sov_stf_runner::{from_toml_path, RollupConfig, RollupProverConfig};
 use tracing::log::debug;
 use tracing_subscriber::prelude::*;
@@ -71,7 +71,8 @@ async fn main() -> Result<(), anyhow::Error> {
         SupportedDaLayer::Mock => {
             let rollup_config: RollupConfig<MockDaConfig> = from_toml_path(rollup_config_path)
                 .context("Failed to read rollup configuration")?;
-            let rollup = new_rollup_with_mock_da(
+
+            let RollupAndStorage { rollup, storage } = new_rollup_with_mock_da(
                 &GenesisPaths::from_dir("../test-data/genesis/demo-tests/mock"),
                 rollup_config.clone(),
                 RollupProverConfig::Execute,
@@ -89,8 +90,7 @@ async fn main() -> Result<(), anyhow::Error> {
                         rollup,
                         da_service,
                         DefaultPrivateKey::from_hex(TEST_PRIVATE_KEY).unwrap(),
-                        // TODO: #43 https://github.com/chainwayxyz/secret-sovereign-sdk/issues/43
-                        0,
+                        storage,
                     );
                 seq.start_rpc_server(None).await.unwrap();
                 seq.run().await?;
@@ -105,7 +105,8 @@ async fn main() -> Result<(), anyhow::Error> {
             let rollup_config: RollupConfig<DaServiceConfig> =
                 from_toml_path(rollup_config_path)
                     .context("Failed to read rollup configuration")?;
-            let rollup = new_rollup_with_bitcoin_da(
+
+            let RollupAndStorage { rollup, storage } = new_rollup_with_bitcoin_da(
                 &GenesisPaths::from_dir("../test-data/genesis/demo-tests"),
                 rollup_config.clone(),
                 RollupProverConfig::Execute,
@@ -130,8 +131,7 @@ async fn main() -> Result<(), anyhow::Error> {
                         rollup,
                         da_service,
                         DefaultPrivateKey::from_hex(TEST_PRIVATE_KEY).unwrap(),
-                        // TODO: #43 https://github.com/chainwayxyz/secret-sovereign-sdk/issues/43
-                        0,
+                        storage,
                     );
                 seq.start_rpc_server(None).await.unwrap();
                 seq.run().await?;
@@ -146,7 +146,7 @@ async fn main() -> Result<(), anyhow::Error> {
             let rollup_config: RollupConfig<CelestiaConfig> = from_toml_path(rollup_config_path)
                 .context("Failed to read rollup configuration")?;
 
-            let rollup = new_rollup_with_celestia_da(
+            let RollupAndStorage { rollup, storage } = new_rollup_with_celestia_da(
                 &GenesisPaths::from_dir("../test-data/genesis/demo-tests/celestia"),
                 rollup_config.clone(),
                 RollupProverConfig::Execute,
@@ -168,7 +168,7 @@ async fn main() -> Result<(), anyhow::Error> {
                     rollup,
                     da_service,
                     DefaultPrivateKey::from_hex(TEST_PRIVATE_KEY).unwrap(),
-                    0,
+                    storage,
                 );
                 seq.start_rpc_server(None).await.unwrap();
                 seq.run().await?;
