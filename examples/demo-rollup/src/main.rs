@@ -157,7 +157,7 @@ where
         seq.run().await?;
     } else {
         if rollup_config.sequencer_client.is_none() {
-            return Err(anyhow!("Sequencer client is necessary for full nodes."));
+            return Err(anyhow!("Must have sequencer client for full nodes!"));
         }
         rollup.run().await?;
     }
