@@ -8,7 +8,6 @@ use chainway_sequencer::ChainwaySequencer;
 use clap::Parser;
 use const_rollup_config::{ROLLUP_NAME, TEST_PRIVATE_KEY};
 use demo_stf::genesis_config::GenesisPaths;
-use sequencer_client::SequencerClient;
 use sov_celestia_adapter::{CelestiaConfig, CelestiaService};
 use sov_demo_rollup::{BitcoinRollup, CelestiaDemoRollup, MockDemoRollup};
 use sov_mock_da::{MockDaConfig, MockDaService};

@@ -1,7 +1,9 @@
 use std::net::SocketAddr;
+use std::str::FromStr;
 use std::time::Duration;
 
 use demo_stf::genesis_config::GenesisPaths;
+use ethers::abi::Address;
 use reth_primitives::BlockNumberOrTag;
 use sov_evm::{SimpleStorageContract, TestContract};
 use sov_stf_runner::RollupProverConfig;
@@ -9,6 +11,67 @@ use tokio::time::sleep;
 
 use crate::evm::{init_test_rollup, make_test_client, TestClient};
 use crate::test_helpers::{start_rollup, NodeMode};
+
+#[tokio::test]
+async fn test_full_node_send_tx() -> Result<(), anyhow::Error> {
+    let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
+
+    let _seq_task = tokio::spawn(async {
+        start_rollup(
+            seq_port_tx,
+            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
+            RollupProverConfig::Execute,
+            NodeMode::SequencerNode,
+        )
+        .await;
+    });
+
+    let seq_port = seq_port_rx.await.unwrap();
+    let seq_contract = SimpleStorageContract::default();
+    let seq_test_client = make_test_client(seq_port, seq_contract).await;
+
+    let (full_node_port_tx, full_node_port_rx) = tokio::sync::oneshot::channel();
+
+    let _full_node_task = tokio::spawn(async move {
+        start_rollup(
+            full_node_port_tx,
+            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
+            RollupProverConfig::Execute,
+            NodeMode::FullNode(seq_port),
+        )
+        .await;
+    });
+
+    let full_node_port = full_node_port_rx.await.unwrap();
+    let full_node_contract = SimpleStorageContract::default();
+    let full_node_test_client = make_test_client(full_node_port, full_node_contract).await;
+
+    let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
+
+    let tx_hash = full_node_test_client
+        .send_eth_to_self(addr, None, None)
+        .await;
+
+    sleep(Duration::from_millis(2000)).await;
+
+    seq_test_client.send_publish_batch_request().await;
+
+    sleep(Duration::from_millis(20000)).await;
+
+    let sq_block = seq_test_client
+        .eth_get_block_by_number(Some(BlockNumberOrTag::Latest))
+        .await;
+
+    let full_node_block = full_node_test_client
+        .eth_get_block_by_number(Some(BlockNumberOrTag::Latest))
+        .await;
+
+    assert!(sq_block.transactions.contains(&tx_hash.tx_hash()));
+    assert!(full_node_block.transactions.contains(&tx_hash.tx_hash()));
+    assert_eq!(sq_block.state_root, full_node_block.state_root);
+
+    Ok(())
+}
 
 #[tokio::test]
 async fn test_e2e_same_block_sync() -> Result<(), anyhow::Error> {
@@ -40,7 +103,9 @@ async fn test_e2e_same_block_sync() -> Result<(), anyhow::Error> {
 
     let full_node_port = full_node_port_rx.await.unwrap();
 
-    setup_rollup(seq_port, full_node_port).await.unwrap();
+    setup_execute_four_blocks(seq_port, full_node_port)
+        .await
+        .unwrap();
 
     seq_task.abort();
     rollup_task.abort();
@@ -48,7 +113,62 @@ async fn test_e2e_same_block_sync() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-async fn setup_rollup(
+#[tokio::test]
+async fn test_delayed_sync_ten_blocks() -> Result<(), anyhow::Error> {
+    let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
+
+    let seq_task = tokio::spawn(async {
+        start_rollup(
+            seq_port_tx,
+            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
+            RollupProverConfig::Execute,
+            NodeMode::SequencerNode,
+        )
+        .await;
+    });
+
+    let seq_port = seq_port_rx.await.unwrap();
+
+    let contract = SimpleStorageContract::default();
+    let seq_test_client = init_test_rollup(seq_port, contract).await;
+    for _ in 0..10 {
+        seq_test_client.send_publish_batch_request().await;
+    }
+
+    let (full_node_port_tx, full_node_port_rx) = tokio::sync::oneshot::channel();
+
+    let full_node_task = tokio::spawn(async move {
+        start_rollup(
+            full_node_port_tx,
+            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
+            RollupProverConfig::Execute,
+            NodeMode::FullNode(seq_port),
+        )
+        .await;
+    });
+
+    let full_node_port = full_node_port_rx.await.unwrap();
+    let full_node_contract = SimpleStorageContract::default();
+    let full_node_test_client = make_test_client(full_node_port, full_node_contract).await;
+
+    sleep(Duration::from_secs(10)).await;
+
+    let seq_block = seq_test_client
+        .eth_get_block_by_number(Some(BlockNumberOrTag::Number(10)))
+        .await;
+    let full_node_block = full_node_test_client
+        .eth_get_block_by_number(Some(BlockNumberOrTag::Number(10)))
+        .await;
+
+    assert_eq!(seq_block.state_root, full_node_block.state_root);
+
+    seq_task.abort();
+    full_node_task.abort();
+
+    Ok(())
+}
+
+async fn setup_execute_four_blocks(
     seq_port: SocketAddr,
     full_node_port: SocketAddr,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -139,61 +259,6 @@ async fn execute_four_blocks<T: TestContract>(
     assert_eq!(full_node_last_block.number.unwrap().as_u64(), 4);
 
     assert_eq!(seq_last_block.state_root, full_node_last_block.state_root);
-
-    Ok(())
-}
-
-#[tokio::test]
-async fn test_delayed_sync_ten_blocks() -> Result<(), anyhow::Error> {
-    let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
-
-    let seq_task = tokio::spawn(async {
-        start_rollup(
-            seq_port_tx,
-            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
-            RollupProverConfig::Execute,
-            NodeMode::SequencerNode,
-        )
-        .await;
-    });
-
-    let seq_port = seq_port_rx.await.unwrap();
-
-    let contract = SimpleStorageContract::default();
-    let seq_test_client = init_test_rollup(seq_port, contract).await;
-    for _ in 0..10 {
-        seq_test_client.send_publish_batch_request().await;
-    }
-
-    let (full_node_port_tx, full_node_port_rx) = tokio::sync::oneshot::channel();
-
-    let full_node_task = tokio::spawn(async move {
-        start_rollup(
-            full_node_port_tx,
-            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
-            RollupProverConfig::Execute,
-            NodeMode::FullNode(seq_port),
-        )
-        .await;
-    });
-
-    let full_node_port = full_node_port_rx.await.unwrap();
-    let full_node_contract = SimpleStorageContract::default();
-    let full_node_test_client = make_test_client(full_node_port, full_node_contract).await;
-
-    sleep(Duration::from_secs(10)).await;
-
-    let seq_block = seq_test_client
-        .eth_get_block_by_number(Some(BlockNumberOrTag::Number(10)))
-        .await;
-    let full_node_block = full_node_test_client
-        .eth_get_block_by_number(Some(BlockNumberOrTag::Number(10)))
-        .await;
-
-    assert_eq!(seq_block.state_root, full_node_block.state_root);
-
-    seq_task.abort();
-    full_node_task.abort();
 
     Ok(())
 }

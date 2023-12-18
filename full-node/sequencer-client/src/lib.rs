@@ -4,7 +4,6 @@ use jsonrpsee::core::client::ClientT;
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use jsonrpsee::rpc_params;
 use serde_json::Value;
-use tracing::info;
 
 /// Configuration for SequencerClient.
 #[derive(Debug, Clone)]
