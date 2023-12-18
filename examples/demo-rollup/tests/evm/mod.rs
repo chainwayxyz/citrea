@@ -7,7 +7,6 @@ use demo_stf::genesis_config::GenesisPaths;
 use ethers_core::abi::Address;
 use ethers_core::types::{BlockId, U256};
 use ethers_signers::{LocalWallet, Signer};
-use reqwest::Client;
 use reth_primitives::BlockNumberOrTag;
 use sov_evm::{SimpleStorageContract, TestContract};
 use sov_stf_runner::RollupProverConfig;

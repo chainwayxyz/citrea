@@ -19,6 +19,6 @@ start_height = 3
 bind_host = "0.0.0.0"
 bind_port = 12345
 
-[soft_confirmation]
+[sequencer]
 start_height = 1
-soft_confirmation_client_url = "http://0.0.0.0:12346"
+url = "http://0.0.0.0:12346"

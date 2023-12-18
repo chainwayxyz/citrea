@@ -216,7 +216,7 @@ pub(crate) fn get_evm(config: &EvmConfig) -> (Evm<C>, WorkingSet<DefaultContext>
     evm.genesis(config, &mut working_set).unwrap();
 
     let mut genesis_state_root = [0u8; 32];
-    genesis_state_root.copy_from_slice(&GENESIS_STATE_ROOT.as_bytes());
+    genesis_state_root.copy_from_slice(GENESIS_STATE_ROOT.as_bytes());
 
     evm.finalize_hook(
         &genesis_state_root.into(),

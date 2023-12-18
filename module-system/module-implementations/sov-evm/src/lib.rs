@@ -32,7 +32,6 @@ use evm::DbAccount;
 use reth_primitives::{Address, H256};
 pub use revm::primitives::SpecId;
 use revm::primitives::U256;
-use serde;
 use sov_modules_api::{Error, ModuleInfo, WorkingSet};
 use sov_state::codec::BcsCodec;
 

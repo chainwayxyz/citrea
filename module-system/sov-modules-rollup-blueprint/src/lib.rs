@@ -7,6 +7,7 @@ use std::net::SocketAddr;
 
 use async_trait::async_trait;
 pub use runtime_rpc::*;
+use sequencer_client::SequencerClient;
 use sov_db::ledger_db::LedgerDB;
 use sov_modules_api::runtime::capabilities::Kernel;
 use sov_modules_api::{Context, DaSpec, Spec};
@@ -67,6 +68,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         storage: &<Self::NativeContext as Spec>::Storage,
         ledger_db: &LedgerDB,
         da_service: &Self::DaService,
+        sequencer_client: Option<SequencerClient>,
     ) -> Result<jsonrpsee::RpcModule<()>, anyhow::Error>;
 
     /// Creates GenesisConfig from genesis files.
@@ -131,7 +133,24 @@ pub trait RollupBlueprint: Sized + Send + Sync {
             .map(|(number, _)| native_storage.get_root_hash(number.0))
             .transpose()?;
 
-        let rpc_methods = self.create_rpc_methods(&native_storage, &ledger_db, &da_service)?;
+        // if node does not have a sequencer client, then it is a sequencer
+        let sequencer_client = match rollup_config.sequencer {
+            Some(sequencer_client_config) => {
+                let sequencer_client = SequencerClient::new(
+                    sequencer_client_config.start_height,
+                    sequencer_client_config.url,
+                );
+                Some(sequencer_client)
+            }
+            None => None,
+        };
+
+        let rpc_methods = self.create_rpc_methods(
+            &native_storage,
+            &ledger_db,
+            &da_service,
+            sequencer_client.clone(),
+        )?;
 
         let native_stf = StfBlueprint::new();
 
@@ -144,7 +163,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
             prev_root,
             genesis_config,
             prover_service,
-            rollup_config.soft_confirmation_client,
+            sequencer_client,
         )?;
 
         Ok(RollupAndStorage {

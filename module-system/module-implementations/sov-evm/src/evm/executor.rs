@@ -40,7 +40,7 @@ pub(crate) fn execute_multiple_tx<DB: Database<Error = Infallible> + DatabaseCom
     evm.env.cfg = config_env;
     evm.database(db);
 
-    txs.into_iter()
+    txs.iter()
         .map(|tx| {
             evm.env.tx = create_tx_env(tx);
             evm.transact_commit()
