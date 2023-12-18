@@ -3,10 +3,8 @@ mod gas_price;
 use std::array::TryFromSliceError;
 use std::sync::{Arc, Mutex};
 
-use borsh::ser::BorshSerialize;
 use demo_stf::runtime::Runtime;
-use ethers::types::{Bytes, H256};
-use gas_price::fee_history::FeeHistoryCache;
+use ethers::types::H256;
 pub use gas_price::fee_history::FeeHistoryCacheConfig;
 use gas_price::gas_oracle::GasPriceOracle;
 pub use gas_price::gas_oracle::GasPriceOracleConfig;

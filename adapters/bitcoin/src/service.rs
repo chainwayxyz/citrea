@@ -191,7 +191,7 @@ impl BitcoinService {
 
         info!("Blob inscribe tx sent. Hash: {}", reveal_tx_hash);
 
-        Ok(Txid::from_str(&reveal_tx_hash.as_str())
+        Ok(Txid::from_str(reveal_tx_hash.as_str())
             .expect("Failed to parse txid from reveal tx hash"))
     }
 

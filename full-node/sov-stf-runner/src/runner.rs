@@ -241,7 +241,7 @@ where
 
             info!(
                 "Extracted blob-tx {} with length {} at height {}",
-                hex::encode(&blob_hash),
+                hex::encode(blob_hash),
                 tx_blob_with_sender.total_len(),
                 height,
             );

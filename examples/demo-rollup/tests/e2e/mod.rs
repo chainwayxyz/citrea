@@ -7,7 +7,7 @@ use sov_evm::{SimpleStorageContract, TestContract};
 use sov_stf_runner::RollupProverConfig;
 use tokio::time::sleep;
 
-use crate::evm::{init_test_rollup, TestClient};
+use crate::evm::{init_test_rollup, make_test_client, TestClient};
 use crate::test_helpers::{start_rollup, NodeMode};
 
 #[tokio::test]
@@ -96,7 +96,7 @@ async fn execute_four_blocks<T: TestContract>(
     {
         let set_value_req = client.set_value(contract_address, 42, None, None).await;
         client.send_publish_batch_request().await;
-        set_value_req.await.unwrap().unwrap().transaction_hash;
+        set_value_req.await.unwrap().unwrap();
     }
 
     client.send_publish_batch_request().await;
@@ -178,9 +178,8 @@ async fn test_delayed_sync_ten_blocks() -> Result<(), anyhow::Error> {
     });
 
     let full_node_port = full_node_port_rx.await.unwrap();
-
     let full_node_contract = SimpleStorageContract::default();
-    let full_node_test_client = init_test_rollup(full_node_port, full_node_contract).await;
+    let full_node_test_client = make_test_client(full_node_port, full_node_contract).await;
 
     sleep(Duration::from_secs(10)).await;
 
