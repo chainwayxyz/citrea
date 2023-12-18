@@ -2,6 +2,7 @@ use std::net::SocketAddr;
 
 use borsh::BorshSerialize;
 use jsonrpsee::RpcModule;
+use sequencer_client::SequencerClient;
 use sov_db::ledger_db::{LedgerDB, SlotCommit};
 use sov_modules_stf_blueprint::{Batch, RawTx};
 use sov_rollup_interface::da::{BlobReaderTrait, DaSpec};
@@ -12,8 +13,6 @@ use sov_rollup_interface::zk::ZkvmHost;
 use tokio::sync::oneshot;
 use tracing::{debug, info};
 
-use crate::config::SoftConfirmationClientRpcConfig;
-use crate::soft_confirmation_client::SoftConfirmationClient;
 use crate::verifier::StateTransitionVerifier;
 use crate::{ProverService, RunnerConfig};
 type StateRoot<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::StateRoot;
@@ -36,7 +35,7 @@ where
     state_root: StateRoot<Stf, Vm, Da::Spec>,
     listen_address: SocketAddr,
     prover_service: Ps,
-    soft_confirmation_client: Option<SoftConfirmationClient>,
+    sequencer_client: Option<SequencerClient>,
 }
 
 /// Represents the possible modes of execution for a zkVM program
@@ -85,7 +84,7 @@ where
         prev_state_root: Option<StateRoot<Stf, Vm, Da::Spec>>,
         genesis_config: InitialState<Stf, Vm, Da::Spec>,
         prover_service: Ps,
-        soft_confirmation_client_config: Option<SoftConfirmationClientRpcConfig>,
+        sequencer_client: Option<SequencerClient>,
     ) -> Result<Self, anyhow::Error> {
         let rpc_config = runner_config.rpc_config;
 
@@ -111,14 +110,6 @@ where
         let last_slot_processed_before_shutdown = item_numbers.slot_number - 1;
         let start_height = runner_config.start_height + last_slot_processed_before_shutdown;
 
-        let soft_confirmation_client = match soft_confirmation_client_config {
-            Some(soft_confirmation_client_config) => Some(SoftConfirmationClient::new(
-                soft_confirmation_client_config.start_height,
-                soft_confirmation_client_config.soft_confirmation_client_url,
-            )),
-            None => None,
-        };
-
         Ok(Self {
             start_height,
             da_service,
@@ -128,7 +119,7 @@ where
             state_root: prev_state_root,
             listen_address,
             prover_service,
-            soft_confirmation_client,
+            sequencer_client,
         })
     }
 
@@ -201,16 +192,12 @@ where
 
     /// Runs the rollup.
     pub async fn run_in_process(&mut self) -> Result<(), anyhow::Error> {
-        let client = match &self.soft_confirmation_client {
+        let client = match &self.sequencer_client {
             Some(client) => client,
-            None => {
-                return Err(anyhow::anyhow!(
-                    "Soft Confirmation Client is not initialized"
-                ))
-            }
+            None => return Err(anyhow::anyhow!("Sequencer Client is not initialized")),
         };
 
-        let mut height = self.start_height;
+        let mut height = self.start_height + 1;
         loop {
             let tx = client.get_sov_tx(height).await;
 
@@ -230,7 +217,7 @@ where
                 .unwrap();
 
             // TODO: Change the block here from 2 to legit option.
-            let filtered_block = self.da_service.get_block_at(2).await?;
+            let filtered_block = self.da_service.get_block_at(4).await?;
 
             // 0 is the BlobTransaction
             // 1 is the Signature
@@ -241,7 +228,7 @@ where
 
             info!(
                 "Extracted blob-tx {} with length {} at height {}",
-                hex::encode(&blob_hash),
+                hex::encode(blob_hash),
                 tx_blob_with_sender.total_len(),
                 height,
             );
@@ -315,7 +302,7 @@ where
             info!(
                 "New State Root after blob {:?} is: {:?}",
                 hex::encode(blob_hash),
-                self.state_root.as_ref()
+                self.state_root
             );
             height += 1;
         }

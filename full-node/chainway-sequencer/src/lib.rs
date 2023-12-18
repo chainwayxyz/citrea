@@ -1,5 +1,6 @@
 pub use sov_evm::DevSigner;
 mod mempool;
+mod utils;
 
 use std::borrow::BorrowMut;
 use std::marker::PhantomData;
@@ -9,13 +10,13 @@ use std::time::Duration;
 
 use borsh::ser::BorshSerialize;
 use demo_stf::runtime::Runtime;
-use ethers::types::{Bytes, H256};
+use ethers::types::H256;
 use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
 use futures::lock::Mutex;
 use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::RpcModule;
 use mempool::Mempool;
-use reth_primitives::TransactionSignedNoHash as RethTransactionSignedNoHash;
+use reth_primitives::Bytes;
 use sov_accounts::Accounts;
 use sov_accounts::Response::{AccountEmpty, AccountExists};
 use sov_evm::{CallMessage, RlpEvmTransaction};
@@ -25,6 +26,8 @@ use sov_modules_rollup_blueprint::{Rollup, RollupBlueprint};
 use sov_modules_stf_blueprint::{Batch, RawTx};
 use sov_rollup_interface::services::da::DaService;
 use tracing::info;
+
+use crate::utils::recover_raw_transaction;
 
 pub struct RpcContext {
     pub mempool: Arc<Mutex<Mempool>>,
@@ -91,7 +94,7 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
         loop {
             tokio::time::sleep(Duration::from_millis(100)).await;
 
-            if let Ok(Some(_resp)) = self.receiver.try_next() {
+            if let Ok(Some(_)) = self.receiver.try_next() {
                 let mut rlp_txs = vec![];
                 let mut mem = self.mempool.lock().await;
                 while !mem.pool.is_empty() {
@@ -153,16 +156,21 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
             info!("Sequencer: eth_sendRawTransaction");
             let data: Bytes = parameters.one().unwrap();
 
-            let raw_evm_tx = RlpEvmTransaction { rlp: data.to_vec() };
+            // Only check if the signature is valid for now
+            let recovered = recover_raw_transaction(data.clone())?;
 
-            let hash = get_tx_hash(&raw_evm_tx).unwrap();
+            // TODO: make mempool conversions once it is implemented
+            // Follow the example of eth_sendRawTransaction in reth
+            // https://github.com/paradigmxyz/reth/blob/main/crates/rpc/rpc/src/eth/api/transactions.rs#L505
+
+            let raw_evm_tx = RlpEvmTransaction { rlp: data.to_vec() };
 
             // Mempool had to be arc mutex to mutate chainway sequencer
             ctx.mempool.lock().await.pool.push_back(raw_evm_tx);
 
-            Ok::<H256, ErrorObjectOwned>(hash)
+            Ok::<H256, ErrorObjectOwned>((*recovered.hash()).into())
         })?;
-        rpc.register_async_method("eth_publishBatch", |_parameters, ctx| async move {
+        rpc.register_async_method("eth_publishBatch", |_, ctx| async move {
             info!("Sequencer: eth_publishBatch");
             ctx.sender.unbounded_send("msg".to_string()).unwrap();
             Ok::<(), ErrorObjectOwned>(())
@@ -170,12 +178,4 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
         self.rollup.rpc_methods.merge(rpc).unwrap();
         Ok(())
     }
-}
-
-fn get_tx_hash(raw_tx: &RlpEvmTransaction) -> Result<H256, jsonrpsee::core::Error> {
-    let signed_transaction: RethTransactionSignedNoHash = raw_tx.clone().try_into()?;
-
-    let tx_hash = signed_transaction.hash();
-
-    Ok(H256::from(tx_hash))
 }

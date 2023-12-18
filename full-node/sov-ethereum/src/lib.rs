@@ -3,10 +3,8 @@ mod gas_price;
 use std::array::TryFromSliceError;
 use std::sync::{Arc, Mutex};
 
-use borsh::ser::BorshSerialize;
 use demo_stf::runtime::Runtime;
 use ethers::types::{Bytes, H256};
-use gas_price::fee_history::FeeHistoryCache;
 pub use gas_price::fee_history::FeeHistoryCacheConfig;
 use gas_price::gas_oracle::GasPriceOracle;
 pub use gas_price::gas_oracle::GasPriceOracleConfig;
@@ -16,6 +14,7 @@ use reth_primitives::{
     BlockNumberOrTag, TransactionSignedNoHash as RethTransactionSignedNoHash, U128, U256,
 };
 use reth_rpc_types::{CallRequest, FeeHistory, TransactionRequest, TypedTransactionRequest};
+use sequencer_client::SequencerClient;
 #[cfg(feature = "local")]
 pub use sov_evm::DevSigner;
 use sov_evm::{CallMessage, Evm, RlpEvmTransaction};
@@ -42,6 +41,7 @@ pub fn get_ethereum_rpc<C: sov_modules_api::Context, Da: DaService>(
     da_service: Da,
     eth_rpc_config: EthRpcConfig<C>,
     storage: C::Storage,
+    sequencer_client: Option<SequencerClient>,
 ) -> RpcModule<Ethereum<C, Da>> {
     // Unpack config
     let EthRpcConfig {
@@ -65,7 +65,10 @@ pub fn get_ethereum_rpc<C: sov_modules_api::Context, Da: DaService>(
         sov_accounts::Response::AccountExists { nonce, .. } => nonce,
         sov_accounts::Response::AccountEmpty { .. } => 0,
     };
+    // If the node does not have a sequencer client, then it is the sequencer.
+    let is_sequencer = sequencer_client.is_none();
 
+    // If the running node is a full node rpc context should also have sequencer client so that it can send txs to sequencer
     let mut rpc = RpcModule::new(Ethereum::new(
         da_service,
         Arc::new(Mutex::new(EthBatchBuilder::new(
@@ -78,9 +81,10 @@ pub fn get_ethereum_rpc<C: sov_modules_api::Context, Da: DaService>(
         #[cfg(feature = "local")]
         eth_signer,
         storage,
+        sequencer_client,
     ));
 
-    register_rpc_methods(&mut rpc).expect("Failed to register sequencer RPC methods");
+    register_rpc_methods(&mut rpc, is_sequencer).expect("Failed to register sequencer RPC methods");
     rpc
 }
 
@@ -91,6 +95,7 @@ pub struct Ethereum<C: sov_modules_api::Context, Da: DaService> {
     #[cfg(feature = "local")]
     eth_signer: DevSigner,
     storage: C::Storage,
+    sequencer_client: Option<SequencerClient>,
 }
 
 impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
@@ -101,6 +106,7 @@ impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
         fee_history_cache_config: FeeHistoryCacheConfig,
         #[cfg(feature = "local")] eth_signer: DevSigner,
         storage: C::Storage,
+        sequencer_client: Option<SequencerClient>,
     ) -> Self {
         let evm = Evm::<C>::default();
         let gas_price_oracle =
@@ -112,6 +118,7 @@ impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
             #[cfg(feature = "local")]
             eth_signer,
             storage,
+            sequencer_client,
         }
     }
 }
@@ -138,10 +145,11 @@ impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
 
 fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
     rpc: &mut RpcModule<Ethereum<C, Da>>,
+    // Checks wether the running node is a sequencer or not, if it is not a sequencer it should also have methods like eth_sendRawTransaction here.
+    is_sequencer: bool,
 ) -> Result<(), jsonrpsee::core::Error> {
     rpc.register_async_method("eth_gasPrice", |_, ethereum| async move {
         info!("eth module: eth_gasPrice");
-
         let price = {
             let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
 
@@ -248,7 +256,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
     // )?;
 
     #[cfg(feature = "local")]
-    rpc.register_async_method("eth_accounts", |_parameters, ethereum| async move {
+    rpc.register_async_method("eth_accounts", |_, ethereum| async move {
         info!("eth module: eth_accounts");
 
         Ok::<_, ErrorObjectOwned>(ethereum.eth_signer.signers())
@@ -358,6 +366,26 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
 
         Ok::<_, ErrorObjectOwned>(tx_hash)
     })?;
+
+    if !is_sequencer {
+        rpc.register_async_method(
+            "eth_sendRawTransaction",
+            |parameters, ethereum| async move {
+                info!("Full Node: eth_sendRawTransaction");
+                // send this directly to the sequencer
+                let data: Bytes = parameters.one().unwrap();
+                // sequencer client should send it
+                let tx_hash = ethereum
+                    .sequencer_client
+                    .as_ref()
+                    .unwrap()
+                    .send_raw_tx(data)
+                    .await;
+
+                tx_hash.map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))
+            },
+        )?;
+    }
 
     Ok(())
 }

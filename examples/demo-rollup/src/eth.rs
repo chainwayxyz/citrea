@@ -1,6 +1,7 @@
 use std::str::FromStr;
 
 use anyhow::Context as _;
+use sequencer_client::SequencerClient;
 use sov_cli::wallet_state::PrivateKeyAndAddress;
 use sov_ethereum::{EthRpcConfig, FeeHistoryCacheConfig, GasPriceOracleConfig};
 use sov_modules_api::default_context::DefaultContext;
@@ -26,6 +27,7 @@ pub(crate) fn register_ethereum<Da: DaService>(
     da_service: Da,
     storage: ProverStorage<sov_state::DefaultStorageSpec>,
     methods: &mut jsonrpsee::RpcModule<()>,
+    sequencer_client: Option<SequencerClient>,
 ) -> Result<(), anyhow::Error> {
     let eth_rpc_config = {
         let eth_signer = eth_dev_signer();
@@ -38,8 +40,12 @@ pub(crate) fn register_ethereum<Da: DaService>(
         }
     };
 
-    let ethereum_rpc =
-        sov_ethereum::get_ethereum_rpc::<DefaultContext, Da>(da_service, eth_rpc_config, storage);
+    let ethereum_rpc = sov_ethereum::get_ethereum_rpc::<DefaultContext, Da>(
+        da_service,
+        eth_rpc_config,
+        storage,
+        sequencer_client,
+    );
     methods
         .merge(ethereum_rpc)
         .context("Failed to merge Ethereum RPC modules")

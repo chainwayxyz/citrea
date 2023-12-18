@@ -15,6 +15,7 @@ members = [
     "examples/simple-nft-module",
     # Full Node
     "full-node/chainway-sequencer",
+    "full-node/sequencer-client",
     "full-node/db/sov-db",
     "full-node/sov-sequencer",
     "full-node/sov-ethereum",

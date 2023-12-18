@@ -8197,6 +8197,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cd0b0ec5f1c1ca621c432a25813d8d60c88abe6d3e08a3eb9cf37d97a0fe3d73"
 
 [[package]]
+name = "sequencer-client"
+version = "0.3.0"
+dependencies = [
+ "anyhow",
+ "ethers",
+ "jsonrpsee 0.20.3",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "serde"
 version = "1.0.192"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8859,6 +8872,7 @@ dependencies = [
  "revm",
  "risc0",
  "secp256k1 0.27.0",
+ "sequencer-client",
  "serde",
  "serde_json",
  "sha2 0.10.8",
@@ -8900,12 +8914,14 @@ dependencies = [
  "reth-primitives",
  "reth-rpc-types",
  "schnellru",
+ "sequencer-client",
  "serde",
  "serde_json",
  "sov-accounts",
  "sov-evm",
  "sov-modules-api",
  "sov-rollup-interface",
+ "sov-stf-runner",
  "tokio",
  "tracing",
 ]
@@ -9108,6 +9124,7 @@ dependencies = [
  "async-trait",
  "borsh",
  "jsonrpsee 0.20.3",
+ "sequencer-client",
  "serde",
  "serde_json",
  "sov-cli",
@@ -9353,6 +9370,7 @@ dependencies = [
  "jsonrpsee 0.20.3",
  "num_cpus",
  "rayon",
+ "sequencer-client",
  "serde",
  "serde_json",
  "sov-accounts",
