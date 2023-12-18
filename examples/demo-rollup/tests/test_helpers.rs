@@ -9,7 +9,7 @@ use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
 use sov_modules_rollup_blueprint::{RollupAndStorage, RollupBlueprint};
 use sov_stf_runner::{
-    RollupConfig, RollupProverConfig, RpcConfig, RunnerConfig, SoftConfirmationClientRpcConfig,
+    RollupConfig, RollupProverConfig, RpcConfig, RunnerConfig, SequencerClientRpcConfig,
     StorageConfig,
 };
 use tokio::sync::oneshot;
@@ -43,10 +43,10 @@ pub async fn start_rollup(
         da: MockDaConfig {
             sender_address: MockAddress::from([0; 32]),
         },
-        soft_confirmation_client: match node_mode {
-            NodeMode::FullNode(socket_addr) => Some(SoftConfirmationClientRpcConfig {
+        sequencer: match node_mode {
+            NodeMode::FullNode(socket_addr) => Some(SequencerClientRpcConfig {
                 start_height: 1,
-                soft_confirmation_client_url: format!("http://localhost:{}", socket_addr.port()),
+                url: format!("http://localhost:{}", socket_addr.port()),
             }),
             NodeMode::SequencerNode => None,
         },

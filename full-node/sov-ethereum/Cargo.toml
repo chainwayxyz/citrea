@@ -13,7 +13,8 @@ resolver = "2"
 
 [dependencies]
 sov-evm = { path = "../../module-system/module-implementations/sov-evm" }
-
+sov-stf-runner = { path = "../sov-stf-runner" }
+sequencer-client = { path = "../sequencer-client" }
 anyhow = { workspace = true }
 tracing = { workspace = true }
 jsonrpsee = { workspace = true, features = ["http-client", "server"] }

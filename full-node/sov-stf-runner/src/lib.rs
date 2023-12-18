@@ -11,9 +11,6 @@ pub mod mock;
 mod prover_service;
 
 #[cfg(feature = "native")]
-mod soft_confirmation_client;
-
-#[cfg(feature = "native")]
 use std::path::Path;
 
 #[cfg(feature = "native")]
@@ -27,7 +24,7 @@ pub use prover_service::*;
 mod runner;
 #[cfg(feature = "native")]
 pub use config::{
-    from_toml_path, RollupConfig, RunnerConfig, SoftConfirmationClientRpcConfig, StorageConfig,
+    from_toml_path, RollupConfig, RunnerConfig, SequencerClientRpcConfig, StorageConfig,
 };
 #[cfg(feature = "native")]
 pub use runner::*;

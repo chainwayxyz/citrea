@@ -54,6 +54,7 @@ tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
 sov-db = { path = "../../full-node/db/sov-db" }
 sov-ethereum = { path = "../../full-node/sov-ethereum" }
 sov-sequencer = { path = "../../full-node/sov-sequencer" }
+sequencer-client = { path = "../../full-node/sequencer-client" }
 chainway-sequencer = { path = "../../full-node/chainway-sequencer" }
 sov-risc0-adapter = { path = "../../adapters/risc0", features = ["native"] }
 sov-state = { path = "../../module-system/sov-state", features = ["native"] }
