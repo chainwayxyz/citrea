@@ -9365,7 +9365,6 @@ dependencies = [
  "anyhow",
  "async-trait",
  "borsh",
- "ethers",
  "futures",
  "hex",
  "jsonrpsee 0.20.3",

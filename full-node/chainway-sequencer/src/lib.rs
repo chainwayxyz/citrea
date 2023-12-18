@@ -26,8 +26,6 @@ use sov_modules_stf_blueprint::{Batch, RawTx};
 use sov_rollup_interface::services::da::DaService;
 use tracing::info;
 
-const ETH_RPC_ERROR: &str = "ETH_RPC_ERROR";
-
 pub struct RpcContext {
     pub mempool: Arc<Mutex<Mempool>>,
     pub sender: UnboundedSender<String>,

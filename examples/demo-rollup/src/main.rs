@@ -110,15 +110,6 @@ async fn main() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-fn create_config_generic<DaC>(rollup_config_path: &str) -> ()
-where
-    DaC: serde::de::DeserializeOwned + DebugTrait + Clone,
-{
-    let rollup_config: RollupConfig<DaC> = from_toml_path(rollup_config_path)
-        .context("Failed to read rollup configuration")
-        .unwrap();
-}
-
 async fn start_rollup<S, DaC>(
     rollup_config_path: &str,
     prover_config: RollupProverConfig,
@@ -136,17 +127,19 @@ where
     let mut rollup_config: RollupConfig<DaC> = from_toml_path(rollup_config_path)
         .context("Failed to read rollup configuration")
         .unwrap();
-    let rollup_bp = S::new();
-    let da_service = rollup_bp.create_da_service(&rollup_config).await;
+    let rollup_blueprint = S::new();
+    let da_service = rollup_blueprint.create_da_service(&rollup_config).await;
 
-    let RollupAndStorage { rollup, storage } = rollup_bp
+    if is_sequencer {
+        rollup_config.sequencer_client = None;
+    }
+
+    let RollupAndStorage { rollup, storage } = rollup_blueprint
         .create_new_rollup(genesis_paths, rollup_config.clone(), prover_config)
         .await
         .unwrap();
 
     if is_sequencer {
-        rollup_config.sequencer_client = None;
-
         let mut seq: ChainwaySequencer<
             <S as RollupBlueprint>::NativeContext,
             <S as RollupBlueprint>::DaService,
@@ -161,17 +154,12 @@ where
             storage,
         );
         seq.start_rpc_server(None).await?;
-        seq.run()
-            .await
-            .map_err(|e| anyhow!("Failed to run sequencer: {}", e));
+        seq.run().await?;
     } else {
         if rollup_config.sequencer_client.is_none() {
             return Err(anyhow!("Sequencer client is necessary for full nodes."));
         }
-        rollup
-            .run()
-            .await
-            .map_err(|e| anyhow!("Failed to run rollup: {}", e));
+        rollup.run().await?;
     }
 
     Ok(())
