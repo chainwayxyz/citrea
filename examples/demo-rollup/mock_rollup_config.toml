@@ -17,4 +17,4 @@ bind_port = 12345
 
 [sequencer]
 start_height = 1
-url = "http://0.0.0.0:12346"
+url = "http://0.0.0.0:12345"
