@@ -50,6 +50,7 @@ impl SequencerClient {
     }
 }
 
+// the response has more fields, however for now we don't need them
 #[derive(Deserialize)]
 struct GetSovTxResponse {
     pub body: Vec<u8>,
