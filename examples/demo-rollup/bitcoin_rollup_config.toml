@@ -19,6 +19,6 @@ start_height = 3
 bind_host = "0.0.0.0"
 bind_port = 12345
 
-[sequencer]
+[sequencer_client]
 start_height = 1
 url = "http://0.0.0.0:12346"

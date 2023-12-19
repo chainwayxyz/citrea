@@ -53,6 +53,10 @@ impl RollupBlueprint for BitcoinRollup {
         >,
     >;
 
+    fn new() -> Self {
+        Self {}
+    }
+
     fn create_rpc_methods(
         &self,
         storage: &<Self::NativeContext as Spec>::Storage,
