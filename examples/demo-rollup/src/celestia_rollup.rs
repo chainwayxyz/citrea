@@ -52,6 +52,10 @@ impl RollupBlueprint for CelestiaDemoRollup {
         >,
     >;
 
+    fn new() -> Self {
+        Self {}
+    }
+
     fn create_rpc_methods(
         &self,
         storage: &<Self::NativeContext as sov_modules_api::Spec>::Storage,
