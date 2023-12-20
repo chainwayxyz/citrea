@@ -409,7 +409,7 @@ pub async fn init_test_rollup<T: TestContract>(
     rpc_address: SocketAddr,
     contract: T,
 ) -> Box<TestClient<T>> {
-    let chain_id: u64 = 1;
+    let chain_id: u64 = 5655; // genesis config chain id
     let key = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
         .parse::<LocalWallet>()
         .unwrap()
