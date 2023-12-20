@@ -1,3 +1,4 @@
+use futures::StreamExt;
 pub use sov_evm::DevSigner;
 mod mempool;
 mod utils;
@@ -83,18 +84,16 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
         channel: Option<tokio::sync::oneshot::Sender<SocketAddr>>,
     ) -> Result<(), anyhow::Error> {
         self.register_rpc_methods()?;
+
         self.rollup
             .runner
             .start_rpc_server(self.rollup.rpc_methods.clone(), channel)
             .await;
         Ok(())
     }
-
     pub async fn run(&mut self) -> Result<(), anyhow::Error> {
         loop {
-            tokio::time::sleep(Duration::from_millis(100)).await;
-
-            if let Ok(Some(_)) = self.receiver.try_next() {
+            if let Some(_) = self.receiver.next().await {
                 let mut rlp_txs = vec![];
                 let mut mem = self.mempool.lock().await;
                 while !mem.pool.is_empty() {
