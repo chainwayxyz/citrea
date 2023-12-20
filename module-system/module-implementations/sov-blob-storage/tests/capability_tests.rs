@@ -2,6 +2,7 @@ use sov_bank::TokenConfig;
 use sov_blob_storage::{BlobStorage, DEFERRED_SLOTS_COUNT};
 use sov_chain_state::ChainStateConfig;
 use sov_mock_da::{MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaSpec};
+use sov_modules_api::da::Time;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::hooks::SlotHooks;
 use sov_modules_api::macros::DefaultRuntime;
@@ -9,6 +10,7 @@ use sov_modules_api::runtime::capabilities::{BlobRefOrOwned, BlobSelector};
 use sov_modules_api::{
     Address, BlobReaderTrait, Context, DaSpec, DispatchCall, MessageCodec, Module, Spec, WorkingSet,
 };
+use sov_prover_storage_manager::{new_orphan_storage, SnapshotManager};
 use sov_sequencer_registry::SequencerConfig;
 use sov_state::{DefaultStorageSpec, ProverStorage, Storage};
 
@@ -21,6 +23,7 @@ const PREFERRED_SEQUENCER_DA: MockAddress = MockAddress::new([10u8; 32]);
 const PREFERRED_SEQUENCER_ROLLUP: Address = Address::new(*b"preferred_______________________");
 const REGULAR_SEQUENCER_DA: MockAddress = MockAddress::new([30u8; 32]);
 const REGULAR_SEQUENCER_ROLLUP: Address = Address::new(*b"regular_________________________");
+const REGULAR_REWARD_ROLLUP: Address = Address::new(*b"regular_reward__________________");
 
 fn get_bank_config(
     preferred_sequencer: <C as Spec>::Address,
@@ -91,7 +94,8 @@ fn priority_sequencer_flow_general() {
 pub struct SlotTestInfo {
     pub slot_number: u64,
     /// Any "requests for early processing" to be sent during this slot
-    pub early_processing_request_with_sender: Option<(sov_blob_storage::CallMessage, Address)>,
+    pub early_processing_request_with_sender:
+        Option<(sov_blob_storage::CallMessage, Address, Address)>,
     /// The expected number of blobs to process, if known
     pub expected_blobs_to_process: Option<usize>,
 }
@@ -134,6 +138,7 @@ fn do_deferred_blob_test(
                 prev_hash: [slot_number_u8; 32].into(),
                 hash: [slot_number_u8 + 1; 32].into(),
                 height: slot_number,
+                time: Time::now(),
             },
             validity_cond: Default::default(),
             blobs: slots_iterator.next().unwrap(),
@@ -161,12 +166,14 @@ fn do_deferred_blob_test(
                 }
 
                 // If applicable, send the requested call message to the blob_storage module
-                if let Some((msg, sender)) = next_slot_info.early_processing_request_with_sender {
+                if let Some((msg, sender, sequencer)) =
+                    next_slot_info.early_processing_request_with_sender
+                {
                     runtime
                         .blob_storage
                         .call(
                             msg,
-                            &DefaultContext::new(sender, slot_number),
+                            &DefaultContext::new(sender, sequencer, slot_number),
                             &mut working_set,
                         )
                         .unwrap();
@@ -208,6 +215,7 @@ fn bonus_blobs_are_delivered_on_request() {
             early_processing_request_with_sender: Some((
                 sov_blob_storage::CallMessage::ProcessDeferredBlobsEarly { number: 4 },
                 PREFERRED_SEQUENCER_ROLLUP,
+                REGULAR_REWARD_ROLLUP,
             )),
         },
         SlotTestInfo {
@@ -247,6 +255,7 @@ fn test_deferrable_with_small_count() {
                 early_processing_request_with_sender: Some((
                     sov_blob_storage::CallMessage::ProcessDeferredBlobsEarly { number: 8 },
                     PREFERRED_SEQUENCER_ROLLUP,
+                    REGULAR_REWARD_ROLLUP,
                 )),
             },
             SlotTestInfo {
@@ -269,6 +278,7 @@ fn test_deferrable_with_small_count() {
                 early_processing_request_with_sender: Some((
                     sov_blob_storage::CallMessage::ProcessDeferredBlobsEarly { number: 4 },
                     PREFERRED_SEQUENCER_ROLLUP,
+                    REGULAR_REWARD_ROLLUP,
                 )),
             },
             SlotTestInfo {
@@ -313,6 +323,7 @@ fn sequencer_requests_more_bonus_blobs_than_possible() {
             early_processing_request_with_sender: Some((
                 sov_blob_storage::CallMessage::ProcessDeferredBlobsEarly { number: 1000 }, // Request a huge number of blobs
                 PREFERRED_SEQUENCER_ROLLUP,
+                REGULAR_REWARD_ROLLUP,
             )),
         },
         SlotTestInfo {
@@ -353,6 +364,7 @@ fn some_blobs_from_slot_processed_early() {
             early_processing_request_with_sender: Some((
                 sov_blob_storage::CallMessage::ProcessDeferredBlobsEarly { number: 5 }, // Request 5 bonus blobs
                 PREFERRED_SEQUENCER_ROLLUP,
+                REGULAR_REWARD_ROLLUP,
             )),
         },
         SlotTestInfo {
@@ -395,6 +407,7 @@ fn request_one_blob_early() {
             early_processing_request_with_sender: Some((
                 sov_blob_storage::CallMessage::ProcessDeferredBlobsEarly { number: 1 }, // Request 1 bonus blob
                 PREFERRED_SEQUENCER_ROLLUP,
+                REGULAR_REWARD_ROLLUP,
             )),
         },
         SlotTestInfo {
@@ -436,6 +449,7 @@ fn bonus_blobs_request_ignored_if_not_from_preferred_seq() {
             early_processing_request_with_sender: Some((
                 sov_blob_storage::CallMessage::ProcessDeferredBlobsEarly { number: 1 }, // Request 1 bonus blob, but send the request from the *WRONG* address
                 REGULAR_SEQUENCER_ROLLUP,
+                REGULAR_REWARD_ROLLUP,
             )),
         },
         SlotTestInfo {
@@ -482,6 +496,7 @@ fn test_blobs_from_non_registered_sequencers_are_not_saved() {
                 prev_hash: [slot_number_u8; 32].into(),
                 hash: [slot_number_u8 + 1; 32].into(),
                 height: slot_number,
+                time: Time::now(),
             },
             validity_cond: Default::default(),
             blobs: if slot_number == 0 {
@@ -531,6 +546,7 @@ fn test_blobs_not_deferred_without_preferred_sequencer() {
             prev_hash: [0; 32].into(),
             hash: [1; 32].into(),
             height: 1,
+            time: Time::now(),
         },
         validity_cond: Default::default(),
         blobs: slot_1_blobs,
@@ -557,6 +573,7 @@ fn test_blobs_not_deferred_without_preferred_sequencer() {
             prev_hash: slot_1_data.header.hash,
             hash: [2; 32].into(),
             height: 2,
+            time: Time::now(),
         },
         validity_cond: Default::default(),
         blobs: Vec::new(),
@@ -663,10 +680,14 @@ struct TestRuntime<C: Context, Da: DaSpec> {
 impl TestRuntime<DefaultContext, MockDaSpec> {
     pub fn pre_initialized(
         with_preferred_sequencer: bool,
-    ) -> (ProverStorage<DefaultStorageSpec>, Self, jmt::RootHash) {
+    ) -> (
+        ProverStorage<DefaultStorageSpec, SnapshotManager>,
+        Self,
+        jmt::RootHash,
+    ) {
         use sov_modules_api::Genesis;
         let tmpdir = tempfile::tempdir().unwrap();
-        let storage = ProverStorage::with_path(tmpdir.path()).unwrap();
+        let storage = new_orphan_storage(tmpdir.path()).unwrap();
 
         let genesis_config = Self::build_genesis_config(with_preferred_sequencer);
         let runtime: Self = Default::default();
@@ -682,7 +703,7 @@ impl TestRuntime<DefaultContext, MockDaSpec> {
             .sequencer_registry
             .call(
                 register_message,
-                &C::new(REGULAR_SEQUENCER_ROLLUP, 1),
+                &C::new(REGULAR_SEQUENCER_ROLLUP, REGULAR_REWARD_ROLLUP, 1),
                 &mut working_set,
             )
             .unwrap();

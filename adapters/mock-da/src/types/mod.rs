@@ -12,8 +12,6 @@ use sov_rollup_interface::Bytes;
 
 use crate::validity_condition::MockValidityCond;
 
-const JAN_1_2023: i64 = 1672531200;
-
 /// A mock hash digest.
 #[derive(
     Clone,
@@ -25,7 +23,13 @@ const JAN_1_2023: i64 = 1672531200;
     BorshDeserialize,
     BorshSerialize,
 )]
-pub struct MockHash([u8; 32]);
+pub struct MockHash(pub [u8; 32]);
+
+impl Debug for MockHash {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "0x{}", hex::encode(self.0))
+    }
+}
 
 impl Debug for MockHash {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -61,7 +65,7 @@ impl std::hash::Hash for MockHash {
 impl BlockHashTrait for MockHash {}
 
 /// A mock block header used for testing.
-#[derive(Serialize, Deserialize, PartialEq, core::fmt::Debug, Clone, Copy)]
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct MockBlockHeader {
     /// The hash of the previous block.
     pub prev_hash: MockHash,
@@ -69,15 +73,40 @@ pub struct MockBlockHeader {
     pub hash: MockHash,
     /// The height of this block
     pub height: u64,
+    /// The time at which this block was created
+    pub time: Time,
+}
+
+impl MockBlockHeader {
+    /// Generates [`MockBlockHeader`] with given height, where hashes are derived from height
+    /// Can be used in tests, where header of following blocks will be consistent
+    pub fn from_height(height: u64) -> MockBlockHeader {
+        let prev_hash = u64_to_bytes(height);
+        let hash = u64_to_bytes(height + 1);
+        MockBlockHeader {
+            prev_hash: MockHash(prev_hash),
+            hash: MockHash(hash),
+            height,
+            time: Time::now(),
+        }
+    }
 }
 
 impl Default for MockBlockHeader {
     fn default() -> Self {
-        Self {
-            prev_hash: MockHash([0u8; 32]),
-            hash: MockHash([1u8; 32]),
-            height: 0,
-        }
+        MockBlockHeader::from_height(0)
+    }
+}
+
+impl std::fmt::Display for MockBlockHeader {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "MockBlockHeader {{ height: {}, prev_hash: {}, next_hash: {} }}",
+            self.height,
+            hex::encode(self.prev_hash),
+            hex::encode(self.hash)
+        )
     }
 }
 
@@ -109,7 +138,7 @@ impl BlockHeaderTrait for MockBlockHeader {
     }
 
     fn time(&self) -> Time {
-        Time::from_secs(JAN_1_2023 + (self.height as i64) * 15)
+        self.time.clone()
     }
 }
 
@@ -139,6 +168,8 @@ pub struct MockBlob {
     pub(crate) hash: [u8; 32],
     /// Actual data from the blob. Public for testing purposes.
     pub data: CountedBufReader<Bytes>,
+    // Data for the aggregated ZK proof.
+    pub(crate) zk_proofs_data: Vec<u8>,
 }
 
 impl MockBlob {
@@ -147,13 +178,29 @@ impl MockBlob {
         Self {
             address,
             data: CountedBufReader::new(Bytes::from(data)),
+            zk_proofs_data: Default::default(),
             hash,
+        }
+    }
+
+    /// Creates a new mock blob with the given data and an aggretated zkp proof, claiming to have been published by the provided address.
+    pub fn new_with_zkp_proof(
+        data: Vec<u8>,
+        zk_proofs_data: Vec<u8>,
+        address: MockAddress,
+        hash: [u8; 32],
+    ) -> Self {
+        Self {
+            address,
+            hash,
+            data: CountedBufReader::new(Bytes::from(data)),
+            zk_proofs_data,
         }
     }
 }
 
 /// A mock block type used for testing.
-#[derive(Serialize, Deserialize, PartialEq, core::fmt::Debug, Clone)]
+#[derive(Serialize, Deserialize, Default, PartialEq, Debug, Clone)]
 pub struct MockBlock {
     /// The header of this block.
     pub header: MockBlockHeader,
@@ -161,20 +208,6 @@ pub struct MockBlock {
     pub validity_cond: MockValidityCond,
     /// Blobs
     pub blobs: Vec<MockBlob>,
-}
-
-impl Default for MockBlock {
-    fn default() -> Self {
-        Self {
-            header: MockBlockHeader {
-                prev_hash: [0; 32].into(),
-                hash: [1; 32].into(),
-                height: 0,
-            },
-            validity_cond: Default::default(),
-            blobs: Default::default(),
-        }
-    }
 }
 
 impl SlotData for MockBlock {
@@ -192,4 +225,21 @@ impl SlotData for MockBlock {
     fn validity_condition(&self) -> MockValidityCond {
         self.validity_cond
     }
+}
+
+impl MockBlock {
+    /// Creates empty block, which is following of the current
+    pub fn next_mock(&self) -> MockBlock {
+        let mut next_block = MockBlock::default();
+        let h = self.header.height + 1;
+        next_block.header = MockBlockHeader::from_height(h);
+        next_block
+    }
+}
+
+fn u64_to_bytes(value: u64) -> [u8; 32] {
+    let value = value.to_be_bytes();
+    let mut result = [0u8; 32];
+    result[..value.len()].copy_from_slice(&value);
+    result
 }

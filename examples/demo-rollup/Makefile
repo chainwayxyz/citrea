@@ -50,7 +50,6 @@ compose-logs: check-docker
 # check if docker is installed
 check-docker:
 	@command -v docker > /dev/null 2>&1 || { echo "Docker is not installed"; exit 1; }
-	@# TODO: check docker compose too
 
 # check if celestia network is running
 check-compose-running: check-docker
@@ -77,7 +76,7 @@ build-sov-cli:
 	cargo build --bin sov-cli
 
 test-generate-create-token-tx: wait-compose-ready build-sov-cli
-	$(SOV_CLI_REL_PATH) transactions import from-file bank --path ../test-data/requests/create_token.json
+	$(SOV_CLI_REL_PATH) transactions import from-file bank --chain-id 0 --path ../test-data/requests/create_token.json
 
 set-rpc-url: build-sov-cli
 	$(SOV_CLI_REL_PATH) rpc set-url http://127.0.0.1:12345
@@ -93,6 +92,16 @@ remove-insecure-keys: build-sov-cli
 
 clean-celestia-rollup-db:
 	$(eval path := ./$(shell awk -F'=' '/^path/ {print $$2}' celestia_rollup_config.toml | tr -d '[:space:]"\n'))
+	@if [ -z "${path}" ] || [ "${path}" = "./" ]; then \
+		echo "Path is empty or too short, not safe to remove"; \
+		exit 1; \
+	fi
+	@echo removing rollup database "${path}"
+	rm -rf "${path}"
+
+
+clean-mock-rollup-db:
+	$(eval path := ./$(shell awk -F'=' '/^path/ {print $$2}' mock_rollup_config.toml | tr -d '[:space:]"\n'))
 	@if [ -z "${path}" ] || [ "${path}" = "./" ]; then \
 		echo "Path is empty or too short, not safe to remove"; \
 		exit 1; \

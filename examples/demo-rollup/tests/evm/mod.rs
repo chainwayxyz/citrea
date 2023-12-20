@@ -8,7 +8,7 @@ use ethers_core::abi::Address;
 use ethers_core::types::{BlockId, U256};
 use ethers_signers::{LocalWallet, Signer};
 use reth_primitives::BlockNumberOrTag;
-use sov_evm::{SimpleStorageContract, TestContract};
+use sov_demo_rollup::initialize_logging;
 use sov_stf_runner::RollupProverConfig;
 use test_client::TestClient;
 use tokio::time::{sleep, Duration};
@@ -17,7 +17,10 @@ use crate::test_helpers::start_rollup;
 
 #[tokio::test]
 async fn evm_tx_tests() -> Result<(), anyhow::Error> {
+    initialize_logging();
+
     let (port_tx, port_rx) = tokio::sync::oneshot::channel();
+
     let rollup_task = tokio::spawn(async {
         // Don't provide a prover since the EVM is not currently provable
         start_rollup(

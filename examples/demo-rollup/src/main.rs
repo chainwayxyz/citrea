@@ -15,7 +15,7 @@ use reth_primitives::serde_helper::num::from_int_or_hex;
 use sequencer_client::SequencerClient;
 use serde::de::DeserializeOwned;
 use sov_celestia_adapter::{CelestiaConfig, CelestiaService};
-use sov_demo_rollup::{BitcoinRollup, CelestiaDemoRollup, MockDemoRollup};
+use sov_demo_rollup::{initialize_logging, BitcoinRollup, CelestiaDemoRollup, MockDemoRollup};
 use sov_mock_da::{MockDaConfig, MockDaService};
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
@@ -27,8 +27,6 @@ use sov_state::storage::NativeStorage;
 use sov_state::{DefaultStorageSpec, ProverStorage, Storage};
 use sov_stf_runner::{from_toml_path, RollupConfig, RollupProverConfig};
 use tracing::log::debug;
-use tracing_subscriber::prelude::*;
-use tracing_subscriber::{fmt, EnvFilter};
 
 #[cfg(test)]
 mod test_rpc;
@@ -60,19 +58,15 @@ enum SupportedDaLayer {
     Bitcoin,
 }
 
+#[derive(clap::ValueEnum, Clone, Debug)]
+enum SupportedDaLayer {
+    Celestia,
+    Mock,
+}
+
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
-    // Initializing logging
-    tracing_subscriber::registry()
-        .with(fmt::layer())
-        .with(
-            EnvFilter::from_str(
-                &env::var("RUST_LOG")
-                    .unwrap_or_else(|_| "debug,hyper=info,risc0_zkvm=info".to_string()),
-            )
-            .unwrap(),
-        )
-        .init();
+    initialize_logging();
 
     let args = Args::parse();
     let rollup_config_path = args.rollup_config_path.as_str();

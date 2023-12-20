@@ -3,7 +3,7 @@ use reth_rpc_types::{CallInput, CallRequest};
 use revm::primitives::{SpecId, B256, KECCAK_EMPTY, U256};
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::utils::generate_address;
-use sov_modules_api::{Context, Module, StateMapAccessor, StateVecAccessor};
+use sov_modules_api::{Context, Module, StateMapAccessor, StateValueAccessor, StateVecAccessor};
 
 use crate::call::CallMessage;
 use crate::evm::primitive_types::Receipt;
@@ -47,7 +47,9 @@ fn call_multiple_test() {
     let set_arg = 999;
     {
         let sender_address = generate_address::<C>("sender");
-        let context = C::new(sender_address, 1);
+
+        let sequencer_address = generate_address::<C>("sequencer");
+        let context = C::new(sender_address, sequencer_address, 1);
 
         let transactions: Vec<RlpEvmTransaction> = vec![
             create_contract_transaction(&dev_signer1, 0, SimpleStorageContract::default()),
@@ -202,7 +204,8 @@ fn failed_transaction_test() {
     evm.begin_slot_hook([5u8; 32], &[10u8; 32].into(), working_set);
     {
         let sender_address = generate_address::<C>("sender");
-        let context = C::new(sender_address, 1);
+        let sequencer_address = generate_address::<C>("sequencer");
+        let context = C::new(sender_address, sequencer_address, 1);
         let rlp_transactions = vec![create_contract_message(
             &dev_signer,
             0,

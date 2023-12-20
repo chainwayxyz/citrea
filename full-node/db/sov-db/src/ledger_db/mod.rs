@@ -166,7 +166,7 @@ impl LedgerDB {
         let iter = raw_iter.take(max_items);
         let mut out = Vec::with_capacity(max_items);
         for res in iter {
-            let (_, batch) = res?;
+            let batch = res?.value;
             out.push(batch)
         }
         Ok(out)
@@ -307,7 +307,7 @@ impl LedgerDB {
         iter.seek_to_last();
 
         match iter.next() {
-            Some(Ok((version, _))) => Ok(Some(version.into())),
+            Some(Ok(item)) => Ok(Some(item.key.into())),
             Some(Err(e)) => Err(e),
             _ => Ok(None),
         }
@@ -319,97 +319,9 @@ impl LedgerDB {
         iter.seek_to_last();
 
         match iter.next() {
-            Some(Ok((slot_number, slot))) => Ok(Some((slot_number, slot))),
+            Some(Ok(item)) => Ok(Some(item.into_tuple())),
             Some(Err(e)) => Err(e),
             _ => Ok(None),
-        }
-    }
-}
-
-#[cfg(feature = "arbitrary")]
-pub mod arbitrary {
-    //! Arbitrary definitions for the [`LedgerDB`].
-
-    use core::ops::{Deref, DerefMut};
-
-    use proptest::strategy::LazyJust;
-    use tempfile::TempDir;
-
-    use super::*;
-
-    /// Arbitrary instance of [`LedgerDB`].
-    ///
-    /// This is a db wrapper bound to its temporary path that will be deleted once the type is
-    /// dropped.
-    #[derive(Debug)]
-    pub struct ArbitraryLedgerDB {
-        /// The underlying RocksDB instance.
-        pub db: LedgerDB,
-        /// The temporary directory used to create the [`LedgerDB`].
-        pub path: TempDir,
-    }
-
-    /// A fallible, arbitrary instance of [`LedgerDB`].
-    ///
-    /// This type is suitable for operations that are expected to be infallible. The internal
-    /// implementation of the db requires I/O to create the temporary dir, making it fallible.
-    #[derive(Debug)]
-    pub struct FallibleArbitraryLedgerDB {
-        /// The result of the new db instance.
-        pub result: anyhow::Result<ArbitraryLedgerDB>,
-    }
-
-    impl Deref for ArbitraryLedgerDB {
-        type Target = LedgerDB;
-
-        fn deref(&self) -> &Self::Target {
-            &self.db
-        }
-    }
-
-    impl DerefMut for ArbitraryLedgerDB {
-        fn deref_mut(&mut self) -> &mut Self::Target {
-            &mut self.db
-        }
-    }
-
-    impl<'a> ::arbitrary::Arbitrary<'a> for ArbitraryLedgerDB {
-        fn arbitrary(_u: &mut ::arbitrary::Unstructured<'a>) -> ::arbitrary::Result<Self> {
-            let path = TempDir::new().map_err(|_| ::arbitrary::Error::NotEnoughData)?;
-            let db = LedgerDB::with_path(&path).map_err(|_| ::arbitrary::Error::IncorrectFormat)?;
-            Ok(Self { db, path })
-        }
-    }
-
-    impl proptest::arbitrary::Arbitrary for FallibleArbitraryLedgerDB {
-        type Parameters = ();
-        type Strategy = LazyJust<Self, fn() -> FallibleArbitraryLedgerDB>;
-
-        fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
-            fn gen() -> FallibleArbitraryLedgerDB {
-                FallibleArbitraryLedgerDB {
-                    result: TempDir::new()
-                        .map_err(|e| {
-                            anyhow::anyhow!(format!("failed to generate path for LedgerDB: {e}"))
-                        })
-                        .and_then(|path| {
-                            let db = LedgerDB::with_path(&path)?;
-                            Ok(ArbitraryLedgerDB { db, path })
-                        }),
-                }
-            }
-            LazyJust::new(gen)
-        }
-    }
-
-    impl<'a> ::arbitrary::Arbitrary<'a> for ItemNumbers {
-        fn arbitrary(u: &mut ::arbitrary::Unstructured<'a>) -> ::arbitrary::Result<Self> {
-            Ok(ItemNumbers {
-                slot_number: u.arbitrary()?,
-                batch_number: u.arbitrary()?,
-                tx_number: u.arbitrary()?,
-                event_number: u.arbitrary()?,
-            })
         }
     }
 }

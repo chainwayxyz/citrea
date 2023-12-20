@@ -5,7 +5,6 @@ pub mod cli;
 mod containers;
 pub mod default_context;
 pub mod default_signature;
-mod encode;
 pub mod hooks;
 mod pub_key_hex;
 
@@ -30,13 +29,13 @@ use std::collections::{HashMap, HashSet};
 
 #[cfg(feature = "native")]
 pub use clap;
-use serde::{Deserialize, Serialize};
 #[cfg(feature = "native")]
 pub use sov_modules_core::PrivateKey;
 pub use sov_modules_core::{
-    runtime, AccessoryWorkingSet, Address, AddressBech32, CallResponse, Context, DispatchCall,
-    EncodeCall, GasUnit, Genesis, Module, ModuleCallJsonSchema, ModuleError, ModuleError as Error,
-    ModuleInfo, ModulePrefix, PublicKey, Signature, Spec, StateCheckpoint, WorkingSet,
+    archival_state, runtime, AccessoryWorkingSet, Address, AddressBech32, CallResponse, Context,
+    DispatchCall, EncodeCall, GasUnit, Genesis, Module, ModuleCallJsonSchema, ModuleError,
+    ModuleError as Error, ModuleInfo, ModulePrefix, PublicKey, Signature, Spec, StateCheckpoint,
+    StateReaderAndWriter, WorkingSet,
 };
 pub use sov_rollup_interface::da::{BlobReaderTrait, DaSpec};
 pub use sov_rollup_interface::services::da::SlotData;
@@ -59,13 +58,8 @@ pub mod da {
 }
 
 pub mod storage {
-    pub use sov_rollup_interface::storage::StorageManager;
+    pub use sov_rollup_interface::storage::HierarchicalStorageManager;
 }
-
-/// A type that can't be instantiated.
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "native", derive(schemars::JsonSchema))]
-pub enum NonInstantiable {}
 
 struct ModuleVisitor<'a, C: Context> {
     visited: HashSet<&'a <C as Spec>::Address>,
