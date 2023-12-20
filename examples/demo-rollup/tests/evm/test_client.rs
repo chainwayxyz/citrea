@@ -258,7 +258,7 @@ impl<T: TestContract> TestClient<T> {
         Ok(ethereum_types::U256::from(resp_array))
     }
 
-    pub(crate) async fn send_eth_to_self(
+    pub(crate) async fn send_eth(
         &self,
         to_addr: Address,
         max_priority_fee_per_gas: Option<u64>,

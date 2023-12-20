@@ -28,7 +28,7 @@ async fn bank_tx_tests() -> Result<(), anyhow::Error> {
             port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             RollupProverConfig::Execute,
-            NodeMode::FullNode,
+            NodeMode::SequencerNode,
         )
         .await;
     });
