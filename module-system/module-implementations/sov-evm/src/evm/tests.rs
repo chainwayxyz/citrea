@@ -14,7 +14,7 @@ use crate::evm::primitive_types::BlockEnv;
 use crate::evm::AccountInfo;
 use crate::smart_contracts::SimpleStorageContract;
 use crate::tests::test_signer::TestSigner;
-use crate::Evm;
+use crate::{Evm, DEFAULT_CHAIN_ID};
 type C = sov_modules_api::default_context::DefaultContext;
 
 #[test]
@@ -49,6 +49,7 @@ fn simple_contract_execution<DB: Database<Error = Infallible> + DatabaseCommit +
     // https://github.com/Sovereign-Labs/sovereign-sdk/issues/912
     let mut cfg_env = CfgEnv::default();
     cfg_env.spec_id = SpecId::SHANGHAI;
+    cfg_env.chain_id = DEFAULT_CHAIN_ID;
 
     let contract_address: B160 = {
         let tx = dev_signer

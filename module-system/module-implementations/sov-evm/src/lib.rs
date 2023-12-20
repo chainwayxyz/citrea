@@ -24,6 +24,10 @@ pub use smart_contracts::{
     BlockHashContract, LogsContract, SelfDestructorContract, SimpleStorageContract, TestContract,
 };
 
+/// Chain ID used inside tests and default implementations.
+/// Different chain ids can be given in the genesis config.
+pub const DEFAULT_CHAIN_ID: u64 = 1;
+
 #[cfg(test)]
 mod tests;
 

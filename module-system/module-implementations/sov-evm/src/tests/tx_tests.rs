@@ -12,6 +12,7 @@ use revm::primitives::{TransactTo, TxEnv};
 use crate::evm::prepare_call_env;
 use crate::evm::primitive_types::TransactionSignedAndRecovered;
 use crate::primitive_types::{Block, BlockEnv};
+use crate::DEFAULT_CHAIN_ID;
 
 #[tokio::test]
 async fn tx_rlp_encoding_test() -> Result<(), Box<dyn std::error::Error>> {
@@ -26,7 +27,7 @@ async fn tx_rlp_encoding_test() -> Result<(), Box<dyn std::error::Error>> {
 
     let tx_request = Eip1559TransactionRequest::new()
         .from(from_addr)
-        .chain_id(1u64)
+        .chain_id(DEFAULT_CHAIN_ID)
         .nonce(0u64)
         .max_priority_fee_per_gas(413047990155u64)
         .max_fee_per_gas(768658734568u64)

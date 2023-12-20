@@ -10,7 +10,7 @@ use sov_modules_api::WorkingSet;
 use crate::evm::db_init::InitEvmDb;
 use crate::evm::primitive_types::Block;
 use crate::evm::{AccountInfo, EvmChainConfig};
-use crate::Evm;
+use crate::{Evm, DEFAULT_CHAIN_ID};
 
 /// Evm account.
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, Eq, PartialEq)]
@@ -68,7 +68,7 @@ impl Default for EvmConfig {
     fn default() -> Self {
         Self {
             data: vec![],
-            chain_id: 1,
+            chain_id: DEFAULT_CHAIN_ID,
             limit_contract_code_size: None,
             spec: vec![(0, SpecId::SHANGHAI)].into_iter().collect(),
             coinbase: Address::zero(),

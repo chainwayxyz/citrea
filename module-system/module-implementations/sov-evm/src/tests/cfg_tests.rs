@@ -3,6 +3,7 @@ use revm::primitives::{CfgEnv, SpecId};
 use crate::call::{get_cfg_env, get_spec_id};
 use crate::evm::primitive_types::BlockEnv;
 use crate::evm::EvmChainConfig;
+use crate::DEFAULT_CHAIN_ID;
 
 #[test]
 fn cfg_test() {
@@ -24,7 +25,7 @@ fn cfg_test() {
     let cfg_env = get_cfg_env(&block_env, cfg, Some(template_cfg_env));
 
     let mut expected_cfg_env = CfgEnv::default();
-    expected_cfg_env.chain_id = 1;
+    expected_cfg_env.chain_id = DEFAULT_CHAIN_ID;
     expected_cfg_env.disable_base_fee = true;
     expected_cfg_env.spec_id = SpecId::SHANGHAI;
     expected_cfg_env.limit_contract_code_size = Some(100);

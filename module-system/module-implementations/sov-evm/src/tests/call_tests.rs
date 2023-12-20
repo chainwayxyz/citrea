@@ -12,6 +12,7 @@ use crate::tests::genesis_tests::get_evm;
 use crate::tests::test_signer::TestSigner;
 use crate::{
     AccountData, BlockHashContract, EvmConfig, Filter, FilterSet, LogsContract, RlpEvmTransaction,
+    DEFAULT_CHAIN_ID,
 };
 
 type C = DefaultContext;
@@ -807,7 +808,7 @@ fn test_block_hash_in_evm() {
             ),
         },
         nonce: Some(U64::from(0u64)),
-        chain_id: Some(U64::from(1u64)),
+        chain_id: Some(U64::from(DEFAULT_CHAIN_ID)),
         access_list: None,
         max_fee_per_blob_gas: None,
         blob_versioned_hashes: vec![],
