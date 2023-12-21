@@ -171,9 +171,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
                 // if hash is unknown, return None
                 if block_number.is_none() {
-                    return Err(
-                        EthApiError::UnknownBlockHash(block_hash.block_hash.to_string()).into(),
-                    );
+                    return Ok(None);
                 }
 
                 // if hash is known, but we don't have the block, fail
@@ -511,7 +509,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 let block = self.get_sealed_block_by_number(block_number, working_set);
 
                 if block.is_none() {
-                    return Err(EthApiError::UnknownSafeOrFinalizedBlock.into());
+                    return Err(EthApiError::UnknownBlockNumber.into());
                 }
 
                 BlockEnv::from(&block.unwrap())
@@ -567,7 +565,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 let block = self.get_sealed_block_by_number(block_number, working_set);
 
                 if block.is_none() {
-                    return Err(EthApiError::UnknownSafeOrFinalizedBlock.into());
+                    return Err(EthApiError::UnknownBlockNumber.into());
                 }
 
                 BlockEnv::from(&block.unwrap())
