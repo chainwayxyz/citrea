@@ -122,9 +122,7 @@ impl From<EthApiError> for ErrorObject<'static> {
             | EthApiError::InvalidBlockData(_)
             | EthApiError::Internal(_)
             | EthApiError::TransactionNotFound => internal_rpc_err(error.to_string()),
-            EthApiError::UnknownBlockNumber
-            | EthApiError::UnknownBlockOrTxIndex
-            | EthApiError::UnknownBlockHash(_) => {
+            EthApiError::UnknownBlockNumber | EthApiError::UnknownBlockOrTxIndex => {
                 rpc_error_with_code(EthRpcErrorCode::ResourceNotFound.code(), error.to_string())
             }
             EthApiError::UnknownSafeOrFinalizedBlock => {

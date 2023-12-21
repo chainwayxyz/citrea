@@ -81,7 +81,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         };
 
         self.get_block_by_number(
-            Some(BlockNumberOrTag::Number(block_number.unwrap())),
+            Some(BlockNumberOrTag::Number(block_number)),
             details,
             working_set,
         )
@@ -171,10 +171,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
                 // if hash is known, but we don't have the block, fail
                 self.blocks
-                    .get(
-                        block_number.unwrap() as usize,
-                        &mut working_set.accessory_state(),
-                    )
+                    .get(block_number as usize, &mut working_set.accessory_state())
                     .expect("Block must be set")
             }
             BlockId::Number(block_number) => {
@@ -405,10 +402,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         let block = self
             .blocks
-            .get(
-                block_number.unwrap() as usize,
-                &mut working_set.accessory_state(),
-            )
+            .get(block_number as usize, &mut working_set.accessory_state())
             .expect("Block must be set");
 
         // range is not inclusive, if we have the block but the transaction
@@ -494,13 +488,12 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 self.block_env.get(working_set).unwrap_or_default().clone()
             }
             _ => {
-                let block = self.get_sealed_block_by_number(block_number, working_set);
+                let block = match self.get_sealed_block_by_number(block_number, working_set) {
+                    Some(block) => block,
+                    None => return Err(EthApiError::UnknownBlockNumber.into()),
+                };
 
-                if block.is_none() {
-                    return Err(EthApiError::UnknownBlockNumber.into());
-                }
-
-                BlockEnv::from(&block.unwrap())
+                BlockEnv::from(&block)
             }
         };
 
@@ -555,7 +548,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     None => return Err(EthApiError::UnknownBlockNumber.into()),
                 };
 
-                BlockEnv::from(&block.unwrap())
+                BlockEnv::from(&block)
             }
         };
 
