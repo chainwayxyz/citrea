@@ -1,21 +1,21 @@
+use core::fmt::Debug as DebugTrait;
 use std::env;
 use std::str::FromStr;
 
 use anyhow::{anyhow, Context as _};
-use bitcoin_da::service::{BitcoinService, DaServiceConfig};
-use bitcoin_da::spec::RollupParams;
+use bitcoin_da::service::DaServiceConfig;
 use chainway_sequencer::ChainwaySequencer;
 use clap::Parser;
-use const_rollup_config::{ROLLUP_NAME, TEST_PRIVATE_KEY};
+use const_rollup_config::TEST_PRIVATE_KEY;
 use demo_stf::genesis_config::GenesisPaths;
-use sov_celestia_adapter::{CelestiaConfig, CelestiaService};
+use reth_primitives::hex;
+use sov_celestia_adapter::CelestiaConfig;
 use sov_demo_rollup::{BitcoinRollup, CelestiaDemoRollup, MockDemoRollup};
-use sov_mock_da::{MockDaConfig, MockDaService};
-use sov_modules_api::default_context::DefaultContext;
-use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
+use sov_mock_da::MockDaConfig;
+use sov_modules_api::Spec;
 use sov_modules_rollup_blueprint::{RollupAndStorage, RollupBlueprint};
+use sov_state::storage::NativeStorage;
 use sov_stf_runner::{from_toml_path, RollupConfig, RollupProverConfig};
-use tracing::log::debug;
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::{fmt, EnvFilter};
 
@@ -68,156 +68,88 @@ async fn main() -> Result<(), anyhow::Error> {
 
     match args.da_layer {
         SupportedDaLayer::Mock => {
-            let rollup_config: RollupConfig<MockDaConfig> = from_toml_path(rollup_config_path)
-                .context("Failed to read rollup configuration")?;
-
-            let RollupAndStorage { rollup, storage } = new_rollup_with_mock_da(
-                &GenesisPaths::from_dir("../test-data/genesis/demo-tests/mock"),
-                rollup_config.clone(),
+            start_rollup::<MockDemoRollup, MockDaConfig>(
+                rollup_config_path,
                 RollupProverConfig::Execute,
+                &GenesisPaths::from_dir("../test-data/genesis/demo-tests/mock"),
+                args.sequence,
             )
             .await?;
-            if args.sequence {
-                if rollup_config.sequencer.is_some() {
-                    return Err(anyhow!(
-                        "Sequencer client is not necessary for sequencer nodes."
-                    ));
-                }
-                let da_service = MockDaService::new(rollup_config.da.sender_address);
-                let mut seq: ChainwaySequencer<DefaultContext, MockDaService, _> =
-                    ChainwaySequencer::new(
-                        rollup,
-                        da_service,
-                        DefaultPrivateKey::from_hex(TEST_PRIVATE_KEY).unwrap(),
-                        storage,
-                    );
-                seq.start_rpc_server(None).await.unwrap();
-                seq.run().await?;
-            } else {
-                if rollup_config.sequencer.is_none() {
-                    return Err(anyhow!("Sequencer client is necessary for full nodes."));
-                }
-                rollup.run().await?;
-            }
         }
         SupportedDaLayer::Bitcoin => {
-            let rollup_config: RollupConfig<DaServiceConfig> =
-                from_toml_path(rollup_config_path)
-                    .context("Failed to read rollup configuration")?;
-
-            let RollupAndStorage { rollup, storage } = new_rollup_with_bitcoin_da(
-                &GenesisPaths::from_dir("../test-data/genesis/demo-tests"),
-                rollup_config.clone(),
+            start_rollup::<BitcoinRollup, DaServiceConfig>(
+                rollup_config_path,
                 RollupProverConfig::Execute,
+                &GenesisPaths::from_dir("../test-data/genesis/demo-tests/bitcoin"),
+                args.sequence,
             )
             .await?;
-            if args.sequence {
-                if rollup_config.sequencer.is_some() {
-                    return Err(anyhow!(
-                        "Sequencer client is not necessary for sequencer nodes."
-                    ));
-                }
-
-                let da_service = BitcoinService::new(
-                    rollup_config.da,
-                    RollupParams {
-                        rollup_name: ROLLUP_NAME.to_string(),
-                    },
-                )
-                .await;
-                let mut seq: ChainwaySequencer<DefaultContext, BitcoinService, BitcoinRollup> =
-                    ChainwaySequencer::new(
-                        rollup,
-                        da_service,
-                        DefaultPrivateKey::from_hex(TEST_PRIVATE_KEY).unwrap(),
-                        storage,
-                    );
-                seq.start_rpc_server(None).await.unwrap();
-                seq.run().await?;
-            } else {
-                if rollup_config.sequencer.is_none() {
-                    return Err(anyhow!("Sequencer client is necessary for full nodes."));
-                }
-                rollup.run().await?;
-            }
         }
         SupportedDaLayer::Celestia => {
-            let rollup_config: RollupConfig<CelestiaConfig> = from_toml_path(rollup_config_path)
-                .context("Failed to read rollup configuration")?;
-
-            let RollupAndStorage { rollup, storage } = new_rollup_with_celestia_da(
-                &GenesisPaths::from_dir("../test-data/genesis/demo-tests/celestia"),
-                rollup_config.clone(),
+            start_rollup::<CelestiaDemoRollup, CelestiaConfig>(
+                rollup_config_path,
                 RollupProverConfig::Execute,
+                &GenesisPaths::from_dir("../test-data/genesis/demo-tests/celestia"),
+                args.sequence,
             )
             .await?;
-            if args.sequence {
-                if rollup_config.sequencer.is_some() {
-                    return Err(anyhow!(
-                        "Sequencer client is not necessary for sequencer nodes."
-                    ));
-                }
-                let celestia_rollup = CelestiaDemoRollup {};
-                let da_service = celestia_rollup.create_da_service(&rollup_config).await;
-                let mut seq: ChainwaySequencer<
-                    DefaultContext,
-                    CelestiaService,
-                    CelestiaDemoRollup,
-                > = ChainwaySequencer::new(
-                    rollup,
-                    da_service,
-                    DefaultPrivateKey::from_hex(TEST_PRIVATE_KEY).unwrap(),
-                    storage,
-                );
-                seq.start_rpc_server(None).await.unwrap();
-                seq.run().await?;
-            } else {
-                if rollup_config.sequencer.is_none() {
-                    return Err(anyhow!("Sequencer client is necessary for full nodes."));
-                }
-                rollup.run().await?;
-            }
         }
     }
 
     Ok(())
 }
 
-async fn new_rollup_with_bitcoin_da(
-    genesis_paths: &GenesisPaths,
-    rollup_config: RollupConfig<DaServiceConfig>,
+async fn start_rollup<S, DaC>(
+    rollup_config_path: &str,
     prover_config: RollupProverConfig,
-) -> Result<RollupAndStorage<BitcoinRollup>, anyhow::Error> {
-    debug!("Starting rollup with Bitcoin DA");
+    genesis_paths: &<<S as RollupBlueprint>::NativeRuntime as sov_modules_stf_blueprint::Runtime<
+        <S as RollupBlueprint>::NativeContext,
+        <S as RollupBlueprint>::DaSpec,
+    >>::GenesisPaths,
+    is_sequencer: bool,
+) -> Result<(), anyhow::Error>
+where
+    DaC: serde::de::DeserializeOwned + DebugTrait + Clone,
+    S: RollupBlueprint<DaConfig = DaC>,
+    <<S as RollupBlueprint>::NativeContext as Spec>::Storage: NativeStorage,
+{
+    let mut rollup_config: RollupConfig<DaC> = from_toml_path(rollup_config_path)
+        .context("Failed to read rollup configuration")
+        .unwrap();
+    let rollup_blueprint = S::new();
+    let da_service = rollup_blueprint.create_da_service(&rollup_config).await;
 
-    let mock_rollup = BitcoinRollup {};
-    mock_rollup
-        .create_new_rollup(genesis_paths, rollup_config, prover_config)
+    if is_sequencer {
+        rollup_config.sequencer_client = None;
+    }
+
+    let RollupAndStorage { rollup, storage } = rollup_blueprint
+        .create_new_rollup(genesis_paths, rollup_config.clone(), prover_config)
         .await
-}
+        .unwrap();
 
-async fn new_rollup_with_celestia_da(
-    genesis_paths: &GenesisPaths,
-    rollup_config: RollupConfig<CelestiaConfig>,
-    prover_config: RollupProverConfig,
-) -> Result<RollupAndStorage<CelestiaDemoRollup>, anyhow::Error> {
-    debug!("Starting rollup with Celestia DA");
+    if is_sequencer {
+        let mut seq: ChainwaySequencer<
+            <S as RollupBlueprint>::NativeContext,
+            <S as RollupBlueprint>::DaService,
+            S,
+        > = ChainwaySequencer::new(
+            rollup,
+            da_service,
+            <<<S as RollupBlueprint>::NativeContext as Spec>::PrivateKey as TryFrom<&[u8]>>::try_from(
+                hex::decode(TEST_PRIVATE_KEY).unwrap().as_slice(),
+            )
+            .unwrap(),
+            storage,
+        );
+        seq.start_rpc_server(None).await?;
+        seq.run().await?;
+    } else {
+        if rollup_config.sequencer_client.is_none() {
+            return Err(anyhow!("Must have sequencer client for full nodes!"));
+        }
+        rollup.run().await?;
+    }
 
-    let mock_rollup = CelestiaDemoRollup {};
-    mock_rollup
-        .create_new_rollup(genesis_paths, rollup_config, prover_config)
-        .await
-}
-
-async fn new_rollup_with_mock_da(
-    genesis_paths: &GenesisPaths,
-    rollup_config: RollupConfig<MockDaConfig>,
-    prover_config: RollupProverConfig,
-) -> Result<RollupAndStorage<MockDemoRollup>, anyhow::Error> {
-    debug!("Starting rollup with Mock DA");
-
-    let mock_rollup = MockDemoRollup {};
-    mock_rollup
-        .create_new_rollup(genesis_paths, rollup_config, prover_config)
-        .await
+    Ok(())
 }

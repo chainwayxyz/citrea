@@ -7,7 +7,6 @@ use std::borrow::BorrowMut;
 use std::marker::PhantomData;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use std::time::Duration;
 
 use borsh::ser::BorshSerialize;
 use demo_stf::runtime::Runtime;

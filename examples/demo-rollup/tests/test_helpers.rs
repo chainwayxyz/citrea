@@ -43,7 +43,7 @@ pub async fn start_rollup(
         da: MockDaConfig {
             sender_address: MockAddress::from([0; 32]),
         },
-        sequencer: match node_mode {
+        sequencer_client: match node_mode {
             NodeMode::FullNode(socket_addr) => Some(SequencerClientRpcConfig {
                 start_height: 1,
                 url: format!("http://localhost:{}", socket_addr.port()),
