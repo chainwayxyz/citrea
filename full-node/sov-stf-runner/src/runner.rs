@@ -108,7 +108,11 @@ where
         // Start the main rollup loop
         let item_numbers = ledger_db.get_next_items_numbers();
         let last_slot_processed_before_shutdown = item_numbers.slot_number - 1;
-        let start_height = runner_config.start_height + last_slot_processed_before_shutdown;
+
+        let start_height = match &sequencer_client {
+            Some(client) => client.start_height + last_slot_processed_before_shutdown,
+            None => last_slot_processed_before_shutdown,
+        };
 
         Ok(Self {
             start_height,
@@ -197,7 +201,7 @@ where
             None => return Err(anyhow::anyhow!("Sequencer Client is not initialized")),
         };
 
-        let mut height = self.start_height + 1;
+        let mut height = self.start_height;
         loop {
             let tx = client.get_sov_tx(height).await;
 
