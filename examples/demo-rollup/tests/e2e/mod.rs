@@ -163,20 +163,6 @@ async fn test_e2e_same_block_sync() -> Result<(), anyhow::Error> {
 
     let full_node_port = full_node_port_rx.await.unwrap();
 
-    setup_execute_blocks(seq_port, full_node_port)
-        .await
-        .unwrap();
-
-    seq_task.abort();
-    rollup_task.abort();
-
-    Ok(())
-}
-
-async fn setup_execute_blocks(
-    seq_port: SocketAddr,
-    full_node_port: SocketAddr,
-) -> Result<(), Box<dyn std::error::Error>> {
     let contract = SimpleStorageContract::default();
     let full_node_contract = SimpleStorageContract::default();
 
@@ -184,6 +170,9 @@ async fn setup_execute_blocks(
     let full_node_test_client = init_test_rollup(full_node_port, full_node_contract).await;
 
     let _ = execute_blocks(&seq_test_client, &full_node_test_client).await;
+
+    seq_task.abort();
+    rollup_task.abort();
 
     Ok(())
 }
@@ -249,8 +238,6 @@ async fn execute_blocks<T: TestContract>(
     let full_node_last_block = full_node_client
         .eth_get_block_by_number_with_detail(Some(BlockNumberOrTag::Latest))
         .await;
-
-    sleep(Duration::from_millis(1000)).await;
 
     assert_eq!(seq_last_block.number.unwrap().as_u64(), 504);
     assert_eq!(full_node_last_block.number.unwrap().as_u64(), 504);

@@ -35,7 +35,6 @@ impl SequencerClient {
             .await
             .context("Failed to make RPC request")?;
 
-        // TODO: Check here.
         Ok(res.body)
     }
 
