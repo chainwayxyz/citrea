@@ -31,12 +31,6 @@ impl Debug for MockHash {
     }
 }
 
-impl Debug for MockHash {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "0x{}", hex::encode(self.0))
-    }
-}
-
 impl AsRef<[u8]> for MockHash {
     fn as_ref(&self) -> &[u8] {
         &self.0
@@ -95,18 +89,6 @@ impl MockBlockHeader {
 impl Default for MockBlockHeader {
     fn default() -> Self {
         MockBlockHeader::from_height(0)
-    }
-}
-
-impl std::fmt::Display for MockBlockHeader {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "MockBlockHeader {{ height: {}, prev_hash: {}, next_hash: {} }}",
-            self.height,
-            hex::encode(self.prev_hash),
-            hex::encode(self.hash)
-        )
     }
 }
 

@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use borsh::BorshDeserialize;
+use borsh::{BorshDeserialize, BorshSerialize};
 use sov_modules_api::runtime::capabilities::Kernel;
 use sov_modules_api::{
     BasicAddress, BlobReaderTrait, Context, DaSpec, DispatchCall, StateCheckpoint,

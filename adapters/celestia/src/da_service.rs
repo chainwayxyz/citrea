@@ -137,38 +137,6 @@ impl futures::Stream for CelestiaBlockHeaderSubscription {
     }
 }
 
-/// A Wrapper around [`Subscription`] that converts [`ExtendedHeader`] to [`CelestiaHeader`]
-/// and converts [`Error`] to [`BoxError`]
-#[pin_project]
-pub struct CelestiaBlockHeaderSubscription {
-    #[pin]
-    inner: Subscription<ExtendedHeader>,
-}
-
-impl CelestiaBlockHeaderSubscription {
-    /// Create a new [`CelestiaBlockHeaderSubscription`] from [`Subscription`]
-    pub fn new(inner: Subscription<ExtendedHeader>) -> Self {
-        Self { inner }
-    }
-}
-
-impl futures::Stream for CelestiaBlockHeaderSubscription {
-    type Item = Result<CelestiaHeader, BoxError>;
-
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let this = self.project();
-        let poll_result = this.inner.poll_next(cx);
-        Poll::Ready(match poll_result {
-            Poll::Ready(Some(Ok(extended_header))) => {
-                Some(Ok(CelestiaHeader::from(extended_header)))
-            }
-            Poll::Ready(Some(Err(e))) => Some(Err(e.into())),
-            Poll::Ready(None) => None,
-            Poll::Pending => return Poll::Pending,
-        })
-    }
-}
-
 #[async_trait]
 impl DaService for CelestiaService {
     type Spec = CelestiaSpec;
