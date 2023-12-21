@@ -71,14 +71,14 @@ impl<C: sov_modules_api::Context> Evm<C> {
     ) -> RpcResult<Option<reth_rpc_types::RichBlock>> {
         info!("evm module: eth_getBlockByHash");
 
-        let block_number = self
-            .block_hashes
-            .get(&block_hash, &mut working_set.accessory_state());
-
         // if block hash is not known, return None
-        if block_number.is_none() {
-            return Ok(None);
-        }
+        let block_number = match self
+            .block_hashes
+            .get(&block_hash, &mut working_set.accessory_state())
+        {
+            Some(block_number) => block_number,
+            None => return Ok(None),
+        };
 
         self.get_block_by_number(
             Some(BlockNumberOrTag::Number(block_number.unwrap())),
@@ -97,14 +97,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
     ) -> RpcResult<Option<reth_rpc_types::RichBlock>> {
         info!("evm module: eth_getBlockByNumber");
 
-        let block = self.get_sealed_block_by_number(block_number, working_set);
-
-        // if we don't have the block, return None
-        if block.is_none() {
-            return Ok(None);
-        }
-
-        let block = block.unwrap();
+        let block = match self.get_sealed_block_by_number(block_number, working_set) {
+            Some(block) => block,
+            None => return Ok(None), // if block doesn't exist return null
+        };
 
         // Build rpc header response
         let header = reth_rpc_types::Header::from_primitive_with_hash(block.header.clone());
@@ -165,14 +161,13 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         let block = match block_number_or_hash {
             BlockId::Hash(block_hash) => {
-                let block_number = self
+                let block_number = match self
                     .block_hashes
-                    .get(&block_hash.block_hash, &mut working_set.accessory_state());
-
-                // if hash is unknown, return None
-                if block_number.is_none() {
-                    return Ok(None);
-                }
+                    .get(&block_hash.block_hash, &mut working_set.accessory_state())
+                {
+                    Some(block_number) => block_number,
+                    None => return Ok(None), // if hash is unknown, return None
+                };
 
                 // if hash is known, but we don't have the block, fail
                 self.blocks
@@ -183,13 +178,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     .expect("Block must be set")
             }
             BlockId::Number(block_number) => {
-                let block = self.get_sealed_block_by_number(Some(block_number.into()), working_set);
-
-                if block.is_none() {
-                    return Ok(None);
+                match self.get_sealed_block_by_number(Some(block_number.into()), working_set) {
+                    Some(block) => block,
+                    None => return Ok(None), // if block doesn't exist return null
                 }
-
-                block.unwrap()
             }
         };
 
@@ -356,13 +348,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         let mut accessory_state = working_set.accessory_state();
 
-        let block_number = self.block_hashes.get(&block_hash, &mut accessory_state);
-
-        if block_number.is_none() {
-            return Ok(None);
-        }
-
-        let block_number = block_number.unwrap();
+        let block_number = match self.block_hashes.get(&block_hash, &mut accessory_state) {
+            Some(block_number) => block_number,
+            None => return Ok(None),
+        };
 
         let block = self
             .blocks
@@ -409,11 +398,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
     ) -> RpcResult<Option<reth_rpc_types::Transaction>> {
         info!("evm module: eth_getTransactionByBlockNumberAndIndex");
 
-        let block_number = self.block_number_for_id(&block_number, working_set);
-
-        if block_number.is_none() {
-            return Ok(None);
-        }
+        let block_number = match self.block_number_for_id(&block_number, working_set) {
+            Some(block_number) => block_number,
+            None => return Ok(None),
+        };
 
         let block = self
             .blocks
@@ -562,11 +550,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 self.block_env.get(working_set).unwrap_or_default().clone()
             }
             _ => {
-                let block = self.get_sealed_block_by_number(block_number, working_set);
-
-                if block.is_none() {
-                    return Err(EthApiError::UnknownBlockNumber.into());
-                }
+                let block = match self.get_sealed_block_by_number(block_number, working_set) {
+                    Some(block) => block,
+                    None => return Err(EthApiError::UnknownBlockNumber.into()),
+                };
 
                 BlockEnv::from(&block.unwrap())
             }
@@ -757,22 +744,22 @@ impl<C: sov_modules_api::Context> Evm<C> {
     ) -> Result<Vec<LogResponse>, FilterError> {
         match filter.block_option {
             FilterBlockOption::AtBlockHash(block_hash) => {
-                let block_number = self
+                let block_number = match self
                     .block_hashes
-                    .get(&block_hash, &mut working_set.accessory_state());
-                if block_number.is_none() {
-                    return Err(FilterError::EthAPIError(
-                        ProviderError::BlockHashNotFound(block_hash).into(),
-                    ));
-                }
+                    .get(&block_hash, &mut working_set.accessory_state())
+                {
+                    Some(block_number) => block_number,
+                    None => {
+                        return Err(FilterError::EthAPIError(
+                            ProviderError::BlockHashNotFound(block_hash).into(),
+                        ))
+                    }
+                };
 
                 // if we know the hash, but can't find the block, fail
                 let block = self
                     .blocks
-                    .get(
-                        block_number.unwrap() as usize,
-                        &mut working_set.accessory_state(),
-                    )
+                    .get(block_number as usize, &mut working_set.accessory_state())
                     .expect("Block must be set");
 
                 // all of the logs we have in the block
@@ -845,17 +832,19 @@ impl<C: sov_modules_api::Context> Evm<C> {
             BlockRangeInclusiveIter::new(from_block_number..=to_block_number, max_headers_range)
         {
             for idx in from..=to {
-                let block = self.blocks.get(
+                let block = match self.blocks.get(
                     // Index from +1 or just from?
                     (idx) as usize,
                     &mut working_set.accessory_state(),
-                );
-                if block.is_none() {
-                    return Err(FilterError::EthAPIError(
-                        ProviderError::BlockBodyIndicesNotFound(idx).into(),
-                    ));
-                }
-                let block = block.unwrap();
+                ) {
+                    Some(block) => block,
+                    None => {
+                        return Err(FilterError::EthAPIError(
+                            ProviderError::BlockBodyIndicesNotFound(idx).into(),
+                        ))
+                    }
+                };
+
                 let logs_bloom = block.header.logs_bloom;
 
                 let alloy_logs_bloom = alloy_primitives::Bloom::from(logs_bloom.data());
