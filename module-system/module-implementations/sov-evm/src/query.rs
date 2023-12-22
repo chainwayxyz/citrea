@@ -1,5 +1,5 @@
 use std::array::TryFromSliceError;
-use std::ops::RangeInclusive;
+use std::ops::{Range, RangeInclusive};
 
 use ethereum_types::U64;
 use jsonrpsee::core::RpcResult;
@@ -355,11 +355,9 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .get(block_number as usize, &mut accessory_state)
             .expect("Block must be set");
 
-        // range is not inclusive, if we have the block but the transaction
-        // index is out of range, return None
-        let range_len = block.transactions.end - block.transactions.start;
-        if index.as_u64() >= range_len {
-            return Ok(None);
+        match check_tx_range(&block.transactions, index) {
+            Some(_) => (),
+            None => return Ok(None),
         }
 
         let tx_number = block.transactions.start + index.as_u64();
@@ -405,11 +403,9 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .get(block_number as usize, &mut working_set.accessory_state())
             .expect("Block must be set");
 
-        // range is not inclusive, if we have the block but the transaction
-        // index is out of range, return None
-        let range_len = block.transactions.end - block.transactions.start;
-        if index.as_u64() >= range_len {
-            return Ok(None);
+        match check_tx_range(&block.transactions, index) {
+            Some(_) => (),
+            None => return Ok(None),
         }
 
         let tx_number = block.transactions.start + index.as_u64();
@@ -1156,6 +1152,17 @@ pub(crate) fn build_rpc_receipt(
                 removed: false,
             })
             .collect(),
+    }
+}
+
+// range is not inclusive, if we have the block but the transaction
+// index is out of range, return None
+fn check_tx_range(transactions_range: &Range<u64>, index: U64) -> Option<()> {
+    let range_len = transactions_range.end - transactions_range.start;
+    if index.as_u64() >= range_len {
+        None
+    } else {
+        Some(())
     }
 }
 
