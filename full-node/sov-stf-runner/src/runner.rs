@@ -107,12 +107,9 @@ where
 
         // Start the main rollup loop
         let item_numbers = ledger_db.get_next_items_numbers();
-        let last_slot_processed_before_shutdown = item_numbers.slot_number - 1;
+        let last_slot_processed_before_shutdown = item_numbers.slot_number;
 
-        let start_height = match &sequencer_client {
-            Some(client) => client.start_height + last_slot_processed_before_shutdown,
-            None => last_slot_processed_before_shutdown,
-        };
+        let start_height = last_slot_processed_before_shutdown;
 
         Ok(Self {
             start_height,
