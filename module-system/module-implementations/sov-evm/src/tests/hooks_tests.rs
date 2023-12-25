@@ -12,6 +12,7 @@ use crate::evm::primitive_types::{
     Block, BlockEnv, Receipt, SealedBlock, TransactionSignedAndRecovered,
 };
 use crate::tests::genesis_tests::{BENEFICIARY, GENESIS_HASH, GENESIS_STATE_ROOT};
+use crate::tests::DEFAULT_CHAIN_ID;
 use crate::PendingTransaction;
 
 lazy_static! {
@@ -153,7 +154,7 @@ fn create_pending_transaction(hash: H256, index: u64) -> PendingTransaction {
                 hash,
                 signature: Signature::default(),
                 transaction: reth_primitives::Transaction::Eip1559(reth_primitives::TxEip1559 {
-                    chain_id: 1u64,
+                    chain_id: DEFAULT_CHAIN_ID,
                     nonce: 1u64,
                     gas_limit: 1000u64,
                     max_fee_per_gas: 2000u64 as u128,

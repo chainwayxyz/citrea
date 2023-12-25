@@ -10,6 +10,7 @@ use crate::evm::primitive_types::Receipt;
 use crate::smart_contracts::{SelfDestructorContract, SimpleStorageContract, TestContract};
 use crate::tests::genesis_tests::get_evm;
 use crate::tests::test_signer::TestSigner;
+use crate::tests::DEFAULT_CHAIN_ID;
 use crate::{
     AccountData, BlockHashContract, EvmConfig, Filter, FilterSet, LogsContract, RlpEvmTransaction,
 };
@@ -807,7 +808,7 @@ fn test_block_hash_in_evm() {
             ),
         },
         nonce: Some(U64::from(0u64)),
-        chain_id: Some(U64::from(1u64)),
+        chain_id: Some(U64::from(DEFAULT_CHAIN_ID)),
         access_list: None,
         max_fee_per_blob_gas: None,
         blob_versioned_hashes: vec![],

@@ -496,7 +496,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         let tx_env = prepare_call_env(&block_env, request.clone()).unwrap();
 
-        let cfg = self.cfg.get(working_set).unwrap_or_default();
+        let cfg = self
+            .cfg
+            .get(working_set)
+            .expect("EVM chain config should be set");
         let cfg_env = get_cfg_env(&block_env, cfg, Some(get_cfg_env_template()));
 
         let evm_db: EvmDb<'_, C> = self.get_db(working_set);
@@ -551,7 +554,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         let tx_env = prepare_call_env(&block_env, request.clone()).unwrap();
 
-        let cfg = self.cfg.get(working_set).unwrap_or_default();
+        let cfg = self
+            .cfg
+            .get(working_set)
+            .expect("EVM chain config should be set");
         let cfg_env = get_cfg_env(&block_env, cfg, Some(get_cfg_env_template()));
 
         let request_gas = request.gas;
@@ -914,7 +920,9 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
     /// Helper function to get chain config
     pub fn get_chain_config(&self, working_set: &mut WorkingSet<C>) -> EvmChainConfig {
-        self.cfg.get(working_set).unwrap_or_default()
+        self.cfg
+            .get(working_set)
+            .expect("EVM chain config should be set")
     }
 
     /// Helper function to get block hash from block number

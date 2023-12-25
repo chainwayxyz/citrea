@@ -10,6 +10,8 @@ use sov_modules_api::WorkingSet;
 use crate::evm::db_init::InitEvmDb;
 use crate::evm::primitive_types::Block;
 use crate::evm::{AccountInfo, EvmChainConfig};
+#[cfg(test)]
+use crate::tests::DEFAULT_CHAIN_ID;
 use crate::Evm;
 
 /// Evm account.
@@ -64,11 +66,12 @@ pub struct EvmConfig {
     pub base_fee_params: reth_primitives::BaseFeeParams,
 }
 
+#[cfg(test)]
 impl Default for EvmConfig {
     fn default() -> Self {
         Self {
             data: vec![],
-            chain_id: 1,
+            chain_id: DEFAULT_CHAIN_ID,
             limit_contract_code_size: None,
             spec: vec![(0, SpecId::SHANGHAI)].into_iter().collect(),
             coinbase: Address::zero(),
