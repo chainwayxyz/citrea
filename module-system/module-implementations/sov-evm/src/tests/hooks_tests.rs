@@ -11,8 +11,8 @@ use super::genesis_tests::{get_evm, TEST_CONFIG};
 use crate::evm::primitive_types::{
     Block, BlockEnv, Receipt, SealedBlock, TransactionSignedAndRecovered,
 };
-use crate::experimental::PendingTransaction;
 use crate::tests::genesis_tests::{BENEFICIARY, GENESIS_HASH, GENESIS_STATE_ROOT};
+use crate::PendingTransaction;
 
 lazy_static! {
     pub(crate) static ref DA_ROOT_HASH: H256 = H256::from([5u8; 32]);
@@ -40,7 +40,7 @@ fn begin_slot_hook_creates_pending_block() {
 fn end_slot_hook_sets_head() {
     let (evm, mut working_set) = get_evm(&TEST_CONFIG);
     let mut pre_state_root = [0u8; 32];
-    pre_state_root.copy_from_slice(&GENESIS_STATE_ROOT.as_bytes());
+    pre_state_root.copy_from_slice(GENESIS_STATE_ROOT.as_bytes());
 
     evm.begin_slot_hook(DA_ROOT_HASH.0, &pre_state_root.into(), &mut working_set);
 
@@ -184,7 +184,7 @@ fn create_pending_transaction(hash: H256, index: u64) -> PendingTransaction {
 fn finalize_hook_creates_final_block() {
     let (evm, mut working_set) = get_evm(&TEST_CONFIG);
     let mut pre_state_root = [0u8; 32];
-    pre_state_root.copy_from_slice(&GENESIS_STATE_ROOT.as_bytes());
+    pre_state_root.copy_from_slice(GENESIS_STATE_ROOT.as_bytes());
 
     evm.begin_slot_hook(DA_ROOT_HASH.0, &pre_state_root.into(), &mut working_set);
     evm.pending_transactions.push(

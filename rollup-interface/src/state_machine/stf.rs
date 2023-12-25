@@ -3,6 +3,8 @@
 //!
 //! The most important trait in this module is the [`StateTransitionFunction`], which defines the
 //! main event loop of the rollup.
+use core::fmt::Debug;
+
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -98,7 +100,7 @@ pub struct SlotResult<S, Cs, B, T, W> {
 ///  - blob: Non serialised batch or anything else that can be posted on DA layer, like attestation or proof.
 pub trait StateTransitionFunction<Vm: Zkvm, Da: DaSpec> {
     /// Root hash of state merkle tree
-    type StateRoot: Serialize + DeserializeOwned + Clone + AsRef<[u8]>;
+    type StateRoot: Serialize + DeserializeOwned + Clone + AsRef<[u8]> + Debug;
 
     /// The initial params of the rollup.
     type GenesisParams;

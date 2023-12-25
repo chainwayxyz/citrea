@@ -261,7 +261,7 @@ impl FeeHistoryEntry {
         let gas_used_ratio = gas_used as f64 / gas_limit as f64;
 
         FeeHistoryEntry {
-            base_fee_per_gas: base_fee_per_gas,
+            base_fee_per_gas,
             gas_used_ratio,
             gas_used,
             header_hash: block.header.hash.unwrap_or_default().into(),

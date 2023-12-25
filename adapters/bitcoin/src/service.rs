@@ -191,7 +191,7 @@ impl BitcoinService {
 
         info!("Blob inscribe tx sent. Hash: {}", reveal_tx_hash);
 
-        Ok(Txid::from_str(&reveal_tx_hash.as_str())
+        Ok(Txid::from_str(reveal_tx_hash.as_str())
             .expect("Failed to parse txid from reveal tx hash"))
     }
 
@@ -389,6 +389,28 @@ impl DaService for BitcoinService {
         let fee_sat_per_vbyte = self.get_fee_rate().await?;
         self.send_transaction_with_fee_rate(blob, fee_sat_per_vbyte)
             .await
+    }
+
+    fn convert_rollup_batch_to_da_blob(
+        &self,
+        blob: &[u8],
+    ) -> Result<
+        (
+            <Self::Spec as sov_rollup_interface::da::DaSpec>::BlobTransaction,
+            Vec<u8>,
+        ),
+        Self::Error,
+    > {
+        let (signature, pubkey) =
+            sign_blob_with_private_key(blob, &self.sequencer_da_private_key).unwrap();
+        Ok((
+            BlobWithSender::new(
+                blob.to_vec(),
+                pubkey,
+                sha256d::Hash::hash(blob).to_byte_array(),
+            ),
+            signature,
+        ))
     }
 }
 

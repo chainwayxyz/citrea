@@ -77,6 +77,7 @@ impl MockDaService {
             }
             time::sleep(Duration::from_millis(10)).await;
         }
+
         anyhow::bail!("No blob at height={height} has been sent in time")
     }
 }
@@ -122,10 +123,21 @@ impl DaService for MockDaService {
     /// It is possible to read non-finalized and last finalized blocks multiple times
     /// Finalized blocks must be read in order.
     async fn get_block_at(&self, height: u64) -> Result<Self::FilteredBlock, Self::Error> {
-        // Block until there's something
-        self.wait_for_height(height).await?;
+        // This modification was added because normally mock da creates blocks whena a transaction is sent
+        // however in the current rollup architecture l2 blocks are created before sending transactions to da layer
+        // this is because of the soft confirmation logic.
+        // Simply create the blocks that were asked, as if they are always available
+        if height > self.blocks.read().await.len() as u64 {
+            let blocks_to_publish = height - (self.blocks.read().await.len() as u64) + 1;
+
+            for _ in 0..blocks_to_publish {
+                self.send_transaction(&[1]).await?;
+            }
+        }
+
         // Locking blocks here, so submissions has to wait
-        let mut blocks = self.blocks.write().await;
+        let blocks = self.blocks.write().await;
+
         let oldest_available_height = blocks[0].header.height;
         let index = height
             .checked_sub(oldest_available_height)
@@ -150,7 +162,10 @@ impl DaService for MockDaService {
         // Maybe simply storing all blocks is fine, all only keep 100 last finalized.
         let last_finalized_height = self.last_finalized_height.load(Ordering::Acquire);
         if last_finalized_height > 0 && oldest_available_height < (last_finalized_height - 1) {
-            blocks.pop_front();
+            // another modification added is that we don't remove the block from the queue
+            // as we mock the block field of stf.apply_slot, we always need the block at the
+            // same height
+            // blocks.pop_front();
         }
 
         Ok(block)
@@ -264,6 +279,24 @@ impl DaService for MockDaService {
         }
 
         Ok(())
+    }
+    /// Convert Batch to a DA layer blob.
+    fn convert_rollup_batch_to_da_blob(
+        &self,
+        blob: &[u8],
+    ) -> Result<
+        (
+            <Self::Spec as sov_rollup_interface::da::DaSpec>::BlobTransaction,
+            Vec<u8>,
+        ),
+        Self::Error,
+    > {
+        let blob = MockBlob::new(
+            blob.to_vec(),
+            self.sequencer_da_address,
+            hash_to_array(blob),
+        );
+        Ok((blob, vec![]))
     }
 }
 

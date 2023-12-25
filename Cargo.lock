@@ -1489,6 +1489,33 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
+name = "chainway-sequencer"
+version = "0.3.0"
+dependencies = [
+ "anyhow",
+ "bitcoin-da",
+ "borsh",
+ "demo-stf",
+ "ethers",
+ "futures",
+ "jsonrpsee 0.20.3",
+ "reth-primitives",
+ "reth-rpc-types",
+ "schnellru",
+ "serde",
+ "serde_json",
+ "sov-accounts",
+ "sov-evm",
+ "sov-modules-api",
+ "sov-modules-rollup-blueprint",
+ "sov-modules-stf-blueprint",
+ "sov-rollup-interface",
+ "sov-stf-runner",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "chrono"
 version = "0.4.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8170,6 +8197,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cd0b0ec5f1c1ca621c432a25813d8d60c88abe6d3e08a3eb9cf37d97a0fe3d73"
 
 [[package]]
+name = "sequencer-client"
+version = "0.3.0"
+dependencies = [
+ "anyhow",
+ "ethers",
+ "jsonrpsee 0.20.3",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "serde"
 version = "1.0.192"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8805,7 +8845,9 @@ dependencies = [
  "anyhow",
  "async-trait",
  "bincode",
+ "bitcoin-da",
  "borsh",
+ "chainway-sequencer",
  "clap 4.4.10",
  "const-rollup-config",
  "criterion",
@@ -8830,6 +8872,7 @@ dependencies = [
  "revm",
  "risc0",
  "secp256k1 0.27.0",
+ "sequencer-client",
  "serde",
  "serde_json",
  "sha2 0.10.8",
@@ -8871,12 +8914,14 @@ dependencies = [
  "reth-primitives",
  "reth-rpc-types",
  "schnellru",
+ "sequencer-client",
  "serde",
  "serde_json",
  "sov-accounts",
  "sov-evm",
  "sov-modules-api",
  "sov-rollup-interface",
+ "sov-stf-runner",
  "tokio",
  "tracing",
 ]
@@ -9079,6 +9124,7 @@ dependencies = [
  "async-trait",
  "borsh",
  "jsonrpsee 0.20.3",
+ "sequencer-client",
  "serde",
  "serde_json",
  "sov-cli",
@@ -9324,6 +9370,7 @@ dependencies = [
  "jsonrpsee 0.20.3",
  "num_cpus",
  "rayon",
+ "sequencer-client",
  "serde",
  "serde_json",
  "sov-accounts",

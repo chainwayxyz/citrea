@@ -1,9 +1,11 @@
 use std::net::SocketAddr;
-use std::time::Duration;
 
+use borsh::BorshSerialize;
 use jsonrpsee::RpcModule;
+use sequencer_client::SequencerClient;
 use sov_db::ledger_db::{LedgerDB, SlotCommit};
-use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaSpec};
+use sov_modules_stf_blueprint::{Batch, RawTx};
+use sov_rollup_interface::da::{BlobReaderTrait, DaSpec};
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::StorageManager;
@@ -12,7 +14,7 @@ use tokio::sync::oneshot;
 use tracing::{debug, info};
 
 use crate::verifier::StateTransitionVerifier;
-use crate::{ProofSubmissionStatus, ProverService, RunnerConfig, StateTransitionData};
+use crate::{ProverService, RunnerConfig};
 type StateRoot<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::StateRoot;
 type InitialState<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::GenesisParams;
 
@@ -33,6 +35,7 @@ where
     state_root: StateRoot<Stf, Vm, Da::Spec>,
     listen_address: SocketAddr,
     prover_service: Ps,
+    sequencer_client: Option<SequencerClient>,
 }
 
 /// Represents the possible modes of execution for a zkVM program
@@ -81,6 +84,7 @@ where
         prev_state_root: Option<StateRoot<Stf, Vm, Da::Spec>>,
         genesis_config: InitialState<Stf, Vm, Da::Spec>,
         prover_service: Ps,
+        sequencer_client: Option<SequencerClient>,
     ) -> Result<Self, anyhow::Error> {
         let rpc_config = runner_config.rpc_config;
 
@@ -115,6 +119,7 @@ where
             state_root: prev_state_root,
             listen_address,
             prover_service,
+            sequencer_client,
         })
     }
 
@@ -142,45 +147,90 @@ where
         });
     }
 
+    /// Processes sequence
+    /// gets a blob of txs as parameter
+    pub async fn process(&mut self, blob: &[u8]) -> Result<(), anyhow::Error> {
+        let pre_state = self.storage_manager.get_native_storage();
+        let filtered_block: <Da as DaService>::FilteredBlock =
+            // TODO: 4 is used to mock da related info, will be replaced
+            self.da_service.get_block_at(4u64).await?;
+        let (blob, _signature) = self
+            .da_service
+            .convert_rollup_batch_to_da_blob(blob)
+            .unwrap();
+
+        info!(
+            "sequencer={} blob_hash=0x{}",
+            blob.sender(),
+            hex::encode(blob.hash())
+        );
+
+        let slot_result = self.stf.apply_slot(
+            &self.state_root,
+            pre_state,
+            Default::default(),
+            filtered_block.header(),              // mock this
+            &filtered_block.validity_condition(), // mock this
+            &mut vec![blob],
+        );
+
+        info!(
+            "State root after applying slot: {:?}",
+            slot_result.state_root
+        );
+
+        let mut data_to_commit = SlotCommit::new(filtered_block.clone());
+        for receipt in slot_result.batch_receipts {
+            data_to_commit.add_batch(receipt);
+        }
+        let next_state_root = slot_result.state_root;
+        self.ledger_db.commit_slot(data_to_commit)?;
+        self.state_root = next_state_root;
+
+        Ok(())
+    }
+
     /// Runs the rollup.
     pub async fn run_in_process(&mut self) -> Result<(), anyhow::Error> {
-        for height in self.start_height.. {
-            debug!("Requesting data for height {}", height,);
+        let client = match &self.sequencer_client {
+            Some(client) => client,
+            None => return Err(anyhow::anyhow!("Sequencer Client is not initialized")),
+        };
 
-            loop {
-                match self.da_service.get_last_finalized_block_header().await {
-                    Ok(header) => {
-                        tracing::trace!("Last finalized height={}", header.height());
-                        if header.height() >= height {
-                            break;
-                        }
-                    }
-                    Err(err) => {
-                        tracing::info!("Error receiving last finalized block header: {:?}", err);
-                    }
-                }
+        let mut height = self.start_height + 1;
+        loop {
+            let tx = client.get_sov_tx(height).await;
 
-                tokio::time::sleep(Duration::from_millis(10)).await;
+            if tx.is_err() {
+                // TODO: Add logs here: https://github.com/chainwayxyz/secret-sovereign-sdk/issues/47
+                tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+                continue;
             }
-            // At this point we sure that the block request is finalized
 
-            // Assumes we are on chains with instant finality
-            let filtered_block = self.da_service.get_block_at(height).await?;
+            let batch = Batch {
+                txs: vec![RawTx { data: tx.unwrap() }],
+            };
 
-            let mut blobs = self.da_service.extract_relevant_blobs(&filtered_block);
+            let new_blobs = self
+                .da_service
+                .convert_rollup_batch_to_da_blob(&batch.try_to_vec().unwrap())
+                .unwrap();
+
+            // TODO: Change the block here from 2 to legit option.
+            let filtered_block = self.da_service.get_block_at(4).await?;
+
+            // 0 is the BlobTransaction
+            // 1 is the Signature
+            let tx_blob_with_sender: <<Da as DaService>::Spec as DaSpec>::BlobTransaction =
+                new_blobs.0;
+
+            let blob_hash = tx_blob_with_sender.hash();
 
             info!(
-                "Extracted {} relevant blobs at height {}: {:?}",
-                blobs.len(),
+                "Extracted blob-tx {} with length {} at height {}",
+                hex::encode(blob_hash),
+                tx_blob_with_sender.total_len(),
                 height,
-                blobs
-                    .iter()
-                    .map(|b| format!(
-                        "sequencer={} blob_hash=0x{}",
-                        b.sender(),
-                        hex::encode(b.hash())
-                    ))
-                    .collect::<Vec<_>>()
             );
 
             let mut data_to_commit = SlotCommit::new(filtered_block.clone());
@@ -192,63 +242,69 @@ where
                 Default::default(),
                 filtered_block.header(),
                 &filtered_block.validity_condition(),
-                &mut blobs,
+                &mut vec![tx_blob_with_sender],
             );
 
             for receipt in slot_result.batch_receipts {
                 data_to_commit.add_batch(receipt);
             }
 
-            let (inclusion_proof, completeness_proof) = self
-                .da_service
-                .get_extraction_proof(&filtered_block, &blobs)
-                .await;
+            // let (inclusion_proof, completeness_proof) = self
+            //     .da_service
+            //     .get_extraction_proof(&filtered_block, &blobs)
+            //     .await;
 
-            let transition_data: StateTransitionData<Stf::StateRoot, Stf::Witness, Da::Spec> =
-                StateTransitionData {
-                    pre_state_root: self.state_root.clone(),
-                    da_block_header: filtered_block.header().clone(),
-                    inclusion_proof,
-                    completeness_proof,
-                    blobs,
-                    state_transition_witness: slot_result.witness,
-                };
+            // let transition_data: StateTransitionData<Stf::StateRoot, Stf::Witness, Da::Spec> =
+            //     StateTransitionData {
+            //         pre_state_root: self.state_root.clone(),
+            //         da_block_header: filtered_block.header().clone(),
+            //         inclusion_proof,
+            //         completeness_proof,
+            //         blobs,
+            //         state_transition_witness: slot_result.witness,
+            //     };
 
-            // Create ZKP proof.
-            {
-                let header_hash = transition_data.da_block_header.hash();
-                self.prover_service.submit_witness(transition_data).await;
-                // TODO(#1185): This section will be moved and called upon block finalization once we have fork management ready.
-                self.prover_service
-                    .prove(header_hash.clone())
-                    .await
-                    .expect("The proof creation should succeed");
+            // // Create ZKP proof.
+            // {
+            //     let header_hash = transition_data.da_block_header.hash();
+            //     self.prover_service.submit_witness(transition_data).await;
+            //     // TODO(#1185): This section will be moved and called upon block finalization once we have fork management ready.
+            //     self.prover_service
+            //         .prove(header_hash.clone())
+            //         .await
+            //         .expect("The proof creation should succeed");
 
-                loop {
-                    let status = self
-                        .prover_service
-                        .send_proof_to_da(header_hash.clone())
-                        .await;
+            //     loop {
+            //         let status = self
+            //             .prover_service
+            //             .send_proof_to_da(header_hash.clone())
+            //             .await;
 
-                    match status {
-                        Ok(ProofSubmissionStatus::Success) => {
-                            break;
-                        }
-                        // TODO(#1185): Add timeout handling.
-                        Ok(ProofSubmissionStatus::ProofGenerationInProgress) => {
-                            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await
-                        }
-                        // TODO(#1185): Add handling for DA submission errors.
-                        Err(e) => panic!("{:?}", e),
-                    }
-                }
-            }
+            //         match status {
+            //             Ok(ProofSubmissionStatus::Success) => {
+            //                 break;
+            //             }
+            //             // TODO(#1185): Add timeout handling.
+            //             Ok(ProofSubmissionStatus::ProofGenerationInProgress) => {
+            //                 tokio::time::sleep(tokio::time::Duration::from_millis(100)).await
+            //             }
+            //             // TODO(#1185): Add handling for DA submission errors.
+            //             Err(e) => panic!("{:?}", e),
+            //         }
+            //     }
+            // }
+
             let next_state_root = slot_result.state_root;
 
             self.ledger_db.commit_slot(data_to_commit)?;
             self.state_root = next_state_root;
-        }
 
-        Ok(())
+            info!(
+                "New State Root after blob {:?} is: {:?}",
+                hex::encode(blob_hash),
+                self.state_root
+            );
+            height += 1;
+        }
     }
 }

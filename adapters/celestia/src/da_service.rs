@@ -258,6 +258,19 @@ impl DaService for CelestiaService {
         );
         Ok(())
     }
+
+    fn convert_rollup_batch_to_da_blob(
+        &self,
+        _blob: &[u8],
+    ) -> Result<
+        (
+            <Self::Spec as sov_rollup_interface::da::DaSpec>::BlobTransaction,
+            Vec<u8>,
+        ),
+        Self::Error,
+    > {
+        unimplemented!();
+    }
 }
 
 // https://docs.celestia.org/learn/submit-data/#fees-and-gas-limits

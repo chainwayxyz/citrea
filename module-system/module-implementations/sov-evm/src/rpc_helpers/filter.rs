@@ -380,11 +380,11 @@ impl Filter {
                 if &hash == block_hash {
                     return true;
                 }
-                return false;
+                false
             }
             FilterBlockOption::Range { .. } => {
                 /*filter block range*/
-                return true;
+                true
             }
         }
     }
@@ -640,8 +640,8 @@ pub(crate) fn log_matches_filter(
 ) -> bool {
     if !filter.filter_block_range(block_number)
         || !filter.filter_block_hash(block_hash)
-        || !filter.filter_topics(&log, topics)
-        || !filter.filter_address(&log, &filter.address)
+        || !filter.filter_topics(log, topics)
+        || !filter.filter_address(log, &filter.address)
     {
         return false;
     }

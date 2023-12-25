@@ -7,6 +7,7 @@ use std::net::SocketAddr;
 
 use async_trait::async_trait;
 pub use runtime_rpc::*;
+use sequencer_client::SequencerClient;
 use sov_db::ledger_db::LedgerDB;
 use sov_modules_api::runtime::capabilities::Kernel;
 use sov_modules_api::{Context, DaSpec, Spec};
@@ -61,12 +62,16 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         DaService = Self::DaService,
     >;
 
+    /// Creates a new instance of the blueprint.
+    fn new() -> Self;
+
     /// Creates RPC methods for the rollup.
     fn create_rpc_methods(
         &self,
         storage: &<Self::NativeContext as Spec>::Storage,
         ledger_db: &LedgerDB,
         da_service: &Self::DaService,
+        sequencer_client: Option<SequencerClient>,
     ) -> Result<jsonrpsee::RpcModule<()>, anyhow::Error>;
 
     /// Creates GenesisConfig from genesis files.
@@ -113,7 +118,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         genesis_paths: &<Self::NativeRuntime as RuntimeTrait<Self::NativeContext, Self::DaSpec>>::GenesisPaths,
         rollup_config: RollupConfig<Self::DaConfig>,
         prover_config: RollupProverConfig,
-    ) -> Result<Rollup<Self>, anyhow::Error>
+    ) -> Result<RollupAndStorage<Self>, anyhow::Error>
     where
         <Self::NativeContext as Spec>::Storage: NativeStorage,
     {
@@ -131,7 +136,17 @@ pub trait RollupBlueprint: Sized + Send + Sync {
             .map(|(number, _)| native_storage.get_root_hash(number.0))
             .transpose()?;
 
-        let rpc_methods = self.create_rpc_methods(&native_storage, &ledger_db, &da_service)?;
+        // if node does not have a sequencer client, then it is a sequencer
+        let sequencer_client = rollup_config
+            .sequencer_client
+            .map(|s| SequencerClient::new(s.start_height, s.url));
+
+        let rpc_methods = self.create_rpc_methods(
+            &native_storage,
+            &ledger_db,
+            &da_service,
+            sequencer_client.clone(),
+        )?;
 
         let native_stf = StfBlueprint::new();
 
@@ -144,11 +159,15 @@ pub trait RollupBlueprint: Sized + Send + Sync {
             prev_root,
             genesis_config,
             prover_service,
+            sequencer_client,
         )?;
 
-        Ok(Rollup {
-            runner,
-            rpc_methods,
+        Ok(RollupAndStorage {
+            rollup: Rollup {
+                runner,
+                rpc_methods,
+            },
+            storage: native_storage,
         })
     }
 }
@@ -174,6 +193,12 @@ impl<S: RollupBlueprint> Rollup<S> {
         self.run_and_report_rpc_port(None).await
     }
 
+    /// Only run the rpc.
+    pub async fn run_rpc(self) -> Result<(), anyhow::Error> {
+        self.runner.start_rpc_server(self.rpc_methods, None).await;
+        Ok(())
+    }
+
     /// Runs the rollup. Reports rpc port to the caller using the provided channel.
     pub async fn run_and_report_rpc_port(
         self,
@@ -184,4 +209,13 @@ impl<S: RollupBlueprint> Rollup<S> {
         runner.run_in_process().await?;
         Ok(())
     }
+}
+
+/// Rollup and its storage.
+/// Used for better return type.
+pub struct RollupAndStorage<S: RollupBlueprint> {
+    /// Rollup derived from rollup blueprint
+    pub rollup: Rollup<S>,
+    /// Storage of the rollup
+    pub storage: <<S as RollupBlueprint>::NativeContext as Spec>::Storage,
 }

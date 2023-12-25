@@ -22,9 +22,11 @@ use crate::error::rpc::{ensure_success, EthApiError, RevertError, RpcInvalidTran
 use crate::evm::db::EvmDb;
 use crate::evm::primitive_types::{BlockEnv, Receipt, SealedBlock, TransactionSignedAndRecovered};
 use crate::evm::{executor, prepare_call_env};
-use crate::experimental::{MIN_CREATE_GAS, MIN_TRANSACTION_GAS};
 use crate::rpc_helpers::*;
-use crate::{BloomFilter, Evm, EvmChainConfig, FilterBlockOption, FilterError};
+use crate::{
+    BloomFilter, Evm, EvmChainConfig, FilterBlockOption, FilterError, MIN_CREATE_GAS,
+    MIN_TRANSACTION_GAS,
+};
 
 #[rpc_gen(client, server)]
 impl<C: sov_modules_api::Context> Evm<C> {
@@ -440,7 +442,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<Option<reth_rpc_types::TransactionReceipt>> {
         info!("evm module: eth_getTransactionReceipt");
-
         let mut accessory_state = working_set.accessory_state();
 
         let tx_number = self.transaction_hashes.get(&hash, &mut accessory_state);
@@ -839,11 +840,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 let logs_bloom = block.header.logs_bloom;
 
                 let alloy_logs_bloom = alloy_primitives::Bloom::from(logs_bloom.data());
-
                 if matches_address(alloy_logs_bloom, &address_filter)
                     && matches_topics(alloy_logs_bloom, &topics_filter)
                 {
-                    self.append_matching_block_logs(working_set, &mut all_logs, &filter, block);
+                    self.append_matching_block_logs(working_set, &mut all_logs, filter, block);
                     let max_logs_per_response = DEFAULT_MAX_LOGS_PER_RESPONSE;
                     // size check but only if range is multiple blocks, so we always return all
                     // logs of a single block
@@ -889,7 +889,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             for log in logs.into_iter() {
                 if log_matches_filter(
                     &log,
-                    &filter,
+                    filter,
                     &topics,
                     &block.header.hash,
                     &block.header.number,

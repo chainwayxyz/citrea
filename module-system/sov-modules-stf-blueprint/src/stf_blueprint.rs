@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use borsh::BorshDeserialize;
+use borsh::{BorshDeserialize, BorshSerialize};
 use sov_modules_api::runtime::capabilities::Kernel;
 use sov_modules_api::{
     BasicAddress, BlobReaderTrait, Context, DaSpec, DispatchCall, StateCheckpoint,
@@ -222,7 +222,7 @@ where
 
             let receipt = TransactionReceipt {
                 tx_hash: raw_tx_hash,
-                body_to_save: None,
+                body_to_save: Some(tx.clone().try_to_vec().unwrap()),
                 events,
                 receipt: tx_effect,
             };

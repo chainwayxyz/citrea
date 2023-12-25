@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
 
-/// Configuration for StateTransitionRunner.
+/// Runner configuration.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct RunnerConfig {
     /// DA start height.
@@ -30,6 +30,15 @@ pub struct StorageConfig {
     pub path: PathBuf,
 }
 
+/// Sequencer RPC configuration.
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+pub struct SequencerClientRpcConfig {
+    /// Sequencer start height.
+    pub start_height: u64,
+    /// RPC host url (with port, if applicable).
+    pub url: String,
+}
+
 /// Rollup Configuration
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct RollupConfig<DaServiceConfig> {
@@ -39,6 +48,8 @@ pub struct RollupConfig<DaServiceConfig> {
     pub runner: RunnerConfig,
     /// Data Availability service configuration.
     pub da: DaServiceConfig,
+    /// Sequencer Client RPC Config for sequencer connection
+    pub sequencer_client: Option<SequencerClientRpcConfig>,
 }
 
 /// Reads toml file as a specific type.
@@ -85,6 +96,9 @@ mod tests {
             [runner.rpc_config]
             bind_host = "127.0.0.1"
             bind_port = 12345
+            [sequencer_client]
+            start_height = 5
+            url = "http://0.0.0.0:12346"
         "#;
 
         let config_file = create_config_from(config);
@@ -109,6 +123,10 @@ mod tests {
             storage: StorageConfig {
                 path: PathBuf::from("/tmp"),
             },
+            sequencer_client: Some(SequencerClientRpcConfig {
+                start_height: 5,
+                url: "http://0.0.0.0:12346".to_owned(),
+            }),
         };
         assert_eq!(config, expected);
     }
