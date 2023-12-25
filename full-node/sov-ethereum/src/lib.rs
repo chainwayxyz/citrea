@@ -10,6 +10,7 @@ use gas_price::gas_oracle::GasPriceOracle;
 pub use gas_price::gas_oracle::GasPriceOracleConfig;
 use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::RpcModule;
+use reth_primitives::rpc_utils::keccak256;
 use reth_primitives::{
     BlockNumberOrTag, TransactionSignedNoHash as RethTransactionSignedNoHash, U128, U256,
 };
@@ -148,6 +149,23 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
     // Checks wether the running node is a sequencer or not, if it is not a sequencer it should also have methods like eth_sendRawTransaction here.
     is_sequencer: bool,
 ) -> Result<(), jsonrpsee::core::Error> {
+    rpc.register_async_method("web3_clientVersion", |_, _| async move {
+        info!("eth module: web3_clientVersion");
+        // TODO: update this to the actual version
+        // once we decide on a versioning scheme
+        // https://github.com/chainwayxyz/secret-sovereign-sdk/issues/80
+        Ok::<_, ErrorObjectOwned>("citrea/0.0.1".to_string())
+    })?;
+
+    rpc.register_async_method("web3_sha3", |params, _| async move {
+        info!("eth module: web3_sha3");
+        let data: Bytes = params.one()?;
+
+        let hash = H256::from_slice(keccak256(&data).as_slice());
+
+        Ok::<_, ErrorObjectOwned>(hash)
+    })?;
+
     rpc.register_async_method("eth_gasPrice", |_, ethereum| async move {
         info!("eth module: eth_gasPrice");
         let price = {
