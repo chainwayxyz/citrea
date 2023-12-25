@@ -850,7 +850,7 @@ fn create_contract_message<T: TestContract>(
         .unwrap()
 }
 
-fn create_contract_transaction<T: TestContract>(
+pub(crate) fn create_contract_transaction<T: TestContract>(
     dev_signer: &TestSigner,
     nonce: u64,
     contract: T,
@@ -948,7 +948,7 @@ fn selfdestruct_message(
         .unwrap()
 }
 
-fn publish_event_message(
+pub(crate) fn publish_event_message(
     contract_addr: Address,
     signer: &TestSigner,
     nonce: u64,
