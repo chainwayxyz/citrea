@@ -283,6 +283,20 @@ impl<T: TestContract> TestClient<T> {
             .unwrap()
     }
 
+    pub(crate) async fn web3_client_version(&self) -> String {
+        self.http_client
+            .request("web3_clientVersion", rpc_params![])
+            .await
+            .unwrap()
+    }
+
+    pub(crate) async fn web3_sha3(&self, bytes: String) -> String {
+        self.http_client
+            .request("web3_sha3", rpc_params![bytes])
+            .await
+            .unwrap()
+    }
+
     pub(crate) async fn eth_accounts(&self) -> Vec<Address> {
         self.http_client
             .request("eth_accounts", rpc_params![])

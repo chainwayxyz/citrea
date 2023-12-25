@@ -16,6 +16,37 @@ use tokio::time::{sleep, Duration};
 use crate::test_helpers::{start_rollup, NodeMode};
 
 #[tokio::test]
+async fn web3_rpc_tests() -> Result<(), anyhow::Error> {
+    let (port_tx, port_rx) = tokio::sync::oneshot::channel();
+    let rollup_task = tokio::spawn(async {
+        // Don't provide a prover since the EVM is not currently provable
+        start_rollup(
+            port_tx,
+            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
+            RollupProverConfig::Skip,
+            NodeMode::SequencerNode,
+        )
+        .await;
+    });
+
+    // Wait for rollup task to start:
+    let port = port_rx.await.unwrap();
+
+    let test_client = make_test_client(port, SimpleStorageContract::default()).await;
+
+    assert_eq!(test_client.web3_client_version().await, "citrea/0.0.1");
+    assert_eq!(
+        test_client
+            .web3_sha3("0x68656c6c6f20776f726c64".to_string())
+            .await,
+        "0x47173285a8d7341e5e972fc677286384f802f8ef42a5ec5f03bbfa254cb01fad".to_string()
+    );
+
+    rollup_task.abort();
+    Ok(())
+}
+
+#[tokio::test]
 async fn evm_tx_tests() -> Result<(), anyhow::Error> {
     let (port_tx, port_rx) = tokio::sync::oneshot::channel();
     let rollup_task = tokio::spawn(async {
