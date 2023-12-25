@@ -1,19 +1,18 @@
-use reth_primitives::{Address, BlockId, BlockNumberOrTag, Bytes, TransactionKind, U64};
+use std::str::FromStr;
+
+use reth_primitives::{Address, BlockId, BlockNumberOrTag, Bytes, U64};
 use reth_rpc_types::{CallInput, CallRequest};
 use revm::primitives::{SpecId, B256, KECCAK_EMPTY, U256};
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::utils::generate_address;
-use sov_modules_api::{Context, Module, StateMapAccessor, StateVecAccessor, WorkingSet};
+use sov_modules_api::{Context, Module, WorkingSet};
 
 use super::call_tests::{create_contract_transaction, publish_event_message};
 use crate::call::CallMessage;
-use crate::evm::primitive_types::Receipt;
-use crate::query::EvmRpcImpl;
-use crate::smart_contracts::{SelfDestructorContract, SimpleStorageContract, TestContract};
 use crate::tests::genesis_tests::get_evm;
 use crate::tests::test_signer::TestSigner;
 use crate::{
-    AccountData, BlockHashContract, Evm, EvmConfig, Filter, FilterSet, LogsContract,
+    AccountData, EthApiError, Evm, EvmConfig, Filter, FilterBlockOption, FilterSet, LogsContract,
     RlpEvmTransaction,
 };
 
@@ -22,7 +21,7 @@ type C = DefaultContext;
 /// Creates evm instance with 3 blocks (including genesis)
 /// Block 1 has 2 transactions
 /// Block 2 has 4 transactions
-fn init_evm() -> (Evm<C>, WorkingSet<C>) {
+fn init_evm() -> (Evm<C>, WorkingSet<C>, TestSigner) {
     let dev_signer: TestSigner = TestSigner::new_random();
 
     let config = EvmConfig {
@@ -49,7 +48,6 @@ fn init_evm() -> (Evm<C>, WorkingSet<C>) {
 
     evm.begin_slot_hook([5u8; 32], &[10u8; 32].into(), &mut working_set);
 
-    let set_arg = 999;
     {
         let sender_address = generate_address::<C>("sender");
         let context = C::new(sender_address, 1);
@@ -73,7 +71,6 @@ fn init_evm() -> (Evm<C>, WorkingSet<C>) {
 
     evm.begin_slot_hook([8u8; 32], &[99u8; 32].into(), &mut working_set);
 
-    let set_arg = 999;
     {
         let sender_address = generate_address::<C>("sender");
         let context = C::new(sender_address, 1);
@@ -96,13 +93,13 @@ fn init_evm() -> (Evm<C>, WorkingSet<C>) {
     evm.end_slot_hook(&mut working_set);
     evm.finalize_hook(&[100u8; 32].into(), &mut working_set.accessory_state());
 
-    return (evm, working_set);
+    return (evm, working_set, dev_signer);
 }
 
 #[test]
 fn get_block_by_hash_test() {
     // make a block
-    let (evm, mut working_set) = init_evm();
+    let (evm, mut working_set, _) = init_evm();
 
     let result = evm.get_block_by_hash([5u8; 32].into(), Some(false), &mut working_set);
 
@@ -114,7 +111,7 @@ fn get_block_by_hash_test() {
 #[test]
 fn get_block_by_number_test() {
     // make a block
-    let (evm, mut working_set) = init_evm();
+    let (evm, mut working_set, _) = init_evm();
 
     let result = evm.get_block_by_number(
         Some(BlockNumberOrTag::Number(1000)),
@@ -130,7 +127,7 @@ fn get_block_by_number_test() {
 #[test]
 fn get_block_receipts_test() {
     // make a block
-    let (evm, mut working_set) = init_evm();
+    let (evm, mut working_set, _) = init_evm();
 
     let result = evm.get_block_receipts(
         BlockId::Number(BlockNumberOrTag::Number(1000)),
@@ -148,7 +145,7 @@ fn get_block_receipts_test() {
 
 #[test]
 fn get_transaction_by_block_hash_and_index_test() {
-    let (evm, mut working_set) = init_evm();
+    let (evm, mut working_set, _) = init_evm();
 
     let result = evm.get_transaction_by_block_hash_and_index(
         [0u8; 32].into(),
@@ -188,7 +185,7 @@ fn get_transaction_by_block_hash_and_index_test() {
 
 #[test]
 fn get_transaction_by_block_number_and_index_test() {
-    let (evm, mut working_set) = init_evm();
+    let (evm, mut working_set, _) = init_evm();
 
     let result = evm.get_transaction_by_block_number_and_index(
         BlockNumberOrTag::Number(100),
@@ -223,15 +220,91 @@ fn get_transaction_by_block_number_and_index_test() {
 
 #[test]
 fn call_test() {
-    todo!()
+    let (evm, mut working_set, signer) = init_evm();
+
+    let result = evm.get_call(
+        CallRequest {
+            from: Some(signer.address()),
+            to: Some(Address::from_str("0x95222290DD7278Aa3Ddd389Cc1E1d165CC4BAfe5").unwrap()),
+            gas: Some(U256::from(100000)),
+            gas_price: Some(U256::from(100000000)),
+            max_fee_per_gas: None,
+            max_priority_fee_per_gas: None,
+            value: Some(U256::from(100000000)),
+            input: None.into(),
+            nonce: Some(U64::from(7)),
+            chain_id: Some(U64::from(1u64)),
+            access_list: None,
+            max_fee_per_blob_gas: None,
+            blob_versioned_hashes: vec![],
+            transaction_type: None,
+        },
+        Some(BlockNumberOrTag::Number(100)),
+        None,
+        None,
+        &mut working_set,
+    );
+
+    assert_eq!(result, Err(EthApiError::UnknownBlockNumber.into()));
+
+    // TODO: test correct cases
 }
 
 #[test]
 fn logs_for_filter_test() {
-    todo!()
+    let (evm, mut working_set, _) = init_evm();
+
+    let result = evm.eth_get_logs(
+        Filter {
+            block_option: FilterBlockOption::AtBlockHash(B256::from([1u8; 32])),
+            address: FilterSet::default(),
+            topics: [
+                FilterSet::default(),
+                FilterSet::default(),
+                FilterSet::default(),
+                FilterSet::default(),
+            ],
+        },
+        &mut working_set,
+    );
+
+    // see: https://github.com/chainwayxyz/secret-sovereign-sdk/issues/79
+    assert_eq!(result, Err(EthApiError::UnknownBlockNumber.into()));
+
+    // not checking from and to option, because they are checked against latest block number
+    // can't force evm to throw error.
+
+    // TODO: test correct cases
 }
 
 #[test]
-fn get_logs_in_block_range() {
-    todo!()
+fn estimate_gas_test() {
+    let (evm, mut working_set, signer) = init_evm();
+
+    let result = evm.get_call(
+        CallRequest {
+            from: Some(signer.address()),
+            to: Some(Address::from_str("0x95222290DD7278Aa3Ddd389Cc1E1d165CC4BAfe5").unwrap()),
+            gas: Some(U256::from(100000)),
+            gas_price: Some(U256::from(100000000)),
+            max_fee_per_gas: None,
+            max_priority_fee_per_gas: None,
+            value: Some(U256::from(100000000)),
+            input: None.into(),
+            nonce: Some(U64::from(7)),
+            chain_id: Some(U64::from(1u64)),
+            access_list: None,
+            max_fee_per_blob_gas: None,
+            blob_versioned_hashes: vec![],
+            transaction_type: None,
+        },
+        Some(BlockNumberOrTag::Number(100)),
+        None,
+        None,
+        &mut working_set,
+    );
+
+    assert_eq!(result, Err(EthApiError::UnknownBlockNumber.into()));
+
+    // TODO: test correct cases
 }

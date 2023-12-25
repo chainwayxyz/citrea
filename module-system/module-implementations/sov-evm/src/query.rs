@@ -829,8 +829,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     Some(block) => block,
                     None => {
                         return Err(FilterError::EthAPIError(
+                            // from and to are checked against last block
+                            // so this should never happen ideally
                             ProviderError::BlockBodyIndicesNotFound(idx).into(),
-                        ))
+                        ));
                     }
                 };
 
