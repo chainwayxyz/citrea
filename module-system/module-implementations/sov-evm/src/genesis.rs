@@ -10,7 +10,9 @@ use sov_modules_api::WorkingSet;
 use crate::evm::db_init::InitEvmDb;
 use crate::evm::primitive_types::Block;
 use crate::evm::{AccountInfo, EvmChainConfig};
-use crate::{Evm, DEFAULT_CHAIN_ID};
+#[cfg(test)]
+use crate::tests::DEFAULT_CHAIN_ID;
+use crate::Evm;
 
 /// Evm account.
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, Eq, PartialEq)]
@@ -64,6 +66,7 @@ pub struct EvmConfig {
     pub base_fee_params: reth_primitives::BaseFeeParams,
 }
 
+#[cfg(test)]
 impl Default for EvmConfig {
     fn default() -> Self {
         Self {

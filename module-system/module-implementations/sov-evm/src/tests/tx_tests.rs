@@ -12,7 +12,7 @@ use revm::primitives::{TransactTo, TxEnv};
 use crate::evm::prepare_call_env;
 use crate::evm::primitive_types::TransactionSignedAndRecovered;
 use crate::primitive_types::{Block, BlockEnv};
-use crate::DEFAULT_CHAIN_ID;
+use crate::tests::DEFAULT_CHAIN_ID;
 
 #[tokio::test]
 async fn tx_rlp_encoding_test() -> Result<(), Box<dyn std::error::Error>> {

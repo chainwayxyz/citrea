@@ -35,7 +35,10 @@ where
             working_set,
         );
 
-        let cfg = self.cfg.get(working_set).unwrap_or_default();
+        let cfg = self
+            .cfg
+            .get(working_set)
+            .expect("EVM chain config should be set");
         let new_pending_env = BlockEnv {
             number: parent_block.header.number + 1,
             coinbase: cfg.coinbase,
@@ -64,7 +67,10 @@ where
     /// Logic executed at the end of the slot. Here, we generate an authenticated block and set it as the new head of the chain.
     /// It's important to note that the state root hash is not known at this moment, so we postpone setting this field until the begin_slot_hook of the next slot.
     pub fn end_slot_hook(&self, working_set: &mut WorkingSet<C>) {
-        let cfg = self.cfg.get(working_set).unwrap_or_default();
+        let cfg = self
+            .cfg
+            .get(working_set)
+            .expect("EVM chain config should be set");
 
         let block_env = self
             .block_env

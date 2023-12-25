@@ -14,8 +14,10 @@ use crate::evm::primitive_types::BlockEnv;
 use crate::evm::AccountInfo;
 use crate::smart_contracts::SimpleStorageContract;
 use crate::tests::test_signer::TestSigner;
-use crate::{Evm, DEFAULT_CHAIN_ID};
+use crate::Evm;
 type C = sov_modules_api::default_context::DefaultContext;
+
+use crate::tests::DEFAULT_CHAIN_ID;
 
 #[test]
 fn simple_contract_execution_sov_state() {

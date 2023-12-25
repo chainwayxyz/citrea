@@ -19,7 +19,8 @@ pub(crate) use call::prepare_call_env;
 pub use primitive_types::RlpEvmTransaction;
 use sov_state::codec::BcsCodec;
 
-use crate::DEFAULT_CHAIN_ID;
+#[cfg(test)]
+use crate::tests::DEFAULT_CHAIN_ID;
 
 // Stores information about an EVM account
 #[derive(Deserialize, Serialize, Debug, PartialEq, Clone, Default)]
@@ -94,6 +95,7 @@ pub struct EvmChainConfig {
     pub base_fee_params: BaseFeeParams,
 }
 
+#[cfg(test)]
 impl Default for EvmChainConfig {
     fn default() -> EvmChainConfig {
         EvmChainConfig {
