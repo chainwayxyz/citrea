@@ -92,7 +92,7 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
     }
     pub async fn run(&mut self) -> Result<(), anyhow::Error> {
         loop {
-            if let Some(_) = self.receiver.next().await {
+            if (self.receiver.next().await).is_some() {
                 let mut rlp_txs = vec![];
                 let mut mem = self.mempool.lock().await;
                 while !mem.pool.is_empty() {
@@ -124,8 +124,6 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                     .await?;
             }
         }
-
-        Ok(())
     }
 
     /// Signs batch of messages with sovereign priv key turns them into a sov blob

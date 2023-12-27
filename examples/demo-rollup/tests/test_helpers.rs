@@ -45,7 +45,6 @@ pub async fn start_rollup(
         },
         sequencer_client: match node_mode {
             NodeMode::FullNode(socket_addr) => Some(SequencerClientRpcConfig {
-                start_height: 1,
                 url: format!("http://localhost:{}", socket_addr.port()),
             }),
             NodeMode::SequencerNode => None,
