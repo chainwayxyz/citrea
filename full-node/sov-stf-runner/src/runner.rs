@@ -11,7 +11,7 @@ use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::StorageManager;
 use sov_rollup_interface::zk::ZkvmHost;
 use tokio::sync::oneshot;
-use tracing::{debug, info};
+use tracing::{debug, error, info};
 
 use crate::verifier::StateTransitionVerifier;
 use crate::{ProverService, RunnerConfig};
@@ -211,10 +211,13 @@ where
                 let x = tx.err().unwrap();
                 match x.downcast_ref::<jsonrpsee::core::Error>() {
                     Some(jsonrpsee::core::Error::Transport(e)) => {
-                        anyhow::bail!("Connection error during RPC call: {:?}", e);
+                        error!("Connection error during RPC call: {:?}", e);
+                        tokio::time::sleep(tokio::time::Duration::from_secs(interval_timer)).await;
+                        interval_timer = std::cmp::min(interval_timer * 2, 64);
+                        continue;
                     }
                     Some(jsonrpsee::core::Error::ParseError(e)) => {
-                        info!("Retrying after {} seconds: {:?}", interval_timer, e);
+                        error!("Retrying after {} seconds: {:?}", interval_timer, e);
                         tokio::time::sleep(tokio::time::Duration::from_secs(interval_timer)).await;
                         interval_timer = std::cmp::min(interval_timer * 2, 64);
                         continue;
