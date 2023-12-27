@@ -177,7 +177,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     .expect("Block must be set")
             }
             BlockId::Number(block_number) => {
-                match self.get_sealed_block_by_number(Some(block_number.into()), working_set) {
+                match self.get_sealed_block_by_number(Some(block_number), working_set) {
                     Some(block) => block,
                     None => return Ok(None), // if block doesn't exist return null
                 }

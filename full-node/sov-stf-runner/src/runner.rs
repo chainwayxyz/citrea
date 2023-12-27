@@ -199,6 +199,9 @@ where
         };
 
         let mut height = self.start_height;
+
+        let mut interval_timer = 2;
+
         loop {
             let tx = client.get_sov_tx(height).await;
 
@@ -211,8 +214,9 @@ where
                         anyhow::bail!("Connection error during RPC call: {:?}", e);
                     }
                     Some(jsonrpsee::core::Error::ParseError(e)) => {
-                        tokio::time::sleep(tokio::time::Duration::from_secs(15)).await;
-                        info!("Retrying after 15 seconds {:?}", e);
+                        info!("Retrying after {} seconds: {:?}", interval_timer, e);
+                        tokio::time::sleep(tokio::time::Duration::from_secs(interval_timer)).await;
+                        interval_timer = std::cmp::min(interval_timer * 2, 64);
                         continue;
                     }
                     _ => {
@@ -220,6 +224,8 @@ where
                     }
                 }
             }
+
+            interval_timer = 2;
 
             let batch = Batch {
                 txs: vec![RawTx { data: tx.unwrap() }],

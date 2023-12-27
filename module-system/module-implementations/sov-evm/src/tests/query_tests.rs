@@ -93,7 +93,7 @@ fn init_evm() -> (Evm<C>, WorkingSet<C>, TestSigner) {
     evm.end_slot_hook(&mut working_set);
     evm.finalize_hook(&[100u8; 32].into(), &mut working_set.accessory_state());
 
-    return (evm, working_set, dev_signer);
+    (evm, working_set, dev_signer)
 }
 
 #[test]

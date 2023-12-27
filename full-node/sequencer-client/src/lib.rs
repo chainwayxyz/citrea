@@ -28,17 +28,15 @@ impl SequencerClient {
             .await;
 
         match res {
-            Ok(res) => return Ok(res.body),
+            Ok(res) => Ok(res.body),
             Err(e) => match e {
                 jsonrpsee::core::Error::Transport(e) => {
-                    return anyhow::Result::Err(jsonrpsee::core::Error::Transport(e).into());
+                    anyhow::Result::Err(jsonrpsee::core::Error::Transport(e).into())
                 }
                 jsonrpsee::core::Error::ParseError(e) => {
-                    return Err(anyhow::anyhow!("parse error: {:?}", e));
+                    anyhow::Result::Err(jsonrpsee::core::Error::ParseError(e).into())
                 }
-                _ => {
-                    return Err(anyhow::anyhow!("unknown error: {:?}", e));
-                }
+                _ => Err(anyhow::anyhow!(e)),
             },
         }
     }
