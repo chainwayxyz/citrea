@@ -54,7 +54,7 @@ impl TestSigner {
             value,
             chain_id: DEFAULT_CHAIN_ID,
             gas_limit: 1_000_000u64,
-            max_fee_per_gas: u128::from(reth_primitives::constants::MIN_PROTOCOL_BASE_FEE * 2),
+            max_fee_per_gas: u128::from(100000000000u64),
             ..Default::default()
         };
 

@@ -1,4 +1,5 @@
 use std::convert::Infallible;
+use std::str::FromStr;
 
 use reth_primitives::TransactionKind;
 use revm::precompile::B160;
@@ -39,7 +40,7 @@ fn simple_contract_execution<DB: Database<Error = Infallible> + DatabaseCommit +
     evm_db.insert_account_info(
         caller,
         AccountInfo {
-            balance: U256::from(1000000000),
+            balance: U256::from_str("100000000000000000000").unwrap(),
             code_hash: KECCAK_EMPTY,
             nonce: 1,
         },

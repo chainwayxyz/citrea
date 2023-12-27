@@ -27,7 +27,7 @@ fn init_evm() -> (Evm<C>, WorkingSet<C>, TestSigner) {
     let config = EvmConfig {
         data: vec![AccountData {
             address: dev_signer.address(),
-            balance: U256::from(1000000000),
+            balance: U256::from_str("100000000000000000000").unwrap(),
             code_hash: KECCAK_EMPTY,
             code: Bytes::default(),
             nonce: 0,
@@ -93,7 +93,7 @@ fn init_evm() -> (Evm<C>, WorkingSet<C>, TestSigner) {
     evm.end_slot_hook(&mut working_set);
     evm.finalize_hook(&[100u8; 32].into(), &mut working_set.accessory_state());
 
-    return (evm, working_set, dev_signer);
+    (evm, working_set, dev_signer)
 }
 
 #[test]

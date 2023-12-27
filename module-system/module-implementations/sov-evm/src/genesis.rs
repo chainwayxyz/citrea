@@ -75,7 +75,7 @@ impl Default for EvmConfig {
             limit_contract_code_size: None,
             spec: vec![(0, SpecId::SHANGHAI)].into_iter().collect(),
             coinbase: Address::zero(),
-            starting_base_fee: reth_primitives::constants::MIN_PROTOCOL_BASE_FEE,
+            starting_base_fee: reth_primitives::constants::EIP1559_INITIAL_BASE_FEE,
             block_gas_limit: reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT,
             block_timestamp_delta: reth_primitives::constants::SLOT_DURATION.as_secs(),
             genesis_timestamp: 0,
@@ -224,7 +224,7 @@ mod tests {
                     "0":"SHANGHAI"
                 },
                 "coinbase":"0x0000000000000000000000000000000000000000",
-                "starting_base_fee":7,
+                "starting_base_fee":1000000000,
                 "block_gas_limit":30000000,
                 "genesis_timestamp":0,
                 "block_timestamp_delta":1,

@@ -14,7 +14,7 @@ use jsonrpsee::rpc_params;
 use reth_primitives::{BlockNumberOrTag, Bytes};
 use sov_evm::{LogResponse, LogsContract, SimpleStorageContract, TestContract};
 
-const MAX_FEE_PER_GAS: u64 = 100000001;
+const MAX_FEE_PER_GAS: u64 = 1000000001;
 const GAS: u64 = 900000u64;
 
 pub struct TestClient<T: TestContract> {
