@@ -1,4 +1,3 @@
-use anyhow::Context;
 use ethers::types::{Bytes, H256};
 use jsonrpsee::core::client::ClientT;
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
@@ -23,13 +22,25 @@ impl SequencerClient {
 
     /// Gets l2 block given l2 height
     pub async fn get_sov_tx(&self, num: u64) -> anyhow::Result<Vec<u8>> {
-        let res: GetSovTxResponse = self
+        let res: Result<GetSovTxResponse, jsonrpsee::core::Error> = self
             .client
             .request("ledger_getTransactionByNumber", rpc_params![num])
-            .await
-            .context("Failed to make RPC request")?;
+            .await;
 
-        Ok(res.body)
+        match res {
+            Ok(res) => return Ok(res.body),
+            Err(e) => match e {
+                jsonrpsee::core::Error::Transport(e) => {
+                    return anyhow::Result::Err(jsonrpsee::core::Error::Transport(e).into());
+                }
+                jsonrpsee::core::Error::ParseError(e) => {
+                    return Err(anyhow::anyhow!("parse error: {:?}", e));
+                }
+                _ => {
+                    return Err(anyhow::anyhow!("unknown error: {:?}", e));
+                }
+            },
+        }
     }
 
     /// Sends raw tx to sequencer
@@ -43,7 +54,7 @@ impl SequencerClient {
 }
 
 // the response has more fields, however for now we don't need them
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 struct GetSovTxResponse {
     pub body: Vec<u8>,
 }

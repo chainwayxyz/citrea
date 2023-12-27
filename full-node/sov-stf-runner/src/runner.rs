@@ -204,8 +204,21 @@ where
 
             if tx.is_err() {
                 // TODO: Add logs here: https://github.com/chainwayxyz/secret-sovereign-sdk/issues/47
-                tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
-                continue;
+
+                let x = tx.err().unwrap();
+                match x.downcast_ref::<jsonrpsee::core::Error>() {
+                    Some(jsonrpsee::core::Error::Transport(e)) => {
+                        anyhow::bail!("Connection error during RPC call: {:?}", e);
+                    }
+                    Some(jsonrpsee::core::Error::ParseError(e)) => {
+                        tokio::time::sleep(tokio::time::Duration::from_secs(15)).await;
+                        info!("Retrying after 15 seconds {:?}", e);
+                        continue;
+                    }
+                    _ => {
+                        anyhow::bail!("Unknown error from RPC call: {:?}", x);
+                    }
+                }
             }
 
             let batch = Batch {
