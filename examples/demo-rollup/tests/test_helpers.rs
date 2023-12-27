@@ -1,4 +1,5 @@
 use std::net::SocketAddr;
+use std::path::Path;
 
 use chainway_sequencer::ChainwaySequencer;
 use const_rollup_config::TEST_PRIVATE_KEY;
@@ -25,13 +26,19 @@ pub async fn start_rollup(
     genesis_paths: GenesisPaths,
     rollup_prover_config: RollupProverConfig,
     node_mode: NodeMode,
+    db_path: Option<&str>,
 ) {
-    let temp_dir = tempfile::tempdir().unwrap();
-    let temp_path = temp_dir.path();
+    let mut path = db_path.clone().map(|path| Path::new(path));
+    let mut temp_dir: Option<tempfile::TempDir> = None;
+    if db_path.is_none() {
+        temp_dir = Some(tempfile::tempdir().unwrap());
+
+        path = Some(temp_dir.as_ref().unwrap().path());
+    }
 
     let rollup_config = RollupConfig {
         storage: StorageConfig {
-            path: temp_path.to_path_buf(),
+            path: path.unwrap().to_path_buf(),
         },
         runner: RunnerConfig {
             start_height: 0,
@@ -83,6 +90,8 @@ pub async fn start_rollup(
         }
     }
 
-    // Close the tempdir explicitly to ensure that rustc doesn't see that it's unused and drop it unexpectedly
-    temp_dir.close().unwrap();
+    if db_path.is_none() {
+        // Close the tempdir explicitly to ensure that rustc doesn't see that it's unused and drop it unexpectedly
+        temp_dir.unwrap().close().unwrap();
+    }
 }

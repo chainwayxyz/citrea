@@ -118,6 +118,7 @@ risc0-zkvm-platform = { version = "0.19" }
 risc0-zkp = "0.19"
 risc0-circuit-rv32im = "0.19"
 risc0-build = "0.19"
+walkdir = "2.4.0"
 
 # EVM dependencies
 ethereum-types = "0.14.1"

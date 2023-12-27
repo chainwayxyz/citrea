@@ -25,6 +25,7 @@ async fn evm_tx_tests() -> Result<(), anyhow::Error> {
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             RollupProverConfig::Skip,
             NodeMode::SequencerNode,
+            None,
         )
         .await;
     });
@@ -57,6 +58,7 @@ async fn test_eth_get_logs() -> Result<(), anyhow::Error> {
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             RollupProverConfig::Skip,
             NodeMode::SequencerNode,
+            None,
         )
         .await;
     });
