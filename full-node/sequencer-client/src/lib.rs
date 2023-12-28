@@ -1,5 +1,6 @@
 use ethers::types::{Bytes, H256};
 use jsonrpsee::core::client::ClientT;
+use jsonrpsee::core::Error;
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use jsonrpsee::rpc_params;
 use serde::Deserialize;
@@ -30,12 +31,8 @@ impl SequencerClient {
         match res {
             Ok(res) => Ok(res.body),
             Err(e) => match e {
-                jsonrpsee::core::Error::Transport(e) => {
-                    anyhow::Result::Err(jsonrpsee::core::Error::Transport(e).into())
-                }
-                jsonrpsee::core::Error::ParseError(e) => {
-                    anyhow::Result::Err(jsonrpsee::core::Error::ParseError(e).into())
-                }
+                Error::Transport(e) => anyhow::Result::Err(Error::Transport(e).into()),
+                Error::ParseError(e) => anyhow::Result::Err(Error::ParseError(e).into()),
                 _ => Err(anyhow::anyhow!(e)),
             },
         }

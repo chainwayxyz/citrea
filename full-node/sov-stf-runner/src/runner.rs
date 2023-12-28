@@ -1,6 +1,7 @@
 use std::net::SocketAddr;
 
 use borsh::BorshSerialize;
+use jsonrpsee::core::Error;
 use jsonrpsee::RpcModule;
 use sequencer_client::SequencerClient;
 use sov_db::ledger_db::{LedgerDB, SlotCommit};
@@ -11,6 +12,7 @@ use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::StorageManager;
 use sov_rollup_interface::zk::ZkvmHost;
 use tokio::sync::oneshot;
+use tokio::time::{sleep, Duration, Instant};
 use tracing::{debug, error, info};
 
 use crate::verifier::StateTransitionVerifier;
@@ -200,7 +202,12 @@ where
 
         let mut height = self.start_height;
 
-        let mut interval_timer = 2;
+        let mut last_connection_error = Instant::now();
+        let mut last_parse_error = Instant::now();
+
+        let intervals = [1, 2, 5, 10, 15, 30, 60];
+        let mut connection_index = 0;
+        let mut parse_index = 0;
 
         loop {
             let tx = client.get_sov_tx(height).await;
@@ -208,18 +215,29 @@ where
             if tx.is_err() {
                 // TODO: Add logs here: https://github.com/chainwayxyz/secret-sovereign-sdk/issues/47
 
-                let x = tx.err().unwrap();
+                let x = tx.unwrap_err();
                 match x.downcast_ref::<jsonrpsee::core::Error>() {
-                    Some(jsonrpsee::core::Error::Transport(e)) => {
+                    Some(Error::Transport(e)) => {
                         error!("Connection error during RPC call: {:?}", e);
-                        tokio::time::sleep(tokio::time::Duration::from_secs(interval_timer)).await;
-                        interval_timer = std::cmp::min(interval_timer * 2, 64);
+                        sleep(Duration::from_secs(2)).await;
+                        Self::log_error(
+                            &mut last_connection_error,
+                            &intervals,
+                            &mut connection_index,
+                            format!("Connection error during RPC call: {:?}", e).as_str(),
+                        );
+                        // interval_timer = std::cmp::min(interval_timer * 2, 64);
                         continue;
                     }
-                    Some(jsonrpsee::core::Error::ParseError(e)) => {
-                        error!("Retrying after {} seconds: {:?}", interval_timer, e);
-                        tokio::time::sleep(tokio::time::Duration::from_secs(interval_timer)).await;
-                        interval_timer = std::cmp::min(interval_timer * 2, 64);
+                    Some(Error::ParseError(e)) => {
+                        debug!("Retrying after {} seconds: {:?}", 2, e);
+                        sleep(Duration::from_secs(2)).await;
+                        Self::log_error(
+                            &mut last_parse_error,
+                            &intervals,
+                            &mut parse_index,
+                            format!("Parse error upon RPC call: {:?}", e).as_str(),
+                        );
                         continue;
                     }
                     _ => {
@@ -227,8 +245,6 @@ where
                     }
                 }
             }
-
-            interval_timer = 2;
 
             let batch = Batch {
                 txs: vec![RawTx { data: tx.unwrap() }],
@@ -328,6 +344,26 @@ where
                 self.state_root
             );
             height += 1;
+        }
+    }
+
+    /// A basic helper for exponential backoff for error logging.
+    pub fn log_error(
+        last_error_log: &mut Instant,
+        error_log_intervals: &[u64],
+        error_interval_index: &mut usize,
+        error_msg: &str,
+    ) {
+        let now = Instant::now();
+        if now.duration_since(*last_error_log)
+            >= Duration::from_secs(error_log_intervals[*error_interval_index] * 60)
+        {
+            error!(
+                "{} : {} minutes",
+                error_msg, error_log_intervals[*error_interval_index]
+            );
+            *last_error_log = now; // Update the value pointed by the reference
+            *error_interval_index = (*error_interval_index + 1).min(error_log_intervals.len() - 1);
         }
     }
 }
