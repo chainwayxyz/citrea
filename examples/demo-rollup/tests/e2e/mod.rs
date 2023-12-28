@@ -1,3 +1,6 @@
+use std::fs::{self, DirEntry};
+use std::net::SocketAddr;
+use std::path::Path;
 use std::str::FromStr;
 use std::time::Duration;
 
@@ -21,6 +24,7 @@ async fn test_full_node_send_tx() -> Result<(), anyhow::Error> {
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             RollupProverConfig::Execute,
             NodeMode::SequencerNode,
+            None,
         )
         .await;
     });
@@ -37,6 +41,7 @@ async fn test_full_node_send_tx() -> Result<(), anyhow::Error> {
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             RollupProverConfig::Execute,
             NodeMode::FullNode(seq_port),
+            None,
         )
         .await;
     });
@@ -83,6 +88,7 @@ async fn test_delayed_sync_ten_blocks() -> Result<(), anyhow::Error> {
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             RollupProverConfig::Execute,
             NodeMode::SequencerNode,
+            None,
         )
         .await;
     });
@@ -106,6 +112,7 @@ async fn test_delayed_sync_ten_blocks() -> Result<(), anyhow::Error> {
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             RollupProverConfig::Execute,
             NodeMode::FullNode(seq_port),
+            None,
         )
         .await;
     });
@@ -142,6 +149,7 @@ async fn test_e2e_same_block_sync() -> Result<(), anyhow::Error> {
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             RollupProverConfig::Execute,
             NodeMode::SequencerNode,
+            None,
         )
         .await;
     });
@@ -156,6 +164,7 @@ async fn test_e2e_same_block_sync() -> Result<(), anyhow::Error> {
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             RollupProverConfig::Execute,
             NodeMode::FullNode(seq_port),
+            None,
         )
         .await;
     });
@@ -173,6 +182,152 @@ async fn test_e2e_same_block_sync() -> Result<(), anyhow::Error> {
     seq_task.abort();
     rollup_task.abort();
 
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
+    let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
+
+    let seq_task = tokio::spawn(async {
+        start_rollup(
+            seq_port_tx,
+            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
+            RollupProverConfig::Execute,
+            NodeMode::SequencerNode,
+            None,
+        )
+        .await;
+    });
+
+    let seq_port = seq_port_rx.await.unwrap();
+
+    let (full_node_port_tx, full_node_port_rx) = tokio::sync::oneshot::channel();
+
+    // starting full node with db path
+    let rollup_task = tokio::spawn(async move {
+        start_rollup(
+            full_node_port_tx,
+            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
+            RollupProverConfig::Execute,
+            NodeMode::FullNode(seq_port.clone()),
+            Some("demo_data_test_close_and_reopen_full_node"),
+        )
+        .await;
+    });
+
+    let full_node_port = full_node_port_rx.await.unwrap();
+
+    let contract = SimpleStorageContract::default();
+    let full_node_contract = SimpleStorageContract::default();
+
+    let seq_test_client = init_test_rollup(seq_port, contract).await;
+    let full_node_test_client = init_test_rollup(full_node_port, full_node_contract).await;
+
+    let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
+
+    // create 10 blocks
+    for _ in 0..10 {
+        seq_test_client.send_eth(addr, None, None).await;
+        seq_test_client.send_publish_batch_request().await;
+    }
+
+    // wait for full node to sync
+    sleep(Duration::from_secs(10)).await;
+
+    // check if latest blocks are the same
+    let seq_last_block = seq_test_client
+        .eth_get_block_by_number_with_detail(Some(BlockNumberOrTag::Latest))
+        .await;
+
+    let full_node_last_block = full_node_test_client
+        .eth_get_block_by_number_with_detail(Some(BlockNumberOrTag::Latest))
+        .await;
+
+    assert_eq!(seq_last_block.number.unwrap().as_u64(), 10);
+    assert_eq!(full_node_last_block.number.unwrap().as_u64(), 10);
+
+    assert_eq!(seq_last_block.state_root, full_node_last_block.state_root);
+    assert_eq!(seq_last_block.hash, full_node_last_block.hash);
+
+    // close full node
+    rollup_task.abort();
+    println!("Full node closed");
+
+    sleep(Duration::from_secs(2)).await;
+
+    // create 100 more blocks
+    for _ in 0..100 {
+        seq_test_client.send_eth(addr, None, None).await;
+        seq_test_client.send_publish_batch_request().await;
+    }
+
+    // start full node again
+    let (full_node_port_tx, full_node_port_rx) = tokio::sync::oneshot::channel();
+
+    // Copy the db to a new path with the same contents because
+    // the lock is not released on the db directory even though the task is aborted
+    copy_dir_recursive(
+        Path::new("demo_data_test_close_and_reopen_full_node"),
+        Path::new("demo_data_test_close_and_reopen_full_node_copy"),
+    );
+
+    println!("\ncopy done\n");
+    sleep(Duration::from_secs(5)).await;
+
+    // spin up the full node again with the same data where it left of only with different path to not stuck on lock
+    let rollup_task = tokio::spawn(async move {
+        start_rollup(
+            full_node_port_tx,
+            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
+            RollupProverConfig::Execute,
+            NodeMode::FullNode(seq_port),
+            Some("demo_data_test_close_and_reopen_full_node_copy"),
+        )
+        .await;
+    });
+    sleep(Duration::from_secs(5)).await;
+    let full_node_port = full_node_port_rx.await.unwrap();
+
+    let full_node_contract = SimpleStorageContract::default();
+    let full_node_test_client = make_test_client(full_node_port, full_node_contract).await;
+
+    // check if the latest block state roots are same
+    let seq_last_block = seq_test_client
+        .eth_get_block_by_number_with_detail(Some(BlockNumberOrTag::Latest))
+        .await;
+
+    let full_node_last_block = full_node_test_client
+        .eth_get_block_by_number_with_detail(Some(BlockNumberOrTag::Latest))
+        .await;
+
+    assert_eq!(seq_last_block.number.unwrap().as_u64(), 110);
+    assert_eq!(full_node_last_block.number.unwrap().as_u64(), 110);
+
+    assert_eq!(seq_last_block.state_root, full_node_last_block.state_root);
+    assert_eq!(seq_last_block.hash, full_node_last_block.hash);
+
+    fs::remove_dir_all(Path::new("demo_data_test_close_and_reopen_full_node_copy")).unwrap();
+    fs::remove_dir_all(Path::new("demo_data_test_close_and_reopen_full_node")).unwrap();
+    Ok(())
+}
+
+fn copy_dir_recursive(src: &Path, dst: &Path) -> std::io::Result<()> {
+    if !dst.exists() {
+        fs::create_dir(dst)?;
+    }
+
+    for entry in fs::read_dir(src)? {
+        let entry = entry?;
+        let entry_path = entry.path();
+        let target_path = dst.join(entry.file_name());
+
+        if entry_path.is_dir() {
+            copy_dir_recursive(&entry_path, &target_path)?;
+        } else {
+            fs::copy(&entry_path, &target_path)?;
+        }
+    }
     Ok(())
 }
 
