@@ -1,4 +1,4 @@
-use std::fs;
+use std::fs::{self, DirEntry};
 use std::net::SocketAddr;
 use std::path::Path;
 use std::str::FromStr;
@@ -10,7 +10,6 @@ use reth_primitives::BlockNumberOrTag;
 use sov_evm::{SimpleStorageContract, TestContract};
 use sov_stf_runner::RollupProverConfig;
 use tokio::time::sleep;
-use walkdir::WalkDir;
 
 use crate::evm::{init_test_rollup, make_test_client, TestClient};
 use crate::test_helpers::{start_rollup, NodeMode};
@@ -268,7 +267,7 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
 
     // Copy the db to a new path with the same contents because
     // the lock is not released on the db directory even though the task is aborted
-    copy_dir(
+    copy_dir_recursive(
         Path::new("demo_data_test_close_and_reopen_full_node"),
         Path::new("demo_data_test_close_and_reopen_full_node_copy"),
     );
@@ -308,48 +307,25 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
     assert_eq!(seq_last_block.state_root, full_node_last_block.state_root);
     assert_eq!(seq_last_block.hash, full_node_last_block.hash);
 
-    remove_everything_in_path(Path::new("demo_data_test_close_and_reopen_full_node_copy")).unwrap();
-    remove_everything_in_path(Path::new("demo_data_test_close_and_reopen_full_node")).unwrap();
-    fs::remove_dir(Path::new("demo_data_test_close_and_reopen_full_node_copy")).unwrap();
-    fs::remove_dir(Path::new("demo_data_test_close_and_reopen_full_node")).unwrap();
+    fs::remove_dir_all(Path::new("demo_data_test_close_and_reopen_full_node_copy")).unwrap();
+    fs::remove_dir_all(Path::new("demo_data_test_close_and_reopen_full_node")).unwrap();
     Ok(())
 }
 
-fn remove_everything_in_path(path: &Path) -> std::io::Result<()> {
-    if path.is_dir() {
-        for entry in fs::read_dir(path)? {
-            let entry = entry?;
-            let path = entry.path();
-            if path.is_dir() {
-                // Recursively remove subdirectory contents
-                remove_everything_in_path(&path)?;
-                // Remove the subdirectory itself
-                fs::remove_dir(&path)?;
-            } else {
-                // Remove the file
-                fs::remove_file(&path)?;
-            }
-        }
+fn copy_dir_recursive(src: &Path, dst: &Path) -> std::io::Result<()> {
+    if !dst.exists() {
+        fs::create_dir(dst)?;
     }
-    Ok(())
-}
 
-fn copy_dir(src: &Path, dest: &Path) -> std::io::Result<()> {
-    // Create the destination directory
-    fs::create_dir_all(&dest)?;
-
-    for entry in WalkDir::new(src) {
+    for entry in fs::read_dir(src)? {
         let entry = entry?;
-        let path = entry.path();
-        let relative_path = path.strip_prefix(src).unwrap();
-        let dest_path = dest.join(relative_path);
+        let entry_path = entry.path();
+        let target_path = dst.join(entry.file_name());
 
-        if path.is_dir() {
-            // Create subdirectory in the destination
-            fs::create_dir_all(dest_path)?;
+        if entry_path.is_dir() {
+            copy_dir_recursive(&entry_path, &target_path)?;
         } else {
-            // Copy file from source to destination
-            fs::copy(path, dest_path)?;
+            fs::copy(&entry_path, &target_path)?;
         }
     }
     Ok(())
