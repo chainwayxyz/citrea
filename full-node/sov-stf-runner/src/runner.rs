@@ -20,6 +20,9 @@ use crate::{ProverService, RunnerConfig};
 type StateRoot<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::StateRoot;
 type InitialState<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::GenesisParams;
 
+const CONNECTION_INTERVALS: &[u64] = &[1, 2, 5, 10, 15, 30, 60];
+const PARSE_INTERVALS: &[u64] = &[1, 5];
+
 /// Combines `DaService` with `StateTransitionFunction` and "runs" the rollup.
 pub struct StateTransitionRunner<Stf, Sm, Da, Vm, Ps>
 where
@@ -205,7 +208,6 @@ where
         let mut last_connection_error = Instant::now();
         let mut last_parse_error = Instant::now();
 
-        let intervals = [1, 2, 5, 10, 15, 30, 60];
         let mut connection_index = 0;
         let mut parse_index = 0;
 
@@ -218,15 +220,14 @@ where
                 let x = tx.unwrap_err();
                 match x.downcast_ref::<jsonrpsee::core::Error>() {
                     Some(Error::Transport(e)) => {
-                        error!("Connection error during RPC call: {:?}", e);
+                        debug!("Connection error during RPC call: {:?}", e);
                         sleep(Duration::from_secs(2)).await;
                         Self::log_error(
                             &mut last_connection_error,
-                            &intervals,
+                            CONNECTION_INTERVALS,
                             &mut connection_index,
                             format!("Connection error during RPC call: {:?}", e).as_str(),
                         );
-                        // interval_timer = std::cmp::min(interval_timer * 2, 64);
                         continue;
                     }
                     Some(Error::ParseError(e)) => {
@@ -234,7 +235,7 @@ where
                         sleep(Duration::from_secs(2)).await;
                         Self::log_error(
                             &mut last_parse_error,
-                            &intervals,
+                            PARSE_INTERVALS,
                             &mut parse_index,
                             format!("Parse error upon RPC call: {:?}", e).as_str(),
                         );
