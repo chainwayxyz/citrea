@@ -25,6 +25,7 @@ async fn web3_rpc_tests() -> Result<(), anyhow::Error> {
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             RollupProverConfig::Skip,
             NodeMode::SequencerNode,
+            None,
         )
         .await;
     });

@@ -1,5 +1,4 @@
-use std::fs::{self, DirEntry};
-use std::net::SocketAddr;
+use std::fs;
 use std::path::Path;
 use std::str::FromStr;
 use std::time::Duration;
@@ -267,12 +266,13 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
 
     // Copy the db to a new path with the same contents because
     // the lock is not released on the db directory even though the task is aborted
-    copy_dir_recursive(
+
+    let _ = copy_dir_recursive(
+
         Path::new("demo_data_test_close_and_reopen_full_node"),
         Path::new("demo_data_test_close_and_reopen_full_node_copy"),
     );
 
-    println!("\ncopy done\n");
     sleep(Duration::from_secs(5)).await;
 
     // spin up the full node again with the same data where it left of only with different path to not stuck on lock
@@ -309,6 +309,10 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
 
     fs::remove_dir_all(Path::new("demo_data_test_close_and_reopen_full_node_copy")).unwrap();
     fs::remove_dir_all(Path::new("demo_data_test_close_and_reopen_full_node")).unwrap();
+
+    seq_task.abort();
+    rollup_task.abort();
+
     Ok(())
 }
 
