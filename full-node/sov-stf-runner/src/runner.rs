@@ -20,8 +20,8 @@ use crate::{ProverService, RunnerConfig};
 type StateRoot<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::StateRoot;
 type InitialState<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::GenesisParams;
 
-const CONNECTION_INTERVALS: &[u64] = &[1, 2, 5, 10, 15, 30, 60];
-const PARSE_INTERVALS: &[u64] = &[1, 5];
+const CONNECTION_INTERVALS: &[u64] = &[0, 1, 2, 5, 10, 15, 30, 60];
+const PARSE_INTERVALS: &[u64] = &[0, 1, 5];
 
 /// Combines `DaService` with `StateTransitionFunction` and "runs" the rollup.
 pub struct StateTransitionRunner<Stf, Sm, Da, Vm, Ps>
