@@ -1,4 +1,5 @@
 use std::convert::Infallible;
+use std::str::FromStr;
 
 use reth_primitives::TransactionKind;
 use revm::precompile::B160;
@@ -16,6 +17,8 @@ use crate::smart_contracts::SimpleStorageContract;
 use crate::tests::test_signer::TestSigner;
 use crate::Evm;
 type C = sov_modules_api::default_context::DefaultContext;
+
+use crate::tests::DEFAULT_CHAIN_ID;
 
 #[test]
 fn simple_contract_execution_sov_state() {
@@ -37,7 +40,7 @@ fn simple_contract_execution<DB: Database<Error = Infallible> + DatabaseCommit +
     evm_db.insert_account_info(
         caller,
         AccountInfo {
-            balance: U256::from(1000000000),
+            balance: U256::from_str("100000000000000000000").unwrap(),
             code_hash: KECCAK_EMPTY,
             nonce: 1,
         },
@@ -49,6 +52,7 @@ fn simple_contract_execution<DB: Database<Error = Infallible> + DatabaseCommit +
     // https://github.com/Sovereign-Labs/sovereign-sdk/issues/912
     let mut cfg_env = CfgEnv::default();
     cfg_env.spec_id = SpecId::SHANGHAI;
+    cfg_env.chain_id = DEFAULT_CHAIN_ID;
 
     let contract_address: B160 = {
         let tx = dev_signer

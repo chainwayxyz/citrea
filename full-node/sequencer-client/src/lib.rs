@@ -8,8 +8,6 @@ use serde::Deserialize;
 /// Configuration for SequencerClient.
 #[derive(Debug, Clone)]
 pub struct SequencerClient {
-    /// Start height for soft confirmation
-    pub start_height: u64,
     /// Host config for soft confirmation
     pub rpc_url: String,
     /// Client object for soft confirmation
@@ -18,13 +16,9 @@ pub struct SequencerClient {
 
 impl SequencerClient {
     /// Creates the sequencer client
-    pub fn new(start_height: u64, rpc_url: String) -> Self {
+    pub fn new(rpc_url: String) -> Self {
         let client = HttpClientBuilder::default().build(&rpc_url).unwrap();
-        Self {
-            start_height,
-            rpc_url,
-            client,
-        }
+        Self { rpc_url, client }
     }
 
     /// Gets l2 block given l2 height

@@ -16,6 +16,37 @@ use tokio::time::{sleep, Duration};
 use crate::test_helpers::{start_rollup, NodeMode};
 
 #[tokio::test]
+async fn web3_rpc_tests() -> Result<(), anyhow::Error> {
+    let (port_tx, port_rx) = tokio::sync::oneshot::channel();
+    let rollup_task = tokio::spawn(async {
+        // Don't provide a prover since the EVM is not currently provable
+        start_rollup(
+            port_tx,
+            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
+            RollupProverConfig::Skip,
+            NodeMode::SequencerNode,
+        )
+        .await;
+    });
+
+    // Wait for rollup task to start:
+    let port = port_rx.await.unwrap();
+
+    let test_client = make_test_client(port, SimpleStorageContract::default()).await;
+
+    assert_eq!(test_client.web3_client_version().await, "citrea/0.0.1");
+    assert_eq!(
+        test_client
+            .web3_sha3("0x68656c6c6f20776f726c64".to_string())
+            .await,
+        "0x47173285a8d7341e5e972fc677286384f802f8ef42a5ec5f03bbfa254cb01fad".to_string()
+    );
+
+    rollup_task.abort();
+    Ok(())
+}
+
+#[tokio::test]
 async fn evm_tx_tests() -> Result<(), anyhow::Error> {
     let (port_tx, port_rx) = tokio::sync::oneshot::channel();
     let rollup_task = tokio::spawn(async {
@@ -422,7 +453,7 @@ pub async fn init_test_rollup<T: TestContract>(
     );
 
     let eth_chain_id = test_client.eth_chain_id().await;
-    assert_eq!(1, eth_chain_id);
+    assert_eq!(5655, eth_chain_id);
 
     // No block exists yet
     let latest_block = test_client
@@ -441,7 +472,7 @@ pub async fn make_test_client<T: TestContract>(
     rpc_address: SocketAddr,
     contract: T,
 ) -> Box<TestClient<T>> {
-    let chain_id: u64 = 1;
+    let chain_id: u64 = 5655;
     let key = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
         .parse::<LocalWallet>()
         .unwrap()
