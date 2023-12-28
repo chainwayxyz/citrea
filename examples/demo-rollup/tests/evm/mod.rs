@@ -56,6 +56,7 @@ async fn evm_tx_tests() -> Result<(), anyhow::Error> {
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             RollupProverConfig::Skip,
             NodeMode::SequencerNode,
+            None,
         )
         .await;
     });
@@ -88,6 +89,7 @@ async fn test_eth_get_logs() -> Result<(), anyhow::Error> {
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             RollupProverConfig::Skip,
             NodeMode::SequencerNode,
+            None,
         )
         .await;
     });
@@ -451,7 +453,7 @@ pub async fn init_test_rollup<T: TestContract>(
     );
 
     let eth_chain_id = test_client.eth_chain_id().await;
-    assert_eq!(1, eth_chain_id);
+    assert_eq!(5655, eth_chain_id);
 
     // No block exists yet
     let latest_block = test_client
@@ -470,7 +472,7 @@ pub async fn make_test_client<T: TestContract>(
     rpc_address: SocketAddr,
     contract: T,
 ) -> Box<TestClient<T>> {
-    let chain_id: u64 = 1;
+    let chain_id: u64 = 5655;
     let key = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
         .parse::<LocalWallet>()
         .unwrap()

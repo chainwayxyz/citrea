@@ -27,7 +27,7 @@ fn init_evm() -> (Evm<C>, WorkingSet<C>, TestSigner) {
     let config = EvmConfig {
         data: vec![AccountData {
             address: dev_signer.address(),
-            balance: U256::from(1000000000),
+            balance: U256::from_str("100000000000000000000").unwrap(),
             code_hash: KECCAK_EMPTY,
             code: Bytes::default(),
             nonce: 0,
