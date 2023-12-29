@@ -16,5 +16,5 @@ bind_host = "0.0.0.0"
 bind_port = 12345
 
 [sequencer_client]
-start_height = 1
-url = "http://0.0.0.0:12345"
+# public ip of the sequencer
+url = "http://159.89.214.47:12345"
