@@ -176,7 +176,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
 
         // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1218)
         let rpc_methods = self.create_rpc_methods(
-            &native_storage,
+            &prover_storage,
             &ledger_db,
             &da_service,
             sequencer_client.clone(),
@@ -198,7 +198,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
             ledger_db,
             native_stf,
             storage_manager,
-            -init_variant,
+            init_variant,
             prover_service,
             sequencer_client,
         )?;
@@ -208,7 +208,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
                 runner,
                 rpc_methods,
             },
-            storage: native_storage,
+            storage: prover_storage,
         })
     }
 }

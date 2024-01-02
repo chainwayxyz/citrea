@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use bitcoin::hashes::Hash;
 use bitcoin::BlockHash;
 use serde::{Deserialize, Serialize};
@@ -24,5 +26,11 @@ impl AsRef<[u8]> for BlockHashWrapper {
 impl BlockHashWrapper {
     pub fn to_byte_array(&self) -> [u8; 32] {
         self.0.as_raw_hash().to_byte_array()
+    }
+}
+
+impl Display for BlockHashWrapper {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0.to_string())
     }
 }

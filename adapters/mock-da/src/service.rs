@@ -1,6 +1,5 @@
 use std::collections::VecDeque;
 use std::pin::Pin;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 use std::task::{Context, Poll};
 use std::time::Duration;

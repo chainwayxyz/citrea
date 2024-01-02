@@ -176,10 +176,13 @@ where
     pub async fn process(&mut self, blob: &[u8]) -> Result<(), anyhow::Error> {
         // TODO: update with storage functionalities like in run_in_process
 
-        let pre_state = self.storage_manager.get_native_storage();
         let filtered_block: <Da as DaService>::FilteredBlock =
             // TODO: 4 is used to mock da related info, will be replaced
             self.da_service.get_block_at(4u64).await?;
+
+        let pre_state = self
+            .storage_manager
+            .create_storage_on(filtered_block.header())?;
 
         // TODO: check for reorgs here
         // check out run_in_process for an example
@@ -289,11 +292,14 @@ where
                 height,
             );
 
+            let mut vec_blobs = vec![tx_blob_with_sender];
+
             let mut data_to_commit = SlotCommit::new(filtered_block.clone());
 
             let pre_state = self
                 .storage_manager
                 .create_storage_on(filtered_block.header())?;
+
             let slot_result = self.stf.apply_slot(
                 // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1247): incorrect pre-state root in case of re-org
                 &self.state_root,
@@ -301,7 +307,7 @@ where
                 Default::default(),
                 filtered_block.header(),
                 &filtered_block.validity_condition(),
-                &mut vec![tx_blob_with_sender],
+                &mut vec_blobs,
             );
 
             for receipt in slot_result.batch_receipts {
@@ -310,7 +316,7 @@ where
 
             let (inclusion_proof, completeness_proof) = self
                 .da_service
-                .get_extraction_proof(&filtered_block, &blobs)
+                .get_extraction_proof(&filtered_block, vec_blobs.as_slice())
                 .await;
 
             let transition_data: StateTransitionData<Stf::StateRoot, Stf::Witness, Da::Spec> =
@@ -321,7 +327,7 @@ where
                     da_block_header: filtered_block.header().clone(),
                     inclusion_proof,
                     completeness_proof,
-                    blobs,
+                    blobs: vec_blobs,
                     state_transition_witness: slot_result.witness,
                 };
 
@@ -373,6 +379,8 @@ where
                 hex::encode(blob_hash),
                 self.state_root
             );
+
+            height += 1;
 
             // ----------------
             // Finalization. Done after seen block for proper handling of instant finality

@@ -8,13 +8,13 @@ use demo_stf::runtime::Runtime;
 use sequencer_client::SequencerClient;
 use sov_db::ledger_db::LedgerDB;
 use sov_modules_api::default_context::{DefaultContext, ZkDefaultContext};
-use sov_modules_api::Spec;
+use sov_modules_api::{Address, Spec};
 use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_modules_stf_blueprint::kernels::basic::BasicKernel;
 use sov_modules_stf_blueprint::StfBlueprint;
+use sov_prover_storage_manager::ProverStorageManager;
 use sov_risc0_adapter::host::Risc0Host;
 use sov_rollup_interface::zk::ZkvmHost;
-use sov_state::storage_manager::ProverStorageManager;
 use sov_state::{DefaultStorageSpec, Storage, ZkStorage};
 use sov_stf_runner::{ParallelProverService, RollupConfig, RollupProverConfig};
 
@@ -31,13 +31,13 @@ impl RollupBlueprint for BitcoinRollup {
     type ZkContext = ZkDefaultContext;
     type NativeContext = DefaultContext;
 
-    type StorageManager = ProverStorageManager<DefaultStorageSpec>;
+    type StorageManager = ProverStorageManager<BitcoinSpec, DefaultStorageSpec>;
 
     type ZkRuntime = Runtime<Self::ZkContext, Self::DaSpec>;
     type NativeRuntime = Runtime<Self::NativeContext, Self::DaSpec>;
 
-    type NativeKernel = BasicKernel<Self::NativeContext>;
-    type ZkKernel = BasicKernel<Self::ZkContext>;
+    type NativeKernel = BasicKernel<Self::NativeContext, Self::DaSpec>;
+    type ZkKernel = BasicKernel<Self::ZkContext, Self::DaSpec>;
 
     type ProverService = ParallelProverService<
         <<Self::NativeContext as Spec>::Storage as Storage>::Root,
@@ -64,12 +64,15 @@ impl RollupBlueprint for BitcoinRollup {
         da_service: &Self::DaService,
         sequencer_client: Option<SequencerClient>,
     ) -> Result<jsonrpsee::RpcModule<()>, anyhow::Error> {
+        // TODO: set the sequencer address
+        let sov_sequencer = Address::new([0; 32]);
+
         #[allow(unused_mut)]
         let mut rpc_methods = sov_modules_rollup_blueprint::register_rpc::<
             Self::NativeRuntime,
             Self::NativeContext,
             Self::DaService,
-        >(storage, ledger_db, da_service)?;
+        >(storage, ledger_db, da_service, sov_sequencer)?;
 
         crate::eth::register_ethereum::<Self::DaService>(
             da_service.clone(),
@@ -107,6 +110,7 @@ impl RollupBlueprint for BitcoinRollup {
     async fn create_prover_service(
         &self,
         prover_config: RollupProverConfig,
+        rollup_config: &RollupConfig<Self::DaConfig>,
         _da_service: &Self::DaService,
     ) -> Self::ProverService {
         let vm = Risc0Host::new(risc0::ROLLUP_ELF);
@@ -123,6 +127,7 @@ impl RollupBlueprint for BitcoinRollup {
             da_verifier,
             prover_config,
             zk_storage,
+            rollup_config.prover_service,
         )
     }
 }

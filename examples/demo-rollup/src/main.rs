@@ -19,6 +19,7 @@ use sov_demo_rollup::{initialize_logging, BitcoinRollup, CelestiaDemoRollup, Moc
 use sov_mock_da::{MockDaConfig, MockDaService};
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
+use sov_modules_api::runtime::capabilities::Kernel;
 use sov_modules_api::{DaSpec, PrivateKey, Spec};
 use sov_modules_rollup_blueprint::{Rollup, RollupAndStorage, RollupBlueprint};
 use sov_modules_stf_blueprint::kernels::basic::{
@@ -61,12 +62,6 @@ enum SupportedDaLayer {
     Bitcoin,
 }
 
-#[derive(clap::ValueEnum, Clone, Debug)]
-enum SupportedDaLayer {
-    Celestia,
-    Mock,
-}
-
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
     initialize_logging();
@@ -76,11 +71,20 @@ async fn main() -> Result<(), anyhow::Error> {
 
     match args.da_layer {
         SupportedDaLayer::Mock => {
+            let kernel_genesis_paths = &BasicKernelGenesisPaths {
+                chain_state: "../test-data/genesis/demo-tests/mock/chain_state.json".into(),
+            };
+
+            let kernel_genesis = BasicKernelGenesisConfig {
+                chain_state: serde_json::from_str(
+                    &std::fs::read_to_string(&kernel_genesis_paths.chain_state)
+                        .context("Failed to read chain state")?,
+                )?,
+            };
+
             start_rollup::<MockDemoRollup, MockDaConfig>(
                 &GenesisPaths::from_dir("../test-data/genesis/demo-tests/mock"),
-                &BasicKernelGenesisPaths {
-                    chain_state: "../test-data/genesis/demo-tests/mock/chain_state.json".into(),
-                },
+                kernel_genesis,
                 rollup_config_path,
                 RollupProverConfig::Execute,
                 args.sequence,
@@ -88,11 +92,20 @@ async fn main() -> Result<(), anyhow::Error> {
             .await?;
         }
         SupportedDaLayer::Bitcoin => {
+            let kernel_genesis_paths = &BasicKernelGenesisPaths {
+                chain_state: "../test-data/genesis/demo-tests/bitcoin/chain_state.json".into(),
+            };
+
+            let kernel_genesis = BasicKernelGenesisConfig {
+                chain_state: serde_json::from_str(
+                    &std::fs::read_to_string(&kernel_genesis_paths.chain_state)
+                        .context("Failed to read chain state")?,
+                )?,
+            };
+
             start_rollup::<BitcoinRollup, DaServiceConfig>(
                 &GenesisPaths::from_dir("../test-data/genesis/demo-tests/bitcoin"),
-                &BasicKernelGenesisPaths {
-                    chain_state: "../test-data/genesis/demo-tests/mock/chain_state.json".into(),
-                },
+                kernel_genesis,
                 rollup_config_path,
                 RollupProverConfig::Execute,
                 args.sequence,
@@ -100,11 +113,20 @@ async fn main() -> Result<(), anyhow::Error> {
             .await?;
         }
         SupportedDaLayer::Celestia => {
+            let kernel_genesis_paths = &BasicKernelGenesisPaths {
+                chain_state: "../test-data/genesis/demo-tests/celestia/chain_state.json".into(),
+            };
+
+            let kernel_genesis = BasicKernelGenesisConfig {
+                chain_state: serde_json::from_str(
+                    &std::fs::read_to_string(&kernel_genesis_paths.chain_state)
+                        .context("Failed to read chain state")?,
+                )?,
+            };
+
             start_rollup::<CelestiaDemoRollup, CelestiaConfig>(
                 &GenesisPaths::from_dir("../test-data/genesis/demo-tests/celestia"),
-                &BasicKernelGenesisPaths {
-                    chain_state: "../test-data/genesis/demo-tests/mock/chain_state.json".into(),
-                },
+                kernel_genesis,
                 rollup_config_path,
                 RollupProverConfig::Execute,
                 args.sequence,
@@ -117,8 +139,14 @@ async fn main() -> Result<(), anyhow::Error> {
 }
 
 async fn start_rollup<S, DaC>(
-    rt_genesis_paths: &GenesisPaths,
-    kernel_genesis_paths: &BasicKernelGenesisPaths,
+    rt_genesis_paths: &<<S as RollupBlueprint>::NativeRuntime as sov_modules_stf_blueprint::Runtime<
+        <S as RollupBlueprint>::NativeContext,
+        <S as RollupBlueprint>::DaSpec,
+    >>::GenesisPaths,
+    kernel_genesis: <<S as RollupBlueprint>::NativeKernel as Kernel<
+        <S as RollupBlueprint>::NativeContext,
+        <S as RollupBlueprint>::DaSpec,
+    >>::GenesisConfig,
     rollup_config_path: &str,
     prover_config: RollupProverConfig,
     // genesis_paths: &<<S as RollupBlueprint>::NativeRuntime as sov_modules_stf_blueprint::Runtime<
@@ -142,17 +170,11 @@ where
         rollup_config.sequencer_client = None;
     }
 
-    let kernel_genesis = BasicKernelGenesisConfig {
-        chain_state: serde_json::from_str(
-            &std::fs::read_to_string(&kernel_genesis_paths.chain_state)
-                .context("Failed to read chain state")?,
-        )?,
-    };
     let RollupAndStorage { rollup, storage } = rollup_blueprint
         .create_new_rollup(
             rt_genesis_paths,
             kernel_genesis,
-            rollup_config,
+            rollup_config.clone(),
             prover_config,
         )
         .await

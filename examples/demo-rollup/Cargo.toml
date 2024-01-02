@@ -25,6 +25,7 @@ sov-stf-runner = { path = "../../full-node/sov-stf-runner", features = [
 sov-rollup-interface = { path = "../../rollup-interface", features = [
     "native",
 ] }
+sov-prover-storage-manager = { path = "../../full-node/sov-prover-storage-manager" }
 
 sov-modules-rollup-blueprint = { path = "../../module-system/sov-modules-rollup-blueprint" }
 sov-modules-stf-blueprint = { path = "../../module-system/sov-modules-stf-blueprint", features = [
