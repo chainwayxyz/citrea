@@ -9,7 +9,7 @@ use ethers_core::types::{BlockId, U256};
 use ethers_signers::{LocalWallet, Signer};
 use reth_primitives::BlockNumberOrTag;
 use sov_demo_rollup::initialize_logging;
-use sov_evm::SimpleStorageContract;
+use sov_evm::{SimpleStorageContract, TestContract};
 use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
 use sov_stf_runner::RollupProverConfig;
 pub use test_client::TestClient;
@@ -25,6 +25,9 @@ async fn web3_rpc_tests() -> Result<(), anyhow::Error> {
         start_rollup(
             port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
+            BasicKernelGenesisPaths {
+                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
+            },
             RollupProverConfig::Skip,
             NodeMode::SequencerNode,
             None,
@@ -96,6 +99,9 @@ async fn test_eth_get_logs() -> Result<(), anyhow::Error> {
         start_rollup(
             port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
+            BasicKernelGenesisPaths {
+                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
+            },
             RollupProverConfig::Skip,
             NodeMode::SequencerNode,
             None,

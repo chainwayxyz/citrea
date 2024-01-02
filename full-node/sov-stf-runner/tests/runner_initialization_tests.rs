@@ -80,6 +80,7 @@ fn initialize_runner(
         prover_service: ProverServiceConfig {
             aggregated_proof_block_jump: 1,
         },
+        sequencer_client: None,
     };
 
     let da_service = MockDaService::new(address);
@@ -117,6 +118,7 @@ fn initialize_runner(
         storage_manager,
         init_variant,
         prover_service,
+        None,
     )
     .unwrap()
 }

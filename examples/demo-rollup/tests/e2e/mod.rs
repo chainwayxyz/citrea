@@ -7,6 +7,7 @@ use demo_stf::genesis_config::GenesisPaths;
 use ethers::abi::Address;
 use reth_primitives::BlockNumberOrTag;
 use sov_evm::{SimpleStorageContract, TestContract};
+use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
 use sov_stf_runner::RollupProverConfig;
 use tokio::time::sleep;
 
@@ -21,6 +22,9 @@ async fn test_full_node_send_tx() -> Result<(), anyhow::Error> {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
+            BasicKernelGenesisPaths {
+                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
+            },
             RollupProverConfig::Execute,
             NodeMode::SequencerNode,
             None,
@@ -38,6 +42,9 @@ async fn test_full_node_send_tx() -> Result<(), anyhow::Error> {
         start_rollup(
             full_node_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
+            BasicKernelGenesisPaths {
+                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
+            },
             RollupProverConfig::Execute,
             NodeMode::FullNode(seq_port),
             None,
@@ -85,6 +92,9 @@ async fn test_delayed_sync_ten_blocks() -> Result<(), anyhow::Error> {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
+            BasicKernelGenesisPaths {
+                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
+            },
             RollupProverConfig::Execute,
             NodeMode::SequencerNode,
             None,
@@ -109,6 +119,9 @@ async fn test_delayed_sync_ten_blocks() -> Result<(), anyhow::Error> {
         start_rollup(
             full_node_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
+            BasicKernelGenesisPaths {
+                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
+            },
             RollupProverConfig::Execute,
             NodeMode::FullNode(seq_port),
             None,
@@ -146,6 +159,9 @@ async fn test_e2e_same_block_sync() -> Result<(), anyhow::Error> {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
+            BasicKernelGenesisPaths {
+                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
+            },
             RollupProverConfig::Execute,
             NodeMode::SequencerNode,
             None,
@@ -161,6 +177,9 @@ async fn test_e2e_same_block_sync() -> Result<(), anyhow::Error> {
         start_rollup(
             full_node_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
+            BasicKernelGenesisPaths {
+                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
+            },
             RollupProverConfig::Execute,
             NodeMode::FullNode(seq_port),
             None,
@@ -192,6 +211,9 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
+            BasicKernelGenesisPaths {
+                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
+            },
             RollupProverConfig::Execute,
             NodeMode::SequencerNode,
             None,
@@ -208,6 +230,9 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
         start_rollup(
             full_node_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
+            BasicKernelGenesisPaths {
+                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
+            },
             RollupProverConfig::Execute,
             NodeMode::FullNode(seq_port.clone()),
             Some("demo_data_test_close_and_reopen_full_node"),
@@ -279,6 +304,9 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
         start_rollup(
             full_node_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
+            BasicKernelGenesisPaths {
+                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
+            },
             RollupProverConfig::Execute,
             NodeMode::FullNode(seq_port),
             Some("demo_data_test_close_and_reopen_full_node_copy"),

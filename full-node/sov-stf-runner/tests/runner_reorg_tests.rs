@@ -136,6 +136,7 @@ async fn runner_execution(
         prover_service: ProverServiceConfig {
             aggregated_proof_block_jump: 1,
         },
+        sequencer_client: None,
     };
 
     let ledger_db = LedgerDB::with_path(path).unwrap();
@@ -170,6 +171,7 @@ async fn runner_execution(
         storage_manager,
         init_variant,
         prover_service,
+        None,
     )
     .unwrap();
 
