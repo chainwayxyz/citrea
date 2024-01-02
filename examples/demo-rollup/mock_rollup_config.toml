@@ -18,3 +18,6 @@ bind_port = 12345
 [sequencer_client]
 start_height = 1
 url = "http://0.0.0.0:12345"
+
+[prover_service]
+aggregated_proof_block_jump = 1

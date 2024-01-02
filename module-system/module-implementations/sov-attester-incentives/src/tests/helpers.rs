@@ -5,9 +5,11 @@ use sov_mock_da::{
 };
 use sov_mock_zkvm::{MockCodeCommitment, MockZkvm};
 use sov_modules_api::default_context::DefaultContext;
-use sov_modules_api::hooks::SlotHooks;
 use sov_modules_api::utils::generate_address;
-use sov_modules_api::{Address, Genesis, Spec, ValidityConditionChecker, WorkingSet};
+use sov_modules_api::{
+    Address, Genesis, KernelModule, KernelWorkingSet, Spec, ValidityConditionChecker, WorkingSet,
+};
+use sov_modules_core::runtime::capabilities::mocks::MockKernel;
 use sov_prover_storage_manager::SnapshotManager;
 use sov_rollup_interface::da::Time;
 use sov_state::storage::{NativeStorage, Storage, StorageProof};
@@ -77,7 +79,12 @@ pub(crate) fn create_bank_config_with_token(
 pub(crate) fn setup(
     working_set: &mut WorkingSet<C>,
 ) -> (
-    AttesterIncentives<C, MockZkvm, MockDaSpec, MockValidityCondChecker<MockValidityCond>>,
+    AttesterIncentives<
+        C,
+        MockZkvm<MockValidityCond>,
+        MockDaSpec,
+        MockValidityCondChecker<MockValidityCond>,
+    >,
     Address,
     Address,
     Address,
@@ -111,7 +118,7 @@ pub(crate) fn setup(
     // initialize prover incentives
     let module = AttesterIncentives::<
         C,
-        MockZkvm,
+        MockZkvm<MockValidityCond>,
         MockDaSpec,
         MockValidityCondChecker<MockValidityCond>,
     >::default();
@@ -151,7 +158,7 @@ pub(crate) struct ExecutionSimulationVars {
 /// with associated bonding proofs, as long as the last state root
 pub(crate) fn execution_simulation<Checker: ValidityConditionChecker<MockValidityCond>>(
     rounds: u8,
-    module: &AttesterIncentives<C, MockZkvm, MockDaSpec, Checker>,
+    module: &AttesterIncentives<C, MockZkvm<MockValidityCond>, MockDaSpec, Checker>,
     storage: &ProverStorage<DefaultStorageSpec, SnapshotManager>,
     attester_address: <C as Spec>::Address,
     mut working_set: WorkingSet<C>,
@@ -185,11 +192,12 @@ pub(crate) fn execution_simulation<Checker: ValidityConditionChecker<MockValidit
             validity_cond: MockValidityCond { is_valid: true },
             blobs: Default::default(),
         };
+        let kernel = MockKernel::<C, MockDaSpec>::new(i as u64, i as u64);
         module.chain_state.begin_slot_hook(
             &slot_data.header,
             &slot_data.validity_cond,
             &root_hash,
-            &mut working_set,
+            &mut KernelWorkingSet::from_kernel(&kernel, &mut working_set),
         );
     }
 

@@ -1600,6 +1600,7 @@ dependencies = [
  "sov-nft-module",
  "sov-rollup-interface",
  "sov-sequencer-registry",
+ "sov-soft-confirmations-kernel",
  "sov-state",
  "sov-stf-runner",
  "sov-value-setter",
@@ -6141,7 +6142,11 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "borsh",
+ "clap",
+ "jsonrpsee",
+ "schemars",
  "serde",
+ "serde_json",
  "sov-modules-api",
  "sov-state",
  "thiserror",
@@ -6154,7 +6159,12 @@ dependencies = [
  "anyhow",
  "bincode",
  "borsh",
+ "clap",
  "hex",
+ "jsonrpsee",
+ "schemars",
+ "serde",
+ "serde_json",
  "sov-chain-state",
  "sov-modules-api",
  "sov-sequencer-registry",
@@ -6194,7 +6204,9 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "borsh",
+ "jsonrpsee",
  "serde",
+ "serde_json",
  "sov-modules-api",
  "sov-state",
 ]
@@ -6302,6 +6314,7 @@ dependencies = [
  "sha2 0.10.8",
  "sov-modules-core",
  "sov-modules-macros",
+ "sov-prover-storage-manager",
  "sov-rollup-interface",
  "sov-state",
  "thiserror",
@@ -6350,6 +6363,8 @@ dependencies = [
  "jmt",
  "jsonrpsee",
  "serde",
+ "sov-blob-storage",
+ "sov-chain-state",
  "sov-modules-api",
  "sov-rollup-interface",
  "sov-state",
@@ -6367,6 +6382,18 @@ dependencies = [
  "sov-modules-api",
  "sov-modules-macros",
  "sov-state",
+]
+
+[[package]]
+name = "sov-prover-storage-manager"
+version = "0.3.0"
+dependencies = [
+ "anyhow",
+ "sov-db",
+ "sov-rollup-interface",
+ "sov-schema-db",
+ "sov-state",
+ "tracing",
 ]
 
 [[package]]
@@ -6419,8 +6446,23 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "borsh",
+ "clap",
+ "jsonrpsee",
+ "schemars",
  "serde",
+ "serde_json",
  "sov-bank",
+ "sov-modules-api",
+ "sov-state",
+]
+
+[[package]]
+name = "sov-soft-confirmations-kernel"
+version = "0.3.0"
+dependencies = [
+ "anyhow",
+ "sov-blob-storage",
+ "sov-chain-state",
  "sov-modules-api",
  "sov-state",
 ]
@@ -7968,6 +8010,16 @@ dependencies = [
  "cc",
  "pkg-config",
 ]
+
+[[patch.unused]]
+name = "crypto-bigint"
+version = "0.5.2"
+source = "git+https://github.com/risc0/RustCrypto-crypto-bigint?tag=v0.5.2-risc0#8b30304277cfe553b51a78a0e693f48bbb059eb3"
+
+[[patch.unused]]
+name = "ed25519-dalek"
+version = "2.0.0"
+source = "git+https://github.com/risc0/curve25519-dalek?tag=curve25519-4.1.0-risczero.1#42c4faf7dc3f640a7e3f7e4cbf43e7d5d6d46b67"
 
 [[patch.unused]]
 name = "sha2"

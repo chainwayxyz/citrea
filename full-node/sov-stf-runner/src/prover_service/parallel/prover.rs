@@ -8,12 +8,11 @@ use serde::Serialize;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::stf::StateTransitionFunction;
-use sov_rollup_interface::zk::{Proof, ZkvmHost};
+use sov_rollup_interface::zk::{Proof, StateTransitionData, ZkvmHost};
 
 use super::ProverServiceError;
 use crate::{
-    ProofGenConfig, ProofProcessingStatus, ProofSubmissionStatus, StateTransitionData,
-    WitnessSubmissionStatus,
+    ProofGenConfig, ProofProcessingStatus, ProofSubmissionStatus, WitnessSubmissionStatus,
 };
 
 enum ProverStatus<StateRoot, Witness, Da: DaSpec> {
@@ -80,6 +79,7 @@ pub(crate) struct Prover<StateRoot, Witness, Da: DaService> {
     prover_state: Arc<RwLock<ProverState<StateRoot, Witness, Da::Spec>>>,
     num_threads: usize,
     pool: rayon::ThreadPool,
+    _aggregated_proof_block_jump: u64,
 }
 
 impl<StateRoot, Witness, Da> Prover<StateRoot, Witness, Da>
@@ -88,7 +88,7 @@ where
     StateRoot: Serialize + DeserializeOwned + Clone + AsRef<[u8]> + Send + Sync + 'static,
     Witness: Serialize + DeserializeOwned + Send + Sync + 'static,
 {
-    pub(crate) fn new(num_threads: usize) -> Self {
+    pub(crate) fn new(num_threads: usize, _aggregated_proof_block_jump: u64) -> Self {
         Self {
             num_threads,
             pool: rayon::ThreadPoolBuilder::new()
@@ -100,6 +100,7 @@ where
                 prover_status: Default::default(),
                 pending_tasks_count: Default::default(),
             })),
+            _aggregated_proof_block_jump,
         }
     }
 
@@ -221,10 +222,10 @@ where
     V::PreState: Send + Sync + 'static,
 {
     match config.deref() {
-        ProofGenConfig::Skip => Ok(Proof::Empty),
+        ProofGenConfig::Skip => Ok(Proof::PublicInput(Vec::default())),
         ProofGenConfig::Simulate(verifier) => verifier
             .run_block(vm.simulate_with_hints(), zk_storage)
-            .map(|_| Proof::Empty)
+            .map(|_| Proof::PublicInput(Vec::default()))
             .map_err(|e| anyhow::anyhow!("Guest execution must succeed but failed with {:?}", e)),
         ProofGenConfig::Execute => vm.run(false),
         ProofGenConfig::Prover => vm.run(true),

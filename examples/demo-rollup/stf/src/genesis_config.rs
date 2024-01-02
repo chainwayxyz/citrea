@@ -34,8 +34,6 @@ pub struct GenesisPaths {
     pub value_setter_genesis_path: PathBuf,
     /// Accounts genesis path.
     pub accounts_genesis_path: PathBuf,
-    /// Chain State genesis path.
-    pub chain_state_genesis_path: PathBuf,
     /// NFT genesis path.
     pub nft_path: PathBuf,
     /// EVM genesis path.
@@ -54,7 +52,6 @@ impl GenesisPaths {
             sequencer_genesis_path: dir.as_ref().join("sequencer_registry.json"),
             value_setter_genesis_path: dir.as_ref().join("value_setter.json"),
             accounts_genesis_path: dir.as_ref().join("accounts.json"),
-            chain_state_genesis_path: dir.as_ref().join("chain_state.json"),
             nft_path: dir.as_ref().join("nft.json"),
             evm_genesis_path: dir.as_ref().join("evm.json"),
         }
@@ -109,16 +106,11 @@ fn create_genesis_config<C: Context, Da: DaSpec>(
 
     let nft_config: NonFungibleTokenConfig = read_json_file(&genesis_paths.nft_path)?;
 
-    let chain_state_config: ChainStateConfig =
-        read_json_file(&genesis_paths.chain_state_genesis_path)?;
-
     let evm_config: EvmConfig = read_json_file(&genesis_paths.evm_genesis_path)?;
 
     Ok(GenesisConfig::new(
         bank_config,
         sequencer_registry_config,
-        (),
-        chain_state_config,
         value_setter_config,
         accounts_config,
         nft_config,

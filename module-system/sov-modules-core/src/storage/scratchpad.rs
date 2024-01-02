@@ -271,6 +271,7 @@ impl<S: Storage> StateReaderAndWriter for AccessoryDelta<S> {
 pub struct StateCheckpoint<C: Context> {
     delta: Delta<C::Storage>,
     accessory_delta: AccessoryDelta<C::Storage>,
+    gas_meter: GasMeter<C::GasUnit>,
 }
 
 impl<C: Context> StateCheckpoint<C> {
@@ -280,6 +281,7 @@ impl<C: Context> StateCheckpoint<C> {
         Self {
             delta: Delta::new(inner.clone(), None),
             accessory_delta: AccessoryDelta::new(inner, None),
+            gas_meter: GasMeter::default(),
         }
     }
 
@@ -292,6 +294,7 @@ impl<C: Context> StateCheckpoint<C> {
         Self {
             delta: Delta::with_witness(inner.clone(), witness, None),
             accessory_delta: AccessoryDelta::new(inner, None),
+            gas_meter: GasMeter::default(),
         }
     }
 
@@ -301,7 +304,7 @@ impl<C: Context> StateCheckpoint<C> {
             delta: RevertableWriter::new(self.delta, None),
             accessory_delta: RevertableWriter::new(self.accessory_delta, None),
             events: Default::default(),
-            gas_meter: GasMeter::default(),
+            gas_meter: self.gas_meter,
             archival_working_set: None,
             archival_accessory_working_set: None,
         }
@@ -395,6 +398,17 @@ impl<C: Context> WorkingSet<C> {
         }
     }
 
+    /// Returns a handler for the kernel state for genesis
+    ///
+    /// You can use this method when calling getters and setters on accessory
+    /// state containers, like KernelStateMap.
+    pub fn genesis_versioned_state(&mut self) -> VersionedWorkingSet<C> {
+        VersionedWorkingSet {
+            ws: self,
+            slot_num: 0,
+        }
+    }
+
     /// Creates a new [`WorkingSet`] instance backed by the given [`Storage`]
     /// and a custom witness value.
     pub fn with_witness(
@@ -411,6 +425,7 @@ impl<C: Context> WorkingSet<C> {
         StateCheckpoint {
             delta: self.delta.commit(),
             accessory_delta: self.accessory_delta.commit(),
+            gas_meter: self.gas_meter,
         }
     }
 
@@ -420,6 +435,7 @@ impl<C: Context> WorkingSet<C> {
         StateCheckpoint {
             delta: self.delta.revert(),
             accessory_delta: self.accessory_delta.revert(),
+            gas_meter: self.gas_meter,
         }
     }
 
@@ -602,6 +618,18 @@ pub mod kernel_state {
     use super::*;
     use crate::capabilities::Kernel;
 
+    /// A trait indicating that this working set is version aware
+    pub trait VersionReader: StateReaderAndWriter {
+        /// Returns the current version of the working set
+        fn current_version(&self) -> u64;
+    }
+
+    impl<'a, C: Context> VersionReader for VersionedWorkingSet<'a, C> {
+        fn current_version(&self) -> u64 {
+            self.slot_num
+        }
+    }
+
     /// A wrapper over [`WorkingSet`] that allows access to kernel values
     pub struct VersionedWorkingSet<'a, C: Context> {
         pub(super) ws: &'a mut WorkingSet<C>,
@@ -631,11 +659,18 @@ pub mod kernel_state {
 
     /// A wrapper over [`WorkingSet`] that allows access to kernel values
     pub struct KernelWorkingSet<'a, C: Context> {
-        pub(super) ws: &'a mut WorkingSet<C>,
+        /// The inner working set
+        pub inner: &'a mut WorkingSet<C>,
         /// The actual current slot number
         pub(super) true_slot_num: u64,
         /// The slot number visible to user-space modules
         pub(super) virtual_slot_num: u64,
+    }
+
+    impl<'a, C: Context> VersionReader for KernelWorkingSet<'a, C> {
+        fn current_version(&self) -> u64 {
+            self.true_slot_num
+        }
     }
 
     impl<'a, C: Context> KernelWorkingSet<'a, C> {
@@ -644,10 +679,12 @@ pub mod kernel_state {
             kernel: &K,
             ws: &'a mut WorkingSet<C>,
         ) -> Self {
+            let true_slot_num = kernel.true_height(ws);
+            let virtual_slot_num = kernel.visible_height(ws);
             Self {
-                ws,
-                true_slot_num: kernel.true_height(),
-                virtual_slot_num: kernel.visible_height(),
+                inner: ws,
+                true_slot_num,
+                virtual_slot_num,
             }
         }
 
@@ -664,15 +701,15 @@ pub mod kernel_state {
 
     impl<'a, C: Context> StateReaderAndWriter for KernelWorkingSet<'a, C> {
         fn get(&mut self, key: &StorageKey) -> Option<StorageValue> {
-            self.ws.delta.get(key)
+            self.inner.delta.get(key)
         }
 
         fn set(&mut self, key: &StorageKey, value: StorageValue) {
-            self.ws.delta.set(key, value)
+            self.inner.delta.set(key, value)
         }
 
         fn delete(&mut self, key: &StorageKey) {
-            self.ws.delta.delete(key)
+            self.inner.delta.delete(key)
         }
     }
 }

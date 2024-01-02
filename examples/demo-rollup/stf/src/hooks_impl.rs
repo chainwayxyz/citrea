@@ -1,4 +1,5 @@
 use sov_accounts::AccountsTxHook;
+use sov_bank::BankTxHook;
 use sov_modules_api::hooks::{ApplyBlobHooks, FinalizeHook, SlotHooks, TxHooks};
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{AccessoryWorkingSet, Context, Spec, WorkingSet};
@@ -19,13 +20,17 @@ impl<C: Context, Da: DaSpec> TxHooks for Runtime<C, Da> {
         &self,
         tx: &Transaction<Self::Context>,
         working_set: &mut WorkingSet<C>,
-        arg: RuntimeTxHook<C>,
+        arg: &RuntimeTxHook<C>,
     ) -> anyhow::Result<C> {
         let RuntimeTxHook { height, sequencer } = arg;
         let AccountsTxHook { sender, sequencer } =
             self.accounts
                 .pre_dispatch_tx_hook(tx, working_set, sequencer)?;
-        Ok(C::new(sender, sequencer, height))
+
+        let hook = BankTxHook { sender, sequencer };
+        self.bank.pre_dispatch_tx_hook(tx, working_set, &hook)?;
+
+        Ok(C::new(hook.sender, hook.sequencer, *height))
     }
 
     fn post_dispatch_tx_hook(
@@ -35,6 +40,7 @@ impl<C: Context, Da: DaSpec> TxHooks for Runtime<C, Da> {
         working_set: &mut WorkingSet<C>,
     ) -> anyhow::Result<()> {
         self.accounts.post_dispatch_tx_hook(tx, ctx, working_set)?;
+        self.bank.post_dispatch_tx_hook(tx, ctx, working_set)?;
         Ok(())
     }
 }
@@ -98,13 +104,6 @@ impl<C: Context, Da: DaSpec> SlotHooks<Da> for Runtime<C, Da> {
     ) {
         self.evm
             .begin_slot_hook(slot_header.hash().into(), pre_state_root, working_set);
-
-        self.chain_state.begin_slot_hook(
-            slot_header,
-            validity_condition,
-            pre_state_root,
-            working_set,
-        );
     }
 
     fn end_slot_hook(
@@ -112,8 +111,6 @@ impl<C: Context, Da: DaSpec> SlotHooks<Da> for Runtime<C, Da> {
         #[allow(unused_variables)] working_set: &mut sov_modules_api::WorkingSet<C>,
     ) {
         self.evm.end_slot_hook(working_set);
-
-        self.chain_state.end_slot_hook(working_set);
     }
 }
 
@@ -126,8 +123,5 @@ impl<C: Context, Da: sov_modules_api::DaSpec> FinalizeHook<Da> for Runtime<C, Da
         #[allow(unused_variables)] accessory_working_set: &mut AccessoryWorkingSet<C>,
     ) {
         self.evm.finalize_hook(root_hash, accessory_working_set);
-
-        self.chain_state
-            .finalize_hook(root_hash, accessory_working_set);
     }
 }
