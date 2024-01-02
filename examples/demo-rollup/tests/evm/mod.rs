@@ -12,10 +12,42 @@ use sov_demo_rollup::initialize_logging;
 use sov_evm::SimpleStorageContract;
 use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
 use sov_stf_runner::RollupProverConfig;
-use test_client::TestClient;
+pub use test_client::TestClient;
 use tokio::time::{sleep, Duration};
 
-use crate::test_helpers::start_rollup;
+use crate::test_helpers::{start_rollup, NodeMode};
+
+#[tokio::test]
+async fn web3_rpc_tests() -> Result<(), anyhow::Error> {
+    let (port_tx, port_rx) = tokio::sync::oneshot::channel();
+    let rollup_task = tokio::spawn(async {
+        // Don't provide a prover since the EVM is not currently provable
+        start_rollup(
+            port_tx,
+            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
+            RollupProverConfig::Skip,
+            NodeMode::SequencerNode,
+            None,
+        )
+        .await;
+    });
+
+    // Wait for rollup task to start:
+    let port = port_rx.await.unwrap();
+
+    let test_client = make_test_client(port, SimpleStorageContract::default()).await;
+
+    assert_eq!(test_client.web3_client_version().await, "citrea/0.0.1");
+    assert_eq!(
+        test_client
+            .web3_sha3("0x68656c6c6f20776f726c64".to_string())
+            .await,
+        "0x47173285a8d7341e5e972fc677286384f802f8ef42a5ec5f03bbfa254cb01fad".to_string()
+    );
+
+    rollup_task.abort();
+    Ok(())
+}
 
 #[tokio::test]
 async fn evm_tx_tests() -> Result<(), anyhow::Error> {
@@ -32,6 +64,8 @@ async fn evm_tx_tests() -> Result<(), anyhow::Error> {
                 chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
             },
             RollupProverConfig::Skip,
+            NodeMode::SequencerNode,
+            None,
         )
         .await;
     });
@@ -63,6 +97,8 @@ async fn test_eth_get_logs() -> Result<(), anyhow::Error> {
             port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             RollupProverConfig::Skip,
+            NodeMode::SequencerNode,
+            None,
         )
         .await;
     });
@@ -417,24 +453,16 @@ pub async fn init_test_rollup<T: TestContract>(
     rpc_address: SocketAddr,
     contract: T,
 ) -> Box<TestClient<T>> {
-    let chain_id: u64 = 1;
-    let key = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
-        .parse::<LocalWallet>()
-        .unwrap()
-        .with_chain_id(chain_id);
-
-    let contract = contract.default_();
-
-    let from_addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
-
-    let test_client =
-        Box::new(TestClient::new(chain_id, key, from_addr, contract, rpc_address).await);
+    let test_client = make_test_client(rpc_address, contract).await;
 
     let etc_accounts = test_client.eth_accounts().await;
-    assert_eq!(vec![from_addr], etc_accounts);
+    assert_eq!(
+        vec![Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap()],
+        etc_accounts
+    );
 
     let eth_chain_id = test_client.eth_chain_id().await;
-    assert_eq!(chain_id, eth_chain_id);
+    assert_eq!(5655, eth_chain_id);
 
     // No block exists yet
     let latest_block = test_client
@@ -447,4 +475,21 @@ pub async fn init_test_rollup<T: TestContract>(
     assert_eq!(latest_block, earliest_block);
     assert_eq!(latest_block.number.unwrap().as_u64(), 0);
     test_client
+}
+
+pub async fn make_test_client<T: TestContract>(
+    rpc_address: SocketAddr,
+    contract: T,
+) -> Box<TestClient<T>> {
+    let chain_id: u64 = 5655;
+    let key = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+        .parse::<LocalWallet>()
+        .unwrap()
+        .with_chain_id(chain_id);
+
+    let contract = contract.default_();
+
+    let from_addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
+
+    Box::new(TestClient::new(chain_id, key, from_addr, contract, rpc_address).await)
 }

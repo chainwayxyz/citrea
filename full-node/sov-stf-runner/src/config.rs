@@ -33,8 +33,6 @@ pub struct StorageConfig {
 /// Sequencer RPC configuration.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct SequencerClientRpcConfig {
-    /// Sequencer start height.
-    pub start_height: u64,
     /// RPC host url (with port, if applicable).
     pub url: String,
 }
@@ -106,7 +104,6 @@ mod tests {
             bind_host = "127.0.0.1"
             bind_port = 12345
             [sequencer_client]
-            start_height = 5
             url = "http://0.0.0.0:12346"
             [prover_service]
             aggregated_proof_block_jump = 22
@@ -135,7 +132,6 @@ mod tests {
                 path: PathBuf::from("/tmp"),
             },
             sequencer_client: Some(SequencerClientRpcConfig {
-                start_height: 5,
                 url: "http://0.0.0.0:12346".to_owned(),
             }),
             prover_service: ProverServiceConfig {

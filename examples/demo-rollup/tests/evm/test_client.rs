@@ -14,7 +14,7 @@ use jsonrpsee::rpc_params;
 use reth_primitives::{BlockNumberOrTag, Bytes};
 use sov_evm::{LogResponse, LogsContract, SimpleStorageContract, TestContract};
 
-const MAX_FEE_PER_GAS: u64 = 100000001;
+const MAX_FEE_PER_GAS: u64 = 1000000001;
 const GAS: u64 = 900000u64;
 
 pub struct TestClient<T: TestContract> {
@@ -256,6 +256,45 @@ impl<T: TestContract> TestClient<T> {
 
         let resp_array: [u8; 32] = response.to_vec().try_into().unwrap();
         Ok(ethereum_types::U256::from(resp_array))
+    }
+
+    pub(crate) async fn send_eth(
+        &self,
+        to_addr: Address,
+        max_priority_fee_per_gas: Option<u64>,
+        max_fee_per_gas: Option<u64>,
+    ) -> PendingTransaction<'_, Http> {
+        let nonce = self.eth_get_transaction_count(self.from_addr).await;
+
+        let req = Eip1559TransactionRequest::new()
+            .from(self.from_addr)
+            .to(to_addr)
+            .chain_id(self.chain_id)
+            .nonce(nonce)
+            .max_priority_fee_per_gas(max_priority_fee_per_gas.unwrap_or(10u64))
+            .max_fee_per_gas(max_fee_per_gas.unwrap_or(MAX_FEE_PER_GAS))
+            .gas(GAS);
+
+        let typed_transaction = TypedTransaction::Eip1559(req);
+
+        self.client
+            .send_transaction(typed_transaction, None)
+            .await
+            .unwrap()
+    }
+
+    pub(crate) async fn web3_client_version(&self) -> String {
+        self.http_client
+            .request("web3_clientVersion", rpc_params![])
+            .await
+            .unwrap()
+    }
+
+    pub(crate) async fn web3_sha3(&self, bytes: String) -> String {
+        self.http_client
+            .request("web3_sha3", rpc_params![bytes])
+            .await
+            .unwrap()
     }
 
     pub(crate) async fn eth_accounts(&self) -> Vec<Address> {

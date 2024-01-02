@@ -166,13 +166,13 @@ pub trait RollupBlueprint: Sized + Send + Sync {
 
         let prev_root = ledger_db
             .get_head_slot()?
-            .map(|(number, _)| prover_storage.get_root_hash(number.0))
+            .map(|(number, _)| native_storage.get_root_hash(number.0 + 1))
             .transpose()?;
 
         // if node does not have a sequencer client, then it is a sequencer
         let sequencer_client = rollup_config
             .sequencer_client
-            .map(|s| SequencerClient::new(s.start_height, s.url));
+            .map(|s| SequencerClient::new(s.url));
 
         // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1218)
         let rpc_methods = self.create_rpc_methods(

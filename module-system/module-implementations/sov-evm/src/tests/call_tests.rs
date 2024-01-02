@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use reth_primitives::{Address, BlockNumberOrTag, Bytes, TransactionKind, U64};
 use reth_rpc_types::{CallInput, CallRequest};
 use revm::primitives::{SpecId, B256, KECCAK_EMPTY, U256};
@@ -10,6 +12,7 @@ use crate::evm::primitive_types::Receipt;
 use crate::smart_contracts::{SelfDestructorContract, SimpleStorageContract, TestContract};
 use crate::tests::genesis_tests::get_evm;
 use crate::tests::test_signer::TestSigner;
+use crate::tests::DEFAULT_CHAIN_ID;
 use crate::{
     AccountData, BlockHashContract, EvmConfig, Filter, FilterSet, LogsContract, RlpEvmTransaction,
 };
@@ -23,7 +26,7 @@ fn call_multiple_test() {
     let config = EvmConfig {
         data: vec![AccountData {
             address: dev_signer1.address(),
-            balance: U256::from(1000000000),
+            balance: U256::from_str("100000000000000000000").unwrap(),
             code_hash: KECCAK_EMPTY,
             code: Bytes::default(),
             nonce: 0,
@@ -132,7 +135,8 @@ fn call_multiple_test() {
 
 #[test]
 fn call_test() {
-    let (config, dev_signer, contract_addr) = get_evm_config(1000000000);
+    let (config, dev_signer, contract_addr) =
+        get_evm_config(U256::from_str("100000000000000000000").unwrap());
 
     let (evm, mut working_set) = get_evm(&config);
 
@@ -245,7 +249,8 @@ fn self_destruct_test() {
             .as_slice(),
     );
 
-    let (config, dev_signer, contract_addr) = get_evm_config(10000000000000000);
+    let (config, dev_signer, contract_addr) =
+        get_evm_config(U256::from_str("100000000000000000000").unwrap());
     let (evm, mut working_set) = get_evm(&config);
 
     evm.begin_slot_hook([5u8; 32], &[10u8; 32].into(), &mut working_set);
@@ -356,7 +361,8 @@ fn self_destruct_test() {
 
 #[test]
 fn log_filter_test_at_block_hash() {
-    let (config, dev_signer, contract_addr) = get_evm_config(10000000000000000);
+    let (config, dev_signer, contract_addr) =
+        get_evm_config(U256::from_str("100000000000000000000").unwrap());
 
     let (evm, mut working_set) = get_evm(&config);
 
@@ -548,7 +554,8 @@ fn log_filter_test_at_block_hash() {
 
 #[test]
 fn log_filter_test_with_range() {
-    let (config, dev_signer, contract_addr) = get_evm_config(10000000000000000);
+    let (config, dev_signer, contract_addr) =
+        get_evm_config(U256::from_str("100000000000000000000").unwrap());
 
     let (evm, mut working_set) = get_evm(&config);
 
@@ -638,7 +645,8 @@ fn log_filter_test_with_range() {
 
 #[test]
 fn test_log_limits() {
-    let (config, dev_signer, contract_addr) = get_evm_config(10000000000000000);
+    let (config, dev_signer, contract_addr) =
+        get_evm_config(U256::from_str("100000000000000000000").unwrap());
 
     let (evm, mut working_set) = get_evm(&config);
 
@@ -754,7 +762,8 @@ fn test_log_limits() {
 
 #[test]
 fn test_block_hash_in_evm() {
-    let (config, dev_signer, contract_addr) = get_evm_config(10000000000000000);
+    let (config, dev_signer, contract_addr) =
+        get_evm_config(U256::from_str("100000000000000000000").unwrap());
 
     let (evm, mut working_set) = get_evm(&config);
     evm.begin_slot_hook([5u8; 32], &[10u8; 32].into(), &mut working_set);
@@ -810,7 +819,7 @@ fn test_block_hash_in_evm() {
             ),
         },
         nonce: Some(U64::from(0u64)),
-        chain_id: Some(U64::from(1u64)),
+        chain_id: Some(U64::from(DEFAULT_CHAIN_ID)),
         access_list: None,
         max_fee_per_blob_gas: None,
         blob_versioned_hashes: vec![],
@@ -853,7 +862,7 @@ fn create_contract_message<T: TestContract>(
         .unwrap()
 }
 
-fn create_contract_transaction<T: TestContract>(
+pub(crate) fn create_contract_transaction<T: TestContract>(
     dev_signer: &TestSigner,
     nonce: u64,
     contract: T,
@@ -951,7 +960,7 @@ fn selfdestruct_message(
         .unwrap()
 }
 
-fn publish_event_message(
+pub(crate) fn publish_event_message(
     contract_addr: Address,
     signer: &TestSigner,
     nonce: u64,
@@ -969,7 +978,7 @@ fn publish_event_message(
         .unwrap()
 }
 
-fn get_evm_config(signer_balance: u64) -> (EvmConfig, TestSigner, Address) {
+fn get_evm_config(signer_balance: U256) -> (EvmConfig, TestSigner, Address) {
     let dev_signer: TestSigner = TestSigner::new_random();
 
     let contract_addr: Address = Address::from_slice(
@@ -980,7 +989,7 @@ fn get_evm_config(signer_balance: u64) -> (EvmConfig, TestSigner, Address) {
     let config = EvmConfig {
         data: vec![AccountData {
             address: dev_signer.address(),
-            balance: U256::from(signer_balance),
+            balance: signer_balance,
             code_hash: KECCAK_EMPTY,
             code: Bytes::default(),
             nonce: 0,

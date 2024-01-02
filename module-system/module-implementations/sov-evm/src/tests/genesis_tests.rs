@@ -20,7 +20,7 @@ lazy_static! {
     pub(crate) static ref TEST_CONFIG: EvmConfig = EvmConfig {
         data: vec![AccountData {
             address: Address::from([1u8; 20]),
-            balance: U256::from(1000000000),
+            balance: U256::checked_mul(U256::from(1000), U256::pow(U256::from(10), U256::from(18))).unwrap(), // 1000 ETH
             code_hash: KECCAK_EMPTY,
             code: Bytes::default(),
             nonce: 0,
@@ -34,13 +34,13 @@ lazy_static! {
         genesis_timestamp: 50,
         coinbase: Address::from([3u8; 20]),
         limit_contract_code_size: Some(5000),
-        starting_base_fee: 70,
+        starting_base_fee: 1000000000,
         base_fee_params: BaseFeeParams::ethereum(),
     };
 }
 
 pub(crate) const GENESIS_HASH: H256 = H256(hex!(
-    "d57423e4375c45bc114cd137146aab671dbd3f6304f05b31bdd416301b4a99f0"
+    "9187222a036b606a937ab9e1d08cce85fcf4f234e67cc53ac7c42de352ca312d"
 ));
 
 pub(crate) const GENESIS_STATE_ROOT: H256 = H256(hex!(
@@ -160,7 +160,7 @@ fn genesis_block() {
                     extra_data: Bytes::default(),
                     mix_hash: H256::default(),
                     nonce: 0,
-                    base_fee_per_gas: Some(70),
+                    base_fee_per_gas: Some(1000000000),
                     ommers_hash: EMPTY_OMMER_ROOT,
                     beneficiary: *BENEFICIARY,
                     withdrawals_root: None,
@@ -197,7 +197,7 @@ fn genesis_head() {
                 extra_data: Bytes::default(),
                 mix_hash: H256::default(),
                 nonce: 0,
-                base_fee_per_gas: Some(70),
+                base_fee_per_gas: Some(1000000000),
                 ommers_hash: EMPTY_OMMER_ROOT,
                 beneficiary: *BENEFICIARY,
                 withdrawals_root: None,

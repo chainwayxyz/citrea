@@ -1,14 +1,12 @@
 use core::fmt::Debug as DebugTrait;
 use std::env;
-use std::path::Path;
 use std::str::FromStr;
 
 use anyhow::{anyhow, Context as _};
-use bitcoin_da::service::{BitcoinService, DaServiceConfig};
-use bitcoin_da::spec::RollupParams;
+use bitcoin_da::service::DaServiceConfig;
 use chainway_sequencer::ChainwaySequencer;
 use clap::Parser;
-use const_rollup_config::{ROLLUP_NAME, TEST_PRIVATE_KEY};
+use const_rollup_config::TEST_PRIVATE_KEY;
 use demo_stf::genesis_config::GenesisPaths;
 use reth_primitives::hex;
 use reth_primitives::serde_helper::num::from_int_or_hex;
@@ -28,7 +26,6 @@ use sov_modules_stf_blueprint::kernels::basic::{
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::stf::ProverConfig;
 use sov_state::storage::NativeStorage;
-use sov_state::{DefaultStorageSpec, ProverStorage, Storage};
 use sov_stf_runner::{from_toml_path, RollupConfig, RollupProverConfig};
 use tracing::log::debug;
 
