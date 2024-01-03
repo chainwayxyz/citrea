@@ -48,6 +48,16 @@ pub struct TxIdAndKey {
     pub key: EventKey,
 }
 
+/// An identifier that specifies a single soft batch
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum SoftBatchIdentifier {
+    /// The monotonically increasing number of the soft batch
+    Number(u64),
+    /// The hex-encoded hash of the soft batch
+    Hash(#[serde(with = "utils::rpc_hex")] [u8; 32]),
+}
+
 /// An identifier that specifies a single batch
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -229,7 +239,10 @@ pub trait LedgerRpcProvider {
     ) -> Result<Vec<Option<BatchResponse<B, T>>>, anyhow::Error>;
 
     /// Get soft batch
-    fn get_soft_batch(&self, batch_num: u64) -> Result<Option<SoftBatchResponse>, anyhow::Error>;
+    fn get_soft_batch(
+        &self,
+        batch_id: SoftBatchIdentifier,
+    ) -> Result<Option<SoftBatchResponse>, anyhow::Error>;
 
     /// Get a list of transactions by id. The IDs need not be ordered.
     fn get_transactions<T: DeserializeOwned>(
@@ -250,6 +263,12 @@ pub trait LedgerRpcProvider {
         hash: &[u8; 32],
         query_mode: QueryMode,
     ) -> Result<Option<SlotResponse<B, T>>, anyhow::Error>;
+
+    /// Get a single soft batch by hash.
+    fn get_soft_batch_by_hash<T: DeserializeOwned>(
+        &self,
+        hash: &[u8; 32],
+    ) -> Result<Option<SoftBatchResponse>, anyhow::Error>;
 
     /// Get a single batch by hash.
     fn get_batch_by_hash<B: DeserializeOwned, T: DeserializeOwned>(

@@ -83,6 +83,12 @@ where
             .get_slot_by_hash::<B, Tx>(&args.0 .0, args.1)
             .map_err(|e| to_jsonrpsee_error_object(e, LEDGER_RPC_ERROR))
     })?;
+    rpc.register_method("ledger_getSoftBatchByHash", move |params, ledger| {
+        let args: QueryArgs<HexHash> = extract_query_args(params)?;
+        ledger
+            .get_soft_batch_by_hash::<Tx>(&args.0 .0)
+            .map_err(|e| to_jsonrpsee_error_object(e, LEDGER_RPC_ERROR))
+    })?;
     rpc.register_method("ledger_getBatchByHash", move |params, ledger| {
         let args: QueryArgs<HexHash> = extract_query_args(params)?;
         ledger

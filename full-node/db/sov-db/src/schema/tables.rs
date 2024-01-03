@@ -51,8 +51,9 @@ pub const STATE_TABLES: &[&str] = &[
 pub const LEDGER_TABLES: &[&str] = &[
     SlotByNumber::table_name(),
     SlotByHash::table_name(),
-    BatchByHash::table_name(),
     SoftBatchByNumber::table_name(),
+    SoftBatchByHash::table_name(),
+    BatchByHash::table_name(),
     BatchByNumber::table_name(),
     TxByHash::table_name(),
     TxByNumber::table_name(),
@@ -227,6 +228,11 @@ define_table_with_default_codec!(
 define_table_with_seek_key_codec!(
     /// The primary source for soft batch data
     (SoftBatchByNumber) BatchNumber => StoredSoftBatch
+);
+
+define_table_with_default_codec!(
+    /// A "secondary index" for soft batch data by hash
+    (SoftBatchByHash) DbHash => BatchNumber
 );
 
 define_table_with_seek_key_codec!(

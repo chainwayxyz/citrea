@@ -194,7 +194,8 @@ impl LedgerDB {
         batch_number: &BatchNumber,
         schema_batch: &mut SchemaBatch,
     ) -> Result<(), anyhow::Error> {
-        schema_batch.put::<SoftBatchByNumber>(batch_number, batch)
+        schema_batch.put::<SoftBatchByNumber>(batch_number, batch)?;
+        schema_batch.put::<BatchByHash>(&batch.hash, batch_number)
     }
 
     fn put_batch(

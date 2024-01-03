@@ -218,7 +218,6 @@ where
         };
 
         let next_state_root = slot_result.state_root;
-        self.ledger_db.commit_slot(data_to_commit)?;
         self.ledger_db.commit_soft_batch(soft_batch_receipt)?;
         self.state_root = next_state_root;
 
@@ -392,7 +391,6 @@ where
 
             let next_state_root = slot_result.state_root;
             self.ledger_db.commit_soft_batch(soft_batch_receipt)?;
-            self.ledger_db.commit_slot(data_to_commit)?;
             self.state_root = next_state_root;
 
             info!(
