@@ -1,4 +1,5 @@
 use ethers::types::{Bytes, H256};
+use hex::FromHex;
 use jsonrpsee::core::client::ClientT;
 use jsonrpsee::core::Error;
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
@@ -22,14 +23,17 @@ impl SequencerClient {
     }
 
     /// Gets l2 block given l2 height
-    pub async fn get_sov_tx(&self, num: u64) -> anyhow::Result<Vec<u8>> {
-        let res: Result<GetSovTxResponse, jsonrpsee::core::Error> = self
+    pub async fn get_sov_batch<DaSpec: sov_rollup_interface::da::DaSpec>(
+        &self,
+        num: u64,
+    ) -> anyhow::Result<Option<GetSovTxResponse<DaSpec::SlotHash>>> {
+        let res: Result<Option<GetSovTxResponse<DaSpec::SlotHash>>, jsonrpsee::core::Error> = self
             .client
-            .request("ledger_getTransactionByNumber", rpc_params![num])
+            .request("ledger_getSoftBatchByNumber", rpc_params![num])
             .await;
 
         match res {
-            Ok(res) => Ok(res.body),
+            Ok(res) => Ok(res),
             Err(e) => match e {
                 Error::Transport(e) => anyhow::Result::Err(Error::Transport(e).into()),
                 Error::ParseError(e) => anyhow::Result::Err(Error::ParseError(e).into()),
@@ -48,8 +52,10 @@ impl SequencerClient {
     }
 }
 
-// the response has more fields, however for now we don't need them
 #[derive(Deserialize, Debug)]
-struct GetSovTxResponse {
-    pub body: Vec<u8>,
+pub struct GetSovTxResponse<Hash> {
+    pub da_slot_height: u64,
+    pub da_slot_hash: Hash,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub txs: Option<Vec<Vec<u8>>>,
 }

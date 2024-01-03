@@ -5817,6 +5817,7 @@ dependencies = [
  "jsonrpsee",
  "serde",
  "serde_json",
+ "sov-rollup-interface",
  "tokio",
  "tracing",
 ]

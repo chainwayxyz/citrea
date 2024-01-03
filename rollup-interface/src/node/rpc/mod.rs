@@ -148,6 +148,21 @@ pub struct SlotResponse<B, Tx> {
     pub batches: Option<Vec<ItemOrHash<BatchResponse<B, Tx>>>>,
 }
 
+/// The response to a JSON-RPC request for a particular soft batch.
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+pub struct SoftBatchResponse {
+    /// The DA height of the soft batch.
+    pub da_slot_height: u64,
+    /// The DA slothash of the soft batch.
+    pub da_slot_hash: [u8; 32],
+    /// The hash of the soft batch.
+    #[serde(with = "utils::rpc_hex")]
+    pub hash: [u8; 32],
+    /// The transactions in this batch.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub txs: Option<Vec<Vec<u8>>>,
+}
+
 /// The response to a JSON-RPC request for a particular batch.
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct BatchResponse<B, Tx> {
@@ -213,6 +228,9 @@ pub trait LedgerRpcProvider {
         query_mode: QueryMode,
     ) -> Result<Vec<Option<BatchResponse<B, T>>>, anyhow::Error>;
 
+    /// Get soft batch
+    fn get_soft_batch(&self, batch_num: u64) -> Result<Option<SoftBatchResponse>, anyhow::Error>;
+
     /// Get a list of transactions by id. The IDs need not be ordered.
     fn get_transactions<T: DeserializeOwned>(
         &self,
@@ -253,6 +271,12 @@ pub trait LedgerRpcProvider {
         number: u64,
         query_mode: QueryMode,
     ) -> Result<Option<SlotResponse<B, T>>, anyhow::Error>;
+
+    /// Get a single soft batch by number.
+    fn get_soft_batch_by_number<T: DeserializeOwned>(
+        &self,
+        number: u64,
+    ) -> Result<Option<SoftBatchResponse>, anyhow::Error>;
 
     /// Get a single batch by number.
     fn get_batch_by_number<B: DeserializeOwned, T: DeserializeOwned>(

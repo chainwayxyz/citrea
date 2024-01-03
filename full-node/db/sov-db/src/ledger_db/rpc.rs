@@ -1,14 +1,17 @@
+use std::fmt::Debug;
+
 use serde::de::DeserializeOwned;
 use sov_rollup_interface::rpc::{
     BatchIdAndOffset, BatchIdentifier, BatchResponse, EventIdentifier, ItemOrHash,
-    LedgerRpcProvider, QueryMode, SlotIdAndOffset, SlotIdentifier, SlotResponse, TxIdAndOffset,
-    TxIdentifier, TxResponse,
+    LedgerRpcProvider, QueryMode, SlotIdAndOffset, SlotIdentifier, SlotResponse, SoftBatchResponse,
+    TxIdAndOffset, TxIdentifier, TxResponse,
 };
 use sov_rollup_interface::stf::Event;
 use tokio::sync::broadcast::Receiver;
 
 use crate::schema::tables::{
-    BatchByHash, BatchByNumber, EventByNumber, SlotByHash, SlotByNumber, TxByHash, TxByNumber,
+    BatchByHash, BatchByNumber, EventByNumber, SlotByHash, SlotByNumber, SoftBatchByNumber,
+    TxByHash, TxByNumber,
 };
 use crate::schema::types::{
     BatchNumber, EventNumber, SlotNumber, StoredBatch, StoredSlot, TxNumber,
@@ -53,6 +56,16 @@ impl LedgerRpcProvider for LedgerDB {
                 None => None,
             })
         }
+        Ok(out)
+    }
+
+    fn get_soft_batch(&self, batch_num: u64) -> Result<Option<SoftBatchResponse>, anyhow::Error> {
+        let out: Option<SoftBatchResponse> =
+            match self.db.get::<SoftBatchByNumber>(&BatchNumber(batch_num))? {
+                Some(sb) => Some(sb.try_into()?),
+                None => None,
+            };
+
         Ok(out)
     }
 
@@ -197,6 +210,13 @@ impl LedgerRpcProvider for LedgerDB {
     ) -> Result<Option<SlotResponse<B, T>>, anyhow::Error> {
         self.get_slots(&[SlotIdentifier::Number(number)], query_mode)
             .map(|mut slots: Vec<Option<SlotResponse<B, T>>>| slots.pop().unwrap_or(None))
+    }
+
+    fn get_soft_batch_by_number<T: DeserializeOwned>(
+        &self,
+        number: u64,
+    ) -> Result<Option<SoftBatchResponse>, anyhow::Error> {
+        self.get_soft_batch(number)
     }
 
     fn get_batch_by_number<B: DeserializeOwned, T: DeserializeOwned>(

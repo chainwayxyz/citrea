@@ -74,6 +74,21 @@ pub struct BatchReceipt<BatchReceiptContents, TxReceiptContents> {
     pub inner: BatchReceiptContents,
 }
 
+/// A receipt for a soft batch of transactions. These receipts are stored in the rollup's database
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SoftBatchReceipt<BatchReceiptContents, TxReceiptContents, DS: DaSpec> {
+    /// DA layer block number
+    pub da_slot_height: u64,
+    /// DA layer block hash
+    pub da_slot_hash: <DS as DaSpec>::SlotHash,
+    /// The canonical hash of this batch
+    pub batch_hash: [u8; 32],
+    /// The receipts of all the transactions in this batch.
+    pub tx_receipts: Vec<TransactionReceipt<TxReceiptContents>>,
+    /// Any additional structured data to be saved in the database and served over RPC
+    pub inner: BatchReceiptContents,
+}
+
 /// Result of applying a slot to current state
 /// Where:
 ///  - S - generic for state root

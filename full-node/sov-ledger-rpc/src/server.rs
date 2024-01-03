@@ -103,6 +103,12 @@ where
             .get_slot_by_number::<B, Tx>(args.0, args.1)
             .map_err(|e| to_jsonrpsee_error_object(e, LEDGER_RPC_ERROR))
     })?;
+    rpc.register_method("ledger_getSoftBatchByNumber", move |params, ledger| {
+        let args: QueryArgs<u64> = extract_query_args(params)?;
+        ledger
+            .get_soft_batch_by_number::<Tx>(args.0)
+            .map_err(|e| to_jsonrpsee_error_object(e, LEDGER_RPC_ERROR))
+    })?;
     rpc.register_method("ledger_getBatchByNumber", move |params, ledger| {
         let args: QueryArgs<u64> = extract_query_args(params)?;
         ledger

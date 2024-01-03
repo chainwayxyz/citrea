@@ -4,11 +4,13 @@ use borsh::BorshSerialize;
 use jsonrpsee::core::Error;
 use jsonrpsee::RpcModule;
 use sequencer_client::SequencerClient;
+use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::{LedgerDB, SlotCommit};
 use sov_modules_stf_blueprint::{Batch, RawTx};
-use sov_rollup_interface::da::{BlobReaderTrait, DaSpec};
+use sov_rollup_interface::da::{self, BlobReaderTrait, BlockHeaderTrait, DaSpec};
+use sov_rollup_interface::services;
 use sov_rollup_interface::services::da::{DaService, SlotData};
-use sov_rollup_interface::stf::StateTransitionFunction;
+use sov_rollup_interface::stf::{SoftBatchReceipt, StateTransitionFunction};
 use sov_rollup_interface::storage::StorageManager;
 use sov_rollup_interface::zk::ZkvmHost;
 use tokio::sync::oneshot;
@@ -22,6 +24,15 @@ type InitialState<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::Genesis
 
 const CONNECTION_INTERVALS: &[u64] = &[0, 1, 2, 5, 10, 15, 30, 60];
 const PARSE_INTERVALS: &[u64] = &[0, 1, 5];
+
+/// Represents the block template that is used to create a block.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct BlockTemplate<DaService: services::da::DaService> {
+    /// DA block to build on
+    pub filtered_block: DaService::FilteredBlock,
+    /// Transactions to include in the block
+    pub txs: Vec<Vec<u8>>,
+}
 
 /// Combines `DaService` with `StateTransitionFunction` and "runs" the rollup.
 pub struct StateTransitionRunner<Stf, Sm, Da, Vm, Ps>
@@ -112,9 +123,9 @@ where
 
         // Start the main rollup loop
         let item_numbers = ledger_db.get_next_items_numbers();
-        let last_slot_processed_before_shutdown = item_numbers.slot_number;
+        let last_soft_batch_processed_before_shutdown = item_numbers.soft_batch_number;
 
-        let start_height = last_slot_processed_before_shutdown;
+        let start_height = last_soft_batch_processed_before_shutdown;
 
         Ok(Self {
             start_height,
@@ -155,14 +166,21 @@ where
 
     /// Processes sequence
     /// gets a blob of txs as parameter
-    pub async fn process(&mut self, blob: &[u8]) -> Result<(), anyhow::Error> {
+    pub async fn process(
+        &mut self,
+        block_template: BlockTemplate<Da>,
+    ) -> Result<(), anyhow::Error> {
         let pre_state = self.storage_manager.get_native_storage();
-        let filtered_block: <Da as DaService>::FilteredBlock =
-            // TODO: 4 is used to mock da related info, will be replaced
-            self.da_service.get_block_at(4u64).await?;
+
+        let (txs, filtered_block) = (block_template.txs, block_template.filtered_block);
+
+        let batch = Batch {
+            txs: txs.iter().map(|tx| RawTx { data: tx.clone() }).collect(),
+        };
+
         let (blob, _signature) = self
             .da_service
-            .convert_rollup_batch_to_da_blob(blob)
+            .convert_rollup_batch_to_da_blob(&batch.try_to_vec().unwrap())
             .unwrap();
 
         info!(
@@ -175,8 +193,8 @@ where
             &self.state_root,
             pre_state,
             Default::default(),
-            filtered_block.header(),              // mock this
-            &filtered_block.validity_condition(), // mock this
+            &filtered_block.header(),
+            &filtered_block.validity_condition(),
             &mut vec![blob],
         );
 
@@ -189,8 +207,20 @@ where
         for receipt in slot_result.batch_receipts {
             data_to_commit.add_batch(receipt);
         }
+
+        let batch_receipt = data_to_commit.batch_receipts()[0].clone();
+
+        let soft_batch_receipt = SoftBatchReceipt::<_, _, Da::Spec> {
+            inner: batch_receipt.inner,
+            batch_hash: batch_receipt.batch_hash,
+            da_slot_hash: filtered_block.header().hash(),
+            da_slot_height: filtered_block.header().height(),
+            tx_receipts: batch_receipt.tx_receipts.clone(),
+        };
+
         let next_state_root = slot_result.state_root;
         self.ledger_db.commit_slot(data_to_commit)?;
+        self.ledger_db.commit_soft_batch(soft_batch_receipt)?;
         self.state_root = next_state_root;
 
         Ok(())
@@ -204,6 +234,7 @@ where
         };
 
         let mut height = self.start_height;
+        println!("Starting from height {}", height);
 
         let mut last_connection_error = Instant::now();
         let mut last_parse_error = Instant::now();
@@ -212,12 +243,12 @@ where
         let mut parse_index = 0;
 
         loop {
-            let tx = client.get_sov_tx(height).await;
+            let soft_batch = client.get_sov_batch::<Da::Spec>(height).await;
 
-            if tx.is_err() {
+            if soft_batch.is_err() {
                 // TODO: Add logs here: https://github.com/chainwayxyz/secret-sovereign-sdk/issues/47
 
-                let x = tx.unwrap_err();
+                let x = soft_batch.unwrap_err();
                 match x.downcast_ref::<jsonrpsee::core::Error>() {
                     Some(Error::Transport(e)) => {
                         debug!("Connection error during RPC call: {:?}", e);
@@ -247,8 +278,22 @@ where
                 }
             }
 
+            let soft_batch = match soft_batch.unwrap() {
+                Some(soft_batch) => soft_batch,
+                None => {
+                    debug!("No soft batch at height {}", height);
+                    sleep(Duration::from_secs(2)).await;
+                    continue;
+                }
+            };
+
             let batch = Batch {
-                txs: vec![RawTx { data: tx.unwrap() }],
+                txs: soft_batch
+                    .txs
+                    .unwrap_or_default()
+                    .iter()
+                    .map(|tx| RawTx { data: tx.clone() })
+                    .collect(),
             };
 
             let new_blobs = self

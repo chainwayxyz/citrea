@@ -268,7 +268,6 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
     // the lock is not released on the db directory even though the task is aborted
 
     let _ = copy_dir_recursive(
-
         Path::new("demo_data_test_close_and_reopen_full_node"),
         Path::new("demo_data_test_close_and_reopen_full_node_copy"),
     );

@@ -8202,9 +8202,11 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "ethers",
+ "hex",
  "jsonrpsee 0.20.3",
  "serde",
  "serde_json",
+ "sov-rollup-interface",
  "tokio",
  "tracing",
 ]

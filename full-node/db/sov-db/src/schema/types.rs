@@ -3,7 +3,9 @@ use std::sync::Arc;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use sov_rollup_interface::rpc::{BatchResponse, TxIdentifier, TxResponse};
+use sov_rollup_interface::rpc::{
+    BatchResponse, ItemOrHash, SoftBatchResponse, TxIdentifier, TxResponse,
+};
 use sov_rollup_interface::stf::{Event, EventKey, TransactionReceipt};
 
 /// A cheaply cloneable bytes abstraction for use within the trust boundary of the node
@@ -65,6 +67,37 @@ pub struct StoredSlot {
     pub extra_data: DbBytes,
     /// The range of batches which occurred in this slot.
     pub batches: std::ops::Range<BatchNumber>,
+}
+
+/// The on-disk format for a batch. Stores the hash and identifies the range of transactions
+/// included in the batch.
+#[derive(Debug, PartialEq, BorshDeserialize, BorshSerialize)]
+pub struct StoredSoftBatch {
+    /// The number of the batch
+    pub da_slot_height: u64,
+    /// The da hash of the batch
+    pub da_slot_hash: [u8; 32],
+    /// The hash of the batch
+    pub hash: DbHash,
+    /// The range of transactions which occurred in this batch.
+    pub tx_range: std::ops::Range<TxNumber>,
+    /// The transactions which occurred in this batch.
+    pub txs: Vec<StoredTransaction>,
+    /// A customer "receipt" for this batch defined by the rollup.
+    pub custom_receipt: DbBytes,
+}
+
+impl TryFrom<StoredSoftBatch> for SoftBatchResponse {
+    type Error = anyhow::Error;
+    fn try_from(value: StoredSoftBatch) -> Result<Self, Self::Error> {
+        Ok(Self {
+            da_slot_hash: value.da_slot_hash,
+            da_slot_height: value.da_slot_height,
+            hash: value.hash,
+            // TODO: This ignores the tx if it is not present in the ledger-db, which shouldn't happen
+            txs: Some(value.txs.into_iter().filter_map(|tx| tx.body).collect()),
+        })
+    }
 }
 
 /// The on-disk format for a batch. Stores the hash and identifies the range of transactions

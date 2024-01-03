@@ -2,18 +2,19 @@ use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 use serde::Serialize;
+use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::services::da::SlotData;
-use sov_rollup_interface::stf::{BatchReceipt, Event};
+use sov_rollup_interface::stf::{BatchReceipt, Event, SoftBatchReceipt};
 use sov_schema_db::{Schema, SchemaBatch, SeekKeyEncoder, DB};
 
 use crate::rocks_db_config::gen_rocksdb_options;
 use crate::schema::tables::{
-    BatchByHash, BatchByNumber, EventByKey, EventByNumber, SlotByHash, SlotByNumber, TxByHash,
-    TxByNumber, LEDGER_TABLES,
+    BatchByHash, BatchByNumber, EventByKey, EventByNumber, SlotByHash, SlotByNumber,
+    SoftBatchByNumber, TxByHash, TxByNumber, LEDGER_TABLES,
 };
 use crate::schema::types::{
     split_tx_for_storage, BatchNumber, EventNumber, SlotNumber, StoredBatch, StoredSlot,
-    StoredTransaction, TxNumber,
+    StoredSoftBatch, StoredTransaction, TxNumber,
 };
 
 mod rpc;
@@ -39,6 +40,8 @@ pub struct LedgerDB {
 pub struct ItemNumbers {
     /// The slot number
     pub slot_number: u64,
+    /// The soft batch number
+    pub soft_batch_number: u64,
     /// The batch number
     pub batch_number: u64,
     /// The transaction number
@@ -99,6 +102,9 @@ impl LedgerDB {
 
         let next_item_numbers = ItemNumbers {
             slot_number: Self::last_version_written(&inner, SlotByNumber)?.unwrap_or_default() + 1,
+            soft_batch_number: Self::last_version_written(&inner, SoftBatchByNumber)?
+                .unwrap_or_default()
+                + 1,
             batch_number: Self::last_version_written(&inner, BatchByNumber)?.unwrap_or_default()
                 + 1,
             tx_number: Self::last_version_written(&inner, TxByNumber)?.unwrap_or_default() + 1,
@@ -182,6 +188,15 @@ impl LedgerDB {
         schema_batch.put::<SlotByHash>(&slot.hash, slot_number)
     }
 
+    fn put_soft_batch(
+        &self,
+        batch: &StoredSoftBatch,
+        batch_number: &BatchNumber,
+        schema_batch: &mut SchemaBatch,
+    ) -> Result<(), anyhow::Error> {
+        schema_batch.put::<SoftBatchByNumber>(batch_number, batch)
+    }
+
     fn put_batch(
         &self,
         batch: &StoredBatch,
@@ -211,6 +226,76 @@ impl LedgerDB {
     ) -> Result<(), anyhow::Error> {
         schema_batch.put::<EventByNumber>(event_number, event)?;
         schema_batch.put::<EventByKey>(&(event.key().clone(), tx_number, *event_number), &())
+    }
+
+    /// Commits a soft batch to the database by inserting its transactions and batches before
+    pub fn commit_soft_batch<B: Serialize, T: Serialize, DS: DaSpec>(
+        &self,
+        batch_receipt: SoftBatchReceipt<B, T, DS>,
+    ) -> Result<(), anyhow::Error> {
+        // Create a scope to ensure that the lock is released before we commit to the db
+        let mut current_item_numbers = {
+            let mut next_item_numbers = self.next_item_numbers.lock().unwrap();
+            let item_numbers = next_item_numbers.clone();
+            next_item_numbers.tx_number += batch_receipt.tx_receipts.len() as u64;
+            next_item_numbers.batch_number += 1;
+            next_item_numbers.event_number += batch_receipt
+                .tx_receipts
+                .iter()
+                .map(|r| r.events.len() as u64)
+                .sum::<u64>();
+            item_numbers
+            // The lock is released here
+        };
+
+        let mut schema_batch = SchemaBatch::new();
+
+        let mut txs = Vec::with_capacity(batch_receipt.tx_receipts.len());
+
+        let first_tx_number = current_item_numbers.tx_number;
+        let last_tx_number = first_tx_number + batch_receipt.tx_receipts.len() as u64;
+        // Insert transactions and events from each batch before inserting the batch
+        for tx in batch_receipt.tx_receipts.into_iter() {
+            let (tx_to_store, events) = split_tx_for_storage(tx, current_item_numbers.event_number);
+            for event in events.into_iter() {
+                self.put_event(
+                    &event,
+                    &EventNumber(current_item_numbers.event_number),
+                    TxNumber(current_item_numbers.tx_number),
+                    &mut schema_batch,
+                )?;
+                current_item_numbers.event_number += 1;
+            }
+            self.put_transaction(
+                &tx_to_store,
+                &TxNumber(current_item_numbers.tx_number),
+                &mut schema_batch,
+            )?;
+            current_item_numbers.tx_number += 1;
+            txs.push(tx_to_store);
+        }
+
+        // Insert batch
+        let batch_to_store = StoredSoftBatch {
+            da_slot_height: batch_receipt.da_slot_height,
+            da_slot_hash: batch_receipt.da_slot_hash.into(),
+            hash: batch_receipt.batch_hash,
+            tx_range: TxNumber(first_tx_number)..TxNumber(last_tx_number),
+            custom_receipt: bincode::serialize(&batch_receipt.inner)
+                .expect("serialization to vec is infallible")
+                .into(),
+            txs,
+        };
+        self.put_soft_batch(
+            &batch_to_store,
+            &BatchNumber(current_item_numbers.soft_batch_number),
+            &mut schema_batch,
+        )?;
+        current_item_numbers.soft_batch_number += 1;
+
+        self.db.write_schemas(schema_batch)?;
+
+        Ok(())
     }
 
     /// Commits a slot to the database by inserting its events, transactions, and batches before
@@ -406,6 +491,7 @@ pub mod arbitrary {
         fn arbitrary(u: &mut ::arbitrary::Unstructured<'a>) -> ::arbitrary::Result<Self> {
             Ok(ItemNumbers {
                 slot_number: u.arbitrary()?,
+                soft_batch_number: u.arbitrary()?,
                 batch_number: u.arbitrary()?,
                 tx_number: u.arbitrary()?,
                 event_number: u.arbitrary()?,

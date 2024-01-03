@@ -1,5 +1,8 @@
 use futures::StreamExt;
 pub use sov_evm::DevSigner;
+use sov_rollup_interface::da::{self, BlockHeaderTrait};
+use sov_rollup_interface::services;
+use sov_stf_runner::BlockTemplate;
 mod mempool;
 mod utils;
 
@@ -36,8 +39,7 @@ pub struct RpcContext {
 
 pub struct ChainwaySequencer<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> {
     rollup: Rollup<S>,
-    // not used for now, will probably need it later
-    _da_service: Da,
+    da_service: Da,
     mempool: Arc<Mutex<Mempool>>,
     p: PhantomData<C>,
     sov_tx_signer_priv_key: C::PrivateKey,
@@ -68,7 +70,7 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
 
         Self {
             rollup,
-            _da_service: da_service,
+            da_service: da_service,
             mempool: Arc::new(Mutex::new(mempool)),
             p: PhantomData,
             sov_tx_signer_priv_key,
@@ -117,11 +119,27 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                     }],
                 };
 
-                // TODO: Handle error
-                self.rollup
-                    .runner
-                    .process(&batch.try_to_vec().unwrap())
-                    .await?;
+                let last_finalized_block_header = self
+                    .da_service
+                    .get_last_finalized_block_header()
+                    .await
+                    .unwrap();
+
+                let filtered_block = self
+                    .da_service
+                    .get_block_at(last_finalized_block_header.height())
+                    .await
+                    .unwrap();
+
+                // TODO: this is where we would include forced transactions from the block
+
+                let block_template = BlockTemplate::<Da> {
+                    filtered_block,
+                    txs: vec![signed_blob],
+                };
+
+                // TODO: handle error
+                self.rollup.runner.process(block_template).await?;
             }
         }
     }
