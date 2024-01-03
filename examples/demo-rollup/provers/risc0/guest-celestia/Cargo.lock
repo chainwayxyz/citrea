@@ -5814,6 +5814,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "ethers",
+ "hex",
  "jsonrpsee",
  "serde",
  "serde_json",

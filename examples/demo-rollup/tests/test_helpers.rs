@@ -28,7 +28,7 @@ pub async fn start_rollup(
     node_mode: NodeMode,
     db_path: Option<&str>,
 ) {
-    let mut path = db_path.clone().map(|path| Path::new(path));
+    let mut path = db_path.map(Path::new);
     let mut temp_dir: Option<tempfile::TempDir> = None;
     if db_path.is_none() {
         temp_dir = Some(tempfile::tempdir().unwrap());

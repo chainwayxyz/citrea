@@ -238,7 +238,7 @@ impl LedgerDB {
             let mut next_item_numbers = self.next_item_numbers.lock().unwrap();
             let item_numbers = next_item_numbers.clone();
             next_item_numbers.tx_number += batch_receipt.tx_receipts.len() as u64;
-            next_item_numbers.batch_number += 1;
+            next_item_numbers.soft_batch_number += 1;
             next_item_numbers.event_number += batch_receipt
                 .tx_receipts
                 .iter()

@@ -1,5 +1,3 @@
-use std::fmt::Debug;
-
 use serde::de::DeserializeOwned;
 use sov_rollup_interface::rpc::{
     BatchIdAndOffset, BatchIdentifier, BatchResponse, EventIdentifier, ItemOrHash,

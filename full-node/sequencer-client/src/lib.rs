@@ -1,5 +1,4 @@
 use ethers::types::{Bytes, H256};
-use hex::FromHex;
 use jsonrpsee::core::client::ClientT;
 use jsonrpsee::core::Error;
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};

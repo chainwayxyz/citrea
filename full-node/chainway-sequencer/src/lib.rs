@@ -1,7 +1,7 @@
 use futures::StreamExt;
 pub use sov_evm::DevSigner;
-use sov_rollup_interface::da::{self, BlockHeaderTrait};
-use sov_rollup_interface::services;
+use sov_rollup_interface::da::{BlockHeaderTrait};
+
 use sov_stf_runner::BlockTemplate;
 mod mempool;
 mod utils;
@@ -24,9 +24,9 @@ use sov_accounts::Accounts;
 use sov_accounts::Response::{AccountEmpty, AccountExists};
 use sov_evm::{CallMessage, RlpEvmTransaction};
 use sov_modules_api::transaction::Transaction;
-use sov_modules_api::{EncodeCall, PrivateKey, WorkingSet};
+use sov_modules_api::{EncodeCall, PrivateKey, SlotData, WorkingSet};
 use sov_modules_rollup_blueprint::{Rollup, RollupBlueprint};
-use sov_modules_stf_blueprint::{Batch, RawTx};
+
 use sov_rollup_interface::services::da::DaService;
 use tracing::info;
 
@@ -70,7 +70,7 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
 
         Self {
             rollup,
-            da_service: da_service,
+            da_service,
             mempool: Arc::new(Mutex::new(mempool)),
             p: PhantomData,
             sov_tx_signer_priv_key,
@@ -113,11 +113,11 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                     <Runtime<C, Da::Spec> as EncodeCall<sov_evm::Evm<C>>>::encode_call(call_txs);
                 let signed_blob = self.make_blob(raw_message);
 
-                let batch = Batch {
-                    txs: vec![RawTx {
-                        data: signed_blob.clone(),
-                    }],
-                };
+                // TODO: This should be only for mock-da in tests
+                {
+                    self.da_service.send_transaction(&[]).await.unwrap();
+                    self.da_service.send_transaction(&[]).await.unwrap();
+                }
 
                 let last_finalized_block_header = self
                     .da_service
@@ -133,8 +133,8 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
 
                 // TODO: this is where we would include forced transactions from the block
 
-                let block_template = BlockTemplate::<Da> {
-                    filtered_block,
+                let block_template = BlockTemplate {
+                    da_slot_height: filtered_block.header().height(),
                     txs: vec![signed_blob],
                 };
 

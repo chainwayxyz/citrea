@@ -7,8 +7,8 @@ use sequencer_client::SequencerClient;
 use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::{LedgerDB, SlotCommit};
 use sov_modules_stf_blueprint::{Batch, RawTx};
-use sov_rollup_interface::da::{self, BlobReaderTrait, BlockHeaderTrait, DaSpec};
-use sov_rollup_interface::services;
+use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaSpec};
+
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::stf::{SoftBatchReceipt, StateTransitionFunction};
 use sov_rollup_interface::storage::StorageManager;
@@ -27,9 +27,9 @@ const PARSE_INTERVALS: &[u64] = &[0, 1, 5];
 
 /// Represents the block template that is used to create a block.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct BlockTemplate<DaService: services::da::DaService> {
+pub struct BlockTemplate {
     /// DA block to build on
-    pub filtered_block: DaService::FilteredBlock,
+    pub da_slot_height: u64,
     /// Transactions to include in the block
     pub txs: Vec<Vec<u8>>,
 }
@@ -166,13 +166,12 @@ where
 
     /// Processes sequence
     /// gets a blob of txs as parameter
-    pub async fn process(
-        &mut self,
-        block_template: BlockTemplate<Da>,
-    ) -> Result<(), anyhow::Error> {
+    pub async fn process(&mut self, block_template: BlockTemplate) -> Result<(), anyhow::Error> {
         let pre_state = self.storage_manager.get_native_storage();
 
-        let (txs, filtered_block) = (block_template.txs, block_template.filtered_block);
+        let (txs, da_slot_height) = (block_template.txs, block_template.da_slot_height);
+
+        let filtered_block = self.da_service.get_block_at(da_slot_height).await?;
 
         let batch = Batch {
             txs: txs.iter().map(|tx| RawTx { data: tx.clone() }).collect(),
@@ -193,7 +192,7 @@ where
             &self.state_root,
             pre_state,
             Default::default(),
-            &filtered_block.header(),
+            filtered_block.header(),
             &filtered_block.validity_condition(),
             &mut vec![blob],
         );
@@ -301,8 +300,10 @@ where
                 .convert_rollup_batch_to_da_blob(&batch.try_to_vec().unwrap())
                 .unwrap();
 
-            // TODO: Change the block here from 2 to legit option.
-            let filtered_block = self.da_service.get_block_at(4).await?;
+            let filtered_block = self
+                .da_service
+                .get_block_at(soft_batch.da_slot_height)
+                .await?;
 
             // 0 is the BlobTransaction
             // 1 is the Signature
@@ -379,8 +380,18 @@ where
             //     }
             // }
 
-            let next_state_root = slot_result.state_root;
+            let batch_receipt = data_to_commit.batch_receipts()[0].clone();
 
+            let soft_batch_receipt = SoftBatchReceipt::<_, _, Da::Spec> {
+                inner: batch_receipt.inner,
+                batch_hash: batch_receipt.batch_hash,
+                da_slot_hash: filtered_block.header().hash(),
+                da_slot_height: filtered_block.header().height(),
+                tx_receipts: batch_receipt.tx_receipts.clone(),
+            };
+
+            let next_state_root = slot_result.state_root;
+            self.ledger_db.commit_soft_batch(soft_batch_receipt)?;
             self.ledger_db.commit_slot(data_to_commit)?;
             self.state_root = next_state_root;
 
