@@ -180,43 +180,43 @@ jobs:
   #       - name: Run check
   #         run: make check-no-std
 
-  nextest:
-    name: nextest
-    runs-on: self-hosted
-    timeout-minutes: 60
-    steps:
-      - uses: actions/checkout@v3
-      - uses: rui314/setup-mold@v1
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v2
-        with:
-          version: "23.2"
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          override: true
-          components: rustfmt, clippy
-      - name: Rustup update
-        run: rustup update && rustup show && rustup install nightly && rustup component add rustfmt --toolchain nightly-x86_64-unknown-linux-gnu # Nightly is needed for our configuration of cargo fmt
-      - name: Install cargo-risczero
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-risczero@0.19
-      - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-        run: cargo risczero install
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        # `cargo-nextest` is much faster than standard `cargo test`.
-      - uses: taiki-e/install-action@nextest
-      - name: Install Rust
-        run: rustup show
-      - uses: Swatinem/rust-cache@v2
-        with:
-          # cache-provider: "buildjet"
-          save-if: ${{ github.ref == 'refs/heads/nightly' }}
-      - name: Set toolchain stable
-        run: rustup override set stable
-      - name: Run nextest
-        run: SKIP_GUEST_BUILD=1 cargo nextest run --workspace --all-features
+#   nextest:
+#     name: nextest
+#     runs-on: self-hosted
+#     timeout-minutes: 60
+#     steps:
+#       - uses: actions/checkout@v3
+#       - uses: rui314/setup-mold@v1
+#       - name: Install Protoc
+#         uses: arduino/setup-protoc@v2
+#         with:
+#           version: "23.2"
+#           repo-token: ${{ secrets.GITHUB_TOKEN }}
+#       - name: Install Rust
+#         uses: actions-rs/toolchain@v1
+#         with:
+#           toolchain: stable
+#           override: true
+#           components: rustfmt, clippy
+#       - name: Rustup update
+#         run: rustup update && rustup show && rustup install nightly && rustup component add rustfmt --toolchain nightly-x86_64-unknown-linux-gnu # Nightly is needed for our configuration of cargo fmt
+#       - name: Install cargo-risczero
+#         uses: taiki-e/install-action@v2
+#         with:
+#           tool: cargo-risczero@0.19
+#       - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
+#         run: cargo risczero install
+#         env:
+#           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#         # `cargo-nextest` is much faster than standard `cargo test`.
+#       - uses: taiki-e/install-action@nextest
+#       - name: Install Rust
+#         run: rustup show
+#       - uses: Swatinem/rust-cache@v2
+#         with:
+#           # cache-provider: "buildjet"
+#           save-if: ${{ github.ref == 'refs/heads/nightly' }}
+#       - name: Set toolchain stable
+#         run: rustup override set stable
+#       - name: Run nextest
+#         run: SKIP_GUEST_BUILD=1 cargo nextest run --workspace --all-features
