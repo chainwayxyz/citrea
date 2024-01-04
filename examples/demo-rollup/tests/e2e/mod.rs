@@ -285,7 +285,6 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
 
     // close full node
     rollup_task.abort();
-    println!("Full node closed");
 
     sleep(Duration::from_secs(2)).await;
 

@@ -292,6 +292,12 @@ impl DaService for MockDaService {
     /// It is possible to read non-finalized and last finalized blocks multiple times
     /// Finalized blocks must be read in order.
     async fn get_block_at(&self, height: u64) -> Result<Self::FilteredBlock, Self::Error> {
+        if height == 0 {
+            anyhow::bail!("The lowest queryable block should be > 0");
+        }
+        // Fork logic
+        self.planned_fork_handler(height).await?;
+
         // This modification was added because normally mock da creates blocks whena a transaction is sent
         // however in the current rollup architecture l2 blocks are created before sending transactions to da layer
         // this is because of the soft confirmation logic.
@@ -304,11 +310,6 @@ impl DaService for MockDaService {
             }
         }
 
-        if height == 0 {
-            anyhow::bail!("The lowest queryable block should be > 0");
-        }
-        // Fork logic
-        self.planned_fork_handler(height).await?;
         // Block until there's something
         self.wait_for_height(height).await?;
         // Locking blocks here, so submissions has to wait
@@ -633,8 +634,9 @@ mod tests {
             let block_2_before = da.get_block_at(2).await.unwrap();
             let block_3_before = da.get_block_at(3).await.unwrap();
 
-            let result = da.get_block_at(4).await;
-            assert!(result.is_err());
+            // Disabling this check because our modified mock da creates blocks whena a transaction is sent
+            // let result = da.get_block_at(4).await;
+            // assert!(result.is_err());
 
             let block_1_after = da.get_block_at(1).await.unwrap();
             let block_2_after = da.get_block_at(2).await.unwrap();
@@ -817,11 +819,13 @@ mod tests {
             assert_consecutive_blocks(&block_2_after, &block_3_after);
             assert_consecutive_blocks(&block_1_after, &block_2_after);
 
-            let block_5 = da.get_block_at(5).await;
-            assert_eq!(
-                "No block at height=5 has been sent in 20ms",
-                block_5.unwrap_err().to_string()
-            );
+            // Disabling this check because our modification to MockDaService
+            // will create the blocks that were asked, as if they are always available
+            // let block_5 = da.get_block_at(5).await;
+            // assert_eq!(
+            //     "No block at height=5 has been sent in 20ms",
+            //     block_5.unwrap_err().to_string()
+            // );
         }
     }
 
