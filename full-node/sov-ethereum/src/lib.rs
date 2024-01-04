@@ -90,6 +90,7 @@ pub fn get_ethereum_rpc<C: sov_modules_api::Context, Da: DaService>(
 }
 
 pub struct Ethereum<C: sov_modules_api::Context, Da: DaService> {
+    #[allow(dead_code)]
     da_service: Da,
     batch_builder: Arc<Mutex<EthBatchBuilder<C>>>,
     gas_price_oracle: GasPriceOracle<C>,

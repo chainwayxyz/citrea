@@ -442,6 +442,28 @@ pub(crate) fn effective_gas_tip(
     }
 }
 
+// TODO: Check this with the Sov implementation as it's been changed a bit.
+// There are also modificatinos to the tests, so we need to check those as well.
+pub(crate) fn convert_u256_to_u64(u256: reth_primitives::U256) -> Result<u64, TryFromSliceError> {
+    let bytes: [u8; 32] = u256.to_be_bytes();
+    let bytes: [u8; 8] = bytes[24..].try_into()?;
+    Ok(u64::from_be_bytes(bytes))
+}
+
+#[allow(dead_code)]
+pub(crate) fn convert_u64_to_u256(u64: u64) -> reth_primitives::U256 {
+    let bytes: [u8; 8] = u64.to_be_bytes();
+    let mut new_bytes = [0u8; 32];
+    new_bytes[24..].copy_from_slice(&bytes);
+    reth_primitives::U256::from_be_bytes(new_bytes)
+}
+
+pub(crate) fn convert_u256_to_u128(u256: reth_primitives::U256) -> Result<u128, TryFromSliceError> {
+    let bytes: [u8; 32] = u256.to_be_bytes();
+    let bytes: [u8; 16] = bytes[16..].try_into()?;
+    Ok(u128::from_be_bytes(bytes))
+}
+
 #[cfg(test)]
 mod tests {
     use reth_primitives::constants::GWEI_TO_WEI;
@@ -458,23 +480,4 @@ mod tests {
     fn ignore_price_sanity() {
         assert_eq!(DEFAULT_IGNORE_PRICE, U256::from(2u64));
     }
-}
-
-pub(crate) fn convert_u256_to_u64(u256: reth_primitives::U256) -> Result<u64, TryFromSliceError> {
-    let bytes: [u8; 32] = u256.to_be_bytes();
-    let bytes: [u8; 8] = bytes[24..].try_into()?;
-    Ok(u64::from_be_bytes(bytes))
-}
-
-pub(crate) fn convert_u64_to_u256(u64: u64) -> reth_primitives::U256 {
-    let bytes: [u8; 8] = u64.to_be_bytes();
-    let mut new_bytes = [0u8; 32];
-    new_bytes[24..].copy_from_slice(&bytes);
-    reth_primitives::U256::from_be_bytes(new_bytes)
-}
-
-pub(crate) fn convert_u256_to_u128(u256: reth_primitives::U256) -> Result<u128, TryFromSliceError> {
-    let bytes: [u8; 32] = u256.to_be_bytes();
-    let bytes: [u8; 16] = bytes[16..].try_into()?;
-    Ok(u128::from_be_bytes(bytes))
 }

@@ -125,6 +125,7 @@ impl<T: TestContract> TestClient<T> {
             .unwrap()
     }
 
+    #[allow(dead_code)]
     pub(crate) async fn set_value_unsigned(
         &self,
         contract_address: H160,
@@ -400,6 +401,7 @@ impl<T: TestContract> TestClient<T> {
             .unwrap()
     }
 
+    #[allow(dead_code)]
     pub(crate) async fn eth_get_transaction_by_hash(&self, tx_hash: TxHash) -> Option<Transaction> {
         self.http_client
             .request("eth_getTransactionByHash", rpc_params![tx_hash])

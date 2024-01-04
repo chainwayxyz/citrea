@@ -1,0 +1,177 @@
+name: Rust
+
+# On Rust, GitHub Actions, and caching
+# ===========
+# Here's a list of things to keep in mind if you find yourself maintaining this
+# CI:
+#
+# https://docs.github.com/en/actions/using-workflows/caching-dependencies-to-speed-up-workflows#matching-a-cache-key
+#
+# - Always install and select the desired Rust toolchain *before* running
+#   `Swatinem/rust-cache`. This is because the active Rust toolchain is used as
+#   a cache key.
+# - You can use `rustup show` to install and select the right Rust toolchain if
+#   you have a `rust-toolchain.toml` file:
+#   https://github.com/rust-lang/rustup/issues/1397.
+# - When caching Rust compilation artifacts, keep in mind that different `cargo`
+#   commands will use different profiles
+#   (https://doc.rust-lang.org/cargo/reference/profiles.html). Learn what you
+#   can reuse between one job and another and don't assume two commands will
+#   just share caches without conflicts.
+# - Be extremely aware of cache thrashing a.k.a. churning. GitHub Actions' cache
+#   allows for 10GiB of data which is easily exceeded if not careful.
+#   Sometimes it's better not to cache than cache excessively.
+#   Disabling cache writes for non-default branches altogether if cache churning
+#   is unacceptably high is supposed to help with this.
+# - Learn cache invalidation rules of `Swatinem/rust-cache` before making
+#   changes, e.g. what happens when `rustc --version` changes or `Cargo.lock`
+#   changes (or is missing).
+# - The jobs dependency tree is the way it is to accommodate for sharing caches,
+#   not necessarily because it makes logical sense to run one job after the
+#   other. This is due to the fact that we can't share caches between jobs that
+#   run in parallel.
+# - `sccache` is a good alternative to `Swatinem/rust-cache`, but it behaves
+#   poorly with GHA and often incurs into cache requests rate limits. We should
+#   probably explore `sccache` with a different backend.
+# - If a job makes good use of extra cores, consider give it a bigger machine.
+#   GHA larger runners increase in cost linearly with the number of cores
+#   (https://docs.github.com/en/billing/managing-billing-for-github-actions/about-billing-for-github-actions),
+#   so you're not wasting money unless several cores are sitting idle for long.
+
+on:
+  # Relevant docs:
+  # - https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/managing-a-merge-queue#how-merge-queues-work
+  # - https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#merge_group
+  merge_group:
+    types: ["checks_requested"]
+  push:
+    branches: ["nightly", "stable", "talip/ci-cd"]
+  pull_request:
+    branches: ["nightly", "stable"]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -D warnings
+  EXCLUDE_BTC: 1
+  RUST_VERSION_STABLE: 1.75.0
+  RUST_VERSION_BETA: 1.76.0
+  # RUST_VERSION_NIGHTLY: nightly-2023-12-31
+
+
+# Automatically cancels a job if a new commit if pushed to the same PR, branch, or tag.
+# Source: <https://stackoverflow.com/a/72408109/5148606>
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  # Except in `nightly` and `stable` branches! Any cancelled job will cause the
+  # CI run to fail, and we want to keep a clean history for major branches.
+  cancel-in-progress: ${{ (github.ref != 'refs/heads/nightly') && (github.ref != 'refs/heads/stable') && (github.ref != 'refs/heads/talip/ci-cd') }}
+
+jobs:
+  check:
+    name: check
+    runs-on: [self-hosted]
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v3
+      - uses: rui314/setup-mold@v1
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v2
+        with:
+          version: "23.2"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: beta
+          # toolchain: "1.76.0"
+          # target: "x86_64-unknown-linux-gnu"
+          override: true
+          components: rustfmt, clippy
+      - name: Rustup update
+        run: rustup update && rustup show && rustup install nightly && rustup component add rustfmt --toolchain nightly-x86_64-unknown-linux-gnu # Nightly is needed for our configuration of cargo fmt
+      - name: Install cargo-risczero
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-risczero@0.19
+      - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
+        run: cargo risczero install
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: cargo-check-cache
+          save-if: ${{ github.ref == 'refs/heads/nightly' }}
+          workspaces: |
+            .
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Run lint
+        run: |
+          if ! SKIP_GUEST_BUILD=1 make lint ; then
+            echo "Linting or formatting errors detected, please run 'make lint-fix' to fix it";
+            exit 1
+          fi
+
+  check_no_std:
+    runs-on: [self-hosted]
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install Rust Bare Metal
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          target: thumbv6m-none-eabi
+          override: true
+      - name: Install Rust WASM
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          target: wasm32-unknown-unknown
+          override: true
+      - name: cargo install cargo-hack
+        uses: taiki-e/install-action@cargo-hack
+      - uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/nightly' }}
+      - name: Run check
+        run: make check-no-std
+
+  nextest:
+    name: nextest
+    runs-on: self-hosted
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v3
+      - uses: rui314/setup-mold@v1
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v2
+        with:
+          version: "23.2"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: beta
+          # toolchain: "1.76.0"
+          # target: "x86_64-unknown-linux-gnu"
+          override: true
+          components: rustfmt, clippy
+      - name: Rustup update
+        run: rustup update && rustup show && rustup install nightly && rustup component add rustfmt --toolchain nightly-x86_64-unknown-linux-gnu # Nightly is needed for our configuration of cargo fmt
+      - name: Install cargo-risczero
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-risczero@0.19
+      - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
+        run: cargo risczero install
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # `cargo-nextest` is much faster than standard `cargo test`.
+      - uses: taiki-e/install-action@nextest
+      - name: Install Rust
+        run: rustup show
+      - uses: Swatinem/rust-cache@v2
+        with:
+          # cache-provider: "buildjet"
+          save-if: ${{ github.ref == 'refs/heads/nightly' }}
+      - run: SKIP_GUEST_BUILD=1 cargo nextest run --workspace --all-features

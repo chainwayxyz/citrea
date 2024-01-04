@@ -13,3 +13,9 @@ impl Mempool {
         }
     }
 }
+
+impl Default for Mempool {
+    fn default() -> Self {
+        Self::new()
+    }
+}
