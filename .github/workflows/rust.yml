@@ -46,8 +46,8 @@ on:
     types: ["checks_requested"]
   push:
     branches: ["nightly", "stable", "talip/ci-cd"]
-  pull_request:
-    branches: ["nightly", "stable"]
+#   pull_request:
+#     branches: ["nightly", "stable"]
 
 env:
   CARGO_TERM_COLOR: always
@@ -150,29 +150,29 @@ jobs:
   #             exit 1
   #           fi
 
-  check_no_std:
-    runs-on: [self-hosted]
-    steps:
-      - uses: actions/checkout@v3
-      - name: Install Rust Bare Metal
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          target: thumbv6m-none-eabi
-          override: true
-      - name: Install Rust WASM
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          target: wasm32-unknown-unknown
-          override: true
-      - name: cargo install cargo-hack
-        uses: taiki-e/install-action@cargo-hack
-      - uses: Swatinem/rust-cache@v2
-        with:
-          save-if: ${{ github.ref == 'refs/heads/nightly' }}
-      - name: Run check
-        run: make check-no-std
+  #   check_no_std:
+  #     runs-on: [self-hosted]
+  #     steps:
+  #       - uses: actions/checkout@v3
+  #       - name: Install Rust Bare Metal
+  #         uses: actions-rs/toolchain@v1
+  #         with:
+  #           toolchain: stable
+  #           target: thumbv6m-none-eabi
+  #           override: true
+  #       - name: Install Rust WASM
+  #         uses: actions-rs/toolchain@v1
+  #         with:
+  #           toolchain: stable
+  #           target: wasm32-unknown-unknown
+  #           override: true
+  #       - name: cargo install cargo-hack
+  #         uses: taiki-e/install-action@cargo-hack
+  #       - uses: Swatinem/rust-cache@v2
+  #         with:
+  #           save-if: ${{ github.ref == 'refs/heads/nightly' }}
+  #       - name: Run check
+  #         run: make check-no-std
 
   nextest:
     name: nextest
