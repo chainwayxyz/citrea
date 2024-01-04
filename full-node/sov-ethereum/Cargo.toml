@@ -40,6 +40,7 @@ sov-accounts = { path = "../../module-system/module-implementations/sov-accounts
 
 [dev-dependencies]
 tokio = { workspace = true }
+proptest = { workspace = true }
 
 
 [features]

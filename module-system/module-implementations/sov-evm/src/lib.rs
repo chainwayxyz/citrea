@@ -4,13 +4,7 @@ mod call;
 mod evm;
 mod genesis;
 mod hooks;
-mod rpc_helpers;
-pub use call::*;
-pub use error::rpc::*;
-pub use evm::*;
-pub use genesis::*;
-pub use hooks::*;
-pub use rpc_helpers::*;
+pub use {call::*, error::rpc::*, evm::*, genesis::*};
 #[cfg(feature = "native")]
 mod query;
 #[cfg(feature = "native")]

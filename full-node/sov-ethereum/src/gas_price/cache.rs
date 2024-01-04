@@ -36,8 +36,7 @@ impl<C: sov_modules_api::Context> BlockCache<C> {
         let mut number_to_hash = self.number_to_hash.lock().unwrap();
         if let Some(block) = cache.get(&block_hash) {
             // Even though block is in cache, ask number_to_hash to keep it in sync
-            let number =
-                convert_u256_to_u64(block.header.number.unwrap_or_default()).unwrap_or_default();
+            let number = convert_u256_to_u64(block.header.number.unwrap_or_default());
             number_to_hash.get(&number);
             return Ok(Some(block.clone()));
         }
@@ -50,8 +49,7 @@ impl<C: sov_modules_api::Context> BlockCache<C> {
 
         // Add block to cache if it exists
         if let Some(block) = &block {
-            let number =
-                convert_u256_to_u64(block.header.number.unwrap_or_default()).unwrap_or_default();
+            let number = convert_u256_to_u64(block.header.number.unwrap_or_default());
 
             number_to_hash.insert(number, block_hash);
             cache.insert(block_hash, block.clone());
@@ -85,8 +83,7 @@ impl<C: sov_modules_api::Context> BlockCache<C> {
 
         // Add block to cache if it exists
         if let Some(block) = &block {
-            let number =
-                convert_u256_to_u64(block.header.number.unwrap_or_default()).unwrap_or_default();
+            let number = convert_u256_to_u64(block.header.number.unwrap_or_default());
             let hash = block.header.hash.unwrap_or_default();
 
             number_to_hash.insert(number, hash);
