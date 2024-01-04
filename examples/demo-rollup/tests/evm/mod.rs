@@ -35,7 +35,13 @@ async fn web3_rpc_tests() -> Result<(), anyhow::Error> {
 
     let test_client = make_test_client(port, SimpleStorageContract::default()).await;
 
-    assert_eq!(test_client.web3_client_version().await, "citrea/0.0.1");
+    let tag = sov_ethereum::get_latest_git_tag().unwrap();
+    let arch = std::env::consts::ARCH;
+
+    assert_eq!(
+        test_client.web3_client_version().await,
+        format!("citrea/{}/{}/rust-1.75.0", tag, arch)
+    );
     assert_eq!(
         test_client
             .web3_sha3("0x68656c6c6f20776f726c64".to_string())

@@ -537,7 +537,7 @@ fn get_call_request_and_params(
     (call_request, gas_price, max_fee_per_gas)
 }
 
-fn get_latest_git_tag() -> Result<String, ErrorObjectOwned> {
+pub fn get_latest_git_tag() -> Result<String, ErrorObjectOwned> {
     let latest_tag_commit = Command::new("git")
         .args(["rev-list", "--tags", "--max-count=1"])
         .output()
