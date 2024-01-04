@@ -109,7 +109,7 @@ async fn test_eth_get_logs() -> Result<(), anyhow::Error> {
 }
 
 async fn test_getlogs<T: TestContract>(
-    client: &Box<TestClient<T>>,
+    client: &TestClient<T>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let (contract_address, _runtime_code) = {
         let runtime_code = client.deploy_contract_call().await?;
@@ -210,7 +210,7 @@ async fn test_getlogs<T: TestContract>(
 }
 
 async fn execute<T: TestContract>(
-    client: &Box<TestClient<T>>,
+    client: &TestClient<T>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Nonce should be 0 in genesis
     let nonce = client.eth_get_transaction_count(client.from_addr).await;
@@ -444,7 +444,7 @@ async fn execute<T: TestContract>(
 pub async fn init_test_rollup<T: TestContract>(
     rpc_address: SocketAddr,
     contract: T,
-) -> Box<TestClient<T>> {
+) -> &TestClient<T> {
     let test_client = make_test_client(rpc_address, contract).await;
 
     let etc_accounts = test_client.eth_accounts().await;
@@ -472,7 +472,7 @@ pub async fn init_test_rollup<T: TestContract>(
 pub async fn make_test_client<T: TestContract>(
     rpc_address: SocketAddr,
     contract: T,
-) -> Box<TestClient<T>> {
+) -> &TestClient<T> {
     let chain_id: u64 = 5655;
     let key = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
         .parse::<LocalWallet>()
