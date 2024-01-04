@@ -128,7 +128,7 @@ impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
             }
         };
 
-        let current_version = format!("{}/{}/{}/rustc-{}", rollup, git_latest_tag, arch, rustc_v);
+        let current_version = format!("{}/{}/{}/rust-{}", rollup, git_latest_tag, arch, rustc_v);
 
         Self {
             da_service,
