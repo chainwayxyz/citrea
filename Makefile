@@ -28,6 +28,8 @@ install-dev-tools:  ## Installs all necessary cargo helpers
 lint:  ## cargo check and clippy. Skip clippy on guest code since it's not supported by risc0
 	## fmt first, because it's the cheapest
 	cargo +nightly fmt --all --check
+	rustup show
+	rustup override set stable
 	cargo check --all-targets --all-features
 	$(MAKE) check-fuzz
 	SKIP_GUEST_BUILD=1 cargo clippy --all-targets --all-features
