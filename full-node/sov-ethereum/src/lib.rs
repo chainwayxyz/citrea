@@ -1,6 +1,7 @@
 mod batch_builder;
 mod gas_price;
 use std::array::TryFromSliceError;
+use std::process::Command;
 use std::sync::{Arc, Mutex};
 
 use demo_stf::runtime::Runtime;
@@ -15,6 +16,7 @@ use reth_primitives::{
     BlockNumberOrTag, TransactionSignedNoHash as RethTransactionSignedNoHash, U128, U256,
 };
 use reth_rpc_types::{CallRequest, FeeHistory, TransactionRequest, TypedTransactionRequest};
+use rustc_version_runtime::version;
 use sequencer_client::SequencerClient;
 #[cfg(feature = "local")]
 pub use sov_evm::DevSigner;
@@ -97,6 +99,7 @@ pub struct Ethereum<C: sov_modules_api::Context, Da: DaService> {
     eth_signer: DevSigner,
     storage: C::Storage,
     sequencer_client: Option<SequencerClient>,
+    web3_client_version: String,
 }
 
 impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
@@ -112,6 +115,21 @@ impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
         let evm = Evm::<C>::default();
         let gas_price_oracle =
             GasPriceOracle::new(evm, gas_price_oracle_config, fee_history_cache_config);
+
+        let rollup = "citrea";
+        let arch = std::env::consts::ARCH;
+        let rustc_v = version();
+
+        let git_latest_tag = match get_latest_git_tag() {
+            Ok(tag) => tag,
+            Err(e) => {
+                info!("Failed to get latest git tag: {}", e);
+                "unknown".to_string()
+            }
+        };
+
+        let current_version = format!("{}/{}/{}/rust-{}", rollup, git_latest_tag, arch, rustc_v);
+
         Self {
             da_service,
             batch_builder,
@@ -120,6 +138,7 @@ impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
             eth_signer,
             storage,
             sequencer_client,
+            web3_client_version: current_version,
         }
     }
 }
@@ -149,12 +168,10 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
     // Checks wether the running node is a sequencer or not, if it is not a sequencer it should also have methods like eth_sendRawTransaction here.
     is_sequencer: bool,
 ) -> Result<(), jsonrpsee::core::Error> {
-    rpc.register_async_method("web3_clientVersion", |_, _| async move {
+    rpc.register_async_method("web3_clientVersion", |_, ethereum| async move {
         info!("eth module: web3_clientVersion");
-        // TODO: update this to the actual version
-        // once we decide on a versioning scheme
-        // https://github.com/chainwayxyz/secret-sovereign-sdk/issues/80
-        Ok::<_, ErrorObjectOwned>("citrea/0.0.1".to_string())
+
+        Ok::<_, ErrorObjectOwned>(ethereum.web3_client_version.clone())
     })?;
 
     rpc.register_async_method("web3_sha3", |params, _| async move {
@@ -517,4 +534,38 @@ fn get_call_request_and_params(
     };
 
     (call_request, gas_price, max_fee_per_gas)
+}
+
+fn get_latest_git_tag() -> Result<String, ErrorObjectOwned> {
+    let latest_tag_commit = Command::new("git")
+        .args(&["rev-list", "--tags", "--max-count=1"])
+        .output()
+        .map_err(|e| to_jsonrpsee_error_object(e, "Failed to get version"))?;
+
+    if !latest_tag_commit.status.success() {
+        return Err(to_jsonrpsee_error_object(
+            "Failure",
+            "Failed to get version",
+        ));
+    }
+
+    let latest_tag_commit = String::from_utf8_lossy(&latest_tag_commit.stdout)
+        .trim()
+        .to_string();
+
+    let latest_tag = Command::new("git")
+        .args(&["describe", "--tags", &latest_tag_commit])
+        .output()
+        .map_err(|e| to_jsonrpsee_error_object(e, "Failed to get version"))?;
+
+    if !latest_tag.status.success() {
+        return Err(to_jsonrpsee_error_object(
+            "Failure",
+            "Failed to get version",
+        ));
+    }
+
+    Ok(String::from_utf8_lossy(&latest_tag.stdout)
+        .trim()
+        .to_string())
 }
