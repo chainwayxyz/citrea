@@ -53,8 +53,8 @@ env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: -D warnings
   EXCLUDE_BTC: 1
-  RUST_VERSION_STABLE: 1.75.0
-  RUST_VERSION_BETA: 1.76.0
+#   RUST_VERSION_STABLE: 1.75.0
+#   RUST_VERSION_BETA: 1.76.0
   # RUST_VERSION_NIGHTLY: nightly-2023-12-31
 
 
@@ -82,7 +82,7 @@ jobs:
       - name: Install Rust
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: beta
+          toolchain: stable
           # toolchain: "1.76.0"
           # target: "x86_64-unknown-linux-gnu"
           override: true
@@ -105,6 +105,8 @@ jobs:
             .
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Set toolchain stable
+        run: rustup override set stable
       - name: Run lint
         run: |
           if ! SKIP_GUEST_BUILD=1 make lint ; then

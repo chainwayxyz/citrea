@@ -307,6 +307,9 @@ mod tests {
 
     #[tokio::test]
     async fn get_utxos() {
+        if std::env::var("EXCLUDE_BTC").is_ok() {
+            return;
+        }
         let node = get_bitcoin_node();
 
         let utxos = node.get_utxos().await.unwrap();
@@ -318,6 +321,9 @@ mod tests {
 
     #[tokio::test]
     async fn list_wallets() {
+        if std::env::var("EXCLUDE_BTC").is_ok() {
+            return;
+        }
         let node = get_bitcoin_node();
 
         let wallets = node.list_wallets().await.unwrap();
