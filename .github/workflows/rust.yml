@@ -78,9 +78,6 @@ jobs:
         with:
           version: "23.2"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Basic Install Rust
-        run: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-
       - name: Install Rust
         run: rustup show && rustup install nightly && rustup component add rustfmt --toolchain nightly-x86_64-unknown-linux-gnu # Nightly is needed for our configuration of cargo fmt
       - name: Install cargo-risczero
