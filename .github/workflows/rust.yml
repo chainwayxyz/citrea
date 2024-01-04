@@ -45,9 +45,9 @@ on:
   merge_group:
     types: ["checks_requested"]
   push:
-    branches: ["nightly", "stable", "talip/ci-cd"]
-#   pull_request:
-#     branches: ["nightly", "stable"]
+    branches: ["nightly", "stable"]
+  pull_request:
+    branches: ["nightly", "stable"]
 
 env:
   CARGO_TERM_COLOR: always
