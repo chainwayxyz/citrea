@@ -64,7 +64,7 @@ impl RollupBlueprint for BitcoinRollup {
         da_service: &Self::DaService,
         sequencer_client: Option<SequencerClient>,
     ) -> Result<jsonrpsee::RpcModule<()>, anyhow::Error> {
-        // TODO: set the sequencer address
+        // unused inside register RPC
         let sov_sequencer = Address::new([0; 32]);
 
         #[allow(unused_mut)]

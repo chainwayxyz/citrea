@@ -184,7 +184,7 @@ where
 
         let filtered_block: <Da as DaService>::FilteredBlock =
             // TODO: 4 is used to mock da related info, will be replaced
-            self.da_service.get_block_at(4u64).await?;
+            self.da_service.get_block_at(1).await?;
 
         let pre_state = self
             .storage_manager
@@ -223,7 +223,18 @@ where
             data_to_commit.add_batch(receipt);
         }
         let next_state_root = slot_result.state_root;
+
+        // TODO: this will only work for mock da
+        // when https://github.com/Sovereign-Labs/sovereign-sdk/issues/1218
+        // is merged, rpc will access up to date storage then we won't need to finalize rigth away.
+        // however we need much better DA + finalization logic here
+        self.storage_manager
+            .save_change_set(filtered_block.header(), slot_result.change_set)?;
+
+        tracing::debug!("Finalizing seen header: {:?}", filtered_block.header());
+        self.storage_manager.finalize(filtered_block.header())?;
         self.ledger_db.commit_slot(data_to_commit)?;
+
         self.state_root = next_state_root;
 
         Ok(())
@@ -286,13 +297,15 @@ where
                 txs: vec![RawTx { data: tx.unwrap() }],
             };
 
-            let new_blobs = self
+            // 0 is the BlobTransaction
+            // 1 is the Signature
+            let (tx_blob_with_sender, _) = self
                 .da_service
                 .convert_rollup_batch_to_da_blob(&batch.try_to_vec().unwrap())
                 .unwrap();
 
             // TODO: Change the block here from 2 to legit option.
-            let filtered_block = self.da_service.get_block_at(4).await?;
+            let filtered_block = self.da_service.get_block_at(1).await?;
 
             // TODO: when legit blocks are implemented use below to
             // check for reorgs
@@ -315,11 +328,6 @@ where
             //         tracing::info!("Resuming execution on height={}", height);
             //     }
             // }
-
-            // 0 is the BlobTransaction
-            // 1 is the Signature
-            let tx_blob_with_sender: <<Da as DaService>::Spec as DaSpec>::BlobTransaction =
-                new_blobs.0;
 
             let blob_hash = tx_blob_with_sender.hash();
 
@@ -410,7 +418,6 @@ where
 
             self.state_root = next_state_root;
             seen_block_headers.push_back(filtered_block.header().clone());
-            height += 1;
 
             info!(
                 "New State Root after blob {:?} is: {:?}",

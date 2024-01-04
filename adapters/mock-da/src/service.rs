@@ -209,7 +209,7 @@ impl MockDaService {
             prev_hash: previous_block_hash,
             hash: block_hash,
             height,
-            time: Time::now(),
+            time: Time::from_secs(10000000000), // TODO: had to mock this for now, causes different state roots
         };
         let block = MockBlock {
             header,
@@ -292,6 +292,18 @@ impl DaService for MockDaService {
     /// It is possible to read non-finalized and last finalized blocks multiple times
     /// Finalized blocks must be read in order.
     async fn get_block_at(&self, height: u64) -> Result<Self::FilteredBlock, Self::Error> {
+        // This modification was added because normally mock da creates blocks whena a transaction is sent
+        // however in the current rollup architecture l2 blocks are created before sending transactions to da layer
+        // this is because of the soft confirmation logic.
+        // Simply create the blocks that were asked, as if they are always available
+        if height > self.blocks.read().await.len() as u64 {
+            let blocks_to_publish = height - (self.blocks.read().await.len() as u64) + 1;
+
+            for _ in 0..blocks_to_publish {
+                self.send_transaction(&[1]).await?;
+            }
+        }
+
         if height == 0 {
             anyhow::bail!("The lowest queryable block should be > 0");
         }

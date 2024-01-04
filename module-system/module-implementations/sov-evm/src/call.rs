@@ -99,10 +99,12 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 // Adopted from https://github.com/paradigmxyz/reth/blob/main/crates/payload/basic/src/lib.rs#L884
                 Err(err) => match err {
                     EVMError::Transaction(_) => {
+                        tracing::error!("Transaction error: {:?}", err);
                         // This is a transactional error, so we can skip it without doing anything.
                         continue;
                     }
                     err => {
+                        tracing::error!("Transaction error: {:?}", err);
                         // This is a fatal error, so we need to return it.
                         return Err(err.into());
                     }

@@ -90,6 +90,7 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
             .await;
         Ok(())
     }
+
     pub async fn run(&mut self) -> Result<(), anyhow::Error> {
         loop {
             if (self.receiver.next().await).is_some() {
