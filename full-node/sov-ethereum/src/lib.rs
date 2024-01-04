@@ -539,7 +539,7 @@ fn get_call_request_and_params(
 
 fn get_latest_git_tag() -> Result<String, ErrorObjectOwned> {
     let latest_tag_commit = Command::new("git")
-        .args(&["rev-list", "--tags", "--max-count=1"])
+        .args(["rev-list", "--tags", "--max-count=1"])
         .output()
         .map_err(|e| to_jsonrpsee_error_object(e, "Failed to get version"))?;
 
@@ -555,7 +555,7 @@ fn get_latest_git_tag() -> Result<String, ErrorObjectOwned> {
         .to_string();
 
     let latest_tag = Command::new("git")
-        .args(&["describe", "--tags", &latest_tag_commit])
+        .args(["describe", "--tags", &latest_tag_commit])
         .output()
         .map_err(|e| to_jsonrpsee_error_object(e, "Failed to get version"))?;
 
