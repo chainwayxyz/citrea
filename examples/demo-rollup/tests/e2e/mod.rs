@@ -233,7 +233,7 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
 
     // wait for full node to sync
     // TODO: There should be a better way to test this?
-    sleep(Duration::from_secs(15)).await;
+    sleep(Duration::from_secs(30)).await;
 
     // check if latest blocks are the same
     let seq_last_block = seq_test_client
