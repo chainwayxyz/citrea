@@ -55,8 +55,7 @@ env:
   EXCLUDE_BTC: 1
 #   RUST_VERSION_STABLE: 1.75.0
 #   RUST_VERSION_BETA: 1.76.0
-  # RUST_VERSION_NIGHTLY: nightly-2023-12-31
-
+# RUST_VERSION_NIGHTLY: nightly-2023-12-31
 
 # Automatically cancels a job if a new commit if pushed to the same PR, branch, or tag.
 # Source: <https://stackoverflow.com/a/72408109/5148606>
@@ -79,16 +78,11 @@ jobs:
         with:
           version: "23.2"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Basic Install Rust
+        run: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+
       - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          # toolchain: "1.76.0"
-          # target: "x86_64-unknown-linux-gnu"
-          override: true
-          components: rustfmt, clippy
-      - name: Rustup update
-        run: rustup update && rustup show && rustup install nightly && rustup component add rustfmt --toolchain nightly-x86_64-unknown-linux-gnu # Nightly is needed for our configuration of cargo fmt
+        run: rustup show && rustup install nightly && rustup component add rustfmt --toolchain nightly-x86_64-unknown-linux-gnu # Nightly is needed for our configuration of cargo fmt
       - name: Install cargo-risczero
         uses: taiki-e/install-action@v2
         with:
@@ -99,20 +93,65 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: Swatinem/rust-cache@v2
         with:
+          cache-provider: "github"
           shared-key: cargo-check-cache
           save-if: ${{ github.ref == 'refs/heads/nightly' }}
           workspaces: |
             .
+            fuzz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Set toolchain stable
-        run: rustup override set stable
       - name: Run lint
         run: |
-          if ! SKIP_GUEST_BUILD=1 make lint ; then
+          if ! make lint ; then
             echo "Linting or formatting errors detected, please run 'make lint-fix' to fix it";
             exit 1
           fi
+
+  #   check:
+  #     name: check
+  #     runs-on: [self-hosted]
+  #     timeout-minutes: 60
+  #     steps:
+  #       - uses: actions/checkout@v3
+  #       - uses: rui314/setup-mold@v1
+  #       - name: Install Protoc
+  #         uses: arduino/setup-protoc@v2
+  #         with:
+  #           version: "23.2"
+  #           repo-token: ${{ secrets.GITHUB_TOKEN }}
+  #       - name: Install Rust
+  #         uses: actions-rs/toolchain@v1
+  #         with:
+  #           toolchain: stable
+  #           override: true
+  #           components: rustfmt, clippy
+  #       - name: Rustup update
+  #         run: rustup update && rustup show && rustup install nightly && rustup component add rustfmt --toolchain nightly-x86_64-unknown-linux-gnu # Nightly is needed for our configuration of cargo fmt
+  #       - name: Install cargo-risczero
+  #         uses: taiki-e/install-action@v2
+  #         with:
+  #           tool: cargo-risczero@0.19
+  #       - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
+  #         run: cargo risczero install
+  #         env:
+  #           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  #       - uses: Swatinem/rust-cache@v2
+  #         with:
+  #           shared-key: cargo-check-cache
+  #           save-if: ${{ github.ref == 'refs/heads/nightly' }}
+  #           workspaces: |
+  #             .
+  #         env:
+  #           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  #       - name: Set toolchain stable
+  #         run: rustup override set stable
+  #       - name: Run lint
+  #         run: |
+  #           if ! SKIP_GUEST_BUILD=1 make lint ; then
+  #             echo "Linting or formatting errors detected, please run 'make lint-fix' to fix it";
+  #             exit 1
+  #           fi
 
   check_no_std:
     runs-on: [self-hosted]
@@ -153,9 +192,7 @@ jobs:
       - name: Install Rust
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: beta
-          # toolchain: "1.76.0"
-          # target: "x86_64-unknown-linux-gnu"
+          toolchain: stable
           override: true
           components: rustfmt, clippy
       - name: Rustup update
@@ -176,4 +213,7 @@ jobs:
         with:
           # cache-provider: "buildjet"
           save-if: ${{ github.ref == 'refs/heads/nightly' }}
-      - run: SKIP_GUEST_BUILD=1 cargo nextest run --workspace --all-features
+      - name: Set toolchain stable
+        run: rustup override set stable
+      - name: Run nextest
+        run: SKIP_GUEST_BUILD=1 cargo nextest run --workspace --all-features
