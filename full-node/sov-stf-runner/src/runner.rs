@@ -14,7 +14,7 @@ use sov_rollup_interface::storage::StorageManager;
 use sov_rollup_interface::zk::ZkvmHost;
 use tokio::sync::oneshot;
 use tokio::time::{sleep, Duration, Instant};
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 
 use crate::verifier::StateTransitionVerifier;
 use crate::{ProverService, RunnerConfig};
@@ -217,7 +217,8 @@ where
         };
 
         let next_state_root = slot_result.state_root;
-        self.ledger_db.commit_soft_batch(soft_batch_receipt)?;
+        self.ledger_db
+            .commit_soft_batch(soft_batch_receipt, false)?;
         self.state_root = next_state_root;
 
         Ok(())
@@ -229,8 +230,6 @@ where
             Some(client) => client,
             None => return Err(anyhow::anyhow!("Sequencer Client is not initialized")),
         };
-
-        let _ = self.da_service.subscribe_finalized_header().await?;
 
         let mut height = self.start_height;
         println!("Starting from height {}", height);
@@ -300,12 +299,19 @@ where
                 .convert_rollup_batch_to_da_blob(&batch.try_to_vec().unwrap())
                 .unwrap();
 
-            println!("Soft batch at height {}", height);
-
             let filtered_block = self
                 .da_service
                 .get_block_at(soft_batch.da_slot_height)
                 .await?;
+
+            // Check whether da slot hash is the same with the one in the soft batch
+            if filtered_block.header().hash() != soft_batch.da_slot_hash {
+                warn!(
+                    "DA slot hash mismatch: soft batch: {}, da block: {}",
+                    hex::encode(soft_batch.da_slot_hash.into()),
+                    hex::encode(filtered_block.header().hash().into())
+                );
+            }
 
             // 0 is the BlobTransaction
             // 1 is the Signature
@@ -393,7 +399,7 @@ where
             };
 
             let next_state_root = slot_result.state_root;
-            self.ledger_db.commit_soft_batch(soft_batch_receipt)?;
+            self.ledger_db.commit_soft_batch(soft_batch_receipt, true)?;
             self.state_root = next_state_root;
 
             info!(

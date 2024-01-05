@@ -233,6 +233,7 @@ impl LedgerDB {
     pub fn commit_soft_batch<B: Serialize, T: Serialize, DS: DaSpec>(
         &self,
         batch_receipt: SoftBatchReceipt<B, T, DS>,
+        ignore_tx_body: bool,
     ) -> Result<(), anyhow::Error> {
         // Create a scope to ensure that the lock is released before we commit to the db
         let mut current_item_numbers = {
@@ -257,7 +258,8 @@ impl LedgerDB {
         let last_tx_number = first_tx_number + batch_receipt.tx_receipts.len() as u64;
         // Insert transactions and events from each batch before inserting the batch
         for tx in batch_receipt.tx_receipts.into_iter() {
-            let (tx_to_store, events) = split_tx_for_storage(tx, current_item_numbers.event_number);
+            let (mut tx_to_store, events) =
+                split_tx_for_storage(tx, current_item_numbers.event_number);
             for event in events.into_iter() {
                 self.put_event(
                     &event,
@@ -267,6 +269,13 @@ impl LedgerDB {
                 )?;
                 current_item_numbers.event_number += 1;
             }
+
+            // Rollup full nodes don't need to store the tx body as they already store evm body
+            // Sequencer full nodes need to store the tx body as they are the only ones that have it
+            if ignore_tx_body {
+                tx_to_store.body = None;
+            }
+
             self.put_transaction(
                 &tx_to_store,
                 &TxNumber(current_item_numbers.tx_number),

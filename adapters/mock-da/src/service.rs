@@ -130,10 +130,6 @@ impl DaService for MockDaService {
         if height > self.blocks.read().await.len() as u64 {
             let blocks_to_publish = height - (self.blocks.read().await.len() as u64) + 1;
 
-            println!("Current blocks length: {}", self.blocks.read().await.len());
-            println!("Publishing {} blocks", blocks_to_publish);
-            println!("Requested height: {}", height);
-
             for _ in 0..blocks_to_publish {
                 self.send_transaction(&[1]).await?;
             }
