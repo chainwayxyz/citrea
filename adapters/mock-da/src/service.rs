@@ -177,7 +177,7 @@ impl DaService for MockDaService {
         let (blocks_len, oldest_available_height) = {
             let blocks = self.blocks.read().await;
             let blocks_len = blocks.len();
-            let oldest_available_height = blocks.get(0).map(|b| b.header().height()).unwrap_or(0);
+            let oldest_available_height = blocks.front().map(|b| b.header().height()).unwrap_or(0);
             (blocks_len, oldest_available_height)
         };
         let last_finalized_height = self.last_finalized_height.load(Ordering::Acquire);
@@ -269,7 +269,7 @@ impl DaService for MockDaService {
                 assert_eq!(next_index_to_finalize as u64, last_finalized_index + 1);
             }
 
-            // Issue: #97 This line is throwing error when the DA layer is closed then opened and asked for the second time.
+            // TODO: #97 This line is throwing error when the DA layer is closed then opened and asked for the second time.
             // self.finalized_header_sender
             //     .send(*blocks[next_index_to_finalize].header())
             //     .unwrap();

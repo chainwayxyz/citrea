@@ -1,5 +1,6 @@
 use std::net::SocketAddr;
 
+use anyhow::bail;
 use borsh::BorshSerialize;
 use jsonrpsee::core::Error;
 use jsonrpsee::RpcModule;
@@ -179,7 +180,7 @@ where
         let filtered_block = self.da_service.get_block_at(da_slot_height).await?;
 
         let batch = Batch {
-            txs: txs.iter().map(|tx| RawTx { data: tx.clone() }).collect(),
+            txs: txs.into_iter().map(|tx| RawTx { data: tx }).collect(),
         };
 
         let (blob, _signature) = self
@@ -218,13 +219,13 @@ where
         let next_state_root = slot_result.state_root;
 
         let soft_batch_receipt = SoftBatchReceipt::<_, _, Da::Spec> {
-            pre_state_root: self.state_root.clone().as_ref().to_vec(),
+            pre_state_root: self.state_root.as_ref().to_vec(),
             post_state_root: next_state_root.as_ref().to_vec(),
             inner: batch_receipt.inner,
             batch_hash: batch_receipt.batch_hash,
             da_slot_hash: filtered_block.header().hash(),
             da_slot_height: filtered_block.header().height(),
-            tx_receipts: batch_receipt.tx_receipts.clone(),
+            tx_receipts: batch_receipt.tx_receipts,
         };
 
         self.ledger_db
@@ -242,7 +243,7 @@ where
         };
 
         let mut height = self.start_height;
-        println!("Starting from height {}", height);
+        info!("Starting to sync from height {}", height);
 
         let mut last_connection_error = Instant::now();
         let mut last_parse_error = Instant::now();
@@ -297,19 +298,15 @@ where
 
             // Check if pre state root is the same as the one in the soft batch
             if self.state_root.as_ref().to_vec() != soft_batch.pre_state_root {
-                warn!(
-                    "Pre state root mismatch: soft batch: {}, state root: {}",
-                    hex::encode(soft_batch.pre_state_root),
-                    hex::encode(self.state_root.as_ref())
-                );
+                bail!("Pre state root mismatch")
             }
 
             let batch = Batch {
                 txs: soft_batch
                     .txs
                     .unwrap_or_default()
-                    .iter()
-                    .map(|tx| RawTx { data: tx.clone() })
+                    .into_iter()
+                    .map(|tx| RawTx { data: tx })
                     .collect(),
             };
 
@@ -413,21 +410,17 @@ where
 
             // Check if post state root is the same as the one in the soft batch
             if next_state_root.as_ref().to_vec() != soft_batch.post_state_root {
-                warn!(
-                    "Post state root mismatch: soft batch: {}, state root: {}",
-                    hex::encode(soft_batch.post_state_root),
-                    hex::encode(next_state_root.as_ref())
-                );
+                bail!("Post state root mismatch")
             }
 
             let soft_batch_receipt = SoftBatchReceipt::<_, _, Da::Spec> {
-                pre_state_root: self.state_root.clone().as_ref().to_vec(),
+                pre_state_root: self.state_root.as_ref().to_vec(),
                 post_state_root: next_state_root.as_ref().to_vec(),
                 inner: batch_receipt.inner,
                 batch_hash: batch_receipt.batch_hash,
                 da_slot_hash: filtered_block.header().hash(),
                 da_slot_height: filtered_block.header().height(),
-                tx_receipts: batch_receipt.tx_receipts.clone(),
+                tx_receipts: batch_receipt.tx_receipts,
             };
 
             self.ledger_db.commit_soft_batch(soft_batch_receipt, true)?;

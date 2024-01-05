@@ -442,24 +442,6 @@ pub(crate) fn effective_gas_tip(
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use reth_primitives::constants::GWEI_TO_WEI;
-
-    use super::*;
-
-    #[test]
-    fn max_price_sanity() {
-        assert_eq!(DEFAULT_MAX_PRICE, U256::from(500_000_000_000u64));
-        assert_eq!(DEFAULT_MAX_PRICE, U256::from(500 * GWEI_TO_WEI))
-    }
-
-    #[test]
-    fn ignore_price_sanity() {
-        assert_eq!(DEFAULT_IGNORE_PRICE, U256::from(2u64));
-    }
-}
-
 pub(crate) fn convert_u256_to_u64(u256: reth_primitives::U256) -> Result<u64, TryFromSliceError> {
     let bytes: [u8; 32] = u256.to_be_bytes();
     let bytes: [u8; 8] = bytes[24..].try_into()?;
@@ -477,4 +459,22 @@ pub(crate) fn convert_u256_to_u128(u256: reth_primitives::U256) -> Result<u128, 
     let bytes: [u8; 32] = u256.to_be_bytes();
     let bytes: [u8; 16] = bytes[16..].try_into()?;
     Ok(u128::from_be_bytes(bytes))
+}
+
+#[cfg(test)]
+mod tests {
+    use reth_primitives::constants::GWEI_TO_WEI;
+
+    use super::*;
+
+    #[test]
+    fn max_price_sanity() {
+        assert_eq!(DEFAULT_MAX_PRICE, U256::from(500_000_000_000u64));
+        assert_eq!(DEFAULT_MAX_PRICE, U256::from(500 * GWEI_TO_WEI))
+    }
+
+    #[test]
+    fn ignore_price_sanity() {
+        assert_eq!(DEFAULT_IGNORE_PRICE, U256::from(2u64));
+    }
 }

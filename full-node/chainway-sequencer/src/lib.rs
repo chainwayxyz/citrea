@@ -118,8 +118,7 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                     .map(|(_, sb)| sb.da_slot_height)
                     .unwrap_or(1); // If this is the first block, then the previous block is the genesis block, may need revisiting
 
-                let _previous_l1_block =
-                    self.da_service.get_block_at(prev_l1_height).await.unwrap();
+                let previous_l1_block = self.da_service.get_block_at(prev_l1_height).await.unwrap();
 
                 let last_finalized_height = self
                     .da_service
@@ -134,8 +133,13 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                     .await
                     .unwrap();
 
+                // Compare if there is no skip
+                if last_finalized_block.header().prev_hash() != previous_l1_block.header().hash() {
+                    // TODO: This shouldn't happen. If it does, then we should produce at least 1 block for the blocks in between
+                }
+
                 if last_finalized_height != prev_l1_height {
-                    // TODO: this is where we would include forced transactions from the previous block
+                    // TODO: this is where we would include forced transactions from the new L1 block
                 }
 
                 let block_template = BlockTemplate {

@@ -3,7 +3,7 @@
 
 /// Contains the call methods used by the module
 mod call;
-pub use call::*;
+
 #[cfg(test)]
 mod tests;
 

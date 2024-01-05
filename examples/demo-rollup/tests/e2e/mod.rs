@@ -278,8 +278,6 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
 
     sleep(Duration::from_secs(5)).await;
 
-    println!("Wakey wakey, full node");
-
     // spin up the full node again with the same data where it left of only with different path to not stuck on lock
     let rollup_task = tokio::spawn(async move {
         start_rollup(
