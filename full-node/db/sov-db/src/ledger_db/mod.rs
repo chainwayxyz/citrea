@@ -410,6 +410,18 @@ impl LedgerDB {
             _ => Ok(None),
         }
     }
+
+    /// Get the most recent committed soft batch, if any
+    pub fn get_head_soft_batch(&self) -> anyhow::Result<Option<(BatchNumber, StoredSoftBatch)>> {
+        let mut iter = self.db.iter::<SoftBatchByNumber>()?;
+        iter.seek_to_last();
+
+        match iter.next() {
+            Some(Ok((batch_number, batch))) => Ok(Some((batch_number, batch))),
+            Some(Err(e)) => Err(e),
+            _ => Ok(None),
+        }
+    }
 }
 
 #[cfg(feature = "arbitrary")]

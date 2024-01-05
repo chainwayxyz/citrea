@@ -8,7 +8,6 @@ use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::{LedgerDB, SlotCommit};
 use sov_modules_stf_blueprint::{Batch, RawTx};
 use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaSpec};
-
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::stf::{SoftBatchReceipt, StateTransitionFunction};
 use sov_rollup_interface::storage::StorageManager;
@@ -231,6 +230,8 @@ where
             None => return Err(anyhow::anyhow!("Sequencer Client is not initialized")),
         };
 
+        let _ = self.da_service.subscribe_finalized_header().await?;
+
         let mut height = self.start_height;
         println!("Starting from height {}", height);
 
@@ -298,6 +299,8 @@ where
                 .da_service
                 .convert_rollup_batch_to_da_blob(&batch.try_to_vec().unwrap())
                 .unwrap();
+
+            println!("Soft batch at height {}", height);
 
             let filtered_block = self
                 .da_service

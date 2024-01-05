@@ -1,7 +1,6 @@
 use futures::StreamExt;
 pub use sov_evm::DevSigner;
-use sov_rollup_interface::da::{BlockHeaderTrait};
-
+use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_stf_runner::BlockTemplate;
 mod mempool;
 mod utils;
@@ -26,7 +25,6 @@ use sov_evm::{CallMessage, RlpEvmTransaction};
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{EncodeCall, PrivateKey, SlotData, WorkingSet};
 use sov_modules_rollup_blueprint::{Rollup, RollupBlueprint};
-
 use sov_rollup_interface::services::da::DaService;
 use tracing::info;
 

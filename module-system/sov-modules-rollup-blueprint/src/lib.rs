@@ -132,7 +132,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         let native_storage = storage_manager.get_native_storage();
 
         let prev_root = ledger_db
-            .get_head_slot()?
+            .get_head_soft_batch()?
             .map(|(number, _)| native_storage.get_root_hash(number.0 + 1))
             .transpose()?;
 
