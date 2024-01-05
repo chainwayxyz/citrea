@@ -209,7 +209,7 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
             full_node_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             RollupProverConfig::Execute,
-            NodeMode::FullNode(seq_port.clone()),
+            NodeMode::FullNode(seq_port),
             Some("demo_data_test_close_and_reopen_full_node"),
         )
         .await;
