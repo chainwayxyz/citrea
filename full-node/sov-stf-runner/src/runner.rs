@@ -6,8 +6,10 @@ use jsonrpsee::RpcModule;
 use sequencer_client::SequencerClient;
 use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::{LedgerDB, SlotCommit};
+use sov_db::schema::types::{BatchNumber, StoredSoftBatch};
 use sov_modules_stf_blueprint::{Batch, RawTx};
 use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaSpec};
+
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::stf::{SoftBatchReceipt, StateTransitionFunction};
 use sov_rollup_interface::storage::StorageManager;
@@ -161,6 +163,11 @@ where
             let _server_handle = server.start(methods);
             futures::future::pending::<()>().await;
         });
+    }
+
+    /// Returns the head soft batch
+    pub fn get_head_soft_batch(&self) -> anyhow::Result<Option<(BatchNumber, StoredSoftBatch)>> {
+        self.ledger_db.get_head_soft_batch()
     }
 
     /// Processes sequence

@@ -111,28 +111,35 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                     <Runtime<C, Da::Spec> as EncodeCall<sov_evm::Evm<C>>>::encode_call(call_txs);
                 let signed_blob = self.make_blob(raw_message);
 
-                // TODO: This should be only for mock-da in tests
-                {
-                    self.da_service.send_transaction(&[]).await.unwrap();
-                    self.da_service.send_transaction(&[]).await.unwrap();
-                }
+                let prev_l1_height = self
+                    .rollup
+                    .runner
+                    .get_head_soft_batch()?
+                    .map(|(_, sb)| sb.da_slot_height)
+                    .unwrap_or(1); // If this is the first block, then the previous block is the genesis block, may need revisiting
 
-                let last_finalized_block_header = self
+                let _previous_l1_block =
+                    self.da_service.get_block_at(prev_l1_height).await.unwrap();
+
+                let last_finalized_height = self
                     .da_service
                     .get_last_finalized_block_header()
                     .await
-                    .unwrap();
+                    .unwrap()
+                    .height();
 
-                let filtered_block = self
+                let last_finalized_block = self
                     .da_service
-                    .get_block_at(last_finalized_block_header.height())
+                    .get_block_at(last_finalized_height)
                     .await
                     .unwrap();
 
-                // TODO: this is where we would include forced transactions from the block
+                if last_finalized_height != prev_l1_height {
+                    // TODO: this is where we would include forced transactions from the previous block
+                }
 
                 let block_template = BlockTemplate {
-                    da_slot_height: filtered_block.header().height(),
+                    da_slot_height: last_finalized_block.header().height(),
                     txs: vec![signed_blob],
                 };
 
