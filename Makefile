@@ -13,7 +13,7 @@ test-legacy: ## Runs test suite with output from tests printed
 	@cargo test -- --nocapture -Zunstable-options --report-time
 
 test:  ## Runs test suite using next test
-	@cargo nextest run --workspace --all-features --no-fail-fast -E 'not package(bitcoin-da)'
+	@cargo nextest run --workspace --all-features --no-fail-fast -E 'all() - package(bitcoin-da)'
 
 install-dev-tools:  ## Installs all necessary cargo helpers
 	cargo install cargo-llvm-cov

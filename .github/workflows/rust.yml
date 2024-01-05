@@ -52,10 +52,6 @@ on:
 env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: -D warnings
-  SKIP_DA_BUILD: 1
-#   RUST_VERSION_STABLE: 1.75.0
-#   RUST_VERSION_BETA: 1.76.0
-# RUST_VERSION_NIGHTLY: nightly-2023-12-31
 
 # Automatically cancels a job if a new commit if pushed to the same PR, branch, or tag.
 # Source: <https://stackoverflow.com/a/72408109/5148606>
