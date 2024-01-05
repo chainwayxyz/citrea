@@ -15,6 +15,7 @@ use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::stf::{SoftBatchReceipt, StateTransitionFunction};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::{StateTransitionData, Zkvm, ZkvmHost};
+use tokio::sync::oneshot;
 use tokio::time::{sleep, Duration, Instant};
 use tracing::{debug, error, info, warn};
 
@@ -198,11 +199,13 @@ where
     /// Processes sequence
     /// gets BlockTemplate from sequencer
     pub async fn process(&mut self, block_template: BlockTemplate) -> Result<(), anyhow::Error> {
-        let pre_state = self.storage_manager.get_native_storage();
-
         let (txs, da_slot_height) = (block_template.txs, block_template.da_slot_height);
 
         let filtered_block = self.da_service.get_block_at(da_slot_height).await?;
+
+        let pre_state = self
+            .storage_manager
+            .create_storage_on(filtered_block.header())?;
 
         // TODO: check for reorgs here
         // check out run_in_process for an example

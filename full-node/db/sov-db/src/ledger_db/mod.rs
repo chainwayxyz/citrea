@@ -428,7 +428,7 @@ impl LedgerDB {
         iter.seek_to_last();
 
         match iter.next() {
-            Some(Ok((batch_number, batch))) => Ok(Some((batch_number, batch))),
+            Some(Ok(item)) => Ok(Some(item.into_tuple())),
             Some(Err(e)) => Err(e),
             _ => Ok(None),
         }
