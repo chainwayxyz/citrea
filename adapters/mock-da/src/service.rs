@@ -269,10 +269,9 @@ impl DaService for MockDaService {
                 assert_eq!(next_index_to_finalize as u64, last_finalized_index + 1);
             }
 
-            // TODO: #97 This line is throwing error when the DA layer is closed then opened and asked for the second time.
-            // self.finalized_header_sender
-            //     .send(*blocks[next_index_to_finalize].header())
-            //     .unwrap();
+            self.finalized_header_sender
+                .send(*blocks[next_index_to_finalize].header())
+                .unwrap();
 
             let this_finalized_height = oldest_available_height + next_index_to_finalize as u64;
             self.last_finalized_height
