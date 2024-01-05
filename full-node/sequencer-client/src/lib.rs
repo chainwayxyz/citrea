@@ -22,14 +22,14 @@ impl SequencerClient {
     }
 
     /// Gets l2 block given l2 height
-    pub async fn get_sov_batch<DaSpec: sov_rollup_interface::da::DaSpec>(
+    pub async fn get_soft_batch<DaSpec: sov_rollup_interface::da::DaSpec>(
         &self,
         num: u64,
-    ) -> anyhow::Result<Option<GetSovTxResponse<DaSpec::SlotHash>>> {
-        let res: Result<Option<GetSovTxResponse<DaSpec::SlotHash>>, jsonrpsee::core::Error> = self
-            .client
-            .request("ledger_getSoftBatchByNumber", rpc_params![num])
-            .await;
+    ) -> anyhow::Result<Option<GetSoftBatchResponse<DaSpec::SlotHash>>> {
+        let res: Result<Option<GetSoftBatchResponse<DaSpec::SlotHash>>, jsonrpsee::core::Error> =
+            self.client
+                .request("ledger_getSoftBatchByNumber", rpc_params![num])
+                .await;
 
         match res {
             Ok(res) => Ok(res),
@@ -52,9 +52,11 @@ impl SequencerClient {
 }
 
 #[derive(Deserialize, Debug)]
-pub struct GetSovTxResponse<Hash> {
+pub struct GetSoftBatchResponse<Hash> {
     pub da_slot_height: u64,
     pub da_slot_hash: Hash,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub txs: Option<Vec<Vec<u8>>>,
+    pub pre_state_root: Vec<u8>,
+    pub post_state_root: Vec<u8>,
 }

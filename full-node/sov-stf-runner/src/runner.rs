@@ -9,7 +9,6 @@ use sov_db::ledger_db::{LedgerDB, SlotCommit};
 use sov_db::schema::types::{BatchNumber, StoredSoftBatch};
 use sov_modules_stf_blueprint::{Batch, RawTx};
 use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaSpec};
-
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::stf::{SoftBatchReceipt, StateTransitionFunction};
 use sov_rollup_interface::storage::StorageManager;
@@ -213,9 +212,14 @@ where
             data_to_commit.add_batch(receipt);
         }
 
+        // TODO: This will be a single receipt once we have apply_soft_batch.
         let batch_receipt = data_to_commit.batch_receipts()[0].clone();
 
+        let next_state_root = slot_result.state_root;
+
         let soft_batch_receipt = SoftBatchReceipt::<_, _, Da::Spec> {
+            pre_state_root: self.state_root.clone().as_ref().to_vec(),
+            post_state_root: next_state_root.as_ref().to_vec(),
             inner: batch_receipt.inner,
             batch_hash: batch_receipt.batch_hash,
             da_slot_hash: filtered_block.header().hash(),
@@ -223,7 +227,6 @@ where
             tx_receipts: batch_receipt.tx_receipts.clone(),
         };
 
-        let next_state_root = slot_result.state_root;
         self.ledger_db
             .commit_soft_batch(soft_batch_receipt, false)?;
         self.state_root = next_state_root;
@@ -248,7 +251,7 @@ where
         let mut parse_index = 0;
 
         loop {
-            let soft_batch = client.get_sov_batch::<Da::Spec>(height).await;
+            let soft_batch = client.get_soft_batch::<Da::Spec>(height).await;
 
             if soft_batch.is_err() {
                 // TODO: Add logs here: https://github.com/chainwayxyz/secret-sovereign-sdk/issues/47
@@ -291,6 +294,15 @@ where
                     continue;
                 }
             };
+
+            // Check if pre state root is the same as the one in the soft batch
+            if self.state_root.as_ref().to_vec() != soft_batch.pre_state_root {
+                warn!(
+                    "Pre state root mismatch: soft batch: {}, state root: {}",
+                    hex::encode(soft_batch.pre_state_root),
+                    hex::encode(self.state_root.as_ref())
+                );
+            }
 
             let batch = Batch {
                 txs: soft_batch
@@ -397,7 +409,20 @@ where
 
             let batch_receipt = data_to_commit.batch_receipts()[0].clone();
 
+            let next_state_root = slot_result.state_root;
+
+            // Check if post state root is the same as the one in the soft batch
+            if next_state_root.as_ref().to_vec() != soft_batch.post_state_root {
+                warn!(
+                    "Post state root mismatch: soft batch: {}, state root: {}",
+                    hex::encode(soft_batch.post_state_root),
+                    hex::encode(next_state_root.as_ref())
+                );
+            }
+
             let soft_batch_receipt = SoftBatchReceipt::<_, _, Da::Spec> {
+                pre_state_root: self.state_root.clone().as_ref().to_vec(),
+                post_state_root: next_state_root.as_ref().to_vec(),
                 inner: batch_receipt.inner,
                 batch_hash: batch_receipt.batch_hash,
                 da_slot_hash: filtered_block.header().hash(),
@@ -405,7 +430,6 @@ where
                 tx_receipts: batch_receipt.tx_receipts.clone(),
             };
 
-            let next_state_root = slot_result.state_root;
             self.ledger_db.commit_soft_batch(soft_batch_receipt, true)?;
             self.state_root = next_state_root;
 

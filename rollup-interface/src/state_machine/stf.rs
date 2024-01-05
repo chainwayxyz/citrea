@@ -87,6 +87,10 @@ pub struct SoftBatchReceipt<BatchReceiptContents, TxReceiptContents, DS: DaSpec>
     pub tx_receipts: Vec<TransactionReceipt<TxReceiptContents>>,
     /// Any additional structured data to be saved in the database and served over RPC
     pub inner: BatchReceiptContents,
+    /// Pre state root
+    pub pre_state_root: Vec<u8>,
+    /// Post state root
+    pub post_state_root: Vec<u8>,
 }
 
 /// Result of applying a slot to current state

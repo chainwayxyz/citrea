@@ -83,6 +83,10 @@ pub struct StoredSoftBatch {
     pub txs: Vec<StoredTransaction>,
     /// A customer "receipt" for this batch defined by the rollup.
     pub custom_receipt: DbBytes,
+    /// Pre state root
+    pub pre_state_root: Vec<u8>,
+    /// Post state root
+    pub post_state_root: Vec<u8>,
 }
 
 impl TryFrom<StoredSoftBatch> for SoftBatchResponse {
@@ -92,8 +96,9 @@ impl TryFrom<StoredSoftBatch> for SoftBatchResponse {
             da_slot_hash: value.da_slot_hash,
             da_slot_height: value.da_slot_height,
             hash: value.hash,
-            // TODO: This ignores the tx if it is not present in the ledger-db, which shouldn't happen
-            txs: Some(value.txs.into_iter().filter_map(|tx| tx.body).collect()),
+            txs: Some(value.txs.into_iter().filter_map(|tx| tx.body).collect()), // Rollup full nodes don't store tx bodies
+            pre_state_root: value.pre_state_root,
+            post_state_root: value.post_state_root,
         })
     }
 }

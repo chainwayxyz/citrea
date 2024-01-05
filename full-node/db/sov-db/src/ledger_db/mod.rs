@@ -295,6 +295,8 @@ impl LedgerDB {
                 .expect("serialization to vec is infallible")
                 .into(),
             txs,
+            pre_state_root: batch_receipt.pre_state_root,
+            post_state_root: batch_receipt.post_state_root,
         };
         self.put_soft_batch(
             &batch_to_store,

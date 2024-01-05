@@ -171,6 +171,10 @@ pub struct SoftBatchResponse {
     /// The transactions in this batch.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub txs: Option<Vec<Vec<u8>>>,
+    /// Pre-state root of the soft batch.
+    pub pre_state_root: Vec<u8>,
+    /// Post-state root of the soft batch.
+    pub post_state_root: Vec<u8>,
 }
 
 /// The response to a JSON-RPC request for a particular batch.
