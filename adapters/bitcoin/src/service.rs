@@ -483,9 +483,6 @@ mod tests {
 
     #[tokio::test]
     async fn get_finalized_header() {
-        if std::env::var("EXCLUDE_BTC").is_ok() {
-            return;
-        }
         let da_service = get_service().await;
 
         let get_curr_header = da_service
@@ -554,9 +551,6 @@ mod tests {
 
     #[tokio::test]
     async fn get_block_at() {
-        if std::env::var("EXCLUDE_BTC").is_ok() {
-            return;
-        }
         let da_service = get_service().await;
 
         da_service
@@ -567,9 +561,6 @@ mod tests {
 
     #[tokio::test]
     async fn extract_relevant_blobs() {
-        if std::env::var("EXCLUDE_BTC").is_ok() {
-            return;
-        }
         let da_service = get_service().await;
 
         let block = da_service
@@ -587,9 +578,6 @@ mod tests {
 
     #[tokio::test]
     async fn extract_relevant_blobs_with_proof() {
-        if std::env::var("EXCLUDE_BTC").is_ok() {
-            return;
-        }
         let da_service = get_service().await;
 
         let block = da_service
@@ -662,9 +650,6 @@ mod tests {
 
     #[tokio::test]
     async fn send_transaction() {
-        if std::env::var("EXCLUDE_BTC").is_ok() {
-            return;
-        }
         let da_service = get_service().await;
 
         let blob = "01000000b60000002adbd76606f2bd4125080e6f44df7ba2d728409955c80b8438eb1828ddf23e3c12188eeac7ecf6323be0ed5668e21cc354fca90d8bca513d6c0a240c26afa7007b758bf2e7670fafaf6bf0015ce0ff5aa802306fc7e3f45762853ffc37180fe64a0000000001fea6ac5b8751120fb62fff67b54d2eac66aef307c7dde1d394dea1e09e43dd44c800000000000000135d23aee8cb15c890831ff36db170157acaac31df9bba6cd40e7329e608eabd0000000000000000";
@@ -676,9 +661,6 @@ mod tests {
 
     #[tokio::test]
     async fn send_transaction_with_fee_rate() {
-        if std::env::var("EXCLUDE_BTC").is_ok() {
-            return;
-        }
         let da_service = get_service().await;
         let fee_rate = da_service
             .client
@@ -699,9 +681,6 @@ mod tests {
 
     #[tokio::test]
     async fn check_signature() {
-        if std::env::var("EXCLUDE_BTC").is_ok() {
-            return;
-        }
         let rpc = BitcoinNode::new(
             "http://localhost:38332".to_string(),
             "chainway".to_string(),

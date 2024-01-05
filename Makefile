@@ -13,7 +13,7 @@ test-legacy: ## Runs test suite with output from tests printed
 	@cargo test -- --nocapture -Zunstable-options --report-time
 
 test:  ## Runs test suite using next test
-	@cargo nextest run --workspace --all-features --no-fail-fast
+	@cargo nextest run --workspace --all-features --no-fail-fast -E 'not package(bitcoin-da)'
 
 install-dev-tools:  ## Installs all necessary cargo helpers
 	cargo install cargo-llvm-cov
@@ -28,7 +28,6 @@ install-dev-tools:  ## Installs all necessary cargo helpers
 lint:  ## cargo check and clippy. Skip clippy on guest code since it's not supported by risc0
 	## fmt first, because it's the cheapest
 	cargo +nightly fmt --all --check
-	rustup override set stable
 	cargo check --all-targets --all-features
 	$(MAKE) check-fuzz
 	SKIP_GUEST_BUILD=1 cargo clippy --all-targets --all-features
