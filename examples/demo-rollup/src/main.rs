@@ -1,6 +1,4 @@
 use core::fmt::Debug as DebugTrait;
-use std::env;
-use std::str::FromStr;
 
 use anyhow::{anyhow, Context as _};
 use bitcoin_da::service::DaServiceConfig;
@@ -9,25 +7,17 @@ use clap::Parser;
 use const_rollup_config::TEST_PRIVATE_KEY;
 use demo_stf::genesis_config::GenesisPaths;
 use reth_primitives::hex;
-use reth_primitives::serde_helper::num::from_int_or_hex;
-use sequencer_client::SequencerClient;
-use serde::de::DeserializeOwned;
-use sov_celestia_adapter::{CelestiaConfig, CelestiaService};
+use sov_celestia_adapter::CelestiaConfig;
 use sov_demo_rollup::{initialize_logging, BitcoinRollup, CelestiaDemoRollup, MockDemoRollup};
-use sov_mock_da::{MockDaConfig, MockDaService};
-use sov_modules_api::default_context::DefaultContext;
-use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
+use sov_mock_da::MockDaConfig;
 use sov_modules_api::runtime::capabilities::Kernel;
-use sov_modules_api::{DaSpec, PrivateKey, Spec};
-use sov_modules_rollup_blueprint::{Rollup, RollupAndStorage, RollupBlueprint};
+use sov_modules_api::Spec;
+use sov_modules_rollup_blueprint::{RollupAndStorage, RollupBlueprint};
 use sov_modules_stf_blueprint::kernels::basic::{
     BasicKernelGenesisConfig, BasicKernelGenesisPaths,
 };
-use sov_rollup_interface::services::da::DaService;
-use sov_rollup_interface::stf::ProverConfig;
 use sov_state::storage::NativeStorage;
 use sov_stf_runner::{from_toml_path, RollupConfig, RollupProverConfig};
-use tracing::log::debug;
 
 #[cfg(test)]
 mod test_rpc;

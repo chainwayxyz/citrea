@@ -17,7 +17,7 @@ use tokio::time::{sleep, Duration, Instant};
 use tracing::{debug, error, info};
 
 use crate::verifier::StateTransitionVerifier;
-use crate::{ProofSubmissionStatus, ProverService, RunnerConfig};
+use crate::{ProverService, RunnerConfig};
 
 type StateRoot<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::StateRoot;
 type GenesisParams<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::GenesisParams;
@@ -366,7 +366,7 @@ where
                 .get_extraction_proof(&filtered_block, vec_blobs.as_slice())
                 .await;
 
-            let transition_data: StateTransitionData<Stf::StateRoot, Stf::Witness, Da::Spec> =
+            let _transition_data: StateTransitionData<Stf::StateRoot, Stf::Witness, Da::Spec> =
                 StateTransitionData {
                     // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1247): incorrect pre-state root in case of re-org
                     initial_state_root: self.state_root.clone(),

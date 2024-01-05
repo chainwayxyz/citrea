@@ -5,7 +5,7 @@ use reth_rpc_types::{CallInput, CallRequest};
 use revm::primitives::{SpecId, B256, KECCAK_EMPTY, U256};
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::utils::generate_address;
-use sov_modules_api::{Context, Module, StateMapAccessor, StateValueAccessor, StateVecAccessor};
+use sov_modules_api::{Context, Module, StateMapAccessor, StateVecAccessor};
 
 use crate::call::CallMessage;
 use crate::evm::primitive_types::Receipt;
