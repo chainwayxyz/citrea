@@ -102,7 +102,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Run lint
         run: |
-          if ! make lint ; then
+          if ! SKIP_GUEST_BUILD=1 make lint ; then
             echo "Linting or formatting errors detected, please run 'make lint-fix' to fix it";
             exit 1
           fi
@@ -168,4 +168,4 @@ jobs:
           cache-provider: "github"
           save-if: ${{ github.ref == 'refs/heads/nightly' }}
       - name: Run nextest
-        run: make test
+        run: SKIP_GUEST_BUILD=1 make test
