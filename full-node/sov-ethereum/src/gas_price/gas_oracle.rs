@@ -451,6 +451,20 @@ pub fn convert_u256_to_u64(u256: U256) -> u64 {
     u64::from_be_bytes(bytes)
 }
 
+#[allow(dead_code)]
+pub(crate) fn convert_u64_to_u256(u64: u64) -> reth_primitives::U256 {
+    let bytes: [u8; 8] = u64.to_be_bytes();
+    let mut new_bytes = [0u8; 32];
+    new_bytes[24..].copy_from_slice(&bytes);
+    reth_primitives::U256::from_be_bytes(new_bytes)
+}
+
+pub(crate) fn convert_u256_to_u128(u256: reth_primitives::U256) -> Result<u128, TryFromSliceError> {
+    let bytes: [u8; 32] = u256.to_be_bytes();
+    let bytes: [u8; 16] = bytes[16..].try_into()?;
+    Ok(u128::from_be_bytes(bytes))
+}
+
 #[cfg(test)]
 mod tests {
     use proptest::arbitrary::any;
@@ -493,17 +507,4 @@ mod tests {
             let _output = convert_u256_to_u64(u256);
         }
     }
-}
-
-pub(crate) fn convert_u64_to_u256(u64: u64) -> reth_primitives::U256 {
-    let bytes: [u8; 8] = u64.to_be_bytes();
-    let mut new_bytes = [0u8; 32];
-    new_bytes[24..].copy_from_slice(&bytes);
-    reth_primitives::U256::from_be_bytes(new_bytes)
-}
-
-pub(crate) fn convert_u256_to_u128(u256: reth_primitives::U256) -> Result<u128, TryFromSliceError> {
-    let bytes: [u8; 32] = u256.to_be_bytes();
-    let bytes: [u8; 16] = bytes[16..].try_into()?;
-    Ok(u128::from_be_bytes(bytes))
 }

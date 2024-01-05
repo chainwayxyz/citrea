@@ -41,6 +41,7 @@ where
     ledger_db: LedgerDB,
     state_root: StateRoot<Stf, Vm, Da::Spec>,
     listen_address: SocketAddr,
+    #[allow(dead_code)]
     prover_service: Ps,
     sequencer_client: Option<SequencerClient>,
 }

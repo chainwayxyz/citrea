@@ -7761,6 +7761,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "rustc_version_runtime"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2dd18cd2bae1820af0b6ad5e54f4a51d0f3fcc53b05f845675074efcc7af071d"
+dependencies = [
+ "rustc_version 0.4.0",
+ "semver 1.0.20",
+]
+
+[[package]]
 name = "rustix"
 version = "0.36.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8973,6 +8983,7 @@ dependencies = [
  "proptest",
  "reth-primitives",
  "reth-rpc-types",
+ "rustc_version_runtime",
  "schnellru",
  "sequencer-client",
  "serde",

@@ -243,7 +243,7 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
                 chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
             },
             RollupProverConfig::Execute,
-            NodeMode::FullNode(seq_port.clone()),
+            NodeMode::FullNode(seq_port),
             Some("demo_data_test_close_and_reopen_full_node"),
         )
         .await;
@@ -266,7 +266,7 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
     }
 
     // wait for full node to sync
-    sleep(Duration::from_secs(10)).await;
+    sleep(Duration::from_secs(5)).await;
 
     // check if latest blocks are the same
     let seq_last_block = seq_test_client
@@ -321,7 +321,9 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
         )
         .await;
     });
-    sleep(Duration::from_secs(5)).await;
+
+    // TODO: There should be a better way to test this?
+    sleep(Duration::from_secs(30)).await;
     let full_node_port = full_node_port_rx.await.unwrap();
 
     let full_node_contract = SimpleStorageContract::default();
@@ -371,8 +373,8 @@ fn copy_dir_recursive(src: &Path, dst: &Path) -> std::io::Result<()> {
 }
 
 async fn execute_blocks<T: TestContract>(
-    sequencer_client: &Box<TestClient<T>>,
-    full_node_client: &Box<TestClient<T>>,
+    sequencer_client: &TestClient<T>,
+    full_node_client: &TestClient<T>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let (contract_address, _runtime_code) = {
         let runtime_code = sequencer_client.deploy_contract_call().await?;

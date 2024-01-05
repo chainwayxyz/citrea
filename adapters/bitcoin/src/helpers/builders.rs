@@ -53,6 +53,7 @@ pub fn sign_blob_with_private_key(
     ))
 }
 
+#[allow(clippy::ptr_arg)]
 fn get_size(
     inputs: &Vec<TxIn>,
     outputs: &Vec<TxOut>,
@@ -74,6 +75,7 @@ fn get_size(
         );
     }
 
+    #[allow(clippy::unnecessary_unwrap)]
     if tx.input.len() == 1 && script.is_some() && control_block.is_some() {
         tx.input[0].witness.push(script.unwrap());
         tx.input[0].witness.push(control_block.unwrap().serialize());
@@ -82,7 +84,7 @@ fn get_size(
     tx.vsize()
 }
 
-fn choose_utxos(utxos: &Vec<UTXO>, amount: u64) -> Result<(Vec<UTXO>, u64), anyhow::Error> {
+fn choose_utxos(utxos: &[UTXO], amount: u64) -> Result<(Vec<UTXO>, u64), anyhow::Error> {
     let mut bigger_utxos: Vec<&UTXO> = utxos.iter().filter(|utxo| utxo.amount >= amount).collect();
     let mut sum: u64 = 0;
 
@@ -221,6 +223,7 @@ fn build_commit_transaction(
     Ok(tx)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn build_reveal_transaction(
     input_utxo: TxOut,
     input_txid: Txid,
@@ -269,6 +272,7 @@ fn build_reveal_transaction(
 // TODO: parametrize hardness
 // so tests are easier
 // Creates the inscription transactions (commit and reveal)
+#[allow(clippy::too_many_arguments)]
 pub fn create_inscription_transactions(
     rollup_name: &str,
     body: Vec<u8>,
@@ -510,6 +514,7 @@ mod tests {
         std::fs::remove_file("reveal_test_tx.tx").unwrap();
     }
 
+    #[allow(clippy::type_complexity)]
     fn get_mock_data() -> (&'static str, Vec<u8>, Vec<u8>, Vec<u8>, Address, Vec<UTXO>) {
         let rollup_name = "test_rollup";
         let body = vec![100; 1000];
@@ -773,7 +778,7 @@ mod tests {
     fn build_reveal_transaction() {
         let (_, _, _, _, address, utxos) = get_mock_data();
 
-        let utxo = utxos.get(0).unwrap();
+        let utxo = utxos.first().unwrap();
         let script = ScriptBuf::from_hex("62a58f2674fd840b6144bea2e63ebd35c16d7fd40252a2f28b2a01a648df356343e47976d7906a0e688bf5e134b6fd21bd365c016b57b1ace85cf30bf1206e27").unwrap();
         let control_block = ControlBlock::decode(&[
             193, 165, 246, 250, 6, 222, 28, 9, 130, 28, 217, 67, 171, 11, 229, 62, 48, 206, 219,

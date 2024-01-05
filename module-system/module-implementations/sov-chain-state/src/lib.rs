@@ -3,6 +3,7 @@
 
 /// Contains the call methods used by the module
 mod call;
+
 #[cfg(test)]
 mod tests;
 

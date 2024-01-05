@@ -329,6 +329,7 @@ impl DaService for MockDaService {
         &self,
     ) -> Result<<Self::Spec as DaSpec>::BlockHeader, Self::Error> {
         let blocks_len = { self.blocks.read().await.len() };
+
         if blocks_len < self.blocks_to_finality as usize + 1 {
             return Ok(GENESIS_HEADER);
         }

@@ -81,6 +81,7 @@ impl TryFrom<&PublicKeyHex> for DefaultPublicKey {
     }
 }
 
+// TODO: Check this and it's relevance with gas_oracle_test
 #[cfg(feature = "arbitrary")]
 impl<'a> arbitrary::Arbitrary<'a> for PublicKeyHex {
     fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {

@@ -37,6 +37,7 @@ sov-rollup-interface = { path = "../../rollup-interface", features = [
 demo-stf = { path = "../../examples/demo-rollup/stf", features = ["native"] }
 sov-modules-api = { path = "../../module-system/sov-modules-api" }
 sov-accounts = { path = "../../module-system/module-implementations/sov-accounts" }
+rustc_version_runtime = "0.3.0"
 
 [dev-dependencies]
 tokio = { workspace = true }

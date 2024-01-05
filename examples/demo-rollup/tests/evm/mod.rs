@@ -40,7 +40,16 @@ async fn web3_rpc_tests() -> Result<(), anyhow::Error> {
 
     let test_client = make_test_client(port, SimpleStorageContract::default()).await;
 
-    assert_eq!(test_client.web3_client_version().await, "citrea/0.0.1");
+    let tag = match sov_ethereum::get_latest_git_tag() {
+        Ok(tag) => tag,
+        Err(_) => "unknown".to_string(),
+    };
+    let arch = std::env::consts::ARCH;
+
+    assert_eq!(
+        test_client.web3_client_version().await,
+        format!("citrea/{}/{}/rust-1.75.0", tag, arch)
+    );
     assert_eq!(
         test_client
             .web3_sha3("0x68656c6c6f20776f726c64".to_string())
@@ -122,6 +131,7 @@ async fn test_eth_get_logs() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
+#[allow(clippy::borrowed_box)]
 async fn test_getlogs<T: TestContract>(
     client: &Box<TestClient<T>>,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -223,6 +233,7 @@ async fn test_getlogs<T: TestContract>(
     Ok(())
 }
 
+#[allow(clippy::borrowed_box)]
 async fn execute<T: TestContract>(
     client: &Box<TestClient<T>>,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -455,6 +466,7 @@ async fn execute<T: TestContract>(
     Ok(())
 }
 
+#[allow(clippy::borrowed_box)]
 pub async fn init_test_rollup<T: TestContract>(
     rpc_address: SocketAddr,
     contract: T,
@@ -483,6 +495,7 @@ pub async fn init_test_rollup<T: TestContract>(
     test_client
 }
 
+#[allow(clippy::borrowed_box)]
 pub async fn make_test_client<T: TestContract>(
     rpc_address: SocketAddr,
     contract: T,
