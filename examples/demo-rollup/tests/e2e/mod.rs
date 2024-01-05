@@ -10,7 +10,8 @@ use sov_evm::{SimpleStorageContract, TestContract};
 use sov_stf_runner::RollupProverConfig;
 use tokio::time::sleep;
 
-use crate::evm::{init_test_rollup, make_test_client, TestClient};
+use crate::evm::{init_test_rollup, make_test_client};
+use crate::test_client::TestClient;
 use crate::test_helpers::{start_rollup, NodeMode};
 
 #[tokio::test]

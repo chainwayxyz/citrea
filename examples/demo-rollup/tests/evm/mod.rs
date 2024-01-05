@@ -1,5 +1,3 @@
-mod test_client;
-
 use std::net::SocketAddr;
 use std::str::FromStr;
 
@@ -10,9 +8,9 @@ use ethers_signers::{LocalWallet, Signer};
 use reth_primitives::BlockNumberOrTag;
 use sov_evm::{SimpleStorageContract, TestContract};
 use sov_stf_runner::RollupProverConfig;
-pub use test_client::TestClient;
 use tokio::time::{sleep, Duration};
 
+use crate::test_client::TestClient;
 use crate::test_helpers::{start_rollup, NodeMode};
 
 #[tokio::test]
