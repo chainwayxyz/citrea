@@ -329,11 +329,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 U256::from(tx_number.unwrap() - block.transactions.start),
             )
         });
-        tracing::debug!(
-            "evm module: eth_getTransactionByHash({}) -> {:?}",
-            hash,
-            transaction
-        );
 
         Ok(transaction)
     }
