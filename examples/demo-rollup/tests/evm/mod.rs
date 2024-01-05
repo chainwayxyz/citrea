@@ -1,5 +1,3 @@
-mod test_client;
-
 use std::net::SocketAddr;
 use std::str::FromStr;
 
@@ -12,9 +10,9 @@ use sov_demo_rollup::initialize_logging;
 use sov_evm::{SimpleStorageContract, TestContract};
 use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
 use sov_stf_runner::RollupProverConfig;
-pub use test_client::TestClient;
 use tokio::time::{sleep, Duration};
 
+use crate::test_client::TestClient;
 use crate::test_helpers::{start_rollup, NodeMode};
 
 #[tokio::test]

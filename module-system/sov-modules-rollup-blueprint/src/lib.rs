@@ -165,8 +165,8 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         let prover_storage = storage_manager.create_finalized_storage()?;
 
         let prev_root = ledger_db
-            .get_head_slot()?
-            .map(|(number, _)| prover_storage.get_root_hash(number.0 + 1))
+            .get_head_soft_batch()?
+            .map(|(number, _)| native_storage.get_root_hash(number.0 + 1))
             .transpose()?;
 
         // if node does not have a sequencer client, then it is a sequencer

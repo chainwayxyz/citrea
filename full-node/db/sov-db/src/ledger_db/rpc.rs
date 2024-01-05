@@ -1,14 +1,15 @@
 use serde::de::DeserializeOwned;
 use sov_rollup_interface::rpc::{
     BatchIdAndOffset, BatchIdentifier, BatchResponse, EventIdentifier, ItemOrHash,
-    LedgerRpcProvider, QueryMode, SlotIdAndOffset, SlotIdentifier, SlotResponse, TxIdAndOffset,
-    TxIdentifier, TxResponse,
+    LedgerRpcProvider, QueryMode, SlotIdAndOffset, SlotIdentifier, SlotResponse,
+    SoftBatchIdentifier, SoftBatchResponse, TxIdAndOffset, TxIdentifier, TxResponse,
 };
 use sov_rollup_interface::stf::Event;
 use tokio::sync::broadcast::Receiver;
 
 use crate::schema::tables::{
-    BatchByHash, BatchByNumber, EventByNumber, SlotByHash, SlotByNumber, TxByHash, TxByNumber,
+    BatchByHash, BatchByNumber, EventByNumber, SlotByHash, SlotByNumber, SoftBatchByHash,
+    SoftBatchByNumber, TxByHash, TxByNumber,
 };
 use crate::schema::types::{
     BatchNumber, EventNumber, SlotNumber, StoredBatch, StoredSlot, TxNumber,
@@ -54,6 +55,23 @@ impl LedgerRpcProvider for LedgerDB {
             })
         }
         Ok(out)
+    }
+
+    fn get_soft_batch(
+        &self,
+        batch_id: SoftBatchIdentifier,
+    ) -> Result<Option<SoftBatchResponse>, anyhow::Error> {
+        let batch_num = self.resolve_soft_batch_identifier(&batch_id)?;
+        Ok(match batch_num {
+            Some(num) => {
+                if let Some(stored_batch) = self.db.get::<SoftBatchByNumber>(&num)? {
+                    Some(stored_batch.try_into()?)
+                } else {
+                    None
+                }
+            }
+            None => None,
+        })
     }
 
     fn get_batches<B: DeserializeOwned, T: DeserializeOwned>(
@@ -171,6 +189,13 @@ impl LedgerRpcProvider for LedgerDB {
             .map(|mut batches: Vec<Option<SlotResponse<B, T>>>| batches.pop().unwrap_or(None))
     }
 
+    fn get_soft_batch_by_hash<T: DeserializeOwned>(
+        &self,
+        hash: &[u8; 32],
+    ) -> Result<Option<SoftBatchResponse>, anyhow::Error> {
+        self.get_soft_batch(SoftBatchIdentifier::Hash(*hash))
+    }
+
     fn get_batch_by_hash<B: DeserializeOwned, T: DeserializeOwned>(
         &self,
         hash: &[u8; 32],
@@ -197,6 +222,13 @@ impl LedgerRpcProvider for LedgerDB {
     ) -> Result<Option<SlotResponse<B, T>>, anyhow::Error> {
         self.get_slots(&[SlotIdentifier::Number(number)], query_mode)
             .map(|mut slots: Vec<Option<SlotResponse<B, T>>>| slots.pop().unwrap_or(None))
+    }
+
+    fn get_soft_batch_by_number<T: DeserializeOwned>(
+        &self,
+        number: u64,
+    ) -> Result<Option<SoftBatchResponse>, anyhow::Error> {
+        self.get_soft_batch(SoftBatchIdentifier::Number(number))
     }
 
     fn get_batch_by_number<B: DeserializeOwned, T: DeserializeOwned>(
@@ -283,6 +315,16 @@ impl LedgerDB {
         match slot_id {
             SlotIdentifier::Hash(hash) => self.db.get::<SlotByHash>(hash),
             SlotIdentifier::Number(num) => Ok(Some(SlotNumber(*num))),
+        }
+    }
+
+    fn resolve_soft_batch_identifier(
+        &self,
+        batch_id: &SoftBatchIdentifier,
+    ) -> Result<Option<BatchNumber>, anyhow::Error> {
+        match batch_id {
+            SoftBatchIdentifier::Hash(hash) => self.db.get::<SoftBatchByHash>(hash),
+            SoftBatchIdentifier::Number(num) => Ok(Some(BatchNumber(*num))),
         }
     }
 

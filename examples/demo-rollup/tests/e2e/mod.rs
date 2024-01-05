@@ -12,7 +12,8 @@ use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
 use sov_stf_runner::RollupProverConfig;
 use tokio::time::sleep;
 
-use crate::evm::{init_test_rollup, make_test_client, TestClient};
+use crate::evm::{init_test_rollup, make_test_client};
+use crate::test_client::TestClient;
 use crate::test_helpers::{start_rollup, NodeMode};
 
 #[tokio::test]
@@ -213,6 +214,10 @@ async fn test_e2e_same_block_sync() -> Result<(), anyhow::Error> {
 #[tokio::test]
 async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
     // initialize_logging();
+
+    // Remove temp db directories if they exist
+    let _ = fs::remove_dir_all(Path::new("demo_data_test_close_and_reopen_full_node_copy"));
+    let _ = fs::remove_dir_all(Path::new("demo_data_test_close_and_reopen_full_node"));
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
