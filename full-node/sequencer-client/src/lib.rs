@@ -35,7 +35,6 @@ impl SequencerClient {
             Ok(res) => Ok(res),
             Err(e) => match e {
                 Error::Transport(e) => anyhow::Result::Err(Error::Transport(e).into()),
-                Error::ParseError(e) => anyhow::Result::Err(Error::ParseError(e).into()),
                 _ => Err(anyhow::anyhow!(e)),
             },
         }

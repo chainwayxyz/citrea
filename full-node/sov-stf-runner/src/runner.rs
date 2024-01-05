@@ -24,7 +24,8 @@ type StateRoot<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::StateRoot;
 type InitialState<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::GenesisParams;
 
 const CONNECTION_INTERVALS: &[u64] = &[0, 1, 2, 5, 10, 15, 30, 60];
-const PARSE_INTERVALS: &[u64] = &[0, 1, 5];
+const RETRY_INTERVAL: &[u64] = &[1, 5];
+const RETRY_SLEEP: u64 = 2;
 
 /// Represents the block template that is used to create a block.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -249,7 +250,7 @@ where
         let mut last_parse_error = Instant::now();
 
         let mut connection_index = 0;
-        let mut parse_index = 0;
+        let mut retry_index = 0;
 
         loop {
             let soft_batch = client.get_soft_batch::<Da::Spec>(height).await;
@@ -260,29 +261,19 @@ where
                 let x = soft_batch.unwrap_err();
                 match x.downcast_ref::<jsonrpsee::core::Error>() {
                     Some(Error::Transport(e)) => {
-                        debug!("Connection error during RPC call: {:?}", e);
-                        sleep(Duration::from_secs(2)).await;
+                        debug!("Soft Batch: connection error during RPC call: {:?}", e);
+                        sleep(Duration::from_secs(RETRY_SLEEP)).await;
                         Self::log_error(
                             &mut last_connection_error,
                             CONNECTION_INTERVALS,
                             &mut connection_index,
-                            format!("Connection error during RPC call: {:?}", e).as_str(),
-                        );
-                        continue;
-                    }
-                    Some(Error::ParseError(e)) => {
-                        debug!("Retrying after {} seconds: {:?}", 2, e);
-                        sleep(Duration::from_secs(2)).await;
-                        Self::log_error(
-                            &mut last_parse_error,
-                            PARSE_INTERVALS,
-                            &mut parse_index,
-                            format!("Parse error upon RPC call: {:?}", e).as_str(),
+                            format!("Soft Batch: connection error during RPC call: {:?}", e)
+                                .as_str(),
                         );
                         continue;
                     }
                     _ => {
-                        anyhow::bail!("Unknown error from RPC call: {:?}", x);
+                        anyhow::bail!("Soft Batch: unknown error from RPC call: {:?}", x);
                     }
                 }
             }
@@ -290,8 +281,17 @@ where
             let soft_batch = match soft_batch.unwrap() {
                 Some(soft_batch) => soft_batch,
                 None => {
-                    debug!("No soft batch at height {}", height);
-                    sleep(Duration::from_secs(2)).await;
+                    debug!(
+                        "Soft Batch: no batch at height {}, retrying in {} seconds",
+                        height, RETRY_SLEEP
+                    );
+                    sleep(Duration::from_secs(RETRY_SLEEP)).await;
+                    Self::log_error(
+                        &mut last_parse_error,
+                        RETRY_INTERVAL,
+                        &mut retry_index,
+                        "No soft batch published".to_string().as_str(),
+                    );
                     continue;
                 }
             };
