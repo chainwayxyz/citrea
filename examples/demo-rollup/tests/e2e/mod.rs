@@ -187,6 +187,10 @@ async fn test_e2e_same_block_sync() -> Result<(), anyhow::Error> {
 
 #[tokio::test]
 async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
+    // Remove temp db directories if they exist
+    let _ = fs::remove_dir_all(Path::new("demo_data_test_close_and_reopen_full_node_copy"));
+    let _ = fs::remove_dir_all(Path::new("demo_data_test_close_and_reopen_full_node"));
+
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
     let seq_task = tokio::spawn(async {

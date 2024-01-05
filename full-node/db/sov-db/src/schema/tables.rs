@@ -35,7 +35,7 @@ use sov_schema_db::{CodecError, SeekKeyEncoder};
 
 use super::types::{
     AccessoryKey, AccessoryStateValue, BatchNumber, DbHash, EventNumber, JmtValue, SlotNumber,
-    StateKey, StoredBatch, StoredSlot, StoredTransaction, TxNumber,
+    StateKey, StoredBatch, StoredSlot, StoredSoftBatch, StoredTransaction, TxNumber,
 };
 
 /// A list of all tables used by the StateDB. These tables store rollup state - meaning
@@ -51,6 +51,8 @@ pub const STATE_TABLES: &[&str] = &[
 pub const LEDGER_TABLES: &[&str] = &[
     SlotByNumber::table_name(),
     SlotByHash::table_name(),
+    SoftBatchByNumber::table_name(),
+    SoftBatchByHash::table_name(),
     BatchByHash::table_name(),
     BatchByNumber::table_name(),
     TxByHash::table_name(),
@@ -221,6 +223,16 @@ define_table_with_default_codec!(
 define_table_with_default_codec!(
     /// Non-JMT state stored by a module for JSON-RPC use.
     (ModuleAccessoryState) AccessoryKey => AccessoryStateValue
+);
+
+define_table_with_seek_key_codec!(
+    /// The primary source for soft batch data
+    (SoftBatchByNumber) BatchNumber => StoredSoftBatch
+);
+
+define_table_with_default_codec!(
+    /// A "secondary index" for soft batch data by hash
+    (SoftBatchByHash) DbHash => BatchNumber
 );
 
 define_table_with_seek_key_codec!(
