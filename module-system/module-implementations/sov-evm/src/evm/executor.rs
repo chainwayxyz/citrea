@@ -31,7 +31,7 @@ pub(crate) fn execute_tx<DB: Database<Error = Infallible> + DatabaseCommit>(
 pub(crate) fn execute_multiple_tx<DB: Database<Error = Infallible> + DatabaseCommit>(
     db: DB,
     block_env: &BlockEnv,
-    txs: &Vec<TransactionSignedEcRecovered>,
+    txs: &[TransactionSignedEcRecovered],
     config_env: CfgEnv,
 ) -> Vec<Result<ExecutionResult, EVMError<Infallible>>> {
     let mut evm = revm::new();

@@ -245,6 +245,7 @@ mod tests {
         )
     }
 
+    #[allow(clippy::type_complexity)]
     fn get_mock_data() -> (
         <<BitcoinVerifier as DaVerifier>::Spec as DaSpec>::BlockHeader, // block header
         <<BitcoinVerifier as DaVerifier>::Spec as DaSpec>::InclusionMultiProof, // inclusion proof
