@@ -1,9 +1,14 @@
 use std::net::SocketAddr;
 use std::path::Path;
 
-use chainway_sequencer::ChainwaySequencer;
+use chainway_sequencer::{ChainwaySequencer, DbProvider};
 use const_rollup_config::TEST_PRIVATE_KEY;
 use demo_stf::genesis_config::GenesisPaths;
+use reth_transaction_pool::blobstore::NoopBlobStore;
+use reth_transaction_pool::{
+    CoinbaseTipOrdering, EthPooledTransaction, EthTransactionValidator, Pool, TransactionOrigin,
+    TransactionPool, TransactionValidationTaskExecutor,
+};
 use sov_demo_rollup::MockDemoRollup;
 use sov_mock_da::{MockAddress, MockDaConfig, MockDaService};
 use sov_modules_api::default_context::DefaultContext;
@@ -14,7 +19,6 @@ use sov_stf_runner::{
     StorageConfig,
 };
 use tokio::sync::oneshot;
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NodeMode {
     FullNode(SocketAddr),
@@ -75,13 +79,23 @@ pub async fn start_rollup(
         NodeMode::SequencerNode => {
             let da_service = MockDaService::new(MockAddress::new([0u8; 32]));
 
-            let mut sequencer: ChainwaySequencer<DefaultContext, MockDaService, _> =
-                ChainwaySequencer::new(
-                    rollup,
-                    da_service,
-                    DefaultPrivateKey::from_hex(TEST_PRIVATE_KEY).unwrap(),
-                    storage,
-                );
+            let mut sequencer: ChainwaySequencer<
+                DefaultContext,
+                MockDaService,
+                _,
+                Pool<
+                    TransactionValidationTaskExecutor<
+                        EthTransactionValidator<DbProvider<DefaultContext>, EthPooledTransaction>,
+                    >,
+                    CoinbaseTipOrdering<EthPooledTransaction>,
+                    NoopBlobStore,
+                >,
+            > = ChainwaySequencer::new(
+                rollup,
+                da_service,
+                DefaultPrivateKey::from_hex(TEST_PRIVATE_KEY).unwrap(),
+                storage,
+            );
             sequencer
                 .start_rpc_server(Some(rpc_reporting_channel))
                 .await

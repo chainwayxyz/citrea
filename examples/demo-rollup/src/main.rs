@@ -4,14 +4,21 @@ use std::str::FromStr;
 
 use anyhow::{anyhow, Context as _};
 use bitcoin_da::service::DaServiceConfig;
-use chainway_sequencer::ChainwaySequencer;
+use chainway_sequencer::{ChainwaySequencer, DbProvider};
 use clap::Parser;
 use const_rollup_config::TEST_PRIVATE_KEY;
 use demo_stf::genesis_config::GenesisPaths;
 use reth_primitives::hex;
+use reth_transaction_pool::blobstore::NoopBlobStore;
+use reth_transaction_pool::{
+    CoinbaseTipOrdering, EthPooledTransaction, EthTransactionValidator, Pool, TransactionOrigin,
+    TransactionPool, TransactionValidationTaskExecutor,
+};
 use sov_celestia_adapter::CelestiaConfig;
 use sov_demo_rollup::{BitcoinRollup, CelestiaDemoRollup, MockDemoRollup};
+use sov_evm::Evm;
 use sov_mock_da::MockDaConfig;
+use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::Spec;
 use sov_modules_rollup_blueprint::{RollupAndStorage, RollupBlueprint};
 use sov_state::storage::NativeStorage;
@@ -133,6 +140,13 @@ where
             <S as RollupBlueprint>::NativeContext,
             <S as RollupBlueprint>::DaService,
             S,
+            Pool<
+                    TransactionValidationTaskExecutor<
+                        EthTransactionValidator<DbProvider<DefaultContext>, EthPooledTransaction>,
+                    >,
+                    CoinbaseTipOrdering<EthPooledTransaction>,
+                    NoopBlobStore,
+                >
         > = ChainwaySequencer::new(
             rollup,
             da_service,

@@ -222,7 +222,7 @@ async fn execute<T: TestContract>(
     let set_arg = 923;
     let tx_hash = {
         let set_value_req = client
-            .set_value(contract_address, set_arg, None, None)
+            .set_value(contract_address, set_arg, None, None, None)
             .await;
         client.send_publish_batch_request().await;
         set_value_req.await.unwrap().unwrap().transaction_hash
@@ -289,8 +289,12 @@ async fn execute<T: TestContract>(
 
     // Create a blob with multiple transactions.
     let mut requests = Vec::default();
+    let mut nonce = client.eth_get_transaction_count(client.from_addr).await;
     for value in 150..153 {
-        let set_value_req = client.set_value(contract_address, value, None, None).await;
+        let set_value_req = client
+            .set_value(contract_address, value, None, None, Some(nonce))
+            .await;
+        nonce += 1;
         requests.push(set_value_req);
     }
 
@@ -311,7 +315,9 @@ async fn execute<T: TestContract>(
         let value = 103;
 
         let tx_hash = {
-            let set_value_req = client.set_value(contract_address, value, None, None).await;
+            let set_value_req = client
+                .set_value(contract_address, value, None, None, None)
+                .await;
             client.send_publish_batch_request().await;
             set_value_req.await.unwrap().unwrap().transaction_hash
         };
@@ -354,12 +360,21 @@ async fn execute<T: TestContract>(
         assert_eq!(initial_fee_history.oldest_block, U256::zero());
 
         // send 100 set transaction with high gas fee in a four batch to increase gas price
+        let mut nonce = client.eth_get_transaction_count(client.from_addr).await;
         for _ in 0..4 {
             let mut requests = Vec::default();
+
             for value in 0..25 {
                 let set_value_req = client
-                    .set_value(contract_address, value, Some(20u64), Some(21u64))
+                    .set_value(
+                        contract_address,
+                        value,
+                        Some(20u64),
+                        Some(21u64),
+                        Some(nonce),
+                    )
                     .await;
+                nonce += 1;
                 requests.push(set_value_req);
             }
             client.send_publish_batch_request().await;

@@ -351,7 +351,7 @@ async fn execute_blocks<T: TestContract>(
 
     {
         let set_value_req = sequencer_client
-            .set_value(contract_address, 42, None, None)
+            .set_value(contract_address, 42, None, None, None)
             .await;
         sequencer_client.send_publish_batch_request().await;
         set_value_req.await.unwrap().unwrap();
@@ -360,10 +360,14 @@ async fn execute_blocks<T: TestContract>(
     sequencer_client.send_publish_batch_request().await;
 
     {
+        let mut nonce = sequencer_client
+            .eth_get_transaction_count(sequencer_client.from_addr)
+            .await;
         for temp in 0..10 {
             let _set_value_req = sequencer_client
-                .set_value(contract_address, 78 + temp, None, None)
+                .set_value(contract_address, 78 + temp, None, None, Some(nonce))
                 .await;
+            nonce += 1;
         }
         sequencer_client.send_publish_batch_request().await;
     }

@@ -4,6 +4,7 @@ mod call;
 mod evm;
 mod genesis;
 mod hooks;
+mod provider_functions;
 mod rpc_helpers;
 pub use call::*;
 pub use error::rpc::*;

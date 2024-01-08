@@ -152,8 +152,12 @@ impl<T: TestContract> TestClient<T> {
         set_arg: u32,
         max_priority_fee_per_gas: Option<u64>,
         max_fee_per_gas: Option<u64>,
+        nonce: Option<u64>,
     ) -> PendingTransaction<'_, Http> {
-        let nonce = self.eth_get_transaction_count(self.from_addr).await;
+        let nonce = match nonce {
+            Some(nonce) => nonce,
+            None => self.eth_get_transaction_count(self.from_addr).await,
+        };
         let contract: &SimpleStorageContract = self.get_simple_storage_contract();
 
         let req = Eip1559TransactionRequest::new()

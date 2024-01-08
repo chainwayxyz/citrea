@@ -271,6 +271,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a4668cab20f66d8d020e1fbc0ebe47217433c1b6c8f2040faf858554e394ace6"
 
 [[package]]
+name = "aquamarine"
+version = "0.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d1da02abba9f9063d786eab1509833ebb2fac0f966862ca59439c76b9c566760"
+dependencies = [
+ "include_dir",
+ "itertools 0.10.5",
+ "proc-macro-error",
+ "proc-macro2 1.0.69",
+ "quote 1.0.33",
+ "syn 1.0.109",
+]
+
+[[package]]
 name = "arbitrary"
 version = "1.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1365,7 +1379,7 @@ dependencies = [
 [[package]]
 name = "c-kzg"
 version = "0.1.0"
-source = "git+https://github.com/ethereum/c-kzg-4844#712ccb629d64552561e2eeb1a1bf094f65c7f3ea"
+source = "git+https://github.com/ethereum/c-kzg-4844#e266280d88f006b23925c5062476b316d5407cb1"
 dependencies = [
  "bindgen 0.66.1",
  "blst",
@@ -1499,8 +1513,14 @@ dependencies = [
  "ethers",
  "futures",
  "jsonrpsee 0.20.3",
+ "reth-db",
+ "reth-interfaces",
  "reth-primitives",
+ "reth-provider",
+ "reth-rlp",
  "reth-rpc-types",
+ "reth-tasks",
+ "reth-transaction-pool",
  "schnellru",
  "serde",
  "serde_json",
@@ -1510,6 +1530,7 @@ dependencies = [
  "sov-modules-rollup-blueprint",
  "sov-modules-stf-blueprint",
  "sov-rollup-interface",
+ "sov-state",
  "sov-stf-runner",
  "tokio",
  "tracing",
@@ -4340,6 +4361,25 @@ dependencies = [
  "proc-macro2 1.0.69",
  "quote 1.0.33",
  "syn 1.0.109",
+]
+
+[[package]]
+name = "include_dir"
+version = "0.7.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "18762faeff7122e89e0857b02f7ce6fcc0d101d5e9ad2ad7846cc01d61b7f19e"
+dependencies = [
+ "include_dir_macros",
+]
+
+[[package]]
+name = "include_dir_macros"
+version = "0.7.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b139284b5cf57ecfa712bcc66950bb635b31aff41c188e8a4cfc758eca374a3f"
+dependencies = [
+ "proc-macro2 1.0.69",
+ "quote 1.0.33",
 ]
 
 [[package]]
@@ -7287,6 +7327,47 @@ dependencies = [
 ]
 
 [[package]]
+name = "reth-tasks"
+version = "0.1.0-alpha.8"
+source = "git+https://github.com/paradigmxyz/reth?rev=e83d3aa#e83d3aa704f87825ca8cab6f593ab4d4adbf6792"
+dependencies = [
+ "dyn-clone",
+ "futures-util",
+ "metrics",
+ "reth-metrics",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "tracing-futures",
+]
+
+[[package]]
+name = "reth-transaction-pool"
+version = "0.1.0-alpha.8"
+source = "git+https://github.com/paradigmxyz/reth?rev=e83d3aa#e83d3aa704f87825ca8cab6f593ab4d4adbf6792"
+dependencies = [
+ "aquamarine",
+ "async-trait",
+ "auto_impl",
+ "bitflags 2.4.1",
+ "fnv",
+ "futures-util",
+ "metrics",
+ "parking_lot 0.12.1",
+ "reth-interfaces",
+ "reth-metrics",
+ "reth-primitives",
+ "reth-provider",
+ "reth-rlp",
+ "reth-tasks",
+ "serde",
+ "thiserror",
+ "tokio",
+ "tokio-stream",
+ "tracing",
+]
+
+[[package]]
 name = "reth-trie"
 version = "0.1.0-alpha.8"
 source = "git+https://github.com/paradigmxyz/reth?rev=e83d3aa#e83d3aa704f87825ca8cab6f593ab4d4adbf6792"
@@ -8869,6 +8950,7 @@ dependencies = [
  "regex",
  "reqwest",
  "reth-primitives",
+ "reth-transaction-pool",
  "revm",
  "risc0",
  "secp256k1 0.27.0",
@@ -8947,11 +9029,15 @@ dependencies = [
  "jsonrpsee 0.20.3",
  "lazy_static",
  "rand 0.8.5",
+ "reth-db",
  "reth-interfaces",
  "reth-primitives",
+ "reth-provider",
  "reth-revm",
  "reth-rpc-types",
  "reth-rpc-types-compat",
+ "reth-tasks",
+ "reth-transaction-pool",
  "revm",
  "schemars",
  "secp256k1 0.27.0",
@@ -11141,7 +11227,7 @@ checksum = "97fee6b57c6a41524a810daee9286c02d7752c4253064d0b05472833a438f675"
 dependencies = [
  "cfg-if",
  "digest 0.10.7",
- "rand 0.8.5",
+ "rand 0.7.3",
  "static_assertions",
 ]
 

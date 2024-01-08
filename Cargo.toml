@@ -130,9 +130,14 @@ ethers-middleware = { version = "=2.0.10", default-features = false }
 
 reth-primitives = { git = "https://github.com/paradigmxyz/reth", rev = "e83d3aa" }
 reth-interfaces = { git = "https://github.com/paradigmxyz/reth", rev = "e83d3aa" }
+reth-transaction-pool = { git = "https://github.com/paradigmxyz/reth", rev = "e83d3aa" }
+reth-provider = { git = "https://github.com/paradigmxyz/reth", rev = "e83d3aa" }
+reth-tasks = { git = "https://github.com/paradigmxyz/reth", rev = "e83d3aa" }
 reth-rpc-types = { git = "https://github.com/paradigmxyz/reth", rev = "e83d3aa" }
 reth-rpc-types-compat = { git = "https://github.com/paradigmxyz/reth", rev = "e83d3aa" }
 reth-revm = { git = "https://github.com/paradigmxyz/reth", rev = "e83d3aa" }
+reth-db = { git = "https://github.com/paradigmxyz/reth", rev = "e83d3aa" }
+reth-rlp = { git = "https://github.com/paradigmxyz/reth", rev = "e83d3aa" }
 
 revm = { git = "https://github.com/bluealloy/revm", rev = "516f62cc" }
 revm-primitives = { git = "https://github.com/bluealloy/revm", rev = "516f62cc" }
