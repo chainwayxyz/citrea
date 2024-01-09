@@ -3,11 +3,11 @@ use std::str::FromStr;
 
 use demo_stf::genesis_config::GenesisPaths;
 use ethers_core::abi::Address;
-use ethers_core::types::{BlockId, U256};
+use ethers_core::types::{BlockId, Bytes, U256};
 use ethers_signers::{LocalWallet, Signer};
 use reth_primitives::BlockNumberOrTag;
-use sov_demo_rollup::initialize_logging;
-use sov_evm::{SimpleStorageContract, TestContract};
+// use sov_demo_rollup::initialize_logging;
+use sov_evm::{LogsContract, SimpleStorageContract, TestContract};
 use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
 use sov_stf_runner::RollupProverConfig;
 use tokio::time::{sleep, Duration};
@@ -36,7 +36,7 @@ async fn web3_rpc_tests() -> Result<(), anyhow::Error> {
     // Wait for rollup task to start:
     let port = port_rx.await.unwrap();
 
-    let test_client = make_test_client(port, SimpleStorageContract::default()).await;
+    let test_client = make_test_client(port).await;
 
     let tag = match sov_ethereum::get_latest_git_tag() {
         Ok(tag) => tag,
@@ -61,7 +61,7 @@ async fn web3_rpc_tests() -> Result<(), anyhow::Error> {
 
 #[tokio::test]
 async fn evm_tx_tests() -> Result<(), anyhow::Error> {
-    initialize_logging();
+    // initialize_logging();
 
     let (port_tx, port_rx) = tokio::sync::oneshot::channel();
 
@@ -88,15 +88,12 @@ async fn evm_tx_tests() -> Result<(), anyhow::Error> {
 }
 
 async fn send_tx_test_to_eth(rpc_address: SocketAddr) -> Result<(), Box<dyn std::error::Error>> {
-    let contract = SimpleStorageContract::default();
-    let test_client = init_test_rollup(rpc_address, contract).await;
+    let test_client = init_test_rollup(rpc_address).await;
     execute(&test_client).await
 }
 
 #[tokio::test]
 async fn test_eth_get_logs() -> Result<(), anyhow::Error> {
-    use sov_evm::LogsContract;
-
     use crate::test_helpers::start_rollup;
 
     let (port_tx, port_rx) = tokio::sync::oneshot::channel();
@@ -119,9 +116,7 @@ async fn test_eth_get_logs() -> Result<(), anyhow::Error> {
     // Wait for rollup task to start:
     let port = port_rx.await.unwrap();
 
-    let contract = LogsContract::default();
-
-    let test_client = init_test_rollup(port, contract).await;
+    let test_client = init_test_rollup(port).await;
 
     test_getlogs(&test_client).await.unwrap();
 
@@ -130,13 +125,10 @@ async fn test_eth_get_logs() -> Result<(), anyhow::Error> {
 }
 
 #[allow(clippy::borrowed_box)]
-async fn test_getlogs<T: TestContract>(
-    client: &Box<TestClient<T>>,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let (contract_address, _runtime_code) = {
-        let runtime_code = client.deploy_contract_call().await?;
-
-        let deploy_contract_req = client.deploy_contract().await?;
+async fn test_getlogs(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Error>> {
+    let (contract_address, contract) = {
+        let contract = LogsContract::default();
+        let deploy_contract_req = client.deploy_contract(contract.byte_code()).await?;
 
         client.send_publish_batch_request().await;
 
@@ -146,11 +138,14 @@ async fn test_getlogs<T: TestContract>(
             .contract_address
             .unwrap();
 
-        (contract_address, runtime_code)
+        (contract_address, contract)
     };
 
     client
-        .call_logs_contract(contract_address, "hello".to_string())
+        .contract_transaction(
+            contract_address,
+            contract.publish_event("hello".to_string()),
+        )
         .await;
     client.send_publish_batch_request().await;
 
@@ -181,11 +176,12 @@ async fn test_getlogs<T: TestContract>(
     let sepolia_log_data = "\"0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000c48656c6c6f20576f726c64210000000000000000000000000000000000000000\"".to_string();
     let len = sepolia_log_data.len();
     assert_eq!(sepolia_log_data[1..len - 1], logs[0].data.to_string());
-    // Deploy another contract
-    let (contract_address2, _) = {
-        let runtime_code = client.deploy_contract_call().await?;
 
-        let deploy_contract_req = client.deploy_contract().await?;
+    // Deploy another contract
+    let (contract_address2, contract) = {
+        let contract = LogsContract::default();
+
+        let deploy_contract_req = client.deploy_contract(contract.byte_code()).await?;
         client.send_publish_batch_request().await;
 
         let contract_address = deploy_contract_req
@@ -194,12 +190,15 @@ async fn test_getlogs<T: TestContract>(
             .contract_address
             .unwrap();
 
-        (contract_address, runtime_code)
+        (contract_address, contract)
     };
 
     // call the second contract again
     let _pending_tx = client
-        .call_logs_contract(contract_address2, "second contract".to_string())
+        .contract_transaction(
+            contract_address2,
+            contract.publish_event("second contract".to_string()),
+        )
         .await;
     client.send_publish_batch_request().await;
 
@@ -232,9 +231,7 @@ async fn test_getlogs<T: TestContract>(
 }
 
 #[allow(clippy::borrowed_box)]
-async fn execute<T: TestContract>(
-    client: &Box<TestClient<T>>,
-) -> Result<(), Box<dyn std::error::Error>> {
+async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Error>> {
     // Nonce should be 0 in genesis
     let nonce = client.eth_get_transaction_count(client.from_addr).await;
     assert_eq!(0, nonce);
@@ -243,9 +240,11 @@ async fn execute<T: TestContract>(
     let balance = client.eth_get_balance(client.from_addr).await;
     assert!(balance > ethereum_types::U256::zero());
 
-    let (contract_address, runtime_code) = {
-        let runtime_code = client.deploy_contract_call().await?;
-        let deploy_contract_req = client.deploy_contract().await?;
+    let (contract_address, contract, runtime_code) = {
+        let contract = SimpleStorageContract::default();
+
+        let runtime_code = client.deploy_contract_call(contract.byte_code()).await?;
+        let deploy_contract_req = client.deploy_contract(contract.byte_code()).await?;
         client.send_publish_batch_request().await;
 
         let contract_address = deploy_contract_req
@@ -254,7 +253,7 @@ async fn execute<T: TestContract>(
             .contract_address
             .unwrap();
 
-        (contract_address, runtime_code)
+        (contract_address, contract, runtime_code)
     };
 
     // Assert contract deployed correctly
@@ -277,7 +276,7 @@ async fn execute<T: TestContract>(
     let set_arg = 923;
     let tx_hash = {
         let set_value_req = client
-            .set_value(contract_address, set_arg, None, None)
+            .contract_transaction(contract_address, contract.set_call_data(set_arg))
             .await;
         client.send_publish_batch_request().await;
         set_value_req.await.unwrap().unwrap().transaction_hash
@@ -314,7 +313,9 @@ async fn execute<T: TestContract>(
     assert_eq!(tx_by_number.hash, tx_hash);
     assert_eq!(tx_by_number_tag.hash, tx_hash);
 
-    let get_arg = client.query_contract(contract_address).await?;
+    let get_arg: U256 = client
+        .contract_call(contract_address, contract.get_call_data())
+        .await?;
     assert_eq!(set_arg, get_arg.as_u32());
 
     // Assert storage slot is set
@@ -333,19 +334,23 @@ async fn execute<T: TestContract>(
     assert_eq!(latest_block.transactions[0].hash, tx_hash);
 
     // This should just pass without error
-    client
-        .set_value_call(contract_address, set_arg)
+    let _: Bytes = client
+        .contract_call(contract_address, contract.set_call_data(set_arg))
         .await
         .unwrap();
 
     // This call should fail because function does not exist
-    let failing_call = client.failing_call(contract_address).await;
+    let failing_call: Result<Bytes, _> = client
+        .contract_call(contract_address, contract.failing_function_call_data())
+        .await;
     assert!(failing_call.is_err());
 
     // Create a blob with multiple transactions.
     let mut requests = Vec::default();
     for value in 150..153 {
-        let set_value_req = client.set_value(contract_address, value, None, None).await;
+        let set_value_req = client
+            .contract_transaction(contract_address, contract.set_call_data(value))
+            .await;
         requests.push(set_value_req);
     }
 
@@ -357,16 +362,20 @@ async fn execute<T: TestContract>(
     }
 
     {
-        let get_arg = client.query_contract(contract_address).await?.as_u32();
+        let get_arg: ethereum_types::U256 = client
+            .contract_call(contract_address, contract.get_call_data())
+            .await?;
         // should be one of three values sent in a single block. 150, 151, or 152
-        assert!((150..=152).contains(&get_arg));
+        assert!((150..=152).contains(&get_arg.as_u32()));
     }
 
     {
         let value = 103;
 
         let tx_hash = {
-            let set_value_req = client.set_value(contract_address, value, None, None).await;
+            let set_value_req = client
+                .contract_transaction(contract_address, contract.set_call_data(value))
+                .await;
             client.send_publish_batch_request().await;
             set_value_req.await.unwrap().unwrap().transaction_hash
         };
@@ -389,7 +398,9 @@ async fn execute<T: TestContract>(
         let tx_receipt = client.eth_get_transaction_receipt(tx_hash).await.unwrap();
         assert_eq!(tx_receipt, latest_block_receipts[0]);
 
-        let get_arg = client.query_contract(contract_address).await?;
+        let get_arg: ethereum_types::U256 = client
+            .contract_call(contract_address, contract.get_call_data())
+            .await?;
         assert_eq!(value, get_arg.as_u32());
     }
 
@@ -413,7 +424,12 @@ async fn execute<T: TestContract>(
             let mut requests = Vec::default();
             for value in 0..25 {
                 let set_value_req = client
-                    .set_value(contract_address, value, Some(20u64), Some(21u64))
+                    .contract_transaction_with_custom_fee(
+                        contract_address,
+                        contract.set_call_data(value),
+                        20u64,
+                        21u64,
+                    )
                     .await;
                 requests.push(set_value_req);
             }
@@ -465,11 +481,8 @@ async fn execute<T: TestContract>(
 }
 
 #[allow(clippy::borrowed_box)]
-pub async fn init_test_rollup<T: TestContract>(
-    rpc_address: SocketAddr,
-    contract: T,
-) -> Box<TestClient<T>> {
-    let test_client = make_test_client(rpc_address, contract).await;
+pub async fn init_test_rollup(rpc_address: SocketAddr) -> Box<TestClient> {
+    let test_client = make_test_client(rpc_address).await;
 
     let etc_accounts = test_client.eth_accounts().await;
     assert_eq!(
@@ -494,19 +507,14 @@ pub async fn init_test_rollup<T: TestContract>(
 }
 
 #[allow(clippy::borrowed_box)]
-pub async fn make_test_client<T: TestContract>(
-    rpc_address: SocketAddr,
-    contract: T,
-) -> Box<TestClient<T>> {
+pub async fn make_test_client(rpc_address: SocketAddr) -> Box<TestClient> {
     let chain_id: u64 = 5655;
     let key = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
         .parse::<LocalWallet>()
         .unwrap()
         .with_chain_id(chain_id);
 
-    let contract = contract.default_();
-
     let from_addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
 
-    Box::new(TestClient::new(chain_id, key, from_addr, contract, rpc_address).await)
+    Box::new(TestClient::new(chain_id, key, from_addr, rpc_address).await)
 }
