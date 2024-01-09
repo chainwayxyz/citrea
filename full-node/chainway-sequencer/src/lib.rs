@@ -19,7 +19,9 @@ use futures::lock::Mutex;
 use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::RpcModule;
 use mempool::Mempool;
-use reth_primitives::{Bytes, FromRecoveredPooledTransaction, IntoRecoveredTransaction, MAINNET};
+use reth_primitives::{
+    Bytes, Chain, ChainSpec, FromRecoveredPooledTransaction, IntoRecoveredTransaction,
+};
 use reth_provider::{BlockReaderIdExt, ChainSpecProvider, StateProviderFactory};
 use reth_tasks::TokioTaskExecutor;
 use reth_transaction_pool::blobstore::NoopBlobStore;
@@ -56,10 +58,12 @@ where
     C: StateProviderFactory + BlockReaderIdExt + ChainSpecProvider + Clone + 'static,
 {
     let blob_store = NoopBlobStore::default();
+    let mut mock_chain_spec = ChainSpec::default();
+    mock_chain_spec.chain = Chain::Id(5655);
     Pool::eth_pool(
         TransactionValidationTaskExecutor::eth(
             client,
-            MAINNET.clone(),
+            Arc::new(mock_chain_spec),
             blob_store.clone(),
             TokioTaskExecutor::default(),
         ),
@@ -150,20 +154,21 @@ impl<
         loop {
             if (self.receiver.next().await).is_some() {
                 let mut rlp_txs = vec![];
+                // best txs with base fee
+                // get base fee from last blocks => header => next base fee() function
+                // TODO: Handle error
+                let best_txs = self.mempool.best_transactions();
+                // TODO: Handle block building
+                let mut tx_hashes = vec![];
+                for tx in best_txs {
+                    let rc_tx = tx.to_recovered_transaction();
+                    let signed_tx = rc_tx.into_signed();
+                    let x = signed_tx.envelope_encoded().to_vec();
 
-                while !self.mempool.is_empty() {
-                    // TODO: Handle error
-                    let best_txs = self.mempool.best_transactions();
-                    // TODO: Handle block building
-                    for tx in best_txs {
-                        let rc_tx = tx.to_recovered_transaction();
-                        let signed_tx = rc_tx.into_signed();
-                        let x = signed_tx.envelope_encoded().to_vec();
-
-                        rlp_txs.push(RlpEvmTransaction { rlp: x });
-                        self.mempool.remove_transactions(vec![*tx.hash()]);
-                    }
+                    rlp_txs.push(RlpEvmTransaction { rlp: x });
+                    tx_hashes.push(*tx.hash());
                 }
+                self.mempool.remove_transactions(tx_hashes);
 
                 info!(
                     "Sequencer: publishing block with {} transactions",
@@ -213,6 +218,8 @@ impl<
 
                 // TODO: handle error
                 self.rollup.runner.process(block_template).await?;
+
+                // TODO: get last block remove only txs in block
             }
         }
     }
