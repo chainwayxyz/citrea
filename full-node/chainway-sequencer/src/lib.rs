@@ -1,6 +1,8 @@
 use futures::StreamExt;
 pub use sov_evm::DevSigner;
 pub mod db_provider;
+use sov_rollup_interface::da::BlockHeaderTrait;
+use sov_stf_runner::BlockTemplate;
 mod mempool;
 mod utils;
 
@@ -29,9 +31,8 @@ use sov_accounts::Accounts;
 use sov_accounts::Response::{AccountEmpty, AccountExists};
 use sov_evm::{CallMessage, RlpEvmTransaction};
 use sov_modules_api::transaction::Transaction;
-use sov_modules_api::{EncodeCall, Module, PrivateKey, WorkingSet};
+use sov_modules_api::{EncodeCall, Module, PrivateKey, SlotData, WorkingSet};
 use sov_modules_rollup_blueprint::{Rollup, RollupBlueprint};
-use sov_modules_stf_blueprint::{Batch, RawTx};
 use sov_rollup_interface::services::da::DaService;
 use tracing::info;
 
@@ -79,8 +80,7 @@ pub struct ChainwaySequencer<
     Pool: TransactionPool + Clone + 'static,
 > {
     rollup: Rollup<S>,
-    // not used for now, will probably need it later
-    _da_service: Da,
+    da_service: Da,
     mempool: Arc<CitreaMempool<C>>,
     p: PhantomData<(C, Pool)>,
     sov_tx_signer_priv_key: C::PrivateKey,
@@ -123,7 +123,7 @@ impl<
 
         Self {
             rollup,
-            _da_service: da_service,
+            da_service,
             mempool: Arc::new(pool),
             p: PhantomData,
             sov_tx_signer_priv_key,
@@ -148,7 +148,7 @@ impl<
 
     pub async fn run(&mut self) -> Result<(), anyhow::Error> {
         loop {
-            if let Some(_) = self.receiver.next().await {
+            if (self.receiver.next().await).is_some() {
                 let mut rlp_txs = vec![];
 
                 while !self.mempool.is_empty() {
@@ -175,21 +175,46 @@ impl<
                     <Runtime<C, Da::Spec> as EncodeCall<sov_evm::Evm<C>>>::encode_call(call_txs);
                 let signed_blob = self.make_blob(raw_message);
 
-                let batch = Batch {
-                    txs: vec![RawTx {
-                        data: signed_blob.clone(),
-                    }],
+                let prev_l1_height = self
+                    .rollup
+                    .runner
+                    .get_head_soft_batch()?
+                    .map(|(_, sb)| sb.da_slot_height)
+                    .unwrap_or(1); // If this is the first block, then the previous block is the genesis block, may need revisiting
+
+                let previous_l1_block = self.da_service.get_block_at(prev_l1_height).await.unwrap();
+
+                let last_finalized_height = self
+                    .da_service
+                    .get_last_finalized_block_header()
+                    .await
+                    .unwrap()
+                    .height();
+
+                let last_finalized_block = self
+                    .da_service
+                    .get_block_at(last_finalized_height)
+                    .await
+                    .unwrap();
+
+                // Compare if there is no skip
+                if last_finalized_block.header().prev_hash() != previous_l1_block.header().hash() {
+                    // TODO: This shouldn't happen. If it does, then we should produce at least 1 block for the blocks in between
+                }
+
+                if last_finalized_height != prev_l1_height {
+                    // TODO: this is where we would include forced transactions from the new L1 block
+                }
+
+                let block_template = BlockTemplate {
+                    da_slot_height: last_finalized_block.header().height(),
+                    txs: vec![signed_blob],
                 };
 
-                // TODO: Handle error
-                self.rollup
-                    .runner
-                    .process(&batch.try_to_vec().unwrap())
-                    .await?;
+                // TODO: handle error
+                self.rollup.runner.process(block_template).await?;
             }
         }
-
-        Ok(())
     }
 
     /// Signs batch of messages with sovereign priv key turns them into a sov blob

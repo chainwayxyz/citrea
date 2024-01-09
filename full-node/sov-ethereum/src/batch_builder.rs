@@ -2,8 +2,11 @@ use std::collections::VecDeque;
 
 pub struct EthBatchBuilder<C: sov_modules_api::Context> {
     mempool: VecDeque<Vec<u8>>,
+    #[allow(dead_code)]
     sov_tx_signer_private_key: C::PrivateKey,
+    #[allow(dead_code)]
     nonce: u64,
+    #[allow(dead_code)]
     min_blob_size: Option<usize>,
 }
 

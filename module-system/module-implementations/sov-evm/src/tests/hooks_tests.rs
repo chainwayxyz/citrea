@@ -12,6 +12,7 @@ use crate::evm::primitive_types::{
     Block, BlockEnv, Receipt, SealedBlock, TransactionSignedAndRecovered,
 };
 use crate::tests::genesis_tests::{BENEFICIARY, GENESIS_HASH, GENESIS_STATE_ROOT};
+use crate::tests::DEFAULT_CHAIN_ID;
 use crate::PendingTransaction;
 
 lazy_static! {
@@ -30,7 +31,7 @@ fn begin_slot_hook_creates_pending_block() {
             coinbase: *BENEFICIARY,
             timestamp: TEST_CONFIG.genesis_timestamp + TEST_CONFIG.block_timestamp_delta,
             prevrandao: *DA_ROOT_HASH,
-            basefee: 62u64,
+            basefee: 875000000,
             gas_limit: TEST_CONFIG.block_gas_limit,
         }
     );
@@ -87,7 +88,7 @@ fn end_slot_hook_sets_head() {
                 timestamp: TEST_CONFIG.genesis_timestamp + TEST_CONFIG.block_timestamp_delta,
                 mix_hash: *DA_ROOT_HASH,
                 nonce: 0,
-                base_fee_per_gas: Some(62u64),
+                base_fee_per_gas: Some(875000000),
                 extra_data: Bytes::default(),
                 blob_gas_used: None,
                 excess_blob_gas: None,
@@ -153,7 +154,7 @@ fn create_pending_transaction(hash: H256, index: u64) -> PendingTransaction {
                 hash,
                 signature: Signature::default(),
                 transaction: reth_primitives::Transaction::Eip1559(reth_primitives::TxEip1559 {
-                    chain_id: 1u64,
+                    chain_id: DEFAULT_CHAIN_ID,
                     nonce: 1u64,
                     gas_limit: 1000u64,
                     max_fee_per_gas: 2000u64 as u128,
@@ -237,14 +238,14 @@ fn finalize_hook_creates_final_block() {
                         "0505050505050505050505050505050505050505050505050505050505050505"
                     )),
                     nonce: 0,
-                    base_fee_per_gas: Some(62),
+                    base_fee_per_gas: Some(875000000),
                     extra_data: Bytes::default(),
                     blob_gas_used: None,
                     excess_blob_gas: None,
                     parent_beacon_block_root: None,
                 },
                 hash: H256(hex!(
-                    "0da4e80c5cbd00d9538cb0215d069bfee5be5b59ae4da00244f9b8db429e6889"
+                    "4850cef91960c3097715d9294018ea79399b71d80db8b8e6089788059ddc903d"
                 )),
             },
             transactions: 0..2

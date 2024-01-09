@@ -12,12 +12,15 @@ publish = false
 resolver = "2"
 
 [dependencies]
+sov-rollup-interface = { path = "../../rollup-interface" }
+
 anyhow = { workspace = true }
 tracing = { workspace = true }
 jsonrpsee = { workspace = true, features = ["http-client"] }
 
 serde = { workspace = true }
 serde_json = { workspace = true }
+hex = { workspace = true }
 
 ethers = { workspace = true }
 tokio = { workspace = true }
@@ -29,4 +32,4 @@ tokio = { workspace = true }
 [features]
 default = []
 local = []
-native = []
+native = ["sov-rollup-interface/native"]

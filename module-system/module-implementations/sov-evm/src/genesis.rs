@@ -10,6 +10,8 @@ use sov_modules_api::WorkingSet;
 use crate::evm::db_init::InitEvmDb;
 use crate::evm::primitive_types::Block;
 use crate::evm::{AccountInfo, EvmChainConfig};
+#[cfg(test)]
+use crate::tests::DEFAULT_CHAIN_ID;
 use crate::Evm;
 
 /// Evm account.
@@ -64,15 +66,16 @@ pub struct EvmConfig {
     pub base_fee_params: reth_primitives::BaseFeeParams,
 }
 
+#[cfg(test)]
 impl Default for EvmConfig {
     fn default() -> Self {
         Self {
             data: vec![],
-            chain_id: 1,
+            chain_id: DEFAULT_CHAIN_ID,
             limit_contract_code_size: None,
             spec: vec![(0, SpecId::SHANGHAI)].into_iter().collect(),
             coinbase: Address::zero(),
-            starting_base_fee: reth_primitives::constants::MIN_PROTOCOL_BASE_FEE,
+            starting_base_fee: reth_primitives::constants::EIP1559_INITIAL_BASE_FEE,
             block_gas_limit: reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT,
             block_timestamp_delta: reth_primitives::constants::SLOT_DURATION.as_secs(),
             genesis_timestamp: 0,
@@ -221,7 +224,7 @@ mod tests {
                     "0":"SHANGHAI"
                 },
                 "coinbase":"0x0000000000000000000000000000000000000000",
-                "starting_base_fee":7,
+                "starting_base_fee":1000000000,
                 "block_gas_limit":30000000,
                 "genesis_timestamp":0,
                 "block_timestamp_delta":1,

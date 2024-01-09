@@ -1,6 +1,6 @@
-use anyhow::Context;
 use ethers::types::{Bytes, H256};
 use jsonrpsee::core::client::ClientT;
+use jsonrpsee::core::Error;
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use jsonrpsee::rpc_params;
 use serde::Deserialize;
@@ -8,8 +8,6 @@ use serde::Deserialize;
 /// Configuration for SequencerClient.
 #[derive(Debug, Clone)]
 pub struct SequencerClient {
-    /// Start height for soft confirmation
-    pub start_height: u64,
     /// Host config for soft confirmation
     pub rpc_url: String,
     /// Client object for soft confirmation
@@ -18,24 +16,28 @@ pub struct SequencerClient {
 
 impl SequencerClient {
     /// Creates the sequencer client
-    pub fn new(start_height: u64, rpc_url: String) -> Self {
+    pub fn new(rpc_url: String) -> Self {
         let client = HttpClientBuilder::default().build(&rpc_url).unwrap();
-        Self {
-            start_height,
-            rpc_url,
-            client,
-        }
+        Self { rpc_url, client }
     }
 
     /// Gets l2 block given l2 height
-    pub async fn get_sov_tx(&self, num: u64) -> anyhow::Result<Vec<u8>> {
-        let res: GetSovTxResponse = self
-            .client
-            .request("ledger_getTransactionByNumber", rpc_params![num])
-            .await
-            .context("Failed to make RPC request")?;
+    pub async fn get_soft_batch<DaSpec: sov_rollup_interface::da::DaSpec>(
+        &self,
+        num: u64,
+    ) -> anyhow::Result<Option<GetSoftBatchResponse<DaSpec::SlotHash>>> {
+        let res: Result<Option<GetSoftBatchResponse<DaSpec::SlotHash>>, jsonrpsee::core::Error> =
+            self.client
+                .request("ledger_getSoftBatchByNumber", rpc_params![num])
+                .await;
 
-        Ok(res.body)
+        match res {
+            Ok(res) => Ok(res),
+            Err(e) => match e {
+                Error::Transport(e) => anyhow::Result::Err(Error::Transport(e).into()),
+                _ => Err(anyhow::anyhow!(e)),
+            },
+        }
     }
 
     /// Sends raw tx to sequencer
@@ -48,8 +50,12 @@ impl SequencerClient {
     }
 }
 
-// the response has more fields, however for now we don't need them
-#[derive(Deserialize)]
-struct GetSovTxResponse {
-    pub body: Vec<u8>,
+#[derive(Deserialize, Debug)]
+pub struct GetSoftBatchResponse<Hash> {
+    pub da_slot_height: u64,
+    pub da_slot_hash: Hash,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub txs: Option<Vec<Vec<u8>>>,
+    pub pre_state_root: Vec<u8>,
+    pub post_state_root: Vec<u8>,
 }

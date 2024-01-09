@@ -723,7 +723,7 @@ mod tests {
         let txs = da_service.extract_relevant_blobs(&block);
 
         assert_eq!(
-            txs.get(0).unwrap().sender.0,
+            txs.first().unwrap().sender.0,
             da_pubkey,
             "Publickey recovered incorrectly!"
         );

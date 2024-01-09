@@ -1,5 +1,4 @@
-use std::fs::{self, DirEntry};
-use std::net::SocketAddr;
+use std::fs;
 use std::path::Path;
 use std::str::FromStr;
 use std::time::Duration;
@@ -11,7 +10,8 @@ use sov_evm::{SimpleStorageContract, TestContract};
 use sov_stf_runner::RollupProverConfig;
 use tokio::time::sleep;
 
-use crate::evm::{init_test_rollup, make_test_client, TestClient};
+use crate::evm::{init_test_rollup, make_test_client};
+use crate::test_client::TestClient;
 use crate::test_helpers::{start_rollup, NodeMode};
 
 #[tokio::test]
@@ -187,6 +187,10 @@ async fn test_e2e_same_block_sync() -> Result<(), anyhow::Error> {
 
 #[tokio::test]
 async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
+    // Remove temp db directories if they exist
+    let _ = fs::remove_dir_all(Path::new("demo_data_test_close_and_reopen_full_node_copy"));
+    let _ = fs::remove_dir_all(Path::new("demo_data_test_close_and_reopen_full_node"));
+
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
     let seq_task = tokio::spawn(async {
@@ -210,7 +214,7 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
             full_node_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             RollupProverConfig::Execute,
-            NodeMode::FullNode(seq_port.clone()),
+            NodeMode::FullNode(seq_port),
             Some("demo_data_test_close_and_reopen_full_node"),
         )
         .await;
@@ -233,7 +237,7 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
     }
 
     // wait for full node to sync
-    sleep(Duration::from_secs(10)).await;
+    sleep(Duration::from_secs(5)).await;
 
     // check if latest blocks are the same
     let seq_last_block = seq_test_client
@@ -267,12 +271,11 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
 
     // Copy the db to a new path with the same contents because
     // the lock is not released on the db directory even though the task is aborted
-    copy_dir_recursive(
+    let _ = copy_dir_recursive(
         Path::new("demo_data_test_close_and_reopen_full_node"),
         Path::new("demo_data_test_close_and_reopen_full_node_copy"),
     );
 
-    println!("\ncopy done\n");
     sleep(Duration::from_secs(5)).await;
 
     // spin up the full node again with the same data where it left of only with different path to not stuck on lock
@@ -286,7 +289,10 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
         )
         .await;
     });
-    sleep(Duration::from_secs(5)).await;
+
+    // TODO: There should be a better way to test this?
+    sleep(Duration::from_secs(30)).await;
+
     let full_node_port = full_node_port_rx.await.unwrap();
 
     let full_node_contract = SimpleStorageContract::default();
@@ -309,6 +315,10 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
 
     fs::remove_dir_all(Path::new("demo_data_test_close_and_reopen_full_node_copy")).unwrap();
     fs::remove_dir_all(Path::new("demo_data_test_close_and_reopen_full_node")).unwrap();
+
+    seq_task.abort();
+    rollup_task.abort();
+
     Ok(())
 }
 
@@ -332,8 +342,8 @@ fn copy_dir_recursive(src: &Path, dst: &Path) -> std::io::Result<()> {
 }
 
 async fn execute_blocks<T: TestContract>(
-    sequencer_client: &Box<TestClient<T>>,
-    full_node_client: &Box<TestClient<T>>,
+    sequencer_client: &TestClient<T>,
+    full_node_client: &TestClient<T>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let (contract_address, _runtime_code) = {
         let runtime_code = sequencer_client.deploy_contract_call().await?;

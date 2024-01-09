@@ -32,7 +32,7 @@ pub async fn start_rollup(
     node_mode: NodeMode,
     db_path: Option<&str>,
 ) {
-    let mut path = db_path.clone().map(|path| Path::new(path));
+    let mut path = db_path.map(Path::new);
     let mut temp_dir: Option<tempfile::TempDir> = None;
     if db_path.is_none() {
         temp_dir = Some(tempfile::tempdir().unwrap());
@@ -56,7 +56,6 @@ pub async fn start_rollup(
         },
         sequencer_client: match node_mode {
             NodeMode::FullNode(socket_addr) => Some(SequencerClientRpcConfig {
-                start_height: 1,
                 url: format!("http://localhost:{}", socket_addr.port()),
             }),
             NodeMode::SequencerNode => None,

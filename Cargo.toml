@@ -101,7 +101,6 @@ serde = { version = "1.0.192", default-features = false, features = [
 serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
 sha2 = { version = "0.10.6", default-features = false }
 thiserror = "1.0.50"
-tiny-keccak = "2.0.2"
 tracing = { version = "0.1.40", default-features = false }
 bech32 = { version = "0.9.1", default-features = false }
 derive_more = { version = "0.99.11", default-features = false }
@@ -111,7 +110,6 @@ jsonrpsee = { version = "0.20.1", features = ["jsonrpsee-types"] }
 schemars = { version = "0.8.16", features = ["derive"] }
 tempfile = "3.8"
 tokio = { version = "1", features = ["full"] }
-lazy_static = "1.4.0"
 num_cpus = "1.0"
 risc0-zkvm = { version = "0.19", default-features = false }
 risc0-zkvm-platform = { version = "0.19" }
@@ -140,7 +138,6 @@ reth-db = { git = "https://github.com/paradigmxyz/reth", rev = "e83d3aa" }
 reth-rlp = { git = "https://github.com/paradigmxyz/reth", rev = "e83d3aa" }
 
 revm = { git = "https://github.com/bluealloy/revm", rev = "516f62cc" }
-revm-primitives = { git = "https://github.com/bluealloy/revm", rev = "516f62cc" }
 alloy-primitives = "0.4.2"
 secp256k1 = { version = "0.27.0", default-features = false, features = [
     "global-context",

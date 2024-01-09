@@ -14,7 +14,7 @@ use jsonrpsee::rpc_params;
 use reth_primitives::{BlockNumberOrTag, Bytes};
 use sov_evm::{LogResponse, LogsContract, SimpleStorageContract, TestContract};
 
-const MAX_FEE_PER_GAS: u64 = 100000001;
+const MAX_FEE_PER_GAS: u64 = 1000000001;
 const GAS: u64 = 900000u64;
 
 pub struct TestClient<T: TestContract> {
@@ -125,6 +125,7 @@ impl<T: TestContract> TestClient<T> {
             .unwrap()
     }
 
+    #[allow(dead_code)]
     pub(crate) async fn set_value_unsigned(
         &self,
         contract_address: H160,
@@ -287,6 +288,20 @@ impl<T: TestContract> TestClient<T> {
             .unwrap()
     }
 
+    pub(crate) async fn web3_client_version(&self) -> String {
+        self.http_client
+            .request("web3_clientVersion", rpc_params![])
+            .await
+            .unwrap()
+    }
+
+    pub(crate) async fn web3_sha3(&self, bytes: String) -> String {
+        self.http_client
+            .request("web3_sha3", rpc_params![bytes])
+            .await
+            .unwrap()
+    }
+
     pub(crate) async fn eth_accounts(&self) -> Vec<Address> {
         self.http_client
             .request("eth_accounts", rpc_params![])
@@ -390,6 +405,7 @@ impl<T: TestContract> TestClient<T> {
             .unwrap()
     }
 
+    #[allow(dead_code)]
     pub(crate) async fn eth_get_transaction_by_hash(&self, tx_hash: TxHash) -> Option<Transaction> {
         self.http_client
             .request("eth_getTransactionByHash", rpc_params![tx_hash])

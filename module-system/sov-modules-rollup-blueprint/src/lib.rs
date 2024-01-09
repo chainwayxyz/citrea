@@ -132,14 +132,14 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         let native_storage = storage_manager.get_native_storage();
 
         let prev_root = ledger_db
-            .get_head_slot()?
+            .get_head_soft_batch()?
             .map(|(number, _)| native_storage.get_root_hash(number.0 + 1))
             .transpose()?;
 
         // if node does not have a sequencer client, then it is a sequencer
         let sequencer_client = rollup_config
             .sequencer_client
-            .map(|s| SequencerClient::new(s.start_height, s.url));
+            .map(|s| SequencerClient::new(s.url));
 
         let rpc_methods = self.create_rpc_methods(
             &native_storage,

@@ -6,6 +6,12 @@ pub struct Mempool {
     pub pool: VecDeque<RlpEvmTransaction>,
 }
 
+impl Default for Mempool {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Mempool {
     pub fn new() -> Self {
         Mempool {
