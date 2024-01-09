@@ -61,7 +61,7 @@ async fn web3_rpc_tests() -> Result<(), anyhow::Error> {
 
 #[tokio::test]
 async fn evm_tx_tests() -> Result<(), anyhow::Error> {
-    initialize_logging();
+    // initialize_logging();
 
     let (port_tx, port_rx) = tokio::sync::oneshot::channel();
 

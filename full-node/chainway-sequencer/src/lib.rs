@@ -91,6 +91,7 @@ pub struct ChainwaySequencer<
     sov_tx_signer_nonce: u64,
     sender: UnboundedSender<String>,
     receiver: UnboundedReceiver<String>,
+    db_provider: DbProvider<C>,
 }
 
 impl<
@@ -122,8 +123,7 @@ impl<
         // used as client of reth's mempool
         let db_provider = DbProvider::new(storage);
 
-        let pool = create_mempool(db_provider);
-        // pool.add_transaction(origin, transaction)
+        let pool = create_mempool(db_provider.clone());
 
         Self {
             rollup,
@@ -134,6 +134,7 @@ impl<
             sov_tx_signer_nonce: nonce,
             sender,
             receiver,
+            db_provider,
         }
     }
 
@@ -156,19 +157,28 @@ impl<
                 let mut rlp_txs = vec![];
                 // best txs with base fee
                 // get base fee from last blocks => header => next base fee() function
-                // TODO: Handle error
-                let best_txs = self.mempool.best_transactions();
+                let latest_header = self.db_provider.latest_header();
+
+                let cfg = self.db_provider.cfg();
+
+                let base_fee = latest_header
+                    .unwrap()
+                    .unwrap()
+                    .unseal()
+                    .next_block_base_fee(cfg.base_fee_params);
+                println!("base_fee: {:?}", base_fee);
+
+                let best_txs_with_base_fee = self
+                    .mempool
+                    .best_transactions_with_base_fee(base_fee.unwrap());
+
                 // TODO: Handle block building
-                let mut tx_hashes = vec![];
-                for tx in best_txs {
+                for tx in best_txs_with_base_fee {
                     let rc_tx = tx.to_recovered_transaction();
                     let signed_tx = rc_tx.into_signed();
                     let x = signed_tx.envelope_encoded().to_vec();
-
                     rlp_txs.push(RlpEvmTransaction { rlp: x });
-                    tx_hashes.push(*tx.hash());
                 }
-                self.mempool.remove_transactions(tx_hashes);
 
                 info!(
                     "Sequencer: publishing block with {} transactions",
@@ -219,7 +229,11 @@ impl<
                 // TODO: handle error
                 self.rollup.runner.process(block_template).await?;
 
-                // TODO: get last block remove only txs in block
+                // get last block remove only txs in block
+                self.db_provider
+                    .latest_block_tx_hashes()
+                    .unwrap()
+                    .and_then(|hashes| Some(self.mempool.remove_transactions(hashes)));
             }
         }
     }
@@ -268,7 +282,6 @@ impl<
             // TODO: fn should be named from_recoverd_pooled_transaction after reth upgrade
             let pool_transaction =
                 EthPooledTransaction::from_recovered_transaction(recovered.clone());
-            println!("pool_transaction: {:?}", pool_transaction);
 
             // submit the transaction to the pool with a `Local` origin
             let hash = ctx

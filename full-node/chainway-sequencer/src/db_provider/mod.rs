@@ -1,13 +1,17 @@
 use reth_db::models::StoredBlockBodyIndices;
 use reth_interfaces::{RethError, RethResult};
-use reth_primitives::{Account, Address, Bytecode, Bytes, StorageKey, StorageValue, H256, U256};
+use reth_primitives::{
+    Account, Address, BlockNumberOrTag, Bytecode, Bytes, Header, StorageKey, StorageValue, H256,
+    U256,
+};
 use reth_provider::{
     AccountReader, BlockHashReader, BlockIdReader, BlockNumReader, BlockReader, BlockReaderIdExt,
     BundleStateWithReceipts, ChainSpecProvider, HeaderProvider, ReceiptProvider,
     ReceiptProviderIdExt, StateProvider, StateProviderFactory, StateRootProvider,
     TransactionsProvider, WithdrawalsProvider,
 };
-use sov_evm::Evm;
+use reth_rpc_types::BlockTransactions;
+use sov_evm::{Evm, EvmChainConfig};
 use sov_modules_api::WorkingSet;
 
 #[derive(Clone)]
@@ -20,6 +24,21 @@ impl<C: sov_modules_api::Context> DbProvider<C> {
     pub fn new(storage: C::Storage) -> Self {
         let evm = Evm::<C>::default();
         Self { evm, storage }
+    }
+
+    pub fn cfg(&self) -> EvmChainConfig {
+        let mut working_set = WorkingSet::<C>::new(self.storage.clone());
+        self.evm.cfg(&mut working_set)
+    }
+
+    pub fn latest_block_tx_hashes(&self) -> reth_interfaces::RethResult<Option<Vec<H256>>> {
+        let mut working_set = WorkingSet::<C>::new(self.storage.clone());
+        let block = self.evm.latest_block(&mut working_set);
+        match block.transactions {
+            BlockTransactions::Hashes(hashes) => Ok(Some(hashes)),
+            _ => Ok(None),
+        }
+        // Ok(Some(block.transactions))
     }
 }
 
@@ -450,7 +469,11 @@ impl<C: sov_modules_api::Context> BlockReaderIdExt for DbProvider<C> {
         unimplemented!()
     }
     fn latest_header(&self) -> reth_interfaces::RethResult<Option<reth_primitives::SealedHeader>> {
-        unimplemented!()
+        let latest_header = {
+            let mut working_set = WorkingSet::<C>::new(self.storage.clone());
+            Some(self.evm.latest_header(&mut working_set))
+        };
+        Ok(latest_header)
     }
     fn ommers_by_id(
         &self,
