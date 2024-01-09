@@ -34,6 +34,7 @@ sov-sequencer-registry = { path = "../../../module-system/module-implementations
 sov-blob-storage = { path = "../../../module-system/module-implementations/sov-blob-storage" }
 sov-bank = { path = "../../../module-system/module-implementations/sov-bank" }
 sov-nft-module = { path = "../../../module-system/module-implementations/sov-nft-module" }
+sov-soft-confirmations-kernel = { path = "../../../module-system/sov-soft-confirmations-kernel" }
 
 sov-mock-da = { path = "../../../adapters/mock-da" }
 sov-chain-state = { path = "../../../module-system/module-implementations/sov-chain-state" }
@@ -46,11 +47,13 @@ sov-evm = { path = "../../../module-system/module-implementations/sov-evm" }
 
 
 [dev-dependencies]
-sov-data-generators = { path = "../../../module-system/utils/sov-data-generators" }
 demo-stf = { path = ".", features = ["native"] }
-sov-mock-zkvm = { path = "../../../adapters/mock-zkvm" }
 tempfile = { workspace = true }
-rand = "0.8"
+rand = { workspace = true }
+sov-data-generators = { path = "../../../module-system/utils/sov-data-generators" }
+sov-mock-zkvm = { path = "../../../adapters/mock-zkvm" }
+sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
+
 
 [features]
 default = []
@@ -69,6 +72,7 @@ native = [
     "sov-rollup-interface/native",
     "sov-mock-da/native",
     "sov-modules-stf-blueprint/native",
+    "sov-soft-confirmations-kernel/native",
     "clap",
     "serde",
     "serde_json",

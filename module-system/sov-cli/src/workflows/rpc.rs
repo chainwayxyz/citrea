@@ -1,9 +1,10 @@
 //! Query the current state of the rollup and send transactions
 
+use core::mem;
 use std::path::Path;
 
 use anyhow::Context;
-use borsh::BorshSerialize;
+use borsh::{BorshDeserialize, BorshSerialize};
 use jsonrpsee::core::client::ClientT;
 use jsonrpsee::http_client::HttpClientBuilder;
 use serde::de::DeserializeOwned;
@@ -54,10 +55,13 @@ pub enum RpcWorkflows<C: sov_modules_api::Context> {
 }
 
 impl<C: sov_modules_api::Context> RpcWorkflows<C> {
-    fn resolve_account<'wallet, Tx: BorshSerialize>(
+    fn resolve_account<'wallet, Tx>(
         &self,
         wallet_state: &'wallet mut WalletState<Tx, C>,
-    ) -> Result<&'wallet AddressEntry<C>, anyhow::Error> {
+    ) -> Result<&'wallet AddressEntry<C>, anyhow::Error>
+    where
+        Tx: Serialize + DeserializeOwned + BorshSerialize + BorshDeserialize,
+    {
         let account_id = match self {
             RpcWorkflows::SetUrl { .. } => None,
             RpcWorkflows::GetNonce { account } => account.as_ref(),
@@ -81,11 +85,14 @@ impl<C: sov_modules_api::Context> RpcWorkflows<C> {
 
 impl<C: sov_modules_api::Context + Serialize + DeserializeOwned + Send + Sync> RpcWorkflows<C> {
     /// Run the rpc workflow
-    pub async fn run<Tx: BorshSerialize>(
+    pub async fn run<Tx>(
         &self,
         wallet_state: &mut WalletState<Tx, C>,
         _app_dir: impl AsRef<Path>,
-    ) -> Result<(), anyhow::Error> {
+    ) -> Result<(), anyhow::Error>
+    where
+        Tx: Serialize + DeserializeOwned + BorshSerialize + BorshDeserialize,
+    {
         // If the user is just setting the RPC url, we can skip the usual setup
         if let RpcWorkflows::SetUrl { rpc_url } = self {
             let _client = HttpClientBuilder::default()
@@ -141,13 +148,17 @@ impl<C: sov_modules_api::Context + Serialize + DeserializeOwned + Send + Sync> R
                     Some(nonce) => *nonce,
                     None => get_nonce_for_account(&client, account).await?,
                 };
-                let txs = std::mem::take(&mut wallet_state.unsent_transactions)
+
+                let txs = mem::take(&mut wallet_state.unsent_transactions)
                     .into_iter()
                     .enumerate()
                     .map(|(offset, tx)| {
                         Transaction::<C>::new_signed_tx(
                             &private_key,
                             tx.try_to_vec().unwrap(),
+                            tx.chain_id,
+                            tx.gas_tip,
+                            tx.gas_limit,
                             nonce + offset as u64,
                         )
                         .try_to_vec()

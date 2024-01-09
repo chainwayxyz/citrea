@@ -26,11 +26,13 @@ sov-state = { path = "../../sov-state", version = "0.3" }
 
 
 [dev-dependencies]
-sov-bank = { path = ".", features = ["native"] }
+sov-bank = { path = ".", features = ["native", "test-utils"] }
 tempfile = { workspace = true }
+sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
 
 [features]
 default = []
 native = ["serde", "serde_json", "jsonrpsee", "clap", "schemars", "sov-state/native", "sov-modules-api/native", ]
 cli = ["native"]
 serde = []
+test-utils = []

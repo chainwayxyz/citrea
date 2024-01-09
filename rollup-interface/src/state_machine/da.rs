@@ -10,7 +10,7 @@ use crate::zk::ValidityCondition;
 use crate::BasicAddress;
 
 /// A specification for the types used by a DA layer.
-pub trait DaSpec: 'static + Debug + PartialEq + Eq {
+pub trait DaSpec: 'static + Debug + PartialEq + Eq + Clone {
     /// The hash of a DA layer block
     type SlotHash: BlockHashTrait;
 
@@ -187,7 +187,7 @@ pub trait BlockHashTrait:
 /// A block header, typically used in the context of an underlying DA blockchain.
 pub trait BlockHeaderTrait: PartialEq + Debug + Clone + Serialize + DeserializeOwned {
     /// Each block header must have a unique canonical hash.
-    type Hash: Clone;
+    type Hash: Clone + core::fmt::Display;
 
     /// Each block header must contain the hash of the previous block.
     fn prev_hash(&self) -> Self::Hash;
@@ -243,6 +243,18 @@ impl Time {
         Time {
             secs,
             nanos: nanos.0,
+        }
+    }
+
+    #[cfg(feature = "std")]
+    /// Get the current time
+    pub fn now() -> Self {
+        let current_time = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("Time went backwards");
+        Time {
+            secs: current_time.as_secs() as i64,
+            nanos: current_time.subsec_nanos(),
         }
     }
 

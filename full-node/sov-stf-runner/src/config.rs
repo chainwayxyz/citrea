@@ -37,6 +37,13 @@ pub struct SequencerClientRpcConfig {
     pub url: String,
 }
 
+/// Prover service configuration.
+#[derive(Debug, Clone, PartialEq, Deserialize, Copy)]
+pub struct ProverServiceConfig {
+    /// The "distance"  measured in the number of blocks between two consecutive aggregated proofs.
+    pub aggregated_proof_block_jump: u64,
+}
+
 /// Rollup Configuration
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct RollupConfig<DaServiceConfig> {
@@ -48,6 +55,8 @@ pub struct RollupConfig<DaServiceConfig> {
     pub da: DaServiceConfig,
     /// Sequencer Client RPC Config for sequencer connection
     pub sequencer_client: Option<SequencerClientRpcConfig>,
+    /// Prover service configuration.
+    pub prover_service: ProverServiceConfig,
 }
 
 /// Reads toml file as a specific type.
@@ -96,6 +105,8 @@ mod tests {
             bind_port = 12345
             [sequencer_client]
             url = "http://0.0.0.0:12346"
+            [prover_service]
+            aggregated_proof_block_jump = 22
         "#;
 
         let config_file = create_config_from(config);
@@ -123,6 +134,9 @@ mod tests {
             sequencer_client: Some(SequencerClientRpcConfig {
                 url: "http://0.0.0.0:12346".to_owned(),
             }),
+            prover_service: ProverServiceConfig {
+                aggregated_proof_block_jump: 22,
+            },
         };
         assert_eq!(config, expected);
     }

@@ -1,15 +1,15 @@
 use std::marker::PhantomData;
 
 use borsh::{BorshDeserialize, BorshSerialize};
-use sov_modules_api::runtime::capabilities::Kernel;
+use sov_modules_api::runtime::capabilities::KernelSlotHooks;
 use sov_modules_api::{
-    BasicAddress, BlobReaderTrait, Context, DaSpec, DispatchCall, StateCheckpoint,
+    BasicAddress, BlobReaderTrait, Context, DaSpec, DispatchCall, GasUnit, StateCheckpoint,
 };
 use sov_rollup_interface::stf::{BatchReceipt, TransactionReceipt};
 use tracing::{debug, error};
 
 use crate::tx_verifier::{verify_txs_stateless, TransactionAndRawHash};
-use crate::{Batch, Runtime, SequencerOutcome, SlashingReason, TxEffect};
+use crate::{Batch, Runtime, RuntimeTxHook, SequencerOutcome, SlashingReason, TxEffect};
 
 type ApplyBatchResult<T, A> = Result<T, ApplyBatchError<A>>;
 
@@ -24,7 +24,7 @@ use sov_zk_cycle_macros::cycle_tracker;
 /// An implementation of the
 /// [`StateTransitionFunction`](sov_rollup_interface::stf::StateTransitionFunction)
 /// that is specifically designed to work with the module-system.
-pub struct StfBlueprint<C: Context, Da: DaSpec, Vm, RT: Runtime<C, Da>, K: Kernel<C, Da>> {
+pub struct StfBlueprint<C: Context, Da: DaSpec, Vm, RT: Runtime<C, Da>, K: KernelSlotHooks<C, Da>> {
     /// State storage used by the rollup.
     /// The runtime includes all the modules that the rollup supports.
     pub(crate) runtime: RT,
@@ -74,7 +74,7 @@ where
     C: Context,
     Da: DaSpec,
     RT: Runtime<C, Da>,
-    K: Kernel<C, Da>,
+    K: KernelSlotHooks<C, Da>,
 {
     fn default() -> Self {
         Self::new()
@@ -86,7 +86,7 @@ where
     C: Context,
     Da: DaSpec,
     RT: Runtime<C, Da>,
-    K: Kernel<C, Da>,
+    K: KernelSlotHooks<C, Da>,
 {
     /// [`StfBlueprint`] constructor.
     pub fn new() -> Self {
@@ -173,13 +173,30 @@ where
             "Error in preprocessing batch, there should be same number of txs and messages"
         );
 
+        // TODO fetch gas price from chain state
+        let gas_elastic_price = [0, 0];
+        let mut sequencer_reward = 0u64;
+
         // Dispatching transactions
         let mut tx_receipts = Vec::with_capacity(txs.len());
         for (TransactionAndRawHash { tx, raw_tx_hash }, msg) in
             txs.into_iter().zip(messages.into_iter())
         {
+            // Update the working set gas meter with the available funds
+            let gas_price = C::GasUnit::from_arbitrary_dimensions(&gas_elastic_price);
+            let gas_limit = tx.gas_limit();
+            let gas_tip = tx.gas_tip();
+            batch_workspace.set_gas(gas_limit, gas_price);
+
             // Pre dispatch hook
-            let sender_address = match self.runtime.pre_dispatch_tx_hook(&tx, &mut batch_workspace)
+            // TODO set the sequencer pubkey
+            let hook = RuntimeTxHook {
+                height: 1,
+                sequencer: tx.pub_key().clone(),
+            };
+            let ctx = match self
+                .runtime
+                .pre_dispatch_tx_hook(&tx, &mut batch_workspace, &hook)
             {
                 Ok(verified_tx) => verified_tx,
                 Err(e) => {
@@ -200,8 +217,19 @@ where
             // Commit changes after pre_dispatch_tx_hook
             batch_workspace = batch_workspace.checkpoint().to_revertable();
 
-            let ctx = C::new(sender_address.clone(), 1);
             let tx_result = self.runtime.dispatch_call(msg, &mut batch_workspace, &ctx);
+
+            let remaining_gas = batch_workspace.gas_remaining_funds();
+            let gas_reward = gas_limit
+                .saturating_add(gas_tip)
+                .saturating_sub(remaining_gas);
+
+            sequencer_reward = sequencer_reward.saturating_add(gas_reward);
+            debug!(
+                "Tx {} sequencer reward: {}",
+                hex::encode(raw_tx_hash),
+                gas_reward
+            );
 
             let events = batch_workspace.take_events();
             let tx_effect = match tx_result {
@@ -233,12 +261,12 @@ where
 
             // TODO: `panic` will be covered in https://github.com/Sovereign-Labs/sovereign-sdk/issues/421
             self.runtime
-                .post_dispatch_tx_hook(&tx, &mut batch_workspace)
-                .expect("Impossible happened: error in post_dispatch_tx_hook");
+                .post_dispatch_tx_hook(&tx, &ctx, &mut batch_workspace)
+                .expect("inconsistent state: error in post_dispatch_tx_hook");
         }
 
         // TODO: calculate the amount based of gas and fees
-        let sequencer_outcome = SequencerOutcome::Rewarded(0);
+        let sequencer_outcome = SequencerOutcome::Rewarded(sequencer_reward);
 
         if let Err(e) = self
             .runtime

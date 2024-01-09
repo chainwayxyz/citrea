@@ -1,5 +1,6 @@
 #![deny(missing_docs)]
 #![doc = include_str!("../README.md")]
+
 mod batch;
 pub mod kernels;
 mod stf_blueprint;
@@ -7,10 +8,10 @@ mod tx_verifier;
 
 pub use batch::Batch;
 use sov_modules_api::hooks::{ApplyBlobHooks, FinalizeHook, SlotHooks, TxHooks};
-use sov_modules_api::runtime::capabilities::Kernel;
+use sov_modules_api::runtime::capabilities::{Kernel, KernelSlotHooks};
 use sov_modules_api::{
-    BasicAddress, BlobReaderTrait, Context, DaSpec, DispatchCall, Genesis, Spec, StateCheckpoint,
-    Zkvm,
+    BasicAddress, BlobReaderTrait, Context, DaSpec, DispatchCall, Genesis, KernelWorkingSet, Spec,
+    StateCheckpoint, Zkvm,
 };
 pub use sov_rollup_interface::stf::BatchReceipt;
 use sov_rollup_interface::stf::{SlotResult, StateTransitionFunction};
@@ -21,11 +22,22 @@ pub use stf_blueprint::StfBlueprint;
 use tracing::info;
 pub use tx_verifier::RawTx;
 
+/// The tx hook for a blueprint runtime
+pub struct RuntimeTxHook<C: Context> {
+    /// Height to initialize the context
+    pub height: u64,
+    /// Sequencer public key
+    pub sequencer: C::PublicKey,
+}
+
 /// This trait has to be implemented by a runtime in order to be used in `StfBlueprint`.
+///
+/// The `TxHooks` implementation sets up a transaction context based on the height at which it is
+/// to be executed.
 pub trait Runtime<C: Context, Da: DaSpec>:
     DispatchCall<Context = C>
     + Genesis<Context = C, Config = Self::GenesisConfig>
-    + TxHooks<Context = C>
+    + TxHooks<Context = C, PreArg = RuntimeTxHook<C>, PreResult = C>
     + SlotHooks<Da, Context = C>
     + FinalizeHook<Da, Context = C>
     + ApplyBlobHooks<
@@ -80,6 +92,14 @@ pub enum SequencerOutcome<A: BasicAddress> {
     Ignored,
 }
 
+/// Genesis parameters for a blueprint
+pub struct GenesisParams<RT, K> {
+    /// The runtime genesis parameters
+    pub runtime: RT,
+    /// The kernel's genesis parameters
+    pub kernel: K,
+}
+
 /// Reason why sequencer was slashed.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum SlashingReason {
@@ -97,7 +117,7 @@ where
     Vm: Zkvm,
     Da: DaSpec,
     RT: Runtime<C, Da>,
-    K: Kernel<C, Da>,
+    K: KernelSlotHooks<C, Da>,
 {
     #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
     fn begin_slot(
@@ -108,6 +128,12 @@ where
         pre_state_root: &<C::Storage as Storage>::Root,
     ) -> StateCheckpoint<C> {
         let mut working_set = state_checkpoint.to_revertable();
+        self.kernel.begin_slot_hook(
+            slot_header,
+            validity_condition,
+            pre_state_root,
+            &mut working_set,
+        );
 
         self.runtime.begin_slot_hook(
             slot_header,
@@ -127,6 +153,7 @@ where
     ) -> (
         <<C as Spec>::Storage as Storage>::Root,
         <<C as Spec>::Storage as Storage>::Witness,
+        C::Storage,
     ) {
         // Run end end_slot_hook
         let mut working_set = checkpoint.to_revertable();
@@ -150,7 +177,7 @@ where
 
         storage.commit(&state_update, &accessory_log);
 
-        (root_hash, witness)
+        (root_hash, witness, storage)
     }
 }
 
@@ -160,13 +187,14 @@ where
     Da: DaSpec,
     Vm: Zkvm,
     RT: Runtime<C, Da>,
-    K: Kernel<C, Da>,
+    K: KernelSlotHooks<C, Da>,
 {
     type StateRoot = <C::Storage as Storage>::Root;
 
-    type GenesisParams = <RT as Genesis>::Config;
+    type GenesisParams =
+        GenesisParams<<RT as Genesis>::Config, <K as Kernel<C, Da>>::GenesisConfig>;
     type PreState = C::Storage;
-    type ChangeSet = ();
+    type ChangeSet = C::Storage;
 
     type TxReceiptContents = TxEffect;
 
@@ -183,9 +211,12 @@ where
     ) -> (Self::StateRoot, Self::ChangeSet) {
         let mut working_set = StateCheckpoint::new(pre_state.clone()).to_revertable();
 
+        self.kernel
+            .genesis(&params.kernel, &mut working_set)
+            .expect("Kernel initialization must succeed");
         self.runtime
-            .genesis(&params, &mut working_set)
-            .expect("module initialization must succeed");
+            .genesis(&params.runtime, &mut working_set)
+            .expect("Runtime initialization must succeed");
 
         let mut checkpoint = working_set.checkpoint();
         let (log, witness) = checkpoint.freeze();
@@ -202,9 +233,10 @@ where
         let accessory_log = working_set.checkpoint().freeze_non_provable();
 
         // TODO: Commit here for now, but probably this can be done outside of STF
+        // TODO: Commit is fine
         pre_state.commit(&state_update, &accessory_log);
 
-        (genesis_hash, ())
+        (genesis_hash, pre_state)
     }
 
     fn apply_slot<'a, I>(
@@ -231,9 +263,11 @@ where
 
         // Initialize batch workspace
         let mut batch_workspace = checkpoint.to_revertable();
+        let mut kernel_working_set =
+            KernelWorkingSet::from_kernel(&self.kernel, &mut batch_workspace);
         let selected_blobs = self
             .kernel
-            .get_blobs_for_this_slot(blobs, &mut batch_workspace)
+            .get_blobs_for_this_slot(blobs, &mut kernel_working_set)
             .expect("blob selection must succeed, probably serialization failed");
 
         info!(
@@ -269,10 +303,10 @@ where
             batch_receipts.push(batch_receipt);
         }
 
-        let (state_root, witness) = self.end_slot(pre_state, checkpoint);
+        let (state_root, witness, storage) = self.end_slot(pre_state, checkpoint);
         SlotResult {
             state_root,
-            change_set: (),
+            change_set: storage,
             batch_receipts,
             witness,
         }

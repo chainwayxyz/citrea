@@ -1,3 +1,4 @@
+use std::collections::VecDeque;
 use std::net::SocketAddr;
 
 use anyhow::bail;
@@ -12,16 +13,17 @@ use sov_modules_stf_blueprint::{Batch, RawTx};
 use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::stf::{SoftBatchReceipt, StateTransitionFunction};
-use sov_rollup_interface::storage::StorageManager;
-use sov_rollup_interface::zk::ZkvmHost;
+use sov_rollup_interface::storage::HierarchicalStorageManager;
+use sov_rollup_interface::zk::{StateTransitionData, Zkvm, ZkvmHost};
 use tokio::sync::oneshot;
 use tokio::time::{sleep, Duration, Instant};
 use tracing::{debug, error, info, warn};
 
 use crate::verifier::StateTransitionVerifier;
 use crate::{ProverService, RunnerConfig};
+
 type StateRoot<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::StateRoot;
-type InitialState<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::GenesisParams;
+type GenesisParams<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::GenesisParams;
 
 const CONNECTION_INTERVALS: &[u64] = &[0, 1, 2, 5, 10, 15, 30, 60];
 const RETRY_INTERVAL: &[u64] = &[1, 5];
@@ -41,7 +43,7 @@ pub struct StateTransitionRunner<Stf, Sm, Da, Vm, Ps>
 where
     Da: DaService,
     Vm: ZkvmHost,
-    Sm: StorageManager,
+    Sm: HierarchicalStorageManager<Da::Spec>,
     Stf: StateTransitionFunction<Vm, Da::Spec, Condition = <Da::Spec as DaSpec>::ValidityCondition>,
     Ps: ProverService,
 {
@@ -73,11 +75,24 @@ where
     Prover,
 }
 
+/// How [`StateTransitionRunner`] is initialized
+pub enum InitVariant<Stf: StateTransitionFunction<Vm, Da>, Vm: Zkvm, Da: DaSpec> {
+    /// From give state root
+    Initialized(Stf::StateRoot),
+    /// From empty state root
+    Genesis {
+        /// Genesis block header should be finalized at init moment
+        block_header: Da::BlockHeader,
+        /// Genesis params for Stf::init
+        genesis_params: GenesisParams<Stf, Vm, Da>,
+    },
+}
+
 impl<Stf, Sm, Da, Vm, Ps> StateTransitionRunner<Stf, Sm, Da, Vm, Ps>
 where
     Da: DaService<Error = anyhow::Error> + Clone + Send + Sync + 'static,
     Vm: ZkvmHost,
-    Sm: StorageManager,
+    Sm: HierarchicalStorageManager<Da::Spec>,
     Stf: StateTransitionFunction<
         Vm,
         Da::Spec,
@@ -99,27 +114,36 @@ where
         da_service: Da,
         ledger_db: LedgerDB,
         stf: Stf,
-        storage_manager: Sm,
-        prev_state_root: Option<StateRoot<Stf, Vm, Da::Spec>>,
-        genesis_config: InitialState<Stf, Vm, Da::Spec>,
+        mut storage_manager: Sm,
+        init_variant: InitVariant<Stf, Vm, Da::Spec>,
         prover_service: Ps,
         sequencer_client: Option<SequencerClient>,
     ) -> Result<Self, anyhow::Error> {
         let rpc_config = runner_config.rpc_config;
 
-        let prev_state_root = if let Some(prev_state_root) = prev_state_root {
-            // Check if the rollup has previously been initialized
-            debug!("Chain is already initialized. Skipping initialization.");
-            prev_state_root
-        } else {
-            info!("No history detected. Initializing chain...");
-            let genesis_state = storage_manager.get_native_storage();
-            let (genesis_root, _) = stf.init_chain(genesis_state, genesis_config);
-            info!(
-                "Chain initialization is done. Genesis root: 0x{}",
-                hex::encode(genesis_root.as_ref())
-            );
-            genesis_root
+        let prev_state_root = match init_variant {
+            InitVariant::Initialized(state_root) => {
+                debug!("Chain is already initialized. Skipping initialization.");
+                state_root
+            }
+            InitVariant::Genesis {
+                block_header,
+                genesis_params: params,
+            } => {
+                info!(
+                    "No history detected. Initializing chain on block_header={:?}...",
+                    block_header
+                );
+                let storage = storage_manager.create_storage_on(&block_header)?;
+                let (genesis_root, initialized_storage) = stf.init_chain(storage, params);
+                storage_manager.save_change_set(&block_header, initialized_storage)?;
+                storage_manager.finalize(&block_header)?;
+                info!(
+                    "Chain initialization is done. Genesis root: 0x{}",
+                    hex::encode(genesis_root.as_ref()),
+                );
+                genesis_root
+            }
         };
 
         let listen_address = SocketAddr::new(rpc_config.bind_host.parse()?, rpc_config.bind_port);
@@ -173,13 +197,18 @@ where
     }
 
     /// Processes sequence
-    /// gets a blob of txs as parameter
+    /// gets BlockTemplate from sequencer
     pub async fn process(&mut self, block_template: BlockTemplate) -> Result<(), anyhow::Error> {
-        let pre_state = self.storage_manager.get_native_storage();
-
         let (txs, da_slot_height) = (block_template.txs, block_template.da_slot_height);
 
         let filtered_block = self.da_service.get_block_at(da_slot_height).await?;
+
+        let pre_state = self
+            .storage_manager
+            .create_storage_on(filtered_block.header())?;
+
+        // TODO: check for reorgs here
+        // check out run_in_process for an example
 
         let batch = Batch {
             txs: txs.into_iter().map(|tx| RawTx { data: tx }).collect(),
@@ -232,6 +261,17 @@ where
 
         self.ledger_db
             .commit_soft_batch(soft_batch_receipt, false)?;
+
+        // TODO: this will only work for mock da
+        // when https://github.com/Sovereign-Labs/sovereign-sdk/issues/1218
+        // is merged, rpc will access up to date storage then we won't need to finalize rigth away.
+        // however we need much better DA + finalization logic here
+        self.storage_manager
+            .save_change_set(filtered_block.header(), slot_result.change_set)?;
+
+        tracing::debug!("Finalizing seen header: {:?}", filtered_block.header());
+        self.storage_manager.finalize(filtered_block.header())?;
+
         self.state_root = next_state_root;
 
         Ok(())
@@ -244,6 +284,8 @@ where
             None => return Err(anyhow::anyhow!("Sequencer Client is not initialized")),
         };
 
+        let mut seen_block_headers: VecDeque<<Da::Spec as DaSpec>::BlockHeader> = VecDeque::new();
+        let mut seen_receipts: VecDeque<_> = VecDeque::new();
         let mut height = self.start_height;
         info!("Starting to sync from height {}", height);
 
@@ -311,7 +353,9 @@ where
                     .collect(),
             };
 
-            let new_blobs = self
+            // 0 is the BlobTransaction
+            // 1 is the Signature
+            let (tx_blob_with_sender, _) = self
                 .da_service
                 .convert_rollup_batch_to_da_blob(&batch.try_to_vec().unwrap())
                 .unwrap();
@@ -330,10 +374,27 @@ where
                 );
             }
 
-            // 0 is the BlobTransaction
-            // 1 is the Signature
-            let tx_blob_with_sender: <<Da as DaService>::Spec as DaSpec>::BlobTransaction =
-                new_blobs.0;
+            // TODO: when legit blocks are implemented use below to
+            // check for reorgs
+            // Checking if reorg happened or not.
+            // if let Some(prev_block_header) = seen_block_headers.back() {
+            //     if prev_block_header.hash() != filtered_block.header().prev_hash() {
+            //         tracing::warn!("Block at height={} does not belong in current chain. Chain has forked. Traversing backwards", height);
+            //         while let Some(seen_block_header) = seen_block_headers.pop_back() {
+            //             seen_receipts.pop_back();
+            //             let block = self
+            //                 .da_service
+            //                 .get_block_at(seen_block_header.height())
+            //                 .await?;
+            //             if block.header().prev_hash() == seen_block_header.prev_hash() {
+            //                 height = seen_block_header.height();
+            //                 filtered_block = block;
+            //                 break;
+            //             }
+            //         }
+            //         tracing::info!("Resuming execution on height={}", height);
+            //     }
+            // }
 
             let blob_hash = tx_blob_with_sender.hash();
 
@@ -344,42 +405,55 @@ where
                 height,
             );
 
+            let mut vec_blobs = vec![tx_blob_with_sender];
+
             let mut data_to_commit = SlotCommit::new(filtered_block.clone());
 
-            let pre_state = self.storage_manager.get_native_storage();
+            let pre_state = self
+                .storage_manager
+                .create_storage_on(filtered_block.header())?;
+
             let slot_result = self.stf.apply_slot(
+                // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1247): incorrect pre-state root in case of re-org
                 &self.state_root,
                 pre_state,
                 Default::default(),
                 filtered_block.header(),
                 &filtered_block.validity_condition(),
-                &mut vec![tx_blob_with_sender],
+                &mut vec_blobs,
             );
 
             for receipt in slot_result.batch_receipts {
                 data_to_commit.add_batch(receipt);
             }
 
-            // let (inclusion_proof, completeness_proof) = self
-            //     .da_service
-            //     .get_extraction_proof(&filtered_block, &blobs)
-            //     .await;
+            let (inclusion_proof, completeness_proof) = self
+                .da_service
+                .get_extraction_proof(&filtered_block, vec_blobs.as_slice())
+                .await;
 
-            // let transition_data: StateTransitionData<Stf::StateRoot, Stf::Witness, Da::Spec> =
-            //     StateTransitionData {
-            //         pre_state_root: self.state_root.clone(),
-            //         da_block_header: filtered_block.header().clone(),
-            //         inclusion_proof,
-            //         completeness_proof,
-            //         blobs,
-            //         state_transition_witness: slot_result.witness,
-            //     };
+            let _transition_data: StateTransitionData<Stf::StateRoot, Stf::Witness, Da::Spec> =
+                StateTransitionData {
+                    // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1247): incorrect pre-state root in case of re-org
+                    initial_state_root: self.state_root.clone(),
+                    final_state_root: slot_result.state_root.clone(),
+                    da_block_header: filtered_block.header().clone(),
+                    inclusion_proof,
+                    completeness_proof,
+                    blobs: vec_blobs,
+                    state_transition_witness: slot_result.witness,
+                };
 
-            // // Create ZKP proof.
+            self.storage_manager
+                .save_change_set(filtered_block.header(), slot_result.change_set)?;
+
+            // ----------------
+            // Create ZK proof.
             // {
             //     let header_hash = transition_data.da_block_header.hash();
             //     self.prover_service.submit_witness(transition_data).await;
-            //     // TODO(#1185): This section will be moved and called upon block finalization once we have fork management ready.
+            //     // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1185):
+            //     //   This section will be moved and called upon block finalization once we have fork management ready.
             //     self.prover_service
             //         .prove(header_hash.clone())
             //         .await
@@ -395,11 +469,11 @@ where
             //             Ok(ProofSubmissionStatus::Success) => {
             //                 break;
             //             }
-            //             // TODO(#1185): Add timeout handling.
+            //             // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1185): Add timeout handling.
             //             Ok(ProofSubmissionStatus::ProofGenerationInProgress) => {
             //                 tokio::time::sleep(tokio::time::Duration::from_millis(100)).await
             //             }
-            //             // TODO(#1185): Add handling for DA submission errors.
+            //             // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1185): Add handling for DA submission errors.
             //             Err(e) => panic!("{:?}", e),
             //         }
             //     }
@@ -426,14 +500,52 @@ where
 
             self.ledger_db.commit_soft_batch(soft_batch_receipt, true)?;
             self.state_root = next_state_root;
+            seen_receipts.push_back(data_to_commit);
+            seen_block_headers.push_back(filtered_block.header().clone());
 
             info!(
                 "New State Root after blob {:?} is: {:?}",
                 hex::encode(blob_hash),
                 self.state_root
             );
+
             height += 1;
+
+            // ----------------
+            // Finalization. Done after seen block for proper handling of instant finality
+            // Can be moved to another thread to improve throughput
+            let last_finalized = self.da_service.get_last_finalized_block_header().await?;
+            // For safety we finalize blocks one by one
+            tracing::info!(
+                "Last finalized header height is {}, ",
+                last_finalized.height()
+            );
+            // Checking all seen blocks, in case if there was delay in getting last finalized header.
+            while let Some(earliest_seen_header) = seen_block_headers.front() {
+                tracing::debug!(
+                    "Checking seen header height={}",
+                    earliest_seen_header.height()
+                );
+                if earliest_seen_header.height() <= last_finalized.height() {
+                    tracing::debug!(
+                        "Finalizing seen header height={}",
+                        earliest_seen_header.height()
+                    );
+                    self.storage_manager.finalize(earliest_seen_header)?;
+                    seen_block_headers.pop_front();
+                    let receipts = seen_receipts.pop_front().unwrap();
+                    self.ledger_db.commit_slot(receipts)?;
+                    continue;
+                }
+
+                break;
+            }
         }
+    }
+
+    /// Allows to read current state root
+    pub fn get_state_root(&self) -> &Stf::StateRoot {
+        &self.state_root
     }
 
     /// A basic helper for exponential backoff for error logging.

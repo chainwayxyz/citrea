@@ -50,7 +50,8 @@ fn init_evm() -> (Evm<C>, WorkingSet<C>, TestSigner) {
 
     {
         let sender_address = generate_address::<C>("sender");
-        let context = C::new(sender_address, 1);
+        let sequencer_address = generate_address::<C>("sequencer");
+        let context = C::new(sender_address, sequencer_address, 1);
 
         let transactions: Vec<RlpEvmTransaction> = vec![
             create_contract_transaction(&dev_signer, 0, LogsContract::default()),
@@ -73,7 +74,8 @@ fn init_evm() -> (Evm<C>, WorkingSet<C>, TestSigner) {
 
     {
         let sender_address = generate_address::<C>("sender");
-        let context = C::new(sender_address, 1);
+        let sequencer_address = generate_address::<C>("sequencer");
+        let context = C::new(sender_address, sequencer_address, 1);
 
         let transactions: Vec<RlpEvmTransaction> = vec![
             publish_event_message(contract_addr, &dev_signer, 3, "hello2".to_string()),

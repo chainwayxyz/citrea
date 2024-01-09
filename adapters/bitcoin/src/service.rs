@@ -412,6 +412,17 @@ impl DaService for BitcoinService {
             signature,
         ))
     }
+
+    async fn send_aggregated_zk_proof(
+        &self,
+        _aggregated_proof_data: &[u8],
+    ) -> Result<u64, Self::Error> {
+        unimplemented!();
+    }
+
+    async fn get_aggregated_proofs_at(&self, _height: u64) -> Result<Vec<Vec<u8>>, Self::Error> {
+        unimplemented!();
+    }
 }
 
 #[cfg(test)]

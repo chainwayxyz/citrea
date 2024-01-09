@@ -25,6 +25,7 @@ sov-stf-runner = { path = "../../full-node/sov-stf-runner", features = [
 sov-rollup-interface = { path = "../../rollup-interface", features = [
     "native",
 ] }
+sov-prover-storage-manager = { path = "../../full-node/sov-prover-storage-manager" }
 
 sov-modules-rollup-blueprint = { path = "../../module-system/sov-modules-rollup-blueprint" }
 sov-modules-stf-blueprint = { path = "../../module-system/sov-modules-stf-blueprint", features = [
@@ -69,6 +70,9 @@ sov-rng-da-service = { path = "../../utils/rng-da-service" }
 sov-rollup-interface = { path = "../../rollup-interface", features = [
     "fuzzing",
 ] }
+sov-prover-storage-manager = { path = "../../full-node/sov-prover-storage-manager", features = [
+    "test-utils",
+] }
 sov-mock-da = { path = "../../adapters/mock-da" }
 sov-evm = { path = "../../module-system/module-implementations/sov-evm", features = [
     "smart_contracts",
@@ -80,6 +84,7 @@ sov-nft-module = { path = "../../module-system/module-implementations/sov-nft-mo
     "native",
 ] }
 sov-zk-cycle-macros = { path = "../../utils/zk-cycle-macros" }
+humantime = "2.1"
 
 borsh = { workspace = true }
 bincode = { workspace = true }

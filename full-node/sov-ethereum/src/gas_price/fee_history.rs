@@ -96,8 +96,7 @@ impl<C: sov_modules_api::Context> FeeHistoryCache<C> {
                 &receipts,
             )
             .unwrap_or_default();
-            let block_number =
-                convert_u256_to_u64(block.header.number.unwrap_or_default()).unwrap_or_default();
+            let block_number = convert_u256_to_u64(block.header.number.unwrap_or_default());
             entries.insert(block_number, fee_history_entry);
         }
     }
@@ -185,8 +184,7 @@ pub(crate) fn calculate_reward_percentiles_for_block(
             // While we will sum up the gas again later, it is worth
             // noting that the order of the transactions will be different,
             // so the sum will also be different for each receipt.
-            let cumulative_gas_used =
-                convert_u256_to_u64(receipt.cumulative_gas_used).unwrap_or_default();
+            let cumulative_gas_used = convert_u256_to_u64(receipt.cumulative_gas_used);
             let gas_used = cumulative_gas_used - *previous_gas;
             *previous_gas = cumulative_gas_used;
 
@@ -254,10 +252,10 @@ impl FeeHistoryEntry {
     /// Note: This does not calculate the rewards for the block.
     pub fn new(block: &Rich<Block>) -> Self {
         let base_fee_per_gas =
-            convert_u256_to_u64(block.header.base_fee_per_gas.unwrap_or_default()).unwrap();
+            convert_u256_to_u64(block.header.base_fee_per_gas.unwrap_or_default());
 
-        let gas_used = convert_u256_to_u64(block.header.gas_used).unwrap_or_default();
-        let gas_limit = convert_u256_to_u64(block.header.gas_limit).unwrap_or_default();
+        let gas_used = convert_u256_to_u64(block.header.gas_used);
+        let gas_limit = convert_u256_to_u64(block.header.gas_limit);
         let gas_used_ratio = gas_used as f64 / gas_limit as f64;
 
         FeeHistoryEntry {

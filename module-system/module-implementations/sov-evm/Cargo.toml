@@ -65,6 +65,10 @@ tokio = { workspace = true }
 tempfile = { workspace = true }
 bytes = { workspace = true }
 rand = { workspace = true }
+sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-manager", features = [
+    "test-utils",
+] }
+
 
 [features]
 default = ["native"]
