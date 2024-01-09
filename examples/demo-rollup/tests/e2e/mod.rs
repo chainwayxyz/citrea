@@ -62,7 +62,7 @@ async fn test_full_node_send_tx() -> Result<(), anyhow::Error> {
 
     let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
 
-    let tx_hash = full_node_test_client.send_eth(addr, None, None).await;
+    let tx_hash = full_node_test_client.send_eth(addr, None, None, None).await;
 
     sleep(Duration::from_millis(2000)).await;
 
@@ -115,7 +115,7 @@ async fn test_delayed_sync_ten_blocks() -> Result<(), anyhow::Error> {
     let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
 
     for _ in 0..10 {
-        seq_test_client.send_eth(addr, None, None).await;
+        seq_test_client.send_eth(addr, None, None, None).await;
         seq_test_client.send_publish_batch_request().await;
     }
 
@@ -266,7 +266,7 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
 
     // create 10 blocks
     for _ in 0..10 {
-        seq_test_client.send_eth(addr, None, None).await;
+        seq_test_client.send_eth(addr, None, None, None).await;
         seq_test_client.send_publish_batch_request().await;
     }
 
@@ -295,7 +295,7 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
 
     // create 100 more blocks
     for _ in 0..100 {
-        seq_test_client.send_eth(addr, None, None).await;
+        seq_test_client.send_eth(addr, None, None, None).await;
         seq_test_client.send_publish_batch_request().await;
     }
 
@@ -428,7 +428,7 @@ async fn execute_blocks<T: TestContract>(
         let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
 
         for _ in 0..300 {
-            sequencer_client.send_eth(addr, None, None).await;
+            sequencer_client.send_eth(addr, None, None, None).await;
             sequencer_client.send_publish_batch_request().await;
         }
     }

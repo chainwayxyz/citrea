@@ -33,6 +33,7 @@ use sov_accounts::Accounts;
 use sov_accounts::Response::{AccountEmpty, AccountExists};
 use sov_evm::{CallMessage, RlpEvmTransaction};
 use sov_modules_api::transaction::Transaction;
+use sov_modules_api::utils::to_jsonrpsee_error_object;
 use sov_modules_api::{EncodeCall, Module, PrivateKey, SlotData, WorkingSet};
 use sov_modules_rollup_blueprint::{Rollup, RollupBlueprint};
 use sov_rollup_interface::services::da::DaService;
@@ -46,6 +47,8 @@ type CitreaMempool<C: sov_modules_api::Context> = Pool<
     CoinbaseTipOrdering<EthPooledTransaction>,
     NoopBlobStore,
 >;
+
+const ETH_RPC_ERROR: &str = "ETH_RPC_ERROR";
 
 fn create_mempool<C>(
     client: C,
@@ -288,7 +291,7 @@ impl<
                 .mempool
                 .add_transaction(TransactionOrigin::Local, pool_transaction)
                 .await
-                .unwrap();
+                .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
             Ok::<H256, ErrorObjectOwned>(H256::from_slice(hash.as_bytes()))
         })?;
         rpc.register_async_method("eth_publishBatch", |_, ctx| async move {
