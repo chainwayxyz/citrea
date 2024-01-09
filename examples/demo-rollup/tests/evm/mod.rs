@@ -178,9 +178,7 @@ async fn test_getlogs(client: &Box<TestClient>) -> Result<(), Box<dyn std::error
     assert_eq!(sepolia_log_data[1..len - 1], logs[0].data.to_string());
 
     // Deploy another contract
-    let (contract_address2, contract) = {
-        let contract = LogsContract::default();
-
+    let contract_address2 = {
         let deploy_contract_req = client.deploy_contract(contract.byte_code()).await?;
         client.send_publish_batch_request().await;
 
@@ -190,7 +188,7 @@ async fn test_getlogs(client: &Box<TestClient>) -> Result<(), Box<dyn std::error
             .contract_address
             .unwrap();
 
-        (contract_address, contract)
+        contract_address
     };
 
     // call the second contract again
@@ -336,8 +334,7 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
     // This should just pass without error
     let _: Bytes = client
         .contract_call(contract_address, contract.set_call_data(set_arg))
-        .await
-        .unwrap();
+        .await?;
 
     // This call should fail because function does not exist
     let failing_call: Result<Bytes, _> = client

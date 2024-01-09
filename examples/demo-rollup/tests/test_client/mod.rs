@@ -170,7 +170,7 @@ impl TestClient {
 
         let receipt_req = self.client.call(&typed_transaction, None).await?;
 
-        T::from_str(&receipt_req.to_string()).or_else(|_| Err("Failed to parse bytes".into()))
+        T::from_str(&receipt_req.to_string()).map_err(|_| "Failed to parse bytes".into())
     }
 
     pub(crate) async fn send_eth(
