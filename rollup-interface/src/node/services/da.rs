@@ -116,11 +116,20 @@ pub trait DaService: Send + Sync + 'static {
         &self,
         blob: &[u8],
     ) -> Result<(<Self::Spec as DaSpec>::BlobTransaction, Vec<u8>), Self::Error>;
+
+    /// Sends am aggregated ZK proofs to the DA layer.
+    async fn send_aggregated_zk_proof(
+        &self,
+        aggregated_proof_data: &[u8],
+    ) -> Result<u64, Self::Error>;
+
+    /// Fetches all aggregated ZK proofs at a specified block height.
+    async fn get_aggregated_proofs_at(&self, height: u64) -> Result<Vec<Vec<u8>>, Self::Error>;
 }
 
 /// `SlotData` is the subset of a DA layer block which is stored in the rollup's database.
-/// At the very least, the rollup needs access to the hashes and headers of all DA layer blocks, but rollups
-/// may choose to store partial (or full) block data as well.
+/// At the very least, the rollup needs access to the hashes and headers of all DA layer blocks,
+/// but rollup may choose to store partial (or full) block data as well.
 pub trait SlotData:
     Serialize + DeserializeOwned + PartialEq + core::fmt::Debug + Clone + Send + Sync
 {

@@ -18,7 +18,7 @@ pub mod proof;
 pub mod transaction;
 pub mod utxo;
 
-#[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, Eq)]
+#[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct BitcoinSpec;
 
 pub struct RollupParams {

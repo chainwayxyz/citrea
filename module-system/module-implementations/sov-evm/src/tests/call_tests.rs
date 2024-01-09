@@ -50,7 +50,9 @@ fn call_multiple_test() {
     let set_arg = 999;
     {
         let sender_address = generate_address::<C>("sender");
-        let context = C::new(sender_address, 1);
+
+        let sequencer_address = generate_address::<C>("sequencer");
+        let context = C::new(sender_address, sequencer_address, 1);
 
         let transactions: Vec<RlpEvmTransaction> = vec![
             create_contract_transaction(&dev_signer1, 0, SimpleStorageContract::default()),
@@ -143,7 +145,8 @@ fn call_test() {
     let set_arg = 999;
     {
         let sender_address = generate_address::<C>("sender");
-        let context = C::new(sender_address, 1);
+        let sequencer_address = generate_address::<C>("sequencer");
+        let context = C::new(sender_address, sequencer_address, 1);
 
         let rlp_transactions = vec![
             create_contract_message(&dev_signer, 0, SimpleStorageContract::default()),
@@ -206,7 +209,8 @@ fn failed_transaction_test() {
     evm.begin_slot_hook([5u8; 32], &[10u8; 32].into(), working_set);
     {
         let sender_address = generate_address::<C>("sender");
-        let context = C::new(sender_address, 1);
+        let sequencer_address = generate_address::<C>("sequencer");
+        let context = C::new(sender_address, sequencer_address, 1);
         let rlp_transactions = vec![create_contract_message(
             &dev_signer,
             0,
@@ -253,7 +257,8 @@ fn self_destruct_test() {
     evm.begin_slot_hook([5u8; 32], &[10u8; 32].into(), &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
-        let context = C::new(sender_address, 1);
+        let sequencer_address = generate_address::<C>("sequencer");
+        let context = C::new(sender_address, sequencer_address, 1);
 
         // deploy selfdestruct contract
         // send some money to the selfdestruct contract
@@ -299,7 +304,8 @@ fn self_destruct_test() {
     evm.begin_slot_hook([5u8; 32], &[99u8; 32].into(), &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
-        let context = C::new(sender_address, 1);
+        let sequencer_address = generate_address::<C>("sequencer");
+        let context = C::new(sender_address, sequencer_address, 1);
         // selfdestruct
         evm.call(
             CallMessage {
@@ -366,7 +372,8 @@ fn log_filter_test_at_block_hash() {
     evm.begin_slot_hook([5u8; 32], &[10u8; 32].into(), &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
-        let context = C::new(sender_address, 1);
+        let sequencer_address = generate_address::<C>("sequencer");
+        let context = C::new(sender_address, sequencer_address, 1);
 
         // deploy logs contract
         // call the contract function
@@ -559,7 +566,8 @@ fn log_filter_test_with_range() {
     evm.begin_slot_hook([5u8; 32], &[10u8; 32].into(), &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
-        let context = C::new(sender_address, 1);
+        let sequencer_address = generate_address::<C>("sequencer");
+        let context = C::new(sender_address, sequencer_address, 1);
 
         // deploy selfdestruct contract
         // call the contract function
@@ -607,7 +615,8 @@ fn log_filter_test_with_range() {
     evm.begin_slot_hook([5u8; 32], &[99u8; 32].into(), &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
-        let context = C::new(sender_address, 1);
+        let sequencer_address = generate_address::<C>("sequencer");
+        let context = C::new(sender_address, sequencer_address, 1);
         // call the contract function
         evm.call(
             CallMessage {
@@ -650,7 +659,8 @@ fn test_log_limits() {
     evm.begin_slot_hook([5u8; 32], &[10u8; 32].into(), &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
-        let context = C::new(sender_address, 1);
+        let sequencer_address = generate_address::<C>("sequencer");
+        let context = C::new(sender_address, sequencer_address, 1);
 
         // deploy logs contract
         let mut rlp_transactions = vec![create_contract_message(
@@ -766,7 +776,8 @@ fn test_block_hash_in_evm() {
     evm.begin_slot_hook([5u8; 32], &[10u8; 32].into(), &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
-        let context = C::new(sender_address, 1);
+        let sequencer_address = generate_address::<C>("sequencer");
+        let context = C::new(sender_address, sequencer_address, 1);
 
         let deploy_message = create_contract_message(&dev_signer, 0, BlockHashContract::default());
 

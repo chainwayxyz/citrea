@@ -68,6 +68,12 @@ impl AsRef<[u8]> for TmHash {
     }
 }
 
+impl core::fmt::Display for TmHash {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "0x{}", hex::encode(self.0))
+    }
+}
+
 impl TmHash {
     pub fn inner(&self) -> &[u8; 32] {
         match self.0 {
@@ -96,7 +102,7 @@ impl From<TmHash> for [u8; 32] {
     }
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, Eq)]
+#[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct CelestiaSpec;
 
 impl DaSpec for CelestiaSpec {
@@ -119,7 +125,8 @@ impl DaSpec for CelestiaSpec {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RollupParams {
-    pub namespace: Namespace,
+    pub rollup_batch_namespace: Namespace,
+    pub rollup_proof_namespace: Namespace,
 }
 
 #[derive(
@@ -163,7 +170,7 @@ impl da::DaVerifier for CelestiaVerifier {
 
     fn new(params: <Self::Spec as DaSpec>::ChainParams) -> Self {
         Self {
-            rollup_namespace: params.namespace,
+            rollup_namespace: params.rollup_batch_namespace,
         }
     }
 

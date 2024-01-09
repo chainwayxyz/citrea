@@ -38,15 +38,31 @@ pub struct Message<C: Context, Mod: Module> {
     pub sender_key: Rc<<C as Spec>::PrivateKey>,
     /// The message content.
     pub content: Mod::CallMessage,
+    /// The ID of the chain.
+    pub chain_id: u64,
+    /// The gas tip for the sequencer.
+    pub gas_tip: u64,
+    /// The gas limit for the transaction execution.
+    pub gas_limit: u64,
     /// The message nonce.
     pub nonce: u64,
 }
 
 impl<C: Context, Mod: Module> Message<C, Mod> {
-    fn new(sender_key: Rc<<C as Spec>::PrivateKey>, content: Mod::CallMessage, nonce: u64) -> Self {
+    fn new(
+        sender_key: Rc<<C as Spec>::PrivateKey>,
+        content: Mod::CallMessage,
+        chain_id: u64,
+        gas_tip: u64,
+        gas_limit: u64,
+        nonce: u64,
+    ) -> Self {
         Self {
             sender_key,
             content,
+            chain_id,
+            gas_tip,
+            gas_limit,
             nonce,
         }
     }
@@ -64,12 +80,19 @@ pub trait MessageGenerator {
     fn create_messages(&self) -> Vec<Message<Self::Context, Self::Module>>;
 
     /// Creates a transaction object associated with a call message, for a given module.
+    #[allow(clippy::too_many_arguments)]
     fn create_tx<Encoder: EncodeCall<Self::Module>>(
         &self,
         // Private key of the sender
         sender: &<Self::Context as Spec>::PrivateKey,
         // The message itself
         message: <Self::Module as Module>::CallMessage,
+        // The ID of the chain
+        chain_id: u64,
+        // A gas tip for the sequencer
+        gas_tip: u64,
+        // The gas limit for the transaction execution
+        gas_limit: u64,
         // The message nonce
         nonce: u64,
         // A boolean that indicates whether this message is the last one to be sent.
@@ -87,6 +110,9 @@ pub trait MessageGenerator {
             let tx = self.create_tx::<Encoder>(
                 &message.sender_key,
                 message.content,
+                message.chain_id,
+                message.gas_tip,
+                message.gas_limit,
                 message.nonce,
                 is_last,
             );

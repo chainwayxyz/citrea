@@ -2,14 +2,16 @@ use sov_mock_da::{
     MockBlockHeader, MockDaService, MockDaSpec, MockDaVerifier, MockHash, MockValidityCond,
 };
 use sov_mock_zkvm::MockZkvm;
+use sov_rollup_interface::da::Time;
+use sov_rollup_interface::zk::StateTransitionData;
 use sov_stf_runner::mock::MockStf;
 use sov_stf_runner::{
     ParallelProverService, ProofProcessingStatus, ProofSubmissionStatus, ProverService,
-    ProverServiceError, RollupProverConfig, StateTransitionData, WitnessSubmissionStatus,
+    ProverServiceConfig, ProverServiceError, RollupProverConfig, WitnessSubmissionStatus,
 };
 
 #[tokio::test]
-async fn test_sucesfull_prover_execution() -> Result<(), ProverServiceError> {
+async fn test_successful_prover_execution() -> Result<(), ProverServiceError> {
     let TestProver {
         prover_service, vm, ..
     } = make_new_prover();
@@ -161,9 +163,14 @@ async fn test_generate_multiple_proofs_for_the_same_witness() -> Result<(), anyh
 }
 
 struct TestProver {
-    prover_service:
-        ParallelProverService<[u8; 0], Vec<u8>, MockDaService, MockZkvm, MockStf<MockValidityCond>>,
-    vm: MockZkvm,
+    prover_service: ParallelProverService<
+        [u8; 0],
+        Vec<u8>,
+        MockDaService,
+        MockZkvm<MockValidityCond>,
+        MockStf<MockValidityCond>,
+    >,
+    vm: MockZkvm<MockValidityCond>,
     num_worker_threads: usize,
 }
 
@@ -173,7 +180,7 @@ async fn wait_for_proof_proof_da_submission(
         [u8; 0],
         Vec<u8>,
         MockDaService,
-        MockZkvm,
+        MockZkvm<MockValidityCond>,
         MockStf<MockValidityCond>,
     >,
 ) {
@@ -188,7 +195,7 @@ async fn wait_for_proof_proof_da_submission(
 
 fn make_new_prover() -> TestProver {
     let num_threads = num_cpus::get();
-    let vm = MockZkvm::default();
+    let vm = MockZkvm::new(MockValidityCond::default());
 
     let prover_config = RollupProverConfig::Execute;
     let zk_stf = MockStf::<MockValidityCond>::default();
@@ -201,6 +208,9 @@ fn make_new_prover() -> TestProver {
             prover_config,
             (),
             num_threads,
+            ProverServiceConfig {
+                aggregated_proof_block_jump: 1,
+            },
         ),
         vm,
         num_worker_threads: num_threads,
@@ -211,11 +221,13 @@ fn make_transition_data(
     header_hash: MockHash,
 ) -> StateTransitionData<[u8; 0], Vec<u8>, MockDaSpec> {
     StateTransitionData {
-        pre_state_root: [],
+        initial_state_root: [],
+        final_state_root: [],
         da_block_header: MockBlockHeader {
             prev_hash: [0; 32].into(),
             hash: header_hash,
             height: 0,
+            time: Time::now(),
         },
         inclusion_proof: [0; 32],
         completeness_proof: (),

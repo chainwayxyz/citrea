@@ -6,6 +6,7 @@ use sov_cli::wallet_state::PrivateKeyAndAddress;
 use sov_ethereum::{EthRpcConfig, FeeHistoryCacheConfig, GasPriceOracleConfig};
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
+use sov_prover_storage_manager::SnapshotManager;
 use sov_rollup_interface::services::da::DaService;
 use sov_state::ProverStorage;
 
@@ -25,7 +26,7 @@ fn read_sov_tx_signer_priv_key() -> Result<DefaultPrivateKey, anyhow::Error> {
 // register ethereum methods.
 pub(crate) fn register_ethereum<Da: DaService>(
     da_service: Da,
-    storage: ProverStorage<sov_state::DefaultStorageSpec>,
+    storage: ProverStorage<sov_state::DefaultStorageSpec, SnapshotManager>,
     methods: &mut jsonrpsee::RpcModule<()>,
     sequencer_client: Option<SequencerClient>,
 ) -> Result<(), anyhow::Error> {

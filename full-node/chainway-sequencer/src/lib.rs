@@ -90,6 +90,7 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
             .await;
         Ok(())
     }
+
     pub async fn run(&mut self) -> Result<(), anyhow::Error> {
         loop {
             if (self.receiver.next().await).is_some() {
@@ -158,10 +159,18 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
     fn make_blob(&mut self, raw_message: Vec<u8>) -> Vec<u8> {
         let nonce = self.sov_tx_signer_nonce.borrow_mut();
 
-        let raw_tx =
-            Transaction::<C>::new_signed_tx(&self.sov_tx_signer_priv_key, raw_message, *nonce)
-                .try_to_vec()
-                .unwrap();
+        // TODO: figure out what to do with sov-tx fields
+        // chain id gas tip and gas limit
+        let raw_tx = Transaction::<C>::new_signed_tx(
+            &self.sov_tx_signer_priv_key,
+            raw_message,
+            0,
+            0,
+            0,
+            *nonce,
+        )
+        .try_to_vec()
+        .unwrap();
 
         *nonce += 1;
 
