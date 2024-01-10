@@ -182,13 +182,11 @@ async fn test_getlogs(client: &Box<TestClient>) -> Result<(), Box<dyn std::error
         let deploy_contract_req = client.deploy_contract(contract.byte_code()).await?;
         client.send_publish_batch_request().await;
 
-        let contract_address = deploy_contract_req
+        deploy_contract_req
             .await?
             .unwrap()
             .contract_address
-            .unwrap();
-
-        contract_address
+            .unwrap()
     };
 
     // call the second contract again
