@@ -1,37 +1,35 @@
+use std::str::FromStr;
+
 use ethereum_types::H160;
 use ethers_core::abi::Address;
 use ethers_core::k256::ecdsa::SigningKey;
 use ethers_core::types::transaction::eip2718::TypedTransaction;
-use ethers_core::types::{
-    Block, BlockId, Eip1559TransactionRequest, Transaction, TransactionRequest, TxHash,
-};
+use ethers_core::types::{Block, BlockId, Bytes, Eip1559TransactionRequest, Transaction, TxHash};
 use ethers_middleware::SignerMiddleware;
 use ethers_providers::{Http, Middleware, PendingTransaction, Provider};
 use ethers_signers::Wallet;
 use jsonrpsee::core::client::ClientT;
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use jsonrpsee::rpc_params;
-use reth_primitives::{BlockNumberOrTag, Bytes};
-use sov_evm::{LogResponse, LogsContract, SimpleStorageContract, TestContract};
+use reth_primitives::BlockNumberOrTag;
+use sov_evm::LogResponse;
 
 const MAX_FEE_PER_GAS: u64 = 1000000001;
 const GAS: u64 = 900000u64;
 
-pub struct TestClient<T: TestContract> {
+pub struct TestClient {
     chain_id: u64,
     pub(crate) from_addr: Address,
-    contract: T,
     client: SignerMiddleware<Provider<Http>, Wallet<SigningKey>>,
     http_client: HttpClient,
 }
 
-impl<T: TestContract> TestClient<T> {
+impl TestClient {
     #[allow(dead_code)]
     pub(crate) async fn new(
         chain_id: u64,
         key: Wallet<SigningKey>,
         from_addr: Address,
-        contract: T,
         rpc_addr: std::net::SocketAddr,
     ) -> Self {
         let host = format!("http://localhost:{}", rpc_addr.port());
@@ -46,7 +44,6 @@ impl<T: TestContract> TestClient<T> {
         Self {
             chain_id,
             from_addr,
-            contract,
             client,
             http_client,
         }
@@ -61,6 +58,7 @@ impl<T: TestContract> TestClient<T> {
 
     pub(crate) async fn deploy_contract(
         &self,
+        byte_code: Bytes,
     ) -> Result<PendingTransaction<'_, Http>, Box<dyn std::error::Error>> {
         let nonce = self.eth_get_transaction_count(self.from_addr).await;
         let req = Eip1559TransactionRequest::new()
@@ -70,7 +68,7 @@ impl<T: TestContract> TestClient<T> {
             .max_priority_fee_per_gas(10u64)
             .max_fee_per_gas(MAX_FEE_PER_GAS)
             .gas(GAS)
-            .data(self.contract.byte_code());
+            .data(byte_code);
 
         let typed_transaction = TypedTransaction::Eip1559(req);
 
@@ -81,7 +79,10 @@ impl<T: TestContract> TestClient<T> {
         Ok(receipt_req)
     }
 
-    pub(crate) async fn deploy_contract_call(&self) -> Result<Bytes, Box<dyn std::error::Error>> {
+    pub(crate) async fn deploy_contract_call(
+        &self,
+        byte_code: Bytes,
+    ) -> Result<Bytes, Box<dyn std::error::Error>> {
         let nonce = self.eth_get_transaction_count(self.from_addr).await;
         let req = Eip1559TransactionRequest::new()
             .from(self.from_addr)
@@ -90,7 +91,7 @@ impl<T: TestContract> TestClient<T> {
             .max_priority_fee_per_gas(10u64)
             .max_fee_per_gas(MAX_FEE_PER_GAS)
             .gas(GAS)
-            .data(self.contract.byte_code());
+            .data(byte_code);
 
         let typed_transaction = TypedTransaction::Eip1559(req);
 
@@ -99,164 +100,77 @@ impl<T: TestContract> TestClient<T> {
         Ok(receipt_req)
     }
 
-    pub(crate) async fn call_logs_contract(
+    pub(crate) async fn contract_transaction(
         &self,
         contract_address: H160,
-        message: String,
-    ) -> PendingTransaction<'_, Http> {
-        let contract: &LogsContract = match self.contract.as_any().downcast_ref::<LogsContract>() {
-            Some(lc) => lc,
-            None => panic!("Contract isn't a Logs Contract!"),
-        };
-
-        let req = Eip1559TransactionRequest::new()
-            .from(self.from_addr)
-            .to(contract_address)
-            .chain_id(self.chain_id)
-            .data(contract.publish_event(message))
-            .max_priority_fee_per_gas(10u64)
-            .max_fee_per_gas(MAX_FEE_PER_GAS);
-
-        let typed_transaction = TypedTransaction::Eip1559(req);
-
-        self.client
-            .send_transaction(typed_transaction, None)
-            .await
-            .unwrap()
-    }
-
-    #[allow(dead_code)]
-    pub(crate) async fn set_value_unsigned(
-        &self,
-        contract_address: H160,
-        set_arg: u32,
-    ) -> PendingTransaction<'_, Http> {
-        // Tx without gas_limit should estimate and include it in send_transaction endpoint
-        // Tx without nonce should fetch and include it in send_transaction endpoint
-        let contract: &SimpleStorageContract = self.get_simple_storage_contract();
-        let req = Eip1559TransactionRequest::new()
-            .from(self.from_addr)
-            .to(contract_address)
-            .chain_id(self.chain_id)
-            .data(contract.set_call_data(set_arg))
-            .max_priority_fee_per_gas(10u64)
-            .max_fee_per_gas(MAX_FEE_PER_GAS);
-
-        let typed_transaction = TypedTransaction::Eip1559(req);
-
-        self.eth_send_transaction(typed_transaction).await
-    }
-
-    pub(crate) async fn set_value(
-        &self,
-        contract_address: H160,
-        set_arg: u32,
-        max_priority_fee_per_gas: Option<u64>,
-        max_fee_per_gas: Option<u64>,
+        data: Bytes,
     ) -> PendingTransaction<'_, Http> {
         let nonce = self.eth_get_transaction_count(self.from_addr).await;
-        let contract: &SimpleStorageContract = self.get_simple_storage_contract();
-
         let req = Eip1559TransactionRequest::new()
             .from(self.from_addr)
             .to(contract_address)
             .chain_id(self.chain_id)
             .nonce(nonce)
-            .data(contract.set_call_data(set_arg))
-            .max_priority_fee_per_gas(max_priority_fee_per_gas.unwrap_or(10u64))
-            .max_fee_per_gas(max_fee_per_gas.unwrap_or(MAX_FEE_PER_GAS))
-            .gas(GAS);
-
-        let typed_transaction = TypedTransaction::Eip1559(req);
-
-        self.client
-            .send_transaction(typed_transaction, None)
-            .await
-            .unwrap()
-    }
-
-    pub(crate) async fn set_value_call(
-        &self,
-        contract_address: H160,
-        set_arg: u32,
-    ) -> Result<Bytes, Box<dyn std::error::Error>> {
-        let nonce = self.eth_get_transaction_count(self.from_addr).await;
-
-        let contract: &SimpleStorageContract = self.get_simple_storage_contract();
-        // Any type of transaction can be used for eth_call
-        let req = TransactionRequest::new()
-            .from(self.from_addr)
-            .to(contract_address)
-            .chain_id(self.chain_id)
-            .nonce(nonce)
-            .data(contract.set_call_data(set_arg))
-            .gas_price(10u64);
-
-        let typed_transaction = TypedTransaction::Legacy(req.clone());
-
-        // Estimate gas on rpc
-        let gas = self
-            .eth_estimate_gas(typed_transaction, Some(BlockNumberOrTag::Latest))
-            .await;
-
-        // Call with the estimated gas
-        let req = req.gas(gas);
-        let typed_transaction = TypedTransaction::Legacy(req);
-
-        let response = self
-            .eth_call(typed_transaction, Some(BlockNumberOrTag::Latest))
-            .await?;
-
-        Ok(response)
-    }
-
-    pub(crate) async fn failing_call(
-        &self,
-        contract_address: H160,
-    ) -> Result<Bytes, Box<dyn std::error::Error>> {
-        let nonce = self.eth_get_transaction_count(self.from_addr).await;
-
-        let contract: &SimpleStorageContract = self.get_simple_storage_contract();
-
-        // Any type of transaction can be used for eth_call
-        let req = Eip1559TransactionRequest::new()
-            .from(self.from_addr)
-            .to(contract_address)
-            .chain_id(self.chain_id)
-            .nonce(nonce)
-            .data(contract.failing_function_call_data())
             .max_priority_fee_per_gas(10u64)
             .max_fee_per_gas(MAX_FEE_PER_GAS)
-            .gas(GAS);
+            .gas(GAS)
+            .data(data);
 
         let typed_transaction = TypedTransaction::Eip1559(req);
 
-        self.eth_call(typed_transaction, Some(BlockNumberOrTag::Latest))
+        self.client
+            .send_transaction(typed_transaction, None)
             .await
+            .unwrap()
     }
 
-    pub(crate) async fn query_contract(
+    pub(crate) async fn contract_transaction_with_custom_fee(
         &self,
         contract_address: H160,
-    ) -> Result<ethereum_types::U256, Box<dyn std::error::Error>> {
+        data: Bytes,
+        max_priority_fee_per_gas: u64,
+        max_fee_per_gas: u64,
+    ) -> PendingTransaction<'_, Http> {
         let nonce = self.eth_get_transaction_count(self.from_addr).await;
-
-        let contract: &SimpleStorageContract = self.get_simple_storage_contract();
-
         let req = Eip1559TransactionRequest::new()
             .from(self.from_addr)
             .to(contract_address)
             .chain_id(self.chain_id)
             .nonce(nonce)
-            .data(contract.get_call_data())
-            .gas(GAS);
+            .max_priority_fee_per_gas(max_priority_fee_per_gas)
+            .max_fee_per_gas(max_fee_per_gas)
+            .gas(GAS)
+            .data(data);
 
         let typed_transaction = TypedTransaction::Eip1559(req);
 
-        let response = self.client.call(&typed_transaction, None).await?;
+        self.client
+            .send_transaction(typed_transaction, None)
+            .await
+            .unwrap()
+    }
 
-        let resp_array: [u8; 32] = response.to_vec().try_into().unwrap();
-        Ok(ethereum_types::U256::from(resp_array))
+    pub(crate) async fn contract_call<T: FromStr>(
+        &self,
+        contract_address: H160,
+        data: Bytes,
+    ) -> Result<T, Box<dyn std::error::Error>> {
+        let nonce = self.eth_get_transaction_count(self.from_addr).await;
+        let req = Eip1559TransactionRequest::new()
+            .from(self.from_addr)
+            .to(contract_address)
+            .chain_id(self.chain_id)
+            .nonce(nonce)
+            .max_priority_fee_per_gas(10u64)
+            .max_fee_per_gas(MAX_FEE_PER_GAS)
+            .gas(GAS)
+            .data(data);
+
+        let typed_transaction = TypedTransaction::Eip1559(req);
+
+        let receipt_req = self.client.call(&typed_transaction, None).await?;
+
+        T::from_str(&receipt_req.to_string()).map_err(|_| "Failed to parse bytes".into())
     }
 
     pub(crate) async fn send_eth(
@@ -305,6 +219,7 @@ impl<T: TestContract> TestClient<T> {
             .unwrap()
     }
 
+    #[allow(dead_code)]
     pub(crate) async fn eth_send_transaction(
         &self,
         tx: TypedTransaction,
@@ -468,6 +383,7 @@ impl<T: TestContract> TestClient<T> {
             .map_err(|e| e.into())
     }
 
+    #[allow(dead_code)]
     pub(crate) async fn eth_estimate_gas(
         &self,
         tx: TypedTransaction,
@@ -495,18 +411,6 @@ impl<T: TestContract> TestClient<T> {
             .await
             .unwrap();
         eth_logs
-    }
-
-    pub(crate) fn get_simple_storage_contract(&self) -> &SimpleStorageContract {
-        let contract: &SimpleStorageContract = match self
-            .contract
-            .as_any()
-            .downcast_ref::<SimpleStorageContract>()
-        {
-            Some(ssc) => ssc,
-            None => panic!("Contract isn't a Simple Storage Contract!"),
-        };
-        contract
     }
 }
 
