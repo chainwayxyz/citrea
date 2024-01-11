@@ -76,7 +76,7 @@ fn simple_contract_execution<DB: Database<Error = Infallible> + DatabaseCommit +
 
         let tx = dev_signer
             .sign_default_transaction(
-                TransactionKind::Call(contract_address.into()),
+                TransactionKind::Call(contract_address),
                 hex::decode(hex::encode(&call_data)).unwrap(),
                 2,
                 0,
@@ -92,7 +92,7 @@ fn simple_contract_execution<DB: Database<Error = Infallible> + DatabaseCommit +
 
         let tx = dev_signer
             .sign_default_transaction(
-                TransactionKind::Call(contract_address.into()),
+                TransactionKind::Call(contract_address),
                 hex::decode(hex::encode(&call_data)).unwrap(),
                 3,
                 0,
@@ -114,7 +114,7 @@ fn simple_contract_execution<DB: Database<Error = Infallible> + DatabaseCommit +
 
         let tx = dev_signer
             .sign_default_transaction(
-                TransactionKind::Call(contract_address.into()),
+                TransactionKind::Call(contract_address),
                 hex::decode(hex::encode(&failing_call_data)).unwrap(),
                 4,
                 0,

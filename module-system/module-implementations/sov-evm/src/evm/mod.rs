@@ -63,7 +63,7 @@ impl DbAccount {
 
     fn create_storage_prefix(parent_prefix: &Prefix, address: Address) -> Prefix {
         let mut prefix = parent_prefix.as_aligned_vec().clone().into_inner();
-        prefix.extend_from_slice(&address.as_ref());
+        prefix.extend_from_slice(address.as_ref());
         Prefix::new(prefix)
     }
 }

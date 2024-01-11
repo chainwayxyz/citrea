@@ -1,6 +1,6 @@
 // https://github.com/paradigmxyz/reth/blob/main/crates/rpc/rpc/src/eth/revm_utils.rs
 
-use reth_primitives::{AccessList, H256, U256};
+use reth_primitives::{B256, U256};
 use reth_rpc_types::CallRequest;
 use revm::primitives::{TransactTo, TxEnv};
 
@@ -45,7 +45,7 @@ impl CallFees {
         call_max_fee: Option<U256>,
         call_priority_fee: Option<U256>,
         block_base_fee: U256,
-        blob_versioned_hashes: Option<&[H256]>,
+        blob_versioned_hashes: Option<&[B256]>,
         max_fee_per_blob_gas: Option<U256>,
         block_blob_fee: Option<U256>,
     ) -> EthResult<CallFees> {

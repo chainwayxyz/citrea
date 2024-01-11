@@ -7,8 +7,7 @@ use std::ops::{Range, RangeFrom, RangeInclusive, RangeTo};
 use alloy_primitives::{Bloom, BloomInput, U64};
 use itertools::EitherOrBoth::*;
 use itertools::Itertools;
-use reth_primitives::{Address, BlockHash, BlockNumberOrTag, H256};
-use revm::primitives::B256;
+use reth_primitives::{Address, BlockHash, BlockNumberOrTag, B256};
 use serde::de::{DeserializeOwned, MapAccess, Visitor};
 use serde::ser::SerializeStruct;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -48,7 +47,7 @@ pub struct FilterSet<T: Eq + Hash>(pub HashSet<T>);
 
 /// A single topic
 /// Which is a set of topics
-pub type Topic = FilterSet<H256>;
+pub type Topic = FilterSet<B256>;
 
 /// Represents the target range of blocks for the filter
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]

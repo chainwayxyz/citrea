@@ -1,8 +1,9 @@
 use std::collections::HashMap;
 
-use crate::error::rpc::SignError;
-use reth_primitives::{sign_message, Address, Transaction, TransactionSigned, H256};
+use reth_primitives::{sign_message, Address, Transaction, TransactionSigned, B256};
 use secp256k1::{PublicKey, SecretKey};
+
+use crate::error::rpc::SignError;
 
 /// Ethereum transaction signer.
 #[derive(Clone)]
@@ -34,7 +35,7 @@ impl DevSigner {
         let tx_signature_hash = transaction.signature_hash();
         let signer = self.signers.get(&address).ok_or(SignError::NoAccount)?;
 
-        let signature = sign_message(H256::from_slice(signer.as_ref()), tx_signature_hash)
+        let signature = sign_message(B256::from_slice(signer.as_ref()), tx_signature_hash)
             .map_err(|_| SignError::CouldNotSign)?;
 
         Ok(TransactionSigned::from_transaction_and_signature(

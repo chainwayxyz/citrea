@@ -1,21 +1,25 @@
 //! Implementation specific Errors for the `eth_` namespace.
 
-use super::result::{internal_rpc_err, invalid_params_rpc_err, rpc_err, rpc_error_with_code};
+use std::convert::Infallible;
+use std::time::Duration;
+
 use alloy_sol_types::decode_revert_reason;
-use jsonrpsee::{
-    core::Error as RpcError,
-    types::{error::CALL_EXECUTION_FAILED_CODE, ErrorObject},
-};
+use jsonrpsee::core::Error as RpcError;
+use jsonrpsee::types::error::CALL_EXECUTION_FAILED_CODE;
+use jsonrpsee::types::ErrorObject;
 use reth_interfaces::RethError;
-use reth_primitives::{revm_primitives::InvalidHeader, Address, Bytes, U256};
+use reth_primitives::revm_primitives::InvalidHeader;
+use reth_primitives::{Address, Bytes, U256};
+use reth_rpc_types::error::EthRpcErrorCode;
+use reth_rpc_types::{BlockError, CallInputError};
+use revm::primitives::{EVMError, ExecutionResult, Halt, OutOfGasError};
+
 // use reth_revm::tracing::js::JsInspectorError;
 use super::pool::{
     Eip4844PoolTransactionError, InvalidPoolTransactionError, PoolError, PoolErrorKind,
     PoolTransactionError,
 };
-use reth_rpc_types::{error::EthRpcErrorCode, BlockError, CallInputError};
-use revm::primitives::{EVMError, ExecutionResult, Halt, OutOfGasError};
-use std::{convert::Infallible, time::Duration};
+use super::result::{internal_rpc_err, invalid_params_rpc_err, rpc_err, rpc_error_with_code};
 
 /// Result alias
 pub type EthResult<T> = Result<T, EthApiError>;
@@ -698,9 +702,7 @@ pub enum SignError {
 
 impl From<SignError> for ErrorObject<'static> {
     fn from(error: SignError) -> Self {
-        match error {
-            _ => error.into(),
-        }
+        error.into()
     }
 }
 

@@ -1,5 +1,5 @@
 use alloy_primitives::B256;
-use reth_primitives::{Bloom, Bytes, H256, U256};
+use reth_primitives::{Bloom, Bytes, U256};
 use sov_modules_api::prelude::*;
 use sov_modules_api::{AccessoryWorkingSet, Spec, WorkingSet};
 use sov_state::Storage;
@@ -23,7 +23,7 @@ where
             .get(working_set)
             .expect("Head block should always be set");
 
-        parent_block.header.state_root = B256::from_slice(&pre_state_root.clone().as_ref());
+        parent_block.header.state_root = B256::from_slice(pre_state_root.clone().as_ref());
         self.head.set(&parent_block, working_set);
 
         let sealed_parent_block = parent_block.clone().seal();

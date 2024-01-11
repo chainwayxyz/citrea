@@ -2,9 +2,6 @@
 
 use reth_primitives::{Address, BlobTransactionValidationError, InvalidTransactionError, TxHash};
 
-/// Transaction pool result type.
-pub type PoolResult<T> = Result<T, PoolError>;
-
 /// A trait for additional errors that can be thrown by the transaction pool.
 ///
 /// For example during validation

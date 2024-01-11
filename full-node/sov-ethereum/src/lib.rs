@@ -1,6 +1,6 @@
 mod batch_builder;
 mod gas_price;
-use std::array::TryFromSliceError;
+
 use std::process::Command;
 use std::sync::{Arc, Mutex};
 
@@ -11,9 +11,9 @@ use gas_price::gas_oracle::GasPriceOracle;
 pub use gas_price::gas_oracle::GasPriceOracleConfig;
 use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::RpcModule;
-use reth_primitives::{keccak256, Address, U64};
 use reth_primitives::{
-    BlockNumberOrTag, TransactionSignedNoHash as RethTransactionSignedNoHash, B256, U128, U256,
+    keccak256, Address, BlockNumberOrTag, TransactionSignedNoHash as RethTransactionSignedNoHash,
+    B256, U128, U256, U64,
 };
 use reth_rpc_types::{CallRequest, FeeHistory, TransactionRequest, TypedTransactionRequest};
 use reth_rpc_types_compat::transaction::to_primitive_transaction;
@@ -426,18 +426,6 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
     }
 
     Ok(())
-}
-
-fn convert_u256_to_u64(u256: reth_primitives::U256) -> Result<u64, TryFromSliceError> {
-    let bytes: [u8; 32] = u256.to_be_bytes();
-    let bytes: [u8; 8] = bytes[24..].try_into()?;
-    Ok(u64::from_be_bytes(bytes))
-}
-
-fn convert_u256_to_u128(u256: reth_primitives::U256) -> Result<u128, TryFromSliceError> {
-    let bytes: [u8; 32] = u256.to_be_bytes();
-    let bytes: [u8; 16] = bytes[16..].try_into()?;
-    Ok(u128::from_be_bytes(bytes))
 }
 
 fn get_call_request_and_params(

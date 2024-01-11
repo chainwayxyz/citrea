@@ -1,4 +1,3 @@
-use bytes::Bytes;
 use reth_primitives::{
     Bytes as RethBytes, TransactionSigned, TransactionSignedEcRecovered, TransactionSignedNoHash,
 };

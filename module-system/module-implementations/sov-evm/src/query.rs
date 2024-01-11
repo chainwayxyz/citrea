@@ -65,7 +65,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     #[rpc_method(name = "eth_getBlockByHash")]
     pub fn get_block_by_hash(
         &self,
-        block_hash: reth_primitives::H256,
+        block_hash: reth_primitives::B256,
         details: Option<bool>,
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<Option<reth_rpc_types::RichBlock>> {
@@ -301,7 +301,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     #[rpc_method(name = "eth_getTransactionByHash")]
     pub fn get_transaction_by_hash(
         &self,
-        hash: reth_primitives::H256,
+        hash: reth_primitives::B256,
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<Option<reth_rpc_types::Transaction>> {
         info!("evm module: eth_getTransactionByHash({})", hash);
@@ -341,7 +341,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     #[rpc_method(name = "eth_getTransactionByBlockHashAndIndex")]
     pub fn get_transaction_by_block_hash_and_index(
         &self,
-        block_hash: reth_primitives::H256,
+        block_hash: reth_primitives::B256,
         index: reth_primitives::U64,
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<Option<reth_rpc_types::Transaction>> {
@@ -440,7 +440,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     #[rpc_method(name = "eth_getTransactionReceipt")]
     pub fn get_transaction_receipt(
         &self,
-        hash: reth_primitives::H256,
+        hash: reth_primitives::B256,
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<Option<reth_rpc_types::TransactionReceipt>> {
         info!("evm module: eth_getTransactionReceipt");
@@ -932,7 +932,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         &self,
         block_number: u64,
         working_set: &mut WorkingSet<C>,
-    ) -> Option<reth_primitives::H256> {
+    ) -> Option<reth_primitives::B256> {
         let block = self
             .blocks
             .get(block_number as usize, &mut working_set.accessory_state())?;
@@ -959,7 +959,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     /// Helper function to get transactions and receipts for a given block hash
     pub fn get_transactions_and_receipts(
         &self,
-        block_hash: reth_primitives::H256,
+        block_hash: reth_primitives::B256,
         working_set: &mut WorkingSet<C>,
     ) -> Result<
         (
