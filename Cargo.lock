@@ -721,9 +721,9 @@ checksum = "9e1b586273c5702936fe7b7d6896644d8be71e6314cfe09d3167c95f712589e8"
 
 [[package]]
 name = "base64"
-version = "0.21.6"
+version = "0.21.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c79fed4cdb43e993fcdadc7e58a09fd0e3e649c4436fa11da71c9f1f3ee7feb9"
+checksum = "9d297deb1925b89f2ccc13d7635fa0714f12c87adce1c75356b39ca9b7178567"
 
 [[package]]
 name = "base64ct"
@@ -735,7 +735,7 @@ checksum = "8c3c1a368f70d6cf7302d78f8f7093da241fb8e8807c05cc9e51a125895a6d5b"
 name = "bashtestmd"
 version = "0.3.0"
 dependencies = [
- "clap 4.4.14",
+ "clap 4.4.15",
  "indoc",
  "markdown",
  "shell-escape",
@@ -1469,7 +1469,7 @@ name = "celestia-types"
 version = "0.1.0"
 source = "git+https://github.com/eigerco/celestia-node-rs.git?rev=66b7c6c#66b7c6cd58213c0cbf79207ba549cef82764ddca"
 dependencies = [
- "base64 0.21.6",
+ "base64 0.21.7",
  "bech32",
  "bytes",
  "celestia-proto",
@@ -1638,9 +1638,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.4.14"
+version = "4.4.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "33e92c5c1a78c62968ec57dbc2440366a2d6e5a23faf829970ff1585dc6b18e2"
+checksum = "c12ed66a79a555082f595f7eb980d08669de95009dd4b3d61168c573ebe38fc9"
 dependencies = [
  "clap_builder",
  "clap_derive",
@@ -1648,9 +1648,9 @@ dependencies = [
 
 [[package]]
 name = "clap_builder"
-version = "4.4.14"
+version = "4.4.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f4323769dc8a61e2c39ad7dc26f6f2800524691a44d74fe3d1071a5c24db6370"
+checksum = "0f4645eab3431e5a8403a96bea02506a8b35d28cd0f0330977dd5d22f9c84f43"
 dependencies = [
  "anstream",
  "anstyle",
@@ -1733,7 +1733,7 @@ version = "0.8.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5286a0843c21f8367f7be734f89df9b822e0321d8bcce8d6e735aadff7d74979"
 dependencies = [
- "base64 0.21.6",
+ "base64 0.21.7",
  "bech32",
  "bs58 0.5.0",
  "digest 0.10.7",
@@ -1942,7 +1942,7 @@ dependencies = [
  "anes",
  "cast",
  "ciborium",
- "clap 4.4.14",
+ "clap 4.4.15",
  "criterion-plot",
  "is-terminal",
  "itertools 0.10.5",
@@ -2346,7 +2346,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "borsh",
- "clap 4.4.14",
+ "clap 4.4.15",
  "demo-stf",
  "hex",
  "jsonrpsee 0.20.3",
@@ -2837,7 +2837,7 @@ version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fe81b5c06ecfdbc71dd845216f225f53b62a10cb8a16c946836a3467f701d05b"
 dependencies = [
- "base64 0.21.6",
+ "base64 0.21.7",
  "bytes",
  "ed25519-dalek 2.0.0",
  "hex",
@@ -3167,7 +3167,7 @@ checksum = "6838fa110e57d572336178b7c79e94ff88ef976306852d8cb87d9e5b1fc7c0b5"
 dependencies = [
  "async-trait",
  "auto_impl",
- "base64 0.21.6",
+ "base64 0.21.7",
  "bytes",
  "const-hex",
  "enr",
@@ -3779,9 +3779,9 @@ dependencies = [
 
 [[package]]
 name = "h2"
-version = "0.3.22"
+version = "0.3.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4d6250322ef6e60f93f9a2162799302cd6f68f79f6e5d85c8c16f14d1d958178"
+checksum = "b553656127a00601c8ae5590fcfdc118e4083a7924b6cf4ffc1ea4b99dc429d7"
 dependencies = [
  "bytes",
  "fnv",
@@ -4898,7 +4898,7 @@ version = "8.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6971da4d9c3aa03c3d8f3ff0f4155b534aad021292003895a469716b2a230378"
 dependencies = [
- "base64 0.21.6",
+ "base64 0.21.7",
  "pem",
  "ring 0.16.20",
  "serde",
@@ -6298,7 +6298,7 @@ version = "0.6.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "49b6c5ef183cd3ab4ba005f1ca64c21e8bd97ce4699cfea9e8d9a2c4958ca520"
 dependencies = [
- "base64 0.21.6",
+ "base64 0.21.7",
  "byteorder",
  "bytes",
  "fallible-iterator 0.2.0",
@@ -6908,7 +6908,7 @@ version = "0.11.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "37b1ae8d9ac08420c66222fb9096fc5de435c3c48542bc5336c51892cffafb41"
 dependencies = [
- "base64 0.21.6",
+ "base64 0.21.7",
  "bytes",
  "encoding_rs",
  "futures-core",
@@ -7899,7 +7899,7 @@ version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1c74cae0a4cf6ccbbf5f359f08efdf8ee7e1dc532573bf0db71968cb56b1448c"
 dependencies = [
- "base64 0.21.6",
+ "base64 0.21.7",
 ]
 
 [[package]]
@@ -8458,7 +8458,7 @@ version = "3.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "64cd236ccc1b7a29e7e2739f27c0b2dd199804abc4290e32f59f3b68d6405c23"
 dependencies = [
- "base64 0.21.6",
+ "base64 0.21.7",
  "chrono",
  "hex",
  "indexmap 1.9.3",
@@ -8615,7 +8615,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "borsh",
- "clap 4.4.14",
+ "clap 4.4.15",
  "jsonrpsee 0.20.3",
  "schemars",
  "serde",
@@ -8755,7 +8755,7 @@ dependencies = [
  "anyhow",
  "arbitrary",
  "borsh",
- "clap 4.4.14",
+ "clap 4.4.15",
  "jsonrpsee 0.20.3",
  "proptest",
  "proptest-derive",
@@ -8828,7 +8828,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "borsh",
- "clap 4.4.14",
+ "clap 4.4.15",
  "jsonrpsee 0.20.3",
  "schemars",
  "serde",
@@ -8848,7 +8848,7 @@ dependencies = [
  "anyhow",
  "bincode",
  "borsh",
- "clap 4.4.14",
+ "clap 4.4.15",
  "hex",
  "jmt",
  "jsonrpsee 0.20.3",
@@ -8873,7 +8873,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "base64 0.21.6",
+ "base64 0.21.7",
  "bech32",
  "borsh",
  "celestia-proto",
@@ -8989,7 +8989,7 @@ dependencies = [
  "bitcoin-da",
  "borsh",
  "chainway-sequencer",
- "clap 4.4.14",
+ "clap 4.4.15",
  "const-rollup-config",
  "criterion",
  "demo-stf",
@@ -9080,7 +9080,7 @@ dependencies = [
  "anyhow",
  "borsh",
  "bytes",
- "clap 4.4.14",
+ "clap 4.4.15",
  "derive_more",
  "ethereum-types",
  "ethers",
@@ -9189,7 +9189,7 @@ dependencies = [
  "bech32",
  "bincode",
  "borsh",
- "clap 4.4.14",
+ "clap 4.4.15",
  "derive_more",
  "ed25519-dalek 2.0.0",
  "hex",
@@ -9252,7 +9252,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "borsh",
- "clap 4.4.14",
+ "clap 4.4.15",
  "jsonrpsee 0.20.3",
  "proc-macro2 1.0.76",
  "quote 1.0.35",
@@ -9477,7 +9477,7 @@ dependencies = [
  "anyhow",
  "arbitrary",
  "borsh",
- "clap 4.4.14",
+ "clap 4.4.15",
  "jsonrpsee 0.20.3",
  "proptest",
  "proptest-derive",
@@ -9577,7 +9577,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "borsh",
- "clap 4.4.14",
+ "clap 4.4.15",
  "jsonrpsee 0.20.3",
  "schemars",
  "serde",
@@ -9596,7 +9596,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "borsh",
- "clap 4.4.14",
+ "clap 4.4.15",
  "jsonrpsee 0.20.3",
  "schemars",
  "serde",
@@ -10667,9 +10667,9 @@ dependencies = [
 
 [[package]]
 name = "termcolor"
-version = "1.4.0"
+version = "1.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ff1bc3d3f05aff0403e8ac0d92ced918ec05b666a43f83297ccef5bea8a3d449"
+checksum = "06794f8f6c5c898b3275aebefa6b8a1cb24cd2c6c79397ab15774837a0bc5755"
 dependencies = [
  "winapi-util",
 ]
@@ -12124,9 +12124,9 @@ checksum = "dff9641d1cd4be8d1a070daf9e3773c5f67e78b4d9d42263020c057706765c04"
 
 [[package]]
 name = "winnow"
-version = "0.5.33"
+version = "0.5.34"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b7520bbdec7211caa7c4e682eb1fbe07abe20cee6756b6e00f537c82c11816aa"
+checksum = "b7cf47b659b318dccbd69cc4797a39ae128f533dce7902a1096044d1967b9c16"
 dependencies = [
  "memchr",
 ]
@@ -12149,7 +12149,7 @@ checksum = "13a3a53eaf34f390dd30d7b1b078287dd05df2aa2e21a589ccb80f5c7253c2e9"
 dependencies = [
  "assert-json-diff",
  "async-trait",
- "base64 0.21.6",
+ "base64 0.21.7",
  "deadpool",
  "futures",
  "futures-timer",

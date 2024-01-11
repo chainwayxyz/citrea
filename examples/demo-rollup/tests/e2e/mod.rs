@@ -7,7 +7,7 @@ use demo_stf::genesis_config::GenesisPaths;
 use ethers::abi::Address;
 use reth_primitives::BlockNumberOrTag;
 // use sov_demo_rollup::initialize_logging;
-use sov_evm::{SimpleStorageContract, TestContract};
+use sov_evm::SimpleStorageContract;
 use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
 use sov_stf_runner::RollupProverConfig;
 use tokio::time::sleep;
@@ -37,8 +37,7 @@ async fn test_full_node_send_tx() -> Result<(), anyhow::Error> {
     });
 
     let seq_port = seq_port_rx.await.unwrap();
-    let seq_contract = SimpleStorageContract::default();
-    let seq_test_client = make_test_client(seq_port, seq_contract).await;
+    let seq_test_client = make_test_client(seq_port).await;
 
     let (full_node_port_tx, full_node_port_rx) = tokio::sync::oneshot::channel();
 
@@ -57,8 +56,7 @@ async fn test_full_node_send_tx() -> Result<(), anyhow::Error> {
     });
 
     let full_node_port = full_node_port_rx.await.unwrap();
-    let full_node_contract = SimpleStorageContract::default();
-    let full_node_test_client = make_test_client(full_node_port, full_node_contract).await;
+    let full_node_test_client = make_test_client(full_node_port).await;
 
     let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
 
@@ -112,8 +110,7 @@ async fn test_delayed_sync_ten_blocks() -> Result<(), anyhow::Error> {
 
     let seq_port = seq_port_rx.await.unwrap();
 
-    let contract = SimpleStorageContract::default();
-    let seq_test_client = init_test_rollup(seq_port, contract).await;
+    let seq_test_client = init_test_rollup(seq_port).await;
     let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
 
     for _ in 0..10 {
@@ -138,8 +135,7 @@ async fn test_delayed_sync_ten_blocks() -> Result<(), anyhow::Error> {
     });
 
     let full_node_port = full_node_port_rx.await.unwrap();
-    let full_node_contract = SimpleStorageContract::default();
-    let full_node_test_client = make_test_client(full_node_port, full_node_contract).await;
+    let full_node_test_client = make_test_client(full_node_port).await;
 
     sleep(Duration::from_secs(10)).await;
 
@@ -199,11 +195,8 @@ async fn test_e2e_same_block_sync() -> Result<(), anyhow::Error> {
 
     let full_node_port = full_node_port_rx.await.unwrap();
 
-    let contract = SimpleStorageContract::default();
-    let full_node_contract = SimpleStorageContract::default();
-
-    let seq_test_client = init_test_rollup(seq_port, contract).await;
-    let full_node_test_client = init_test_rollup(full_node_port, full_node_contract).await;
+    let seq_test_client = init_test_rollup(seq_port).await;
+    let full_node_test_client = init_test_rollup(full_node_port).await;
 
     let _ = execute_blocks(&seq_test_client, &full_node_test_client).await;
 
@@ -258,11 +251,8 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
 
     let full_node_port = full_node_port_rx.await.unwrap();
 
-    let contract = SimpleStorageContract::default();
-    let full_node_contract = SimpleStorageContract::default();
-
-    let seq_test_client = init_test_rollup(seq_port, contract).await;
-    let full_node_test_client = init_test_rollup(full_node_port, full_node_contract).await;
+    let seq_test_client = init_test_rollup(seq_port).await;
+    let full_node_test_client = init_test_rollup(full_node_port).await;
 
     let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
 
@@ -333,8 +323,7 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
 
     let full_node_port = full_node_port_rx.await.unwrap();
 
-    let full_node_contract = SimpleStorageContract::default();
-    let full_node_test_client = make_test_client(full_node_port, full_node_contract).await;
+    let full_node_test_client = make_test_client(full_node_port).await;
 
     // check if the latest block state roots are same
     let seq_last_block = seq_test_client
@@ -379,13 +368,15 @@ fn copy_dir_recursive(src: &Path, dst: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
-async fn execute_blocks<T: TestContract>(
-    sequencer_client: &TestClient<T>,
-    full_node_client: &TestClient<T>,
+async fn execute_blocks(
+    sequencer_client: &TestClient,
+    full_node_client: &TestClient,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let (contract_address, _runtime_code) = {
-        let runtime_code = sequencer_client.deploy_contract_call().await?;
-        let deploy_contract_req = sequencer_client.deploy_contract().await?;
+    let (contract_address, contract) = {
+        let contract = SimpleStorageContract::default();
+        let deploy_contract_req = sequencer_client
+            .deploy_contract(contract.byte_code(), None)
+            .await?;
         sequencer_client.send_publish_batch_request().await;
 
         let contract_address = deploy_contract_req
@@ -394,12 +385,12 @@ async fn execute_blocks<T: TestContract>(
             .contract_address
             .unwrap();
 
-        (contract_address, runtime_code)
+        (contract_address, contract)
     };
 
     {
         let set_value_req = sequencer_client
-            .set_value(contract_address, 42, None, None, None)
+            .contract_transaction(contract_address, contract.set_call_data(42), None)
             .await;
         sequencer_client.send_publish_batch_request().await;
         set_value_req.await.unwrap().unwrap();
@@ -413,7 +404,11 @@ async fn execute_blocks<T: TestContract>(
             .await;
         for temp in 0..10 {
             let _set_value_req = sequencer_client
-                .set_value(contract_address, 78 + temp, None, None, Some(nonce))
+                .contract_transaction(
+                    contract_address,
+                    contract.set_call_data(78 + temp),
+                    Some(nonce),
+                ) // ADD NONCE
                 .await;
             nonce += 1;
         }
