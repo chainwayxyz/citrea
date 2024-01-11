@@ -21,7 +21,8 @@ pub use signer::DevSigner;
 mod smart_contracts;
 #[cfg(feature = "smart_contracts")]
 pub use smart_contracts::{
-    BlockHashContract, LogsContract, SelfDestructorContract, SimpleStorageContract, TestContract,
+    BlockHashContract, CoinbaseContract, LogsContract, SelfDestructorContract,
+    SimpleStorageContract, TestContract,
 };
 
 #[cfg(test)]

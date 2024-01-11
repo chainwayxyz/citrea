@@ -9,18 +9,18 @@ mod utils;
 use std::borrow::BorrowMut;
 use std::marker::PhantomData;
 use std::net::SocketAddr;
+use std::ops::Deref;
 use std::sync::Arc;
 
 use borsh::ser::BorshSerialize;
 use demo_stf::runtime::Runtime;
 use ethers::types::H256;
 use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
-use futures::lock::Mutex;
 use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::RpcModule;
 use mempool::Mempool;
 use reth_primitives::{
-    Bytes, Chain, ChainSpec, FromRecoveredPooledTransaction, IntoRecoveredTransaction,
+    Bytes, Chain, FromRecoveredPooledTransaction, IntoRecoveredTransaction, MAINNET,
 };
 use reth_provider::{BlockReaderIdExt, ChainSpecProvider, StateProviderFactory};
 use reth_tasks::TokioTaskExecutor;
@@ -61,7 +61,8 @@ where
     C: StateProviderFactory + BlockReaderIdExt + ChainSpecProvider + Clone + 'static,
 {
     let blob_store = NoopBlobStore::default();
-    let mut mock_chain_spec = ChainSpec::default();
+    // let mut mock_chain_spec = ChainSpec::default();
+    let mut mock_chain_spec = MAINNET.clone().deref().to_owned();
     mock_chain_spec.chain = Chain::Id(5655);
     Pool::eth_pool(
         TransactionValidationTaskExecutor::eth(

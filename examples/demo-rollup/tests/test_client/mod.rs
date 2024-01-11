@@ -12,7 +12,8 @@ use jsonrpsee::core::client::ClientT;
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use jsonrpsee::rpc_params;
 use reth_primitives::{BlockNumberOrTag, Bytes};
-use sov_evm::{LogResponse, LogsContract, SimpleStorageContract, TestContract};
+use serde::de::value;
+use sov_evm::{CoinbaseContract, LogResponse, LogsContract, SimpleStorageContract, TestContract};
 
 const MAX_FEE_PER_GAS: u64 = 1000000001;
 const GAS: u64 = 900000u64;
@@ -179,6 +180,35 @@ impl<T: TestContract> TestClient<T> {
             .unwrap()
     }
 
+    pub(crate) async fn reward_miner(
+        &self,
+        contract_address: H160,
+        max_priority_fee_per_gas: Option<u64>,
+        max_fee_per_gas: Option<u64>,
+        nonce: Option<u64>,
+        value: u64,
+    ) -> PendingTransaction<'_, Http> {
+        let contract: &CoinbaseContract = self.get_coinbase_contract();
+
+        let req = Eip1559TransactionRequest::new()
+            .from(self.from_addr)
+            .to(contract_address)
+            .chain_id(self.chain_id)
+            .nonce(nonce.unwrap_or(self.eth_get_transaction_count(self.from_addr).await))
+            .data(contract.reward_miner())
+            .max_priority_fee_per_gas(max_priority_fee_per_gas.unwrap_or(10u64))
+            .max_fee_per_gas(max_fee_per_gas.unwrap_or(MAX_FEE_PER_GAS))
+            .gas(GAS)
+            .value(value);
+
+        let typed_transaction = TypedTransaction::Eip1559(req);
+
+        self.client
+            .send_transaction(typed_transaction, None)
+            .await
+            .unwrap()
+    }
+
     pub(crate) async fn set_value_call(
         &self,
         contract_address: H160,
@@ -269,13 +299,14 @@ impl<T: TestContract> TestClient<T> {
         max_priority_fee_per_gas: Option<u64>,
         max_fee_per_gas: Option<u64>,
         nonce: Option<u64>,
+        value: Option<u128>,
     ) -> PendingTransaction<'_, Http> {
         let nonce = match nonce {
             Some(nonce) => nonce,
             None => self.eth_get_transaction_count(self.from_addr).await,
         };
 
-        let req = Eip1559TransactionRequest::new()
+        let mut req = Eip1559TransactionRequest::new()
             .from(self.from_addr)
             .to(to_addr)
             .chain_id(self.chain_id)
@@ -283,6 +314,10 @@ impl<T: TestContract> TestClient<T> {
             .max_priority_fee_per_gas(max_priority_fee_per_gas.unwrap_or(10u64))
             .max_fee_per_gas(max_fee_per_gas.unwrap_or(MAX_FEE_PER_GAS))
             .gas(GAS);
+        match value {
+            Some(value) => req = req.value(value),
+            None => (),
+        }
 
         let typed_transaction = TypedTransaction::Eip1559(req);
 
@@ -514,6 +549,15 @@ impl<T: TestContract> TestClient<T> {
             Some(ssc) => ssc,
             None => panic!("Contract isn't a Simple Storage Contract!"),
         };
+        contract
+    }
+
+    pub(crate) fn get_coinbase_contract(&self) -> &CoinbaseContract {
+        let contract: &CoinbaseContract =
+            match self.contract.as_any().downcast_ref::<CoinbaseContract>() {
+                Some(ssc) => ssc,
+                None => panic!("Contract isn't a Coinbase Contract!"),
+            };
         contract
     }
 }

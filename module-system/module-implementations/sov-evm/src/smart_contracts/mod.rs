@@ -2,11 +2,13 @@ use std::any::Any;
 use std::path::PathBuf;
 
 mod blockhash_contract;
+mod coinbase_contract;
 mod logs_contract;
 mod self_destructor_contract;
 mod simple_storage_contract;
 
 pub use blockhash_contract::BlockHashContract;
+pub use coinbase_contract::CoinbaseContract;
 use ethers_contract::BaseContract;
 use ethers_core::abi::Abi;
 use ethers_core::types::Bytes;
