@@ -7,8 +7,9 @@ use reth_primitives::{
 use secp256k1::{PublicKey, SecretKey};
 
 use crate::evm::RlpEvmTransaction;
-use crate::signer::{DevSigner, SignError};
+use crate::signer::DevSigner;
 use crate::tests::DEFAULT_CHAIN_ID;
+use crate::SignError;
 
 /// ETH transactions signer used in tests.
 pub(crate) struct TestSigner {
@@ -51,7 +52,7 @@ impl TestSigner {
             to,
             input: RethBytes::from(data),
             nonce,
-            value,
+            value: value.into(),
             chain_id: DEFAULT_CHAIN_ID,
             gas_limit: 1_000_000u64,
             max_fee_per_gas: u128::from(100000000000u64),

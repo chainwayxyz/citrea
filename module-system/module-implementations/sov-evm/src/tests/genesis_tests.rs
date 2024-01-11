@@ -2,7 +2,7 @@ use lazy_static::lazy_static;
 use reth_primitives::constants::{EMPTY_RECEIPTS, EMPTY_TRANSACTIONS, ETHEREUM_BLOCK_GAS_LIMIT};
 use reth_primitives::hex_literal::hex;
 use reth_primitives::{
-    Address, BaseFeeParams, Bloom, Bytes, Header, SealedHeader, EMPTY_OMMER_ROOT, H256,
+    Address, BaseFeeParams, Bloom, Bytes, Header, SealedHeader, B256, EMPTY_OMMER_ROOT_HASH,
 };
 use revm::primitives::{SpecId, KECCAK_EMPTY, U256};
 use sov_modules_api::default_context::DefaultContext;
@@ -39,13 +39,14 @@ lazy_static! {
     };
 }
 
-pub(crate) const GENESIS_HASH: H256 = H256(hex!(
-    "9187222a036b606a937ab9e1d08cce85fcf4f234e67cc53ac7c42de352ca312d"
-));
-
-pub(crate) const GENESIS_STATE_ROOT: H256 = H256(hex!(
-    "c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470"
-));
+lazy_static! {
+    pub(crate) static ref GENESIS_HASH: B256 = B256::from(hex!(
+        "9187222a036b606a937ab9e1d08cce85fcf4f234e67cc53ac7c42de352ca312d"
+    ));
+    pub(crate) static ref GENESIS_STATE_ROOT: B256 = B256::from(hex!(
+        "c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470"
+    ));
+}
 
 lazy_static! {
     pub(crate) static ref BENEFICIARY: Address = Address::from([3u8; 20]);
@@ -147,8 +148,8 @@ fn genesis_block() {
         SealedBlock {
             header: SealedHeader {
                 header: Header {
-                    parent_hash: H256::default(),
-                    state_root: GENESIS_STATE_ROOT,
+                    parent_hash: B256::default(),
+                    state_root: *GENESIS_STATE_ROOT,
                     transactions_root: EMPTY_TRANSACTIONS,
                     receipts_root: EMPTY_RECEIPTS,
                     logs_bloom: Bloom::default(),
@@ -158,17 +159,17 @@ fn genesis_block() {
                     gas_used: 0,
                     timestamp: 50,
                     extra_data: Bytes::default(),
-                    mix_hash: H256::default(),
+                    mix_hash: B256::default(),
                     nonce: 0,
                     base_fee_per_gas: Some(1000000000),
-                    ommers_hash: EMPTY_OMMER_ROOT,
+                    ommers_hash: EMPTY_OMMER_ROOT_HASH,
                     beneficiary: *BENEFICIARY,
                     withdrawals_root: None,
                     blob_gas_used: None,
                     excess_blob_gas: None,
                     parent_beacon_block_root: None,
                 },
-                hash: GENESIS_HASH
+                hash: *GENESIS_HASH
             },
             transactions: (0u64..0u64),
         }
@@ -184,8 +185,8 @@ fn genesis_head() {
         head,
         Block {
             header: Header {
-                parent_hash: H256::default(),
-                state_root: GENESIS_STATE_ROOT,
+                parent_hash: B256::default(),
+                state_root: *GENESIS_STATE_ROOT,
                 transactions_root: EMPTY_TRANSACTIONS,
                 receipts_root: EMPTY_RECEIPTS,
                 logs_bloom: Bloom::default(),
@@ -195,10 +196,10 @@ fn genesis_head() {
                 gas_used: 0,
                 timestamp: 50,
                 extra_data: Bytes::default(),
-                mix_hash: H256::default(),
+                mix_hash: B256::default(),
                 nonce: 0,
                 base_fee_per_gas: Some(1000000000),
-                ommers_hash: EMPTY_OMMER_ROOT,
+                ommers_hash: EMPTY_OMMER_ROOT_HASH,
                 beneficiary: *BENEFICIARY,
                 withdrawals_root: None,
                 blob_gas_used: None,
@@ -217,7 +218,7 @@ pub(crate) fn get_evm(config: &EvmConfig) -> (Evm<C>, WorkingSet<DefaultContext>
     evm.genesis(config, &mut working_set).unwrap();
 
     let mut genesis_state_root = [0u8; 32];
-    genesis_state_root.copy_from_slice(GENESIS_STATE_ROOT.as_bytes());
+    genesis_state_root.copy_from_slice(GENESIS_STATE_ROOT.as_ref());
 
     evm.finalize_hook(
         &genesis_state_root.into(),

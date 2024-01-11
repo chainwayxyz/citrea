@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use crate::error::rpc::SignError;
 use reth_primitives::{sign_message, Address, Transaction, TransactionSigned, H256};
 use secp256k1::{PublicKey, SecretKey};
 
@@ -7,22 +8,6 @@ use secp256k1::{PublicKey, SecretKey};
 #[derive(Clone)]
 pub struct DevSigner {
     signers: HashMap<Address, SecretKey>,
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum SignError {
-    /// Error occured while trying to sign data.
-    #[error("Could not sign")]
-    CouldNotSign,
-    /// Signer for requested account not found.
-    #[error("Unknown account")]
-    NoAccount,
-    /// TypedData has invalid format.
-    #[error("Given typed data is not valid")]
-    TypedData,
-    /// No chainid
-    #[error("No chainid")]
-    NoChainId,
 }
 
 impl DevSigner {

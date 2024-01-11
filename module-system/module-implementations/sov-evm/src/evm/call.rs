@@ -187,12 +187,11 @@ pub(crate) fn prepare_call_env(block_env: &BlockEnv, request: CallRequest) -> Et
         gas_priority_fee: max_priority_fee_per_gas,
         transact_to: to.map(TransactTo::Call).unwrap_or_else(TransactTo::create),
         value: value.unwrap_or_default(),
-        data: input
-            .try_into_unique_input()?
-            .map(|data| data.0)
+        data: input.try_into_unique_input()?.unwrap_or_default(),
+        chain_id: chain_id.map(|c| c.to::<u64>()),
+        access_list: access_list
+            .map(reth_rpc_types::AccessList::into_flattened)
             .unwrap_or_default(),
-        chain_id: chain_id.map(|c| c.as_u64()),
-        access_list: access_list.map(AccessList::flattened).unwrap_or_default(),
         // EIP-4844 related fields
         // https://github.com/Sovereign-Labs/sovereign-sdk/issues/912
         blob_hashes: vec![],

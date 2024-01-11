@@ -1,3 +1,4 @@
+use alloy_primitives::B256;
 use reth_primitives::{Bloom, Bytes, H256, U256};
 use sov_modules_api::prelude::*;
 use sov_modules_api::{AccessoryWorkingSet, Spec, WorkingSet};
@@ -22,7 +23,7 @@ where
             .get(working_set)
             .expect("Head block should always be set");
 
-        parent_block.header.state_root = H256(pre_state_root.clone().into());
+        parent_block.header.state_root = B256::from_slice(&pre_state_root.clone().as_ref());
         self.head.set(&parent_block, working_set);
 
         let sealed_parent_block = parent_block.clone().seal();
@@ -115,7 +116,7 @@ where
             parent_hash: parent_block.header.hash,
             timestamp: block_env.timestamp,
             number: block_env.number,
-            ommers_hash: reth_primitives::constants::EMPTY_OMMER_ROOT,
+            ommers_hash: reth_primitives::constants::EMPTY_OMMER_ROOT_HASH,
             beneficiary: parent_block.header.beneficiary,
             // This will be set in finalize_hook or in the next begin_slot_hook
             state_root: reth_primitives::constants::KECCAK_EMPTY,
@@ -126,7 +127,7 @@ where
             withdrawals_root: None,
             logs_bloom: receipts
                 .iter()
-                .fold(Bloom::zero(), |bloom, r| bloom | r.bloom),
+                .fold(Bloom::ZERO, |bloom, r| bloom | r.bloom),
             difficulty: U256::ZERO,
             gas_limit: block_env.gas_limit,
             gas_used,

@@ -5,22 +5,23 @@ use std::process::Command;
 use std::sync::{Arc, Mutex};
 
 use demo_stf::runtime::Runtime;
-use ethers::types::{Bytes, H256};
+use ethers::types::Bytes;
 pub use gas_price::fee_history::FeeHistoryCacheConfig;
 use gas_price::gas_oracle::GasPriceOracle;
 pub use gas_price::gas_oracle::GasPriceOracleConfig;
 use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::RpcModule;
-use reth_primitives::rpc_utils::keccak256;
+use reth_primitives::{keccak256, Address, U64};
 use reth_primitives::{
-    BlockNumberOrTag, TransactionSignedNoHash as RethTransactionSignedNoHash, U128, U256,
+    BlockNumberOrTag, TransactionSignedNoHash as RethTransactionSignedNoHash, B256, U128, U256,
 };
 use reth_rpc_types::{CallRequest, FeeHistory, TransactionRequest, TypedTransactionRequest};
+use reth_rpc_types_compat::transaction::to_primitive_transaction;
 use rustc_version_runtime::version;
 use sequencer_client::SequencerClient;
 #[cfg(feature = "local")]
 pub use sov_evm::DevSigner;
-use sov_evm::{CallMessage, Evm, RlpEvmTransaction};
+use sov_evm::{CallMessage, EthApiError, Evm, RlpEvmTransaction, SignError};
 use sov_modules_api::utils::to_jsonrpsee_error_object;
 use sov_modules_api::{EncodeCall, PrivateKey, WorkingSet};
 use sov_rollup_interface::services::da::DaService;
@@ -148,7 +149,7 @@ impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
     fn make_raw_tx(
         &self,
         raw_tx: RlpEvmTransaction,
-    ) -> Result<(H256, Vec<u8>), jsonrpsee::core::Error> {
+    ) -> Result<(B256, Vec<u8>), jsonrpsee::core::Error> {
         let signed_transaction: RethTransactionSignedNoHash = raw_tx.clone().try_into()?;
 
         let tx_hash = signed_transaction.hash();
@@ -156,7 +157,7 @@ impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
         let tx = CallMessage { txs: vec![raw_tx] };
         let message = <Runtime<C, Da::Spec> as EncodeCall<sov_evm::Evm<C>>>::encode_call(tx);
 
-        Ok((H256::from(tx_hash), message))
+        Ok((B256::from(tx_hash), message))
     }
 
     fn add_messages(&self, messages: Vec<Vec<u8>>) {
@@ -179,7 +180,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
         info!("eth module: web3_sha3");
         let data: Bytes = params.one()?;
 
-        let hash = H256::from_slice(keccak256(&data).as_slice());
+        let hash = B256::from_slice(keccak256(&data).as_slice());
 
         Ok::<_, ErrorObjectOwned>(hash)
     })?;
@@ -335,7 +336,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
             let chain_id = evm
                 .chain_id(&mut working_set)
                 .expect("Failed to get chain id")
-                .map(|id| id.as_u64())
+                .map(|id| id.to::<u64>())
                 .unwrap_or(1);
 
             // get call request to estimate gas and gas prices
@@ -345,7 +346,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
             // estimate gas limit
             let gas_limit = U256::from(
                 evm.eth_estimate_gas(call_request, None, &mut working_set)?
-                    .as_u64(),
+                    .to::<u64>(),
             );
 
             // get typed transaction request
@@ -371,18 +372,19 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
 
                     TypedTransactionRequest::EIP1559(m)
                 }
-                None => {
-                    return Err(to_jsonrpsee_error_object(
-                        "Conflicting fee fields",
-                        ETH_RPC_ERROR,
-                    ));
+                Some(TypedTransactionRequest::EIP4844(mut m)) => {
+                    m.chain_id = chain_id;
+                    m.gas_limit = gas_limit;
+                    m.max_fee_per_gas = max_fee_per_gas;
+
+                    TypedTransactionRequest::EIP4844(m)
                 }
+                None => return Err(EthApiError::ConflictingFeeFieldsInRequest.into()),
             };
 
             // get raw transaction
-            let transaction = into_transaction(transaction_request).map_err(|_| {
-                to_jsonrpsee_error_object("Invalid types in transaction request", ETH_RPC_ERROR)
-            })?;
+            let transaction = to_primitive_transaction(transaction_request)
+                .ok_or(SignError::InvalidTransactionRequest)?;
 
             // sign transaction
             let signed_tx = ethereum
@@ -426,53 +428,6 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
     Ok(())
 }
 
-// Temporary solution until https://github.com/paradigmxyz/reth/issues/4704 is resolved
-// The problem is having wrong length nonce/gas_limt/value fields in the transaction request
-fn into_transaction(
-    request: TypedTransactionRequest,
-) -> Result<reth_primitives::Transaction, TryFromSliceError> {
-    Ok(match request {
-        TypedTransactionRequest::Legacy(tx) => {
-            reth_primitives::Transaction::Legacy(reth_primitives::TxLegacy {
-                chain_id: tx.chain_id,
-                nonce: tx.nonce.as_u64(),
-                gas_price: u128::from_be_bytes(tx.gas_price.to_be_bytes()),
-                gas_limit: convert_u256_to_u64(tx.gas_limit)?,
-                to: tx.kind.into(),
-                value: convert_u256_to_u128(tx.value)?,
-                input: tx.input,
-            })
-        }
-        TypedTransactionRequest::EIP2930(tx) => {
-            reth_primitives::Transaction::Eip2930(reth_primitives::TxEip2930 {
-                chain_id: tx.chain_id,
-                nonce: tx.nonce.as_u64(),
-                gas_price: u128::from_be_bytes(tx.gas_price.to_be_bytes()),
-                gas_limit: convert_u256_to_u64(tx.gas_limit)?,
-                to: tx.kind.into(),
-                value: convert_u256_to_u128(tx.value)?,
-                input: tx.input,
-                access_list: tx.access_list,
-            })
-        }
-        TypedTransactionRequest::EIP1559(tx) => {
-            reth_primitives::Transaction::Eip1559(reth_primitives::TxEip1559 {
-                chain_id: tx.chain_id,
-                nonce: tx.nonce.as_u64(),
-                max_fee_per_gas: u128::from_be_bytes(tx.max_fee_per_gas.to_be_bytes()),
-                gas_limit: convert_u256_to_u64(tx.gas_limit)?,
-                to: tx.kind.into(),
-                value: convert_u256_to_u128(tx.value)?,
-                input: tx.input,
-                access_list: tx.access_list,
-                max_priority_fee_per_gas: u128::from_be_bytes(
-                    tx.max_priority_fee_per_gas.to_be_bytes(),
-                ),
-            })
-        }
-    })
-}
-
 fn convert_u256_to_u64(u256: reth_primitives::U256) -> Result<u64, TryFromSliceError> {
     let bytes: [u8; 32] = u256.to_be_bytes();
     let bytes: [u8; 8] = bytes[24..].try_into()?;
@@ -486,51 +441,31 @@ fn convert_u256_to_u128(u256: reth_primitives::U256) -> Result<u128, TryFromSlic
 }
 
 fn get_call_request_and_params(
-    from: reth_primitives::H160,
+    from: Address,
     chain_id: u64,
-    transaction_request: &TransactionRequest,
+    request: &TransactionRequest,
 ) -> (CallRequest, U128, U128) {
     // TODO: we need an oracle to fetch the gas price of the current chain
     // https://github.com/Sovereign-Labs/sovereign-sdk/issues/883
-    let gas_price = transaction_request.gas_price.unwrap_or_default();
-    let max_fee_per_gas = transaction_request.max_fee_per_gas.unwrap_or_default();
+    let gas_price = request.gas_price.unwrap_or_default();
+    let max_fee_per_gas = request.max_fee_per_gas.unwrap_or_default();
 
     // TODO: Generate call request better according to the transaction type
     // https://github.com/Sovereign-Labs/sovereign-sdk/issues/946
     let call_request = CallRequest {
         from: Some(from),
-        to: transaction_request.to,
-        gas: transaction_request.gas,
-        gas_price: {
-            if transaction_request.max_priority_fee_per_gas.is_some() {
-                // eip 1559
-                None
-            } else {
-                // legacy
-                Some(U256::from(gas_price))
-            }
-        },
+        to: request.to,
+        gas: request.gas,
+        gas_price: Some(U256::from(gas_price)),
         max_fee_per_gas: Some(U256::from(max_fee_per_gas)),
-        value: transaction_request.value,
-        input: transaction_request.data.clone().into(),
-        nonce: transaction_request.nonce,
-        chain_id: Some(chain_id.into()),
-        access_list: transaction_request.access_list.clone(),
-        max_priority_fee_per_gas: {
-            if transaction_request.max_priority_fee_per_gas.is_some() {
-                // eip 1559
-                Some(U256::from(
-                    transaction_request
-                        .max_priority_fee_per_gas
-                        .unwrap_or(max_fee_per_gas),
-                ))
-            } else {
-                // legacy
-                None
-            }
-        },
+        value: request.value,
+        input: request.input.clone().into(),
+        nonce: request.nonce,
+        chain_id: Some(U64::from(chain_id)),
+        access_list: request.access_list.clone(),
+        max_priority_fee_per_gas: Some(U256::from(max_fee_per_gas)),
         transaction_type: None,
-        blob_versioned_hashes: vec![],
+        blob_versioned_hashes: None,
         max_fee_per_blob_gas: None,
     };
 

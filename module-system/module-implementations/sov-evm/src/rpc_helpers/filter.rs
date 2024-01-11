@@ -116,8 +116,7 @@ impl From<BlockNumberOrTag> for FilterBlockOption {
 
 impl From<U64> for FilterBlockOption {
     fn from(block: U64) -> Self {
-        let block_be_bytes: [u8; 8] = block.to_be_bytes();
-        BlockNumberOrTag::from(reth_primitives::U64::from_big_endian(&block_be_bytes)).into()
+        BlockNumberOrTag::from(block).into()
     }
 }
 

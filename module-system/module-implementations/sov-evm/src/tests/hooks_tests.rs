@@ -2,8 +2,8 @@ use lazy_static::lazy_static;
 use rand::Rng;
 use reth_primitives::hex_literal::hex;
 use reth_primitives::{
-    Address, Bloom, Bytes, Header, SealedHeader, Signature, TransactionSigned, EMPTY_OMMER_ROOT,
-    H256, KECCAK_EMPTY, U256,
+    Address, Bloom, Bytes, Header, SealedHeader, Signature, TransactionSigned, B256,
+    EMPTY_OMMER_ROOT_HASH, KECCAK_EMPTY, U256,
 };
 use sov_modules_api::{StateMapAccessor, StateValueAccessor, StateVecAccessor};
 
@@ -16,7 +16,7 @@ use crate::tests::DEFAULT_CHAIN_ID;
 use crate::PendingTransaction;
 
 lazy_static! {
-    pub(crate) static ref DA_ROOT_HASH: H256 = H256::from([5u8; 32]);
+    pub(crate) static ref DA_ROOT_HASH: B256 = B256::from([5u8; 32]);
 }
 
 #[test]
@@ -41,17 +41,17 @@ fn begin_slot_hook_creates_pending_block() {
 fn end_slot_hook_sets_head() {
     let (evm, mut working_set) = get_evm(&TEST_CONFIG);
     let mut pre_state_root = [0u8; 32];
-    pre_state_root.copy_from_slice(GENESIS_STATE_ROOT.as_bytes());
+    pre_state_root.copy_from_slice(GENESIS_STATE_ROOT.as_ref());
 
     evm.begin_slot_hook(DA_ROOT_HASH.0, &pre_state_root.into(), &mut working_set);
 
     evm.pending_transactions.push(
-        &create_pending_transaction(H256::from([1u8; 32]), 1),
+        &create_pending_transaction(B256::from([1u8; 32]), 1),
         &mut working_set,
     );
 
     evm.pending_transactions.push(
-        &create_pending_transaction(H256::from([2u8; 32]), 2),
+        &create_pending_transaction(B256::from([2u8; 32]), 2),
         &mut working_set,
     );
 
@@ -68,15 +68,15 @@ fn end_slot_hook_sets_head() {
         Block {
             header: Header {
                 // TODO: temp parent hash until: https://github.com/Sovereign-Labs/sovereign-sdk/issues/876
-                parent_hash: GENESIS_HASH,
+                parent_hash: *GENESIS_HASH,
 
-                ommers_hash: EMPTY_OMMER_ROOT,
+                ommers_hash: EMPTY_OMMER_ROOT_HASH,
                 beneficiary: TEST_CONFIG.coinbase,
                 state_root: KECCAK_EMPTY,
-                transactions_root: H256(hex!(
+                transactions_root: B256::from(hex!(
                     "30eb5f6050df7ea18ca34cf3503f4713119315a2d3c11f892c5c8920acf816f4"
                 )),
-                receipts_root: H256(hex!(
+                receipts_root: B256::from(hex!(
                     "27036187b3f5e87d4306b396cf06c806da2cc9a0fef9b07c042e3b4304e01c64"
                 )),
                 withdrawals_root: None,
@@ -104,10 +104,10 @@ fn end_slot_hook_moves_transactions_and_receipts() {
     let (evm, mut working_set) = get_evm(&TEST_CONFIG);
     evm.begin_slot_hook(DA_ROOT_HASH.0, &[10u8; 32].into(), &mut working_set);
 
-    let tx1 = create_pending_transaction(H256::from([1u8; 32]), 1);
+    let tx1 = create_pending_transaction(B256::from([1u8; 32]), 1);
     evm.pending_transactions.push(&tx1, &mut working_set);
 
-    let tx2 = create_pending_transaction(H256::from([2u8; 32]), 2);
+    let tx2 = create_pending_transaction(B256::from([2u8; 32]), 2);
     evm.pending_transactions.push(&tx2, &mut working_set);
 
     evm.end_slot_hook(&mut working_set);
@@ -146,7 +146,7 @@ fn end_slot_hook_moves_transactions_and_receipts() {
     assert_eq!(evm.pending_transactions.len(&mut working_set), 0);
 }
 
-fn create_pending_transaction(hash: H256, index: u64) -> PendingTransaction {
+fn create_pending_transaction(hash: B256, index: u64) -> PendingTransaction {
     PendingTransaction {
         transaction: TransactionSignedAndRecovered {
             signer: Address::from([1u8; 20]),
@@ -160,7 +160,7 @@ fn create_pending_transaction(hash: H256, index: u64) -> PendingTransaction {
                     max_fee_per_gas: 2000u64 as u128,
                     max_priority_fee_per_gas: 3000u64 as u128,
                     to: reth_primitives::TransactionKind::Call(Address::from([3u8; 20])),
-                    value: 4000u64 as u128,
+                    value: 4000u128.into(),
                     access_list: reth_primitives::AccessList::default(),
                     input: Bytes::from([4u8; 20]),
                 }),
@@ -185,15 +185,15 @@ fn create_pending_transaction(hash: H256, index: u64) -> PendingTransaction {
 fn finalize_hook_creates_final_block() {
     let (evm, mut working_set) = get_evm(&TEST_CONFIG);
     let mut pre_state_root = [0u8; 32];
-    pre_state_root.copy_from_slice(GENESIS_STATE_ROOT.as_bytes());
+    pre_state_root.copy_from_slice(GENESIS_STATE_ROOT.as_ref());
 
     evm.begin_slot_hook(DA_ROOT_HASH.0, &pre_state_root.into(), &mut working_set);
     evm.pending_transactions.push(
-        &create_pending_transaction(H256::from([1u8; 32]), 1),
+        &create_pending_transaction(B256::from([1u8; 32]), 1),
         &mut working_set,
     );
     evm.pending_transactions.push(
-        &create_pending_transaction(H256::from([2u8; 32]), 2),
+        &create_pending_transaction(B256::from([2u8; 32]), 2),
         &mut working_set,
     );
     evm.end_slot_hook(&mut working_set);
@@ -218,13 +218,13 @@ fn finalize_hook_creates_final_block() {
             header: SealedHeader {
                 header: Header {
                     parent_hash,
-                    ommers_hash: EMPTY_OMMER_ROOT,
+                    ommers_hash: EMPTY_OMMER_ROOT_HASH,
                     beneficiary: TEST_CONFIG.coinbase,
-                    state_root: H256::from(root_hash.0),
-                    transactions_root: H256(hex!(
+                    state_root: B256::from(root_hash.0),
+                    transactions_root: B256::from(hex!(
                         "30eb5f6050df7ea18ca34cf3503f4713119315a2d3c11f892c5c8920acf816f4"
                     )),
-                    receipts_root: H256(hex!(
+                    receipts_root: B256::from(hex!(
                         "27036187b3f5e87d4306b396cf06c806da2cc9a0fef9b07c042e3b4304e01c64"
                     )),
                     withdrawals_root: None,
@@ -234,7 +234,7 @@ fn finalize_hook_creates_final_block() {
                     gas_limit: 30000000,
                     gas_used: 200,
                     timestamp: 52,
-                    mix_hash: H256(hex!(
+                    mix_hash: B256::from(hex!(
                         "0505050505050505050505050505050505050505050505050505050505050505"
                     )),
                     nonce: 0,
@@ -244,7 +244,7 @@ fn finalize_hook_creates_final_block() {
                     excess_blob_gas: None,
                     parent_beacon_block_root: None,
                 },
-                hash: H256(hex!(
+                hash: B256::from(hex!(
                     "4850cef91960c3097715d9294018ea79399b71d80db8b8e6089788059ddc903d"
                 )),
             },

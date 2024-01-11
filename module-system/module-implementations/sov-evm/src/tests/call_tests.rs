@@ -347,7 +347,7 @@ fn self_destruct_test() {
     assert_eq!(db_account.info.balance, U256::from(contract_balance));
 
     // the codehash should be 0
-    assert_eq!(db_contract.info.code_hash, Default::default());
+    assert_eq!(db_contract.info.code_hash, KECCAK_EMPTY);
 
     // the nonce should be 0
     assert_eq!(db_contract.info.nonce, 0);
@@ -830,7 +830,7 @@ fn test_block_hash_in_evm() {
         chain_id: Some(U64::from(DEFAULT_CHAIN_ID)),
         access_list: None,
         max_fee_per_blob_gas: None,
-        blob_versioned_hashes: vec![],
+        blob_versioned_hashes: Some(vec![]),
         transaction_type: None,
     };
 
