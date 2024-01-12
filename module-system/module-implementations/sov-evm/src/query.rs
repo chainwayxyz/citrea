@@ -208,13 +208,31 @@ impl<C: sov_modules_api::Context> Evm<C> {
     pub fn get_balance(
         &self,
         address: reth_primitives::Address,
-        _block_number: Option<BlockNumberOrTag>,
+        block_number: Option<BlockNumberOrTag>,
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<reth_primitives::U256> {
         info!("evm module: eth_getBalance");
 
         // TODO: Implement block_number once we have archival state #951
         // https://github.com/Sovereign-Labs/sovereign-sdk/issues/951
+
+        match block_number {
+            Some(BlockNumberOrTag::Number(num)) => {
+                working_set.set_archival_version(num);
+            }
+            // Working state here is already at the latest state, so no need to anything
+            Some(BlockNumberOrTag::Latest) => {}
+            Some(BlockNumberOrTag::Earliest) => {
+                working_set.set_archival_version(0);
+            }
+            // Is this the way?
+            _ => {
+                return Err(EthApiError::InvalidParams(
+                    "Please provide a number or earliest/latest tag".to_string(),
+                )
+                .into())
+            }
+        }
 
         let balance = self
             .accounts
@@ -231,13 +249,31 @@ impl<C: sov_modules_api::Context> Evm<C> {
         &self,
         address: reth_primitives::Address,
         index: reth_primitives::U256,
-        _block_number: Option<BlockNumberOrTag>,
+        block_number: Option<BlockNumberOrTag>,
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<reth_primitives::U256> {
         info!("evm module: eth_getStorageAt");
 
         // TODO: Implement block_number once we have archival state #951
         // https://github.com/Sovereign-Labs/sovereign-sdk/issues/951
+
+        match block_number {
+            Some(BlockNumberOrTag::Number(num)) => {
+                working_set.set_archival_version(num);
+            }
+            // Working state here is already at the latest state, so no need to anything
+            Some(BlockNumberOrTag::Latest) => {}
+            Some(BlockNumberOrTag::Earliest) => {
+                working_set.set_archival_version(0);
+            }
+            // Is this the way?
+            _ => {
+                return Err(EthApiError::InvalidParams(
+                    "Please provide a number or earliest/latest tag".to_string(),
+                )
+                .into())
+            }
+        }
 
         let storage_slot = self
             .accounts
@@ -253,13 +289,31 @@ impl<C: sov_modules_api::Context> Evm<C> {
     pub fn get_transaction_count(
         &self,
         address: reth_primitives::Address,
-        _block_number: Option<BlockNumberOrTag>,
+        block_number: Option<BlockNumberOrTag>,
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<reth_primitives::U64> {
         info!("evm module: eth_getTransactionCount");
 
         // TODO: Implement block_number once we have archival state #882
         // https://github.com/Sovereign-Labs/sovereign-sdk/issues/882
+
+        match block_number {
+            Some(BlockNumberOrTag::Number(num)) => {
+                working_set.set_archival_version(num);
+            }
+            // Working state here is already at the latest state, so no need to anything
+            Some(BlockNumberOrTag::Latest) => {}
+            Some(BlockNumberOrTag::Earliest) => {
+                working_set.set_archival_version(0);
+            }
+            // Is this the way?
+            _ => {
+                return Err(EthApiError::InvalidParams(
+                    "Please provide a number or earliest/latest tag".to_string(),
+                )
+                .into())
+            }
+        }
 
         let nonce = self
             .accounts
@@ -275,13 +329,31 @@ impl<C: sov_modules_api::Context> Evm<C> {
     pub fn get_code(
         &self,
         address: reth_primitives::Address,
-        _block_number: Option<BlockNumberOrTag>,
+        block_number: Option<BlockNumberOrTag>,
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<reth_primitives::Bytes> {
         info!("evm module: eth_getCode");
 
         // TODO: Implement block_number once we have archival state #951
         // https://github.com/Sovereign-Labs/sovereign-sdk/issues/951
+
+        match block_number {
+            Some(BlockNumberOrTag::Number(num)) => {
+                working_set.set_archival_version(num);
+            }
+            // Working state here is already at the latest state, so no need to anything
+            Some(BlockNumberOrTag::Latest) => {}
+            Some(BlockNumberOrTag::Earliest) => {
+                working_set.set_archival_version(0);
+            }
+            // Is this the way?
+            _ => {
+                return Err(EthApiError::InvalidParams(
+                    "Please provide a number or earliest/latest tag".to_string(),
+                )
+                .into())
+            }
+        }
 
         let code = self
             .accounts
@@ -309,7 +381,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             let tx = self
                 .transactions
                 .get(number as usize, &mut accessory_state)
-                .unwrap_or_else(|| panic!("Transaction with known hash {} and number {} must be set in all {} transaction",                
+                .unwrap_or_else(|| panic!("Transaction with known hash {} and number {} must be set in all {} transaction",
                 hash,
                 number,
                 self.transactions.len(&mut accessory_state)));
