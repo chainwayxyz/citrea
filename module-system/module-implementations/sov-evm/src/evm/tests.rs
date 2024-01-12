@@ -1,8 +1,7 @@
 use std::convert::Infallible;
 use std::str::FromStr;
 
-use reth_primitives::TransactionKind;
-use revm::precompile::B160;
+use reth_primitives::{Address, TransactionKind};
 use revm::primitives::{CfgEnv, ExecutionResult, Output, SpecId, KECCAK_EMPTY, U256};
 use revm::{Database, DatabaseCommit};
 use sov_modules_api::WorkingSet;
@@ -55,7 +54,7 @@ fn simple_contract_execution<DB: Database<Error = Infallible> + DatabaseCommit +
     cfg_env.spec_id = SpecId::SHANGHAI;
     cfg_env.chain_id = DEFAULT_CHAIN_ID;
 
-    let contract_address: B160 = {
+    let contract_address: Address = {
         let tx = dev_signer
             .sign_default_transaction(TransactionKind::Create, contract.byte_code().to_vec(), 1, 0)
             .unwrap();
@@ -77,7 +76,7 @@ fn simple_contract_execution<DB: Database<Error = Infallible> + DatabaseCommit +
 
         let tx = dev_signer
             .sign_default_transaction(
-                TransactionKind::Call(contract_address.into()),
+                TransactionKind::Call(contract_address),
                 hex::decode(hex::encode(&call_data)).unwrap(),
                 2,
                 0,
@@ -93,7 +92,7 @@ fn simple_contract_execution<DB: Database<Error = Infallible> + DatabaseCommit +
 
         let tx = dev_signer
             .sign_default_transaction(
-                TransactionKind::Call(contract_address.into()),
+                TransactionKind::Call(contract_address),
                 hex::decode(hex::encode(&call_data)).unwrap(),
                 3,
                 0,
@@ -115,7 +114,7 @@ fn simple_contract_execution<DB: Database<Error = Infallible> + DatabaseCommit +
 
         let tx = dev_signer
             .sign_default_transaction(
-                TransactionKind::Call(contract_address.into()),
+                TransactionKind::Call(contract_address),
                 hex::decode(hex::encode(&failing_call_data)).unwrap(),
                 4,
                 0,
@@ -130,12 +129,12 @@ fn simple_contract_execution<DB: Database<Error = Infallible> + DatabaseCommit +
     }
 }
 
-fn contract_address(result: &ExecutionResult) -> Option<B160> {
+fn contract_address(result: &ExecutionResult) -> Option<Address> {
     match result {
         ExecutionResult::Success {
             output: Output::Create(_, Some(addr)),
             ..
-        } => Some(**addr),
+        } => Some(*addr),
         _ => None,
     }
 }
@@ -143,8 +142,8 @@ fn contract_address(result: &ExecutionResult) -> Option<B160> {
 fn output(result: ExecutionResult) -> bytes::Bytes {
     match result {
         ExecutionResult::Success { output, .. } => match output {
-            Output::Call(out) => out,
-            Output::Create(out, _) => out,
+            Output::Call(out) => out.into(),
+            Output::Create(out, _) => out.into(),
         },
         _ => panic!("Expected successful ExecutionResult"),
     }

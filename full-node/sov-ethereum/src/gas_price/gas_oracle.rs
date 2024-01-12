@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 use reth_primitives::basefee::calculate_next_block_base_fee;
 use reth_primitives::constants::GWEI_TO_WEI;
-use reth_primitives::{BlockNumberOrTag, H256, U256, U64};
+use reth_primitives::{BlockNumberOrTag, B256, U256, U64};
 use reth_rpc_types::{BlockTransactions, FeeHistory};
 use serde::{Deserialize, Serialize};
 use sov_evm::{EthApiError, EthResult, Evm, RpcInvalidTransactionError};
@@ -325,10 +325,10 @@ impl<C: sov_modules_api::Context> GasPriceOracle<C> {
     /// This method also returns the parent hash for the given block.
     async fn get_block_values(
         &self,
-        block_hash: H256,
+        block_hash: B256,
         limit: usize,
         working_set: &mut WorkingSet<C>,
-    ) -> EthResult<Option<(H256, Vec<U256>)>> {
+    ) -> EthResult<Option<(B256, Vec<U256>)>> {
         // check the cache (this will hit the disk if the block is not cached)
         let block = match self.cache.get_block(block_hash, working_set)? {
             Some(block) => block,
@@ -401,7 +401,7 @@ impl<C: sov_modules_api::Context> GasPriceOracle<C> {
 #[derive(Debug, Clone)]
 pub struct GasPriceOracleResult {
     /// The block hash that the oracle used to calculate the price
-    pub block_hash: H256,
+    pub block_hash: B256,
     /// The price that the oracle calculated
     pub price: U256,
 }
@@ -409,7 +409,7 @@ pub struct GasPriceOracleResult {
 impl Default for GasPriceOracleResult {
     fn default() -> Self {
         Self {
-            block_hash: H256::zero(),
+            block_hash: B256::ZERO,
             price: U256::from(GWEI_TO_WEI),
         }
     }
@@ -421,13 +421,25 @@ pub(crate) fn effective_gas_tip(
     base_fee: Option<U256>,
 ) -> Option<U256> {
     let priority_fee_or_price = U256::from(match transaction.transaction_type {
-        Some(U64([2])) => transaction.max_priority_fee_per_gas.unwrap(),
+        Some(tx_type) => {
+            if tx_type == U64::from(2) {
+                transaction.max_priority_fee_per_gas.unwrap()
+            } else {
+                transaction.gas_price.unwrap()
+            }
+        }
         _ => transaction.gas_price.unwrap(),
     });
 
     if let Some(base_fee) = base_fee {
         let max_fee_per_gas = U256::from(match transaction.transaction_type {
-            Some(U64([2])) => transaction.max_fee_per_gas.unwrap(),
+            Some(tx_type) => {
+                if tx_type == U64::from(2) {
+                    transaction.max_priority_fee_per_gas.unwrap()
+                } else {
+                    transaction.gas_price.unwrap()
+                }
+            }
             _ => transaction.gas_price.unwrap(),
         });
 
