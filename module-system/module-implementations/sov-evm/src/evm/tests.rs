@@ -1,7 +1,7 @@
 use std::convert::Infallible;
 use std::str::FromStr;
 
-use reth_primitives::TransactionKind;
+use reth_primitives::{Address, TransactionKind};
 use revm::primitives::{CfgEnv, ExecutionResult, Output, SpecId, KECCAK_EMPTY, U256};
 use revm::{Database, DatabaseCommit};
 use sov_modules_api::WorkingSet;
@@ -54,7 +54,7 @@ fn simple_contract_execution<DB: Database<Error = Infallible> + DatabaseCommit +
     cfg_env.spec_id = SpecId::SHANGHAI;
     cfg_env.chain_id = DEFAULT_CHAIN_ID;
 
-    let contract_address: reth_primitives::Address = {
+    let contract_address: Address = {
         let tx = dev_signer
             .sign_default_transaction(TransactionKind::Create, contract.byte_code().to_vec(), 1, 0)
             .unwrap();
@@ -129,7 +129,7 @@ fn simple_contract_execution<DB: Database<Error = Infallible> + DatabaseCommit +
     }
 }
 
-fn contract_address(result: &ExecutionResult) -> Option<reth_primitives::Address> {
+fn contract_address(result: &ExecutionResult) -> Option<Address> {
     match result {
         ExecutionResult::Success {
             output: Output::Create(_, Some(addr)),

@@ -355,23 +355,23 @@ pub enum RpcInvalidTransactionError {
     /// Blob transaction is a create transaction
     #[error("blob transaction is a create transaction")]
     BlobTransactionIsCreate,
-    /// Optimism related error
-    #[error(transparent)]
-    #[cfg(feature = "optimism")]
-    Optimism(#[from] OptimismInvalidTransactionError),
+    // /// Optimism related error
+    // #[error(transparent)]
+    // #[cfg(feature = "optimism")]
+    // Optimism(#[from] OptimismInvalidTransactionError),
 }
 
-/// Optimism specific invalid transaction errors
-#[cfg(feature = "optimism")]
-#[derive(thiserror::Error, Debug)]
-pub enum OptimismInvalidTransactionError {
-    /// A deposit transaction was submitted as a system transaction post-regolith.
-    #[error("no system transactions allowed after regolith")]
-    DepositSystemTxPostRegolith,
-    /// A deposit transaction halted post-regolith
-    #[error("deposit transaction halted after regolith")]
-    HaltedDepositPostRegolith,
-}
+// /// Optimism specific invalid transaction errors
+// #[cfg(feature = "optimism")]
+// #[derive(thiserror::Error, Debug)]
+// pub enum OptimismInvalidTransactionError {
+//     /// A deposit transaction was submitted as a system transaction post-regolith.
+//     #[error("no system transactions allowed after regolith")]
+//     DepositSystemTxPostRegolith,
+//     /// A deposit transaction halted post-regolith
+//     #[error("deposit transaction halted after regolith")]
+//     HaltedDepositPostRegolith,
+// }
 
 impl RpcInvalidTransactionError {
     /// Returns the rpc error code for this error.
@@ -478,17 +478,16 @@ impl From<revm::primitives::InvalidTransaction> for RpcInvalidTransactionError {
             InvalidTransaction::TooManyBlobs => RpcInvalidTransactionError::TooManyBlobs,
             InvalidTransaction::BlobCreateTransaction => {
                 RpcInvalidTransactionError::BlobTransactionIsCreate
-            }
-            #[cfg(feature = "optimism")]
-            InvalidTransaction::DepositSystemTxPostRegolith => {
-                RpcInvalidTransactionError::Optimism(
-                    OptimismInvalidTransactionError::DepositSystemTxPostRegolith,
-                )
-            }
-            #[cfg(feature = "optimism")]
-            InvalidTransaction::HaltedDepositPostRegolith => RpcInvalidTransactionError::Optimism(
-                OptimismInvalidTransactionError::HaltedDepositPostRegolith,
-            ),
+            } // #[cfg(feature = "optimism")]
+              // InvalidTransaction::DepositSystemTxPostRegolith => {
+              //     RpcInvalidTransactionError::Optimism(
+              //         OptimismInvalidTransactionError::DepositSystemTxPostRegolith,
+              //     )
+              // }
+              // #[cfg(feature = "optimism")]
+              // InvalidTransaction::HaltedDepositPostRegolith => RpcInvalidTransactionError::Optimism(
+              //     OptimismInvalidTransactionError::HaltedDepositPostRegolith,
+              // ),
         }
     }
 }

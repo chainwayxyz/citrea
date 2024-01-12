@@ -58,7 +58,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         );
         info!("evm module: eth_chainId() -> {}", chain_id);
 
-        Ok(Some(U64::from(chain_id)))
+        Ok(Some(chain_id))
     }
 
     /// Handler for `eth_getBlockByHash`

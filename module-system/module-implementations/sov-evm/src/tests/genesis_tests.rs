@@ -37,18 +37,13 @@ lazy_static! {
         starting_base_fee: 1000000000,
         base_fee_params: BaseFeeParams::ethereum(),
     };
-}
 
-lazy_static! {
     pub(crate) static ref GENESIS_HASH: B256 = B256::from(hex!(
         "9187222a036b606a937ab9e1d08cce85fcf4f234e67cc53ac7c42de352ca312d"
     ));
     pub(crate) static ref GENESIS_STATE_ROOT: B256 = B256::from(hex!(
         "c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470"
     ));
-}
-
-lazy_static! {
     pub(crate) static ref BENEFICIARY: Address = Address::from([3u8; 20]);
 }
 
