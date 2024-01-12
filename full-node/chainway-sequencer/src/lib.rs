@@ -12,13 +12,12 @@ use std::sync::Arc;
 
 use borsh::ser::BorshSerialize;
 use demo_stf::runtime::Runtime;
-use ethers::types::H256;
 use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
 use futures::lock::Mutex;
 use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::RpcModule;
 use mempool::Mempool;
-use reth_primitives::Bytes;
+use reth_primitives::{Bytes, B256};
 use sov_accounts::Accounts;
 use sov_accounts::Response::{AccountEmpty, AccountExists};
 use sov_evm::{CallMessage, RlpEvmTransaction};
@@ -200,7 +199,7 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
             // Mempool had to be arc mutex to mutate chainway sequencer
             ctx.mempool.lock().await.pool.push_back(raw_evm_tx);
 
-            Ok::<H256, ErrorObjectOwned>((*recovered.hash()).into())
+            Ok::<B256, ErrorObjectOwned>(*recovered.hash())
         })?;
         rpc.register_async_method("eth_publishBatch", |_, ctx| async move {
             info!("Sequencer: eth_publishBatch");

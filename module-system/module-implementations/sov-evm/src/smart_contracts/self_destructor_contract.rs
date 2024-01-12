@@ -62,7 +62,7 @@ impl SelfDestructorContract {
     }
     /// Selfdestructor of the smart contract.
     pub fn selfdestruct(&self, to: Address) -> Bytes {
-        let set_arg = ethereum_types::Address::from(to);
+        let set_arg = ethereum_types::Address::from_slice(to.as_ref());
         self.base_contract.encode("die", set_arg).unwrap()
     }
 }

@@ -120,21 +120,25 @@ risc0-build = "0.19"
 
 # EVM dependencies
 ethereum-types = "0.14.1"
-ethers = "=2.0.10"
-ethers-core = { version = "=2.0.10", default-features = false }
-ethers-contract = "=2.0.10"
-ethers-providers = { version = "=2.0.10", default-features = false }
-ethers-signers = { version = "=2.0.10", default-features = false }
-ethers-middleware = { version = "=2.0.10", default-features = false }
+ethers = "2.0"
+ethers-core = { version = "2.0", default-features = false }
+ethers-contract = "2.0"
+ethers-providers = { version = "2.0", default-features = false }
+ethers-signers = { version = "2.0", default-features = false }
+ethers-middleware = { version = "2.0", default-features = false }
 
-reth-primitives = { git = "https://github.com/paradigmxyz/reth", rev = "e83d3aa" }
-reth-interfaces = { git = "https://github.com/paradigmxyz/reth", rev = "e83d3aa" }
-reth-rpc-types = { git = "https://github.com/paradigmxyz/reth", rev = "e83d3aa" }
-reth-rpc-types-compat = { git = "https://github.com/paradigmxyz/reth", rev = "e83d3aa" }
-reth-revm = { git = "https://github.com/paradigmxyz/reth", rev = "e83d3aa" }
+reth-primitives = { git = "https://github.com/paradigmxyz/reth", rev = "6430731" }
+reth-interfaces = { git = "https://github.com/paradigmxyz/reth", rev = "6430731" }
+reth-rpc-types = { git = "https://github.com/paradigmxyz/reth", rev = "6430731" }
+reth-rpc-types-compat = { git = "https://github.com/paradigmxyz/reth", rev = "6430731" }
+reth-revm = { git = "https://github.com/paradigmxyz/reth", rev = "6430731" }
 
-revm = { git = "https://github.com/bluealloy/revm", rev = "516f62cc" }
-alloy-primitives = "0.4.2"
+revm = { git = "https://github.com/bluealloy/revm", branch = "reth_freeze", features = [
+    "std",
+    "secp256k1",
+], default-features = false }
+alloy-primitives = "0.6"
+alloy-sol-types = "0.6"
 secp256k1 = { version = "0.27.0", default-features = false, features = [
     "global-context",
     "rand-std",
