@@ -1,4 +1,4 @@
-use reth_primitives::{Address, BaseFeeParams, B256, U256};
+use reth_primitives::{Address, BaseFeeParams, B256, KECCAK_EMPTY, U256};
 use revm::primitives::specification::SpecId;
 use serde::{Deserialize, Serialize};
 use sov_modules_api::{StateMap, StateVec};
@@ -23,11 +23,21 @@ use sov_state::codec::BcsCodec;
 use crate::tests::DEFAULT_CHAIN_ID;
 
 // Stores information about an EVM account
-#[derive(Deserialize, Serialize, Debug, PartialEq, Clone, Default)]
+#[derive(Deserialize, Serialize, Debug, PartialEq, Clone)]
 pub(crate) struct AccountInfo {
     pub(crate) balance: U256,
     pub(crate) code_hash: B256,
     pub(crate) nonce: u64,
+}
+
+impl Default for AccountInfo {
+    fn default() -> Self {
+        Self {
+            balance: U256::default(),
+            code_hash: KECCAK_EMPTY,
+            nonce: 0,
+        }
+    }
 }
 
 /// Stores information about an EVM account and a corresponding account state.

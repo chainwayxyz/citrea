@@ -1,4 +1,4 @@
-use reth_primitives::U256;
+use reth_primitives::{KECCAK_EMPTY, U256};
 use revm::primitives::{Account, Address, HashMap};
 use revm::DatabaseCommit;
 use sov_modules_api::{StateMapAccessor, StateVecAccessor};
@@ -23,7 +23,7 @@ impl<'a, C: sov_modules_api::Context> DatabaseCommit for EvmDb<'a, C> {
             if account.is_selfdestructed() {
                 db_account.info.balance = U256::from(0);
                 db_account.info.nonce = 0;
-                db_account.info.code_hash = Default::default();
+                db_account.info.code_hash = KECCAK_EMPTY;
                 // TODO find mroe efficient way to clear storage
                 // https://github.com/chainwayxyz/rollup-modules/issues/4
                 // clear storage
