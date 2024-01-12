@@ -1,6 +1,7 @@
 use std::array::TryFromSliceError;
 use std::ops::{Range, RangeInclusive};
 
+use alloy_primitives::BlockNumber;
 use ethereum_types::U64;
 use jsonrpsee::core::RpcResult;
 use reth_interfaces::provider::ProviderError;
@@ -216,16 +217,28 @@ impl<C: sov_modules_api::Context> Evm<C> {
         // TODO: Implement block_number once we have archival state #951
         // https://github.com/Sovereign-Labs/sovereign-sdk/issues/951
 
+        let curr_block_number = self
+            .blocks
+            .last(&mut working_set.accessory_state())
+            .expect("Head block must be set")
+            .header
+            .number;
+
+        // Specs from https://ethereum.org/en/developers/docs/apis/json-rpc
         match block_number {
             Some(BlockNumberOrTag::Number(num)) => {
+                if num > curr_block_number {
+                    return Err(EthApiError::UnknownBlockNumber.into());
+                }
                 working_set.set_archival_version(num);
             }
             // Working state here is already at the latest state, so no need to anything
-            Some(BlockNumberOrTag::Latest) => {}
+            Some(BlockNumberOrTag::Latest) | Some(BlockNumberOrTag::Pending) => {}
             Some(BlockNumberOrTag::Earliest) => {
                 working_set.set_archival_version(0);
             }
             // Is this the way?
+            // Note that reth works for all types of BlockNumberOrTag
             _ => {
                 return Err(EthApiError::InvalidParams(
                     "Please provide a number or earliest/latest tag".to_string(),
@@ -257,16 +270,28 @@ impl<C: sov_modules_api::Context> Evm<C> {
         // TODO: Implement block_number once we have archival state #951
         // https://github.com/Sovereign-Labs/sovereign-sdk/issues/951
 
+        let curr_block_number = self
+            .blocks
+            .last(&mut working_set.accessory_state())
+            .expect("Head block must be set")
+            .header
+            .number;
+
+        // Specs from https://ethereum.org/en/developers/docs/apis/json-rpc
         match block_number {
             Some(BlockNumberOrTag::Number(num)) => {
+                if num > curr_block_number {
+                    return Err(EthApiError::UnknownBlockNumber.into());
+                }
                 working_set.set_archival_version(num);
             }
             // Working state here is already at the latest state, so no need to anything
-            Some(BlockNumberOrTag::Latest) => {}
+            Some(BlockNumberOrTag::Latest) | Some(BlockNumberOrTag::Pending) => {}
             Some(BlockNumberOrTag::Earliest) => {
                 working_set.set_archival_version(0);
             }
             // Is this the way?
+            // Note that reth works for all types of BlockNumberOrTag
             _ => {
                 return Err(EthApiError::InvalidParams(
                     "Please provide a number or earliest/latest tag".to_string(),
@@ -297,16 +322,28 @@ impl<C: sov_modules_api::Context> Evm<C> {
         // TODO: Implement block_number once we have archival state #882
         // https://github.com/Sovereign-Labs/sovereign-sdk/issues/882
 
+        let curr_block_number = self
+            .blocks
+            .last(&mut working_set.accessory_state())
+            .expect("Head block must be set")
+            .header
+            .number;
+
+        // Specs from https://ethereum.org/en/developers/docs/apis/json-rpc
         match block_number {
             Some(BlockNumberOrTag::Number(num)) => {
+                if num > curr_block_number {
+                    return Err(EthApiError::UnknownBlockNumber.into());
+                }
                 working_set.set_archival_version(num);
             }
             // Working state here is already at the latest state, so no need to anything
-            Some(BlockNumberOrTag::Latest) => {}
+            Some(BlockNumberOrTag::Latest) | Some(BlockNumberOrTag::Pending) => {}
             Some(BlockNumberOrTag::Earliest) => {
                 working_set.set_archival_version(0);
             }
             // Is this the way?
+            // Note that reth works for all types of BlockNumberOrTag
             _ => {
                 return Err(EthApiError::InvalidParams(
                     "Please provide a number or earliest/latest tag".to_string(),
@@ -337,16 +374,28 @@ impl<C: sov_modules_api::Context> Evm<C> {
         // TODO: Implement block_number once we have archival state #951
         // https://github.com/Sovereign-Labs/sovereign-sdk/issues/951
 
+        let curr_block_number = self
+            .blocks
+            .last(&mut working_set.accessory_state())
+            .expect("Head block must be set")
+            .header
+            .number;
+
+        // Specs from https://ethereum.org/en/developers/docs/apis/json-rpc
         match block_number {
             Some(BlockNumberOrTag::Number(num)) => {
+                if num > curr_block_number {
+                    return Err(EthApiError::UnknownBlockNumber.into());
+                }
                 working_set.set_archival_version(num);
             }
             // Working state here is already at the latest state, so no need to anything
-            Some(BlockNumberOrTag::Latest) => {}
+            Some(BlockNumberOrTag::Latest) | Some(BlockNumberOrTag::Pending) => {}
             Some(BlockNumberOrTag::Earliest) => {
                 working_set.set_archival_version(0);
             }
             // Is this the way?
+            // Note that reth works for all types of BlockNumberOrTag
             _ => {
                 return Err(EthApiError::InvalidParams(
                     "Please provide a number or earliest/latest tag".to_string(),
