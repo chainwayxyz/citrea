@@ -177,15 +177,7 @@ where
         let mut seq: ChainwaySequencer<
             <S as RollupBlueprint>::NativeContext,
             <S as RollupBlueprint>::DaService,
-            S,
-            Pool<
-                    TransactionValidationTaskExecutor<
-                        EthTransactionValidator<DbProvider<DefaultContext>, EthPooledTransaction>,
-                    >,
-                    CoinbaseTipOrdering<EthPooledTransaction>,
-                    NoopBlobStore,
-                >
-        > = ChainwaySequencer::new(
+            S> = ChainwaySequencer::new(
             rollup,
             da_service,
             <<<S as RollupBlueprint>::NativeContext as Spec>::PrivateKey as TryFrom<&[u8]>>::try_from(

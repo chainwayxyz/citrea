@@ -1,6 +1,7 @@
 use bytes::Bytes;
 use reth_primitives::{
     Bytes as RethBytes, TransactionSigned, TransactionSignedEcRecovered, TransactionSignedNoHash,
+    KECCAK_EMPTY,
 };
 use revm::primitives::{
     AccountInfo as ReVmAccountInfo, BlockEnv as ReVmBlockEnv, CreateScheme, TransactTo, TxEnv, U256,
@@ -27,6 +28,20 @@ impl From<ReVmAccountInfo> for AccountInfo {
             balance: info.balance,
             code_hash: info.code_hash,
             nonce: info.nonce,
+        }
+    }
+}
+
+impl From<AccountInfo> for reth_primitives::Account {
+    fn from(acc: AccountInfo) -> Self {
+        Self {
+            balance: acc.balance,
+            bytecode_hash: if acc.code_hash == KECCAK_EMPTY {
+                None
+            } else {
+                Some(acc.code_hash)
+            },
+            nonce: acc.nonce,
         }
     }
 }

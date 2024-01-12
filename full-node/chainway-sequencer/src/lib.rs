@@ -3,10 +3,10 @@ pub use sov_evm::DevSigner;
 pub mod db_provider;
 use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_stf_runner::BlockTemplate;
-mod mempool;
 mod utils;
 
 use std::borrow::BorrowMut;
+use std::default;
 use std::marker::PhantomData;
 use std::net::SocketAddr;
 use std::ops::Deref;
@@ -18,9 +18,9 @@ use ethers::types::H256;
 use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
 use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::RpcModule;
-use mempool::Mempool;
 use reth_primitives::{
-    Bytes, Chain, FromRecoveredPooledTransaction, IntoRecoveredTransaction, MAINNET,
+    Bytes, Chain, ChainSpec, ForkTimestamps, FromRecoveredPooledTransaction, Genesis,
+    IntoRecoveredTransaction, PruneBatchSizes, MAINNET,
 };
 use reth_provider::{BlockReaderIdExt, ChainSpecProvider, StateProviderFactory};
 use reth_tasks::TokioTaskExecutor;
@@ -50,18 +50,30 @@ type CitreaMempool<C: sov_modules_api::Context> = Pool<
 
 const ETH_RPC_ERROR: &str = "ETH_RPC_ERROR";
 
-fn create_mempool<C>(
-    client: C,
+fn create_mempool<C: sov_modules_api::Context>(
+    client: DbProvider<C>,
 ) -> Pool<
-    TransactionValidationTaskExecutor<EthTransactionValidator<C, EthPooledTransaction>>,
+    TransactionValidationTaskExecutor<EthTransactionValidator<DbProvider<C>, EthPooledTransaction>>,
     CoinbaseTipOrdering<EthPooledTransaction>,
     NoopBlobStore,
->
-where
-    C: StateProviderFactory + BlockReaderIdExt + ChainSpecProvider + Clone + 'static,
-{
+> {
     let blob_store = NoopBlobStore::default();
     // let mut mock_chain_spec = ChainSpec::default();
+    // let chain_state = ChainSt
+    // client.block_by_number_or_tag(id)
+    let genesis_hash = client.genesis_block().unwrap().unwrap().header.hash;
+    let evm_config = client.cfg();
+    let mut chain_spec = ChainSpec {
+        chain: Chain::Id(evm_config.chain_id),
+        genesis_hash,
+        genesis: Default::default(),
+        paris_block_and_final_difficulty: None,
+        fork_timestamps: Default::default(),
+        hardforks: Default::default(),
+        deposit_contract: None,
+        base_fee_params: evm_config.base_fee_params,
+        prune_batch_sizes: PruneBatchSizes::default(),
+    };
     let mut mock_chain_spec = MAINNET.clone().deref().to_owned();
     mock_chain_spec.chain = Chain::Id(5655);
     Pool::eth_pool(
@@ -81,16 +93,11 @@ pub struct RpcContext<C: sov_modules_api::Context> {
     pub sender: UnboundedSender<String>,
 }
 
-pub struct ChainwaySequencer<
-    C: sov_modules_api::Context,
-    Da: DaService,
-    S: RollupBlueprint,
-    Pool: TransactionPool + Clone + 'static,
-> {
+pub struct ChainwaySequencer<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> {
     rollup: Rollup<S>,
     da_service: Da,
     mempool: Arc<CitreaMempool<C>>,
-    p: PhantomData<(C, Pool)>,
+    p: PhantomData<C>,
     sov_tx_signer_priv_key: C::PrivateKey,
     sov_tx_signer_nonce: u64,
     sender: UnboundedSender<String>,
@@ -98,20 +105,13 @@ pub struct ChainwaySequencer<
     db_provider: DbProvider<C>,
 }
 
-impl<
-        C: sov_modules_api::Context,
-        Da: DaService,
-        S: RollupBlueprint,
-        Pool: TransactionPool + Clone + 'static,
-    > ChainwaySequencer<C, Da, S, Pool>
-{
+impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySequencer<C, Da, S> {
     pub fn new(
         rollup: Rollup<S>,
         da_service: Da,
         sov_tx_signer_priv_key: C::PrivateKey,
         storage: C::Storage,
     ) -> Self {
-        let mempool = Mempool::new();
         let (sender, receiver) = unbounded();
 
         let accounts = Accounts::<C>::default();
@@ -165,18 +165,18 @@ impl<
 
                 let cfg = self.db_provider.cfg();
 
-                let base_fee = latest_header
-                    .unwrap()
-                    .unwrap()
-                    .unseal()
-                    .next_block_base_fee(cfg.base_fee_params);
-                println!("base_fee: {:?}", base_fee);
+                let base_fee = match latest_header {
+                    Ok(Some(sealed_header)) => sealed_header
+                        .unseal()
+                        .next_block_base_fee(cfg.base_fee_params),
+                    _ => panic!("Sequencer: Failed to get latest header"),
+                };
 
                 let best_txs_with_base_fee = self
                     .mempool
                     .best_transactions_with_base_fee(base_fee.unwrap());
 
-                // TODO: Handle block building
+                // TODO: implement block builder instead of just including every transaction in order
                 for tx in best_txs_with_base_fee {
                     let rc_tx = tx.to_recovered_transaction();
                     let signed_tx = rc_tx.into_signed();
@@ -273,7 +273,6 @@ impl<
         };
         let mut rpc = RpcModule::new(rpc_context);
         rpc.register_async_method("eth_sendRawTransaction", |parameters, ctx| async move {
-            // https://github.com/paradigmxyz/reth/blob/main/crates/rpc/rpc/src/eth/api/transactions.rs#L505
             info!("Sequencer: eth_sendRawTransaction");
             let data: Bytes = parameters.one().unwrap();
 
@@ -290,7 +289,7 @@ impl<
             // submit the transaction to the pool with a `Local` origin
             let hash = ctx
                 .mempool
-                .add_transaction(TransactionOrigin::Local, pool_transaction)
+                .add_transaction(TransactionOrigin::External, pool_transaction)
                 .await
                 .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
             Ok::<H256, ErrorObjectOwned>(H256::from_slice(hash.as_bytes()))

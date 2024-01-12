@@ -217,9 +217,9 @@ dependencies = [
 
 [[package]]
 name = "anstream"
-version = "0.6.5"
+version = "0.6.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d664a92ecae85fd0a7392615844904654d1d5f5514837f471ddef4a057aba1b6"
+checksum = "4cd2405b3ac1faab2990b74d728624cd9fd115651fcecc7c2d8daf01376275ba"
 dependencies = [
  "anstyle",
  "anstyle-parse",
@@ -735,7 +735,7 @@ checksum = "8c3c1a368f70d6cf7302d78f8f7093da241fb8e8807c05cc9e51a125895a6d5b"
 name = "bashtestmd"
 version = "0.3.0"
 dependencies = [
- "clap 4.4.15",
+ "clap 4.4.16",
  "indoc",
  "markdown",
  "shell-escape",
@@ -1638,9 +1638,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.4.15"
+version = "4.4.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c12ed66a79a555082f595f7eb980d08669de95009dd4b3d61168c573ebe38fc9"
+checksum = "58e54881c004cec7895b0068a0a954cd5d62da01aef83fa35b1e594497bf5445"
 dependencies = [
  "clap_builder",
  "clap_derive",
@@ -1648,9 +1648,9 @@ dependencies = [
 
 [[package]]
 name = "clap_builder"
-version = "4.4.15"
+version = "4.4.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0f4645eab3431e5a8403a96bea02506a8b35d28cd0f0330977dd5d22f9c84f43"
+checksum = "59cb82d7f531603d2fd1f507441cdd35184fa81beff7bd489570de7f773460bb"
 dependencies = [
  "anstream",
  "anstyle",
@@ -1942,7 +1942,7 @@ dependencies = [
  "anes",
  "cast",
  "ciborium",
- "clap 4.4.15",
+ "clap 4.4.16",
  "criterion-plot",
  "is-terminal",
  "itertools 0.10.5",
@@ -2346,7 +2346,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "borsh",
- "clap 4.4.15",
+ "clap 4.4.16",
  "demo-stf",
  "hex",
  "jsonrpsee 0.20.3",
@@ -8615,7 +8615,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "borsh",
- "clap 4.4.15",
+ "clap 4.4.16",
  "jsonrpsee 0.20.3",
  "schemars",
  "serde",
@@ -8755,7 +8755,7 @@ dependencies = [
  "anyhow",
  "arbitrary",
  "borsh",
- "clap 4.4.15",
+ "clap 4.4.16",
  "jsonrpsee 0.20.3",
  "proptest",
  "proptest-derive",
@@ -8828,7 +8828,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "borsh",
- "clap 4.4.15",
+ "clap 4.4.16",
  "jsonrpsee 0.20.3",
  "schemars",
  "serde",
@@ -8848,7 +8848,7 @@ dependencies = [
  "anyhow",
  "bincode",
  "borsh",
- "clap 4.4.15",
+ "clap 4.4.16",
  "hex",
  "jmt",
  "jsonrpsee 0.20.3",
@@ -8989,7 +8989,7 @@ dependencies = [
  "bitcoin-da",
  "borsh",
  "chainway-sequencer",
- "clap 4.4.15",
+ "clap 4.4.16",
  "const-rollup-config",
  "criterion",
  "demo-stf",
@@ -9080,7 +9080,7 @@ dependencies = [
  "anyhow",
  "borsh",
  "bytes",
- "clap 4.4.15",
+ "clap 4.4.16",
  "derive_more",
  "ethereum-types",
  "ethers",
@@ -9093,15 +9093,11 @@ dependencies = [
  "jsonrpsee 0.20.3",
  "lazy_static",
  "rand 0.8.5",
- "reth-db",
  "reth-interfaces",
  "reth-primitives",
- "reth-provider",
  "reth-revm",
  "reth-rpc-types",
  "reth-rpc-types-compat",
- "reth-tasks",
- "reth-transaction-pool",
  "revm",
  "schemars",
  "secp256k1 0.27.0",
@@ -9189,7 +9185,7 @@ dependencies = [
  "bech32",
  "bincode",
  "borsh",
- "clap 4.4.15",
+ "clap 4.4.16",
  "derive_more",
  "ed25519-dalek 2.0.0",
  "hex",
@@ -9252,7 +9248,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "borsh",
- "clap 4.4.15",
+ "clap 4.4.16",
  "jsonrpsee 0.20.3",
  "proc-macro2 1.0.76",
  "quote 1.0.35",
@@ -9477,7 +9473,7 @@ dependencies = [
  "anyhow",
  "arbitrary",
  "borsh",
- "clap 4.4.15",
+ "clap 4.4.16",
  "jsonrpsee 0.20.3",
  "proptest",
  "proptest-derive",
@@ -9577,7 +9573,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "borsh",
- "clap 4.4.15",
+ "clap 4.4.16",
  "jsonrpsee 0.20.3",
  "schemars",
  "serde",
@@ -9596,7 +9592,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "borsh",
- "clap 4.4.15",
+ "clap 4.4.16",
  "jsonrpsee 0.20.3",
  "schemars",
  "serde",
@@ -11522,9 +11518,9 @@ checksum = "f1bddf1187be692e79c5ffeab891132dfb0f236ed36a43c7ed39f1165ee20191"
 
 [[package]]
 name = "vergen"
-version = "8.2.6"
+version = "8.2.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1290fd64cc4e7d3c9b07d7f333ce0ce0007253e32870e632624835cc80b83939"
+checksum = "f2066fbfd3bfbadab28cab8bae840c9e74917bc6deeef2ed0781f2eb2fdfafdb"
 dependencies = [
  "anyhow",
  "rustversion",

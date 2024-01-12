@@ -432,15 +432,16 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
         let mut nonce = client.eth_get_transaction_count(client.from_addr).await;
         for _ in 0..4 {
             let mut requests = Vec::default();
-
-            for value in 0..25 {
+            for value in 0..15 {
+                // sleep
+                sleep(Duration::from_millis(50)).await;
                 let set_value_req = client
                     .contract_transaction_with_custom_fee(
                         // ADD NONCE
                         contract_address,
                         contract.set_call_data(value),
                         20u64,
-                        21u64,
+                        10000000000u64,
                         None,
                         Some(nonce),
                     )

@@ -99,23 +99,13 @@ pub async fn start_rollup(
         NodeMode::SequencerNode => {
             let da_service = MockDaService::new(MockAddress::new([0u8; 32]));
 
-            let mut sequencer: ChainwaySequencer<
-                DefaultContext,
-                MockDaService,
-                _,
-                Pool<
-                    TransactionValidationTaskExecutor<
-                        EthTransactionValidator<DbProvider<DefaultContext>, EthPooledTransaction>,
-                    >,
-                    CoinbaseTipOrdering<EthPooledTransaction>,
-                    NoopBlobStore,
-                >,
-            > = ChainwaySequencer::new(
-                rollup,
-                da_service,
-                DefaultPrivateKey::from_hex(TEST_PRIVATE_KEY).unwrap(),
-                storage,
-            );
+            let mut sequencer: ChainwaySequencer<DefaultContext, MockDaService, _> =
+                ChainwaySequencer::new(
+                    rollup,
+                    da_service,
+                    DefaultPrivateKey::from_hex(TEST_PRIVATE_KEY).unwrap(),
+                    storage,
+                );
             sequencer
                 .start_rpc_server(Some(rpc_reporting_channel))
                 .await
