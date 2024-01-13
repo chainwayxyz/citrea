@@ -15,7 +15,7 @@ use reth_primitives::BlockNumberOrTag;
 use serde::de::value;
 use sov_evm::{CoinbaseContract, LogResponse, LogsContract, SimpleStorageContract, TestContract};
 
-const MAX_FEE_PER_GAS: u64 = 1000000001;
+pub const MAX_FEE_PER_GAS: u64 = 1000000001;
 const GAS: u64 = 900000u64;
 
 pub struct TestClient {
@@ -204,7 +204,7 @@ impl TestClient {
         max_fee_per_gas: Option<u64>,
         nonce: Option<u64>,
         value: Option<u128>,
-    ) -> PendingTransaction<'_, Http> {
+    ) -> Result<PendingTransaction<'_, Http>, anyhow::Error> {
         let nonce = match nonce {
             Some(nonce) => nonce,
             None => self.eth_get_transaction_count(self.from_addr).await,
@@ -228,7 +228,7 @@ impl TestClient {
         self.client
             .send_transaction(typed_transaction, None)
             .await
-            .unwrap()
+            .map_err(|e| e.into())
     }
 
     pub(crate) async fn web3_client_version(&self) -> String {
