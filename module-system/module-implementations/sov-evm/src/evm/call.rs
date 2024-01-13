@@ -1,8 +1,11 @@
 // https://github.com/paradigmxyz/reth/blob/main/crates/rpc/rpc/src/eth/revm_utils.rs
 
-use reth_primitives::{B256, U256};
-use reth_rpc_types::CallRequest;
-use revm::primitives::{TransactTo, TxEnv};
+use reth_primitives::{Address, B256, U256};
+use reth_rpc_types::state::{AccountOverride, StateOverride};
+use reth_rpc_types::{BlockOverrides, CallRequest};
+use revm::db::CacheDB;
+use revm::primitives::{Bytecode, TransactTo, TxEnv};
+use revm::DatabaseRef;
 
 use crate::error::rpc::{EthApiError, EthResult, RpcInvalidTransactionError};
 use crate::primitive_types::BlockEnv;
@@ -126,7 +129,17 @@ impl CallFees {
 }
 
 // https://github.com/paradigmxyz/reth/blob/d8677b4146f77c7c82d659c59b79b38caca78778/crates/rpc/rpc/src/eth/revm_utils.rs#L201
-pub(crate) fn prepare_call_env(block_env: &BlockEnv, request: CallRequest) -> EthResult<TxEnv> {
+pub(crate) fn prepare_call_env<DB>(
+    block_env: &mut BlockEnv,
+    request: CallRequest,
+    db: &mut CacheDB<DB>,
+    block_overrides: Option<Box<BlockOverrides>>,
+    state_overrides: Option<StateOverride>,
+) -> EthResult<TxEnv>
+where
+    DB: DatabaseRef,
+    EthApiError: From<<DB as DatabaseRef>::Error>,
+{
     let CallRequest {
         from,
         to,
@@ -141,6 +154,24 @@ pub(crate) fn prepare_call_env(block_env: &BlockEnv, request: CallRequest) -> Et
         chain_id,
         ..
     } = request;
+
+    // apply state overrides
+    if let Some(state_overrides) = state_overrides {
+        apply_state_overrides(state_overrides, db)?;
+    }
+
+    // apply block overrides
+    if let Some(mut block_overrides) = block_overrides {
+        if let Some(block_hashes) = block_overrides.block_hash.take() {
+            // override block hashes
+            db.block_hashes.extend(
+                block_hashes
+                    .into_iter()
+                    .map(|(num, hash)| (U256::from(num), hash)),
+            )
+        }
+        apply_block_overrides(*block_overrides, block_env);
+    }
 
     // TODO: write hardhat and unit tests for this
     if max_fee_per_gas == Some(U256::ZERO) {
@@ -199,4 +230,105 @@ pub(crate) fn prepare_call_env(block_env: &BlockEnv, request: CallRequest) -> Et
     };
 
     Ok(env)
+}
+
+/// Applies the given block overrides to the env
+fn apply_block_overrides(overrides: BlockOverrides, env: &mut BlockEnv) {
+    let BlockOverrides {
+        number,
+        difficulty,
+        time,
+        gas_limit,
+        coinbase,
+        random,
+        base_fee,
+        block_hash: _,
+    } = overrides;
+
+    if let Some(number) = number {
+        env.number = number.to::<u64>();
+    }
+    // if let Some(difficulty) = difficulty {
+    //     env.difficulty = difficulty;
+    // }
+    if let Some(time) = time {
+        env.timestamp = time.to::<u64>();
+    }
+    if let Some(gas_limit) = gas_limit {
+        env.gas_limit = gas_limit.to::<u64>();
+    }
+    if let Some(coinbase) = coinbase {
+        env.coinbase = coinbase;
+    }
+    if let Some(random) = random {
+        env.prevrandao = random;
+    }
+    if let Some(base_fee) = base_fee {
+        env.basefee = base_fee.to::<u64>();
+    }
+}
+
+/// Applies the given state overrides (a set of [AccountOverride]) to the [CacheDB].
+fn apply_state_overrides<DB>(overrides: StateOverride, db: &mut CacheDB<DB>) -> EthResult<()>
+where
+    DB: DatabaseRef,
+    EthApiError: From<<DB as DatabaseRef>::Error>,
+{
+    for (account, account_overrides) in overrides {
+        apply_account_override(account, account_overrides, db)?;
+    }
+    Ok(())
+}
+
+/// Applies a single [AccountOverride] to the [CacheDB].
+fn apply_account_override<DB>(
+    account: Address,
+    account_override: AccountOverride,
+    db: &mut CacheDB<DB>,
+) -> EthResult<()>
+where
+    DB: DatabaseRef,
+    EthApiError: From<<DB as DatabaseRef>::Error>,
+{
+    // we need to fetch the account via the `DatabaseRef` to not update the state of the account,
+    // which is modified via `Database::basic_ref`
+    let mut account_info = DatabaseRef::basic_ref(db, account)?.unwrap_or_default();
+
+    if let Some(nonce) = account_override.nonce {
+        account_info.nonce = nonce.to();
+    }
+    if let Some(code) = account_override.code {
+        account_info.code = Some(Bytecode::new_raw(code));
+    }
+    if let Some(balance) = account_override.balance {
+        account_info.balance = balance;
+    }
+
+    db.insert_account_info(account, account_info);
+
+    // We ensure that not both state and state_diff are set.
+    // If state is set, we must mark the account as "NewlyCreated", so that the old storage
+    // isn't read from
+    match (account_override.state, account_override.state_diff) {
+        (Some(_), Some(_)) => return Err(EthApiError::BothStateAndStateDiffInOverride(account)),
+        (None, None) => {
+            // nothing to do
+        }
+        (Some(new_account_state), None) => {
+            db.replace_account_storage(
+                account,
+                new_account_state
+                    .into_iter()
+                    .map(|(slot, value)| (U256::from_be_bytes(slot.0), value))
+                    .collect(),
+            )?;
+        }
+        (None, Some(account_state_diff)) => {
+            for (slot, value) in account_state_diff {
+                db.insert_account_storage(account, U256::from_be_bytes(slot.0), value)?;
+            }
+        }
+    };
+
+    Ok(())
 }

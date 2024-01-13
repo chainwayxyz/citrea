@@ -1,10 +1,13 @@
+use std::cell::RefCell;
 use std::convert::Infallible;
 
 use reth_primitives::{Address, Bytes, B256};
 use revm::primitives::{AccountInfo as ReVmAccountInfo, Bytecode, U256};
-use revm::Database;
+use revm::{Database, DatabaseRef};
 use sov_modules_api::{StateMapAccessor, WorkingSet};
 use sov_state::codec::BcsCodec;
+
+use crate::EthApiError;
 
 use super::DbAccount;
 
@@ -12,7 +15,7 @@ pub(crate) struct EvmDb<'a, C: sov_modules_api::Context> {
     pub(crate) accounts: sov_modules_api::StateMap<Address, DbAccount, BcsCodec>,
     pub(crate) code: sov_modules_api::StateMap<B256, Bytes, BcsCodec>,
     pub(crate) last_block_hashes: sov_modules_api::StateMap<U256, B256, BcsCodec>,
-    pub(crate) working_set: &'a mut WorkingSet<C>,
+    pub(crate) working_set: RefCell<&'a mut WorkingSet<C>>,
 }
 
 impl<'a, C: sov_modules_api::Context> EvmDb<'a, C> {
@@ -26,7 +29,7 @@ impl<'a, C: sov_modules_api::Context> EvmDb<'a, C> {
             accounts,
             code,
             last_block_hashes,
-            working_set,
+            working_set: RefCell::new(working_set),
         }
     }
 }
@@ -35,7 +38,7 @@ impl<'a, C: sov_modules_api::Context> Database for EvmDb<'a, C> {
     type Error = Infallible;
 
     fn basic(&mut self, address: Address) -> Result<Option<ReVmAccountInfo>, Self::Error> {
-        let db_account = self.accounts.get(&address, self.working_set);
+        let db_account = self.accounts.get(&address, *self.working_set.borrow_mut());
         Ok(db_account.map(|acc| acc.info.into()))
     }
 
@@ -43,7 +46,7 @@ impl<'a, C: sov_modules_api::Context> Database for EvmDb<'a, C> {
         // TODO move to new_raw_with_hash for better performance
         let bytecode = Bytecode::new_raw(
             self.code
-                .get(&code_hash, self.working_set)
+                .get(&code_hash, *self.working_set.borrow_mut())
                 .unwrap_or_default(),
         );
 
@@ -51,13 +54,14 @@ impl<'a, C: sov_modules_api::Context> Database for EvmDb<'a, C> {
     }
 
     fn storage(&mut self, address: Address, index: U256) -> Result<U256, Self::Error> {
-        let storage_value: U256 = if let Some(acc) = self.accounts.get(&address, self.working_set) {
-            acc.storage
-                .get(&index, self.working_set)
-                .unwrap_or_default()
-        } else {
-            U256::default()
-        };
+        let storage_value: U256 =
+            if let Some(acc) = self.accounts.get(&address, *self.working_set.borrow_mut()) {
+                acc.storage
+                    .get(&index, *self.working_set.borrow_mut())
+                    .unwrap_or_default()
+            } else {
+                U256::default()
+            };
 
         Ok(storage_value)
     }
@@ -65,7 +69,49 @@ impl<'a, C: sov_modules_api::Context> Database for EvmDb<'a, C> {
     fn block_hash(&mut self, number: U256) -> Result<B256, Self::Error> {
         let block_hash = self
             .last_block_hashes
-            .get(&number, self.working_set)
+            .get(&number, *self.working_set.borrow_mut())
+            .unwrap_or(B256::ZERO);
+
+        Ok(block_hash)
+    }
+}
+
+impl<'a, C: sov_modules_api::Context> DatabaseRef for EvmDb<'a, C> {
+    type Error = EthApiError;
+
+    fn basic_ref(&self, address: Address) -> Result<Option<ReVmAccountInfo>, Self::Error> {
+        let db_account = self.accounts.get(&address, *self.working_set.borrow_mut());
+        Ok(db_account.map(|acc| acc.info.into()))
+    }
+
+    fn code_by_hash_ref(&self, code_hash: B256) -> Result<Bytecode, Self::Error> {
+        // TODO move to new_raw_with_hash for better performance
+        let bytecode = Bytecode::new_raw(
+            self.code
+                .get(&code_hash, *self.working_set.borrow_mut())
+                .unwrap_or_default(),
+        );
+
+        Ok(bytecode)
+    }
+
+    fn storage_ref(&self, address: Address, index: U256) -> Result<U256, Self::Error> {
+        let storage_value: U256 =
+            if let Some(acc) = self.accounts.get(&address, *self.working_set.borrow_mut()) {
+                acc.storage
+                    .get(&index, *self.working_set.borrow_mut())
+                    .unwrap_or_default()
+            } else {
+                U256::default()
+            };
+
+        Ok(storage_value)
+    }
+
+    fn block_hash_ref(&self, number: U256) -> Result<B256, Self::Error> {
+        let block_hash = self
+            .last_block_hashes
+            .get(&number, *self.working_set.borrow_mut())
             .unwrap_or(B256::ZERO);
 
         Ok(block_hash)

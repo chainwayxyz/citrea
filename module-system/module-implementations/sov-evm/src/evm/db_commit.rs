@@ -16,7 +16,7 @@ impl<'a, C: sov_modules_api::Context> DatabaseCommit for EvmDb<'a, C> {
 
             let mut db_account = self
                 .accounts
-                .get(&address, self.working_set)
+                .get(&address, *self.working_set.borrow_mut())
                 .unwrap_or_else(|| DbAccount::new(accounts_prefix, address));
 
             // https://github.com/Sovereign-Labs/sovereign-sdk/issues/425
@@ -28,12 +28,18 @@ impl<'a, C: sov_modules_api::Context> DatabaseCommit for EvmDb<'a, C> {
                 // https://github.com/chainwayxyz/rollup-modules/issues/4
                 // clear storage
 
-                let keys_to_remove: Vec<U256> = db_account.keys.iter(self.working_set).collect();
+                let keys_to_remove: Vec<U256> = db_account
+                    .keys
+                    .iter(*self.working_set.borrow_mut())
+                    .collect();
                 for key in keys_to_remove {
-                    db_account.storage.delete(&key, self.working_set);
+                    db_account
+                        .storage
+                        .delete(&key, *self.working_set.borrow_mut());
                 }
-                db_account.keys.clear(self.working_set);
-                self.accounts.set(&address, &db_account, self.working_set);
+                db_account.keys.clear(*self.working_set.borrow_mut());
+                self.accounts
+                    .set(&address, &db_account, *self.working_set.borrow_mut());
                 continue;
             }
 
@@ -45,7 +51,7 @@ impl<'a, C: sov_modules_api::Context> DatabaseCommit for EvmDb<'a, C> {
                     self.code.set(
                         &account_info.code_hash,
                         &code.bytecode.as_ref().to_vec().into(),
-                        self.working_set,
+                        *self.working_set.borrow_mut(),
                     );
                 }
             }
@@ -54,13 +60,20 @@ impl<'a, C: sov_modules_api::Context> DatabaseCommit for EvmDb<'a, C> {
 
             for (key, value) in account.storage.into_iter() {
                 let value = value.present_value();
-                if db_account.storage.get(&key, self.working_set).is_none() {
-                    db_account.keys.push(&key, self.working_set);
+                if db_account
+                    .storage
+                    .get(&key, *self.working_set.borrow_mut())
+                    .is_none()
+                {
+                    db_account.keys.push(&key, *self.working_set.borrow_mut());
                 }
-                db_account.storage.set(&key, &value, self.working_set);
+                db_account
+                    .storage
+                    .set(&key, &value, *self.working_set.borrow_mut());
             }
 
-            self.accounts.set(&address, &db_account, self.working_set)
+            self.accounts
+                .set(&address, &db_account, *self.working_set.borrow_mut());
         }
     }
 }

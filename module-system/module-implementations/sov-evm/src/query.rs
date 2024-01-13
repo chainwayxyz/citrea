@@ -9,6 +9,7 @@ use reth_primitives::{
     BlockId, BlockNumberOrTag, SealedHeader, TransactionSignedEcRecovered, U128, U256, U64,
 };
 use reth_rpc_types_compat::block::from_primitive_with_hash;
+use revm::db::CacheDB;
 use revm::primitives::{
     EVMError, ExecutionResult, Halt, InvalidTransaction, TransactTo, KECCAK_EMPTY,
 };
@@ -477,12 +478,12 @@ impl<C: sov_modules_api::Context> Evm<C> {
         &self,
         request: reth_rpc_types::CallRequest,
         block_number: Option<BlockNumberOrTag>,
-        _state_overrides: Option<reth_rpc_types::state::StateOverride>,
-        _block_overrides: Option<Box<reth_rpc_types::BlockOverrides>>,
+        state_overrides: Option<reth_rpc_types::state::StateOverride>,
+        block_overrides: Option<Box<reth_rpc_types::BlockOverrides>>,
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<reth_primitives::Bytes> {
         info!("evm module: eth_call");
-        let block_env = match block_number {
+        let mut block_env = match block_number {
             Some(BlockNumberOrTag::Pending) => {
                 self.block_env.get(working_set).unwrap_or_default().clone()
             }
@@ -496,8 +497,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
             }
         };
 
-        let tx_env = prepare_call_env(&block_env, request.clone()).unwrap();
-
         let cfg = self
             .cfg
             .get(working_set)
@@ -506,7 +505,18 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         let evm_db: EvmDb<'_, C> = self.get_db(working_set);
 
-        let result = match executor::inspect(evm_db, &block_env, tx_env, cfg_env) {
+        let mut db = CacheDB::new(evm_db);
+
+        let tx_env = prepare_call_env(
+            &mut block_env,
+            request.clone(),
+            &mut db,
+            block_overrides,
+            state_overrides,
+        )
+        .unwrap();
+
+        let result = match executor::inspect(db.db, &block_env, tx_env, cfg_env) {
             Ok(result) => result.result,
             Err(err) => return Err(EthApiError::from(err).into()),
         };
@@ -554,8 +564,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
             }
         };
 
-        let tx_env = prepare_call_env(&block_env, request.clone()).unwrap();
-
         let cfg = self
             .cfg
             .get(working_set)
@@ -566,6 +574,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let request_gas_price = request.gas_price;
         let env_gas_limit = block_env.gas_limit;
 
+        let mut db = CacheDB::new(self.get_db(working_set));
+
+        let tx_env =
+            prepare_call_env(&mut block_env, request.clone(), &mut db, None, None).unwrap();
         // get the highest possible gas limit, either the request's set value or the currently
         // configured gas limit
         let mut highest_gas_limit = request.gas.unwrap_or(U256::from(env_gas_limit));
