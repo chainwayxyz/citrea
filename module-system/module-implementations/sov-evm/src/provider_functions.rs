@@ -1,7 +1,7 @@
 use reth_primitives::{Account, Address, SealedHeader};
-use sov_modules_api::{StateMapAccessor, StateValueAccessor, StateVecAccessor, WorkingSet};
+use sov_modules_api::{StateMapAccessor, StateVecAccessor, WorkingSet};
 
-use crate::{DbAccount, Evm, EvmChainConfig};
+use crate::{DbAccount, Evm};
 
 impl<C: sov_modules_api::Context> Evm<C> {
     /// Returns the account at the given address.
@@ -21,11 +21,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 .info
                 .into(),
         )
-    }
-
-    /// Returns the evm chain config.
-    pub fn get_config(&self, working_set: &mut WorkingSet<C>) -> EvmChainConfig {
-        self.cfg.get(working_set).expect("EVM config should be set")
     }
 
     /// Returns the sealed head block.

@@ -2,8 +2,8 @@ use reth_db::models::StoredBlockBodyIndices;
 use reth_interfaces::provider::ProviderResult;
 
 use reth_primitives::{
-    Account, Address, BlockNumberOrTag, Bytecode, SealedHeader, StorageKey,
-    StorageValue, B256, H256, U256,
+    Account, Address, BlockNumberOrTag, Bytecode, SealedHeader, StorageKey, StorageValue, B256,
+    U256,
 };
 use reth_provider::{
     AccountReader, BlockHashReader, BlockIdReader, BlockNumReader, BlockReader, BlockReaderIdExt,
@@ -30,17 +30,17 @@ impl<C: sov_modules_api::Context> DbProvider<C> {
 
     pub fn cfg(&self) -> EvmChainConfig {
         let mut working_set = WorkingSet::<C>::new(self.storage.clone());
-        self.evm.get_config(&mut working_set)
+        self.evm.get_chain_config(&mut working_set)
     }
 
-    pub fn last_block_tx_hashes(&self) -> Vec<H256> {
+    pub fn last_block_tx_hashes(&self) -> Vec<B256> {
         let mut working_set = WorkingSet::<C>::new(self.storage.clone());
-        let r_block = self
+        let rich_block = self
             .evm
             .get_block_by_number(None, None, &mut working_set)
             .unwrap()
             .unwrap();
-        match r_block.inner.transactions {
+        match rich_block.inner.transactions {
             BlockTransactions::Hashes(hashes) => hashes,
             _ => vec![],
         }
@@ -48,12 +48,12 @@ impl<C: sov_modules_api::Context> DbProvider<C> {
 
     pub fn genesis_block(&self) -> ProviderResult<Option<Block>> {
         let mut working_set = WorkingSet::<C>::new(self.storage.clone());
-        let r_block = self
+        let rich_block = self
             .evm
             .get_block_by_number(Some(BlockNumberOrTag::Earliest), None, &mut working_set)
             .unwrap()
             .unwrap();
-        Ok(Some(r_block.inner))
+        Ok(Some(rich_block.inner))
     }
 }
 
@@ -386,7 +386,10 @@ impl<C: sov_modules_api::Context> TransactionsProvider for DbProvider<C> {
     ) -> ProviderResult<Option<reth_primitives::TxNumber>> {
         unimplemented!("transaction_id")
     }
-    fn transaction_sender(&self, _id: reth_primitives::TxNumber) -> ProviderResult<Option<Address>> {
+    fn transaction_sender(
+        &self,
+        _id: reth_primitives::TxNumber,
+    ) -> ProviderResult<Option<Address>> {
         unimplemented!("transaction_sender")
     }
     fn transactions_by_block(
@@ -483,9 +486,6 @@ impl<C: sov_modules_api::Context> StateProviderFactory for DbProvider<C> {
     ) -> ProviderResult<reth_provider::StateProviderBox> {
         unimplemented!()
     }
-    // fn latest(&self) -> ProviderResult<reth_provider::StateProviderBox> {
-    //     Ok(Box::new(self))
-    // }
     fn latest(&self) -> ProviderResult<reth_provider::StateProviderBox> {
         Ok(Box::new(self.clone()))
     }

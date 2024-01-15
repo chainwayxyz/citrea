@@ -57,22 +57,13 @@ fn create_mempool<C: sov_modules_api::Context>(
     NoopBlobStore,
 > {
     let blob_store = NoopBlobStore::default();
-    // let mut mock_chain_spec = ChainSpec::default();
-    // let chain_state = ChainSt
-    // client.block_by_number_or_tag(id)
     let genesis_hash = client.genesis_block().unwrap().unwrap().header.hash;
     let evm_config = client.cfg();
     let chain_spec = ChainSpec {
         chain: Chain::from_id(evm_config.chain_id),
-        genesis_hash,
-        genesis: Default::default(),
-        paris_block_and_final_difficulty: None,
-        fork_timestamps: Default::default(),
-        hardforks: Default::default(),
-        deposit_contract: None,
+        genesis_hash: genesis_hash,
         base_fee_params: BaseFeeParamsKind::Constant(evm_config.base_fee_params),
-        prune_delete_limit: Default::default(),
-        snapshot_block_interval: Default::default(),
+        ..Default::default()
     };
     Pool::eth_pool(
         TransactionValidationTaskExecutor::eth(
@@ -156,31 +147,32 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
     pub async fn run(&mut self) -> Result<(), anyhow::Error> {
         loop {
             if (self.receiver.next().await).is_some() {
-                let mut rlp_txs = vec![];
+                let mut rlp_txs: Vec<RlpEvmTransaction> = vec![];
                 // best txs with base fee
                 // get base fee from last blocks => header => next base fee() function
-                let latest_header = self.db_provider.latest_header();
+                let cfg: sov_evm::EvmChainConfig = self.db_provider.cfg();
 
-                let cfg = self.db_provider.cfg();
+                let base_fee = self
+                    .db_provider
+                    .latest_header()
+                    .expect("Failed to get latest header")
+                    .map(|header| header.unseal().next_block_base_fee(cfg.base_fee_params))
+                    .expect("Failed to get next block base fee")
+                    .unwrap();
 
-                let base_fee = match latest_header {
-                    Ok(Some(sealed_header)) => sealed_header
-                        .unseal()
-                        .next_block_base_fee(cfg.base_fee_params),
-                    _ => panic!("Sequencer: Failed to get latest header"),
-                };
-
-                let best_txs_with_base_fee = self
-                    .mempool
-                    .best_transactions_with_base_fee(base_fee.unwrap());
+                let best_txs_with_base_fee = self.mempool.best_transactions_with_base_fee(base_fee);
 
                 // TODO: implement block builder instead of just including every transaction in order
-                for tx in best_txs_with_base_fee {
-                    let rc_tx = tx.to_recovered_transaction();
-                    let signed_tx = rc_tx.into_signed();
-                    let x = signed_tx.envelope_encoded().to_vec();
-                    rlp_txs.push(RlpEvmTransaction { rlp: x });
-                }
+                rlp_txs = best_txs_with_base_fee
+                    .into_iter()
+                    .map(|tx| {
+                        tx.to_recovered_transaction()
+                            .into_signed()
+                            .envelope_encoded()
+                            .to_vec()
+                    })
+                    .map(|rlp| RlpEvmTransaction { rlp })
+                    .collect();
 
                 info!(
                     "Sequencer: publishing block with {} transactions",
