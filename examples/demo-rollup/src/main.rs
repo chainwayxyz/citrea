@@ -7,11 +7,9 @@ use clap::Parser;
 use const_rollup_config::TEST_PRIVATE_KEY;
 use demo_stf::genesis_config::GenesisPaths;
 use reth_primitives::hex;
-
 use sov_celestia_adapter::CelestiaConfig;
 use sov_demo_rollup::{initialize_logging, BitcoinRollup, CelestiaDemoRollup, MockDemoRollup};
 use sov_mock_da::MockDaConfig;
-
 use sov_modules_api::runtime::capabilities::Kernel;
 use sov_modules_api::Spec;
 use sov_modules_rollup_blueprint::{RollupAndStorage, RollupBlueprint};

@@ -1,20 +1,15 @@
-use futures::StreamExt;
-pub use sov_evm::DevSigner;
 pub mod db_provider;
-use sov_rollup_interface::da::BlockHeaderTrait;
-use sov_stf_runner::BlockTemplate;
 mod utils;
 
 use std::borrow::BorrowMut;
-
 use std::marker::PhantomData;
 use std::net::SocketAddr;
-
 use std::sync::Arc;
 
 use borsh::ser::BorshSerialize;
 use demo_stf::runtime::Runtime;
 use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
+use futures::StreamExt;
 use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::RpcModule;
 use reth_primitives::{
@@ -30,12 +25,15 @@ use reth_transaction_pool::{
 };
 use sov_accounts::Accounts;
 use sov_accounts::Response::{AccountEmpty, AccountExists};
+pub use sov_evm::DevSigner;
 use sov_evm::{CallMessage, RlpEvmTransaction};
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::utils::to_jsonrpsee_error_object;
 use sov_modules_api::{EncodeCall, PrivateKey, SlotData, WorkingSet};
 use sov_modules_rollup_blueprint::{Rollup, RollupBlueprint};
+use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::services::da::DaService;
+use sov_stf_runner::BlockTemplate;
 use tracing::info;
 
 pub use crate::db_provider::DbProvider;
@@ -61,7 +59,7 @@ fn create_mempool<C: sov_modules_api::Context>(
     let evm_config = client.cfg();
     let chain_spec = ChainSpec {
         chain: Chain::from_id(evm_config.chain_id),
-        genesis_hash: genesis_hash,
+        genesis_hash,
         base_fee_params: BaseFeeParamsKind::Constant(evm_config.base_fee_params),
         ..Default::default()
     };

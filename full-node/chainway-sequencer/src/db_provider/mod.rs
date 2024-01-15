@@ -1,6 +1,5 @@
 use reth_db::models::StoredBlockBodyIndices;
 use reth_interfaces::provider::ProviderResult;
-
 use reth_primitives::{
     Account, Address, BlockNumberOrTag, Bytecode, SealedHeader, StorageKey, StorageValue, B256,
     U256,

@@ -13,7 +13,6 @@ use jsonrpsee::core::client::ClientT;
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use jsonrpsee::rpc_params;
 use reth_primitives::BlockNumberOrTag;
-
 use sov_evm::LogResponse;
 
 pub const MAX_FEE_PER_GAS: u64 = 1000000001;
