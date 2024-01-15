@@ -84,9 +84,15 @@ async fn test_nonce_too_low() {
     let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
 
     // send tx with nonce 0
-    test_client.send_eth(addr, None, None, Some(0), 0u128).await;
+    test_client
+        .send_eth(addr, None, None, Some(0), 0u128)
+        .await
+        .unwrap();
     // send tx with nonce 1
-    test_client.send_eth(addr, None, None, Some(1), 0u128).await;
+    test_client
+        .send_eth(addr, None, None, Some(1), 0u128)
+        .await
+        .unwrap();
 
     let res = test_client.send_eth(addr, None, None, Some(0), 0u128).await;
 
