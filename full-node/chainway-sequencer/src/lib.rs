@@ -145,7 +145,6 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
     pub async fn run(&mut self) -> Result<(), anyhow::Error> {
         loop {
             if (self.receiver.next().await).is_some() {
-                let mut rlp_txs: Vec<RlpEvmTransaction> = vec![];
                 // best txs with base fee
                 // get base fee from last blocks => header => next base fee() function
                 let cfg: sov_evm::EvmChainConfig = self.db_provider.cfg();
@@ -161,7 +160,7 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                 let best_txs_with_base_fee = self.mempool.best_transactions_with_base_fee(base_fee);
 
                 // TODO: implement block builder instead of just including every transaction in order
-                rlp_txs = best_txs_with_base_fee
+                let rlp_txs: Vec<RlpEvmTransaction> = best_txs_with_base_fee
                     .into_iter()
                     .map(|tx| {
                         tx.to_recovered_transaction()
