@@ -222,8 +222,8 @@ async fn test_getlogs(client: &Box<TestClient>) -> Result<(), Box<dyn std::error
     let logs = client.eth_get_logs(address_and_range_filter).await;
     assert_eq!(logs.len(), 2);
     // make sure the address is the old one and not the new one
-    assert_eq!(logs[0].address, contract_address.into());
-    assert_eq!(logs[1].address, contract_address.into());
+    assert_eq!(logs[0].address.as_slice(), contract_address.as_ref());
+    assert_eq!(logs[1].address.as_slice(), contract_address.as_ref());
 
     Ok(())
 }

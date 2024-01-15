@@ -31,8 +31,8 @@ reth-transaction-pool = { workspace = true }
 reth-provider = { workspace = true }
 reth-tasks = { workspace = true }
 reth-interfaces = { workspace = true }
-reth-rlp = { workspace = true }
 reth-db = { workspace = true }
+reth-trie = { workspace = true }
 
 ethers = { workspace = true }
 tokio = { workspace = true }

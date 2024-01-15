@@ -34,6 +34,6 @@ impl InitEvmDb for CacheDB<EmptyDB> {
 
     fn insert_code(&mut self, code_hash: B256, code: Bytes) {
         self.contracts
-            .insert(code_hash, revm::primitives::Bytecode::new_raw(code.into()));
+            .insert(code_hash, revm::primitives::Bytecode::new_raw(code));
     }
 }

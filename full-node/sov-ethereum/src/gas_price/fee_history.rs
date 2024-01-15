@@ -2,8 +2,7 @@
 use std::fmt::Debug;
 use std::sync::{Arc, Mutex};
 
-use ethers::types::H256;
-use reth_primitives::U256;
+use reth_primitives::{B256, U256};
 use reth_rpc_types::{
     Block, BlockTransactions, Rich, Transaction, TransactionReceipt, TxGasAndReward,
 };
@@ -241,7 +240,7 @@ pub struct FeeHistoryEntry {
     /// Gas limit by this block.
     pub gas_limit: u64,
     /// Hash of the block.
-    pub header_hash: H256,
+    pub header_hash: B256,
     /// Approximated rewards for the configured percentiles.
     pub rewards: Vec<U256>,
 }
@@ -262,7 +261,7 @@ impl FeeHistoryEntry {
             base_fee_per_gas,
             gas_used_ratio,
             gas_used,
-            header_hash: block.header.hash.unwrap_or_default().into(),
+            header_hash: block.header.hash.unwrap_or_default(),
             gas_limit,
             rewards: Vec::new(),
         }

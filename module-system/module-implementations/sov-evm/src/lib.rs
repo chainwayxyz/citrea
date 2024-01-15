@@ -30,7 +30,7 @@ mod tests;
 
 use evm::db::EvmDb;
 use evm::DbAccount;
-use reth_primitives::{Address, H256};
+use reth_primitives::{Address, B256};
 pub use revm::primitives::SpecId;
 use revm::primitives::U256;
 use sov_modules_api::{Error, ModuleInfo, WorkingSet};
@@ -67,7 +67,7 @@ pub struct Evm<C: sov_modules_api::Context> {
     /// Mapping from code hash to code. Used for lazy-loading code into a contract account.
     #[state]
     pub(crate) code:
-        sov_modules_api::StateMap<reth_primitives::H256, reth_primitives::Bytes, BcsCodec>,
+        sov_modules_api::StateMap<reth_primitives::B256, reth_primitives::Bytes, BcsCodec>,
 
     /// Chain configuration. This field is set in genesis.
     #[state]
@@ -91,7 +91,7 @@ pub struct Evm<C: sov_modules_api::Context> {
     /// Removes the oldest blockhash in `finalize_hook`
     /// Used by the EVM to calculate the `blockhash` opcode.
     #[state]
-    pub(crate) latest_block_hashes: sov_modules_api::StateMap<U256, H256, BcsCodec>,
+    pub(crate) latest_block_hashes: sov_modules_api::StateMap<U256, B256, BcsCodec>,
 
     /// Used only by the RPC: This represents the head of the chain and is set in two distinct stages:
     /// 1. `end_slot_hook`: the pending head is populated with data from pending_transactions.
@@ -107,7 +107,7 @@ pub struct Evm<C: sov_modules_api::Context> {
     /// Used only by the RPC: block_hash => block_number mapping,
     #[state]
     pub(crate) block_hashes:
-        sov_modules_api::AccessoryStateMap<reth_primitives::H256, u64, BcsCodec>,
+        sov_modules_api::AccessoryStateMap<reth_primitives::B256, u64, BcsCodec>,
 
     /// Used only by the RPC: List of processed transactions.
     #[state]
@@ -117,7 +117,7 @@ pub struct Evm<C: sov_modules_api::Context> {
     /// Used only by the RPC: transaction_hash => transaction_index mapping.
     #[state]
     pub(crate) transaction_hashes:
-        sov_modules_api::AccessoryStateMap<reth_primitives::H256, u64, BcsCodec>,
+        sov_modules_api::AccessoryStateMap<reth_primitives::B256, u64, BcsCodec>,
 
     /// Used only by the RPC: Receipts.
     #[state]

@@ -14,13 +14,12 @@ use std::sync::Arc;
 
 use borsh::ser::BorshSerialize;
 use demo_stf::runtime::Runtime;
-use ethers::types::H256;
 use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
 use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::RpcModule;
 use reth_primitives::{
-    Bytes, Chain, ChainSpec, ForkTimestamps, FromRecoveredPooledTransaction, Genesis,
-    IntoRecoveredTransaction, PruneBatchSizes, MAINNET,
+    BaseFeeParamsKind, Bytes, Chain, ChainSpec, ForkTimestamps, FromRecoveredPooledTransaction,
+    Genesis, IntoRecoveredTransaction, B256, MAINNET,
 };
 use reth_provider::{BlockReaderIdExt, ChainSpecProvider, StateProviderFactory};
 use reth_tasks::TokioTaskExecutor;
@@ -71,8 +70,9 @@ fn create_mempool<C: sov_modules_api::Context>(
         fork_timestamps: Default::default(),
         hardforks: Default::default(),
         deposit_contract: None,
-        base_fee_params: evm_config.base_fee_params,
-        prune_batch_sizes: PruneBatchSizes::default(),
+        base_fee_params: BaseFeeParamsKind::Constant(evm_config.base_fee_params),
+        prune_delete_limit: Default::default(),
+        snapshot_block_interval: Default::default(),
     };
     let mut mock_chain_spec = MAINNET.clone().deref().to_owned();
     mock_chain_spec.chain = Chain::Id(5655);
@@ -282,17 +282,17 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
 
             let raw_evm_tx = RlpEvmTransaction { rlp: data.to_vec() };
 
-            // TODO: fn should be named from_recoverd_pooled_transaction after reth upgrade
+            // TODO: fn should be named from_recoverd_pooled_transaction after reth upgrade,
             let pool_transaction =
-                EthPooledTransaction::from_recovered_transaction(recovered.clone());
+                EthPooledTransaction::from_recovered_pooled_transaction(recovered.clone());
 
             // submit the transaction to the pool with a `Local` origin
-            let hash = ctx
+            let hash: B256 = ctx
                 .mempool
                 .add_transaction(TransactionOrigin::External, pool_transaction)
                 .await
                 .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
-            Ok::<H256, ErrorObjectOwned>(H256::from_slice(hash.as_bytes()))
+            Ok::<B256, ErrorObjectOwned>(hash)
         })?;
         rpc.register_async_method("eth_publishBatch", |_, ctx| async move {
             info!("Sequencer: eth_publishBatch");
