@@ -432,6 +432,7 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
         let mut nonce = client.eth_get_transaction_count(client.from_addr).await;
         for _ in 0..4 {
             let mut requests = Vec::default();
+            // TODO: https://github.com/chainwayxyz/secret-sovereign-sdk/issues/109
             for value in 0..15 {
                 // sleep
                 sleep(Duration::from_millis(50)).await;

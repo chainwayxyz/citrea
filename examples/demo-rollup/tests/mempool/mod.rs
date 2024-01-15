@@ -237,8 +237,6 @@ async fn test_order_by_fee() {
         .eth_get_block_by_number(Some(BlockNumberOrTag::Latest))
         .await;
 
-    assert!(block.transactions.contains(&tx_hash_rich.tx_hash()));
-    assert!(block.transactions.contains(&tx_hash_poor.tx_hash()));
     assert!(block.transactions[0] == tx_hash_rich.tx_hash());
     assert!(block.transactions[1] == tx_hash_poor.tx_hash());
 
@@ -275,8 +273,6 @@ async fn test_order_by_fee() {
         .eth_get_block_by_number(Some(BlockNumberOrTag::Latest))
         .await;
 
-    assert!(block.transactions.contains(&tx_hash_rich.tx_hash()));
-    assert!(block.transactions.contains(&tx_hash_poor.tx_hash()));
     // first index tx should be rich tx
     assert!(block.transactions[0] == tx_hash_rich.tx_hash());
     assert!(block.transactions[1] == tx_hash_poor.tx_hash());

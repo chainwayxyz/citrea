@@ -87,7 +87,7 @@ impl<C: sov_modules_api::Context> BlockReaderIdExt for DbProvider<C> {
     fn latest_header(&self) -> ProviderResult<Option<SealedHeader>> {
         let latest_header = {
             let mut working_set = WorkingSet::<C>::new(self.storage.clone());
-            Some(self.evm.latest_sealed_header(&mut working_set))
+            Some(self.evm.last_sealed_header(&mut working_set))
         };
         Ok(latest_header)
     }

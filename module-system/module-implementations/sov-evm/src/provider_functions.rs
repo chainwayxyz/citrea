@@ -3,8 +3,8 @@ use sov_modules_api::StateValueAccessor;
 use sov_modules_api::StateVecAccessor;
 use sov_modules_api::{StateMapAccessor, WorkingSet};
 
-use crate::Evm;
 use crate::EvmChainConfig;
+use crate::{DbAccount, Evm};
 
 impl<C: sov_modules_api::Context> Evm<C> {
     /// Returns the account at the given address.
@@ -13,7 +13,17 @@ impl<C: sov_modules_api::Context> Evm<C> {
         address: &Address,
         working_set: &mut WorkingSet<C>,
     ) -> Option<Account> {
-        Some(self.accounts.get(address, working_set).unwrap().info.into())
+        Some(
+            self.accounts
+                .get(address, working_set)
+                .unwrap_or(DbAccount::new_with_info(
+                    self.accounts.prefix(),
+                    *address,
+                    Default::default(),
+                ))
+                .info
+                .into(),
+        )
     }
 
     /// Returns the evm chain config.
@@ -22,7 +32,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     }
 
     /// Returns the sealed head block.
-    pub fn latest_sealed_header(&self, working_set: &mut WorkingSet<C>) -> SealedHeader {
+    pub fn last_sealed_header(&self, working_set: &mut WorkingSet<C>) -> SealedHeader {
         self.blocks
             .last(&mut working_set.accessory_state())
             .unwrap()
