@@ -353,7 +353,7 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
     let mut nonce = client.eth_get_transaction_count(client.from_addr).await;
     for value in 150..153 {
         let set_value_req = client
-            .contract_transaction(contract_address, contract.set_call_data(value), Some(nonce)) // ADD NONCE
+            .contract_transaction(contract_address, contract.set_call_data(value), Some(nonce))
             .await;
         nonce += 1;
         requests.push(set_value_req);
@@ -438,7 +438,6 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
                 sleep(Duration::from_millis(50)).await;
                 let set_value_req = client
                     .contract_transaction_with_custom_fee(
-                        // ADD NONCE
                         contract_address,
                         contract.set_call_data(value),
                         20u64,

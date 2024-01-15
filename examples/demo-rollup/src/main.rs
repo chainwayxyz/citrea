@@ -2,20 +2,16 @@ use core::fmt::Debug as DebugTrait;
 
 use anyhow::{anyhow, Context as _};
 use bitcoin_da::service::DaServiceConfig;
-use chainway_sequencer::{ChainwaySequencer, DbProvider};
+use chainway_sequencer::ChainwaySequencer;
 use clap::Parser;
 use const_rollup_config::TEST_PRIVATE_KEY;
 use demo_stf::genesis_config::GenesisPaths;
 use reth_primitives::hex;
-use reth_transaction_pool::blobstore::NoopBlobStore;
-use reth_transaction_pool::{
-    CoinbaseTipOrdering, EthPooledTransaction, EthTransactionValidator, Pool, TransactionOrigin,
-    TransactionPool, TransactionValidationTaskExecutor,
-};
+
 use sov_celestia_adapter::CelestiaConfig;
 use sov_demo_rollup::{initialize_logging, BitcoinRollup, CelestiaDemoRollup, MockDemoRollup};
 use sov_mock_da::MockDaConfig;
-use sov_modules_api::default_context::DefaultContext;
+
 use sov_modules_api::runtime::capabilities::Kernel;
 use sov_modules_api::Spec;
 use sov_modules_rollup_blueprint::{RollupAndStorage, RollupBlueprint};
@@ -177,7 +173,8 @@ where
         let mut seq: ChainwaySequencer<
             <S as RollupBlueprint>::NativeContext,
             <S as RollupBlueprint>::DaService,
-            S> = ChainwaySequencer::new(
+            S,
+            > = ChainwaySequencer::new(
             rollup,
             da_service,
             <<<S as RollupBlueprint>::NativeContext as Spec>::PrivateKey as TryFrom<&[u8]>>::try_from(

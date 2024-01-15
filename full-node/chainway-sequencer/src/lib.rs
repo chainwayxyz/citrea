@@ -6,10 +6,10 @@ use sov_stf_runner::BlockTemplate;
 mod utils;
 
 use std::borrow::BorrowMut;
-use std::default;
+
 use std::marker::PhantomData;
 use std::net::SocketAddr;
-use std::ops::Deref;
+
 use std::sync::Arc;
 
 use borsh::ser::BorshSerialize;
@@ -18,10 +18,10 @@ use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
 use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::RpcModule;
 use reth_primitives::{
-    BaseFeeParamsKind, Bytes, Chain, ChainSpec, ForkTimestamps, FromRecoveredPooledTransaction,
-    Genesis, IntoRecoveredTransaction, B256, MAINNET,
+    BaseFeeParamsKind, Bytes, Chain, ChainSpec, FromRecoveredPooledTransaction,
+    IntoRecoveredTransaction, B256,
 };
-use reth_provider::{BlockReaderIdExt, ChainSpecProvider, StateProviderFactory};
+use reth_provider::BlockReaderIdExt;
 use reth_tasks::TokioTaskExecutor;
 use reth_transaction_pool::blobstore::NoopBlobStore;
 use reth_transaction_pool::{
@@ -33,7 +33,7 @@ use sov_accounts::Response::{AccountEmpty, AccountExists};
 use sov_evm::{CallMessage, RlpEvmTransaction};
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::utils::to_jsonrpsee_error_object;
-use sov_modules_api::{EncodeCall, Module, PrivateKey, SlotData, WorkingSet};
+use sov_modules_api::{EncodeCall, PrivateKey, SlotData, WorkingSet};
 use sov_modules_rollup_blueprint::{Rollup, RollupBlueprint};
 use sov_rollup_interface::services::da::DaService;
 use tracing::info;
@@ -41,7 +41,7 @@ use tracing::info;
 pub use crate::db_provider::DbProvider;
 use crate::utils::recover_raw_transaction;
 
-type CitreaMempool<C: sov_modules_api::Context> = Pool<
+type CitreaMempool<C> = Pool<
     TransactionValidationTaskExecutor<EthTransactionValidator<DbProvider<C>, EthPooledTransaction>>,
     CoinbaseTipOrdering<EthPooledTransaction>,
     NoopBlobStore,
@@ -62,8 +62,8 @@ fn create_mempool<C: sov_modules_api::Context>(
     // client.block_by_number_or_tag(id)
     let genesis_hash = client.genesis_block().unwrap().unwrap().header.hash;
     let evm_config = client.cfg();
-    let mut chain_spec = ChainSpec {
-        chain: Chain::Id(evm_config.chain_id),
+    let chain_spec = ChainSpec {
+        chain: Chain::from_id(evm_config.chain_id),
         genesis_hash,
         genesis: Default::default(),
         paris_block_and_final_difficulty: None,
@@ -74,13 +74,11 @@ fn create_mempool<C: sov_modules_api::Context>(
         prune_delete_limit: Default::default(),
         snapshot_block_interval: Default::default(),
     };
-    let mut mock_chain_spec = MAINNET.clone().deref().to_owned();
-    mock_chain_spec.chain = Chain::Id(5655);
     Pool::eth_pool(
         TransactionValidationTaskExecutor::eth(
             client,
-            Arc::new(mock_chain_spec),
-            blob_store.clone(),
+            Arc::new(chain_spec),
+            blob_store,
             TokioTaskExecutor::default(),
         ),
         blob_store,
@@ -234,10 +232,9 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                 self.rollup.runner.process(block_template).await?;
 
                 // get last block remove only txs in block
-                self.db_provider
-                    .latest_block_tx_hashes()
-                    .unwrap()
-                    .and_then(|hashes| Some(self.mempool.remove_transactions(hashes)));
+
+                self.mempool
+                    .remove_transactions(self.db_provider.last_block_tx_hashes());
             }
         }
     }
@@ -280,11 +277,9 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
             let recovered: reth_primitives::PooledTransactionsElementEcRecovered =
                 recover_raw_transaction(data.clone())?;
 
-            let raw_evm_tx = RlpEvmTransaction { rlp: data.to_vec() };
-
             // TODO: fn should be named from_recoverd_pooled_transaction after reth upgrade,
             let pool_transaction =
-                EthPooledTransaction::from_recovered_pooled_transaction(recovered.clone());
+                EthPooledTransaction::from_recovered_pooled_transaction(recovered);
 
             // submit the transaction to the pool with a `Local` origin
             let hash: B256 = ctx

@@ -1,4 +1,5 @@
 use std::str::FromStr;
+use std::time::Duration;
 
 use ethereum_types::H160;
 use ethers_core::abi::Address;
@@ -12,8 +13,8 @@ use jsonrpsee::core::client::ClientT;
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use jsonrpsee::rpc_params;
 use reth_primitives::BlockNumberOrTag;
-use serde::de::value;
-use sov_evm::{CoinbaseContract, LogResponse, LogsContract, SimpleStorageContract, TestContract};
+
+use sov_evm::LogResponse;
 
 pub const MAX_FEE_PER_GAS: u64 = 1000000001;
 const GAS: u64 = 900000u64;
@@ -51,10 +52,12 @@ impl TestClient {
     }
 
     pub(crate) async fn send_publish_batch_request(&self) {
-        self.http_client
+        let _: () = self
+            .http_client
             .request("eth_publishBatch", rpc_params![])
             .await
-            .unwrap()
+            .unwrap();
+        tokio::time::sleep(Duration::from_millis(200)).await
     }
 
     pub(crate) async fn deploy_contract(
@@ -203,25 +206,22 @@ impl TestClient {
         max_priority_fee_per_gas: Option<u64>,
         max_fee_per_gas: Option<u64>,
         nonce: Option<u64>,
-        value: Option<u128>,
+        value: u128,
     ) -> Result<PendingTransaction<'_, Http>, anyhow::Error> {
         let nonce = match nonce {
             Some(nonce) => nonce,
             None => self.eth_get_transaction_count(self.from_addr).await,
         };
 
-        let mut req = Eip1559TransactionRequest::new()
+        let req = Eip1559TransactionRequest::new()
             .from(self.from_addr)
             .to(to_addr)
             .chain_id(self.chain_id)
             .nonce(nonce)
             .max_priority_fee_per_gas(max_priority_fee_per_gas.unwrap_or(10u64))
             .max_fee_per_gas(max_fee_per_gas.unwrap_or(MAX_FEE_PER_GAS))
-            .gas(GAS);
-        match value {
-            Some(value) => req = req.value(value),
-            None => (),
-        }
+            .gas(GAS)
+            .value(value);
 
         let typed_transaction = TypedTransaction::Eip1559(req);
 

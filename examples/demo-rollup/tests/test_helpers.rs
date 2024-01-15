@@ -1,14 +1,10 @@
 use std::net::SocketAddr;
 use std::path::Path;
 
-use chainway_sequencer::{ChainwaySequencer, DbProvider};
+use chainway_sequencer::ChainwaySequencer;
 use const_rollup_config::TEST_PRIVATE_KEY;
 use demo_stf::genesis_config::GenesisPaths;
-use reth_transaction_pool::blobstore::NoopBlobStore;
-use reth_transaction_pool::{
-    CoinbaseTipOrdering, EthPooledTransaction, EthTransactionValidator, Pool, TransactionOrigin,
-    TransactionPool, TransactionValidationTaskExecutor,
-};
+
 use sov_demo_rollup::MockDemoRollup;
 use sov_mock_da::{MockAddress, MockDaConfig, MockDaService};
 use sov_modules_api::default_context::DefaultContext;

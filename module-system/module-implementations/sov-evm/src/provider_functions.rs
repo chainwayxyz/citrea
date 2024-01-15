@@ -1,10 +1,7 @@
 use reth_primitives::{Account, Address, SealedHeader};
-use sov_modules_api::StateValueAccessor;
-use sov_modules_api::StateVecAccessor;
-use sov_modules_api::{StateMapAccessor, WorkingSet};
+use sov_modules_api::{StateMapAccessor, StateValueAccessor, StateVecAccessor, WorkingSet};
 
-use crate::EvmChainConfig;
-use crate::{DbAccount, Evm};
+use crate::{DbAccount, Evm, EvmChainConfig};
 
 impl<C: sov_modules_api::Context> Evm<C> {
     /// Returns the account at the given address.
