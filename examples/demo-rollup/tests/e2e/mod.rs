@@ -113,100 +113,10 @@ async fn test_archival_state() -> Result<(), anyhow::Error> {
     let seq_test_client = init_test_rollup(seq_port).await;
     let addr = Address::from_str("0x1111111111111111111111111111111111111111").unwrap();
 
-    assert_eq!(
-        seq_test_client
-            .eth_get_balance(addr, BlockNumberOrTag::Latest)
-            .await,
-        0u64.into()
-    );
+    run_archival_valid_tests(addr, &seq_test_client).await;
+    run_archival_fail_tests(addr, &seq_test_client).await;
 
-    assert_eq!(
-        seq_test_client
-            .eth_get_storage_at(addr, 0u64.into(), BlockNumberOrTag::Latest)
-            .await,
-        0u64.into()
-    );
-
-    assert_eq!(
-        seq_test_client
-            .eth_get_code(addr, BlockNumberOrTag::Latest)
-            .await,
-        Bytes::from([])
-    );
-
-    assert_eq!(
-        seq_test_client
-            .eth_get_transaction_count(addr, BlockNumberOrTag::Latest)
-            .await,
-        0
-    );
-
-    for _ in 0..8 {
-        seq_test_client
-            .send_eth(addr, None, None, None, 1u128)
-            .await;
-        seq_test_client.send_publish_batch_request().await;
-
-        println!(
-            "---> {:?}\n",
-            seq_test_client
-                .eth_get_block_by_number(Some(BlockNumberOrTag::Latest))
-                .await
-        );
-    }
-
-    assert_eq!(
-        seq_test_client
-            .eth_get_balance(addr, BlockNumberOrTag::Latest)
-            .await,
-        8u64.into()
-    );
-
-    assert_eq!(
-        seq_test_client
-            .eth_get_balance(addr, BlockNumberOrTag::Number(5))
-            .await,
-        4u64.into()
-    );
-
-    assert_eq!(
-        seq_test_client
-            .eth_get_transaction_count(
-                Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap(),
-                BlockNumberOrTag::Latest
-            )
-            .await,
-        8
-    );
-
-    assert_eq!(
-        seq_test_client
-            .eth_get_transaction_count(
-                Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap(),
-                BlockNumberOrTag::Number(7)
-            )
-            .await,
-        6 // ???
-    );
-
-    assert_eq!(
-        seq_test_client
-            .eth_get_storage_at(
-                Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap(),
-                0u64.into(),
-                BlockNumberOrTag::Latest
-            )
-            .await,
-        0u64.into()
-    );
-
-    assert_eq!(
-        seq_test_client
-            .eth_get_code(addr, BlockNumberOrTag::Latest)
-            .await,
-        Bytes::from(vec![])
-    );
-
+    seq_task.abort();
     Ok(())
 }
 
@@ -532,7 +442,8 @@ async fn execute_blocks(
     {
         let mut nonce = sequencer_client
             .eth_get_transaction_count(sequencer_client.from_addr, BlockNumberOrTag::Latest)
-            .await;
+            .await
+            .unwrap();
         for temp in 0..10 {
             let _set_value_req = sequencer_client
                 .contract_transaction(
@@ -581,4 +492,148 @@ async fn execute_blocks(
     assert_eq!(seq_last_block.hash, full_node_last_block.hash);
 
     Ok(())
+}
+
+async fn run_archival_fail_tests(addr: Address, seq_test_client: &TestClient) {
+    let invalid_block_balance = seq_test_client
+        .eth_get_balance(addr, BlockNumberOrTag::Number(722))
+        .await
+        .unwrap_err();
+    assert!(invalid_block_balance
+        .to_string()
+        .contains("unknown block number"));
+
+    let invalid_block_storage = seq_test_client
+        .eth_get_storage_at(addr, 0u64.into(), BlockNumberOrTag::Number(722))
+        .await
+        .unwrap_err();
+    assert!(invalid_block_storage
+        .to_string()
+        .contains("unknown block number"));
+
+    let invalid_block_code = seq_test_client
+        .eth_get_code(addr, BlockNumberOrTag::Number(722))
+        .await
+        .unwrap_err();
+    assert!(invalid_block_code
+        .to_string()
+        .contains("unknown block number"));
+
+    let invalid_block_tx_count = seq_test_client
+        .eth_get_transaction_count(addr, BlockNumberOrTag::Number(722))
+        .await
+        .unwrap_err();
+    assert!(invalid_block_tx_count
+        .to_string()
+        .contains("unknown block number"));
+}
+
+async fn run_archival_valid_tests(addr: Address, seq_test_client: &TestClient) {
+    assert_eq!(
+        seq_test_client
+            .eth_get_balance(addr, BlockNumberOrTag::Latest)
+            .await
+            .unwrap(),
+        0u64.into()
+    );
+
+    assert_eq!(
+        seq_test_client
+            .eth_get_storage_at(addr, 0u64.into(), BlockNumberOrTag::Latest)
+            .await
+            .unwrap(),
+        0u64.into()
+    );
+
+    assert_eq!(
+        seq_test_client
+            .eth_get_code(addr, BlockNumberOrTag::Latest)
+            .await
+            .unwrap(),
+        Bytes::from([])
+    );
+
+    assert_eq!(
+        seq_test_client
+            .eth_get_transaction_count(addr, BlockNumberOrTag::Latest)
+            .await
+            .unwrap(),
+        0
+    );
+
+    for _ in 0..8 {
+        let _t = seq_test_client
+            .send_eth(addr, None, None, None, 1u128)
+            .await;
+        seq_test_client.send_publish_batch_request().await;
+    }
+
+    assert_eq!(
+        seq_test_client
+            .eth_get_balance(addr, BlockNumberOrTag::Latest)
+            .await
+            .unwrap(),
+        8u64.into()
+    );
+
+    assert_eq!(
+        seq_test_client
+            .eth_get_balance(addr, BlockNumberOrTag::Number(5))
+            .await
+            .unwrap(),
+        4u64.into()
+    );
+
+    assert_eq!(
+        seq_test_client
+            .eth_get_transaction_count(
+                Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap(),
+                BlockNumberOrTag::Latest
+            )
+            .await
+            .unwrap(),
+        8
+    );
+
+    assert_eq!(
+        seq_test_client
+            .eth_get_transaction_count(
+                Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap(),
+                BlockNumberOrTag::Number(4)
+            )
+            .await
+            .unwrap(),
+        3
+    );
+
+    assert_eq!(
+        seq_test_client
+            .eth_get_storage_at(
+                Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap(),
+                0u64.into(),
+                BlockNumberOrTag::Latest
+            )
+            .await
+            .unwrap(),
+        0u64.into()
+    );
+
+    assert_eq!(
+        seq_test_client
+            .eth_get_code(addr, BlockNumberOrTag::Latest)
+            .await
+            .unwrap(),
+        Bytes::from(vec![])
+    );
+
+    assert_eq!(
+        seq_test_client
+            .eth_get_code(
+                Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap(),
+                BlockNumberOrTag::Latest
+            )
+            .await
+            .unwrap(),
+        Bytes::from(vec![])
+    );
 }

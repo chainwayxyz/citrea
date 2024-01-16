@@ -66,10 +66,10 @@ impl TestClient {
     ) -> Result<PendingTransaction<'_, Http>, Box<dyn std::error::Error>> {
         let nonce = match nonce {
             Some(nonce) => nonce,
-            None => {
-                self.eth_get_transaction_count(self.from_addr, BlockNumberOrTag::Latest)
-                    .await
-            }
+            None => self
+                .eth_get_transaction_count(self.from_addr, BlockNumberOrTag::Latest)
+                .await
+                .unwrap(),
         };
         let req = Eip1559TransactionRequest::new()
             .from(self.from_addr)
@@ -96,10 +96,10 @@ impl TestClient {
     ) -> Result<Bytes, Box<dyn std::error::Error>> {
         let nonce = match nonce {
             Some(nonce) => nonce,
-            None => {
-                self.eth_get_transaction_count(self.from_addr, BlockNumberOrTag::Latest)
-                    .await
-            }
+            None => self
+                .eth_get_transaction_count(self.from_addr, BlockNumberOrTag::Latest)
+                .await
+                .unwrap(),
         };
         let req = Eip1559TransactionRequest::new()
             .from(self.from_addr)
@@ -125,13 +125,11 @@ impl TestClient {
     ) -> PendingTransaction<'_, Http> {
         let nonce = match nonce {
             Some(nonce) => nonce,
-            None => {
-                self.eth_get_transaction_count(self.from_addr, BlockNumberOrTag::Latest)
-                    .await
-            }
+            None => self
+                .eth_get_transaction_count(self.from_addr, BlockNumberOrTag::Latest)
+                .await
+                .unwrap(),
         };
-        self.eth_get_transaction_count(self.from_addr, BlockNumberOrTag::Latest)
-            .await;
         let req = Eip1559TransactionRequest::new()
             .from(self.from_addr)
             .to(contract_address)
@@ -161,10 +159,10 @@ impl TestClient {
     ) -> PendingTransaction<'_, Http> {
         let nonce = match nonce {
             Some(nonce) => nonce,
-            None => {
-                self.eth_get_transaction_count(self.from_addr, BlockNumberOrTag::Latest)
-                    .await
-            }
+            None => self
+                .eth_get_transaction_count(self.from_addr, BlockNumberOrTag::Latest)
+                .await
+                .unwrap(),
         };
         let req = Eip1559TransactionRequest::new()
             .from(self.from_addr)
@@ -193,10 +191,10 @@ impl TestClient {
     ) -> Result<T, Box<dyn std::error::Error>> {
         let nonce = match nonce {
             Some(nonce) => nonce,
-            None => {
-                self.eth_get_transaction_count(self.from_addr, BlockNumberOrTag::Latest)
-                    .await
-            }
+            None => self
+                .eth_get_transaction_count(self.from_addr, BlockNumberOrTag::Latest)
+                .await
+                .unwrap(),
         };
         let req = Eip1559TransactionRequest::new()
             .from(self.from_addr)
@@ -225,10 +223,10 @@ impl TestClient {
     ) -> Result<PendingTransaction<'_, Http>, anyhow::Error> {
         let nonce = match nonce {
             Some(nonce) => nonce,
-            None => {
-                self.eth_get_transaction_count(self.from_addr, BlockNumberOrTag::Latest)
-                    .await
-            }
+            None => self
+                .eth_get_transaction_count(self.from_addr, BlockNumberOrTag::Latest)
+                .await
+                .unwrap(),
         };
 
         let req = Eip1559TransactionRequest::new()
@@ -296,11 +294,11 @@ impl TestClient {
         &self,
         address: Address,
         block_number: BlockNumberOrTag,
-    ) -> ethereum_types::U256 {
+    ) -> Result<ethereum_types::U256, Box<dyn std::error::Error>> {
         self.http_client
             .request("eth_getBalance", rpc_params![address, block_number])
             .await
-            .unwrap()
+            .map_err(|e| e.into())
     }
 
     pub(crate) async fn eth_get_storage_at(
@@ -308,42 +306,43 @@ impl TestClient {
         address: Address,
         index: ethereum_types::U256,
         block_number: BlockNumberOrTag,
-    ) -> ethereum_types::U256 {
+    ) -> Result<ethereum_types::U256, Box<dyn std::error::Error>> {
         self.http_client
             .request(
                 "eth_getStorageAt",
                 rpc_params![address, index, block_number],
             )
             .await
-            .unwrap()
+            .map_err(|e| e.into())
     }
 
     pub(crate) async fn eth_get_code(
         &self,
         address: Address,
         block_number: BlockNumberOrTag,
-    ) -> Bytes {
+    ) -> Result<Bytes, Box<dyn std::error::Error>> {
         self.http_client
             .request("eth_getCode", rpc_params![address, block_number])
             .await
-            .unwrap()
+            .map_err(|e| e.into())
     }
 
     pub(crate) async fn eth_get_transaction_count(
         &self,
         address: Address,
         block_number: BlockNumberOrTag,
-    ) -> u64 {
-        let count: ethereum_types::U64 = self
+    ) -> Result<u64, Box<dyn std::error::Error>> {
+        match self
             .http_client
-            .request(
+            .request::<ethereum_types::U64, _>(
                 "eth_getTransactionCount",
                 rpc_params![address, block_number],
             )
             .await
-            .unwrap();
-
-        count.as_u64()
+        {
+            Ok(count) => Ok(count.as_u64()),
+            Err(e) => Err(e.into()),
+        }
     }
 
     pub(crate) async fn eth_gas_price(&self) -> ethereum_types::U256 {

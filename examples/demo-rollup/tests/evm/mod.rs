@@ -233,13 +233,15 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
     // Nonce should be 0 in genesis
     let nonce = client
         .eth_get_transaction_count(client.from_addr, BlockNumberOrTag::Latest)
-        .await;
+        .await
+        .unwrap();
     assert_eq!(0, nonce);
 
     // Balance should be > 0 in genesis
     let balance = client
         .eth_get_balance(client.from_addr, BlockNumberOrTag::Latest)
-        .await;
+        .await
+        .unwrap();
     assert!(balance > ethereum_types::U256::zero());
 
     let (contract_address, contract, runtime_code) = {
@@ -263,14 +265,16 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
     // Assert contract deployed correctly
     let code = client
         .eth_get_code(contract_address, BlockNumberOrTag::Latest)
-        .await;
+        .await
+        .unwrap();
     // code has natural following 0x00 bytes, so we need to trim it
     assert_eq!(code.to_vec()[..runtime_code.len()], runtime_code.to_vec());
 
     // Nonce should be 1 after the deploy
     let nonce = client
         .eth_get_transaction_count(client.from_addr, BlockNumberOrTag::Latest)
-        .await;
+        .await
+        .unwrap();
     assert_eq!(1, nonce);
 
     // Check that the first block has published
@@ -334,7 +338,8 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
             storage_slot.into(),
             BlockNumberOrTag::Latest,
         )
-        .await;
+        .await
+        .unwrap();
     assert_eq!(storage_value, ethereum_types::U256::from(set_arg));
 
     // Check that the second block has published
@@ -364,7 +369,8 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
     let mut requests = Vec::default();
     let mut nonce = client
         .eth_get_transaction_count(client.from_addr, BlockNumberOrTag::Latest)
-        .await;
+        .await
+        .unwrap();
     for value in 150..153 {
         let set_value_req = client
             .contract_transaction(contract_address, contract.set_call_data(value), Some(nonce))
@@ -377,7 +383,8 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
     client.send_publish_batch_request().await;
     let nonce = client
         .eth_get_transaction_count(client.from_addr, BlockNumberOrTag::Latest)
-        .await;
+        .await
+        .unwrap();
 
     for req in requests {
         req.await.unwrap();
@@ -446,7 +453,8 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
         // send 100 set transaction with high gas fee in a four batch to increase gas price
         let mut nonce = client
             .eth_get_transaction_count(client.from_addr, BlockNumberOrTag::Latest)
-            .await;
+            .await
+            .unwrap();
         for _ in 0..4 {
             let mut requests = Vec::default();
             // TODO: https://github.com/chainwayxyz/secret-sovereign-sdk/issues/109
