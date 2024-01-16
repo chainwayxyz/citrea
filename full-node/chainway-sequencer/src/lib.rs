@@ -26,7 +26,7 @@ use reth_transaction_pool::{
 use sov_accounts::Accounts;
 use sov_accounts::Response::{AccountEmpty, AccountExists};
 pub use sov_evm::DevSigner;
-use sov_evm::{CallMessage, Evm, RlpEvmTransaction};
+use sov_evm::{CallMessage, Evm, GetTransactionByHashParams, RlpEvmTransaction};
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::utils::to_jsonrpsee_error_object;
 use sov_modules_api::{EncodeCall, PrivateKey, SlotData, WorkingSet};
@@ -282,7 +282,8 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
             Ok::<(), ErrorObjectOwned>(())
         })?;
         rpc.register_async_method("eth_getTransactionByHash", |parameters, ctx| async move {
-            let hash: B256 = parameters.one().unwrap();
+            let mut params = parameters.sequence();
+            let hash: B256 = params.next().unwrap();
             info!("Sequencer: eth_getTransactionByHash({})", hash);
 
             match ctx.mempool.get(&hash) {
@@ -292,38 +293,22 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                         reth_rpc_types_compat::transaction::from_recovered(tx_signed_ec_recovered);
                     Ok::<Option<reth_rpc_types::Transaction>, ErrorObjectOwned>(Some(tx))
                 }
-                None => {
-                    let evm = Evm::<C>::default();
-                    let mut working_set = WorkingSet::<C>::new(ctx.storage.clone());
+                None => match params.next() {
+                    Ok(true) => Ok::<Option<reth_rpc_types::Transaction>, ErrorObjectOwned>(None),
+                    _ => {
+                        let evm = Evm::<C>::default();
+                        let mut working_set = WorkingSet::<C>::new(ctx.storage.clone());
 
-                    match evm.get_transaction_by_hash(hash, &mut working_set) {
-                        Ok(tx) => Ok::<Option<reth_rpc_types::Transaction>, ErrorObjectOwned>(tx),
-                        Err(e) => Err(to_jsonrpsee_error_object(e, ETH_RPC_ERROR)),
+                        match evm.get_transaction_by_hash(hash, &mut working_set) {
+                            Ok(tx) => {
+                                Ok::<Option<reth_rpc_types::Transaction>, ErrorObjectOwned>(tx)
+                            }
+                            Err(e) => Err(to_jsonrpsee_error_object(e, ETH_RPC_ERROR)),
+                        }
                     }
-                }
+                },
             }
         })?;
-
-        rpc.register_async_method(
-            "cw_getTransactionByHashInPool",
-            |parameters, ctx| async move {
-                let hash: B256 = parameters.one().unwrap();
-                info!("Sequencer: cw_getTransactionByHash({})", hash);
-
-                match ctx.mempool.get(&hash) {
-                    Some(tx) => {
-                        let tx_signed_ec_recovered = tx.to_recovered_transaction(); // tx signed ec recovered
-                        let tx: reth_rpc_types::Transaction =
-                            reth_rpc_types_compat::transaction::from_recovered(
-                                tx_signed_ec_recovered,
-                            );
-                        Ok::<Option<reth_rpc_types::Transaction>, ErrorObjectOwned>(Some(tx))
-                    }
-                    None => Ok::<Option<reth_rpc_types::Transaction>, ErrorObjectOwned>(None),
-                }
-            },
-        )?;
-
         self.rollup.rpc_methods.merge(rpc).unwrap();
         Ok(())
     }

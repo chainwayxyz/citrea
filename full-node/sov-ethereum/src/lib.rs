@@ -21,7 +21,9 @@ use rustc_version_runtime::version;
 use sequencer_client::SequencerClient;
 #[cfg(feature = "local")]
 pub use sov_evm::DevSigner;
-use sov_evm::{CallMessage, EthApiError, Evm, RlpEvmTransaction, SignError};
+use sov_evm::{
+    CallMessage, EthApiError, Evm, GetTransactionByHashParams, RlpEvmTransaction, SignError,
+};
 use sov_modules_api::utils::to_jsonrpsee_error_object;
 use sov_modules_api::{EncodeCall, PrivateKey, WorkingSet};
 use sov_rollup_interface::services::da::DaService;
@@ -427,7 +429,8 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
         rpc.register_async_method(
             "eth_getTransactionByHash",
             |parameters, ethereum| async move {
-                let hash: B256 = parameters.one().unwrap();
+                let mut params = parameters.sequence();
+                let hash: B256 = params.next().unwrap();
                 info!("Full Node: eth_getTransactionByHash({})", hash);
 
                 // read from evm first
@@ -443,19 +446,17 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                             .sequencer_client
                             .as_ref()
                             .unwrap()
-                            .get_tx_by_hash_in_pool(hash)
+                            .get_tx_by_hash(hash, params.next().unwrap_or(None))
                             .await
                             .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
 
                         Ok::<Option<reth_rpc_types::Transaction>, ErrorObjectOwned>(tx)
                     }
-                    // not found in evm, maybe in sequencer mempool
                     Err(e) => {
                         // return error
                         Err(to_jsonrpsee_error_object(e, ETH_RPC_ERROR))
                     }
                 }
-                // then ask to sequencer mempool
             },
         )?;
     }

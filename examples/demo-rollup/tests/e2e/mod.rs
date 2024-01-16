@@ -424,6 +424,8 @@ async fn test_get_transaction_by_hash() -> Result<(), anyhow::Error> {
         .eth_get_transaction_by_hash(pending_tx2.tx_hash())
         .await
         .unwrap();
+    assert!(matches!(tx1.block_hash, None));
+    assert!(matches!(tx2.block_hash, None));
     assert_eq!(tx1.hash, pending_tx1.tx_hash());
     assert_eq!(tx2.hash, pending_tx2.tx_hash());
 
@@ -436,6 +438,8 @@ async fn test_get_transaction_by_hash() -> Result<(), anyhow::Error> {
         .eth_get_transaction_by_hash(pending_tx2.tx_hash())
         .await
         .unwrap();
+    assert!(matches!(tx1.block_hash, None));
+    assert!(matches!(tx2.block_hash, None));
     assert_eq!(tx1.hash, pending_tx1.tx_hash());
     assert_eq!(tx2.hash, pending_tx2.tx_hash());
 
@@ -460,6 +464,8 @@ async fn test_get_transaction_by_hash() -> Result<(), anyhow::Error> {
         .eth_get_transaction_by_hash(pending_tx2.tx_hash())
         .await
         .unwrap();
+    assert!(matches!(tx1.block_hash, Some(_)));
+    assert!(matches!(tx2.block_hash, Some(_)));
     assert_eq!(tx1.hash, pending_tx1.tx_hash());
     assert_eq!(tx2.hash, pending_tx2.tx_hash());
 
@@ -471,6 +477,8 @@ async fn test_get_transaction_by_hash() -> Result<(), anyhow::Error> {
         .eth_get_transaction_by_hash(pending_tx2.tx_hash())
         .await
         .unwrap();
+    assert!(matches!(tx1.block_hash, Some(_)));
+    assert!(matches!(tx2.block_hash, Some(_)));
     assert_eq!(tx1.hash, pending_tx1.tx_hash());
     assert_eq!(tx2.hash, pending_tx2.tx_hash());
 

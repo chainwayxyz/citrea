@@ -1,11 +1,9 @@
 use std::str::FromStr;
 
 use demo_stf::genesis_config::GenesisPaths;
-use ethereum_types::H256;
 use ethers::abi::Address;
 use ethers_signers::{LocalWallet, Signer};
 use reth_primitives::BlockNumberOrTag;
-use reth_primitives::B256;
 use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
 use sov_stf_runner::RollupProverConfig;
 

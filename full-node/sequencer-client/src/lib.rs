@@ -50,13 +50,17 @@ impl SequencerClient {
         Ok(tx_hash)
     }
 
-    pub async fn get_tx_by_hash_in_pool(
+    pub async fn get_tx_by_hash(
         &self,
         tx_hash: B256,
+        mempool_only: Option<bool>,
     ) -> anyhow::Result<Option<reth_rpc_types::Transaction>> {
         let tx: Option<reth_rpc_types::Transaction> = self
             .client
-            .request("cw_getTransactionByHashInPool", rpc_params![tx_hash])
+            .request(
+                "eth_getTransactionByHash",
+                rpc_params![tx_hash, mempool_only],
+            )
             .await?;
         Ok(tx)
     }
