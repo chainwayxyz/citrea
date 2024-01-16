@@ -26,7 +26,7 @@ use reth_transaction_pool::{
 use sov_accounts::Accounts;
 use sov_accounts::Response::{AccountEmpty, AccountExists};
 pub use sov_evm::DevSigner;
-use sov_evm::{CallMessage, Evm, GetTransactionByHashParams, RlpEvmTransaction};
+use sov_evm::{CallMessage, Evm, RlpEvmTransaction};
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::utils::to_jsonrpsee_error_object;
 use sov_modules_api::{EncodeCall, PrivateKey, SlotData, WorkingSet};

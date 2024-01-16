@@ -22,7 +22,7 @@ use sequencer_client::SequencerClient;
 #[cfg(feature = "local")]
 pub use sov_evm::DevSigner;
 use sov_evm::{
-    CallMessage, EthApiError, Evm, GetTransactionByHashParams, RlpEvmTransaction, SignError,
+    CallMessage, EthApiError, Evm, RlpEvmTransaction, SignError,
 };
 use sov_modules_api::utils::to_jsonrpsee_error_object;
 use sov_modules_api::{EncodeCall, PrivateKey, WorkingSet};
@@ -436,7 +436,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                 // read from evm first
                 let evm = Evm::<C>::default();
                 let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
-                match evm.get_transaction_by_hash(hash.clone(), &mut working_set) {
+                match evm.get_transaction_by_hash(hash, &mut working_set) {
                     Ok(Some(tx)) => {
                         Ok::<Option<reth_rpc_types::Transaction>, ErrorObjectOwned>(Some(tx))
                     }

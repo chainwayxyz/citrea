@@ -6,7 +6,7 @@ use std::time::Duration;
 use demo_stf::genesis_config::GenesisPaths;
 use ethereum_types::H256;
 use ethers::abi::Address;
-use reth_primitives::{BlockNumberOrTag, TxHash, B256};
+use reth_primitives::{BlockNumberOrTag, TxHash};
 // use sov_demo_rollup::initialize_logging;
 use sov_evm::SimpleStorageContract;
 use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
@@ -424,8 +424,8 @@ async fn test_get_transaction_by_hash() -> Result<(), anyhow::Error> {
         .eth_get_transaction_by_hash(pending_tx2.tx_hash())
         .await
         .unwrap();
-    assert!(matches!(tx1.block_hash, None));
-    assert!(matches!(tx2.block_hash, None));
+    assert!(tx1.block_hash.is_none());
+    assert!(tx2.block_hash.is_none());
     assert_eq!(tx1.hash, pending_tx1.tx_hash());
     assert_eq!(tx2.hash, pending_tx2.tx_hash());
 
@@ -438,8 +438,8 @@ async fn test_get_transaction_by_hash() -> Result<(), anyhow::Error> {
         .eth_get_transaction_by_hash(pending_tx2.tx_hash())
         .await
         .unwrap();
-    assert!(matches!(tx1.block_hash, None));
-    assert!(matches!(tx2.block_hash, None));
+    assert!(tx1.block_hash.is_none());
+    assert!(tx2.block_hash.is_none());
     assert_eq!(tx1.hash, pending_tx1.tx_hash());
     assert_eq!(tx2.hash, pending_tx2.tx_hash());
 
@@ -464,8 +464,8 @@ async fn test_get_transaction_by_hash() -> Result<(), anyhow::Error> {
         .eth_get_transaction_by_hash(pending_tx2.tx_hash())
         .await
         .unwrap();
-    assert!(matches!(tx1.block_hash, Some(_)));
-    assert!(matches!(tx2.block_hash, Some(_)));
+    assert!(tx1.block_hash.is_some());
+    assert!(tx2.block_hash.is_some());
     assert_eq!(tx1.hash, pending_tx1.tx_hash());
     assert_eq!(tx2.hash, pending_tx2.tx_hash());
 
@@ -477,8 +477,8 @@ async fn test_get_transaction_by_hash() -> Result<(), anyhow::Error> {
         .eth_get_transaction_by_hash(pending_tx2.tx_hash())
         .await
         .unwrap();
-    assert!(matches!(tx1.block_hash, Some(_)));
-    assert!(matches!(tx2.block_hash, Some(_)));
+    assert!(tx1.block_hash.is_some());
+    assert!(tx2.block_hash.is_some());
     assert_eq!(tx1.hash, pending_tx1.tx_hash());
     assert_eq!(tx2.hash, pending_tx2.tx_hash());
 
