@@ -61,7 +61,10 @@ async fn test_full_node_send_tx() -> Result<(), anyhow::Error> {
 
     let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
 
-    let tx_hash = full_node_test_client.send_eth(addr, None, None).await;
+    let tx_hash = full_node_test_client
+        .send_eth(addr, None, None, None, 0u128)
+        .await
+        .unwrap();
 
     sleep(Duration::from_millis(2000)).await;
 
@@ -231,7 +234,10 @@ async fn test_delayed_sync_ten_blocks() -> Result<(), anyhow::Error> {
     let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
 
     for _ in 0..10 {
-        seq_test_client.send_eth(addr, None, None).await;
+        seq_test_client
+            .send_eth(addr, None, None, None, 0u128)
+            .await
+            .unwrap();
         seq_test_client.send_publish_batch_request().await;
     }
 
@@ -375,7 +381,10 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
 
     // create 10 blocks
     for _ in 0..10 {
-        seq_test_client.send_eth(addr, None, None).await;
+        seq_test_client
+            .send_eth(addr, None, None, None, 0u128)
+            .await
+            .unwrap();
         seq_test_client.send_publish_batch_request().await;
     }
 
@@ -404,7 +413,10 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
 
     // create 100 more blocks
     for _ in 0..100 {
-        seq_test_client.send_eth(addr, None, None).await;
+        seq_test_client
+            .send_eth(addr, None, None, None, 0u128)
+            .await
+            .unwrap();
         seq_test_client.send_publish_batch_request().await;
     }
 
@@ -413,7 +425,6 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
 
     // Copy the db to a new path with the same contents because
     // the lock is not released on the db directory even though the task is aborted
-
     let _ = copy_dir_recursive(
         Path::new("demo_data_test_close_and_reopen_full_node"),
         Path::new("demo_data_test_close_and_reopen_full_node_copy"),
@@ -438,6 +449,7 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
 
     // TODO: There should be a better way to test this?
     sleep(Duration::from_secs(30)).await;
+
     let full_node_port = full_node_port_rx.await.unwrap();
 
     let full_node_test_client = make_test_client(full_node_port).await;
@@ -492,7 +504,7 @@ async fn execute_blocks(
     let (contract_address, contract) = {
         let contract = SimpleStorageContract::default();
         let deploy_contract_req = sequencer_client
-            .deploy_contract(contract.byte_code())
+            .deploy_contract(contract.byte_code(), None)
             .await?;
         sequencer_client.send_publish_batch_request().await;
 
@@ -507,7 +519,7 @@ async fn execute_blocks(
 
     {
         let set_value_req = sequencer_client
-            .contract_transaction(contract_address, contract.set_call_data(42))
+            .contract_transaction(contract_address, contract.set_call_data(42), None)
             .await;
         sequencer_client.send_publish_batch_request().await;
         set_value_req.await.unwrap().unwrap();
@@ -516,10 +528,18 @@ async fn execute_blocks(
     sequencer_client.send_publish_batch_request().await;
 
     {
+        let mut nonce = sequencer_client
+            .eth_get_transaction_count(sequencer_client.from_addr)
+            .await;
         for temp in 0..10 {
             let _set_value_req = sequencer_client
-                .contract_transaction(contract_address, contract.set_call_data(78 + temp))
+                .contract_transaction(
+                    contract_address,
+                    contract.set_call_data(78 + temp),
+                    Some(nonce),
+                )
                 .await;
+            nonce += 1;
         }
         sequencer_client.send_publish_batch_request().await;
     }
@@ -534,7 +554,10 @@ async fn execute_blocks(
         let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
 
         for _ in 0..300 {
-            sequencer_client.send_eth(addr, None, None).await;
+            sequencer_client
+                .send_eth(addr, None, None, None, 0u128)
+                .await
+                .unwrap();
             sequencer_client.send_publish_batch_request().await;
         }
     }

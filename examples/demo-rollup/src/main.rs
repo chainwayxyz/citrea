@@ -172,7 +172,7 @@ where
             <S as RollupBlueprint>::NativeContext,
             <S as RollupBlueprint>::DaService,
             S,
-        > = ChainwaySequencer::new(
+            > = ChainwaySequencer::new(
             rollup,
             da_service,
             <<<S as RollupBlueprint>::NativeContext as Spec>::PrivateKey as TryFrom<&[u8]>>::try_from(
