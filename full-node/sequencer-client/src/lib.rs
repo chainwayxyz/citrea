@@ -3,6 +3,7 @@ use jsonrpsee::core::client::ClientT;
 use jsonrpsee::core::Error;
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use jsonrpsee::rpc_params;
+use reth_primitives::B256;
 use serde::Deserialize;
 
 /// Configuration for SequencerClient.
@@ -47,6 +48,17 @@ impl SequencerClient {
             .request("eth_sendRawTransaction", rpc_params![tx])
             .await?;
         Ok(tx_hash)
+    }
+
+    pub async fn get_tx_by_hash_in_pool(
+        &self,
+        tx_hash: B256,
+    ) -> anyhow::Result<Option<reth_rpc_types::Transaction>> {
+        let tx: Option<reth_rpc_types::Transaction> = self
+            .client
+            .request("cw_getTransactionByHashInPool", rpc_params![tx_hash])
+            .await?;
+        Ok(tx)
     }
 }
 

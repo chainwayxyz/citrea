@@ -423,6 +423,41 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                 tx_hash.map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))
             },
         )?;
+
+        rpc.register_async_method(
+            "eth_getTransactionByHash",
+            |parameters, ethereum| async move {
+                let hash: B256 = parameters.one().unwrap();
+                info!("Full Node: eth_getTransactionByHash({})", hash);
+
+                // read from evm first
+                let evm = Evm::<C>::default();
+                let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
+                match evm.get_transaction_by_hash(hash.clone(), &mut working_set) {
+                    Ok(Some(tx)) => {
+                        Ok::<Option<reth_rpc_types::Transaction>, ErrorObjectOwned>(Some(tx))
+                    }
+                    Ok(None) => {
+                        // then ask to sequencer mempool
+                        let tx = ethereum
+                            .sequencer_client
+                            .as_ref()
+                            .unwrap()
+                            .get_tx_by_hash_in_pool(hash)
+                            .await
+                            .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
+
+                        Ok::<Option<reth_rpc_types::Transaction>, ErrorObjectOwned>(tx)
+                    }
+                    // not found in evm, maybe in sequencer mempool
+                    Err(e) => {
+                        // return error
+                        Err(to_jsonrpsee_error_object(e, ETH_RPC_ERROR))
+                    }
+                }
+                // then ask to sequencer mempool
+            },
+        )?;
     }
 
     Ok(())
