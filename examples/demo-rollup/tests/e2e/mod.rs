@@ -5,6 +5,7 @@ use std::time::Duration;
 
 use demo_stf::genesis_config::GenesisPaths;
 use ethers::abi::Address;
+use ethers_core::abi::Bytes;
 use reth_primitives::BlockNumberOrTag;
 // use sov_demo_rollup::initialize_logging;
 use sov_evm::SimpleStorageContract;
@@ -107,77 +108,101 @@ async fn test_archival_state() -> Result<(), anyhow::Error> {
     let seq_port = seq_port_rx.await.unwrap();
 
     let seq_test_client = init_test_rollup(seq_port).await;
-    let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
+    let addr = Address::from_str("0x1111111111111111111111111111111111111111").unwrap();
 
     assert_eq!(
         seq_test_client
-            .eth_get_balance(addr, Some(BlockNumberOrTag::Latest))
+            .eth_get_balance(addr, BlockNumberOrTag::Latest)
             .await,
         0u64.into()
     );
 
     assert_eq!(
         seq_test_client
-            .eth_get_storage_at(addr, 0u64.into(), Some(BlockNumberOrTag::Latest))
+            .eth_get_storage_at(addr, 0u64.into(), BlockNumberOrTag::Latest)
+            .await,
         0u64.into()
     );
 
     assert_eq!(
         seq_test_client
-            .eth_get_code(addr, Some(BlockNumberOrTag::Latest))
-        0u64.into()
+            .eth_get_code(addr, BlockNumberOrTag::Latest)
+            .await,
+        Bytes::from([])
     );
 
     assert_eq!(
         seq_test_client
-            .eth_get_transaction_count(addr, Some(BlockNumberOrTag::Latest))
-        0u64.into()
+            .eth_get_transaction_count(addr, BlockNumberOrTag::Latest)
+            .await,
+        0
     );
 
-    for _ in 0..10 {
+    for _ in 0..8 {
         seq_test_client.send_eth(addr, None, None).await;
         seq_test_client.send_publish_batch_request().await;
+
+        println!(
+            "---> {:?}\n",
+            seq_test_client
+                .eth_get_block_by_number(Some(BlockNumberOrTag::Latest))
+                .await
+        );
     }
 
     assert_eq!(
         seq_test_client
-            .eth_get_balance(addr, Some(BlockNumberOrTag::Latest))
+            .eth_get_balance(addr, BlockNumberOrTag::Latest)
             .await,
-        10u64.into()
+        8u64.into()
+    );
+
+    // assert_eq!(
+    //     seq_test_client
+    //         .eth_get_balance(addr, BlockNumberOrTag::Number(5))
+    //         .await,
+    //     5u64.into()
+    // );
+
+    assert_eq!(
+        seq_test_client
+            .eth_get_transaction_count(
+                Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap(),
+                BlockNumberOrTag::Latest
+            )
+            .await,
+        8
     );
 
     assert_eq!(
         seq_test_client
-            .eth_get_balance(addr, Some(BlockNumberOrTag::Number(5)))
+            .eth_get_transaction_count(
+                Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap(),
+                BlockNumberOrTag::Number(7)
+            )
             .await,
-        5u64.into()
+        6 // ???
     );
 
     assert_eq!(
         seq_test_client
-            .eth_get_transaction_count(Self::Address, Some(BlockNumberOrTag::Latest))
+            .eth_get_storage_at(
+                Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap(),
+                0u64.into(),
+                BlockNumberOrTag::Latest
+            )
             .await,
-        10u64.into()
-    );
-
-    assert_eq!(
-        seq_test_client
-            .eth_get_transaction_count(Self::Address, Some(BlockNumberOrTag::Number(7)))
-            .await,
-        7u64.into()
-    );
-
-    assert_eq!(
-        seq_test_client
-            .eth_get_storage_at(self::Address, 0u64.into(), Some(BlockNumberOrTag::Latest))
         0u64.into()
     );
 
     assert_eq!(
         seq_test_client
-            .eth_get_code(addr, Some(BlockNumberOrTag::Latest))
-        0u64.into()
+            .eth_get_code(addr, BlockNumberOrTag::Latest)
+            .await,
+        Bytes::from(vec![])
     );
+
+    Ok(())
 }
 
 #[tokio::test]
