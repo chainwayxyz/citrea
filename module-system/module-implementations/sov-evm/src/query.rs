@@ -1,8 +1,7 @@
 use std::array::TryFromSliceError;
 use std::ops::{Range, RangeInclusive};
 
-use alloy_primitives::{BlockNumber, Uint};
-use ethereum_types::U64;
+use alloy_primitives::Uint;
 use jsonrpsee::core::RpcResult;
 use reth_interfaces::provider::ProviderError;
 use reth_primitives::TransactionKind::{Call, Create};
@@ -245,7 +244,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             // Note that reth works for all types of BlockNumberOrTag
             _ => {
                 return Err(EthApiError::InvalidParams(
-                    "Please provide a number or earliest/latest tag".to_string(),
+                    "Please provide a number or earliest/latest/pending tag".to_string(),
                 )
                 .into())
             }
@@ -298,7 +297,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             // Note that reth works for all types of BlockNumberOrTag
             _ => {
                 return Err(EthApiError::InvalidParams(
-                    "Please provide a number or earliest/latest tag".to_string(),
+                    "Please provide a number or earliest/latest/pending tag".to_string(),
                 )
                 .into())
             }
@@ -350,7 +349,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             // Note that reth works for all types of BlockNumberOrTag
             _ => {
                 return Err(EthApiError::InvalidParams(
-                    "Please provide a number or earliest/latest tag".to_string(),
+                    "Please provide a number or earliest/latest/pending tag".to_string(),
                 )
                 .into())
             }
@@ -402,7 +401,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             // Note that reth works for all types of BlockNumberOrTag
             _ => {
                 return Err(EthApiError::InvalidParams(
-                    "Please provide a number or earliest/latest tag".to_string(),
+                    "Please provide a number or earliest/latest/pending tag".to_string(),
                 )
                 .into())
             }
