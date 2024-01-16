@@ -8264,6 +8264,7 @@ dependencies = [
  "ethers",
  "hex",
  "jsonrpsee 0.20.3",
+ "reth-primitives",
  "reth-rpc-types",
  "serde",
  "serde_json",
