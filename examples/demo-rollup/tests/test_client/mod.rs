@@ -60,7 +60,9 @@ impl TestClient {
         &self,
         byte_code: Bytes,
     ) -> Result<PendingTransaction<'_, Http>, Box<dyn std::error::Error>> {
-        let nonce = self.eth_get_transaction_count(self.from_addr).await;
+        let nonce = self
+            .eth_get_transaction_count(self.from_addr, BlockNumberOrTag::Latest)
+            .await;
         let req = Eip1559TransactionRequest::new()
             .from(self.from_addr)
             .chain_id(self.chain_id)
@@ -83,7 +85,9 @@ impl TestClient {
         &self,
         byte_code: Bytes,
     ) -> Result<Bytes, Box<dyn std::error::Error>> {
-        let nonce = self.eth_get_transaction_count(self.from_addr).await;
+        let nonce = self
+            .eth_get_transaction_count(self.from_addr, BlockNumberOrTag::Latest)
+            .await;
         let req = Eip1559TransactionRequest::new()
             .from(self.from_addr)
             .chain_id(self.chain_id)
@@ -105,7 +109,9 @@ impl TestClient {
         contract_address: H160,
         data: Bytes,
     ) -> PendingTransaction<'_, Http> {
-        let nonce = self.eth_get_transaction_count(self.from_addr).await;
+        let nonce = self
+            .eth_get_transaction_count(self.from_addr, BlockNumberOrTag::Latest)
+            .await;
         let req = Eip1559TransactionRequest::new()
             .from(self.from_addr)
             .to(contract_address)
@@ -131,7 +137,9 @@ impl TestClient {
         max_priority_fee_per_gas: u64,
         max_fee_per_gas: u64,
     ) -> PendingTransaction<'_, Http> {
-        let nonce = self.eth_get_transaction_count(self.from_addr).await;
+        let nonce = self
+            .eth_get_transaction_count(self.from_addr, BlockNumberOrTag::Latest)
+            .await;
         let req = Eip1559TransactionRequest::new()
             .from(self.from_addr)
             .to(contract_address)
@@ -155,7 +163,9 @@ impl TestClient {
         contract_address: H160,
         data: Bytes,
     ) -> Result<T, Box<dyn std::error::Error>> {
-        let nonce = self.eth_get_transaction_count(self.from_addr).await;
+        let nonce = self
+            .eth_get_transaction_count(self.from_addr, BlockNumberOrTag::Latest)
+            .await;
         let req = Eip1559TransactionRequest::new()
             .from(self.from_addr)
             .to(contract_address)
@@ -179,7 +189,9 @@ impl TestClient {
         max_priority_fee_per_gas: Option<u64>,
         max_fee_per_gas: Option<u64>,
     ) -> PendingTransaction<'_, Http> {
-        let nonce = self.eth_get_transaction_count(self.from_addr).await;
+        let nonce = self
+            .eth_get_transaction_count(self.from_addr, BlockNumberOrTag::Latest)
+            .await;
 
         let req = Eip1559TransactionRequest::new()
             .from(self.from_addr)
@@ -241,9 +253,13 @@ impl TestClient {
         chain_id.as_u64()
     }
 
-    pub(crate) async fn eth_get_balance(&self, address: Address) -> ethereum_types::U256 {
+    pub(crate) async fn eth_get_balance(
+        &self,
+        address: Address,
+        block_number: BlockNumberOrTag,
+    ) -> ethereum_types::U256 {
         self.http_client
-            .request("eth_getBalance", rpc_params![address, "latest"])
+            .request("eth_getBalance", rpc_params![address, block_number])
             .await
             .unwrap()
     }
@@ -252,24 +268,39 @@ impl TestClient {
         &self,
         address: Address,
         index: ethereum_types::U256,
+        block_number: BlockNumberOrTag,
     ) -> ethereum_types::U256 {
         self.http_client
-            .request("eth_getStorageAt", rpc_params![address, index, "latest"])
+            .request(
+                "eth_getStorageAt",
+                rpc_params![address, index, block_number],
+            )
             .await
             .unwrap()
     }
 
-    pub(crate) async fn eth_get_code(&self, address: Address) -> Bytes {
+    pub(crate) async fn eth_get_code(
+        &self,
+        address: Address,
+        block_number: BlockNumberOrTag,
+    ) -> Bytes {
         self.http_client
-            .request("eth_getCode", rpc_params![address, "latest"])
+            .request("eth_getCode", rpc_params![address, block_number])
             .await
             .unwrap()
     }
 
-    pub(crate) async fn eth_get_transaction_count(&self, address: Address) -> u64 {
+    pub(crate) async fn eth_get_transaction_count(
+        &self,
+        address: Address,
+        block_number: BlockNumberOrTag,
+    ) -> u64 {
         let count: ethereum_types::U64 = self
             .http_client
-            .request("eth_getTransactionCount", rpc_params![address, "latest"])
+            .request(
+                "eth_getTransactionCount",
+                rpc_params![address, block_number],
+            )
             .await
             .unwrap();
 

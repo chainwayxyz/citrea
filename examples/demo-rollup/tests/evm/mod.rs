@@ -229,11 +229,15 @@ async fn test_getlogs(client: &Box<TestClient>) -> Result<(), Box<dyn std::error
 #[allow(clippy::borrowed_box)]
 async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Error>> {
     // Nonce should be 0 in genesis
-    let nonce = client.eth_get_transaction_count(client.from_addr).await;
+    let nonce = client
+        .eth_get_transaction_count(client.from_addr, BlockNumberOrTag::Latest)
+        .await;
     assert_eq!(0, nonce);
 
     // Balance should be > 0 in genesis
-    let balance = client.eth_get_balance(client.from_addr).await;
+    let balance = client
+        .eth_get_balance(client.from_addr, BlockNumberOrTag::Latest)
+        .await;
     assert!(balance > ethereum_types::U256::zero());
 
     let (contract_address, contract, runtime_code) = {
@@ -253,12 +257,16 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
     };
 
     // Assert contract deployed correctly
-    let code = client.eth_get_code(contract_address).await;
+    let code = client
+        .eth_get_code(contract_address, BlockNumberOrTag::Latest)
+        .await;
     // code has natural following 0x00 bytes, so we need to trim it
     assert_eq!(code.to_vec()[..runtime_code.len()], runtime_code.to_vec());
 
     // Nonce should be 1 after the deploy
-    let nonce = client.eth_get_transaction_count(client.from_addr).await;
+    let nonce = client
+        .eth_get_transaction_count(client.from_addr, BlockNumberOrTag::Latest)
+        .await;
     assert_eq!(1, nonce);
 
     // Check that the first block has published
@@ -317,7 +325,11 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
     // Assert storage slot is set
     let storage_slot = 0x0;
     let storage_value = client
-        .eth_get_storage_at(contract_address, storage_slot.into())
+        .eth_get_storage_at(
+            contract_address,
+            storage_slot.into(),
+            BlockNumberOrTag::Latest,
+        )
         .await;
     assert_eq!(storage_value, ethereum_types::U256::from(set_arg));
 

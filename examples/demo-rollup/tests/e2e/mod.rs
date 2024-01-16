@@ -87,6 +87,100 @@ async fn test_full_node_send_tx() -> Result<(), anyhow::Error> {
 }
 
 #[tokio::test]
+async fn test_archival_state() -> Result<(), anyhow::Error> {
+    let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
+
+    let seq_task = tokio::spawn(async {
+        start_rollup(
+            seq_port_tx,
+            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
+            BasicKernelGenesisPaths {
+                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
+            },
+            RollupProverConfig::Execute,
+            NodeMode::SequencerNode,
+            None,
+        )
+        .await;
+    });
+
+    let seq_port = seq_port_rx.await.unwrap();
+
+    let seq_test_client = init_test_rollup(seq_port).await;
+    let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
+
+    assert_eq!(
+        seq_test_client
+            .eth_get_balance(addr, Some(BlockNumberOrTag::Latest))
+            .await,
+        0u64.into()
+    );
+
+    assert_eq!(
+        seq_test_client
+            .eth_get_storage_at(addr, 0u64.into(), Some(BlockNumberOrTag::Latest))
+        0u64.into()
+    );
+
+    assert_eq!(
+        seq_test_client
+            .eth_get_code(addr, Some(BlockNumberOrTag::Latest))
+        0u64.into()
+    );
+
+    assert_eq!(
+        seq_test_client
+            .eth_get_transaction_count(addr, Some(BlockNumberOrTag::Latest))
+        0u64.into()
+    );
+
+    for _ in 0..10 {
+        seq_test_client.send_eth(addr, None, None).await;
+        seq_test_client.send_publish_batch_request().await;
+    }
+
+    assert_eq!(
+        seq_test_client
+            .eth_get_balance(addr, Some(BlockNumberOrTag::Latest))
+            .await,
+        10u64.into()
+    );
+
+    assert_eq!(
+        seq_test_client
+            .eth_get_balance(addr, Some(BlockNumberOrTag::Number(5)))
+            .await,
+        5u64.into()
+    );
+
+    assert_eq!(
+        seq_test_client
+            .eth_get_transaction_count(Self::Address, Some(BlockNumberOrTag::Latest))
+            .await,
+        10u64.into()
+    );
+
+    assert_eq!(
+        seq_test_client
+            .eth_get_transaction_count(Self::Address, Some(BlockNumberOrTag::Number(7)))
+            .await,
+        7u64.into()
+    );
+
+    assert_eq!(
+        seq_test_client
+            .eth_get_storage_at(self::Address, 0u64.into(), Some(BlockNumberOrTag::Latest))
+        0u64.into()
+    );
+
+    assert_eq!(
+        seq_test_client
+            .eth_get_code(addr, Some(BlockNumberOrTag::Latest))
+        0u64.into()
+    );
+}
+
+#[tokio::test]
 async fn test_delayed_sync_ten_blocks() -> Result<(), anyhow::Error> {
     // initialize_logging();
 
