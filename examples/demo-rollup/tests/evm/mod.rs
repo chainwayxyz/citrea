@@ -361,7 +361,7 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
 
     client.send_publish_batch_request().await;
     client.send_publish_batch_request().await;
-    let mut nonce = client.eth_get_transaction_count(client.from_addr).await;
+    let nonce = client.eth_get_transaction_count(client.from_addr).await;
 
     for req in requests {
         req.await.unwrap();
@@ -371,7 +371,6 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
         let get_arg: ethereum_types::U256 = client
             .contract_call(contract_address, contract.get_call_data(), Some(nonce))
             .await?;
-        nonce += 1;
         // should be one of three values sent in a single block. 150, 151, or 152
         assert!((150..=152).contains(&get_arg.as_u32()));
     }

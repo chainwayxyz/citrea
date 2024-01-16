@@ -47,13 +47,7 @@ type CitreaMempool<C> = Pool<
 
 const ETH_RPC_ERROR: &str = "ETH_RPC_ERROR";
 
-fn create_mempool<C: sov_modules_api::Context>(
-    client: DbProvider<C>,
-) -> Pool<
-    TransactionValidationTaskExecutor<EthTransactionValidator<DbProvider<C>, EthPooledTransaction>>,
-    CoinbaseTipOrdering<EthPooledTransaction>,
-    NoopBlobStore,
-> {
+fn create_mempool<C: sov_modules_api::Context>(client: DbProvider<C>) -> CitreaMempool<C> {
     let blob_store = NoopBlobStore::default();
     let genesis_hash = client.genesis_block().unwrap().unwrap().header.hash;
     let evm_config = client.cfg();

@@ -216,7 +216,7 @@ dependencies = [
 [[package]]
 name = "alloy-rpc-trace-types"
 version = "0.1.0"
-source = "git+https://github.com/alloy-rs/alloy#5ed60f827f3bd0211855919c08504cc4701e8353"
+source = "git+https://github.com/alloy-rs/alloy#87de288dd3e6258ff634ce147f5fd06382d29660"
 dependencies = [
  "alloy-primitives",
  "alloy-rpc-types",
@@ -227,7 +227,7 @@ dependencies = [
 [[package]]
 name = "alloy-rpc-types"
 version = "0.1.0"
-source = "git+https://github.com/alloy-rs/alloy#5ed60f827f3bd0211855919c08504cc4701e8353"
+source = "git+https://github.com/alloy-rs/alloy#87de288dd3e6258ff634ce147f5fd06382d29660"
 dependencies = [
  "alloy-primitives",
  "alloy-rlp",
@@ -843,7 +843,7 @@ checksum = "8c3c1a368f70d6cf7302d78f8f7093da241fb8e8807c05cc9e51a125895a6d5b"
 name = "bashtestmd"
 version = "0.3.0"
 dependencies = [
- "clap 4.4.16",
+ "clap 4.4.17",
  "indoc",
  "markdown",
  "shell-escape",
@@ -1625,9 +1625,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.4.16"
+version = "4.4.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "58e54881c004cec7895b0068a0a954cd5d62da01aef83fa35b1e594497bf5445"
+checksum = "80932e03c33999b9235edb8655bc9df3204adc9887c2f95b50cb1deb9fd54253"
 dependencies = [
  "clap_builder",
  "clap_derive",
@@ -1635,9 +1635,9 @@ dependencies = [
 
 [[package]]
 name = "clap_builder"
-version = "4.4.16"
+version = "4.4.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "59cb82d7f531603d2fd1f507441cdd35184fa81beff7bd489570de7f773460bb"
+checksum = "d6c0db58c659eef1c73e444d298c27322a1b52f6927d2ad470c0c0f96fa7b8fa"
 dependencies = [
  "anstream",
  "anstyle",
@@ -1929,7 +1929,7 @@ dependencies = [
  "anes",
  "cast",
  "ciborium",
- "clap 4.4.16",
+ "clap 4.4.17",
  "criterion-plot",
  "is-terminal",
  "itertools 0.10.5",
@@ -2356,7 +2356,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "borsh",
- "clap 4.4.16",
+ "clap 4.4.17",
  "demo-stf",
  "hex",
  "jsonrpsee 0.20.3",
@@ -7271,7 +7271,7 @@ name = "reth-tracing"
 version = "0.1.0-alpha.14"
 source = "git+https://github.com/paradigmxyz/reth?rev=49106d5#49106d50889e4d26c8055036219b7dbcb302855b"
 dependencies = [
- "clap 4.4.16",
+ "clap 4.4.17",
  "eyre",
  "rolling-file",
  "tracing",
@@ -8558,7 +8558,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "borsh",
- "clap 4.4.16",
+ "clap 4.4.17",
  "jsonrpsee 0.20.3",
  "schemars",
  "serde",
@@ -8693,7 +8693,7 @@ dependencies = [
  "anyhow",
  "arbitrary",
  "borsh",
- "clap 4.4.16",
+ "clap 4.4.17",
  "jsonrpsee 0.20.3",
  "proptest",
  "proptest-derive",
@@ -8766,7 +8766,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "borsh",
- "clap 4.4.16",
+ "clap 4.4.17",
  "jsonrpsee 0.20.3",
  "schemars",
  "serde",
@@ -8786,7 +8786,7 @@ dependencies = [
  "anyhow",
  "bincode",
  "borsh",
- "clap 4.4.16",
+ "clap 4.4.17",
  "hex",
  "jmt",
  "jsonrpsee 0.20.3",
@@ -8927,7 +8927,7 @@ dependencies = [
  "bitcoin-da",
  "borsh",
  "chainway-sequencer",
- "clap 4.4.16",
+ "clap 4.4.17",
  "const-rollup-config",
  "criterion",
  "demo-stf",
@@ -9020,7 +9020,7 @@ dependencies = [
  "anyhow",
  "borsh",
  "bytes",
- "clap 4.4.16",
+ "clap 4.4.17",
  "derive_more",
  "ethereum-types",
  "ethers",
@@ -9125,7 +9125,7 @@ dependencies = [
  "bech32",
  "bincode",
  "borsh",
- "clap 4.4.16",
+ "clap 4.4.17",
  "derive_more",
  "ed25519-dalek 2.0.0",
  "hex",
@@ -9188,7 +9188,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "borsh",
- "clap 4.4.16",
+ "clap 4.4.17",
  "jsonrpsee 0.20.3",
  "proc-macro2 1.0.76",
  "quote 1.0.35",
@@ -9413,7 +9413,7 @@ dependencies = [
  "anyhow",
  "arbitrary",
  "borsh",
- "clap 4.4.16",
+ "clap 4.4.17",
  "jsonrpsee 0.20.3",
  "proptest",
  "proptest-derive",
@@ -9513,7 +9513,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "borsh",
- "clap 4.4.16",
+ "clap 4.4.17",
  "jsonrpsee 0.20.3",
  "schemars",
  "serde",
@@ -9532,7 +9532,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "borsh",
- "clap 4.4.16",
+ "clap 4.4.17",
  "jsonrpsee 0.20.3",
  "schemars",
  "serde",
@@ -11436,11 +11436,12 @@ checksum = "f1bddf1187be692e79c5ffeab891132dfb0f236ed36a43c7ed39f1165ee20191"
 
 [[package]]
 name = "vergen"
-version = "8.2.9"
+version = "8.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "03c7b513a7d40506d5a07f186a298821cc9ec2cc22088a3593f7b612a66659f6"
+checksum = "ec0d895592fa7710eba03fe072e614e3dc6a61ab76ae7ae10d2eb4a7ed5b00ca"
 dependencies = [
  "anyhow",
+ "cfg-if",
  "git2",
  "rustversion",
  "time",
