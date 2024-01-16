@@ -142,7 +142,9 @@ async fn test_archival_state() -> Result<(), anyhow::Error> {
     );
 
     for _ in 0..8 {
-        seq_test_client.send_eth(addr, None, None).await;
+        seq_test_client
+            .send_eth(addr, None, None, None, 1u128)
+            .await;
         seq_test_client.send_publish_batch_request().await;
 
         println!(
@@ -160,12 +162,12 @@ async fn test_archival_state() -> Result<(), anyhow::Error> {
         8u64.into()
     );
 
-    // assert_eq!(
-    //     seq_test_client
-    //         .eth_get_balance(addr, BlockNumberOrTag::Number(5))
-    //         .await,
-    //     5u64.into()
-    // );
+    assert_eq!(
+        seq_test_client
+            .eth_get_balance(addr, BlockNumberOrTag::Number(5))
+            .await,
+        4u64.into()
+    );
 
     assert_eq!(
         seq_test_client
@@ -529,7 +531,7 @@ async fn execute_blocks(
 
     {
         let mut nonce = sequencer_client
-            .eth_get_transaction_count(sequencer_client.from_addr)
+            .eth_get_transaction_count(sequencer_client.from_addr, BlockNumberOrTag::Latest)
             .await;
         for temp in 0..10 {
             let _set_value_req = sequencer_client

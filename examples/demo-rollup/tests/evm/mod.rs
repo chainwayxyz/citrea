@@ -362,7 +362,9 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
 
     // Create a blob with multiple transactions.
     let mut requests = Vec::default();
-    let mut nonce = client.eth_get_transaction_count(client.from_addr).await;
+    let mut nonce = client
+        .eth_get_transaction_count(client.from_addr, BlockNumberOrTag::Latest)
+        .await;
     for value in 150..153 {
         let set_value_req = client
             .contract_transaction(contract_address, contract.set_call_data(value), Some(nonce))
@@ -373,7 +375,9 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
 
     client.send_publish_batch_request().await;
     client.send_publish_batch_request().await;
-    let nonce = client.eth_get_transaction_count(client.from_addr).await;
+    let nonce = client
+        .eth_get_transaction_count(client.from_addr, BlockNumberOrTag::Latest)
+        .await;
 
     for req in requests {
         req.await.unwrap();
@@ -440,7 +444,9 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
         assert_eq!(initial_fee_history.oldest_block, U256::zero());
 
         // send 100 set transaction with high gas fee in a four batch to increase gas price
-        let mut nonce = client.eth_get_transaction_count(client.from_addr).await;
+        let mut nonce = client
+            .eth_get_transaction_count(client.from_addr, BlockNumberOrTag::Latest)
+            .await;
         for _ in 0..4 {
             let mut requests = Vec::default();
             // TODO: https://github.com/chainwayxyz/secret-sovereign-sdk/issues/109
