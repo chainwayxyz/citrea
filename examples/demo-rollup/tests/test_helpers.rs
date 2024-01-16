@@ -17,7 +17,6 @@ use sov_stf_runner::{
     SequencerClientRpcConfig, StorageConfig,
 };
 use tokio::sync::oneshot;
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NodeMode {
     FullNode(SocketAddr),

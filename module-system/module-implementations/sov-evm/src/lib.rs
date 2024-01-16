@@ -4,6 +4,7 @@ mod call;
 mod evm;
 mod genesis;
 mod hooks;
+mod provider_functions;
 mod rpc_helpers;
 pub use call::*;
 pub use error::rpc::*;
@@ -20,7 +21,8 @@ pub use signer::DevSigner;
 mod smart_contracts;
 #[cfg(feature = "smart_contracts")]
 pub use smart_contracts::{
-    BlockHashContract, LogsContract, SelfDestructorContract, SimpleStorageContract, TestContract,
+    BlockHashContract, CoinbaseContract, LogsContract, SelfDestructorContract,
+    SimpleStorageContract, TestContract,
 };
 
 #[cfg(test)]

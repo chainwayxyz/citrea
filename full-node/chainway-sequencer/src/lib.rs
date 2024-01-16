@@ -1,8 +1,4 @@
-use futures::StreamExt;
-pub use sov_evm::DevSigner;
-use sov_rollup_interface::da::BlockHeaderTrait;
-use sov_stf_runner::BlockTemplate;
-mod mempool;
+pub mod db_provider;
 mod utils;
 
 use std::borrow::BorrowMut;
@@ -13,36 +9,81 @@ use std::sync::Arc;
 use borsh::ser::BorshSerialize;
 use demo_stf::runtime::Runtime;
 use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
-use futures::lock::Mutex;
+use futures::StreamExt;
 use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::RpcModule;
-use mempool::Mempool;
-use reth_primitives::{Bytes, B256};
+use reth_primitives::{
+    BaseFeeParamsKind, Bytes, Chain, ChainSpec, FromRecoveredPooledTransaction,
+    IntoRecoveredTransaction, B256,
+};
+use reth_provider::BlockReaderIdExt;
+use reth_tasks::TokioTaskExecutor;
+use reth_transaction_pool::blobstore::NoopBlobStore;
+use reth_transaction_pool::{
+    CoinbaseTipOrdering, EthPooledTransaction, EthTransactionValidator, Pool, TransactionOrigin,
+    TransactionPool, TransactionValidationTaskExecutor,
+};
 use sov_accounts::Accounts;
 use sov_accounts::Response::{AccountEmpty, AccountExists};
+pub use sov_evm::DevSigner;
 use sov_evm::{CallMessage, RlpEvmTransaction};
 use sov_modules_api::transaction::Transaction;
+use sov_modules_api::utils::to_jsonrpsee_error_object;
 use sov_modules_api::{EncodeCall, PrivateKey, SlotData, WorkingSet};
 use sov_modules_rollup_blueprint::{Rollup, RollupBlueprint};
+use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::services::da::DaService;
+use sov_stf_runner::BlockTemplate;
 use tracing::info;
 
+pub use crate::db_provider::DbProvider;
 use crate::utils::recover_raw_transaction;
 
-pub struct RpcContext {
-    pub mempool: Arc<Mutex<Mempool>>,
+type CitreaMempool<C> = Pool<
+    TransactionValidationTaskExecutor<EthTransactionValidator<DbProvider<C>, EthPooledTransaction>>,
+    CoinbaseTipOrdering<EthPooledTransaction>,
+    NoopBlobStore,
+>;
+
+const ETH_RPC_ERROR: &str = "ETH_RPC_ERROR";
+
+fn create_mempool<C: sov_modules_api::Context>(client: DbProvider<C>) -> CitreaMempool<C> {
+    let blob_store = NoopBlobStore::default();
+    let genesis_hash = client.genesis_block().unwrap().unwrap().header.hash;
+    let evm_config = client.cfg();
+    let chain_spec = ChainSpec {
+        chain: Chain::from_id(evm_config.chain_id),
+        genesis_hash,
+        base_fee_params: BaseFeeParamsKind::Constant(evm_config.base_fee_params),
+        ..Default::default()
+    };
+    Pool::eth_pool(
+        TransactionValidationTaskExecutor::eth(
+            client,
+            Arc::new(chain_spec),
+            blob_store,
+            TokioTaskExecutor::default(),
+        ),
+        blob_store,
+        Default::default(),
+    )
+}
+
+pub struct RpcContext<C: sov_modules_api::Context> {
+    pub mempool: Arc<CitreaMempool<C>>,
     pub sender: UnboundedSender<String>,
 }
 
 pub struct ChainwaySequencer<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> {
     rollup: Rollup<S>,
     da_service: Da,
-    mempool: Arc<Mutex<Mempool>>,
+    mempool: Arc<CitreaMempool<C>>,
     p: PhantomData<C>,
     sov_tx_signer_priv_key: C::PrivateKey,
     sov_tx_signer_nonce: u64,
     sender: UnboundedSender<String>,
     receiver: UnboundedReceiver<String>,
+    db_provider: DbProvider<C>,
 }
 
 impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySequencer<C, Da, S> {
@@ -52,7 +93,6 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
         sov_tx_signer_priv_key: C::PrivateKey,
         storage: C::Storage,
     ) -> Self {
-        let mempool = Mempool::new();
         let (sender, receiver) = unbounded();
 
         let accounts = Accounts::<C>::default();
@@ -65,15 +105,21 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
             AccountEmpty => 0,
         };
 
+        // used as client of reth's mempool
+        let db_provider = DbProvider::new(storage);
+
+        let pool = create_mempool(db_provider.clone());
+
         Self {
             rollup,
             da_service,
-            mempool: Arc::new(Mutex::new(mempool)),
+            mempool: Arc::new(pool),
             p: PhantomData,
             sov_tx_signer_priv_key,
             sov_tx_signer_nonce: nonce,
             sender,
             receiver,
+            db_provider,
         }
     }
 
@@ -93,13 +139,31 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
     pub async fn run(&mut self) -> Result<(), anyhow::Error> {
         loop {
             if (self.receiver.next().await).is_some() {
-                let mut rlp_txs = vec![];
-                let mut mem = self.mempool.lock().await;
-                while !mem.pool.is_empty() {
-                    // TODO: Handle error
-                    rlp_txs.push(mem.pool.pop_front().unwrap());
-                }
-                core::mem::drop(mem);
+                // best txs with base fee
+                // get base fee from last blocks => header => next base fee() function
+                let cfg: sov_evm::EvmChainConfig = self.db_provider.cfg();
+
+                let base_fee = self
+                    .db_provider
+                    .latest_header()
+                    .expect("Failed to get latest header")
+                    .map(|header| header.unseal().next_block_base_fee(cfg.base_fee_params))
+                    .expect("Failed to get next block base fee")
+                    .unwrap();
+
+                let best_txs_with_base_fee = self.mempool.best_transactions_with_base_fee(base_fee);
+
+                // TODO: implement block builder instead of just including every transaction in order
+                let rlp_txs: Vec<RlpEvmTransaction> = best_txs_with_base_fee
+                    .into_iter()
+                    .map(|tx| {
+                        tx.to_recovered_transaction()
+                            .into_signed()
+                            .envelope_encoded()
+                            .to_vec()
+                    })
+                    .map(|rlp| RlpEvmTransaction { rlp })
+                    .collect();
 
                 info!(
                     "Sequencer: publishing block with {} transactions",
@@ -149,6 +213,11 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
 
                 // TODO: handle error
                 self.rollup.runner.process(block_template).await?;
+
+                // get last block remove only txs in block
+
+                self.mempool
+                    .remove_transactions(self.db_provider.last_block_tx_hashes());
             }
         }
     }
@@ -188,18 +257,20 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
             let data: Bytes = parameters.one().unwrap();
 
             // Only check if the signature is valid for now
-            let recovered = recover_raw_transaction(data.clone())?;
+            let recovered: reth_primitives::PooledTransactionsElementEcRecovered =
+                recover_raw_transaction(data.clone())?;
 
-            // TODO: make mempool conversions once it is implemented
-            // Follow the example of eth_sendRawTransaction in reth
-            // https://github.com/paradigmxyz/reth/blob/main/crates/rpc/rpc/src/eth/api/transactions.rs#L505
+            // TODO: fn should be named from_recoverd_pooled_transaction after reth upgrade,
+            let pool_transaction =
+                EthPooledTransaction::from_recovered_pooled_transaction(recovered);
 
-            let raw_evm_tx = RlpEvmTransaction { rlp: data.to_vec() };
-
-            // Mempool had to be arc mutex to mutate chainway sequencer
-            ctx.mempool.lock().await.pool.push_back(raw_evm_tx);
-
-            Ok::<B256, ErrorObjectOwned>(*recovered.hash())
+            // submit the transaction to the pool with a `Local` origin
+            let hash: B256 = ctx
+                .mempool
+                .add_transaction(TransactionOrigin::External, pool_transaction)
+                .await
+                .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
+            Ok::<B256, ErrorObjectOwned>(hash)
         })?;
         rpc.register_async_method("eth_publishBatch", |_, ctx| async move {
             info!("Sequencer: eth_publishBatch");

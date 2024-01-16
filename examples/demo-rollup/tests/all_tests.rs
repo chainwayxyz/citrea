@@ -2,5 +2,6 @@
 // mod bank;
 mod e2e;
 mod evm;
+mod mempool;
 mod test_client;
 mod test_helpers;

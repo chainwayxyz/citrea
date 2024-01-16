@@ -1,4 +1,5 @@
 use std::str::FromStr;
+use std::time::Duration;
 
 use ethereum_types::H160;
 use ethers_core::abi::Address;
@@ -14,7 +15,7 @@ use jsonrpsee::rpc_params;
 use reth_primitives::BlockNumberOrTag;
 use sov_evm::LogResponse;
 
-const MAX_FEE_PER_GAS: u64 = 1000000001;
+pub const MAX_FEE_PER_GAS: u64 = 1000000001;
 const GAS: u64 = 900000u64;
 
 pub struct TestClient {
@@ -50,17 +51,23 @@ impl TestClient {
     }
 
     pub(crate) async fn send_publish_batch_request(&self) {
-        self.http_client
+        let _: () = self
+            .http_client
             .request("eth_publishBatch", rpc_params![])
             .await
-            .unwrap()
+            .unwrap();
+        tokio::time::sleep(Duration::from_millis(200)).await
     }
 
     pub(crate) async fn deploy_contract(
         &self,
         byte_code: Bytes,
+        nonce: Option<u64>,
     ) -> Result<PendingTransaction<'_, Http>, Box<dyn std::error::Error>> {
-        let nonce = self.eth_get_transaction_count(self.from_addr).await;
+        let nonce = match nonce {
+            Some(nonce) => nonce,
+            None => self.eth_get_transaction_count(self.from_addr).await,
+        };
         let req = Eip1559TransactionRequest::new()
             .from(self.from_addr)
             .chain_id(self.chain_id)
@@ -82,8 +89,12 @@ impl TestClient {
     pub(crate) async fn deploy_contract_call(
         &self,
         byte_code: Bytes,
+        nonce: Option<u64>,
     ) -> Result<Bytes, Box<dyn std::error::Error>> {
-        let nonce = self.eth_get_transaction_count(self.from_addr).await;
+        let nonce = match nonce {
+            Some(nonce) => nonce,
+            None => self.eth_get_transaction_count(self.from_addr).await,
+        };
         let req = Eip1559TransactionRequest::new()
             .from(self.from_addr)
             .chain_id(self.chain_id)
@@ -104,8 +115,13 @@ impl TestClient {
         &self,
         contract_address: H160,
         data: Bytes,
+        nonce: Option<u64>,
     ) -> PendingTransaction<'_, Http> {
-        let nonce = self.eth_get_transaction_count(self.from_addr).await;
+        let nonce = match nonce {
+            Some(nonce) => nonce,
+            None => self.eth_get_transaction_count(self.from_addr).await,
+        };
+        self.eth_get_transaction_count(self.from_addr).await;
         let req = Eip1559TransactionRequest::new()
             .from(self.from_addr)
             .to(contract_address)
@@ -130,8 +146,13 @@ impl TestClient {
         data: Bytes,
         max_priority_fee_per_gas: u64,
         max_fee_per_gas: u64,
+        value: Option<u64>,
+        nonce: Option<u64>,
     ) -> PendingTransaction<'_, Http> {
-        let nonce = self.eth_get_transaction_count(self.from_addr).await;
+        let nonce = match nonce {
+            Some(nonce) => nonce,
+            None => self.eth_get_transaction_count(self.from_addr).await,
+        };
         let req = Eip1559TransactionRequest::new()
             .from(self.from_addr)
             .to(contract_address)
@@ -140,7 +161,8 @@ impl TestClient {
             .max_priority_fee_per_gas(max_priority_fee_per_gas)
             .max_fee_per_gas(max_fee_per_gas)
             .gas(GAS)
-            .data(data);
+            .data(data)
+            .value(value.unwrap_or(0u64));
 
         let typed_transaction = TypedTransaction::Eip1559(req);
 
@@ -154,8 +176,12 @@ impl TestClient {
         &self,
         contract_address: H160,
         data: Bytes,
+        nonce: Option<u64>,
     ) -> Result<T, Box<dyn std::error::Error>> {
-        let nonce = self.eth_get_transaction_count(self.from_addr).await;
+        let nonce = match nonce {
+            Some(nonce) => nonce,
+            None => self.eth_get_transaction_count(self.from_addr).await,
+        };
         let req = Eip1559TransactionRequest::new()
             .from(self.from_addr)
             .to(contract_address)
@@ -178,8 +204,13 @@ impl TestClient {
         to_addr: Address,
         max_priority_fee_per_gas: Option<u64>,
         max_fee_per_gas: Option<u64>,
-    ) -> PendingTransaction<'_, Http> {
-        let nonce = self.eth_get_transaction_count(self.from_addr).await;
+        nonce: Option<u64>,
+        value: u128,
+    ) -> Result<PendingTransaction<'_, Http>, anyhow::Error> {
+        let nonce = match nonce {
+            Some(nonce) => nonce,
+            None => self.eth_get_transaction_count(self.from_addr).await,
+        };
 
         let req = Eip1559TransactionRequest::new()
             .from(self.from_addr)
@@ -188,14 +219,15 @@ impl TestClient {
             .nonce(nonce)
             .max_priority_fee_per_gas(max_priority_fee_per_gas.unwrap_or(10u64))
             .max_fee_per_gas(max_fee_per_gas.unwrap_or(MAX_FEE_PER_GAS))
-            .gas(GAS);
+            .gas(GAS)
+            .value(value);
 
         let typed_transaction = TypedTransaction::Eip1559(req);
 
         self.client
             .send_transaction(typed_transaction, None)
             .await
-            .unwrap()
+            .map_err(|e| e.into())
     }
 
     pub(crate) async fn web3_client_version(&self) -> String {

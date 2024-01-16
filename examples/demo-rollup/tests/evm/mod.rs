@@ -128,7 +128,7 @@ async fn test_eth_get_logs() -> Result<(), anyhow::Error> {
 async fn test_getlogs(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Error>> {
     let (contract_address, contract) = {
         let contract = LogsContract::default();
-        let deploy_contract_req = client.deploy_contract(contract.byte_code()).await?;
+        let deploy_contract_req = client.deploy_contract(contract.byte_code(), None).await?;
 
         client.send_publish_batch_request().await;
 
@@ -145,6 +145,7 @@ async fn test_getlogs(client: &Box<TestClient>) -> Result<(), Box<dyn std::error
         .contract_transaction(
             contract_address,
             contract.publish_event("hello".to_string()),
+            None,
         )
         .await;
     client.send_publish_batch_request().await;
@@ -179,7 +180,7 @@ async fn test_getlogs(client: &Box<TestClient>) -> Result<(), Box<dyn std::error
 
     // Deploy another contract
     let contract_address2 = {
-        let deploy_contract_req = client.deploy_contract(contract.byte_code()).await?;
+        let deploy_contract_req = client.deploy_contract(contract.byte_code(), None).await?;
         client.send_publish_batch_request().await;
 
         deploy_contract_req
@@ -194,6 +195,7 @@ async fn test_getlogs(client: &Box<TestClient>) -> Result<(), Box<dyn std::error
         .contract_transaction(
             contract_address2,
             contract.publish_event("second contract".to_string()),
+            None,
         )
         .await;
     client.send_publish_batch_request().await;
@@ -239,8 +241,10 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
     let (contract_address, contract, runtime_code) = {
         let contract = SimpleStorageContract::default();
 
-        let runtime_code = client.deploy_contract_call(contract.byte_code()).await?;
-        let deploy_contract_req = client.deploy_contract(contract.byte_code()).await?;
+        let runtime_code = client
+            .deploy_contract_call(contract.byte_code(), None)
+            .await?;
+        let deploy_contract_req = client.deploy_contract(contract.byte_code(), None).await?;
         client.send_publish_batch_request().await;
 
         let contract_address = deploy_contract_req
@@ -272,12 +276,11 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
     let set_arg = 923;
     let tx_hash = {
         let set_value_req = client
-            .contract_transaction(contract_address, contract.set_call_data(set_arg))
+            .contract_transaction(contract_address, contract.set_call_data(set_arg), None)
             .await;
         client.send_publish_batch_request().await;
         set_value_req.await.unwrap().unwrap().transaction_hash
     };
-
     // Now we have a second block
     let second_block = client
         .eth_get_block_by_number(Some(BlockNumberOrTag::Number(2)))
@@ -310,8 +313,9 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
     assert_eq!(tx_by_number_tag.hash, tx_hash);
 
     let get_arg: U256 = client
-        .contract_call(contract_address, contract.get_call_data())
+        .contract_call(contract_address, contract.get_call_data(), None)
         .await?;
+
     assert_eq!(set_arg, get_arg.as_u32());
 
     // Assert storage slot is set
@@ -331,26 +335,33 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
 
     // This should just pass without error
     let _: Bytes = client
-        .contract_call(contract_address, contract.set_call_data(set_arg))
+        .contract_call(contract_address, contract.set_call_data(set_arg), None)
         .await?;
 
     // This call should fail because function does not exist
     let failing_call: Result<Bytes, _> = client
-        .contract_call(contract_address, contract.failing_function_call_data())
+        .contract_call(
+            contract_address,
+            contract.failing_function_call_data(),
+            None,
+        )
         .await;
     assert!(failing_call.is_err());
 
     // Create a blob with multiple transactions.
     let mut requests = Vec::default();
+    let mut nonce = client.eth_get_transaction_count(client.from_addr).await;
     for value in 150..153 {
         let set_value_req = client
-            .contract_transaction(contract_address, contract.set_call_data(value))
+            .contract_transaction(contract_address, contract.set_call_data(value), Some(nonce))
             .await;
+        nonce += 1;
         requests.push(set_value_req);
     }
 
     client.send_publish_batch_request().await;
     client.send_publish_batch_request().await;
+    let nonce = client.eth_get_transaction_count(client.from_addr).await;
 
     for req in requests {
         req.await.unwrap();
@@ -358,7 +369,7 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
 
     {
         let get_arg: ethereum_types::U256 = client
-            .contract_call(contract_address, contract.get_call_data())
+            .contract_call(contract_address, contract.get_call_data(), Some(nonce))
             .await?;
         // should be one of three values sent in a single block. 150, 151, or 152
         assert!((150..=152).contains(&get_arg.as_u32()));
@@ -369,8 +380,9 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
 
         let tx_hash = {
             let set_value_req = client
-                .contract_transaction(contract_address, contract.set_call_data(value))
+                .contract_transaction(contract_address, contract.set_call_data(value), None)
                 .await;
+
             client.send_publish_batch_request().await;
             set_value_req.await.unwrap().unwrap().transaction_hash
         };
@@ -394,8 +406,9 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
         assert_eq!(tx_receipt, latest_block_receipts[0]);
 
         let get_arg: ethereum_types::U256 = client
-            .contract_call(contract_address, contract.get_call_data())
+            .contract_call(contract_address, contract.get_call_data(), None)
             .await?;
+
         assert_eq!(value, get_arg.as_u32());
     }
 
@@ -415,17 +428,24 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
         assert_eq!(initial_fee_history.oldest_block, U256::zero());
 
         // send 100 set transaction with high gas fee in a four batch to increase gas price
+        let mut nonce = client.eth_get_transaction_count(client.from_addr).await;
         for _ in 0..4 {
             let mut requests = Vec::default();
-            for value in 0..25 {
+            // TODO: https://github.com/chainwayxyz/secret-sovereign-sdk/issues/109
+            for value in 0..15 {
+                // sleep
+                sleep(Duration::from_millis(50)).await;
                 let set_value_req = client
                     .contract_transaction_with_custom_fee(
                         contract_address,
                         contract.set_call_data(value),
                         20u64,
-                        21u64,
+                        10000000000u64,
+                        None,
+                        Some(nonce),
                     )
                     .await;
+                nonce += 1;
                 requests.push(set_value_req);
             }
             client.send_publish_batch_request().await;
