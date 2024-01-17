@@ -441,7 +441,7 @@ async fn execute_blocks(
 
     {
         let mut nonce = sequencer_client
-            .eth_get_transaction_count(sequencer_client.from_addr, BlockNumberOrTag::Latest)
+            .eth_get_transaction_count(sequencer_client.from_addr, Some(BlockNumberOrTag::Latest))
             .await
             .unwrap();
         for temp in 0..10 {
@@ -496,7 +496,7 @@ async fn execute_blocks(
 
 async fn run_archival_fail_tests(addr: Address, seq_test_client: &TestClient) {
     let invalid_block_balance = seq_test_client
-        .eth_get_balance(addr, BlockNumberOrTag::Number(722))
+        .eth_get_balance(addr, Some(BlockNumberOrTag::Number(722)))
         .await
         .unwrap_err();
     assert!(invalid_block_balance
@@ -504,7 +504,7 @@ async fn run_archival_fail_tests(addr: Address, seq_test_client: &TestClient) {
         .contains("unknown block number"));
 
     let invalid_block_storage = seq_test_client
-        .eth_get_storage_at(addr, 0u64.into(), BlockNumberOrTag::Number(722))
+        .eth_get_storage_at(addr, 0u64.into(), Some(BlockNumberOrTag::Number(722)))
         .await
         .unwrap_err();
     assert!(invalid_block_storage
@@ -512,7 +512,7 @@ async fn run_archival_fail_tests(addr: Address, seq_test_client: &TestClient) {
         .contains("unknown block number"));
 
     let invalid_block_code = seq_test_client
-        .eth_get_code(addr, BlockNumberOrTag::Number(722))
+        .eth_get_code(addr, Some(BlockNumberOrTag::Number(722)))
         .await
         .unwrap_err();
     assert!(invalid_block_code
@@ -520,7 +520,7 @@ async fn run_archival_fail_tests(addr: Address, seq_test_client: &TestClient) {
         .contains("unknown block number"));
 
     let invalid_block_tx_count = seq_test_client
-        .eth_get_transaction_count(addr, BlockNumberOrTag::Number(722))
+        .eth_get_transaction_count(addr, Some(BlockNumberOrTag::Number(722)))
         .await
         .unwrap_err();
     assert!(invalid_block_tx_count
@@ -531,7 +531,7 @@ async fn run_archival_fail_tests(addr: Address, seq_test_client: &TestClient) {
 async fn run_archival_valid_tests(addr: Address, seq_test_client: &TestClient) {
     assert_eq!(
         seq_test_client
-            .eth_get_balance(addr, BlockNumberOrTag::Latest)
+            .eth_get_balance(addr, Some(BlockNumberOrTag::Latest))
             .await
             .unwrap(),
         0u64.into()
@@ -539,7 +539,7 @@ async fn run_archival_valid_tests(addr: Address, seq_test_client: &TestClient) {
 
     assert_eq!(
         seq_test_client
-            .eth_get_storage_at(addr, 0u64.into(), BlockNumberOrTag::Latest)
+            .eth_get_storage_at(addr, 0u64.into(), Some(BlockNumberOrTag::Latest))
             .await
             .unwrap(),
         0u64.into()
@@ -547,7 +547,7 @@ async fn run_archival_valid_tests(addr: Address, seq_test_client: &TestClient) {
 
     assert_eq!(
         seq_test_client
-            .eth_get_code(addr, BlockNumberOrTag::Latest)
+            .eth_get_code(addr, Some(BlockNumberOrTag::Latest))
             .await
             .unwrap(),
         Bytes::from([])
@@ -555,7 +555,7 @@ async fn run_archival_valid_tests(addr: Address, seq_test_client: &TestClient) {
 
     assert_eq!(
         seq_test_client
-            .eth_get_transaction_count(addr, BlockNumberOrTag::Latest)
+            .eth_get_transaction_count(addr, Some(BlockNumberOrTag::Latest))
             .await
             .unwrap(),
         0
@@ -570,15 +570,20 @@ async fn run_archival_valid_tests(addr: Address, seq_test_client: &TestClient) {
 
     assert_eq!(
         seq_test_client
-            .eth_get_balance(addr, BlockNumberOrTag::Latest)
+            .eth_get_balance(addr, Some(BlockNumberOrTag::Latest))
             .await
             .unwrap(),
         8u64.into()
     );
 
     assert_eq!(
+        seq_test_client.eth_get_balance(addr, None).await.unwrap(),
+        8u64.into()
+    );
+
+    assert_eq!(
         seq_test_client
-            .eth_get_balance(addr, BlockNumberOrTag::Number(5))
+            .eth_get_balance(addr, Some(BlockNumberOrTag::Number(5)))
             .await
             .unwrap(),
         4u64.into()
@@ -588,7 +593,7 @@ async fn run_archival_valid_tests(addr: Address, seq_test_client: &TestClient) {
         seq_test_client
             .eth_get_transaction_count(
                 Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap(),
-                BlockNumberOrTag::Latest
+                Some(BlockNumberOrTag::Latest)
             )
             .await
             .unwrap(),
@@ -599,7 +604,7 @@ async fn run_archival_valid_tests(addr: Address, seq_test_client: &TestClient) {
         seq_test_client
             .eth_get_transaction_count(
                 Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap(),
-                BlockNumberOrTag::Number(4)
+                Some(BlockNumberOrTag::Number(4))
             )
             .await
             .unwrap(),
@@ -611,7 +616,7 @@ async fn run_archival_valid_tests(addr: Address, seq_test_client: &TestClient) {
             .eth_get_storage_at(
                 Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap(),
                 0u64.into(),
-                BlockNumberOrTag::Latest
+                Some(BlockNumberOrTag::Latest)
             )
             .await
             .unwrap(),
@@ -620,7 +625,7 @@ async fn run_archival_valid_tests(addr: Address, seq_test_client: &TestClient) {
 
     assert_eq!(
         seq_test_client
-            .eth_get_code(addr, BlockNumberOrTag::Latest)
+            .eth_get_code(addr, Some(BlockNumberOrTag::Latest))
             .await
             .unwrap(),
         Bytes::from(vec![])
@@ -630,7 +635,7 @@ async fn run_archival_valid_tests(addr: Address, seq_test_client: &TestClient) {
         seq_test_client
             .eth_get_code(
                 Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap(),
-                BlockNumberOrTag::Latest
+                Some(BlockNumberOrTag::Latest)
             )
             .await
             .unwrap(),

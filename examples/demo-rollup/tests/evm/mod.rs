@@ -232,14 +232,14 @@ async fn test_getlogs(client: &Box<TestClient>) -> Result<(), Box<dyn std::error
 async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Error>> {
     // Nonce should be 0 in genesis
     let nonce = client
-        .eth_get_transaction_count(client.from_addr, BlockNumberOrTag::Latest)
+        .eth_get_transaction_count(client.from_addr, Some(BlockNumberOrTag::Latest))
         .await
         .unwrap();
     assert_eq!(0, nonce);
 
     // Balance should be > 0 in genesis
     let balance = client
-        .eth_get_balance(client.from_addr, BlockNumberOrTag::Latest)
+        .eth_get_balance(client.from_addr, Some(BlockNumberOrTag::Latest))
         .await
         .unwrap();
     assert!(balance > ethereum_types::U256::zero());
@@ -264,7 +264,7 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
 
     // Assert contract deployed correctly
     let code = client
-        .eth_get_code(contract_address, BlockNumberOrTag::Latest)
+        .eth_get_code(contract_address, Some(BlockNumberOrTag::Latest))
         .await
         .unwrap();
     // code has natural following 0x00 bytes, so we need to trim it
@@ -272,7 +272,7 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
 
     // Nonce should be 1 after the deploy
     let nonce = client
-        .eth_get_transaction_count(client.from_addr, BlockNumberOrTag::Latest)
+        .eth_get_transaction_count(client.from_addr, Some(BlockNumberOrTag::Latest))
         .await
         .unwrap();
     assert_eq!(1, nonce);
@@ -336,7 +336,7 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
         .eth_get_storage_at(
             contract_address,
             storage_slot.into(),
-            BlockNumberOrTag::Latest,
+            Some(BlockNumberOrTag::Latest),
         )
         .await
         .unwrap();
@@ -368,7 +368,7 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
     // Create a blob with multiple transactions.
     let mut requests = Vec::default();
     let mut nonce = client
-        .eth_get_transaction_count(client.from_addr, BlockNumberOrTag::Latest)
+        .eth_get_transaction_count(client.from_addr, Some(BlockNumberOrTag::Latest))
         .await
         .unwrap();
     for value in 150..153 {
@@ -382,7 +382,7 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
     client.send_publish_batch_request().await;
     client.send_publish_batch_request().await;
     let nonce = client
-        .eth_get_transaction_count(client.from_addr, BlockNumberOrTag::Latest)
+        .eth_get_transaction_count(client.from_addr, Some(BlockNumberOrTag::Latest))
         .await
         .unwrap();
 
@@ -452,7 +452,7 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
 
         // send 100 set transaction with high gas fee in a four batch to increase gas price
         let mut nonce = client
-            .eth_get_transaction_count(client.from_addr, BlockNumberOrTag::Latest)
+            .eth_get_transaction_count(client.from_addr, Some(BlockNumberOrTag::Latest))
             .await
             .unwrap();
         for _ in 0..4 {

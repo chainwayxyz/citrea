@@ -295,6 +295,10 @@ impl TestClient {
         address: Address,
         block_number: Option<BlockNumberOrTag>,
     ) -> Result<ethereum_types::U256, Box<dyn std::error::Error>> {
+        let block_number = match block_number {
+            Some(block_number) => block_number,
+            None => BlockNumberOrTag::Latest,
+        };
         self.http_client
             .request("eth_getBalance", rpc_params![address, block_number])
             .await
