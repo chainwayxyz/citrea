@@ -4,8 +4,7 @@ use demo_stf::genesis_config::GenesisPaths;
 use ethers::abi::Address;
 use ethers_core::abi::Bytes;
 use reth_primitives::BlockNumberOrTag;
-// use sov_demo_rollup::initialize_logging;
-// use sov_evm::SimpleStorageContract;
+use sov_evm::SimpleStorageContract;
 use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
 use sov_stf_runner::RollupProverConfig;
 
@@ -190,4 +189,84 @@ async fn run_archival_valid_tests(addr: Address, seq_test_client: &TestClient) {
             .unwrap(),
         Bytes::from(vec![])
     );
+
+    let (contract_address, contract, runtime_code) = {
+        let contract = SimpleStorageContract::default();
+
+        let runtime_code = seq_test_client
+            .deploy_contract_call(contract.byte_code(), None)
+            .await
+            .unwrap();
+        let deploy_contract_req = seq_test_client
+            .deploy_contract(contract.byte_code(), None)
+            .await
+            .unwrap();
+        seq_test_client.send_publish_batch_request().await;
+
+        let contract_address = deploy_contract_req
+            .await
+            .unwrap()
+            .unwrap()
+            .contract_address
+            .unwrap();
+
+        (contract_address, contract, runtime_code)
+    };
+
+    seq_test_client.send_publish_batch_request().await;
+    seq_test_client.send_publish_batch_request().await;
+
+    let code = seq_test_client
+        .eth_get_code(contract_address, Some(BlockNumberOrTag::Number(10)))
+        .await
+        .unwrap();
+
+    assert_eq!(code.to_vec()[..runtime_code.len()], runtime_code.to_vec());
+
+    let non_existent_code = seq_test_client
+        .eth_get_code(contract_address, Some(BlockNumberOrTag::Earliest))
+        .await
+        .unwrap();
+    assert_eq!(non_existent_code, Bytes::from(vec![]));
+
+    let set_arg = 923;
+    seq_test_client
+        .contract_transaction(contract_address, contract.set_call_data(set_arg), None)
+        .await;
+
+    seq_test_client.send_publish_batch_request().await;
+    seq_test_client.send_publish_batch_request().await;
+
+    let storage_slot = 0x0;
+    let storage_value = seq_test_client
+        .eth_get_storage_at(
+            contract_address,
+            storage_slot.into(),
+            Some(BlockNumberOrTag::Latest),
+        )
+        .await
+        .unwrap();
+    assert_eq!(storage_value, ethereum_types::U256::from(set_arg));
+
+    let prev_storage_value = seq_test_client
+        .eth_get_storage_at(
+            contract_address,
+            storage_slot.into(),
+            Some(BlockNumberOrTag::Number(13)),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(prev_storage_value, ethereum_types::U256::from(set_arg));
+
+    let non_existent_storage_value = seq_test_client
+        .eth_get_storage_at(
+            contract_address,
+            storage_slot.into(),
+            Some(BlockNumberOrTag::Earliest),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(non_existent_storage_value, ethereum_types::U256::from(0));
 }
