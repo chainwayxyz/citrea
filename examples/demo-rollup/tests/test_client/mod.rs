@@ -67,7 +67,7 @@ impl TestClient {
         let nonce = match nonce {
             Some(nonce) => nonce,
             None => self
-                .eth_get_transaction_count(self.from_addr, Some(BlockNumberOrTag::Latest))
+                .eth_get_transaction_count(self.from_addr, None)
                 .await
                 .unwrap(),
         };
@@ -97,7 +97,7 @@ impl TestClient {
         let nonce = match nonce {
             Some(nonce) => nonce,
             None => self
-                .eth_get_transaction_count(self.from_addr, Some(BlockNumberOrTag::Latest))
+                .eth_get_transaction_count(self.from_addr, None)
                 .await
                 .unwrap(),
         };
@@ -126,7 +126,7 @@ impl TestClient {
         let nonce = match nonce {
             Some(nonce) => nonce,
             None => self
-                .eth_get_transaction_count(self.from_addr, Some(BlockNumberOrTag::Latest))
+                .eth_get_transaction_count(self.from_addr, None)
                 .await
                 .unwrap(),
         };
@@ -160,7 +160,7 @@ impl TestClient {
         let nonce = match nonce {
             Some(nonce) => nonce,
             None => self
-                .eth_get_transaction_count(self.from_addr, Some(BlockNumberOrTag::Latest))
+                .eth_get_transaction_count(self.from_addr, None)
                 .await
                 .unwrap(),
         };
@@ -192,7 +192,7 @@ impl TestClient {
         let nonce = match nonce {
             Some(nonce) => nonce,
             None => self
-                .eth_get_transaction_count(self.from_addr, Some(BlockNumberOrTag::Latest))
+                .eth_get_transaction_count(self.from_addr, None)
                 .await
                 .unwrap(),
         };
@@ -224,7 +224,7 @@ impl TestClient {
         let nonce = match nonce {
             Some(nonce) => nonce,
             None => self
-                .eth_get_transaction_count(self.from_addr, Some(BlockNumberOrTag::Latest))
+                .eth_get_transaction_count(self.from_addr, None)
                 .await
                 .unwrap(),
         };

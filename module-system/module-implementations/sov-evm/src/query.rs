@@ -9,6 +9,7 @@ use reth_primitives::{
     BlockId, BlockNumberOrTag, SealedHeader, TransactionSignedEcRecovered, U128, U256, U64,
 };
 use reth_rpc_types_compat::block::from_primitive_with_hash;
+use revm::interpreter::opcode::NOT;
 use revm::primitives::{
     EVMError, ExecutionResult, Halt, InvalidTransaction, TransactTo, KECCAK_EMPTY,
 };
@@ -233,7 +234,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 working_set.set_archival_version(num);
             }
             // Working state here is already at the latest state, so no need to anything
-            Some(BlockNumberOrTag::Latest) | Some(BlockNumberOrTag::Pending) => {}
+            Some(BlockNumberOrTag::Latest) | Some(BlockNumberOrTag::Pending) | None => {}
             Some(BlockNumberOrTag::Earliest) => {
                 working_set.set_archival_version(0);
             }
@@ -281,7 +282,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 working_set.set_archival_version(num);
             }
             // Working state here is already at the latest state, so no need to anything
-            Some(BlockNumberOrTag::Latest) | Some(BlockNumberOrTag::Pending) => {}
+            Some(BlockNumberOrTag::Latest) | Some(BlockNumberOrTag::Pending) | None => {}
             Some(BlockNumberOrTag::Earliest) => {
                 working_set.set_archival_version(0);
             }
@@ -328,7 +329,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 working_set.set_archival_version(num);
             }
             // Working state here is already at the latest state, so no need to anything
-            Some(BlockNumberOrTag::Latest) | Some(BlockNumberOrTag::Pending) => {}
+            Some(BlockNumberOrTag::Latest) | Some(BlockNumberOrTag::Pending) | None => {}
             Some(BlockNumberOrTag::Earliest) => {
                 working_set.set_archival_version(0);
             }
@@ -374,7 +375,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 working_set.set_archival_version(num);
             }
             // Working state here is already at the latest state, so no need to anything
-            Some(BlockNumberOrTag::Latest) | Some(BlockNumberOrTag::Pending) => {}
+            Some(BlockNumberOrTag::Latest) | Some(BlockNumberOrTag::Pending) | None => {}
             Some(BlockNumberOrTag::Earliest) => {
                 working_set.set_archival_version(0);
             }
