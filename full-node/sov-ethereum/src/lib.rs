@@ -439,7 +439,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                             .sequencer_client
                             .as_ref()
                             .unwrap()
-                            .get_tx_by_hash(hash, params.next().unwrap_or(None))
+                            .get_tx_by_hash(hash, Some(true))
                             .await
                             .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
 
