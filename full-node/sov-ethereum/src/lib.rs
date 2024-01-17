@@ -225,6 +225,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
         Ok::<U256, ErrorObjectOwned>(max_fee_per_gas)
     })?;
 
+    // TODO: parse parameters one by one
     rpc.register_async_method("eth_feeHistory", |params, ethereum| async move {
         info!("eth module: eth_feeHistory");
         let (block_count, newest_block, reward_percentiles): (
@@ -427,13 +428,15 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
         rpc.register_async_method(
             "eth_getTransactionByHash",
             |parameters, ethereum| async move {
-                let (hash, mempool_only): (B256, Option<bool>) = parameters.parse()?;
+                let mut params = parameters.sequence();
+                let hash: B256 = params.next().unwrap();
                 info!("Full Node: eth_getTransactionByHash({})", hash);
+                let mempool_only: Result<Option<bool>, ErrorObjectOwned> = params.next();
 
                 // check if mempool_only parameter was given what was its value
                 match mempool_only {
                     // only ask sequencer
-                    Some(true) => {
+                    Ok(Some(true)) => {
                         let tx = ethereum
                             .sequencer_client
                             .as_ref()

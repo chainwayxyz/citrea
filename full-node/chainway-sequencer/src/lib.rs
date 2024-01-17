@@ -282,8 +282,10 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
             Ok::<(), ErrorObjectOwned>(())
         })?;
         rpc.register_async_method("eth_getTransactionByHash", |parameters, ctx| async move {
-            let (hash, mempool_only): (B256, Option<bool>) = parameters.parse()?;
+            let mut params = parameters.sequence();
+            let hash: B256 = params.next().unwrap();
             info!("Sequencer: eth_getTransactionByHash({})", hash);
+            let mempool_only: Result<Option<bool>, ErrorObjectOwned> = params.next();
 
             match ctx.mempool.get(&hash) {
                 Some(tx) => {
@@ -292,7 +294,9 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                     Ok::<Option<reth_rpc_types::Transaction>, ErrorObjectOwned>(Some(tx))
                 }
                 None => match mempool_only {
-                    Some(true) => Ok::<Option<reth_rpc_types::Transaction>, ErrorObjectOwned>(None),
+                    Ok(Some(true)) => {
+                        Ok::<Option<reth_rpc_types::Transaction>, ErrorObjectOwned>(None)
+                    }
                     _ => {
                         let evm = Evm::<C>::default();
                         let mut working_set = WorkingSet::<C>::new(ctx.storage.clone());
