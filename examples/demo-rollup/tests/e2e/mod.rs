@@ -40,7 +40,7 @@ async fn initialize_test(
             },
             RollupProverConfig::Execute,
             NodeMode::SequencerNode,
-            seq_db_path.clone(),
+            seq_db_path,
         )
         .await;
     });
@@ -59,7 +59,7 @@ async fn initialize_test(
             },
             RollupProverConfig::Execute,
             NodeMode::FullNode(seq_port),
-            full_node_db_path.clone(),
+            full_node_db_path,
         )
         .await;
     });

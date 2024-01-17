@@ -10,6 +10,7 @@ use reth_primitives::BlockNumberOrTag;
 use sov_evm::{LogsContract, SimpleStorageContract, TestContract};
 use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
 use sov_stf_runner::RollupProverConfig;
+use tokio::time::{sleep, Duration};
 
 use crate::test_client::TestClient;
 use crate::test_helpers::{start_rollup, NodeMode};
