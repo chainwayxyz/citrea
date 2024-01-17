@@ -349,11 +349,15 @@ impl TestClient {
     }
 
     #[allow(dead_code)]
-    pub(crate) async fn eth_get_transaction_by_hash(&self, tx_hash: TxHash) -> Option<Transaction> {
+    pub(crate) async fn eth_get_transaction_by_hash(
+        &self,
+        tx_hash: TxHash,
+        mempool_only: Option<bool>,
+    ) -> Option<Transaction> {
         self.http_client
             .request(
                 "eth_getTransactionByHash",
-                rpc_params![tx_hash, None::<bool>],
+                rpc_params![tx_hash, mempool_only],
             )
             .await
             .unwrap()

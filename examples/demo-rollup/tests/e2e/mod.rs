@@ -416,12 +416,14 @@ async fn test_get_transaction_by_hash() -> Result<(), anyhow::Error> {
         .await
         .unwrap();
     // currently there are two txs in the pool, the full node should be able to get them
+    // should get with mempool_only true
     let tx1 = full_node_test_client
-        .eth_get_transaction_by_hash(pending_tx1.tx_hash())
+        .eth_get_transaction_by_hash(pending_tx1.tx_hash(), Some(true))
         .await
         .unwrap();
+    // Should get with mempool_only false/none
     let tx2 = full_node_test_client
-        .eth_get_transaction_by_hash(pending_tx2.tx_hash())
+        .eth_get_transaction_by_hash(pending_tx2.tx_hash(), None)
         .await
         .unwrap();
     assert!(tx1.block_hash.is_none());
@@ -430,12 +432,13 @@ async fn test_get_transaction_by_hash() -> Result<(), anyhow::Error> {
     assert_eq!(tx2.hash, pending_tx2.tx_hash());
 
     // sequencer should also be able to get them
+    // Should get just by checking the pool
     let tx1 = seq_test_client
-        .eth_get_transaction_by_hash(pending_tx1.tx_hash())
+        .eth_get_transaction_by_hash(pending_tx1.tx_hash(), Some(true))
         .await
         .unwrap();
     let tx2 = seq_test_client
-        .eth_get_transaction_by_hash(pending_tx2.tx_hash())
+        .eth_get_transaction_by_hash(pending_tx2.tx_hash(), None)
         .await
         .unwrap();
     assert!(tx1.block_hash.is_none());
@@ -456,25 +459,32 @@ async fn test_get_transaction_by_hash() -> Result<(), anyhow::Error> {
     assert!(seq_block.transactions.contains(&pending_tx2.tx_hash()));
 
     // same operations after the block is published, both sequencer and full node should be able to get them.
+    // should get with mempool_only true because it checks the sequencer mempool but it is already in the block
     let tx1 = full_node_test_client
-        .eth_get_transaction_by_hash(pending_tx1.tx_hash())
+        .eth_get_transaction_by_hash(pending_tx1.tx_hash(), Some(true))
         .await
         .unwrap();
     let tx2 = full_node_test_client
-        .eth_get_transaction_by_hash(pending_tx2.tx_hash())
+        .eth_get_transaction_by_hash(pending_tx2.tx_hash(), None)
         .await
         .unwrap();
     assert!(tx1.block_hash.is_some());
     assert!(tx2.block_hash.is_some());
     assert_eq!(tx1.hash, pending_tx1.tx_hash());
     assert_eq!(tx2.hash, pending_tx2.tx_hash());
+    let none_existent_tx = seq_test_client
+        .eth_get_transaction_by_hash(pending_tx1.tx_hash(), Some(true))
+        .await;
+    // this should be none because it is not in the mempool anymore
+    assert!(none_existent_tx.is_none());
 
+    // In other cases should check the block and find the tx
     let tx1 = seq_test_client
-        .eth_get_transaction_by_hash(pending_tx1.tx_hash())
+        .eth_get_transaction_by_hash(pending_tx1.tx_hash(), Some(false))
         .await
         .unwrap();
     let tx2 = seq_test_client
-        .eth_get_transaction_by_hash(pending_tx2.tx_hash())
+        .eth_get_transaction_by_hash(pending_tx2.tx_hash(), None)
         .await
         .unwrap();
     assert!(tx1.block_hash.is_some());
@@ -485,11 +495,11 @@ async fn test_get_transaction_by_hash() -> Result<(), anyhow::Error> {
     // create random tx hash and make sure it returns None
     let random_tx_hash: TxHash = TxHash::random();
     assert!(seq_test_client
-        .eth_get_transaction_by_hash(H256::from_slice(random_tx_hash.as_slice()))
+        .eth_get_transaction_by_hash(H256::from_slice(random_tx_hash.as_slice()), None)
         .await
         .is_none());
     assert!(full_node_test_client
-        .eth_get_transaction_by_hash(H256::from_slice(random_tx_hash.as_slice()))
+        .eth_get_transaction_by_hash(H256::from_slice(random_tx_hash.as_slice()), None)
         .await
         .is_none());
 

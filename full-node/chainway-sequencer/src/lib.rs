@@ -17,6 +17,7 @@ use reth_primitives::{
     IntoRecoveredTransaction, B256,
 };
 use reth_provider::BlockReaderIdExt;
+use reth_rpc_types_compat::transaction::from_recovered;
 use reth_tasks::TokioTaskExecutor;
 use reth_transaction_pool::blobstore::NoopBlobStore;
 use reth_transaction_pool::{
@@ -264,7 +265,6 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
             let recovered: reth_primitives::PooledTransactionsElementEcRecovered =
                 recover_raw_transaction(data.clone())?;
 
-            // TODO: fn should be named from_recoverd_pooled_transaction after reth upgrade,
             let pool_transaction =
                 EthPooledTransaction::from_recovered_pooled_transaction(recovered);
 
@@ -289,8 +289,7 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
             match ctx.mempool.get(&hash) {
                 Some(tx) => {
                     let tx_signed_ec_recovered = tx.to_recovered_transaction(); // tx signed ec recovered
-                    let tx: reth_rpc_types::Transaction =
-                        reth_rpc_types_compat::transaction::from_recovered(tx_signed_ec_recovered);
+                    let tx: reth_rpc_types::Transaction = from_recovered(tx_signed_ec_recovered);
                     Ok::<Option<reth_rpc_types::Transaction>, ErrorObjectOwned>(Some(tx))
                 }
                 None => match params.next() {
