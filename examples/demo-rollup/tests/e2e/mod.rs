@@ -19,10 +19,7 @@ use crate::evm::{init_test_rollup, make_test_client};
 use crate::test_client::TestClient;
 use crate::test_helpers::{start_rollup, NodeMode};
 
-async fn initialize_test(
-    seq_db_path: Option<&'static str>,
-    full_node_db_path: Option<&'static str>,
-) -> (
+async fn initialize_test() -> (
     Box<TestClient>,
     Box<TestClient>,
     JoinHandle<()>,
@@ -40,7 +37,7 @@ async fn initialize_test(
             },
             RollupProverConfig::Execute,
             NodeMode::SequencerNode,
-            seq_db_path,
+            None,
         )
         .await;
     });
@@ -59,7 +56,7 @@ async fn initialize_test(
             },
             RollupProverConfig::Execute,
             NodeMode::FullNode(seq_port),
-            full_node_db_path,
+            None,
         )
         .await;
     });
@@ -81,7 +78,7 @@ async fn test_full_node_send_tx() -> Result<(), anyhow::Error> {
     // initialize_logging();
 
     let (seq_test_client, full_node_test_client, seq_task, full_node_task, addr) =
-        initialize_test(None, None).await;
+        initialize_test().await;
 
     let tx_hash = full_node_test_client
         .send_eth(addr, None, None, None, 0u128)
@@ -187,7 +184,7 @@ async fn test_e2e_same_block_sync() -> Result<(), anyhow::Error> {
     // initialize_logging();
 
     let (seq_test_client, full_node_test_client, seq_task, full_node_task, _) =
-        initialize_test(None, None).await;
+        initialize_test().await;
 
     let _ = execute_blocks(&seq_test_client, &full_node_test_client).await;
 
@@ -351,7 +348,7 @@ async fn test_soft_confirmations_on_different_blocks() -> Result<(), anyhow::Err
     // initialize_logging();
 
     let (seq_test_client, full_node_test_client, seq_task, full_node_task, _) =
-        initialize_test(None, None).await;
+        initialize_test().await;
 
     // first publish a few blocks fast make it land in the same da block
     for _ in 1..=6 {

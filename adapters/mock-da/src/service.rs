@@ -294,8 +294,6 @@ impl DaService for MockDaService {
     /// It is possible to read non-finalized and last finalized blocks multiple times
     /// Finalized blocks must be read in order.
     async fn get_block_at(&self, height: u64) -> Result<Self::FilteredBlock, Self::Error> {
-        tracing::info!("Mock DA: get_block_at({})", height);
-
         if height == 0 {
             anyhow::bail!("The lowest queryable block should be > 0");
         }
@@ -337,7 +335,6 @@ impl DaService for MockDaService {
         let mut last_called = self.get_finalized_header_last_called.lock().await;
 
         if last_called.elapsed().as_secs() >= 2 {
-            tracing::warn!("MockDaService: sending new block");
             self.send_transaction(&[1]).await?;
             *last_called = Instant::now();
         }
