@@ -46,12 +46,11 @@ async fn test_archival_state() -> Result<(), anyhow::Error> {
 }
 
 async fn run_archival_fail_tests(addr: Address, seq_test_client: &TestClient) {
-    println!("1");
     let invalid_block_balance = seq_test_client
         .eth_get_balance(addr, Some(BlockNumberOrTag::Number(722)))
         .await
         .unwrap_err();
-    println!("2");
+
     assert!(invalid_block_balance
         .to_string()
         .contains("unknown block number"));
@@ -63,7 +62,7 @@ async fn run_archival_fail_tests(addr: Address, seq_test_client: &TestClient) {
     assert!(invalid_block_storage
         .to_string()
         .contains("unknown block number"));
-    println!("3");
+
     let invalid_block_code = seq_test_client
         .eth_get_code(addr, Some(BlockNumberOrTag::Number(722)))
         .await
@@ -71,7 +70,7 @@ async fn run_archival_fail_tests(addr: Address, seq_test_client: &TestClient) {
     assert!(invalid_block_code
         .to_string()
         .contains("unknown block number"));
-    println!("4");
+
     let invalid_block_tx_count = seq_test_client
         .eth_get_transaction_count(addr, Some(BlockNumberOrTag::Number(722)))
         .await
@@ -79,11 +78,9 @@ async fn run_archival_fail_tests(addr: Address, seq_test_client: &TestClient) {
     assert!(invalid_block_tx_count
         .to_string()
         .contains("unknown block number"));
-    println!("5");
 }
 
 async fn run_archival_valid_tests(addr: Address, seq_test_client: &TestClient) {
-    println!("6");
     assert_eq!(
         seq_test_client
             .eth_get_balance(addr, Some(BlockNumberOrTag::Latest))
@@ -115,7 +112,6 @@ async fn run_archival_valid_tests(addr: Address, seq_test_client: &TestClient) {
             .unwrap(),
         0
     );
-    println!("7");
 
     for _ in 0..8 {
         let _t = seq_test_client
@@ -147,7 +143,7 @@ async fn run_archival_valid_tests(addr: Address, seq_test_client: &TestClient) {
             .unwrap(),
         8
     );
-    println!("8");
+
     for i in 1..8 {
         assert_eq!(
             seq_test_client
@@ -199,7 +195,6 @@ async fn run_archival_valid_tests(addr: Address, seq_test_client: &TestClient) {
             .unwrap(),
         Bytes::from(vec![])
     );
-    println!("9");
 
     let (contract_address, contract, runtime_code) = {
         let contract = SimpleStorageContract::default();
@@ -208,7 +203,7 @@ async fn run_archival_valid_tests(addr: Address, seq_test_client: &TestClient) {
             .deploy_contract_call(contract.byte_code(), None)
             .await
             .unwrap();
-        println!("9.1");
+
         let mut nonce = seq_test_client
             .eth_get_transaction_count(seq_test_client.from_addr, None)
             .await
@@ -217,9 +212,8 @@ async fn run_archival_valid_tests(addr: Address, seq_test_client: &TestClient) {
             .deploy_contract(contract.byte_code(), None)
             .await
             .unwrap();
-        println!("9.2");
+
         seq_test_client.send_publish_batch_request().await;
-        println!("9.3");
 
         let contract_address = deploy_contract_req
             .await
@@ -227,26 +221,26 @@ async fn run_archival_valid_tests(addr: Address, seq_test_client: &TestClient) {
             .unwrap()
             .contract_address
             .unwrap();
-        println!("9.4");
+
         (contract_address, contract, runtime_code)
     };
 
     seq_test_client.send_publish_batch_request().await;
     seq_test_client.send_publish_batch_request().await;
-    println!("10");
+
     let code = seq_test_client
         .eth_get_code(contract_address, Some(BlockNumberOrTag::Number(10)))
         .await
         .unwrap();
 
     assert_eq!(code.to_vec()[..runtime_code.len()], runtime_code.to_vec());
-    println!("11");
+
     let non_existent_code = seq_test_client
         .eth_get_code(contract_address, Some(BlockNumberOrTag::Number(9)))
         .await
         .unwrap();
     assert_eq!(non_existent_code, Bytes::from(vec![]));
-    println!("12");
+
     let set_arg = 923;
     seq_test_client
         .contract_transaction(contract_address, contract.set_call_data(set_arg), None)
@@ -254,7 +248,7 @@ async fn run_archival_valid_tests(addr: Address, seq_test_client: &TestClient) {
 
     seq_test_client.send_publish_batch_request().await;
     seq_test_client.send_publish_batch_request().await;
-    println!("13");
+
     let storage_slot = 0x0;
     let storage_value = seq_test_client
         .eth_get_storage_at(
@@ -265,7 +259,7 @@ async fn run_archival_valid_tests(addr: Address, seq_test_client: &TestClient) {
         .await
         .unwrap();
     assert_eq!(storage_value, ethereum_types::U256::from(set_arg));
-    println!("14");
+
     let previous_storage_value = seq_test_client
         .eth_get_storage_at(
             contract_address,
@@ -276,5 +270,4 @@ async fn run_archival_valid_tests(addr: Address, seq_test_client: &TestClient) {
         .unwrap();
 
     assert_eq!(previous_storage_value, ethereum_types::U256::from(0));
-    println!("15");
 }
