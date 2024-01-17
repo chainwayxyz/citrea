@@ -387,6 +387,8 @@ async fn test_soft_confirmations_on_different_blocks() -> Result<(), anyhow::Err
         last_da_slot_hash = seq_soft_conf.da_slot_hash;
     }
 
+    sleep(Duration::from_secs(5)).await;
+
     // now that more than 2 secs passed there should be a new da block
     for _ in 1..=6 {
         seq_test_client.send_publish_batch_request().await;
