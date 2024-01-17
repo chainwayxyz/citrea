@@ -299,8 +299,6 @@ where
             let soft_batch = client.get_soft_batch::<Da::Spec>(height).await;
 
             if soft_batch.is_err() {
-                // TODO: Add logs here: https://github.com/chainwayxyz/secret-sovereign-sdk/issues/47
-
                 let x = soft_batch.unwrap_err();
                 match x.downcast_ref::<jsonrpsee::core::Error>() {
                     Some(Error::Transport(e)) => {
@@ -360,6 +358,8 @@ where
                 .convert_rollup_batch_to_da_blob(&batch.try_to_vec().unwrap())
                 .unwrap();
 
+            // TODO: for a node, the da block at slot_height might not have been finalized yet
+            // should wait for it to be finalized
             let filtered_block = self
                 .da_service
                 .get_block_at(soft_batch.da_slot_height)

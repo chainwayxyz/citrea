@@ -8,21 +8,27 @@ use ethers::abi::Address;
 use reth_primitives::BlockNumberOrTag;
 // use sov_demo_rollup::initialize_logging;
 use sov_evm::SimpleStorageContract;
+use sov_mock_da::MockDaSpec;
 use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
+use sov_rollup_interface::da::DaSpec;
 use sov_stf_runner::RollupProverConfig;
+use tokio::task::JoinHandle;
 use tokio::time::sleep;
 
 use crate::evm::{init_test_rollup, make_test_client};
 use crate::test_client::TestClient;
 use crate::test_helpers::{start_rollup, NodeMode};
 
-#[tokio::test]
-async fn test_full_node_send_tx() -> Result<(), anyhow::Error> {
-    // initialize_logging();
-
+async fn initialize_test() -> (
+    Box<TestClient>,
+    Box<TestClient>,
+    JoinHandle<()>,
+    JoinHandle<()>,
+    Address,
+) {
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
-    let seq_task = tokio::spawn(async {
+    let seq_task = tokio::spawn(async move {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
@@ -58,7 +64,21 @@ async fn test_full_node_send_tx() -> Result<(), anyhow::Error> {
     let full_node_port = full_node_port_rx.await.unwrap();
     let full_node_test_client = make_test_client(full_node_port).await;
 
-    let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
+    (
+        seq_test_client,
+        full_node_test_client,
+        seq_task,
+        full_node_task,
+        Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap(),
+    )
+}
+
+#[tokio::test]
+async fn test_full_node_send_tx() -> Result<(), anyhow::Error> {
+    // initialize_logging();
+
+    let (seq_test_client, full_node_test_client, seq_task, full_node_task, addr) =
+        initialize_test().await;
 
     let tx_hash = full_node_test_client
         .send_eth(addr, None, None, None, 0u128)
@@ -163,49 +183,13 @@ async fn test_delayed_sync_ten_blocks() -> Result<(), anyhow::Error> {
 async fn test_e2e_same_block_sync() -> Result<(), anyhow::Error> {
     // initialize_logging();
 
-    let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
-
-    let seq_task = tokio::spawn(async {
-        start_rollup(
-            seq_port_tx,
-            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
-            BasicKernelGenesisPaths {
-                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
-            },
-            RollupProverConfig::Execute,
-            NodeMode::SequencerNode,
-            None,
-        )
-        .await;
-    });
-
-    let seq_port = seq_port_rx.await.unwrap();
-
-    let (full_node_port_tx, full_node_port_rx) = tokio::sync::oneshot::channel();
-
-    let rollup_task = tokio::spawn(async move {
-        start_rollup(
-            full_node_port_tx,
-            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
-            BasicKernelGenesisPaths {
-                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
-            },
-            RollupProverConfig::Execute,
-            NodeMode::FullNode(seq_port),
-            None,
-        )
-        .await;
-    });
-
-    let full_node_port = full_node_port_rx.await.unwrap();
-
-    let seq_test_client = init_test_rollup(seq_port).await;
-    let full_node_test_client = init_test_rollup(full_node_port).await;
+    let (seq_test_client, full_node_test_client, seq_task, full_node_task, _) =
+        initialize_test().await;
 
     let _ = execute_blocks(&seq_test_client, &full_node_test_client).await;
 
     seq_task.abort();
-    rollup_task.abort();
+    full_node_task.abort();
 
     Ok(())
 }
@@ -355,6 +339,94 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
 
     seq_task.abort();
     rollup_task.abort();
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_soft_confirmations_on_different_blocks() -> Result<(), anyhow::Error> {
+    // initialize_logging();
+
+    let (seq_test_client, full_node_test_client, seq_task, full_node_task, _) =
+        initialize_test().await;
+
+    // first publish a few blocks fast make it land in the same da block
+    for _ in 1..=6 {
+        seq_test_client.send_publish_batch_request().await;
+    }
+
+    sleep(Duration::from_secs(2)).await;
+
+    let mut last_da_slot_height = 0;
+    let mut last_da_slot_hash = <MockDaSpec as DaSpec>::SlotHash::from([0u8; 32]);
+
+    // now retrieve soft confirmations from the sequencer and full node and check if they are the same
+    for i in 1..=6 {
+        let seq_soft_conf = seq_test_client
+            .ledger_get_soft_batch_by_number::<MockDaSpec>(i)
+            .await
+            .unwrap();
+        let full_node_soft_conf = full_node_test_client
+            .ledger_get_soft_batch_by_number::<MockDaSpec>(i)
+            .await
+            .unwrap();
+
+        if i != 1 {
+            assert_eq!(last_da_slot_height, seq_soft_conf.da_slot_height);
+            assert_eq!(last_da_slot_hash, seq_soft_conf.da_slot_hash);
+        }
+
+        assert_eq!(
+            seq_soft_conf.da_slot_height,
+            full_node_soft_conf.da_slot_height
+        );
+
+        assert_eq!(seq_soft_conf.da_slot_hash, full_node_soft_conf.da_slot_hash);
+
+        last_da_slot_height = seq_soft_conf.da_slot_height;
+        last_da_slot_hash = seq_soft_conf.da_slot_hash;
+    }
+
+    // now that more than 2 secs passed there should be a new da block
+    for _ in 1..=6 {
+        seq_test_client.send_publish_batch_request().await;
+    }
+
+    sleep(Duration::from_secs(2)).await;
+
+    for i in 7..=12 {
+        let seq_soft_conf = seq_test_client
+            .ledger_get_soft_batch_by_number::<MockDaSpec>(i)
+            .await
+            .unwrap();
+        let full_node_soft_conf = full_node_test_client
+            .ledger_get_soft_batch_by_number::<MockDaSpec>(i)
+            .await
+            .unwrap();
+
+        tracing::info!("seq_soft_conf: {:?}", seq_soft_conf);
+
+        if i != 7 {
+            assert_eq!(last_da_slot_height, seq_soft_conf.da_slot_height);
+            assert_eq!(last_da_slot_hash, seq_soft_conf.da_slot_hash);
+        } else {
+            assert_ne!(last_da_slot_height, seq_soft_conf.da_slot_height);
+            assert_ne!(last_da_slot_hash, seq_soft_conf.da_slot_hash);
+        }
+
+        assert_eq!(
+            seq_soft_conf.da_slot_height,
+            full_node_soft_conf.da_slot_height
+        );
+
+        assert_eq!(seq_soft_conf.da_slot_hash, full_node_soft_conf.da_slot_hash);
+
+        last_da_slot_height = seq_soft_conf.da_slot_height;
+        last_da_slot_hash = seq_soft_conf.da_slot_hash;
+    }
+
+    seq_task.abort();
+    full_node_task.abort();
 
     Ok(())
 }

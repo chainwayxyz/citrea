@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 use std::pin::Pin;
 use std::sync::Mutex;
 use std::task::{Context, Poll};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
 use pin_project::pin_project;
@@ -10,7 +10,7 @@ use sha2::Digest;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec, Time};
 use sov_rollup_interface::maybestd::sync::Arc;
 use sov_rollup_interface::services::da::{DaService, SlotData};
-use tokio::sync::{broadcast, RwLock, RwLockWriteGuard};
+use tokio::sync::{broadcast, Mutex as AsyncMutex, RwLock, RwLockWriteGuard};
 use tokio::time;
 
 use crate::types::{MockAddress, MockBlob, MockBlock, MockDaVerifier};
@@ -70,6 +70,7 @@ pub struct MockDaService {
     finalized_header_sender: broadcast::Sender<MockBlockHeader>,
     wait_attempts: usize,
     planned_fork: Arc<Mutex<Option<PlannedFork>>>,
+    get_finalized_header_last_called: Arc<AsyncMutex<Instant>>,
 }
 
 impl MockDaService {
@@ -95,6 +96,7 @@ impl MockDaService {
             finalized_header_sender: tx,
             wait_attempts: 100_0000,
             planned_fork: Arc::new(Mutex::new(None)),
+            get_finalized_header_last_called: Arc::new(AsyncMutex::new(Instant::now())),
         }
     }
 
@@ -328,6 +330,15 @@ impl DaService for MockDaService {
     async fn get_last_finalized_block_header(
         &self,
     ) -> Result<<Self::Spec as DaSpec>::BlockHeader, Self::Error> {
+        // If this is not here, no new blocks are produced until we implement something
+        // that writes to DA. To implement and test soft confirmation logic, we need new blocks
+        let mut last_called = self.get_finalized_header_last_called.lock().await;
+
+        if last_called.elapsed().as_secs() >= 2 {
+            self.send_transaction(&[1]).await?;
+            *last_called = Instant::now();
+        }
+
         let blocks_len = { self.blocks.read().await.len() };
 
         if blocks_len < self.blocks_to_finality as usize + 1 {

@@ -13,6 +13,7 @@ use jsonrpsee::core::client::ClientT;
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use jsonrpsee::rpc_params;
 use reth_primitives::BlockNumberOrTag;
+use sequencer_client::GetSoftBatchResponse;
 use sov_evm::LogResponse;
 
 pub const MAX_FEE_PER_GAS: u64 = 1000000001;
@@ -56,7 +57,8 @@ impl TestClient {
             .request("eth_publishBatch", rpc_params![])
             .await
             .unwrap();
-        tokio::time::sleep(Duration::from_millis(200)).await
+
+        tokio::time::sleep(Duration::from_millis(50)).await;
     }
 
     pub(crate) async fn deploy_contract(
@@ -484,6 +486,18 @@ impl TestClient {
             .await
             .unwrap();
         eth_logs
+    }
+
+    pub(crate) async fn ledger_get_soft_batch_by_number<
+        DaSpec: sov_rollup_interface::da::DaSpec,
+    >(
+        &self,
+        num: u64,
+    ) -> Option<GetSoftBatchResponse<DaSpec::SlotHash>> {
+        self.http_client
+            .request("ledger_getSoftBatchByNumber", rpc_params![num])
+            .await
+            .unwrap()
     }
 }
 
