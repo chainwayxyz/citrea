@@ -1,5 +1,7 @@
 use std::str::FromStr;
 
+use alloy_primitives::FixedBytes;
+use hex::FromHex;
 use reth_primitives::{Address, BlockId, BlockNumberOrTag, Bytes, U64};
 use reth_rpc_types::CallRequest;
 use revm::primitives::{SpecId, B256, KECCAK_EMPTY, U256};
@@ -107,7 +109,21 @@ fn get_block_by_hash_test() {
 
     assert_eq!(result, Ok(None));
 
-    // TODO: check for existing block hash
+    let third_block = evm
+        .get_block_by_hash(
+            FixedBytes::from_hex(
+                "0x463f932c9ef1c01a59f2495ddcb7ae16d1a4afc2b5f38998486c4bf16cc94a76",
+            )
+            .unwrap(),
+            None,
+            &mut working_set,
+        )
+        .unwrap();
+
+    assert_eq!(
+        third_block.unwrap().header.number.unwrap(),
+        alloy_primitives::U256::from(2u64)
+    );
 }
 
 #[test]
@@ -123,7 +139,36 @@ fn get_block_by_number_test() {
 
     assert_eq!(result, Ok(None));
 
-    // TODO: check for existing block
+    // Is there any need to check with details = true?
+    let third_block = evm
+        .get_block_by_number(
+            Some(BlockNumberOrTag::Number(2)),
+            Some(false),
+            &mut working_set,
+        )
+        .unwrap()
+        .unwrap();
+
+    assert_eq!(
+        third_block.header.hash,
+        Some(
+            FixedBytes::from_hex(
+                "0x463f932c9ef1c01a59f2495ddcb7ae16d1a4afc2b5f38998486c4bf16cc94a76"
+            )
+            .unwrap()
+        )
+    );
+
+    let latest = evm
+        .get_block_by_number(None, None, &mut working_set)
+        .unwrap()
+        .unwrap();
+
+    assert_eq!(latest, third_block);
+    assert_eq!(
+        latest.header.number.unwrap(),
+        alloy_primitives::U256::from(2u64)
+    );
 }
 
 #[test]
