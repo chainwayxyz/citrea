@@ -187,7 +187,22 @@ fn get_block_receipts_test() {
 
     assert_eq!(result, Ok(None));
 
-    // TODO: check for existing block
+    let third_block_receipts = evm
+        .get_block_receipts(
+            BlockId::Number(BlockNumberOrTag::Number(2)),
+            &mut working_set,
+        )
+        .unwrap()
+        .unwrap();
+
+    assert_eq!(third_block_receipts.len(), 4);
+    for i in 0..third_block_receipts.len() {
+        assert_eq!(
+            third_block_receipts[i].transaction_index,
+            alloy_primitives::U64::from(i)
+        );
+        assert_eq!(third_block_receipts[i].logs.len(), 2);
+    }
 }
 
 #[test]
