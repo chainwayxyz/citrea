@@ -1,3 +1,5 @@
+mod archival_state;
+
 use std::net::SocketAddr;
 use std::str::FromStr;
 
