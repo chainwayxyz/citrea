@@ -431,15 +431,10 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                 let hash: B256 = params.next().unwrap();
                 info!("Full Node: eth_getTransactionByHash({})", hash);
 
-                // read from evm first
-                let evm = Evm::<C>::default();
-                let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
-                match evm.get_transaction_by_hash(hash, &mut working_set) {
-                    Ok(Some(tx)) => {
-                        Ok::<Option<reth_rpc_types::Transaction>, ErrorObjectOwned>(Some(tx))
-                    }
-                    Ok(None) => {
-                        // then ask to sequencer mempool
+                // check if mempool_only parameter was given what was its value
+                match params.next() {
+                    // only ask sequencer
+                    Ok(Some(true)) => {
                         let tx = ethereum
                             .sequencer_client
                             .as_ref()
@@ -449,6 +444,33 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                             .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
 
                         Ok::<Option<reth_rpc_types::Transaction>, ErrorObjectOwned>(tx)
+                    }
+                    Ok(_) => {
+                        // if mempool_only is not true ask evm first then sequencer
+                        let evm = Evm::<C>::default();
+                        let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
+                        match evm.get_transaction_by_hash(hash, &mut working_set) {
+                            Ok(Some(tx)) => Ok::<
+                                Option<reth_rpc_types::Transaction>,
+                                ErrorObjectOwned,
+                            >(Some(tx)),
+                            Ok(None) => {
+                                // if not found in evm then ask to sequencer mempool
+                                let tx = ethereum
+                                    .sequencer_client
+                                    .as_ref()
+                                    .unwrap()
+                                    .get_tx_by_hash(hash, Some(true))
+                                    .await
+                                    .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
+
+                                Ok::<Option<reth_rpc_types::Transaction>, ErrorObjectOwned>(tx)
+                            }
+                            Err(e) => {
+                                // return error
+                                Err(to_jsonrpsee_error_object(e, ETH_RPC_ERROR))
+                            }
+                        }
                     }
                     Err(e) => {
                         // return error
