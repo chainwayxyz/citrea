@@ -10,7 +10,6 @@ use reth_primitives::BlockNumberOrTag;
 use sov_evm::{LogsContract, SimpleStorageContract, TestContract};
 use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
 use sov_stf_runner::RollupProverConfig;
-use tokio::time::{sleep, Duration};
 
 use crate::test_client::TestClient;
 use crate::test_helpers::{start_rollup, NodeMode};
@@ -148,10 +147,6 @@ async fn test_getlogs(client: &Box<TestClient>) -> Result<(), Box<dyn std::error
         )
         .await;
     client.send_publish_batch_request().await;
-
-    // TODO:https://github.com/chainwayxyz/secret-sovereign-sdk/issues/37
-    // sleep 5 secs
-    sleep(Duration::from_secs(5)).await;
 
     let empty_filter = serde_json::json!({});
     // supposed to get all the logs
@@ -429,9 +424,8 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
                 requests.push(set_value_req);
             }
             client.send_publish_batch_request().await;
-            sleep(Duration::from_millis(1000)).await;
         }
-        sleep(Duration::from_millis(6000)).await;
+
         // get gas price
         let _latest_gas_price = client.eth_gas_price().await;
 
