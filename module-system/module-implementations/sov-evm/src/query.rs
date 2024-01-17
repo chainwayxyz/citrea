@@ -9,7 +9,6 @@ use reth_primitives::{
     BlockId, BlockNumberOrTag, SealedHeader, TransactionSignedEcRecovered, U128, U256, U64,
 };
 use reth_rpc_types_compat::block::from_primitive_with_hash;
-use revm::interpreter::opcode::NOT;
 use revm::primitives::{
     EVMError, ExecutionResult, Halt, InvalidTransaction, TransactTo, KECCAK_EMPTY,
 };
