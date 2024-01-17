@@ -235,14 +235,21 @@ fn get_transaction_by_block_hash_and_index_test() {
     assert_eq!(result, Ok(None));
 
     // these should exist
+    let tx_hashes = [
+        "0x2ff3a833e99d5a97e26f912c2e855f95e2dda542c89131fea0d189889d384d99",
+        "0xa69485c543cd51dc1856619f3ddb179416af040da2835a10405c856cd5fb41b8",
+        "0x17fa953338b32b30795ccb62f050f1c9bcdd48f4793fb2d6d34290b444841271",
+        "0xd7e5b2bce65678b5e1a4430b1320b18a258fd5412e20bd5734f446124a9894e6",
+    ];
     for i in 0..4 {
         let result =
             evm.get_transaction_by_block_hash_and_index(hash, U64::from(i), &mut working_set);
 
-        assert!(result.unwrap().is_some());
+        assert_eq!(
+            result.unwrap().unwrap().hash,
+            FixedBytes::from_hex(tx_hashes[i]).unwrap()
+        );
     }
-
-    // TODO: test correct cases
 }
 
 #[test]
