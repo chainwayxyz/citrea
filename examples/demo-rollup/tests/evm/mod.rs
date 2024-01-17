@@ -1,3 +1,5 @@
+mod archival_state;
+
 use std::net::SocketAddr;
 use std::str::FromStr;
 
@@ -227,11 +229,17 @@ async fn test_getlogs(client: &Box<TestClient>) -> Result<(), Box<dyn std::error
 #[allow(clippy::borrowed_box)]
 async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Error>> {
     // Nonce should be 0 in genesis
-    let nonce = client.eth_get_transaction_count(client.from_addr).await;
+    let nonce = client
+        .eth_get_transaction_count(client.from_addr, None)
+        .await
+        .unwrap();
     assert_eq!(0, nonce);
 
     // Balance should be > 0 in genesis
-    let balance = client.eth_get_balance(client.from_addr).await;
+    let balance = client
+        .eth_get_balance(client.from_addr, None)
+        .await
+        .unwrap();
     assert!(balance > ethereum_types::U256::zero());
 
     let (contract_address, contract, runtime_code) = {
@@ -253,12 +261,15 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
     };
 
     // Assert contract deployed correctly
-    let code = client.eth_get_code(contract_address).await;
+    let code = client.eth_get_code(contract_address, None).await.unwrap();
     // code has natural following 0x00 bytes, so we need to trim it
     assert_eq!(code.to_vec()[..runtime_code.len()], runtime_code.to_vec());
 
     // Nonce should be 1 after the deploy
-    let nonce = client.eth_get_transaction_count(client.from_addr).await;
+    let nonce = client
+        .eth_get_transaction_count(client.from_addr, None)
+        .await
+        .unwrap();
     assert_eq!(1, nonce);
 
     // Check that the first block has published
@@ -317,8 +328,9 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
     // Assert storage slot is set
     let storage_slot = 0x0;
     let storage_value = client
-        .eth_get_storage_at(contract_address, storage_slot.into())
-        .await;
+        .eth_get_storage_at(contract_address, storage_slot.into(), None)
+        .await
+        .unwrap();
     assert_eq!(storage_value, ethereum_types::U256::from(set_arg));
 
     // Check that the second block has published
@@ -346,7 +358,10 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
 
     // Create a blob with multiple transactions.
     let mut requests = Vec::default();
-    let mut nonce = client.eth_get_transaction_count(client.from_addr).await;
+    let mut nonce = client
+        .eth_get_transaction_count(client.from_addr, None)
+        .await
+        .unwrap();
     for value in 150..153 {
         let set_value_req = client
             .contract_transaction(contract_address, contract.set_call_data(value), Some(nonce))
@@ -357,7 +372,10 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
 
     client.send_publish_batch_request().await;
     client.send_publish_batch_request().await;
-    let nonce = client.eth_get_transaction_count(client.from_addr).await;
+    let nonce = client
+        .eth_get_transaction_count(client.from_addr, None)
+        .await
+        .unwrap();
 
     for req in requests {
         req.await.unwrap();
@@ -424,7 +442,10 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
         assert_eq!(initial_fee_history.oldest_block, U256::zero());
 
         // send 100 set transaction with high gas fee in a four batch to increase gas price
-        let mut nonce = client.eth_get_transaction_count(client.from_addr).await;
+        let mut nonce = client
+            .eth_get_transaction_count(client.from_addr, None)
+            .await
+            .unwrap();
         for _ in 0..4 {
             let mut requests = Vec::default();
             // TODO: https://github.com/chainwayxyz/secret-sovereign-sdk/issues/109
@@ -504,9 +525,7 @@ pub async fn init_test_rollup(rpc_address: SocketAddr) -> Box<TestClient> {
     assert_eq!(5655, eth_chain_id);
 
     // No block exists yet
-    let latest_block = test_client
-        .eth_get_block_by_number(Some(BlockNumberOrTag::Latest))
-        .await;
+    let latest_block = test_client.eth_get_block_by_number(None).await;
     let earliest_block = test_client
         .eth_get_block_by_number(Some(BlockNumberOrTag::Earliest))
         .await;
