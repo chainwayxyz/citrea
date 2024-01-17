@@ -334,7 +334,7 @@ impl DaService for MockDaService {
         // that writes to DA. To implement and test soft confirmation logic, we need new blocks
         let mut last_called = self.get_finalized_header_last_called.lock().await;
 
-        if last_called.elapsed().as_secs() >= 2 {
+        if last_called.elapsed().as_secs() >= 5 {
             self.send_transaction(&[1]).await?;
             *last_called = Instant::now();
         }
