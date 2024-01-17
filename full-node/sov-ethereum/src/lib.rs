@@ -21,9 +21,7 @@ use rustc_version_runtime::version;
 use sequencer_client::SequencerClient;
 #[cfg(feature = "local")]
 pub use sov_evm::DevSigner;
-use sov_evm::{
-    CallMessage, EthApiError, Evm, RlpEvmTransaction, SignError,
-};
+use sov_evm::{CallMessage, EthApiError, Evm, RlpEvmTransaction, SignError};
 use sov_modules_api::utils::to_jsonrpsee_error_object;
 use sov_modules_api::{EncodeCall, PrivateKey, WorkingSet};
 use sov_rollup_interface::services::da::DaService;
