@@ -250,7 +250,7 @@ async fn run_archival_valid_tests(addr: Address, seq_test_client: &TestClient) {
         .unwrap();
     assert_eq!(storage_value, ethereum_types::U256::from(set_arg));
 
-    let non_existent_storage_value = seq_test_client
+    let previous_storage_value = seq_test_client
         .eth_get_storage_at(
             contract_address,
             storage_slot.into(),
@@ -259,5 +259,5 @@ async fn run_archival_valid_tests(addr: Address, seq_test_client: &TestClient) {
         .await
         .unwrap();
 
-    assert_eq!(non_existent_storage_value, ethereum_types::U256::from(0));
+    assert_eq!(previous_storage_value, ethereum_types::U256::from(0));
 }
