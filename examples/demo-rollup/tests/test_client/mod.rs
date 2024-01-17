@@ -58,7 +58,7 @@ impl TestClient {
             .await
             .unwrap();
 
-        tokio::time::sleep(Duration::from_millis(200)).await;
+        tokio::time::sleep(Duration::from_millis(50)).await;
     }
 
     pub(crate) async fn deploy_contract(

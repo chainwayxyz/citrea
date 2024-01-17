@@ -6,7 +6,7 @@ use std::time::Duration;
 use demo_stf::genesis_config::GenesisPaths;
 use ethers::abi::Address;
 use reth_primitives::BlockNumberOrTag;
-use sov_demo_rollup::initialize_logging;
+// use sov_demo_rollup::initialize_logging;
 use sov_evm::SimpleStorageContract;
 use sov_mock_da::MockDaSpec;
 use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
@@ -348,7 +348,7 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
 
 #[tokio::test]
 async fn test_soft_confirmations_on_different_blocks() -> Result<(), anyhow::Error> {
-    initialize_logging();
+    // initialize_logging();
 
     let (seq_test_client, full_node_test_client, seq_task, full_node_task, _) =
         initialize_test(None, None).await;
