@@ -410,8 +410,9 @@ async fn execute_blocks(
 
     {
         let mut nonce = sequencer_client
-            .eth_get_transaction_count(sequencer_client.from_addr)
-            .await;
+            .eth_get_transaction_count(sequencer_client.from_addr, None)
+            .await
+            .unwrap();
         for temp in 0..10 {
             let _set_value_req = sequencer_client
                 .contract_transaction(
