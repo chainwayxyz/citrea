@@ -217,9 +217,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
     ) -> RpcResult<reth_primitives::U256> {
         info!("evm module: eth_getBalance");
 
-        // TODO: Implement block_number once we have archival state #951
-        // https://github.com/Sovereign-Labs/sovereign-sdk/issues/951
-
         let curr_block_number = self
             .blocks
             .last(&mut working_set.accessory_state())
@@ -240,8 +237,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
             Some(BlockNumberOrTag::Earliest) => {
                 working_set.set_archival_version(0);
             }
-            // Is this the way?
-            // Note that reth works for all types of BlockNumberOrTag
             _ => {
                 return Err(EthApiError::InvalidParams(
                     "Please provide a number or earliest/latest/pending tag".to_string(),
@@ -270,9 +265,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
     ) -> RpcResult<reth_primitives::U256> {
         info!("evm module: eth_getStorageAt");
 
-        // TODO: Implement block_number once we have archival state #951
-        // https://github.com/Sovereign-Labs/sovereign-sdk/issues/951
-
         let curr_block_number = self
             .blocks
             .last(&mut working_set.accessory_state())
@@ -293,8 +285,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
             Some(BlockNumberOrTag::Earliest) => {
                 working_set.set_archival_version(0);
             }
-            // Is this the way?
-            // Note that reth works for all types of BlockNumberOrTag
             _ => {
                 return Err(EthApiError::InvalidParams(
                     "Please provide a number or earliest/latest/pending tag".to_string(),
@@ -322,9 +312,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
     ) -> RpcResult<reth_primitives::U64> {
         info!("evm module: eth_getTransactionCount");
 
-        // TODO: Implement block_number once we have archival state #882
-        // https://github.com/Sovereign-Labs/sovereign-sdk/issues/882
-
         let curr_block_number = self
             .blocks
             .last(&mut working_set.accessory_state())
@@ -345,8 +332,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
             Some(BlockNumberOrTag::Earliest) => {
                 working_set.set_archival_version(0);
             }
-            // Is this the way?
-            // Note that reth works for all types of BlockNumberOrTag
             _ => {
                 return Err(EthApiError::InvalidParams(
                     "Please provide a number or earliest/latest/pending tag".to_string(),
@@ -374,9 +359,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
     ) -> RpcResult<reth_primitives::Bytes> {
         info!("evm module: eth_getCode");
 
-        // TODO: Implement block_number once we have archival state #951
-        // https://github.com/Sovereign-Labs/sovereign-sdk/issues/951
-
         let curr_block_number = self
             .blocks
             .last(&mut working_set.accessory_state())
@@ -384,7 +366,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .header
             .number;
 
-        // Specs from https://ethereum.org/en/developers/docs/apis/json-rpc
         match block_number {
             Some(BlockNumberOrTag::Number(num)) => {
                 if num > curr_block_number {
