@@ -18,3 +18,6 @@ bind_port = 12345
 [sequencer_client]
 # public ip of the sequencer
 url = "http://159.89.214.47:12345"
+
+[prover_service]
+aggregated_proof_block_jump = 1

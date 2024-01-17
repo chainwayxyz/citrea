@@ -1,6 +1,6 @@
 use std::sync::Mutex;
 
-use reth_primitives::{BlockNumberOrTag, H256};
+use reth_primitives::{BlockNumberOrTag, B256};
 use reth_rpc_types::{Block, BlockTransactions, Rich, TransactionReceipt};
 use schnellru::{ByLength, LruMap};
 use sov_evm::EthResult;
@@ -11,8 +11,8 @@ use super::gas_oracle::convert_u256_to_u64;
 /// Cache for gas oracle
 pub struct BlockCache<C: sov_modules_api::Context> {
     // Assuming number_to_hash and cache are always in sync
-    number_to_hash: Mutex<LruMap<u64, H256, ByLength>>, // Number -> hash mapping
-    cache: Mutex<LruMap<H256, Rich<Block>, ByLength>>,
+    number_to_hash: Mutex<LruMap<u64, B256, ByLength>>, // Number -> hash mapping
+    cache: Mutex<LruMap<B256, Rich<Block>, ByLength>>,
     provider: sov_evm::Evm<C>,
 }
 
@@ -28,7 +28,7 @@ impl<C: sov_modules_api::Context> BlockCache<C> {
     /// Gets block from cache or from provider
     pub fn get_block(
         &self,
-        block_hash: H256,
+        block_hash: B256,
         working_set: &mut WorkingSet<C>,
     ) -> EthResult<Option<Rich<Block>>> {
         // Check if block is in cache

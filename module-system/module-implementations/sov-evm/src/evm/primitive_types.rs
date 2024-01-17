@@ -1,6 +1,6 @@
 use std::ops::Range;
 
-use reth_primitives::{Address, Header, SealedHeader, TransactionSigned, H256};
+use reth_primitives::{Address, Header, SealedHeader, TransactionSigned, B256};
 use revm::primitives::EVMError;
 
 #[derive(serde::Deserialize, serde::Serialize, Debug, PartialEq, Clone)]
@@ -9,7 +9,7 @@ pub(crate) struct BlockEnv {
     pub(crate) coinbase: Address,
     pub(crate) timestamp: u64,
     /// Prevrandao is used after Paris (aka TheMerge) instead of the difficulty value.
-    pub(crate) prevrandao: H256,
+    pub(crate) prevrandao: B256,
     /// basefee is added in EIP1559 London upgrade
     pub(crate) basefee: u64,
     pub(crate) gas_limit: u64,

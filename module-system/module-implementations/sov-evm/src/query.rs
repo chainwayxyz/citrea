@@ -1,14 +1,14 @@
 use std::array::TryFromSliceError;
 use std::ops::{Range, RangeInclusive};
 
-use ethereum_types::U64;
+use alloy_primitives::Uint;
 use jsonrpsee::core::RpcResult;
 use reth_interfaces::provider::ProviderError;
-use reth_primitives::contract::create_address;
 use reth_primitives::TransactionKind::{Call, Create};
 use reth_primitives::{
-    BlockId, BlockNumberOrTag, SealedHeader, TransactionSignedEcRecovered, U128, U256,
+    BlockId, BlockNumberOrTag, SealedHeader, TransactionSignedEcRecovered, U128, U256, U64,
 };
+use reth_rpc_types_compat::block::from_primitive_with_hash;
 use revm::primitives::{
     EVMError, ExecutionResult, Halt, InvalidTransaction, TransactTo, KECCAK_EMPTY,
 };
@@ -65,7 +65,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     #[rpc_method(name = "eth_getBlockByHash")]
     pub fn get_block_by_hash(
         &self,
-        block_hash: reth_primitives::H256,
+        block_hash: reth_primitives::B256,
         details: Option<bool>,
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<Option<reth_rpc_types::RichBlock>> {
@@ -103,7 +103,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         };
 
         // Build rpc header response
-        let header = reth_rpc_types::Header::from_primitive_with_hash(block.header.clone());
+        let header = from_primitive_with_hash(block.header);
 
         // Collect transactions with ids from db
         let transactions_with_ids = block.transactions.clone().map(|id| {
@@ -119,11 +119,14 @@ impl<C: sov_modules_api::Context> Evm<C> {
             Some(true) => reth_rpc_types::BlockTransactions::Full(
                 transactions_with_ids
                     .map(|(id, tx)| {
-                        reth_rpc_types_compat::from_recovered_with_block_context(
+                        reth_rpc_types_compat::transaction::from_recovered_with_block_context(
                             tx.clone().into(),
-                            block.header.hash,
-                            block.header.number,
-                            block.header.base_fee_per_gas,
+                            header.hash.expect("Block must be already sealed"),
+                            header
+                                .number
+                                .expect("Block must be already sealed")
+                                .to::<u64>(),
+                            header.base_fee_per_gas.map(|bfpg| bfpg.to::<u64>()),
                             U256::from(id - block.transactions.start),
                         )
                     })
@@ -137,7 +140,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         };
 
         // Build rpc block response
-        let total_difficulty = Some(block.header.difficulty);
+        let total_difficulty = Some(header.difficulty);
         let block = reth_rpc_types::Block {
             header,
             total_difficulty,
@@ -145,6 +148,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             transactions,
             size: Default::default(),
             withdrawals: Default::default(),
+            other: Default::default(),
         };
 
         Ok(Some(block.into()))
@@ -267,7 +271,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .map(|account| account.info.nonce)
             .unwrap_or_default();
 
-        Ok(nonce.into())
+        Ok(U64::from(nonce))
     }
 
     /// Handler for: `eth_getCode`
@@ -297,7 +301,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     #[rpc_method(name = "eth_getTransactionByHash")]
     pub fn get_transaction_by_hash(
         &self,
-        hash: reth_primitives::H256,
+        hash: reth_primitives::B256,
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<Option<reth_rpc_types::Transaction>> {
         info!("evm module: eth_getTransactionByHash({})", hash);
@@ -321,7 +325,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     tx.block_number,
                     tx.signed_transaction.hash));
 
-            reth_rpc_types_compat::from_recovered_with_block_context(
+            reth_rpc_types_compat::transaction::from_recovered_with_block_context(
                 tx.into(),
                 block.header.hash,
                 block.header.number,
@@ -337,7 +341,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     #[rpc_method(name = "eth_getTransactionByBlockHashAndIndex")]
     pub fn get_transaction_by_block_hash_and_index(
         &self,
-        block_hash: reth_primitives::H256,
+        block_hash: reth_primitives::B256,
         index: reth_primitives::U64,
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<Option<reth_rpc_types::Transaction>> {
@@ -360,7 +364,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             None => return Ok(None),
         }
 
-        let tx_number = block.transactions.start + index.as_u64();
+        let tx_number = block.transactions.start + index.to::<u64>();
 
         let tx = self
             .transactions
@@ -372,7 +376,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .get(tx.block_number as usize, &mut accessory_state)
             .expect("Block number for known transaction must be set");
 
-        let transaction = reth_rpc_types_compat::from_recovered_with_block_context(
+        let transaction = reth_rpc_types_compat::transaction::from_recovered_with_block_context(
             tx.into(),
             block.header.hash,
             block.header.number,
@@ -408,7 +412,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             None => return Ok(None),
         }
 
-        let tx_number = block.transactions.start + index.as_u64();
+        let tx_number = block.transactions.start + index.to::<u64>();
 
         let tx = self
             .transactions
@@ -420,7 +424,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .get(tx.block_number as usize, &mut working_set.accessory_state())
             .expect("Block number for known transaction must be set");
 
-        let transaction = reth_rpc_types_compat::from_recovered_with_block_context(
+        let transaction = reth_rpc_types_compat::transaction::from_recovered_with_block_context(
             tx.into(),
             block.header.hash,
             block.header.number,
@@ -436,7 +440,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     #[rpc_method(name = "eth_getTransactionReceipt")]
     pub fn get_transaction_receipt(
         &self,
-        hash: reth_primitives::H256,
+        hash: reth_primitives::B256,
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<Option<reth_rpc_types::TransactionReceipt>> {
         info!("evm module: eth_getTransactionReceipt");
@@ -714,7 +718,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             mid_gas_limit = ((highest_gas_limit as u128 + lowest_gas_limit as u128) / 2) as u64;
         }
 
-        Ok(U64::from(highest_gas_limit))
+        Ok(reth_primitives::U64::from(highest_gas_limit))
     }
 
     /// Returns logs matching given filter object.
@@ -928,7 +932,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         &self,
         block_number: u64,
         working_set: &mut WorkingSet<C>,
-    ) -> Option<reth_primitives::H256> {
+    ) -> Option<reth_primitives::B256> {
         let block = self
             .blocks
             .get(block_number as usize, &mut working_set.accessory_state())?;
@@ -955,7 +959,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     /// Helper function to get transactions and receipts for a given block hash
     pub fn get_transactions_and_receipts(
         &self,
-        block_hash: reth_primitives::H256,
+        block_hash: reth_primitives::B256,
         working_set: &mut WorkingSet<C>,
     ) -> Result<
         (
@@ -989,7 +993,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     .get(tx.block_number as usize, &mut accessory_state)
                     .expect("Block number for known transaction must be set");
 
-                reth_rpc_types_compat::from_recovered_with_block_context(
+                reth_rpc_types_compat::transaction::from_recovered_with_block_context(
                     tx.into(),
                     block.header.hash,
                     block.header.number,
@@ -1129,7 +1133,7 @@ pub(crate) fn build_rpc_receipt(
         blob_gas_used: None,
         blob_gas_price: None,
         contract_address: match transaction_kind {
-            Create => Some(create_address(transaction.signer(), transaction.nonce())),
+            Create => Some(transaction.signer().create(transaction.nonce())),
             Call(_) => None,
         },
         effective_gas_price: U128::from(
@@ -1160,14 +1164,15 @@ pub(crate) fn build_rpc_receipt(
                 removed: false,
             })
             .collect(),
+        other: Default::default(),
     }
 }
 
 // range is not inclusive, if we have the block but the transaction
 // index is out of range, return None
-fn check_tx_range(transactions_range: &Range<u64>, index: U64) -> Option<()> {
+fn check_tx_range(transactions_range: &Range<u64>, index: Uint<64, 1>) -> Option<()> {
     let range_len = transactions_range.end - transactions_range.start;
-    if index.as_u64() >= range_len {
+    if index.to::<u64>() >= range_len {
         None
     } else {
         Some(())

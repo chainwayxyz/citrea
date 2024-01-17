@@ -1,5 +1,5 @@
-use reth_primitives::U256;
-use revm::primitives::{Account, HashMap, B160};
+use reth_primitives::{KECCAK_EMPTY, U256};
+use revm::primitives::{Account, Address, HashMap};
 use revm::DatabaseCommit;
 use sov_modules_api::{StateMapAccessor, StateVecAccessor};
 
@@ -7,7 +7,7 @@ use super::db::EvmDb;
 use super::DbAccount;
 
 impl<'a, C: sov_modules_api::Context> DatabaseCommit for EvmDb<'a, C> {
-    fn commit(&mut self, changes: HashMap<B160, Account>) {
+    fn commit(&mut self, changes: HashMap<Address, Account>) {
         for (address, account) in changes {
             if !account.is_touched() {
                 continue;
@@ -23,7 +23,7 @@ impl<'a, C: sov_modules_api::Context> DatabaseCommit for EvmDb<'a, C> {
             if account.is_selfdestructed() {
                 db_account.info.balance = U256::from(0);
                 db_account.info.nonce = 0;
-                db_account.info.code_hash = Default::default();
+                db_account.info.code_hash = KECCAK_EMPTY;
                 // TODO find mroe efficient way to clear storage
                 // https://github.com/chainwayxyz/rollup-modules/issues/4
                 // clear storage
@@ -44,7 +44,7 @@ impl<'a, C: sov_modules_api::Context> DatabaseCommit for EvmDb<'a, C> {
                     // TODO: would be good to have a contains_key method on the StateMap that would be optimized, so we can check the hash before storing the code
                     self.code.set(
                         &account_info.code_hash,
-                        &code.bytecode.as_ref().into(),
+                        &code.bytecode.as_ref().to_vec().into(),
                         self.working_set,
                     );
                 }
