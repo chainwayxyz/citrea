@@ -67,7 +67,7 @@ impl TestClient {
         let nonce = match nonce {
             Some(nonce) => nonce,
             None => self
-                .eth_get_transaction_count(self.from_addr, BlockNumberOrTag::Latest)
+                .eth_get_transaction_count(self.from_addr, Some(BlockNumberOrTag::Latest))
                 .await
                 .unwrap(),
         };
@@ -97,7 +97,7 @@ impl TestClient {
         let nonce = match nonce {
             Some(nonce) => nonce,
             None => self
-                .eth_get_transaction_count(self.from_addr, BlockNumberOrTag::Latest)
+                .eth_get_transaction_count(self.from_addr, Some(BlockNumberOrTag::Latest))
                 .await
                 .unwrap(),
         };
@@ -126,7 +126,7 @@ impl TestClient {
         let nonce = match nonce {
             Some(nonce) => nonce,
             None => self
-                .eth_get_transaction_count(self.from_addr, BlockNumberOrTag::Latest)
+                .eth_get_transaction_count(self.from_addr, Some(BlockNumberOrTag::Latest))
                 .await
                 .unwrap(),
         };
@@ -160,7 +160,7 @@ impl TestClient {
         let nonce = match nonce {
             Some(nonce) => nonce,
             None => self
-                .eth_get_transaction_count(self.from_addr, BlockNumberOrTag::Latest)
+                .eth_get_transaction_count(self.from_addr, Some(BlockNumberOrTag::Latest))
                 .await
                 .unwrap(),
         };
@@ -192,7 +192,7 @@ impl TestClient {
         let nonce = match nonce {
             Some(nonce) => nonce,
             None => self
-                .eth_get_transaction_count(self.from_addr, BlockNumberOrTag::Latest)
+                .eth_get_transaction_count(self.from_addr, Some(BlockNumberOrTag::Latest))
                 .await
                 .unwrap(),
         };
@@ -224,7 +224,7 @@ impl TestClient {
         let nonce = match nonce {
             Some(nonce) => nonce,
             None => self
-                .eth_get_transaction_count(self.from_addr, BlockNumberOrTag::Latest)
+                .eth_get_transaction_count(self.from_addr, Some(BlockNumberOrTag::Latest))
                 .await
                 .unwrap(),
         };
@@ -293,7 +293,7 @@ impl TestClient {
     pub(crate) async fn eth_get_balance(
         &self,
         address: Address,
-        block_number: BlockNumberOrTag,
+        block_number: Option<BlockNumberOrTag>,
     ) -> Result<ethereum_types::U256, Box<dyn std::error::Error>> {
         self.http_client
             .request("eth_getBalance", rpc_params![address, block_number])
@@ -305,7 +305,7 @@ impl TestClient {
         &self,
         address: Address,
         index: ethereum_types::U256,
-        block_number: BlockNumberOrTag,
+        block_number: Option<BlockNumberOrTag>,
     ) -> Result<ethereum_types::U256, Box<dyn std::error::Error>> {
         self.http_client
             .request(
@@ -319,7 +319,7 @@ impl TestClient {
     pub(crate) async fn eth_get_code(
         &self,
         address: Address,
-        block_number: BlockNumberOrTag,
+        block_number: Option<BlockNumberOrTag>,
     ) -> Result<Bytes, Box<dyn std::error::Error>> {
         self.http_client
             .request("eth_getCode", rpc_params![address, block_number])
@@ -330,7 +330,7 @@ impl TestClient {
     pub(crate) async fn eth_get_transaction_count(
         &self,
         address: Address,
-        block_number: BlockNumberOrTag,
+        block_number: Option<BlockNumberOrTag>,
     ) -> Result<u64, Box<dyn std::error::Error>> {
         match self
             .http_client
