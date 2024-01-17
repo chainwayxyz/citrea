@@ -427,14 +427,13 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
         rpc.register_async_method(
             "eth_getTransactionByHash",
             |parameters, ethereum| async move {
-                let mut params = parameters.sequence();
-                let hash: B256 = params.next().unwrap();
+                let (hash, mempool_only): (B256, Option<bool>) = parameters.parse()?;
                 info!("Full Node: eth_getTransactionByHash({})", hash);
 
                 // check if mempool_only parameter was given what was its value
-                match params.next() {
+                match mempool_only {
                     // only ask sequencer
-                    Ok(Some(true)) => {
+                    Some(true) => {
                         let tx = ethereum
                             .sequencer_client
                             .as_ref()
@@ -445,7 +444,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
 
                         Ok::<Option<reth_rpc_types::Transaction>, ErrorObjectOwned>(tx)
                     }
-                    Ok(_) => {
+                    _ => {
                         // if mempool_only is not true ask evm first then sequencer
                         let evm = Evm::<C>::default();
                         let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
@@ -471,10 +470,6 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                                 Err(to_jsonrpsee_error_object(e, ETH_RPC_ERROR))
                             }
                         }
-                    }
-                    Err(e) => {
-                        // return error
-                        Err(to_jsonrpsee_error_object(e, ETH_RPC_ERROR))
                     }
                 }
             },
