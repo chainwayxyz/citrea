@@ -286,7 +286,7 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
             let hash: B256 = params.next().unwrap();
             let mempool_only: Result<Option<bool>, ErrorObjectOwned> = params.next();
             info!(
-                "Sequencer: eth_getTransactionByHash({}, {})",
+                "Sequencer: eth_getTransactionByHash({}, {:?})",
                 hash, mempool_only
             );
 
