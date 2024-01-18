@@ -353,13 +353,29 @@ fn logs_for_filter_test() {
         &mut working_set,
     );
 
-    // see: https://github.com/chainwayxyz/secret-sovereign-sdk/issues/79
     assert_eq!(result, Err(EthApiError::UnknownBlockNumber.into()));
 
-    // not checking from and to option, because they are checked against latest block number
-    // can't force evm to throw error.
+    let available_res = evm.eth_get_logs(
+        Filter {
+            block_option: FilterBlockOption::AtBlockHash(
+                FixedBytes::from_hex(
+                    "0x463f932c9ef1c01a59f2495ddcb7ae16d1a4afc2b5f38998486c4bf16cc94a76",
+                )
+                .unwrap(),
+            ),
+            address: FilterSet::default(),
+            topics: [
+                FilterSet::default(),
+                FilterSet::default(),
+                FilterSet::default(),
+                FilterSet::default(),
+            ],
+        },
+        &mut working_set,
+    );
 
-    // TODO: test correct cases
+    // TODO: Check this better.
+    assert_eq!(available_res.unwrap().len(), 8);
 }
 
 #[test]
