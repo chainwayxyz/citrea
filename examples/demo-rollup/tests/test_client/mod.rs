@@ -57,8 +57,8 @@ impl TestClient {
             .request("eth_publishBatch", rpc_params![])
             .await
             .unwrap();
-
-        tokio::time::sleep(Duration::from_millis(50)).await;
+        // Do not decrease the sleep time, otherwise the test will fail!
+        tokio::time::sleep(Duration::from_millis(100)).await;
     }
 
     pub(crate) async fn deploy_contract(
@@ -392,9 +392,16 @@ impl TestClient {
     }
 
     #[allow(dead_code)]
-    pub(crate) async fn eth_get_transaction_by_hash(&self, tx_hash: TxHash) -> Option<Transaction> {
+    pub(crate) async fn eth_get_transaction_by_hash(
+        &self,
+        tx_hash: TxHash,
+        mempool_only: Option<bool>,
+    ) -> Option<Transaction> {
         self.http_client
-            .request("eth_getTransactionByHash", rpc_params![tx_hash])
+            .request(
+                "eth_getTransactionByHash",
+                rpc_params![tx_hash, mempool_only],
+            )
             .await
             .unwrap()
     }

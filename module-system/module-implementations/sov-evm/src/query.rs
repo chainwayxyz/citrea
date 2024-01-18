@@ -397,47 +397,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
         Ok(code)
     }
 
-    /// Handler for: `eth_getTransactionByHash`
-    // TODO https://github.com/Sovereign-Labs/sovereign-sdk/issues/502
-    #[rpc_method(name = "eth_getTransactionByHash")]
-    pub fn get_transaction_by_hash(
-        &self,
-        hash: reth_primitives::B256,
-        working_set: &mut WorkingSet<C>,
-    ) -> RpcResult<Option<reth_rpc_types::Transaction>> {
-        info!("evm module: eth_getTransactionByHash({})", hash);
-        let mut accessory_state = working_set.accessory_state();
-
-        let tx_number = self.transaction_hashes.get(&hash, &mut accessory_state);
-
-        let transaction = tx_number.map(|number| {
-            let tx = self
-                .transactions
-                .get(number as usize, &mut accessory_state)
-                .unwrap_or_else(|| panic!("Transaction with known hash {} and number {} must be set in all {} transaction",
-                hash,
-                number,
-                self.transactions.len(&mut accessory_state)));
-
-            let block = self
-                .blocks
-                .get(tx.block_number as usize, &mut accessory_state)
-                .unwrap_or_else(|| panic!("Block with number {} for known transaction {} must be set",
-                    tx.block_number,
-                    tx.signed_transaction.hash));
-
-            reth_rpc_types_compat::transaction::from_recovered_with_block_context(
-                tx.into(),
-                block.header.hash,
-                block.header.number,
-                block.header.base_fee_per_gas,
-                U256::from(tx_number.unwrap() - block.transactions.start),
-            )
-        });
-
-        Ok(transaction)
-    }
-
     /// Handler for: `eth_getTransactionByBlockHashAndIndex`
     #[rpc_method(name = "eth_getTransactionByBlockHashAndIndex")]
     pub fn get_transaction_by_block_hash_and_index(
@@ -833,6 +792,46 @@ impl<C: sov_modules_api::Context> Evm<C> {
     ) -> RpcResult<Vec<LogResponse>> {
         // https://github.com/paradigmxyz/reth/blob/8892d04a88365ba507f28c3314d99a6b54735d3f/crates/rpc/rpc/src/eth/filter.rs#L302
         Ok(self.logs_for_filter(filter, working_set)?)
+    }
+
+    /// Handler for: `eth_getTransactionByHash`
+    /// RPC method is moved to sequencer and sov-ethereum modules
+    pub fn get_transaction_by_hash(
+        &self,
+        hash: reth_primitives::B256,
+        working_set: &mut WorkingSet<C>,
+    ) -> RpcResult<Option<reth_rpc_types::Transaction>> {
+        info!("evm module: eth_getTransactionByHash({})", hash);
+        let mut accessory_state = working_set.accessory_state();
+
+        let tx_number = self.transaction_hashes.get(&hash, &mut accessory_state);
+
+        let transaction = tx_number.map(|number| {
+            let tx = self
+                .transactions
+                .get(number as usize, &mut accessory_state)
+                .unwrap_or_else(|| panic!("Transaction with known hash {} and number {} must be set in all {} transaction",                
+                hash,
+                number,
+                self.transactions.len(&mut accessory_state)));
+
+            let block = self
+                .blocks
+                .get(tx.block_number as usize, &mut accessory_state)
+                .unwrap_or_else(|| panic!("Block with number {} for known transaction {} must be set",
+                    tx.block_number,
+                    tx.signed_transaction.hash));
+
+            reth_rpc_types_compat::transaction::from_recovered_with_block_context(
+                tx.into(),
+                block.header.hash,
+                block.header.number,
+                block.header.base_fee_per_gas,
+                U256::from(tx_number.unwrap() - block.transactions.start),
+            )
+        });
+
+        Ok(transaction)
     }
 
     // https://github.com/paradigmxyz/reth/blob/8892d04a88365ba507f28c3314d99a6b54735d3f/crates/rpc/rpc/src/eth/filter.rs#L349

@@ -17,6 +17,7 @@ use reth_primitives::{
     IntoRecoveredTransaction, B256,
 };
 use reth_provider::BlockReaderIdExt;
+use reth_rpc_types_compat::transaction::from_recovered;
 use reth_tasks::TokioTaskExecutor;
 use reth_transaction_pool::blobstore::NoopBlobStore;
 use reth_transaction_pool::{
@@ -26,7 +27,7 @@ use reth_transaction_pool::{
 use sov_accounts::Accounts;
 use sov_accounts::Response::{AccountEmpty, AccountExists};
 pub use sov_evm::DevSigner;
-use sov_evm::{CallMessage, RlpEvmTransaction};
+use sov_evm::{CallMessage, Evm, RlpEvmTransaction};
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::utils::to_jsonrpsee_error_object;
 use sov_modules_api::{EncodeCall, PrivateKey, SlotData, WorkingSet};
@@ -72,6 +73,7 @@ fn create_mempool<C: sov_modules_api::Context>(client: DbProvider<C>) -> CitreaM
 pub struct RpcContext<C: sov_modules_api::Context> {
     pub mempool: Arc<CitreaMempool<C>>,
     pub sender: UnboundedSender<String>,
+    pub storage: C::Storage,
 }
 
 pub struct ChainwaySequencer<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> {
@@ -84,6 +86,7 @@ pub struct ChainwaySequencer<C: sov_modules_api::Context, Da: DaService, S: Roll
     sender: UnboundedSender<String>,
     receiver: UnboundedReceiver<String>,
     db_provider: DbProvider<C>,
+    storage: C::Storage,
 }
 
 impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySequencer<C, Da, S> {
@@ -106,7 +109,7 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
         };
 
         // used as client of reth's mempool
-        let db_provider = DbProvider::new(storage);
+        let db_provider = DbProvider::new(storage.clone());
 
         let pool = create_mempool(db_provider.clone());
 
@@ -120,6 +123,7 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
             sender,
             receiver,
             db_provider,
+            storage,
         }
     }
 
@@ -250,6 +254,7 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
         let rpc_context = RpcContext {
             mempool: self.mempool.clone(),
             sender: sc_sender.clone(),
+            storage: self.storage.clone(),
         };
         let mut rpc = RpcModule::new(rpc_context);
         rpc.register_async_method("eth_sendRawTransaction", |parameters, ctx| async move {
@@ -260,7 +265,6 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
             let recovered: reth_primitives::PooledTransactionsElementEcRecovered =
                 recover_raw_transaction(data.clone())?;
 
-            // TODO: fn should be named from_recoverd_pooled_transaction after reth upgrade,
             let pool_transaction =
                 EthPooledTransaction::from_recovered_pooled_transaction(recovered);
 
@@ -276,6 +280,39 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
             info!("Sequencer: eth_publishBatch");
             ctx.sender.unbounded_send("msg".to_string()).unwrap();
             Ok::<(), ErrorObjectOwned>(())
+        })?;
+        rpc.register_async_method("eth_getTransactionByHash", |parameters, ctx| async move {
+            let mut params = parameters.sequence();
+            let hash: B256 = params.next().unwrap();
+            let mempool_only: Result<Option<bool>, ErrorObjectOwned> = params.next();
+            info!(
+                "Sequencer: eth_getTransactionByHash({}, {:?})",
+                hash, mempool_only
+            );
+
+            match ctx.mempool.get(&hash) {
+                Some(tx) => {
+                    let tx_signed_ec_recovered = tx.to_recovered_transaction(); // tx signed ec recovered
+                    let tx: reth_rpc_types::Transaction = from_recovered(tx_signed_ec_recovered);
+                    Ok::<Option<reth_rpc_types::Transaction>, ErrorObjectOwned>(Some(tx))
+                }
+                None => match mempool_only {
+                    Ok(Some(true)) => {
+                        Ok::<Option<reth_rpc_types::Transaction>, ErrorObjectOwned>(None)
+                    }
+                    _ => {
+                        let evm = Evm::<C>::default();
+                        let mut working_set = WorkingSet::<C>::new(ctx.storage.clone());
+
+                        match evm.get_transaction_by_hash(hash, &mut working_set) {
+                            Ok(tx) => {
+                                Ok::<Option<reth_rpc_types::Transaction>, ErrorObjectOwned>(tx)
+                            }
+                            Err(e) => Err(to_jsonrpsee_error_object(e, ETH_RPC_ERROR)),
+                        }
+                    }
+                },
+            }
         })?;
         self.rollup.rpc_methods.merge(rpc).unwrap();
         Ok(())

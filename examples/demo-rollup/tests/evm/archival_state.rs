@@ -4,6 +4,7 @@ use demo_stf::genesis_config::GenesisPaths;
 use ethers::abi::Address;
 use ethers_core::abi::Bytes;
 use reth_primitives::BlockNumberOrTag;
+// use sov_demo_rollup::initialize_logging;
 use sov_evm::SimpleStorageContract;
 use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
 use sov_stf_runner::RollupProverConfig;
@@ -14,6 +15,8 @@ use crate::test_helpers::{start_rollup, NodeMode};
 
 #[tokio::test]
 async fn test_archival_state() -> Result<(), anyhow::Error> {
+    // initialize_logging();
+
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
     let seq_task = tokio::spawn(async {
@@ -47,6 +50,7 @@ async fn run_archival_fail_tests(addr: Address, seq_test_client: &TestClient) {
         .eth_get_balance(addr, Some(BlockNumberOrTag::Number(722)))
         .await
         .unwrap_err();
+
     assert!(invalid_block_balance
         .to_string()
         .contains("unknown block number"));
@@ -199,10 +203,12 @@ async fn run_archival_valid_tests(addr: Address, seq_test_client: &TestClient) {
             .deploy_contract_call(contract.byte_code(), None)
             .await
             .unwrap();
+
         let deploy_contract_req = seq_test_client
             .deploy_contract(contract.byte_code(), None)
             .await
             .unwrap();
+
         seq_test_client.send_publish_batch_request().await;
 
         let contract_address = deploy_contract_req

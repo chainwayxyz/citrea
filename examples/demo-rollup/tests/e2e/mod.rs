@@ -4,8 +4,9 @@ use std::str::FromStr;
 use std::time::Duration;
 
 use demo_stf::genesis_config::GenesisPaths;
+use ethereum_types::H256;
 use ethers::abi::Address;
-use reth_primitives::BlockNumberOrTag;
+use reth_primitives::{BlockNumberOrTag, TxHash};
 // use sov_demo_rollup::initialize_logging;
 use sov_evm::SimpleStorageContract;
 use sov_mock_da::MockDaSpec;
@@ -340,6 +341,162 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
     seq_task.abort();
     rollup_task.abort();
 
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_get_transaction_by_hash() -> Result<(), anyhow::Error> {
+    // initialize_logging();
+
+    let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
+
+    let seq_task = tokio::spawn(async {
+        start_rollup(
+            seq_port_tx,
+            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
+            BasicKernelGenesisPaths {
+                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
+            },
+            RollupProverConfig::Execute,
+            NodeMode::SequencerNode,
+            None,
+        )
+        .await;
+    });
+
+    let seq_port = seq_port_rx.await.unwrap();
+
+    let (full_node_port_tx, full_node_port_rx) = tokio::sync::oneshot::channel();
+
+    let rollup_task = tokio::spawn(async move {
+        start_rollup(
+            full_node_port_tx,
+            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
+            BasicKernelGenesisPaths {
+                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
+            },
+            RollupProverConfig::Execute,
+            NodeMode::FullNode(seq_port),
+            None,
+        )
+        .await;
+    });
+
+    let full_node_port = full_node_port_rx.await.unwrap();
+
+    let seq_test_client = init_test_rollup(seq_port).await;
+    let full_node_test_client = init_test_rollup(full_node_port).await;
+
+    // create some txs to test the use cases
+    let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92265").unwrap();
+
+    let pending_tx1 = seq_test_client
+        .send_eth(addr, None, None, Some(0), 1_000_000_000u128)
+        .await
+        .unwrap();
+
+    let pending_tx2 = seq_test_client
+        .send_eth(addr, None, None, Some(1), 1_000_000_000u128)
+        .await
+        .unwrap();
+    // currently there are two txs in the pool, the full node should be able to get them
+    // should get with mempool_only true
+    let tx1 = full_node_test_client
+        .eth_get_transaction_by_hash(pending_tx1.tx_hash(), Some(true))
+        .await
+        .unwrap();
+    // Should get with mempool_only false/none
+    let tx2 = full_node_test_client
+        .eth_get_transaction_by_hash(pending_tx2.tx_hash(), None)
+        .await
+        .unwrap();
+    assert!(tx1.block_hash.is_none());
+    assert!(tx2.block_hash.is_none());
+    assert_eq!(tx1.hash, pending_tx1.tx_hash());
+    assert_eq!(tx2.hash, pending_tx2.tx_hash());
+
+    // sequencer should also be able to get them
+    // Should get just by checking the pool
+    let tx1 = seq_test_client
+        .eth_get_transaction_by_hash(pending_tx1.tx_hash(), Some(true))
+        .await
+        .unwrap();
+    let tx2 = seq_test_client
+        .eth_get_transaction_by_hash(pending_tx2.tx_hash(), None)
+        .await
+        .unwrap();
+    assert!(tx1.block_hash.is_none());
+    assert!(tx2.block_hash.is_none());
+    assert_eq!(tx1.hash, pending_tx1.tx_hash());
+    assert_eq!(tx2.hash, pending_tx2.tx_hash());
+
+    seq_test_client.send_publish_batch_request().await;
+
+    // wait for the full node to sync
+    sleep(Duration::from_millis(2000)).await;
+
+    // make sure txs are in the block
+    let seq_block = seq_test_client
+        .eth_get_block_by_number(Some(BlockNumberOrTag::Latest))
+        .await;
+    assert!(seq_block.transactions.contains(&pending_tx1.tx_hash()));
+    assert!(seq_block.transactions.contains(&pending_tx2.tx_hash()));
+
+    // same operations after the block is published, both sequencer and full node should be able to get them.
+    // should not get with mempool_only true because it checks the sequencer mempool only
+    let non_existent_tx = full_node_test_client
+        .eth_get_transaction_by_hash(pending_tx1.tx_hash(), Some(true))
+        .await;
+    // this should be none because it is not in the mempool anymore
+    assert!(non_existent_tx.is_none());
+
+    let tx1 = full_node_test_client
+        .eth_get_transaction_by_hash(pending_tx1.tx_hash(), Some(false))
+        .await
+        .unwrap();
+    let tx2 = full_node_test_client
+        .eth_get_transaction_by_hash(pending_tx2.tx_hash(), None)
+        .await
+        .unwrap();
+    assert!(tx1.block_hash.is_some());
+    assert!(tx2.block_hash.is_some());
+    assert_eq!(tx1.hash, pending_tx1.tx_hash());
+    assert_eq!(tx2.hash, pending_tx2.tx_hash());
+
+    // should not get with mempool_only true because it checks mempool only
+    let none_existent_tx = seq_test_client
+        .eth_get_transaction_by_hash(pending_tx1.tx_hash(), Some(true))
+        .await;
+    // this should be none because it is not in the mempool anymore
+    assert!(none_existent_tx.is_none());
+
+    // In other cases should check the block and find the tx
+    let tx1 = seq_test_client
+        .eth_get_transaction_by_hash(pending_tx1.tx_hash(), Some(false))
+        .await
+        .unwrap();
+    let tx2 = seq_test_client
+        .eth_get_transaction_by_hash(pending_tx2.tx_hash(), None)
+        .await
+        .unwrap();
+    assert!(tx1.block_hash.is_some());
+    assert!(tx2.block_hash.is_some());
+    assert_eq!(tx1.hash, pending_tx1.tx_hash());
+    assert_eq!(tx2.hash, pending_tx2.tx_hash());
+
+    // create random tx hash and make sure it returns None
+    let random_tx_hash: TxHash = TxHash::random();
+    assert!(seq_test_client
+        .eth_get_transaction_by_hash(H256::from_slice(random_tx_hash.as_slice()), None)
+        .await
+        .is_none());
+    assert!(full_node_test_client
+        .eth_get_transaction_by_hash(H256::from_slice(random_tx_hash.as_slice()), None)
+        .await
+        .is_none());
+
+    seq_task.abort();
+    rollup_task.abort();
     Ok(())
 }
 
