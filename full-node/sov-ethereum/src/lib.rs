@@ -430,8 +430,11 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
             |parameters, ethereum| async move {
                 let mut params = parameters.sequence();
                 let hash: B256 = params.next().unwrap();
-                info!("Full Node: eth_getTransactionByHash({})", hash);
                 let mempool_only: Result<Option<bool>, ErrorObjectOwned> = params.next();
+                info!(
+                    "Full Node: eth_getTransactionByHash({}, {})",
+                    hash, mempool_only
+                );
 
                 // check if mempool_only parameter was given what was its value
                 match mempool_only {

@@ -284,8 +284,11 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
         rpc.register_async_method("eth_getTransactionByHash", |parameters, ctx| async move {
             let mut params = parameters.sequence();
             let hash: B256 = params.next().unwrap();
-            info!("Sequencer: eth_getTransactionByHash({})", hash);
             let mempool_only: Result<Option<bool>, ErrorObjectOwned> = params.next();
+            info!(
+                "Sequencer: eth_getTransactionByHash({}, {})",
+                hash, mempool_only
+            );
 
             match ctx.mempool.get(&hash) {
                 Some(tx) => {
