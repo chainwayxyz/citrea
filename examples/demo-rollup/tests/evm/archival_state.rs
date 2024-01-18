@@ -204,10 +204,6 @@ async fn run_archival_valid_tests(addr: Address, seq_test_client: &TestClient) {
             .await
             .unwrap();
 
-        let mut nonce = seq_test_client
-            .eth_get_transaction_count(seq_test_client.from_addr, None)
-            .await
-            .unwrap();
         let deploy_contract_req = seq_test_client
             .deploy_contract(contract.byte_code(), None)
             .await
