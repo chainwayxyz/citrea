@@ -118,11 +118,30 @@ fn get_block_by_hash_test() {
             None,
             &mut working_set,
         )
+        .unwrap()
         .unwrap();
 
     assert_eq!(
-        third_block.unwrap().header.number.unwrap(),
+        third_block.header.number.unwrap(),
         alloy_primitives::U256::from(2u64)
+    );
+
+    assert_eq!(
+        third_block.header.hash,
+        Some(
+            FixedBytes::from_hex(
+                "0x463f932c9ef1c01a59f2495ddcb7ae16d1a4afc2b5f38998486c4bf16cc94a76"
+            )
+            .unwrap()
+        )
+    );
+
+    assert_eq!(
+        third_block.inner.header.gas_used,
+        alloy_primitives::U256::from_str(
+            "0x0000000000000000000000000000000000000000000000000000000000019c14"
+        )
+        .unwrap()
     );
 }
 
@@ -159,15 +178,17 @@ fn get_block_by_number_test() {
         )
     );
 
-    let latest = evm
-        .get_block_by_number(None, None, &mut working_set)
-        .unwrap()
-        .unwrap();
-
-    assert_eq!(latest, third_block);
     assert_eq!(
-        latest.header.number.unwrap(),
+        third_block.header.number.unwrap(),
         alloy_primitives::U256::from(2u64)
+    );
+
+    assert_eq!(
+        third_block.inner.header.gas_used,
+        alloy_primitives::U256::from_str(
+            "0x0000000000000000000000000000000000000000000000000000000000019c14"
+        )
+        .unwrap()
     );
 }
 
@@ -196,12 +217,24 @@ fn get_block_receipts_test() {
         .unwrap();
 
     assert_eq!(third_block_receipts.len(), 4);
+
+    let cumulative_gas_used_arr = [
+        "0x0000000000000000000000000000000000000000000000000000000000006720",
+        "0x000000000000000000000000000000000000000000000000000000000000ce1c",
+        "0x0000000000000000000000000000000000000000000000000000000000013518",
+        "0x0000000000000000000000000000000000000000000000000000000000019c14",
+    ]; // Removed _U256 suffix
+
     for i in 0..third_block_receipts.len() {
         assert_eq!(
             third_block_receipts[i].transaction_index,
             alloy_primitives::U64::from(i)
         );
         assert_eq!(third_block_receipts[i].logs.len(), 2);
+        assert_eq!(
+            third_block_receipts[i].cumulative_gas_used,
+            U256::from_str(cumulative_gas_used_arr[i]).unwrap()
+        );
     }
 }
 
@@ -307,7 +340,7 @@ fn get_transaction_by_block_number_and_index_test() {
 fn call_test() {
     let (evm, mut working_set, signer) = init_evm();
 
-    let result = evm.get_call(
+    let fail_result = evm.get_call(
         CallRequest {
             from: Some(signer.address()),
             to: Some(Address::from_str("0x95222290DD7278Aa3Ddd389Cc1E1d165CC4BAfe5").unwrap()),
@@ -330,9 +363,32 @@ fn call_test() {
         &mut working_set,
     );
 
-    assert_eq!(result, Err(EthApiError::UnknownBlockNumber.into()));
+    assert_eq!(fail_result, Err(EthApiError::UnknownBlockNumber.into()));
 
-    // TODO: test correct cases
+    let result = evm.get_call(
+        CallRequest {
+            from: Some(signer.address()),
+            to: Some(Address::from_str("0x95222290DD7278Aa3Ddd389Cc1E1d165CC4BAfe5").unwrap()),
+            gas: Some(U256::from(100000)),
+            gas_price: Some(U256::from(100000000)),
+            max_fee_per_gas: None,
+            max_priority_fee_per_gas: None,
+            value: Some(U256::from(100000031)),
+            input: None.into(),
+            nonce: Some(U64::from(7)),
+            chain_id: Some(U64::from(1u64)),
+            access_list: None,
+            max_fee_per_blob_gas: None,
+            blob_versioned_hashes: Some(vec![]),
+            transaction_type: None,
+        },
+        Some(BlockNumberOrTag::Number(1)),
+        None,
+        None,
+        &mut working_set,
+    );
+
+    assert_eq!(Bytes::from_hex("0x").unwrap(), result.unwrap());
 }
 
 #[test]
@@ -382,7 +438,7 @@ fn logs_for_filter_test() {
 fn estimate_gas_test() {
     let (evm, mut working_set, signer) = init_evm();
 
-    let result = evm.get_call(
+    let fail_result = evm.get_call(
         CallRequest {
             from: Some(signer.address()),
             to: Some(Address::from_str("0x95222290DD7278Aa3Ddd389Cc1E1d165CC4BAfe5").unwrap()),
@@ -405,7 +461,49 @@ fn estimate_gas_test() {
         &mut working_set,
     );
 
-    assert_eq!(result, Err(EthApiError::UnknownBlockNumber.into()));
+    assert_eq!(fail_result, Err(EthApiError::UnknownBlockNumber.into()));
+    // println!(
+    //     "{:?}",
+    //     evm.get_block_by_number(None, Some(true), &mut working_set)
+    // );
+
+    for i in 1..10 {
+        println!("{:?}:", i);
+        println!(
+            "---> {:?}",
+            evm.get_transaction_count(
+                signer.address(),
+                Some(BlockNumberOrTag::Number(i)),
+                &mut working_set,
+            )
+        );
+        working_set.unset_archival_version();
+    }
 
     // TODO: test correct cases
+    let result = evm.get_call(
+        CallRequest {
+            from: Some(signer.address()),
+            to: Some(Address::from_str("0x95222290DD7278Aa3Ddd389Cc1E1d165CC4BAfe5").unwrap()),
+            gas: Some(U256::from(100000)),
+            gas_price: Some(U256::from(100000000)),
+            max_fee_per_gas: None,
+            max_priority_fee_per_gas: None,
+            value: Some(U256::from(100000000)),
+            input: None.into(),
+            nonce: Some(U64::from(7)),
+            chain_id: Some(U64::from(1u64)),
+            access_list: None,
+            max_fee_per_blob_gas: None,
+            blob_versioned_hashes: Some(vec![]),
+            transaction_type: None,
+        },
+        Some(BlockNumberOrTag::Number(2)),
+        None,
+        None,
+        &mut working_set,
+    );
+
+    println!("{:?}", result);
+    assert_eq!(result, Ok(Bytes::from_hex("0x").unwrap()));
 }
