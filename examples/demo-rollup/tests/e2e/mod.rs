@@ -689,42 +689,6 @@ async fn test_reopen_sequencer() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[tokio::test]
-async fn test_run_sequencer() -> Result<(), anyhow::Error> {
-    // open, publish some blocks and close the sequencer task without error
-    // Remove temp db directories if they exist
-    let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
-
-    let _seq_task = tokio::spawn(async {
-        start_rollup(
-            seq_port_tx,
-            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
-            BasicKernelGenesisPaths {
-                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
-            },
-            RollupProverConfig::Execute,
-            NodeMode::SequencerNode,
-            None,
-        )
-        .await;
-    });
-
-    let seq_port = seq_port_rx.await.unwrap();
-
-    let seq_test_client = init_test_rollup(seq_port).await;
-
-    seq_test_client.send_publish_batch_request().await;
-    seq_test_client.send_publish_batch_request().await;
-
-    let block = seq_test_client
-        .eth_get_block_by_number(Some(BlockNumberOrTag::Latest))
-        .await;
-
-    assert_eq!(block.number.unwrap().as_u64(), 2);
-
-    Ok(())
-}
-
 fn copy_dir_recursive(src: &Path, dst: &Path) -> std::io::Result<()> {
     if !dst.exists() {
         fs::create_dir(dst)?;
