@@ -561,26 +561,30 @@ fn estimate_gas_test() {
 
     assert_eq!(fail_result, Err(EthApiError::UnknownBlockNumber.into()));
 
+    let contract = SimpleStorageContract::default();
+    let call_data = contract.get_call_data().to_string();
+
     let result = evm.eth_estimate_gas(
         CallRequest {
             from: Some(signer.address()),
-            to: Some(Address::from_str("0x95222290DD7278Aa3Ddd389Cc1E1d165CC4BAfe5").unwrap()),
+            to: Some(Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap()),
             gas: Some(U256::from(100000)),
-            gas_price: Some(U256::from(100000000)),
+            gas_price: Some(U256::from(10000)),
             max_fee_per_gas: None,
             max_priority_fee_per_gas: None,
-            value: Some(U256::from(100000000)),
-            input: None.into(),
-            nonce: Some(U64::from(7)),
+            value: None,
+            input: CallInput::new(alloy_primitives::Bytes::from_str(&call_data).unwrap()),
+            nonce: Some(U64::from(9)),
             chain_id: Some(U64::from(1u64)),
             access_list: None,
             max_fee_per_blob_gas: None,
             blob_versioned_hashes: Some(vec![]),
             transaction_type: None,
         },
+        // How does this work precisely? In the first block, the contract was not there?
         Some(BlockNumberOrTag::Number(2)),
         &mut working_set,
     );
 
-    assert_eq!(result.unwrap(), Uint::from_str("0x5208").unwrap().into());
+    assert_eq!(result.unwrap(), Uint::from_str("0x5bde").unwrap().into());
 }
