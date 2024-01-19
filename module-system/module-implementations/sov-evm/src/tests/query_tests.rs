@@ -48,10 +48,14 @@ fn init_evm() -> (Evm<C>, WorkingSet<C>, TestSigner) {
             .as_slice(),
     );
 
-    let contract_addr2: Address =
-        Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap();
+    let contract_addr2: Address = Address::from_slice(
+        hex::decode("eeb03d20dae810f52111b853b31c8be6f30f4cd3")
+            .unwrap()
+            .as_slice(),
+    );
+    // Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap();
 
-    println!("{:?}", contract_addr2);
+    // println!("{:?}", contract_addr2);
 
     evm.begin_slot_hook([5u8; 32], &[10u8; 32].into(), &mut working_set);
 
@@ -426,11 +430,6 @@ fn call_test() {
 
     let contract = SimpleStorageContract::default();
     let call_data = contract.get_call_data().to_string();
-    println!("{:?}", contract.get_call_data().to_string());
-    println!(
-        "{:?}",
-        alloy_primitives::Bytes::from_str(&call_data).unwrap()
-    );
 
     let nonce_too_low_result = evm.get_call(
         CallRequest {
@@ -460,31 +459,36 @@ fn call_test() {
         Err(RpcInvalidTransactionError::NonceTooLow.into())
     );
 
-    // Execution Reverted - Why?
-    let result = evm.get_call(
-        CallRequest {
-            from: Some(signer.address()),
-            to: Some(Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap()),
-            gas: Some(U256::from(100000)),
-            gas_price: Some(U256::from(100000000)),
-            max_fee_per_gas: None,
-            max_priority_fee_per_gas: None,
-            value: Some(U256::from(100000000)),
-            input: CallInput::new(alloy_primitives::Bytes::from_str(&call_data).unwrap()),
-            nonce: Some(U64::from(9)),
-            chain_id: Some(U64::from(1u64)),
-            access_list: None,
-            max_fee_per_blob_gas: None,
-            blob_versioned_hashes: Some(vec![]),
-            transaction_type: None,
-        },
-        Some(BlockNumberOrTag::Number(3)),
-        None,
-        None,
-        &mut working_set,
-    );
+    let result = evm
+        .get_call(
+            CallRequest {
+                from: Some(signer.address()),
+                to: Some(Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap()),
+                gas: Some(U256::from(100000)),
+                gas_price: Some(U256::from(10000)),
+                max_fee_per_gas: None,
+                max_priority_fee_per_gas: None,
+                value: None,
+                input: CallInput::new(alloy_primitives::Bytes::from_str(&call_data).unwrap()),
+                nonce: Some(U64::from(9)),
+                chain_id: Some(U64::from(1u64)),
+                access_list: None,
+                max_fee_per_blob_gas: None,
+                blob_versioned_hashes: Some(vec![]),
+                transaction_type: None,
+            },
+            // How does this work precisely? In the first block, the contract was not there?
+            Some(BlockNumberOrTag::Number(1)),
+            None,
+            None,
+            &mut working_set,
+        )
+        .unwrap();
 
-    println!("{:?}", result);
+    assert_eq!(
+        result.to_string(),
+        "0x00000000000000000000000000000000000000000000000000000000000001de"
+    );
 }
 
 #[test]
