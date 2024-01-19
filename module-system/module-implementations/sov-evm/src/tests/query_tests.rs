@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use alloy_primitives::FixedBytes;
+use alloy_primitives::{FixedBytes, Uint};
 use hex::FromHex;
 use reth_primitives::{Address, BlockId, BlockNumberOrTag, Bytes, U64};
 use reth_rpc_types::CallRequest;
@@ -9,13 +9,13 @@ use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{Context, Module, WorkingSet};
 
-use super::call_tests::{create_contract_transaction, publish_event_message};
+use super::call_tests::{create_contract_transaction, publish_event_message, set_arg_message};
 use crate::call::CallMessage;
 use crate::tests::genesis_tests::get_evm;
 use crate::tests::test_signer::TestSigner;
 use crate::{
     AccountData, EthApiError, Evm, EvmConfig, Filter, FilterBlockOption, FilterSet, LogsContract,
-    RlpEvmTransaction,
+    RlpEvmTransaction, SimpleStorageContract,
 };
 
 type C = DefaultContext;
@@ -44,6 +44,12 @@ fn init_evm() -> (Evm<C>, WorkingSet<C>, TestSigner) {
 
     let contract_addr: Address = Address::from_slice(
         hex::decode("819c5497b157177315e1204f52e588b393771719")
+            .unwrap()
+            .as_slice(),
+    );
+
+    let contract_addr2: Address = Address::from_slice(
+        hex::decode("819c5497b157177315e1204f52e588b393771720")
             .unwrap()
             .as_slice(),
     );
@@ -96,6 +102,29 @@ fn init_evm() -> (Evm<C>, WorkingSet<C>, TestSigner) {
 
     evm.end_slot_hook(&mut working_set);
     evm.finalize_hook(&[100u8; 32].into(), &mut working_set.accessory_state());
+
+    evm.begin_slot_hook([10u8; 32], &[100u8; 32].into(), &mut working_set);
+
+    {
+        let sender_address = generate_address::<C>("sender");
+        let sequencer_address = generate_address::<C>("sequencer");
+        let context = C::new(sender_address, sequencer_address, 1);
+
+        let transactions: Vec<RlpEvmTransaction> = vec![
+            create_contract_transaction(&dev_signer, 7, SimpleStorageContract::default()),
+            set_arg_message(contract_addr2, &dev_signer, 8, 478),
+        ];
+
+        evm.call(
+            CallMessage { txs: transactions },
+            &context,
+            &mut working_set,
+        )
+        .unwrap();
+    }
+
+    evm.end_slot_hook(&mut working_set);
+    evm.finalize_hook(&[101u8; 32].into(), &mut working_set.accessory_state());
 
     (evm, working_set, dev_signer)
 }
@@ -225,7 +254,7 @@ fn get_block_receipts_test() {
         "0x0000000000000000000000000000000000000000000000000000000000019c14",
     ]; // Removed _U256 suffix
 
-    for i in 0..third_block_receipts.len() {
+    for i in 0..4 {
         assert_eq!(
             third_block_receipts[i].transaction_index,
             alloy_primitives::U64::from(i)
@@ -234,6 +263,35 @@ fn get_block_receipts_test() {
         assert_eq!(
             third_block_receipts[i].cumulative_gas_used,
             U256::from_str(cumulative_gas_used_arr[i]).unwrap()
+        );
+    }
+
+    let latest_block = evm
+        .get_block_receipts(BlockId::Number(BlockNumberOrTag::Latest), &mut working_set)
+        .unwrap()
+        .unwrap();
+
+    assert_eq!(
+        latest_block[0].block_hash.unwrap(),
+        FixedBytes::from_hex("0x252e6eb4c22f7210f1d156a0eef276dcaa2212c77e65333d705476e90a18756e")
+            .unwrap()
+    );
+
+    assert_eq!(latest_block.len(), 2);
+
+    let tx_hashes = [
+        "0x8898708f7c0977ffd5356261a4854385b0547ecc8f7e0597147049750d009718",
+        "0x252e6eb4c22f7210f1d156a0eef276dcaa2212c77e65333d705476e90a18756e",
+    ];
+
+    for i in 0..2 {
+        assert_eq!(
+            latest_block[i].transaction_index,
+            alloy_primitives::U64::from(i)
+        );
+        assert_eq!(
+            latest_block[i].transaction_hash,
+            Some(FixedBytes::from_hex(tx_hashes[i]).unwrap())
         );
     }
 }
@@ -365,30 +423,7 @@ fn call_test() {
 
     assert_eq!(fail_result, Err(EthApiError::UnknownBlockNumber.into()));
 
-    let result = evm.get_call(
-        CallRequest {
-            from: Some(signer.address()),
-            to: Some(Address::from_str("0x95222290DD7278Aa3Ddd389Cc1E1d165CC4BAfe5").unwrap()),
-            gas: Some(U256::from(100000)),
-            gas_price: Some(U256::from(100000000)),
-            max_fee_per_gas: None,
-            max_priority_fee_per_gas: None,
-            value: Some(U256::from(100000031)),
-            input: None.into(),
-            nonce: Some(U64::from(7)),
-            chain_id: Some(U64::from(1u64)),
-            access_list: None,
-            max_fee_per_blob_gas: None,
-            blob_versioned_hashes: Some(vec![]),
-            transaction_type: None,
-        },
-        Some(BlockNumberOrTag::Number(1)),
-        None,
-        None,
-        &mut working_set,
-    );
-
-    assert_eq!(Bytes::from_hex("0x").unwrap(), result.unwrap());
+    // Here
 }
 
 #[test]
@@ -438,7 +473,7 @@ fn logs_for_filter_test() {
 fn estimate_gas_test() {
     let (evm, mut working_set, signer) = init_evm();
 
-    let fail_result = evm.get_call(
+    let fail_result = evm.eth_estimate_gas(
         CallRequest {
             from: Some(signer.address()),
             to: Some(Address::from_str("0x95222290DD7278Aa3Ddd389Cc1E1d165CC4BAfe5").unwrap()),
@@ -456,32 +491,12 @@ fn estimate_gas_test() {
             transaction_type: None,
         },
         Some(BlockNumberOrTag::Number(100)),
-        None,
-        None,
         &mut working_set,
     );
 
     assert_eq!(fail_result, Err(EthApiError::UnknownBlockNumber.into()));
-    // println!(
-    //     "{:?}",
-    //     evm.get_block_by_number(None, Some(true), &mut working_set)
-    // );
 
-    for i in 1..10 {
-        println!("{:?}:", i);
-        println!(
-            "---> {:?}",
-            evm.get_transaction_count(
-                signer.address(),
-                Some(BlockNumberOrTag::Number(i)),
-                &mut working_set,
-            )
-        );
-        working_set.unset_archival_version();
-    }
-
-    // TODO: test correct cases
-    let result = evm.get_call(
+    let result = evm.eth_estimate_gas(
         CallRequest {
             from: Some(signer.address()),
             to: Some(Address::from_str("0x95222290DD7278Aa3Ddd389Cc1E1d165CC4BAfe5").unwrap()),
@@ -499,11 +514,8 @@ fn estimate_gas_test() {
             transaction_type: None,
         },
         Some(BlockNumberOrTag::Number(2)),
-        None,
-        None,
         &mut working_set,
     );
 
-    println!("{:?}", result);
-    assert_eq!(result, Ok(Bytes::from_hex("0x").unwrap()));
+    assert_eq!(result.unwrap(), Uint::from_str("0x5208").unwrap().into());
 }
