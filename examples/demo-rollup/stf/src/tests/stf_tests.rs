@@ -81,7 +81,7 @@ fn test_demo_values_in_db() {
         let mut working_set = WorkingSet::new(storage);
         let resp = runtime
             .bank
-            .supply_of(get_default_token_address(), &mut working_set)
+            .supply_of(None, get_default_token_address(), &mut working_set)
             .unwrap();
         assert_eq!(resp, sov_bank::TotalSupplyResponse { amount: Some(1000) });
 
@@ -143,7 +143,7 @@ fn test_demo_values_in_cache() {
 
     let resp = runtime
         .bank
-        .supply_of(get_default_token_address(), &mut working_set)
+        .supply_of(None, get_default_token_address(), &mut working_set)
         .unwrap();
     assert_eq!(resp, sov_bank::TotalSupplyResponse { amount: Some(1000) });
 
@@ -182,7 +182,11 @@ fn test_demo_values_not_in_db() {
 
         let storage = storage_manager.create_storage_on(block_1.header()).unwrap();
 
-        let apply_block_result = stf.apply_slot(
+        let mut blobs = [blob];
+
+        let storage = storage_manager.create_storage_on(block_1.header()).unwrap();
+
+        let result = stf.apply_slot(
             &genesis_root,
             storage,
             Default::default(),
@@ -190,10 +194,12 @@ fn test_demo_values_not_in_db() {
             &block_1.validity_cond,
             &mut blobs,
         );
+        assert_eq!(1, result.batch_receipts.len());
+        // 2 transactions from value setter
+        // 2 transactions from bank
+        assert_eq!(4, result.batch_receipts[0].tx_receipts.len());
 
-        assert_eq!(1, apply_block_result.batch_receipts.len());
-        let apply_blob_outcome = apply_block_result.batch_receipts[0].clone();
-
+        let apply_blob_outcome = result.batch_receipts[0].clone();
         assert_eq!(
             SequencerOutcome::Rewarded(0),
             apply_blob_outcome.inner,
@@ -210,7 +216,7 @@ fn test_demo_values_not_in_db() {
 
         let resp = runtime
             .bank
-            .supply_of(get_default_token_address(), &mut working_set)
+            .supply_of(None, get_default_token_address(), &mut working_set)
             .unwrap();
         assert_eq!(resp, sov_bank::TotalSupplyResponse { amount: Some(1000) });
 

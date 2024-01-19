@@ -18,6 +18,7 @@ use sov_modules_stf_blueprint::kernels::basic::{
 };
 use sov_state::storage::NativeStorage;
 use sov_stf_runner::{from_toml_path, RollupConfig, RollupProverConfig};
+use tracing::log::debug;
 
 #[cfg(test)]
 mod test_rpc;
@@ -47,6 +48,12 @@ enum SupportedDaLayer {
     Celestia,
     Mock,
     Bitcoin,
+}
+
+#[derive(clap::ValueEnum, Clone, Debug)]
+enum SupportedDaLayer {
+    Celestia,
+    Mock,
 }
 
 #[tokio::main]

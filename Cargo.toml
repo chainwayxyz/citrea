@@ -37,7 +37,7 @@ members = [
     "module-system/sov-state",
     "module-system/sov-modules-api",
     "module-system/module-schemas",
-    "module-system/utils/sov-data-generators",
+    "module-system/sov-data-generators",
     "module-system/module-implementations/sov-accounts",
     "module-system/module-implementations/sov-bank",
     "module-system/module-implementations/sov-nft-module",
@@ -75,6 +75,8 @@ arbitrary = { version = "1.3.1", features = ["derive"] }
 borsh = { version = "0.10.3", default-features = false }
 # TODO: Consider replacing this serialization format
 #     https://github.com/Sovereign-Labs/sovereign-sdk/issues/283
+
+
 bincode = "1.3.3"
 bcs = "0.1.6"
 byteorder = { version = "1.5.0", default-features = false }
@@ -111,6 +113,7 @@ jsonrpsee = { version = "0.20.1", features = ["jsonrpsee-types"] }
 schemars = { version = "0.8.16", features = ["derive"] }
 tempfile = "3.8"
 tokio = { version = "1", features = ["full"] }
+lazy_static = "1.4.0"
 num_cpus = "1.0"
 risc0-zkvm = { version = "0.19", default-features = false }
 risc0-zkvm-platform = { version = "0.19" }

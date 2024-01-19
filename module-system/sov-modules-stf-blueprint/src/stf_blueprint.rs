@@ -1,10 +1,11 @@
 use std::marker::PhantomData;
 
-use borsh::{BorshDeserialize, BorshSerialize};
+use borsh::BorshDeserialize;
 use sov_modules_api::runtime::capabilities::KernelSlotHooks;
 use sov_modules_api::{
     BasicAddress, BlobReaderTrait, Context, DaSpec, DispatchCall, GasUnit, StateCheckpoint,
 };
+use sov_modules_core::WorkingSet;
 use sov_rollup_interface::stf::{BatchReceipt, TransactionReceipt};
 use tracing::{debug, error};
 
@@ -177,93 +178,16 @@ where
         let gas_elastic_price = [0, 0];
         let mut sequencer_reward = 0u64;
 
-        // Dispatching transactions
         let mut tx_receipts = Vec::with_capacity(txs.len());
-        for (TransactionAndRawHash { tx, raw_tx_hash }, msg) in
-            txs.into_iter().zip(messages.into_iter())
-        {
-            // Update the working set gas meter with the available funds
-            let gas_price = C::GasUnit::from_arbitrary_dimensions(&gas_elastic_price);
-            let gas_limit = tx.gas_limit();
-            let gas_tip = tx.gas_tip();
-            batch_workspace.set_gas(gas_limit, gas_price);
 
-            // Pre dispatch hook
-            // TODO set the sequencer pubkey
-            let hook = RuntimeTxHook {
-                height: 1,
-                sequencer: tx.pub_key().clone(),
-            };
-            let ctx = match self
-                .runtime
-                .pre_dispatch_tx_hook(&tx, &mut batch_workspace, &hook)
-            {
-                Ok(verified_tx) => verified_tx,
-                Err(e) => {
-                    // Don't revert any state changes made by the pre_dispatch_hook even if the Tx is rejected.
-                    // For example nonce for the relevant account is incremented.
-                    error!("Stateful verification error - the sequencer included an invalid transaction: {}", e);
-                    let receipt = TransactionReceipt {
-                        tx_hash: raw_tx_hash,
-                        body_to_save: None,
-                        events: batch_workspace.take_events(),
-                        receipt: TxEffect::Reverted,
-                    };
-
-                    tx_receipts.push(receipt);
-                    continue;
-                }
-            };
-            // Commit changes after pre_dispatch_tx_hook
-            batch_workspace = batch_workspace.checkpoint().to_revertable();
-
-            let tx_result = self.runtime.dispatch_call(msg, &mut batch_workspace, &ctx);
-
-            let remaining_gas = batch_workspace.gas_remaining_funds();
-            let gas_reward = gas_limit
-                .saturating_add(gas_tip)
-                .saturating_sub(remaining_gas);
-
-            sequencer_reward = sequencer_reward.saturating_add(gas_reward);
-            debug!(
-                "Tx {} sequencer reward: {}",
-                hex::encode(raw_tx_hash),
-                gas_reward
-            );
-
-            let events = batch_workspace.take_events();
-            let tx_effect = match tx_result {
-                Ok(_) => TxEffect::Successful,
-                Err(e) => {
-                    error!(
-                        "Tx 0x{} was reverted error: {}",
-                        hex::encode(raw_tx_hash),
-                        e
-                    );
-                    // The transaction causing invalid state transition is reverted
-                    // but we don't slash and we continue processing remaining transactions.
-                    batch_workspace = batch_workspace.revert().to_revertable();
-                    TxEffect::Reverted
-                }
-            };
-            debug!("Tx {} effect: {:?}", hex::encode(raw_tx_hash), tx_effect);
-
-            let receipt = TransactionReceipt {
-                tx_hash: raw_tx_hash,
-                body_to_save: Some(tx.clone().try_to_vec().unwrap()),
-                events,
-                receipt: tx_effect,
-            };
-
-            tx_receipts.push(receipt);
-            // We commit after events have been extracted into receipt.
-            batch_workspace = batch_workspace.checkpoint().to_revertable();
-
-            // TODO: `panic` will be covered in https://github.com/Sovereign-Labs/sovereign-sdk/issues/421
-            self.runtime
-                .post_dispatch_tx_hook(&tx, &ctx, &mut batch_workspace)
-                .expect("inconsistent state: error in post_dispatch_tx_hook");
-        }
+        let mut batch_workspace = self.apply_txs(
+            txs,
+            messages,
+            &gas_elastic_price,
+            &mut tx_receipts,
+            batch_workspace,
+            &mut sequencer_reward,
+        );
 
         // TODO: calculate the amount based of gas and fees
         let sequencer_outcome = SequencerOutcome::Rewarded(sequencer_reward);
@@ -287,6 +211,7 @@ where
     }
 
     // Do all stateless checks and data formatting, that can be results in sequencer slashing
+    #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
     fn pre_process_batch(
         &self,
         blob_data: &mut impl BlobReaderTrait,
@@ -308,7 +233,113 @@ where
         Ok((txs, messages))
     }
 
+    #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
+    fn apply_txs(
+        &self,
+        txs: Vec<TransactionAndRawHash<C>>,
+        messages: Vec<<RT as DispatchCall>::Decodable>,
+        gas_elastic_price: &[u64],
+        tx_receipts: &mut Vec<TransactionReceipt<TxEffect>>,
+        mut batch_workspace: WorkingSet<C>,
+        sequencer_reward: &mut u64,
+    ) -> WorkingSet<C> {
+        // Dispatching transactions
+        for (TransactionAndRawHash { tx, raw_tx_hash }, msg) in
+            txs.into_iter().zip(messages.into_iter())
+        {
+            // Update the working set gas meter with the available funds
+            let gas_price = C::GasUnit::from_arbitrary_dimensions(gas_elastic_price);
+            let gas_limit = tx.gas_limit();
+            let gas_tip = tx.gas_tip();
+            batch_workspace.set_gas(gas_limit, gas_price);
+
+            // Pre dispatch hook
+            // TODO set the sequencer pubkey
+            let hook = RuntimeTxHook {
+                height: 1,
+                sequencer: tx.pub_key().clone(),
+            };
+            let ctx = match self
+                .runtime
+                .pre_dispatch_tx_hook(&tx, &mut batch_workspace, &hook)
+            {
+                Ok(verified_tx) => verified_tx,
+                Err(e) => {
+                    // Don't revert any state changes made by the pre_dispatch_hook even if the Tx is rejected.
+                    // For example nonce for the relevant account is incremented.
+                    error!("Stateful verification error - the sequencer included an invalid transaction: {}", e);
+                    let gas_used = batch_workspace.gas_used().to_dimensions();
+                    let receipt = TransactionReceipt {
+                        tx_hash: raw_tx_hash,
+                        body_to_save: None,
+                        events: batch_workspace.take_events(),
+                        receipt: TxEffect::Reverted,
+                        gas_used,
+                    };
+
+                    tx_receipts.push(receipt);
+                    continue;
+                }
+            };
+
+            // Commit changes after pre_dispatch_tx_hook
+            batch_workspace = batch_workspace.checkpoint().to_revertable();
+
+            let tx_result = self.runtime.dispatch_call(msg, &mut batch_workspace, &ctx);
+
+            let remaining_gas = batch_workspace.gas_remaining_funds();
+            let gas_reward = gas_limit
+                .saturating_add(gas_tip)
+                .saturating_sub(remaining_gas);
+
+            *sequencer_reward = sequencer_reward.saturating_add(gas_reward);
+            debug!(
+                "Tx {} sequencer reward: {}",
+                hex::encode(raw_tx_hash),
+                gas_reward
+            );
+
+            let events = batch_workspace.take_events();
+            let tx_effect = match tx_result {
+                Ok(_) => TxEffect::Successful,
+                Err(e) => {
+                    error!(
+                        "Tx 0x{} was reverted error: {}",
+                        hex::encode(raw_tx_hash),
+                        e
+                    );
+                    // The transaction causing invalid state transition is reverted
+                    // but we don't slash and we continue processing remaining transactions.
+                    batch_workspace = batch_workspace.revert().to_revertable();
+                    TxEffect::Reverted
+                }
+            };
+            debug!("Tx {} effect: {:?}", hex::encode(raw_tx_hash), tx_effect);
+
+            let gas_used = batch_workspace.gas_used().to_dimensions();
+            let receipt = TransactionReceipt {
+                tx_hash: raw_tx_hash,
+                body_to_save: None,
+                events,
+                receipt: tx_effect,
+                gas_used,
+            };
+
+            tx_receipts.push(receipt);
+            // We commit after events have been extracted into receipt.
+            batch_workspace = batch_workspace.checkpoint().to_revertable();
+
+            // TODO: `panic` will be covered in https://github.com/Sovereign-Labs/sovereign-sdk/issues/421
+            self.runtime
+                .post_dispatch_tx_hook(&tx, &ctx, &mut batch_workspace)
+                .expect("inconsistent state: error in post_dispatch_tx_hook");
+        }
+
+        batch_workspace
+    }
+
     // Attempt to deserialize batch, error results in sequencer slashing.
+    #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
     fn deserialize_batch(
         &self,
         blob_data: &mut impl BlobReaderTrait,
@@ -330,6 +361,7 @@ where
 
     // Stateless verification of transaction, such as signature check
     // Single malformed transaction results in sequencer slashing.
+    #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
     fn verify_txs_stateless(
         &self,
         batch: Batch,
@@ -345,6 +377,7 @@ where
 
     // Checks that runtime message can be decoded from transaction.
     // If a single message cannot be decoded, sequencer is slashed
+    #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
     fn decode_txs(
         &self,
         txs: &[TransactionAndRawHash<C>],

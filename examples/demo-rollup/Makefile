@@ -118,3 +118,13 @@ clean-mock-rollup-db:
 	fi
 	@echo removing rollup database "${path}"
 	rm -rf "${path}"
+
+
+clean-mock-rollup-db:
+	$(eval path := ./$(shell awk -F'=' '/^path/ {print $$2}' mock_rollup_config.toml | tr -d '[:space:]"\n'))
+	@if [ -z "${path}" ] || [ "${path}" = "./" ]; then \
+		echo "Path is empty or too short, not safe to remove"; \
+		exit 1; \
+	fi
+	@echo removing rollup database "${path}"
+	rm -rf "${path}"
