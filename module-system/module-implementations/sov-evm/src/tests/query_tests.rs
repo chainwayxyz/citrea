@@ -3,7 +3,7 @@ use std::str::FromStr;
 use alloy_primitives::{FixedBytes, Uint};
 use hex::FromHex;
 use reth_primitives::{Address, BlockId, BlockNumberOrTag, Bytes, U64};
-use reth_rpc_types::CallRequest;
+use reth_rpc_types::{CallInput, CallRequest};
 use revm::primitives::{SpecId, B256, KECCAK_EMPTY, U256};
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::utils::generate_address;
@@ -15,7 +15,7 @@ use crate::tests::genesis_tests::get_evm;
 use crate::tests::test_signer::TestSigner;
 use crate::{
     AccountData, EthApiError, Evm, EvmConfig, Filter, FilterBlockOption, FilterSet, LogsContract,
-    RlpEvmTransaction, SimpleStorageContract,
+    RlpEvmTransaction, RpcInvalidTransactionError, SimpleStorageContract,
 };
 
 type C = DefaultContext;
@@ -48,11 +48,10 @@ fn init_evm() -> (Evm<C>, WorkingSet<C>, TestSigner) {
             .as_slice(),
     );
 
-    let contract_addr2: Address = Address::from_slice(
-        hex::decode("819c5497b157177315e1204f52e588b393771720")
-            .unwrap()
-            .as_slice(),
-    );
+    let contract_addr2: Address =
+        Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap();
+
+    println!("{:?}", contract_addr2);
 
     evm.begin_slot_hook([5u8; 32], &[10u8; 32].into(), &mut working_set);
 
@@ -271,9 +270,11 @@ fn get_block_receipts_test() {
         .unwrap()
         .unwrap();
 
+    println!("{:?}", latest_block);
+
     assert_eq!(
         latest_block[0].block_hash.unwrap(),
-        FixedBytes::from_hex("0x252e6eb4c22f7210f1d156a0eef276dcaa2212c77e65333d705476e90a18756e")
+        FixedBytes::from_hex("0xfa9fe269fb508f673f4ead3944ca034319cbd7d21904fbe0c8b760bccc8f7626")
             .unwrap()
     );
 
@@ -281,7 +282,7 @@ fn get_block_receipts_test() {
 
     let tx_hashes = [
         "0x8898708f7c0977ffd5356261a4854385b0547ecc8f7e0597147049750d009718",
-        "0x252e6eb4c22f7210f1d156a0eef276dcaa2212c77e65333d705476e90a18756e",
+        "0xbf12f1b29686aaeb0cef695ce4bb60cfc6411cde1bafc6c117e1ab2efcf72c55",
     ];
 
     for i in 0..2 {
@@ -401,7 +402,7 @@ fn call_test() {
     let fail_result = evm.get_call(
         CallRequest {
             from: Some(signer.address()),
-            to: Some(Address::from_str("0x95222290DD7278Aa3Ddd389Cc1E1d165CC4BAfe5").unwrap()),
+            to: Some(Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap()),
             gas: Some(U256::from(100000)),
             gas_price: Some(U256::from(100000000)),
             max_fee_per_gas: None,
@@ -423,7 +424,67 @@ fn call_test() {
 
     assert_eq!(fail_result, Err(EthApiError::UnknownBlockNumber.into()));
 
-    // Here
+    let contract = SimpleStorageContract::default();
+    let call_data = contract.get_call_data().to_string();
+    println!("{:?}", contract.get_call_data().to_string());
+    println!(
+        "{:?}",
+        alloy_primitives::Bytes::from_str(&call_data).unwrap()
+    );
+
+    let nonce_too_low_result = evm.get_call(
+        CallRequest {
+            from: Some(signer.address()),
+            to: Some(Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap()),
+            gas: Some(U256::from(100000)),
+            gas_price: Some(U256::from(100000000)),
+            max_fee_per_gas: None,
+            max_priority_fee_per_gas: None,
+            value: Some(U256::from(100000000)),
+            input: CallInput::new(alloy_primitives::Bytes::from_str(&call_data).unwrap()),
+            nonce: Some(U64::from(7)),
+            chain_id: Some(U64::from(1u64)),
+            access_list: None,
+            max_fee_per_blob_gas: None,
+            blob_versioned_hashes: Some(vec![]),
+            transaction_type: None,
+        },
+        Some(BlockNumberOrTag::Number(3)),
+        None,
+        None,
+        &mut working_set,
+    );
+
+    assert_eq!(
+        nonce_too_low_result,
+        Err(RpcInvalidTransactionError::NonceTooLow.into())
+    );
+
+    // Execution Reverted - Why?
+    let result = evm.get_call(
+        CallRequest {
+            from: Some(signer.address()),
+            to: Some(Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap()),
+            gas: Some(U256::from(100000)),
+            gas_price: Some(U256::from(100000000)),
+            max_fee_per_gas: None,
+            max_priority_fee_per_gas: None,
+            value: Some(U256::from(100000000)),
+            input: CallInput::new(alloy_primitives::Bytes::from_str(&call_data).unwrap()),
+            nonce: Some(U64::from(9)),
+            chain_id: Some(U64::from(1u64)),
+            access_list: None,
+            max_fee_per_blob_gas: None,
+            blob_versioned_hashes: Some(vec![]),
+            transaction_type: None,
+        },
+        Some(BlockNumberOrTag::Number(3)),
+        None,
+        None,
+        &mut working_set,
+    );
+
+    println!("{:?}", result);
 }
 
 #[test]
