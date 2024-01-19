@@ -336,13 +336,14 @@ fn get_transaction_by_block_hash_and_index_test() {
         "0x17fa953338b32b30795ccb62f050f1c9bcdd48f4793fb2d6d34290b444841271",
         "0xd7e5b2bce65678b5e1a4430b1320b18a258fd5412e20bd5734f446124a9894e6",
     ];
-    for i in 0..4 {
+
+    for (i, tx_hash) in tx_hashes.iter().enumerate() {
         let result =
             evm.get_transaction_by_block_hash_and_index(hash, U64::from(i), &mut working_set);
 
         assert_eq!(
             result.unwrap().unwrap().hash,
-            FixedBytes::from_hex(tx_hashes[i]).unwrap()
+            FixedBytes::from_hex(tx_hash).unwrap()
         );
     }
 }
@@ -385,7 +386,7 @@ fn get_transaction_by_block_number_and_index_test() {
         "0x17fa953338b32b30795ccb62f050f1c9bcdd48f4793fb2d6d34290b444841271",
         "0xd7e5b2bce65678b5e1a4430b1320b18a258fd5412e20bd5734f446124a9894e6",
     ];
-    for i in 0..4 {
+    for (i, tx_hash) in tx_hashes.iter().enumerate() {
         let result = evm.get_transaction_by_block_number_and_index(
             BlockNumberOrTag::Number(2),
             U64::from(i),
@@ -394,7 +395,7 @@ fn get_transaction_by_block_number_and_index_test() {
 
         assert_eq!(
             result.unwrap().unwrap().hash,
-            FixedBytes::from_hex(tx_hashes[i]).unwrap()
+            FixedBytes::from_hex(tx_hash).unwrap()
         );
     }
 }
@@ -586,5 +587,5 @@ fn estimate_gas_test() {
         &mut working_set,
     );
 
-    assert_eq!(result.unwrap(), Uint::from_str("0x5bde").unwrap().into());
+    assert_eq!(result.unwrap(), Uint::from_str("0x5bde").unwrap());
 }
