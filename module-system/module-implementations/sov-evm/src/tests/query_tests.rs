@@ -1,10 +1,12 @@
+use std::collections::BTreeMap;
 use std::str::FromStr;
 
 use alloy_primitives::{FixedBytes, Uint};
 use hex::FromHex;
 use reth_primitives::{Address, BlockId, BlockNumberOrTag, Bytes, U64};
-use reth_rpc_types::{CallInput, CallRequest};
+use reth_rpc_types::{Block, CallInput, CallRequest, Rich, TransactionReceipt};
 use revm::primitives::{SpecId, B256, KECCAK_EMPTY, U256};
+use serde_json::json;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{Context, Module, WorkingSet};
@@ -153,28 +155,7 @@ fn get_block_by_hash_test() {
         .unwrap()
         .unwrap();
 
-    assert_eq!(
-        third_block.header.number.unwrap(),
-        alloy_primitives::U256::from(2u64)
-    );
-
-    assert_eq!(
-        third_block.header.hash,
-        Some(
-            FixedBytes::from_hex(
-                "0x463f932c9ef1c01a59f2495ddcb7ae16d1a4afc2b5f38998486c4bf16cc94a76"
-            )
-            .unwrap()
-        )
-    );
-
-    assert_eq!(
-        third_block.inner.header.gas_used,
-        alloy_primitives::U256::from_str(
-            "0x0000000000000000000000000000000000000000000000000000000000019c14"
-        )
-        .unwrap()
-    );
+    check_against_third_block(&third_block);
 }
 
 #[test]
@@ -191,7 +172,7 @@ fn get_block_by_number_test() {
     assert_eq!(result, Ok(None));
 
     // Is there any need to check with details = true?
-    let third_block = evm
+    let block = evm
         .get_block_by_number(
             Some(BlockNumberOrTag::Number(2)),
             Some(false),
@@ -200,28 +181,8 @@ fn get_block_by_number_test() {
         .unwrap()
         .unwrap();
 
-    assert_eq!(
-        third_block.header.hash,
-        Some(
-            FixedBytes::from_hex(
-                "0x463f932c9ef1c01a59f2495ddcb7ae16d1a4afc2b5f38998486c4bf16cc94a76"
-            )
-            .unwrap()
-        )
-    );
-
-    assert_eq!(
-        third_block.header.number.unwrap(),
-        alloy_primitives::U256::from(2u64)
-    );
-
-    assert_eq!(
-        third_block.inner.header.gas_used,
-        alloy_primitives::U256::from_str(
-            "0x0000000000000000000000000000000000000000000000000000000000019c14"
-        )
-        .unwrap()
-    );
+    // println!("{}", serde_json::to_string_pretty(&third_block).unwrap());
+    check_against_third_block(&block);
 }
 
 #[test]
@@ -248,57 +209,7 @@ fn get_block_receipts_test() {
         .unwrap()
         .unwrap();
 
-    assert_eq!(third_block_receipts.len(), 4);
-
-    let cumulative_gas_used_arr = [
-        "0x0000000000000000000000000000000000000000000000000000000000006720",
-        "0x000000000000000000000000000000000000000000000000000000000000ce1c",
-        "0x0000000000000000000000000000000000000000000000000000000000013518",
-        "0x0000000000000000000000000000000000000000000000000000000000019c14",
-    ]; // Removed _U256 suffix
-
-    for i in 0..4 {
-        assert_eq!(
-            third_block_receipts[i].transaction_index,
-            alloy_primitives::U64::from(i)
-        );
-        assert_eq!(third_block_receipts[i].logs.len(), 2);
-        assert_eq!(
-            third_block_receipts[i].cumulative_gas_used,
-            U256::from_str(cumulative_gas_used_arr[i]).unwrap()
-        );
-    }
-
-    let latest_block = evm
-        .get_block_receipts(BlockId::Number(BlockNumberOrTag::Latest), &mut working_set)
-        .unwrap()
-        .unwrap();
-
-    println!("{:?}", latest_block);
-
-    assert_eq!(
-        latest_block[0].block_hash.unwrap(),
-        FixedBytes::from_hex("0xfa9fe269fb508f673f4ead3944ca034319cbd7d21904fbe0c8b760bccc8f7626")
-            .unwrap()
-    );
-
-    assert_eq!(latest_block.len(), 2);
-
-    let tx_hashes = [
-        "0x8898708f7c0977ffd5356261a4854385b0547ecc8f7e0597147049750d009718",
-        "0xbf12f1b29686aaeb0cef695ce4bb60cfc6411cde1bafc6c117e1ab2efcf72c55",
-    ];
-
-    for i in 0..2 {
-        assert_eq!(
-            latest_block[i].transaction_index,
-            alloy_primitives::U64::from(i)
-        );
-        assert_eq!(
-            latest_block[i].transaction_hash,
-            Some(FixedBytes::from_hex(tx_hashes[i]).unwrap())
-        );
-    }
+    check_against_third_block_receipts(third_block_receipts);
 }
 
 #[test]
@@ -588,4 +499,49 @@ fn estimate_gas_test() {
     );
 
     assert_eq!(result.unwrap(), Uint::from_str("0x5bde").unwrap());
+}
+
+fn check_against_third_block(block: &Rich<Block>) {
+    // details = false
+    let inner_block = serde_json::from_value::<Block>(json!({
+        "hash": "0x463f932c9ef1c01a59f2495ddcb7ae16d1a4afc2b5f38998486c4bf16cc94a76",
+        "parentHash": "0xddd453655668dbc6c321f40f377574791c2ea377c8407e302b0af5d45e5424a0",
+        "sha3Uncles": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
+        "miner": "0x0000000000000000000000000000000000000000",
+        "stateRoot": "0x6464646464646464646464646464646464646464646464646464646464646464",
+        "transactionsRoot": "0xef32d81a36e83472e84e033022e11d89a50d466cacc17bac6be1c981205330a3",
+        "receiptsRoot": "0xf966e7c620235a408862e853eb0cd7e74c28abac1dece96c4440cd5b991d9058",
+        "logsBloom": "0x00000000000000000000000000004000001000000000000000002000000000000000801000000000200000000000000000000000000000000000000000000000000020000000000000000000000000000000000000400000000000000000000008000000000000000000000000000400000000000000000000000000000000000040000000000000000000000800000000001100800000000000000000000000000000044000000000004000000000000000003000000000020001000000000000000000000000000000000000000000000000000000000000010000000000000000000000400000000000000000000000800000010000080000000000000000",
+        "difficulty": "0x0",
+        "number": "0x2",
+        "gasLimit": "0x1c9c380",
+        "gasUsed": "0x19c14",
+        "timestamp": "0x18",
+        "extraData": "0x",
+        "mixHash": "0x0808080808080808080808080808080808080808080808080808080808080808",
+        "nonce": "0x0000000000000000",
+        "baseFeePerGas": "0x2dbf4076",
+        "totalDifficulty": "0x0",
+        "uncles": [],
+        "transactions": [
+            "0x2ff3a833e99d5a97e26f912c2e855f95e2dda542c89131fea0d189889d384d99",
+            "0xa69485c543cd51dc1856619f3ddb179416af040da2835a10405c856cd5fb41b8",
+            "0x17fa953338b32b30795ccb62f050f1c9bcdd48f4793fb2d6d34290b444841271",
+            "0xd7e5b2bce65678b5e1a4430b1320b18a258fd5412e20bd5734f446124a9894e6"
+        ],
+        "size": null
+    })).unwrap();
+
+    let rich_block: Rich<Block> = Rich {
+        inner: inner_block,
+        extra_info: BTreeMap::new(),
+    };
+
+    assert_eq!(block, &rich_block);
+}
+
+fn check_against_third_block_receipts(receipts: Vec<TransactionReceipt>) {
+    let test_recepits = serde_json::from_value::<Vec<TransactionReceipt>>(json!("[\n  {\n    \"transactionHash\": \"0x2ff3a833e99d5a97e26f912c2e855f95e2dda542c89131fea0d189889d384d99\",\n    \"transactionIndex\": \"0x0\",\n    \"blockHash\": \"0x463f932c9ef1c01a59f2495ddcb7ae16d1a4afc2b5f38998486c4bf16cc94a76\",\n    \"blockNumber\": \"0x2\",\n    \"cumulativeGasUsed\": \"0x6720\",\n    \"gasUsed\": \"0x6720\",\n    \"effectiveGasPrice\": \"0x2dbf4076\",\n    \"from\": \"0x9e1abd37ec34bbc688b6a2b7d9387d9256cf1773\",\n    \"to\": \"0x819c5497b157177315e1204f52e588b393771719\",\n    \"contractAddress\": null,\n    \"logs\": [\n      {\n        \"address\": \"0x819c5497b157177315e1204f52e588b393771719\",\n        \"topics\": [\n          \"0xa9943ee9804b5d456d8ad7b3b1b975a5aefa607e16d13936959976e776c4bec7\",\n          \"0x0000000000000000000000009e1abd37ec34bbc688b6a2b7d9387d9256cf1773\",\n          \"0x000000000000000000000000819c5497b157177315e1204f52e588b393771719\",\n          \"0x6d91615c65c0e8f861b0fbfce2d9897fb942293e341eda10c91a6912c4f32668\"\n        ],\n        \"data\": \"0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000c48656c6c6f20576f726c64210000000000000000000000000000000000000000\",\n        \"blockHash\": \"0x463f932c9ef1c01a59f2495ddcb7ae16d1a4afc2b5f38998486c4bf16cc94a76\",\n        \"blockNumber\": \"0x2\",\n        \"transactionHash\": \"0x2ff3a833e99d5a97e26f912c2e855f95e2dda542c89131fea0d189889d384d99\",\n        \"transactionIndex\": \"0x0\",\n        \"logIndex\": \"0x0\",\n        \"removed\": false\n      },\n      {\n        \"address\": \"0x819c5497b157177315e1204f52e588b393771719\",\n        \"topics\": [\n          \"0xf16dfb875e436384c298237e04527f538a5eb71f60593cfbaae1ff23250d22a9\",\n          \"0x000000000000000000000000819c5497b157177315e1204f52e588b393771719\"\n        ],\n        \"data\": \"0x\",\n        \"blockHash\": \"0x463f932c9ef1c01a59f2495ddcb7ae16d1a4afc2b5f38998486c4bf16cc94a76\",\n        \"blockNumber\": \"0x2\",\n        \"transactionHash\": \"0x2ff3a833e99d5a97e26f912c2e855f95e2dda542c89131fea0d189889d384d99\",\n        \"transactionIndex\": \"0x0\",\n        \"logIndex\": \"0x1\",\n        \"removed\": false\n      }\n    ],\n    \"logsBloom\": \"0x00000000000000000000000000000000000000000000000000000000000000000000801000000000200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000400000000000000000000008000000000000000000000000000400000000000000000000000000000000000000000000000000000000000800000000001000800000000000000000000000000000044000000000000000000000000000003000000000020000000000000000000000000000000000000000000000000000000000000000010000000000000000000000400000000000000000000000800000000000080000000000000000\",\n    \"status\": \"0x1\",\n    \"type\": \"0x2\"\n  },\n  {\n    \"transactionHash\": \"0xa69485c543cd51dc1856619f3ddb179416af040da2835a10405c856cd5fb41b8\",\n    \"transactionIndex\": \"0x1\",\n    \"blockHash\": \"0x463f932c9ef1c01a59f2495ddcb7ae16d1a4afc2b5f38998486c4bf16cc94a76\",\n    \"blockNumber\": \"0x2\",\n    \"cumulativeGasUsed\": \"0xce1c\",\n    \"gasUsed\": \"0x66fc\",\n    \"effectiveGasPrice\": \"0x2dbf4076\",\n    \"from\": \"0x9e1abd37ec34bbc688b6a2b7d9387d9256cf1773\",\n    \"to\": \"0x819c5497b157177315e1204f52e588b393771719\",\n    \"contractAddress\": null,\n    \"logs\": [\n      {\n        \"address\": \"0x819c5497b157177315e1204f52e588b393771719\",\n        \"topics\": [\n          \"0xa9943ee9804b5d456d8ad7b3b1b975a5aefa607e16d13936959976e776c4bec7\",\n          \"0x0000000000000000000000009e1abd37ec34bbc688b6a2b7d9387d9256cf1773\",\n          \"0x000000000000000000000000819c5497b157177315e1204f52e588b393771719\",\n          \"0x63b901bb1c5ce387d96b2fa4dea95d718cf56095f6c1c7539385849cc23324e1\"\n        ],\n        \"data\": \"0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000c48656c6c6f20576f726c64210000000000000000000000000000000000000000\",\n        \"blockHash\": \"0x463f932c9ef1c01a59f2495ddcb7ae16d1a4afc2b5f38998486c4bf16cc94a76\",\n        \"blockNumber\": \"0x2\",\n        \"transactionHash\": \"0xa69485c543cd51dc1856619f3ddb179416af040da2835a10405c856cd5fb41b8\",\n        \"transactionIndex\": \"0x1\",\n        \"logIndex\": \"0x2\",\n        \"removed\": false\n      },\n      {\n        \"address\": \"0x819c5497b157177315e1204f52e588b393771719\",\n        \"topics\": [\n          \"0xf16dfb875e436384c298237e04527f538a5eb71f60593cfbaae1ff23250d22a9\",\n          \"0x000000000000000000000000819c5497b157177315e1204f52e588b393771719\"\n        ],\n        \"data\": \"0x\",\n        \"blockHash\": \"0x463f932c9ef1c01a59f2495ddcb7ae16d1a4afc2b5f38998486c4bf16cc94a76\",\n        \"blockNumber\": \"0x2\",\n        \"transactionHash\": \"0xa69485c543cd51dc1856619f3ddb179416af040da2835a10405c856cd5fb41b8\",\n        \"transactionIndex\": \"0x1\",\n        \"logIndex\": \"0x3\",\n        \"removed\": false\n      }\n    ],\n    \"logsBloom\": \"0x00000000000000000000000000000000001000000000000000002000000000000000801000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000400000000000000000000008000000000000000000000000000400000000000000000000000000000000000000000000000000000000000800000000001000800000000000000000000000000000044000000000000000000000000000001000000000020000000000000000000000000000000000000000000000000000000000000000010000000000000000000000400000000000000000000000800000000000000000000000000000\",\n    \"status\": \"0x1\",\n    \"type\": \"0x2\"\n  },\n  {\n    \"transactionHash\": \"0x17fa953338b32b30795ccb62f050f1c9bcdd48f4793fb2d6d34290b444841271\",\n    \"transactionIndex\": \"0x2\",\n    \"blockHash\": \"0x463f932c9ef1c01a59f2495ddcb7ae16d1a4afc2b5f38998486c4bf16cc94a76\",\n    \"blockNumber\": \"0x2\",\n    \"cumulativeGasUsed\": \"0x13518\",\n    \"gasUsed\": \"0x66fc\",\n    \"effectiveGasPrice\": \"0x2dbf4076\",\n    \"from\": \"0x9e1abd37ec34bbc688b6a2b7d9387d9256cf1773\",\n    \"to\": \"0x819c5497b157177315e1204f52e588b393771719\",\n    \"contractAddress\": null,\n    \"logs\": [\n      {\n        \"address\": \"0x819c5497b157177315e1204f52e588b393771719\",\n        \"topics\": [\n          \"0xa9943ee9804b5d456d8ad7b3b1b975a5aefa607e16d13936959976e776c4bec7\",\n          \"0x0000000000000000000000009e1abd37ec34bbc688b6a2b7d9387d9256cf1773\",\n          \"0x000000000000000000000000819c5497b157177315e1204f52e588b393771719\",\n          \"0x5188fc8ba319bea37b8a074fdec21db88eef23191a849074ae8d6df8b2a32364\"\n        ],\n        \"data\": \"0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000c48656c6c6f20576f726c64210000000000000000000000000000000000000000\",\n        \"blockHash\": \"0x463f932c9ef1c01a59f2495ddcb7ae16d1a4afc2b5f38998486c4bf16cc94a76\",\n        \"blockNumber\": \"0x2\",\n        \"transactionHash\": \"0x17fa953338b32b30795ccb62f050f1c9bcdd48f4793fb2d6d34290b444841271\",\n        \"transactionIndex\": \"0x2\",\n        \"logIndex\": \"0x4\",\n        \"removed\": false\n      },\n      {\n        \"address\": \"0x819c5497b157177315e1204f52e588b393771719\",\n        \"topics\": [\n          \"0xf16dfb875e436384c298237e04527f538a5eb71f60593cfbaae1ff23250d22a9\",\n          \"0x000000000000000000000000819c5497b157177315e1204f52e588b393771719\"\n        ],\n        \"data\": \"0x\",\n        \"blockHash\": \"0x463f932c9ef1c01a59f2495ddcb7ae16d1a4afc2b5f38998486c4bf16cc94a76\",\n        \"blockNumber\": \"0x2\",\n        \"transactionHash\": \"0x17fa953338b32b30795ccb62f050f1c9bcdd48f4793fb2d6d34290b444841271\",\n        \"transactionIndex\": \"0x2\",\n        \"logIndex\": \"0x5\",\n        \"removed\": false\n      }\n    ],\n    \"logsBloom\": \"0x00000000000000000000000000000000000000000000000000000000000000000000801000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000400000000000000000000008000000000000000000000000000400000000000000000000000000000000000040000000000000000000000800000000001100800000000000000000000000000000044000000000000000000000000000001000000000020000000000000000000000000000000000000000000000000000000000000000010000000000000000000000400000000000000000000000800000010000000000000000000000\",\n    \"status\": \"0x1\",\n    \"type\": \"0x2\"\n  },\n  {\n    \"transactionHash\": \"0xd7e5b2bce65678b5e1a4430b1320b18a258fd5412e20bd5734f446124a9894e6\",\n    \"transactionIndex\": \"0x3\",\n    \"blockHash\": \"0x463f932c9ef1c01a59f2495ddcb7ae16d1a4afc2b5f38998486c4bf16cc94a76\",\n    \"blockNumber\": \"0x2\",\n    \"cumulativeGasUsed\": \"0x19c14\",\n    \"gasUsed\": \"0x66fc\",\n    \"effectiveGasPrice\": \"0x2dbf4076\",\n    \"from\": \"0x9e1abd37ec34bbc688b6a2b7d9387d9256cf1773\",\n    \"to\": \"0x819c5497b157177315e1204f52e588b393771719\",\n    \"contractAddress\": null,\n    \"logs\": [\n      {\n        \"address\": \"0x819c5497b157177315e1204f52e588b393771719\",\n        \"topics\": [\n          \"0xa9943ee9804b5d456d8ad7b3b1b975a5aefa607e16d13936959976e776c4bec7\",\n          \"0x0000000000000000000000009e1abd37ec34bbc688b6a2b7d9387d9256cf1773\",\n          \"0x000000000000000000000000819c5497b157177315e1204f52e588b393771719\",\n          \"0x29d61b64fc4b3d3e07e2692f6bc997236f115e546fae45393595f0cb0acbc4a0\"\n        ],\n        \"data\": \"0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000c48656c6c6f20576f726c64210000000000000000000000000000000000000000\",\n        \"blockHash\": \"0x463f932c9ef1c01a59f2495ddcb7ae16d1a4afc2b5f38998486c4bf16cc94a76\",\n        \"blockNumber\": \"0x2\",\n        \"transactionHash\": \"0xd7e5b2bce65678b5e1a4430b1320b18a258fd5412e20bd5734f446124a9894e6\",\n        \"transactionIndex\": \"0x3\",\n        \"logIndex\": \"0x6\",\n        \"removed\": false\n      },\n      {\n        \"address\": \"0x819c5497b157177315e1204f52e588b393771719\",\n        \"topics\": [\n          \"0xf16dfb875e436384c298237e04527f538a5eb71f60593cfbaae1ff23250d22a9\",\n          \"0x000000000000000000000000819c5497b157177315e1204f52e588b393771719\"\n        ],\n        \"data\": \"0x\",\n        \"blockHash\": \"0x463f932c9ef1c01a59f2495ddcb7ae16d1a4afc2b5f38998486c4bf16cc94a76\",\n        \"blockNumber\": \"0x2\",\n        \"transactionHash\": \"0xd7e5b2bce65678b5e1a4430b1320b18a258fd5412e20bd5734f446124a9894e6\",\n        \"transactionIndex\": \"0x3\",\n        \"logIndex\": \"0x7\",\n        \"removed\": false\n      }\n    ],\n    \"logsBloom\": \"0x00000000000000000000000000004000000000000000000000000000000000000000801000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000400000000000000000000008000000000000000000000000000400000000000000000000000000000000000000000000000000000000000800000000001000800000000000000000000000000000044000000000004000000000000000001000000000020001000000000000000000000000000000000000000000000000000000000000010000000000000000000000400000000000000000000000800000000000000000000000000000\",\n    \"status\": \"0x1\",\n    \"type\": \"0x2\"\n  }\n]")).unwrap();
+
+    assert_eq!(receipts, test_recepits)
 }
