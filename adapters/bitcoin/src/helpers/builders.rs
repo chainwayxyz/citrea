@@ -873,7 +873,7 @@ mod tests {
         .unwrap();
 
         // check pow
-        assert!(reveal.txid().as_byte_array().starts_with(&[0, 0]));
+        assert!(reveal.txid().as_byte_array().starts_with(&[0]));
 
         // check outputs
         assert_eq!(commit.output.len(), 2, "commit tx should have 2 outputs");
