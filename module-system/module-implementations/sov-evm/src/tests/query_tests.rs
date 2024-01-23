@@ -55,9 +55,6 @@ fn init_evm() -> (Evm<C>, WorkingSet<C>, TestSigner) {
             .unwrap()
             .as_slice(),
     );
-    // Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap();
-
-    // println!("{:?}", contract_addr2);
 
     evm.begin_slot_hook([5u8; 32], &[10u8; 32].into(), &mut working_set);
 
@@ -181,7 +178,6 @@ fn get_block_by_number_test() {
         .unwrap()
         .unwrap();
 
-    // println!("{}", serde_json::to_string_pretty(&third_block).unwrap());
     check_against_third_block(&block);
 }
 
@@ -401,6 +397,40 @@ fn call_test() {
         result.to_string(),
         "0x00000000000000000000000000000000000000000000000000000000000001de"
     );
+
+    let result = evm
+        .get_call(
+            CallRequest {
+                from: Some(signer.address()),
+                to: Some(Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap()),
+                gas: None,
+                gas_price: None,
+                max_fee_per_gas: None,
+                max_priority_fee_per_gas: None,
+                value: None,
+                input: CallInput::new(alloy_primitives::Bytes::from_str(&call_data).unwrap()),
+                nonce: None,
+                chain_id: None,
+                access_list: None,
+                max_fee_per_blob_gas: None,
+                blob_versioned_hashes: None,
+                transaction_type: None,
+            },
+            // How does this work precisely? In the first block, the contract was not there?
+            Some(BlockNumberOrTag::Number(1)),
+            None,
+            None,
+            &mut working_set,
+        )
+        .unwrap();
+
+    assert_eq!(
+        result.to_string(),
+        "0x00000000000000000000000000000000000000000000000000000000000001de"
+    );
+
+    // TODO: Test these even further, to the extreme.
+    // https://github.com/chainwayxyz/secret-sovereign-sdk/issues/134
 }
 
 #[test]
@@ -499,6 +529,9 @@ fn estimate_gas_test() {
     );
 
     assert_eq!(result.unwrap(), Uint::from_str("0x5bde").unwrap());
+
+    // TODO: Test these even further, to the extreme.
+    // https://github.com/chainwayxyz/secret-sovereign-sdk/issues/134
 }
 
 fn check_against_third_block(block: &Rich<Block>) {
