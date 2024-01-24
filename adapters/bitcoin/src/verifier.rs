@@ -91,8 +91,8 @@ impl DaVerifier for BitcoinVerifier {
 
         let mut prev_index_in_inclusion = 0;
 
-        let tx_id_prefix_len = self.reveal_tx_id_prefix.len();
-        // Check every 00 bytes tx that parsed correctly is in blobs
+        let prefix = self.reveal_tx_id_prefix.as_slice();
+        // Check starting bytes tx that parsed correctly is in blobs
         let mut completeness_tx_hashes = completeness_proof
             .iter()
             .enumerate()
@@ -100,9 +100,8 @@ impl DaVerifier for BitcoinVerifier {
                 let tx_hash = tx.txid().to_raw_hash().to_byte_array();
 
                 // make sure it starts with the correct prefix
-                assert_eq!(
-                    tx_hash[0..tx_id_prefix_len],
-                    self.reveal_tx_id_prefix,
+                assert!(
+                    tx_hash.starts_with(prefix),
                     "non-relevant tx found in completeness proof"
                 );
 
@@ -165,8 +164,8 @@ impl DaVerifier for BitcoinVerifier {
 
         // no prefix bytes left behind completeness proof
         inclusion_proof.txs.iter().for_each(|tx_hash| {
-            if tx_hash[0..tx_id_prefix_len] == self.reveal_tx_id_prefix {
-                // assert all 00 transactions are included in completeness proof
+            if tx_hash.starts_with(prefix) {
+                // assert all prefixed transactions are included in completeness proof
                 assert!(
                     completeness_tx_hashes.remove(tx_hash),
                     "relevant transaction in DA block was not included in completeness proof"
