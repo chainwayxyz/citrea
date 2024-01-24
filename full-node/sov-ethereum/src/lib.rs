@@ -225,14 +225,13 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
         Ok::<U256, ErrorObjectOwned>(max_fee_per_gas)
     })?;
 
-    // TODO: parse parameters one by one
     rpc.register_async_method("eth_feeHistory", |params, ethereum| async move {
         info!("eth module: eth_feeHistory");
-        let (block_count, newest_block, reward_percentiles): (
-            String,
-            BlockNumberOrTag,
-            Option<Vec<f64>>,
-        ) = params.parse()?;
+        let mut params = params.sequence();
+
+        let block_count: String = params.next().unwrap();
+        let newest_block: BlockNumberOrTag = params.next().unwrap();
+        let reward_percentiles: Option<Vec<f64>> = params.next().unwrap();
 
         // convert block count to u64 from hex
         let block_count = u64::from_str_radix(&block_count[2..], 16)
