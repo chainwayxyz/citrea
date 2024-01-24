@@ -184,11 +184,16 @@ pub trait RollupBlueprint: Sized + Send + Sync {
 
         let native_stf = StfBlueprint::new();
 
+        let genesis_root = prover_storage.get_root_hash(0);
+
         let init_variant = match prev_root {
             Some(root_hash) => InitVariant::Initialized(root_hash),
-            None => InitVariant::Genesis {
-                block_header: last_finalized_block_header.clone(),
-                genesis_params: genesis_config,
+            None => match genesis_root {
+                Ok(root_hash) => InitVariant::Initialized(root_hash),
+                _ => InitVariant::Genesis {
+                    block_header: last_finalized_block_header.clone(),
+                    genesis_params: genesis_config,
+                },
             },
         };
 

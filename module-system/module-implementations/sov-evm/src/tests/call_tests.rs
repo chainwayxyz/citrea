@@ -903,7 +903,7 @@ fn set_selfdestruct_arg_message(
         .unwrap()
 }
 
-fn set_arg_message(
+pub(crate) fn set_arg_message(
     contract_addr: Address,
     dev_signer: &TestSigner,
     nonce: u64,

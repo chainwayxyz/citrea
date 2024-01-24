@@ -38,6 +38,7 @@ pub struct BitcoinService {
     network: bitcoin::Network,
     address: Address<NetworkUnchecked>,
     sequencer_da_private_key: SecretKey,
+    reveal_tx_leading_zero_count: usize,
 }
 
 /// Runtime configuration for the DA service
@@ -60,6 +61,9 @@ pub struct DaServiceConfig {
 
     // number of last paid fee rates to average if estimation fails
     pub fee_rates_to_avg: Option<usize>,
+
+    // number of leading zeros in the reveal tx hash
+    pub reveal_tx_leading_zero_count: usize,
 }
 
 const FINALITY_DEPTH: u64 = 4; // blocks
@@ -90,6 +94,7 @@ impl BitcoinService {
             network,
             address,
             private_key,
+            config.reveal_tx_leading_zero_count,
         )
         .await
     }
@@ -100,6 +105,7 @@ impl BitcoinService {
         network: bitcoin::Network,
         address: Address<NetworkUnchecked>,
         sequencer_da_private_key: SecretKey,
+        reveal_tx_leading_zero_count: usize,
     ) -> Self {
         // We can't store address with the network check because it's not serializable
         address
@@ -122,6 +128,7 @@ impl BitcoinService {
             network,
             address,
             sequencer_da_private_key,
+            reveal_tx_leading_zero_count,
         }
     }
 
@@ -164,6 +171,7 @@ impl BitcoinService {
             fee_sat_per_vbyte,
             fee_sat_per_vbyte,
             network,
+            self.reveal_tx_leading_zero_count,
         )?;
 
         // sign inscribe transactions
@@ -471,6 +479,7 @@ mod tests {
                 "E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67FC233AA33262".to_string(), // Test key, safe to publish
             ),
             fee_rates_to_avg: Some(2), // small to speed up tests
+            reveal_tx_leading_zero_count: 0,
         };
 
         BitcoinService::new(

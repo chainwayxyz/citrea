@@ -348,7 +348,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "anstream"
+name = "anstream
 version = "0.6.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6e2e1ebcb11de5c03c67de28a7df593d32191b44939c482e97702baaaa6ab6a5"

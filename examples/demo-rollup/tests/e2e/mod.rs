@@ -590,6 +590,105 @@ async fn test_soft_confirmations_on_different_blocks() -> Result<(), anyhow::Err
     Ok(())
 }
 
+#[tokio::test]
+async fn test_reopen_sequencer() -> Result<(), anyhow::Error> {
+    // open, close without publishing blokcs
+    // then reopen, publish some blocks without error
+    // Remove temp db directories if they exist
+    let _ = fs::remove_dir_all(Path::new("demo_data_test_reopen_sequencer_copy"));
+    let _ = fs::remove_dir_all(Path::new("demo_data_test_reopen_sequencer"));
+
+    let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
+
+    let seq_task = tokio::spawn(async {
+        start_rollup(
+            seq_port_tx,
+            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
+            BasicKernelGenesisPaths {
+                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
+            },
+            RollupProverConfig::Execute,
+            NodeMode::SequencerNode,
+            Some("demo_data_test_reopen_sequencer"),
+        )
+        .await;
+    });
+
+    let seq_port = seq_port_rx.await.unwrap();
+
+    let seq_test_client = init_test_rollup(seq_port).await;
+
+    let block = seq_test_client
+        .eth_get_block_by_number(Some(BlockNumberOrTag::Latest))
+        .await;
+    assert_eq!(block.number.unwrap().as_u64(), 0);
+
+    // close sequencer
+    seq_task.abort();
+
+    sleep(Duration::from_secs(1)).await;
+
+    let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
+
+    // Copy the db to a new path with the same contents because
+    // the lock is not released on the db directory even though the task is aborted
+    let _ = copy_dir_recursive(
+        Path::new("demo_data_test_reopen_sequencer"),
+        Path::new("demo_data_test_reopen_sequencer_copy"),
+    );
+
+    sleep(Duration::from_secs(1)).await;
+
+    let seq_task = tokio::spawn(async {
+        start_rollup(
+            seq_port_tx,
+            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
+            BasicKernelGenesisPaths {
+                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
+            },
+            RollupProverConfig::Execute,
+            NodeMode::SequencerNode,
+            Some("demo_data_test_reopen_sequencer_copy"),
+        )
+        .await;
+    });
+
+    let seq_port = seq_port_rx.await.unwrap();
+
+    let seq_test_client = make_test_client(seq_port).await;
+
+    let seq_last_block = seq_test_client
+        .eth_get_block_by_number(Some(BlockNumberOrTag::Latest))
+        .await;
+
+    // make sure the state roots are the same
+    assert_eq!(seq_last_block.state_root, block.state_root);
+    assert_eq!(
+        seq_last_block.number.unwrap().as_u64(),
+        block.number.unwrap().as_u64()
+    );
+
+    seq_test_client.send_publish_batch_request().await;
+    seq_test_client.send_publish_batch_request().await;
+
+    assert_eq!(
+        seq_test_client
+            .eth_get_block_by_number(Some(BlockNumberOrTag::Latest))
+            .await
+            .number
+            .unwrap()
+            .as_u64(),
+        2
+    );
+
+    fs::remove_dir_all(Path::new("demo_data_test_reopen_sequencer_copy")).unwrap();
+    fs::remove_dir_all(Path::new("demo_data_test_reopen_sequencer")).unwrap();
+
+    seq_task.abort();
+
+    Ok(())
+}
+
 fn copy_dir_recursive(src: &Path, dst: &Path) -> std::io::Result<()> {
     if !dst.exists() {
         fs::create_dir(dst)?;

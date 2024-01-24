@@ -114,7 +114,7 @@ impl Default for EvmChainConfig {
             spec: vec![(0, SpecId::SHANGHAI)],
             coinbase: Address::ZERO,
             block_gas_limit: reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT,
-            block_timestamp_delta: 1,
+            block_timestamp_delta: 2,
             base_fee_params: BaseFeeParams::ethereum(),
         }
     }
