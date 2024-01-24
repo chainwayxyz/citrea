@@ -546,12 +546,17 @@ impl<C: sov_modules_api::Context> Evm<C> {
             Some(BlockNumberOrTag::Pending) => {
                 self.block_env.get(working_set).unwrap_or_default().clone()
             }
+            None | Some(BlockNumberOrTag::Latest) => {
+                // so we don't unnecessarily set archival version
+                self.block_env.get(working_set).unwrap_or_default().clone()
+            }
             _ => {
                 let block = match self.get_sealed_block_by_number(block_number, working_set) {
                     Some(block) => block,
                     None => return Err(EthApiError::UnknownBlockNumber.into()),
                 };
 
+                working_set.set_archival_version(block.header.number);
                 BlockEnv::from(&block)
             }
         };
@@ -604,12 +609,17 @@ impl<C: sov_modules_api::Context> Evm<C> {
             Some(BlockNumberOrTag::Pending) => {
                 self.block_env.get(working_set).unwrap_or_default().clone()
             }
+            None | Some(BlockNumberOrTag::Latest) => {
+                // so we don't unnecessarily set archival version
+                self.block_env.get(working_set).unwrap_or_default().clone()
+            }
             _ => {
                 let block = match self.get_sealed_block_by_number(block_number, working_set) {
                     Some(block) => block,
                     None => return Err(EthApiError::UnknownBlockNumber.into()),
                 };
 
+                working_set.set_archival_version(block.header.number);
                 BlockEnv::from(&block)
             }
         };
