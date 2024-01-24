@@ -739,19 +739,10 @@ async fn execute_blocks(
     sequencer_client.send_publish_batch_request().await;
 
     {
-        let mut nonce = sequencer_client
-            .eth_get_transaction_count(sequencer_client.from_addr, None)
-            .await
-            .unwrap();
         for temp in 0..10 {
             let _set_value_req = sequencer_client
-                .contract_transaction(
-                    contract_address,
-                    contract.set_call_data(78 + temp),
-                    Some(nonce),
-                )
+                .contract_transaction(contract_address, contract.set_call_data(78 + temp), None)
                 .await;
-            nonce += 1;
         }
         sequencer_client.send_publish_batch_request().await;
     }
