@@ -140,7 +140,7 @@ fn init_evm() -> (Evm<C>, WorkingSet<C>, TestSigner) {
 
     commit(working_set, prover_storage.clone());
 
-    let mut working_set: WorkingSet<DefaultContext> = WorkingSet::new(prover_storage.clone());
+    let working_set: WorkingSet<DefaultContext> = WorkingSet::new(prover_storage.clone());
 
     (evm, working_set, dev_signer)
 }
