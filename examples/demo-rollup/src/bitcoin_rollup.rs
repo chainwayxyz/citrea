@@ -14,6 +14,7 @@ use sov_modules_stf_blueprint::kernels::basic::BasicKernel;
 use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_risc0_adapter::host::Risc0Host;
+use sov_rollup_interface::da::DaVerifier;
 use sov_rollup_interface::zk::ZkvmHost;
 use sov_state::{DefaultStorageSpec, Storage, ZkStorage};
 use sov_stf_runner::{ParallelProverService, RollupConfig, RollupProverConfig};
@@ -118,10 +119,10 @@ impl RollupBlueprint for BitcoinRollup {
         let zk_stf = StfBlueprint::new();
         let zk_storage = ZkStorage::new();
 
-        let da_verifier = BitcoinVerifier {
+        let da_verifier = BitcoinVerifier::new(RollupParams {
             rollup_name: ROLLUP_NAME.to_string(),
             reveal_tx_id_prefix: DA_TX_ID_LEADING_ZEROS.to_vec(),
-        };
+        });
 
         ParallelProverService::new_with_default_workers(
             vm,
