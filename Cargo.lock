@@ -181,7 +181,7 @@ dependencies = [
 [[package]]
 name = "alloy-genesis"
 version = "0.1.0"
-source = "git+https://github.com/alloy-rs/alloy#269d9028b057592186d225faa18a7aaed7120027"
+source = "git+https://github.com/alloy-rs/alloy#d68e1103bda0a0b95e1928c56091dc48e64c95de"
 dependencies = [
  "alloy-primitives",
  "alloy-rpc-types",
@@ -236,7 +236,7 @@ dependencies = [
 [[package]]
 name = "alloy-rpc-engine-types"
 version = "0.1.0"
-source = "git+https://github.com/alloy-rs/alloy#269d9028b057592186d225faa18a7aaed7120027"
+source = "git+https://github.com/alloy-rs/alloy#d68e1103bda0a0b95e1928c56091dc48e64c95de"
 dependencies = [
  "alloy-primitives",
  "alloy-rlp",

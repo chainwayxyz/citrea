@@ -1,12 +1,9 @@
 use demo_stf::genesis_config::GenesisPaths;
-
 use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
 use sov_stf_runner::RollupProverConfig;
 
 use crate::evm::make_test_client;
-
 // use sov_demo_rollup::initialize_logging;
-
 use crate::test_helpers::{start_rollup, NodeMode};
 
 /// Transaction with equal nonce to last tx should not be accepted by mempool.
