@@ -52,6 +52,7 @@ members = [
     "module-system/module-implementations/examples/sov-vec-setter",
     "module-system/module-implementations/examples/sov-accessory-state",
     "module-system/module-implementations/integration-tests",
+    "module-system/module-implementations/soft-confirmation-rule-enforcer",
 ]
 
 [workspace.package]

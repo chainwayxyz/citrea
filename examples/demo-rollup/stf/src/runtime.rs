@@ -32,6 +32,10 @@
 
 #![allow(unused_doc_comments)]
 #[cfg(feature = "native")]
+use soft_confirmation_rule_enforcer::{
+    SoftConfirmationRuleEnforcerRpcImpl, SoftConfirmationRuleEnforcerRpcServer,
+};
+#[cfg(feature = "native")]
 use sov_accounts::{AccountsRpcImpl, AccountsRpcServer};
 #[cfg(feature = "native")]
 use sov_bank::{BankRpcImpl, BankRpcServer};
@@ -75,6 +79,9 @@ pub struct Runtime<C: Context, Da: DaSpec> {
     #[cfg_attr(feature = "native", cli_skip)]
     /// The EVM module.
     pub evm: sov_evm::Evm<C>,
+    /// The soft confirmation rule enforcer module.
+    pub soft_confirmation_rule_enforcer:
+        soft_confirmation_rule_enforcer::SoftConfirmationRuleEnforcer<C>,
 }
 
 impl<C, Da> sov_modules_stf_blueprint::Runtime<C, Da> for Runtime<C, Da>
