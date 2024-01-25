@@ -624,7 +624,7 @@ fn check_against_third_block(block: &Rich<Block>) {
             "0x17fa953338b32b30795ccb62f050f1c9bcdd48f4793fb2d6d34290b444841271",
             "0xd7e5b2bce65678b5e1a4430b1320b18a258fd5412e20bd5734f446124a9894e6"
         ],
-        "size": null
+        "size": "0x54b"
     })).unwrap();
 
     let rich_block: Rich<Block> = Rich {

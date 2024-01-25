@@ -2,11 +2,12 @@ use std::array::TryFromSliceError;
 use std::ops::{Range, RangeInclusive};
 
 use alloy_primitives::Uint;
+use alloy_rlp::Encodable;
 use jsonrpsee::core::RpcResult;
 use reth_interfaces::provider::ProviderError;
 use reth_primitives::TransactionKind::{Call, Create};
 use reth_primitives::{
-    BlockId, BlockNumberOrTag, SealedHeader, TransactionSignedEcRecovered, U128, U256, U64,
+    Block, BlockId, BlockNumberOrTag, SealedHeader, TransactionSignedEcRecovered, U128, U256, U64,
 };
 use reth_rpc_types_compat::block::from_primitive_with_hash;
 use revm::primitives::{
@@ -103,21 +104,37 @@ impl<C: sov_modules_api::Context> Evm<C> {
         };
 
         // Build rpc header response
-        let header = from_primitive_with_hash(block.header);
+        let header = from_primitive_with_hash(block.header.clone());
 
         // Collect transactions with ids from db
-        let transactions_with_ids = block.transactions.clone().map(|id| {
-            let tx = self
-                .transactions
-                .get(id as usize, &mut working_set.accessory_state())
-                .expect("Transaction must be set");
-            (id, tx)
-        });
+        let transactions: Vec<TransactionSignedAndRecovered> = block
+            .transactions
+            .clone()
+            .map(|id| {
+                self.transactions
+                    .get(id as usize, &mut working_set.accessory_state())
+                    .expect("Transaction must be set")
+            })
+            .collect();
+
+        let block = Block {
+            header: block.header.header,
+            body: transactions
+                .iter()
+                .map(|tx| tx.signed_transaction.clone())
+                .collect(),
+            ommers: Default::default(),
+            withdrawals: Default::default(),
+        };
+
+        let size = block.length();
 
         // Build rpc transactions response
         let transactions = match details {
             Some(true) => reth_rpc_types::BlockTransactions::Full(
-                transactions_with_ids
+                transactions
+                    .iter()
+                    .enumerate()
                     .map(|(id, tx)| {
                         reth_rpc_types_compat::transaction::from_recovered_with_block_context(
                             tx.clone().into(),
@@ -127,14 +144,15 @@ impl<C: sov_modules_api::Context> Evm<C> {
                                 .expect("Block must be already sealed")
                                 .to::<u64>(),
                             header.base_fee_per_gas.map(|bfpg| bfpg.to::<u64>()),
-                            U256::from(id - block.transactions.start),
+                            U256::from(id),
                         )
                     })
                     .collect::<Vec<_>>(),
             ),
             _ => reth_rpc_types::BlockTransactions::Hashes({
-                transactions_with_ids
-                    .map(|(_, tx)| tx.signed_transaction.hash)
+                transactions
+                    .iter()
+                    .map(|tx| tx.signed_transaction.hash)
                     .collect::<Vec<_>>()
             }),
         };
@@ -143,10 +161,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let total_difficulty = Some(header.difficulty);
         let block = reth_rpc_types::Block {
             header,
+            size: Some(U256::from(size)),
             total_difficulty,
             uncles: Default::default(),
             transactions,
-            size: Default::default(),
             withdrawals: Default::default(),
             other: Default::default(),
         };

@@ -9102,6 +9102,7 @@ name = "sov-evm"
 version = "0.3.0"
 dependencies = [
  "alloy-primitives",
+ "alloy-rlp",
  "alloy-sol-types",
  "anyhow",
  "borsh",
