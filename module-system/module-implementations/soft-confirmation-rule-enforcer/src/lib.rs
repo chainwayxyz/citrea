@@ -7,7 +7,7 @@ pub use call::*;
 pub use genesis::*;
 pub use query::*;
 // "Given DA slot hasn't been used for more than N soft confirmation blocks."
-use sov_modules_api::{Context, ModuleInfo, StateMap, StateMapAccessor, StateValue, WorkingSet};
+use sov_modules_api::{Context, ModuleInfo, StateMap, StateValue, WorkingSet};
 use sov_state::codec::BcsCodec;
 
 #[derive(ModuleInfo, Clone)]
@@ -41,7 +41,7 @@ impl<C: sov_modules_api::Context> sov_modules_api::Module for SoftConfirmationRu
         &self,
         message: Self::CallMessage,
         context: &Self::Context,
-        working_set: &mut sov_modules_api::WorkingSet<Self::Context>,
+        working_set: &mut WorkingSet<Self::Context>,
     ) -> Result<sov_modules_api::CallResponse, sov_modules_api::Error> {
         match message {
             CallMessage::ChangeAuthority { new_authority } => {
@@ -56,7 +56,7 @@ impl<C: sov_modules_api::Context> sov_modules_api::Module for SoftConfirmationRu
     fn genesis(
         &self,
         config: &Self::Config,
-        working_set: &mut sov_modules_api::WorkingSet<Self::Context>,
+        working_set: &mut WorkingSet<Self::Context>,
     ) -> Result<(), sov_modules_api::Error> {
         Ok(self.init_module(config, working_set)?)
     }
