@@ -216,7 +216,7 @@ async fn test_order_by_fee() {
             poor_test_client.from_addr,
             Some(1000u64),
             Some(MAX_FEE_PER_GAS),
-            Some(1),
+            None,
             2_000_000_000_000_000_000u128,
         )
         .await
@@ -238,7 +238,7 @@ async fn test_order_by_fee() {
             poor_test_client.from_addr,
             Some(1000u64),
             Some(1000000000001u64),
-            Some(2),
+            None,
             2_000_000_000_000_000_000u128,
         )
         .await
@@ -250,7 +250,7 @@ async fn test_order_by_fee() {
             test_client.from_addr,
             Some(100u64),
             Some(100000000001u64),
-            Some(1),
+            None,
             2_000_000_000_000_000_000u128,
         )
         .await

@@ -391,12 +391,12 @@ async fn test_get_transaction_by_hash() -> Result<(), anyhow::Error> {
     let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92265").unwrap();
 
     let pending_tx1 = seq_test_client
-        .send_eth(addr, None, None, Some(0), 1_000_000_000u128)
+        .send_eth(addr, None, None, None, 1_000_000_000u128)
         .await
         .unwrap();
 
     let pending_tx2 = seq_test_client
-        .send_eth(addr, None, None, Some(1), 1_000_000_000u128)
+        .send_eth(addr, None, None, None, 1_000_000_000u128)
         .await
         .unwrap();
     // currently there are two txs in the pool, the full node should be able to get them

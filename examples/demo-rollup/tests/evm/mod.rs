@@ -240,7 +240,7 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
         .eth_get_balance(client.from_addr, None)
         .await
         .unwrap();
-    assert!(balance > ethereum_types::U256::zero());
+    assert!(balance > U256::zero());
 
     let (contract_address, contract, runtime_code) = {
         let contract = SimpleStorageContract::default();
@@ -355,6 +355,8 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
         )
         .await;
     assert!(failing_call.is_err());
+
+    client.sync_nonce().await; // sync nonce because of failed call
 
     // Create a blob with multiple transactions.
     let mut requests = Vec::default();
