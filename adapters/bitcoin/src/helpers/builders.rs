@@ -284,7 +284,7 @@ pub fn create_inscription_transactions(
     commit_fee_rate: f64,
     reveal_fee_rate: f64,
     network: Network,
-    reveal_tx_prefix_size: usize,
+    reveal_tx_prefix: &[u8],
 ) -> Result<(Transaction, Transaction), anyhow::Error> {
     // Create commit key
     let secp256k1 = Secp256k1::new();
@@ -408,9 +408,8 @@ pub fn create_inscription_transactions(
 
         let reveal_hash = reveal_tx.txid().as_raw_hash().to_byte_array();
 
-        // check if first N bytes are 0
-        let zero_hash = [0; 32];
-        if reveal_hash.starts_with(&zero_hash[0..reveal_tx_prefix_size]) {
+        // check if first N bytes equal to the given prefix
+        if reveal_hash.starts_with(reveal_tx_prefix) {
             // start signing reveal tx
             let mut sighash_cache = SighashCache::new(&mut reveal_tx);
 
@@ -857,6 +856,7 @@ mod tests {
     fn create_inscription_transactions() {
         let (rollup_name, body, signature, sequencer_public_key, address, utxos) = get_mock_data();
 
+        let tx_prefix = &[0u8];
         let (commit, reveal) = super::create_inscription_transactions(
             rollup_name,
             body.clone(),
@@ -868,12 +868,12 @@ mod tests {
             12.0,
             10.0,
             bitcoin::Network::Bitcoin,
-            1,
+            tx_prefix,
         )
         .unwrap();
 
         // check pow
-        assert!(reveal.txid().as_byte_array().starts_with(&[0]));
+        assert!(reveal.txid().as_byte_array().starts_with(tx_prefix));
 
         // check outputs
         assert_eq!(commit.output.len(), 2, "commit tx should have 2 outputs");
