@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::utils::generate_address;
-use sov_modules_api::{CallResponse, Context, Module, Spec, StateValueAccessor, WorkingSet};
+use sov_modules_api::{Context, Module, Spec, StateValueAccessor};
 
 use crate::call::CallMessage;
 use crate::tests::genesis_tests::{get_soft_confirmation_rule_enforcer, TEST_CONFIG};

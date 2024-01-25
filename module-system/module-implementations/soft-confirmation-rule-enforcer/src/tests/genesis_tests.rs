@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use lazy_static::lazy_static;
 use sov_modules_api::default_context::DefaultContext;
-use sov_modules_api::{Module, Spec, StateMapAccessor, StateValueAccessor, WorkingSet};
+use sov_modules_api::{Module, Spec, StateValueAccessor, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
 
 use crate::{SoftConfirmationRuleEnforcer, SoftConfirmationRuleEnforcerConfig};
