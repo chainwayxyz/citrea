@@ -1,4 +1,5 @@
 use std::str::FromStr;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 use ethereum_types::H160;
@@ -24,6 +25,7 @@ pub struct TestClient {
     pub(crate) from_addr: Address,
     client: SignerMiddleware<Provider<Http>, Wallet<SigningKey>>,
     http_client: HttpClient,
+    current_nonce: AtomicU64,
 }
 
 impl TestClient {
@@ -43,12 +45,15 @@ impl TestClient {
 
         let http_client = HttpClientBuilder::default().build(host).unwrap();
 
-        Self {
+        let client = Self {
             chain_id,
             from_addr,
             client,
             http_client,
-        }
+            current_nonce: AtomicU64::new(0),
+        };
+        client.sync_nonce().await;
+        client
     }
 
     pub(crate) async fn send_publish_batch_request(&self) {
@@ -61,6 +66,14 @@ impl TestClient {
         tokio::time::sleep(Duration::from_millis(100)).await;
     }
 
+    pub(crate) async fn sync_nonce(&self) {
+        let nonce = self
+            .eth_get_transaction_count(self.from_addr, None)
+            .await
+            .unwrap();
+        self.current_nonce.store(nonce, Ordering::Relaxed);
+    }
+
     pub(crate) async fn deploy_contract(
         &self,
         byte_code: Bytes,
@@ -68,10 +81,7 @@ impl TestClient {
     ) -> Result<PendingTransaction<'_, Http>, Box<dyn std::error::Error>> {
         let nonce = match nonce {
             Some(nonce) => nonce,
-            None => self
-                .eth_get_transaction_count(self.from_addr, None)
-                .await
-                .unwrap(),
+            None => self.current_nonce.fetch_add(1, Ordering::Relaxed),
         };
         let req = Eip1559TransactionRequest::new()
             .from(self.from_addr)
@@ -98,10 +108,7 @@ impl TestClient {
     ) -> Result<Bytes, Box<dyn std::error::Error>> {
         let nonce = match nonce {
             Some(nonce) => nonce,
-            None => self
-                .eth_get_transaction_count(self.from_addr, None)
-                .await
-                .unwrap(),
+            None => self.current_nonce.load(Ordering::Relaxed),
         };
         let req = Eip1559TransactionRequest::new()
             .from(self.from_addr)
@@ -127,10 +134,7 @@ impl TestClient {
     ) -> PendingTransaction<'_, Http> {
         let nonce = match nonce {
             Some(nonce) => nonce,
-            None => self
-                .eth_get_transaction_count(self.from_addr, None)
-                .await
-                .unwrap(),
+            None => self.current_nonce.fetch_add(1, Ordering::Relaxed),
         };
         let req = Eip1559TransactionRequest::new()
             .from(self.from_addr)
@@ -161,10 +165,7 @@ impl TestClient {
     ) -> PendingTransaction<'_, Http> {
         let nonce = match nonce {
             Some(nonce) => nonce,
-            None => self
-                .eth_get_transaction_count(self.from_addr, None)
-                .await
-                .unwrap(),
+            None => self.current_nonce.fetch_add(1, Ordering::Relaxed),
         };
         let req = Eip1559TransactionRequest::new()
             .from(self.from_addr)
@@ -193,10 +194,7 @@ impl TestClient {
     ) -> Result<T, Box<dyn std::error::Error>> {
         let nonce = match nonce {
             Some(nonce) => nonce,
-            None => self
-                .eth_get_transaction_count(self.from_addr, None)
-                .await
-                .unwrap(),
+            None => self.current_nonce.load(Ordering::Relaxed),
         };
         let req = Eip1559TransactionRequest::new()
             .from(self.from_addr)
@@ -225,10 +223,7 @@ impl TestClient {
     ) -> Result<PendingTransaction<'_, Http>, anyhow::Error> {
         let nonce = match nonce {
             Some(nonce) => nonce,
-            None => self
-                .eth_get_transaction_count(self.from_addr, None)
-                .await
-                .unwrap(),
+            None => self.current_nonce.fetch_add(1, Ordering::Relaxed),
         };
 
         let req = Eip1559TransactionRequest::new()

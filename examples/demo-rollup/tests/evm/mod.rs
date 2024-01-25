@@ -240,7 +240,7 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
         .eth_get_balance(client.from_addr, None)
         .await
         .unwrap();
-    assert!(balance > ethereum_types::U256::zero());
+    assert!(balance > U256::zero());
 
     let (contract_address, contract, runtime_code) = {
         let contract = SimpleStorageContract::default();
@@ -357,33 +357,24 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
     assert!(failing_call.is_err());
 
     // Create a blob with multiple transactions.
+    client.sync_nonce().await; // sync nonce because of failed call
     let mut requests = Vec::default();
-    let mut nonce = client
-        .eth_get_transaction_count(client.from_addr, None)
-        .await
-        .unwrap();
     for value in 150..153 {
         let set_value_req = client
-            .contract_transaction(contract_address, contract.set_call_data(value), Some(nonce))
+            .contract_transaction(contract_address, contract.set_call_data(value), None)
             .await;
-        nonce += 1;
         requests.push(set_value_req);
     }
 
     client.send_publish_batch_request().await;
     client.send_publish_batch_request().await;
-    let nonce = client
-        .eth_get_transaction_count(client.from_addr, None)
-        .await
-        .unwrap();
-
     for req in requests {
         req.await.unwrap();
     }
 
     {
-        let get_arg: ethereum_types::U256 = client
-            .contract_call(contract_address, contract.get_call_data(), Some(nonce))
+        let get_arg: U256 = client
+            .contract_call(contract_address, contract.get_call_data(), None)
             .await?;
         // should be one of three values sent in a single block. 150, 151, or 152
         assert!((150..=152).contains(&get_arg.as_u32()));
@@ -442,10 +433,6 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
         assert_eq!(initial_fee_history.oldest_block, U256::zero());
 
         // send 100 set transaction with high gas fee in a four batch to increase gas price
-        let mut nonce = client
-            .eth_get_transaction_count(client.from_addr, None)
-            .await
-            .unwrap();
         for _ in 0..4 {
             let mut requests = Vec::default();
             // TODO: https://github.com/chainwayxyz/secret-sovereign-sdk/issues/109
@@ -459,10 +446,9 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
                         20u64,
                         10000000000u64,
                         None,
-                        Some(nonce),
+                        None,
                     )
                     .await;
-                nonce += 1;
                 requests.push(set_value_req);
             }
             client.send_publish_batch_request().await;
