@@ -356,9 +356,8 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
         .await;
     assert!(failing_call.is_err());
 
-    client.sync_nonce().await; // sync nonce because of failed call
-
     // Create a blob with multiple transactions.
+    client.sync_nonce().await; // sync nonce because of failed call
     let mut requests = Vec::default();
     for value in 150..153 {
         let set_value_req = client
