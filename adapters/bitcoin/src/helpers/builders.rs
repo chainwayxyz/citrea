@@ -284,6 +284,7 @@ pub fn create_inscription_transactions(
     commit_fee_rate: f64,
     reveal_fee_rate: f64,
     network: Network,
+    reveal_tx_prefix: &[u8],
 ) -> Result<(Transaction, Transaction), anyhow::Error> {
     // Create commit key
     let secp256k1 = Secp256k1::new();
@@ -314,8 +315,8 @@ pub fn create_inscription_transactions(
         .push_slice(PushBytesBuf::try_from(RANDOM_TAG.to_vec()).expect("Cannot push random tag"));
     // This envelope is not finished yet. The random number will be added later and followed by the body
 
-    // Start loop to find a random number that makes the first two bytes of the reveal tx hash 0
-    let mut random: i64 = 0;
+    // Start loop to find a 'nonce' i.e. random number that makes the reveal tx hash starting with zeros given length
+    let mut nonce: i64 = 0;
     loop {
         let utxos = utxos.clone();
         let recipient = recipient.clone();
@@ -324,7 +325,7 @@ pub fn create_inscription_transactions(
 
         // push first random number and body tag
         reveal_script_builder = reveal_script_builder
-            .push_int(random)
+            .push_int(nonce)
             .push_slice(PushBytesBuf::try_from(BODY_TAG.to_vec()).expect("Cannot push body tag"));
 
         // push body in chunks of 520 bytes
@@ -407,8 +408,8 @@ pub fn create_inscription_transactions(
 
         let reveal_hash = reveal_tx.txid().as_raw_hash().to_byte_array();
 
-        // check if first two bytes are 0
-        if reveal_hash.starts_with(&[0, 0]) {
+        // check if first N bytes equal to the given prefix
+        if reveal_hash.starts_with(reveal_tx_prefix) {
             // start signing reveal tx
             let mut sighash_cache = SighashCache::new(&mut reveal_tx);
 
@@ -451,7 +452,7 @@ pub fn create_inscription_transactions(
             return Ok((unsigned_commit_tx, reveal_tx));
         }
 
-        random += 1;
+        nonce += 1;
     }
 }
 
@@ -855,6 +856,7 @@ mod tests {
     fn create_inscription_transactions() {
         let (rollup_name, body, signature, sequencer_public_key, address, utxos) = get_mock_data();
 
+        let tx_prefix = &[0u8];
         let (commit, reveal) = super::create_inscription_transactions(
             rollup_name,
             body.clone(),
@@ -866,11 +868,12 @@ mod tests {
             12.0,
             10.0,
             bitcoin::Network::Bitcoin,
+            tx_prefix,
         )
         .unwrap();
 
         // check pow
-        assert!(reveal.txid().as_byte_array().starts_with(&[0, 0]));
+        assert!(reveal.txid().as_byte_array().starts_with(tx_prefix));
 
         // check outputs
         assert_eq!(commit.output.len(), 2, "commit tx should have 2 outputs");

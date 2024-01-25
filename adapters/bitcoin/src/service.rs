@@ -38,6 +38,7 @@ pub struct BitcoinService {
     network: bitcoin::Network,
     address: Address<NetworkUnchecked>,
     sequencer_da_private_key: SecretKey,
+    reveal_tx_id_prefix: Vec<u8>,
 }
 
 /// Runtime configuration for the DA service
@@ -90,6 +91,7 @@ impl BitcoinService {
             network,
             address,
             private_key,
+            chain_params.reveal_tx_id_prefix,
         )
         .await
     }
@@ -100,6 +102,7 @@ impl BitcoinService {
         network: bitcoin::Network,
         address: Address<NetworkUnchecked>,
         sequencer_da_private_key: SecretKey,
+        reveal_tx_id_prefix: Vec<u8>,
     ) -> Self {
         // We can't store address with the network check because it's not serializable
         address
@@ -122,6 +125,7 @@ impl BitcoinService {
             network,
             address,
             sequencer_da_private_key,
+            reveal_tx_id_prefix,
         }
     }
 
@@ -164,6 +168,7 @@ impl BitcoinService {
             fee_sat_per_vbyte,
             fee_sat_per_vbyte,
             network,
+            self.reveal_tx_id_prefix.as_slice(),
         )?;
 
         // sign inscribe transactions
@@ -477,6 +482,7 @@ mod tests {
             runtime_config,
             RollupParams {
                 rollup_name: "sov-btc".to_string(),
+                reveal_tx_id_prefix: vec![],
             },
         )
         .await

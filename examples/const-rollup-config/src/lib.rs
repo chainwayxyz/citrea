@@ -14,3 +14,6 @@ pub const ROLLUP_BATCH_NAMESPACE_RAW: [u8; 10] = [0, 0, 115, 111, 118, 45, 116, 
 
 /// The namespace used by the rollup to store aggregated ZK proofs.
 pub const ROLLUP_PROOF_NAMESPACE_RAW: [u8; 10] = [115, 111, 118, 45, 116, 101, 115, 116, 45, 112];
+
+/// Leading zeros prefix for the reveal transaction id.
+pub const DA_TX_ID_LEADING_ZEROS: &[u8] = [0, 0].as_slice();
