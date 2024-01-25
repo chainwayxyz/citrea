@@ -488,6 +488,28 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
             4
         );
 
+        assert!(client
+            .eth_fee_history(
+                // block count hex
+                "0x100".to_string(),
+                reth_primitives::BlockNumberOrTag::Latest,
+                Some(vec![0.01, 0.2]), // totally random
+            )
+            .await
+            .reward
+            .is_some());
+
+        assert!(client
+            .eth_fee_history(
+                // block count hex
+                "0x100".to_string(),
+                reth_primitives::BlockNumberOrTag::Latest,
+                Some(vec![]), // totally random
+            )
+            .await
+            .reward
+            .is_some())
+
         // assert gas price is higher
         // TODO: emulate gas price oracle here to have exact value
         // TODO: https://github.com/chainwayxyz/secret-sovereign-sdk/issues/34
