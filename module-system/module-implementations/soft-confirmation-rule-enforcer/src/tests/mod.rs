@@ -4,3 +4,5 @@ mod call_tests;
 mod genesis_tests;
 #[cfg(test)]
 mod hooks_tests;
+#[cfg(test)]
+mod query_tests;
