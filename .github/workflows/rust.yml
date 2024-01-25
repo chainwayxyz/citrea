@@ -67,7 +67,7 @@ jobs:
     runs-on: [self-hosted]
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: rui314/setup-mold@v1
       - name: Install Protoc
         uses: arduino/setup-protoc@v2
@@ -110,7 +110,7 @@ jobs:
   check_no_std:
     runs-on: [self-hosted]
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Install Rust Bare Metal
         uses: actions-rs/toolchain@v1
         with:
@@ -136,7 +136,7 @@ jobs:
     runs-on: self-hosted
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: rui314/setup-mold@v1
       - name: Install Protoc
         uses: arduino/setup-protoc@v2
