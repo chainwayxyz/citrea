@@ -231,7 +231,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
 
         let block_count: String = params.next().unwrap();
         let newest_block: BlockNumberOrTag = params.next().unwrap();
-        let reward_percentiles: Option<Vec<f64>> = params.next().unwrap();
+        let reward_percentiles: Option<Vec<f64>> = params.optional_next()?;
 
         // convert block count to u64 from hex
         let block_count = u64::from_str_radix(&block_count[2..], 16)
