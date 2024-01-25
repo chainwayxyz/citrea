@@ -194,7 +194,7 @@ impl TestClient {
     ) -> Result<T, Box<dyn std::error::Error>> {
         let nonce = match nonce {
             Some(nonce) => nonce,
-            None => self.current_nonce.fetch_add(1, Ordering::Relaxed),
+            None => self.current_nonce.load(Ordering::Relaxed),
         };
         let req = Eip1559TransactionRequest::new()
             .from(self.from_addr)
@@ -209,8 +209,7 @@ impl TestClient {
         let typed_transaction = TypedTransaction::Eip1559(req);
 
         let receipt_req = self.client.call(&typed_transaction, None).await?;
-        // we need to sync nonce here because we don't know if the call will be successful or produce a tx
-        self.sync_nonce().await;
+
         T::from_str(&receipt_req.to_string()).map_err(|_| "Failed to parse bytes".into())
     }
 
