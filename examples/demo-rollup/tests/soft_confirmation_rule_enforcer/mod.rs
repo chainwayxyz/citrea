@@ -14,7 +14,7 @@ async fn too_many_l2_block_per_l1_block_should_panic() {
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
-    let _ = tokio::spawn(async {
+    tokio::spawn(async {
         let seq_port = seq_port_rx.await.unwrap();
         let test_client = make_test_client(seq_port).await;
         let limiting_number = test_client.get_limiting_number().await;
