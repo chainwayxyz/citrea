@@ -44,6 +44,7 @@ sov-accounts = { path = "../../../module-system/module-implementations/sov-accou
 sov-state = { path = "../../../module-system/sov-state" }
 sov-modules-api = { path = "../../../module-system/sov-modules-api" }
 sov-evm = { path = "../../../module-system/module-implementations/sov-evm" }
+soft-confirmation-rule-enforcer = { path = "../../../module-system/module-implementations/soft-confirmation-rule-enforcer" }
 
 
 [dev-dependencies]
@@ -52,7 +53,9 @@ tempfile = { workspace = true }
 rand = { workspace = true }
 sov-data-generators = { path = "../../../module-system/utils/sov-data-generators" }
 sov-mock-zkvm = { path = "../../../adapters/mock-zkvm" }
-sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
+sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-manager", features = [
+    "test-utils",
+] }
 
 
 [features]
@@ -88,4 +91,5 @@ serde = [
     "sov-accounts/serde",
     "sov-nft-module/serde",
     "sov-evm/serde",
+    "soft-confirmation-rule-enforcer/serde",
 ]

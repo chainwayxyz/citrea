@@ -1606,6 +1606,7 @@ dependencies = [
  "reth-primitives",
  "secp256k1 0.27.0",
  "serde",
+ "soft-confirmation-rule-enforcer",
  "sov-accounts",
  "sov-bank",
  "sov-blob-storage",
@@ -6107,6 +6108,21 @@ checksum = "7b5fac59a5cb5dd637972e5fca70daf0523c9067fcdc4842f053dae04a18f8e9"
 dependencies = [
  "libc",
  "windows-sys 0.48.0",
+]
+
+[[package]]
+name = "soft-confirmation-rule-enforcer"
+version = "0.3.0"
+dependencies = [
+ "anyhow",
+ "borsh",
+ "jsonrpsee",
+ "lazy_static",
+ "serde",
+ "sov-modules-api",
+ "sov-prover-storage-manager",
+ "sov-state",
+ "tempfile",
 ]
 
 [[package]]

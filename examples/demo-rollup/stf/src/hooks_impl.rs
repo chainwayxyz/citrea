@@ -102,6 +102,12 @@ impl<C: Context, Da: DaSpec> SlotHooks<Da> for Runtime<C, Da> {
         pre_state_root: &<<Self::Context as Spec>::Storage as Storage>::Root,
         #[allow(unused_variables)] working_set: &mut sov_modules_api::WorkingSet<C>,
     ) {
+        // if soft confirmation rules are applied, then begin evm slot hook
+        // TODO: If error: Do not panic, find a way to stop hooks until a new da slot arrives
+        self.soft_confirmation_rule_enforcer
+            .begin_slot_hook(slot_header.hash().into(), pre_state_root, working_set)
+            .expect("Sequencer gave too many soft confirmations for a single block.");
+
         self.evm
             .begin_slot_hook(slot_header.hash().into(), pre_state_root, working_set);
     }

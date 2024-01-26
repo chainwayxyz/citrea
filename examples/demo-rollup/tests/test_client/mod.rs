@@ -56,6 +56,15 @@ impl TestClient {
         client
     }
 
+    pub(crate) async fn spam_publish_batch_request(
+        &self,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        self.http_client
+            .request("eth_publishBatch", rpc_params![])
+            .await
+            .map_err(|e| e.into())
+    }
+
     pub(crate) async fn send_publish_batch_request(&self) {
         let _: () = self
             .http_client
@@ -498,6 +507,16 @@ impl TestClient {
     ) -> Option<GetSoftBatchResponse<DaSpec::SlotHash>> {
         self.http_client
             .request("ledger_getSoftBatchByNumber", rpc_params![num])
+            .await
+            .unwrap()
+    }
+
+    pub(crate) async fn get_limiting_number(&self) -> u64 {
+        self.http_client
+            .request(
+                "softConfirmationRuleEnforcer_getLimitingNumber",
+                rpc_params![],
+            )
             .await
             .unwrap()
     }
