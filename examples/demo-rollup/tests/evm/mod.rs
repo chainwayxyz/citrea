@@ -12,6 +12,7 @@ use reth_primitives::BlockNumberOrTag;
 use sov_evm::{LogsContract, SimpleStorageContract, TestContract};
 use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
 use sov_stf_runner::RollupProverConfig;
+use tokio::task::futures;
 use tokio::time::{sleep, Duration};
 
 use crate::test_client::TestClient;
@@ -462,7 +463,7 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
             .eth_fee_history(
                 // block count hex
                 "0x100".to_string(),
-                reth_primitives::BlockNumberOrTag::Latest,
+                BlockNumberOrTag::Latest,
                 None,
             )
             .await;
@@ -478,7 +479,7 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
             .eth_fee_history(
                 // block count hex
                 "0x100".to_string(),
-                reth_primitives::BlockNumberOrTag::Latest,
+                BlockNumberOrTag::Latest,
                 Some(vec![0.01, 0.2]), // totally random
             )
             .await
@@ -489,7 +490,7 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
             .eth_fee_history(
                 // block count hex
                 "0x100".to_string(),
-                reth_primitives::BlockNumberOrTag::Latest,
+                BlockNumberOrTag::Latest,
                 Some(vec![]), // totally random
             )
             .await
