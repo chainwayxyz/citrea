@@ -90,16 +90,6 @@ jobs:
         run: cargo risczero install
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - uses: Swatinem/rust-cache@v2
-        with:
-          cache-provider: "github"
-          shared-key: cargo-check-cache
-          save-if: ${{ github.ref == 'refs/heads/nightly' }}
-          workspaces: |
-            .
-            fuzz
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Run lint
         run: |
           if ! SKIP_GUEST_BUILD=1 make lint ; then
