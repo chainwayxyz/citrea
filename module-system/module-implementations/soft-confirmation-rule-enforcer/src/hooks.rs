@@ -18,7 +18,7 @@ where
         working_set: &mut WorkingSet<C>,
     ) -> anyhow::Result<()> {
         let l2_block_count = self
-            .get_block_count_by_da_root_hash(da_root_hash.clone(), working_set)
+            .get_block_count_by_da_root_hash(da_root_hash, working_set)
             .expect("Block count must be set by da root hash must be set");
         let limiting_number = self
             .get_limiting_number(working_set)
