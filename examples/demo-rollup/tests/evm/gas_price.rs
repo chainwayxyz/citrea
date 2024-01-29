@@ -76,7 +76,7 @@ async fn execute(
     assert_eq!(initial_fee_history.oldest_block, U256::zero());
 
     // Create 100 wallets and send them some eth
-    let one_eth = 1 * u128::pow(10, Ether.as_num());
+    let one_eth = u128::pow(10, Ether.as_num());
     let mut rng = thread_rng();
     let mut wallets = Vec::with_capacity(100);
     for i in 0..100 {
