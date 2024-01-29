@@ -9,7 +9,7 @@ use ethers_core::types::transaction::eip2718::TypedTransaction;
 use ethers_core::types::{Block, BlockId, Bytes, Eip1559TransactionRequest, Transaction, TxHash};
 use ethers_middleware::SignerMiddleware;
 use ethers_providers::{Http, Middleware, PendingTransaction, Provider};
-use ethers_signers::{Signer, Wallet};
+use ethers_signers::Wallet;
 use jsonrpsee::core::client::ClientT;
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use jsonrpsee::rpc_params;
