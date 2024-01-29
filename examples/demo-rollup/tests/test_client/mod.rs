@@ -26,7 +26,6 @@ pub struct TestClient {
     client: SignerMiddleware<Provider<Http>, Wallet<SigningKey>>,
     http_client: HttpClient,
     current_nonce: AtomicU64,
-    pub(crate) host: String,
 }
 
 impl TestClient {
@@ -51,7 +50,6 @@ impl TestClient {
             client,
             http_client,
             current_nonce: AtomicU64::new(0),
-            host,
         };
         client.sync_nonce().await;
         client

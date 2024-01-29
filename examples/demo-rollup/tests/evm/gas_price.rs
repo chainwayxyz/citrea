@@ -1,10 +1,9 @@
+use std::net::SocketAddr;
+
 use demo_stf::genesis_config::GenesisPaths;
 use ethers_core::rand::thread_rng;
-use ethers_core::types::transaction::eip2718::TypedTransaction;
-use ethers_core::types::{Eip1559TransactionRequest, U256};
+use ethers_core::types::U256;
 use ethers_core::utils::Units::Ether;
-use ethers_middleware::SignerMiddleware;
-use ethers_providers::{Middleware, Provider};
 use ethers_signers::{LocalWallet, Signer};
 use reth_primitives::BlockNumberOrTag;
 use sov_evm::SimpleStorageContract;
@@ -12,7 +11,7 @@ use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
 use sov_stf_runner::RollupProverConfig;
 
 use crate::evm::init_test_rollup;
-use crate::test_client::{TestClient, MAX_FEE_PER_GAS};
+use crate::test_client::TestClient;
 use crate::test_helpers::{start_rollup, NodeMode};
 
 #[tokio::test]
@@ -37,13 +36,16 @@ async fn test_gas_price_increase() -> Result<(), anyhow::Error> {
     // Wait for rollup task to start:
     let port = port_rx.await.unwrap();
     let test_client = init_test_rollup(port).await;
-    execute(&test_client).await.unwrap();
+    execute(&test_client, port).await.unwrap();
     rollup_task.abort();
     Ok(())
 }
 
 #[allow(clippy::borrowed_box)]
-async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Error>> {
+async fn execute(
+    client: &Box<TestClient>,
+    port: SocketAddr,
+) -> Result<(), Box<dyn std::error::Error>> {
     let (contract_address, contract, _runtime_code) = {
         let contract = SimpleStorageContract::default();
 
@@ -98,29 +100,11 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
     // send 15 transactions from each wallet
     for wallet in wallets {
         let address = wallet.address();
-        let provider = Provider::try_from(&client.host).unwrap();
-        let signer = SignerMiddleware::new_with_provider_chain(provider, wallet)
-            .await
-            .unwrap();
-        let nonce = client
-            .eth_get_transaction_count(address, None)
-            .await
-            .unwrap();
+        let wallet_client = TestClient::new(client.chain_id, wallet, address, port).await;
         for i in 0u32..15 {
-            let req = Eip1559TransactionRequest::new()
-                .from(address)
-                .to(contract_address)
-                .chain_id(client.chain_id)
-                .nonce(nonce + u64::from(i))
-                .max_priority_fee_per_gas(10u64)
-                .max_fee_per_gas(MAX_FEE_PER_GAS)
-                .gas(crate::test_client::GAS)
-                .data(contract.set_call_data(i));
-            let typed_transaction = TypedTransaction::Eip1559(req);
-            signer
-                .send_transaction(typed_transaction, None)
-                .await
-                .unwrap();
+            wallet_client
+                .contract_transaction(contract_address, contract.set_call_data(i), None)
+                .await;
         }
     }
     client.send_publish_batch_request().await;
