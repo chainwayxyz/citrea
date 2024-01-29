@@ -30,7 +30,6 @@ pub struct TestClient {
 }
 
 impl TestClient {
-    #[allow(dead_code)]
     pub(crate) async fn new(
         chain_id: u64,
         key: Wallet<SigningKey>,
@@ -156,6 +155,7 @@ impl TestClient {
             .unwrap()
     }
 
+    #[allow(dead_code)]
     pub(crate) async fn contract_transaction_with_custom_fee(
         &self,
         contract_address: H160,
