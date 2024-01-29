@@ -9,7 +9,7 @@ use ethers_core::types::transaction::eip2718::TypedTransaction;
 use ethers_core::types::{Block, BlockId, Bytes, Eip1559TransactionRequest, Transaction, TxHash};
 use ethers_middleware::SignerMiddleware;
 use ethers_providers::{Http, Middleware, PendingTransaction, Provider};
-use ethers_signers::Wallet;
+use ethers_signers::{Signer, Wallet};
 use jsonrpsee::core::client::ClientT;
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use jsonrpsee::rpc_params;
@@ -18,14 +18,15 @@ use sequencer_client::GetSoftBatchResponse;
 use sov_evm::LogResponse;
 
 pub const MAX_FEE_PER_GAS: u64 = 1000000001;
-const GAS: u64 = 900000u64;
+pub(crate) const GAS: u64 = 900000u64;
 
 pub struct TestClient {
-    chain_id: u64,
+    pub(crate) chain_id: u64,
     pub(crate) from_addr: Address,
     client: SignerMiddleware<Provider<Http>, Wallet<SigningKey>>,
     http_client: HttpClient,
     current_nonce: AtomicU64,
+    pub(crate) host: String,
 }
 
 impl TestClient {
@@ -43,7 +44,7 @@ impl TestClient {
             .await
             .unwrap();
 
-        let http_client = HttpClientBuilder::default().build(host).unwrap();
+        let http_client = HttpClientBuilder::default().build(&host).unwrap();
 
         let client = Self {
             chain_id,
@@ -51,6 +52,7 @@ impl TestClient {
             client,
             http_client,
             current_nonce: AtomicU64::new(0),
+            host,
         };
         client.sync_nonce().await;
         client

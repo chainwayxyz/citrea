@@ -1,4 +1,5 @@
 mod archival_state;
+mod gas_price;
 
 use std::net::SocketAddr;
 use std::str::FromStr;
@@ -8,11 +9,9 @@ use ethers_core::abi::Address;
 use ethers_core::types::{BlockId, Bytes, U256};
 use ethers_signers::{LocalWallet, Signer};
 use reth_primitives::BlockNumberOrTag;
-// use sov_demo_rollup::initialize_logging;
 use sov_evm::{LogsContract, SimpleStorageContract, TestContract};
 use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
 use sov_stf_runner::RollupProverConfig;
-use tokio::task::futures;
 use tokio::time::{sleep, Duration};
 
 use crate::test_client::TestClient;
@@ -41,10 +40,7 @@ async fn web3_rpc_tests() -> Result<(), anyhow::Error> {
 
     let test_client = make_test_client(port).await;
 
-    let tag = match sov_ethereum::get_latest_git_tag() {
-        Ok(tag) => tag,
-        Err(_) => "unknown".to_string(),
-    };
+    let tag = sov_ethereum::get_latest_git_tag().unwrap_or_else(|_| "unknown".to_string());
     let arch = std::env::consts::ARCH;
 
     assert_eq!(
