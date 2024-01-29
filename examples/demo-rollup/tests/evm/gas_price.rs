@@ -23,6 +23,7 @@ use crate::test_helpers::{start_rollup, NodeMode};
 
 #[tokio::test]
 async fn test_gas_price_increase() -> Result<(), anyhow::Error> {
+    // initialize_logging();
     let (port_tx, port_rx) = tokio::sync::oneshot::channel();
 
     let rollup_task = tokio::spawn(async {
@@ -83,14 +84,14 @@ async fn execute(
     assert_eq!(initial_fee_history.oldest_block, U256::zero());
 
     // Create 100 wallets and send them some eth
-    let one_pwei = 1 * u128::pow(10, Pwei.as_num());
+    let one_eth = 1 * u128::pow(10, 18);
     let mut rng = thread_rng();
     let mut wallets = Vec::with_capacity(100);
     for i in 0..100 {
         let wallet = LocalWallet::new(&mut rng).with_chain_id(client.chain_id);
         let address = wallet.address();
         client
-            .send_eth(address, None, None, None, one_pwei)
+            .send_eth(address, None, None, None, one_eth)
             .await
             .unwrap();
         wallets.push(wallet);
@@ -134,6 +135,7 @@ async fn execute(
         }
     }
     client.send_publish_batch_request().await;
+    client.send_publish_batch_request().await; // if this isnt here gas fees don't increase, why?
 
     // get new gas price
     let latest_gas_price = client.eth_gas_price().await;
