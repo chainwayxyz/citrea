@@ -8,15 +8,13 @@ use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
 use sov_stf_runner::RollupProverConfig;
 
 use crate::evm::make_test_client;
-use crate::test_client::TestClient;
-// use sov_demo_rollup::initialize_logging;
-use crate::test_client::MAX_FEE_PER_GAS;
+use crate::test_client::{TestClient, MAX_FEE_PER_GAS};
 use crate::test_helpers::{start_rollup, NodeMode};
 
 /// Transaction with equal nonce to last tx should not be accepted by mempool.
 #[tokio::test]
 async fn test_same_nonce_tx_should_panic() {
-    // initialize_logging();
+    // sov_demo_rollup::initialize_logging.initialize_logging();
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
@@ -57,10 +55,10 @@ async fn test_same_nonce_tx_should_panic() {
     seq_task.abort();
 }
 
-///  Transaction with nonce lower then account's nonce on state should not be accepted by mempool.
+///  Transaction with nonce lower than account's nonce on state should not be accepted by mempool.
 #[tokio::test]
 async fn test_nonce_too_low() {
-    // initialize_logging();
+    // sov_demo_rollup::initialize_logging.initialize_logging();
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
@@ -101,11 +99,11 @@ async fn test_nonce_too_low() {
     seq_task.abort();
 }
 
-/// Transaction with nonce higher then account's nonce should be accepted by the mempool
+/// Transaction with nonce higher than account's nonce should be accepted by the mempool
 /// but shouldn't be received by the sequencer (so it doesn't end up in the block)
 #[tokio::test]
 async fn test_nonce_too_high() {
-    // initialize_logging();
+    // sov_demo_rollup::initialize_logging.initialize_logging();
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
