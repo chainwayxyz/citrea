@@ -16,6 +16,8 @@ use crate::test_helpers::{start_rollup, NodeMode};
 
 #[tokio::test]
 async fn test_gas_price_increase() -> Result<(), anyhow::Error> {
+    // sov_demo_rollup::initialize_logging.initialize_logging();
+
     let (port_tx, port_rx) = tokio::sync::oneshot::channel();
 
     let rollup_task = tokio::spawn(async {
@@ -46,12 +48,9 @@ async fn execute(
     client: &Box<TestClient>,
     port: SocketAddr,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let (contract_address, contract, _runtime_code) = {
+    let (contract_address, contract) = {
         let contract = SimpleStorageContract::default();
 
-        let runtime_code = client
-            .deploy_contract_call(contract.byte_code(), None)
-            .await?;
         let deploy_contract_req = client.deploy_contract(contract.byte_code(), None).await?;
         client.send_publish_batch_request().await;
 
@@ -61,7 +60,7 @@ async fn execute(
             .contract_address
             .unwrap();
 
-        (contract_address, contract, runtime_code)
+        (contract_address, contract)
     };
 
     // get initial fee history
