@@ -82,6 +82,7 @@ async fn execute(
         .await;
     assert_eq!(initial_fee_history.oldest_block, U256::zero());
 
+    // Create 100 wallets and send them some eth
     let one_pwei = 1 * u128::pow(10, Pwei.as_num());
     let mut rng = thread_rng();
     let mut wallets = Vec::with_capacity(100);
@@ -103,6 +104,7 @@ async fn execute(
     // get initial gas price
     let initial_gas_price = client.eth_gas_price().await;
 
+    // send 15 transactions from each wallet
     for wallet in wallets {
         let address = wallet.address();
         let provider = Provider::try_from(&client.host).unwrap();
@@ -133,7 +135,7 @@ async fn execute(
     }
     client.send_publish_batch_request().await;
 
-    // get gas price
+    // get new gas price
     let latest_gas_price = client.eth_gas_price().await;
 
     assert!(
