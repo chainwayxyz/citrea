@@ -14,7 +14,7 @@ test-legacy: ## Runs test suite with output from tests printed
 
 test:  ## Runs test suite using next test
 	@cargo nextest run --workspace --all-features --no-fail-fast -E 'not package(bitcoin-da) & not test(test_instant_finality_data_stored) & not test(test_simple_reorg_case)'
-	./adapters/test_data/start_ci_regtest.sh ## start regtest
+	./adapters/bitcoin/test_data/start_ci_regtest.sh ## start regtest
 	@cargo nextest run -E 'package(bitcoin-da)' --no-fail-fast --test-threads 1
 
 install-dev-tools:  ## Installs all necessary cargo helpers
