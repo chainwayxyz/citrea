@@ -18,7 +18,7 @@ use sequencer_client::GetSoftBatchResponse;
 use sov_evm::LogResponse;
 
 pub const MAX_FEE_PER_GAS: u64 = 1000000001;
-pub(crate) const GAS: u64 = 900000u64;
+const GAS: u64 = 900000u64;
 
 pub struct TestClient {
     pub(crate) chain_id: u64,
@@ -42,7 +42,7 @@ impl TestClient {
             .await
             .unwrap();
 
-        let http_client = HttpClientBuilder::default().build(&host).unwrap();
+        let http_client = HttpClientBuilder::default().build(host).unwrap();
 
         let client = Self {
             chain_id,
