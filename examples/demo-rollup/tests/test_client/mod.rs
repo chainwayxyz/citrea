@@ -21,7 +21,7 @@ pub const MAX_FEE_PER_GAS: u64 = 1000000001;
 const GAS: u64 = 900000u64;
 
 pub struct TestClient {
-    chain_id: u64,
+    pub(crate) chain_id: u64,
     pub(crate) from_addr: Address,
     client: SignerMiddleware<Provider<Http>, Wallet<SigningKey>>,
     http_client: HttpClient,
@@ -29,7 +29,6 @@ pub struct TestClient {
 }
 
 impl TestClient {
-    #[allow(dead_code)]
     pub(crate) async fn new(
         chain_id: u64,
         key: Wallet<SigningKey>,
@@ -163,6 +162,7 @@ impl TestClient {
             .unwrap()
     }
 
+    #[allow(dead_code)]
     pub(crate) async fn contract_transaction_with_custom_fee(
         &self,
         contract_address: H160,

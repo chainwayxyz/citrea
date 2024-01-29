@@ -4,7 +4,6 @@ use demo_stf::genesis_config::GenesisPaths;
 use ethers::abi::Address;
 use ethers_core::abi::Bytes;
 use reth_primitives::BlockNumberOrTag;
-// use sov_demo_rollup::initialize_logging;
 use sov_evm::SimpleStorageContract;
 use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
 use sov_stf_runner::RollupProverConfig;
@@ -15,7 +14,7 @@ use crate::test_helpers::{start_rollup, NodeMode};
 
 #[tokio::test]
 async fn test_archival_state() -> Result<(), anyhow::Error> {
-    // initialize_logging();
+    // sov_demo_rollup::initialize_logging.initialize_logging();
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 

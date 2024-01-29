@@ -1,5 +1,3 @@
-mod archival_state;
-
 use std::net::SocketAddr;
 use std::str::FromStr;
 
@@ -12,10 +10,12 @@ use reth_primitives::BlockNumberOrTag;
 use sov_evm::{LogsContract, SimpleStorageContract, TestContract};
 use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
 use sov_stf_runner::RollupProverConfig;
-use tokio::time::{sleep, Duration};
 
 use crate::test_client::TestClient;
 use crate::test_helpers::{start_rollup, NodeMode};
+
+mod archival_state;
+mod gas_price;
 
 #[tokio::test]
 async fn web3_rpc_tests() -> Result<(), anyhow::Error> {
@@ -40,10 +40,7 @@ async fn web3_rpc_tests() -> Result<(), anyhow::Error> {
 
     let test_client = make_test_client(port).await;
 
-    let tag = match sov_ethereum::get_latest_git_tag() {
-        Ok(tag) => tag,
-        Err(_) => "unknown".to_string(),
-    };
+    let tag = sov_ethereum::get_latest_git_tag().unwrap_or_else(|_| "unknown".to_string());
     let arch = std::env::consts::ARCH;
 
     assert_eq!(
@@ -63,7 +60,7 @@ async fn web3_rpc_tests() -> Result<(), anyhow::Error> {
 
 #[tokio::test]
 async fn evm_tx_tests() -> Result<(), anyhow::Error> {
-    // initialize_logging();
+    // sov_demo_rollup::initialize_logging.initialize_logging();
 
     let (port_tx, port_rx) = tokio::sync::oneshot::channel();
 
@@ -415,91 +412,6 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
             .await?;
 
         assert_eq!(value, get_arg.as_u32());
-    }
-
-    {
-        // get initial gas price
-        let _initial_gas_price = client.eth_gas_price().await;
-
-        // get initial fee history
-        let initial_fee_history = client
-            .eth_fee_history(
-                // block count hex
-                "0x100".to_string(),
-                reth_primitives::BlockNumberOrTag::Latest,
-                None,
-            )
-            .await;
-        assert_eq!(initial_fee_history.oldest_block, U256::zero());
-
-        // send 100 set transaction with high gas fee in a four batch to increase gas price
-        for _ in 0..4 {
-            let mut requests = Vec::default();
-            // TODO: https://github.com/chainwayxyz/secret-sovereign-sdk/issues/109
-            for value in 0..15 {
-                // sleep
-                sleep(Duration::from_millis(50)).await;
-                let set_value_req = client
-                    .contract_transaction_with_custom_fee(
-                        contract_address,
-                        contract.set_call_data(value),
-                        20u64,
-                        10000000000u64,
-                        None,
-                        None,
-                    )
-                    .await;
-                requests.push(set_value_req);
-            }
-            client.send_publish_batch_request().await;
-        }
-
-        // get gas price
-        let _latest_gas_price = client.eth_gas_price().await;
-
-        // get fee history
-        let latest_fee_history = client
-            .eth_fee_history(
-                // block count hex
-                "0x100".to_string(),
-                reth_primitives::BlockNumberOrTag::Latest,
-                None,
-            )
-            .await;
-        assert_eq!(latest_fee_history.oldest_block, U256::zero());
-
-        // there are 4 blocks in between
-        assert_eq!(
-            latest_fee_history.gas_used_ratio.len() - initial_fee_history.gas_used_ratio.len(),
-            4
-        );
-
-        assert!(client
-            .eth_fee_history(
-                // block count hex
-                "0x100".to_string(),
-                reth_primitives::BlockNumberOrTag::Latest,
-                Some(vec![0.01, 0.2]), // totally random
-            )
-            .await
-            .reward
-            .is_some());
-
-        assert!(client
-            .eth_fee_history(
-                // block count hex
-                "0x100".to_string(),
-                reth_primitives::BlockNumberOrTag::Latest,
-                Some(vec![]), // totally random
-            )
-            .await
-            .reward
-            .is_some())
-
-        // assert gas price is higher
-        // TODO: emulate gas price oracle here to have exact value
-        // TODO: https://github.com/chainwayxyz/secret-sovereign-sdk/issues/34
-        // assert!(latest_gas_price > initial_gas_price);
     }
 
     let first_block = client
