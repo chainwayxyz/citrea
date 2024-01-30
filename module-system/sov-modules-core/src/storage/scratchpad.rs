@@ -340,19 +340,15 @@ impl<S: Storage> AsReadonly for StateCheckpoint<S> {
     type Readonly = StateSnapshot<S>;
 
     fn as_readonly(&self, level: Option<IsolationLevel>) -> Self::Readonly {
+        // TODO think about uncommitted changes and how to handle them. There are three options
+        //  1. Return a snapshot of the current state, ignoring uncommitted changes
+        //  2. Return a snapshot of the current state, but also include uncommitted changes
+        //  3. Return an error
+
         let level = level.unwrap_or_else(|| IsolationLevel::ReadCommitted);
         match level {
-            IsolationLevel::ReadCommitted =>
-            // read just from storage
-            {
-                StateSnapshot::new(self.delta.inner.clone())
-            }
-
-            IsolationLevel::DirtyRead =>
-            // this is tricky because we need to propagate cache to the snapshot
-            {
-                StateSnapshot::new(self.delta.inner.clone())
-            }
+            IsolationLevel::ReadCommitted => StateSnapshot::new(self.delta.inner.clone()),
+            IsolationLevel::DirtyRead => StateSnapshot::new(self.delta.inner.clone()), // TODO clone cache?
         }
     }
 }
