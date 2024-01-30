@@ -336,8 +336,8 @@ impl<C: Context> StateCheckpoint<C> {
     }
 }
 
-impl<S: Storage> AsReadonly for StateCheckpoint<S> {
-    type Readonly = StateSnapshot<S>;
+impl<C: Context> AsReadonly for StateCheckpoint<C> {
+    type Readonly = StateSnapshot<<C as Spec>::Storage>;
 
     fn as_readonly(&self, level: Option<IsolationLevel>) -> Self::Readonly {
         // TODO think about uncommitted changes and how to handle them. There are three options

@@ -32,7 +32,8 @@ impl<S: Storage> StateSnapshot<S> {
 
 impl<S: Storage> StateReader for StateSnapshot<S> {
     fn get(&self, key: &StorageKey) -> Option<StorageValue> {
-        // TODO propagate witness
-        self.inner.get(key, None, Default::default())
+        // TODO propagate witness?
+        let witness: S::Witness = Default::default();
+        self.inner.get(key, None, &witness)
     }
 }
