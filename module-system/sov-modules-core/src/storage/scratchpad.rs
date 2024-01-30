@@ -10,7 +10,7 @@ use sov_rollup_interface::stf::Event;
 use crate::archival_state::{ArchivalAccessoryWorkingSet, ArchivalJmtWorkingSet};
 use crate::common::{GasMeter, Prefix};
 use crate::module::{Context, Spec};
-use crate::storage::read_access::{AsReadonly, StateSnapshot};
+use crate::storage::read_access::{AsReadonly, IsolationLevel, StateSnapshot};
 use crate::storage::{
     CacheKey, CacheValue, EncodeKeyLike, NativeStorage, OrderedReadsAndWrites, StateCodec,
     StateValueCodec, Storage, StorageInternalCache, StorageKey, StorageProof, StorageValue,
@@ -339,12 +339,21 @@ impl<C: Context> StateCheckpoint<C> {
 impl<S: Storage> AsReadonly for StateCheckpoint<S> {
     type Readonly = StateSnapshot<S>;
 
-    fn as_readonly(&self) -> Self::Readonly {
-        assert!(
-            self.delta.cache.tx_cache.is_empty(),
-            "There shouldn't be uncommitted changes to prevent dirty reads"
-        );
-        StateSnapshot::new(self.delta.inner.clone())
+    fn as_readonly(&self, level: Option<IsolationLevel>) -> Self::Readonly {
+        let level = level.unwrap_or_else(|| IsolationLevel::ReadCommitted);
+        match level {
+            IsolationLevel::ReadCommitted =>
+            // read just from storage
+            {
+                StateSnapshot::new(self.delta.inner.clone())
+            }
+
+            IsolationLevel::DirtyRead =>
+            // this is tricky because we need to propagate cache to the snapshot
+            {
+                StateSnapshot::new(self.delta.inner.clone())
+            }
+        }
     }
 }
 

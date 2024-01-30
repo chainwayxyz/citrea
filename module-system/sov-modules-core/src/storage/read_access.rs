@@ -10,7 +10,14 @@ pub trait AsReadonly {
     type Readonly;
 
     /// Performs the conversion.
-    fn as_readonly(&self) -> Self::Readonly;
+    fn as_readonly(&self, level: Option<IsolationLevel>) -> Self::Readonly;
+}
+
+pub enum IsolationLevel {
+    /// Read isolation level.
+    ReadCommitted,
+    /// Write isolation level.
+    DirtyRead,
 }
 
 pub struct StateSnapshot<S: Storage> {
