@@ -10,6 +10,7 @@ use sov_rollup_interface::stf::Event;
 use crate::archival_state::{ArchivalAccessoryWorkingSet, ArchivalJmtWorkingSet};
 use crate::common::{GasMeter, Prefix};
 use crate::module::{Context, Spec};
+use crate::storage::read_access::{AsReadonly, StateSnapshot};
 use crate::storage::{
     CacheKey, CacheValue, EncodeKeyLike, NativeStorage, OrderedReadsAndWrites, StateCodec,
     StateValueCodec, Storage, StorageInternalCache, StorageKey, StorageProof, StorageValue,
@@ -332,6 +333,18 @@ impl<C: Context> StateCheckpoint<C> {
     /// the data extracted with [`StateCheckpoint::freeze`].
     pub fn freeze_non_provable(&mut self) -> OrderedReadsAndWrites {
         self.accessory_delta.freeze()
+    }
+}
+
+impl<S: Storage> AsReadonly for StateCheckpoint<S> {
+    type Readonly = StateSnapshot<S>;
+
+    fn as_readonly(&self) -> Self::Readonly {
+        assert!(
+            self.delta.cache.tx_cache.is_empty(),
+            "There shouldn't be uncommitted changes to prevent dirty reads"
+        );
+        StateSnapshot::new(self.delta.inner.clone())
     }
 }
 
