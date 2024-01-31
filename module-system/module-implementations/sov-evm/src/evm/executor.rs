@@ -50,9 +50,7 @@ pub(crate) fn execute_multiple_tx<DB: Database<Error = Infallible> + DatabaseCom
     let mut tx_results = Vec::with_capacity(txs.len());
     for tx in txs {
         let block_available_gas = block_gas_limit - cumulative_gas_used;
-        let result = if !evm.env.cfg.disable_block_gas_limit
-            && tx.transaction.gas_limit() > block_available_gas
-        {
+        let result = if tx.transaction.gas_limit() > block_available_gas {
             Err(EVMError::Transaction(
                 InvalidTransaction::CallerGasLimitMoreThanBlock,
             ))

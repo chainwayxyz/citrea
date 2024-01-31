@@ -651,6 +651,8 @@ fn log_filter_test_with_range() {
 
 #[test]
 fn test_log_limits() {
+    // sov_demo_rollup::initialize_logging();
+
     let (config, dev_signer, contract_addr) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap());
 
@@ -1003,6 +1005,7 @@ fn get_evm_config(signer_balance: U256) -> (EvmConfig, TestSigner, Address) {
             nonce: 0,
         }],
         spec: vec![(0, SpecId::SHANGHAI)].into_iter().collect(),
+        block_gas_limit: 1_000_000_000,
         ..Default::default()
     };
     (config, dev_signer, contract_addr)
