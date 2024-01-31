@@ -99,7 +99,7 @@ async fn execute(
     for wallet in wallets {
         let address = wallet.address();
         let wallet_client = TestClient::new(client.chain_id, wallet, address, port).await;
-        for i in 0u32..tx_count_from_single_address {
+        for i in 0..tx_count_from_single_address {
             wallet_client
                 .contract_transaction(contract_address, contract.set_call_data(i), None)
                 .await;
