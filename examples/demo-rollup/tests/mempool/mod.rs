@@ -360,8 +360,6 @@ async fn test_same_nonce_tx_replacement() {
         .await
         .unwrap();
 
-    println!("tx_hash: {:?}", tx_hash);
-
     // Replacement error with lower fee
     let err = test_client
         .send_eth(addr, Some(90u64), Some(MAX_FEE_PER_GAS), Some(0), 0u128)
@@ -432,41 +430,54 @@ async fn test_same_nonce_tx_replacement() {
     let err = test_client
         .send_eth(
             addr,
-            Some(110u64),                       // 10% increase
-            Some(MAX_FEE_PER_GAS + 1000000000), // TODO: Why I need to increase the value that much?
+            Some(110u64), // 10% increase
+            Some(MAX_FEE_PER_GAS + 1000000000),
             Some(0),
             0u128,
         )
         .await
         .unwrap_err();
 
-    // println!("tx_hash_10_bump: {:?}", tx_hash_10_bump);
     assert!(err
         .to_string()
         .contains("insufficient gas price to replace existing transaction"));
-    // assert_ne!(tx_hash.tx_hash(), tx_hash_10_bump.tx_hash());
 
+    let err = test_client
+        .send_eth(
+            addr,
+            Some(111u64),                      // 11% increase
+            Some(MAX_FEE_PER_GAS + 100000000), // Not increasing more than 10 percent - should fail.
+            Some(0),
+            0u128,
+        )
+        .await
+        .unwrap_err();
+
+    assert!(err
+        .to_string()
+        .contains("insufficient gas price to replace existing transaction"));
+
+    // Replacement success with more than 10% bump
     let tx_hash_11_bump = test_client
         .send_eth(
             addr,
             Some(111u64),                       // 11% increase
-            Some(MAX_FEE_PER_GAS + 1000000000), // TODO: Why I need to increase the value that much?
+            Some(MAX_FEE_PER_GAS + 1000000000), // More than 10 percent - should succeed.
             Some(0),
             0u128,
         )
         .await
         .unwrap();
 
-    println!("tx_hash_11_bump: {:?}", tx_hash_11_bump);
     assert_ne!(tx_hash.tx_hash(), tx_hash_11_bump.tx_hash());
 
     // Replacement success with more than 10% bump
     let tx_hash_25_bump = test_client
         .send_eth(
             addr,
-            Some(125u64), // 25% increase
+            Some(125u64),
             Some(MAX_FEE_PER_GAS + 100000000000),
-            Some(0), // same nonce
+            Some(0),
             0u128,
         )
         .await
@@ -479,7 +490,7 @@ async fn test_same_nonce_tx_replacement() {
             addr,
             Some(1000u64),
             Some(MAX_FEE_PER_GAS + 10000000000000),
-            Some(0), // same nonce
+            Some(0),
             0u128,
         )
         .await
@@ -487,8 +498,16 @@ async fn test_same_nonce_tx_replacement() {
 
     assert_ne!(tx_hash_25_bump.tx_hash(), tx_hash_ultra_bump.tx_hash());
 
+    test_client.send_publish_batch_request().await;
+
+    let block = test_client
+        .eth_get_block_by_number(Some(BlockNumberOrTag::Latest))
+        .await;
+
+    assert!(!block.transactions.contains(&tx_hash.tx_hash()));
+    assert!(!block.transactions.contains(&tx_hash_11_bump.tx_hash()));
+    assert!(!block.transactions.contains(&tx_hash_25_bump.tx_hash()));
+    assert!(block.transactions.contains(&tx_hash_ultra_bump.tx_hash()));
+
     seq_task.abort();
 }
-// Q - How much do I need to increase the max fee per gas for each calculation
-// Q - In that case, the transaction gets rejected? But we see it as a different error?
-// Check it in detail.
