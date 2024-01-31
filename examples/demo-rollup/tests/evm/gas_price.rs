@@ -16,7 +16,7 @@ use crate::test_helpers::{start_rollup, NodeMode};
 
 #[tokio::test]
 async fn test_gas_price_increase() -> Result<(), anyhow::Error> {
-    // sov_demo_rollup::initialize_logging.initialize_logging();
+    // sov_demo_rollup::initialize_logging();
 
     let (port_tx, port_rx) = tokio::sync::oneshot::channel();
 

@@ -52,7 +52,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         let evm_db: EvmDb<'_, C> = self.get_db(working_set);
         let results =
-            executor::execute_multiple_tx(evm_db, &block_env, &evm_txs_recovered, cfg_env);
+            executor::execute_multiple_tx(evm_db, &block_env, &evm_txs_recovered, cfg_env)?;
 
         // Iterate each evm_txs_recovered and results pair
         // Create a PendingTransaction for each pair
