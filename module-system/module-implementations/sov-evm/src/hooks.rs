@@ -3,6 +3,7 @@ use reth_primitives::{Bloom, Bytes, U256};
 use sov_modules_api::prelude::*;
 use sov_modules_api::{AccessoryWorkingSet, Spec, WorkingSet};
 use sov_state::Storage;
+use tracing::debug;
 
 use crate::evm::primitive_types::{Block, BlockEnv};
 use crate::{Evm, PendingTransaction};
@@ -51,6 +52,9 @@ where
                 .unwrap(),
             gas_limit: cfg.block_gas_limit,
         };
+
+        debug!("New pending block: {:?}", new_pending_env);
+
         self.block_env.set(&new_pending_env, working_set);
 
         // if hight > 256, start removing the oldest block

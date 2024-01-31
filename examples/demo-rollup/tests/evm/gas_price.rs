@@ -75,10 +75,11 @@ async fn execute(
     assert_eq!(initial_fee_history.oldest_block, U256::zero());
 
     // Create 100 wallets and send them some eth
+    let wallets_count = 100;
     let one_eth = u128::pow(10, Ether.as_num());
     let mut rng = thread_rng();
-    let mut wallets = Vec::with_capacity(100);
-    for i in 0..wallets.capacity() {
+    let mut wallets = Vec::with_capacity(wallets_count);
+    for i in 0..wallets_count {
         let wallet = LocalWallet::new(&mut rng).with_chain_id(client.chain_id);
         let address = wallet.address();
         client
@@ -93,9 +94,6 @@ async fn execute(
     }
     client.send_publish_batch_request().await;
 
-    // get initial gas price
-    let initial_gas_price = client.eth_gas_price().await;
-
     // send 15 transactions from each wallet
     for wallet in wallets {
         let address = wallet.address();
@@ -107,9 +105,21 @@ async fn execute(
         }
     }
     client.send_publish_batch_request().await;
-    client.send_publish_batch_request().await; // if this isn't here gas fees don't increase, why?
+    let block = client.eth_get_block_by_number(None).await;
+    assert!(
+        block.gas_used.as_u64() <= reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT,
+        "Block has gas limit"
+    );
+    assert!(
+        block.transactions.len() < wallets_count * 15,
+        "Some of the transactions should be dropped because of gas limit"
+    );
 
-    // get new gas price
+    // get initial gas price from the last committed block. I.e. the price before the transactions
+    let initial_gas_price = client.eth_gas_price().await;
+
+    client.send_publish_batch_request().await;
+    // get new gas price after the transactions that was adjusted in the last block
     let latest_gas_price = client.eth_gas_price().await;
 
     assert!(
