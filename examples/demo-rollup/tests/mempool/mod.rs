@@ -330,8 +330,6 @@ async fn test_tx_with_low_base_fee() {
     seq_task.abort();
 }
 
-// TODO: Tx replacement calculations are not working correctly in reth
-// Waiting on issue: https://github.com/paradigmxyz/reth/issues/6058
 #[tokio::test]
 async fn test_same_nonce_tx_replacement() {
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
