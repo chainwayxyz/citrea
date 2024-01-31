@@ -5,16 +5,14 @@ use sov_modules_api::runtime::capabilities::KernelSlotHooks;
 use sov_modules_api::{
     BasicAddress, BlobReaderTrait, Context, DaSpec, DispatchCall, GasUnit, StateCheckpoint,
 };
-use sov_rollup_interface::soft_confirmation::SoftConfirmationSpec;
+use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
 use sov_rollup_interface::stf::{BatchReceipt, TransactionReceipt};
 use tracing::{debug, error};
 
-use crate::soft_batch::SignedSoftConfirmationBatch;
 use crate::tx_verifier::{verify_txs_stateless, TransactionAndRawHash};
-use crate::{Batch, Runtime, RuntimeTxHook, SequencerOutcome, SlashingReason, TxEffect};
+use crate::{Batch, RawTx, Runtime, RuntimeTxHook, SequencerOutcome, SlashingReason, TxEffect};
 
 type ApplyBatchResult<T, A> = Result<T, ApplyBatchError<A>>;
-
 #[allow(type_alias_bounds)]
 type ApplyBatch<Da: DaSpec> = ApplyBatchResult<
     BatchReceipt<SequencerOutcome<<Da::BlobTransaction as BlobReaderTrait>::Address>, TxEffect>,
@@ -26,14 +24,7 @@ use sov_zk_cycle_macros::cycle_tracker;
 /// An implementation of the
 /// [`StateTransitionFunction`](sov_rollup_interface::stf::StateTransitionFunction)
 /// that is specifically designed to work with the module-system.
-pub struct StfBlueprint<
-    C: Context,
-    Da: DaSpec,
-    ScS: SoftConfirmationSpec,
-    Vm,
-    RT: Runtime<C, Da, ScS>,
-    K: KernelSlotHooks<C, Da>,
-> {
+pub struct StfBlueprint<C: Context, Da: DaSpec, Vm, RT: Runtime<C, Da>, K: KernelSlotHooks<C, Da>> {
     /// State storage used by the rollup.
     /// The runtime includes all the modules that the rollup supports.
     pub(crate) runtime: RT,
@@ -41,7 +32,6 @@ pub struct StfBlueprint<
     phantom_context: PhantomData<C>,
     phantom_vm: PhantomData<Vm>,
     phantom_da: PhantomData<Da>,
-    phantom_scs: PhantomData<ScS>,
 }
 
 pub(crate) enum ApplyBatchError<A: BasicAddress> {
@@ -79,12 +69,11 @@ impl<A: BasicAddress> From<ApplyBatchError<A>> for BatchReceipt<SequencerOutcome
     }
 }
 
-impl<C, Vm, Da, ScS, RT, K> Default for StfBlueprint<C, Da, ScS, Vm, RT, K>
+impl<C, Vm, Da, RT, K> Default for StfBlueprint<C, Da, Vm, RT, K>
 where
     C: Context,
     Da: DaSpec,
-    ScS: SoftConfirmationSpec,
-    RT: Runtime<C, Da, ScS>,
+    RT: Runtime<C, Da>,
     K: KernelSlotHooks<C, Da>,
 {
     fn default() -> Self {
@@ -92,12 +81,11 @@ where
     }
 }
 
-impl<C, Vm, Da, ScS, RT, K> StfBlueprint<C, Da, ScS, Vm, RT, K>
+impl<C, Vm, Da, RT, K> StfBlueprint<C, Da, Vm, RT, K>
 where
     C: Context,
     Da: DaSpec,
-    ScS: SoftConfirmationSpec,
-    RT: Runtime<C, Da, ScS>,
+    RT: Runtime<C, Da>,
     K: KernelSlotHooks<C, Da>,
 {
     /// [`StfBlueprint`] constructor.
@@ -108,7 +96,6 @@ where
             phantom_context: PhantomData,
             phantom_vm: PhantomData,
             phantom_da: PhantomData,
-            phantom_scs: PhantomData,
         }
     }
 
@@ -116,7 +103,7 @@ where
     pub(crate) fn apply_soft_confirmation(
         &self,
         checkpoint: StateCheckpoint<C>,
-        soft_batch: &mut ScS,
+        soft_batch: &mut SignedSoftConfirmationBatch,
     ) -> (ApplyBatch<Da>, StateCheckpoint<C>) {
         debug!(
             "Applying batch from sequencer: 0x{}",
@@ -383,7 +370,13 @@ where
         &self,
         batch: SignedSoftConfirmationBatch,
     ) -> Result<Vec<TransactionAndRawHash<C>>, SlashingReason> {
-        match verify_txs_stateless(batch.txs) {
+        match verify_txs_stateless(
+            batch
+                .txs
+                .iter()
+                .map(|tx| RawTx { data: tx.clone() })
+                .collect::<Vec<_>>(),
+        ) {
             Ok(txs) => Ok(txs),
             Err(e) => {
                 error!("Stateless verification error - the sequencer included a transaction which was known to be invalid. {}\n", e);

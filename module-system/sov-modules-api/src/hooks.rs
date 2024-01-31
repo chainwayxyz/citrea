@@ -1,8 +1,6 @@
 use sov_modules_core::{AccessoryWorkingSet, Context, Spec, Storage, WorkingSet};
-use sov_rollup_interface::{
-    da::{BlobReaderTrait, DaSpec},
-    soft_confirmation::SoftConfirmationSpec,
-};
+use sov_rollup_interface::da::{BlobReaderTrait, DaSpec};
+use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
 
 use crate::transaction::Transaction;
 
@@ -59,7 +57,7 @@ pub trait ApplyBlobHooks<B: BlobReaderTrait> {
 }
 
 /// Hooks that are executed before and after a soft confirmation is processed.
-pub trait ApplySoftConfirmation<ScS: SoftConfirmationSpec, Da: DaSpec> {
+pub trait ApplySoftConfirmation<Da: DaSpec> {
     type Context: Context;
     type SoftConfirmationResult;
 
@@ -67,7 +65,7 @@ pub trait ApplySoftConfirmation<ScS: SoftConfirmationSpec, Da: DaSpec> {
     /// If this hook returns Err, batch is not applied
     fn begin_soft_confirmation_hook(
         &self,
-        soft_batch: &mut ScS,
+        soft_batch: &mut SignedSoftConfirmationBatch,
         working_set: &mut WorkingSet<Self::Context>,
     ) -> anyhow::Result<()>;
 

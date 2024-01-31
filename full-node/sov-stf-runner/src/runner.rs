@@ -9,11 +9,10 @@ use sequencer_client::SequencerClient;
 use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::{LedgerDB, SlotCommit};
 use sov_db::schema::types::{BatchNumber, StoredSoftBatch};
-use sov_modules_stf_blueprint::soft_batch::SignedSoftConfirmationBatch;
 use sov_modules_stf_blueprint::{Batch, RawTx};
 use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::services::da::{DaService, SlotData};
-use sov_rollup_interface::soft_confirmation::SoftConfirmationSpec;
+use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
 use sov_rollup_interface::stf::{SoftBatchReceipt, StateTransitionFunction};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::{StateTransitionData, Zkvm, ZkvmHost};
@@ -24,18 +23,17 @@ use tracing::{debug, error, info, warn};
 use crate::verifier::StateTransitionVerifier;
 use crate::{ProverService, RunnerConfig};
 
-type StateRoot<ST, Vm, Da, ScS> = <ST as StateTransitionFunction<Vm, Da, ScS>>::StateRoot;
-type GenesisParams<ST, Vm, Da, ScS> = <ST as StateTransitionFunction<Vm, Da, ScS>>::GenesisParams;
+type StateRoot<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::StateRoot;
+type GenesisParams<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::GenesisParams;
 
 const CONNECTION_INTERVALS: &[u64] = &[0, 1, 2, 5, 10, 15, 30, 60];
 const RETRY_INTERVAL: &[u64] = &[1, 5];
 const RETRY_SLEEP: u64 = 2;
 
 /// Combines `DaService` with `StateTransitionFunction` and "runs" the rollup.
-pub struct StateTransitionRunner<Stf, Sm, Da, ScS, Vm, Ps>
+pub struct StateTransitionRunner<Stf, Sm, Da, Vm, Ps>
 where
     Da: DaService,
-    ScS: SoftConfirmationSpec,
     Vm: ZkvmHost,
     Sm: HierarchicalStorageManager<Da::Spec>,
     Stf: StateTransitionFunction<Vm, Da::Spec, Condition = <Da::Spec as DaSpec>::ValidityCondition>,
@@ -46,7 +44,7 @@ where
     stf: Stf,
     storage_manager: Sm,
     ledger_db: LedgerDB,
-    state_root: StateRoot<Stf, Vm, Da::Spec, ScS>,
+    state_root: StateRoot<Stf, Vm, Da::Spec>,
     listen_address: SocketAddr,
     #[allow(dead_code)]
     prover_service: Ps,
@@ -54,9 +52,9 @@ where
 }
 
 /// Represents the possible modes of execution for a zkVM program
-pub enum ProofGenConfig<Stf, Da: DaService, Vm: ZkvmHost, ScS: SoftConfirmationSpec>
+pub enum ProofGenConfig<Stf, Da: DaService, Vm: ZkvmHost>
 where
-    Stf: StateTransitionFunction<Vm::Guest, Da::Spec, ScS>,
+    Stf: StateTransitionFunction<Vm::Guest, Da::Spec>,
 {
     /// Skips proving.
     Skip,
@@ -70,12 +68,7 @@ where
 }
 
 /// How [`StateTransitionRunner`] is initialized
-pub enum InitVariant<
-    Stf: StateTransitionFunction<Vm, Da, ScS>,
-    Vm: Zkvm,
-    Da: DaSpec,
-    ScS: SoftConfirmationSpec,
-> {
+pub enum InitVariant<Stf: StateTransitionFunction<Vm, Da>, Vm: Zkvm, Da: DaSpec> {
     /// From give state root
     Initialized(Stf::StateRoot),
     /// From empty state root
@@ -87,16 +80,14 @@ pub enum InitVariant<
     },
 }
 
-impl<Stf, Sm, Da, Vm, Ps, ScS> StateTransitionRunner<Stf, Sm, Da, Vm, Ps>
+impl<Stf, Sm, Da, Vm, Ps> StateTransitionRunner<Stf, Sm, Da, Vm, Ps>
 where
     Da: DaService<Error = anyhow::Error> + Clone + Send + Sync + 'static,
     Vm: ZkvmHost,
     Sm: HierarchicalStorageManager<Da::Spec>,
-    ScS: SoftConfirmationSpec,
     Stf: StateTransitionFunction<
         Vm,
         Da::Spec,
-        ScS,
         Condition = <Da::Spec as DaSpec>::ValidityCondition,
         PreState = Sm::NativeStorage,
         ChangeSet = Sm::NativeChangeSet,
@@ -256,7 +247,7 @@ where
             da_slot_hash: filtered_block.header().hash(),
             da_slot_height: filtered_block.header().height(),
             tx_receipts: batch_receipt.tx_receipts,
-            soft_confirmation_signature: soft_batch.signature,
+            soft_confirmation_signature: soft_batch.signature.to_vec(),
         };
 
         self.ledger_db

@@ -3,11 +3,11 @@
 
 mod batch;
 pub mod kernels;
-pub mod soft_batch;
 mod stf_blueprint;
 mod tx_verifier;
 
 pub use batch::Batch;
+use sov_modules_api::da::BlockHeaderTrait;
 use sov_modules_api::hooks::{
     ApplyBlobHooks, ApplySoftConfirmation, FinalizeHook, SlotHooks, TxHooks,
 };
@@ -16,18 +16,15 @@ use sov_modules_api::{
     BasicAddress, BlobReaderTrait, Context, DaSpec, DispatchCall, Genesis, KernelWorkingSet, Spec,
     StateCheckpoint, Zkvm,
 };
-use sov_rollup_interface::soft_confirmation::SoftConfirmationSpec;
+use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
 pub use sov_rollup_interface::stf::BatchReceipt;
 use sov_rollup_interface::stf::{SlotResult, StateTransitionFunction};
-use sov_modules_api::da::BlockHeaderTrait;
 use sov_state::Storage;
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 use sov_zk_cycle_macros::cycle_tracker;
 pub use stf_blueprint::StfBlueprint;
 use tracing::info;
 pub use tx_verifier::RawTx;
-
-use crate::soft_batch::SignedSoftConfirmationBatch;
 
 /// The tx hook for a blueprint runtime
 pub struct RuntimeTxHook<C: Context> {
@@ -41,20 +38,19 @@ pub struct RuntimeTxHook<C: Context> {
 ///
 /// The `TxHooks` implementation sets up a transaction context based on the height at which it is
 /// to be executed.
-pub trait Runtime<C: Context, Da: DaSpec, ScS: SoftConfirmationSpec>:
+pub trait Runtime<C: Context, Da: DaSpec>:
     DispatchCall<Context = C>
     + Genesis<Context = C, Config = Self::GenesisConfig>
     + TxHooks<Context = C, PreArg = RuntimeTxHook<C>, PreResult = C>
     + SlotHooks<Da, Context = C>
     + FinalizeHook<Da, Context = C>
     + ApplySoftConfirmation<
-        ScS,
         Da,
         Context = C,
         SoftConfirmationResult = SequencerOutcome<
             <<Da as DaSpec>::BlobTransaction as BlobReaderTrait>::Address,
         >,
-    > 
+    >
     // + ApplyBlobHooks<
     //     Da::BlobTransaction,
     //     Context = C,
@@ -127,13 +123,12 @@ pub enum SlashingReason {
     InvalidTransactionEncoding,
 }
 
-impl<C, RT, Vm, ScS, Da, K> StfBlueprint<C, Da, ScS, Vm, RT, K>
+impl<C, RT, Vm, Da, K> StfBlueprint<C, Da, Vm, RT, K>
 where
     C: Context,
     Vm: Zkvm,
     Da: DaSpec,
-    ScS: SoftConfirmationSpec,
-    RT: Runtime<C, Da, ScS>,
+    RT: Runtime<C, Da>,
     K: KernelSlotHooks<C, Da>,
 {
     #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
@@ -198,13 +193,12 @@ where
     }
 }
 
-impl<C, RT, Vm, ScS, Da, K> StateTransitionFunction<Vm, Da, ScS> for StfBlueprint<C, Da, ScS, Vm, RT, K>
+impl<C, RT, Vm, Da, K> StateTransitionFunction<Vm, Da> for StfBlueprint<C, Da, Vm, RT, K>
 where
     C: Context,
     Da: DaSpec,
-    ScS: SoftConfirmationSpec,
     Vm: Zkvm,
-    RT: Runtime<C, Da, ScS>,
+    RT: Runtime<C, Da>,
     K: KernelSlotHooks<C, Da>,
 {
     type StateRoot = <C::Storage as Storage>::Root;
@@ -286,15 +280,14 @@ where
         witness: Self::Witness,
         slot_header: &<Da as DaSpec>::BlockHeader,
         validity_condition: &<Da as DaSpec>::ValidityCondition,
-        soft_batch: &mut ScS,
+        soft_batch: &mut SignedSoftConfirmationBatch,
     ) -> SlotResult<
         Self::StateRoot,
         Self::ChangeSet,
         Self::BatchReceiptContents,
         Self::TxReceiptContents,
         Self::Witness,
-    >
-    {
+    > {
         // check if soft confirmation is coming from our sequencer
         assert_eq!(
             soft_batch.sequencer_pub_key(),

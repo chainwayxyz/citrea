@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::da::DaSpec;
 use crate::maybestd::vec::Vec;
-use crate::soft_confirmation::SoftConfirmationSpec;
+use crate::soft_confirmation::SignedSoftConfirmationBatch;
 use crate::zk::{ValidityCondition, Zkvm};
 
 #[cfg(any(all(test, feature = "sha2"), feature = "fuzzing"))]
@@ -120,7 +120,7 @@ pub struct SlotResult<S, Cs, B, T, W> {
 ///  - block: DA layer block
 ///  - batch: Set of transactions grouped together, or block on L2
 ///  - blob: Non serialised batch or anything else that can be posted on DA layer, like attestation or proof.
-pub trait StateTransitionFunction<Vm: Zkvm, Da: DaSpec, ScS: SoftConfirmationSpec> {
+pub trait StateTransitionFunction<Vm: Zkvm, Da: DaSpec> {
     /// Root hash of state merkle tree
     type StateRoot: Serialize + DeserializeOwned + Clone + AsRef<[u8]> + Debug;
 
@@ -207,7 +207,7 @@ pub trait StateTransitionFunction<Vm: Zkvm, Da: DaSpec, ScS: SoftConfirmationSpe
         witness: Self::Witness,
         slot_header: &Da::BlockHeader,
         validity_condition: &Da::ValidityCondition,
-        soft_batch: &mut ScS,
+        soft_batch: SignedSoftConfirmationBatch,
     ) -> SlotResult<
         Self::StateRoot,
         Self::ChangeSet,
