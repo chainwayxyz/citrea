@@ -19,12 +19,6 @@ pub(crate) fn execute_tx<DB: Database<Error = Infallible> + DatabaseCommit>(
 ) -> Result<ExecutionResult, EVMError<Infallible>> {
     let mut evm = revm::new();
 
-    println!(
-        "gas limit {:?}, is disabled {:?}",
-        block_env.gas_limit,
-        config_env.is_block_gas_limit_disabled()
-    );
-
     let env = Env {
         block: block_env.into(),
         cfg: config_env,
