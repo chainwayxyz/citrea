@@ -330,9 +330,182 @@ async fn test_tx_with_low_base_fee() {
     seq_task.abort();
 }
 
-// TODO: Tx replacement calculations are not working correctly in reth
-// Waiting on issue: https://github.com/paradigmxyz/reth/issues/6058
-// #[tokio::test]
-// async fn test_same_nonce_tx_replacement() {
+#[tokio::test]
+async fn test_same_nonce_tx_replacement() {
+    let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
-// }
+    let seq_task = tokio::spawn(async {
+        start_rollup(
+            seq_port_tx,
+            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
+            BasicKernelGenesisPaths {
+                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
+            },
+            RollupProverConfig::Execute,
+            NodeMode::SequencerNode,
+            None,
+        )
+        .await;
+    });
+
+    let seq_port = seq_port_rx.await.unwrap();
+    let test_client = make_test_client(seq_port).await;
+
+    let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
+
+    let tx_hash = test_client
+        .send_eth(addr, Some(100u64), Some(MAX_FEE_PER_GAS), Some(0), 0u128)
+        .await
+        .unwrap();
+
+    // Replacement error with lower fee
+    let err = test_client
+        .send_eth(addr, Some(90u64), Some(MAX_FEE_PER_GAS), Some(0), 0u128)
+        .await
+        .unwrap_err();
+
+    assert!(err
+        .to_string()
+        .contains("insufficient gas price to replace existing transaction"));
+
+    // Replacement error with equal fee
+    let err = test_client
+        .send_eth(addr, Some(100u64), Some(MAX_FEE_PER_GAS), Some(0), 0u128)
+        .await
+        .unwrap_err();
+
+    assert!(err.to_string().contains("already imported"));
+
+    // Replacement error with enough base fee but low priority fee
+    let err = test_client
+        .send_eth(
+            addr,
+            Some(10u64),
+            Some(MAX_FEE_PER_GAS + 100u64),
+            Some(0),
+            0u128,
+        )
+        .await
+        .unwrap_err();
+
+    assert!(err
+        .to_string()
+        .contains("insufficient gas price to replace existing transaction"));
+
+    // Replacement error with enough base fee but low priority fee
+    let err = test_client
+        .send_eth(
+            addr,
+            Some(10u64),
+            Some(MAX_FEE_PER_GAS + 100000000000u64),
+            Some(0),
+            0u128,
+        )
+        .await
+        .unwrap_err();
+
+    assert!(err
+        .to_string()
+        .contains("insufficient gas price to replace existing transaction"));
+
+    // Replacement error with not enough fee increase (like 5% or sth.)
+    let err = test_client
+        .send_eth(
+            addr,
+            Some(105u64),
+            Some(MAX_FEE_PER_GAS + 1000000000),
+            Some(0),
+            0u128,
+        )
+        .await
+        .unwrap_err();
+
+    assert!(err
+        .to_string()
+        .contains("insufficient gas price to replace existing transaction"));
+
+    // Replacement success with 10% fee bump - does not work
+    let err = test_client
+        .send_eth(
+            addr,
+            Some(110u64), // 10% increase
+            Some(MAX_FEE_PER_GAS + 1000000000),
+            Some(0),
+            0u128,
+        )
+        .await
+        .unwrap_err();
+
+    assert!(err
+        .to_string()
+        .contains("insufficient gas price to replace existing transaction"));
+
+    let err = test_client
+        .send_eth(
+            addr,
+            Some(111u64),                      // 11% increase
+            Some(MAX_FEE_PER_GAS + 100000000), // Not increasing more than 10 percent - should fail.
+            Some(0),
+            0u128,
+        )
+        .await
+        .unwrap_err();
+
+    assert!(err
+        .to_string()
+        .contains("insufficient gas price to replace existing transaction"));
+
+    // Replacement success with more than 10% bump
+    let tx_hash_11_bump = test_client
+        .send_eth(
+            addr,
+            Some(111u64),                       // 11% increase
+            Some(MAX_FEE_PER_GAS + 1000000000), // More than 10 percent - should succeed.
+            Some(0),
+            0u128,
+        )
+        .await
+        .unwrap();
+
+    assert_ne!(tx_hash.tx_hash(), tx_hash_11_bump.tx_hash());
+
+    // Replacement success with more than 10% bump
+    let tx_hash_25_bump = test_client
+        .send_eth(
+            addr,
+            Some(125u64),
+            Some(MAX_FEE_PER_GAS + 100000000000),
+            Some(0),
+            0u128,
+        )
+        .await
+        .unwrap();
+
+    assert_ne!(tx_hash_11_bump.tx_hash(), tx_hash_25_bump.tx_hash());
+
+    let tx_hash_ultra_bump = test_client
+        .send_eth(
+            addr,
+            Some(1000u64),
+            Some(MAX_FEE_PER_GAS + 10000000000000),
+            Some(0),
+            0u128,
+        )
+        .await
+        .unwrap();
+
+    assert_ne!(tx_hash_25_bump.tx_hash(), tx_hash_ultra_bump.tx_hash());
+
+    test_client.send_publish_batch_request().await;
+
+    let block = test_client
+        .eth_get_block_by_number(Some(BlockNumberOrTag::Latest))
+        .await;
+
+    assert!(!block.transactions.contains(&tx_hash.tx_hash()));
+    assert!(!block.transactions.contains(&tx_hash_11_bump.tx_hash()));
+    assert!(!block.transactions.contains(&tx_hash_25_bump.tx_hash()));
+    assert!(block.transactions.contains(&tx_hash_ultra_bump.tx_hash()));
+
+    seq_task.abort();
+}
