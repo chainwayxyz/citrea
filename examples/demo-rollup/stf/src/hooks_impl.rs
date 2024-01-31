@@ -1,6 +1,8 @@
 use sov_accounts::AccountsTxHook;
 use sov_bank::BankTxHook;
-use sov_modules_api::hooks::{ApplyBlobHooks, FinalizeHook, SlotHooks, TxHooks};
+use sov_modules_api::hooks::{
+    ApplyBlobHooks, ApplySoftConfirmationHooks, FinalizeHook, SlotHooks, TxHooks,
+};
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{AccessoryWorkingSet, Context, Spec, WorkingSet};
 use sov_modules_stf_blueprint::{RuntimeTxHook, SequencerOutcome};
@@ -45,29 +47,76 @@ impl<C: Context, Da: DaSpec> TxHooks for Runtime<C, Da> {
     }
 }
 
-impl<C: Context, Da: DaSpec> ApplyBlobHooks<Da::BlobTransaction> for Runtime<C, Da> {
+// impl<C: Context, Da: DaSpec> ApplyBlobHooks<Da::BlobTransaction> for Runtime<C, Da> {
+//     type Context = C;
+//     type BlobResult =
+//         SequencerOutcome<<<Da as DaSpec>::BlobTransaction as BlobReaderTrait>::Address>;
+
+//     fn begin_blob_hook(
+//         &self,
+//         blob: &mut Da::BlobTransaction,
+//         working_set: &mut WorkingSet<C>,
+//     ) -> anyhow::Result<()> {
+//         // Before executing each batch, check that the sender is registered as a sequencer
+//         self.sequencer_registry.begin_blob_hook(blob, working_set)
+//     }
+
+//     fn end_blob_hook(
+//         &self,
+//         result: Self::BlobResult,
+//         working_set: &mut WorkingSet<C>,
+//     ) -> anyhow::Result<()> {
+//         match result {
+//             SequencerOutcome::Rewarded(_reward) => {
+//                 // TODO: Process reward here or above.
+//                 <SequencerRegistry<C, Da> as ApplyBlobHooks<Da::BlobTransaction>>::end_blob_hook(
+//                     &self.sequencer_registry,
+//                     sov_sequencer_registry::SequencerOutcome::Completed,
+//                     working_set,
+//                 )
+//             }
+//             SequencerOutcome::Ignored => Ok(()),
+//             SequencerOutcome::Slashed {
+//                 reason,
+//                 sequencer_da_address,
+//             } => {
+//                 info!("Sequencer {} slashed: {:?}", sequencer_da_address, reason);
+//                 <SequencerRegistry<C, Da> as ApplyBlobHooks<Da::BlobTransaction>>::end_blob_hook(
+//                     &self.sequencer_registry,
+//                     sov_sequencer_registry::SequencerOutcome::Slashed {
+//                         sequencer: sequencer_da_address,
+//                     },
+//                     working_set,
+//                 )
+//             }
+//         }
+//     }
+// }
+
+impl<C: Context, Da: DaSpec> ApplySoftConfirmationHooks<Da> for Runtime<C, Da> {
     type Context = C;
-    type BlobResult =
+    type SoftConfirmationResult =
         SequencerOutcome<<<Da as DaSpec>::BlobTransaction as BlobReaderTrait>::Address>;
 
-    fn begin_blob_hook(
+    fn begin_soft_confirmation_hook(
         &self,
-        blob: &mut Da::BlobTransaction,
-        working_set: &mut WorkingSet<C>,
+        soft_batch: &mut sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch,
+        working_set: &mut WorkingSet<Self::Context>,
     ) -> anyhow::Result<()> {
         // Before executing each batch, check that the sender is registered as a sequencer
-        self.sequencer_registry.begin_blob_hook(blob, working_set)
+        self.sequencer_registry
+            .begin_soft_confirmation_hook(soft_batch, working_set)
     }
 
-    fn end_blob_hook(
+    fn end_soft_confirmation_hook(
         &self,
-        result: Self::BlobResult,
+        result: Self::SoftConfirmationResult,
         working_set: &mut WorkingSet<C>,
     ) -> anyhow::Result<()> {
         match result {
             SequencerOutcome::Rewarded(_reward) => {
                 // TODO: Process reward here or above.
-                <SequencerRegistry<C, Da> as ApplyBlobHooks<Da::BlobTransaction>>::end_blob_hook(
+                <SequencerRegistry<C, Da> as ApplySoftConfirmationHooks<Da>>::end_soft_confirmation_hook(
                     &self.sequencer_registry,
                     sov_sequencer_registry::SequencerOutcome::Completed,
                     working_set,
@@ -79,7 +128,7 @@ impl<C: Context, Da: DaSpec> ApplyBlobHooks<Da::BlobTransaction> for Runtime<C, 
                 sequencer_da_address,
             } => {
                 info!("Sequencer {} slashed: {:?}", sequencer_da_address, reason);
-                <SequencerRegistry<C, Da> as ApplyBlobHooks<Da::BlobTransaction>>::end_blob_hook(
+                <SequencerRegistry<C, Da> as ApplySoftConfirmationHooks<Da>>::end_soft_confirmation_hook(
                     &self.sequencer_registry,
                     sov_sequencer_registry::SequencerOutcome::Slashed {
                         sequencer: sequencer_da_address,

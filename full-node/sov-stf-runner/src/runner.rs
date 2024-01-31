@@ -192,7 +192,7 @@ where
     /// gets BlockTemplate from sequencer
     pub async fn process(
         &mut self,
-        soft_batch: SignedSoftConfirmationBatch,
+        mut soft_batch: SignedSoftConfirmationBatch,
     ) -> Result<(), anyhow::Error> {
         // let (txs, da_slot_height) = (soft_batch.txs, soft_batch.da_slot_height);
 
@@ -221,7 +221,7 @@ where
             Default::default(),
             filtered_block.header(),
             &filtered_block.validity_condition(),
-            soft_batch,
+            &mut soft_batch,
         );
 
         info!(

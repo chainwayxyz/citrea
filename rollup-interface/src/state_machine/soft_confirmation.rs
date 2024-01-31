@@ -6,14 +6,15 @@ use core::fmt::Debug;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 
+/// TODO
 #[derive(Debug, PartialEq, Clone, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
-struct UnsignedSoftConfirmationBatch {
+pub struct UnsignedSoftConfirmationBatch {
     /// DA block to build on
     pub da_slot_height: u64,
     /// DA block hash
     pub da_slot_hash: [u8; 32],
     /// Previous batch's post state root
-    pub pre_state_root: [u8; 32],
+    pub pre_state_root: Vec<u8>,
     /// Raw transactions.
     pub txs: Vec<Vec<u8>>,
 }
@@ -26,13 +27,13 @@ pub struct SignedSoftConfirmationBatch {
     /// DA block hash
     pub da_slot_hash: [u8; 32],
     /// Previous batch's post state root
-    pub pre_state_root: [u8; 32],
+    pub pre_state_root: Vec<u8>,
     /// Raw transactions.
     pub txs: Vec<Vec<u8>>,
     /// Signature
-    pub signature: [u8; 32],
+    pub signature: Vec<u8>,
     /// Public key of signer
-    pub pub_key: [u8; 32],
+    pub pub_key: Vec<u8>,
 }
 
 impl SignedSoftConfirmationBatch {
@@ -42,8 +43,8 @@ impl SignedSoftConfirmationBatch {
     }
 
     /// TODO
-    pub fn pre_state_root(&self) -> [u8; 32] {
-        self.pre_state_root
+    pub fn pre_state_root(&self) -> Vec<u8> {
+        self.pre_state_root.clone()
     }
 
     /// TODO

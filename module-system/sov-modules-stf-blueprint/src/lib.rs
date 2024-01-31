@@ -9,7 +9,7 @@ mod tx_verifier;
 pub use batch::Batch;
 use sov_modules_api::da::BlockHeaderTrait;
 use sov_modules_api::hooks::{
-    ApplyBlobHooks, ApplySoftConfirmation, FinalizeHook, SlotHooks, TxHooks,
+    ApplyBlobHooks, ApplySoftConfirmationHooks, FinalizeHook, SlotHooks, TxHooks,
 };
 use sov_modules_api::runtime::capabilities::{Kernel, KernelSlotHooks};
 use sov_modules_api::{
@@ -44,7 +44,7 @@ pub trait Runtime<C: Context, Da: DaSpec>:
     + TxHooks<Context = C, PreArg = RuntimeTxHook<C>, PreResult = C>
     + SlotHooks<Da, Context = C>
     + FinalizeHook<Da, Context = C>
-    + ApplySoftConfirmation<
+    + ApplySoftConfirmationHooks<
         Da,
         Context = C,
         SoftConfirmationResult = SequencerOutcome<

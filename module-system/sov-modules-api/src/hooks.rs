@@ -57,7 +57,7 @@ pub trait ApplyBlobHooks<B: BlobReaderTrait> {
 }
 
 /// Hooks that are executed before and after a soft confirmation is processed.
-pub trait ApplySoftConfirmation<Da: DaSpec> {
+pub trait ApplySoftConfirmationHooks<Da: DaSpec> {
     type Context: Context;
     type SoftConfirmationResult;
 

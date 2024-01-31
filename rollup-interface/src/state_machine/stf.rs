@@ -207,7 +207,7 @@ pub trait StateTransitionFunction<Vm: Zkvm, Da: DaSpec> {
         witness: Self::Witness,
         slot_header: &Da::BlockHeader,
         validity_condition: &Da::ValidityCondition,
-        soft_batch: SignedSoftConfirmationBatch,
+        soft_batch: &mut SignedSoftConfirmationBatch,
     ) -> SlotResult<
         Self::StateRoot,
         Self::ChangeSet,

@@ -30,9 +30,11 @@ pub use sov_evm::DevSigner;
 use sov_evm::{CallMessage, Evm, RlpEvmTransaction};
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::utils::to_jsonrpsee_error_object;
-use sov_modules_api::{EncodeCall, PrivateKey, SlotData, WorkingSet};
+use sov_modules_api::{
+    EncodeCall, PrivateKey, SignedSoftConfirmationBatch, SlotData, UnsignedSoftConfirmationBatch,
+    WorkingSet,
+};
 use sov_modules_rollup_blueprint::{Rollup, RollupBlueprint};
-use sov_modules_stf_blueprint::soft_batch::SignedSoftConfirmationBatch;
 use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::services::da::DaService;
 use tracing::info;
@@ -214,7 +216,7 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                 let unsigned_batch = UnsignedSoftConfirmationBatch {
                     da_slot_height: previous_l1_block.header().height(),
                     txs: vec![signed_blob.clone()],
-                    da_slot_hash: previous_l1_block.header().hash(),
+                    da_slot_hash: previous_l1_block.header().hash().into(),
                     pre_state_root: self
                         .rollup
                         .runner
@@ -279,7 +281,7 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
     fn sign_soft_confirmation(
         &mut self,
         soft_confirmation: UnsignedSoftConfirmationBatch,
-    ) -> SignedBlockTemplate {
+    ) -> SignedSoftConfirmationBatch {
         let raw = soft_confirmation.try_to_vec().unwrap();
 
         let signature = self.sov_tx_signer_priv_key.sign(&raw);
@@ -289,12 +291,7 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
             txs: soft_confirmation.txs,
             da_slot_hash: soft_confirmation.da_slot_hash,
             pre_state_root: soft_confirmation.pre_state_root,
-            pub_key: self
-                .sov_tx_signer_priv_key
-                .pub_key()
-                .to_vec()
-                .try_into()
-                .unwrap(),
+            pub_key: self.sov_tx_signer_priv_key.pub_key().try_to_vec().unwrap(),
             signature: signature.try_to_vec().unwrap(),
         }
     }
