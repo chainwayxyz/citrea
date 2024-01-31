@@ -5,7 +5,6 @@ use reth_primitives::TransactionSignedEcRecovered;
 use reth_revm::tracing::{TracingInspector, TracingInspectorConfig};
 use revm::primitives::{CfgEnv, EVMError, Env, ExecutionResult, ResultAndState, TxEnv};
 use revm::{self, Database, DatabaseCommit};
-use tracing::trace;
 
 use super::conversions::create_tx_env;
 use super::primitive_types::BlockEnv;
