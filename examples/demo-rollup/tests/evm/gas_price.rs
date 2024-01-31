@@ -101,7 +101,7 @@ async fn execute(
         let wallet_client = TestClient::new(client.chain_id, wallet, address, port).await;
         for i in 0..tx_count_from_single_address {
             wallet_client
-                .contract_transaction(contract_address, contract.set_call_data(i), None)
+                .contract_transaction(contract_address, contract.set_call_data(u32::from(i)), None)
                 .await;
         }
     }
