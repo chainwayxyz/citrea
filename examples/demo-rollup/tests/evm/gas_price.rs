@@ -76,6 +76,7 @@ async fn execute(
 
     // Create 100 wallets and send them some eth
     let wallets_count = 100;
+    let tx_count_from_single_address = 15;
     let one_eth = u128::pow(10, Ether.as_num());
     let mut rng = thread_rng();
     let mut wallets = Vec::with_capacity(wallets_count);
@@ -88,7 +89,7 @@ async fn execute(
             .unwrap();
         wallets.push(wallet);
 
-        if i % 15 == 0 {
+        if i % tx_count_from_single_address == 0 {
             client.send_publish_batch_request().await;
         }
     }
@@ -98,7 +99,7 @@ async fn execute(
     for wallet in wallets {
         let address = wallet.address();
         let wallet_client = TestClient::new(client.chain_id, wallet, address, port).await;
-        for i in 0u32..15 {
+        for i in 0u32..tx_count_from_single_address {
             wallet_client
                 .contract_transaction(contract_address, contract.set_call_data(i), None)
                 .await;
@@ -111,7 +112,7 @@ async fn execute(
         "Block has gas limit"
     );
     assert!(
-        block.transactions.len() < wallets_count * 15,
+        block.transactions.len() < wallets_count * tx_count_from_single_address,
         "Some of the transactions should be dropped because of gas limit"
     );
 

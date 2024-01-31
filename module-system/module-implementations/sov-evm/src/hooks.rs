@@ -52,9 +52,6 @@ where
                 .unwrap(),
             gas_limit: cfg.block_gas_limit,
         };
-
-        debug!("New pending block: {:?}", new_pending_env);
-
         self.block_env.set(&new_pending_env, working_set);
 
         // if hight > 256, start removing the oldest block
