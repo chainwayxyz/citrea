@@ -1,3 +1,4 @@
+use jsonrpsee::tracing::warn;
 use sov_modules_api::hooks::ApplyBlobHooks;
 use sov_modules_api::{BlobReaderTrait, Context, WorkingSet};
 #[cfg(all(target_os = "zkvm", feature = "bench"))]

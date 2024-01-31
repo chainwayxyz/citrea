@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::da::DaSpec;
 use crate::maybestd::vec::Vec;
+use crate::soft_confirmation::SoftConfirmationSpec;
 use crate::zk::{ValidityCondition, Zkvm};
 
 #[cfg(any(all(test, feature = "sha2"), feature = "fuzzing"))]
@@ -91,6 +92,8 @@ pub struct SoftBatchReceipt<BatchReceiptContents, TxReceiptContents, DS: DaSpec>
     pub pre_state_root: Vec<u8>,
     /// Post state root
     pub post_state_root: Vec<u8>,
+    /// Soft confirmation signature computed from borsh serialization of da_slot_height, da_slot_hash, pre_state_root, txs
+    pub soft_confirmation_signature: Vec<u8>,
 }
 
 /// Result of applying a slot to current state
@@ -117,7 +120,7 @@ pub struct SlotResult<S, Cs, B, T, W> {
 ///  - block: DA layer block
 ///  - batch: Set of transactions grouped together, or block on L2
 ///  - blob: Non serialised batch or anything else that can be posted on DA layer, like attestation or proof.
-pub trait StateTransitionFunction<Vm: Zkvm, Da: DaSpec> {
+pub trait StateTransitionFunction<Vm: Zkvm, Da: DaSpec, ScS: SoftConfirmationSpec> {
     /// Root hash of state merkle tree
     type StateRoot: Serialize + DeserializeOwned + Clone + AsRef<[u8]> + Debug;
 
@@ -183,6 +186,35 @@ pub trait StateTransitionFunction<Vm: Zkvm, Da: DaSpec> {
     >
     where
         I: IntoIterator<Item = &'a mut Da::BlobTransaction>;
+
+    /// Called at each **Soft confirmation block**
+    /// If slot is started in Full Node mode, default witness should be provided.
+    /// If slot is started in Zero Knowledge mode, witness from execution should be provided.
+    ///
+    /// Checks for soft confirmation signature, data correctness (pre state root is correct etc.) and applies batches of transactions to the rollup,
+    /// The blobs are contained into a slot whose data is contained within the `slot_data` parameter,
+    /// this parameter is mainly used within the begin_slot hook.
+    /// The concrete blob type is defined by the DA layer implementation,
+    /// which is why we use a generic here instead of an associated type.
+    ///
+    /// Commits state changes to the database
+    #[allow(clippy::type_complexity)]
+    fn apply_soft_batch(
+        &self,
+        sequencer_public_key: &[u8],
+        pre_state_root: &Self::StateRoot,
+        pre_state: Self::PreState,
+        witness: Self::Witness,
+        slot_header: &Da::BlockHeader,
+        validity_condition: &Da::ValidityCondition,
+        soft_batch: &mut ScS,
+    ) -> SlotResult<
+        Self::StateRoot,
+        Self::ChangeSet,
+        Self::BatchReceiptContents,
+        Self::TxReceiptContents,
+        Self::Witness,
+    >;
 }
 
 /// A key-value pair representing a change to the rollup state

@@ -5,9 +5,11 @@ use sov_modules_api::runtime::capabilities::KernelSlotHooks;
 use sov_modules_api::{
     BasicAddress, BlobReaderTrait, Context, DaSpec, DispatchCall, GasUnit, StateCheckpoint,
 };
+use sov_rollup_interface::soft_confirmation::SoftConfirmationSpec;
 use sov_rollup_interface::stf::{BatchReceipt, TransactionReceipt};
 use tracing::{debug, error};
 
+use crate::soft_batch::SignedSoftConfirmationBatch;
 use crate::tx_verifier::{verify_txs_stateless, TransactionAndRawHash};
 use crate::{Batch, Runtime, RuntimeTxHook, SequencerOutcome, SlashingReason, TxEffect};
 
@@ -24,7 +26,14 @@ use sov_zk_cycle_macros::cycle_tracker;
 /// An implementation of the
 /// [`StateTransitionFunction`](sov_rollup_interface::stf::StateTransitionFunction)
 /// that is specifically designed to work with the module-system.
-pub struct StfBlueprint<C: Context, Da: DaSpec, Vm, RT: Runtime<C, Da>, K: KernelSlotHooks<C, Da>> {
+pub struct StfBlueprint<
+    C: Context,
+    Da: DaSpec,
+    ScS: SoftConfirmationSpec,
+    Vm,
+    RT: Runtime<C, Da, ScS>,
+    K: KernelSlotHooks<C, Da>,
+> {
     /// State storage used by the rollup.
     /// The runtime includes all the modules that the rollup supports.
     pub(crate) runtime: RT,
@@ -32,6 +41,7 @@ pub struct StfBlueprint<C: Context, Da: DaSpec, Vm, RT: Runtime<C, Da>, K: Kerne
     phantom_context: PhantomData<C>,
     phantom_vm: PhantomData<Vm>,
     phantom_da: PhantomData<Da>,
+    phantom_scs: PhantomData<ScS>,
 }
 
 pub(crate) enum ApplyBatchError<A: BasicAddress> {
@@ -69,11 +79,12 @@ impl<A: BasicAddress> From<ApplyBatchError<A>> for BatchReceipt<SequencerOutcome
     }
 }
 
-impl<C, Vm, Da, RT, K> Default for StfBlueprint<C, Da, Vm, RT, K>
+impl<C, Vm, Da, ScS, RT, K> Default for StfBlueprint<C, Da, ScS, Vm, RT, K>
 where
     C: Context,
     Da: DaSpec,
-    RT: Runtime<C, Da>,
+    ScS: SoftConfirmationSpec,
+    RT: Runtime<C, Da, ScS>,
     K: KernelSlotHooks<C, Da>,
 {
     fn default() -> Self {
@@ -81,11 +92,12 @@ where
     }
 }
 
-impl<C, Vm, Da, RT, K> StfBlueprint<C, Da, Vm, RT, K>
+impl<C, Vm, Da, ScS, RT, K> StfBlueprint<C, Da, ScS, Vm, RT, K>
 where
     C: Context,
     Da: DaSpec,
-    RT: Runtime<C, Da>,
+    ScS: SoftConfirmationSpec,
+    RT: Runtime<C, Da, ScS>,
     K: KernelSlotHooks<C, Da>,
 {
     /// [`StfBlueprint`] constructor.
@@ -96,31 +108,35 @@ where
             phantom_context: PhantomData,
             phantom_vm: PhantomData,
             phantom_da: PhantomData,
+            phantom_scs: PhantomData,
         }
     }
 
     #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
-    pub(crate) fn apply_blob(
+    pub(crate) fn apply_soft_confirmation(
         &self,
         checkpoint: StateCheckpoint<C>,
-        blob: &mut Da::BlobTransaction,
+        soft_batch: &mut ScS,
     ) -> (ApplyBatch<Da>, StateCheckpoint<C>) {
         debug!(
             "Applying batch from sequencer: 0x{}",
-            hex::encode(blob.sender())
+            hex::encode(soft_batch.sequencer_pub_key())
         );
 
         let mut batch_workspace = checkpoint.to_revertable();
 
         // ApplyBlobHook: begin
-        if let Err(e) = self.runtime.begin_blob_hook(blob, &mut batch_workspace) {
+        if let Err(e) = self
+            .runtime
+            .begin_soft_confirmation_hook(soft_batch, &mut batch_workspace)
+        {
             error!(
                 "Error: The batch was rejected by the 'begin_blob_hook' hook. Skipping batch without slashing the sequencer: {}",
                 e
             );
 
             return (
-                Err(ApplyBatchError::Ignored(blob.hash())),
+                Err(ApplyBatchError::Ignored(soft_batch.hash())),
                 batch_workspace.revert(),
             );
         }
@@ -131,38 +147,39 @@ where
         // TODO: don't ignore these events: https://github.com/Sovereign-Labs/sovereign/issues/350
         let _ = batch_workspace.take_events();
 
-        let (txs, messages) = match self.pre_process_batch(blob) {
+        let (txs, messages) = match self.pre_process_soft_batch(soft_batch.full_data()) {
             Ok((txs, messages)) => (txs, messages),
             Err(reason) => {
+                todo!("No slashing in soft confirmation!");
                 // Explicitly revert on slashing, even though nothing has changed in pre_process.
-                let mut batch_workspace = batch_workspace.checkpoint().to_revertable();
-                let sequencer_da_address = blob.sender();
-                let sequencer_outcome = SequencerOutcome::Slashed {
-                    reason,
-                    sequencer_da_address: sequencer_da_address.clone(),
-                };
-                let checkpoint = match self
-                    .runtime
-                    .end_blob_hook(sequencer_outcome, &mut batch_workspace)
-                {
-                    Ok(()) => {
-                        // TODO: will be covered in https://github.com/Sovereign-Labs/sovereign-sdk/issues/421
-                        batch_workspace.checkpoint()
-                    }
-                    Err(e) => {
-                        error!("End blob hook failed: {}", e);
-                        batch_workspace.revert()
-                    }
-                };
+                // let mut batch_workspace = batch_workspace.checkpoint().to_revertable();
+                // let sequencer_da_address = blob.sender();
+                // let sequencer_outcome = SequencerOutcome::Slashed {
+                //     reason,
+                //     sequencer_da_address: sequencer_da_address.clone(),
+                // };
+                // let checkpoint = match self
+                //     .runtime
+                //     .end_blob_hook(sequencer_outcome, &mut batch_workspace)
+                // {
+                //     Ok(()) => {
+                //         // TODO: will be covered in https://github.com/Sovereign-Labs/sovereign-sdk/issues/421
+                //         batch_workspace.checkpoint()
+                //     }
+                //     Err(e) => {
+                //         error!("End blob hook failed: {}", e);
+                //         batch_workspace.revert()
+                //     }
+                // };
 
-                return (
-                    Err(ApplyBatchError::Slashed {
-                        hash: blob.hash(),
-                        reason,
-                        sequencer_da_address,
-                    }),
-                    checkpoint,
-                );
+                // return (
+                //     Err(ApplyBatchError::Slashed {
+                //         hash: blob.hash(),
+                //         reason,
+                //         sequencer_da_address,
+                //     }),
+                //     checkpoint,
+                // );
             }
         };
 
@@ -270,7 +287,7 @@ where
 
         if let Err(e) = self
             .runtime
-            .end_blob_hook(sequencer_outcome.clone(), &mut batch_workspace)
+            .end_soft_confirmation_hook(sequencer_outcome.clone(), &mut batch_workspace)
         {
             // TODO: will be covered in https://github.com/Sovereign-Labs/sovereign-sdk/issues/421
             error!("Failed on `end_blob_hook`: {}", e);
@@ -278,12 +295,21 @@ where
 
         (
             Ok(BatchReceipt {
-                batch_hash: blob.hash(),
+                batch_hash: soft_batch.hash(),
                 tx_receipts,
                 inner: sequencer_outcome,
             }),
             batch_workspace.checkpoint(),
         )
+    }
+
+    #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
+    pub(crate) fn apply_blob(
+        &self,
+        checkpoint: StateCheckpoint<C>,
+        blob: &mut Da::BlobTransaction,
+    ) -> (ApplyBatch<Da>, StateCheckpoint<C>) {
+        unimplemented!()
     }
 
     // Do all stateless checks and data formatting, that can be results in sequencer slashing
@@ -297,11 +323,34 @@ where
         ),
         SlashingReason,
     > {
-        let batch = self.deserialize_batch(blob_data)?;
-        debug!("Deserialized batch with {} txs", batch.txs.len());
+        unimplemented!();
+        // let batch = self.deserialize_batch(blob_data)?;
+        // debug!("Deserialized batch with {} txs", batch.txs.len());
+
+        // // Run the stateless verification, since it is stateless we don't commit.
+        // let txs = self.verify_txs_stateless(batch)?;
+
+        // let messages = self.decode_txs(&txs)?;
+
+        // Ok((txs, messages))
+    }
+
+    // Do all stateless checks and data formatting
+    fn pre_process_soft_batch(
+        &self,
+        soft_batch_data: Vec<u8>,
+    ) -> Result<
+        (
+            Vec<TransactionAndRawHash<C>>,
+            Vec<<RT as DispatchCall>::Decodable>,
+        ),
+        SlashingReason,
+    > {
+        let soft_batch = SignedSoftConfirmationBatch::try_from_slice(soft_batch_data.as_slice())
+            .expect("Soft batch deserialization failed");
 
         // Run the stateless verification, since it is stateless we don't commit.
-        let txs = self.verify_txs_stateless(batch)?;
+        let txs = self.verify_txs_stateless(soft_batch)?;
 
         let messages = self.decode_txs(&txs)?;
 
@@ -332,7 +381,7 @@ where
     // Single malformed transaction results in sequencer slashing.
     fn verify_txs_stateless(
         &self,
-        batch: Batch,
+        batch: SignedSoftConfirmationBatch,
     ) -> Result<Vec<TransactionAndRawHash<C>>, SlashingReason> {
         match verify_txs_stateless(batch.txs) {
             Ok(txs) => Ok(txs),

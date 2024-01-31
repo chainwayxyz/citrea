@@ -7,6 +7,7 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::services::da::DaService;
+use sov_rollup_interface::soft_confirmation::SoftConfirmationSpec;
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::zk::{StateTransitionData, ZkvmHost};
 
@@ -25,10 +26,11 @@ where
     Witness: Serialize + DeserializeOwned,
     Da: DaService,
     Vm: ZkvmHost,
-    V: StateTransitionFunction<Vm::Guest, Da::Spec> + Send + Sync,
+    ScS: SoftConfirmationSpec,
+    V: StateTransitionFunction<Vm::Guest, Da::Spec, ScS> + Send + Sync,
 {
     vm: Vm,
-    prover_config: Arc<ProofGenConfig<V, Da, Vm>>,
+    prover_config: Arc<ProofGenConfig<V, Da, Vm, ScS>>,
 
     zk_storage: V::PreState,
     prover_state: Prover<StateRoot, Witness, Da>,
@@ -40,7 +42,8 @@ where
     Witness: Serialize + DeserializeOwned + Send + Sync + 'static,
     Da: DaService,
     Vm: ZkvmHost,
-    V: StateTransitionFunction<Vm::Guest, Da::Spec> + Send + Sync,
+    ScS: SoftConfirmationSpec,
+    V: StateTransitionFunction<Vm::Guest, Da::Spec, ScS> + Send + Sync,
     V::PreState: Clone + Send + Sync,
 {
     /// Creates a new prover.
@@ -108,7 +111,8 @@ where
     Witness: Serialize + DeserializeOwned + Send + Sync + 'static,
     Da: DaService,
     Vm: ZkvmHost + 'static,
-    V: StateTransitionFunction<Vm::Guest, Da::Spec> + Send + Sync + 'static,
+    ScS: SoftConfirmationSpec,
+    V: StateTransitionFunction<Vm::Guest, Da::Spec, ScS> + Send + Sync + 'static,
     V::PreState: Clone + Send + Sync,
 {
     type StateRoot = StateRoot;

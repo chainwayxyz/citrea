@@ -74,4 +74,5 @@ pub struct GetSoftBatchResponse<Hash> {
     pub txs: Option<Vec<Vec<u8>>>,
     pub pre_state_root: Vec<u8>,
     pub post_state_root: Vec<u8>,
+    pub soft_confirmation_signature: Vec<u8>,
 }

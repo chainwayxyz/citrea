@@ -1,6 +1,7 @@
 use std::marker::PhantomData;
 
 use sov_rollup_interface::da::{BlockHeaderTrait, DaVerifier};
+use sov_rollup_interface::soft_confirmation::SoftConfirmationSpec;
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::zk::{StateTransition, StateTransitionData, Zkvm, ZkvmGuest};
 /// Verifies a state transition
@@ -8,18 +9,19 @@ pub struct StateTransitionVerifier<ST, Da, Zk>
 where
     Da: DaVerifier,
     Zk: Zkvm,
-    ST: StateTransitionFunction<Zk, Da::Spec>,
+    ST: StateTransitionFunction<Zk, Da::Spec, ScS>,
 {
     app: ST,
     da_verifier: Da,
     phantom: PhantomData<Zk>,
 }
 
-impl<Stf, Da, Zk> StateTransitionVerifier<Stf, Da, Zk>
+impl<Stf, Da, Zk, ScS> StateTransitionVerifier<Stf, Da, Zk>
 where
     Da: DaVerifier,
     Zk: ZkvmGuest,
-    Stf: StateTransitionFunction<Zk, Da::Spec>,
+    ScS: SoftConfirmationSpec,
+    Stf: StateTransitionFunction<Zk, Da::Spec, ScS>,
 {
     /// Create a [`StateTransitionVerifier`]
     pub fn new(app: Stf, da_verifier: Da) -> Self {

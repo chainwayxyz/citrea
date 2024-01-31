@@ -2,16 +2,18 @@ use std::collections::VecDeque;
 use std::net::SocketAddr;
 
 use anyhow::bail;
-use borsh::BorshSerialize;
+use borsh::{BorshDeserialize, BorshSerialize};
 use jsonrpsee::core::Error;
 use jsonrpsee::RpcModule;
 use sequencer_client::SequencerClient;
 use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::{LedgerDB, SlotCommit};
 use sov_db::schema::types::{BatchNumber, StoredSoftBatch};
+use sov_modules_stf_blueprint::soft_batch::SignedSoftConfirmationBatch;
 use sov_modules_stf_blueprint::{Batch, RawTx};
 use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::services::da::{DaService, SlotData};
+use sov_rollup_interface::soft_confirmation::SoftConfirmationSpec;
 use sov_rollup_interface::stf::{SoftBatchReceipt, StateTransitionFunction};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::{StateTransitionData, Zkvm, ZkvmHost};
@@ -22,26 +24,18 @@ use tracing::{debug, error, info, warn};
 use crate::verifier::StateTransitionVerifier;
 use crate::{ProverService, RunnerConfig};
 
-type StateRoot<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::StateRoot;
-type GenesisParams<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::GenesisParams;
+type StateRoot<ST, Vm, Da, ScS> = <ST as StateTransitionFunction<Vm, Da, ScS>>::StateRoot;
+type GenesisParams<ST, Vm, Da, ScS> = <ST as StateTransitionFunction<Vm, Da, ScS>>::GenesisParams;
 
 const CONNECTION_INTERVALS: &[u64] = &[0, 1, 2, 5, 10, 15, 30, 60];
 const RETRY_INTERVAL: &[u64] = &[1, 5];
 const RETRY_SLEEP: u64 = 2;
 
-/// Represents the block template that is used to create a block.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct BlockTemplate {
-    /// DA block to build on
-    pub da_slot_height: u64,
-    /// Transactions to include in the block
-    pub txs: Vec<Vec<u8>>,
-}
-
 /// Combines `DaService` with `StateTransitionFunction` and "runs" the rollup.
-pub struct StateTransitionRunner<Stf, Sm, Da, Vm, Ps>
+pub struct StateTransitionRunner<Stf, Sm, Da, ScS, Vm, Ps>
 where
     Da: DaService,
+    ScS: SoftConfirmationSpec,
     Vm: ZkvmHost,
     Sm: HierarchicalStorageManager<Da::Spec>,
     Stf: StateTransitionFunction<Vm, Da::Spec, Condition = <Da::Spec as DaSpec>::ValidityCondition>,
@@ -52,7 +46,7 @@ where
     stf: Stf,
     storage_manager: Sm,
     ledger_db: LedgerDB,
-    state_root: StateRoot<Stf, Vm, Da::Spec>,
+    state_root: StateRoot<Stf, Vm, Da::Spec, ScS>,
     listen_address: SocketAddr,
     #[allow(dead_code)]
     prover_service: Ps,
@@ -60,9 +54,9 @@ where
 }
 
 /// Represents the possible modes of execution for a zkVM program
-pub enum ProofGenConfig<Stf, Da: DaService, Vm: ZkvmHost>
+pub enum ProofGenConfig<Stf, Da: DaService, Vm: ZkvmHost, ScS: SoftConfirmationSpec>
 where
-    Stf: StateTransitionFunction<Vm::Guest, Da::Spec>,
+    Stf: StateTransitionFunction<Vm::Guest, Da::Spec, ScS>,
 {
     /// Skips proving.
     Skip,
@@ -76,7 +70,12 @@ where
 }
 
 /// How [`StateTransitionRunner`] is initialized
-pub enum InitVariant<Stf: StateTransitionFunction<Vm, Da>, Vm: Zkvm, Da: DaSpec> {
+pub enum InitVariant<
+    Stf: StateTransitionFunction<Vm, Da, ScS>,
+    Vm: Zkvm,
+    Da: DaSpec,
+    ScS: SoftConfirmationSpec,
+> {
     /// From give state root
     Initialized(Stf::StateRoot),
     /// From empty state root
@@ -88,14 +87,16 @@ pub enum InitVariant<Stf: StateTransitionFunction<Vm, Da>, Vm: Zkvm, Da: DaSpec>
     },
 }
 
-impl<Stf, Sm, Da, Vm, Ps> StateTransitionRunner<Stf, Sm, Da, Vm, Ps>
+impl<Stf, Sm, Da, Vm, Ps, ScS> StateTransitionRunner<Stf, Sm, Da, Vm, Ps>
 where
     Da: DaService<Error = anyhow::Error> + Clone + Send + Sync + 'static,
     Vm: ZkvmHost,
     Sm: HierarchicalStorageManager<Da::Spec>,
+    ScS: SoftConfirmationSpec,
     Stf: StateTransitionFunction<
         Vm,
         Da::Spec,
+        ScS,
         Condition = <Da::Spec as DaSpec>::ValidityCondition,
         PreState = Sm::NativeStorage,
         ChangeSet = Sm::NativeChangeSet,
@@ -198,10 +199,16 @@ where
 
     /// Processes sequence
     /// gets BlockTemplate from sequencer
-    pub async fn process(&mut self, block_template: BlockTemplate) -> Result<(), anyhow::Error> {
-        let (txs, da_slot_height) = (block_template.txs, block_template.da_slot_height);
+    pub async fn process(
+        &mut self,
+        soft_batch: SignedSoftConfirmationBatch,
+    ) -> Result<(), anyhow::Error> {
+        // let (txs, da_slot_height) = (soft_batch.txs, soft_batch.da_slot_height);
 
-        let filtered_block = self.da_service.get_block_at(da_slot_height).await?;
+        let filtered_block = self
+            .da_service
+            .get_block_at(soft_batch.da_slot_height)
+            .await?;
 
         let pre_state = self
             .storage_manager
@@ -210,28 +217,20 @@ where
         // TODO: check for reorgs here
         // check out run_in_process for an example
 
-        let batch = Batch {
-            txs: txs.into_iter().map(|tx| RawTx { data: tx }).collect(),
-        };
+        // info!(
+        //     "sequencer={} blob_hash=0x{}",
+        //     blob.sender(),
+        //     hex::encode(blob.hash())
+        // );
 
-        let (blob, _signature) = self
-            .da_service
-            .convert_rollup_batch_to_da_blob(&batch.try_to_vec().unwrap())
-            .unwrap();
-
-        info!(
-            "sequencer={} blob_hash=0x{}",
-            blob.sender(),
-            hex::encode(blob.hash())
-        );
-
-        let slot_result = self.stf.apply_slot(
+        let slot_result = self.stf.apply_soft_batch(
+            &[0; 32],
             &self.state_root,
             pre_state,
             Default::default(),
             filtered_block.header(),
             &filtered_block.validity_condition(),
-            &mut vec![blob],
+            soft_batch,
         );
 
         info!(
@@ -257,6 +256,7 @@ where
             da_slot_hash: filtered_block.header().hash(),
             da_slot_height: filtered_block.header().height(),
             tx_receipts: batch_receipt.tx_receipts,
+            soft_confirmation_signature: soft_batch.signature,
         };
 
         self.ledger_db
@@ -496,6 +496,7 @@ where
                 da_slot_hash: filtered_block.header().hash(),
                 da_slot_height: filtered_block.header().height(),
                 tx_receipts: batch_receipt.tx_receipts,
+                soft_confirmation_signature: soft_batch.soft_confirmation_signature,
             };
 
             self.ledger_db.commit_soft_batch(soft_batch_receipt, true)?;
