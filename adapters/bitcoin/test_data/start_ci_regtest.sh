@@ -8,7 +8,7 @@
 # export PATH=$PATH:./bitcoin-25.0/bin
 
 bitcoind -regtest=1 -daemon=1 -rpcuser=chainway -rpcpassword=topsecret -rpcport=38332
-sleep 5
-bitcoin-cli -regtest=1 -rpcport=38332 -rpcuser=chainway -rpcpassword=topsecret loadwallet "testwallet"
-sleep 5
+sleep 10
+# bitcoin-cli -regtest=1 -rpcport=38332 -rpcuser=chainway -rpcpassword=topsecret loadwallet "testwallet"
+# sleep 5
 bitcoin-cli -rpcuser=chainway -rpcpassword=topsecret -rpcport=38332 -rpcwallet=testwallet324 -generate 250
