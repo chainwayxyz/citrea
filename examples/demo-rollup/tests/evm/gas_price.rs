@@ -78,7 +78,7 @@ async fn execute(
     let one_eth = u128::pow(10, Ether.as_num());
     let mut rng = thread_rng();
     let mut wallets = Vec::with_capacity(100);
-    for i in 0..100 {
+    for i in 0..wallets.capacity() {
         let wallet = LocalWallet::new(&mut rng).with_chain_id(client.chain_id);
         let address = wallet.address();
         client
