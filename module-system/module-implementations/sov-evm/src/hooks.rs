@@ -3,7 +3,6 @@ use reth_primitives::{Bloom, Bytes, U256};
 use sov_modules_api::prelude::*;
 use sov_modules_api::{AccessoryWorkingSet, Spec, WorkingSet};
 use sov_state::Storage;
-use tracing::debug;
 
 use crate::evm::primitive_types::{Block, BlockEnv};
 use crate::{Evm, PendingTransaction};
