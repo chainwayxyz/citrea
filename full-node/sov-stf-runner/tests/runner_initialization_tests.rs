@@ -119,6 +119,7 @@ fn initialize_runner(
         init_variant,
         prover_service,
         None,
+        vec![0u8; 32],
     )
     .unwrap()
 }

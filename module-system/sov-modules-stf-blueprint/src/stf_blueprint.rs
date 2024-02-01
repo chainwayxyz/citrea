@@ -352,14 +352,15 @@ where
         match Batch::try_from_slice(data_for_deserialization(blob_data)) {
             Ok(batch) => Ok(batch),
             Err(e) => {
-                assert_eq!(blob_data.verified_data().len(), blob_data.total_len(), "Batch deserialization failed and some data was not provided. The prover might be malicious");
-                // If the deserialization fails, we need to make sure it's not because the prover was malicious and left
-                // out some relevant data! Make that check here. If the data is missing, panic.
-                error!(
-                    "Unable to deserialize batch provided by the sequencer {}",
-                    e
-                );
-                Err(SlashingReason::InvalidBatchEncoding)
+                unimplemented!("No slashing in soft confirmation!");
+                // assert_eq!(blob_data.verified_data().len(), blob_data.total_len(), "Batch deserialization failed and some data was not provided. The prover might be malicious");
+                // // If the deserialization fails, we need to make sure it's not because the prover was malicious and left
+                // // out some relevant data! Make that check here. If the data is missing, panic.
+                // error!(
+                //     "Unable to deserialize batch provided by the sequencer {}",
+                //     e
+                // );
+                // Err(SlashingReason::InvalidBatchEncoding)
             }
         }
     }
@@ -379,8 +380,9 @@ where
         ) {
             Ok(txs) => Ok(txs),
             Err(e) => {
-                error!("Stateless verification error - the sequencer included a transaction which was known to be invalid. {}\n", e);
-                Err(SlashingReason::StatelessVerificationFailed)
+                unimplemented!("No slashing in soft confirmation!");
+                // error!("Stateless verification error - the sequencer included a transaction which was known to be invalid. {}\n", e);
+                // Err(SlashingReason::StatelessVerificationFailed)
             }
         }
     }
@@ -396,8 +398,9 @@ where
             match RT::decode_call(tx.runtime_msg()) {
                 Ok(msg) => decoded_messages.push(msg),
                 Err(e) => {
-                    error!("Tx 0x{} decoding error: {}", hex::encode(raw_tx_hash), e);
-                    return Err(SlashingReason::InvalidTransactionEncoding);
+                    unimplemented!("No slashing in soft confirmation!");
+                    // error!("Tx 0x{} decoding error: {}", hex::encode(raw_tx_hash), e);
+                    // return Err(SlashingReason::InvalidTransactionEncoding);
                 }
             }
         }

@@ -7,14 +7,15 @@ mod stf_blueprint;
 mod tx_verifier;
 
 pub use batch::Batch;
+use borsh::BorshSerialize;
 use sov_modules_api::da::BlockHeaderTrait;
 use sov_modules_api::hooks::{
     ApplyBlobHooks, ApplySoftConfirmationHooks, FinalizeHook, SlotHooks, TxHooks,
 };
 use sov_modules_api::runtime::capabilities::{Kernel, KernelSlotHooks};
 use sov_modules_api::{
-    BasicAddress, BlobReaderTrait, Context, DaSpec, DispatchCall, Genesis, KernelWorkingSet, Spec,
-    StateCheckpoint, Zkvm,
+    BasicAddress, BlobReaderTrait, Context, DaSpec, DispatchCall, Genesis, KernelWorkingSet,
+    Signature, Spec, StateCheckpoint, UnsignedSoftConfirmationBatch, Zkvm,
 };
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
 pub use sov_rollup_interface::stf::BatchReceipt;
@@ -269,7 +270,7 @@ where
     where
         I: IntoIterator<Item = &'a mut Da::BlobTransaction>,
     {
-        unimplemented!()
+        todo!("Wil reuse once we start reading from DA again");
     }
 
     fn apply_soft_batch(
@@ -297,7 +298,7 @@ where
 
         // verify signature
         assert!(
-            soft_batch.verify_signature().is_ok(),
+            verify_soft_batch_signature::<C>(soft_batch, sequencer_public_key).is_ok(),
             "Signature verification must succeed"
         );
 
@@ -353,4 +354,26 @@ where
             witness,
         }
     }
+}
+
+fn verify_soft_batch_signature<C: Context>(
+    soft_batch: &SignedSoftConfirmationBatch,
+    sequencer_public_key: &[u8],
+) -> Result<(), anyhow::Error> {
+    let unsigned = UnsignedSoftConfirmationBatch {
+        da_slot_height: soft_batch.da_slot_height,
+        da_slot_hash: soft_batch.da_slot_hash,
+        pre_state_root: soft_batch.pre_state_root.clone(),
+        txs: soft_batch.txs.clone(),
+    };
+
+    let message = unsigned.try_to_vec().unwrap();
+
+    let signature = C::Signature::try_from(soft_batch.signature.as_slice())?;
+    signature.verify(
+        &C::PublicKey::try_from(sequencer_public_key)?,
+        message.as_slice(),
+    )?;
+
+    Ok(())
 }
