@@ -208,11 +208,11 @@ where
         // TODO: check for reorgs here
         // check out run_in_process for an example
 
-        // info!(
-        //     "sequencer={} blob_hash=0x{}",
-        //     blob.sender(),
-        //     hex::encode(blob.hash())
-        // );
+        info!(
+            "Applying soft batch on DA block: {}",
+            hex::encode(filtered_block.header().hash().into())
+        );
+
         let pub_key = soft_batch.pub_key.clone();
 
         let slot_result = self.stf.apply_soft_batch(
@@ -249,6 +249,7 @@ where
             da_slot_height: filtered_block.header().height(),
             tx_receipts: batch_receipt.tx_receipts,
             soft_confirmation_signature: soft_batch.signature.to_vec(),
+            pub_key: soft_batch.pub_key.to_vec(),
         };
 
         self.ledger_db
@@ -329,26 +330,12 @@ where
                 }
             };
 
-            // Check if pre state root is the same as the one in the soft batch
-            if self.state_root.as_ref().to_vec() != soft_batch.pre_state_root {
-                bail!("Pre state root mismatch")
-            }
-
             // TODO: for a node, the da block at slot_height might not have been finalized yet
             // should wait for it to be finalized
             let filtered_block = self
                 .da_service
                 .get_block_at(soft_batch.da_slot_height)
                 .await?;
-
-            // Check whether da slot hash is the same with the one in the soft batch
-            if filtered_block.header().hash() != soft_batch.da_slot_hash {
-                warn!(
-                    "DA slot hash mismatch: soft batch: {}, da block: {}",
-                    hex::encode(soft_batch.da_slot_hash.clone().into()),
-                    hex::encode(filtered_block.header().hash().into())
-                );
-            }
 
             // TODO: when legit blocks are implemented use below to
             // check for reorgs
@@ -372,12 +359,12 @@ where
             //     }
             // }
 
-            // info!(
-            //     "Extracted blob-tx {} with length {} at height {}",
-            //     hex::encode(blob_hash),
-            //     tx_blob_with_sender.total_len(),
-            //     height,
-            // );
+            info!(
+                "Running soft confirmation batch #{} with hash: 0x{} on DA block #{}",
+                height,
+                hex::encode(soft_batch.hash.clone()),
+                filtered_block.header().height()
+            );
 
             let mut data_to_commit = SlotCommit::new(filtered_block.clone());
 
@@ -393,14 +380,7 @@ where
                 Default::default(),
                 filtered_block.header(),
                 &filtered_block.validity_condition(),
-                &mut SignedSoftConfirmationBatch {
-                    pub_key: self.sequencer_pub_key.clone(),
-                    txs: soft_batch.txs.unwrap_or_default(),
-                    signature: soft_batch.soft_confirmation_signature.clone(),
-                    pre_state_root: soft_batch.pre_state_root,
-                    da_slot_hash: soft_batch.da_slot_hash.into(),
-                    da_slot_height: soft_batch.da_slot_height,
-                },
+                &mut soft_batch.clone().into(),
             );
 
             for receipt in slot_result.batch_receipts {
@@ -477,6 +457,7 @@ where
                 da_slot_height: filtered_block.header().height(),
                 tx_receipts: batch_receipt.tx_receipts,
                 soft_confirmation_signature: soft_batch.soft_confirmation_signature,
+                pub_key: soft_batch.pub_key,
             };
 
             self.ledger_db.commit_soft_batch(soft_batch_receipt, true)?;
@@ -484,11 +465,10 @@ where
             seen_receipts.push_back(data_to_commit);
             seen_block_headers.push_back(filtered_block.header().clone());
 
-            // info!(
-            //     "New State Root after blob {:?} is: {:?}",
-            //     hex::encode(blob_hash),
-            //     self.state_root
-            // );
+            info!(
+                "New State Root after soft confirmation #{} is: {:?}",
+                height, self.state_root
+            );
 
             height += 1;
 

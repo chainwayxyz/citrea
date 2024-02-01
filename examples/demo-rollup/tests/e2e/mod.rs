@@ -76,7 +76,7 @@ async fn initialize_test() -> (
 
 #[tokio::test]
 async fn test_full_node_send_tx() -> Result<(), anyhow::Error> {
-    // initialize_logging();
+    sov_demo_rollup::initialize_logging();
 
     let (seq_test_client, full_node_test_client, seq_task, full_node_task, addr) =
         initialize_test().await;

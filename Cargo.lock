@@ -1531,6 +1531,7 @@ dependencies = [
  "bitcoin-da",
  "borsh",
  "citrea-stf",
+ "digest 0.10.7",
  "ethers",
  "futures",
  "jsonrpsee 0.20.3",

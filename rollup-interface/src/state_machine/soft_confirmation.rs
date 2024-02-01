@@ -22,7 +22,9 @@ pub struct UnsignedSoftConfirmationBatch {
 /// Contains raw transactions and information about the soft confirmation block
 #[derive(Debug, PartialEq, Clone, BorshDeserialize, BorshSerialize, Serialize, Deserialize, Eq)]
 pub struct SignedSoftConfirmationBatch {
-    /// DA block to build on
+    /// Hash of the unsigned batch
+    pub hash: [u8; 32],
+    /// DA block this soft confirmation was given for
     pub da_slot_height: u64,
     /// DA block hash
     pub da_slot_hash: [u8; 32],
@@ -37,27 +39,27 @@ pub struct SignedSoftConfirmationBatch {
 }
 
 impl SignedSoftConfirmationBatch {
-    /// TODO
+    /// Hash of the unsigned batch
+    pub fn hash(&self) -> [u8; 32] {
+        self.hash.clone()
+    }
+
+    /// DA block to build on
     pub fn da_slot_hash(&self) -> [u8; 32] {
         self.da_slot_hash
     }
 
-    /// TODO
+    /// Previous batch's post state root
     pub fn pre_state_root(&self) -> Vec<u8> {
         self.pre_state_root.clone()
     }
 
-    /// TODO
+    /// Public key of signer
     pub fn sequencer_pub_key(&self) -> &[u8] {
         self.pub_key.as_ref()
     }
 
-    /// TODO
-    pub fn hash(&self) -> [u8; 32] {
-        [1; 32]
-    }
-
-    /// TODO
+    /// Borsh serialized data
     pub fn full_data(&mut self) -> Vec<u8> {
         self.try_to_vec().unwrap()
     }

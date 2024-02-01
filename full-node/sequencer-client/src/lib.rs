@@ -5,6 +5,7 @@ use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use jsonrpsee::rpc_params;
 use reth_primitives::B256;
 use serde::Deserialize;
+use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
 
 /// Configuration for SequencerClient.
 #[derive(Debug, Clone)]
@@ -21,8 +22,8 @@ impl SequencerClient {
         let client = HttpClientBuilder::default().build(&rpc_url).unwrap();
         Self { rpc_url, client }
     }
-
     /// Gets l2 block given l2 height
+
     pub async fn get_soft_batch<DaSpec: sov_rollup_interface::da::DaSpec>(
         &self,
         num: u64,
@@ -66,8 +67,10 @@ impl SequencerClient {
     }
 }
 
-#[derive(Deserialize, Debug)]
-pub struct GetSoftBatchResponse<Hash> {
+#[derive(Deserialize, Debug, Clone)]
+pub struct GetSoftBatchResponse<Hash: Into<[u8; 32]>> {
+    #[serde(with = "sov_rollup_interface::rpc::utils::rpc_hex")]
+    pub hash: [u8; 32],
     pub da_slot_height: u64,
     pub da_slot_hash: Hash,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -75,4 +78,19 @@ pub struct GetSoftBatchResponse<Hash> {
     pub pre_state_root: Vec<u8>,
     pub post_state_root: Vec<u8>,
     pub soft_confirmation_signature: Vec<u8>,
+    pub pub_key: Vec<u8>,
+}
+
+impl<Hash: Into<[u8; 32]>> Into<SignedSoftConfirmationBatch> for GetSoftBatchResponse<Hash> {
+    fn into(self) -> SignedSoftConfirmationBatch {
+        SignedSoftConfirmationBatch {
+            hash: self.hash.into(),
+            da_slot_height: self.da_slot_height,
+            da_slot_hash: self.da_slot_hash.into(),
+            txs: self.txs.unwrap_or_default(),
+            pre_state_root: self.pre_state_root,
+            signature: self.soft_confirmation_signature,
+            pub_key: self.pub_key,
+        }
+    }
 }

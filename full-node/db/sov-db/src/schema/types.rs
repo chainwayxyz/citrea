@@ -89,6 +89,8 @@ pub struct StoredSoftBatch {
     pub post_state_root: Vec<u8>,
     /// Sequencer signature
     pub soft_confirmation_signature: Vec<u8>,
+    /// Sequencer public key
+    pub pub_key: Vec<u8>,
 }
 
 impl TryFrom<StoredSoftBatch> for SoftBatchResponse {
@@ -102,6 +104,7 @@ impl TryFrom<StoredSoftBatch> for SoftBatchResponse {
             pre_state_root: value.pre_state_root,
             post_state_root: value.post_state_root,
             soft_confirmation_signature: value.soft_confirmation_signature,
+            pub_key: value.pub_key,
         })
     }
 }

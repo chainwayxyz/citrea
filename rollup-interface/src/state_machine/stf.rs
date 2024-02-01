@@ -94,6 +94,8 @@ pub struct SoftBatchReceipt<BatchReceiptContents, TxReceiptContents, DS: DaSpec>
     pub post_state_root: Vec<u8>,
     /// Soft confirmation signature computed from borsh serialization of da_slot_height, da_slot_hash, pre_state_root, txs
     pub soft_confirmation_signature: Vec<u8>,
+    /// Sequencer public key
+    pub pub_key: Vec<u8>,
 }
 
 /// Result of applying a slot to current state

@@ -22,6 +22,7 @@ jsonrpsee = { workspace = true, features = ["http-client", "server"] }
 futures = { workspace = true }
 
 borsh = { workspace = true }
+digest = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 

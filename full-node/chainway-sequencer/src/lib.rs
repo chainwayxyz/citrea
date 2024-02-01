@@ -8,6 +8,7 @@ use std::sync::Arc;
 
 use borsh::ser::BorshSerialize;
 use citrea_stf::runtime::Runtime;
+use digest::Digest;
 use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
 use futures::StreamExt;
 use jsonrpsee::types::ErrorObjectOwned;
@@ -31,8 +32,8 @@ use sov_evm::{CallMessage, Evm, RlpEvmTransaction};
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::utils::to_jsonrpsee_error_object;
 use sov_modules_api::{
-    EncodeCall, PrivateKey, SignedSoftConfirmationBatch, SlotData, UnsignedSoftConfirmationBatch,
-    WorkingSet,
+    EncodeCall, PrivateKey, SignedSoftConfirmationBatch, SlotData, Spec,
+    UnsignedSoftConfirmationBatch, WorkingSet,
 };
 use sov_modules_rollup_blueprint::{Rollup, RollupBlueprint};
 use sov_rollup_interface::da::BlockHeaderTrait;
@@ -284,9 +285,12 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
     ) -> SignedSoftConfirmationBatch {
         let raw = soft_confirmation.try_to_vec().unwrap();
 
+        let hash = <C as sov_modules_api::Spec>::Hasher::digest(raw.as_slice()).into();
+
         let signature = self.sov_tx_signer_priv_key.sign(&raw);
 
         SignedSoftConfirmationBatch {
+            hash,
             da_slot_height: soft_confirmation.da_slot_height,
             txs: soft_confirmation.txs,
             da_slot_hash: soft_confirmation.da_slot_hash,

@@ -25,7 +25,7 @@ use sov_state::Storage;
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 use sov_zk_cycle_macros::cycle_tracker;
 pub use stf_blueprint::StfBlueprint;
-use tracing::info;
+use tracing::{debug, info};
 pub use tx_verifier::RawTx;
 
 /// The tx hook for a blueprint runtime
@@ -340,6 +340,8 @@ where
         Self::TxReceiptContents,
         Self::Witness,
     > {
+        debug!("Applying soft batch in STF Blueprint");
+
         // check if soft confirmation is coming from our sequencer
         assert_eq!(
             soft_batch.sequencer_pub_key(),
@@ -367,9 +369,6 @@ where
             "pre state roots must match"
         );
 
-        // let soft_batch = SignedSoftConfirmationBatch::try_from(soft_batch)
-        //     .expect("Soft confirmation batch must be valid");
-
         let checkpoint = StateCheckpoint::with_witness(pre_state.clone(), witness);
         // TODO: when renamed to begin_soft_batch rename here as well
         let checkpoint =
@@ -381,11 +380,10 @@ where
             self.apply_soft_confirmation(checkpoint, &mut soft_batch.clone());
         let batch_receipt = apply_soft_batch_result.unwrap_or_else(Into::into);
         info!(
-            "soft batch from sequencer {:?} with blob_hash 0x{} has been applied with #{} transactions, sequencer outcome {:?}",
+            "soft batch  with hash: {:?} from sequencer {:?} has been applied with #{} transactions.",
+            soft_batch.hash(),
             soft_batch.sequencer_pub_key(),
-            hex::encode(batch_receipt.batch_hash),
             batch_receipt.tx_receipts.len(),
-            batch_receipt.inner
         );
         for (i, tx_receipt) in batch_receipt.tx_receipts.iter().enumerate() {
             info!(

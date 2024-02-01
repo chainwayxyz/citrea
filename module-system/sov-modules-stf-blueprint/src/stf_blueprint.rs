@@ -106,7 +106,8 @@ where
         soft_batch: &mut SignedSoftConfirmationBatch,
     ) -> (ApplyBatch<Da>, StateCheckpoint<C>) {
         debug!(
-            "Applying batch from sequencer: 0x{}",
+            "Applying soft batch 0x{} from sequencer: 0x{}",
+            hex::encode(soft_batch.hash()),
             hex::encode(soft_batch.sequencer_pub_key())
         );
 
@@ -118,7 +119,7 @@ where
             .begin_soft_confirmation_hook(soft_batch, &mut batch_workspace)
         {
             error!(
-                "Error: The batch was rejected by the 'begin_blob_hook' hook. Skipping batch without slashing the sequencer: {}",
+                "Error: The batch was rejected by the 'begin_soft_confirmation_hook'. Skipping batch without slashing the sequencer: {}",
                 e
             );
 
@@ -134,41 +135,11 @@ where
         // TODO: don't ignore these events: https://github.com/Sovereign-Labs/sovereign/issues/350
         let _ = batch_workspace.take_events();
 
-        let (txs, messages) = match self.pre_process_soft_batch(soft_batch.full_data()) {
-            Ok((txs, messages)) => (txs, messages),
-            Err(_reason) => {
-                todo!("No slashing in soft confirmation!");
-                // Explicitly revert on slashing, even though nothing has changed in pre_process.
-                // let mut batch_workspace = batch_workspace.checkpoint().to_revertable();
-                // let sequencer_da_address = blob.sender();
-                // let sequencer_outcome = SequencerOutcome::Slashed {
-                //     reason,
-                //     sequencer_da_address: sequencer_da_address.clone(),
-                // };
-                // let checkpoint = match self
-                //     .runtime
-                //     .end_blob_hook(sequencer_outcome, &mut batch_workspace)
-                // {
-                //     Ok(()) => {
-                //         // TODO: will be covered in https://github.com/Sovereign-Labs/sovereign-sdk/issues/421
-                //         batch_workspace.checkpoint()
-                //     }
-                //     Err(e) => {
-                //         error!("End blob hook failed: {}", e);
-                //         batch_workspace.revert()
-                //     }
-                // };
+        let txs = self.verify_txs_stateless_soft(&soft_batch);
 
-                // return (
-                //     Err(ApplyBatchError::Slashed {
-                //         hash: blob.hash(),
-                //         reason,
-                //         sequencer_da_address,
-                //     }),
-                //     checkpoint,
-                // );
-            }
-        };
+        let messages = self
+            .decode_txs(&txs)
+            .expect("Decoding transactions from the sequencer failed");
 
         // Sanity check after pre processing
         assert_eq!(
@@ -499,33 +470,6 @@ where
         Ok((txs, messages))
     }
 
-    // Do all stateless checks and data formatting
-    fn pre_process_soft_batch(
-        &self,
-        soft_batch_data: Vec<u8>,
-    ) -> Result<
-        (
-            Vec<TransactionAndRawHash<C>>,
-            Vec<<RT as DispatchCall>::Decodable>,
-        ),
-        SlashingReason,
-    > {
-        let soft_batch = SignedSoftConfirmationBatch::try_from_slice(soft_batch_data.as_slice())
-            .expect("Soft batch deserialization failed");
-
-        // Run the stateless verification, since it is stateless we don't commit.
-        let txs = self.verify_txs_stateless_soft(soft_batch)?;
-
-        let messages = match self.decode_txs(&txs) {
-            Ok(messages) => messages,
-            Err(_e) => {
-                panic!("TX must be serializable!");
-            }
-        };
-
-        Ok((txs, messages))
-    }
-
     // Attempt to deserialize batch, error results in sequencer slashing.
     fn deserialize_batch(
         &self,
@@ -565,20 +509,16 @@ where
     // Single malformed transaction results in sequencer slashing.
     fn verify_txs_stateless_soft(
         &self,
-        batch: SignedSoftConfirmationBatch,
-    ) -> Result<Vec<TransactionAndRawHash<C>>, SlashingReason> {
-        match verify_txs_stateless(
+        batch: &SignedSoftConfirmationBatch,
+    ) -> Vec<TransactionAndRawHash<C>> {
+        verify_txs_stateless(
             batch
                 .txs
                 .iter()
                 .map(|tx| RawTx { data: tx.clone() })
                 .collect::<Vec<_>>(),
-        ) {
-            Ok(txs) => Ok(txs),
-            Err(_e) => {
-                panic!("TX must be deserializable!");
-            }
-        }
+        )
+        .expect("Sequencer must not include non-deserializable transaction.")
     }
 
     // Checks that runtime message can be decoded from transaction.
