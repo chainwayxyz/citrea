@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use demo_stf::genesis_config::GenesisPaths;
+use citrea_stf::genesis_config::GenesisPaths;
 use ethers::abi::Address;
 use ethers_signers::{LocalWallet, Signer};
 use reth_primitives::BlockNumberOrTag;

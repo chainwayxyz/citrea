@@ -1,6 +1,6 @@
 use async_trait::async_trait;
-use demo_stf::genesis_config::StorageConfig;
-use demo_stf::runtime::Runtime;
+use citrea_stf::genesis_config::StorageConfig;
+use citrea_stf::runtime::Runtime;
 use sequencer_client::SequencerClient;
 use sov_db::ledger_db::LedgerDB;
 use sov_mock_da::{MockDaConfig, MockDaService, MockDaSpec};

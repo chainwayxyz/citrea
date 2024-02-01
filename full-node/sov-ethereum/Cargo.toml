@@ -35,7 +35,7 @@ sov-rollup-interface = { path = "../../rollup-interface", features = [
     "native",
 ] }
 
-demo-stf = { path = "../../examples/demo-rollup/stf", features = ["native"] }
+citrea-stf = { path = "../../examples/demo-rollup/citrea-stf", features = ["native"] }
 sov-modules-api = { path = "../../module-system/sov-modules-api" }
 sov-accounts = { path = "../../module-system/module-implementations/sov-accounts" }
 rustc_version_runtime = "0.3.0"
@@ -48,4 +48,4 @@ proptest = { workspace = true }
 [features]
 default = ["local"]
 local = []
-native = ["demo-stf/native", "sov-evm/native"]
+native = ["citrea-stf/native", "sov-evm/native"]

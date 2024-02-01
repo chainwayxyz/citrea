@@ -3,7 +3,7 @@ mod archival_state;
 use std::net::SocketAddr;
 use std::str::FromStr;
 
-use demo_stf::genesis_config::GenesisPaths;
+use citrea_stf::genesis_config::GenesisPaths;
 use ethers_core::abi::Address;
 use ethers_core::types::{BlockId, Bytes, U256};
 use ethers_signers::{LocalWallet, Signer};
@@ -19,6 +19,7 @@ use crate::test_helpers::{start_rollup, NodeMode};
 
 #[tokio::test]
 async fn web3_rpc_tests() -> Result<(), anyhow::Error> {
+    // sov_demo_rollup::initialize_logging();
     let (port_tx, port_rx) = tokio::sync::oneshot::channel();
     let rollup_task = tokio::spawn(async {
         // Don't provide a prover since the EVM is not currently provable
@@ -63,7 +64,7 @@ async fn web3_rpc_tests() -> Result<(), anyhow::Error> {
 
 #[tokio::test]
 async fn evm_tx_tests() -> Result<(), anyhow::Error> {
-    // initialize_logging();
+    // sov_demo_rollup::initialize_logging();
 
     let (port_tx, port_rx) = tokio::sync::oneshot::channel();
 

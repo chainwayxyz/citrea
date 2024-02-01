@@ -87,6 +87,8 @@ pub struct StoredSoftBatch {
     pub pre_state_root: Vec<u8>,
     /// Post state root
     pub post_state_root: Vec<u8>,
+    /// Sequencer signature
+    pub soft_confirmation_signature: Vec<u8>,
 }
 
 impl TryFrom<StoredSoftBatch> for SoftBatchResponse {
@@ -99,6 +101,7 @@ impl TryFrom<StoredSoftBatch> for SoftBatchResponse {
             txs: Some(value.txs.into_iter().filter_map(|tx| tx.body).collect()), // Rollup full nodes don't store tx bodies
             pre_state_root: value.pre_state_root,
             post_state_root: value.post_state_root,
+            soft_confirmation_signature: value.soft_confirmation_signature,
         })
     }
 }

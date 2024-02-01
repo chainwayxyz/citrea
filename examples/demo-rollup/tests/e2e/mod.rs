@@ -3,7 +3,7 @@ use std::path::Path;
 use std::str::FromStr;
 use std::time::Duration;
 
-use demo_stf::genesis_config::GenesisPaths;
+use citrea_stf::genesis_config::GenesisPaths;
 use ethereum_types::H256;
 use ethers::abi::Address;
 use reth_primitives::{BlockNumberOrTag, TxHash};

@@ -36,6 +36,7 @@ sov-modules-api = { path = "../../module-system/sov-modules-api", features = [
 ] }
 sov-nft-module = { path = "../../module-system/module-implementations/sov-nft-module" }
 demo-stf = { path = "./stf", features = ["native"] }
+citrea-stf = {path="./citrea-stf", features = ["native"]}
 sov-ledger-rpc = { path = "../../full-node/sov-ledger-rpc", features = [
     "server",
 ] }
@@ -149,9 +150,6 @@ required-features = ["bench"]
 name = "sov-cli"
 path = "src/sov-cli/main.rs"
 
-[[bin]]
-name = "sov-nft-script"
-path = "src/bin/sov_nft_script.rs"
 
 [[bin]]
 name = "sov-demo-rollup"

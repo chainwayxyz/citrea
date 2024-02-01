@@ -1530,7 +1530,7 @@ dependencies = [
  "anyhow",
  "bitcoin-da",
  "borsh",
- "demo-stf",
+ "citrea-stf",
  "ethers",
  "futures",
  "jsonrpsee 0.20.3",
@@ -1630,6 +1630,47 @@ checksum = "773f3b9af64447d2ce9850330c473515014aa235e6a783b02db81ff39e4a3dad"
 dependencies = [
  "crypto-common",
  "inout",
+]
+
+[[package]]
+name = "citrea-stf"
+version = "0.3.0"
+dependencies = [
+ "anyhow",
+ "borsh",
+ "citrea-stf",
+ "clap 4.4.18",
+ "hex",
+ "jsonrpsee 0.20.3",
+ "rand 0.8.5",
+ "reth-primitives",
+ "secp256k1 0.27.0",
+ "serde",
+ "serde_json",
+ "soft-confirmation-rule-enforcer",
+ "sov-accounts",
+ "sov-bank",
+ "sov-blob-storage",
+ "sov-chain-state",
+ "sov-cli",
+ "sov-data-generators",
+ "sov-evm",
+ "sov-mock-da",
+ "sov-mock-zkvm",
+ "sov-modules-api",
+ "sov-modules-stf-blueprint",
+ "sov-nft-module",
+ "sov-prover-storage-manager",
+ "sov-rollup-interface",
+ "sov-sequencer-registry",
+ "sov-soft-confirmations-kernel",
+ "sov-state",
+ "sov-stf-runner",
+ "sov-value-setter",
+ "tempfile",
+ "tokio",
+ "toml 0.8.8",
+ "tracing",
 ]
 
 [[package]]
@@ -8739,6 +8780,7 @@ dependencies = [
  "jsonrpsee 0.20.3",
  "lazy_static",
  "serde",
+ "sov-mock-da",
  "sov-modules-api",
  "sov-prover-storage-manager",
  "sov-state",
@@ -9029,6 +9071,7 @@ dependencies = [
  "bitcoin-da",
  "borsh",
  "chainway-sequencer",
+ "citrea-stf",
  "clap 4.4.18",
  "const-rollup-config",
  "criterion",
@@ -9093,7 +9136,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "borsh",
- "demo-stf",
+ "citrea-stf",
  "ethers",
  "jsonrpsee 0.20.3",
  "proptest",

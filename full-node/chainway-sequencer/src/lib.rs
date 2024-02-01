@@ -7,7 +7,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 
 use borsh::ser::BorshSerialize;
-use demo_stf::runtime::Runtime;
+use citrea_stf::runtime::Runtime;
 use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
 use futures::StreamExt;
 use jsonrpsee::types::ErrorObjectOwned;

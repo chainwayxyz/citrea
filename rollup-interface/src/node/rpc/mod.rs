@@ -175,6 +175,8 @@ pub struct SoftBatchResponse {
     pub pre_state_root: Vec<u8>,
     /// Post-state root of the soft batch.
     pub post_state_root: Vec<u8>,
+    /// Signature of the batch
+    pub soft_confirmation_signature: Vec<u8>,
 }
 
 /// The response to a JSON-RPC request for a particular batch.
