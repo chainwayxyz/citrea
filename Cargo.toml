@@ -139,11 +139,13 @@ reth-provider = { git = "https://github.com/paradigmxyz/reth", tag = "v0.1.0-alp
 reth-tasks = { git = "https://github.com/paradigmxyz/reth", tag = "v0.1.0-alpha.16" }
 reth-db = { git = "https://github.com/paradigmxyz/reth", tag = "v0.1.0-alpha.16" }
 reth-trie = { git = "https://github.com/paradigmxyz/reth", tag = "v0.1.0-alpha.16" }
+reth-rpc = { git = "https://github.com/paradigmxyz/reth", tag = "v0.1.0-alpha.16" }
 
 revm = { git = "https://github.com/bluealloy/revm", branch = "reth_freeze", features = [
     "std",
     "secp256k1",
 ], default-features = false }
+revm-inspectors = { git = "https://github.com/paradigmxyz/evm-inspectors" }
 alloy-primitives = "0.6"
 alloy-sol-types = "0.6"
 secp256k1 = { version = "0.27.0", default-features = false, features = [
