@@ -1068,7 +1068,7 @@ fn get_evm_config(
             nonce: 0,
         }],
         spec: vec![(0, SpecId::SHANGHAI)].into_iter().collect(),
-        block_gas_limit: block_gas_limit.unwrap_or_else(|| ETHEREUM_BLOCK_GAS_LIMIT),
+        block_gas_limit: block_gas_limit.unwrap_or(ETHEREUM_BLOCK_GAS_LIMIT),
         ..Default::default()
     };
     (config, dev_signer, contract_addr)
