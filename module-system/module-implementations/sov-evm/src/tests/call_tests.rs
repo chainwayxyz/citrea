@@ -1,5 +1,6 @@
 use std::str::FromStr;
 
+use reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT;
 use reth_primitives::{Address, BlockNumberOrTag, Bytes, TransactionKind, U64};
 use reth_rpc_types::{CallInput, CallRequest};
 use revm::primitives::{SpecId, B256, KECCAK_EMPTY, U256};
@@ -90,44 +91,44 @@ fn call_multiple_test() {
                     tx_type: reth_primitives::TxType::EIP1559,
                     success: true,
                     cumulative_gas_used: 132943,
-                    logs: vec![]
+                    logs: vec![],
                 },
                 gas_used: 132943,
                 log_index_start: 0,
-                error: None
+                error: None,
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::EIP1559,
                     success: true,
                     cumulative_gas_used: 176673,
-                    logs: vec![]
+                    logs: vec![],
                 },
                 gas_used: 43730,
                 log_index_start: 0,
-                error: None
+                error: None,
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::EIP1559,
                     success: true,
                     cumulative_gas_used: 203303,
-                    logs: vec![]
+                    logs: vec![],
                 },
                 gas_used: 26630,
                 log_index_start: 0,
-                error: None
+                error: None,
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::EIP1559,
                     success: true,
                     cumulative_gas_used: 229933,
-                    logs: vec![]
+                    logs: vec![],
                 },
                 gas_used: 26630,
                 log_index_start: 0,
-                error: None
+                error: None,
             }
         ]
     )
@@ -136,7 +137,7 @@ fn call_multiple_test() {
 #[test]
 fn call_test() {
     let (config, dev_signer, contract_addr) =
-        get_evm_config(U256::from_str("100000000000000000000").unwrap());
+        get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
     let (evm, mut working_set) = get_evm(&config);
 
@@ -179,22 +180,22 @@ fn call_test() {
                     tx_type: reth_primitives::TxType::EIP1559,
                     success: true,
                     cumulative_gas_used: 132943,
-                    logs: vec![]
+                    logs: vec![],
                 },
                 gas_used: 132943,
                 log_index_start: 0,
-                error: None
+                error: None,
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::EIP1559,
                     success: true,
                     cumulative_gas_used: 176673,
-                    logs: vec![]
+                    logs: vec![],
                 },
                 gas_used: 43730,
                 log_index_start: 0,
-                error: None
+                error: None,
             }
         ]
     )
@@ -251,7 +252,7 @@ fn self_destruct_test() {
     );
 
     let (config, dev_signer, contract_addr) =
-        get_evm_config(U256::from_str("100000000000000000000").unwrap());
+        get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
     let (evm, mut working_set) = get_evm(&config);
 
     evm.begin_slot_hook([5u8; 32], &[10u8; 32].into(), &mut working_set);
@@ -365,7 +366,7 @@ fn self_destruct_test() {
 #[test]
 fn log_filter_test_at_block_hash() {
     let (config, dev_signer, contract_addr) =
-        get_evm_config(U256::from_str("100000000000000000000").unwrap());
+        get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
     let (evm, mut working_set) = get_evm(&config);
 
@@ -559,7 +560,7 @@ fn log_filter_test_at_block_hash() {
 #[test]
 fn log_filter_test_with_range() {
     let (config, dev_signer, contract_addr) =
-        get_evm_config(U256::from_str("100000000000000000000").unwrap());
+        get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
     let (evm, mut working_set) = get_evm(&config);
 
@@ -653,8 +654,11 @@ fn log_filter_test_with_range() {
 fn test_log_limits() {
     // sov_demo_rollup::initialize_logging();
 
-    let (config, dev_signer, contract_addr) =
-        get_evm_config(U256::from_str("100000000000000000000").unwrap());
+    // bigger block is needed to be able to include all the transactions
+    let (config, dev_signer, contract_addr) = get_evm_config(
+        U256::from_str("100000000000000000000").unwrap(),
+        Some(20 * ETHEREUM_BLOCK_GAS_LIMIT),
+    );
 
     let (evm, mut working_set) = get_evm(&config);
 
@@ -772,7 +776,7 @@ fn test_log_limits() {
 #[test]
 fn test_block_hash_in_evm() {
     let (config, dev_signer, contract_addr) =
-        get_evm_config(U256::from_str("100000000000000000000").unwrap());
+        get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
     let (evm, mut working_set) = get_evm(&config);
     evm.begin_slot_hook([5u8; 32], &[10u8; 32].into(), &mut working_set);
@@ -855,6 +859,62 @@ fn test_block_hash_in_evm() {
             assert_eq!(resp.unwrap().to_vec(), block.unwrap().header.hash.to_vec());
         }
     }
+}
+
+#[test]
+fn test_block_gas_limit() {
+    let (config, dev_signer, contract_addr) = get_evm_config(
+        U256::from_str("100000000000000000000").unwrap(),
+        Some(ETHEREUM_BLOCK_GAS_LIMIT),
+    );
+
+    let (evm, mut working_set) = get_evm(&config);
+
+    evm.begin_slot_hook([5u8; 32], &[10u8; 32].into(), &mut working_set);
+    {
+        let sender_address = generate_address::<C>("sender");
+        let sequencer_address = generate_address::<C>("sequencer");
+        let context = C::new(sender_address, sequencer_address, 1);
+
+        // deploy logs contract
+        let mut rlp_transactions = vec![create_contract_message(
+            &dev_signer,
+            0,
+            LogsContract::default(),
+        )];
+
+        for i in 0..10_000 {
+            rlp_transactions.push(publish_event_message(
+                contract_addr,
+                &dev_signer,
+                i + 1,
+                "hello".to_string(),
+            ));
+        }
+
+        evm.call(
+            CallMessage {
+                txs: rlp_transactions,
+            },
+            &context,
+            &mut working_set,
+        )
+        .unwrap();
+    }
+    evm.end_slot_hook(&mut working_set);
+    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+
+    let block = evm
+        .get_block_by_number(Some(BlockNumberOrTag::Latest), None, &mut working_set)
+        .unwrap()
+        .unwrap();
+
+    assert_eq!(block.header.gas_limit, U256::from(ETHEREUM_BLOCK_GAS_LIMIT));
+    assert!(block.header.gas_used <= block.header.gas_limit);
+    assert!(
+        block.transactions.hashes().len() < 10_000,
+        "Some transactions should be dropped because of gas limit"
+    );
 }
 
 fn create_contract_message<T: TestContract>(
@@ -988,7 +1048,10 @@ pub(crate) fn publish_event_message(
         .unwrap()
 }
 
-fn get_evm_config(signer_balance: U256) -> (EvmConfig, TestSigner, Address) {
+fn get_evm_config(
+    signer_balance: U256,
+    block_gas_limit: Option<u64>,
+) -> (EvmConfig, TestSigner, Address) {
     let dev_signer: TestSigner = TestSigner::new_random();
 
     let contract_addr: Address = Address::from_slice(
@@ -1005,7 +1068,7 @@ fn get_evm_config(signer_balance: U256) -> (EvmConfig, TestSigner, Address) {
             nonce: 0,
         }],
         spec: vec![(0, SpecId::SHANGHAI)].into_iter().collect(),
-        block_gas_limit: 1_000_000_000,
+        block_gas_limit: block_gas_limit.unwrap_or_else(|| ETHEREUM_BLOCK_GAS_LIMIT),
         ..Default::default()
     };
     (config, dev_signer, contract_addr)
