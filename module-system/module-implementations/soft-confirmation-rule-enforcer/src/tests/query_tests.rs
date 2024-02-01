@@ -31,7 +31,7 @@ fn block_count_per_da_hash_must_be_correct() {
     assert_eq!(
         soft_confirmation_rule_enforcer
             .da_root_hash_to_number
-            .get(&MockHash([0; 32]), &mut working_set)
+            .get(&MockHash([1; 32]), &mut working_set)
             .unwrap(),
         1
     );
