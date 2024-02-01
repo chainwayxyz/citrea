@@ -84,7 +84,7 @@ pub struct GetSoftBatchResponse<Hash: Into<[u8; 32]>> {
 impl<Hash: Into<[u8; 32]>> Into<SignedSoftConfirmationBatch> for GetSoftBatchResponse<Hash> {
     fn into(self) -> SignedSoftConfirmationBatch {
         SignedSoftConfirmationBatch {
-            hash: self.hash.into(),
+            hash: self.hash,
             da_slot_height: self.da_slot_height,
             da_slot_hash: self.da_slot_hash.into(),
             txs: self.txs.unwrap_or_default(),

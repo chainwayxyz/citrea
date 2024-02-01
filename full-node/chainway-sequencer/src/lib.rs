@@ -32,8 +32,8 @@ use sov_evm::{CallMessage, Evm, RlpEvmTransaction};
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::utils::to_jsonrpsee_error_object;
 use sov_modules_api::{
-    EncodeCall, PrivateKey, SignedSoftConfirmationBatch, SlotData, Spec,
-    UnsignedSoftConfirmationBatch, WorkingSet,
+    EncodeCall, PrivateKey, SignedSoftConfirmationBatch, SlotData, UnsignedSoftConfirmationBatch,
+    WorkingSet,
 };
 use sov_modules_rollup_blueprint::{Rollup, RollupBlueprint};
 use sov_rollup_interface::da::BlockHeaderTrait;

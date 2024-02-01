@@ -41,7 +41,7 @@ pub struct SignedSoftConfirmationBatch {
 impl SignedSoftConfirmationBatch {
     /// Hash of the unsigned batch
     pub fn hash(&self) -> [u8; 32] {
-        self.hash.clone()
+        self.hash
     }
 
     /// DA block to build on

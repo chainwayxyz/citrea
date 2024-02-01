@@ -135,7 +135,7 @@ where
         // TODO: don't ignore these events: https://github.com/Sovereign-Labs/sovereign/issues/350
         let _ = batch_workspace.take_events();
 
-        let txs = self.verify_txs_stateless_soft(&soft_batch);
+        let txs = self.verify_txs_stateless_soft(soft_batch);
 
         let messages = self
             .decode_txs(&txs)

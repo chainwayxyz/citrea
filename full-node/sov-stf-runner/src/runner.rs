@@ -15,7 +15,7 @@ use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::{Zkvm, ZkvmHost};
 use tokio::sync::oneshot;
 use tokio::time::{sleep, Duration, Instant};
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info};
 
 use crate::verifier::StateTransitionVerifier;
 use crate::{ProverService, RunnerConfig};
@@ -362,7 +362,7 @@ where
             info!(
                 "Running soft confirmation batch #{} with hash: 0x{} on DA block #{}",
                 height,
-                hex::encode(soft_batch.hash.clone()),
+                hex::encode(soft_batch.hash),
                 filtered_block.header().height()
             );
 
