@@ -9,7 +9,9 @@ mod tx_verifier;
 pub use batch::Batch;
 use borsh::BorshSerialize;
 use sov_modules_api::da::BlockHeaderTrait;
-use sov_modules_api::hooks::{ApplySoftConfirmationHooks, FinalizeHook, SlotHooks, TxHooks};
+use sov_modules_api::hooks::{
+    ApplyBlobHooks, ApplySoftConfirmationHooks, FinalizeHook, SlotHooks, TxHooks,
+};
 use sov_modules_api::runtime::capabilities::{Kernel, KernelSlotHooks};
 use sov_modules_api::{
     BasicAddress, BlobReaderTrait, Context, DaSpec, DispatchCall, Genesis, Signature, Spec,
@@ -18,6 +20,7 @@ use sov_modules_api::{
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
 pub use sov_rollup_interface::stf::BatchReceipt;
 use sov_rollup_interface::stf::{SlotResult, StateTransitionFunction};
+use sov_state::storage::KernelWorkingSet;
 use sov_state::Storage;
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 use sov_zk_cycle_macros::cycle_tracker;
@@ -49,15 +52,13 @@ pub trait Runtime<C: Context, Da: DaSpec>:
         SoftConfirmationResult = SequencerOutcome<
             <<Da as DaSpec>::BlobTransaction as BlobReaderTrait>::Address,
         >,
-    >
-    // + ApplyBlobHooks<
-    //     Da::BlobTransaction,
-    //     Context = C,
-    //     BlobResult = SequencerOutcome<
-    //         <<Da as DaSpec>::BlobTransaction as BlobReaderTrait>::Address,
-    //     >,
-    // > 
-    + Default
+    > + ApplyBlobHooks<
+        Da::BlobTransaction,
+        Context = C,
+        BlobResult = SequencerOutcome<
+            <<Da as DaSpec>::BlobTransaction as BlobReaderTrait>::Address,
+        >,
+    > + Default
 {
     /// GenesisConfig type.
     type GenesisConfig: Send + Sync;
@@ -252,12 +253,12 @@ where
 
     fn apply_slot<'a, I>(
         &self,
-        _pre_state_root: &Self::StateRoot,
-        _pre_state: Self::PreState,
-        _witness: Self::Witness,
-        _slot_header: &Da::BlockHeader,
-        _validity_condition: &Da::ValidityCondition,
-        _blobs: I,
+        pre_state_root: &Self::StateRoot,
+        pre_state: Self::PreState,
+        witness: Self::Witness,
+        slot_header: &Da::BlockHeader,
+        validity_condition: &Da::ValidityCondition,
+        blobs: I,
     ) -> SlotResult<
         Self::StateRoot,
         Self::ChangeSet,
@@ -268,7 +269,59 @@ where
     where
         I: IntoIterator<Item = &'a mut Da::BlobTransaction>,
     {
-        todo!("Wil reuse once we start reading from DA again");
+        let checkpoint = StateCheckpoint::with_witness(pre_state.clone(), witness);
+        let checkpoint =
+            self.begin_slot(checkpoint, slot_header, validity_condition, pre_state_root);
+
+        // Initialize batch workspace
+        let mut batch_workspace = checkpoint.to_revertable();
+        let mut kernel_working_set =
+            KernelWorkingSet::from_kernel(&self.kernel, &mut batch_workspace);
+        let selected_blobs = self
+            .kernel
+            .get_blobs_for_this_slot(blobs, &mut kernel_working_set)
+            .expect("blob selection must succeed, probably serialization failed");
+
+        info!(
+            "Selected {} blob(s) for execution in current slot",
+            selected_blobs.len()
+        );
+
+        let mut checkpoint = batch_workspace.checkpoint();
+
+        let mut batch_receipts = vec![];
+
+        for (blob_idx, mut blob) in selected_blobs.into_iter().enumerate() {
+            let (apply_blob_result, checkpoint_after_blob) =
+                self.apply_blob(checkpoint, blob.as_mut_ref());
+            checkpoint = checkpoint_after_blob;
+            let batch_receipt = apply_blob_result.unwrap_or_else(Into::into);
+            info!(
+                "blob #{} from sequencer {} with blob_hash 0x{} has been applied with #{} transactions, sequencer outcome {:?}",
+                blob_idx,
+                blob.as_mut_ref().sender(),
+                hex::encode(batch_receipt.batch_hash),
+                batch_receipt.tx_receipts.len(),
+                batch_receipt.inner
+            );
+            for (i, tx_receipt) in batch_receipt.tx_receipts.iter().enumerate() {
+                info!(
+                    "tx #{} hash: 0x{} result {:?}",
+                    i,
+                    hex::encode(tx_receipt.tx_hash),
+                    tx_receipt.receipt
+                );
+            }
+            batch_receipts.push(batch_receipt);
+        }
+
+        let (state_root, witness, storage) = self.end_slot(pre_state, checkpoint);
+        SlotResult {
+            state_root,
+            change_set: storage,
+            batch_receipts,
+            witness,
+        }
     }
 
     fn apply_soft_batch(

@@ -1,5 +1,7 @@
 use sov_accounts::AccountsTxHook;
-use sov_modules_api::hooks::{ApplySoftConfirmationHooks, FinalizeHook, SlotHooks, TxHooks};
+use sov_modules_api::hooks::{
+    ApplyBlobHooks, ApplySoftConfirmationHooks, FinalizeHook, SlotHooks, TxHooks,
+};
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{AccessoryWorkingSet, Context, Spec, WorkingSet};
 use sov_modules_stf_blueprint::{RuntimeTxHook, SequencerOutcome};
@@ -35,6 +37,28 @@ impl<C: Context, Da: DaSpec> TxHooks for Runtime<C, Da> {
     ) -> anyhow::Result<()> {
         self.accounts.post_dispatch_tx_hook(tx, ctx, working_set)?;
 
+        Ok(())
+    }
+}
+
+impl<C: Context, Da: DaSpec> ApplyBlobHooks<Da::BlobTransaction> for Runtime<C, Da> {
+    type Context = C;
+    type BlobResult =
+        SequencerOutcome<<<Da as DaSpec>::BlobTransaction as BlobReaderTrait>::Address>;
+
+    fn begin_blob_hook(
+        &self,
+        blob: &mut Da::BlobTransaction,
+        working_set: &mut WorkingSet<C>,
+    ) -> anyhow::Result<()> {
+        Ok(())
+    }
+
+    fn end_blob_hook(
+        &self,
+        result: Self::BlobResult,
+        working_set: &mut WorkingSet<C>,
+    ) -> anyhow::Result<()> {
         Ok(())
     }
 }
