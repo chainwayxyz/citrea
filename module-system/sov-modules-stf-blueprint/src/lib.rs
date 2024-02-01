@@ -9,13 +9,11 @@ mod tx_verifier;
 pub use batch::Batch;
 use borsh::BorshSerialize;
 use sov_modules_api::da::BlockHeaderTrait;
-use sov_modules_api::hooks::{
-    ApplyBlobHooks, ApplySoftConfirmationHooks, FinalizeHook, SlotHooks, TxHooks,
-};
+use sov_modules_api::hooks::{ApplySoftConfirmationHooks, FinalizeHook, SlotHooks, TxHooks};
 use sov_modules_api::runtime::capabilities::{Kernel, KernelSlotHooks};
 use sov_modules_api::{
-    BasicAddress, BlobReaderTrait, Context, DaSpec, DispatchCall, Genesis, KernelWorkingSet,
-    Signature, Spec, StateCheckpoint, UnsignedSoftConfirmationBatch, Zkvm,
+    BasicAddress, BlobReaderTrait, Context, DaSpec, DispatchCall, Genesis, Signature, Spec,
+    StateCheckpoint, UnsignedSoftConfirmationBatch, Zkvm,
 };
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
 pub use sov_rollup_interface::stf::BatchReceipt;
@@ -254,12 +252,12 @@ where
 
     fn apply_slot<'a, I>(
         &self,
-        pre_state_root: &Self::StateRoot,
-        pre_state: Self::PreState,
-        witness: Self::Witness,
-        slot_header: &Da::BlockHeader,
-        validity_condition: &Da::ValidityCondition,
-        blobs: I,
+        _pre_state_root: &Self::StateRoot,
+        _pre_state: Self::PreState,
+        _witness: Self::Witness,
+        _slot_header: &Da::BlockHeader,
+        _validity_condition: &Da::ValidityCondition,
+        _blobs: I,
     ) -> SlotResult<
         Self::StateRoot,
         Self::ChangeSet,

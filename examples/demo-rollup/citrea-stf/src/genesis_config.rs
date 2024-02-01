@@ -5,20 +5,16 @@
 use std::convert::AsRef;
 use std::path::{Path, PathBuf};
 
-use anyhow::{bail, Context as _};
+use anyhow::Context as _;
 use soft_confirmation_rule_enforcer::SoftConfirmationRuleEnforcerConfig;
 use sov_accounts::AccountConfig;
-use sov_bank::BankConfig;
 use sov_evm::EvmConfig;
 pub use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::Context;
 use sov_modules_stf_blueprint::Runtime as RuntimeTrait;
-use sov_nft_module::NonFungibleTokenConfig;
 use sov_rollup_interface::da::DaSpec;
-use sov_sequencer_registry::SequencerConfig;
 pub use sov_state::config::Config as StorageConfig;
 use sov_stf_runner::read_json_file;
-use sov_value_setter::ValueSetterConfig;
 
 /// Creates config for a rollup with some default settings, the config is used in demos and tests.
 use crate::runtime::GenesisConfig;

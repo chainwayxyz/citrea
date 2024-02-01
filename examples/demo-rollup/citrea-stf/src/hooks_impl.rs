@@ -1,15 +1,10 @@
 use sov_accounts::AccountsTxHook;
-use sov_bank::BankTxHook;
-use sov_modules_api::hooks::{
-    ApplyBlobHooks, ApplySoftConfirmationHooks, FinalizeHook, SlotHooks, TxHooks,
-};
+use sov_modules_api::hooks::{ApplySoftConfirmationHooks, FinalizeHook, SlotHooks, TxHooks};
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{AccessoryWorkingSet, Context, Spec, WorkingSet};
 use sov_modules_stf_blueprint::{RuntimeTxHook, SequencerOutcome};
 use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaSpec};
-use sov_sequencer_registry::SequencerRegistry;
 use sov_state::Storage;
-use tracing::info;
 
 use crate::runtime::Runtime;
 
@@ -51,8 +46,8 @@ impl<C: Context, Da: DaSpec> ApplySoftConfirmationHooks<Da> for Runtime<C, Da> {
 
     fn begin_soft_confirmation_hook(
         &self,
-        soft_batch: &mut sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch,
-        working_set: &mut WorkingSet<Self::Context>,
+        _soft_batch: &mut sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch,
+        _working_set: &mut WorkingSet<Self::Context>,
     ) -> anyhow::Result<()> {
         // Before executing each batch, check that the sender is registered as a sequencer
         Ok(())
@@ -60,8 +55,8 @@ impl<C: Context, Da: DaSpec> ApplySoftConfirmationHooks<Da> for Runtime<C, Da> {
 
     fn end_soft_confirmation_hook(
         &self,
-        result: Self::SoftConfirmationResult,
-        working_set: &mut WorkingSet<C>,
+        _result: Self::SoftConfirmationResult,
+        _working_set: &mut WorkingSet<C>,
     ) -> anyhow::Result<()> {
         Ok(())
     }

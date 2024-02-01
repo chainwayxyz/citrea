@@ -136,7 +136,7 @@ where
 
         let (txs, messages) = match self.pre_process_soft_batch(soft_batch.full_data()) {
             Ok((txs, messages)) => (txs, messages),
-            Err(reason) => {
+            Err(_reason) => {
                 todo!("No slashing in soft confirmation!");
                 // Explicitly revert on slashing, even though nothing has changed in pre_process.
                 // let mut batch_workspace = batch_workspace.checkpoint().to_revertable();
@@ -293,8 +293,8 @@ where
     #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
     pub(crate) fn apply_blob(
         &self,
-        checkpoint: StateCheckpoint<C>,
-        blob: &mut Da::BlobTransaction,
+        _checkpoint: StateCheckpoint<C>,
+        _blob: &mut Da::BlobTransaction,
     ) -> (ApplyBatch<Da>, StateCheckpoint<C>) {
         unimplemented!()
     }
@@ -302,7 +302,7 @@ where
     // Do all stateless checks and data formatting, that can be results in sequencer slashing
     fn pre_process_batch(
         &self,
-        blob_data: &mut impl BlobReaderTrait,
+        _blob_data: &mut impl BlobReaderTrait,
     ) -> Result<
         (
             Vec<TransactionAndRawHash<C>>,
@@ -351,7 +351,7 @@ where
     ) -> Result<Batch, SlashingReason> {
         match Batch::try_from_slice(data_for_deserialization(blob_data)) {
             Ok(batch) => Ok(batch),
-            Err(e) => {
+            Err(_e) => {
                 unimplemented!("No slashing in soft confirmation!");
                 // assert_eq!(blob_data.verified_data().len(), blob_data.total_len(), "Batch deserialization failed and some data was not provided. The prover might be malicious");
                 // // If the deserialization fails, we need to make sure it's not because the prover was malicious and left
@@ -379,7 +379,7 @@ where
                 .collect::<Vec<_>>(),
         ) {
             Ok(txs) => Ok(txs),
-            Err(e) => {
+            Err(_e) => {
                 unimplemented!("No slashing in soft confirmation!");
                 // error!("Stateless verification error - the sequencer included a transaction which was known to be invalid. {}\n", e);
                 // Err(SlashingReason::StatelessVerificationFailed)
@@ -394,10 +394,10 @@ where
         txs: &[TransactionAndRawHash<C>],
     ) -> Result<Vec<<RT as DispatchCall>::Decodable>, SlashingReason> {
         let mut decoded_messages = Vec::with_capacity(txs.len());
-        for TransactionAndRawHash { tx, raw_tx_hash } in txs {
+        for TransactionAndRawHash { tx, raw_tx_hash: _ } in txs {
             match RT::decode_call(tx.runtime_msg()) {
                 Ok(msg) => decoded_messages.push(msg),
-                Err(e) => {
+                Err(_e) => {
                     unimplemented!("No slashing in soft confirmation!");
                     // error!("Tx 0x{} decoding error: {}", hex::encode(raw_tx_hash), e);
                     // return Err(SlashingReason::InvalidTransactionEncoding);

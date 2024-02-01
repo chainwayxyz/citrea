@@ -80,16 +80,16 @@ impl<C: Context, Da: DaSpec> ApplySoftConfirmationHooks<Da> for TestRuntime<C> {
 
     fn begin_soft_confirmation_hook(
         &self,
-        soft_batch: &mut sov_modules_api::SignedSoftConfirmationBatch,
-        working_set: &mut sov_modules_api::WorkingSet<Self::Context>,
+        _soft_batch: &mut sov_modules_api::SignedSoftConfirmationBatch,
+        _working_set: &mut sov_modules_api::WorkingSet<Self::Context>,
     ) -> anyhow::Result<()> {
         todo!()
     }
 
     fn end_soft_confirmation_hook(
         &self,
-        result: Self::SoftConfirmationResult,
-        working_set: &mut sov_modules_api::WorkingSet<Self::Context>,
+        _result: Self::SoftConfirmationResult,
+        _working_set: &mut sov_modules_api::WorkingSet<Self::Context>,
     ) -> anyhow::Result<()> {
         todo!()
     }

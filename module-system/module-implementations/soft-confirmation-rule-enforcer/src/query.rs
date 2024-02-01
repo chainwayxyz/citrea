@@ -24,7 +24,7 @@ impl<C: Context, Da: DaSpec> SoftConfirmationRuleEnforcer<C, Da> {
     ) -> RpcResult<u64> {
         Ok(self
             .da_root_hash_to_number
-            .get(&da_root_hash, working_set)
+            .get(da_root_hash, working_set)
             .unwrap_or(0))
     }
 }
