@@ -14,7 +14,7 @@ use crate::test_helpers::{start_rollup, NodeMode};
 
 #[tokio::test]
 async fn test_archival_state() -> Result<(), anyhow::Error> {
-    // sov_demo_rollup::initialize_logging.initialize_logging();
+    // sov_demo_rollup::initialize_logging();
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 

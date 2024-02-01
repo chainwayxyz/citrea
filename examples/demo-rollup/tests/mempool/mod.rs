@@ -14,7 +14,7 @@ use crate::test_helpers::{start_rollup, NodeMode};
 /// Transaction with equal nonce to last tx should not be accepted by mempool.
 #[tokio::test]
 async fn test_same_nonce_tx_should_panic() {
-    // sov_demo_rollup::initialize_logging.initialize_logging();
+    // sov_demo_rollup::initialize_logging();
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
@@ -58,7 +58,7 @@ async fn test_same_nonce_tx_should_panic() {
 ///  Transaction with nonce lower than account's nonce on state should not be accepted by mempool.
 #[tokio::test]
 async fn test_nonce_too_low() {
-    // sov_demo_rollup::initialize_logging.initialize_logging();
+    // sov_demo_rollup::initialize_logging();
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
@@ -103,7 +103,7 @@ async fn test_nonce_too_low() {
 /// but shouldn't be received by the sequencer (so it doesn't end up in the block)
 #[tokio::test]
 async fn test_nonce_too_high() {
-    // sov_demo_rollup::initialize_logging.initialize_logging();
+    // sov_demo_rollup::initialize_logging();
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 

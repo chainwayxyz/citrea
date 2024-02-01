@@ -16,7 +16,7 @@ use crate::test_helpers::{start_rollup, NodeMode};
 
 #[tokio::test]
 async fn test_gas_price_increase() -> Result<(), anyhow::Error> {
-    // sov_demo_rollup::initialize_logging.initialize_logging();
+    // sov_demo_rollup::initialize_logging();
 
     let (port_tx, port_rx) = tokio::sync::oneshot::channel();
 
@@ -75,10 +75,12 @@ async fn execute(
     assert_eq!(initial_fee_history.oldest_block, U256::zero());
 
     // Create 100 wallets and send them some eth
+    let wallets_count = 100u32;
+    let tx_count_from_single_address = 15u32;
     let one_eth = u128::pow(10, Ether.as_num());
     let mut rng = thread_rng();
-    let mut wallets = Vec::with_capacity(100);
-    for i in 0..100 {
+    let mut wallets = Vec::with_capacity(wallets_count as usize);
+    for i in 0..wallets_count {
         let wallet = LocalWallet::new(&mut rng).with_chain_id(client.chain_id);
         let address = wallet.address();
         client
@@ -87,29 +89,38 @@ async fn execute(
             .unwrap();
         wallets.push(wallet);
 
-        if i % 15 == 0 {
+        if i % tx_count_from_single_address == 0 {
             client.send_publish_batch_request().await;
         }
     }
     client.send_publish_batch_request().await;
 
-    // get initial gas price
-    let initial_gas_price = client.eth_gas_price().await;
-
     // send 15 transactions from each wallet
     for wallet in wallets {
         let address = wallet.address();
         let wallet_client = TestClient::new(client.chain_id, wallet, address, port).await;
-        for i in 0u32..15 {
+        for i in 0..tx_count_from_single_address {
             wallet_client
                 .contract_transaction(contract_address, contract.set_call_data(i), None)
                 .await;
         }
     }
     client.send_publish_batch_request().await;
-    client.send_publish_batch_request().await; // if this isn't here gas fees don't increase, why?
+    let block = client.eth_get_block_by_number(None).await;
+    assert!(
+        block.gas_used.as_u64() <= reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT,
+        "Block has gas limit"
+    );
+    assert!(
+        block.transactions.len() < (wallets_count * tx_count_from_single_address) as usize,
+        "Some of the transactions should be dropped because of gas limit"
+    );
 
-    // get new gas price
+    // get initial gas price from the last committed block. I.e. the price before the transactions
+    let initial_gas_price = client.eth_gas_price().await;
+
+    client.send_publish_batch_request().await;
+    // get new gas price after the transactions that was adjusted in the last block
     let latest_gas_price = client.eth_gas_price().await;
 
     assert!(
