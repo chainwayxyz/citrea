@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use sov_modules_api::{Context, StateValueAccessor, WorkingSet};
+use sov_modules_api::{Context, DaSpec, StateValueAccessor, WorkingSet};
 
 use crate::SoftConfirmationRuleEnforcer;
 
@@ -14,7 +14,7 @@ pub struct SoftConfirmationRuleEnforcerConfig<C: Context> {
     pub(crate) limiting_number: u64,
 }
 
-impl<C: sov_modules_api::Context> SoftConfirmationRuleEnforcer<C> {
+impl<C: Context, Da: DaSpec> SoftConfirmationRuleEnforcer<C, Da> {
     pub(crate) fn init_module(
         &self,
         config: &<Self as sov_modules_api::Module>::Config,

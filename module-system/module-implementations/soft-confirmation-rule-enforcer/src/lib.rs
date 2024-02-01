@@ -7,11 +7,11 @@ pub use call::*;
 pub use genesis::*;
 pub use query::*;
 // "Given DA slot hasn't been used for more than N soft confirmation blocks."
-use sov_modules_api::{Context, ModuleInfo, StateMap, StateValue, WorkingSet};
+use sov_modules_api::{Context, DaSpec, ModuleInfo, StateMap, StateValue, WorkingSet};
 use sov_state::codec::BcsCodec;
 
 #[derive(ModuleInfo, Clone)]
-pub struct SoftConfirmationRuleEnforcer<C: Context> {
+pub struct SoftConfirmationRuleEnforcer<C: Context, Da: DaSpec> {
     /// Address of the SoftConfirmationRuleEnforcer module.
     #[address]
     address: C::Address,
@@ -21,14 +21,14 @@ pub struct SoftConfirmationRuleEnforcer<C: Context> {
     /// Mapping from DA root hash to a number.
     /// Checks how many L1 blocks were published for a specific L1 block with given DA root hash.
     #[state]
-    pub(crate) da_root_hash_to_number: StateMap<[u8; 32], u64, BcsCodec>,
+    pub(crate) da_root_hash_to_number: StateMap<Da::SlotHash, u64, BcsCodec>,
     /// Authority address. Address of the sequencer.
     /// This address is allowed to modify the limiting number.
     #[state]
     pub(crate) authority: StateValue<C::Address, BcsCodec>,
 }
 
-impl<C: sov_modules_api::Context> sov_modules_api::Module for SoftConfirmationRuleEnforcer<C> {
+impl<C: Context, Da: DaSpec> sov_modules_api::Module for SoftConfirmationRuleEnforcer<C, Da> {
     type Context = C;
 
     type Config = SoftConfirmationRuleEnforcerConfig<C>;

@@ -1,5 +1,5 @@
 use borsh::{BorshDeserialize, BorshSerialize};
-use sov_modules_api::{CallResponse, Context, StateValueAccessor, WorkingSet};
+use sov_modules_api::{CallResponse, Context, DaSpec, StateValueAccessor, WorkingSet};
 
 use crate::SoftConfirmationRuleEnforcer;
 
@@ -22,7 +22,7 @@ pub enum CallMessage<C: Context> {
     },
 }
 
-impl<C: Context> SoftConfirmationRuleEnforcer<C> {
+impl<C: Context, Da: DaSpec> SoftConfirmationRuleEnforcer<C, Da> {
     pub(crate) fn change_authority(
         &self,
         address: C::Address,

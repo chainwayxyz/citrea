@@ -1,5 +1,6 @@
 use std::str::FromStr;
 
+use sov_mock_da::{MockDaSpec, MockHash};
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{Context, Module, Spec};
@@ -12,7 +13,7 @@ type C = DefaultContext;
 #[test]
 fn begin_slot_hook_checks_limiting_number() {
     let (soft_confirmation_rule_enforcer, mut working_set) =
-        get_soft_confirmation_rule_enforcer(&TEST_CONFIG);
+        get_soft_confirmation_rule_enforcer::<MockDaSpec>(&TEST_CONFIG);
 
     let call_message = CallMessage::ModifyLimitingNumber {
         limiting_number: 10,
@@ -33,7 +34,7 @@ fn begin_slot_hook_checks_limiting_number() {
     // call begin_slot_hook 11 times
     for i in 0..11 {
         if soft_confirmation_rule_enforcer
-            .begin_slot_hook([0; 32], &[0; 32].into(), &mut working_set)
+            .begin_slot_hook(&MockHash([0; 32]), &[0; 32].into(), &mut working_set)
             .is_err()
         {
             assert_eq!(i, 10);

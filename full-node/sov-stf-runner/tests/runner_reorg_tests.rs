@@ -120,6 +120,7 @@ async fn runner_execution(
     da_service: MockDaService,
 ) -> ([u8; 32], [u8; 32]) {
     let rollup_config = RollupConfig::<MockDaConfig> {
+        sequencer_public_key: vec![0u8; 32],
         storage: StorageConfig {
             path: path.to_path_buf(),
         },
