@@ -516,7 +516,12 @@ where
         // Run the stateless verification, since it is stateless we don't commit.
         let txs = self.verify_txs_stateless_soft(soft_batch)?;
 
-        let messages = self.decode_txs(&txs)?;
+        let messages = match self.decode_txs(&txs) {
+            Ok(messages) => messages,
+            Err(_e) => {
+                panic!("TX must be serializable!");
+            }
+        };
 
         Ok((txs, messages))
     }
@@ -528,16 +533,15 @@ where
     ) -> Result<Batch, SlashingReason> {
         match Batch::try_from_slice(data_for_deserialization(blob_data)) {
             Ok(batch) => Ok(batch),
-            Err(_e) => {
-                unimplemented!("No slashing in soft confirmation!");
-                // assert_eq!(blob_data.verified_data().len(), blob_data.total_len(), "Batch deserialization failed and some data was not provided. The prover might be malicious");
-                // // If the deserialization fails, we need to make sure it's not because the prover was malicious and left
-                // // out some relevant data! Make that check here. If the data is missing, panic.
-                // error!(
-                //     "Unable to deserialize batch provided by the sequencer {}",
-                //     e
-                // );
-                // Err(SlashingReason::InvalidBatchEncoding)
+            Err(e) => {
+                assert_eq!(blob_data.verified_data().len(), blob_data.total_len(), "Batch deserialization failed and some data was not provided. The prover might be malicious");
+                // If the deserialization fails, we need to make sure it's not because the prover was malicious and left
+                // out some relevant data! Make that check here. If the data is missing, panic.
+                error!(
+                    "Unable to deserialize batch provided by the sequencer {}",
+                    e
+                );
+                Err(SlashingReason::InvalidBatchEncoding)
             }
         }
     }
@@ -572,9 +576,7 @@ where
         ) {
             Ok(txs) => Ok(txs),
             Err(_e) => {
-                unimplemented!("No slashing in soft confirmation!");
-                // error!("Stateless verification error - the sequencer included a transaction which was known to be invalid. {}\n", e);
-                // Err(SlashingReason::StatelessVerificationFailed)
+                panic!("TX must be deserializable!");
             }
         }
     }
@@ -586,13 +588,12 @@ where
         txs: &[TransactionAndRawHash<C>],
     ) -> Result<Vec<<RT as DispatchCall>::Decodable>, SlashingReason> {
         let mut decoded_messages = Vec::with_capacity(txs.len());
-        for TransactionAndRawHash { tx, raw_tx_hash: _ } in txs {
+        for TransactionAndRawHash { tx, raw_tx_hash } in txs {
             match RT::decode_call(tx.runtime_msg()) {
                 Ok(msg) => decoded_messages.push(msg),
-                Err(_e) => {
-                    unimplemented!("No slashing in soft confirmation!");
-                    // error!("Tx 0x{} decoding error: {}", hex::encode(raw_tx_hash), e);
-                    // return Err(SlashingReason::InvalidTransactionEncoding);
+                Err(e) => {
+                    error!("Tx 0x{} decoding error: {}", hex::encode(raw_tx_hash), e);
+                    return Err(SlashingReason::InvalidTransactionEncoding);
                 }
             }
         }

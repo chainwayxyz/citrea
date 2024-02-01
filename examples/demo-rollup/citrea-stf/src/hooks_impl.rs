@@ -48,16 +48,16 @@ impl<C: Context, Da: DaSpec> ApplyBlobHooks<Da::BlobTransaction> for Runtime<C, 
 
     fn begin_blob_hook(
         &self,
-        blob: &mut Da::BlobTransaction,
-        working_set: &mut WorkingSet<C>,
+        _blob: &mut Da::BlobTransaction,
+        _working_set: &mut WorkingSet<C>,
     ) -> anyhow::Result<()> {
         Ok(())
     }
 
     fn end_blob_hook(
         &self,
-        result: Self::BlobResult,
-        working_set: &mut WorkingSet<C>,
+        _result: Self::BlobResult,
+        _working_set: &mut WorkingSet<C>,
     ) -> anyhow::Result<()> {
         Ok(())
     }
