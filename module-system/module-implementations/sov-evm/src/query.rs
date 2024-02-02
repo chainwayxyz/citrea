@@ -904,7 +904,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let mut tx_range = sealed_block.transactions.clone();
         tx_range.end = tx_number + 1;
         let block_txs: Vec<TransactionSigned> = tx_range
-            .filter(|id| id <= &tx_number)
             .map(|id| {
                 self.transactions
                     .get(id as usize, &mut working_set.accessory_state())
