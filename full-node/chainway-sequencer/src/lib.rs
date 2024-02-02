@@ -215,9 +215,9 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                 }
 
                 let unsigned_batch = UnsignedSoftConfirmationBatch {
-                    da_slot_height: previous_l1_block.header().height(),
+                    da_slot_height: last_finalized_block.header().height(),
                     txs: vec![signed_blob.clone()],
-                    da_slot_hash: previous_l1_block.header().hash().into(),
+                    da_slot_hash: last_finalized_block.header().hash().into(),
                     pre_state_root: self
                         .rollup
                         .runner

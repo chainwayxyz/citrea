@@ -502,7 +502,7 @@ async fn test_get_transaction_by_hash() -> Result<(), anyhow::Error> {
 
 #[tokio::test]
 async fn test_soft_confirmations_on_different_blocks() -> Result<(), anyhow::Error> {
-    // initialize_logging();
+    // sov_demo_rollup::initialize_logging();
 
     let (seq_test_client, full_node_test_client, seq_task, full_node_task, _) =
         initialize_test().await;
@@ -546,7 +546,7 @@ async fn test_soft_confirmations_on_different_blocks() -> Result<(), anyhow::Err
 
     sleep(Duration::from_secs(5)).await;
 
-    // now that more than 2 secs passed there should be a new da block
+    // now that more than 5 secs passed there should be a new da block
     for _ in 1..=6 {
         seq_test_client.send_publish_batch_request().await;
     }
