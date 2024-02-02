@@ -5,13 +5,16 @@ use alloy_primitives::Uint;
 use alloy_rlp::Encodable;
 use jsonrpsee::core::RpcResult;
 use reth_interfaces::provider::ProviderError;
+use reth_primitives::revm::env::tx_env_with_recovered;
 use reth_primitives::TransactionKind::{Call, Create};
 use reth_primitives::{
-    Block, BlockId, BlockNumberOrTag, SealedHeader, TransactionSignedEcRecovered, U128, U256, U64,
+    Block, BlockId, BlockNumberOrTag, SealedHeader, TransactionSigned,
+    TransactionSignedEcRecovered, B256, U128, U256, U64,
 };
+use reth_rpc_types::trace::geth::{GethDebugTracingOptions, GethTrace};
 use reth_rpc_types_compat::block::from_primitive_with_hash;
 use revm::primitives::{
-    EVMError, ExecutionResult, Halt, InvalidTransaction, TransactTo, KECCAK_EMPTY,
+    EVMError, Env, ExecutionResult, Halt, InvalidTransaction, TransactTo, KECCAK_EMPTY,
 };
 use sov_modules_api::macros::rpc_gen;
 use sov_modules_api::prelude::*;
@@ -860,6 +863,83 @@ impl<C: sov_modules_api::Context> Evm<C> {
         });
 
         Ok(transaction)
+    }
+
+    /// Handler for `debug_traceTransaction`
+    #[rpc_method(name = "debug_traceTransaction")]
+    pub fn debug_trace_transaction(
+        &self,
+        tx_hash: B256,
+        opts: Option<GethDebugTracingOptions>,
+        working_set: &mut WorkingSet<C>,
+    ) -> RpcResult<GethTrace> {
+        // TODO: Utilize counting semaphores and blocking tasks to limit number of concurrent tracing requests
+        info!("evm module: debug_traceTransaction({})", tx_hash);
+
+        let (transaction, tx_number): (TransactionSignedAndRecovered, u64) = match self
+            .transaction_hashes
+            .get(&tx_hash, &mut working_set.accessory_state())
+        {
+            Some(tx_number) => (
+                self.transactions
+                    .get(tx_number as usize, &mut working_set.accessory_state())
+                    .expect("Transaction with known hash must be found with its number"),
+                tx_number,
+            ),
+            None => {
+                // TODO: If not found in state check mempool if still not found return error
+                return Err(EthApiError::InvalidParams(
+                    "Transaction with given hash not found".to_string(),
+                )
+                .into());
+            }
+        };
+
+        let block_number = transaction.block_number;
+
+        let sealed_block = self
+            .get_sealed_block_by_number(Some(BlockNumberOrTag::Number(block_number)), working_set)
+            .expect("Block with known tx must be set");
+        // set the archival version to the block number
+        let mut tx_range = sealed_block.transactions.clone();
+        tx_range.end = tx_number + 1;
+        let block_txs: Vec<TransactionSigned> = tx_range
+            .map(|id| {
+                self.transactions
+                    .get(id as usize, &mut working_set.accessory_state())
+                    .expect("Transaction must be set")
+                    .signed_transaction
+            })
+            .collect();
+
+        working_set.set_archival_version(sealed_block.header.number);
+        let block_env = BlockEnv::from(&sealed_block);
+        let cfg = self.cfg.get(working_set).unwrap();
+        let cfg_env = get_cfg_env(&block_env, cfg, Some(get_cfg_env_template()));
+
+        // TODO: Convert below steps to blocking task like in reth after implementing the semaphores
+        let tx: TransactionSignedEcRecovered = transaction.into();
+
+        // EvmDB is the replacement of revm::CacheDB because cachedb requires immutable state
+        // TODO: Move to CacheDB once immutable state is implemented
+        let mut evm_db = self.get_db(working_set);
+        let revm_block_env = revm::primitives::BlockEnv::from(&block_env);
+        replay_transactions_until(
+            &mut evm_db,
+            cfg_env.clone(),
+            revm_block_env.clone(),
+            block_txs,
+            tx.hash(),
+        )?;
+        let env = Env {
+            cfg: cfg_env,
+            block: revm_block_env,
+            tx: tx_env_with_recovered(&tx),
+        };
+        Ok(
+            trace_transaction(opts.unwrap_or_default(), env, &mut evm_db)
+                .map(|(trace, _)| trace)?,
+        )
     }
 
     // https://github.com/paradigmxyz/reth/blob/8892d04a88365ba507f28c3314d99a6b54735d3f/crates/rpc/rpc/src/eth/filter.rs#L349

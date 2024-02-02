@@ -226,17 +226,24 @@ impl From<reth_interfaces::provider::ProviderError> for EthApiError {
     }
 }
 
-impl From<EVMError<Infallible>> for EthApiError {
-    fn from(err: EVMError<Infallible>) -> Self {
+impl From<Infallible> for EthApiError {
+    fn from(_: Infallible) -> Self {
+        unreachable!()
+    }
+}
+
+impl<T> From<EVMError<T>> for EthApiError
+where
+    T: Into<EthApiError>,
+{
+    fn from(err: EVMError<T>) -> Self {
         match err {
             EVMError::Transaction(err) => RpcInvalidTransactionError::from(err).into(),
             EVMError::Header(InvalidHeader::PrevrandaoNotSet) => EthApiError::PrevrandaoNotSet,
             EVMError::Header(InvalidHeader::ExcessBlobGasNotSet) => {
                 EthApiError::ExcessBlobGasNotSet
             }
-            EVMError::Database(_) => {
-                EthApiError::Internal(RethError::Custom("Database error".into()))
-            }
+            EVMError::Database(err) => err.into(),
         }
     }
 }
