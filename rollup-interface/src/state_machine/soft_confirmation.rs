@@ -6,6 +6,8 @@ use core::fmt::Debug;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 
+use crate::maybestd::vec::Vec;
+
 /// TODO
 #[derive(Debug, PartialEq, Clone, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
 pub struct UnsignedSoftConfirmationBatch {
