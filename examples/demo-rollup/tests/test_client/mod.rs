@@ -21,7 +21,7 @@ pub const MAX_FEE_PER_GAS: u64 = 1000000001;
 const GAS: u64 = 900000u64;
 
 pub struct TestClient {
-    chain_id: u64,
+    pub(crate) chain_id: u64,
     pub(crate) from_addr: Address,
     client: SignerMiddleware<Provider<Http>, Wallet<SigningKey>>,
     http_client: HttpClient,
@@ -29,7 +29,6 @@ pub struct TestClient {
 }
 
 impl TestClient {
-    #[allow(dead_code)]
     pub(crate) async fn new(
         chain_id: u64,
         key: Wallet<SigningKey>,
@@ -163,6 +162,7 @@ impl TestClient {
             .unwrap()
     }
 
+    #[allow(dead_code)]
     pub(crate) async fn contract_transaction_with_custom_fee(
         &self,
         contract_address: H160,
@@ -355,6 +355,10 @@ impl TestClient {
         }
     }
 
+    // TODO actually this function returns gas price from the last block (already committed) and it may
+    //  be different from the current gas price (for the next block being committed).
+    //  So because of that users can't fully rely on the returned value.
+    //  A part of https://github.com/chainwayxyz/secret-sovereign-sdk/issues/150
     pub(crate) async fn eth_gas_price(&self) -> ethereum_types::U256 {
         self.http_client
             .request("eth_gasPrice", rpc_params![])

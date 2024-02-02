@@ -7,7 +7,6 @@ use citrea_stf::genesis_config::GenesisPaths;
 use ethereum_types::H256;
 use ethers::abi::Address;
 use reth_primitives::{BlockNumberOrTag, TxHash};
-// use sov_demo_rollup::initialize_logging;
 use sov_evm::SimpleStorageContract;
 use sov_mock_da::MockDaSpec;
 use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
@@ -76,7 +75,7 @@ async fn initialize_test() -> (
 
 #[tokio::test]
 async fn test_full_node_send_tx() -> Result<(), anyhow::Error> {
-    sov_demo_rollup::initialize_logging();
+    // sov_demo_rollup::initialize_logging();
 
     let (seq_test_client, full_node_test_client, seq_task, full_node_task, addr) =
         initialize_test().await;
@@ -112,7 +111,7 @@ async fn test_full_node_send_tx() -> Result<(), anyhow::Error> {
 
 #[tokio::test]
 async fn test_delayed_sync_ten_blocks() -> Result<(), anyhow::Error> {
-    // initialize_logging();
+    // sov_demo_rollup::initialize_logging();
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
@@ -182,7 +181,7 @@ async fn test_delayed_sync_ten_blocks() -> Result<(), anyhow::Error> {
 
 #[tokio::test]
 async fn test_e2e_same_block_sync() -> Result<(), anyhow::Error> {
-    // initialize_logging();
+    // sov_demo_rollup::initialize_logging();
 
     let (seq_test_client, full_node_test_client, seq_task, full_node_task, _) =
         initialize_test().await;
@@ -197,7 +196,7 @@ async fn test_e2e_same_block_sync() -> Result<(), anyhow::Error> {
 
 #[tokio::test]
 async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
-    // initialize_logging();
+    // sov_demo_rollup::initialize_logging();
 
     // Remove temp db directories if they exist
     let _ = fs::remove_dir_all(Path::new("demo_data_test_close_and_reopen_full_node_copy"));
@@ -346,7 +345,7 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
 
 #[tokio::test]
 async fn test_get_transaction_by_hash() -> Result<(), anyhow::Error> {
-    // initialize_logging();
+    // sov_demo_rollup::initialize_logging();
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 

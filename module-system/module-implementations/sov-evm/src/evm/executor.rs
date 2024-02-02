@@ -2,7 +2,9 @@ use std::convert::Infallible;
 
 use reth_primitives::TransactionSignedEcRecovered;
 use reth_revm::tracing::{TracingInspector, TracingInspectorConfig};
-use revm::primitives::{CfgEnv, EVMError, Env, ExecutionResult, ResultAndState, TxEnv};
+use revm::primitives::{
+    CfgEnv, EVMError, Env, ExecutionResult, InvalidTransaction, ResultAndState, TxEnv,
+};
 use revm::{self, Database, DatabaseCommit};
 
 use super::conversions::create_tx_env;
@@ -34,18 +36,32 @@ pub(crate) fn execute_multiple_tx<DB: Database<Error = Infallible> + DatabaseCom
     txs: &[TransactionSignedEcRecovered],
     config_env: CfgEnv,
 ) -> Vec<Result<ExecutionResult, EVMError<Infallible>>> {
-    let mut evm = revm::new();
+    if txs.is_empty() {
+        return vec![];
+    }
 
+    let block_gas_limit = block_env.gas_limit;
+    let mut cumulative_gas_used = 0u64;
+
+    let mut evm = revm::new();
     evm.env.block = block_env.into();
     evm.env.cfg = config_env;
     evm.database(db);
-
-    txs.iter()
-        .map(|tx| {
+    let mut tx_results = Vec::with_capacity(txs.len());
+    for tx in txs {
+        let block_available_gas = block_gas_limit - cumulative_gas_used;
+        let result = if tx.transaction.gas_limit() > block_available_gas {
+            Err(EVMError::Transaction(
+                InvalidTransaction::CallerGasLimitMoreThanBlock,
+            ))
+        } else {
             evm.env.tx = create_tx_env(tx);
             evm.transact_commit()
-        })
-        .collect()
+        };
+        cumulative_gas_used += result.as_ref().map(|r| r.gas_used()).unwrap_or(0);
+        tx_results.push(result);
+    }
+    tx_results
 }
 
 pub(crate) fn inspect<DB: Database<Error = Infallible> + DatabaseCommit>(

@@ -305,7 +305,12 @@ impl DaService for BitcoinService {
 
         // iterate over all transactions in the block
         for tx in block.txdata.iter() {
-            if !tx.txid().to_byte_array().as_slice().starts_with(&[0, 0]) {
+            if !tx
+                .txid()
+                .to_byte_array()
+                .as_slice()
+                .starts_with(self.reveal_tx_id_prefix.as_slice())
+            {
                 continue;
             }
 
