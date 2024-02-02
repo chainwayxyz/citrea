@@ -1,6 +1,6 @@
 #![no_main]
-use demo_stf::runtime::Runtime;
-use demo_stf::StfVerifier;
+use citrea_stf::runtime::Runtime;
+use citrea_stf::StfVerifier;
 #[cfg(feature = "bench")]
 use risc0_zkvm::guest::env;
 use sov_mock_da::MockDaVerifier;
