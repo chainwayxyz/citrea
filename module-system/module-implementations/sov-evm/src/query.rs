@@ -5,6 +5,7 @@ use alloy_primitives::Uint;
 use alloy_rlp::Encodable;
 use jsonrpsee::core::RpcResult;
 use reth_interfaces::provider::ProviderError;
+use reth_primitives::revm::env::tx_env_with_recovered;
 use reth_primitives::TransactionKind::{Call, Create};
 use reth_primitives::{
     Block, BlockId, BlockNumberOrTag, SealedHeader, TransactionSigned,
@@ -875,14 +876,16 @@ impl<C: sov_modules_api::Context> Evm<C> {
         // TODO: Utilize counting semaphores and blocking tasks to limit number of concurrent tracing requests
         info!("evm module: debug_traceTransaction({})", tx_hash);
 
-        let transaction: TransactionSignedAndRecovered = match self
+        let (transaction, tx_number): (TransactionSignedAndRecovered, u64) = match self
             .transaction_hashes
             .get(&tx_hash, &mut working_set.accessory_state())
         {
-            Some(tx_number) => self
-                .transactions
-                .get(tx_number as usize, &mut working_set.accessory_state())
-                .expect("Transaction with known hash must be found with its number"),
+            Some(tx_number) => (
+                self.transactions
+                    .get(tx_number as usize, &mut working_set.accessory_state())
+                    .expect("Transaction with known hash must be found with its number"),
+                tx_number,
+            ),
             None => {
                 // TODO: If not found in state check mempool if still not found return error
                 return Err(EthApiError::InvalidParams(
@@ -898,14 +901,11 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .get_sealed_block_by_number(Some(BlockNumberOrTag::Number(block_number)), working_set)
             .expect("Block with known tx must be set");
         // set the archival version to the block number
-        working_set.set_archival_version(sealed_block.header.number);
-        let block_env = BlockEnv::from(&sealed_block);
-        let cfg = self.cfg.get(working_set).unwrap();
-        let cfg_env = get_cfg_env(&block_env, cfg, Some(get_cfg_env_template()));
 
         let block_txs: Vec<TransactionSigned> = sealed_block
             .transactions
             .clone()
+            .filter(|id| id <= &tx_number)
             .map(|id| {
                 self.transactions
                     .get(id as usize, &mut working_set.accessory_state())
@@ -913,6 +913,11 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     .signed_transaction
             })
             .collect();
+
+        working_set.set_archival_version(sealed_block.header.number);
+        let block_env = BlockEnv::from(&sealed_block);
+        let cfg = self.cfg.get(working_set).unwrap();
+        let cfg_env = get_cfg_env(&block_env, cfg, Some(get_cfg_env_template()));
 
         // TODO: Convert below steps to blocking task like in reth after implementing the semaphores
         let tx: TransactionSignedEcRecovered = transaction.into();

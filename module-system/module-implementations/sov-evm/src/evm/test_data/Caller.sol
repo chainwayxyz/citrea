@@ -4,7 +4,7 @@
 pragma solidity ^0.8.0;
 
 interface ISimpleStorage {
-    function set(uint256 _num) external;
+    function set(uint256 num) external;
 
     function get() external view returns (uint);
 }

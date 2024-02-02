@@ -1,13 +1,11 @@
-use reth_primitives::{
-    Address, Transaction, TransactionKind, TransactionSigned, TransactionSignedEcRecovered, TxHash,
-    B256, U256,
-};
+use reth_primitives::revm::env::{fill_tx_env, fill_tx_env_with_recovered, tx_env_with_recovered};
+use reth_primitives::{TransactionSigned, TransactionSignedEcRecovered, TxHash, B256};
 use reth_rpc_types::trace::geth::{
     FourByteFrame, GethDebugBuiltInTracerType, GethDebugTracerType, GethDebugTracingOptions,
     GethTrace, NoopFrame,
 };
-use revm::primitives::db::{Database, DatabaseCommit};
-use revm::primitives::{CfgEnv, Env, ResultAndState, TransactTo, TxEnv};
+use revm::primitives::db::Database;
+use revm::primitives::{CfgEnv, Env, ResultAndState, TxEnv};
 use revm::Inspector;
 use revm_inspectors::tracing::{FourByteInspector, TracingInspector, TracingInspectorConfig};
 
@@ -51,7 +49,7 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
                 GethDebugBuiltInTracerType::PreStateTracer => {
                     // Requires DatabaseRef trait
                     // meaning we need a readonly state to implement this
-                    todo!("PreStateTracer")
+                    return Err(EthApiError::Unsupported("PreStateTracer"));
                 }
                 GethDebugBuiltInTracerType::NoopTracer => {
                     Ok((NoopFrame::default().into(), Default::default()))
@@ -60,7 +58,7 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
             GethDebugTracerType::JsTracer(_code) => {
                 // This also requires DatabaseRef trait
                 // Implement after readonly state is implemented
-                todo!("JsTracer")
+                return Err(EthApiError::Unsupported("JsTracer"));
             }
         };
     }
@@ -121,8 +119,7 @@ where
         }
 
         tx.try_fill_tx_env(&mut evm.env.tx)?;
-        let res = evm.transact()?;
-        evm.db.as_mut().expect("is set").commit(res.state)
+        evm.transact_commit()?;
     }
     Ok(())
 }
@@ -161,132 +158,5 @@ impl FillableTransaction for TransactionSigned {
             .ok_or_else(|| EthApiError::InvalidTransactionSignature)?;
         fill_tx_env(tx_env, self, signer);
         Ok(())
-    }
-}
-
-/// Fill transaction environment from [TransactionSignedEcRecovered].
-pub fn fill_tx_env_with_recovered(tx_env: &mut TxEnv, transaction: &TransactionSignedEcRecovered) {
-    fill_tx_env(tx_env, transaction.as_ref(), transaction.signer());
-}
-
-/// Returns a new [TxEnv] filled with the transaction's data.
-pub fn tx_env_with_recovered(transaction: &TransactionSignedEcRecovered) -> TxEnv {
-    let mut tx_env = TxEnv::default();
-
-    fill_tx_env(&mut tx_env, transaction.as_ref(), transaction.signer());
-
-    tx_env
-}
-
-/// Fill transaction environment from a [Transaction] and the given sender address.
-pub fn fill_tx_env<T>(tx_env: &mut TxEnv, transaction: T, sender: Address)
-where
-    T: AsRef<Transaction>,
-{
-    tx_env.caller = sender;
-    match transaction.as_ref() {
-        Transaction::Legacy(tx) => {
-            tx_env.gas_limit = tx.gas_limit;
-            tx_env.gas_price = U256::from(tx.gas_price);
-            tx_env.gas_priority_fee = None;
-            tx_env.transact_to = match tx.to {
-                TransactionKind::Call(to) => TransactTo::Call(to),
-                TransactionKind::Create => TransactTo::create(),
-            };
-            tx_env.value = tx.value.into();
-            tx_env.data = tx.input.clone();
-            tx_env.chain_id = tx.chain_id;
-            tx_env.nonce = Some(tx.nonce);
-            tx_env.access_list.clear();
-            tx_env.blob_hashes.clear();
-            tx_env.max_fee_per_blob_gas.take();
-        }
-        Transaction::Eip2930(tx) => {
-            tx_env.gas_limit = tx.gas_limit;
-            tx_env.gas_price = U256::from(tx.gas_price);
-            tx_env.gas_priority_fee = None;
-            tx_env.transact_to = match tx.to {
-                TransactionKind::Call(to) => TransactTo::Call(to),
-                TransactionKind::Create => TransactTo::create(),
-            };
-            tx_env.value = tx.value.into();
-            tx_env.data = tx.input.clone();
-            tx_env.chain_id = Some(tx.chain_id);
-            tx_env.nonce = Some(tx.nonce);
-            tx_env.access_list = tx
-                .access_list
-                .0
-                .iter()
-                .map(|l| {
-                    (
-                        l.address,
-                        l.storage_keys
-                            .iter()
-                            .map(|k| U256::from_be_bytes(k.0))
-                            .collect(),
-                    )
-                })
-                .collect();
-            tx_env.blob_hashes.clear();
-            tx_env.max_fee_per_blob_gas.take();
-        }
-        Transaction::Eip1559(tx) => {
-            tx_env.gas_limit = tx.gas_limit;
-            tx_env.gas_price = U256::from(tx.max_fee_per_gas);
-            tx_env.gas_priority_fee = Some(U256::from(tx.max_priority_fee_per_gas));
-            tx_env.transact_to = match tx.to {
-                TransactionKind::Call(to) => TransactTo::Call(to),
-                TransactionKind::Create => TransactTo::create(),
-            };
-            tx_env.value = tx.value.into();
-            tx_env.data = tx.input.clone();
-            tx_env.chain_id = Some(tx.chain_id);
-            tx_env.nonce = Some(tx.nonce);
-            tx_env.access_list = tx
-                .access_list
-                .0
-                .iter()
-                .map(|l| {
-                    (
-                        l.address,
-                        l.storage_keys
-                            .iter()
-                            .map(|k| U256::from_be_bytes(k.0))
-                            .collect(),
-                    )
-                })
-                .collect();
-            tx_env.blob_hashes.clear();
-            tx_env.max_fee_per_blob_gas.take();
-        }
-        Transaction::Eip4844(tx) => {
-            tx_env.gas_limit = tx.gas_limit;
-            tx_env.gas_price = U256::from(tx.max_fee_per_gas);
-            tx_env.gas_priority_fee = Some(U256::from(tx.max_priority_fee_per_gas));
-            tx_env.transact_to = match tx.to {
-                TransactionKind::Call(to) => TransactTo::Call(to),
-                TransactionKind::Create => TransactTo::create(),
-            };
-            tx_env.value = tx.value.into();
-            tx_env.data = tx.input.clone();
-            tx_env.chain_id = Some(tx.chain_id);
-            tx_env.nonce = Some(tx.nonce);
-            tx_env.access_list = tx
-                .access_list
-                .0
-                .iter()
-                .map(|l| {
-                    (
-                        l.address,
-                        l.storage_keys
-                            .iter()
-                            .map(|k| U256::from_be_bytes(k.0))
-                            .collect(),
-                    )
-                })
-                .collect();
-            tx_env.blob_hashes = tx.blob_versioned_hashes.clone();
-            tx_env.max_fee_per_blob_gas = Some(U256::from(tx.max_fee_per_blob_gas));
-        }
     }
 }
