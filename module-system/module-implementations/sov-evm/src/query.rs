@@ -901,10 +901,9 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .get_sealed_block_by_number(Some(BlockNumberOrTag::Number(block_number)), working_set)
             .expect("Block with known tx must be set");
         // set the archival version to the block number
-
-        let block_txs: Vec<TransactionSigned> = sealed_block
-            .transactions
-            .clone()
+        let mut tx_range = sealed_block.transactions.clone();
+        tx_range.end = tx_number + 1;
+        let block_txs: Vec<TransactionSigned> = tx_range
             .filter(|id| id <= &tx_number)
             .map(|id| {
                 self.transactions
