@@ -12,10 +12,12 @@ pub use gas_price::gas_oracle::GasPriceOracleConfig;
 use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::RpcModule;
 use reth_primitives::{
-    keccak256, Address, BlockNumberOrTag, TransactionSignedNoHash as RethTransactionSignedNoHash,
-    B256, U128, U256, U64,
+    keccak256, Address, BaseFeeParams, BlockNumberOrTag,
+    TransactionSignedNoHash as RethTransactionSignedNoHash, B256, U128, U256, U64,
 };
-use reth_rpc_types::{CallRequest, FeeHistory, TransactionRequest, TypedTransactionRequest};
+use reth_rpc_types::{
+    CallRequest, FeeHistory, Header, TransactionRequest, TypedTransactionRequest,
+};
 use reth_rpc_types_compat::transaction::to_primitive_transaction;
 use rustc_version_runtime::version;
 use sequencer_client::SequencerClient;
@@ -197,7 +199,25 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                 .unwrap();
 
             let evm = Evm::<C>::default();
-            let base_fee = evm
+
+            let curr_head_block = evm
+                .get_block_by_number(None, None, &mut working_set)
+                .unwrap()
+                .unwrap();
+
+            let header: Header = curr_head_block.inner.header;
+
+            let new_base_fee = reth_primitives::basefee::calculate_next_block_base_fee(
+                header.gas_used.to::<u64>(),
+                header.gas_limit.to::<u64>(),
+                header.base_fee_per_gas.unwrap_or_default().to::<u64>(),
+                BaseFeeParams {
+                    max_change_denominator: 8,
+                    elasticity_multiplier: 2,
+                },
+            );
+
+            let _base_fee = evm
                 .get_block_by_number(None, None, &mut working_set)
                 .unwrap()
                 .unwrap()
@@ -205,7 +225,10 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                 .base_fee_per_gas
                 .unwrap_or_default();
 
-            suggested_tip + base_fee
+            println!("base fee: {}", _base_fee);
+            println!("base fee: {} - new", new_base_fee);
+
+            suggested_tip + U256::from(new_base_fee)
         };
 
         Ok::<U256, ErrorObjectOwned>(price)
