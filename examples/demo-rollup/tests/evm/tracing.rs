@@ -4,7 +4,7 @@ use reth_rpc_types::trace::geth::{
 };
 // use sov_demo_rollup::initialize_logging;
 use serde_json::{self, json};
-use sov_evm::{CallerContract, SimpleStorageContract, TestContract};
+use sov_evm::{CallerContract, SimpleStorageContract};
 use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
 use sov_stf_runner::RollupProverConfig;
 
