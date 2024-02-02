@@ -1,6 +1,6 @@
-use reth_primitives::TransactionKind;
 use reth_primitives::{
-    Address, Transaction, TransactionSigned, TransactionSignedEcRecovered, TxHash, B256, U256,
+    Address, Transaction, TransactionKind, TransactionSigned, TransactionSignedEcRecovered, TxHash,
+    B256, U256,
 };
 use reth_rpc_types::trace::geth::{
     FourByteFrame, GethDebugBuiltInTracerType, GethDebugTracerType, GethDebugTracingOptions,
@@ -11,8 +11,7 @@ use revm::primitives::{CfgEnv, Env, ResultAndState, TransactTo, TxEnv};
 use revm::Inspector;
 use revm_inspectors::tracing::{FourByteInspector, TracingInspector, TracingInspectorConfig};
 
-use crate::error::rpc::EthApiError;
-use crate::error::rpc::EthResult;
+use crate::error::rpc::{EthApiError, EthResult};
 use crate::evm::db::EvmDb;
 
 pub(crate) fn trace_transaction<C: sov_modules_api::Context>(

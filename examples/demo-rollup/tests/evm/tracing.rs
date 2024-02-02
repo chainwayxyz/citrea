@@ -1,13 +1,4 @@
-use std::net::SocketAddr;
-use std::str::FromStr;
-
 use demo_stf::genesis_config::GenesisPaths;
-use ethers_core::abi::Address;
-use ethers_core::types::{BlockId, U256};
-use ethers_signers::{LocalWallet, Signer};
-use hex::FromHex;
-use reth_primitives::BlockNumberOrTag;
-use reth_primitives::Bytes;
 use reth_rpc_types::trace::geth::{
     CallFrame, GethDebugBuiltInTracerType, GethDebugTracerType, GethDebugTracingOptions, GethTrace,
 };
@@ -18,7 +9,6 @@ use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
 use sov_stf_runner::RollupProverConfig;
 
 use crate::evm::make_test_client;
-use crate::test_client::TestClient;
 use crate::test_helpers::{start_rollup, NodeMode};
 
 #[tokio::test]
@@ -45,7 +35,7 @@ async fn tracing_tests() -> Result<(), Box<dyn std::error::Error>> {
     let test_client = make_test_client(port).await;
 
     // ss is short for simple storage in this context
-    let (caller_contract_address, caller_contract, ss_contract_address, ss_contract) = {
+    let (caller_contract_address, caller_contract, ss_contract_address, _ss_contract) = {
         // caller contract has methods to call simple_storage contract
         // can call get with address and set with address and value
         let ss_contract = SimpleStorageContract::default();
