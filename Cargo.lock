@@ -9866,6 +9866,7 @@ dependencies = [
  "regex",
  "reqwest",
  "reth-primitives",
+ "reth-rpc-types",
  "reth-transaction-pool",
  "revm",
  "risc0",

@@ -90,7 +90,6 @@ where
 {
     let mut evm = revm::EVM::with_env(env);
     evm.database(db);
-    // TODO: Convert errors
     let res = evm.inspect(inspector)?;
     Ok((res, evm.env))
 }

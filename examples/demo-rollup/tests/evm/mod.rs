@@ -16,6 +16,7 @@ use crate::test_helpers::{start_rollup, NodeMode};
 
 mod archival_state;
 mod gas_price;
+mod tracing;
 
 #[tokio::test]
 async fn web3_rpc_tests() -> Result<(), anyhow::Error> {

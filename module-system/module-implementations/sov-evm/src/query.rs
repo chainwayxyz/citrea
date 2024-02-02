@@ -914,15 +914,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
             })
             .collect();
 
-        // we need to get the state of the parent block because we're essentially replaying the
-        // block the transaction is included in
-        let state_at: u64 = sealed_block
-            .header
-            .number
-            .checked_sub(1)
-            .unwrap_or_default();
-        working_set.set_archival_version(state_at);
-
         // TODO: Convert below steps to blocking task like in reth after implementing the semaphores
         let tx: TransactionSignedEcRecovered = transaction.into();
 
@@ -942,11 +933,9 @@ impl<C: sov_modules_api::Context> Evm<C> {
             block: revm_block_env,
             tx: tx_env_with_recovered(&tx),
         };
-        // TODO: Handle error here
         Ok(
             trace_transaction(opts.unwrap_or_default(), env, &mut evm_db)
-                .map(|(trace, _)| trace)
-                .unwrap(),
+                .map(|(trace, _)| trace)?,
         )
     }
 

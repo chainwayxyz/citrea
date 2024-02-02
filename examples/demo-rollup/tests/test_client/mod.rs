@@ -14,6 +14,7 @@ use jsonrpsee::core::client::ClientT;
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use jsonrpsee::rpc_params;
 use reth_primitives::BlockNumberOrTag;
+use reth_rpc_types::trace::geth::{GethDebugTracingOptions, GethTrace};
 use sequencer_client::GetSoftBatchResponse;
 use sov_evm::LogResponse;
 
@@ -517,6 +518,17 @@ impl TestClient {
                 "softConfirmationRuleEnforcer_getLimitingNumber",
                 rpc_params![],
             )
+            .await
+            .unwrap()
+    }
+
+    pub(crate) async fn debug_trace_transaction(
+        &self,
+        tx_hash: TxHash,
+        opts: Option<GethDebugTracingOptions>,
+    ) -> GethTrace {
+        self.http_client
+            .request("debug_traceTransaction", rpc_params![tx_hash, opts])
             .await
             .unwrap()
     }
