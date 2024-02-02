@@ -7,7 +7,7 @@ use jsonrpsee::RpcModule;
 use sequencer_client::SequencerClient;
 use sov_db::ledger_db::{LedgerDB, SlotCommit};
 use sov_db::schema::types::{BatchNumber, StoredSoftBatch};
-use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaSpec};
+use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
 use sov_rollup_interface::stf::{SoftBatchReceipt, StateTransitionFunction};

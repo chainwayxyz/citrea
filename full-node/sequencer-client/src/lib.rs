@@ -81,16 +81,16 @@ pub struct GetSoftBatchResponse<Hash: Into<[u8; 32]>> {
     pub pub_key: Vec<u8>,
 }
 
-impl<Hash: Into<[u8; 32]>> Into<SignedSoftConfirmationBatch> for GetSoftBatchResponse<Hash> {
-    fn into(self) -> SignedSoftConfirmationBatch {
+impl<Hash: Into<[u8; 32]>> From<GetSoftBatchResponse<Hash>> for SignedSoftConfirmationBatch {
+    fn from(val: GetSoftBatchResponse<Hash>) -> Self {
         SignedSoftConfirmationBatch {
-            hash: self.hash,
-            da_slot_height: self.da_slot_height,
-            da_slot_hash: self.da_slot_hash.into(),
-            txs: self.txs.unwrap_or_default(),
-            pre_state_root: self.pre_state_root,
-            signature: self.soft_confirmation_signature,
-            pub_key: self.pub_key,
+            hash: val.hash,
+            da_slot_height: val.da_slot_height,
+            da_slot_hash: val.da_slot_hash.into(),
+            txs: val.txs.unwrap_or_default(),
+            pre_state_root: val.pre_state_root,
+            signature: val.soft_confirmation_signature,
+            pub_key: val.pub_key,
         }
     }
 }
