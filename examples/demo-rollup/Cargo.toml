@@ -52,6 +52,7 @@ hex = { workspace = true, optional = true }
 tokio = { workspace = true }
 reth-primitives = { workspace = true }
 reth-transaction-pool = { workspace = true }
+reth-rpc-types = { workspace = true }
 tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
 
 sov-evm = { path = "../../module-system/module-implementations/sov-evm" }
