@@ -229,21 +229,6 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
 
                 let signed_soft_batch = self.sign_soft_confirmation(unsigned_batch);
 
-                // let block_template = UnsignedBlockTemplate {
-                //     da_slot_height: last_finalized_block.header().height(),
-                //     txs: vec![signed_blob],
-                //     da_slot_hash: last_finalized_block.hash(),
-                //     pre_state_root: self
-                //         .rollup
-                //         .runner
-                //         .get_state_root()
-                //         .clone()
-                //         .as_ref()
-                //         .to_vec(),
-                // };
-
-                // let signed_block_template = self.sign_soft_confirmation(block_template);
-
                 // TODO: handle error
                 self.rollup.runner.process(signed_soft_batch).await?;
 

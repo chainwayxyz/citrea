@@ -22,8 +22,8 @@ impl SequencerClient {
         let client = HttpClientBuilder::default().build(&rpc_url).unwrap();
         Self { rpc_url, client }
     }
-    /// Gets l2 block given l2 height
 
+    /// Gets l2 block given l2 height
     pub async fn get_soft_batch<DaSpec: sov_rollup_interface::da::DaSpec>(
         &self,
         num: u64,
@@ -69,15 +69,19 @@ impl SequencerClient {
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct GetSoftBatchResponse<Hash: Into<[u8; 32]>> {
-    #[serde(with = "sov_rollup_interface::rpc::utils::rpc_hex")]
+    #[serde(with = "hex::serde")]
     pub hash: [u8; 32],
     pub da_slot_height: u64,
     pub da_slot_hash: Hash,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub txs: Option<Vec<Vec<u8>>>,
+    #[serde(with = "hex::serde")]
     pub pre_state_root: Vec<u8>,
+    #[serde(with = "hex::serde")]
     pub post_state_root: Vec<u8>,
+    #[serde(with = "hex::serde")]
     pub soft_confirmation_signature: Vec<u8>,
+    #[serde(with = "hex::serde")]
     pub pub_key: Vec<u8>,
 }
 

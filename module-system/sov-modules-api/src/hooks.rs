@@ -47,7 +47,7 @@ pub trait ApplyBlobHooks<B: BlobReaderTrait> {
         working_set: &mut WorkingSet<Self::Context>,
     ) -> anyhow::Result<()>;
 
-    /// Executes at the end of apply_blob and rewards or slashed the sequencer
+    /// Executes at the end of apply_blob and rewards or slashes the sequencer
     /// If this hook returns Err rollup panics
     fn end_blob_hook(
         &self,
@@ -69,7 +69,7 @@ pub trait ApplySoftConfirmationHooks<Da: DaSpec> {
         working_set: &mut WorkingSet<Self::Context>,
     ) -> anyhow::Result<()>;
 
-    /// Executes at the end of apply_blob and rewards or slashed the sequencer
+    /// Executes at the end of apply_blob and rewards or slashes the sequencer
     /// If this hook returns Err rollup panics
     fn end_soft_confirmation_hook(
         &self,

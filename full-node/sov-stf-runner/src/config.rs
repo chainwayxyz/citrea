@@ -55,7 +55,6 @@ pub struct RollupConfig<DaServiceConfig> {
     pub da: DaServiceConfig,
     /// Sequencer Client RPC Config for sequencer connection
     pub sequencer_client: Option<SequencerClientRpcConfig>,
-
     /// Sequencer public key
     /// serialized as hex
     #[serde(with = "hex::serde")]

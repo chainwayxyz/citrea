@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::maybestd::vec::Vec;
 
-/// TODO
+/// Contains raw transactions and information about the soft confirmation block
 #[derive(Debug, PartialEq, Clone, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
 pub struct UnsignedSoftConfirmationBatch {
     /// DA block to build on
@@ -21,7 +21,8 @@ pub struct UnsignedSoftConfirmationBatch {
     pub txs: Vec<Vec<u8>>,
 }
 
-/// Contains raw transactions and information about the soft confirmation block
+/// Signed version of the `UnsignedSoftConfirmationBatch`
+/// Contains the signature and public key of the sequencer
 #[derive(Debug, PartialEq, Clone, BorshDeserialize, BorshSerialize, Serialize, Deserialize, Eq)]
 pub struct SignedSoftConfirmationBatch {
     /// Hash of the unsigned batch

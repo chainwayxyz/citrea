@@ -194,8 +194,6 @@ where
         &mut self,
         mut soft_batch: SignedSoftConfirmationBatch,
     ) -> Result<(), anyhow::Error> {
-        // let (txs, da_slot_height) = (soft_batch.txs, soft_batch.da_slot_height);
-
         let filtered_block = self
             .da_service
             .get_block_at(soft_batch.da_slot_height)
