@@ -70,18 +70,23 @@ impl<C: Context, Da: DaSpec> ApplySoftConfirmationHooks<Da> for Runtime<C, Da> {
 
     fn begin_soft_confirmation_hook(
         &self,
-        _soft_batch: &mut sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch,
-        _working_set: &mut WorkingSet<Self::Context>,
+        soft_batch: &mut sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch,
+        working_set: &mut WorkingSet<Self::Context>,
     ) -> anyhow::Result<()> {
-        // Before executing each batch, check that the sender is registered as a sequencer
+        self.evm.begin_soft_confirmation_hook(
+            soft_batch.hash(),
+            &soft_batch.pre_state_root(),
+            working_set,
+        );
         Ok(())
     }
 
     fn end_soft_confirmation_hook(
         &self,
         _result: Self::SoftConfirmationResult,
-        _working_set: &mut WorkingSet<C>,
+        working_set: &mut WorkingSet<C>,
     ) -> anyhow::Result<()> {
+        self.evm.end_soft_confirmation_hook(working_set);
         Ok(())
     }
 }
@@ -102,16 +107,12 @@ impl<C: Context, Da: DaSpec> SlotHooks<Da> for Runtime<C, Da> {
         self.soft_confirmation_rule_enforcer
             .begin_slot_hook(&slot_header.hash(), pre_state_root, working_set)
             .expect("Sequencer gave too many soft confirmations for a single block.");
-
-        self.evm
-            .begin_slot_hook(slot_header.hash().into(), pre_state_root, working_set);
     }
 
     fn end_slot_hook(
         &self,
         #[allow(unused_variables)] working_set: &mut sov_modules_api::WorkingSet<C>,
     ) {
-        self.evm.end_slot_hook(working_set);
     }
 }
 
