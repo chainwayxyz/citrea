@@ -9599,6 +9599,7 @@ dependencies = [
  "sov-mock-da",
  "sov-modules-api",
  "sov-prover-storage-manager",
+ "sov-rollup-interface",
  "sov-state",
  "tempfile",
 ]

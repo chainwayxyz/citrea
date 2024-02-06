@@ -536,6 +536,16 @@ impl TestClient {
             .await
             .unwrap()
     }
+
+    pub(crate) async fn eth_block_number(&self) -> u64 {
+        let block_number: ethereum_types::U256 = self
+            .http_client
+            .request("eth_blockNumber", rpc_params![])
+            .await
+            .unwrap();
+
+        block_number.as_u64()
+    }
 }
 
 #[derive(serde::Deserialize, Debug)]

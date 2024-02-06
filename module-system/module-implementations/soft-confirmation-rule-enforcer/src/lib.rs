@@ -21,11 +21,15 @@ pub struct SoftConfirmationRuleEnforcer<C: Context, Da: DaSpec> {
     /// Mapping from DA root hash to a number.
     /// Checks how many L1 blocks were published for a specific L1 block with given DA root hash.
     #[state]
-    pub(crate) da_root_hash_to_number: StateMap<Da::SlotHash, u64, BcsCodec>,
+    pub(crate) da_root_hash_to_number: StateMap<[u8; 32], u64, BcsCodec>,
     /// Authority address. Address of the sequencer.
     /// This address is allowed to modify the limiting number.
     #[state]
     pub(crate) authority: StateValue<C::Address, BcsCodec>,
+    /// Phantom state using the da type.
+    /// This is used to make sure that the state is generic over the DA type.
+    #[state]
+    pub(crate) phantom: StateValue<Da::SlotHash, BcsCodec>,
 }
 
 impl<C: Context, Da: DaSpec> sov_modules_api::Module for SoftConfirmationRuleEnforcer<C, Da> {
