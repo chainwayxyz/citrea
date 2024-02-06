@@ -28,6 +28,8 @@ pub use stf_blueprint::StfBlueprint;
 use tracing::{debug, info};
 pub use tx_verifier::RawTx;
 
+use crate::stf_blueprint::ApplyBatchError;
+
 /// The tx hook for a blueprint runtime
 pub struct RuntimeTxHook<C: Context> {
     /// Height to initialize the context
@@ -375,6 +377,14 @@ where
 
         let (apply_soft_batch_result, checkpoint) =
             self.apply_soft_confirmation(checkpoint, &mut soft_batch.clone());
+        if let Err(ApplyBatchError::Ignored(_root_hash)) = apply_soft_batch_result {
+            return SlotResult {
+                state_root: pre_state_root.clone(),
+                change_set: pre_state, // should be empty
+                batch_receipts,
+                witness: <<C as Spec>::Storage as Storage>::Witness::default(),
+            };
+        }
         let batch_receipt = apply_soft_batch_result.unwrap_or_else(Into::into);
         info!(
             "soft batch  with hash: {:?} from sequencer {:?} has been applied with #{} transactions.",

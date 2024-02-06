@@ -222,6 +222,10 @@ where
             &filtered_block.validity_condition(),
             &mut soft_batch,
         );
+        if &slot_result.state_root.as_ref() == &self.state_root.as_ref() {
+            debug!("Limiting number is reached for the current L1 block. State root is the same as before, skipping");
+            return Ok(());
+        }
 
         info!(
             "State root after applying slot: {:?}",

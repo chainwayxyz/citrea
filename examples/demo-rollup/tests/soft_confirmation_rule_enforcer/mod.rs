@@ -7,7 +7,6 @@ use crate::evm::make_test_client;
 use crate::test_helpers::{start_rollup, NodeMode};
 
 /// Transaction with equal nonce to last tx should not be accepted by mempool.
-#[should_panic = "Sequencer gave too many soft confirmations for a single block.: Block count per l1 block 10 should not be more than limiting number 10"]
 #[tokio::test]
 async fn too_many_l2_block_per_l1_block_should_panic() {
     // initialize_logging();
