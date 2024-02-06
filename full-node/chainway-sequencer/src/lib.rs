@@ -227,7 +227,7 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                         .to_vec(),
                 };
 
-                let signed_soft_batch = self.sign_soft_confirmation(unsigned_batch);
+                let signed_soft_batch = self.sign_soft_confirmation_batch(unsigned_batch);
 
                 // TODO: handle error
                 self.rollup.runner.process(signed_soft_batch).await?;
@@ -264,7 +264,7 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
     }
 
     /// Signs necessary info and returns a BlockTemplate
-    fn sign_soft_confirmation(
+    fn sign_soft_confirmation_batch(
         &mut self,
         soft_confirmation: UnsignedSoftConfirmationBatch,
     ) -> SignedSoftConfirmationBatch {
