@@ -121,21 +121,22 @@ impl<C: Context, Da: DaSpec> SlotHooks<Da> for Runtime<C, Da> {
 
     fn begin_slot_hook(
         &self,
-        #[allow(unused_variables)] slot_header: &Da::BlockHeader,
+        slot_header: &Da::BlockHeader,
         #[allow(unused_variables)] validity_condition: &Da::ValidityCondition,
-        #[allow(unused_variables)]
         pre_state_root: &<<Self::Context as Spec>::Storage as Storage>::Root,
-        #[allow(unused_variables)] working_set: &mut sov_modules_api::WorkingSet<C>,
+        working_set: &mut sov_modules_api::WorkingSet<C>,
     ) {
-        self.evm
-            .begin_slot_hook(slot_header.hash().into(), pre_state_root, working_set);
+        // begin_soft_conf is a hack here so that tests of this stf run
+        self.evm.begin_soft_confirmation_hook(
+            slot_header.hash().into(),
+            pre_state_root.as_ref(),
+            working_set,
+        );
     }
 
-    fn end_slot_hook(
-        &self,
-        #[allow(unused_variables)] working_set: &mut sov_modules_api::WorkingSet<C>,
-    ) {
-        self.evm.end_slot_hook(working_set);
+    fn end_slot_hook(&self, working_set: &mut sov_modules_api::WorkingSet<C>) {
+        // end_soft_conf is a hack here so that tests of this stf run
+        self.evm.end_soft_confirmation_hook(working_set);
     }
 }
 

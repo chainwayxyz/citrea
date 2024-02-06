@@ -20,9 +20,9 @@ lazy_static! {
 }
 
 #[test]
-fn begin_slot_hook_creates_pending_block() {
+fn begin_soft_confirmation_hook_creates_pending_block() {
     let (evm, mut working_set) = get_evm(&TEST_CONFIG);
-    evm.begin_slot_hook(DA_ROOT_HASH.0, &[10u8; 32].into(), &mut working_set);
+    evm.begin_soft_confirmation_hook(DA_ROOT_HASH.0, &[10u8; 32], &mut working_set);
     let pending_block = evm.block_env.get(&mut working_set).unwrap();
     assert_eq!(
         pending_block,
@@ -38,12 +38,16 @@ fn begin_slot_hook_creates_pending_block() {
 }
 
 #[test]
-fn end_slot_hook_sets_head() {
+fn end_soft_confirmation_hook_sets_head() {
     let (evm, mut working_set) = get_evm(&TEST_CONFIG);
     let mut pre_state_root = [0u8; 32];
     pre_state_root.copy_from_slice(GENESIS_STATE_ROOT.as_ref());
 
-    evm.begin_slot_hook(DA_ROOT_HASH.0, &pre_state_root.into(), &mut working_set);
+    evm.begin_soft_confirmation_hook(
+        DA_ROOT_HASH.0,
+        GENESIS_STATE_ROOT.as_ref(),
+        &mut working_set,
+    );
 
     evm.pending_transactions.push(
         &create_pending_transaction(B256::from([1u8; 32]), 1),
@@ -55,7 +59,7 @@ fn end_slot_hook_sets_head() {
         &mut working_set,
     );
 
-    evm.end_slot_hook(&mut working_set);
+    evm.end_soft_confirmation_hook(&mut working_set);
     let head = evm.head.get(&mut working_set).unwrap();
     let pending_head = evm
         .pending_head
@@ -100,9 +104,9 @@ fn end_slot_hook_sets_head() {
 }
 
 #[test]
-fn end_slot_hook_moves_transactions_and_receipts() {
+fn end_soft_confirmation_hook_moves_transactions_and_receipts() {
     let (evm, mut working_set) = get_evm(&TEST_CONFIG);
-    evm.begin_slot_hook(DA_ROOT_HASH.0, &[10u8; 32].into(), &mut working_set);
+    evm.begin_soft_confirmation_hook(DA_ROOT_HASH.0, &[10u8; 32], &mut working_set);
 
     let tx1 = create_pending_transaction(B256::from([1u8; 32]), 1);
     evm.pending_transactions.push(&tx1, &mut working_set);
@@ -110,7 +114,7 @@ fn end_slot_hook_moves_transactions_and_receipts() {
     let tx2 = create_pending_transaction(B256::from([2u8; 32]), 2);
     evm.pending_transactions.push(&tx2, &mut working_set);
 
-    evm.end_slot_hook(&mut working_set);
+    evm.end_soft_confirmation_hook(&mut working_set);
 
     let tx1_hash = tx1.transaction.signed_transaction.hash;
     let tx2_hash = tx2.transaction.signed_transaction.hash;
@@ -187,7 +191,11 @@ fn finalize_hook_creates_final_block() {
     let mut pre_state_root = [0u8; 32];
     pre_state_root.copy_from_slice(GENESIS_STATE_ROOT.as_ref());
 
-    evm.begin_slot_hook(DA_ROOT_HASH.0, &pre_state_root.into(), &mut working_set);
+    evm.begin_soft_confirmation_hook(
+        DA_ROOT_HASH.0,
+        GENESIS_STATE_ROOT.as_ref(),
+        &mut working_set,
+    );
     evm.pending_transactions.push(
         &create_pending_transaction(B256::from([1u8; 32]), 1),
         &mut working_set,
@@ -196,15 +204,15 @@ fn finalize_hook_creates_final_block() {
         &create_pending_transaction(B256::from([2u8; 32]), 2),
         &mut working_set,
     );
-    evm.end_slot_hook(&mut working_set);
+    evm.end_soft_confirmation_hook(&mut working_set);
 
-    let root_hash = [99u8; 32].into();
+    let root_hash = [99u8; 32];
 
     let mut accessory_state = working_set.accessory_state();
-    evm.finalize_hook(&root_hash, &mut accessory_state);
+    evm.finalize_hook(&root_hash.into(), &mut accessory_state);
     assert_eq!(evm.blocks.len(&mut accessory_state), 2);
 
-    evm.begin_slot_hook(DA_ROOT_HASH.0, &root_hash, &mut working_set);
+    evm.begin_soft_confirmation_hook(DA_ROOT_HASH.0, &root_hash, &mut working_set);
 
     let mut accessory_state = working_set.accessory_state();
 
@@ -220,7 +228,7 @@ fn finalize_hook_creates_final_block() {
                     parent_hash,
                     ommers_hash: EMPTY_OMMER_ROOT_HASH,
                     beneficiary: TEST_CONFIG.coinbase,
-                    state_root: B256::from(root_hash.0),
+                    state_root: B256::from(root_hash),
                     transactions_root: B256::from(hex!(
                         "30eb5f6050df7ea18ca34cf3503f4713119315a2d3c11f892c5c8920acf816f4"
                     )),
@@ -263,13 +271,13 @@ fn finalize_hook_creates_final_block() {
 }
 
 #[test]
-fn begin_slot_hook_appends_last_block_hashes() {
+fn begin_soft_confirmation_hook_appends_last_block_hashes() {
     let (evm, mut working_set) = get_evm(&TEST_CONFIG);
 
     let mut state_root = [0u8; 32];
     state_root.copy_from_slice(&GENESIS_STATE_ROOT.0);
 
-    evm.begin_slot_hook(DA_ROOT_HASH.0, &state_root.into(), &mut working_set);
+    evm.begin_soft_confirmation_hook(DA_ROOT_HASH.0, &state_root, &mut working_set);
 
     // on block 1, only block 0 exists, so the last block hash should be the genesis hash
     // the others should not exist
@@ -289,23 +297,23 @@ fn begin_slot_hook_appends_last_block_hashes() {
         .get(&U256::from(1), &mut working_set)
         .is_none());
 
-    evm.end_slot_hook(&mut working_set);
+    evm.end_soft_confirmation_hook(&mut working_set);
 
     let mut random_32_bytes: [u8; 32] = rand::thread_rng().gen::<[u8; 32]>();
     evm.finalize_hook(&random_32_bytes.into(), &mut working_set.accessory_state());
 
     // finalize blocks 1-256 with random state root hashes
     for _ in 1..256 {
-        evm.begin_slot_hook(DA_ROOT_HASH.0, &random_32_bytes.into(), &mut working_set);
+        evm.begin_soft_confirmation_hook(DA_ROOT_HASH.0, &random_32_bytes, &mut working_set);
 
-        evm.end_slot_hook(&mut working_set);
+        evm.end_soft_confirmation_hook(&mut working_set);
 
         random_32_bytes = rand::thread_rng().gen::<[u8; 32]>();
         evm.finalize_hook(&random_32_bytes.into(), &mut working_set.accessory_state());
     }
 
     // start environment for block 257
-    evm.begin_slot_hook(DA_ROOT_HASH.0, &random_32_bytes.into(), &mut working_set);
+    evm.begin_soft_confirmation_hook(DA_ROOT_HASH.0, &random_32_bytes, &mut working_set);
 
     // only the last 256 blocks should exist on block 257
     // which is [1, 256]

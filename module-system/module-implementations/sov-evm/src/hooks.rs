@@ -12,10 +12,10 @@ where
     <C::Storage as Storage>::Root: Into<[u8; 32]>,
 {
     /// Logic executed at the beginning of the slot. Here we set the root hash of the previous head.
-    pub fn begin_slot_hook(
+    pub fn begin_soft_confirmation_hook(
         &self,
         da_root_hash: [u8; 32],
-        pre_state_root: &<<C as Spec>::Storage as Storage>::Root,
+        pre_state_root: &[u8],
         working_set: &mut WorkingSet<C>,
     ) {
         let mut parent_block = self
@@ -23,7 +23,7 @@ where
             .get(working_set)
             .expect("Head block should always be set");
 
-        parent_block.header.state_root = B256::from_slice(pre_state_root.clone().as_ref());
+        parent_block.header.state_root = B256::from_slice(pre_state_root);
         self.head.set(&parent_block, working_set);
 
         let sealed_parent_block = parent_block.clone().seal();
@@ -67,7 +67,7 @@ where
 
     /// Logic executed at the end of the slot. Here, we generate an authenticated block and set it as the new head of the chain.
     /// It's important to note that the state root hash is not known at this moment, so we postpone setting this field until the begin_slot_hook of the next slot.
-    pub fn end_slot_hook(&self, working_set: &mut WorkingSet<C>) {
+    pub fn end_soft_confirmation_hook(&self, working_set: &mut WorkingSet<C>) {
         let cfg = self
             .cfg
             .get(working_set)
