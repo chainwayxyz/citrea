@@ -28,6 +28,7 @@ pub struct SoftConfirmationRuleEnforcer<C: Context, Da: DaSpec> {
     pub(crate) authority: StateValue<C::Address, BcsCodec>,
     /// Phantom state using the da type.
     /// This is used to make sure that the state is generic over the DA type.
+    #[allow(dead_code)]
     #[state]
     pub(crate) phantom: StateValue<Da::SlotHash, BcsCodec>,
 }
