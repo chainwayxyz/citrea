@@ -1,7 +1,8 @@
-use crate::tests::genesis_tests::{get_soft_confirmation_rule_enforcer, TEST_CONFIG};
-use sov_mock_da::{MockDaSpec, MockHash};
+use sov_mock_da::MockDaSpec;
 use sov_modules_api::StateMapAccessor;
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
+
+use crate::tests::genesis_tests::{get_soft_confirmation_rule_enforcer, TEST_CONFIG};
 
 #[test]
 fn block_count_per_da_hash_must_be_correct() {

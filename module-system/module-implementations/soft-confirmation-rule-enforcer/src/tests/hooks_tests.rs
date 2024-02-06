@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use sov_mock_da::{MockDaSpec, MockHash};
+use sov_mock_da::MockDaSpec;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{Context, Module, Spec};

@@ -1,5 +1,5 @@
 use anyhow::anyhow;
-use sov_modules_api::{Context, DaSpec, Spec, StateMapAccessor, WorkingSet};
+use sov_modules_api::{Context, DaSpec, StateMapAccessor, WorkingSet};
 use sov_state::Storage;
 
 use crate::SoftConfirmationRuleEnforcer;

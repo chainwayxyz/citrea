@@ -73,9 +73,9 @@ impl<C: Context, Da: DaSpec> ApplySoftConfirmationHooks<Da> for Runtime<C, Da> {
         soft_batch: &mut sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch,
         working_set: &mut WorkingSet<Self::Context>,
     ) -> anyhow::Result<()> {
-       self.soft_confirmation_rule_enforcer
+        self.soft_confirmation_rule_enforcer
             .begin_soft_confirmation_hook(soft_batch, working_set)?;
-      
+
         self.evm.begin_soft_confirmation_hook(
             soft_batch.hash(),
             &soft_batch.pre_state_root(),
@@ -104,12 +104,10 @@ impl<C: Context, Da: DaSpec> SlotHooks<Da> for Runtime<C, Da> {
         _validity_condition: &Da::ValidityCondition,
         _pre_state_root: &<<Self::Context as Spec>::Storage as Storage>::Root,
         _working_set: &mut sov_modules_api::WorkingSet<C>,
-    ) {}
+    ) {
+    }
 
-    fn end_slot_hook(
-        &self,
-        _working_set: &mut sov_modules_api::WorkingSet<C>,
-    ) {}
+    fn end_slot_hook(&self, _working_set: &mut sov_modules_api::WorkingSet<C>) {}
 }
 
 impl<C: Context, Da: sov_modules_api::DaSpec> FinalizeHook<Da> for Runtime<C, Da> {
