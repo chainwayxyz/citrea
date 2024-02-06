@@ -3,7 +3,7 @@ use std::path::Path;
 use std::str::FromStr;
 use std::time::Duration;
 
-use demo_stf::genesis_config::GenesisPaths;
+use citrea_stf::genesis_config::GenesisPaths;
 use ethereum_types::H256;
 use ethers::abi::Address;
 use reth_primitives::{BlockNumberOrTag, TxHash};
@@ -545,7 +545,7 @@ async fn test_soft_confirmations_on_different_blocks() -> Result<(), anyhow::Err
 
     sleep(Duration::from_secs(5)).await;
 
-    // now that more than 2 secs passed there should be a new da block
+    // now that more than 5 secs passed there should be a new da block
     for _ in 1..=6 {
         seq_test_client.send_publish_batch_request().await;
     }

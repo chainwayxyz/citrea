@@ -1,4 +1,4 @@
-use demo_stf::genesis_config::GenesisPaths;
+use citrea_stf::genesis_config::GenesisPaths;
 use reth_rpc_types::trace::geth::{
     CallFrame, GethDebugBuiltInTracerType, GethDebugTracerType, GethDebugTracingOptions, GethTrace,
 };

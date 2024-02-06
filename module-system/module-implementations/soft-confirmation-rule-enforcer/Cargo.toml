@@ -26,6 +26,7 @@ jsonrpsee = { workspace = true, features = ["macros", "client-core", "server"] }
 lazy_static = "1.4.0"
 
 [dev-dependencies]
+sov-mock-da = { path = "../../../adapters/mock-da", features = ["native"] }
 
 
 [features]

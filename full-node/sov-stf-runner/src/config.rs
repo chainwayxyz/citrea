@@ -55,6 +55,10 @@ pub struct RollupConfig<DaServiceConfig> {
     pub da: DaServiceConfig,
     /// Sequencer Client RPC Config for sequencer connection
     pub sequencer_client: Option<SequencerClientRpcConfig>,
+    /// Sequencer public key
+    /// serialized as hex
+    #[serde(with = "hex::serde")]
+    pub sequencer_public_key: Vec<u8>,
     /// Prover service configuration.
     pub prover_service: ProverServiceConfig,
 }
@@ -92,6 +96,7 @@ mod tests {
     #[test]
     fn test_correct_config() {
         let config = r#"
+            sequencer_public_key = "0000000000000000000000000000000000000000000000000000000000000000"
             [da]
             celestia_rpc_auth_token = "SECRET_RPC_TOKEN"
             celestia_rpc_address = "http://localhost:11111/"
@@ -114,6 +119,7 @@ mod tests {
         let config: RollupConfig<sov_celestia_adapter::CelestiaConfig> =
             from_toml_path(config_file.path()).unwrap();
         let expected = RollupConfig {
+            sequencer_public_key: vec![0; 32],
             runner: RunnerConfig {
                 start_height: 31337,
                 rpc_config: RpcConfig {

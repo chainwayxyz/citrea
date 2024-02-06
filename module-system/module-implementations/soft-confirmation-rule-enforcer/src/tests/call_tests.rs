@@ -1,5 +1,6 @@
 use std::str::FromStr;
 
+use sov_mock_da::MockDaSpec;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{Context, Module, Spec, StateValueAccessor};
@@ -12,7 +13,7 @@ type C = DefaultContext;
 #[test]
 fn change_limiting_number_and_authority() {
     let (soft_confirmation_rule_enforcer, mut working_set) =
-        get_soft_confirmation_rule_enforcer(&TEST_CONFIG);
+        get_soft_confirmation_rule_enforcer::<MockDaSpec>(&TEST_CONFIG);
 
     let call_message = CallMessage::ModifyLimitingNumber {
         limiting_number: 999,

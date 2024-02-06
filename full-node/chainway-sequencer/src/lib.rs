@@ -7,7 +7,8 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 
 use borsh::ser::BorshSerialize;
-use demo_stf::runtime::Runtime;
+use citrea_stf::runtime::Runtime;
+use digest::Digest;
 use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
 use futures::StreamExt;
 use jsonrpsee::types::ErrorObjectOwned;
@@ -30,11 +31,13 @@ pub use sov_evm::DevSigner;
 use sov_evm::{CallMessage, Evm, RlpEvmTransaction};
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::utils::to_jsonrpsee_error_object;
-use sov_modules_api::{EncodeCall, PrivateKey, SlotData, WorkingSet};
+use sov_modules_api::{
+    EncodeCall, PrivateKey, SignedSoftConfirmationBatch, SlotData, UnsignedSoftConfirmationBatch,
+    WorkingSet,
+};
 use sov_modules_rollup_blueprint::{Rollup, RollupBlueprint};
 use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::services::da::DaService;
-use sov_stf_runner::BlockTemplate;
 use tracing::info;
 
 pub use crate::db_provider::DbProvider;
@@ -184,6 +187,7 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                     .runner
                     .get_head_soft_batch()?
                     .map(|(_, sb)| sb.da_slot_height)
+                    // TODO: default to starting height
                     .unwrap_or(1); // If this is the first block, then the previous block is the genesis block, may need revisiting
 
                 let previous_l1_block = self.da_service.get_block_at(prev_l1_height).await.unwrap();
@@ -210,13 +214,23 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                     // TODO: this is where we would include forced transactions from the new L1 block
                 }
 
-                let block_template = BlockTemplate {
+                let unsigned_batch = UnsignedSoftConfirmationBatch {
                     da_slot_height: last_finalized_block.header().height(),
-                    txs: vec![signed_blob],
+                    txs: vec![signed_blob.clone()],
+                    da_slot_hash: last_finalized_block.header().hash().into(),
+                    pre_state_root: self
+                        .rollup
+                        .runner
+                        .get_state_root()
+                        .clone()
+                        .as_ref()
+                        .to_vec(),
                 };
 
+                let signed_soft_batch = self.sign_soft_confirmation_batch(unsigned_batch);
+
                 // TODO: handle error
-                self.rollup.runner.process(block_template).await?;
+                self.rollup.runner.process(signed_soft_batch).await?;
 
                 // get last block remove only txs in block
 
@@ -247,6 +261,28 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
         *nonce += 1;
 
         raw_tx
+    }
+
+    /// Signs necessary info and returns a BlockTemplate
+    fn sign_soft_confirmation_batch(
+        &mut self,
+        soft_confirmation: UnsignedSoftConfirmationBatch,
+    ) -> SignedSoftConfirmationBatch {
+        let raw = soft_confirmation.try_to_vec().unwrap();
+
+        let hash = <C as sov_modules_api::Spec>::Hasher::digest(raw.as_slice()).into();
+
+        let signature = self.sov_tx_signer_priv_key.sign(&raw);
+
+        SignedSoftConfirmationBatch {
+            hash,
+            da_slot_height: soft_confirmation.da_slot_height,
+            txs: soft_confirmation.txs,
+            da_slot_hash: soft_confirmation.da_slot_hash,
+            pre_state_root: soft_confirmation.pre_state_root,
+            pub_key: self.sov_tx_signer_priv_key.pub_key().try_to_vec().unwrap(),
+            signature: signature.try_to_vec().unwrap(),
+        }
     }
 
     pub fn register_rpc_methods(&mut self) -> Result<(), jsonrpsee::core::Error> {

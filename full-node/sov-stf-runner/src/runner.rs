@@ -2,22 +2,20 @@ use std::collections::VecDeque;
 use std::net::SocketAddr;
 
 use anyhow::bail;
-use borsh::BorshSerialize;
 use jsonrpsee::core::Error;
 use jsonrpsee::RpcModule;
 use sequencer_client::SequencerClient;
-use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::{LedgerDB, SlotCommit};
 use sov_db::schema::types::{BatchNumber, StoredSoftBatch};
-use sov_modules_stf_blueprint::{Batch, RawTx};
-use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaSpec};
+use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::services::da::{DaService, SlotData};
+use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
 use sov_rollup_interface::stf::{SoftBatchReceipt, StateTransitionFunction};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
-use sov_rollup_interface::zk::{StateTransitionData, Zkvm, ZkvmHost};
+use sov_rollup_interface::zk::{Zkvm, ZkvmHost};
 use tokio::sync::oneshot;
 use tokio::time::{sleep, Duration, Instant};
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info};
 
 use crate::verifier::StateTransitionVerifier;
 use crate::{ProverService, RunnerConfig};
@@ -28,15 +26,6 @@ type GenesisParams<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::Genesi
 const CONNECTION_INTERVALS: &[u64] = &[0, 1, 2, 5, 10, 15, 30, 60];
 const RETRY_INTERVAL: &[u64] = &[1, 5];
 const RETRY_SLEEP: u64 = 2;
-
-/// Represents the block template that is used to create a block.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct BlockTemplate {
-    /// DA block to build on
-    pub da_slot_height: u64,
-    /// Transactions to include in the block
-    pub txs: Vec<Vec<u8>>,
-}
 
 /// Combines `DaService` with `StateTransitionFunction` and "runs" the rollup.
 pub struct StateTransitionRunner<Stf, Sm, Da, Vm, Ps>
@@ -57,6 +46,7 @@ where
     #[allow(dead_code)]
     prover_service: Ps,
     sequencer_client: Option<SequencerClient>,
+    sequencer_pub_key: Vec<u8>,
 }
 
 /// Represents the possible modes of execution for a zkVM program
@@ -118,6 +108,7 @@ where
         init_variant: InitVariant<Stf, Vm, Da::Spec>,
         prover_service: Ps,
         sequencer_client: Option<SequencerClient>,
+        sequencer_pub_key: Vec<u8>,
     ) -> Result<Self, anyhow::Error> {
         let rpc_config = runner_config.rpc_config;
 
@@ -164,6 +155,7 @@ where
             listen_address,
             prover_service,
             sequencer_client,
+            sequencer_pub_key,
         })
     }
 
@@ -198,10 +190,14 @@ where
 
     /// Processes sequence
     /// gets BlockTemplate from sequencer
-    pub async fn process(&mut self, block_template: BlockTemplate) -> Result<(), anyhow::Error> {
-        let (txs, da_slot_height) = (block_template.txs, block_template.da_slot_height);
-
-        let filtered_block = self.da_service.get_block_at(da_slot_height).await?;
+    pub async fn process(
+        &mut self,
+        mut soft_batch: SignedSoftConfirmationBatch,
+    ) -> Result<(), anyhow::Error> {
+        let filtered_block = self
+            .da_service
+            .get_block_at(soft_batch.da_slot_height)
+            .await?;
 
         let pre_state = self
             .storage_manager
@@ -210,28 +206,21 @@ where
         // TODO: check for reorgs here
         // check out run_in_process for an example
 
-        let batch = Batch {
-            txs: txs.into_iter().map(|tx| RawTx { data: tx }).collect(),
-        };
-
-        let (blob, _signature) = self
-            .da_service
-            .convert_rollup_batch_to_da_blob(&batch.try_to_vec().unwrap())
-            .unwrap();
-
         info!(
-            "sequencer={} blob_hash=0x{}",
-            blob.sender(),
-            hex::encode(blob.hash())
+            "Applying soft batch on DA block: {}",
+            hex::encode(filtered_block.header().hash().into())
         );
 
-        let slot_result = self.stf.apply_slot(
+        let pub_key = soft_batch.pub_key.clone();
+
+        let slot_result = self.stf.apply_soft_batch(
+            pub_key.as_ref(),
             &self.state_root,
             pre_state,
             Default::default(),
             filtered_block.header(),
             &filtered_block.validity_condition(),
-            &mut vec![blob],
+            &mut soft_batch,
         );
 
         info!(
@@ -257,6 +246,8 @@ where
             da_slot_hash: filtered_block.header().hash(),
             da_slot_height: filtered_block.header().height(),
             tx_receipts: batch_receipt.tx_receipts,
+            soft_confirmation_signature: soft_batch.signature.to_vec(),
+            pub_key: soft_batch.pub_key.to_vec(),
         };
 
         self.ledger_db
@@ -337,42 +328,12 @@ where
                 }
             };
 
-            // Check if pre state root is the same as the one in the soft batch
-            if self.state_root.as_ref().to_vec() != soft_batch.pre_state_root {
-                bail!("Pre state root mismatch")
-            }
-
-            let batch = Batch {
-                txs: soft_batch
-                    .txs
-                    .unwrap_or_default()
-                    .into_iter()
-                    .map(|tx| RawTx { data: tx })
-                    .collect(),
-            };
-
-            // 0 is the BlobTransaction
-            // 1 is the Signature
-            let (tx_blob_with_sender, _) = self
-                .da_service
-                .convert_rollup_batch_to_da_blob(&batch.try_to_vec().unwrap())
-                .unwrap();
-
             // TODO: for a node, the da block at slot_height might not have been finalized yet
             // should wait for it to be finalized
             let filtered_block = self
                 .da_service
                 .get_block_at(soft_batch.da_slot_height)
                 .await?;
-
-            // Check whether da slot hash is the same with the one in the soft batch
-            if filtered_block.header().hash() != soft_batch.da_slot_hash {
-                warn!(
-                    "DA slot hash mismatch: soft batch: {}, da block: {}",
-                    hex::encode(soft_batch.da_slot_hash.into()),
-                    hex::encode(filtered_block.header().hash().into())
-                );
-            }
 
             // TODO: when legit blocks are implemented use below to
             // check for reorgs
@@ -396,16 +357,12 @@ where
             //     }
             // }
 
-            let blob_hash = tx_blob_with_sender.hash();
-
             info!(
-                "Extracted blob-tx {} with length {} at height {}",
-                hex::encode(blob_hash),
-                tx_blob_with_sender.total_len(),
+                "Running soft confirmation batch #{} with hash: 0x{} on DA block #{}",
                 height,
+                hex::encode(soft_batch.hash),
+                filtered_block.header().height()
             );
-
-            let mut vec_blobs = vec![tx_blob_with_sender];
 
             let mut data_to_commit = SlotCommit::new(filtered_block.clone());
 
@@ -413,36 +370,37 @@ where
                 .storage_manager
                 .create_storage_on(filtered_block.header())?;
 
-            let slot_result = self.stf.apply_slot(
+            let slot_result = self.stf.apply_soft_batch(
+                self.sequencer_pub_key.as_slice(),
                 // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1247): incorrect pre-state root in case of re-org
                 &self.state_root,
                 pre_state,
                 Default::default(),
                 filtered_block.header(),
                 &filtered_block.validity_condition(),
-                &mut vec_blobs,
+                &mut soft_batch.clone().into(),
             );
 
             for receipt in slot_result.batch_receipts {
                 data_to_commit.add_batch(receipt);
             }
 
-            let (inclusion_proof, completeness_proof) = self
-                .da_service
-                .get_extraction_proof(&filtered_block, vec_blobs.as_slice())
-                .await;
+            // let (inclusion_proof, completeness_proof) = self
+            //     .da_service
+            //     .get_extraction_proof(&filtered_block, vec_blobs.as_slice())
+            //     .await;
 
-            let _transition_data: StateTransitionData<Stf::StateRoot, Stf::Witness, Da::Spec> =
-                StateTransitionData {
-                    // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1247): incorrect pre-state root in case of re-org
-                    initial_state_root: self.state_root.clone(),
-                    final_state_root: slot_result.state_root.clone(),
-                    da_block_header: filtered_block.header().clone(),
-                    inclusion_proof,
-                    completeness_proof,
-                    blobs: vec_blobs,
-                    state_transition_witness: slot_result.witness,
-                };
+            // let _transition_data: StateTransitionData<Stf::StateRoot, Stf::Witness, Da::Spec> =
+            //     StateTransitionData {
+            //         // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1247): incorrect pre-state root in case of re-org
+            //         initial_state_root: self.state_root.clone(),
+            //         final_state_root: slot_result.state_root.clone(),
+            //         da_block_header: filtered_block.header().clone(),
+            //         inclusion_proof,
+            //         completeness_proof,
+            //         blobs: vec_blobs,
+            //         state_transition_witness: slot_result.witness,
+            //     };
 
             self.storage_manager
                 .save_change_set(filtered_block.header(), slot_result.change_set)?;
@@ -496,6 +454,8 @@ where
                 da_slot_hash: filtered_block.header().hash(),
                 da_slot_height: filtered_block.header().height(),
                 tx_receipts: batch_receipt.tx_receipts,
+                soft_confirmation_signature: soft_batch.soft_confirmation_signature,
+                pub_key: soft_batch.pub_key,
             };
 
             self.ledger_db.commit_soft_batch(soft_batch_receipt, true)?;
@@ -504,9 +464,8 @@ where
             seen_block_headers.push_back(filtered_block.header().clone());
 
             info!(
-                "New State Root after blob {:?} is: {:?}",
-                hex::encode(blob_hash),
-                self.state_root
+                "New State Root after soft confirmation #{} is: {:?}",
+                height, self.state_root
             );
 
             height += 1;

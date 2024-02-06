@@ -38,8 +38,6 @@ use soft_confirmation_rule_enforcer::{
 #[cfg(feature = "native")]
 use sov_accounts::{AccountsRpcImpl, AccountsRpcServer};
 #[cfg(feature = "native")]
-use sov_bank::{BankRpcImpl, BankRpcServer};
-#[cfg(feature = "native")]
 use sov_evm::{EvmRpcImpl, EvmRpcServer};
 #[cfg(feature = "native")]
 pub use sov_modules_api::default_context::DefaultContext;
@@ -49,13 +47,7 @@ use sov_modules_api::macros::{expose_rpc, CliWallet};
 #[cfg(feature = "native")]
 use sov_modules_api::Spec;
 use sov_modules_api::{Context, DispatchCall, Genesis, MessageCodec};
-#[cfg(feature = "native")]
-use sov_nft_module::{NonFungibleTokenRpcImpl, NonFungibleTokenRpcServer};
 use sov_rollup_interface::da::DaSpec;
-#[cfg(feature = "native")]
-use sov_sequencer_registry::{SequencerRegistryRpcImpl, SequencerRegistryRpcServer};
-#[cfg(feature = "native")]
-use sov_value_setter::{ValueSetterRpcImpl, ValueSetterRpcServer};
 
 #[cfg(feature = "native")]
 use crate::genesis_config::GenesisPaths;
@@ -66,16 +58,8 @@ use crate::genesis_config::GenesisPaths;
 #[serialization(borsh::BorshDeserialize, borsh::BorshSerialize)]
 #[cfg_attr(feature = "serde", serialization(serde::Serialize, serde::Deserialize))]
 pub struct Runtime<C: Context, Da: DaSpec> {
-    /// The Bank module.
-    pub bank: sov_bank::Bank<C>,
-    /// The Sequencer Registry module.
-    pub sequencer_registry: sov_sequencer_registry::SequencerRegistry<C, Da>,
-    /// The Value Setter module.
-    pub value_setter: sov_value_setter::ValueSetter<C>,
     /// The Accounts module.
     pub accounts: sov_accounts::Accounts<C>,
-    /// The NFT module.
-    pub nft: sov_nft_module::NonFungibleToken<C>,
     #[cfg_attr(feature = "native", cli_skip)]
     /// The EVM module.
     pub evm: sov_evm::Evm<C>,

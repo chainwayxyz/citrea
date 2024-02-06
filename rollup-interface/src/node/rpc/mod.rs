@@ -164,17 +164,27 @@ pub struct SoftBatchResponse {
     /// The DA height of the soft batch.
     pub da_slot_height: u64,
     /// The DA slothash of the soft batch.
+    // TODO: find a way to hex serialize this and then
+    // deserialize in `SequencerClient`
     pub da_slot_hash: [u8; 32],
     /// The hash of the soft batch.
-    #[serde(with = "utils::rpc_hex")]
+    #[serde(with = "hex::serde")]
     pub hash: [u8; 32],
     /// The transactions in this batch.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub txs: Option<Vec<Vec<u8>>>,
     /// Pre-state root of the soft batch.
+    #[serde(with = "hex::serde")]
     pub pre_state_root: Vec<u8>,
     /// Post-state root of the soft batch.
+    #[serde(with = "hex::serde")]
     pub post_state_root: Vec<u8>,
+    /// Signature of the batch
+    #[serde(with = "hex::serde")]
+    pub soft_confirmation_signature: Vec<u8>,
+    /// Public key of the signer
+    #[serde(with = "hex::serde")]
+    pub pub_key: Vec<u8>,
 }
 
 /// The response to a JSON-RPC request for a particular batch.

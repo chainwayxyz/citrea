@@ -4,6 +4,7 @@ use std::marker::PhantomData;
 
 use sha2::Digest;
 use sov_rollup_interface::da::{BlobReaderTrait, DaSpec};
+use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
 use sov_rollup_interface::stf::{BatchReceipt, SlotResult, StateTransitionFunction};
 use sov_rollup_interface::zk::{ValidityCondition, Zkvm};
 
@@ -104,5 +105,24 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
             batch_receipts: receipts,
             witness: (),
         }
+    }
+
+    fn apply_soft_batch(
+        &self,
+        _sequencer_public_key: &[u8],
+        _pre_state_root: &Self::StateRoot,
+        _pre_state: Self::PreState,
+        _witness: Self::Witness,
+        _slot_header: &<Da as DaSpec>::BlockHeader,
+        _validity_condition: &<Da as DaSpec>::ValidityCondition,
+        _soft_batch: &mut SignedSoftConfirmationBatch,
+    ) -> SlotResult<
+        Self::StateRoot,
+        Self::ChangeSet,
+        Self::BatchReceiptContents,
+        Self::TxReceiptContents,
+        Self::Witness,
+    > {
+        todo!()
     }
 }

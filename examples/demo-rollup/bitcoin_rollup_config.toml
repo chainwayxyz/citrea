@@ -1,3 +1,5 @@
+sequencer_public_key = "0000000000000000000000000000000000000000000000000000000000000000"
+
 [da]
 node_url = "http://localhost:38332"
 node_username = "chainway"

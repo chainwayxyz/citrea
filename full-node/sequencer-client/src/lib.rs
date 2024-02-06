@@ -5,6 +5,7 @@ use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use jsonrpsee::rpc_params;
 use reth_primitives::B256;
 use serde::Deserialize;
+use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
 
 /// Configuration for SequencerClient.
 #[derive(Debug, Clone)]
@@ -66,12 +67,34 @@ impl SequencerClient {
     }
 }
 
-#[derive(Deserialize, Debug)]
-pub struct GetSoftBatchResponse<Hash> {
+#[derive(Deserialize, Debug, Clone)]
+pub struct GetSoftBatchResponse<Hash: Into<[u8; 32]>> {
+    #[serde(with = "hex::serde")]
+    pub hash: [u8; 32],
     pub da_slot_height: u64,
     pub da_slot_hash: Hash,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub txs: Option<Vec<Vec<u8>>>,
+    #[serde(with = "hex::serde")]
     pub pre_state_root: Vec<u8>,
+    #[serde(with = "hex::serde")]
     pub post_state_root: Vec<u8>,
+    #[serde(with = "hex::serde")]
+    pub soft_confirmation_signature: Vec<u8>,
+    #[serde(with = "hex::serde")]
+    pub pub_key: Vec<u8>,
+}
+
+impl<Hash: Into<[u8; 32]>> From<GetSoftBatchResponse<Hash>> for SignedSoftConfirmationBatch {
+    fn from(val: GetSoftBatchResponse<Hash>) -> Self {
+        SignedSoftConfirmationBatch {
+            hash: val.hash,
+            da_slot_height: val.da_slot_height,
+            da_slot_hash: val.da_slot_hash.into(),
+            txs: val.txs.unwrap_or_default(),
+            pre_state_root: val.pre_state_root,
+            signature: val.soft_confirmation_signature,
+            pub_key: val.pub_key,
+        }
+    }
 }

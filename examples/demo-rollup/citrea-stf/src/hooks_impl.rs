@@ -1,5 +1,4 @@
 use sov_accounts::AccountsTxHook;
-use sov_bank::BankTxHook;
 use sov_modules_api::hooks::{
     ApplyBlobHooks, ApplySoftConfirmationHooks, FinalizeHook, SlotHooks, TxHooks,
 };
@@ -7,9 +6,7 @@ use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{AccessoryWorkingSet, Context, Spec, WorkingSet};
 use sov_modules_stf_blueprint::{RuntimeTxHook, SequencerOutcome};
 use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaSpec};
-use sov_sequencer_registry::SequencerRegistry;
 use sov_state::Storage;
-use tracing::info;
 
 use crate::runtime::Runtime;
 
@@ -29,10 +26,7 @@ impl<C: Context, Da: DaSpec> TxHooks for Runtime<C, Da> {
             self.accounts
                 .pre_dispatch_tx_hook(tx, working_set, sequencer)?;
 
-        let hook = BankTxHook { sender, sequencer };
-        self.bank.pre_dispatch_tx_hook(tx, working_set, &hook)?;
-
-        Ok(C::new(hook.sender, hook.sequencer, *height))
+        Ok(C::new(sender, sequencer, *height))
     }
 
     fn post_dispatch_tx_hook(
@@ -42,7 +36,7 @@ impl<C: Context, Da: DaSpec> TxHooks for Runtime<C, Da> {
         working_set: &mut WorkingSet<C>,
     ) -> anyhow::Result<()> {
         self.accounts.post_dispatch_tx_hook(tx, ctx, working_set)?;
-        self.bank.post_dispatch_tx_hook(tx, ctx, working_set)?;
+
         Ok(())
     }
 }
@@ -54,42 +48,18 @@ impl<C: Context, Da: DaSpec> ApplyBlobHooks<Da::BlobTransaction> for Runtime<C, 
 
     fn begin_blob_hook(
         &self,
-        blob: &mut Da::BlobTransaction,
-        working_set: &mut WorkingSet<C>,
+        _blob: &mut Da::BlobTransaction,
+        _working_set: &mut WorkingSet<C>,
     ) -> anyhow::Result<()> {
-        // Before executing each batch, check that the sender is registered as a sequencer
-        self.sequencer_registry.begin_blob_hook(blob, working_set)
+        Ok(())
     }
 
     fn end_blob_hook(
         &self,
-        result: Self::BlobResult,
-        working_set: &mut WorkingSet<C>,
+        _result: Self::BlobResult,
+        _working_set: &mut WorkingSet<C>,
     ) -> anyhow::Result<()> {
-        match result {
-            SequencerOutcome::Rewarded(_reward) => {
-                // TODO: Process reward here or above.
-                <SequencerRegistry<C, Da> as ApplyBlobHooks<Da::BlobTransaction>>::end_blob_hook(
-                    &self.sequencer_registry,
-                    sov_sequencer_registry::SequencerOutcome::Completed,
-                    working_set,
-                )
-            }
-            SequencerOutcome::Ignored => Ok(()),
-            SequencerOutcome::Slashed {
-                reason,
-                sequencer_da_address,
-            } => {
-                info!("Sequencer {} slashed: {:?}", sequencer_da_address, reason);
-                <SequencerRegistry<C, Da> as ApplyBlobHooks<Da::BlobTransaction>>::end_blob_hook(
-                    &self.sequencer_registry,
-                    sov_sequencer_registry::SequencerOutcome::Slashed {
-                        sequencer: sequencer_da_address,
-                    },
-                    working_set,
-                )
-            }
-        }
+        Ok(())
     }
 }
 

@@ -2,12 +2,13 @@ use std::net::SocketAddr;
 use std::path::Path;
 
 use chainway_sequencer::ChainwaySequencer;
+use citrea_stf::genesis_config::GenesisPaths;
 use const_rollup_config::TEST_PRIVATE_KEY;
-use demo_stf::genesis_config::GenesisPaths;
 use sov_demo_rollup::MockDemoRollup;
 use sov_mock_da::{MockAddress, MockDaConfig, MockDaService};
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
+use sov_modules_api::PrivateKey;
 use sov_modules_rollup_blueprint::{RollupAndStorage, RollupBlueprint};
 use sov_modules_stf_blueprint::kernels::basic::{
     BasicKernelGenesisConfig, BasicKernelGenesisPaths,
@@ -17,6 +18,7 @@ use sov_stf_runner::{
     SequencerClientRpcConfig, StorageConfig,
 };
 use tokio::sync::oneshot;
+use tracing::warn;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NodeMode {
     FullNode(SocketAddr),
@@ -40,6 +42,10 @@ pub async fn start_rollup(
     }
 
     let rollup_config = RollupConfig {
+        sequencer_public_key: vec![
+            32, 64, 64, 227, 100, 193, 15, 43, 236, 156, 31, 229, 0, 161, 205, 76, 36, 124, 137,
+            214, 80, 160, 30, 215, 232, 44, 171, 168, 103, 135, 124, 33,
+        ],
         storage: StorageConfig {
             path: path.unwrap().to_path_buf(),
         },
@@ -94,6 +100,12 @@ pub async fn start_rollup(
         NodeMode::SequencerNode => {
             let da_service = MockDaService::new(MockAddress::new([0u8; 32]));
 
+            warn!(
+                "Starting sequencer node pub key: {:?}",
+                DefaultPrivateKey::from_hex(TEST_PRIVATE_KEY)
+                    .unwrap()
+                    .pub_key()
+            );
             let mut sequencer: ChainwaySequencer<DefaultContext, MockDaService, _> =
                 ChainwaySequencer::new(
                     rollup,

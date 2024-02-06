@@ -1,5 +1,6 @@
 use sov_modules_core::{AccessoryWorkingSet, Context, Spec, Storage, WorkingSet};
 use sov_rollup_interface::da::{BlobReaderTrait, DaSpec};
+use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
 
 use crate::transaction::Transaction;
 
@@ -46,11 +47,33 @@ pub trait ApplyBlobHooks<B: BlobReaderTrait> {
         working_set: &mut WorkingSet<Self::Context>,
     ) -> anyhow::Result<()>;
 
-    /// Executes at the end of apply_blob and rewards or slashed the sequencer
+    /// Executes at the end of apply_blob and rewards or slashes the sequencer
     /// If this hook returns Err rollup panics
     fn end_blob_hook(
         &self,
         result: Self::BlobResult,
+        working_set: &mut WorkingSet<Self::Context>,
+    ) -> anyhow::Result<()>;
+}
+
+/// Hooks that are executed before and after a soft confirmation is processed.
+pub trait ApplySoftConfirmationHooks<Da: DaSpec> {
+    type Context: Context;
+    type SoftConfirmationResult;
+
+    /// Runs at the beginning of apply_soft_confirmation.
+    /// If this hook returns Err, batch is not applied
+    fn begin_soft_confirmation_hook(
+        &self,
+        soft_batch: &mut SignedSoftConfirmationBatch,
+        working_set: &mut WorkingSet<Self::Context>,
+    ) -> anyhow::Result<()>;
+
+    /// Executes at the end of apply_blob and rewards or slashes the sequencer
+    /// If this hook returns Err rollup panics
+    fn end_soft_confirmation_hook(
+        &self,
+        result: Self::SoftConfirmationResult,
         working_set: &mut WorkingSet<Self::Context>,
     ) -> anyhow::Result<()>;
 }

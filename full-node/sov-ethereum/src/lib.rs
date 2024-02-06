@@ -4,7 +4,7 @@ mod gas_price;
 use std::process::Command;
 use std::sync::{Arc, Mutex};
 
-use demo_stf::runtime::Runtime;
+use citrea_stf::runtime::Runtime;
 use ethers::types::Bytes;
 pub use gas_price::fee_history::FeeHistoryCacheConfig;
 use gas_price::gas_oracle::GasPriceOracle;

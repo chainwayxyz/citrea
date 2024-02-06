@@ -7,19 +7,25 @@ mod stf_blueprint;
 mod tx_verifier;
 
 pub use batch::Batch;
-use sov_modules_api::hooks::{ApplyBlobHooks, FinalizeHook, SlotHooks, TxHooks};
+use borsh::BorshSerialize;
+use sov_modules_api::da::BlockHeaderTrait;
+use sov_modules_api::hooks::{
+    ApplyBlobHooks, ApplySoftConfirmationHooks, FinalizeHook, SlotHooks, TxHooks,
+};
 use sov_modules_api::runtime::capabilities::{Kernel, KernelSlotHooks};
 use sov_modules_api::{
-    BasicAddress, BlobReaderTrait, Context, DaSpec, DispatchCall, Genesis, KernelWorkingSet, Spec,
-    StateCheckpoint, Zkvm,
+    BasicAddress, BlobReaderTrait, Context, DaSpec, DispatchCall, Genesis, Signature, Spec,
+    StateCheckpoint, UnsignedSoftConfirmationBatch, Zkvm,
 };
+use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
 pub use sov_rollup_interface::stf::BatchReceipt;
 use sov_rollup_interface::stf::{SlotResult, StateTransitionFunction};
+use sov_state::storage::KernelWorkingSet;
 use sov_state::Storage;
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 use sov_zk_cycle_macros::cycle_tracker;
 pub use stf_blueprint::StfBlueprint;
-use tracing::info;
+use tracing::{debug, info};
 pub use tx_verifier::RawTx;
 
 /// The tx hook for a blueprint runtime
@@ -40,7 +46,13 @@ pub trait Runtime<C: Context, Da: DaSpec>:
     + TxHooks<Context = C, PreArg = RuntimeTxHook<C>, PreResult = C>
     + SlotHooks<Da, Context = C>
     + FinalizeHook<Da, Context = C>
-    + ApplyBlobHooks<
+    + ApplySoftConfirmationHooks<
+        Da,
+        Context = C,
+        SoftConfirmationResult = SequencerOutcome<
+            <<Da as DaSpec>::BlobTransaction as BlobReaderTrait>::Address,
+        >,
+    > + ApplyBlobHooks<
         Da::BlobTransaction,
         Context = C,
         BlobResult = SequencerOutcome<
@@ -311,4 +323,106 @@ where
             witness,
         }
     }
+
+    fn apply_soft_batch(
+        &self,
+        sequencer_public_key: &[u8],
+        pre_state_root: &Self::StateRoot,
+        pre_state: Self::PreState,
+        witness: Self::Witness,
+        slot_header: &<Da as DaSpec>::BlockHeader,
+        validity_condition: &<Da as DaSpec>::ValidityCondition,
+        soft_batch: &mut SignedSoftConfirmationBatch,
+    ) -> SlotResult<
+        Self::StateRoot,
+        Self::ChangeSet,
+        Self::BatchReceiptContents,
+        Self::TxReceiptContents,
+        Self::Witness,
+    > {
+        debug!("Applying soft batch in STF Blueprint");
+
+        // check if soft confirmation is coming from our sequencer
+        assert_eq!(
+            soft_batch.sequencer_pub_key(),
+            sequencer_public_key,
+            "Sequencer public key must match"
+        );
+
+        // verify signature
+        assert!(
+            verify_soft_batch_signature::<C>(soft_batch, sequencer_public_key).is_ok(),
+            "Signature verification must succeed"
+        );
+
+        // then verify da hashes match
+        assert_eq!(
+            soft_batch.da_slot_hash(),
+            slot_header.hash().into(),
+            "DA slot hashes must match"
+        );
+
+        // then verify pre state root matches
+        assert_eq!(
+            soft_batch.pre_state_root(),
+            pre_state_root.as_ref(),
+            "pre state roots must match"
+        );
+
+        let checkpoint = StateCheckpoint::with_witness(pre_state.clone(), witness);
+        // TODO: when renamed to begin_soft_batch rename here as well
+        let checkpoint =
+            self.begin_slot(checkpoint, slot_header, validity_condition, pre_state_root);
+
+        let mut batch_receipts = vec![];
+
+        let (apply_soft_batch_result, checkpoint) =
+            self.apply_soft_confirmation(checkpoint, &mut soft_batch.clone());
+        let batch_receipt = apply_soft_batch_result.unwrap_or_else(Into::into);
+        info!(
+            "soft batch  with hash: {:?} from sequencer {:?} has been applied with #{} transactions.",
+            soft_batch.hash(),
+            soft_batch.sequencer_pub_key(),
+            batch_receipt.tx_receipts.len(),
+        );
+        for (i, tx_receipt) in batch_receipt.tx_receipts.iter().enumerate() {
+            info!(
+                "tx #{} hash: 0x{} result {:?}",
+                i,
+                hex::encode(tx_receipt.tx_hash),
+                tx_receipt.receipt
+            );
+        }
+        batch_receipts.push(batch_receipt);
+
+        let (state_root, witness, storage) = self.end_slot(pre_state, checkpoint);
+        SlotResult {
+            state_root,
+            change_set: storage,
+            batch_receipts,
+            witness,
+        }
+    }
+}
+
+fn verify_soft_batch_signature<C: Context>(
+    soft_batch: &SignedSoftConfirmationBatch,
+    sequencer_public_key: &[u8],
+) -> Result<(), anyhow::Error> {
+    let unsigned = UnsignedSoftConfirmationBatch {
+        da_slot_height: soft_batch.da_slot_height,
+        da_slot_hash: soft_batch.da_slot_hash,
+        pre_state_root: soft_batch.pre_state_root.clone(),
+        txs: soft_batch.txs.clone(),
+    };
+
+    let message = unsigned.try_to_vec().unwrap();
+
+    let signature = C::Signature::try_from(soft_batch.signature.as_slice())?;
+    signature.verify(
+        &C::PublicKey::try_from(sequencer_public_key)?,
+        message.as_slice(),
+    )?;
+
+    Ok(())
 }

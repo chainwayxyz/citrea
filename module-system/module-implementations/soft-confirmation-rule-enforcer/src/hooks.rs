@@ -1,10 +1,10 @@
 use anyhow::anyhow;
-use sov_modules_api::{Spec, StateMapAccessor, WorkingSet};
+use sov_modules_api::{Context, DaSpec, Spec, StateMapAccessor, WorkingSet};
 use sov_state::Storage;
 
 use crate::SoftConfirmationRuleEnforcer;
 
-impl<C: sov_modules_api::Context> SoftConfirmationRuleEnforcer<C>
+impl<C: Context, Da: DaSpec> SoftConfirmationRuleEnforcer<C, Da>
 where
     <C::Storage as Storage>::Root: Into<[u8; 32]>,
 {
@@ -13,7 +13,7 @@ where
     /// L1 block with given DA root hash is less than the limiting number.
     pub fn begin_slot_hook(
         &self,
-        da_root_hash: [u8; 32],
+        da_root_hash: &Da::SlotHash,
         _pre_state_root: &<<C as Spec>::Storage as Storage>::Root,
         working_set: &mut WorkingSet<C>,
     ) -> anyhow::Result<()> {
@@ -35,7 +35,7 @@ where
         }
         // increment the block count
         self.da_root_hash_to_number
-            .set(&da_root_hash, &(l2_block_count + 1), working_set);
+            .set(da_root_hash, &(l2_block_count + 1), working_set);
         Ok(())
     }
 }

@@ -1,7 +1,7 @@
 use std::net::SocketAddr;
 use std::str::FromStr;
 
-use demo_stf::genesis_config::GenesisPaths;
+use citrea_stf::genesis_config::GenesisPaths;
 use ethers_core::abi::Address;
 use ethers_core::types::{BlockId, Bytes, U256};
 use ethers_signers::{LocalWallet, Signer};
@@ -20,6 +20,7 @@ mod tracing;
 
 #[tokio::test]
 async fn web3_rpc_tests() -> Result<(), anyhow::Error> {
+    // sov_demo_rollup::initialize_logging();
     let (port_tx, port_rx) = tokio::sync::oneshot::channel();
     let rollup_task = tokio::spawn(async {
         // Don't provide a prover since the EVM is not currently provable

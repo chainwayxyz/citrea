@@ -206,6 +206,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
             init_variant,
             prover_service,
             sequencer_client,
+            rollup_config.sequencer_public_key,
         )?;
 
         Ok(RollupAndStorage {
