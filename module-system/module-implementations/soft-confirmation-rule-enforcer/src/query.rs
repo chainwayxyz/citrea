@@ -15,16 +15,16 @@ impl<C: Context, Da: DaSpec> SoftConfirmationRuleEnforcer<C, Da> {
             .expect("Limiting number must be set"))
     }
 
-    // #[rpc_method(name = "getBlockCountByDaRootHash")]
+    #[rpc_method(name = "getBlockCountByDaRootHash")]
     /// Get number of L2 blocks published for L1 block with the given DA root hash.
     pub fn get_block_count_by_da_root_hash(
         &self,
-        da_root_hash: &Da::SlotHash,
+        da_root_hash: [u8; 32],
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<u64> {
         Ok(self
             .da_root_hash_to_number
-            .get(da_root_hash, working_set)
+            .get(&da_root_hash, working_set)
             .unwrap_or(0))
     }
 }
