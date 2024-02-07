@@ -121,23 +121,14 @@ impl<C: Context, Da: DaSpec> SlotHooks<Da> for Runtime<C, Da> {
 
     fn begin_slot_hook(
         &self,
-        slot_header: &Da::BlockHeader,
-        #[allow(unused_variables)] validity_condition: &Da::ValidityCondition,
-        pre_state_root: &<<Self::Context as Spec>::Storage as Storage>::Root,
-        working_set: &mut sov_modules_api::WorkingSet<C>,
+        _slot_header: &Da::BlockHeader,
+        _validity_condition: &Da::ValidityCondition,
+        _pre_state_root: &<<Self::Context as Spec>::Storage as Storage>::Root,
+        _working_set: &mut sov_modules_api::WorkingSet<C>,
     ) {
-        // begin_soft_conf is a hack here so that tests of this stf run
-        self.evm.begin_soft_confirmation_hook(
-            slot_header.hash().into(),
-            pre_state_root.as_ref(),
-            working_set,
-        );
     }
 
-    fn end_slot_hook(&self, working_set: &mut sov_modules_api::WorkingSet<C>) {
-        // end_soft_conf is a hack here so that tests of this stf run
-        self.evm.end_soft_confirmation_hook(working_set);
-    }
+    fn end_slot_hook(&self, _working_set: &mut sov_modules_api::WorkingSet<C>) {}
 }
 
 impl<C: Context, Da: sov_modules_api::DaSpec> FinalizeHook<Da> for Runtime<C, Da> {
@@ -145,9 +136,8 @@ impl<C: Context, Da: sov_modules_api::DaSpec> FinalizeHook<Da> for Runtime<C, Da
 
     fn finalize_hook(
         &self,
-        #[allow(unused_variables)] root_hash: &<<Self::Context as Spec>::Storage as Storage>::Root,
-        #[allow(unused_variables)] accessory_working_set: &mut AccessoryWorkingSet<C>,
+        _root_hash: &<<Self::Context as Spec>::Storage as Storage>::Root,
+        _accessory_working_set: &mut AccessoryWorkingSet<C>,
     ) {
-        self.evm.finalize_hook(root_hash, accessory_working_set);
     }
 }
