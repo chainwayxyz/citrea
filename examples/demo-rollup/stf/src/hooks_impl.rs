@@ -6,7 +6,7 @@ use sov_modules_api::hooks::{
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{AccessoryWorkingSet, Context, Spec, WorkingSet};
 use sov_modules_stf_blueprint::{RuntimeTxHook, SequencerOutcome};
-use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaSpec};
+use sov_rollup_interface::da::{BlobReaderTrait, DaSpec};
 use sov_sequencer_registry::SequencerRegistry;
 use sov_state::Storage;
 use tracing::info;
