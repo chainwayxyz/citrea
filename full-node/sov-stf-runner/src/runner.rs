@@ -222,6 +222,16 @@ where
             &filtered_block.validity_condition(),
             &mut soft_batch,
         );
+        if slot_result.state_root.as_ref() == self.state_root.as_ref() {
+            debug!("Limiting number is reached for the current L1 block. State root is the same as before, skipping");
+            // TODO: Check if below is legit
+            self.storage_manager
+                .save_change_set(filtered_block.header(), slot_result.change_set)?;
+
+            tracing::debug!("Finalizing seen header: {:?}", filtered_block.header());
+            self.storage_manager.finalize(filtered_block.header())?;
+            return Ok(());
+        }
 
         info!(
             "State root after applying slot: {:?}",

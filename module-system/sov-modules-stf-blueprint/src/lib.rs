@@ -28,6 +28,8 @@ pub use stf_blueprint::StfBlueprint;
 use tracing::{debug, info};
 pub use tx_verifier::RawTx;
 
+use crate::stf_blueprint::ApplyBatchError;
+
 /// The tx hook for a blueprint runtime
 pub struct RuntimeTxHook<C: Context> {
     /// Height to initialize the context
@@ -331,7 +333,7 @@ where
         pre_state: Self::PreState,
         witness: Self::Witness,
         slot_header: &<Da as DaSpec>::BlockHeader,
-        validity_condition: &<Da as DaSpec>::ValidityCondition,
+        _validity_condition: &<Da as DaSpec>::ValidityCondition,
         soft_batch: &mut SignedSoftConfirmationBatch,
     ) -> SlotResult<
         Self::StateRoot,
@@ -370,14 +372,19 @@ where
         );
 
         let checkpoint = StateCheckpoint::with_witness(pre_state.clone(), witness);
-        // TODO: when renamed to begin_soft_batch rename here as well
-        let checkpoint =
-            self.begin_slot(checkpoint, slot_header, validity_condition, pre_state_root);
 
         let mut batch_receipts = vec![];
 
         let (apply_soft_batch_result, checkpoint) =
             self.apply_soft_confirmation(checkpoint, &mut soft_batch.clone());
+        if let Err(ApplyBatchError::Ignored(_root_hash)) = apply_soft_batch_result {
+            return SlotResult {
+                state_root: pre_state_root.clone(),
+                change_set: pre_state, // should be empty
+                batch_receipts,
+                witness: <<C as Spec>::Storage as Storage>::Witness::default(),
+            };
+        }
         let batch_receipt = apply_soft_batch_result.unwrap_or_else(Into::into);
         info!(
             "soft batch  with hash: {:?} from sequencer {:?} has been applied with #{} transactions.",
@@ -395,7 +402,30 @@ where
         }
         batch_receipts.push(batch_receipt);
 
-        let (state_root, witness, storage) = self.end_slot(pre_state, checkpoint);
+        let (state_root, witness, storage) = {
+            let working_set = checkpoint.to_revertable();
+            // Save checkpoint
+            let mut checkpoint = working_set.checkpoint();
+
+            let (cache_log, witness) = checkpoint.freeze();
+
+            let (root_hash, state_update) = pre_state
+                .compute_state_update(cache_log, &witness)
+                .expect("jellyfish merkle tree update must succeed");
+
+            let mut working_set = checkpoint.to_revertable();
+
+            self.runtime
+                .finalize_hook(&root_hash, &mut working_set.accessory_state());
+
+            let mut checkpoint = working_set.checkpoint();
+            let accessory_log = checkpoint.freeze_non_provable();
+
+            pre_state.commit(&state_update, &accessory_log);
+
+            (root_hash, witness, pre_state)
+        };
+
         SlotResult {
             state_root,
             change_set: storage,

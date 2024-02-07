@@ -1,5 +1,6 @@
 use anyhow::anyhow;
-use sov_modules_api::{Context, DaSpec, Spec, StateMapAccessor, WorkingSet};
+use sov_modules_api::{Context, DaSpec, StateMapAccessor, WorkingSet};
+use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
 use sov_state::Storage;
 
 use crate::SoftConfirmationRuleEnforcer;
@@ -8,15 +9,15 @@ impl<C: Context, Da: DaSpec> SoftConfirmationRuleEnforcer<C, Da>
 where
     <C::Storage as Storage>::Root: Into<[u8; 32]>,
 {
-    /// Logic executed at the beginning of the slot.
-    /// Here we check if the number of L2 blocks published for the
+    /// Logic executed at the beginning of the soft confirmation.
+    /// Here it is checked if the number of L2 blocks published for the
     /// L1 block with given DA root hash is less than the limiting number.
-    pub fn begin_slot_hook(
+    pub fn begin_soft_confirmation_hook(
         &self,
-        da_root_hash: &Da::SlotHash,
-        _pre_state_root: &<<C as Spec>::Storage as Storage>::Root,
+        soft_batch: &mut SignedSoftConfirmationBatch,
         working_set: &mut WorkingSet<C>,
     ) -> anyhow::Result<()> {
+        let da_root_hash = soft_batch.da_slot_hash();
         let l2_block_count = self
             .get_block_count_by_da_root_hash(da_root_hash, working_set)
             .expect("Block count must be set by da root hash must be set");
@@ -35,7 +36,7 @@ where
         }
         // increment the block count
         self.da_root_hash_to_number
-            .set(da_root_hash, &(l2_block_count + 1), working_set);
+            .set(&da_root_hash, &(l2_block_count + 1), working_set);
         Ok(())
     }
 }

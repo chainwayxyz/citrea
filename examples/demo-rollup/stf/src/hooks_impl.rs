@@ -6,7 +6,7 @@ use sov_modules_api::hooks::{
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{AccessoryWorkingSet, Context, Spec, WorkingSet};
 use sov_modules_stf_blueprint::{RuntimeTxHook, SequencerOutcome};
-use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaSpec};
+use sov_rollup_interface::da::{BlobReaderTrait, DaSpec};
 use sov_sequencer_registry::SequencerRegistry;
 use sov_state::Storage;
 use tracing::info;
@@ -121,28 +121,14 @@ impl<C: Context, Da: DaSpec> SlotHooks<Da> for Runtime<C, Da> {
 
     fn begin_slot_hook(
         &self,
-        #[allow(unused_variables)] slot_header: &Da::BlockHeader,
-        #[allow(unused_variables)] validity_condition: &Da::ValidityCondition,
-        #[allow(unused_variables)]
-        pre_state_root: &<<Self::Context as Spec>::Storage as Storage>::Root,
-        #[allow(unused_variables)] working_set: &mut sov_modules_api::WorkingSet<C>,
+        _slot_header: &Da::BlockHeader,
+        _validity_condition: &Da::ValidityCondition,
+        _pre_state_root: &<<Self::Context as Spec>::Storage as Storage>::Root,
+        _working_set: &mut sov_modules_api::WorkingSet<C>,
     ) {
-        // if soft confirmation rules are applied, then begin evm slot hook
-        // TODO: If error: Do not panic, find a way to stop hooks until a new da slot arrives
-        self.soft_confirmation_rule_enforcer
-            .begin_slot_hook(&slot_header.hash(), pre_state_root, working_set)
-            .expect("Sequencer gave too many soft confirmations for a single block.");
-
-        self.evm
-            .begin_slot_hook(slot_header.hash().into(), pre_state_root, working_set);
     }
 
-    fn end_slot_hook(
-        &self,
-        #[allow(unused_variables)] working_set: &mut sov_modules_api::WorkingSet<C>,
-    ) {
-        self.evm.end_slot_hook(working_set);
-    }
+    fn end_slot_hook(&self, _working_set: &mut sov_modules_api::WorkingSet<C>) {}
 }
 
 impl<C: Context, Da: sov_modules_api::DaSpec> FinalizeHook<Da> for Runtime<C, Da> {
@@ -150,9 +136,8 @@ impl<C: Context, Da: sov_modules_api::DaSpec> FinalizeHook<Da> for Runtime<C, Da
 
     fn finalize_hook(
         &self,
-        #[allow(unused_variables)] root_hash: &<<Self::Context as Spec>::Storage as Storage>::Root,
-        #[allow(unused_variables)] accessory_working_set: &mut AccessoryWorkingSet<C>,
+        _root_hash: &<<Self::Context as Spec>::Storage as Storage>::Root,
+        _accessory_working_set: &mut AccessoryWorkingSet<C>,
     ) {
-        self.evm.finalize_hook(root_hash, accessory_working_set);
     }
 }

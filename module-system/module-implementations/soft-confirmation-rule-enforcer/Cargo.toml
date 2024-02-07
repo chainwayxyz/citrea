@@ -18,6 +18,7 @@ tempfile = { workspace = true }
 sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-manager", features = [
     "test-utils",
 ] }
+sov-rollup-interface = { path = "../../../rollup-interface" }
 
 borsh = { workspace = true }
 serde = { workspace = true }

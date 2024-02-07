@@ -58,7 +58,7 @@ fn init_evm() -> (Evm<C>, WorkingSet<C>, TestSigner) {
             .as_slice(),
     );
 
-    evm.begin_slot_hook([5u8; 32], &[10u8; 32].into(), &mut working_set);
+    evm.begin_soft_confirmation_hook([5u8; 32], &[10u8; 32], &mut working_set);
 
     {
         let sender_address = generate_address::<C>("sender");
@@ -79,14 +79,14 @@ fn init_evm() -> (Evm<C>, WorkingSet<C>, TestSigner) {
         .unwrap();
     }
 
-    evm.end_slot_hook(&mut working_set);
+    evm.end_soft_confirmation_hook(&mut working_set);
     evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
 
     commit(working_set, prover_storage.clone());
 
     let mut working_set: WorkingSet<DefaultContext> = WorkingSet::new(prover_storage.clone());
 
-    evm.begin_slot_hook([8u8; 32], &[99u8; 32].into(), &mut working_set);
+    evm.begin_soft_confirmation_hook([8u8; 32], &[99u8; 32], &mut working_set);
 
     {
         let sender_address = generate_address::<C>("sender");
@@ -108,14 +108,14 @@ fn init_evm() -> (Evm<C>, WorkingSet<C>, TestSigner) {
         .unwrap();
     }
 
-    evm.end_slot_hook(&mut working_set);
+    evm.end_soft_confirmation_hook(&mut working_set);
     evm.finalize_hook(&[100u8; 32].into(), &mut working_set.accessory_state());
 
     commit(working_set, prover_storage.clone());
 
     let mut working_set: WorkingSet<DefaultContext> = WorkingSet::new(prover_storage.clone());
 
-    evm.begin_slot_hook([10u8; 32], &[100u8; 32].into(), &mut working_set);
+    evm.begin_soft_confirmation_hook([10u8; 32], &[100u8; 32], &mut working_set);
 
     {
         let sender_address = generate_address::<C>("sender");
@@ -135,7 +135,7 @@ fn init_evm() -> (Evm<C>, WorkingSet<C>, TestSigner) {
         .unwrap();
     }
 
-    evm.end_slot_hook(&mut working_set);
+    evm.end_soft_confirmation_hook(&mut working_set);
     evm.finalize_hook(&[101u8; 32].into(), &mut working_set.accessory_state());
 
     commit(working_set, prover_storage.clone());

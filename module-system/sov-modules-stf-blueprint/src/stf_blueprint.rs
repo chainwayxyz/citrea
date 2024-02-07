@@ -113,13 +113,13 @@ where
 
         let mut batch_workspace = checkpoint.to_revertable();
 
-        // ApplyBlobHook: begin
+        // ApplySoftConfirmationHook: begin
         if let Err(e) = self
             .runtime
             .begin_soft_confirmation_hook(soft_batch, &mut batch_workspace)
         {
             error!(
-                "Error: The batch was rejected by the 'begin_soft_confirmation_hook'. Skipping batch without slashing the sequencer: {}",
+                "Error: The batch was rejected by the 'begin_soft_confirmation_hook'. Skipping batch with error: {}",
                 e
             );
 
