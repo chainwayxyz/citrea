@@ -1,5 +1,6 @@
 use anyhow::anyhow;
 use sov_modules_api::{Context, DaSpec, StateMapAccessor, WorkingSet};
+use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
 use sov_state::Storage;
 
 use crate::SoftConfirmationRuleEnforcer;
@@ -13,7 +14,7 @@ where
     /// L1 block with given DA root hash is less than the limiting number.
     pub fn begin_soft_confirmation_hook(
         &self,
-        soft_batch: &mut sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch,
+        soft_batch: &mut SignedSoftConfirmationBatch,
         working_set: &mut WorkingSet<C>,
     ) -> anyhow::Result<()> {
         let da_root_hash = soft_batch.da_slot_hash();
