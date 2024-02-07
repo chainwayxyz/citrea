@@ -115,8 +115,8 @@ impl<C: Context, Da: sov_modules_api::DaSpec> FinalizeHook<Da> for Runtime<C, Da
 
     fn finalize_hook(
         &self,
-        #[allow(unused_variables)] root_hash: &<<Self::Context as Spec>::Storage as Storage>::Root,
-        #[allow(unused_variables)] accessory_working_set: &mut AccessoryWorkingSet<C>,
+        root_hash: &<<Self::Context as Spec>::Storage as Storage>::Root,
+        accessory_working_set: &mut AccessoryWorkingSet<C>,
     ) {
         self.evm.finalize_hook(root_hash, accessory_working_set);
     }
