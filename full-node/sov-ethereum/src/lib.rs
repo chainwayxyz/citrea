@@ -15,7 +15,7 @@ use reth_primitives::{
     keccak256, Address, BlockNumberOrTag, TransactionSignedNoHash as RethTransactionSignedNoHash,
     B256, U128, U256, U64,
 };
-use reth_rpc_types::trace::geth::{GethDebugTracingOptions, GethTrace, NoopFrame};
+use reth_rpc_types::trace::geth::{GethDebugTracingOptions, GethTrace};
 use reth_rpc_types::{CallRequest, FeeHistory, TransactionRequest, TypedTransactionRequest};
 use reth_rpc_types_compat::transaction::to_primitive_transaction;
 use rustc_version_runtime::version;

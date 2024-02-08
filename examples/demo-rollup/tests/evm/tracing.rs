@@ -1,15 +1,16 @@
+use std::str::FromStr;
+
 use citrea_stf::genesis_config::GenesisPaths;
-use reth_rpc_types::trace::geth::{
-    CallFrame, GethDebugBuiltInTracerType, GethDebugTracerType, GethDebugTracingOptions,
-    GethTrace::{self, CallTracer},
-};
 // use sov_demo_rollup::initialize_logging;
 use ethers::abi::Address;
+use reth_rpc_types::trace::geth::GethTrace::{self, CallTracer};
+use reth_rpc_types::trace::geth::{
+    CallFrame, GethDebugBuiltInTracerType, GethDebugTracerType, GethDebugTracingOptions,
+};
 use serde_json::{self, json};
 use sov_evm::{CallerContract, SimpleStorageContract};
 use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
 use sov_stf_runner::RollupProverConfig;
-use std::str::FromStr;
 
 use crate::evm::make_test_client;
 use crate::test_helpers::{start_rollup, NodeMode};

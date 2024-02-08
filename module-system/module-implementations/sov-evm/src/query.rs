@@ -939,9 +939,9 @@ impl<C: sov_modules_api::Context> Evm<C> {
             let tx = self
                 .transactions
                 .get(tx_number as usize, &mut working_set.accessory_state());
-            return Ok(tx.map(|tx| tx.block_number.as_u64()));
+            Ok(tx.map(|tx| tx.block_number.as_u64()))
         } else {
-            return Err(EthApiError::TransactionNotFound.into());
+            Err(EthApiError::TransactionNotFound.into())
         }
     }
 
