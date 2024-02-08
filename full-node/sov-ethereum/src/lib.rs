@@ -439,10 +439,9 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                 .get_block_number_by_tx_hash(tx_hash, &mut working_set)
                 .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?
             {
-                // TODO: Handle error
                 let traces = evm
                     .trace_block_transactions_by_number(block_number, opts, &mut working_set)
-                    .unwrap();
+                    .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
 
                 // put the traces in cache and get the trace of the requested tx
                 for (trace_tx_hash, trace) in traces.clone() {
@@ -454,10 +453,19 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                 }
 
                 // TODO: Handle None case
-                let requested_trace = traces.get(&tx_hash).unwrap().clone();
-                return Ok::<GethTrace, ErrorObjectOwned>(requested_trace);
+                if let Some(requested_trace) = traces.get(&tx_hash) {
+                    return Ok::<GethTrace, ErrorObjectOwned>(requested_trace.clone());
+                } else {
+                    return Err(to_jsonrpsee_error_object(
+                        EthApiError::TransactionNotFound,
+                        ETH_RPC_ERROR,
+                    ));
+                }
             }
-            Ok::<GethTrace, ErrorObjectOwned>(GethTrace::NoopTracer(NoopFrame::default()))
+            Err(to_jsonrpsee_error_object(
+                EthApiError::UnknownBlockNumber,
+                ETH_RPC_ERROR,
+            ))
         },
     )?;
 

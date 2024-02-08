@@ -940,8 +940,9 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 .transactions
                 .get(tx_number as usize, &mut working_set.accessory_state());
             return Ok(tx.map(|tx| tx.block_number.as_u64()));
-        };
-        Ok(None)
+        } else {
+            return Err(EthApiError::TransactionNotFound.into());
+        }
     }
 
     // https://github.com/paradigmxyz/reth/blob/8892d04a88365ba507f28c3314d99a6b54735d3f/crates/rpc/rpc/src/eth/filter.rs#L349
