@@ -210,12 +210,12 @@ impl DaService for DaProvider {
         .await?;
         info!("Appdata: {:?}", appdata);
 
-        let hash = match { node_client.rpc().block_hash(Some(height.into())).await? } {
+        let hash = match node_client.rpc().block_hash(Some(height.into())).await? {
             Some(i) => i,
             None => return Err(anyhow!("Hash for height: {} not found.", height)),
         };
 
-        let header = match { node_client.rpc().header(Some(hash)).await? } {
+        let header = match node_client.rpc().header(Some(hash)).await? {
             Some(i) => i,
             None => return Err(anyhow!("Header for hash: {} not found.", hash)),
         };
