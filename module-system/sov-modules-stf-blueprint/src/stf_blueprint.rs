@@ -75,29 +75,12 @@ type ApplySoftConfirmation<Da: DaSpec> = ApplySoftConfirmationResult<
     BatchReceipt<SequencerOutcome<<Da::BlobTransaction as BlobReaderTrait>::Address>, TxEffect>,
 >;
 
+#[derive(Debug)]
 pub(crate) enum ApplySoftConfirmationError {
     TooManySoftConfirmationsOnDaSlot {
         hash: [u8; 32],
-        #[allow(dead_code)]
         sequencer_pub_key: Vec<u8>,
     },
-}
-
-impl<A: BasicAddress> From<ApplySoftConfirmationError>
-    for BatchReceipt<SequencerOutcome<A>, TxEffect>
-{
-    fn from(value: ApplySoftConfirmationError) -> Self {
-        match value {
-            ApplySoftConfirmationError::TooManySoftConfirmationsOnDaSlot {
-                hash,
-                sequencer_pub_key: _,
-            } => BatchReceipt {
-                batch_hash: hash,
-                tx_receipts: Vec::new(),
-                inner: SequencerOutcome::Ignored,
-            },
-        }
-    }
 }
 
 impl<C, Vm, Da, RT, K> Default for StfBlueprint<C, Da, Vm, RT, K>
