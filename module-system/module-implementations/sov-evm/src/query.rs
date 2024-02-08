@@ -868,8 +868,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         Ok(transaction)
     }
 
-    /// Handler for `debug_traceTransaction`
-    // #[rpc_method(name = "debug_traceTransaction")]
+    /// Traces the entire block txs and returns the traces
     pub fn trace_block_transactions_by_number(
         &self,
         block_number: u64,

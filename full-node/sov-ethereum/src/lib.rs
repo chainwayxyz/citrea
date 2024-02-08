@@ -32,8 +32,8 @@ use tracing::info;
 use crate::batch_builder::EthBatchBuilder;
 
 const ETH_RPC_ERROR: &str = "ETH_RPC_ERROR";
-// TODO: Update the max size of the cache
-const MAX_TRACE_TRANSACTION: u32 = 10;
+
+const MAX_TRACE_TRANSACTION: u32 = 10000;
 
 #[derive(Clone)]
 pub struct EthRpcConfig<C: sov_modules_api::Context> {
