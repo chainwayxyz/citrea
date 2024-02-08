@@ -15,9 +15,11 @@ use reth_primitives::{
     keccak256, Address, BlockNumberOrTag, TransactionSignedNoHash as RethTransactionSignedNoHash,
     B256, U128, U256, U64,
 };
+use reth_rpc_types::trace::geth::{GethDebugTracingOptions, GethTrace};
 use reth_rpc_types::{CallRequest, FeeHistory, TransactionRequest, TypedTransactionRequest};
 use reth_rpc_types_compat::transaction::to_primitive_transaction;
 use rustc_version_runtime::version;
+use schnellru::{ByLength, LruMap};
 use sequencer_client::SequencerClient;
 #[cfg(feature = "local")]
 pub use sov_evm::DevSigner;
@@ -30,6 +32,8 @@ use tracing::info;
 use crate::batch_builder::EthBatchBuilder;
 
 const ETH_RPC_ERROR: &str = "ETH_RPC_ERROR";
+
+const MAX_TRACE_TRANSACTION: u32 = 10000;
 
 #[derive(Clone)]
 pub struct EthRpcConfig<C: sov_modules_api::Context> {
@@ -102,6 +106,7 @@ pub struct Ethereum<C: sov_modules_api::Context, Da: DaService> {
     storage: C::Storage,
     sequencer_client: Option<SequencerClient>,
     web3_client_version: String,
+    trace_cache: Mutex<LruMap<B256, GethTrace, ByLength>>,
 }
 
 impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
@@ -132,6 +137,8 @@ impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
 
         let current_version = format!("{}/{}/{}/rust-{}", rollup, git_latest_tag, arch, rustc_v);
 
+        let trace_cache = Mutex::new(LruMap::new(ByLength::new(MAX_TRACE_TRANSACTION)));
+
         Self {
             da_service,
             batch_builder,
@@ -141,6 +148,7 @@ impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
             storage,
             sequencer_client,
             web3_client_version: current_version,
+            trace_cache,
         }
     }
 }
@@ -404,6 +412,62 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
 
         Ok::<_, ErrorObjectOwned>(tx_hash)
     })?;
+
+    rpc.register_async_method(
+        "debug_traceTransaction",
+        |parameters, ethereum| async move {
+            // the main rpc handler for debug_traceTransaction
+            // Checks the cache in ethereum struct if the trace exists
+            // if found; returns the trace
+            // else; calls the debug_trace_transaction_block function in evm
+            // that function traces the entire block, returns all the traces to here
+            // then we put them into cache and return the trace of the requested transaction
+            info!("eth module: debug_traceTransaction");
+
+            let mut params = parameters.sequence();
+
+            let tx_hash: B256 = params.next()?;
+            if let Some(trace) = ethereum.trace_cache.lock().unwrap().get(&tx_hash) {
+                return Ok::<GethTrace, ErrorObjectOwned>(trace.clone());
+            }
+            let opts: Option<GethDebugTracingOptions> = params.optional_next().unwrap();
+
+            let evm = Evm::<C>::default();
+            let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
+
+            if let Some(block_number) = evm
+                .get_block_number_by_tx_hash(tx_hash, &mut working_set)
+                .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?
+            {
+                let traces = evm
+                    .trace_block_transactions_by_number(block_number, opts, &mut working_set)
+                    .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
+
+                // put the traces in cache and get the trace of the requested tx
+                for (trace_tx_hash, trace) in traces.clone() {
+                    ethereum
+                        .trace_cache
+                        .lock()
+                        .unwrap()
+                        .insert(trace_tx_hash, trace);
+                }
+
+                // TODO: Handle None case
+                if let Some(requested_trace) = traces.get(&tx_hash) {
+                    return Ok::<GethTrace, ErrorObjectOwned>(requested_trace.clone());
+                } else {
+                    return Err(to_jsonrpsee_error_object(
+                        EthApiError::TransactionNotFound,
+                        ETH_RPC_ERROR,
+                    ));
+                }
+            }
+            Err(to_jsonrpsee_error_object(
+                EthApiError::UnknownBlockNumber,
+                ETH_RPC_ERROR,
+            ))
+        },
+    )?;
 
     if !is_sequencer {
         rpc.register_async_method(

@@ -1,11 +1,11 @@
 use reth_primitives::revm::env::{fill_tx_env, fill_tx_env_with_recovered};
-use reth_primitives::{TransactionSigned, TransactionSignedEcRecovered, TxHash, B256};
+use reth_primitives::{TransactionSigned, TransactionSignedEcRecovered, TxHash};
 use reth_rpc_types::trace::geth::{
     FourByteFrame, GethDebugBuiltInTracerType, GethDebugTracerType, GethDebugTracingOptions,
     GethTrace, NoopFrame,
 };
 use revm::primitives::db::Database;
-use revm::primitives::{CfgEnv, Env, ResultAndState, TxEnv};
+use revm::primitives::{Env, ResultAndState, TxEnv};
 use revm::Inspector;
 use revm_inspectors::tracing::{FourByteInspector, TracingInspector, TracingInspectorConfig};
 
@@ -89,39 +89,6 @@ where
     evm.database(db);
     let res = evm.inspect(inspector)?;
     Ok((res, evm.env))
-}
-
-/// Heavily inspired from:
-/// https://github.com/paradigmxyz/reth/blob/606640285e763b64519213bad34c76fe4d24652f/crates/rpc/rpc/src/eth/revm_utils.rs#L176
-pub(crate) fn replay_transactions_until<C, I, Tx>(
-    db: &mut EvmDb<'_, C>,
-    cfg: CfgEnv,
-    block_env: revm::primitives::BlockEnv,
-    transactions: I,
-    target_tx_hash: B256,
-) -> EthResult<()>
-where
-    C: sov_modules_api::Context,
-    I: IntoIterator<Item = Tx>,
-    Tx: FillableTransaction,
-{
-    let env = Env {
-        cfg,
-        block: block_env,
-        tx: TxEnv::default(),
-    };
-    let mut evm = revm::EVM::with_env(env);
-    evm.database(db);
-    for tx in transactions.into_iter() {
-        if tx.hash() == target_tx_hash {
-            // reached the target transaction
-            break;
-        }
-
-        tx.try_fill_tx_env(&mut evm.env.tx)?;
-        evm.transact_commit()?;
-    }
-    Ok(())
 }
 
 /// Taken from reth
