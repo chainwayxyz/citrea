@@ -28,7 +28,7 @@ pub use stf_blueprint::StfBlueprint;
 use tracing::{debug, info};
 pub use tx_verifier::RawTx;
 
-use crate::stf_blueprint::ApplyBatchError;
+use crate::stf_blueprint::ApplySoftConfirmationError;
 
 /// The tx hook for a blueprint runtime
 pub struct RuntimeTxHook<C: Context> {
@@ -377,7 +377,11 @@ where
 
         let (apply_soft_batch_result, checkpoint) =
             self.apply_soft_confirmation(checkpoint, &mut soft_batch.clone());
-        if let Err(ApplyBatchError::Ignored(_root_hash)) = apply_soft_batch_result {
+        if let Err(ApplySoftConfirmationError::TooManySoftConfirmationsOnDaSlot {
+            hash: _,
+            sequencer_da_address: _,
+        }) = apply_soft_batch_result
+        {
             return SlotResult {
                 state_root: pre_state_root.clone(),
                 change_set: pre_state, // should be empty

@@ -69,6 +69,38 @@ impl<A: BasicAddress> From<ApplyBatchError<A>> for BatchReceipt<SequencerOutcome
     }
 }
 
+type ApplySoftConfirmationResult<T, A> = Result<T, ApplySoftConfirmationError<A>>;
+#[allow(type_alias_bounds)]
+type ApplySoftConfirmation<Da: DaSpec> = ApplySoftConfirmationResult<
+    BatchReceipt<SequencerOutcome<<Da::BlobTransaction as BlobReaderTrait>::Address>, TxEffect>,
+    <Da::BlobTransaction as BlobReaderTrait>::Address,
+>;
+
+pub(crate) enum ApplySoftConfirmationError<A: BasicAddress> {
+    TooManySoftConfirmationsOnDaSlot {
+        hash: [u8; 32],
+        #[allow(dead_code)]
+        sequencer_da_address: Option<A>,
+    },
+}
+
+impl<A: BasicAddress> From<ApplySoftConfirmationError<A>>
+    for BatchReceipt<SequencerOutcome<A>, TxEffect>
+{
+    fn from(value: ApplySoftConfirmationError<A>) -> Self {
+        match value {
+            ApplySoftConfirmationError::TooManySoftConfirmationsOnDaSlot {
+                hash,
+                sequencer_da_address: _,
+            } => BatchReceipt {
+                batch_hash: hash,
+                tx_receipts: Vec::new(),
+                inner: SequencerOutcome::Ignored,
+            },
+        }
+    }
+}
+
 impl<C, Vm, Da, RT, K> Default for StfBlueprint<C, Da, Vm, RT, K>
 where
     C: Context,
@@ -104,7 +136,7 @@ where
         &self,
         checkpoint: StateCheckpoint<C>,
         soft_batch: &mut SignedSoftConfirmationBatch,
-    ) -> (ApplyBatch<Da>, StateCheckpoint<C>) {
+    ) -> (ApplySoftConfirmation<Da>, StateCheckpoint<C>) {
         debug!(
             "Applying soft batch 0x{} from sequencer: 0x{}",
             hex::encode(soft_batch.hash()),
@@ -124,7 +156,12 @@ where
             );
 
             return (
-                Err(ApplyBatchError::Ignored(soft_batch.hash())),
+                Err(
+                    ApplySoftConfirmationError::TooManySoftConfirmationsOnDaSlot {
+                        hash: soft_batch.hash(),
+                        sequencer_da_address: None,
+                    },
+                ),
                 batch_workspace.revert(),
             );
         }
