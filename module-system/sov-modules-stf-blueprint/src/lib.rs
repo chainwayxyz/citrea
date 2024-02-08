@@ -375,12 +375,12 @@ where
 
         let mut batch_receipts = vec![];
 
-        let (apply_soft_batch_result, checkpoint) =
+        let (apply_soft_confirmation_result, checkpoint) =
             self.apply_soft_confirmation(checkpoint, &mut soft_batch.clone());
         if let Err(ApplySoftConfirmationError::TooManySoftConfirmationsOnDaSlot {
             hash: _,
-            sequencer_da_address: _,
-        }) = apply_soft_batch_result
+            sequencer_pub_key: _,
+        }) = apply_soft_confirmation_result
         {
             return SlotResult {
                 state_root: pre_state_root.clone(),
@@ -389,7 +389,7 @@ where
                 witness: <<C as Spec>::Storage as Storage>::Witness::default(),
             };
         }
-        let batch_receipt = apply_soft_batch_result.unwrap_or_else(Into::into);
+        let batch_receipt = apply_soft_confirmation_result.unwrap_or_else(Into::into);
         info!(
             "soft batch  with hash: {:?} from sequencer {:?} has been applied with #{} transactions.",
             soft_batch.hash(),

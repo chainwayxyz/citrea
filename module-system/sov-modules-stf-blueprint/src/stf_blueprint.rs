@@ -69,29 +69,28 @@ impl<A: BasicAddress> From<ApplyBatchError<A>> for BatchReceipt<SequencerOutcome
     }
 }
 
-type ApplySoftConfirmationResult<T, A> = Result<T, ApplySoftConfirmationError<A>>;
+type ApplySoftConfirmationResult<T> = Result<T, ApplySoftConfirmationError>;
 #[allow(type_alias_bounds)]
 type ApplySoftConfirmation<Da: DaSpec> = ApplySoftConfirmationResult<
     BatchReceipt<SequencerOutcome<<Da::BlobTransaction as BlobReaderTrait>::Address>, TxEffect>,
-    <Da::BlobTransaction as BlobReaderTrait>::Address,
 >;
 
-pub(crate) enum ApplySoftConfirmationError<A: BasicAddress> {
+pub(crate) enum ApplySoftConfirmationError {
     TooManySoftConfirmationsOnDaSlot {
         hash: [u8; 32],
         #[allow(dead_code)]
-        sequencer_da_address: Option<A>,
+        sequencer_pub_key: Vec<u8>,
     },
 }
 
-impl<A: BasicAddress> From<ApplySoftConfirmationError<A>>
+impl<A: BasicAddress> From<ApplySoftConfirmationError>
     for BatchReceipt<SequencerOutcome<A>, TxEffect>
 {
-    fn from(value: ApplySoftConfirmationError<A>) -> Self {
+    fn from(value: ApplySoftConfirmationError) -> Self {
         match value {
             ApplySoftConfirmationError::TooManySoftConfirmationsOnDaSlot {
                 hash,
-                sequencer_da_address: _,
+                sequencer_pub_key: _,
             } => BatchReceipt {
                 batch_hash: hash,
                 tx_receipts: Vec::new(),
@@ -159,7 +158,7 @@ where
                 Err(
                     ApplySoftConfirmationError::TooManySoftConfirmationsOnDaSlot {
                         hash: soft_batch.hash(),
-                        sequencer_da_address: None,
+                        sequencer_pub_key: soft_batch.pub_key.clone(),
                     },
                 ),
                 batch_workspace.revert(),
