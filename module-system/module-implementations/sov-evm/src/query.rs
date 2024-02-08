@@ -18,6 +18,7 @@ use reth_rpc_types_compat::block::from_primitive_with_hash;
 use revm::primitives::{
     EVMError, Env, ExecutionResult, Halt, InvalidTransaction, TransactTo, KECCAK_EMPTY,
 };
+use revm::DatabaseCommit;
 use sov_modules_api::macros::rpc_gen;
 use sov_modules_api::prelude::*;
 use sov_modules_api::WorkingSet;
@@ -891,7 +892,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     .into()
             })
             .collect();
-        let last_tx_in_block = block_txs[block_txs.len() - 1].clone();
 
         working_set.set_archival_version(sealed_block.header.number);
         let block_env = BlockEnv::from(&sealed_block);
@@ -902,26 +902,25 @@ impl<C: sov_modules_api::Context> Evm<C> {
         // TODO: Move to CacheDB once immutable state is implemented
         let mut evm_db = self.get_db(working_set);
         let revm_block_env = revm::primitives::BlockEnv::from(&block_env);
-        replay_transactions_until(
-            &mut evm_db,
-            cfg_env.clone(),
-            revm_block_env.clone(),
-            block_txs.clone(),
-            last_tx_in_block.hash(),
-        )?;
 
         // TODO: Convert below steps to blocking task like in reth after implementing the semaphores
         let mut traces = HashMap::new();
-        for tx in block_txs {
+        let mut transactions = block_txs.into_iter().enumerate().peekable();
+        while let Some((_index, tx)) = transactions.next() {
             let env = Env {
                 cfg: cfg_env.clone(),
                 block: revm_block_env.clone(),
                 tx: tx_env_with_recovered(&tx),
             };
-            let trace =
-                trace_transaction(opts.clone().unwrap_or_default(), env.clone(), &mut evm_db)
-                    .map(|(trace, _)| trace)?;
+            let (trace, state_changes) =
+                trace_transaction(opts.clone().unwrap_or_default(), env.clone(), &mut evm_db)?;
             traces.insert(tx.hash(), trace);
+
+            if transactions.peek().is_some() {
+                // need to apply the state changes of this transaction before executing the
+                // next transaction
+                evm_db.commit(state_changes)
+            }
         }
         Ok(traces)
     }
