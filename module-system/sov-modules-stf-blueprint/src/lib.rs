@@ -212,7 +212,8 @@ where
 
     type TxReceiptContents = TxEffect;
 
-    type BatchReceiptContents = SequencerOutcome<<Da::BlobTransaction as BlobReaderTrait>::Address>;
+    type BatchReceiptContents = ();
+    // SequencerOutcome<<Da::BlobTransaction as BlobReaderTrait>::Address>;
 
     type Witness = <<C as Spec>::Storage as Storage>::Witness;
 
@@ -314,7 +315,11 @@ where
                     tx_receipt.receipt
                 );
             }
-            batch_receipts.push(batch_receipt);
+            batch_receipts.push(BatchReceipt {
+                batch_hash: batch_receipt.batch_hash,
+                tx_receipts: batch_receipt.tx_receipts,
+                inner: (),
+            });
         }
 
         let (state_root, witness, storage) = self.end_slot(pre_state, checkpoint);

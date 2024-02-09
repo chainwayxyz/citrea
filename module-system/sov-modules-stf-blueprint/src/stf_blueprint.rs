@@ -69,11 +69,11 @@ impl<A: BasicAddress> From<ApplyBatchError<A>> for BatchReceipt<SequencerOutcome
     }
 }
 
-type ApplySoftConfirmationResult<T> = Result<T, ApplySoftConfirmationError>;
-#[allow(type_alias_bounds)]
-type ApplySoftConfirmation<Da: DaSpec> = ApplySoftConfirmationResult<
-    BatchReceipt<SequencerOutcome<<Da::BlobTransaction as BlobReaderTrait>::Address>, TxEffect>,
->;
+// type ApplySoftConfirmationResult<T> = Result<T, ApplySoftConfirmationError>;
+// #[allow(type_alias_bounds)]
+// type ApplySoftConfirmation = ApplySoftConfirmationResult<BatchReceipt<(), TxEffect>>;
+
+type ApplySoftConfirmation = Result<BatchReceipt<(), TxEffect>, ApplySoftConfirmationError>;
 
 #[derive(Debug)]
 pub(crate) enum ApplySoftConfirmationError {
@@ -118,7 +118,7 @@ where
         &self,
         checkpoint: StateCheckpoint<C>,
         soft_batch: &mut SignedSoftConfirmationBatch,
-    ) -> (ApplySoftConfirmation<Da>, StateCheckpoint<C>) {
+    ) -> (ApplySoftConfirmation, StateCheckpoint<C>) {
         debug!(
             "Applying soft batch 0x{} from sequencer: 0x{}",
             hex::encode(soft_batch.hash()),
@@ -274,7 +274,7 @@ where
             Ok(BatchReceipt {
                 batch_hash: soft_batch.hash(),
                 tx_receipts,
-                inner: sequencer_outcome,
+                inner: (),
             }),
             batch_workspace.checkpoint(),
         )
