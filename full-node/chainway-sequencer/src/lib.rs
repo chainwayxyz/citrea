@@ -225,6 +225,7 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                         .clone()
                         .as_ref()
                         .to_vec(),
+                    l1_fee_rate: 0,
                 };
 
                 let signed_soft_batch = self.sign_soft_confirmation_batch(unsigned_batch);
@@ -282,6 +283,7 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
             pre_state_root: soft_confirmation.pre_state_root,
             pub_key: self.sov_tx_signer_priv_key.pub_key().try_to_vec().unwrap(),
             signature: signature.try_to_vec().unwrap(),
+            l1_fee_rate: soft_confirmation.l1_fee_rate,
         }
     }
 

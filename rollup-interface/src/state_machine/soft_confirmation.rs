@@ -19,6 +19,8 @@ pub struct UnsignedSoftConfirmationBatch {
     pub pre_state_root: Vec<u8>,
     /// Raw transactions.
     pub txs: Vec<Vec<u8>>,
+    /// Base layer fee rate sats/wei etc. per byte.
+    pub l1_fee_rate: u64,
 }
 
 /// Signed version of the `UnsignedSoftConfirmationBatch`
@@ -33,6 +35,8 @@ pub struct SignedSoftConfirmationBatch {
     pub da_slot_hash: [u8; 32],
     /// Previous batch's post state root
     pub pre_state_root: Vec<u8>,
+    /// Base layer fee rate sats/wei etc. per byte.
+    pub l1_fee_rate: u64,
     /// Raw transactions.
     pub txs: Vec<Vec<u8>>,
     /// Signature
