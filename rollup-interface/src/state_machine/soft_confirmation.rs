@@ -70,4 +70,9 @@ impl SignedSoftConfirmationBatch {
     pub fn full_data(&mut self) -> Vec<u8> {
         self.try_to_vec().unwrap()
     }
+
+    /// L1 fee rate
+    pub fn l1_fee_rate(&self) -> u64 {
+        self.l1_fee_rate
+    }
 }
