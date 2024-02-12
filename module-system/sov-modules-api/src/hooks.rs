@@ -1,3 +1,5 @@
+use borsh::{BorshDeserialize, BorshSerialize};
+use serde::{Deserialize, Serialize};
 use sov_modules_core::{AccessoryWorkingSet, Context, Spec, Storage, WorkingSet};
 use sov_rollup_interface::da::{BlobReaderTrait, DaSpec};
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
@@ -65,7 +67,7 @@ pub trait ApplySoftConfirmationHooks<Da: DaSpec> {
     /// If this hook returns Err, batch is not applied
     fn begin_soft_confirmation_hook(
         &self,
-        soft_batch: &mut SignedSoftConfirmationBatch,
+        soft_batch: &mut HookSoftConfirmationInfo,
         working_set: &mut WorkingSet<Self::Context>,
     ) -> anyhow::Result<()>;
 
@@ -76,6 +78,61 @@ pub trait ApplySoftConfirmationHooks<Da: DaSpec> {
         result: Self::SoftConfirmationResult,
         working_set: &mut WorkingSet<Self::Context>,
     ) -> anyhow::Result<()>;
+}
+
+/// Information about the soft confirmation block
+/// Does not include txs because txs can be appended by the sequencer
+#[derive(Debug, PartialEq, Clone, BorshDeserialize, BorshSerialize, Serialize, Deserialize, Eq)]
+pub struct HookSoftConfirmationInfo {
+    /// Hash of the unsigned batch
+    pub hash: [u8; 32],
+    /// DA block this soft confirmation was given for
+    pub da_slot_height: u64,
+    /// DA block hash
+    pub da_slot_hash: [u8; 32],
+    /// Previous batch's post state root
+    pub pre_state_root: Vec<u8>,
+    /// Public key of signer
+    pub pub_key: Vec<u8>,
+}
+
+impl From<SignedSoftConfirmationBatch> for HookSoftConfirmationInfo {
+    fn from(signed_soft_confirmation_batch: SignedSoftConfirmationBatch) -> Self {
+        HookSoftConfirmationInfo {
+            hash: signed_soft_confirmation_batch.hash(),
+            da_slot_height: signed_soft_confirmation_batch.da_slot_height,
+            da_slot_hash: signed_soft_confirmation_batch.da_slot_hash(),
+            pre_state_root: signed_soft_confirmation_batch.pre_state_root(),
+            pub_key: signed_soft_confirmation_batch.sequencer_pub_key().to_vec(),
+        }
+    }
+}
+
+impl HookSoftConfirmationInfo {
+    /// Hash of the unsigned batch
+    pub fn hash(&self) -> [u8; 32] {
+        self.hash
+    }
+
+    /// DA block to build on
+    pub fn da_slot_hash(&self) -> [u8; 32] {
+        self.da_slot_hash
+    }
+
+    /// Previous batch's post state root
+    pub fn pre_state_root(&self) -> Vec<u8> {
+        self.pre_state_root.clone()
+    }
+
+    /// Public key of signer
+    pub fn sequencer_pub_key(&self) -> &[u8] {
+        self.pub_key.as_ref()
+    }
+
+    /// Borsh serialized data
+    pub fn full_data(&mut self) -> Vec<u8> {
+        self.try_to_vec().unwrap()
+    }
 }
 
 /// Hooks that execute during the `StateTransitionFunction::begin_slot` and `end_slot` functions.

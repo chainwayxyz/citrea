@@ -1,7 +1,8 @@
 use sov_accounts::AccountsTxHook;
 use sov_bank::BankTxHook;
 use sov_modules_api::hooks::{
-    ApplyBlobHooks, ApplySoftConfirmationHooks, FinalizeHook, SlotHooks, TxHooks,
+    ApplyBlobHooks, ApplySoftConfirmationHooks, FinalizeHook, HookSoftConfirmationInfo, SlotHooks,
+    TxHooks,
 };
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{AccessoryWorkingSet, Context, Spec, WorkingSet};
@@ -100,7 +101,7 @@ impl<C: Context, Da: DaSpec> ApplySoftConfirmationHooks<Da> for Runtime<C, Da> {
 
     fn begin_soft_confirmation_hook(
         &self,
-        _soft_batch: &mut sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch,
+        _soft_batch: &mut HookSoftConfirmationInfo,
         _working_set: &mut WorkingSet<Self::Context>,
     ) -> anyhow::Result<()> {
         // Before executing each batch, check that the sender is registered as a sequencer

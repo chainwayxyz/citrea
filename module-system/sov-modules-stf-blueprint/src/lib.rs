@@ -193,6 +193,53 @@ where
 
         (root_hash, witness, storage)
     }
+
+    // fn begin_soft_batch(
+    //     &self,
+    //     sequencer_public_key: &[u8],
+    //     pre_state_root: &<C::Storage as Storage>::Root,
+    //     pre_state: C::Storage,
+    //     witness: <<C as Spec>::Storage as Storage>::Witness,
+    //     slot_header: &<Da as DaSpec>::BlockHeader,
+    //     soft_batch: &mut SignedSoftConfirmationBatch,
+    // ) -> (
+    //     StateCheckpoint<C>,
+    //     Vec<BatchReceipt<SequencerOutcome<<Da as DaSpec>::Address>, TxEffect>>,
+    // ) {
+    //     debug!("Applying soft batch in STF Blueprint");
+
+    //     // check if soft confirmation is coming from our sequencer
+    //     assert_eq!(
+    //         soft_batch.sequencer_pub_key(),
+    //         sequencer_public_key,
+    //         "Sequencer public key must match"
+    //     );
+
+    //     // verify signature
+    //     assert!(
+    //         verify_soft_batch_signature::<C>(soft_batch, sequencer_public_key).is_ok(),
+    //         "Signature verification must succeed"
+    //     );
+
+    //     // then verify da hashes match
+    //     assert_eq!(
+    //         soft_batch.da_slot_hash(),
+    //         slot_header.hash().into(),
+    //         "DA slot hashes must match"
+    //     );
+
+    //     // then verify pre state root matches
+    //     assert_eq!(
+    //         soft_batch.pre_state_root(),
+    //         pre_state_root.as_ref(),
+    //         "pre state roots must match"
+    //     );
+
+    //     let checkpoint = StateCheckpoint::with_witness(pre_state.clone(), witness);
+
+    //     let mut batch_receipts = vec![];
+    //     (checkpoint, batch_receipts)
+    // }
 }
 
 impl<C, RT, Vm, Da, K> StateTransitionFunction<Vm, Da> for StfBlueprint<C, Da, Vm, RT, K>
@@ -376,7 +423,7 @@ where
         let mut batch_receipts = vec![];
 
         let (apply_soft_batch_result, checkpoint) =
-            self.apply_soft_confirmation(checkpoint, &mut soft_batch.clone());
+            self.apply_soft_confirmation_inner(checkpoint, &mut soft_batch.clone());
         if let Err(ApplyBatchError::Ignored(_root_hash)) = apply_soft_batch_result {
             return SlotResult {
                 state_root: pre_state_root.clone(),

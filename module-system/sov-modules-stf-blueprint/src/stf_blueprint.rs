@@ -1,7 +1,9 @@
 use std::marker::PhantomData;
 
 use borsh::{BorshDeserialize, BorshSerialize};
+use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::runtime::capabilities::KernelSlotHooks;
+use sov_modules_api::WorkingSet;
 use sov_modules_api::{
     BasicAddress, BlobReaderTrait, Context, DaSpec, DispatchCall, GasUnit, StateCheckpoint,
 };
@@ -99,43 +101,17 @@ where
         }
     }
 
-    #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
-    pub(crate) fn apply_soft_confirmation(
+    // pub fn begin_soft_confirmation(
+
+    // )
+
+    /// TODO: Docs
+    pub fn apply_sov_txs_inner(
         &self,
-        checkpoint: StateCheckpoint<C>,
-        soft_batch: &mut SignedSoftConfirmationBatch,
-    ) -> (ApplyBatch<Da>, StateCheckpoint<C>) {
-        debug!(
-            "Applying soft batch 0x{} from sequencer: 0x{}",
-            hex::encode(soft_batch.hash()),
-            hex::encode(soft_batch.sequencer_pub_key())
-        );
-
-        let mut batch_workspace = checkpoint.to_revertable();
-
-        // ApplySoftConfirmationHook: begin
-        if let Err(e) = self
-            .runtime
-            .begin_soft_confirmation_hook(soft_batch, &mut batch_workspace)
-        {
-            error!(
-                "Error: The batch was rejected by the 'begin_soft_confirmation_hook'. Skipping batch with error: {}",
-                e
-            );
-
-            return (
-                Err(ApplyBatchError::Ignored(soft_batch.hash())),
-                batch_workspace.revert(),
-            );
-        }
-
-        // Write changes from begin_blob_hook
-        batch_workspace = batch_workspace.checkpoint().to_revertable();
-
-        // TODO: don't ignore these events: https://github.com/Sovereign-Labs/sovereign/issues/350
-        let _ = batch_workspace.take_events();
-
-        let txs = self.verify_txs_stateless_soft(soft_batch);
+        txs: Vec<Vec<u8>>,
+        mut batch_workspace: WorkingSet<C>,
+    ) -> (u64, WorkingSet<C>, Vec<TransactionReceipt<TxEffect>>) {
+        let txs = self.verify_txs_stateless_soft(&txs);
 
         let messages = self
             .decode_txs(&txs)
@@ -235,11 +211,66 @@ where
             batch_workspace = batch_workspace.checkpoint().to_revertable();
 
             // TODO: `panic` will be covered in https://github.com/Sovereign-Labs/sovereign-sdk/issues/421
+            // TODO: Check if we need to put this in end_soft_onfirmation, becuase I am not sure if we can call pre_dispatch again for new txs after this
             self.runtime
                 .post_dispatch_tx_hook(&tx, &ctx, &mut batch_workspace)
                 .expect("inconsistent state: error in post_dispatch_tx_hook");
         }
+        (sequencer_reward, batch_workspace, tx_receipts)
+    }
 
+    /// Begins the inner processes of applying soft confirmation
+    /// Module hooks are called here
+    pub fn begin_soft_confirmation_inner(
+        &self,
+        checkpoint: StateCheckpoint<C>,
+        soft_batch: &mut SignedSoftConfirmationBatch,
+    ) -> (
+        ApplyBatchResult<(), <Da::BlobTransaction as BlobReaderTrait>::Address>,
+        WorkingSet<C>,
+    ) {
+        debug!(
+            "Beginning soft batch 0x{} from sequencer: 0x{}",
+            hex::encode(soft_batch.hash()),
+            hex::encode(soft_batch.sequencer_pub_key())
+        );
+
+        let mut batch_workspace = checkpoint.to_revertable();
+
+        // ApplySoftConfirmationHook: begin
+        if let Err(e) = self.runtime.begin_soft_confirmation_hook(
+            &mut HookSoftConfirmationInfo::from(soft_batch.clone()),
+            &mut batch_workspace,
+        ) {
+            error!(
+                "Error: The batch was rejected by the 'begin_soft_confirmation_hook'. Skipping batch with error: {}",
+                e
+            );
+
+            return (
+                Err(ApplyBatchError::Ignored(soft_batch.hash())),
+                batch_workspace,
+            );
+        }
+
+        // Write changes from begin_blob_hook
+        batch_workspace = batch_workspace.checkpoint().to_revertable();
+
+        // TODO: don't ignore these events: https://github.com/Sovereign-Labs/sovereign/issues/350
+        let _ = batch_workspace.take_events();
+
+        (Ok(()), batch_workspace)
+    }
+
+    /// Ends the inner processes of applying soft confirmation
+    /// Module hooks are called here
+    pub fn end_soft_confirmation_inner(
+        &self,
+        soft_batch: &mut SignedSoftConfirmationBatch,
+        sequencer_reward: u64,
+        tx_receipts: Vec<TransactionReceipt<TxEffect>>,
+        mut batch_workspace: WorkingSet<C>,
+    ) -> (ApplyBatch<Da>, StateCheckpoint<C>) {
         // TODO: calculate the amount based of gas and fees
         let sequencer_outcome = SequencerOutcome::Rewarded(sequencer_reward);
 
@@ -261,6 +292,28 @@ where
         )
     }
 
+    #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
+    pub(crate) fn apply_soft_confirmation_inner(
+        &self,
+        checkpoint: StateCheckpoint<C>,
+        soft_batch: &mut SignedSoftConfirmationBatch,
+    ) -> (ApplyBatch<Da>, StateCheckpoint<C>) {
+        match self.begin_soft_confirmation_inner(checkpoint, soft_batch) {
+            (Ok(()), mut batch_workspace) => {
+                // TODO: wait for txs here, apply_sov_txs can be called multiple times
+                let (sequencer_reward, mut batch_workspace, tx_receipts) =
+                    self.apply_sov_txs_inner(soft_batch.txs.clone(), batch_workspace);
+
+                self.end_soft_confirmation_inner(
+                    soft_batch,
+                    sequencer_reward,
+                    tx_receipts,
+                    batch_workspace,
+                )
+            }
+            (Err(err), mut batch_workspace) => return (Err(err), batch_workspace.revert()),
+        }
+    }
     #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
     pub(crate) fn apply_blob(
         &self,
@@ -507,14 +560,9 @@ where
 
     // Stateless verification of transaction, such as signature check
     // Single malformed transaction results in sequencer slashing.
-    fn verify_txs_stateless_soft(
-        &self,
-        batch: &SignedSoftConfirmationBatch,
-    ) -> Vec<TransactionAndRawHash<C>> {
+    fn verify_txs_stateless_soft(&self, txs: &Vec<Vec<u8>>) -> Vec<TransactionAndRawHash<C>> {
         verify_txs_stateless(
-            batch
-                .txs
-                .iter()
+            txs.iter()
                 .map(|tx| RawTx { data: tx.clone() })
                 .collect::<Vec<_>>(),
         )

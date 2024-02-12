@@ -29,6 +29,7 @@ use sov_accounts::Accounts;
 use sov_accounts::Response::{AccountEmpty, AccountExists};
 pub use sov_evm::DevSigner;
 use sov_evm::{CallMessage, Evm, RlpEvmTransaction};
+use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::utils::to_jsonrpsee_error_object;
 use sov_modules_api::{
@@ -226,6 +227,17 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                         .as_ref()
                         .to_vec(),
                 };
+
+                // let batch_info = HookSoftConfirmationInfo {
+                //     da_slot_height: last_finalized_block.header().height(),
+
+                // }
+
+                // initially create sc info and call begin soft confirmation hook with it
+
+                // get txs and call apply tx with it
+
+                // create the unsigned batch with the txs then sign th sc
 
                 let signed_soft_batch = self.sign_soft_confirmation_batch(unsigned_batch);
 

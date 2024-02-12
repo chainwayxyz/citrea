@@ -188,6 +188,32 @@ where
         self.ledger_db.get_head_soft_batch()
     }
 
+    /// TODO: Docs
+    pub async fn begin_soft_confirmation(&mut self, mut soft_batch: SignedSoftConfirmationBatch) {
+        // let filtered_block = self
+        //     .da_service
+        //     .get_block_at(soft_batch.da_slot_height)
+        //     .await?;
+
+        // let pre_state = self
+        //     .storage_manager
+        //     .create_storage_on(filtered_block.header())?;
+
+        // // TODO: check for reorgs here
+        // // check out run_in_process for an example
+
+        // info!(
+        //     "Applying soft batch on DA block: {}",
+        //     hex::encode(filtered_block.header().hash().into())
+        // );
+
+        // let pub_key = soft_batch.pub_key.clone();
+    }
+    /// TODO: Docs
+    pub async fn apply_sov_tx(&mut self, mut soft_batch: SignedSoftConfirmationBatch) {}
+    /// TODO: Docs
+    pub async fn end_soft_confirmation(&mut self, mut soft_batch: SignedSoftConfirmationBatch) {}
+
     /// Processes sequence
     /// gets BlockTemplate from sequencer
     pub async fn process(
