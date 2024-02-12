@@ -14,7 +14,7 @@ use tracing::{debug, error};
 use crate::tx_verifier::{verify_txs_stateless, TransactionAndRawHash};
 use crate::{Batch, RawTx, Runtime, RuntimeTxHook, SequencerOutcome, SlashingReason, TxEffect};
 
-type ApplyBatchResult<T, A> = Result<T, ApplyBatchError<A>>;
+pub(crate) type ApplyBatchResult<T, A> = Result<T, ApplyBatchError<A>>;
 #[allow(type_alias_bounds)]
 type ApplyBatch<Da: DaSpec> = ApplyBatchResult<
     BatchReceipt<SequencerOutcome<<Da::BlobTransaction as BlobReaderTrait>::Address>, TxEffect>,

@@ -15,10 +15,10 @@ use sov_modules_api::hooks::{
 use sov_modules_api::runtime::capabilities::{Kernel, KernelSlotHooks};
 use sov_modules_api::{
     BasicAddress, BlobReaderTrait, Context, DaSpec, DispatchCall, Genesis, Signature, Spec,
-    StateCheckpoint, UnsignedSoftConfirmationBatch, Zkvm,
+    StateCheckpoint, UnsignedSoftConfirmationBatch, WorkingSet, Zkvm,
 };
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
-pub use sov_rollup_interface::stf::BatchReceipt;
+pub use sov_rollup_interface::stf::{BatchReceipt, TransactionReceipt};
 use sov_rollup_interface::stf::{SlotResult, StateTransitionFunction};
 use sov_state::storage::KernelWorkingSet;
 use sov_state::Storage;
@@ -28,7 +28,7 @@ pub use stf_blueprint::StfBlueprint;
 use tracing::{debug, info};
 pub use tx_verifier::RawTx;
 
-use crate::stf_blueprint::ApplyBatchError;
+use crate::stf_blueprint::{ApplyBatchError, ApplyBatchResult};
 
 /// The tx hook for a blueprint runtime
 pub struct RuntimeTxHook<C: Context> {
@@ -194,52 +194,132 @@ where
         (root_hash, witness, storage)
     }
 
-    // fn begin_soft_batch(
-    //     &self,
-    //     sequencer_public_key: &[u8],
-    //     pre_state_root: &<C::Storage as Storage>::Root,
-    //     pre_state: C::Storage,
-    //     witness: <<C as Spec>::Storage as Storage>::Witness,
-    //     slot_header: &<Da as DaSpec>::BlockHeader,
-    //     soft_batch: &mut SignedSoftConfirmationBatch,
-    // ) -> (
-    //     StateCheckpoint<C>,
-    //     Vec<BatchReceipt<SequencerOutcome<<Da as DaSpec>::Address>, TxEffect>>,
-    // ) {
-    //     debug!("Applying soft batch in STF Blueprint");
+    fn begin_soft_batch(
+        &self,
+        sequencer_public_key: &[u8],
+        pre_state_root: &<C::Storage as Storage>::Root,
+        pre_state: C::Storage,
+        witness: <<C as Spec>::Storage as Storage>::Witness,
+        slot_header: &<Da as DaSpec>::BlockHeader,
+        soft_batch: &mut SignedSoftConfirmationBatch,
+    ) -> (
+        ApplyBatchResult<(), <Da::BlobTransaction as BlobReaderTrait>::Address>,
+        WorkingSet<C>,
+    ) {
+        debug!("Applying soft batch in STF Blueprint");
 
-    //     // check if soft confirmation is coming from our sequencer
-    //     assert_eq!(
-    //         soft_batch.sequencer_pub_key(),
-    //         sequencer_public_key,
-    //         "Sequencer public key must match"
-    //     );
+        // check if soft confirmation is coming from our sequencer
+        assert_eq!(
+            soft_batch.sequencer_pub_key(),
+            sequencer_public_key,
+            "Sequencer public key must match"
+        );
 
-    //     // verify signature
-    //     assert!(
-    //         verify_soft_batch_signature::<C>(soft_batch, sequencer_public_key).is_ok(),
-    //         "Signature verification must succeed"
-    //     );
+        // verify signature
+        assert!(
+            verify_soft_batch_signature::<C>(soft_batch, sequencer_public_key).is_ok(),
+            "Signature verification must succeed"
+        );
 
-    //     // then verify da hashes match
-    //     assert_eq!(
-    //         soft_batch.da_slot_hash(),
-    //         slot_header.hash().into(),
-    //         "DA slot hashes must match"
-    //     );
+        // then verify da hashes match
+        assert_eq!(
+            soft_batch.da_slot_hash(),
+            slot_header.hash().into(),
+            "DA slot hashes must match"
+        );
 
-    //     // then verify pre state root matches
-    //     assert_eq!(
-    //         soft_batch.pre_state_root(),
-    //         pre_state_root.as_ref(),
-    //         "pre state roots must match"
-    //     );
+        // then verify pre state root matches
+        assert_eq!(
+            soft_batch.pre_state_root(),
+            pre_state_root.as_ref(),
+            "pre state roots must match"
+        );
 
-    //     let checkpoint = StateCheckpoint::with_witness(pre_state.clone(), witness);
+        let checkpoint = StateCheckpoint::with_witness(pre_state.clone(), witness);
 
-    //     let mut batch_receipts = vec![];
-    //     (checkpoint, batch_receipts)
-    // }
+        self.begin_soft_confirmation_inner(checkpoint, soft_batch)
+    }
+
+    fn apply_soft_batch_txs(
+        &self,
+        txs: Vec<Vec<u8>>,
+        mut batch_workspace: WorkingSet<C>,
+    ) -> (u64, WorkingSet<C>, Vec<TransactionReceipt<TxEffect>>) {
+        self.apply_sov_txs_inner(txs, batch_workspace)
+    }
+
+    fn end_soft_batch(
+        &self,
+        soft_batch: &mut SignedSoftConfirmationBatch,
+        sequencer_reward: u64,
+        tx_receipts: Vec<TransactionReceipt<TxEffect>>,
+        mut batch_workspace: WorkingSet<C>,
+        pre_state: C::Storage,
+    ) -> SlotResult<
+        <C::Storage as Storage>::Root,
+        C::Storage,
+        SequencerOutcome<<Da::BlobTransaction as BlobReaderTrait>::Address>,
+        TxEffect,
+        <<C as Spec>::Storage as Storage>::Witness,
+    > {
+        let (apply_soft_batch_result, checkpoint) = self.end_soft_confirmation_inner(
+            soft_batch,
+            sequencer_reward,
+            tx_receipts,
+            batch_workspace,
+        );
+
+        let batch_receipt = apply_soft_batch_result.unwrap_or_else(Into::into);
+        info!(
+            "soft batch  with hash: {:?} from sequencer {:?} has been applied with #{} transactions.",
+            soft_batch.hash(),
+            soft_batch.sequencer_pub_key(),
+            batch_receipt.tx_receipts.len(),
+        );
+
+        let mut batch_receipts = vec![];
+
+        for (i, tx_receipt) in batch_receipt.tx_receipts.iter().enumerate() {
+            info!(
+                "tx #{} hash: 0x{} result {:?}",
+                i,
+                hex::encode(tx_receipt.tx_hash),
+                tx_receipt.receipt
+            );
+        }
+        batch_receipts.push(batch_receipt);
+
+        let (state_root, witness, storage) = {
+            let working_set = checkpoint.to_revertable();
+            // Save checkpoint
+            let mut checkpoint = working_set.checkpoint();
+
+            let (cache_log, witness) = checkpoint.freeze();
+
+            let (root_hash, state_update) = pre_state
+                .compute_state_update(cache_log, &witness)
+                .expect("jellyfish merkle tree update must succeed");
+
+            let mut working_set = checkpoint.to_revertable();
+
+            self.runtime
+                .finalize_hook(&root_hash, &mut working_set.accessory_state());
+
+            let mut checkpoint = working_set.checkpoint();
+            let accessory_log = checkpoint.freeze_non_provable();
+
+            pre_state.commit(&state_update, &accessory_log);
+
+            (root_hash, witness, pre_state)
+        };
+
+        SlotResult {
+            state_root,
+            change_set: storage,
+            batch_receipts,
+            witness,
+        }
+    }
 }
 
 impl<C, RT, Vm, Da, K> StateTransitionFunction<Vm, Da> for StfBlueprint<C, Da, Vm, RT, K>
@@ -389,96 +469,128 @@ where
         Self::TxReceiptContents,
         Self::Witness,
     > {
-        debug!("Applying soft batch in STF Blueprint");
-
-        // check if soft confirmation is coming from our sequencer
-        assert_eq!(
-            soft_batch.sequencer_pub_key(),
+        match self.begin_soft_batch(
             sequencer_public_key,
-            "Sequencer public key must match"
-        );
-
-        // verify signature
-        assert!(
-            verify_soft_batch_signature::<C>(soft_batch, sequencer_public_key).is_ok(),
-            "Signature verification must succeed"
-        );
-
-        // then verify da hashes match
-        assert_eq!(
-            soft_batch.da_slot_hash(),
-            slot_header.hash().into(),
-            "DA slot hashes must match"
-        );
-
-        // then verify pre state root matches
-        assert_eq!(
-            soft_batch.pre_state_root(),
-            pre_state_root.as_ref(),
-            "pre state roots must match"
-        );
-
-        let checkpoint = StateCheckpoint::with_witness(pre_state.clone(), witness);
-
-        let mut batch_receipts = vec![];
-
-        let (apply_soft_batch_result, checkpoint) =
-            self.apply_soft_confirmation_inner(checkpoint, &mut soft_batch.clone());
-        if let Err(ApplyBatchError::Ignored(_root_hash)) = apply_soft_batch_result {
-            return SlotResult {
-                state_root: pre_state_root.clone(),
-                change_set: pre_state, // should be empty
-                batch_receipts,
-                witness: <<C as Spec>::Storage as Storage>::Witness::default(),
-            };
-        }
-        let batch_receipt = apply_soft_batch_result.unwrap_or_else(Into::into);
-        info!(
-            "soft batch  with hash: {:?} from sequencer {:?} has been applied with #{} transactions.",
-            soft_batch.hash(),
-            soft_batch.sequencer_pub_key(),
-            batch_receipt.tx_receipts.len(),
-        );
-        for (i, tx_receipt) in batch_receipt.tx_receipts.iter().enumerate() {
-            info!(
-                "tx #{} hash: 0x{} result {:?}",
-                i,
-                hex::encode(tx_receipt.tx_hash),
-                tx_receipt.receipt
-            );
-        }
-        batch_receipts.push(batch_receipt);
-
-        let (state_root, witness, storage) = {
-            let working_set = checkpoint.to_revertable();
-            // Save checkpoint
-            let mut checkpoint = working_set.checkpoint();
-
-            let (cache_log, witness) = checkpoint.freeze();
-
-            let (root_hash, state_update) = pre_state
-                .compute_state_update(cache_log, &witness)
-                .expect("jellyfish merkle tree update must succeed");
-
-            let mut working_set = checkpoint.to_revertable();
-
-            self.runtime
-                .finalize_hook(&root_hash, &mut working_set.accessory_state());
-
-            let mut checkpoint = working_set.checkpoint();
-            let accessory_log = checkpoint.freeze_non_provable();
-
-            pre_state.commit(&state_update, &accessory_log);
-
-            (root_hash, witness, pre_state)
-        };
-
-        SlotResult {
-            state_root,
-            change_set: storage,
-            batch_receipts,
+            pre_state_root,
+            pre_state.clone(),
             witness,
+            slot_header,
+            soft_batch,
+        ) {
+            (Ok(()), batch_workspace) => {
+                let (sequencer_reward, batch_workspace, tx_receipts) =
+                    self.apply_soft_batch_txs(soft_batch.txs.clone(), batch_workspace);
+
+                self.end_soft_batch(
+                    soft_batch,
+                    sequencer_reward,
+                    tx_receipts,
+                    batch_workspace,
+                    pre_state,
+                )
+            }
+            (Err(ApplyBatchError::Ignored(root_hash)), batch_workspace) => {
+                return SlotResult {
+                    state_root: pre_state_root.clone(),
+                    change_set: pre_state, // should be empty
+                    batch_receipts: vec![],
+                    witness: <<C as Spec>::Storage as Storage>::Witness::default(),
+                };
+            }
+            _ => {
+                unimplemented!()
+            }
         }
+        // debug!("Applying soft batch in STF Blueprint");
+
+        // // check if soft confirmation is coming from our sequencer
+        // assert_eq!(
+        //     soft_batch.sequencer_pub_key(),
+        //     sequencer_public_key,
+        //     "Sequencer public key must match"
+        // );
+
+        // // verify signature
+        // assert!(
+        //     verify_soft_batch_signature::<C>(soft_batch, sequencer_public_key).is_ok(),
+        //     "Signature verification must succeed"
+        // );
+
+        // // then verify da hashes match
+        // assert_eq!(
+        //     soft_batch.da_slot_hash(),
+        //     slot_header.hash().into(),
+        //     "DA slot hashes must match"
+        // );
+
+        // // then verify pre state root matches
+        // assert_eq!(
+        //     soft_batch.pre_state_root(),
+        //     pre_state_root.as_ref(),
+        //     "pre state roots must match"
+        // );
+
+        // let checkpoint = StateCheckpoint::with_witness(pre_state.clone(), witness);
+
+        // let mut batch_receipts = vec![];
+
+        // let (apply_soft_batch_result, checkpoint) =
+        //     self.apply_soft_confirmation_inner(checkpoint, &mut soft_batch.clone());
+        // if let Err(ApplyBatchError::Ignored(_root_hash)) = apply_soft_batch_result {
+        //     return SlotResult {
+        //         state_root: pre_state_root.clone(),
+        //         change_set: pre_state, // should be empty
+        //         batch_receipts,
+        //         witness: <<C as Spec>::Storage as Storage>::Witness::default(),
+        //     };
+        // }
+        // let batch_receipt = apply_soft_batch_result.unwrap_or_else(Into::into);
+        // info!(
+        //     "soft batch  with hash: {:?} from sequencer {:?} has been applied with #{} transactions.",
+        //     soft_batch.hash(),
+        //     soft_batch.sequencer_pub_key(),
+        //     batch_receipt.tx_receipts.len(),
+        // );
+        // for (i, tx_receipt) in batch_receipt.tx_receipts.iter().enumerate() {
+        //     info!(
+        //         "tx #{} hash: 0x{} result {:?}",
+        //         i,
+        //         hex::encode(tx_receipt.tx_hash),
+        //         tx_receipt.receipt
+        //     );
+        // }
+        // batch_receipts.push(batch_receipt);
+
+        // let (state_root, witness, storage) = {
+        //     let working_set = checkpoint.to_revertable();
+        //     // Save checkpoint
+        //     let mut checkpoint = working_set.checkpoint();
+
+        //     let (cache_log, witness) = checkpoint.freeze();
+
+        //     let (root_hash, state_update) = pre_state
+        //         .compute_state_update(cache_log, &witness)
+        //         .expect("jellyfish merkle tree update must succeed");
+
+        //     let mut working_set = checkpoint.to_revertable();
+
+        //     self.runtime
+        //         .finalize_hook(&root_hash, &mut working_set.accessory_state());
+
+        //     let mut checkpoint = working_set.checkpoint();
+        //     let accessory_log = checkpoint.freeze_non_provable();
+
+        //     pre_state.commit(&state_update, &accessory_log);
+
+        //     (root_hash, witness, pre_state)
+        // };
+
+        // SlotResult {
+        //     state_root,
+        //     change_set: storage,
+        //     batch_receipts,
+        //     witness,
+        // }
     }
 }
 
