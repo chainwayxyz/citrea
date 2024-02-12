@@ -40,6 +40,7 @@ fn begin_slot_hook_checks_limiting_number() {
         txs: vec![],
         signature: vec![],
         pub_key: vec![],
+        l1_fee_rate: 1,
     };
 
     // call begin_slot_hook 11 times

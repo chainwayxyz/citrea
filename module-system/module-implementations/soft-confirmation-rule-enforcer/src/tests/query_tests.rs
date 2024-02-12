@@ -17,6 +17,7 @@ fn block_count_per_da_hash_must_be_correct() {
         txs: vec![],
         signature: vec![],
         pub_key: vec![],
+        l1_fee_rate: 1,
     };
     // call begin_slot_hook a couple times for da hash 0
     for _ in 0..3 {
