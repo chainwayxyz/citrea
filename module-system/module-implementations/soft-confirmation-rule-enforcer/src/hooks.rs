@@ -9,7 +9,11 @@ impl<C: Context, Da: DaSpec> SoftConfirmationRuleEnforcer<C, Da>
 where
     <C::Storage as Storage>::Root: Into<[u8; 32]>,
 {
-    /// Checks the block count rule
+    /// Checks the block count rule.
+    /// For every L1 block, the number of L2 blocks should not exceed the limiting number.
+    /// If the number of L2 blocks exceeds the limiting number, the soft confirmation should fail and not be accepted by full nodes.
+    /// This ensures the sequencer cannot publish more than the allowed number of L2 blocks per L1 block.
+    /// Thus blocks the ability of the sequencer to censor the forced transactions in a future L1 block by not using that block.
     fn apply_block_count_rule(
         &self,
         soft_batch: &mut SignedSoftConfirmationBatch,
@@ -39,7 +43,12 @@ where
         Ok(())
     }
 
-    /// Checks the L1 fee rate rule
+    /// Checks the L1 fee rate rule.
+    /// The L1 fee rate should not change more than the allowed percentage.
+    /// If the L1 fee rate changes more than the allowed percentage, the soft confirmation should fail and not be accepted by full nodes.
+    /// This ensures the sequencer cannot change the fee rate more than the allowed percentage.
+    /// Thus blocks the ability of the sequencer to raise the L1 fee rates arbitrarily and charging a transaction maliciously.
+    /// An ideal solution would have the L1 fee trustlessly determined by the L2 users, but that is not possible currently.
     fn apply_fee_rate_rule(
         &self,
         soft_batch: &mut SignedSoftConfirmationBatch,
@@ -78,8 +87,7 @@ where
     }
 
     /// Logic executed at the beginning of the soft confirmation.
-    /// Here it is checked if the number of L2 blocks published for the
-    /// L1 block with given DA root hash is less than the limiting number.
+    /// Checks two rules: block count rule and fee rate rule.
     pub fn begin_soft_confirmation_hook(
         &self,
         soft_batch: &mut SignedSoftConfirmationBatch,
