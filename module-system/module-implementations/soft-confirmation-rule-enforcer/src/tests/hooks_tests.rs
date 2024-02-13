@@ -13,7 +13,7 @@ use crate::tests::genesis_tests::{get_soft_confirmation_rule_enforcer, TEST_CONF
 type C = DefaultContext;
 
 #[test]
-fn begin_slot_hook_checks_limiting_number() {
+fn begin_soft_confirmation_hook_checks_limiting_number() {
     let (soft_confirmation_rule_enforcer, mut working_set) =
         get_soft_confirmation_rule_enforcer::<MockDaSpec>(&TEST_CONFIG);
 
@@ -57,7 +57,7 @@ fn begin_slot_hook_checks_limiting_number() {
 }
 
 #[test]
-fn begin_slot_hook_checks_l1_fee_rate() {
+fn begin_soft_confirmation_hook_checks_l1_fee_rate() {
     let (soft_confirmation_rule_enforcer, mut working_set) =
         get_soft_confirmation_rule_enforcer::<MockDaSpec>(&TEST_CONFIG);
 
