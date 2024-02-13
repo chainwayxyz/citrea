@@ -84,8 +84,6 @@ pub trait ApplySoftConfirmationHooks<Da: DaSpec> {
 /// Does not include txs because txs can be appended by the sequencer
 #[derive(Debug, PartialEq, Clone, BorshDeserialize, BorshSerialize, Serialize, Deserialize, Eq)]
 pub struct HookSoftConfirmationInfo {
-    /// Hash of the unsigned batch
-    pub hash: [u8; 32],
     /// DA block this soft confirmation was given for
     pub da_slot_height: u64,
     /// DA block hash
@@ -99,7 +97,6 @@ pub struct HookSoftConfirmationInfo {
 impl From<SignedSoftConfirmationBatch> for HookSoftConfirmationInfo {
     fn from(signed_soft_confirmation_batch: SignedSoftConfirmationBatch) -> Self {
         HookSoftConfirmationInfo {
-            hash: signed_soft_confirmation_batch.hash(),
             da_slot_height: signed_soft_confirmation_batch.da_slot_height,
             da_slot_hash: signed_soft_confirmation_batch.da_slot_hash(),
             pre_state_root: signed_soft_confirmation_batch.pre_state_root(),
@@ -109,11 +106,6 @@ impl From<SignedSoftConfirmationBatch> for HookSoftConfirmationInfo {
 }
 
 impl HookSoftConfirmationInfo {
-    /// Hash of the unsigned batch
-    pub fn hash(&self) -> [u8; 32] {
-        self.hash
-    }
-
     /// DA block to build on
     pub fn da_slot_hash(&self) -> [u8; 32] {
         self.da_slot_hash

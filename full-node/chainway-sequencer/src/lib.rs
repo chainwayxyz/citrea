@@ -215,6 +215,19 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                     // TODO: this is where we would include forced transactions from the new L1 block
                 }
 
+                let batch_info = HookSoftConfirmationInfo {
+                    da_slot_height: last_finalized_block.header().height(),
+                    da_slot_hash: last_finalized_block.header().hash().into(),
+                    pre_state_root: self
+                        .rollup
+                        .runner
+                        .get_state_root()
+                        .clone()
+                        .as_ref()
+                        .to_vec(),
+                    pub_key: self.sov_tx_signer_priv_key.pub_key().try_to_vec().unwrap(),
+                };
+
                 let unsigned_batch = UnsignedSoftConfirmationBatch {
                     da_slot_height: last_finalized_block.header().height(),
                     txs: vec![signed_blob.clone()],
@@ -227,12 +240,6 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                         .as_ref()
                         .to_vec(),
                 };
-
-                // let batch_info = HookSoftConfirmationInfo {
-                //     da_slot_height: last_finalized_block.header().height(),
-
-                // }
-
                 // initially create sc info and call begin soft confirmation hook with it
 
                 // get txs and call apply tx with it
