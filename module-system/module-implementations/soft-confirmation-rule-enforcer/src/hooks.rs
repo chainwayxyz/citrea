@@ -49,6 +49,8 @@ where
         let last_l1_fee_rate = self.last_l1_fee_rate.get(working_set).unwrap_or(0);
 
         if last_l1_fee_rate == 0 {
+            self.last_l1_fee_rate
+                .set(&soft_batch.l1_fee_rate, working_set);
             return Ok(());
         }
 
@@ -58,8 +60,9 @@ where
                 .expect("L1 fee rate change should be set"),
         );
 
-        if l1_fee_rate * (100 + l1_fee_rate_change_percentage) > last_l1_fee_rate * 100
-            || l1_fee_rate * (100 + l1_fee_rate_change_percentage) < last_l1_fee_rate * 100
+        // last fee * (100 - change percentage) / 100 <= current fee <= last fee * (100 + change percentage) / 100
+        if l1_fee_rate * 100 < last_l1_fee_rate * (100 - l1_fee_rate_change_percentage)
+            || l1_fee_rate * 100 > last_l1_fee_rate * (100 + l1_fee_rate_change_percentage)
         {
             return Err(anyhow!(
                 "L1 fee rate {} changed more than allowed limit %{}",
