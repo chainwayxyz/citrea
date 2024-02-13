@@ -869,15 +869,30 @@ impl<C: sov_modules_api::Context> Evm<C> {
     }
 
     /// Traces the entire block txs and returns the traces
-    pub fn trace_block_transactions_by_number(
+    pub fn trace_block_transactions_by_number_or_hash(
         &self,
-        block_number: u64,
+        block_id: BlockId,
         opts: Option<GethDebugTracingOptions>,
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<HashMap<B256, GethTrace>> {
-        let sealed_block = self
-            .get_sealed_block_by_number(Some(BlockNumberOrTag::Number(block_number)), working_set)
-            .expect("Block with known tx must be set");
+        let sealed_block = match block_id {
+            BlockId::Number(block_number) => self
+                .get_sealed_block_by_number(Some(block_number), working_set)
+                .ok_or_else(|| EthApiError::UnknownBlockNumber)?,
+            BlockId::Hash(block_hash) => {
+                // if block hash is not known, return None
+                let block_number = self
+                    .block_hashes
+                    .get(&block_hash.block_hash, &mut working_set.accessory_state())
+                    .ok_or_else(|| EthApiError::UnknownBlockNumber)?;
+                self.get_sealed_block_by_number(
+                    Some(BlockNumberOrTag::Number(block_number)),
+                    working_set,
+                )
+                .expect("Block with known hash must be set")
+            }
+        };
+
         // set the archival version to the block number
         let tx_range = sealed_block.transactions.clone();
         if tx_range.is_empty() {

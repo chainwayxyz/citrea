@@ -414,6 +414,56 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
     })?;
 
     rpc.register_async_method(
+        "debug_traceBlockByHash",
+        |parmaeters, ethereum| async move {
+            info!("eth module: debug_traceBlockByHash");
+
+            let mut params = parmaeters.sequence();
+
+            let block_hash: B256 = params.next().unwrap();
+            let opts: Option<GethDebugTracingOptions> = params.optional_next().unwrap();
+
+            let evm = Evm::<C>::default();
+            let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
+
+            let traces = evm
+                .trace_block_transactions_by_number_or_hash(
+                    block_hash.into(),
+                    opts,
+                    &mut working_set,
+                )
+                .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
+
+            Ok::<Vec<GethTrace>, ErrorObjectOwned>(traces.values().cloned().collect())
+        },
+    )?;
+
+    rpc.register_async_method(
+        "debug_traceBlockByNumber",
+        |parameters, ethereum| async move {
+            info!("eth module: debug_traceBlockByNumber");
+
+            let mut params = parameters.sequence();
+
+            let block_number: BlockNumberOrTag = params.next().unwrap();
+            let opts: Option<GethDebugTracingOptions> = params.optional_next().unwrap();
+
+            let evm = Evm::<C>::default();
+            let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
+
+            let traces = evm
+                .trace_block_transactions_by_number_or_hash(
+                    block_number.into(),
+                    opts,
+                    &mut working_set,
+                )
+                .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
+
+            Ok::<Vec<GethTrace>, ErrorObjectOwned>(traces.values().cloned().collect())
+        },
+    )?;
+
+    rpc.register_async_method(
         "debug_traceTransaction",
         |parameters, ethereum| async move {
             // the main rpc handler for debug_traceTransaction
@@ -440,7 +490,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                 .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?
             {
                 let traces = evm
-                    .trace_block_transactions_by_number(block_number, opts, &mut working_set)
+                    .trace_block_transactions_by_number(block_number.into(), opts, &mut working_set)
                     .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
 
                 // put the traces in cache and get the trace of the requested tx
