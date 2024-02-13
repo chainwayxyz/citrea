@@ -444,6 +444,7 @@ fn verify_soft_batch_signature<C: Context>(
         da_slot_hash: soft_batch.da_slot_hash,
         pre_state_root: soft_batch.pre_state_root.clone(),
         txs: soft_batch.txs.clone(),
+        l1_fee_rate: soft_batch.l1_fee_rate,
     };
 
     let message = unsigned.try_to_vec().unwrap();

@@ -258,6 +258,7 @@ where
             tx_receipts: batch_receipt.tx_receipts,
             soft_confirmation_signature: soft_batch.signature.to_vec(),
             pub_key: soft_batch.pub_key.to_vec(),
+            l1_fee_rate: soft_batch.l1_fee_rate,
         };
 
         self.ledger_db
@@ -466,6 +467,7 @@ where
                 tx_receipts: batch_receipt.tx_receipts,
                 soft_confirmation_signature: soft_batch.soft_confirmation_signature,
                 pub_key: soft_batch.pub_key,
+                l1_fee_rate: soft_batch.l1_fee_rate,
             };
 
             self.ledger_db.commit_soft_batch(soft_batch_receipt, true)?;
