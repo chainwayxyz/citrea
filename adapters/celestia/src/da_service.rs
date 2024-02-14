@@ -149,6 +149,7 @@ impl DaService for CelestiaService {
     type Error = BoxError;
 
     #[instrument(skip(self), err)]
+    #[allow(clippy::blocks_in_conditions)]
     async fn get_block_at(&self, height: u64) -> Result<Self::FilteredBlock, Self::Error> {
         let client = self.client.clone();
         let rollup_namespace = self.rollup_batch_namespace;
@@ -242,6 +243,7 @@ impl DaService for CelestiaService {
     }
 
     #[instrument(skip_all, err)]
+    #[allow(clippy::blocks_in_conditions)]
     async fn send_transaction(&self, blob: &[u8]) -> Result<(), Self::Error> {
         debug!("Sending {} bytes of raw data to Celestia.", blob.len());
 
