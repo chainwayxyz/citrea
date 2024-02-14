@@ -113,7 +113,7 @@ fn get_last_l1_fee_rate_must_be_correct() {
         .begin_soft_confirmation_hook(&mut signed_soft_confirmation_batch, &mut working_set)
         .unwrap();
 
-    // didn't change
+    // now set to 1
     assert_eq!(
         soft_confirmation_rule_enforcer
             .get_last_l1_fee_rate(&mut working_set)

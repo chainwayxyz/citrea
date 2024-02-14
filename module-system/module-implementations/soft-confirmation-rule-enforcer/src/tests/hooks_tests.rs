@@ -169,7 +169,7 @@ fn begin_soft_confirmation_hook_checks_l1_fee_rate() {
 
     assert!(res.is_ok());
 
-    // since 90 past now e.g. 89 should pass
+    // since 90 passed now e.g. 89 should pass
 
     signed_soft_confirmation_batch.l1_fee_rate = 89;
 

@@ -37,6 +37,7 @@ where
             ));
         }
 
+        // increment the block count
         self.da_root_hash_to_number
             .set(&da_root_hash, &(l2_block_count + 1), working_set);
 
@@ -57,7 +58,10 @@ where
         let l1_fee_rate = soft_batch.l1_fee_rate();
         let last_l1_fee_rate = self.last_l1_fee_rate.get(working_set).unwrap_or(0);
 
+        // if we are in the block right after genesis, we don't have a last fee rate
+        // so just accept the given fee rate
         if last_l1_fee_rate == 0 {
+            // early return so don't forget to set
             self.last_l1_fee_rate
                 .set(&soft_batch.l1_fee_rate, working_set);
             return Ok(());
@@ -69,7 +73,7 @@ where
                 .expect("L1 fee rate change should be set"),
         );
 
-        // last fee * (100 - change percentage) / 100 <= current fee <= last fee * (100 + change percentage) / 100
+        // check last fee * (100 - change percentage) / 100 <= current fee <= last fee * (100 + change percentage) / 100
         if l1_fee_rate * 100 < last_l1_fee_rate * (100 - l1_fee_rate_change_percentage)
             || l1_fee_rate * 100 > last_l1_fee_rate * (100 + l1_fee_rate_change_percentage)
         {
