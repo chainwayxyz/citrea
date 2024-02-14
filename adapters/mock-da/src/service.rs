@@ -420,6 +420,11 @@ impl DaService for MockDaService {
         let blobs = self.get_block_at(height).await?.blobs;
         Ok(blobs.into_iter().map(|b| b.zk_proofs_data).collect())
     }
+
+    async fn get_fee_rate_per_byte(&self) -> Result<u64, Self::Error> {
+        // Mock constant
+        Ok(10 as u64)
+    }
 }
 
 fn hash_to_array(bytes: &[u8]) -> [u8; 32] {

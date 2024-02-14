@@ -433,6 +433,10 @@ impl DaService for BitcoinService {
     async fn get_aggregated_proofs_at(&self, _height: u64) -> Result<Vec<Vec<u8>>, Self::Error> {
         unimplemented!();
     }
+
+    async fn get_fee_rate_per_byte(&self) -> Result<u64, Self::Error> {
+        todo!()
+    }
 }
 
 #[cfg(test)]
