@@ -18,6 +18,7 @@ lazy_static! {
                 "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94"
             )
             .unwrap(),
+            l1_fee_rate_change_percentage: 10,
         };
 }
 
@@ -27,6 +28,7 @@ fn genesis_data() {
         get_soft_confirmation_rule_enforcer::<MockDaSpec>(&TEST_CONFIG);
     let limiting_number = &TEST_CONFIG.limiting_number;
     let authority = &TEST_CONFIG.authority;
+    let l1_fee_rate_change_percentage = TEST_CONFIG.l1_fee_rate_change_percentage;
 
     assert_eq!(
         soft_confirmation_rule_enforcer
@@ -41,6 +43,14 @@ fn genesis_data() {
             .get(&mut working_set)
             .unwrap(),
         *authority
+    );
+
+    assert_eq!(
+        soft_confirmation_rule_enforcer
+            .l1_fee_rate_change_percentage
+            .get(&mut working_set)
+            .unwrap(),
+        l1_fee_rate_change_percentage
     );
 }
 

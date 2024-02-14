@@ -26,6 +26,14 @@ pub struct SoftConfirmationRuleEnforcer<C: Context, Da: DaSpec> {
     /// This address is allowed to modify the limiting number.
     #[state]
     pub(crate) authority: StateValue<C::Address, BcsCodec>,
+    /// L1 fee rate change percentage
+    /// First block after genesis does not need to abide to this rule since last l1 fee rate does not exist.
+    #[state]
+    pub(crate) l1_fee_rate_change_percentage: StateValue<u64, BcsCodec>,
+    /// Last processed L1 fee rate
+    /// 0 at genesis
+    #[state]
+    pub(crate) last_l1_fee_rate: StateValue<u64, BcsCodec>,
     /// Phantom state using the da type.
     /// This is used to make sure that the state is generic over the DA type.
     #[allow(dead_code)]
