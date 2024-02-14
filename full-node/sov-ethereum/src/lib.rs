@@ -30,10 +30,11 @@ use sov_rollup_interface::services::da::DaService;
 use tracing::info;
 
 use crate::batch_builder::EthBatchBuilder;
+use crate::gas_price::gas_oracle::convert_u256_to_u64;
 
 const ETH_RPC_ERROR: &str = "ETH_RPC_ERROR";
 
-const MAX_TRACE_TRANSACTION: u32 = 10000;
+const MAX_TRACE_BLOCK: u32 = 1000;
 
 #[derive(Clone)]
 pub struct EthRpcConfig<C: sov_modules_api::Context> {
@@ -106,7 +107,7 @@ pub struct Ethereum<C: sov_modules_api::Context, Da: DaService> {
     storage: C::Storage,
     sequencer_client: Option<SequencerClient>,
     web3_client_version: String,
-    trace_cache: Mutex<LruMap<B256, GethTrace, ByLength>>,
+    trace_cache: Mutex<LruMap<u64, Vec<GethTrace>, ByLength>>,
 }
 
 impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
@@ -137,7 +138,7 @@ impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
 
         let current_version = format!("{}/{}/{}/rust-{}", rollup, git_latest_tag, arch, rustc_v);
 
-        let trace_cache = Mutex::new(LruMap::new(ByLength::new(MAX_TRACE_TRANSACTION)));
+        let trace_cache = Mutex::new(LruMap::new(ByLength::new(MAX_TRACE_BLOCK)));
 
         Self {
             da_service,
@@ -421,20 +422,34 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
             let mut params = parmaeters.sequence();
 
             let block_hash: B256 = params.next().unwrap();
+            let evm = Evm::<C>::default();
+            let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
+
+            let block_number = match evm
+                .get_block_number_by_block_hash(block_hash, &mut working_set)
+            {
+                Some(block_number) => {
+                    if let Some(traces) = ethereum.trace_cache.lock().unwrap().get(&block_number) {
+                        return Ok::<Vec<GethTrace>, ErrorObjectOwned>(traces.clone());
+                    }
+                    block_number
+                }
+                None => {
+                    return Err(to_jsonrpsee_error_object(
+                        EthApiError::UnknownBlockNumber,
+                        ETH_RPC_ERROR,
+                    ));
+                }
+            };
             let opts: Option<GethDebugTracingOptions> = params.optional_next().unwrap();
 
             let evm = Evm::<C>::default();
             let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
-
-            let traces = evm
-                .trace_block_transactions_by_number_or_hash(
-                    block_hash.into(),
-                    opts,
-                    &mut working_set,
-                )
+            let (traces, tx_range) = evm
+                .trace_block_transactions_by_number(block_number, opts, &mut working_set)
                 .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
 
-            Ok::<Vec<GethTrace>, ErrorObjectOwned>(traces.values().cloned().collect())
+            Ok::<Vec<GethTrace>, ErrorObjectOwned>(traces)
         },
     )?;
 
@@ -446,20 +461,54 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
             let mut params = parameters.sequence();
 
             let block_number: BlockNumberOrTag = params.next().unwrap();
+            let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
+            let evm = Evm::<C>::default();
+            let block_number = match block_number {
+                BlockNumberOrTag::Number(block_number) => {
+                    if let Some(traces) = ethereum.trace_cache.lock().unwrap().get(&block_number) {
+                        return Ok::<Vec<GethTrace>, ErrorObjectOwned>(traces.clone());
+                    }
+                    block_number
+                }
+                BlockNumberOrTag::Latest => {
+                    let latest_block_number =
+                        convert_u256_to_u64(evm.block_number(&mut working_set)?);
+                    if let Some(traces) = ethereum
+                        .trace_cache
+                        .lock()
+                        .unwrap()
+                        .get(&latest_block_number)
+                    {
+                        return Ok::<Vec<GethTrace>, ErrorObjectOwned>(traces.clone());
+                    }
+                    latest_block_number
+                }
+
+                _ => {
+                    return Err(to_jsonrpsee_error_object(
+                        EthApiError::Unsupported("Earliest, pending, safe and finalized are not supported for debug_traceBlockByNumber"),
+                        ETH_RPC_ERROR,
+                    ));
+                }
+            };
+            
+
             let opts: Option<GethDebugTracingOptions> = params.optional_next().unwrap();
 
-            let evm = Evm::<C>::default();
-            let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
-
-            let traces = evm
-                .trace_block_transactions_by_number_or_hash(
-                    block_number.into(),
+            let (traces, _tx_range) = evm
+                .trace_block_transactions_by_number(
+                    block_number,
                     opts,
                     &mut working_set,
                 )
                 .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
-
-            Ok::<Vec<GethTrace>, ErrorObjectOwned>(traces.values().cloned().collect())
+                ethereum
+                    .trace_cache
+                    .lock()
+                    .unwrap()
+                    .insert(block_number, traces.clone());
+                
+            Ok::<Vec<GethTrace>, ErrorObjectOwned>(traces)
         },
     )?;
 
@@ -477,45 +526,37 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
             let mut params = parameters.sequence();
 
             let tx_hash: B256 = params.next()?;
-            if let Some(trace) = ethereum.trace_cache.lock().unwrap().get(&tx_hash) {
-                return Ok::<GethTrace, ErrorObjectOwned>(trace.clone());
-            }
-            let opts: Option<GethDebugTracingOptions> = params.optional_next().unwrap();
 
             let evm = Evm::<C>::default();
             let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
+            let tx_number = evm
+                .get_tx_number_by_tx_hash(tx_hash, &mut working_set)
+                .ok_or_else(|| EthApiError::UnknownBlockOrTxIndex)?;
 
-            if let Some(block_number) = evm
-                .get_block_number_by_tx_hash(tx_hash, &mut working_set)
-                .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?
-            {
-                let traces = evm
-                    .trace_block_transactions_by_number(block_number.into(), opts, &mut working_set)
-                    .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
+            let block_number = evm
+                .get_block_number_by_tx_number(tx_number, &mut working_set)
+                .expect("Block number must be known for known tx number");
+            
+            let tx_range = evm.get_tx_range_by_block_number(block_number, &mut working_set).expect("Known block number must have known tx range");
 
-                // put the traces in cache and get the trace of the requested tx
-                for (trace_tx_hash, trace) in traces.clone() {
-                    ethereum
-                        .trace_cache
-                        .lock()
-                        .unwrap()
-                        .insert(trace_tx_hash, trace);
-                }
-
-                // TODO: Handle None case
-                if let Some(requested_trace) = traces.get(&tx_hash) {
-                    return Ok::<GethTrace, ErrorObjectOwned>(requested_trace.clone());
-                } else {
-                    return Err(to_jsonrpsee_error_object(
-                        EthApiError::TransactionNotFound,
-                        ETH_RPC_ERROR,
-                    ));
-                }
+            if let Some(traces) = ethereum.trace_cache.lock().unwrap().get(&block_number) {
+                let trace_index = tx_number - tx_range.start;
+                let tx_trace = traces[trace_index as usize].clone();
+                return Ok::<GethTrace, ErrorObjectOwned>(tx_trace);
             }
-            Err(to_jsonrpsee_error_object(
-                EthApiError::UnknownBlockNumber,
-                ETH_RPC_ERROR,
-            ))
+
+            let opts: Option<GethDebugTracingOptions> = params.optional_next().unwrap();
+
+            let (traces, tx_range) = evm
+                .trace_block_transactions_by_number(block_number, opts, &mut working_set)
+                .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
+
+            ethereum.trace_cache.lock().unwrap().insert(block_number, traces.clone());
+            let trace_index = tx_number - tx_range.start;
+            let tx_trace = traces[trace_index as usize].clone();
+
+            // TODO: Handle Error case
+            return Ok::<GethTrace, ErrorObjectOwned>(tx_trace);
         },
     )?;
 

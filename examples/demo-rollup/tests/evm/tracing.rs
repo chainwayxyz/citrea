@@ -3,6 +3,7 @@ use std::str::FromStr;
 use citrea_stf::genesis_config::GenesisPaths;
 // use sov_demo_rollup::initialize_logging;
 use ethers::abi::Address;
+use reth_primitives::BlockNumberOrTag;
 use reth_rpc_types::trace::geth::GethTrace::{self, CallTracer};
 use reth_rpc_types::trace::geth::{
     CallFrame, GethDebugBuiltInTracerType, GethDebugTracerType, GethDebugTracingOptions,
@@ -164,7 +165,7 @@ async fn tracing_tests() -> Result<(), Box<dyn std::error::Error>> {
         json![{"from":"0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266","gas":"0xdbba0","gasUsed":"0x5208",
                 "to":"0xf39fd6e51aad88f6f4ce6ab8827279cfffb92255","input":"0x","value":"0x4563918244f40000","type":"CALL"}],
     ).unwrap();
-    assert_eq!(send_eth_trace, CallTracer(expected_send_eth_trace));
+    assert_eq!(send_eth_trace, CallTracer(expected_send_eth_trace.clone()));
     let call_get_trace = test_client
         .debug_trace_transaction(
             call_tx_hash,
@@ -183,7 +184,38 @@ async fn tracing_tests() -> Result<(), Box<dyn std::error::Error>> {
                             "input":"0x6d4ce63c","output":"0x0000000000000000000000000000000000000000000000000000000000000003","type":"STATICCALL"}],
                 "value":"0x0","type":"CALL"}],
     ).unwrap();
-    assert_eq!(call_get_trace, CallTracer(expected_call_get_trace));
+    assert_eq!(call_get_trace, CallTracer(expected_call_get_trace.clone()));
+
+    let traces = test_client
+        .debug_trace_block_by_number(
+            BlockNumberOrTag::Number(3),
+            Some(GethDebugTracingOptions::default().with_tracer(
+                GethDebugTracerType::BuiltInTracer(GethDebugBuiltInTracerType::CallTracer),
+            )),
+        )
+        .await;
+    assert_eq!(traces.len(), 2);
+    assert_eq!(traces[1], CallTracer(expected_send_eth_trace.clone()));
+    assert_eq!(traces[0], CallTracer(expected_call_get_trace.clone()));
+
+    let block_hash = test_client
+        .eth_get_block_by_number(Some(BlockNumberOrTag::Number(3)))
+        .await
+        .hash
+        .unwrap();
+
+    let traces = test_client
+        .debug_trace_block_by_hash(
+            block_hash,
+            Some(GethDebugTracingOptions::default().with_tracer(
+                GethDebugTracerType::BuiltInTracer(GethDebugBuiltInTracerType::CallTracer),
+            )),
+        )
+        .await;
+
+    assert_eq!(traces.len(), 2);
+    assert_eq!(traces[1], CallTracer(expected_send_eth_trace));
+    assert_eq!(traces[0], CallTracer(expected_call_get_trace));
     rollup_task.abort();
     Ok(())
 }
