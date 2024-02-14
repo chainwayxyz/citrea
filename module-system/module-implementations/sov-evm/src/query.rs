@@ -874,7 +874,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         block_number: u64,
         opts: Option<GethDebugTracingOptions>,
         working_set: &mut WorkingSet<C>,
-    ) -> RpcResult<(Vec<GethTrace>, Range<u64>)> {
+    ) -> RpcResult<Vec<GethTrace>> {
         let sealed_block = self
             .get_sealed_block_by_number(Some(BlockNumberOrTag::Number(block_number)), working_set)
             .ok_or_else(|| EthApiError::UnknownBlockNumber)?;
@@ -882,7 +882,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         // set the archival version to the block number
         let tx_range = sealed_block.transactions.clone();
         if tx_range.is_empty() {
-            return Ok((Vec::new(), 0..0));
+            return Ok(Vec::new());
         }
         let block_txs: Vec<TransactionSignedEcRecovered> = tx_range
             .clone()
@@ -923,7 +923,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 evm_db.commit(state_changes)
             }
         }
-        Ok((traces, tx_range))
+        Ok(traces)
     }
 
     /// Returns the transaction number given tx_hash
