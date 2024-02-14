@@ -29,7 +29,7 @@ pub struct SoftConfirmationRuleEnforcer<C: Context, Da: DaSpec> {
     /// L1 fee rate change percentage
     /// First block after genesis does not need to abide to this rule since last l1 fee rate does not exist.
     #[state]
-    pub(crate) l1_fee_rate_change_percentage: StateValue<u8, BcsCodec>,
+    pub(crate) l1_fee_rate_change_percentage: StateValue<u64, BcsCodec>,
     /// Last processed L1 fee rate
     /// 0 at genesis
     #[state]

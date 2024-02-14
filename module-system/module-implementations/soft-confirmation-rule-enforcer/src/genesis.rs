@@ -14,7 +14,7 @@ pub struct SoftConfirmationRuleEnforcerConfig<C: Context> {
     pub(crate) limiting_number: u64,
     /// L1 fee rate change percentage
     /// Out of 100.
-    pub(crate) l1_fee_rate_change_percentage: u8,
+    pub(crate) l1_fee_rate_change_percentage: u64,
 }
 
 impl<C: Context, Da: DaSpec> SoftConfirmationRuleEnforcer<C, Da> {

@@ -33,7 +33,7 @@ impl<C: Context, Da: DaSpec> SoftConfirmationRuleEnforcer<C, Da> {
     pub fn get_max_l1_fee_rate_change_percentage(
         &self,
         working_set: &mut WorkingSet<C>,
-    ) -> RpcResult<u8> {
+    ) -> RpcResult<u64> {
         Ok(self
             .l1_fee_rate_change_percentage
             .get(working_set)

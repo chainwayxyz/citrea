@@ -67,11 +67,10 @@ where
             return Ok(());
         }
 
-        let l1_fee_rate_change_percentage = u64::from(
-            self.l1_fee_rate_change_percentage
-                .get(working_set)
-                .expect("L1 fee rate change should be set"),
-        );
+        let l1_fee_rate_change_percentage = self
+            .l1_fee_rate_change_percentage
+            .get(working_set)
+            .expect("L1 fee rate change should be set");
 
         // check last fee * (100 - change percentage) / 100 <= current fee <= last fee * (100 + change percentage) / 100
         if l1_fee_rate * 100 < last_l1_fee_rate * (100 - l1_fee_rate_change_percentage)
