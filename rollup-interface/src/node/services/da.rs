@@ -125,6 +125,9 @@ pub trait DaService: Send + Sync + 'static {
 
     /// Fetches all aggregated ZK proofs at a specified block height.
     async fn get_aggregated_proofs_at(&self, height: u64) -> Result<Vec<Vec<u8>>, Self::Error>;
+
+    /// Returns fee rate per byte on DA layer.
+    async fn get_fee_rate(&self) -> Result<u64, Self::Error>;
 }
 
 /// `SlotData` is the subset of a DA layer block which is stored in the rollup's database.

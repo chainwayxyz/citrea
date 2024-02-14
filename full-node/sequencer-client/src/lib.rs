@@ -83,6 +83,7 @@ pub struct GetSoftBatchResponse<Hash: Into<[u8; 32]>> {
     pub soft_confirmation_signature: Vec<u8>,
     #[serde(with = "hex::serde")]
     pub pub_key: Vec<u8>,
+    pub l1_fee_rate: u64,
 }
 
 impl<Hash: Into<[u8; 32]>> From<GetSoftBatchResponse<Hash>> for SignedSoftConfirmationBatch {
@@ -95,6 +96,7 @@ impl<Hash: Into<[u8; 32]>> From<GetSoftBatchResponse<Hash>> for SignedSoftConfir
             pre_state_root: val.pre_state_root,
             signature: val.soft_confirmation_signature,
             pub_key: val.pub_key,
+            l1_fee_rate: val.l1_fee_rate,
         }
     }
 }

@@ -310,6 +310,10 @@ impl DaService for CelestiaService {
 
         Ok(blobs.into_iter().map(|blob| blob.data).collect())
     }
+
+    async fn get_fee_rate(&self) -> Result<u64, Self::Error> {
+        unimplemented!()
+    }
 }
 
 // https://docs.celestia.org/learn/submit-data/#fees-and-gas-limits
