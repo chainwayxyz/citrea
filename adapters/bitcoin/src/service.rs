@@ -435,7 +435,8 @@ impl DaService for BitcoinService {
     }
 
     async fn get_fee_rate_per_byte(&self) -> Result<u64, Self::Error> {
-        let res = self.client.estimate_smart_fee().await.unwrap().round() as u64;
+        // This already returns ceil, so the conversion should work
+        let res = self.client.estimate_smart_fee().await.unwrap() as u64;
         Ok(res)
     }
 }
