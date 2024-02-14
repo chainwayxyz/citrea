@@ -423,7 +423,7 @@ impl DaService for MockDaService {
 
     async fn get_fee_rate_per_vbyte(&self) -> Result<u64, Self::Error> {
         // Mock constant
-        Ok(10 as u64)
+        Ok(10_u64)
     }
 }
 
