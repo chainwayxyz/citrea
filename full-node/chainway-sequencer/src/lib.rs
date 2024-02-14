@@ -205,7 +205,7 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                     .await
                     .unwrap();
 
-                let l1_fee_rate = self.da_service.get_fee_rate_per_byte().await.unwrap();
+                let l1_fee_rate = self.da_service.get_fee_rate_per_vbyte().await.unwrap();
 
                 // Compare if there is no skip
                 if last_finalized_block.header().prev_hash() != previous_l1_block.header().hash() {
