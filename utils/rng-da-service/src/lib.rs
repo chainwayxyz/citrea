@@ -178,7 +178,7 @@ impl DaService for RngDaService {
         unimplemented!()
     }
 
-    async fn get_fee_rate_per_vbyte(&self) -> Result<u64, Self::Error> {
+    async fn get_fee_rate(&self) -> Result<u64, Self::Error> {
         unimplemented!()
     }
 }

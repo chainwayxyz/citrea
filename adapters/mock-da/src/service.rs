@@ -421,7 +421,7 @@ impl DaService for MockDaService {
         Ok(blobs.into_iter().map(|b| b.zk_proofs_data).collect())
     }
 
-    async fn get_fee_rate_per_vbyte(&self) -> Result<u64, Self::Error> {
+    async fn get_fee_rate(&self) -> Result<u64, Self::Error> {
         // Mock constant
         Ok(10_u64)
     }
