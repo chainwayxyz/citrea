@@ -1,5 +1,4 @@
 use std::array::TryFromSliceError;
-use std::collections::HashMap;
 use std::ops::{Range, RangeInclusive};
 
 use alloy_primitives::Uint;

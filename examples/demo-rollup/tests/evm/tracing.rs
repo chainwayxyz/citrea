@@ -4,9 +4,10 @@ use citrea_stf::genesis_config::GenesisPaths;
 // use sov_demo_rollup::initialize_logging;
 use ethers::abi::Address;
 use reth_primitives::BlockNumberOrTag;
-use reth_rpc_types::trace::geth::GethTrace::{self, CallTracer};
+use reth_rpc_types::trace::geth::GethTrace::{self, CallTracer, FourByteTracer};
 use reth_rpc_types::trace::geth::{
-    CallFrame, GethDebugBuiltInTracerType, GethDebugTracerType, GethDebugTracingOptions,
+    CallConfig, CallFrame, FourByteFrame, GethDebugBuiltInTracerType, GethDebugTracerType,
+    GethDebugTracingOptions, GethDefaultTracingOptions,
 };
 use serde_json::{self, json};
 use sov_evm::{CallerContract, SimpleStorageContract};
@@ -214,8 +215,66 @@ async fn tracing_tests() -> Result<(), Box<dyn std::error::Error>> {
         .await;
 
     assert_eq!(traces.len(), 2);
-    assert_eq!(traces[1], CallTracer(expected_send_eth_trace));
+    assert_eq!(traces[1], CallTracer(expected_send_eth_trace.clone()));
     assert_eq!(traces[0], CallTracer(expected_call_get_trace));
+
+    let four_byte_traces = test_client
+        .debug_trace_block_by_hash(
+            block_hash,
+            Some(GethDebugTracingOptions::default().with_tracer(
+                GethDebugTracerType::BuiltInTracer(GethDebugBuiltInTracerType::FourByteTracer),
+            )),
+        )
+        .await;
+
+    let expected_call_get_4byte_trace =
+        serde_json::from_value::<FourByteFrame>(json![{"35c152bd-32": 1, "6d4ce63c-0": 1}])
+            .unwrap();
+    let expected_send_eth_4byte_trace = serde_json::from_value::<FourByteFrame>(json![{}]).unwrap();
+
+    assert_eq!(four_byte_traces.len(), 2);
+    assert_eq!(
+        four_byte_traces[0],
+        FourByteTracer(expected_call_get_4byte_trace)
+    );
+    assert_eq!(
+        four_byte_traces[1],
+        FourByteTracer(expected_send_eth_4byte_trace)
+    );
+
+    // Test CallConfig onlytopcall
+    let traces_top_call_only = test_client
+        .debug_trace_block_by_number(
+            BlockNumberOrTag::Number(3),
+            Some(
+                GethDebugTracingOptions::default()
+                    .with_tracer(GethDebugTracerType::BuiltInTracer(
+                        GethDebugBuiltInTracerType::CallTracer,
+                    ))
+                    .call_config(CallConfig {
+                        only_top_call: Some(true),
+                        with_log: Some(false),
+                    }),
+            ),
+        )
+        .await;
+
+    let expected_top_call_only_call_get_trace = serde_json::from_value::<CallFrame>(
+        json![{"from":"0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266","gas":"0xdbba0","gasUsed":"0x6b64","to":"0xe7f1725e7734ce288f8367e1bb143e90bb3f0512",
+                "input":"0x35c152bd0000000000000000000000005fbdb2315678afecb367f032d93f642f64180aa3",
+                "output":"0x0000000000000000000000000000000000000000000000000000000000000000",
+                "calls":[],
+                "value":"0x0","type":"CALL"}],
+    ).unwrap();
+
+    println!("{:?}", traces_top_call_only);
+    assert_eq!(traces_top_call_only.len(), 2);
+    assert_eq!(traces_top_call_only[1], CallTracer(expected_send_eth_trace));
+    assert_eq!(
+        traces_top_call_only[0],
+        CallTracer(expected_top_call_only_call_get_trace)
+    );
+
     rollup_task.abort();
     Ok(())
 }
