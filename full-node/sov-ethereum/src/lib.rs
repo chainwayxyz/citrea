@@ -21,6 +21,7 @@ use reth_rpc_types_compat::transaction::to_primitive_transaction;
 use rustc_version_runtime::version;
 use schnellru::{ByLength, LruMap};
 use sequencer_client::SequencerClient;
+use serde_json::json;
 #[cfg(feature = "local")]
 pub use sov_evm::DevSigner;
 use sov_evm::{CallMessage, EthApiError, Evm, RlpEvmTransaction, SignError};
@@ -466,6 +467,34 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                 EthApiError::UnknownBlockNumber,
                 ETH_RPC_ERROR,
             ))
+        },
+    )?;
+
+    rpc.register_async_method("txpool_content", |_, _| async move {
+        info!("eth module: txpool_content");
+
+        // This is a simple mock for serde.
+        let json = json!({
+            "pending": {},
+            "queued": {}
+        });
+
+        Ok::<_, ErrorObjectOwned>(json)
+    })?;
+
+    rpc.register_async_method(
+        "eth_getUncleByBlockHashAndIndex",
+        |parameters, _| async move {
+            info!("eth module: eth_getUncleByBlockHashAndIndex");
+
+            let mut params = parameters.sequence();
+
+            let _block_hash: String = params.next().unwrap();
+            let _uncle_index_position: String = params.next().unwrap();
+
+            let res = json!(null);
+
+            Ok::<_, ErrorObjectOwned>(res)
         },
     )?;
 
