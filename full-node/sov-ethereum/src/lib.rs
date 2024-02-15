@@ -474,9 +474,12 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
         info!("eth module: txpool_content");
 
         // This is a simple mock for serde.
-        let empty_arr: &[u64] = &[];
+        let json = json!({
+            "pending": {},
+            "queued": {}
+        });
 
-        Ok::<_, ErrorObjectOwned>(empty_arr)
+        Ok::<_, ErrorObjectOwned>(json)
     })?;
 
     rpc.register_async_method(
