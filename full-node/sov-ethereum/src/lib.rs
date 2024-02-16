@@ -448,6 +448,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                     .trace_block_transactions_by_number(
                         block_number,
                         opts.clone(),
+                        None,
                         &mut working_set,
                     )
                     .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR));
@@ -461,26 +462,14 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                     requested_opts.tracer.unwrap(),
                     requested_opts.tracer_config,
                 )?;
-                return Ok::<Vec<GethTrace>, ErrorObjectOwned>(traces.clone());
+                return Ok::<Vec<GethTrace>, ErrorObjectOwned>(traces);
             }
-
-            // Get the traces with call tracer onlytopcall false and withlog true and always cache this way
-            let mut call_config_map = serde_json::Map::new();
-            call_config_map.insert("only_top_call".to_string(), serde_json::Value::Bool(false));
-            call_config_map.insert("with_log".to_string(), serde_json::Value::Bool(true));
-            let call_config = serde_json::Value::Object(call_config_map);
-            let cache_options = GethDebugTracingOptions {
-                tracer: Some(GethDebugTracerType::BuiltInTracer(
-                    GethDebugBuiltInTracerType::CallTracer,
-                )),
-                tracer_config: GethDebugTracerConfig(call_config),
-                ..Default::default()
-            };
-
+            let cache_options = create_trace_cache_opts();
             let traces = evm
                 .trace_block_transactions_by_number(
                     block_number,
                     Some(cache_options),
+                    None,
                     &mut working_set,
                 )
                 .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
@@ -527,7 +516,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
 
             // If opts is None or if opts.tracer is None, then do not check cache or insert cache, just perform the operation
             if opts.as_ref().map_or(true, |o| o.tracer.is_none()) {
-                return evm.trace_block_transactions_by_number(block_number, opts.clone(), &mut working_set)
+                return evm.trace_block_transactions_by_number(block_number, opts.clone(), None, &mut working_set)
                         .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR));
             }
 
@@ -536,23 +525,15 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                 let requested_opts = opts.clone().unwrap();
                 let tracer_config = requested_opts.tracer_config;
                 let traces = get_traces_with_reuqested_tracer_and_config(traces.clone(), requested_opts.tracer.unwrap(), tracer_config)?;
-                return Ok::<Vec<GethTrace>, ErrorObjectOwned>(traces.clone());
+                return Ok::<Vec<GethTrace>, ErrorObjectOwned>(traces);
             }
 
-            // Get the traces with call tracer onlytopcall false and withlog true and always cache this way
-            let mut call_config_map = serde_json::Map::new();
-            call_config_map.insert("only_top_call".to_string(), serde_json::Value::Bool(false));
-            call_config_map.insert("with_log".to_string(), serde_json::Value::Bool(true));
-            let call_config = serde_json::Value::Object(call_config_map);
-            let cache_options = GethDebugTracingOptions {
-                tracer: Some(GethDebugTracerType::BuiltInTracer(GethDebugBuiltInTracerType::CallTracer)),
-                tracer_config: GethDebugTracerConfig (call_config),
-                ..Default::default()
-            };
+            let cache_options = create_trace_cache_opts();
             let traces = evm
                 .trace_block_transactions_by_number(
                     block_number,
                     Some(cache_options),
+                    None,
                     &mut working_set,
                 )
                 .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
@@ -562,12 +543,11 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                     .unwrap()
                     .insert(block_number, traces.clone());
 
-            println!("\ntraces no cache first: {:?}\n", traces);
             // Convert the traces to the requested tracer and config
             let requested_opts = opts.clone().unwrap();
             let tracer_config = requested_opts.tracer_config;
             let traces = get_traces_with_reuqested_tracer_and_config(traces.clone(), requested_opts.tracer.unwrap(), tracer_config)?;
-            println!("\ntraces no cache after: {:?}\n", traces);
+
             Ok::<Vec<GethTrace>, ErrorObjectOwned>(traces)
         },
     )?;
@@ -607,11 +587,13 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
             let opts: Option<GethDebugTracingOptions> = params.optional_next().unwrap();
 
             // If opts is None or if opts.tracer is None, then do not check cache or insert cache, just perform the operation
+            // also since this is not cached we need to stop at somewhere, so we add param stop_at
             if opts.as_ref().map_or(true, |o| o.tracer.is_none()) {
                 return Ok::<GethTrace, ErrorObjectOwned>(
                     evm.trace_block_transactions_by_number(
                         block_number,
                         opts.clone(),
+                        Some(trace_index as usize),
                         &mut working_set,
                     )
                     .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?
@@ -632,23 +614,12 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                 return Ok::<GethTrace, ErrorObjectOwned>(traces[0].clone());
             }
 
-            // Get the traces with call tracer onlytopcall false and withlog true and always cache this way
-            let mut call_config_map = serde_json::Map::new();
-            call_config_map.insert("only_top_call".to_string(), serde_json::Value::Bool(false));
-            call_config_map.insert("with_log".to_string(), serde_json::Value::Bool(true));
-            let call_config = serde_json::Value::Object(call_config_map);
-            let cache_options = GethDebugTracingOptions {
-                tracer: Some(GethDebugTracerType::BuiltInTracer(
-                    GethDebugBuiltInTracerType::CallTracer,
-                )),
-                tracer_config: GethDebugTracerConfig(call_config),
-                ..Default::default()
-            };
-
+            let cache_options = create_trace_cache_opts();
             let traces = evm
                 .trace_block_transactions_by_number(
                     block_number,
                     Some(cache_options),
+                    None,
                     &mut working_set,
                 )
                 .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
@@ -666,7 +637,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                 tracer_config,
             )?;
 
-            Ok::<GethTrace, ErrorObjectOwned>(traces[0].clone())
+            Ok::<GethTrace, ErrorObjectOwned>(traces.into_iter().next().unwrap())
         },
     )?;
 
@@ -818,15 +789,12 @@ pub fn get_latest_git_tag() -> Result<String, ErrorObjectOwned> {
 fn apply_call_config(call_frame: CallFrame, call_config: CallConfig) -> CallFrame {
     // let only_top_call = call_config.only_top_call.unwrap_or();
     let mut new_call_frame = call_frame.clone();
-    println!("\nnew_call_frame: {:?}\n", new_call_frame);
     if let Some(true) = call_config.only_top_call {
         new_call_frame.calls = vec![];
     }
-    println!("\n2 new_call_frame: {:?}\n", new_call_frame);
     if !call_config.with_log.unwrap_or(false) {
         remove_logs_from_call_frame(&mut vec![new_call_frame.clone()]);
     }
-    println!("\n3 new_call_frame: {:?}", new_call_frame);
     new_call_frame
 }
 
@@ -843,7 +811,6 @@ fn get_traces_with_reuqested_tracer_and_config(
     tracer_config: GethDebugTracerConfig,
 ) -> Result<Vec<GethTrace>, EthApiError> {
     // This can be only CallConfig or PreStateConfig if it is not CallConfig return Error for now
-    let call_config = GethDebugTracerConfig::into_call_config(tracer_config).unwrap_or_default();
 
     let mut new_traces = vec![];
     match tracer {
@@ -851,29 +818,26 @@ fn get_traces_with_reuqested_tracer_and_config(
             match builtin_tracer {
                 GethDebugBuiltInTracerType::CallTracer => {
                     // Apply the call config to the traces
-                    for trace in traces {
-                        match trace {
-                            GethTrace::CallTracer(call_frame) => {
-                                let new_call_frame =
-                                    apply_call_config(call_frame.clone(), call_config);
-                                new_traces.push(GethTrace::CallTracer(new_call_frame));
-                            }
-                            _ => {}
+                    let call_config =
+                        GethDebugTracerConfig::into_call_config(tracer_config).unwrap_or_default();
+                    traces.into_iter().for_each(|trace| match trace {
+                        GethTrace::CallTracer(call_frame) => {
+                            let new_call_frame = apply_call_config(call_frame.clone(), call_config);
+                            new_traces.push(GethTrace::CallTracer(new_call_frame));
                         }
-                    }
+                        _ => {}
+                    });
                     Ok(new_traces)
                 }
                 GethDebugBuiltInTracerType::FourByteTracer => {
-                    for trace in traces {
-                        match trace {
-                            GethTrace::CallTracer(call_frame) => {
-                                let four_byte_frame =
-                                    convert_call_trace_into_4byte_frame(vec![call_frame]);
-                                new_traces.push(GethTrace::FourByteTracer(four_byte_frame));
-                            }
-                            _ => {}
+                    traces.into_iter().for_each(|trace| match trace {
+                        GethTrace::CallTracer(call_frame) => {
+                            let four_byte_frame =
+                                convert_call_trace_into_4byte_frame(vec![call_frame]);
+                            new_traces.push(GethTrace::FourByteTracer(four_byte_frame));
                         }
-                    }
+                        _ => {}
+                    });
                     Ok(new_traces)
                 }
                 GethDebugBuiltInTracerType::NoopTracer => Ok(new_traces),
@@ -904,7 +868,6 @@ fn convert_call_trace_into_4byte_map(
     // the key is : "<first 4 bytes>-<size of the input>"
     // value is the occurence of the key
     for call_frame in call_frames {
-        println!("call_frame: {:?}", call_frame);
         let input = call_frame.input;
         // If this is a function call (function selector is 4 bytes long)
         if input.len() >= 4 {
@@ -917,4 +880,19 @@ fn convert_call_trace_into_4byte_map(
         four_byte_map = convert_call_trace_into_4byte_map(call_frame.calls, four_byte_map);
     }
     four_byte_map
+}
+
+fn create_trace_cache_opts() -> GethDebugTracingOptions {
+    // Get the traces with call tracer onlytopcall false and withlog true and always cache this way
+    let mut call_config_map = serde_json::Map::new();
+    call_config_map.insert("only_top_call".to_string(), serde_json::Value::Bool(false));
+    call_config_map.insert("with_log".to_string(), serde_json::Value::Bool(true));
+    let call_config = serde_json::Value::Object(call_config_map);
+    GethDebugTracingOptions {
+        tracer: Some(GethDebugTracerType::BuiltInTracer(
+            GethDebugBuiltInTracerType::CallTracer,
+        )),
+        tracer_config: GethDebugTracerConfig(call_config),
+        ..Default::default()
+    }
 }

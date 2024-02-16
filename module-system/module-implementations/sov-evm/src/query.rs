@@ -6,11 +6,9 @@ use alloy_rlp::Encodable;
 use jsonrpsee::core::RpcResult;
 use reth_interfaces::provider::ProviderError;
 use reth_primitives::revm::env::tx_env_with_recovered;
-use reth_primitives::revm_primitives::bitvec::macros::internal::funty::Fundamental;
 use reth_primitives::TransactionKind::{Call, Create};
 use reth_primitives::{
-    Block, BlockId, BlockNumberOrTag, SealedHeader, TransactionSignedEcRecovered, B256, U128, U256,
-    U64,
+    Block, BlockId, BlockNumberOrTag, SealedHeader, TransactionSignedEcRecovered, U128, U256, U64,
 };
 use reth_rpc_types::trace::geth::{GethDebugTracingOptions, GethTrace};
 use reth_rpc_types_compat::block::from_primitive_with_hash;
@@ -872,13 +870,13 @@ impl<C: sov_modules_api::Context> Evm<C> {
         &self,
         block_number: u64,
         opts: Option<GethDebugTracingOptions>,
+        stop_at: Option<usize>,
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<Vec<GethTrace>> {
         let sealed_block = self
             .get_sealed_block_by_number(Some(BlockNumberOrTag::Number(block_number)), working_set)
             .ok_or_else(|| EthApiError::UnknownBlockNumber)?;
 
-        // set the archival version to the block number
         let tx_range = sealed_block.transactions.clone();
         if tx_range.is_empty() {
             return Ok(Vec::new());
@@ -906,7 +904,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
         // TODO: Convert below steps to blocking task like in reth after implementing the semaphores
         let mut traces = Vec::new();
         let mut transactions = block_txs.into_iter().enumerate().peekable();
-        while let Some((_index, tx)) = transactions.next() {
+        let limit = stop_at.unwrap_or(usize::MAX);
+        while let Some((index, tx)) = transactions.next() {
             let env = Env {
                 cfg: cfg_env.clone(),
                 block: revm_block_env.clone(),
@@ -915,6 +914,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
             let (trace, state_changes) =
                 trace_transaction(opts.clone().unwrap_or_default(), env.clone(), &mut evm_db)?;
             traces.push(trace);
+
+            if limit <= index {
+                break;
+            }
 
             if transactions.peek().is_some() {
                 // need to apply the state changes of this transaction before executing the
