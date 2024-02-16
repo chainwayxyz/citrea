@@ -915,7 +915,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 trace_transaction(opts.clone().unwrap_or_default(), env.clone(), &mut evm_db)?;
             traces.push(trace);
 
-            if limit <= index {
+            if limit == index {
                 break;
             }
 

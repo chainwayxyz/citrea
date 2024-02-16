@@ -848,12 +848,28 @@ fn get_traces_with_reuqested_tracer_and_config(
                     // Apply the call config to the traces
                     let call_config =
                         GethDebugTracerConfig::into_call_config(tracer_config).unwrap_or_default();
-                    traces.into_iter().for_each(|trace| {
-                        if let GethTrace::CallTracer(call_frame) = trace {
-                            let new_call_frame = apply_call_config(call_frame.clone(), call_config);
-                            new_traces.push(GethTrace::CallTracer(new_call_frame));
+                    // if call config is the same in the cache then do not process again and return early
+                    match call_config {
+                        CallConfig {
+                            only_top_call: None,
+                            with_log: Some(true),
                         }
-                    });
+                        | CallConfig {
+                            only_top_call: Some(false),
+                            with_log: Some(true),
+                        } => {
+                            return Ok(traces);
+                        }
+                        _ => {
+                            traces.into_iter().for_each(|trace| {
+                                if let GethTrace::CallTracer(call_frame) = trace {
+                                    let new_call_frame =
+                                        apply_call_config(call_frame.clone(), call_config);
+                                    new_traces.push(GethTrace::CallTracer(new_call_frame));
+                                }
+                            });
+                        }
+                    }
                     Ok(new_traces)
                 }
                 GethDebugBuiltInTracerType::FourByteTracer => {
