@@ -444,7 +444,8 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
 
             // If opts is None or if opts.tracer is None, then do not check cache or insert cache, just perform the operation
             if opts.as_ref().map_or(true, |o| o.tracer.is_none()) {
-                return evm.trace_block_transactions_by_number(
+                return evm
+                    .trace_block_transactions_by_number(
                         block_number,
                         opts.clone(),
                         &mut working_set,

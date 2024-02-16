@@ -925,43 +925,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
         Ok(traces)
     }
 
-    /// Returns the transaction number given tx_hash
-    /// If tx not in a block retursn None
-    pub fn get_tx_number_by_tx_hash(
-        &self,
-        tx_hash: B256,
-        working_set: &mut WorkingSet<C>,
-    ) -> Option<u64> {
-        self.transaction_hashes
-            .get(&tx_hash, &mut working_set.accessory_state())
-    }
-
-    /// Returns the block number given tx_hash
-    /// If tx not in a block retursn None
-    pub fn get_block_number_by_tx_number(
-        &self,
-        tx_number: u64,
-        working_set: &mut WorkingSet<C>,
-    ) -> Option<u64> {
-        let tx = self
-            .transactions
-            .get(tx_number as usize, &mut working_set.accessory_state());
-        tx.map(|tx| tx.block_number.as_u64())
-    }
-
-    /// Returns tx range for a block number
-    pub fn get_tx_range_by_block_number(
-        &self,
-        block_number: u64,
-        working_set: &mut WorkingSet<C>,
-    ) -> Result<Range<u64>, EthApiError> {
-        let block = self
-            .blocks
-            .get(block_number as usize, &mut working_set.accessory_state())
-            .ok_or_else(|| EthApiError::UnknownBlockNumber)?;
-        Ok(block.transactions.clone())
-    }
-
     // https://github.com/paradigmxyz/reth/blob/8892d04a88365ba507f28c3314d99a6b54735d3f/crates/rpc/rpc/src/eth/filter.rs#L349
     fn logs_for_filter(
         &self,
