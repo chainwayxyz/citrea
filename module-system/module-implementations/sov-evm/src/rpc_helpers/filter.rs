@@ -698,7 +698,7 @@ impl Iterator for BlockRangeInclusiveIter {
 }
 
 /// Returns `true` if the bloom matches the topics
-pub fn matches_topics(bloom: Bloom, topic_filters: &Vec<BloomFilter>) -> bool {
+pub fn matches_topics(bloom: Bloom, topic_filters: &[BloomFilter]) -> bool {
     if topic_filters.is_empty() {
         return true;
     }

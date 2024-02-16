@@ -205,6 +205,8 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                     .await
                     .unwrap();
 
+                let l1_fee_rate = self.da_service.get_fee_rate().await.unwrap();
+
                 // Compare if there is no skip
                 if last_finalized_block.header().prev_hash() != previous_l1_block.header().hash() {
                     // TODO: This shouldn't happen. If it does, then we should produce at least 1 block for the blocks in between
@@ -225,6 +227,7 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                         .clone()
                         .as_ref()
                         .to_vec(),
+                    l1_fee_rate,
                 };
 
                 let signed_soft_batch = self.sign_soft_confirmation_batch(unsigned_batch);
@@ -282,6 +285,7 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
             pre_state_root: soft_confirmation.pre_state_root,
             pub_key: self.sov_tx_signer_priv_key.pub_key().try_to_vec().unwrap(),
             signature: signature.try_to_vec().unwrap(),
+            l1_fee_rate: soft_confirmation.l1_fee_rate,
         }
     }
 

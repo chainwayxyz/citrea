@@ -91,6 +91,8 @@ pub struct StoredSoftBatch {
     pub soft_confirmation_signature: Vec<u8>,
     /// Sequencer public key
     pub pub_key: Vec<u8>,
+    /// L1 fee rate
+    pub l1_fee_rate: u64,
 }
 
 impl TryFrom<StoredSoftBatch> for SoftBatchResponse {
@@ -105,6 +107,7 @@ impl TryFrom<StoredSoftBatch> for SoftBatchResponse {
             post_state_root: value.post_state_root,
             soft_confirmation_signature: value.soft_confirmation_signature,
             pub_key: value.pub_key,
+            l1_fee_rate: value.l1_fee_rate,
         })
     }
 }
