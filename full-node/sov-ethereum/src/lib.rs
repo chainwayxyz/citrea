@@ -18,7 +18,7 @@ use reth_primitives::{
 };
 use reth_rpc_types::trace::geth::{
     CallConfig, CallFrame, FourByteFrame, GethDebugBuiltInTracerType, GethDebugTracerConfig,
-    GethDebugTracerType, GethDebugTracingOptions, GethTrace,
+    GethDebugTracerType, GethDebugTracingOptions, GethTrace, NoopFrame,
 };
 use reth_rpc_types::{CallRequest, FeeHistory, TransactionRequest, TypedTransactionRequest};
 use reth_rpc_types_compat::transaction::to_primitive_transaction;
@@ -611,7 +611,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                     requested_opts.tracer.unwrap(),
                     tracer_config,
                 )?;
-                return Ok::<GethTrace, ErrorObjectOwned>(traces[0].clone());
+                return Ok::<GethTrace, ErrorObjectOwned>(traces.into_iter().next().unwrap());
             }
 
             let cache_options = create_trace_cache_opts();
@@ -882,7 +882,9 @@ fn get_traces_with_reuqested_tracer_and_config(
                     });
                     Ok(new_traces)
                 }
-                GethDebugBuiltInTracerType::NoopTracer => Ok(new_traces),
+                GethDebugBuiltInTracerType::NoopTracer => {
+                    Ok(vec![GethTrace::NoopTracer(NoopFrame::default())])
+                }
                 _ => Err(EthApiError::Unsupported("This tracer is not supported")),
             }
         }
