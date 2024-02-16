@@ -69,6 +69,16 @@ impl<A: BasicAddress> From<ApplyBatchError<A>> for BatchReceipt<SequencerOutcome
     }
 }
 
+type ApplySoftConfirmationResult = Result<BatchReceipt<(), TxEffect>, ApplySoftConfirmationError>;
+
+#[derive(Debug)]
+pub(crate) enum ApplySoftConfirmationError {
+    TooManySoftConfirmationsOnDaSlot {
+        hash: [u8; 32],
+        sequencer_pub_key: Vec<u8>,
+    },
+}
+
 impl<C, Vm, Da, RT, K> Default for StfBlueprint<C, Da, Vm, RT, K>
 where
     C: Context,
@@ -104,7 +114,7 @@ where
         &self,
         checkpoint: StateCheckpoint<C>,
         soft_batch: &mut SignedSoftConfirmationBatch,
-    ) -> (ApplyBatch<Da>, StateCheckpoint<C>) {
+    ) -> (ApplySoftConfirmationResult, StateCheckpoint<C>) {
         debug!(
             "Applying soft batch 0x{} from sequencer: 0x{}",
             hex::encode(soft_batch.hash()),
@@ -124,7 +134,12 @@ where
             );
 
             return (
-                Err(ApplyBatchError::Ignored(soft_batch.hash())),
+                Err(
+                    ApplySoftConfirmationError::TooManySoftConfirmationsOnDaSlot {
+                        hash: soft_batch.hash(),
+                        sequencer_pub_key: soft_batch.pub_key.clone(),
+                    },
+                ),
                 batch_workspace.revert(),
             );
         }
@@ -255,7 +270,7 @@ where
             Ok(BatchReceipt {
                 batch_hash: soft_batch.hash(),
                 tx_receipts,
-                inner: sequencer_outcome,
+                inner: (),
             }),
             batch_workspace.checkpoint(),
         )

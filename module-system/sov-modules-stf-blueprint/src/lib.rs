@@ -28,7 +28,7 @@ pub use stf_blueprint::StfBlueprint;
 use tracing::{debug, info};
 pub use tx_verifier::RawTx;
 
-use crate::stf_blueprint::ApplyBatchError;
+use crate::stf_blueprint::ApplySoftConfirmationError;
 
 /// The tx hook for a blueprint runtime
 pub struct RuntimeTxHook<C: Context> {
@@ -212,7 +212,8 @@ where
 
     type TxReceiptContents = TxEffect;
 
-    type BatchReceiptContents = SequencerOutcome<<Da::BlobTransaction as BlobReaderTrait>::Address>;
+    type BatchReceiptContents = ();
+    // SequencerOutcome<<Da::BlobTransaction as BlobReaderTrait>::Address>;
 
     type Witness = <<C as Spec>::Storage as Storage>::Witness;
 
@@ -314,7 +315,11 @@ where
                     tx_receipt.receipt
                 );
             }
-            batch_receipts.push(batch_receipt);
+            batch_receipts.push(BatchReceipt {
+                batch_hash: batch_receipt.batch_hash,
+                tx_receipts: batch_receipt.tx_receipts,
+                inner: (),
+            });
         }
 
         let (state_root, witness, storage) = self.end_slot(pre_state, checkpoint);
@@ -375,9 +380,17 @@ where
 
         let mut batch_receipts = vec![];
 
-        let (apply_soft_batch_result, checkpoint) =
+        let (apply_soft_confirmation_result, checkpoint) =
             self.apply_soft_confirmation(checkpoint, &mut soft_batch.clone());
-        if let Err(ApplyBatchError::Ignored(_root_hash)) = apply_soft_batch_result {
+        if let Err(ApplySoftConfirmationError::TooManySoftConfirmationsOnDaSlot {
+            hash,
+            sequencer_pub_key,
+        }) = apply_soft_confirmation_result
+        {
+            info!(
+                "Too many soft confirmations on da slot with hash: {:?} from sequencer {:?}",
+                hash, sequencer_pub_key
+            );
             return SlotResult {
                 state_root: pre_state_root.clone(),
                 change_set: pre_state, // should be empty
@@ -385,7 +398,7 @@ where
                 witness: <<C as Spec>::Storage as Storage>::Witness::default(),
             };
         }
-        let batch_receipt = apply_soft_batch_result.unwrap_or_else(Into::into);
+        let batch_receipt = apply_soft_confirmation_result.unwrap();
         info!(
             "soft batch  with hash: {:?} from sequencer {:?} has been applied with #{} transactions.",
             soft_batch.hash(),
@@ -444,6 +457,7 @@ fn verify_soft_batch_signature<C: Context>(
         da_slot_hash: soft_batch.da_slot_hash,
         pre_state_root: soft_batch.pre_state_root.clone(),
         txs: soft_batch.txs.clone(),
+        l1_fee_rate: soft_batch.l1_fee_rate,
     };
 
     let message = unsigned.try_to_vec().unwrap();

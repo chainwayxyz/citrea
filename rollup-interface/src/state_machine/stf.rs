@@ -96,6 +96,8 @@ pub struct SoftBatchReceipt<BatchReceiptContents, TxReceiptContents, DS: DaSpec>
     pub soft_confirmation_signature: Vec<u8>,
     /// Sequencer public key
     pub pub_key: Vec<u8>,
+    /// Base layer fee rate sats/wei etc. per byte.
+    pub l1_fee_rate: u64,
 }
 
 /// Result of applying a slot to current state
