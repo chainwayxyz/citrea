@@ -27,7 +27,7 @@ where
         self.head.set(&parent_block, working_set);
 
         let sealed_parent_block = parent_block.clone().seal();
-        let last_block_hash = sealed_parent_block.header.hash;
+        let last_block_hash = sealed_parent_block.header.hash();
 
         // since we know the previous state root only here, we can set the last block hash
         self.latest_block_hashes.set(
@@ -113,7 +113,7 @@ where
             .collect();
 
         let header = reth_primitives::Header {
-            parent_hash: parent_block.header.hash,
+            parent_hash: parent_block.header.hash(),
             timestamp: block_env.timestamp,
             number: block_env.number,
             ommers_hash: reth_primitives::constants::EMPTY_OMMER_ROOT_HASH,
@@ -210,7 +210,7 @@ where
 
         self.blocks.push(&sealed_block, accessory_working_set);
         self.block_hashes.set(
-            &sealed_block.header.hash,
+            &sealed_block.header.hash(),
             &sealed_block.header.number,
             accessory_working_set,
         );

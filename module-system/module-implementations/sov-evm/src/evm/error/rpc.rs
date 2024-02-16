@@ -8,11 +8,12 @@ use jsonrpsee::core::Error as RpcError;
 use jsonrpsee::types::error::CALL_EXECUTION_FAILED_CODE;
 use jsonrpsee::types::ErrorObject;
 use reth_interfaces::RethError;
-use reth_primitives::revm_primitives::InvalidHeader;
+// use reth_primitives::revm_primitives::InvalidHeader;
 use reth_primitives::{Address, Bytes, U256};
 use reth_rpc_types::error::EthRpcErrorCode;
-use reth_rpc_types::{BlockError, CallInputError};
-use revm::primitives::{EVMError, ExecutionResult, Halt, OutOfGasError};
+use reth_rpc_types::request::TransactionInputError;
+use reth_rpc_types::BlockError;
+use revm::primitives::{EVMError, ExecutionResult, HaltReason, InvalidHeader, OutOfGasError};
 
 // use reth_revm::tracing::js::JsInspectorError;
 use super::pool::{
@@ -108,8 +109,8 @@ pub enum EthApiError {
     #[error("{0}")]
     InternalJsTracerError(String),
     #[error(transparent)]
-    /// Call Input error when both `data` and `input` fields are set and not equal.
-    CallInputError(#[from] CallInputError),
+    /// Transaction Input error when both `data` and `input` fields are set and not equal.
+    TransactionInputError(#[from] TransactionInputError),
     // /// Optimism related error
     // #[error(transparent)]
     // #[cfg(feature = "optimism")]
@@ -170,7 +171,7 @@ impl From<EthApiError> for ErrorObject<'static> {
             }
             err @ EthApiError::InternalBlockingTaskError => internal_rpc_err(err.to_string()),
             err @ EthApiError::InternalEthError => internal_rpc_err(err.to_string()),
-            err @ EthApiError::CallInputError(_) => invalid_params_rpc_err(err.to_string()),
+            err @ EthApiError::TransactionInputError(_) => invalid_params_rpc_err(err.to_string()),
             // #[cfg(feature = "optimism")]
             // EthApiError::Optimism(err) => match err {
             //     OptimismEthApiError::HyperError(err) => internal_rpc_err(err.to_string()),
@@ -244,6 +245,7 @@ where
                 EthApiError::ExcessBlobGasNotSet
             }
             EVMError::Database(err) => err.into(),
+            EVMError::Custom(_) => err.into(),
         }
     }
 }
@@ -330,7 +332,7 @@ pub enum RpcInvalidTransactionError {
     Revert(RevertError),
     /// Unspecific EVM halt error.
     #[error("EVM error {0:?}")]
-    EvmHalt(Halt),
+    EvmHalt(HaltReason),
     /// Invalid chain id set for the transaction.
     #[error("invalid chain ID")]
     InvalidChainId,
@@ -395,10 +397,10 @@ impl RpcInvalidTransactionError {
     /// Converts the halt error
     ///
     /// Takes the configured gas limit of the transaction which is attached to the error
-    pub(crate) fn halt(reason: Halt, gas_limit: u64) -> Self {
+    pub(crate) fn halt(reason: HaltReason, gas_limit: u64) -> Self {
         match reason {
-            Halt::OutOfGas(err) => RpcInvalidTransactionError::out_of_gas(err, gas_limit),
-            Halt::NonceOverflow => RpcInvalidTransactionError::NonceMaxValue,
+            HaltReason::OutOfGas(err) => RpcInvalidTransactionError::out_of_gas(err, gas_limit),
+            HaltReason::NonceOverflow => RpcInvalidTransactionError::NonceMaxValue,
             err => RpcInvalidTransactionError::EvmHalt(err),
         }
     }
@@ -407,7 +409,7 @@ impl RpcInvalidTransactionError {
     pub(crate) fn out_of_gas(reason: OutOfGasError, gas_limit: u64) -> Self {
         let gas_limit = U256::from(gas_limit);
         match reason {
-            OutOfGasError::BasicOutOfGas => RpcInvalidTransactionError::BasicOutOfGas(gas_limit),
+            OutOfGasError::Basic => RpcInvalidTransactionError::BasicOutOfGas(gas_limit),
             OutOfGasError::Memory => RpcInvalidTransactionError::MemoryOutOfGas(gas_limit),
             OutOfGasError::Precompile => RpcInvalidTransactionError::PrecompileOutOfGas(gas_limit),
             OutOfGasError::InvalidOperand => {
@@ -459,7 +461,7 @@ impl From<revm::primitives::InvalidTransaction> for RpcInvalidTransactionError {
             InvalidTransaction::NonceOverflowInTransaction => {
                 RpcInvalidTransactionError::NonceMaxValue
             }
-            InvalidTransaction::CreateInitcodeSizeLimit => {
+            InvalidTransaction::CreateInitCodeSizeLimit => {
                 RpcInvalidTransactionError::MaxInitCodeSizeExceeded
             }
             InvalidTransaction::NonceTooHigh { .. } => RpcInvalidTransactionError::NonceTooHigh,

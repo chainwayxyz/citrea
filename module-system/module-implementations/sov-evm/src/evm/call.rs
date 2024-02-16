@@ -1,13 +1,13 @@
 // https://github.com/paradigmxyz/reth/blob/main/crates/rpc/rpc/src/eth/revm_utils.rs
 
 use reth_primitives::{B256, U256};
-use reth_rpc_types::CallRequest;
+use reth_rpc_types::TransactionRequest;
 use revm::primitives::{TransactTo, TxEnv};
 
 use crate::error::rpc::{EthApiError, EthResult, RpcInvalidTransactionError};
 use crate::primitive_types::BlockEnv;
 
-/// Helper type for representing the fees of a [CallRequest]
+/// Helper type for representing the fees of a [TransactionRequest]
 pub(crate) struct CallFees {
     /// EIP-1559 priority fee
     max_priority_fee_per_gas: Option<U256>,
@@ -27,7 +27,7 @@ pub(crate) struct CallFees {
 // === impl CallFees ===
 
 impl CallFees {
-    /// Ensures the fields of a [CallRequest] are not conflicting.
+    /// Ensures the fields of a [TransactionRequest] are not conflicting.
     ///
     /// If no `gasPrice` or `maxFeePerGas` is set, then the `gas_price` in the returned `gas_price`
     /// will be `0`. See: <https://github.com/ethereum/go-ethereum/blob/2754b197c935ee63101cbbca2752338246384fec/internal/ethapi/transaction_args.go#L242-L255>
@@ -126,8 +126,11 @@ impl CallFees {
 }
 
 // https://github.com/paradigmxyz/reth/blob/d8677b4146f77c7c82d659c59b79b38caca78778/crates/rpc/rpc/src/eth/revm_utils.rs#L201
-pub(crate) fn prepare_call_env(block_env: &BlockEnv, request: CallRequest) -> EthResult<TxEnv> {
-    let CallRequest {
+pub(crate) fn prepare_call_env(
+    block_env: &BlockEnv,
+    request: TransactionRequest,
+) -> EthResult<TxEnv> {
+    let TransactionRequest {
         from,
         to,
         mut gas_price,

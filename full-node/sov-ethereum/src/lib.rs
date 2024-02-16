@@ -15,8 +15,9 @@ use reth_primitives::{
     keccak256, Address, BlockNumberOrTag, TransactionSignedNoHash as RethTransactionSignedNoHash,
     B256, U128, U256, U64,
 };
+use reth_rpc_types::other::OtherFields;
 use reth_rpc_types::trace::geth::{GethDebugTracingOptions, GethTrace};
-use reth_rpc_types::{CallRequest, FeeHistory, TransactionRequest, TypedTransactionRequest};
+use reth_rpc_types::{FeeHistory, TransactionRequest, TypedTransactionRequest};
 use reth_rpc_types_compat::transaction::to_primitive_transaction;
 use rustc_version_runtime::version;
 use schnellru::{ByLength, LruMap};
@@ -552,7 +553,7 @@ fn get_call_request_and_params(
     from: Address,
     chain_id: u64,
     request: &TransactionRequest,
-) -> (CallRequest, U128, U128) {
+) -> (TransactionRequest, U256, U256) {
     // TODO: we need an oracle to fetch the gas price of the current chain
     // https://github.com/Sovereign-Labs/sovereign-sdk/issues/883
     let gas_price = request.gas_price.unwrap_or_default();
@@ -560,7 +561,7 @@ fn get_call_request_and_params(
 
     // TODO: Generate call request better according to the transaction type
     // https://github.com/Sovereign-Labs/sovereign-sdk/issues/946
-    let call_request = CallRequest {
+    let call_request = TransactionRequest {
         from: Some(from),
         to: request.to,
         gas: request.gas,
@@ -575,6 +576,8 @@ fn get_call_request_and_params(
         transaction_type: None,
         blob_versioned_hashes: None,
         max_fee_per_blob_gas: None,
+        sidecar: None,
+        other: OtherFields::default(),
     };
 
     (call_request, gas_price, max_fee_per_gas)

@@ -129,19 +129,19 @@ ethers-providers = { version = "2.0", default-features = false }
 ethers-signers = { version = "2.0", default-features = false }
 ethers-middleware = { version = "2.0", default-features = false }
 
-reth-primitives = { git = "https://github.com/paradigmxyz/reth", tag = "v0.1.0-alpha.16" }
-reth-interfaces = { git = "https://github.com/paradigmxyz/reth", tag = "v0.1.0-alpha.16" }
-reth-rpc-types = { git = "https://github.com/paradigmxyz/reth", tag = "v0.1.0-alpha.16" }
-reth-rpc-types-compat = { git = "https://github.com/paradigmxyz/reth", tag = "v0.1.0-alpha.16" }
-reth-revm = { git = "https://github.com/paradigmxyz/reth", tag = "v0.1.0-alpha.16" }
-reth-transaction-pool = { git = "https://github.com/paradigmxyz/reth", tag = "v0.1.0-alpha.16" }
-reth-provider = { git = "https://github.com/paradigmxyz/reth", tag = "v0.1.0-alpha.16" }
-reth-tasks = { git = "https://github.com/paradigmxyz/reth", tag = "v0.1.0-alpha.16" }
-reth-db = { git = "https://github.com/paradigmxyz/reth", tag = "v0.1.0-alpha.16" }
-reth-trie = { git = "https://github.com/paradigmxyz/reth", tag = "v0.1.0-alpha.16" }
-reth-rpc = { git = "https://github.com/paradigmxyz/reth", tag = "v0.1.0-alpha.16" }
+reth-primitives = { git = "https://github.com/paradigmxyz/reth", tag = "v0.1.0-alpha.18" }
+reth-interfaces = { git = "https://github.com/paradigmxyz/reth", tag = "v0.1.0-alpha.18" }
+reth-rpc-types = { git = "https://github.com/paradigmxyz/reth", tag = "v0.1.0-alpha.18" }
+reth-rpc-types-compat = { git = "https://github.com/paradigmxyz/reth", tag = "v0.1.0-alpha.18" }
+reth-revm = { git = "https://github.com/paradigmxyz/reth", tag = "v0.1.0-alpha.18" }
+reth-transaction-pool = { git = "https://github.com/paradigmxyz/reth", tag = "v0.1.0-alpha.18" }
+reth-provider = { git = "https://github.com/paradigmxyz/reth", tag = "v0.1.0-alpha.18" }
+reth-tasks = { git = "https://github.com/paradigmxyz/reth", tag = "v0.1.0-alpha.18" }
+reth-db = { git = "https://github.com/paradigmxyz/reth", tag = "v0.1.0-alpha.18" }
+reth-trie = { git = "https://github.com/paradigmxyz/reth", tag = "v0.1.0-alpha.18" }
+reth-rpc = { git = "https://github.com/paradigmxyz/reth", tag = "v0.1.0-alpha.18" }
 
-revm = { git = "https://github.com/bluealloy/revm", branch = "reth_freeze", features = [
+revm = { git = "https://github.com/bluealloy/revm", branch = "main", features = [
     "std",
     "secp256k1",
 ], default-features = false }
