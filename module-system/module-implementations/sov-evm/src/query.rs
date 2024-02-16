@@ -934,7 +934,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
     ) -> Option<u64> {
         self.transaction_hashes
             .get(&tx_hash, &mut working_set.accessory_state())
-            .map(|tx_number| tx_number as u64)
     }
 
     /// Returns the block number given tx_hash

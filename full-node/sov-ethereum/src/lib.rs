@@ -1,13 +1,12 @@
 mod batch_builder;
 mod gas_price;
 
+use std::collections::BTreeMap;
 use std::process::Command;
 use std::sync::{Arc, Mutex};
-use std::collections::BTreeMap;
 
 use citrea_stf::runtime::Runtime;
 use ethers::types::Bytes;
-use reth_rpc_types::trace::geth::{CallConfig, CallFrame, FourByteFrame, GethDebugBuiltInTracerType, GethDebugTracerConfig, GethDebugTracerType};
 pub use gas_price::fee_history::FeeHistoryCacheConfig;
 use gas_price::gas_oracle::GasPriceOracle;
 pub use gas_price::gas_oracle::GasPriceOracleConfig;
@@ -17,12 +16,16 @@ use reth_primitives::{
     keccak256, Address, BlockNumberOrTag, TransactionSignedNoHash as RethTransactionSignedNoHash,
     B256, U128, U256, U64,
 };
-use reth_rpc_types::trace::geth::{GethDebugTracingOptions, GethTrace};
+use reth_rpc_types::trace::geth::{
+    CallConfig, CallFrame, FourByteFrame, GethDebugBuiltInTracerType, GethDebugTracerConfig,
+    GethDebugTracerType, GethDebugTracingOptions, GethTrace,
+};
 use reth_rpc_types::{CallRequest, FeeHistory, TransactionRequest, TypedTransactionRequest};
 use reth_rpc_types_compat::transaction::to_primitive_transaction;
 use rustc_version_runtime::version;
 use schnellru::{ByLength, LruMap};
 use sequencer_client::SequencerClient;
+use serde_json::{self};
 #[cfg(feature = "local")]
 pub use sov_evm::DevSigner;
 use sov_evm::{CallMessage, EthApiError, Evm, RlpEvmTransaction, SignError};
@@ -30,7 +33,6 @@ use sov_modules_api::utils::to_jsonrpsee_error_object;
 use sov_modules_api::{EncodeCall, PrivateKey, WorkingSet};
 use sov_rollup_interface::services::da::DaService;
 use tracing::info;
-use serde_json::{json, self};
 
 use crate::batch_builder::EthBatchBuilder;
 use crate::gas_price::gas_oracle::convert_u256_to_u64;
@@ -429,30 +431,35 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
             let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
             let opts: Option<GethDebugTracingOptions> = params.optional_next().unwrap();
 
-            let block_number = match evm
-                .get_block_number_by_block_hash(block_hash, &mut working_set)
-            {
-                Some(block_number) => block_number,
-                None => {
-                    return Err(to_jsonrpsee_error_object(
-                        EthApiError::UnknownBlockNumber,
-                        ETH_RPC_ERROR,
-                    ));
-                }
-            };
+            let block_number =
+                match evm.get_block_number_by_block_hash(block_hash, &mut working_set) {
+                    Some(block_number) => block_number,
+                    None => {
+                        return Err(to_jsonrpsee_error_object(
+                            EthApiError::UnknownBlockNumber,
+                            ETH_RPC_ERROR,
+                        ));
+                    }
+                };
 
             // If opts is None or if opts.tracer is None, then do not check cache or insert cache, just perform the operation
             if opts.as_ref().map_or(true, |o| o.tracer.is_none()) {
-                return Ok::<Vec<GethTrace>, ErrorObjectOwned>(
-                    evm.trace_block_transactions_by_number(block_number, opts.clone(), &mut working_set)
-                        .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?,
-                );
+                return evm.trace_block_transactions_by_number(
+                        block_number,
+                        opts.clone(),
+                        &mut working_set,
+                    )
+                    .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR));
             }
-            
+
             if let Some(traces) = ethereum.trace_cache.lock().unwrap().get(&block_number) {
                 // If traces are found in cache convert them to specified opts and then return
                 let requested_opts = opts.clone().unwrap();
-                let traces = get_traces_with_reuqested_tracer_and_config(traces.clone(), requested_opts.tracer.unwrap(), requested_opts.tracer_config)?;
+                let traces = get_traces_with_reuqested_tracer_and_config(
+                    traces.clone(),
+                    requested_opts.tracer.unwrap(),
+                    requested_opts.tracer_config,
+                )?;
                 return Ok::<Vec<GethTrace>, ErrorObjectOwned>(traces.clone());
             }
 
@@ -462,8 +469,10 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
             call_config_map.insert("with_log".to_string(), serde_json::Value::Bool(true));
             let call_config = serde_json::Value::Object(call_config_map);
             let cache_options = GethDebugTracingOptions {
-                tracer: Some(GethDebugTracerType::BuiltInTracer(GethDebugBuiltInTracerType::CallTracer)),
-                tracer_config: GethDebugTracerConfig (call_config),
+                tracer: Some(GethDebugTracerType::BuiltInTracer(
+                    GethDebugBuiltInTracerType::CallTracer,
+                )),
+                tracer_config: GethDebugTracerConfig(call_config),
                 ..Default::default()
             };
 
@@ -474,16 +483,20 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                     &mut working_set,
                 )
                 .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
-                ethereum
-                    .trace_cache
-                    .lock()
-                    .unwrap()
-                    .insert(block_number, traces.clone());
+            ethereum
+                .trace_cache
+                .lock()
+                .unwrap()
+                .insert(block_number, traces.clone());
             // Convert the traces to the requested tracer and config
             let requested_opts = opts.clone().unwrap();
             let tracer_config = requested_opts.tracer_config;
-            let traces = get_traces_with_reuqested_tracer_and_config(traces.clone(), requested_opts.tracer.unwrap(), tracer_config)?;
-                
+            let traces = get_traces_with_reuqested_tracer_and_config(
+                traces.clone(),
+                requested_opts.tracer.unwrap(),
+                tracer_config,
+            )?;
+
             Ok::<Vec<GethTrace>, ErrorObjectOwned>(traces)
         },
     )?;
@@ -497,7 +510,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
 
             let block_number: BlockNumberOrTag = params.next().unwrap();
             let opts: Option<GethDebugTracingOptions> = params.optional_next().unwrap();
-            
+
             let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
             let evm = Evm::<C>::default();
             let block_number = match block_number {
@@ -510,13 +523,11 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                     ));
                 }
             };
-            
+
             // If opts is None or if opts.tracer is None, then do not check cache or insert cache, just perform the operation
             if opts.as_ref().map_or(true, |o| o.tracer.is_none()) {
-                return Ok::<Vec<GethTrace>, ErrorObjectOwned>(
-                    evm.trace_block_transactions_by_number(block_number, opts.clone(), &mut working_set)
-                        .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?,
-                );
+                return evm.trace_block_transactions_by_number(block_number, opts.clone(), &mut working_set)
+                        .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR));
             }
 
             if let Some(traces) = ethereum.trace_cache.lock().unwrap().get(&block_number) {
@@ -578,18 +589,33 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
             let evm = Evm::<C>::default();
             let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
 
-            let tx = evm.get_transaction_by_hash(tx_hash, &mut working_set).unwrap().ok_or_else(|| EthApiError::UnknownBlockOrTxIndex)?;
-            let trace_index = convert_u256_to_u64(tx.transaction_index.expect("Tx index must be set for tx inside block"));
+            let tx = evm
+                .get_transaction_by_hash(tx_hash, &mut working_set)
+                .unwrap()
+                .ok_or_else(|| EthApiError::UnknownBlockOrTxIndex)?;
+            let trace_index = convert_u256_to_u64(
+                tx.transaction_index
+                    .expect("Tx index must be set for tx inside block"),
+            );
 
-            let block_number = convert_u256_to_u64(tx.block_number.expect("Block number must be set for tx inside block"));
-            
+            let block_number = convert_u256_to_u64(
+                tx.block_number
+                    .expect("Block number must be set for tx inside block"),
+            );
+
             let opts: Option<GethDebugTracingOptions> = params.optional_next().unwrap();
-            
+
             // If opts is None or if opts.tracer is None, then do not check cache or insert cache, just perform the operation
             if opts.as_ref().map_or(true, |o| o.tracer.is_none()) {
                 return Ok::<GethTrace, ErrorObjectOwned>(
-                    evm.trace_block_transactions_by_number(block_number, opts.clone(), &mut working_set)
-                        .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?[trace_index as usize].clone(),
+                    evm.trace_block_transactions_by_number(
+                        block_number,
+                        opts.clone(),
+                        &mut working_set,
+                    )
+                    .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?
+                        [trace_index as usize]
+                        .clone(),
                 );
             }
 
@@ -597,7 +623,11 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
             if let Some(traces) = ethereum.trace_cache.lock().unwrap().get(&block_number) {
                 let requested_opts = opts.clone().unwrap();
                 let tracer_config = requested_opts.tracer_config;
-                let traces = get_traces_with_reuqested_tracer_and_config(vec![traces[trace_index as usize].clone()], requested_opts.tracer.unwrap(), tracer_config)?;
+                let traces = get_traces_with_reuqested_tracer_and_config(
+                    vec![traces[trace_index as usize].clone()],
+                    requested_opts.tracer.unwrap(),
+                    tracer_config,
+                )?;
                 return Ok::<GethTrace, ErrorObjectOwned>(traces[0].clone());
             }
 
@@ -607,8 +637,10 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
             call_config_map.insert("with_log".to_string(), serde_json::Value::Bool(true));
             let call_config = serde_json::Value::Object(call_config_map);
             let cache_options = GethDebugTracingOptions {
-                tracer: Some(GethDebugTracerType::BuiltInTracer(GethDebugBuiltInTracerType::CallTracer)),
-                tracer_config: GethDebugTracerConfig (call_config),
+                tracer: Some(GethDebugTracerType::BuiltInTracer(
+                    GethDebugBuiltInTracerType::CallTracer,
+                )),
+                tracer_config: GethDebugTracerConfig(call_config),
                 ..Default::default()
             };
 
@@ -619,17 +651,21 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                     &mut working_set,
                 )
                 .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
-                ethereum
-                    .trace_cache
-                    .lock()
-                    .unwrap()
-                    .insert(block_number, traces.clone());
+            ethereum
+                .trace_cache
+                .lock()
+                .unwrap()
+                .insert(block_number, traces.clone());
             // Convert the traces to the requested tracer and config
             let requested_opts = opts.clone().unwrap();
             let tracer_config = requested_opts.tracer_config;
-            let traces = get_traces_with_reuqested_tracer_and_config(vec![traces[trace_index as usize].clone()], requested_opts.tracer.unwrap(), tracer_config)?;
-                
-            return Ok::<GethTrace, ErrorObjectOwned>(traces[0].clone());
+            let traces = get_traces_with_reuqested_tracer_and_config(
+                vec![traces[trace_index as usize].clone()],
+                requested_opts.tracer.unwrap(),
+                tracer_config,
+            )?;
+
+            Ok::<GethTrace, ErrorObjectOwned>(traces[0].clone())
         },
     )?;
 
@@ -800,10 +836,14 @@ fn remove_logs_from_call_frame(call_frame: &mut Vec<CallFrame>) {
     }
 }
 
-fn get_traces_with_reuqested_tracer_and_config(traces: Vec<GethTrace>, tracer: GethDebugTracerType, tracer_config: GethDebugTracerConfig) -> Result<Vec<GethTrace>, EthApiError> {
+fn get_traces_with_reuqested_tracer_and_config(
+    traces: Vec<GethTrace>,
+    tracer: GethDebugTracerType,
+    tracer_config: GethDebugTracerConfig,
+) -> Result<Vec<GethTrace>, EthApiError> {
     // This can be only CallConfig or PreStateConfig if it is not CallConfig return Error for now
     let call_config = GethDebugTracerConfig::into_call_config(tracer_config).unwrap_or_default();
-    
+
     let mut new_traces = vec![];
     match tracer {
         GethDebugTracerType::BuiltInTracer(builtin_tracer) => {
@@ -813,47 +853,51 @@ fn get_traces_with_reuqested_tracer_and_config(traces: Vec<GethTrace>, tracer: G
                     for trace in traces {
                         match trace {
                             GethTrace::CallTracer(call_frame) => {
-                                let new_call_frame = apply_call_config(call_frame.clone(), call_config.clone());
+                                let new_call_frame =
+                                    apply_call_config(call_frame.clone(), call_config);
                                 new_traces.push(GethTrace::CallTracer(new_call_frame));
-                                
                             }
                             _ => {}
                         }
                     }
-                    return Ok(new_traces)
-                },
+                    Ok(new_traces)
+                }
                 GethDebugBuiltInTracerType::FourByteTracer => {
                     for trace in traces {
                         match trace {
                             GethTrace::CallTracer(call_frame) => {
-                
-                                let four_byte_frame = convert_call_trace_into_4byte_frame(vec![call_frame]);
+                                let four_byte_frame =
+                                    convert_call_trace_into_4byte_frame(vec![call_frame]);
                                 new_traces.push(GethTrace::FourByteTracer(four_byte_frame));
                             }
                             _ => {}
                         }
                     }
-                    return Ok(new_traces)
+                    Ok(new_traces)
                 }
-                GethDebugBuiltInTracerType::NoopTracer => {
-                    return Ok(new_traces)
-                }
-                _ => { return Err(EthApiError::Unsupported("This tracer is not supported"))}
+                GethDebugBuiltInTracerType::NoopTracer => Ok(new_traces),
+                _ => Err(EthApiError::Unsupported("This tracer is not supported")),
             }
         }
         GethDebugTracerType::JsTracer(_code) => {
             // This also requires DatabaseRef trait
             // Implement after readonly state is implemented
-            return Err(EthApiError::Unsupported("JsTracer"))
+            Err(EthApiError::Unsupported("JsTracer"))
         }
-    };
+    }
 }
 
 pub fn convert_call_trace_into_4byte_frame(call_frames: Vec<CallFrame>) -> FourByteFrame {
-    FourByteFrame (convert_call_trace_into_4byte_map(call_frames, BTreeMap::new()))
+    FourByteFrame(convert_call_trace_into_4byte_map(
+        call_frames,
+        BTreeMap::new(),
+    ))
 }
 
-fn convert_call_trace_into_4byte_map(call_frames: Vec<CallFrame>, mut four_byte_map: BTreeMap<String, u64>) -> BTreeMap<String, u64>  {
+fn convert_call_trace_into_4byte_map(
+    call_frames: Vec<CallFrame>,
+    mut four_byte_map: BTreeMap<String, u64>,
+) -> BTreeMap<String, u64> {
     // For each input in each call
     // get the first 4 bytes, get the size of the input
     // the key is : "<first 4 bytes>-<size of the input>"
@@ -862,7 +906,7 @@ fn convert_call_trace_into_4byte_map(call_frames: Vec<CallFrame>, mut four_byte_
         println!("call_frame: {:?}", call_frame);
         let input = call_frame.input;
         // If this is a function call (function selector is 4 bytes long)
-        if input.len() >=4 {
+        if input.len() >= 4 {
             let input_size = input.0.len() - 4;
             let four_byte = &input.to_string()[2..10]; // Ignore the 0x
             let key = format!("{}-{}", four_byte, input_size);
@@ -872,7 +916,4 @@ fn convert_call_trace_into_4byte_map(call_frames: Vec<CallFrame>, mut four_byte_
         four_byte_map = convert_call_trace_into_4byte_map(call_frame.calls, four_byte_map);
     }
     four_byte_map
-
 }
-
-

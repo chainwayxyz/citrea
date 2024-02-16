@@ -7,7 +7,7 @@ use reth_primitives::BlockNumberOrTag;
 use reth_rpc_types::trace::geth::GethTrace::{self, CallTracer, FourByteTracer};
 use reth_rpc_types::trace::geth::{
     CallConfig, CallFrame, FourByteFrame, GethDebugBuiltInTracerType, GethDebugTracerType,
-    GethDebugTracingOptions, GethDefaultTracingOptions,
+    GethDebugTracingOptions,
 };
 use serde_json::{self, json};
 use sov_evm::{CallerContract, SimpleStorageContract};
