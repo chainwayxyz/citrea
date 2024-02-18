@@ -1,11 +1,12 @@
 use reth_primitives::revm::env::{fill_tx_env, fill_tx_env_with_recovered};
+use reth_primitives::revm_primitives::TxEnv;
 use reth_primitives::{TransactionSigned, TransactionSignedEcRecovered, TxHash};
 use reth_rpc_types::trace::geth::{
     FourByteFrame, GethDebugBuiltInTracerType, GethDebugTracerType, GethDebugTracingOptions,
     GethTrace, NoopFrame,
 };
 use revm::primitives::db::Database;
-use revm::primitives::{Env, ResultAndState, TxEnv};
+use revm::primitives::{Env, ResultAndState};
 use revm::Inspector;
 use revm_inspectors::tracing::{FourByteInspector, TracingInspector, TracingInspectorConfig};
 
