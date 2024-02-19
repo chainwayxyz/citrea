@@ -27,6 +27,8 @@ use reth_transaction_pool::{
 };
 use sov_accounts::Accounts;
 use sov_accounts::Response::{AccountEmpty, AccountExists};
+use sov_db::ledger_db::LedgerDB;
+use sov_db::schema::types::{BatchNumber, SlotNumber};
 pub use sov_evm::DevSigner;
 use sov_evm::{CallMessage, Evm, RlpEvmTransaction};
 use sov_modules_api::transaction::Transaction;
@@ -38,7 +40,7 @@ use sov_modules_api::{
 use sov_modules_rollup_blueprint::{Rollup, RollupBlueprint};
 use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::services::da::DaService;
-use tracing::info;
+use tracing::{debug, info, warn};
 
 pub use crate::db_provider::DbProvider;
 use crate::utils::recover_raw_transaction;
@@ -79,6 +81,10 @@ pub struct RpcContext<C: sov_modules_api::Context> {
     pub storage: C::Storage,
 }
 
+pub struct SequencingParams {
+    pub min_soft_confirmations_per_commitment: u64,
+}
+
 pub struct ChainwaySequencer<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> {
     rollup: Rollup<S>,
     da_service: Da,
@@ -90,6 +96,8 @@ pub struct ChainwaySequencer<C: sov_modules_api::Context, Da: DaService, S: Roll
     receiver: UnboundedReceiver<String>,
     db_provider: DbProvider<C>,
     storage: C::Storage,
+    ledger_db: LedgerDB,
+    params: SequencingParams,
 }
 
 impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySequencer<C, Da, S> {
@@ -98,6 +106,7 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
         da_service: Da,
         sov_tx_signer_priv_key: C::PrivateKey,
         storage: C::Storage,
+        params: SequencingParams,
     ) -> Self {
         let (sender, receiver) = unbounded();
 
@@ -116,6 +125,8 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
 
         let pool = create_mempool(db_provider.clone());
 
+        let ledger_db = rollup.runner.ledger_db.clone();
+
         Self {
             rollup,
             da_service,
@@ -127,6 +138,8 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
             receiver,
             db_provider,
             storage,
+            ledger_db,
+            params,
         }
     }
 
@@ -172,7 +185,7 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                     .map(|rlp| RlpEvmTransaction { rlp })
                     .collect();
 
-                info!(
+                warn!(
                     "Sequencer: publishing block with {} transactions",
                     rlp_txs.len()
                 );
@@ -183,8 +196,7 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                 let signed_blob = self.make_blob(raw_message);
 
                 let prev_l1_height = self
-                    .rollup
-                    .runner
+                    .ledger_db
                     .get_head_soft_batch()?
                     .map(|(_, sb)| sb.da_slot_height)
                     // TODO: default to starting height
@@ -213,6 +225,105 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                 }
 
                 if last_finalized_height != prev_l1_height {
+                    debug!("Sequencer: new L1 block, checking if commitment should be submitted");
+
+                    // first get when the last merkle root of soft confirmations was submitted
+                    let last_commitment_l1_height = self
+                        .ledger_db
+                        .get_last_sequencer_commitment_l1_height()
+                        .expect("Sequencer: Failed to get last sequencer commitment L1 height");
+
+                    let mut l2_range_to_submit = None;
+                    let mut l1_height_range = None;
+                    // if none then we never submitted a commitment, start from prev_l1_height and go back as far as you can go
+                    // if there is a height then start from height + 1 and go to prev_l1_height
+                    match last_commitment_l1_height {
+                        Some(height) => {
+                            let mut l1_height = height.0 + 1;
+
+                            l1_height_range = Some((l1_height, l1_height));
+
+                            while let Some(l2_height_range) = self
+                                .ledger_db
+                                .get_l1_l2_connection(SlotNumber(l1_height))
+                                .expect("Sequencer: Failed to get L1 L2 connection")
+                            {
+                                if l2_range_to_submit.is_none() {
+                                    l2_range_to_submit = Some(l2_height_range);
+                                } else {
+                                    l2_range_to_submit =
+                                        Some((l2_range_to_submit.unwrap().0, l2_height_range.1));
+                                }
+
+                                l1_height += 1;
+                            }
+
+                            l1_height_range = Some((l1_height_range.unwrap().0, l1_height - 1));
+                        }
+                        None => {
+                            let mut l1_height = prev_l1_height;
+
+                            l1_height_range = Some((prev_l1_height, prev_l1_height));
+
+                            while let Some(l2_height_range) = self
+                                .ledger_db
+                                .get_l1_l2_connection(SlotNumber(l1_height))
+                                .expect("Sequencer: Failed to get L1 L2 connection")
+                            {
+                                if l2_range_to_submit.is_none() {
+                                    l2_range_to_submit = Some(l2_height_range);
+                                } else {
+                                    l2_range_to_submit =
+                                        Some((l2_height_range.0, l2_range_to_submit.unwrap().1));
+                                }
+
+                                l1_height -= 1;
+                            }
+
+                            l1_height_range = Some((l1_height + 1, l1_height_range.unwrap().1));
+                        }
+                    };
+
+                    // TODO: make calc readable
+                    if l2_range_to_submit.is_none()
+                        || (l2_range_to_submit.unwrap().1 .0 - l2_range_to_submit.unwrap().0 .0 + 1)
+                            < self.params.min_soft_confirmations_per_commitment
+                    {
+                        warn!(
+                            "Sequencer: not enough soft confirmations to submit commitment: {:?}. L1 heights: {:?}",
+                            l2_range_to_submit,
+                            l1_height_range
+                        );
+                    } else {
+                        warn!("Sequencer: enough soft confirmations to submit commitment");
+                        let l2_range_to_submit = l2_range_to_submit.unwrap();
+
+                        let range_end = BatchNumber(l2_range_to_submit.1 .0 + 1); // cannnot add u64 to BatchNumber directly
+
+                        let _soft_confirmation_hashes = self
+                            .ledger_db
+                            .get_soft_batch_range(&(l2_range_to_submit.0..range_end))
+                            .expect("Sequencer: Failed to get soft batch range")
+                            .iter()
+                            .map(|sb| sb.hash.clone())
+                            .collect::<Vec<[u8; 32]>>();
+
+                        // build merkle tree over soft confirmations
+
+                        warn!(
+                            "Sequencer: submitting commitment, L1 heights: {:?}, L2 heights: {:?}",
+                            l1_height_range, l2_range_to_submit
+                        );
+
+                        for i in l1_height_range.unwrap().0..=l1_height_range.unwrap().1 {
+                            self.ledger_db
+                                .set_last_sequencer_commitment_l1_height(SlotNumber(i))
+                                .expect(
+                                    "Sequencer: Failed to set last sequencer commitment L1 height",
+                                );
+                        }
+                    }
+
                     // TODO: this is where we would include forced transactions from the new L1 block
                 }
 
@@ -239,6 +350,22 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
 
                 self.mempool
                     .remove_transactions(self.db_provider.last_block_tx_hashes());
+
+                // not really a good way to get the last soft batch number :)
+                let last_soft_batch_number = self
+                    .ledger_db
+                    .get_head_soft_batch()
+                    .expect("Sequencer: Failed to get head soft batch")
+                    .unwrap()
+                    .0; // cannot be None here
+
+                // connect L1 and L2 height
+                self.ledger_db
+                    .connect_l1_l2_heights(
+                        SlotNumber(last_finalized_block.header().height()),
+                        last_soft_batch_number,
+                    )
+                    .expect("Sequencer: Failed to set L1 L2 connection");
             }
         }
     }

@@ -1,7 +1,7 @@
 use std::net::SocketAddr;
 use std::path::Path;
 
-use chainway_sequencer::ChainwaySequencer;
+use chainway_sequencer::{ChainwaySequencer, SequencingParams};
 use citrea_stf::genesis_config::GenesisPaths;
 use const_rollup_config::TEST_PRIVATE_KEY;
 use sov_demo_rollup::MockDemoRollup;
@@ -112,6 +112,9 @@ pub async fn start_rollup(
                     da_service,
                     DefaultPrivateKey::from_hex(TEST_PRIVATE_KEY).unwrap(),
                     storage,
+                    SequencingParams {
+                        min_soft_confirmations_per_commitment: 2,
+                    },
                 );
             sequencer
                 .start_rpc_server(Some(rpc_reporting_channel))

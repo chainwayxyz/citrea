@@ -95,6 +95,10 @@ pub struct StoredSoftBatch {
     pub l1_fee_rate: u64,
 }
 
+/// The range of L2 heights (soft confirmations) for a given L1 block
+/// (start, end) inclusive
+pub type L2HeightRange = (BatchNumber, BatchNumber);
+
 impl TryFrom<StoredSoftBatch> for SoftBatchResponse {
     type Error = anyhow::Error;
     fn try_from(value: StoredSoftBatch) -> Result<Self, Self::Error> {

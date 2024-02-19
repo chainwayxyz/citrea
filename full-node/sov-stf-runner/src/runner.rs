@@ -6,7 +6,6 @@ use jsonrpsee::core::Error;
 use jsonrpsee::RpcModule;
 use sequencer_client::SequencerClient;
 use sov_db::ledger_db::{LedgerDB, SlotCommit};
-use sov_db::schema::types::{BatchNumber, StoredSoftBatch};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
@@ -40,7 +39,8 @@ where
     da_service: Da,
     stf: Stf,
     storage_manager: Sm,
-    ledger_db: LedgerDB,
+    /// made pub so that sequencer can clone it
+    pub ledger_db: LedgerDB,
     state_root: StateRoot<Stf, Vm, Da::Spec>,
     listen_address: SocketAddr,
     #[allow(dead_code)]
@@ -181,11 +181,6 @@ where
             let _server_handle = server.start(methods);
             futures::future::pending::<()>().await;
         });
-    }
-
-    /// Returns the head soft batch
-    pub fn get_head_soft_batch(&self) -> anyhow::Result<Option<(BatchNumber, StoredSoftBatch)>> {
-        self.ledger_db.get_head_soft_batch()
     }
 
     /// Processes sequence

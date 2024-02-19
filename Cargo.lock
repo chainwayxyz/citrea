@@ -1739,6 +1739,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sov-accounts",
+ "sov-db",
  "sov-evm",
  "sov-modules-api",
  "sov-modules-rollup-blueprint",

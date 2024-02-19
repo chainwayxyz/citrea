@@ -9,12 +9,13 @@ use sov_schema_db::{Schema, SchemaBatch, SeekKeyEncoder, DB};
 
 use crate::rocks_db_config::gen_rocksdb_options;
 use crate::schema::tables::{
-    BatchByHash, BatchByNumber, EventByKey, EventByNumber, SlotByHash, SlotByNumber,
-    SoftBatchByNumber, TxByHash, TxByNumber, LEDGER_TABLES,
+    BatchByHash, BatchByNumber, EventByKey, EventByNumber, L2RangeByL1Height,
+    SequencerSentCommitment, SlotByHash, SlotByNumber, SoftBatchByNumber, TxByHash, TxByNumber,
+    LEDGER_TABLES,
 };
 use crate::schema::types::{
-    split_tx_for_storage, BatchNumber, EventNumber, SlotNumber, StoredBatch, StoredSlot,
-    StoredSoftBatch, StoredTransaction, TxNumber,
+    split_tx_for_storage, BatchNumber, EventNumber, L2HeightRange, SlotNumber, StoredBatch,
+    StoredSlot, StoredSoftBatch, StoredTransaction, TxNumber,
 };
 
 mod rpc;
@@ -144,6 +145,17 @@ impl LedgerDB {
         range: &std::ops::Range<BatchNumber>,
     ) -> Result<Vec<StoredBatch>, anyhow::Error> {
         self.get_data_range::<BatchByNumber, _, _>(range)
+    }
+
+    /// Gets all soft confirmations with numbers `range.start` to `range.end`. If `range.end` is outside
+    /// the range of the database, the result will smaller than the requested range.
+    /// Note that this method blindly preallocates for the requested range, so it should not be exposed
+    /// directly via rpc.
+    pub fn get_soft_batch_range(
+        &self,
+        range: &std::ops::Range<BatchNumber>,
+    ) -> Result<Vec<StoredSoftBatch>, anyhow::Error> {
+        self.get_data_range::<SoftBatchByNumber, _, _>(range)
     }
 
     /// Gets all transactions with numbers `range.start` to `range.end`. If `range.end` is outside
@@ -399,6 +411,45 @@ impl LedgerDB {
         Ok(())
     }
 
+    /// Records the L2 height that was created as a soft confirmaiton of an L1 height
+    /// Returns a range (inclusive)
+    pub fn connect_l1_l2_heights(
+        &self,
+        l1_height: SlotNumber,
+        l2_height: BatchNumber,
+    ) -> Result<(), anyhow::Error> {
+        let current_range = self.db.get::<L2RangeByL1Height>(&l1_height)?;
+
+        let new_range = match current_range {
+            Some(existing) => (existing.0, l2_height),
+            None => (l2_height, l2_height),
+        };
+
+        let mut schema_batch = SchemaBatch::new();
+
+        schema_batch
+            .put::<L2RangeByL1Height>(&l1_height, &new_range)
+            .unwrap();
+        self.db.write_schemas(schema_batch)?;
+
+        Ok(())
+    }
+
+    /// Used by the sequencer to record that it has committed to soft confirmations on a given L1 height
+    pub fn set_last_sequencer_commitment_l1_height(
+        &self,
+        l1_height: SlotNumber,
+    ) -> Result<(), anyhow::Error> {
+        let mut schema_batch = SchemaBatch::new();
+
+        schema_batch
+            .put::<SequencerSentCommitment>(&l1_height, &())
+            .unwrap();
+        self.db.write_schemas(schema_batch)?;
+
+        Ok(())
+    }
+
     fn last_version_written<T: Schema<Key = U>, U: Into<u64>>(
         db: &DB,
         _schema: T,
@@ -435,5 +486,30 @@ impl LedgerDB {
             Some(Err(e)) => Err(e),
             _ => Ok(None),
         }
+    }
+
+    /// Get the most recent committed batch
+    /// Returns L1 height, which means the corresponding L2 heights
+    /// were committed.
+    /// Called by the sequencer.
+    pub fn get_last_sequencer_commitment_l1_height(&self) -> anyhow::Result<Option<SlotNumber>> {
+        let mut iter = self.db.iter::<SequencerSentCommitment>()?;
+
+        iter.seek_to_last();
+
+        match iter.next() {
+            Some(Ok(item)) => Ok(Some(item.key)),
+            Some(Err(e)) => Err(e),
+            _ => Ok(None), // never did a commitment
+        }
+    }
+
+    /// Get L2 height range for a given L1 height.
+    /// This means L2 heights in that range were soft confirmations for L1 height.
+    pub fn get_l1_l2_connection(
+        &self,
+        l1_height: SlotNumber,
+    ) -> anyhow::Result<Option<L2HeightRange>> {
+        self.db.get::<L2RangeByL1Height>(&l1_height)
     }
 }
