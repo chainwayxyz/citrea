@@ -25,6 +25,8 @@ use reth_transaction_pool::{
     CoinbaseTipOrdering, EthPooledTransaction, EthTransactionValidator, Pool, TransactionOrigin,
     TransactionPool, TransactionValidationTaskExecutor,
 };
+use rs_merkle::algorithms::Sha256;
+use rs_merkle::MerkleTree;
 use sov_accounts::Accounts;
 use sov_accounts::Response::{AccountEmpty, AccountExists};
 use sov_db::ledger_db::LedgerDB;
@@ -157,6 +159,9 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
     }
 
     pub async fn run(&mut self) -> Result<(), anyhow::Error> {
+        // TODO: hotfix for mock da
+        self.da_service.get_block_at(1).await.unwrap();
+
         loop {
             if (self.receiver.next().await).is_some() {
                 // best txs with base fee
@@ -195,14 +200,24 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                     <Runtime<C, Da::Spec> as EncodeCall<sov_evm::Evm<C>>>::encode_call(call_txs);
                 let signed_blob = self.make_blob(raw_message);
 
-                let prev_l1_height = self
+                let mut prev_l1_height = self
                     .ledger_db
                     .get_head_soft_batch()?
-                    .map(|(_, sb)| sb.da_slot_height)
-                    // TODO: default to starting height
-                    .unwrap_or(1); // If this is the first block, then the previous block is the genesis block, may need revisiting
+                    .map(|(_, sb)| sb.da_slot_height);
 
-                let previous_l1_block = self.da_service.get_block_at(prev_l1_height).await.unwrap();
+                if prev_l1_height.is_none() {
+                    prev_l1_height = Some(
+                        self.da_service
+                            .get_last_finalized_block_header()
+                            .await
+                            .unwrap()
+                            .height(),
+                    );
+                }
+
+                let prev_l1_height = prev_l1_height.unwrap();
+
+                warn!("Sequencer: prev L1 height: {:?}", prev_l1_height);
 
                 let last_finalized_height = self
                     .da_service
@@ -210,6 +225,11 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                     .await
                     .unwrap()
                     .height();
+
+                warn!(
+                    "Sequencer: last finalized height: {:?}",
+                    last_finalized_height
+                );
 
                 let last_finalized_block = self
                     .da_service
@@ -219,12 +239,18 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
 
                 let l1_fee_rate = self.da_service.get_fee_rate().await.unwrap();
 
-                // Compare if there is no skip
-                if last_finalized_block.header().prev_hash() != previous_l1_block.header().hash() {
-                    // TODO: This shouldn't happen. If it does, then we should produce at least 1 block for the blocks in between
-                }
-
                 if last_finalized_height != prev_l1_height {
+                    let previous_l1_block =
+                        self.da_service.get_block_at(prev_l1_height).await.unwrap();
+
+                    warn!("previous_l1_block: {:#?}", previous_l1_block);
+
+                    // Compare if there is no skip
+                    if last_finalized_block.header().prev_hash()
+                        != previous_l1_block.header().hash()
+                    {
+                        // TODO: This shouldn't happen. If it does, then we should produce at least 1 block for the blocks in between
+                    }
                     debug!("Sequencer: new L1 block, checking if commitment should be submitted");
 
                     // first get when the last merkle root of soft confirmations was submitted
@@ -233,6 +259,7 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                         .get_last_sequencer_commitment_l1_height()
                         .expect("Sequencer: Failed to get last sequencer commitment L1 height");
 
+                    warn!("Last commitment L1 height: {:?}", last_commitment_l1_height);
                     let mut l2_range_to_submit = None;
                     let mut l1_height_range = None;
                     // if none then we never submitted a commitment, start from prev_l1_height and go back as far as you can go
@@ -298,9 +325,10 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                         warn!("Sequencer: enough soft confirmations to submit commitment");
                         let l2_range_to_submit = l2_range_to_submit.unwrap();
 
+                        // calculate exclusive range end
                         let range_end = BatchNumber(l2_range_to_submit.1 .0 + 1); // cannnot add u64 to BatchNumber directly
 
-                        let _soft_confirmation_hashes = self
+                        let soft_confirmation_hashes = self
                             .ledger_db
                             .get_soft_batch_range(&(l2_range_to_submit.0..range_end))
                             .expect("Sequencer: Failed to get soft batch range")
@@ -308,12 +336,38 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                             .map(|sb| sb.hash.clone())
                             .collect::<Vec<[u8; 32]>>();
 
+                        // sanity check
+                        assert_eq!(
+                            soft_confirmation_hashes.len(),
+                            (l2_range_to_submit.1 .0 - l2_range_to_submit.0 .0 + 1) as usize
+                        );
+
                         // build merkle tree over soft confirmations
 
+                        let merkle_root = MerkleTree::<Sha256>::from_leaves(
+                            soft_confirmation_hashes.clone().as_slice(),
+                        )
+                        .root();
+
                         warn!(
-                            "Sequencer: submitting commitment, L1 heights: {:?}, L2 heights: {:?}",
-                            l1_height_range, l2_range_to_submit
+                            "Sequencer: submitting commitment, L1 heights: {:?}, L2 heights: {:?}, merkle root: {:?}, soft confirmations: {:?}",
+                            l1_height_range, l2_range_to_submit, merkle_root, soft_confirmation_hashes
                         );
+
+                        // submit commitment
+                        self.da_service
+                            .send_transaction(
+                                (
+                                    merkle_root.unwrap(),
+                                    l2_range_to_submit.0,
+                                    l2_range_to_submit.1,
+                                )
+                                    .try_to_vec()
+                                    .unwrap()
+                                    .as_slice(),
+                            )
+                            .await
+                            .expect("Sequencer: Failed to send commitment");
 
                         for i in l1_height_range.unwrap().0..=l1_height_range.unwrap().1 {
                             self.ledger_db

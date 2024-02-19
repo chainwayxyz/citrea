@@ -23,6 +23,7 @@ borsh = { workspace = true }
 digest = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+rs_merkle = {workspace=true}
 
 reth-primitives = { workspace = true }
 reth-rpc-types = { workspace = true }

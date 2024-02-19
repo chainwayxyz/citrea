@@ -1735,6 +1735,7 @@ dependencies = [
  "reth-tasks",
  "reth-transaction-pool",
  "reth-trie",
+ "rs_merkle",
  "schnellru",
  "serde",
  "serde_json",
@@ -8639,6 +8640,15 @@ checksum = "b4382d3af3a4ebdae7f64ba6edd9114fff92c89808004c4943b393377a25d001"
 dependencies = [
  "downcast-rs",
  "paste",
+]
+
+[[package]]
+name = "rs_merkle"
+version = "1.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3b241d2e59b74ef9e98d94c78c47623d04c8392abaf82014dfd372a16041128f"
+dependencies = [
+ "sha2 0.10.8",
 ]
 
 [[package]]
