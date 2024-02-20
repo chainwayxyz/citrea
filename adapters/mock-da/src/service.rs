@@ -9,7 +9,7 @@ use sha2::Digest;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec, Time};
 use sov_rollup_interface::maybestd::sync::Arc;
 use sov_rollup_interface::services::da::{DaService, SlotData};
-use tokio::sync::{broadcast, Mutex as AsyncMutex, RwLock, RwLockWriteGuard};
+use tokio::sync::{broadcast, Mutex as AsyncMutex};
 use tokio::time;
 
 use crate::db_connector::DbConnector;

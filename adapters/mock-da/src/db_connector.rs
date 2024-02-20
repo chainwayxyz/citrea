@@ -1,16 +1,15 @@
+use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::env::temp_dir;
-use std::sync::atomic::AtomicBool;
 use std::sync::Mutex;
 
 use lazy_static::lazy_static;
-use rand::Rng;
 use rusqlite::{params, Connection, Result};
 
 use crate::{MockBlock, MockBlockHeader, MockHash, MockValidityCond};
 
 lazy_static! {
-    static ref used: Mutex<HashMap<String, bool>> = Mutex::new(HashMap::new());
+    static ref USED_THREAD: Mutex<HashMap<String, bool>> = Mutex::new(HashMap::new());
 }
 
 pub(crate) struct DbConnector {
@@ -20,7 +19,6 @@ pub(crate) struct DbConnector {
 
 impl DbConnector {
     pub fn new() -> Result<Self> {
-        let mut db_name = String::from("shared-mock-da.db");
         let thread = std::thread::current();
         let id = thread.name().unwrap();
         // if cfg!(test) {
@@ -29,9 +27,9 @@ impl DbConnector {
         // // 97..120
         // let random_path: String = random_path.iter().map(|x| (97 + x % 26) as char).collect();
 
-        let dir = temp_dir().join(id.to_owned() + &"shared-mock-da.db".to_string());
+        let dir = temp_dir().join(id.to_owned() + "shared-mock-da.db");
 
-        db_name = dir.to_str().unwrap().to_string();
+        let db_name = dir.to_str().unwrap().to_string();
         // }
 
         tracing::error!("Using test db: {}, id: {}", db_name, id);
@@ -50,12 +48,12 @@ impl DbConnector {
             (),
         )?;
 
-        let mut map = used.lock().unwrap();
+        let mut map = USED_THREAD.lock().unwrap();
 
-        if !map.contains_key(&db_name) {
+        if let Entry::Vacant(e) = map.entry(db_name) {
             tracing::error!("deleting db");
             conn.execute("DELETE FROM blocks", ())?;
-            map.insert(db_name, true);
+            e.insert(true);
         }
 
         Ok(Self { conn })
@@ -92,10 +90,7 @@ impl DbConnector {
 
         let row = rows.next().expect("DbConnector: failed to get row");
 
-        match row {
-            None => None,
-            Some(row) => Some(Self::row_to_block(row)),
-        }
+        row.map(|row| Self::row_to_block(row))
     }
 
     pub fn len(&self) -> usize {
@@ -126,10 +121,7 @@ impl DbConnector {
 
         let row = rows.next().expect("DbConnector: failed to get last row");
 
-        match row {
-            None => None,
-            Some(row) => Some(Self::row_to_block(row)),
-        }
+        row.map(|row| Self::row_to_block(row))
     }
 
     #[cfg(test)]
@@ -145,12 +137,12 @@ impl DbConnector {
                 prev_hash: MockHash(row.get(0).unwrap()),
                 hash: MockHash(row.get(1).unwrap()),
                 height: row.get(2).unwrap(),
-                time: serde_json::from_str(&row.get::<_, String>(3).unwrap().as_str()).unwrap(),
+                time: serde_json::from_str(row.get::<_, String>(3).unwrap().as_str()).unwrap(),
             },
             validity_cond: MockValidityCond {
                 is_valid: row.get(4).unwrap(),
             },
-            blobs: serde_json::from_str(&row.get::<_, String>(5).unwrap().as_str()).unwrap(),
+            blobs: serde_json::from_str(row.get::<_, String>(5).unwrap().as_str()).unwrap(),
         }
     }
 }

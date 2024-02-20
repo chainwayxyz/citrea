@@ -1,7 +1,5 @@
 use citrea_stf::genesis_config::GenesisPaths;
-use sov_mock_da::{MockAddress, MockDaService, MockDaSpec};
 use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
-use sov_rollup_interface::services::da::DaService;
 use sov_stf_runner::RollupProverConfig;
 use tokio::time::{sleep, Duration};
 
