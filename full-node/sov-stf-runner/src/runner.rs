@@ -8,7 +8,9 @@ use sequencer_client::SequencerClient;
 use sov_db::ledger_db::{LedgerDB, SlotCommit};
 use sov_db::schema::types::{BatchNumber, StoredSoftBatch};
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
-use sov_modules_stf_blueprint::StfBlueprint;
+use sov_modules_api::runtime::capabilities::KernelSlotHooks;
+use sov_modules_api::Context;
+use sov_modules_stf_blueprint::{Runtime, StfBlueprint, StfBlueprintTrait};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
@@ -30,13 +32,15 @@ const RETRY_INTERVAL: &[u64] = &[1, 5];
 const RETRY_SLEEP: u64 = 2;
 
 /// Combines `DaService` with `StateTransitionFunction` and "runs" the rollup.
-pub struct StateTransitionRunner<Stf, Sm, Da, Vm, Ps>
+pub struct StateTransitionRunner<Stf, Sm, Da, Vm, Ps, C>
 where
     Da: DaService,
     Vm: ZkvmHost,
     Sm: HierarchicalStorageManager<Da::Spec>,
-    Stf: StateTransitionFunction<Vm, Da::Spec, Condition = <Da::Spec as DaSpec>::ValidityCondition>,
+    Stf: StateTransitionFunction<Vm, Da::Spec, Condition = <Da::Spec as DaSpec>::ValidityCondition>
+        + StfBlueprintTrait<C, Da::Spec, Vm>,
     Ps: ProverService,
+    C: Context,
 {
     start_height: u64,
     da_service: Da,
@@ -49,6 +53,7 @@ where
     prover_service: Ps,
     sequencer_client: Option<SequencerClient>,
     sequencer_pub_key: Vec<u8>,
+    phantom: std::marker::PhantomData<C>,
 }
 
 /// Represents the possible modes of execution for a zkVM program
@@ -80,19 +85,19 @@ pub enum InitVariant<Stf: StateTransitionFunction<Vm, Da>, Vm: Zkvm, Da: DaSpec>
     },
 }
 
-impl<Stf, Sm, Da, Vm, Ps> StateTransitionRunner<Stf, Sm, Da, Vm, Ps>
+impl<Stf, Sm, Da, Vm, Ps, C> StateTransitionRunner<Stf, Sm, Da, Vm, Ps, C>
 where
     Da: DaService<Error = anyhow::Error> + Clone + Send + Sync + 'static,
     Vm: ZkvmHost,
     Sm: HierarchicalStorageManager<Da::Spec>,
     Stf: StateTransitionFunction<
-        Vm,
-        Da::Spec,
-        Condition = <Da::Spec as DaSpec>::ValidityCondition,
-        PreState = Sm::NativeStorage,
-        ChangeSet = Sm::NativeChangeSet,
-    >,
-
+            Vm,
+            Da::Spec,
+            Condition = <Da::Spec as DaSpec>::ValidityCondition,
+            PreState = Sm::NativeStorage,
+            ChangeSet = Sm::NativeChangeSet,
+        > + StfBlueprintTrait<C, Da::Spec, Vm>,
+    C: Context,
     Ps: ProverService<StateRoot = Stf::StateRoot, Witness = Stf::Witness, DaService = Da>,
 {
     /// Creates a new `StateTransitionRunner`.
@@ -158,6 +163,7 @@ where
             prover_service,
             sequencer_client,
             sequencer_pub_key,
+            phantom: std::marker::PhantomData,
         })
     }
 

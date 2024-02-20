@@ -125,6 +125,184 @@ pub enum SlashingReason {
     InvalidTransactionEncoding,
 }
 
+/// Trait for soft confirmation handling
+pub trait StfBlueprintTrait<C: Context, Da: DaSpec, Vm: Zkvm>:
+    StateTransitionFunction<Vm, Da>
+{
+    /// Begin a soft batch
+    fn begin_soft_batch(
+        &self,
+        sequencer_public_key: &[u8],
+        pre_state_root: &<C::Storage as Storage>::Root,
+        pre_state: C::Storage,
+        witness: <<C as Spec>::Storage as Storage>::Witness,
+        slot_header: &<Da as DaSpec>::BlockHeader,
+        soft_batch: &mut SignedSoftConfirmationBatch,
+    ) -> (
+        ApplyBatchResult<(), <Da::BlobTransaction as BlobReaderTrait>::Address>,
+        WorkingSet<C>,
+    );
+
+    /// Apply soft batch transactions
+    fn apply_soft_batch_txs(
+        &self,
+        txs: Vec<Vec<u8>>,
+        batch_workspace: WorkingSet<C>,
+    ) -> (u64, WorkingSet<C>, Vec<TransactionReceipt<TxEffect>>);
+
+    /// End a soft batch
+    fn end_soft_batch(
+        &self,
+        soft_batch: &mut SignedSoftConfirmationBatch,
+        sequencer_reward: u64,
+        tx_receipts: Vec<TransactionReceipt<TxEffect>>,
+        batch_workspace: WorkingSet<C>,
+        pre_state: C::Storage,
+    ) -> SlotResult<
+        <C::Storage as Storage>::Root,
+        C::Storage,
+        SequencerOutcome<<Da::BlobTransaction as BlobReaderTrait>::Address>,
+        TxEffect,
+        <<C as Spec>::Storage as Storage>::Witness,
+    >;
+}
+
+impl<C, RT, Vm, Da, K> StfBlueprintTrait<C, Da, Vm> for StfBlueprint<C, Da, Vm, RT, K>
+where
+    C: Context,
+    Vm: Zkvm,
+    Da: DaSpec,
+    RT: Runtime<C, Da>,
+    K: KernelSlotHooks<C, Da>,
+{
+    fn begin_soft_batch(
+        &self,
+        sequencer_public_key: &[u8],
+        pre_state_root: &<<C>::Storage as Storage>::Root,
+        pre_state: <C>::Storage,
+        witness: <<C as Spec>::Storage as Storage>::Witness,
+        slot_header: &<Da as DaSpec>::BlockHeader,
+        soft_batch: &mut SignedSoftConfirmationBatch,
+    ) -> (
+        ApplyBatchResult<(), <<Da as DaSpec>::BlobTransaction as BlobReaderTrait>::Address>,
+        WorkingSet<C>,
+    ) {
+        debug!("Applying soft batch in STF Blueprint");
+
+        // check if soft confirmation is coming from our sequencer
+        assert_eq!(
+            soft_batch.sequencer_pub_key(),
+            sequencer_public_key,
+            "Sequencer public key must match"
+        );
+
+        // verify signature
+        assert!(
+            verify_soft_batch_signature::<C>(soft_batch, sequencer_public_key).is_ok(),
+            "Signature verification must succeed"
+        );
+
+        // then verify da hashes match
+        assert_eq!(
+            soft_batch.da_slot_hash(),
+            slot_header.hash().into(),
+            "DA slot hashes must match"
+        );
+
+        // then verify pre state root matches
+        assert_eq!(
+            soft_batch.pre_state_root(),
+            pre_state_root.as_ref(),
+            "pre state roots must match"
+        );
+
+        let checkpoint = StateCheckpoint::with_witness(pre_state.clone(), witness);
+
+        self.begin_soft_confirmation_inner(checkpoint, soft_batch)
+    }
+
+    fn apply_soft_batch_txs(
+        &self,
+        txs: Vec<Vec<u8>>,
+        batch_workspace: WorkingSet<C>,
+    ) -> (u64, WorkingSet<C>, Vec<TransactionReceipt<TxEffect>>) {
+        self.apply_sov_txs_inner(txs, batch_workspace)
+    }
+
+    fn end_soft_batch(
+        &self,
+        soft_batch: &mut SignedSoftConfirmationBatch,
+        sequencer_reward: u64,
+        tx_receipts: Vec<TransactionReceipt<TxEffect>>,
+        batch_workspace: WorkingSet<C>,
+        pre_state: <C>::Storage,
+    ) -> SlotResult<
+        <<C>::Storage as Storage>::Root,
+        <C>::Storage,
+        SequencerOutcome<<<Da as DaSpec>::BlobTransaction as BlobReaderTrait>::Address>,
+        TxEffect,
+        <<C as Spec>::Storage as Storage>::Witness,
+    > {
+        let (apply_soft_batch_result, checkpoint) = self.end_soft_confirmation_inner(
+            soft_batch,
+            sequencer_reward,
+            tx_receipts,
+            batch_workspace,
+        );
+
+        let batch_receipt = apply_soft_batch_result.unwrap_or_else(Into::into);
+        info!(
+            "soft batch  with hash: {:?} from sequencer {:?} has been applied with #{} transactions.",
+            soft_batch.hash(),
+            soft_batch.sequencer_pub_key(),
+            batch_receipt.tx_receipts.len(),
+        );
+
+        let mut batch_receipts = vec![];
+
+        for (i, tx_receipt) in batch_receipt.tx_receipts.iter().enumerate() {
+            info!(
+                "tx #{} hash: 0x{} result {:?}",
+                i,
+                hex::encode(tx_receipt.tx_hash),
+                tx_receipt.receipt
+            );
+        }
+        batch_receipts.push(batch_receipt);
+
+        let (state_root, witness, storage) = {
+            let working_set = checkpoint.to_revertable();
+            // Save checkpoint
+            let mut checkpoint = working_set.checkpoint();
+
+            let (cache_log, witness) = checkpoint.freeze();
+
+            let (root_hash, state_update) = pre_state
+                .compute_state_update(cache_log, &witness)
+                .expect("jellyfish merkle tree update must succeed");
+
+            let mut working_set = checkpoint.to_revertable();
+
+            self.runtime
+                .finalize_hook(&root_hash, &mut working_set.accessory_state());
+
+            let mut checkpoint = working_set.checkpoint();
+            let accessory_log = checkpoint.freeze_non_provable();
+
+            pre_state.commit(&state_update, &accessory_log);
+
+            (root_hash, witness, pre_state)
+        };
+
+        SlotResult {
+            state_root,
+            change_set: storage,
+            batch_receipts,
+            witness,
+        }
+    }
+}
+
 impl<C, RT, Vm, Da, K> StfBlueprint<C, Da, Vm, RT, K>
 where
     C: Context,
@@ -192,133 +370,6 @@ where
         storage.commit(&state_update, &accessory_log);
 
         (root_hash, witness, storage)
-    }
-
-    fn begin_soft_batch(
-        &self,
-        sequencer_public_key: &[u8],
-        pre_state_root: &<C::Storage as Storage>::Root,
-        pre_state: C::Storage,
-        witness: <<C as Spec>::Storage as Storage>::Witness,
-        slot_header: &<Da as DaSpec>::BlockHeader,
-        soft_batch: &mut SignedSoftConfirmationBatch,
-    ) -> (
-        ApplyBatchResult<(), <Da::BlobTransaction as BlobReaderTrait>::Address>,
-        WorkingSet<C>,
-    ) {
-        debug!("Applying soft batch in STF Blueprint");
-
-        // check if soft confirmation is coming from our sequencer
-        assert_eq!(
-            soft_batch.sequencer_pub_key(),
-            sequencer_public_key,
-            "Sequencer public key must match"
-        );
-
-        // verify signature
-        assert!(
-            verify_soft_batch_signature::<C>(soft_batch, sequencer_public_key).is_ok(),
-            "Signature verification must succeed"
-        );
-
-        // then verify da hashes match
-        assert_eq!(
-            soft_batch.da_slot_hash(),
-            slot_header.hash().into(),
-            "DA slot hashes must match"
-        );
-
-        // then verify pre state root matches
-        assert_eq!(
-            soft_batch.pre_state_root(),
-            pre_state_root.as_ref(),
-            "pre state roots must match"
-        );
-
-        let checkpoint = StateCheckpoint::with_witness(pre_state.clone(), witness);
-
-        self.begin_soft_confirmation_inner(checkpoint, soft_batch)
-    }
-
-    fn apply_soft_batch_txs(
-        &self,
-        txs: Vec<Vec<u8>>,
-        mut batch_workspace: WorkingSet<C>,
-    ) -> (u64, WorkingSet<C>, Vec<TransactionReceipt<TxEffect>>) {
-        self.apply_sov_txs_inner(txs, batch_workspace)
-    }
-
-    fn end_soft_batch(
-        &self,
-        soft_batch: &mut SignedSoftConfirmationBatch,
-        sequencer_reward: u64,
-        tx_receipts: Vec<TransactionReceipt<TxEffect>>,
-        mut batch_workspace: WorkingSet<C>,
-        pre_state: C::Storage,
-    ) -> SlotResult<
-        <C::Storage as Storage>::Root,
-        C::Storage,
-        SequencerOutcome<<Da::BlobTransaction as BlobReaderTrait>::Address>,
-        TxEffect,
-        <<C as Spec>::Storage as Storage>::Witness,
-    > {
-        let (apply_soft_batch_result, checkpoint) = self.end_soft_confirmation_inner(
-            soft_batch,
-            sequencer_reward,
-            tx_receipts,
-            batch_workspace,
-        );
-
-        let batch_receipt = apply_soft_batch_result.unwrap_or_else(Into::into);
-        info!(
-            "soft batch  with hash: {:?} from sequencer {:?} has been applied with #{} transactions.",
-            soft_batch.hash(),
-            soft_batch.sequencer_pub_key(),
-            batch_receipt.tx_receipts.len(),
-        );
-
-        let mut batch_receipts = vec![];
-
-        for (i, tx_receipt) in batch_receipt.tx_receipts.iter().enumerate() {
-            info!(
-                "tx #{} hash: 0x{} result {:?}",
-                i,
-                hex::encode(tx_receipt.tx_hash),
-                tx_receipt.receipt
-            );
-        }
-        batch_receipts.push(batch_receipt);
-
-        let (state_root, witness, storage) = {
-            let working_set = checkpoint.to_revertable();
-            // Save checkpoint
-            let mut checkpoint = working_set.checkpoint();
-
-            let (cache_log, witness) = checkpoint.freeze();
-
-            let (root_hash, state_update) = pre_state
-                .compute_state_update(cache_log, &witness)
-                .expect("jellyfish merkle tree update must succeed");
-
-            let mut working_set = checkpoint.to_revertable();
-
-            self.runtime
-                .finalize_hook(&root_hash, &mut working_set.accessory_state());
-
-            let mut checkpoint = working_set.checkpoint();
-            let accessory_log = checkpoint.freeze_non_provable();
-
-            pre_state.commit(&state_update, &accessory_log);
-
-            (root_hash, witness, pre_state)
-        };
-
-        SlotResult {
-            state_root,
-            change_set: storage,
-            batch_receipts,
-            witness,
-        }
     }
 }
 
