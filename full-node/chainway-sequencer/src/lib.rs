@@ -457,6 +457,20 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
         }
     }
 
+    /// Fetches nonce from state
+    fn get_nonce(&self) -> u64 {
+        let accounts = Accounts::<C>::default();
+        let mut working_set = WorkingSet::<C>::new(self.storage.clone());
+
+        match accounts
+            .get_account(self.sov_tx_signer_priv_key.pub_key(), &mut working_set)
+            .expect("Sequencer: Failed to get sov-account")
+        {
+            AccountExists { addr: _, nonce } => nonce,
+            AccountEmpty => 0,
+        }
+    }
+
     pub fn register_rpc_methods(&mut self) -> Result<(), jsonrpsee::core::Error> {
         let sc_sender = self.sender.clone();
         let rpc_context = RpcContext {

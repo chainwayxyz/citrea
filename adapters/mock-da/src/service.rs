@@ -141,11 +141,7 @@ impl MockDaService {
                 last_finalized_height
             );
         }
-        self.blocks
-            .lock()
-            .await
-            .prune_above(height)
-            .expect("MockDA: couldn't delete blocks above height");
+        self.blocks.lock().await.prune_above(height);
 
         for blob in blobs {
             let _ = self.add_blob(&blob, Default::default()).await?;
@@ -297,17 +293,13 @@ impl DaService for MockDaService {
         // Fork logic
         self.planned_fork_handler(height).await?;
 
-        // This modification was added because normally mock da creates blocks whena a transaction is sent
-        // however in the current rollup architecture l2 blocks are created before sending transactions to da layer
-        // this is because of the soft confirmation logic.
-        // Simply create the blocks that were asked, as if they are always available
+        // This is some mid level fix.
+        // In tests and demos only height 0 exists
+        // we don't want to wait 5 seconds until block 1 is created
+        // so if get block at 1 is called, we create it
         let len = self.blocks.lock().await.len() as u64;
-        if height > len && height == 1 {
-            let blocks_to_publish = height - (len as u64) + 1;
-
-            for _ in 0..blocks_to_publish {
-                self.send_transaction(&[1]).await?;
-            }
+        if len == 0 && height == 1 {
+            self.send_transaction(&[1]).await?;
         }
 
         // Block until there's something
@@ -514,7 +506,7 @@ mod tests {
 
     async fn test_push_and_read(finalization: u64, num_blocks: usize) {
         let mut da = MockDaService::with_finality(MockAddress::new([1; 32]), finalization as u32);
-        da.blocks.lock().await.delete_all_rows().unwrap();
+        da.blocks.lock().await.delete_all_rows();
         da.wait_attempts = 2;
         let number_of_finalized_blocks = num_blocks - finalization as usize;
         let collector_handle =
@@ -550,7 +542,7 @@ mod tests {
 
     async fn test_push_many_then_read(finalization: u64, num_blocks: usize) {
         let mut da = MockDaService::with_finality(MockAddress::new([1; 32]), finalization as u32);
-        da.blocks.lock().await.delete_all_rows().unwrap();
+        da.blocks.lock().await.delete_all_rows();
 
         da.wait_attempts = 2;
         let number_of_finalized_blocks = num_blocks - finalization as usize;

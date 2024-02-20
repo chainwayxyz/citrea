@@ -5,6 +5,7 @@ use std::sync::Mutex;
 
 use lazy_static::lazy_static;
 use rusqlite::{params, Connection, Result};
+use tracing::debug;
 
 use crate::{MockBlock, MockBlockHeader, MockHash, MockValidityCond};
 
@@ -18,21 +19,12 @@ pub(crate) struct DbConnector {
 }
 
 impl DbConnector {
-    pub fn new() -> Result<Self> {
+    pub fn new() -> Self {
         let thread = std::thread::current();
-        let id = thread.name().unwrap();
-        // if cfg!(test) {
-        // let random_path: [u8; 8] = rand::thread_rng().gen();
-
-        // // 97..120
-        // let random_path: String = random_path.iter().map(|x| (97 + x % 26) as char).collect();
-
-        let dir = temp_dir().join(id.to_owned() + "shared-mock-da.db");
-
+        let dir = temp_dir().join(thread.name().unwrap().to_owned() + "shared-mock-da.db");
         let db_name = dir.to_str().unwrap().to_string();
-        // }
 
-        tracing::error!("Using test db: {}, id: {}", db_name, id);
+        debug!("Using test db: {}, id: {}", db_name, id);
 
         let conn = Connection::open(db_name.clone())?;
 
@@ -46,10 +38,11 @@ impl DbConnector {
                     blobs TEXT
                 );",
             (),
-        )?;
+        )
+        .expect("DbConnector: failed to create table");
 
+        // first time db is opened in a thread, wipe data inside it
         let mut map = USED_THREAD.lock().unwrap();
-
         if let Entry::Vacant(e) = map.entry(db_name) {
             tracing::error!("deleting db");
             conn.execute("DELETE FROM blocks", ())?;
@@ -59,21 +52,23 @@ impl DbConnector {
         Ok(Self { conn })
     }
 
-    pub fn push_back(&self, block: MockBlock) -> Result<()> {
-        self.conn.execute(
-            "INSERT INTO blocks (prev_hash, hash, height, time, is_valid, blobs)
+    pub fn push_back(&self, block: MockBlock) {
+        self.conn
+            .execute(
+                "INSERT INTO blocks (prev_hash, hash, height, time, is_valid, blobs)
                 VALUES (?, ?, ?, ?, ?, ?)",
-            (
-                &block.header.prev_hash.0,
-                &block.header.hash.0,
-                &block.header.height,
-                &serde_json::to_string(&block.header.time)
-                    .expect("DbConnector: Failed to serialize time"),
-                &block.validity_cond.is_valid,
-                &serde_json::to_string(&block.blobs)
-                    .expect("DbConnector: Failed to serialize blobs"),
-            ),
-        )?;
+                params![
+                    block.header.prev_hash.0,
+                    block.header.hash.0,
+                    block.header.height,
+                    serde_json::to_string(&block.header.time)
+                        .expect("DbConnector: Failed to serialize time"),
+                    block.validity_cond.is_valid,
+                    serde_json::to_string(&block.blobs)
+                        .expect("DbConnector: Failed to serialize blobs"),
+                ],
+            )
+            .expect("DbConnector: failed to execute insert query");
 
         Ok(())
     }
@@ -105,11 +100,10 @@ impl DbConnector {
         count as usize
     }
 
-    pub fn prune_above(&self, height: u64) -> Result<()> {
+    pub fn prune_above(&self, height: u64) {
         self.conn
-            .execute("DELETE FROM blocks WHERE height > ?", params![height])?;
-
-        Ok(())
+            .execute("DELETE FROM blocks WHERE height > ?", params![height])
+            .expect("DbConnector: failed to prune");
     }
 
     pub fn last(&self) -> Option<MockBlock> {
@@ -125,10 +119,10 @@ impl DbConnector {
     }
 
     #[cfg(test)]
-    pub fn delete_all_rows(&self) -> Result<()> {
-        self.conn.execute("DELETE FROM blocks", ())?;
-
-        Ok(())
+    pub fn delete_all_rows(&self) {
+        self.conn
+            .execute("DELETE FROM blocks", ())
+            .expect("DbConnector: failed to delete all rows");
     }
 
     fn row_to_block(row: &rusqlite::Row) -> MockBlock {
@@ -165,69 +159,68 @@ mod tests {
 
     #[test]
     fn test_write_and_read() {
-        let db = DbConnector::new().unwrap();
+        let db = DbConnector::new();
 
         let block = get_test_block(1);
 
-        db.push_back(block.clone()).unwrap();
+        db.push_back(block.clone());
 
         let block_from_db = db.get(0).unwrap();
-
-        println!("{:?}", block);
-        println!("{:?}", block_from_db);
 
         assert_eq!(block, block_from_db);
     }
 
     #[test]
     fn test_len() {
-        let db = DbConnector::new().unwrap();
+        let db = DbConnector::new();
 
         let block = get_test_block(1);
 
-        db.push_back(block.clone()).unwrap();
+        db.push_back(block.clone());
 
         assert_eq!(db.len(), 1);
     }
 
     #[test]
     fn test_last() {
-        let db = DbConnector::new().unwrap();
-
-        let block = get_test_block(1);
-
-        db.push_back(block.clone()).unwrap();
-
-        let last = db.last().unwrap();
-        assert_eq!(last, block);
-    }
-
-    #[test]
-    fn test_prune_above() {
-        let db = DbConnector::new().unwrap();
+        let db = DbConnector::new();
 
         let block1 = get_test_block(1);
         let block2 = get_test_block(2);
 
-        db.push_back(block1).unwrap();
-        db.push_back(block2).unwrap();
+        db.push_back(block1);
+        db.push_back(block2.clone());
 
-        db.prune_above(2).unwrap();
+        let last = db.last().unwrap();
+        assert_eq!(last, block2);
+    }
+
+    #[test]
+    fn test_prune_above() {
+        let db = DbConnector::new();
+
+        let block1 = get_test_block(1);
+        let block2 = get_test_block(2);
+
+        db.push_back(block1);
+        db.push_back(block2);
+
+        db.prune_above(2);
 
         assert_eq!(db.len(), 2);
 
-        db.prune_above(1).unwrap();
+        db.prune_above(1);
 
         assert_eq!(db.len(), 1);
     }
 
     #[test]
     fn test_same_thread_behaviour() {
-        let db = DbConnector::new().unwrap();
+        let db = DbConnector::new();
 
         let block = get_test_block(1);
 
-        db.push_back(block.clone()).unwrap();
+        db.push_back(block.clone());
 
         let block_from_db = db.get(0).unwrap();
 
@@ -240,7 +233,7 @@ mod tests {
 
         assert_eq!(block, block_from_db2);
 
-        db2.delete_all_rows().unwrap();
+        db2.delete_all_rows();
 
         // now it's wiped
         assert_eq!(db2.len(), 0);
