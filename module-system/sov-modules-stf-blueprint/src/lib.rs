@@ -17,9 +17,11 @@ use sov_modules_api::{
     BasicAddress, BlobReaderTrait, Context, DaSpec, DispatchCall, Genesis, Signature, Spec,
     StateCheckpoint, UnsignedSoftConfirmationBatch, WorkingSet, Zkvm,
 };
+use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
 pub use sov_rollup_interface::stf::{BatchReceipt, TransactionReceipt};
 use sov_rollup_interface::stf::{SlotResult, StateTransitionFunction};
+use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_state::storage::KernelWorkingSet;
 use sov_state::Storage;
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
@@ -133,7 +135,7 @@ pub trait StfBlueprintTrait<C: Context, Da: DaSpec, Vm: Zkvm>:
     fn begin_soft_batch(
         &self,
         sequencer_public_key: &[u8],
-        pre_state_root: &<C::Storage as Storage>::Root,
+        pre_state_root: &[u8],
         pre_state: C::Storage,
         witness: <<C as Spec>::Storage as Storage>::Witness,
         slot_header: &<Da as DaSpec>::BlockHeader,
@@ -178,7 +180,7 @@ where
     fn begin_soft_batch(
         &self,
         sequencer_public_key: &[u8],
-        pre_state_root: &<<C>::Storage as Storage>::Root,
+        pre_state_root: &[u8],
         pre_state: <C>::Storage,
         witness: <<C as Spec>::Storage as Storage>::Witness,
         slot_header: &<Da as DaSpec>::BlockHeader,
@@ -212,7 +214,7 @@ where
         // then verify pre state root matches
         assert_eq!(
             soft_batch.pre_state_root(),
-            pre_state_root.as_ref(),
+            pre_state_root,
             "pre state roots must match"
         );
 
@@ -237,8 +239,8 @@ where
         batch_workspace: WorkingSet<C>,
         pre_state: <C>::Storage,
     ) -> SlotResult<
-        <<C>::Storage as Storage>::Root,
-        <C>::Storage,
+        <C::Storage as Storage>::Root,
+        C::Storage,
         SequencerOutcome<<<Da as DaSpec>::BlobTransaction as BlobReaderTrait>::Address>,
         TxEffect,
         <<C as Spec>::Storage as Storage>::Witness,
@@ -522,7 +524,7 @@ where
     > {
         match self.begin_soft_batch(
             sequencer_public_key,
-            pre_state_root,
+            pre_state_root.as_ref(),
             pre_state.clone(),
             witness,
             slot_header,

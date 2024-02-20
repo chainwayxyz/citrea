@@ -197,7 +197,40 @@ where
     }
 
     /// TODO: Docs
-    pub async fn begin_soft_confirmation(&mut self, mut soft_batch_info: HookSoftConfirmationInfo) {
+    pub async fn begin_soft_confirmation(
+        &mut self,
+        soft_batch: &mut SignedSoftConfirmationBatch,
+    ) -> () {
+        // TODO: Handle Error
+        let filtered_block = self
+            .da_service
+            .get_block_at(soft_batch.da_slot_height)
+            .await
+            .unwrap();
+        // TODO: Handle Error
+        let pre_state = self
+            .storage_manager
+            .create_storage_on(filtered_block.header())
+            .unwrap();
+
+        // TODO: check for reorgs here
+        // check out run_in_process for an example
+
+        info!(
+            "Applying soft batch on DA block: {}",
+            hex::encode(filtered_block.header().hash().into())
+        );
+
+        let pub_key = soft_batch.pub_key.clone();
+
+        self.stf.begin_soft_batch(
+            &pub_key,
+            self.state_root.as_ref(),
+            pre_state,
+            Default::default(),
+            filtered_block.header(),
+            soft_batch,
+        );
     }
     /// TODO: Docs
     pub async fn apply_sov_tx(&mut self, mut soft_batch: SignedSoftConfirmationBatch) {}
@@ -238,6 +271,7 @@ where
             &filtered_block.validity_condition(),
             &mut soft_batch,
         );
+
         if slot_result.state_root.as_ref() == self.state_root.as_ref() {
             debug!("Limiting number is reached for the current L1 block. State root is the same as before, skipping");
             // TODO: Check if below is legit
