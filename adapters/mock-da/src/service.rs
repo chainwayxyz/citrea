@@ -1,4 +1,3 @@
-use std::collections::VecDeque;
 use std::pin::Pin;
 use std::sync::Mutex;
 use std::task::{Context, Poll};
@@ -13,6 +12,7 @@ use sov_rollup_interface::services::da::{DaService, SlotData};
 use tokio::sync::{broadcast, Mutex as AsyncMutex, RwLock, RwLockWriteGuard};
 use tokio::time;
 
+use crate::db_connector::DbConnector;
 use crate::types::{MockAddress, MockBlob, MockBlock, MockDaVerifier};
 use crate::verifier::MockDaSpec;
 use crate::{MockBlockHeader, MockHash};
@@ -63,7 +63,8 @@ impl PlannedFork {
 /// Submitted blocks are kept indefinitely in memory.
 pub struct MockDaService {
     sequencer_da_address: MockAddress,
-    blocks: Arc<RwLock<VecDeque<MockBlock>>>,
+    // don't need a mutex, but DaService trait requires it by Sync trait
+    pub(crate) blocks: Arc<AsyncMutex<DbConnector>>,
     /// How many blocks should be submitted, before block is finalized. 0 means instant finality.
     blocks_to_finality: u32,
     /// Used for calculating correct finality from state of `blocks`
@@ -91,7 +92,9 @@ impl MockDaService {
         });
         Self {
             sequencer_da_address,
-            blocks: Arc::new(Default::default()),
+            blocks: Arc::new(AsyncMutex::new(
+                DbConnector::new().expect("MockDA db connection failed"),
+            )),
             blocks_to_finality,
             finalized_header_sender: tx,
             wait_attempts: 100_0000,
@@ -114,13 +117,7 @@ impl MockDaService {
         // Waits self.wait_attempts * 10ms to get block at height
         for _ in 0..self.wait_attempts {
             {
-                if self
-                    .blocks
-                    .read()
-                    .await
-                    .iter()
-                    .any(|b| b.header().height() == height)
-                {
+                if self.blocks.lock().await.get(height - 1).is_some() {
                     return Ok(());
                 }
             }
@@ -136,8 +133,7 @@ impl MockDaService {
     /// New blobs will be added **after** specified height,
     /// meaning that first blob will be in the block of height + 1.
     pub async fn fork_at(&self, height: u64, blobs: Vec<Vec<u8>>) -> anyhow::Result<()> {
-        let mut blocks = self.blocks.write().await;
-        let last_finalized_height = self.get_last_finalized_height(&blocks).await;
+        let last_finalized_height = self.get_last_finalized_height().await;
         if last_finalized_height > height {
             anyhow::bail!(
                 "Cannot fork at height {}, last finalized height is {}",
@@ -145,11 +141,14 @@ impl MockDaService {
                 last_finalized_height
             );
         }
-        blocks.retain(|b| b.header().height <= height);
+        self.blocks
+            .lock()
+            .await
+            .prune_above(height)
+            .expect("MockDA: couldn't delete blocks above height");
+
         for blob in blobs {
-            let _ = self
-                .add_blob(&blob, Default::default(), &mut blocks)
-                .await?;
+            let _ = self.add_blob(&blob, Default::default()).await?;
         }
 
         Ok(())
@@ -157,10 +156,7 @@ impl MockDaService {
 
     /// Set planned fork, that will be executed at specified height
     pub async fn set_planned_fork(&self, planned_fork: PlannedFork) -> anyhow::Result<()> {
-        let last_finalized_height = {
-            let blocks = self.blocks.write().await;
-            self.get_last_finalized_height(&blocks).await
-        };
+        let last_finalized_height = self.get_last_finalized_height().await;
         if last_finalized_height > planned_fork.trigger_at_height {
             anyhow::bail!(
                 "Cannot fork at height {}, last finalized height is {}",
@@ -175,23 +171,19 @@ impl MockDaService {
         Ok(())
     }
 
-    async fn get_last_finalized_height(
-        &self,
-        blocks: &RwLockWriteGuard<'_, VecDeque<MockBlock>>,
-    ) -> u64 {
-        blocks
+    async fn get_last_finalized_height(&self) -> u64 {
+        self.blocks
+            .lock()
+            .await
             .len()
             .checked_sub(self.blocks_to_finality as usize)
             .unwrap_or_default() as u64
     }
 
-    async fn add_blob(
-        &self,
-        blob: &[u8],
-        zkp_proof: Vec<u8>,
-        blocks: &mut RwLockWriteGuard<'_, VecDeque<MockBlock>>,
-    ) -> anyhow::Result<u64> {
-        let (previous_block_hash, height) = match blocks.iter().last().map(|b| b.header().clone()) {
+    async fn add_blob(&self, blob: &[u8], zkp_proof: Vec<u8>) -> anyhow::Result<u64> {
+        let blocks = self.blocks.lock().await;
+
+        let (previous_block_hash, height) = match blocks.last().map(|b| b.header().clone()) {
             None => (GENESIS_HEADER.hash(), GENESIS_HEADER.height() + 1),
             Some(block_header) => (block_header.hash(), block_header.height + 1),
         };
@@ -218,12 +210,17 @@ impl MockDaService {
             validity_cond: Default::default(),
             blobs: vec![blob],
         };
-        blocks.push_back(block);
+
+        blocks.push_back(block).expect("MockDA: couldn't add block");
 
         // Enough blocks to finalize block
         if blocks.len() > self.blocks_to_finality as usize {
             let next_index_to_finalize = blocks.len() - self.blocks_to_finality as usize - 1;
-            let next_finalized_header = blocks[next_index_to_finalize].header().clone();
+            let next_finalized_header = blocks
+                .get(next_index_to_finalize as u64)
+                .unwrap()
+                .header()
+                .clone();
             self.finalized_header_sender
                 .send(next_finalized_header)
                 .unwrap();
@@ -304,8 +301,9 @@ impl DaService for MockDaService {
         // however in the current rollup architecture l2 blocks are created before sending transactions to da layer
         // this is because of the soft confirmation logic.
         // Simply create the blocks that were asked, as if they are always available
-        if height > self.blocks.read().await.len() as u64 {
-            let blocks_to_publish = height - (self.blocks.read().await.len() as u64) + 1;
+        let len = self.blocks.lock().await.len() as u64;
+        if height > len && height == 1 {
+            let blocks_to_publish = height - (len as u64) + 1;
 
             for _ in 0..blocks_to_publish {
                 self.send_transaction(&[1]).await?;
@@ -315,8 +313,8 @@ impl DaService for MockDaService {
         // Block until there's something
         self.wait_for_height(height).await?;
         // Locking blocks here, so submissions has to wait
-        let blocks = self.blocks.write().await;
-        let oldest_available_height = blocks[0].header.height;
+        let blocks = self.blocks.lock().await;
+        let oldest_available_height = blocks.get(0).unwrap().header.height;
         let index = height
             .checked_sub(oldest_available_height)
             .ok_or(anyhow::anyhow!(
@@ -324,7 +322,7 @@ impl DaService for MockDaService {
                 height
             ))?;
 
-        Ok(blocks.get(index as usize).unwrap().clone())
+        Ok(blocks.get(index).unwrap().clone())
     }
 
     async fn get_last_finalized_block_header(
@@ -339,15 +337,15 @@ impl DaService for MockDaService {
             *last_called = Instant::now();
         }
 
-        let blocks_len = { self.blocks.read().await.len() };
+        let blocks_len = self.blocks.lock().await.len();
 
         if blocks_len < self.blocks_to_finality as usize + 1 {
             return Ok(GENESIS_HEADER);
         }
 
-        let blocks = self.blocks.read().await;
+        let blocks = self.blocks.lock().await;
         let index = blocks_len - self.blocks_to_finality as usize - 1;
-        Ok(blocks[index].header().clone())
+        Ok(blocks.get(index as u64).unwrap().header().clone())
     }
 
     async fn subscribe_finalized_header(&self) -> Result<Self::HeaderStream, Self::Error> {
@@ -358,10 +356,9 @@ impl DaService for MockDaService {
     async fn get_head_block_header(
         &self,
     ) -> Result<<Self::Spec as DaSpec>::BlockHeader, Self::Error> {
-        let blocks = self.blocks.read().await;
+        let blocks = self.blocks.lock().await;
 
         Ok(blocks
-            .iter()
             .last()
             .map(|b| b.header().clone())
             .unwrap_or(GENESIS_HEADER))
@@ -386,8 +383,7 @@ impl DaService for MockDaService {
     }
 
     async fn send_transaction(&self, blob: &[u8]) -> Result<(), Self::Error> {
-        let mut blocks = self.blocks.write().await;
-        let _ = self.add_blob(blob, Default::default(), &mut blocks).await?;
+        let _ = self.add_blob(blob, Default::default()).await?;
         Ok(())
     }
 
@@ -411,9 +407,7 @@ impl DaService for MockDaService {
     }
 
     async fn send_aggregated_zk_proof(&self, proof: &[u8]) -> Result<u64, Self::Error> {
-        let mut blocks = self.blocks.write().await;
-        self.add_blob(Default::default(), proof.to_vec(), &mut blocks)
-            .await
+        self.add_blob(Default::default(), proof.to_vec()).await
     }
 
     async fn get_aggregated_proofs_at(&self, height: u64) -> Result<Vec<Vec<u8>>, Self::Error> {
@@ -520,6 +514,7 @@ mod tests {
 
     async fn test_push_and_read(finalization: u64, num_blocks: usize) {
         let mut da = MockDaService::with_finality(MockAddress::new([1; 32]), finalization as u32);
+        da.blocks.lock().await.delete_all_rows().unwrap();
         da.wait_attempts = 2;
         let number_of_finalized_blocks = num_blocks - finalization as usize;
         let collector_handle =
@@ -555,6 +550,8 @@ mod tests {
 
     async fn test_push_many_then_read(finalization: u64, num_blocks: usize) {
         let mut da = MockDaService::with_finality(MockAddress::new([1; 32]), finalization as u32);
+        da.blocks.lock().await.delete_all_rows().unwrap();
+
         da.wait_attempts = 2;
         let number_of_finalized_blocks = num_blocks - finalization as usize;
         let collector_handle =

@@ -547,7 +547,7 @@ async fn test_soft_confirmations_on_different_blocks() -> Result<(), anyhow::Err
 
     // now that more than 5 secs passed there should be a new da block
     for _ in 1..=6 {
-        seq_test_client.send_publish_batch_request().await;
+        seq_test_client.spam_publish_batch_request().await.unwrap();
     }
 
     sleep(Duration::from_secs(2)).await;
@@ -561,8 +561,6 @@ async fn test_soft_confirmations_on_different_blocks() -> Result<(), anyhow::Err
             .ledger_get_soft_batch_by_number::<MockDaSpec>(i)
             .await
             .unwrap();
-
-        tracing::info!("seq_soft_conf: {:?}", seq_soft_conf);
 
         if i != 7 {
             assert_eq!(last_da_slot_height, seq_soft_conf.da_slot_height);

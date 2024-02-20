@@ -427,7 +427,17 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
     /// Signs batch of messages with sovereign priv key turns them into a sov blob
     /// Returns a single sovereign transaction made up of multiple ethereum transactions
     fn make_blob(&mut self, raw_message: Vec<u8>) -> Vec<u8> {
-        let nonce = self.sov_tx_signer_nonce.borrow_mut();
+        // if a batch failed need to refetch nonce
+        // so sticking to fetching from state makes sense
+        let accounts = Accounts::<C>::default();
+        let mut working_set = WorkingSet::<C>::new(self.storage.clone());
+        let nonce = match accounts
+            .get_account(self.sov_tx_signer_priv_key.pub_key(), &mut working_set)
+            .expect("Sequencer: Failed to get sov-account")
+        {
+            AccountExists { addr: _, nonce } => nonce,
+            AccountEmpty => 0,
+        };
 
         // TODO: figure out what to do with sov-tx fields
         // chain id gas tip and gas limit
@@ -437,12 +447,10 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
             0,
             0,
             0,
-            *nonce,
+            nonce,
         )
         .try_to_vec()
         .unwrap();
-
-        *nonce += 1;
 
         raw_tx
     }

@@ -1,5 +1,7 @@
 use citrea_stf::genesis_config::GenesisPaths;
+use sov_mock_da::{MockAddress, MockDaService, MockDaSpec};
 use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
+use sov_rollup_interface::services::da::DaService;
 use sov_stf_runner::RollupProverConfig;
 use tokio::time::{sleep, Duration};
 
@@ -10,7 +12,7 @@ use crate::test_helpers::{start_rollup, NodeMode};
 /// Transaction with equal nonce to last tx should not be accepted by mempool.
 #[tokio::test]
 async fn too_many_l2_block_per_l1_block() {
-    // initialize_logging();
+    // sov_demo_rollup::initialize_logging();
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 

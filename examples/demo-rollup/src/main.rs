@@ -181,7 +181,8 @@ where
             .unwrap(),
             storage,
             SequencingParams {
-                min_soft_confirmations_per_commitment: 5, // TODO take this from somewhere else
+                // TODO take this from somewhere else
+                min_soft_confirmations_per_commitment: 1000,
             },
         );
         seq.start_rpc_server(None).await?;

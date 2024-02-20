@@ -113,7 +113,8 @@ pub async fn start_rollup(
                     DefaultPrivateKey::from_hex(TEST_PRIVATE_KEY).unwrap(),
                     storage,
                     SequencingParams {
-                        min_soft_confirmations_per_commitment: 2,
+                        // TODO: Set these to reasonable values when parametrized
+                        min_soft_confirmations_per_commitment: 1000,
                     },
                 );
             sequencer
