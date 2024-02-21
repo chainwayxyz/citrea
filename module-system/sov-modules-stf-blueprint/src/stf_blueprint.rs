@@ -14,7 +14,8 @@ use tracing::{debug, error};
 use crate::tx_verifier::{verify_txs_stateless, TransactionAndRawHash};
 use crate::{Batch, RawTx, Runtime, RuntimeTxHook, SequencerOutcome, SlashingReason, TxEffect};
 
-pub(crate) type ApplyBatchResult<T, A> = Result<T, ApplyBatchError<A>>;
+/// TODO: Docs
+pub type ApplyBatchResult<T, A> = Result<T, ApplyBatchError<A>>;
 #[allow(type_alias_bounds)]
 type ApplyBatch<Da: DaSpec> = ApplyBatchResult<
     BatchReceipt<SequencerOutcome<<Da::BlobTransaction as BlobReaderTrait>::Address>, TxEffect>,
@@ -35,14 +36,17 @@ pub struct StfBlueprint<C: Context, Da: DaSpec, Vm, RT: Runtime<C, Da>, K: Kerne
     phantom_vm: PhantomData<Vm>,
     phantom_da: PhantomData<Da>,
 }
-
-pub(crate) enum ApplyBatchError<A: BasicAddress> {
-    // Contains batch hash
+/// TODO: Docs
+pub enum ApplyBatchError<A: BasicAddress> {
+    /// Contains batch hash
     Ignored([u8; 32]),
+    /// Contains batch hash
     Slashed {
-        // Contains batch hash
+        /// TODO
         hash: [u8; 32],
+        /// Contains batch hash
         reason: SlashingReason,
+        /// Contains batch hash
         sequencer_da_address: A,
     },
 }

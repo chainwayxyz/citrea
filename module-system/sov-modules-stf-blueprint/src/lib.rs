@@ -30,7 +30,7 @@ pub use stf_blueprint::StfBlueprint;
 use tracing::{debug, info};
 pub use tx_verifier::RawTx;
 
-use crate::stf_blueprint::{ApplyBatchError, ApplyBatchResult};
+pub use crate::stf_blueprint::{ApplyBatchError, ApplyBatchResult};
 
 /// The tx hook for a blueprint runtime
 pub struct RuntimeTxHook<C: Context> {
@@ -135,8 +135,8 @@ pub trait StfBlueprintTrait<C: Context, Da: DaSpec, Vm: Zkvm>:
     fn begin_soft_batch(
         &self,
         sequencer_public_key: &[u8],
-        pre_state_root: &[u8],
-        pre_state: C::Storage,
+        pre_state_root: &Self::StateRoot,
+        pre_state: Self::PreState,
         witness: <<C as Spec>::Storage as Storage>::Witness,
         slot_header: &<Da as DaSpec>::BlockHeader,
         soft_batch: &mut SignedSoftConfirmationBatch,
@@ -159,13 +159,13 @@ pub trait StfBlueprintTrait<C: Context, Da: DaSpec, Vm: Zkvm>:
         sequencer_reward: u64,
         tx_receipts: Vec<TransactionReceipt<TxEffect>>,
         batch_workspace: WorkingSet<C>,
-        pre_state: C::Storage,
+        pre_state: Self::PreState,
     ) -> SlotResult<
-        <C::Storage as Storage>::Root,
-        C::Storage,
-        SequencerOutcome<<Da::BlobTransaction as BlobReaderTrait>::Address>,
-        TxEffect,
-        <<C as Spec>::Storage as Storage>::Witness,
+        Self::StateRoot,
+        Self::ChangeSet,
+        Self::BatchReceiptContents,
+        Self::TxReceiptContents,
+        Self::Witness,
     >;
 }
 
@@ -180,7 +180,7 @@ where
     fn begin_soft_batch(
         &self,
         sequencer_public_key: &[u8],
-        pre_state_root: &[u8],
+        pre_state_root: &<C::Storage as Storage>::Root,
         pre_state: <C>::Storage,
         witness: <<C as Spec>::Storage as Storage>::Witness,
         slot_header: &<Da as DaSpec>::BlockHeader,
@@ -214,7 +214,7 @@ where
         // then verify pre state root matches
         assert_eq!(
             soft_batch.pre_state_root(),
-            pre_state_root,
+            pre_state_root.as_ref(),
             "pre state roots must match"
         );
 
@@ -524,7 +524,7 @@ where
     > {
         match self.begin_soft_batch(
             sequencer_public_key,
-            pre_state_root.as_ref(),
+            pre_state_root,
             pre_state.clone(),
             witness,
             slot_header,

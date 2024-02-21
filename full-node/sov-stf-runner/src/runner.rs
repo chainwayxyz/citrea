@@ -9,12 +9,16 @@ use sov_db::ledger_db::{LedgerDB, SlotCommit};
 use sov_db::schema::types::{BatchNumber, StoredSoftBatch};
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::runtime::capabilities::KernelSlotHooks;
-use sov_modules_api::Context;
-use sov_modules_stf_blueprint::{Runtime, StfBlueprint, StfBlueprintTrait};
+use sov_modules_api::{BlobReaderTrait, Context, Spec, WorkingSet};
+use sov_modules_stf_blueprint::{
+    ApplyBatchResult, Runtime, StfBlueprint, StfBlueprintTrait, TxEffect,
+};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
-use sov_rollup_interface::stf::{SoftBatchReceipt, StateTransitionFunction};
+use sov_rollup_interface::stf::{
+    BatchReceipt, SoftBatchReceipt, StateTransitionFunction, TransactionReceipt,
+};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::{Zkvm, ZkvmHost};
 use tokio::sync::oneshot;
@@ -200,7 +204,10 @@ where
     pub async fn begin_soft_confirmation(
         &mut self,
         soft_batch: &mut SignedSoftConfirmationBatch,
-    ) -> () {
+    ) -> (
+        ApplyBatchResult<(), <<Da::Spec as DaSpec>::BlobTransaction as BlobReaderTrait>::Address>,
+        WorkingSet<C>,
+    ) {
         // TODO: Handle Error
         let filtered_block = self
             .da_service
@@ -223,19 +230,104 @@ where
 
         let pub_key = soft_batch.pub_key.clone();
 
+        #[allow(unused_must_use)]
         self.stf.begin_soft_batch(
             &pub_key,
-            self.state_root.as_ref(),
+            &self.state_root,
             pre_state,
             Default::default(),
             filtered_block.header(),
             soft_batch,
-        );
+        )
     }
     /// TODO: Docs
-    pub async fn apply_sov_tx(&mut self, mut soft_batch: SignedSoftConfirmationBatch) {}
+    pub async fn apply_sov_tx(
+        &mut self,
+        txs: Vec<Vec<u8>>,
+        batch_workspace: WorkingSet<C>,
+    ) -> (u64, WorkingSet<C>, Vec<TransactionReceipt<TxEffect>>) {
+        self.stf.apply_soft_batch_txs(txs, batch_workspace)
+    }
     /// TODO: Docs
-    pub async fn end_soft_confirmation(&mut self, mut soft_batch: SignedSoftConfirmationBatch) {}
+    pub async fn end_soft_confirmation(
+        &mut self,
+        soft_batch: &mut SignedSoftConfirmationBatch,
+        sequencer_reward: u64,
+        tx_receipts: Vec<TransactionReceipt<TxEffect>>,
+        batch_workspace: WorkingSet<C>,
+    ) -> Result<(), anyhow::Error> {
+        let filtered_block = self
+            .da_service
+            .get_block_at(soft_batch.da_slot_height)
+            .await
+            .unwrap();
+        let pre_state = self
+            .storage_manager
+            .create_storage_on(filtered_block.header())
+            .unwrap();
+        let slot_result = self.stf.end_soft_batch(
+            soft_batch,
+            sequencer_reward,
+            tx_receipts,
+            batch_workspace,
+            pre_state,
+        );
+
+        if slot_result.state_root.as_ref() == self.state_root.as_ref() {
+            debug!("Limiting number is reached for the current L1 block. State root is the same as before, skipping");
+            // TODO: Check if below is legit
+            self.storage_manager
+                .save_change_set(filtered_block.header(), slot_result.change_set)?;
+
+            tracing::debug!("Finalizing seen header: {:?}", filtered_block.header());
+            self.storage_manager.finalize(filtered_block.header())?;
+            return Ok(());
+        }
+
+        info!(
+            "State root after applying slot: {:?}",
+            slot_result.state_root
+        );
+
+        let mut data_to_commit = SlotCommit::new(filtered_block.clone());
+        for receipt in slot_result.batch_receipts {
+            data_to_commit.add_batch(receipt);
+        }
+
+        // TODO: This will be a single receipt once we have apply_soft_batch.
+        let batch_receipt = data_to_commit.batch_receipts()[0].clone();
+
+        let next_state_root = slot_result.state_root;
+
+        let soft_batch_receipt = SoftBatchReceipt::<_, _, Da::Spec> {
+            pre_state_root: self.state_root.as_ref().to_vec(),
+            post_state_root: next_state_root.as_ref().to_vec(),
+            inner: batch_receipt.inner,
+            batch_hash: batch_receipt.batch_hash,
+            da_slot_hash: filtered_block.header().hash(),
+            da_slot_height: filtered_block.header().height(),
+            tx_receipts: batch_receipt.tx_receipts,
+            soft_confirmation_signature: soft_batch.signature.to_vec(),
+            pub_key: soft_batch.pub_key.to_vec(),
+        };
+
+        self.ledger_db
+            .commit_soft_batch(soft_batch_receipt, false)?;
+
+        // TODO: this will only work for mock da
+        // when https://github.com/Sovereign-Labs/sovereign-sdk/issues/1218
+        // is merged, rpc will access up to date storage then we won't need to finalize rigth away.
+        // however we need much better DA + finalization logic here
+        self.storage_manager
+            .save_change_set(filtered_block.header(), slot_result.change_set)?;
+
+        tracing::debug!("Finalizing seen header: {:?}", filtered_block.header());
+        self.storage_manager.finalize(filtered_block.header())?;
+
+        self.state_root = next_state_root;
+
+        Ok(())
+    }
 
     /// Processes sequence
     /// gets BlockTemplate from sequencer
