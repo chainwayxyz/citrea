@@ -266,6 +266,7 @@ where
             .create_storage_on(filtered_block.header())
             .unwrap();
         let slot_result = self.stf.end_soft_batch(
+            self.sequencer_pub_key.as_ref(),
             soft_batch,
             sequencer_reward,
             tx_receipts,

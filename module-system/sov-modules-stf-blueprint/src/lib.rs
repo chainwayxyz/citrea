@@ -155,6 +155,7 @@ pub trait StfBlueprintTrait<C: Context, Da: DaSpec, Vm: Zkvm>:
     /// End a soft batch
     fn end_soft_batch(
         &self,
+        sequencer_public_key: &[u8],
         soft_batch: &mut SignedSoftConfirmationBatch,
         sequencer_reward: u64,
         tx_receipts: Vec<TransactionReceipt<TxEffect>>,
@@ -198,12 +199,6 @@ where
             "Sequencer public key must match"
         );
 
-        // verify signature
-        assert!(
-            verify_soft_batch_signature::<C>(soft_batch, sequencer_public_key).is_ok(),
-            "Signature verification must succeed"
-        );
-
         // then verify da hashes match
         assert_eq!(
             soft_batch.da_slot_hash(),
@@ -233,6 +228,7 @@ where
 
     fn end_soft_batch(
         &self,
+        sequencer_public_key: &[u8],
         soft_batch: &mut SignedSoftConfirmationBatch,
         sequencer_reward: u64,
         tx_receipts: Vec<TransactionReceipt<TxEffect>>,
@@ -245,6 +241,12 @@ where
         TxEffect,
         <<C as Spec>::Storage as Storage>::Witness,
     > {
+        // verify signature
+        assert!(
+            verify_soft_batch_signature::<C>(soft_batch, sequencer_public_key).is_ok(),
+            "Signature verification must succeed"
+        );
+
         let (apply_soft_batch_result, checkpoint) = self.end_soft_confirmation_inner(
             soft_batch,
             sequencer_reward,
@@ -535,6 +537,7 @@ where
                     self.apply_soft_batch_txs(soft_batch.txs.clone(), batch_workspace);
 
                 self.end_soft_batch(
+                    sequencer_public_key,
                     soft_batch,
                     sequencer_reward,
                     tx_receipts,

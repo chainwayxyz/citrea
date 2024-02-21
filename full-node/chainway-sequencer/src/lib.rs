@@ -228,6 +228,12 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                     pub_key: self.sov_tx_signer_priv_key.pub_key().try_to_vec().unwrap(),
                 };
 
+                // initially create sc info and call begin soft confirmation hook with it
+
+                // self.rollup.runner.begin_soft_confirmation(soft_batch)
+
+                // get txs and call apply tx with it
+
                 let unsigned_batch = UnsignedSoftConfirmationBatch {
                     da_slot_height: last_finalized_block.header().height(),
                     txs: vec![signed_blob.clone()],
@@ -240,9 +246,6 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                         .as_ref()
                         .to_vec(),
                 };
-                // initially create sc info and call begin soft confirmation hook with it
-
-                // get txs and call apply tx with it
 
                 // create the unsigned batch with the txs then sign th sc
 
