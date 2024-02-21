@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::HashSet;
 use std::env::temp_dir;
 use std::sync::Mutex;
 
@@ -9,11 +9,11 @@ use tracing::debug;
 use crate::{MockBlock, MockBlockHeader, MockHash, MockValidityCond};
 
 lazy_static! {
-    static ref USED_THREAD: Mutex<HashMap<String, bool>> = Mutex::new(HashMap::new()); // TODO: use a set instead of a map
+    static ref USED_THREAD: Mutex<HashSet<String>> = Mutex::new(HashSet::new()); // TODO: use a set instead of a map
 }
 
 pub(crate) struct DbConnector {
-    // thread-safe mysql connection
+    // thread-safe sqlite connection
     conn: Connection,
 }
 
@@ -42,12 +42,14 @@ impl DbConnector {
         .expect("DbConnector: failed to create table");
 
         // first time db is opened in a thread, wipe data inside it unless it's the main thread
-        let mut map = USED_THREAD.lock().unwrap();
-        if !map.contains_key(&thread_name.to_string()) && thread_name != "main" {
-            tracing::error!("deleting db");
+        // keep main thread's data since main thread runs only when running demo or mocknet
+        // we would like to keep da data in that case
+        let mut set = USED_THREAD.lock().unwrap();
+        if !set.contains(&thread_name.to_string()) && thread_name != "main" {
+            debug!("deleting db");
             conn.execute("DELETE FROM blocks", ())
                 .expect("DbConnector: failed to delete all rows");
-            map.insert(thread_name.to_string(), true);
+            set.insert(thread_name.to_string());
         }
 
         Self { conn }
