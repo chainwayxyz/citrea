@@ -37,6 +37,7 @@ use sov_modules_api::{
     WorkingSet,
 };
 use sov_modules_rollup_blueprint::{Rollup, RollupBlueprint};
+use sov_modules_stf_blueprint::ApplyBatchError;
 use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::services::da::DaService;
 use tracing::info;
@@ -227,37 +228,72 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                         .to_vec(),
                     pub_key: self.sov_tx_signer_priv_key.pub_key().try_to_vec().unwrap(),
                 };
-
+                let mut signed_batch = batch_info.clone().into();
                 // initially create sc info and call begin soft confirmation hook with it
+                let txs = vec![signed_blob.clone()];
+                match self
+                    .rollup
+                    .runner
+                    .begin_soft_confirmation(&mut signed_batch)
+                    .await
+                {
+                    (Ok(()), batch_workspace) => {
+                        let (sequencer_reward, batch_workspace, tx_receipts) = self
+                            .rollup
+                            .runner
+                            .apply_sov_tx(txs.clone(), batch_workspace)
+                            .await;
 
-                // self.rollup.runner.begin_soft_confirmation(soft_batch)
+                        let unsigned_batch = UnsignedSoftConfirmationBatch {
+                            da_slot_height: last_finalized_block.header().height(),
+                            txs,
+                            da_slot_hash: last_finalized_block.header().hash().into(),
+                            pre_state_root: self
+                                .rollup
+                                .runner
+                                .get_state_root()
+                                .clone()
+                                .as_ref()
+                                .to_vec(),
+                        };
+
+                        // create the unsigned batch with the txs then sign th sc
+
+                        let mut signed_soft_batch =
+                            self.sign_soft_confirmation_batch(unsigned_batch);
+
+                        self.rollup
+                            .runner
+                            .end_soft_confirmation(
+                                &mut signed_soft_batch,
+                                sequencer_reward,
+                                tx_receipts,
+                                batch_workspace,
+                            )
+                            .await;
+                        self.mempool
+                            .remove_transactions(self.db_provider.last_block_tx_hashes());
+                    }
+                    (Err(ApplyBatchError::Ignored(root_hash)), batch_workspace) => {
+                        // return SlotResult {
+                        //     state_root: pre_state_root.clone(),
+                        //     change_set: pre_state, // should be empty
+                        //     batch_receipts: vec![],
+                        //     witness: <<C as Spec>::Storage as Storage>::Witness::default(),
+                        // };
+                        // handle error?
+                    }
+                    _ => {
+                        unimplemented!()
+                    }
+                }
 
                 // get txs and call apply tx with it
 
-                let unsigned_batch = UnsignedSoftConfirmationBatch {
-                    da_slot_height: last_finalized_block.header().height(),
-                    txs: vec![signed_blob.clone()],
-                    da_slot_hash: last_finalized_block.header().hash().into(),
-                    pre_state_root: self
-                        .rollup
-                        .runner
-                        .get_state_root()
-                        .clone()
-                        .as_ref()
-                        .to_vec(),
-                };
-
-                // create the unsigned batch with the txs then sign th sc
-
-                let signed_soft_batch = self.sign_soft_confirmation_batch(unsigned_batch);
-
                 // TODO: handle error
-                self.rollup.runner.process(signed_soft_batch).await?;
+                // self.rollup.runner.process(signed_soft_batch).await?;
 
                 // get last block remove only txs in block
-
-                self.mempool
-                    .remove_transactions(self.db_provider.last_block_tx_hashes());
             }
         }
     }

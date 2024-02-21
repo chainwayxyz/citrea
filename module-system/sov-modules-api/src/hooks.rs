@@ -105,6 +105,20 @@ impl From<SignedSoftConfirmationBatch> for HookSoftConfirmationInfo {
     }
 }
 
+impl Into<SignedSoftConfirmationBatch> for HookSoftConfirmationInfo {
+    fn into(self) -> SignedSoftConfirmationBatch {
+        SignedSoftConfirmationBatch {
+            hash: [0u8; 32],
+            da_slot_height: self.da_slot_height,
+            da_slot_hash: self.da_slot_hash(),
+            pre_state_root: self.pre_state_root(),
+            txs: vec![],
+            signature: vec![],
+            pub_key: self.pub_key.clone(),
+        }
+    }
+}
+
 impl HookSoftConfirmationInfo {
     /// DA block to build on
     pub fn da_slot_hash(&self) -> [u8; 32] {
