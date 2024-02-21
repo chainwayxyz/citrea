@@ -1,7 +1,6 @@
 pub mod db_provider;
 mod utils;
 
-use std::borrow::BorrowMut;
 use std::marker::PhantomData;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -93,7 +92,6 @@ pub struct ChainwaySequencer<C: sov_modules_api::Context, Da: DaService, S: Roll
     mempool: Arc<CitreaMempool<C>>,
     p: PhantomData<C>,
     sov_tx_signer_priv_key: C::PrivateKey,
-    sov_tx_signer_nonce: u64,
     sender: UnboundedSender<String>,
     receiver: UnboundedReceiver<String>,
     db_provider: DbProvider<C>,
@@ -112,16 +110,6 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
     ) -> Self {
         let (sender, receiver) = unbounded();
 
-        let accounts = Accounts::<C>::default();
-        let mut working_set = WorkingSet::<C>::new(storage.clone());
-        let nonce = match accounts
-            .get_account(sov_tx_signer_priv_key.pub_key(), &mut working_set)
-            .expect("Sequencer: Failed to get sov-account")
-        {
-            AccountExists { addr: _, nonce } => nonce,
-            AccountEmpty => 0,
-        };
-
         // used as client of reth's mempool
         let db_provider = DbProvider::new(storage.clone());
 
@@ -135,7 +123,6 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
             mempool: Arc::new(pool),
             p: PhantomData,
             sov_tx_signer_priv_key,
-            sov_tx_signer_nonce: nonce,
             sender,
             receiver,
             db_provider,
@@ -261,14 +248,14 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
 
                     warn!("Last commitment L1 height: {:?}", last_commitment_l1_height);
                     let mut l2_range_to_submit = None;
-                    let mut l1_height_range = None;
+                    let mut _l1_height_range = None;
                     // if none then we never submitted a commitment, start from prev_l1_height and go back as far as you can go
                     // if there is a height then start from height + 1 and go to prev_l1_height
                     match last_commitment_l1_height {
                         Some(height) => {
                             let mut l1_height = height.0 + 1;
 
-                            l1_height_range = Some((l1_height, l1_height));
+                            _l1_height_range = Some((l1_height, l1_height));
 
                             while let Some(l2_height_range) = self
                                 .ledger_db
@@ -285,12 +272,12 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                                 l1_height += 1;
                             }
 
-                            l1_height_range = Some((l1_height_range.unwrap().0, l1_height - 1));
+                            _l1_height_range = Some((_l1_height_range.unwrap().0, l1_height - 1));
                         }
                         None => {
                             let mut l1_height = prev_l1_height;
 
-                            l1_height_range = Some((prev_l1_height, prev_l1_height));
+                            _l1_height_range = Some((prev_l1_height, prev_l1_height));
 
                             while let Some(l2_height_range) = self
                                 .ledger_db
@@ -307,7 +294,7 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                                 l1_height -= 1;
                             }
 
-                            l1_height_range = Some((l1_height + 1, l1_height_range.unwrap().1));
+                            _l1_height_range = Some((l1_height + 1, _l1_height_range.unwrap().1));
                         }
                     };
 
@@ -319,7 +306,7 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                         warn!(
                             "Sequencer: not enough soft confirmations to submit commitment: {:?}. L1 heights: {:?}",
                             l2_range_to_submit,
-                            l1_height_range
+                            _l1_height_range
                         );
                     } else {
                         warn!("Sequencer: enough soft confirmations to submit commitment");
@@ -333,7 +320,7 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                             .get_soft_batch_range(&(l2_range_to_submit.0..range_end))
                             .expect("Sequencer: Failed to get soft batch range")
                             .iter()
-                            .map(|sb| sb.hash.clone())
+                            .map(|sb| sb.hash)
                             .collect::<Vec<[u8; 32]>>();
 
                         // sanity check
@@ -351,7 +338,7 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
 
                         warn!(
                             "Sequencer: submitting commitment, L1 heights: {:?}, L2 heights: {:?}, merkle root: {:?}, soft confirmations: {:?}",
-                            l1_height_range, l2_range_to_submit, merkle_root, soft_confirmation_hashes
+                            _l1_height_range, l2_range_to_submit, merkle_root, soft_confirmation_hashes
                         );
 
                         // submit commitment
@@ -369,7 +356,7 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                             .await
                             .expect("Sequencer: Failed to send commitment");
 
-                        for i in l1_height_range.unwrap().0..=l1_height_range.unwrap().1 {
+                        for i in _l1_height_range.unwrap().0..=_l1_height_range.unwrap().1 {
                             self.ledger_db
                                 .set_last_sequencer_commitment_l1_height(SlotNumber(i))
                                 .expect(
@@ -427,24 +414,16 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
     /// Signs batch of messages with sovereign priv key turns them into a sov blob
     /// Returns a single sovereign transaction made up of multiple ethereum transactions
     fn make_blob(&mut self, raw_message: Vec<u8>) -> Vec<u8> {
-        let nonce = self.sov_tx_signer_nonce.borrow_mut();
+        // if a batch failed need to refetch nonce
+        // so sticking to fetching from state makes sense
+        let nonce = self.get_nonce();
 
         // TODO: figure out what to do with sov-tx fields
         // chain id gas tip and gas limit
-        let raw_tx = Transaction::<C>::new_signed_tx(
-            &self.sov_tx_signer_priv_key,
-            raw_message,
-            0,
-            0,
-            0,
-            *nonce,
-        )
-        .try_to_vec()
-        .unwrap();
 
-        *nonce += 1;
-
-        raw_tx
+        Transaction::<C>::new_signed_tx(&self.sov_tx_signer_priv_key, raw_message, 0, 0, 0, nonce)
+            .try_to_vec()
+            .unwrap()
     }
 
     /// Signs necessary info and returns a BlockTemplate
@@ -467,6 +446,20 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
             pub_key: self.sov_tx_signer_priv_key.pub_key().try_to_vec().unwrap(),
             signature: signature.try_to_vec().unwrap(),
             l1_fee_rate: soft_confirmation.l1_fee_rate,
+        }
+    }
+
+    /// Fetches nonce from state
+    fn get_nonce(&self) -> u64 {
+        let accounts = Accounts::<C>::default();
+        let mut working_set = WorkingSet::<C>::new(self.storage.clone());
+
+        match accounts
+            .get_account(self.sov_tx_signer_priv_key.pub_key(), &mut working_set)
+            .expect("Sequencer: Failed to get sov-account")
+        {
+            AccountExists { addr: _, nonce } => nonce,
+            AccountEmpty => 0,
         }
     }
 

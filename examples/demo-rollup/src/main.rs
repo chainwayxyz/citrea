@@ -181,7 +181,7 @@ where
             .unwrap(),
             storage,
             SequencingParams {
-                min_soft_confirmations_per_commitment: 5, // TODO take this from somewhere else
+                min_soft_confirmations_per_commitment: rollup_config.min_soft_confirmations_per_commitment,
             },
         );
         seq.start_rpc_server(None).await?;

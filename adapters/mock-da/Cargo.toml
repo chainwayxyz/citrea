@@ -17,11 +17,15 @@ borsh = { workspace = true, features = ["bytes"] }
 bytes = { workspace = true, features = ["serde"] }
 serde = { workspace = true }
 hex = { workspace = true }
+lazy_static = { version = "1.4.0", optional = true }
 sha2 = { workspace = true }
 tokio = { workspace = true, optional = true }
 futures = { workspace = true, optional = true }
 tokio-stream = { version = "0.1.14", features = ["full"], optional = true }
 pin-project = { workspace = true, optional = true }
+rusqlite = { version = "0.31.0", features = ["bundled"], optional = true }
+serde_json = { workspace = true, optional = true }
+rand = { workspace = true, optional = true }
 tracing = { workspace = true }
 
 sov-rollup-interface = { path = "../../rollup-interface", version = "0.3" }
@@ -33,9 +37,13 @@ futures = { workspace = true }
 [features]
 default = []
 native = [
+    "dep:rusqlite",
+    "dep:serde_json",
+    "dep:rand",
     "dep:tokio",
+    "dep:lazy_static",
     "dep:tokio-stream",
     "dep:futures",
     "dep:pin-project",
-    "sov-rollup-interface/native"
+    "sov-rollup-interface/native",
 ]
