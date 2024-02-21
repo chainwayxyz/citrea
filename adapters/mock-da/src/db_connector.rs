@@ -1,16 +1,15 @@
-use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::env::temp_dir;
 use std::sync::Mutex;
 
 use lazy_static::lazy_static;
-use rusqlite::{params, Connection, Result};
+use rusqlite::{params, Connection};
 use tracing::debug;
 
 use crate::{MockBlock, MockBlockHeader, MockHash, MockValidityCond};
 
 lazy_static! {
-    static ref USED_THREAD: Mutex<HashMap<String, bool>> = Mutex::new(HashMap::new());
+    static ref USED_THREAD: Mutex<HashMap<String, bool>> = Mutex::new(HashMap::new()); // TODO: use a set instead of a map
 }
 
 pub(crate) struct DbConnector {
@@ -21,12 +20,13 @@ pub(crate) struct DbConnector {
 impl DbConnector {
     pub fn new() -> Self {
         let thread = std::thread::current();
-        let dir = temp_dir().join(thread.name().unwrap().to_owned() + "shared-mock-da.db");
+        let thread_name = thread.name().unwrap_or("unnamed");
+        let dir = temp_dir().join(thread_name.to_string() + "shared-mock-da.db");
         let db_name = dir.to_str().unwrap().to_string();
 
-        debug!("Using test db: {}, id: {}", db_name, id);
+        debug!("Using test db: {}", db_name);
 
-        let conn = Connection::open(db_name.clone())?;
+        let conn = Connection::open(db_name.clone()).expect("DbConnector: failed to open db");
 
         conn.execute(
             "CREATE TABLE IF NOT EXISTS blocks (
@@ -41,15 +41,16 @@ impl DbConnector {
         )
         .expect("DbConnector: failed to create table");
 
-        // first time db is opened in a thread, wipe data inside it
+        // first time db is opened in a thread, wipe data inside it unless it's the main thread
         let mut map = USED_THREAD.lock().unwrap();
-        if let Entry::Vacant(e) = map.entry(db_name) {
+        if !map.contains_key(&thread_name.to_string()) && thread_name != "main" {
             tracing::error!("deleting db");
-            conn.execute("DELETE FROM blocks", ())?;
-            e.insert(true);
+            conn.execute("DELETE FROM blocks", ())
+                .expect("DbConnector: failed to delete all rows");
+            map.insert(thread_name.to_string(), true);
         }
 
-        Ok(Self { conn })
+        Self { conn }
     }
 
     pub fn push_back(&self, block: MockBlock) {
@@ -69,8 +70,6 @@ impl DbConnector {
                 ],
             )
             .expect("DbConnector: failed to execute insert query");
-
-        Ok(())
     }
 
     // service.rs used index so index 0 should get block 1
@@ -226,7 +225,7 @@ mod tests {
 
         assert_eq!(block, block_from_db);
 
-        let db2 = DbConnector::new().unwrap();
+        let db2 = DbConnector::new();
 
         // data wasn't wiped
         let block_from_db2 = db2.get(0).unwrap();

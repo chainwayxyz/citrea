@@ -416,15 +416,7 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
     fn make_blob(&mut self, raw_message: Vec<u8>) -> Vec<u8> {
         // if a batch failed need to refetch nonce
         // so sticking to fetching from state makes sense
-        let accounts = Accounts::<C>::default();
-        let mut working_set = WorkingSet::<C>::new(self.storage.clone());
-        let nonce = match accounts
-            .get_account(self.sov_tx_signer_priv_key.pub_key(), &mut working_set)
-            .expect("Sequencer: Failed to get sov-account")
-        {
-            AccountExists { addr: _, nonce } => nonce,
-            AccountEmpty => 0,
-        };
+        let nonce = self.get_nonce();
 
         // TODO: figure out what to do with sov-tx fields
         // chain id gas tip and gas limit

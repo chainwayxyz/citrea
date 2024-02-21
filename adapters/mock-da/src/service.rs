@@ -92,9 +92,7 @@ impl MockDaService {
         });
         Self {
             sequencer_da_address,
-            blocks: Arc::new(AsyncMutex::new(
-                DbConnector::new().expect("MockDA db connection failed"),
-            )),
+            blocks: Arc::new(AsyncMutex::new(DbConnector::new())),
             blocks_to_finality,
             finalized_header_sender: tx,
             wait_attempts: 100_0000,
@@ -207,7 +205,7 @@ impl MockDaService {
             blobs: vec![blob],
         };
 
-        blocks.push_back(block).expect("MockDA: couldn't add block");
+        blocks.push_back(block);
 
         // Enough blocks to finalize block
         if blocks.len() > self.blocks_to_finality as usize {

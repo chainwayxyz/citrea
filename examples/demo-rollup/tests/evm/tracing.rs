@@ -16,6 +16,7 @@ use sov_stf_runner::RollupProverConfig;
 
 use crate::evm::make_test_client;
 use crate::test_helpers::{start_rollup, NodeMode};
+use crate::DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT;
 
 #[tokio::test]
 async fn tracing_tests() -> Result<(), Box<dyn std::error::Error>> {
@@ -31,6 +32,7 @@ async fn tracing_tests() -> Result<(), Box<dyn std::error::Error>> {
             RollupProverConfig::Skip,
             NodeMode::SequencerNode,
             None,
+            DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
         )
         .await;
     });

@@ -82,6 +82,7 @@ fn initialize_runner(
             aggregated_proof_block_jump: 1,
         },
         sequencer_client: None,
+        min_soft_confirmations_per_commitment: 1,
     };
 
     let da_service = MockDaService::new(address);
