@@ -9,7 +9,7 @@ use tokio::sync::broadcast::Receiver;
 
 use crate::schema::tables::{
     BatchByHash, BatchByNumber, EventByNumber, SlotByHash, SlotByNumber, SoftBatchByHash,
-    SoftBatchByNumber, TxByHash, TxByNumber,
+    SoftBatchByNumber, SoftConfirmationStatus, TxByHash, TxByNumber,
 };
 use crate::schema::types::{
     BatchNumber, EventNumber, SlotNumber, StoredBatch, StoredSlot, TxNumber,
@@ -300,6 +300,20 @@ impl LedgerRpcProvider for LedgerDB {
         );
         let ids: Vec<_> = (start..=end).map(TxIdentifier::Number).collect();
         self.get_transactions(&ids, query_mode)
+    }
+
+    fn get_soft_confirmation_status<T: DeserializeOwned>(
+        &self,
+        height: u64,
+    ) -> Result<Option<String>, anyhow::Error> {
+        match self.db.get::<SoftConfirmationStatus>(&SlotNumber(height)) {
+            Ok(Some(status)) => match status {
+                true => Ok(Some("finalized".to_string())),
+                false => Ok(Some("trusted".to_string())),
+            },
+            Ok(None) => Ok(None),
+            Err(e) => Err(e),
+        }
     }
 
     fn subscribe_slots(&self) -> Result<Receiver<u64>, anyhow::Error> {

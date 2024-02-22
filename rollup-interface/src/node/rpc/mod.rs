@@ -360,6 +360,13 @@ pub trait LedgerRpcProvider {
         query_mode: QueryMode,
     ) -> Result<Vec<Option<TxResponse<T>>>, anyhow::Error>;
 
+    /// Takes an L2 Height and and outputs a string "trusted" or "finalized"
+    /// TODO: Add status "proven"
+    fn get_soft_confirmation_status<T: DeserializeOwned>(
+        &self,
+        height: u64,
+    ) -> Result<Option<String>, anyhow::Error>;
+
     /// Get a notification each time a slot is processed
     fn subscribe_slots(&self) -> Result<tokio::sync::broadcast::Receiver<u64>, anyhow::Error>;
 }
