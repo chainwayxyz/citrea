@@ -497,7 +497,7 @@ impl LedgerDB {
 
     /// Get L2 height range for a given L1 height.
     /// This means L2 heights in that range were soft confirmations for L1 height.
-    pub fn get_l1_l2_connection(
+    pub fn get_l2_range_by_l1_height(
         &self,
         l1_height: SlotNumber,
     ) -> anyhow::Result<Option<L2HeightRange>> {

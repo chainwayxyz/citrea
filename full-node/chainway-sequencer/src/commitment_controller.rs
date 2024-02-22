@@ -43,7 +43,7 @@ pub fn get_commitment_info(
             l1_height_range = Some((l1_height, l1_height));
 
             while let Some(l2_height_range) = ledger_db
-                .get_l1_l2_connection(SlotNumber(l1_height))
+                .get_l2_range_by_l1_height(SlotNumber(l1_height))
                 .expect("Sequencer: Failed to get L1 L2 connection")
             {
                 if l2_range_to_submit.is_none() {
@@ -63,7 +63,7 @@ pub fn get_commitment_info(
             l1_height_range = Some((prev_l1_height, prev_l1_height));
 
             while let Some(l2_height_range) = ledger_db
-                .get_l1_l2_connection(SlotNumber(l1_height))
+                .get_l2_range_by_l1_height(SlotNumber(l1_height))
                 .expect("Sequencer: Failed to get L1 L2 connection")
             {
                 if l2_range_to_submit.is_none() {
