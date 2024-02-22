@@ -1,3 +1,4 @@
+mod commitment_controller;
 pub mod db_provider;
 mod utils;
 
@@ -240,129 +241,53 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                     }
                     debug!("Sequencer: new L1 block, checking if commitment should be submitted");
 
-                    // first get when the last merkle root of soft confirmations was submitted
-                    let last_commitment_l1_height = self
-                        .ledger_db
-                        .get_last_sequencer_commitment_l1_height()
-                        .expect("Sequencer: Failed to get last sequencer commitment L1 height");
-
-                    warn!("Last commitment L1 height: {:?}", last_commitment_l1_height);
-                    let mut l2_range_to_submit = None;
-                    let mut _l1_height_range = None;
-                    // if none then we never submitted a commitment, start from prev_l1_height and go back as far as you can go
-                    // if there is a height then start from height + 1 and go to prev_l1_height
-                    match last_commitment_l1_height {
-                        Some(height) => {
-                            let mut l1_height = height.0 + 1;
-
-                            _l1_height_range = Some((l1_height, l1_height));
-
-                            while let Some(l2_height_range) = self
-                                .ledger_db
-                                .get_l1_l2_connection(SlotNumber(l1_height))
-                                .expect("Sequencer: Failed to get L1 L2 connection")
-                            {
-                                if l2_range_to_submit.is_none() {
-                                    l2_range_to_submit = Some(l2_height_range);
-                                } else {
-                                    l2_range_to_submit =
-                                        Some((l2_range_to_submit.unwrap().0, l2_height_range.1));
-                                }
-
-                                l1_height += 1;
-                            }
-
-                            _l1_height_range = Some((_l1_height_range.unwrap().0, l1_height - 1));
-                        }
-                        None => {
-                            let mut l1_height = prev_l1_height;
-
-                            _l1_height_range = Some((prev_l1_height, prev_l1_height));
-
-                            while let Some(l2_height_range) = self
-                                .ledger_db
-                                .get_l1_l2_connection(SlotNumber(l1_height))
-                                .expect("Sequencer: Failed to get L1 L2 connection")
-                            {
-                                if l2_range_to_submit.is_none() {
-                                    l2_range_to_submit = Some(l2_height_range);
-                                } else {
-                                    l2_range_to_submit =
-                                        Some((l2_height_range.0, l2_range_to_submit.unwrap().1));
-                                }
-
-                                l1_height -= 1;
-                            }
-
-                            _l1_height_range = Some((l1_height + 1, _l1_height_range.unwrap().1));
-                        }
-                    };
+                    let commitment_info = commitment_controller::get_commitment_info(
+                        &self.ledger_db,
+                        self.params.min_soft_confirmations_per_commitment,
+                        prev_l1_height,
+                    );
 
                     // TODO: make calc readable
-                    if l2_range_to_submit.is_none()
-                        || (l2_range_to_submit.unwrap().1 .0 - l2_range_to_submit.unwrap().0 .0 + 1)
-                            < self.params.min_soft_confirmations_per_commitment
-                    {
-                        warn!(
-                            "Sequencer: not enough soft confirmations to submit commitment: {:?}. L1 heights: {:?}",
-                            l2_range_to_submit,
-                            _l1_height_range
-                        );
-                    } else {
+                    if commitment_info.is_some() {
                         warn!("Sequencer: enough soft confirmations to submit commitment");
-                        let l2_range_to_submit = l2_range_to_submit.unwrap();
+                        let commitment_info = commitment_info.unwrap();
+                        let l2_range_to_submit = commitment_info.l2_height_range.clone();
 
                         // calculate exclusive range end
-                        let range_end = BatchNumber(l2_range_to_submit.1 .0 + 1); // cannnot add u64 to BatchNumber directly
+                        let range_end = BatchNumber(l2_range_to_submit.end().0 + 1); // cannnot add u64 to BatchNumber directly
 
                         let soft_confirmation_hashes = self
                             .ledger_db
-                            .get_soft_batch_range(&(l2_range_to_submit.0..range_end))
+                            .get_soft_batch_range(&(l2_range_to_submit.start().clone()..range_end))
                             .expect("Sequencer: Failed to get soft batch range")
                             .iter()
                             .map(|sb| sb.hash)
                             .collect::<Vec<[u8; 32]>>();
 
-                        // sanity check
-                        assert_eq!(
-                            soft_confirmation_hashes.len(),
-                            (l2_range_to_submit.1 .0 - l2_range_to_submit.0 .0 + 1) as usize
+                        let commitment = commitment_controller::get_commitment(
+                            commitment_info.clone(),
+                            soft_confirmation_hashes,
                         );
 
-                        // build merkle tree over soft confirmations
-
-                        let merkle_root = MerkleTree::<Sha256>::from_leaves(
-                            soft_confirmation_hashes.clone().as_slice(),
-                        )
-                        .root();
-
                         warn!(
-                            "Sequencer: submitting commitment, L1 heights: {:?}, L2 heights: {:?}, merkle root: {:?}, soft confirmations: {:?}",
-                            _l1_height_range, l2_range_to_submit, merkle_root, soft_confirmation_hashes
+                            "Sequencer: submitting commitment, L1 heights: {:?}, L2 heights: {:?}, merkle root: {:?}",
+                            (commitment.1, commitment.2), l2_range_to_submit, commitment.0
                         );
 
                         // submit commitment
                         self.da_service
                             .send_transaction(
-                                (
-                                    merkle_root.unwrap(),
-                                    l2_range_to_submit.0,
-                                    l2_range_to_submit.1,
-                                )
-                                    .try_to_vec()
-                                    .unwrap()
-                                    .as_slice(),
+                                // TODO: get hashes of those heights then submit that
+                                commitment.try_to_vec().unwrap().as_slice(),
                             )
                             .await
                             .expect("Sequencer: Failed to send commitment");
 
-                        for i in _l1_height_range.unwrap().0..=_l1_height_range.unwrap().1 {
-                            self.ledger_db
-                                .set_last_sequencer_commitment_l1_height(SlotNumber(i))
-                                .expect(
-                                    "Sequencer: Failed to set last sequencer commitment L1 height",
-                                );
-                        }
+                        self.ledger_db
+                            .set_last_sequencer_commitment_l1_height(SlotNumber(
+                                commitment_info.l1_height_range.end().0,
+                            ))
+                            .expect("Sequencer: Failed to set last sequencer commitment L1 height");
                     }
 
                     // TODO: this is where we would include forced transactions from the new L1 block
