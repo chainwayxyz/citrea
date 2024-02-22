@@ -210,12 +210,12 @@ impl DaService for DaProvider {
         .await?;
         info!("Appdata: {:?}", appdata);
 
-        let hash = match { node_client.rpc().block_hash(Some(height.into())).await? } {
+        let hash = match node_client.rpc().block_hash(Some(height.into())).await? {
             Some(i) => i,
             None => return Err(anyhow!("Hash for height: {} not found.", height)),
         };
 
-        let header = match { node_client.rpc().header(Some(hash)).await? } {
+        let header = match node_client.rpc().header(Some(hash)).await? {
             Some(i) => i,
             None => return Err(anyhow!("Header for hash: {} not found.", hash)),
         };
@@ -319,6 +319,10 @@ impl DaService for DaProvider {
     }
 
     async fn get_aggregated_proofs_at(&self, _height: u64) -> Result<Vec<Vec<u8>>, Self::Error> {
+        unimplemented!()
+    }
+
+    async fn get_fee_rate(&self) -> Result<u64, Self::Error> {
         unimplemented!()
     }
 }

@@ -11,7 +11,7 @@ use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::runtime::capabilities::KernelSlotHooks;
 use sov_modules_api::{BlobReaderTrait, Context, Spec, WorkingSet};
 use sov_modules_stf_blueprint::{
-    ApplyBatchResult, Runtime, StfBlueprint, StfBlueprintTrait, TxEffect,
+    ApplySoftConfirmationError, Runtime, StfBlueprint, StfBlueprintTrait, TxEffect,
 };
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::services::da::{DaService, SlotData};
@@ -204,10 +204,7 @@ where
     pub async fn begin_soft_confirmation(
         &mut self,
         soft_batch: &mut SignedSoftConfirmationBatch,
-    ) -> (
-        ApplyBatchResult<(), <<Da::Spec as DaSpec>::BlobTransaction as BlobReaderTrait>::Address>,
-        WorkingSet<C>,
-    ) {
+    ) -> (Result<(), ApplySoftConfirmationError>, WorkingSet<C>) {
         // TODO: Handle Error
         let filtered_block = self
             .da_service
@@ -310,6 +307,7 @@ where
             tx_receipts: batch_receipt.tx_receipts,
             soft_confirmation_signature: soft_batch.signature.to_vec(),
             pub_key: soft_batch.pub_key.to_vec(),
+            l1_fee_rate: soft_batch.l1_fee_rate(),
         };
 
         self.ledger_db
@@ -401,6 +399,7 @@ where
             tx_receipts: batch_receipt.tx_receipts,
             soft_confirmation_signature: soft_batch.signature.to_vec(),
             pub_key: soft_batch.pub_key.to_vec(),
+            l1_fee_rate: soft_batch.l1_fee_rate,
         };
 
         self.ledger_db
@@ -609,6 +608,7 @@ where
                 tx_receipts: batch_receipt.tx_receipts,
                 soft_confirmation_signature: soft_batch.soft_confirmation_signature,
                 pub_key: soft_batch.pub_key,
+                l1_fee_rate: soft_batch.l1_fee_rate,
             };
 
             self.ledger_db.commit_soft_batch(soft_batch_receipt, true)?;

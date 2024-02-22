@@ -27,4 +27,23 @@ impl<C: Context, Da: DaSpec> SoftConfirmationRuleEnforcer<C, Da> {
             .get(&da_root_hash, working_set)
             .unwrap_or(0))
     }
+
+    #[rpc_method(name = "getMaxL1FeeRateChangePercentage")]
+    /// Get the maximum L1 fee rate change percentage.
+    pub fn get_max_l1_fee_rate_change_percentage(
+        &self,
+        working_set: &mut WorkingSet<C>,
+    ) -> RpcResult<u64> {
+        Ok(self
+            .l1_fee_rate_change_percentage
+            .get(working_set)
+            .expect("L1 fee rate change should be set"))
+    }
+
+    #[rpc_method(name = "getLastL1FeeRate")]
+    /// Get the last processed L1 fee rate.
+    /// 0 at genesis.
+    pub fn get_last_l1_fee_rate(&self, working_set: &mut WorkingSet<C>) -> RpcResult<u64> {
+        Ok(self.last_l1_fee_rate.get(working_set).unwrap_or(0))
+    }
 }

@@ -37,7 +37,7 @@ use sov_modules_api::{
     WorkingSet,
 };
 use sov_modules_rollup_blueprint::{Rollup, RollupBlueprint};
-use sov_modules_stf_blueprint::ApplyBatchError;
+use sov_modules_stf_blueprint::ApplySoftConfirmationError;
 use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::services::da::DaService;
 use tracing::info;
@@ -207,6 +207,8 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                     .await
                     .unwrap();
 
+                let l1_fee_rate = self.da_service.get_fee_rate().await.unwrap();
+
                 // Compare if there is no skip
                 if last_finalized_block.header().prev_hash() != previous_l1_block.header().hash() {
                     // TODO: This shouldn't happen. If it does, then we should produce at least 1 block for the blocks in between
@@ -227,6 +229,7 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                         .as_ref()
                         .to_vec(),
                     pub_key: self.sov_tx_signer_priv_key.pub_key().try_to_vec().unwrap(),
+                    l1_fee_rate,
                 };
                 let mut signed_batch = batch_info.clone().into();
                 // initially create sc info and call begin soft confirmation hook with it
@@ -255,6 +258,7 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                                 .clone()
                                 .as_ref()
                                 .to_vec(),
+                            l1_fee_rate,
                         };
 
                         // create the unsigned batch with the txs then sign th sc
@@ -274,7 +278,14 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                         self.mempool
                             .remove_transactions(self.db_provider.last_block_tx_hashes());
                     }
-                    (Err(ApplyBatchError::Ignored(root_hash)), batch_workspace) => {
+                    (
+                        Err(ApplySoftConfirmationError::TooManySoftConfirmationsOnDaSlot {
+                            hash,
+                            sequencer_pub_key,
+                        }),
+                        batch_workspace,
+                    ) => {
+                        batch_workspace.revert();
                         // return SlotResult {
                         //     state_root: pre_state_root.clone(),
                         //     change_set: pre_state, // should be empty
@@ -340,6 +351,7 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
             pre_state_root: soft_confirmation.pre_state_root,
             pub_key: self.sov_tx_signer_priv_key.pub_key().try_to_vec().unwrap(),
             signature: signature.try_to_vec().unwrap(),
+            l1_fee_rate: soft_confirmation.l1_fee_rate,
         }
     }
 

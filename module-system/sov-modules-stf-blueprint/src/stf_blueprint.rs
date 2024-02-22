@@ -21,6 +21,9 @@ type ApplyBatch<Da: DaSpec> = ApplyBatchResult<
     BatchReceipt<SequencerOutcome<<Da::BlobTransaction as BlobReaderTrait>::Address>, TxEffect>,
     <Da::BlobTransaction as BlobReaderTrait>::Address,
 >;
+
+// type ApplySoftBatch<Da: DaSpec> = ApplyBatchResult<BatchReceipt<(), TxEffect>, <Da::BlobTransaction as BlobReaderTrait>::Address>;
+
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 use sov_zk_cycle_macros::cycle_tracker;
 
@@ -73,6 +76,20 @@ impl<A: BasicAddress> From<ApplyBatchError<A>> for BatchReceipt<SequencerOutcome
             },
         }
     }
+}
+
+type ApplySoftConfirmationResult = Result<BatchReceipt<(), TxEffect>, ApplySoftConfirmationError>;
+
+/// TODO: Docs
+#[derive(Debug)]
+pub enum ApplySoftConfirmationError {
+    /// TODO: Docs
+    TooManySoftConfirmationsOnDaSlot {
+        /// TODO: Docs
+        hash: [u8; 32],
+        /// TODO: Docs
+        sequencer_pub_key: Vec<u8>,
+    },
 }
 
 impl<C, Vm, Da, RT, K> Default for StfBlueprint<C, Da, Vm, RT, K>
@@ -229,10 +246,7 @@ where
         &self,
         checkpoint: StateCheckpoint<C>,
         soft_batch: &mut SignedSoftConfirmationBatch,
-    ) -> (
-        ApplyBatchResult<(), <Da::BlobTransaction as BlobReaderTrait>::Address>,
-        WorkingSet<C>,
-    ) {
+    ) -> (Result<(), ApplySoftConfirmationError>, WorkingSet<C>) {
         debug!(
             "Beginning soft batch 0x{} from sequencer: 0x{}",
             hex::encode(soft_batch.hash()),
@@ -252,7 +266,13 @@ where
             );
 
             return (
-                Err(ApplyBatchError::Ignored(soft_batch.hash())),
+                Err(
+                    ApplySoftConfirmationError::TooManySoftConfirmationsOnDaSlot {
+                        hash: soft_batch.hash(),
+                        sequencer_pub_key: soft_batch.pub_key.clone(),
+                    },
+                ),
+                // Reverted in apply_soft_batch and sequencer
                 batch_workspace,
             );
         }
@@ -274,7 +294,7 @@ where
         sequencer_reward: u64,
         tx_receipts: Vec<TransactionReceipt<TxEffect>>,
         mut batch_workspace: WorkingSet<C>,
-    ) -> (ApplyBatch<Da>, StateCheckpoint<C>) {
+    ) -> (ApplySoftConfirmationResult, StateCheckpoint<C>) {
         // TODO: calculate the amount based of gas and fees
         let sequencer_outcome = SequencerOutcome::Rewarded(sequencer_reward);
 
@@ -290,7 +310,7 @@ where
             Ok(BatchReceipt {
                 batch_hash: soft_batch.hash(),
                 tx_receipts,
-                inner: sequencer_outcome,
+                inner: (),
             }),
             batch_workspace.checkpoint(),
         )
@@ -301,7 +321,7 @@ where
         &self,
         checkpoint: StateCheckpoint<C>,
         soft_batch: &mut SignedSoftConfirmationBatch,
-    ) -> (ApplyBatch<Da>, StateCheckpoint<C>) {
+    ) -> (ApplySoftConfirmationResult, StateCheckpoint<C>) {
         match self.begin_soft_confirmation_inner(checkpoint, soft_batch) {
             (Ok(()), mut batch_workspace) => {
                 // TODO: wait for txs here, apply_sov_txs can be called multiple times

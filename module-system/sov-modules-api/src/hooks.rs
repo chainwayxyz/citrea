@@ -92,6 +92,8 @@ pub struct HookSoftConfirmationInfo {
     pub pre_state_root: Vec<u8>,
     /// Public key of signer
     pub pub_key: Vec<u8>,
+    /// L1 fee rate
+    pub l1_fee_rate: u64,
 }
 
 impl From<SignedSoftConfirmationBatch> for HookSoftConfirmationInfo {
@@ -101,6 +103,7 @@ impl From<SignedSoftConfirmationBatch> for HookSoftConfirmationInfo {
             da_slot_hash: signed_soft_confirmation_batch.da_slot_hash(),
             pre_state_root: signed_soft_confirmation_batch.pre_state_root(),
             pub_key: signed_soft_confirmation_batch.sequencer_pub_key().to_vec(),
+            l1_fee_rate: signed_soft_confirmation_batch.l1_fee_rate(),
         }
     }
 }
@@ -115,6 +118,7 @@ impl Into<SignedSoftConfirmationBatch> for HookSoftConfirmationInfo {
             txs: vec![],
             signature: vec![],
             pub_key: self.pub_key.clone(),
+            l1_fee_rate: self.l1_fee_rate,
         }
     }
 }
@@ -138,6 +142,10 @@ impl HookSoftConfirmationInfo {
     /// Borsh serialized data
     pub fn full_data(&mut self) -> Vec<u8> {
         self.try_to_vec().unwrap()
+    }
+
+    pub fn l1_fee_rate(&self) -> u64 {
+        self.l1_fee_rate
     }
 }
 

@@ -537,6 +537,28 @@ impl TestClient {
             .unwrap()
     }
 
+    pub(crate) async fn debug_trace_block_by_number(
+        &self,
+        block_number: BlockNumberOrTag,
+        opts: Option<GethDebugTracingOptions>,
+    ) -> Vec<GethTrace> {
+        self.http_client
+            .request("debug_traceBlockByNumber", rpc_params![block_number, opts])
+            .await
+            .unwrap()
+    }
+
+    pub(crate) async fn debug_trace_block_by_hash(
+        &self,
+        block_hash: ethereum_types::H256,
+        opts: Option<GethDebugTracingOptions>,
+    ) -> Vec<GethTrace> {
+        self.http_client
+            .request("debug_traceBlockByHash", rpc_params![block_hash, opts])
+            .await
+            .unwrap()
+    }
+
     pub(crate) async fn eth_block_number(&self) -> u64 {
         let block_number: ethereum_types::U256 = self
             .http_client

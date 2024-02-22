@@ -30,7 +30,7 @@ pub use stf_blueprint::StfBlueprint;
 use tracing::{debug, info};
 pub use tx_verifier::RawTx;
 
-pub use crate::stf_blueprint::{ApplyBatchError, ApplyBatchResult};
+pub use crate::stf_blueprint::ApplySoftConfirmationError;
 
 /// The tx hook for a blueprint runtime
 pub struct RuntimeTxHook<C: Context> {
@@ -140,10 +140,7 @@ pub trait StfBlueprintTrait<C: Context, Da: DaSpec, Vm: Zkvm>:
         witness: <<C as Spec>::Storage as Storage>::Witness,
         slot_header: &<Da as DaSpec>::BlockHeader,
         soft_batch: &mut SignedSoftConfirmationBatch,
-    ) -> (
-        ApplyBatchResult<(), <Da::BlobTransaction as BlobReaderTrait>::Address>,
-        WorkingSet<C>,
-    );
+    ) -> (Result<(), ApplySoftConfirmationError>, WorkingSet<C>);
 
     /// Apply soft batch transactions
     fn apply_soft_batch_txs(
@@ -186,10 +183,7 @@ where
         witness: <<C as Spec>::Storage as Storage>::Witness,
         slot_header: &<Da as DaSpec>::BlockHeader,
         soft_batch: &mut SignedSoftConfirmationBatch,
-    ) -> (
-        ApplyBatchResult<(), <<Da as DaSpec>::BlobTransaction as BlobReaderTrait>::Address>,
-        WorkingSet<C>,
-    ) {
+    ) -> (Result<(), ApplySoftConfirmationError>, WorkingSet<C>) {
         debug!("Applying soft batch in STF Blueprint");
 
         // check if soft confirmation is coming from our sequencer
@@ -237,7 +231,7 @@ where
     ) -> SlotResult<
         <C::Storage as Storage>::Root,
         C::Storage,
-        SequencerOutcome<<<Da as DaSpec>::BlobTransaction as BlobReaderTrait>::Address>,
+        (),
         TxEffect,
         <<C as Spec>::Storage as Storage>::Witness,
     > {
@@ -254,7 +248,7 @@ where
             batch_workspace,
         );
 
-        let batch_receipt = apply_soft_batch_result.unwrap_or_else(Into::into);
+        let batch_receipt = apply_soft_batch_result.unwrap();
         info!(
             "soft batch  with hash: {:?} from sequencer {:?} has been applied with #{} transactions.",
             soft_batch.hash(),
@@ -394,7 +388,8 @@ where
 
     type TxReceiptContents = TxEffect;
 
-    type BatchReceiptContents = SequencerOutcome<<Da::BlobTransaction as BlobReaderTrait>::Address>;
+    type BatchReceiptContents = ();
+    // SequencerOutcome<<Da::BlobTransaction as BlobReaderTrait>::Address>;
 
     type Witness = <<C as Spec>::Storage as Storage>::Witness;
 
@@ -496,7 +491,11 @@ where
                     tx_receipt.receipt
                 );
             }
-            batch_receipts.push(batch_receipt);
+            batch_receipts.push(BatchReceipt {
+                batch_hash: batch_receipt.batch_hash,
+                tx_receipts: batch_receipt.tx_receipts,
+                inner: (),
+            });
         }
 
         let (state_root, witness, storage) = self.end_slot(pre_state, checkpoint);
@@ -545,16 +544,24 @@ where
                     pre_state,
                 )
             }
-            (Err(ApplyBatchError::Ignored(root_hash)), batch_workspace) => {
+            (
+                Err(ApplySoftConfirmationError::TooManySoftConfirmationsOnDaSlot {
+                    hash,
+                    sequencer_pub_key,
+                }),
+                batch_workspace,
+            ) => {
+                info!(
+                    "Too many soft confirmations on da slot with hash: {:?} from sequencer {:?}",
+                    hash, sequencer_pub_key
+                );
+                batch_workspace.revert();
                 return SlotResult {
                     state_root: pre_state_root.clone(),
                     change_set: pre_state, // should be empty
                     batch_receipts: vec![],
                     witness: <<C as Spec>::Storage as Storage>::Witness::default(),
                 };
-            }
-            _ => {
-                unimplemented!()
             }
         }
         // debug!("Applying soft batch in STF Blueprint");
@@ -659,6 +666,7 @@ fn verify_soft_batch_signature<C: Context>(
         da_slot_hash: soft_batch.da_slot_hash,
         pre_state_root: soft_batch.pre_state_root.clone(),
         txs: soft_batch.txs.clone(),
+        l1_fee_rate: soft_batch.l1_fee_rate,
     };
 
     let message = unsigned.try_to_vec().unwrap();

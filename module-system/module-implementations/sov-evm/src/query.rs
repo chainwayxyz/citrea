@@ -1,5 +1,4 @@
 use std::array::TryFromSliceError;
-use std::collections::HashMap;
 use std::ops::{Range, RangeInclusive};
 
 use alloy_primitives::Uint;
@@ -7,11 +6,9 @@ use alloy_rlp::Encodable;
 use jsonrpsee::core::RpcResult;
 use reth_interfaces::provider::ProviderError;
 use reth_primitives::revm::env::tx_env_with_recovered;
-use reth_primitives::revm_primitives::bitvec::macros::internal::funty::Fundamental;
 use reth_primitives::TransactionKind::{Call, Create};
 use reth_primitives::{
-    Block, BlockId, BlockNumberOrTag, SealedHeader, TransactionSignedEcRecovered, B256, U128, U256,
-    U64,
+    Block, BlockId, BlockNumberOrTag, SealedHeader, TransactionSignedEcRecovered, U128, U256, U64,
 };
 use reth_rpc_types::trace::geth::{GethDebugTracingOptions, GethTrace};
 use reth_rpc_types_compat::block::from_primitive_with_hash;
@@ -873,17 +870,19 @@ impl<C: sov_modules_api::Context> Evm<C> {
         &self,
         block_number: u64,
         opts: Option<GethDebugTracingOptions>,
+        stop_at: Option<usize>,
         working_set: &mut WorkingSet<C>,
-    ) -> RpcResult<HashMap<B256, GethTrace>> {
+    ) -> RpcResult<Vec<GethTrace>> {
         let sealed_block = self
             .get_sealed_block_by_number(Some(BlockNumberOrTag::Number(block_number)), working_set)
-            .expect("Block with known tx must be set");
-        // set the archival version to the block number
+            .ok_or_else(|| EthApiError::UnknownBlockNumber)?;
+
         let tx_range = sealed_block.transactions.clone();
         if tx_range.is_empty() {
-            return Ok(HashMap::new());
+            return Ok(Vec::new());
         }
         let block_txs: Vec<TransactionSignedEcRecovered> = tx_range
+            .clone()
             .map(|id| {
                 self.transactions
                     .get(id as usize, &mut working_set.accessory_state())
@@ -903,9 +902,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let revm_block_env = revm::primitives::BlockEnv::from(&block_env);
 
         // TODO: Convert below steps to blocking task like in reth after implementing the semaphores
-        let mut traces = HashMap::new();
+        let mut traces = Vec::new();
         let mut transactions = block_txs.into_iter().enumerate().peekable();
-        while let Some((_index, tx)) = transactions.next() {
+        let limit = stop_at.unwrap_or(usize::MAX);
+        while let Some((index, tx)) = transactions.next() {
             let env = Env {
                 cfg: cfg_env.clone(),
                 block: revm_block_env.clone(),
@@ -913,7 +913,11 @@ impl<C: sov_modules_api::Context> Evm<C> {
             };
             let (trace, state_changes) =
                 trace_transaction(opts.clone().unwrap_or_default(), env.clone(), &mut evm_db)?;
-            traces.insert(tx.hash(), trace);
+            traces.push(trace);
+
+            if limit == index {
+                break;
+            }
 
             if transactions.peek().is_some() {
                 // need to apply the state changes of this transaction before executing the
@@ -922,26 +926,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
             }
         }
         Ok(traces)
-    }
-
-    /// Returns the block number given tx_hash
-    /// If tx not in a block retursn None
-    pub fn get_block_number_by_tx_hash(
-        &self,
-        tx_hash: B256,
-        working_set: &mut WorkingSet<C>,
-    ) -> RpcResult<Option<u64>> {
-        if let Some(tx_number) = self
-            .transaction_hashes
-            .get(&tx_hash, &mut working_set.accessory_state())
-        {
-            let tx = self
-                .transactions
-                .get(tx_number as usize, &mut working_set.accessory_state());
-            Ok(tx.map(|tx| tx.block_number.as_u64()))
-        } else {
-            Err(EthApiError::TransactionNotFound.into())
-        }
     }
 
     // https://github.com/paradigmxyz/reth/blob/8892d04a88365ba507f28c3314d99a6b54735d3f/crates/rpc/rpc/src/eth/filter.rs#L349
@@ -1293,6 +1277,19 @@ impl<C: sov_modules_api::Context> Evm<C> {
             ),
             _ => panic!("Unsupported block number type"),
         }
+    }
+
+    /// Returns the block number given block hash
+    /// If block not found returns None
+    pub fn get_block_number_by_block_hash(
+        &self,
+        block_hash: reth_primitives::B256,
+        working_set: &mut WorkingSet<C>,
+    ) -> Option<u64> {
+        let block_number = self
+            .block_hashes
+            .get(&block_hash, &mut working_set.accessory_state());
+        block_number
     }
 }
 
