@@ -7,7 +7,7 @@ use sov_db::schema::types::{BatchNumber, SlotNumber};
 use tracing::warn;
 
 #[derive(Clone, Debug)]
-struct CommitmentInfo {
+pub struct CommitmentInfo {
     /// L2 heights to commit
     pub l2_height_range: RangeInclusive<BatchNumber>,
     /// Respectuflly, the L1 heights to commit. (L2 blocks were created with these L1 blocks.)
@@ -82,9 +82,11 @@ pub fn get_commitment_info(
         return None;
     }
 
+    let l2_range_to_submit = l2_range_to_submit.unwrap();
+    let l1_height_range = l1_height_range.unwrap();
     Some(CommitmentInfo {
-        l2_height_range: l2_range_to_submit.unwrap(),
-        l1_height_range: l1_height_range.unwrap(),
+        l2_height_range: l2_range_to_submit.0..=l2_range_to_submit.1,
+        l1_height_range: BatchNumber(l1_height_range.0)..=BatchNumber(l1_height_range.1),
     })
 }
 
@@ -94,7 +96,7 @@ pub fn get_commitment(
 ) -> ([u8; 32], u64, u64) {
     // sanity check
     assert_eq!(
-        commitment_info.l2_height_range.start().0 - commitment_info.l2_height_range.end().0 + 1u64,
+        commitment_info.l2_height_range.end().0 - commitment_info.l2_height_range.start().0 + 1u64,
         soft_confirmation_hashes.len() as u64,
         "Sequencer: Soft confirmation hashes length does not match the commitment info"
     );

@@ -231,8 +231,6 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                     let previous_l1_block =
                         self.da_service.get_block_at(prev_l1_height).await.unwrap();
 
-                    warn!("previous_l1_block: {:#?}", previous_l1_block);
-
                     // Compare if there is no skip
                     if last_finalized_block.header().prev_hash()
                         != previous_l1_block.header().hash()
