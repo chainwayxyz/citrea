@@ -1,5 +1,5 @@
 use std::collections::HashSet;
-use std::env::temp_dir;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 use lazy_static::lazy_static;
@@ -21,7 +21,9 @@ impl DbConnector {
     pub fn new() -> Self {
         let thread = std::thread::current();
         let thread_name = thread.name().unwrap_or("unnamed");
-        let dir = temp_dir().join(thread_name.to_string() + "shared-mock-da.db");
+        let dir = workspace_dir()
+            .join("test-da-dbs")
+            .join(thread_name.to_string() + ".db");
         let db_name = dir.to_str().unwrap().to_string();
 
         debug!("Using test db: {}", db_name);
@@ -140,6 +142,18 @@ impl DbConnector {
             blobs: serde_json::from_str(row.get::<_, String>(5).unwrap().as_str()).unwrap(),
         }
     }
+}
+
+fn workspace_dir() -> PathBuf {
+    let output = std::process::Command::new(env!("CARGO"))
+        .arg("locate-project")
+        .arg("--workspace")
+        .arg("--message-format=plain")
+        .output()
+        .unwrap()
+        .stdout;
+    let cargo_path = Path::new(std::str::from_utf8(&output).unwrap().trim());
+    cargo_path.parent().unwrap().to_path_buf()
 }
 
 #[cfg(test)]
