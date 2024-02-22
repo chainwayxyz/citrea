@@ -33,14 +33,14 @@ pub fn get_commitment_info(
 
     debug!("Last commitment L1 height: {:?}", last_commitment_l1_height);
     let mut l2_range_to_submit = None;
-    let mut l1_height_range = None;
+    let mut _l1_height_range = None;
     // if none then we never submitted a commitment, start from prev_l1_height and go back as far as you can go
     // if there is a height then start from height + 1 and go to prev_l1_height
     match last_commitment_l1_height {
         Some(height) => {
             let mut l1_height = height.0 + 1;
 
-            l1_height_range = Some((l1_height, l1_height));
+            _l1_height_range = Some((l1_height, l1_height));
 
             while let Some(l2_height_range) = ledger_db
                 .get_l2_range_by_l1_height(SlotNumber(l1_height))
@@ -55,12 +55,12 @@ pub fn get_commitment_info(
                 l1_height += 1;
             }
 
-            l1_height_range = Some((l1_height_range.unwrap().0, l1_height - 1));
+            _l1_height_range = Some((_l1_height_range.unwrap().0, l1_height - 1));
         }
         None => {
             let mut l1_height = prev_l1_height;
 
-            l1_height_range = Some((prev_l1_height, prev_l1_height));
+            _l1_height_range = Some((prev_l1_height, prev_l1_height));
 
             while let Some(l2_height_range) = ledger_db
                 .get_l2_range_by_l1_height(SlotNumber(l1_height))
@@ -75,12 +75,12 @@ pub fn get_commitment_info(
                 l1_height -= 1;
             }
 
-            l1_height_range = Some((l1_height + 1, l1_height_range.unwrap().1));
+            _l1_height_range = Some((l1_height + 1, _l1_height_range.unwrap().1));
         }
     };
 
     debug!("L2 range to submit: {:?}", l2_range_to_submit);
-    debug!("L1 height range: {:?}", l1_height_range);
+    debug!("L1 height range: {:?}", _l1_height_range);
 
     if l2_range_to_submit.is_none()
         || (l2_range_to_submit.unwrap().1 .0 - l2_range_to_submit.unwrap().0 .0 + 1)
@@ -90,7 +90,7 @@ pub fn get_commitment_info(
     }
 
     let l2_range_to_submit = l2_range_to_submit.unwrap();
-    let l1_height_range = l1_height_range.unwrap();
+    let l1_height_range = _l1_height_range.unwrap();
 
     let l1_start_hash = ledger_db
         .get_soft_batch_by_number::<()>(l2_range_to_submit.0 .0)
@@ -127,10 +127,9 @@ pub fn get_commitment(
     );
 
     // build merkle tree over soft confirmations
-    let merkle_root =
-        MerkleTree::<Sha256>::from_leaves(soft_confirmation_hashes.clone().as_slice())
-            .root()
-            .expect("Couldn't compute merkle root");
+    let merkle_root = MerkleTree::<Sha256>::from_leaves(soft_confirmation_hashes.as_slice())
+        .root()
+        .expect("Couldn't compute merkle root");
     SequencerCommitment {
         merkle_root,
         l1_start_block_hash: commitment_info.l1_start_hash,

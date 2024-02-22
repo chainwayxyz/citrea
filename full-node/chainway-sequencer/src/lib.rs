@@ -264,7 +264,7 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                             soft_confirmation_hashes,
                         );
 
-                        tracing::error!("Sequencer: submitting commitment: {:?}", commitment);
+                        info!("Sequencer: submitting commitment: {:?}", commitment);
 
                         // submit commitment
                         self.da_service
