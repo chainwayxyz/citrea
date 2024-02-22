@@ -9966,6 +9966,7 @@ dependencies = [
  "reth-transaction-pool",
  "revm",
  "risc0",
+ "rs_merkle",
  "secp256k1 0.27.0",
  "sequencer-client",
  "serde",

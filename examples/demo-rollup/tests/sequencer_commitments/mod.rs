@@ -2,16 +2,15 @@ use std::time::Duration;
 
 use borsh::BorshDeserialize;
 use citrea_stf::genesis_config::GenesisPaths;
-use log::debug;
-use reth_rpc_types::BlockNumberOrTag;
-use sov_mock_da::{MockAddress, MockDaService};
-use sov_modules_api::BlobReaderTrait;
+use rs_merkle::algorithms::Sha256;
+use rs_merkle::MerkleTree;
+use sov_mock_da::{MockAddress, MockDaService, MockDaSpec};
+use sov_modules_api::{BlobReaderTrait, SignedSoftConfirmationBatch};
 use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
 use sov_rollup_interface::da::DaData;
 use sov_rollup_interface::services::da::DaService;
 use sov_stf_runner::RollupProverConfig;
 use tokio::time::sleep;
-use tracing::info;
 
 use crate::evm::make_test_client;
 use crate::test_helpers::{start_rollup, NodeMode};
@@ -88,9 +87,53 @@ async fn sequencer_sends_commitments_to_da_layer() {
 
     let data = blob.full_data();
 
-    debug!("Len: {}", data.len());
+    let commitment = DaData::try_from_slice(data).unwrap();
 
-    debug!("deserialized: {:?}", DaData::try_from_slice(data));
+    matches!(commitment, DaData::SequencerCommitment(_));
+
+    let DaData::SequencerCommitment(commitment) = commitment else {
+        panic!("Expected SequencerCommitment, got {:?}", commitment);
+    };
+
+    let height = test_client.eth_block_number().await;
+
+    let commitments_last_soft_confirmation: SignedSoftConfirmationBatch = test_client
+        .ledger_get_soft_batch_by_number::<MockDaSpec>(height - 1) // after commitment is sent another block is published
+        .await
+        .unwrap()
+        .into();
+
+    let _start_l2_block: u64 = 1;
+    let end_l2_block: u64 = height - 1;
+    let start_l1_block = da_service.get_block_at(1).await.unwrap();
+    let end_l1_block = da_service
+        .get_block_at(commitments_last_soft_confirmation.da_slot_height)
+        .await
+        .unwrap(); // can only be the block before the one comitment landed in
+
+    let mut batch_receipts = Vec::new();
+
+    for i in 1..=end_l2_block {
+        batch_receipts.push(
+            test_client
+                .ledger_get_soft_batch_by_number::<MockDaSpec>(i)
+                .await
+                .unwrap(),
+        );
+    }
+
+    // create merkle tree
+    let merkle_tree = MerkleTree::<Sha256>::from_leaves(
+        batch_receipts
+            .iter()
+            .map(|x| x.hash)
+            .collect::<Vec<_>>()
+            .as_slice(),
+    );
+
+    assert_eq!(commitment.l1_start_block_hash, start_l1_block.header.hash.0);
+    assert_eq!(commitment.l1_end_block_hash, end_l1_block.header.hash.0);
+    assert_eq!(commitment.merkle_root, merkle_tree.root().unwrap());
 
     seq_task.abort();
 }
