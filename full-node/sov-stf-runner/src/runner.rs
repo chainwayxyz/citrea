@@ -6,7 +6,7 @@ use jsonrpsee::core::Error;
 use jsonrpsee::RpcModule;
 use sequencer_client::SequencerClient;
 use sov_db::ledger_db::{LedgerDB, SlotCommit};
-use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
+use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
 use sov_rollup_interface::stf::{SoftBatchReceipt, StateTransitionFunction};
@@ -362,6 +362,35 @@ where
             //         tracing::info!("Resuming execution on height={}", height);
             //     }
             // }
+
+            // Merkle root hash - L1 start height - L1 end height
+            let mut x: ([u8; 32], u64, u64) = ([0; 32], 0, 0);
+            for tx in self.da_service.extract_relevant_blobs(&filtered_block) {
+                match BorshDeserialize::try_from_slice(&tx.full_data()) {
+                    Ok(y) => x = y,
+                    Err(e) => {
+                        continue;
+                    }
+                };
+            }
+
+            let range = std::ops::Range(BatchNumber::from(x.1), BatchNumber::from(x.2));
+
+            // Traverse each item's field of vector of transactions, put them in merkle tree
+            // and compare the root with the one from the ledger
+            let soft_batches_tree: MerkleTree = self
+                .ledger_db
+                .get_soft_batch_range(range)
+                .unwrap()
+                .iter()
+                .fold(MerkleTree::new(), |mut tree, batch| {
+                    tree.push(batch.hash);
+                    tree
+                });
+
+            if soft_batches_tree.root() != x.0 {
+                anyhow::bail!("Merkle root mismatch");
+            }
 
             info!(
                 "Running soft confirmation batch #{} with hash: 0x{} on DA block #{}",
