@@ -175,7 +175,6 @@ impl MockDaService {
     }
 
     async fn add_blob(&self, blob: &[u8], zkp_proof: Vec<u8>) -> anyhow::Result<u64> {
-        tracing::debug!("Blob: {:?}", blob);
         let blocks = self.blocks.lock().await;
 
         let (previous_block_hash, height) = match blocks.last().map(|b| b.header().clone()) {
@@ -207,7 +206,7 @@ impl MockDaService {
         };
 
         blocks.push_back(block.clone());
-        tracing::debug!("Added block at height {}, block: {:?}", height, block);
+
         // Enough blocks to finalize block
         if blocks.len() > self.blocks_to_finality as usize {
             let next_index_to_finalize = blocks.len() - self.blocks_to_finality as usize - 1;

@@ -17,7 +17,7 @@ use crate::test_helpers::{start_rollup, NodeMode};
 
 #[tokio::test]
 async fn sequencer_sends_commitments_to_da_layer() {
-    sov_demo_rollup::initialize_logging();
+    // sov_demo_rollup::initialize_logging();
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 

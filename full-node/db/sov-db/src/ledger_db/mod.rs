@@ -443,7 +443,7 @@ impl LedgerDB {
         let mut schema_batch = SchemaBatch::new();
 
         schema_batch
-            .put::<SequencerSentCommitment>(&l1_height, &())
+            .put::<SequencerSentCommitment>(&(), &l1_height)
             .unwrap();
         self.db.write_schemas(schema_batch)?;
 
@@ -493,15 +493,7 @@ impl LedgerDB {
     /// were committed.
     /// Called by the sequencer.
     pub fn get_last_sequencer_commitment_l1_height(&self) -> anyhow::Result<Option<SlotNumber>> {
-        let mut iter = self.db.iter::<SequencerSentCommitment>()?;
-
-        iter.seek_to_last();
-
-        match iter.next() {
-            Some(Ok(item)) => Ok(Some(item.key)),
-            Some(Err(e)) => Err(e),
-            _ => Ok(None), // never did a commitment
-        }
+        self.db.get::<SequencerSentCommitment>(&())
     }
 
     /// Get L2 height range for a given L1 height.
