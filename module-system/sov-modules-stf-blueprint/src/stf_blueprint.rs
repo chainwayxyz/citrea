@@ -311,7 +311,7 @@ where
     }
 
     #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
-    pub(crate) fn apply_soft_confirmation_inner(
+    pub(crate) fn _apply_soft_confirmation_inner(
         &self,
         checkpoint: StateCheckpoint<C>,
         soft_batch: &mut SignedSoftConfirmationBatch,

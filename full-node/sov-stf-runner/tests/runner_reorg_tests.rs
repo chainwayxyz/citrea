@@ -165,31 +165,19 @@ async fn runner_execution(
         rollup_config.prover_service,
     );
 
-    let mut runner: StateTransitionRunner<
-        HashStf<MockValidityCond>,
-        ProverStorageManager<MockDaSpec, sov_state::DefaultStorageSpec>,
-        MockDaService,
-        MockZkvm<MockValidityCond>,
-        ParallelProverService<
-            [u8; 32],
-            sov_state::ArrayWitness,
-            MockDaService,
-            MockZkvm<MockValidityCond>,
-            HashStf<MockValidityCond>,
-        >,
-        DefaultContext,
-    > = StateTransitionRunner::new(
-        rollup_config.runner,
-        da_service,
-        ledger_db,
-        stf,
-        storage_manager,
-        init_variant,
-        prover_service,
-        None,
-        vec![0u8; 32],
-    )
-    .unwrap();
+    let mut runner: StateTransitionRunner<_, _, _, _, _, DefaultContext> =
+        StateTransitionRunner::new(
+            rollup_config.runner,
+            da_service,
+            ledger_db,
+            stf,
+            storage_manager,
+            init_variant,
+            prover_service,
+            None,
+            vec![0u8; 32],
+        )
+        .unwrap();
 
     let before = *runner.get_state_root();
     let end = runner.run_in_process().await;

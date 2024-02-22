@@ -319,9 +319,6 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                         // };
                         // handle error?
                     }
-                    _ => {
-                        unimplemented!()
-                    }
                 }
 
                 // get txs and call apply tx with it
