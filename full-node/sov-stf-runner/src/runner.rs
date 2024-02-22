@@ -194,23 +194,34 @@ where
         self.ledger_db.get_head_soft_batch()
     }
 
-    /// TODO: Docs
-    pub async fn begin_soft_confirmation(
+    /// Returns filtered block and prestate
+    pub async fn get_block_and_prestate(
         &mut self,
         soft_batch: &mut SignedSoftConfirmationBatch,
-    ) -> (Result<(), ApplySoftConfirmationError>, WorkingSet<C>) {
-        // TODO: Handle Error
+    ) -> Result<
+        (
+            <Da as DaService>::FilteredBlock,
+            <Sm as HierarchicalStorageManager<Da::Spec>>::NativeStorage,
+        ),
+        anyhow::Error,
+    > {
         let filtered_block = self
             .da_service
             .get_block_at(soft_batch.da_slot_height)
-            .await
-            .unwrap();
-        // TODO: Handle Error
+            .await?;
         let pre_state = self
             .storage_manager
-            .create_storage_on(filtered_block.header())
-            .unwrap();
+            .create_storage_on(filtered_block.header())?;
+        Ok((filtered_block, pre_state))
+    }
 
+    /// Soft confirmation rules are checked, state checkpoint is created
+    pub async fn begin_soft_confirmation(
+        &mut self,
+        soft_batch: &mut SignedSoftConfirmationBatch,
+        filtered_block: <Da as DaService>::FilteredBlock,
+        pre_state: <Sm as HierarchicalStorageManager<Da::Spec>>::NativeStorage,
+    ) -> (Result<(), ApplySoftConfirmationError>, WorkingSet<C>) {
         // TODO: check for reorgs here
         // check out run_in_process for an example
 
@@ -231,7 +242,7 @@ where
             soft_batch,
         )
     }
-    /// TODO: Docs
+    /// Applies given txs calls pre and post tx hooks
     pub async fn apply_sov_tx(
         &mut self,
         txs: Vec<Vec<u8>>,
@@ -239,7 +250,7 @@ where
     ) -> (u64, WorkingSet<C>, Vec<TransactionReceipt<TxEffect>>) {
         self.stf.apply_soft_batch_txs(txs, batch_workspace)
     }
-    /// TODO: Docs
+    /// Commits changes and finalizes the block
     pub async fn end_soft_confirmation(
         &mut self,
         soft_batch: &mut SignedSoftConfirmationBatch,

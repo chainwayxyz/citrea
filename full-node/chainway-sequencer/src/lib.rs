@@ -245,10 +245,22 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                 let mut signed_batch = batch_info.clone().into();
                 // initially create sc info and call begin soft confirmation hook with it
                 let txs = vec![signed_blob.clone()];
+                let (filtered_block, prestate) = match self
+                    .rollup
+                    .runner
+                    .get_block_and_prestate(&mut signed_batch)
+                    .await
+                {
+                    Ok(result) => result,
+                    Err(_) => {
+                        // Log error here
+                        continue;
+                    } // Continue the loop if there is an error
+                };
                 match self
                     .rollup
                     .runner
-                    .begin_soft_confirmation(&mut signed_batch)
+                    .begin_soft_confirmation(&mut signed_batch, filtered_block, prestate)
                     .await
                 {
                     (Ok(()), batch_workspace) => {
@@ -311,22 +323,9 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                         batch_workspace,
                     ) => {
                         batch_workspace.revert();
-                        // return SlotResult {
-                        //     state_root: pre_state_root.clone(),
-                        //     change_set: pre_state, // should be empty
-                        //     batch_receipts: vec![],
-                        //     witness: <<C as Spec>::Storage as Storage>::Witness::default(),
-                        // };
-                        // handle error?
+                        // Log error here
                     }
                 }
-
-                // get txs and call apply tx with it
-
-                // TODO: handle error
-                // self.rollup.runner.process(signed_soft_batch).await?;
-
-                // get last block remove only txs in block
             }
         }
     }

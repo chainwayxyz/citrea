@@ -74,14 +74,14 @@ impl<A: BasicAddress> From<ApplyBatchError<A>> for BatchReceipt<SequencerOutcome
 
 type ApplySoftConfirmationResult = Result<BatchReceipt<(), TxEffect>, ApplySoftConfirmationError>;
 
-/// TODO: Docs
+/// Soft confirmation error
 #[derive(Debug)]
 pub enum ApplySoftConfirmationError {
-    /// TODO: Docs
+    /// Checks count of soft confirmations on the slot
     TooManySoftConfirmationsOnDaSlot {
-        /// TODO: Docs
+        /// Hash of the slot
         hash: [u8; 32],
-        /// TODO: Docs
+        /// Sequencer public key
         sequencer_pub_key: Vec<u8>,
     },
 }
@@ -120,7 +120,7 @@ where
 
     // )
 
-    /// TODO: Docs
+    /// Applies sov txs to the state
     pub fn apply_sov_txs_inner(
         &self,
         txs: Vec<Vec<u8>>,
