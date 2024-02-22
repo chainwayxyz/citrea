@@ -54,7 +54,6 @@ async fn sequencer_sends_commitments_to_da_layer() {
     // look over all available da_blocks and check that no commitment was sent
     while height <= last_finalized {
         let block = da_service.get_block_at(height).await.unwrap();
-        // let block = block.unwrap();
 
         let mut blobs = da_service.extract_relevant_blobs(&block);
 
@@ -68,7 +67,6 @@ async fn sequencer_sends_commitments_to_da_layer() {
     }
 
     sleep(Duration::from_secs(5)).await; // wait 5 secs so that new L1 block will be published
-
     test_client.send_publish_batch_request().await;
     sleep(Duration::from_secs(5)).await; // wait 5 secs so that new L1 block will be published
     test_client.send_publish_batch_request().await;
@@ -104,12 +102,12 @@ async fn sequencer_sends_commitments_to_da_layer() {
         .into();
 
     let _start_l2_block: u64 = 1;
-    let end_l2_block: u64 = height - 1;
+    let end_l2_block: u64 = height - 1; // can only be the block before the one comitment landed in
     let start_l1_block = da_service.get_block_at(1).await.unwrap();
     let end_l1_block = da_service
         .get_block_at(commitments_last_soft_confirmation.da_slot_height)
         .await
-        .unwrap(); // can only be the block before the one comitment landed in
+        .unwrap();
 
     let mut batch_receipts = Vec::new();
 

@@ -269,7 +269,6 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                         // submit commitment
                         self.da_service
                             .send_transaction(
-                                // TODO: get hashes of those heights then submit that
                                 DaData::SequencerCommitment(commitment)
                                     .try_to_vec()
                                     .unwrap()
@@ -322,7 +321,7 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
 
                 // connect L1 and L2 height
                 self.ledger_db
-                    .connect_l1_l2_heights(
+                    .extend_l2_range_of_l1_slot(
                         SlotNumber(last_finalized_block.header().height()),
                         last_soft_batch_number,
                     )

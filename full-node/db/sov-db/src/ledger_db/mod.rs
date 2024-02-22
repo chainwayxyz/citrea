@@ -412,8 +412,7 @@ impl LedgerDB {
     }
 
     /// Records the L2 height that was created as a soft confirmaiton of an L1 height
-    /// Returns a range (inclusive)
-    pub fn connect_l1_l2_heights(
+    pub fn extend_l2_range_of_l1_slot(
         &self,
         l1_height: SlotNumber,
         l2_height: BatchNumber,
