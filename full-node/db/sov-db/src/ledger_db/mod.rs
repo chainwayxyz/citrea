@@ -10,7 +10,7 @@ use sov_schema_db::{Schema, SchemaBatch, SeekKeyEncoder, DB};
 use crate::rocks_db_config::gen_rocksdb_options;
 use crate::schema::tables::{
     BatchByHash, BatchByNumber, EventByKey, EventByNumber, L2RangeByL1Height,
-    SequencerSentCommitment, SlotByHash, SlotByNumber, SoftBatchByNumber, TxByHash, TxByNumber,
+    LastSequencerCommitmentSent, SlotByHash, SlotByNumber, SoftBatchByNumber, TxByHash, TxByNumber,
     LEDGER_TABLES,
 };
 use crate::schema::types::{
@@ -442,7 +442,7 @@ impl LedgerDB {
         let mut schema_batch = SchemaBatch::new();
 
         schema_batch
-            .put::<SequencerSentCommitment>(&(), &l1_height)
+            .put::<LastSequencerCommitmentSent>(&(), &l1_height)
             .unwrap();
         self.db.write_schemas(schema_batch)?;
 
@@ -492,7 +492,7 @@ impl LedgerDB {
     /// were committed.
     /// Called by the sequencer.
     pub fn get_last_sequencer_commitment_l1_height(&self) -> anyhow::Result<Option<SlotNumber>> {
-        self.db.get::<SequencerSentCommitment>(&())
+        self.db.get::<LastSequencerCommitmentSent>(&())
     }
 
     /// Get L2 height range for a given L1 height.
