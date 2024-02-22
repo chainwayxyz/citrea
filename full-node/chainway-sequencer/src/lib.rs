@@ -25,8 +25,8 @@ use reth_transaction_pool::{
     CoinbaseTipOrdering, EthPooledTransaction, EthTransactionValidator, Pool, TransactionOrigin,
     TransactionPool, TransactionValidationTaskExecutor,
 };
-use rs_merkle::algorithms::Sha256;
-use rs_merkle::MerkleTree;
+
+
 use sov_accounts::Accounts;
 use sov_accounts::Response::{AccountEmpty, AccountExists};
 use sov_db::ledger_db::LedgerDB;
@@ -42,7 +42,7 @@ use sov_modules_api::{
 use sov_modules_rollup_blueprint::{Rollup, RollupBlueprint};
 use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::services::da::DaService;
-use tracing::{debug, info, warn};
+use tracing::{debug, info};
 
 pub use crate::db_provider::DbProvider;
 use crate::utils::recover_raw_transaction;
@@ -178,7 +178,7 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                     .map(|rlp| RlpEvmTransaction { rlp })
                     .collect();
 
-                warn!(
+                debug!(
                     "Sequencer: publishing block with {} transactions",
                     rlp_txs.len()
                 );
@@ -205,7 +205,7 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
 
                 let prev_l1_height = prev_l1_height.unwrap();
 
-                warn!("Sequencer: prev L1 height: {:?}", prev_l1_height);
+                debug!("Sequencer: prev L1 height: {:?}", prev_l1_height);
 
                 let last_finalized_height = self
                     .da_service
@@ -214,7 +214,7 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                     .unwrap()
                     .height();
 
-                warn!(
+                debug!(
                     "Sequencer: last finalized height: {:?}",
                     last_finalized_height
                 );
@@ -245,9 +245,8 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                         prev_l1_height,
                     );
 
-                    // TODO: make calc readable
                     if commitment_info.is_some() {
-                        warn!("Sequencer: enough soft confirmations to submit commitment");
+                        debug!("Sequencer: enough soft confirmations to submit commitment");
                         let commitment_info = commitment_info.unwrap();
                         let l2_range_to_submit = commitment_info.l2_height_range.clone();
 
@@ -256,7 +255,7 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
 
                         let soft_confirmation_hashes = self
                             .ledger_db
-                            .get_soft_batch_range(&(l2_range_to_submit.start().clone()..range_end))
+                            .get_soft_batch_range(&(*l2_range_to_submit.start()..range_end))
                             .expect("Sequencer: Failed to get soft batch range")
                             .iter()
                             .map(|sb| sb.hash)
@@ -267,8 +266,8 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                             soft_confirmation_hashes,
                         );
 
-                        warn!(
-                            "Sequencer: submitting commitment, L1 heights: {:?}, L2 heights: {:?}, merkle root: {:?}",
+                        tracing::error!(
+                            "Sequencer: submitting commitment, L1 hashes: {:?}, L2 heights: {:?}, merkle root: {:?}",
                             (commitment.1, commitment.2), l2_range_to_submit, commitment.0
                         );
 
