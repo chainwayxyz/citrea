@@ -17,11 +17,9 @@ use sov_modules_api::{
     BasicAddress, BlobReaderTrait, Context, DaSpec, DispatchCall, Genesis, Signature, Spec,
     StateCheckpoint, UnsignedSoftConfirmationBatch, WorkingSet, Zkvm,
 };
-use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
 pub use sov_rollup_interface::stf::{BatchReceipt, TransactionReceipt};
 use sov_rollup_interface::stf::{SlotResult, StateTransitionFunction};
-use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_state::storage::KernelWorkingSet;
 use sov_state::Storage;
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
@@ -556,12 +554,12 @@ where
                     hash, sequencer_pub_key
                 );
                 batch_workspace.revert();
-                return SlotResult {
+                SlotResult {
                     state_root: pre_state_root.clone(),
                     change_set: pre_state, // should be empty
                     batch_receipts: vec![],
                     witness: <<C as Spec>::Storage as Storage>::Witness::default(),
-                };
+                }
             }
         }
         // debug!("Applying soft batch in STF Blueprint");

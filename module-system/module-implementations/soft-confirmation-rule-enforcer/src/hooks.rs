@@ -1,7 +1,6 @@
 use anyhow::anyhow;
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::{Context, DaSpec, StateMapAccessor, StateValueAccessor, WorkingSet};
-use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
 use sov_state::Storage;
 
 use crate::SoftConfirmationRuleEnforcer;

@@ -252,7 +252,7 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                     .await
                 {
                     (Ok(()), batch_workspace) => {
-                        let (sequencer_reward, batch_workspace, tx_receipts) = self
+                        let (_sequencer_reward, batch_workspace, tx_receipts) = self
                             .rollup
                             .runner
                             .apply_sov_tx(txs.clone(), batch_workspace)
@@ -305,8 +305,8 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                     }
                     (
                         Err(ApplySoftConfirmationError::TooManySoftConfirmationsOnDaSlot {
-                            hash,
-                            sequencer_pub_key,
+                            hash: _,
+                            sequencer_pub_key: _,
                         }),
                         batch_workspace,
                     ) => {

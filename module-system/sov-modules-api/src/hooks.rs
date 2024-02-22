@@ -108,17 +108,17 @@ impl From<SignedSoftConfirmationBatch> for HookSoftConfirmationInfo {
     }
 }
 
-impl Into<SignedSoftConfirmationBatch> for HookSoftConfirmationInfo {
-    fn into(self) -> SignedSoftConfirmationBatch {
+impl From<HookSoftConfirmationInfo> for SignedSoftConfirmationBatch {
+    fn from(val: HookSoftConfirmationInfo) -> Self {
         SignedSoftConfirmationBatch {
             hash: [0u8; 32],
-            da_slot_height: self.da_slot_height,
-            da_slot_hash: self.da_slot_hash(),
-            pre_state_root: self.pre_state_root(),
+            da_slot_height: val.da_slot_height,
+            da_slot_hash: val.da_slot_hash(),
+            pre_state_root: val.pre_state_root(),
             txs: vec![],
             signature: vec![],
-            pub_key: self.pub_key.clone(),
-            l1_fee_rate: self.l1_fee_rate,
+            pub_key: val.pub_key.clone(),
+            l1_fee_rate: val.l1_fee_rate,
         }
     }
 }

@@ -68,7 +68,7 @@ fn get_max_l1_fee_rate_change_percentage_must_be_correct() {
         10
     );
 
-    let mut signed_soft_confirmation_batch = SignedSoftConfirmationBatch {
+    let signed_soft_confirmation_batch = SignedSoftConfirmationBatch {
         hash: [0; 32],
         da_slot_height: 0,
         da_slot_hash: [0; 32],
@@ -107,7 +107,7 @@ fn get_last_l1_fee_rate_must_be_correct() {
         0
     );
 
-    let mut signed_soft_confirmation_batch = SignedSoftConfirmationBatch {
+    let signed_soft_confirmation_batch = SignedSoftConfirmationBatch {
         hash: [0; 32],
         da_slot_height: 0,
         da_slot_hash: [0; 32],

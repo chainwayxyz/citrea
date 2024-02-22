@@ -70,12 +70,12 @@ impl<C: Context, Da: DaSpec, Vm: Zkvm, Cond: ValidityCondition> StfBlueprintTrai
 {
     fn begin_soft_batch(
         &self,
-        sequencer_public_key: &[u8],
-        pre_state_root: &Self::StateRoot,
-        pre_state: Self::PreState,
-        witness: <<C as sov_modules_api::Spec>::Storage as Storage>::Witness,
-        slot_header: &<Da as DaSpec>::BlockHeader,
-        soft_batch: &mut sov_modules_api::SignedSoftConfirmationBatch,
+        _sequencer_public_key: &[u8],
+        _pre_state_root: &Self::StateRoot,
+        _pre_state: Self::PreState,
+        _witness: <<C as sov_modules_api::Spec>::Storage as Storage>::Witness,
+        _slot_header: &<Da as DaSpec>::BlockHeader,
+        _soft_batch: &mut sov_modules_api::SignedSoftConfirmationBatch,
     ) -> (
         Result<(), sov_modules_stf_blueprint::ApplySoftConfirmationError>,
         sov_modules_api::WorkingSet<C>,
@@ -85,8 +85,8 @@ impl<C: Context, Da: DaSpec, Vm: Zkvm, Cond: ValidityCondition> StfBlueprintTrai
 
     fn apply_soft_batch_txs(
         &self,
-        txs: Vec<Vec<u8>>,
-        batch_workspace: sov_modules_api::WorkingSet<C>,
+        _txs: Vec<Vec<u8>>,
+        _batch_workspace: sov_modules_api::WorkingSet<C>,
     ) -> (
         u64,
         sov_modules_api::WorkingSet<C>,
@@ -97,14 +97,14 @@ impl<C: Context, Da: DaSpec, Vm: Zkvm, Cond: ValidityCondition> StfBlueprintTrai
 
     fn end_soft_batch(
         &self,
-        sequencer_public_key: &[u8],
-        soft_batch: &mut sov_modules_api::SignedSoftConfirmationBatch,
-        sequencer_reward: u64,
-        tx_receipts: Vec<
+        _sequencer_public_key: &[u8],
+        _soft_batch: &mut sov_modules_api::SignedSoftConfirmationBatch,
+        _sequencer_reward: u64,
+        _tx_receipts: Vec<
             sov_modules_stf_blueprint::TransactionReceipt<sov_modules_stf_blueprint::TxEffect>,
         >,
-        batch_workspace: sov_modules_api::WorkingSet<C>,
-        pre_state: Self::PreState,
+        _batch_workspace: sov_modules_api::WorkingSet<C>,
+        _pre_state: Self::PreState,
     ) -> SlotResult<
         Self::StateRoot,
         Self::ChangeSet,

@@ -33,7 +33,7 @@ fn begin_soft_confirmation_hook_checks_limiting_number() {
         .call(call_message, &context, &mut working_set)
         .unwrap();
 
-    let mut signed_soft_confirmation_batch = SignedSoftConfirmationBatch {
+    let signed_soft_confirmation_batch = SignedSoftConfirmationBatch {
         hash: [0; 32],
         da_slot_height: 0,
         da_slot_hash: [0; 32],

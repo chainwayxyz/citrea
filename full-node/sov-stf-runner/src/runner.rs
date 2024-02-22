@@ -7,18 +7,12 @@ use jsonrpsee::RpcModule;
 use sequencer_client::SequencerClient;
 use sov_db::ledger_db::{LedgerDB, SlotCommit};
 use sov_db::schema::types::{BatchNumber, StoredSoftBatch};
-use sov_modules_api::hooks::HookSoftConfirmationInfo;
-use sov_modules_api::runtime::capabilities::KernelSlotHooks;
-use sov_modules_api::{BlobReaderTrait, Context, Spec, WorkingSet};
-use sov_modules_stf_blueprint::{
-    ApplySoftConfirmationError, Runtime, StfBlueprint, StfBlueprintTrait, TxEffect,
-};
+use sov_modules_api::{Context, WorkingSet};
+use sov_modules_stf_blueprint::{ApplySoftConfirmationError, StfBlueprintTrait, TxEffect};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
-use sov_rollup_interface::stf::{
-    BatchReceipt, SoftBatchReceipt, StateTransitionFunction, TransactionReceipt,
-};
+use sov_rollup_interface::stf::{SoftBatchReceipt, StateTransitionFunction, TransactionReceipt};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::{Zkvm, ZkvmHost};
 use tokio::sync::oneshot;

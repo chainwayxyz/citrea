@@ -3,9 +3,9 @@ use std::marker::PhantomData;
 use borsh::{BorshDeserialize, BorshSerialize};
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::runtime::capabilities::KernelSlotHooks;
-use sov_modules_api::WorkingSet;
 use sov_modules_api::{
     BasicAddress, BlobReaderTrait, Context, DaSpec, DispatchCall, GasUnit, StateCheckpoint,
+    WorkingSet,
 };
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
 use sov_rollup_interface::stf::{BatchReceipt, TransactionReceipt};
@@ -317,9 +317,9 @@ where
         soft_batch: &mut SignedSoftConfirmationBatch,
     ) -> (ApplySoftConfirmationResult, StateCheckpoint<C>) {
         match self.begin_soft_confirmation_inner(checkpoint, soft_batch) {
-            (Ok(()), mut batch_workspace) => {
+            (Ok(()), batch_workspace) => {
                 // TODO: wait for txs here, apply_sov_txs can be called multiple times
-                let (sequencer_reward, mut batch_workspace, tx_receipts) =
+                let (sequencer_reward, batch_workspace, tx_receipts) =
                     self.apply_sov_txs_inner(soft_batch.txs.clone(), batch_workspace);
 
                 self.end_soft_confirmation_inner(
@@ -329,7 +329,7 @@ where
                     batch_workspace,
                 )
             }
-            (Err(err), batch_workspace) => return (Err(err), batch_workspace.revert()),
+            (Err(err), batch_workspace) => (Err(err), batch_workspace.revert()),
         }
     }
     #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
