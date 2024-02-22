@@ -5,7 +5,6 @@ use rs_merkle::MerkleTree;
 use sov_db::ledger_db::LedgerDB;
 use sov_db::schema::types::{BatchNumber, SlotNumber};
 use sov_rollup_interface::rpc::LedgerRpcProvider;
-
 use tracing::debug;
 
 #[derive(Clone, Debug)]

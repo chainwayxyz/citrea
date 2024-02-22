@@ -25,8 +25,6 @@ use reth_transaction_pool::{
     CoinbaseTipOrdering, EthPooledTransaction, EthTransactionValidator, Pool, TransactionOrigin,
     TransactionPool, TransactionValidationTaskExecutor,
 };
-
-
 use sov_accounts::Accounts;
 use sov_accounts::Response::{AccountEmpty, AccountExists};
 use sov_db::ledger_db::LedgerDB;
