@@ -3,6 +3,8 @@ use sov_mock_da::{
     MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaSpec, MockValidityCond,
 };
 use sov_mock_zkvm::MockZkvm;
+use sov_modules_api::Context;
+use sov_modules_stf_blueprint::StfBlueprintTrait;
 use sov_prover_storage_manager::{new_orphan_storage, SnapshotManager};
 use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::stf::{SlotResult, StateTransitionFunction};
@@ -60,6 +62,57 @@ impl<Cond> HashStf<Cond> {
         }
 
         (root_hash, storage)
+    }
+}
+
+impl<C: Context, Da: DaSpec, Vm: Zkvm, Cond: ValidityCondition> StfBlueprintTrait<C, Da, Vm>
+    for HashStf<Cond>
+{
+    fn begin_soft_batch(
+        &self,
+        sequencer_public_key: &[u8],
+        pre_state_root: &Self::StateRoot,
+        pre_state: Self::PreState,
+        witness: <<C as sov_modules_api::Spec>::Storage as Storage>::Witness,
+        slot_header: &<Da as DaSpec>::BlockHeader,
+        soft_batch: &mut sov_modules_api::SignedSoftConfirmationBatch,
+    ) -> (
+        Result<(), sov_modules_stf_blueprint::ApplySoftConfirmationError>,
+        sov_modules_api::WorkingSet<C>,
+    ) {
+        todo!()
+    }
+
+    fn apply_soft_batch_txs(
+        &self,
+        txs: Vec<Vec<u8>>,
+        batch_workspace: sov_modules_api::WorkingSet<C>,
+    ) -> (
+        u64,
+        sov_modules_api::WorkingSet<C>,
+        Vec<sov_modules_stf_blueprint::TransactionReceipt<sov_modules_stf_blueprint::TxEffect>>,
+    ) {
+        todo!()
+    }
+
+    fn end_soft_batch(
+        &self,
+        sequencer_public_key: &[u8],
+        soft_batch: &mut sov_modules_api::SignedSoftConfirmationBatch,
+        sequencer_reward: u64,
+        tx_receipts: Vec<
+            sov_modules_stf_blueprint::TransactionReceipt<sov_modules_stf_blueprint::TxEffect>,
+        >,
+        batch_workspace: sov_modules_api::WorkingSet<C>,
+        pre_state: Self::PreState,
+    ) -> SlotResult<
+        Self::StateRoot,
+        Self::ChangeSet,
+        Self::BatchReceiptContents,
+        Self::TxReceiptContents,
+        Self::Witness,
+    > {
+        todo!()
     }
 }
 

@@ -3,6 +3,7 @@ use sov_mock_da::{
     MockDaVerifier, MockValidityCond, PlannedFork,
 };
 use sov_mock_zkvm::MockZkvm;
+use sov_modules_api::default_context::DefaultContext;
 use sov_stf_runner::{
     InitVariant, ParallelProverService, ProverServiceConfig, RollupConfig, RollupProverConfig,
     RpcConfig, RunnerConfig, StateTransitionRunner, StorageConfig,
@@ -164,7 +165,20 @@ async fn runner_execution(
         rollup_config.prover_service,
     );
 
-    let mut runner = StateTransitionRunner::new(
+    let mut runner: StateTransitionRunner<
+        HashStf<MockValidityCond>,
+        ProverStorageManager<MockDaSpec, sov_state::DefaultStorageSpec>,
+        MockDaService,
+        MockZkvm<MockValidityCond>,
+        ParallelProverService<
+            [u8; 32],
+            sov_state::ArrayWitness,
+            MockDaService,
+            MockZkvm<MockValidityCond>,
+            HashStf<MockValidityCond>,
+        >,
+        DefaultContext,
+    > = StateTransitionRunner::new(
         rollup_config.runner,
         da_service,
         ledger_db,

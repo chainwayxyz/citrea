@@ -329,7 +329,7 @@ where
                     batch_workspace,
                 )
             }
-            (Err(err), mut batch_workspace) => return (Err(err), batch_workspace.revert()),
+            (Err(err), batch_workspace) => return (Err(err), batch_workspace.revert()),
         }
     }
     #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]

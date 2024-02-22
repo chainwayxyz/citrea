@@ -22,7 +22,10 @@ fn block_count_per_da_hash_must_be_correct() {
     // call begin_slot_hook a couple times for da hash 0
     for _ in 0..3 {
         soft_confirmation_rule_enforcer
-            .begin_soft_confirmation_hook(&mut signed_soft_confirmation_batch, &mut working_set)
+            .begin_soft_confirmation_hook(
+                &mut signed_soft_confirmation_batch.clone().into(),
+                &mut working_set,
+            )
             .unwrap();
     }
     // the block count for da hash 0 should be 3
@@ -38,7 +41,10 @@ fn block_count_per_da_hash_must_be_correct() {
 
     // call with a different da hash
     soft_confirmation_rule_enforcer
-        .begin_soft_confirmation_hook(&mut signed_soft_confirmation_batch, &mut working_set)
+        .begin_soft_confirmation_hook(
+            &mut signed_soft_confirmation_batch.clone().into(),
+            &mut working_set,
+        )
         .unwrap();
     // the block count for da hash 1 should be 1
     assert_eq!(
@@ -74,7 +80,10 @@ fn get_max_l1_fee_rate_change_percentage_must_be_correct() {
     };
 
     soft_confirmation_rule_enforcer
-        .begin_soft_confirmation_hook(&mut signed_soft_confirmation_batch, &mut working_set)
+        .begin_soft_confirmation_hook(
+            &mut signed_soft_confirmation_batch.clone().into(),
+            &mut working_set,
+        )
         .unwrap();
 
     // didn't change
@@ -110,7 +119,10 @@ fn get_last_l1_fee_rate_must_be_correct() {
     };
 
     soft_confirmation_rule_enforcer
-        .begin_soft_confirmation_hook(&mut signed_soft_confirmation_batch, &mut working_set)
+        .begin_soft_confirmation_hook(
+            &mut signed_soft_confirmation_batch.clone().into(),
+            &mut working_set,
+        )
         .unwrap();
 
     // now set to 1

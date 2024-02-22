@@ -47,7 +47,10 @@ fn begin_soft_confirmation_hook_checks_limiting_number() {
     // call begin_slot_hook 11 times
     for i in 0..11 {
         if soft_confirmation_rule_enforcer
-            .begin_soft_confirmation_hook(&mut signed_soft_confirmation_batch, &mut working_set)
+            .begin_soft_confirmation_hook(
+                &mut signed_soft_confirmation_batch.clone().into(),
+                &mut working_set,
+            )
             .is_err()
         {
             assert_eq!(i, 10);
@@ -73,8 +76,10 @@ fn begin_soft_confirmation_hook_checks_l1_fee_rate() {
     };
 
     // call first with 100 fee rate to set last_l1_fee_rate
-    let res = soft_confirmation_rule_enforcer
-        .begin_soft_confirmation_hook(&mut signed_soft_confirmation_batch, &mut working_set);
+    let res = soft_confirmation_rule_enforcer.begin_soft_confirmation_hook(
+        &mut signed_soft_confirmation_batch.clone().into(),
+        &mut working_set,
+    );
 
     assert!(res.is_ok());
 
@@ -82,8 +87,10 @@ fn begin_soft_confirmation_hook_checks_l1_fee_rate() {
     // should fail
     signed_soft_confirmation_batch.l1_fee_rate = 111;
 
-    let res = soft_confirmation_rule_enforcer
-        .begin_soft_confirmation_hook(&mut signed_soft_confirmation_batch, &mut working_set);
+    let res = soft_confirmation_rule_enforcer.begin_soft_confirmation_hook(
+        &mut signed_soft_confirmation_batch.clone().into(),
+        &mut working_set,
+    );
 
     assert!(res.is_err());
     assert_eq!(
@@ -105,35 +112,45 @@ fn begin_soft_confirmation_hook_checks_l1_fee_rate() {
     // should not fail
     signed_soft_confirmation_batch.l1_fee_rate = 110;
 
-    let res = soft_confirmation_rule_enforcer
-        .begin_soft_confirmation_hook(&mut signed_soft_confirmation_batch, &mut working_set);
+    let res = soft_confirmation_rule_enforcer.begin_soft_confirmation_hook(
+        &mut signed_soft_confirmation_batch.clone().into(),
+        &mut working_set,
+    );
 
     assert!(res.is_ok());
 
     // now 122 should'nt pass but 121 should
     signed_soft_confirmation_batch.l1_fee_rate = 122;
 
-    let res = soft_confirmation_rule_enforcer
-        .begin_soft_confirmation_hook(&mut signed_soft_confirmation_batch, &mut working_set);
+    let res = soft_confirmation_rule_enforcer.begin_soft_confirmation_hook(
+        &mut signed_soft_confirmation_batch.clone().into(),
+        &mut working_set,
+    );
 
     assert!(res.is_err());
 
     signed_soft_confirmation_batch.l1_fee_rate = 121;
 
-    let res = soft_confirmation_rule_enforcer
-        .begin_soft_confirmation_hook(&mut signed_soft_confirmation_batch, &mut working_set);
+    let res = soft_confirmation_rule_enforcer.begin_soft_confirmation_hook(
+        &mut signed_soft_confirmation_batch.clone().into(),
+        &mut working_set,
+    );
 
     assert!(res.is_ok());
 
     // reset back to 100 so calculations are easier
     signed_soft_confirmation_batch.l1_fee_rate = 109;
 
-    let res = soft_confirmation_rule_enforcer
-        .begin_soft_confirmation_hook(&mut signed_soft_confirmation_batch, &mut working_set);
+    let res = soft_confirmation_rule_enforcer.begin_soft_confirmation_hook(
+        &mut signed_soft_confirmation_batch.clone().into(),
+        &mut working_set,
+    );
     assert!(res.is_ok());
     signed_soft_confirmation_batch.l1_fee_rate = 100;
-    let res = soft_confirmation_rule_enforcer
-        .begin_soft_confirmation_hook(&mut signed_soft_confirmation_batch, &mut working_set);
+    let res = soft_confirmation_rule_enforcer.begin_soft_confirmation_hook(
+        &mut signed_soft_confirmation_batch.clone().into(),
+        &mut working_set,
+    );
     assert!(res.is_ok());
 
     // change da root hash so it doesnt fail
@@ -142,8 +159,10 @@ fn begin_soft_confirmation_hook_checks_l1_fee_rate() {
     // now 89 should'nt pass but 90 should
     signed_soft_confirmation_batch.l1_fee_rate = 89;
 
-    let res = soft_confirmation_rule_enforcer
-        .begin_soft_confirmation_hook(&mut signed_soft_confirmation_batch, &mut working_set);
+    let res = soft_confirmation_rule_enforcer.begin_soft_confirmation_hook(
+        &mut signed_soft_confirmation_batch.clone().into(),
+        &mut working_set,
+    );
 
     assert!(res.is_err());
 
@@ -164,8 +183,10 @@ fn begin_soft_confirmation_hook_checks_l1_fee_rate() {
 
     signed_soft_confirmation_batch.l1_fee_rate = 90;
 
-    let res = soft_confirmation_rule_enforcer
-        .begin_soft_confirmation_hook(&mut signed_soft_confirmation_batch, &mut working_set);
+    let res = soft_confirmation_rule_enforcer.begin_soft_confirmation_hook(
+        &mut signed_soft_confirmation_batch.clone().into(),
+        &mut working_set,
+    );
 
     assert!(res.is_ok());
 
@@ -173,8 +194,10 @@ fn begin_soft_confirmation_hook_checks_l1_fee_rate() {
 
     signed_soft_confirmation_batch.l1_fee_rate = 89;
 
-    let res = soft_confirmation_rule_enforcer
-        .begin_soft_confirmation_hook(&mut signed_soft_confirmation_batch, &mut working_set);
+    let res = soft_confirmation_rule_enforcer.begin_soft_confirmation_hook(
+        &mut signed_soft_confirmation_batch.clone().into(),
+        &mut working_set,
+    );
 
     assert!(res.is_ok());
 }

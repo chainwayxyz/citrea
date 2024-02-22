@@ -5,6 +5,7 @@ use std::borrow::BorrowMut;
 use std::marker::PhantomData;
 use std::net::SocketAddr;
 use std::sync::Arc;
+use std::vec;
 
 use borsh::ser::BorshSerialize;
 use citrea_stf::runtime::Runtime;
@@ -25,6 +26,7 @@ use reth_transaction_pool::{
     CoinbaseTipOrdering, EthPooledTransaction, EthTransactionValidator, Pool, TransactionOrigin,
     TransactionPool, TransactionValidationTaskExecutor,
 };
+use soft_confirmation_rule_enforcer::CallMessage as ScCallMessage;
 use sov_accounts::Accounts;
 use sov_accounts::Response::{AccountEmpty, AccountExists};
 pub use sov_evm::DevSigner;
@@ -184,6 +186,15 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                     <Runtime<C, Da::Spec> as EncodeCall<sov_evm::Evm<C>>>::encode_call(call_txs);
                 let signed_blob = self.make_blob(raw_message);
 
+                let sc_call_txs: soft_confirmation_rule_enforcer::CallMessage<C> =
+                    ScCallMessage::ModifyLimitingNumber {
+                        limiting_number: 15,
+                    };
+                let sc_raw_message = <Runtime<C, Da::Spec> as EncodeCall<
+                    soft_confirmation_rule_enforcer::SoftConfirmationRuleEnforcer<C, Da::Spec>,
+                >>::encode_call(sc_call_txs);
+                let sc_signed_blob = self.make_blob(sc_raw_message);
+
                 let prev_l1_height = self
                     .rollup
                     .runner
@@ -247,9 +258,22 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                             .apply_sov_tx(txs.clone(), batch_workspace)
                             .await;
 
+                        let sc_txs = vec![sc_signed_blob.clone()];
+                        let (sequencer_reward, batch_workspace, sc_tx_receipts) = self
+                            .rollup
+                            .runner
+                            .apply_sov_tx(sc_txs.clone(), batch_workspace)
+                            .await;
+                        let mut all_txs = vec![];
+                        all_txs.extend(txs);
+                        all_txs.extend(sc_txs);
+                        let mut all_receipts = vec![];
+                        all_receipts.extend(tx_receipts);
+                        all_receipts.extend(sc_tx_receipts);
+
                         let unsigned_batch = UnsignedSoftConfirmationBatch {
                             da_slot_height: last_finalized_block.header().height(),
-                            txs,
+                            txs: all_txs,
                             da_slot_hash: last_finalized_block.header().hash().into(),
                             pre_state_root: self
                                 .rollup
@@ -266,12 +290,13 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                         let mut signed_soft_batch =
                             self.sign_soft_confirmation_batch(unsigned_batch);
 
-                        self.rollup
+                        let _ = self
+                            .rollup
                             .runner
                             .end_soft_confirmation(
                                 &mut signed_soft_batch,
                                 sequencer_reward,
-                                tx_receipts,
+                                all_receipts,
                                 batch_workspace,
                             )
                             .await;
