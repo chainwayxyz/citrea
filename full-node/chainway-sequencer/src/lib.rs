@@ -38,7 +38,7 @@ use sov_modules_api::{
     WorkingSet,
 };
 use sov_modules_rollup_blueprint::{Rollup, RollupBlueprint};
-use sov_rollup_interface::da::BlockHeaderTrait;
+use sov_rollup_interface::da::{BlockHeaderTrait, DaData};
 use sov_rollup_interface::services::da::DaService;
 use tracing::{debug, info};
 
@@ -264,16 +264,16 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                             soft_confirmation_hashes,
                         );
 
-                        tracing::error!(
-                            "Sequencer: submitting commitment, L1 hashes: {:?}, L2 heights: {:?}, merkle root: {:?}",
-                            (commitment.1, commitment.2), l2_range_to_submit, commitment.0
-                        );
+                        tracing::error!("Sequencer: submitting commitment: {:?}", commitment);
 
                         // submit commitment
                         self.da_service
                             .send_transaction(
                                 // TODO: get hashes of those heights then submit that
-                                commitment.try_to_vec().unwrap().as_slice(),
+                                DaData::SequencerCommitment(commitment)
+                                    .try_to_vec()
+                                    .unwrap()
+                                    .as_slice(),
                             )
                             .await
                             .expect("Sequencer: Failed to send commitment");

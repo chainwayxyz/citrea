@@ -9,6 +9,34 @@ use serde::{Deserialize, Serialize};
 use crate::zk::ValidityCondition;
 use crate::BasicAddress;
 
+/// Commitments made to the DA layer from the sequencer.
+/// Has merkle root of soft confirmation hashes from L1 start block to L1 end block (inclusive)
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
+pub struct SequencerCommitment {
+    /// Merkle root of soft confirmation hashes
+    pub merkle_root: [u8; 32],
+    /// Start L1 block's hash
+    pub l1_start_block_hash: [u8; 32],
+    /// End L1 block's hash
+    pub l1_end_block_hash: [u8; 32],
+}
+
+/// ZK proof of execution of a set of soft confirmations
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
+pub struct BatchProof {
+    // TODO - implement this
+}
+
+/// Data written to DA can only be one of these two types
+/// Data written to DA and read from DA is must be borsh serialization of this enum
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
+pub enum DaData {
+    /// A commitment from the sequencer
+    SequencerCommitment(SequencerCommitment),
+    /// Or a zk proof and state diff
+    ZKProof(BatchProof),
+}
+
 /// A specification for the types used by a DA layer.
 pub trait DaSpec: 'static + Debug + PartialEq + Eq + Clone {
     /// The hash of a DA layer block

@@ -4,6 +4,7 @@ use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 use sov_db::ledger_db::LedgerDB;
 use sov_db::schema::types::{BatchNumber, SlotNumber};
+use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::rpc::LedgerRpcProvider;
 use tracing::debug;
 
@@ -117,7 +118,7 @@ pub fn get_commitment_info(
 pub fn get_commitment(
     commitment_info: CommitmentInfo,
     soft_confirmation_hashes: Vec<[u8; 32]>,
-) -> ([u8; 32], [u8; 32], [u8; 32]) {
+) -> SequencerCommitment {
     // sanity check
     assert_eq!(
         commitment_info.l2_height_range.end().0 - commitment_info.l2_height_range.start().0 + 1u64,
@@ -130,9 +131,9 @@ pub fn get_commitment(
         MerkleTree::<Sha256>::from_leaves(soft_confirmation_hashes.clone().as_slice())
             .root()
             .expect("Couldn't compute merkle root");
-    (
+    SequencerCommitment {
         merkle_root,
-        commitment_info.l1_start_hash,
-        commitment_info.l1_end_hash,
-    )
+        l1_start_block_hash: commitment_info.l1_start_hash,
+        l1_end_block_hash: commitment_info.l1_end_hash,
+    }
 }

@@ -175,6 +175,7 @@ impl MockDaService {
     }
 
     async fn add_blob(&self, blob: &[u8], zkp_proof: Vec<u8>) -> anyhow::Result<u64> {
+        tracing::debug!("Blob: {:?}", blob);
         let blocks = self.blocks.lock().await;
 
         let (previous_block_hash, height) = match blocks.last().map(|b| b.header().clone()) {
@@ -205,8 +206,8 @@ impl MockDaService {
             blobs: vec![blob],
         };
 
-        blocks.push_back(block);
-
+        blocks.push_back(block.clone());
+        tracing::debug!("Added block at height {}, block: {:?}", height, block);
         // Enough blocks to finalize block
         if blocks.len() > self.blocks_to_finality as usize {
             let next_index_to_finalize = blocks.len() - self.blocks_to_finality as usize - 1;
@@ -322,6 +323,9 @@ impl DaService for MockDaService {
         // that writes to DA. To implement and test soft confirmation logic, we need new blocks
         let mut last_called = self.get_finalized_header_last_called.lock().await;
 
+        // TODO: this is not shared between instances
+        // so it's not really a good way
+        // create a something on db or something shared
         if last_called.elapsed().as_secs() >= 5 {
             self.send_transaction(&[1]).await?;
             *last_called = Instant::now();
