@@ -14,7 +14,9 @@ pub struct CommitmentInfo {
     pub l2_height_range: RangeInclusive<BatchNumber>,
     /// Respectuflly, the L1 heights to commit. (L2 blocks were created with these L1 blocks.)
     pub l1_height_range: RangeInclusive<BatchNumber>,
+    /// Corresponding L1 block hash
     pub l1_start_hash: [u8; 32],
+    /// Corresponding L1 block hash
     pub l1_end_hash: [u8; 32],
 }
 
