@@ -205,7 +205,7 @@ impl MockDaService {
             blobs: vec![blob],
         };
 
-        blocks.push_back(block);
+        blocks.push_back(block.clone());
 
         // Enough blocks to finalize block
         if blocks.len() > self.blocks_to_finality as usize {
@@ -322,6 +322,9 @@ impl DaService for MockDaService {
         // that writes to DA. To implement and test soft confirmation logic, we need new blocks
         let mut last_called = self.get_finalized_header_last_called.lock().await;
 
+        // TODO: this is not shared between instances
+        // so it's not really a good way
+        // create a something on db or something shared
         if last_called.elapsed().as_secs() >= 5 {
             self.send_transaction(&[1]).await?;
             *last_called = Instant::now();

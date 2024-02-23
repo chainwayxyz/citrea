@@ -10,7 +10,7 @@ use sov_schema_db::{Schema, SchemaBatch, SeekKeyEncoder, DB};
 use crate::rocks_db_config::gen_rocksdb_options;
 use crate::schema::tables::{
     BatchByHash, BatchByNumber, EventByKey, EventByNumber, L2RangeByL1Height,
-    SequencerSentCommitment, SlotByHash, SlotByNumber, SoftBatchByNumber, TxByHash, TxByNumber,
+    LastSequencerCommitmentSent, SlotByHash, SlotByNumber, SoftBatchByNumber, TxByHash, TxByNumber,
     LEDGER_TABLES,
 };
 use crate::schema::types::{
@@ -412,8 +412,7 @@ impl LedgerDB {
     }
 
     /// Records the L2 height that was created as a soft confirmaiton of an L1 height
-    /// Returns a range (inclusive)
-    pub fn connect_l1_l2_heights(
+    pub fn extend_l2_range_of_l1_slot(
         &self,
         l1_height: SlotNumber,
         l2_height: BatchNumber,
@@ -443,7 +442,7 @@ impl LedgerDB {
         let mut schema_batch = SchemaBatch::new();
 
         schema_batch
-            .put::<SequencerSentCommitment>(&l1_height, &())
+            .put::<LastSequencerCommitmentSent>(&(), &l1_height)
             .unwrap();
         self.db.write_schemas(schema_batch)?;
 
@@ -493,20 +492,12 @@ impl LedgerDB {
     /// were committed.
     /// Called by the sequencer.
     pub fn get_last_sequencer_commitment_l1_height(&self) -> anyhow::Result<Option<SlotNumber>> {
-        let mut iter = self.db.iter::<SequencerSentCommitment>()?;
-
-        iter.seek_to_last();
-
-        match iter.next() {
-            Some(Ok(item)) => Ok(Some(item.key)),
-            Some(Err(e)) => Err(e),
-            _ => Ok(None), // never did a commitment
-        }
+        self.db.get::<LastSequencerCommitmentSent>(&())
     }
 
     /// Get L2 height range for a given L1 height.
     /// This means L2 heights in that range were soft confirmations for L1 height.
-    pub fn get_l1_l2_connection(
+    pub fn get_l2_range_by_l1_height(
         &self,
         l1_height: SlotNumber,
     ) -> anyhow::Result<Option<L2HeightRange>> {
