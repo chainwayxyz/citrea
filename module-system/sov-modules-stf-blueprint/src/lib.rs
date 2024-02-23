@@ -531,7 +531,7 @@ where
         ) {
             (Ok(()), batch_workspace) => {
                 let (sequencer_reward, batch_workspace, tx_receipts) =
-                    self.apply_soft_batch_txs(soft_batch.txs.clone(), batch_workspace);
+                    self.apply_soft_batch_txs(soft_batch.txs(), batch_workspace);
 
                 self.end_soft_batch(
                     sequencer_public_key,
@@ -570,16 +570,16 @@ fn verify_soft_batch_signature<C: Context>(
     sequencer_public_key: &[u8],
 ) -> Result<(), anyhow::Error> {
     let unsigned = UnsignedSoftConfirmationBatch {
-        da_slot_height: soft_batch.da_slot_height,
-        da_slot_hash: soft_batch.da_slot_hash,
-        pre_state_root: soft_batch.pre_state_root.clone(),
-        txs: soft_batch.txs.clone(),
-        l1_fee_rate: soft_batch.l1_fee_rate,
+        da_slot_height: soft_batch.da_slot_height(),
+        da_slot_hash: soft_batch.da_slot_hash(),
+        pre_state_root: soft_batch.pre_state_root(),
+        txs: soft_batch.txs(),
+        l1_fee_rate: soft_batch.l1_fee_rate(),
     };
 
     let message = unsigned.try_to_vec().unwrap();
 
-    let signature = C::Signature::try_from(soft_batch.signature.as_slice())?;
+    let signature = C::Signature::try_from(soft_batch.signature().as_slice())?;
     signature.verify(
         &C::PublicKey::try_from(sequencer_public_key)?,
         message.as_slice(),

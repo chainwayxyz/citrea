@@ -257,7 +257,7 @@ where
                 Err(
                     ApplySoftConfirmationError::TooManySoftConfirmationsOnDaSlot {
                         hash: soft_batch.hash(),
-                        sequencer_pub_key: soft_batch.pub_key.clone(),
+                        sequencer_pub_key: soft_batch.pub_key(),
                     },
                 ),
                 // Reverted in apply_soft_batch and sequencer
@@ -314,7 +314,7 @@ where
             (Ok(()), batch_workspace) => {
                 // TODO: wait for txs here, apply_sov_txs can be called multiple times
                 let (sequencer_reward, batch_workspace, tx_receipts) =
-                    self.apply_sov_txs_inner(soft_batch.txs.clone(), batch_workspace);
+                    self.apply_sov_txs_inner(soft_batch.txs(), batch_workspace);
 
                 self.end_soft_confirmation_inner(
                     soft_batch,

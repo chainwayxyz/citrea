@@ -343,16 +343,16 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
 
         let signature = self.sov_tx_signer_priv_key.sign(&raw);
 
-        SignedSoftConfirmationBatch {
+        SignedSoftConfirmationBatch::new(
             hash,
-            da_slot_height: soft_confirmation.da_slot_height,
-            txs: soft_confirmation.txs,
-            da_slot_hash: soft_confirmation.da_slot_hash,
-            pre_state_root: soft_confirmation.pre_state_root,
-            pub_key: self.sov_tx_signer_priv_key.pub_key().try_to_vec().unwrap(),
-            signature: signature.try_to_vec().unwrap(),
-            l1_fee_rate: soft_confirmation.l1_fee_rate,
-        }
+            soft_confirmation.da_slot_height,
+            soft_confirmation.da_slot_hash,
+            soft_confirmation.pre_state_root,
+            soft_confirmation.l1_fee_rate,
+            soft_confirmation.txs,
+            signature.try_to_vec().unwrap(),
+            self.sov_tx_signer_priv_key.pub_key().try_to_vec().unwrap(),
+        )
     }
 
     pub fn register_rpc_methods(&mut self) -> Result<(), jsonrpsee::core::Error> {

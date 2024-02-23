@@ -207,7 +207,7 @@ where
     > {
         let filtered_block = self
             .da_service
-            .get_block_at(soft_batch.da_slot_height)
+            .get_block_at(soft_batch.da_slot_height())
             .await?;
         let pre_state = self
             .storage_manager
@@ -230,7 +230,7 @@ where
             hex::encode(filtered_block.header().hash().into())
         );
 
-        let pub_key = soft_batch.pub_key.clone();
+        let pub_key = soft_batch.pub_key().clone();
 
         #[allow(unused_must_use)]
         self.stf.begin_soft_batch(
@@ -260,7 +260,7 @@ where
     ) -> Result<(), anyhow::Error> {
         let filtered_block = self
             .da_service
-            .get_block_at(soft_batch.da_slot_height)
+            .get_block_at(soft_batch.da_slot_height())
             .await
             .unwrap();
         let pre_state = self
@@ -310,8 +310,8 @@ where
             da_slot_hash: filtered_block.header().hash(),
             da_slot_height: filtered_block.header().height(),
             tx_receipts: batch_receipt.tx_receipts,
-            soft_confirmation_signature: soft_batch.signature.to_vec(),
-            pub_key: soft_batch.pub_key.to_vec(),
+            soft_confirmation_signature: soft_batch.signature().to_vec(),
+            pub_key: soft_batch.pub_key().to_vec(),
             l1_fee_rate: soft_batch.l1_fee_rate(),
         };
 
@@ -341,7 +341,7 @@ where
     ) -> Result<(), anyhow::Error> {
         let filtered_block = self
             .da_service
-            .get_block_at(soft_batch.da_slot_height)
+            .get_block_at(soft_batch.da_slot_height())
             .await?;
 
         let pre_state = self
@@ -356,7 +356,7 @@ where
             hex::encode(filtered_block.header().hash().into())
         );
 
-        let pub_key = soft_batch.pub_key.clone();
+        let pub_key = soft_batch.pub_key().clone();
 
         let slot_result = self.stf.apply_soft_batch(
             pub_key.as_ref(),
@@ -402,9 +402,9 @@ where
             da_slot_hash: filtered_block.header().hash(),
             da_slot_height: filtered_block.header().height(),
             tx_receipts: batch_receipt.tx_receipts,
-            soft_confirmation_signature: soft_batch.signature.to_vec(),
-            pub_key: soft_batch.pub_key.to_vec(),
-            l1_fee_rate: soft_batch.l1_fee_rate,
+            soft_confirmation_signature: soft_batch.signature().to_vec(),
+            pub_key: soft_batch.pub_key().to_vec(),
+            l1_fee_rate: soft_batch.l1_fee_rate(),
         };
 
         self.ledger_db

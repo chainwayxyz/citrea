@@ -99,7 +99,7 @@ pub struct HookSoftConfirmationInfo {
 impl From<SignedSoftConfirmationBatch> for HookSoftConfirmationInfo {
     fn from(signed_soft_confirmation_batch: SignedSoftConfirmationBatch) -> Self {
         HookSoftConfirmationInfo {
-            da_slot_height: signed_soft_confirmation_batch.da_slot_height,
+            da_slot_height: signed_soft_confirmation_batch.da_slot_height(),
             da_slot_hash: signed_soft_confirmation_batch.da_slot_hash(),
             pre_state_root: signed_soft_confirmation_batch.pre_state_root(),
             pub_key: signed_soft_confirmation_batch.sequencer_pub_key().to_vec(),
@@ -110,16 +110,16 @@ impl From<SignedSoftConfirmationBatch> for HookSoftConfirmationInfo {
 
 impl From<HookSoftConfirmationInfo> for SignedSoftConfirmationBatch {
     fn from(val: HookSoftConfirmationInfo) -> Self {
-        SignedSoftConfirmationBatch {
-            hash: [0u8; 32],
-            da_slot_height: val.da_slot_height,
-            da_slot_hash: val.da_slot_hash(),
-            pre_state_root: val.pre_state_root(),
-            txs: vec![],
-            signature: vec![],
-            pub_key: val.pub_key.clone(),
-            l1_fee_rate: val.l1_fee_rate,
-        }
+        SignedSoftConfirmationBatch::new(
+            [0u8; 32],
+            val.da_slot_height,
+            val.da_slot_hash(),
+            val.pre_state_root(),
+            val.l1_fee_rate,
+            vec![],
+            vec![],
+            val.pub_key.clone(),
+        )
     }
 }
 

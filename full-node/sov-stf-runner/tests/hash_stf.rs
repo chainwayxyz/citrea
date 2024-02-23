@@ -80,7 +80,7 @@ impl<C: Context, Da: DaSpec, Vm: Zkvm, Cond: ValidityCondition> StfBlueprintTrai
         Result<(), sov_modules_stf_blueprint::ApplySoftConfirmationError>,
         sov_modules_api::WorkingSet<C>,
     ) {
-        todo!()
+        unimplemented!()
     }
 
     fn apply_soft_batch_txs(
@@ -92,7 +92,7 @@ impl<C: Context, Da: DaSpec, Vm: Zkvm, Cond: ValidityCondition> StfBlueprintTrai
         sov_modules_api::WorkingSet<C>,
         Vec<sov_modules_stf_blueprint::TransactionReceipt<sov_modules_stf_blueprint::TxEffect>>,
     ) {
-        todo!()
+        unimplemented!()
     }
 
     fn end_soft_batch(
@@ -112,7 +112,7 @@ impl<C: Context, Da: DaSpec, Vm: Zkvm, Cond: ValidityCondition> StfBlueprintTrai
         Self::TxReceiptContents,
         Self::Witness,
     > {
-        todo!()
+        unimplemented!()
     }
 }
 
