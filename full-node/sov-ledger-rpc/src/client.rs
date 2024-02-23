@@ -7,7 +7,7 @@ use jsonrpsee::proc_macros::rpc;
 use sov_rollup_interface::rpc::{
     BatchIdentifier, EventIdentifier, QueryMode, SlotIdentifier, TxIdentifier,
 };
-use sov_rollup_interface::stf::{Event, SoftBatchReceipt};
+use sov_rollup_interface::stf::Event;
 
 use crate::HexHash;
 
