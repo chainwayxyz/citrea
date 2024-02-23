@@ -13,7 +13,6 @@ resolver = "2"
 
 [dependencies]
 sov-evm = { path = "../../module-system/module-implementations/sov-evm" }
-soft-confirmation-rule-enforcer = { path = "../../module-system/module-implementations/soft-confirmation-rule-enforcer" }
 sov-modules-rollup-blueprint = { path = "../../module-system/sov-modules-rollup-blueprint" }
 bitcoin-da = { path = "../../adapters/bitcoin" }
 anyhow = { workspace = true }

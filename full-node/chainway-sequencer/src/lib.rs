@@ -26,7 +26,6 @@ use reth_transaction_pool::{
     CoinbaseTipOrdering, EthPooledTransaction, EthTransactionValidator, Pool, TransactionOrigin,
     TransactionPool, TransactionValidationTaskExecutor,
 };
-use soft_confirmation_rule_enforcer::CallMessage as ScCallMessage;
 use sov_accounts::Accounts;
 use sov_accounts::Response::{AccountEmpty, AccountExists};
 pub use sov_evm::DevSigner;
@@ -42,7 +41,7 @@ use sov_modules_rollup_blueprint::{Rollup, RollupBlueprint};
 use sov_modules_stf_blueprint::ApplySoftConfirmationError;
 use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::services::da::DaService;
-use tracing::info;
+use tracing::{error, info};
 
 pub use crate::db_provider::DbProvider;
 use crate::utils::recover_raw_transaction;
@@ -186,15 +185,6 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                     <Runtime<C, Da::Spec> as EncodeCall<sov_evm::Evm<C>>>::encode_call(call_txs);
                 let signed_blob = self.make_blob(raw_message);
 
-                let sc_call_txs: soft_confirmation_rule_enforcer::CallMessage<C> =
-                    ScCallMessage::ModifyLimitingNumber {
-                        limiting_number: 15,
-                    };
-                let sc_raw_message = <Runtime<C, Da::Spec> as EncodeCall<
-                    soft_confirmation_rule_enforcer::SoftConfirmationRuleEnforcer<C, Da::Spec>,
-                >>::encode_call(sc_call_txs);
-                let sc_signed_blob = self.make_blob(sc_raw_message);
-
                 let prev_l1_height = self
                     .rollup
                     .runner
@@ -253,7 +243,7 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                 {
                     Ok(result) => result,
                     Err(_) => {
-                        // Log error here
+                        error!("Failed to get block and prestate");
                         continue;
                     } // Continue the loop if there is an error
                 };
@@ -264,28 +254,16 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                     .await
                 {
                     (Ok(()), batch_workspace) => {
-                        let (_sequencer_reward, batch_workspace, tx_receipts) = self
+                        let (sequencer_reward, batch_workspace, tx_receipts) = self
                             .rollup
                             .runner
                             .apply_sov_tx(txs.clone(), batch_workspace)
                             .await;
 
-                        let sc_txs = vec![sc_signed_blob.clone()];
-                        let (sequencer_reward, batch_workspace, sc_tx_receipts) = self
-                            .rollup
-                            .runner
-                            .apply_sov_tx(sc_txs.clone(), batch_workspace)
-                            .await;
-                        let mut all_txs = vec![];
-                        all_txs.extend(txs);
-                        all_txs.extend(sc_txs);
-                        let mut all_receipts = vec![];
-                        all_receipts.extend(tx_receipts);
-                        all_receipts.extend(sc_tx_receipts);
-
+                        // create the unsigned batch with the txs then sign th sc
                         let unsigned_batch = UnsignedSoftConfirmationBatch {
                             da_slot_height: last_finalized_block.header().height(),
-                            txs: all_txs,
+                            txs,
                             da_slot_hash: last_finalized_block.header().hash().into(),
                             pre_state_root: self
                                 .rollup
@@ -297,8 +275,6 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                             l1_fee_rate,
                         };
 
-                        // create the unsigned batch with the txs then sign th sc
-
                         let mut signed_soft_batch =
                             self.sign_soft_confirmation_batch(unsigned_batch);
 
@@ -308,7 +284,7 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                             .end_soft_confirmation(
                                 &mut signed_soft_batch,
                                 sequencer_reward,
-                                all_receipts,
+                                tx_receipts,
                                 batch_workspace,
                             )
                             .await;
@@ -317,13 +293,16 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                     }
                     (
                         Err(ApplySoftConfirmationError::TooManySoftConfirmationsOnDaSlot {
-                            hash: _,
+                            hash,
                             sequencer_pub_key: _,
                         }),
                         batch_workspace,
                     ) => {
                         batch_workspace.revert();
-                        // Log error here
+                        error!(
+                            "Too many soft confirmations on da slot with hash: {:?}",
+                            hash
+                        );
                     }
                 }
             }

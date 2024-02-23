@@ -21,8 +21,6 @@ type ApplyBatch<Da: DaSpec> = ApplyBatchResult<
     <Da::BlobTransaction as BlobReaderTrait>::Address,
 >;
 
-// type ApplySoftBatch<Da: DaSpec> = ApplyBatchResult<BatchReceipt<(), TxEffect>, <Da::BlobTransaction as BlobReaderTrait>::Address>;
-
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 use sov_zk_cycle_macros::cycle_tracker;
 
@@ -115,10 +113,6 @@ where
             phantom_da: PhantomData,
         }
     }
-
-    // pub fn begin_soft_confirmation(
-
-    // )
 
     /// Applies sov txs to the state
     pub fn apply_sov_txs_inner(
