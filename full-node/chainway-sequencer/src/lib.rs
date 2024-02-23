@@ -232,13 +232,13 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                     pub_key: self.sov_tx_signer_priv_key.pub_key().try_to_vec().unwrap(),
                     l1_fee_rate,
                 };
-                let mut signed_batch = batch_info.clone().into();
+                let mut signed_batch: SignedSoftConfirmationBatch = batch_info.clone().into();
                 // initially create sc info and call begin soft confirmation hook with it
                 let txs = vec![signed_blob.clone()];
                 let (filtered_block, prestate) = match self
                     .rollup
                     .runner
-                    .get_block_and_prestate(&mut signed_batch)
+                    .get_block_and_prestate(signed_batch.da_slot_height())
                     .await
                 {
                     Ok(result) => result,
@@ -250,7 +250,11 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                 match self
                     .rollup
                     .runner
-                    .begin_soft_confirmation(&mut signed_batch, filtered_block, prestate)
+                    .begin_soft_confirmation(
+                        &mut signed_batch,
+                        filtered_block.clone(),
+                        prestate.clone(),
+                    )
                     .await
                 {
                     (Ok(()), batch_workspace) => {
@@ -278,7 +282,7 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                         let mut signed_soft_batch =
                             self.sign_soft_confirmation_batch(unsigned_batch);
 
-                        let _ = self
+                        let slot_result = self
                             .rollup
                             .runner
                             .end_soft_confirmation(
@@ -286,8 +290,35 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                                 sequencer_reward,
                                 tx_receipts,
                                 batch_workspace,
+                                filtered_block,
+                                prestate,
                             )
                             .await;
+
+                        let (filtered_block, prestate) = match self
+                            .rollup
+                            .runner
+                            .get_block_and_prestate(signed_batch.da_slot_height())
+                            .await
+                        {
+                            Ok(result) => result,
+                            Err(_) => {
+                                error!("Failed to get block and prestate");
+                                continue;
+                            } // Continue the loop if there is an error
+                        };
+
+                        let _ = self
+                            .rollup
+                            .runner
+                            .finalize_soft_confirmation(
+                                slot_result,
+                                filtered_block,
+                                prestate,
+                                &mut signed_soft_batch,
+                            )
+                            .await;
+
                         self.mempool
                             .remove_transactions(self.db_provider.last_block_tx_hashes());
                     }

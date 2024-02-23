@@ -7,11 +7,12 @@ use jsonrpsee::RpcModule;
 use sequencer_client::SequencerClient;
 use sov_db::ledger_db::{LedgerDB, SlotCommit};
 use sov_db::schema::types::{BatchNumber, StoredSoftBatch};
-use sov_modules_api::{Context, WorkingSet};
+use sov_modules_api::{Context, StateCheckpoint, WorkingSet};
 use sov_modules_stf_blueprint::{ApplySoftConfirmationError, StfBlueprintTrait, TxEffect};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
+use sov_rollup_interface::stf::SlotResult;
 use sov_rollup_interface::stf::{SoftBatchReceipt, StateTransitionFunction, TransactionReceipt};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::{Zkvm, ZkvmHost};
@@ -197,7 +198,7 @@ where
     /// Returns filtered block and prestate
     pub async fn get_block_and_prestate(
         &mut self,
-        soft_batch: &mut SignedSoftConfirmationBatch,
+        da_slot_height: u64,
     ) -> Result<
         (
             <Da as DaService>::FilteredBlock,
@@ -205,10 +206,7 @@ where
         ),
         anyhow::Error,
     > {
-        let filtered_block = self
-            .da_service
-            .get_block_at(soft_batch.da_slot_height())
-            .await?;
+        let filtered_block = self.da_service.get_block_at(da_slot_height).await?;
         let pre_state = self
             .storage_manager
             .create_storage_on(filtered_block.header())?;
@@ -257,25 +255,39 @@ where
         sequencer_reward: u64,
         tx_receipts: Vec<TransactionReceipt<TxEffect>>,
         batch_workspace: WorkingSet<C>,
-    ) -> Result<(), anyhow::Error> {
-        let filtered_block = self
-            .da_service
-            .get_block_at(soft_batch.da_slot_height())
-            .await
-            .unwrap();
-        let pre_state = self
-            .storage_manager
-            .create_storage_on(filtered_block.header())
-            .unwrap();
-        let slot_result = self.stf.end_soft_batch(
+        filtered_block: <Da as DaService>::FilteredBlock,
+        pre_state: <Sm as HierarchicalStorageManager<Da::Spec>>::NativeStorage,
+    ) -> (SlotResult<
+        <Stf as StateTransitionFunction<Vm, <Da as DaService>::Spec>>::StateRoot,
+        <Sm as HierarchicalStorageManager<<Da as DaService>::Spec>>::NativeChangeSet,
+        <Stf as StateTransitionFunction<Vm, <Da as DaService>::Spec>>::BatchReceiptContents,
+        <Stf as StateTransitionFunction<Vm, <Da as DaService>::Spec>>::TxReceiptContents,
+        <Stf as StateTransitionFunction<Vm, <Da as DaService>::Spec>>::Witness,
+    >) {
+        self.stf.end_soft_batch(
             self.sequencer_pub_key.as_ref(),
             soft_batch,
             sequencer_reward,
             tx_receipts,
             batch_workspace,
             pre_state,
-        );
+        )
+    }
 
+    /// Gets slot result, finalizessoft bathc and commits changes to ledgerdb
+    pub async fn finalize_soft_confirmation(
+        &mut self,
+        slot_result: SlotResult<
+            <Stf as StateTransitionFunction<Vm, <Da as DaService>::Spec>>::StateRoot,
+            <Sm as HierarchicalStorageManager<<Da as DaService>::Spec>>::NativeChangeSet,
+            <Stf as StateTransitionFunction<Vm, <Da as DaService>::Spec>>::BatchReceiptContents,
+            <Stf as StateTransitionFunction<Vm, <Da as DaService>::Spec>>::TxReceiptContents,
+            <Stf as StateTransitionFunction<Vm, <Da as DaService>::Spec>>::Witness,
+        >,
+        filtered_block: <Da as DaService>::FilteredBlock,
+        pre_state: <Sm as HierarchicalStorageManager<Da::Spec>>::NativeStorage,
+        soft_batch: &mut SignedSoftConfirmationBatch,
+    ) -> Result<(), anyhow::Error> {
         if slot_result.state_root.as_ref() == self.state_root.as_ref() {
             debug!("Limiting number is reached for the current L1 block. State root is the same as before, skipping");
             // TODO: Check if below is legit
