@@ -417,7 +417,11 @@ where
                 );
 
                 if soft_batches_tree.root() != Some(x.merkle_root) {
-                    anyhow::bail!("Merkle root mismatch");
+                    anyhow::bail!(
+                        "Merkle root mismatch - expected 0x{} but got 0x{}",
+                        hex::encode(soft_batches_tree.root().unwrap()),
+                        hex::encode(x.merkle_root)
+                    );
                 }
 
                 let mut schema_batch: SchemaBatch = SchemaBatch::new();

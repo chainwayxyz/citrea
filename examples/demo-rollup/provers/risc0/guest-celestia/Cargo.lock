@@ -6397,6 +6397,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "rs_merkle"
+version = "1.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3b241d2e59b74ef9e98d94c78c47623d04c8392abaf82014dfd372a16041128f"
+dependencies = [
+ "sha2 0.10.8",
+]
+
+[[package]]
 name = "ruint"
 version = "1.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7496,6 +7505,7 @@ dependencies = [
  "borsh",
  "hex",
  "num_cpus",
+ "rs_merkle",
  "sequencer-client",
  "serde",
  "serde_json",

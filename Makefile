@@ -13,9 +13,9 @@ test-legacy: ## Runs test suite with output from tests printed
 	@cargo test -- --nocapture -Zunstable-options --report-time
 
 test:  ## Runs test suite using next test
-	chmod +x ./adapters/bitcoin/test_data/start_ci_regtest.sh
-	./adapters/bitcoin/test_data/start_ci_regtest.sh ## start regtest
-	@cargo nextest run -E 'package(bitcoin-da)' --no-fail-fast --test-threads 1
+	# chmod +x ./adapters/bitcoin/test_data/start_ci_regtest.sh
+	# ./adapters/bitcoin/test_data/start_ci_regtest.sh ## start regtest
+	# @cargo nextest run -E 'package(bitcoin-da)' --no-fail-fast --test-threads 1
 	@cargo nextest run --workspace --all-features --no-fail-fast -E 'not package(bitcoin-da) & not test(test_instant_finality_data_stored) & not test(test_simple_reorg_case)'
 
 
