@@ -10,8 +10,8 @@ use sov_schema_db::{Schema, SchemaBatch, SeekKeyEncoder, DB};
 use crate::rocks_db_config::gen_rocksdb_options;
 use crate::schema::tables::{
     BatchByHash, BatchByNumber, EventByKey, EventByNumber, L2RangeByL1Height,
-    LastSequencerCommitmentSent, SlotByHash, SlotByNumber, SoftBatchByNumber, TxByHash, TxByNumber,
-    LEDGER_TABLES,
+    LastSequencerCommitmentSent, SlotByHash, SlotByNumber, SoftBatchByNumber,
+    SoftConfirmationStatus, TxByHash, TxByNumber, LEDGER_TABLES,
 };
 use crate::schema::types::{
     split_tx_for_storage, BatchNumber, EventNumber, L2HeightRange, SlotNumber, StoredBatch,
@@ -228,6 +228,15 @@ impl LedgerDB {
     ) -> Result<(), anyhow::Error> {
         schema_batch.put::<TxByNumber>(tx_number, tx)?;
         schema_batch.put::<TxByHash>(&tx.hash, tx_number)
+    }
+
+    /// Saves a soft confirmation status for a given L1 height
+    pub fn put_soft_confirmation_status(
+        &self,
+        height: SlotNumber,
+        schema_batch: &mut SchemaBatch,
+    ) -> Result<(), anyhow::Error> {
+        schema_batch.put::<SoftConfirmationStatus>(&height, &true)
     }
 
     fn put_event(

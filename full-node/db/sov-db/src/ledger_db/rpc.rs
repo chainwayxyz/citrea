@@ -1,10 +1,11 @@
 use serde::de::DeserializeOwned;
+use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::rpc::{
     BatchIdAndOffset, BatchIdentifier, BatchResponse, EventIdentifier, ItemOrHash,
     LedgerRpcProvider, QueryMode, SlotIdAndOffset, SlotIdentifier, SlotResponse,
     SoftBatchIdentifier, SoftBatchResponse, TxIdAndOffset, TxIdentifier, TxResponse,
 };
-use sov_rollup_interface::stf::Event;
+use sov_rollup_interface::stf::{Event, SoftBatchReceipt};
 use tokio::sync::broadcast::Receiver;
 
 use crate::schema::tables::{
@@ -302,11 +303,15 @@ impl LedgerRpcProvider for LedgerDB {
         self.get_transactions(&ids, query_mode)
     }
 
-    fn get_soft_confirmation_status<T: DeserializeOwned>(
+    fn get_soft_confirmation_status<B: DeserializeOwned, T: DeserializeOwned, DS: DaSpec>(
         &self,
-        height: u64,
+        soft_batch_receipt: SoftBatchReceipt<B, T, DS>,
     ) -> Result<Option<String>, anyhow::Error> {
-        match self.db.get::<SoftConfirmationStatus>(&SlotNumber(height)) {
+        let l1_height = soft_batch_receipt.da_slot_height;
+        match self
+            .db
+            .get::<SoftConfirmationStatus>(&SlotNumber(l1_height))
+        {
             Ok(Some(status)) => match status {
                 true => Ok(Some("finalized".to_string())),
                 false => Ok(Some("trusted".to_string())),

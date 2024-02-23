@@ -4,10 +4,11 @@
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
+use crate::da::DaSpec;
 use crate::maybestd::vec::Vec;
 #[cfg(feature = "native")]
 use crate::stf::Event;
-use crate::stf::EventKey;
+use crate::stf::{EventKey, SoftBatchReceipt};
 
 /// A struct containing enough information to uniquely specify single batch.
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
@@ -362,9 +363,9 @@ pub trait LedgerRpcProvider {
 
     /// Takes an L2 Height and and outputs a string "trusted" or "finalized"
     /// TODO: Add status "proven"
-    fn get_soft_confirmation_status<T: DeserializeOwned>(
+    fn get_soft_confirmation_status<B: DeserializeOwned, T: DeserializeOwned, DS: DaSpec>(
         &self,
-        height: u64,
+        soft_batch_receipt: SoftBatchReceipt<B, T, DS>,
     ) -> Result<Option<String>, anyhow::Error>;
 
     /// Get a notification each time a slot is processed

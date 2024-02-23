@@ -364,6 +364,7 @@ where
             // }
 
             // Merkle root hash - L1 start height - L1 end height
+            // TODO: How to confirm this is what we submit - use?
             let mut x: ([u8; 32], u64, u64) = ([0; 32], 0, 0);
             for tx in self.da_service.extract_relevant_blobs(&filtered_block) {
                 match BorshDeserialize::try_from_slice(&tx.full_data()) {
@@ -390,6 +391,15 @@ where
 
             if soft_batches_tree.root() != x.0 {
                 anyhow::bail!("Merkle root mismatch");
+            }
+
+            for i in x.1..x.2 {
+                self.ledger_db
+                    .put_soft_confirmation_status(SlotNumber::from(), true)?
+                    .expect(
+                        "Failed to put soft confirmation status in the ledger db {}",
+                        i,
+                    );
             }
 
             info!(
