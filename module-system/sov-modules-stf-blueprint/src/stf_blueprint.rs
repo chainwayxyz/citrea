@@ -572,7 +572,7 @@ where
 
     // Stateless verification of transaction, such as signature check
     // Single malformed transaction results in sequencer slashing.
-    fn verify_txs_stateless_soft(&self, txs: &Vec<Vec<u8>>) -> Vec<TransactionAndRawHash<C>> {
+    fn verify_txs_stateless_soft(&self, txs: &[Vec<u8>]) -> Vec<TransactionAndRawHash<C>> {
         verify_txs_stateless(
             txs.iter()
                 .map(|tx| RawTx { data: tx.clone() })
