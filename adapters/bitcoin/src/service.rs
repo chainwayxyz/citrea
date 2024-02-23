@@ -439,6 +439,10 @@ impl DaService for BitcoinService {
         let res = self.client.estimate_smart_fee().await.unwrap() as u64;
         Ok(res)
     }
+
+    async fn get_block_by_hash(&self, _hash: [u8; 32]) -> Result<Self::FilteredBlock, Self::Error> {
+        unimplemented!()
+    }
 }
 
 #[cfg(test)]

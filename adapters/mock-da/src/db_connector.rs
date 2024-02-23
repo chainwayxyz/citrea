@@ -91,6 +91,21 @@ impl DbConnector {
         row.map(|row| Self::row_to_block(row))
     }
 
+    #[allow(dead_code)]
+    pub fn get_by_hash(&self, hash: [u8; 32]) -> Option<MockBlock> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT * FROM blocks WHERE hash = ?")
+            .unwrap();
+        let mut rows = stmt
+            .query(params![hash])
+            .expect("DbConnector: failed to execute query");
+
+        let row = rows.next().expect("DbConnector: failed to get row");
+
+        row.map(|row| Self::row_to_block(row))
+    }
+
     pub fn len(&self) -> usize {
         let mut stmt = self
             .conn

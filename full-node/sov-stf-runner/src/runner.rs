@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 use std::net::SocketAddr;
 
 use anyhow::bail;
-use borsh::BorshDeserialize;
+use borsh::de::BorshDeserialize;
 use jsonrpsee::core::Error;
 use jsonrpsee::RpcModule;
 use rs_merkle::algorithms::Sha256;
@@ -10,7 +10,8 @@ use rs_merkle::MerkleTree;
 use sequencer_client::SequencerClient;
 use sov_db::ledger_db::{LedgerDB, SlotCommit};
 use sov_db::schema::types::{BatchNumber, SlotNumber, StoredSoftBatch};
-use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaSpec};
+use sov_rollup_interface::da::DaData::SequencerCommitment;
+use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaData, DaSpec};
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
 use sov_rollup_interface::stf::{SoftBatchReceipt, StateTransitionFunction};
@@ -370,47 +371,65 @@ where
 
             // Merkle root hash - L1 start height - L1 end height
             // TODO: How to confirm this is what we submit - use?
-            let mut x: ([u8; 32], u64, u64) = ([0; 32], 0, 0);
+            let mut x = None;
             for mut tx in self.da_service.extract_relevant_blobs(&filtered_block) {
-                match BorshDeserialize::try_from_slice(&tx.full_data()) {
-                    Ok(y) => x = y,
-                    Err(_) => {
-                        continue;
-                    }
+                match DaData::try_from_slice(&tx.full_data()) {
+                    Ok(SequencerCommitment(seq_com)) => x = Some(seq_com),
+                    _ => {}
                 };
             }
 
-            let range = std::ops::Range {
-                start: BatchNumber(x.1),
-                end: BatchNumber(x.2),
-            };
+            if x.is_some() {
+                let x = x.unwrap();
 
-            // Traverse each item's field of vector of transactions, put them in merkle tree
-            // and compare the root with the one from the ledger
-            let stored_soft_batches: Vec<StoredSoftBatch> =
-                self.ledger_db.get_soft_batch_range(&range).unwrap();
+                let start_l1_height = self
+                    .da_service
+                    .get_block_by_hash(x.l1_start_block_hash)
+                    .await
+                    .unwrap()
+                    .header()
+                    .height();
 
-            let soft_batches_tree = MerkleTree::<Sha256>::from_leaves(
-                stored_soft_batches
-                    .iter()
-                    .map(|x| x.hash)
-                    .collect::<Vec<_>>()
-                    .as_slice(),
-            );
+                let end_l1_height = self
+                    .da_service
+                    .get_block_by_hash(x.l1_end_block_hash)
+                    .await
+                    .unwrap()
+                    .header()
+                    .height();
 
-            if soft_batches_tree.root() != Some(x.0) {
-                anyhow::bail!("Merkle root mismatch");
-            }
+                let range = std::ops::Range {
+                    start: BatchNumber(start_l1_height),
+                    end: BatchNumber(end_l1_height),
+                };
 
-            let mut schema_batch: SchemaBatch = SchemaBatch::new();
+                // Traverse each item's field of vector of transactions, put them in merkle tree
+                // and compare the root with the one from the ledger
+                let stored_soft_batches: Vec<StoredSoftBatch> =
+                    self.ledger_db.get_soft_batch_range(&range).unwrap();
 
-            for i in x.1..x.2 {
-                self.ledger_db
-                    .put_soft_confirmation_status(SlotNumber(i), &mut schema_batch)
-                    .expect(&format!(
-                        "Failed to put soft confirmation status in the ledger db {}",
-                        i
-                    ));
+                let soft_batches_tree = MerkleTree::<Sha256>::from_leaves(
+                    stored_soft_batches
+                        .iter()
+                        .map(|x| x.hash)
+                        .collect::<Vec<_>>()
+                        .as_slice(),
+                );
+
+                if soft_batches_tree.root() != Some(x.merkle_root) {
+                    anyhow::bail!("Merkle root mismatch");
+                }
+
+                let mut schema_batch: SchemaBatch = SchemaBatch::new();
+
+                for i in start_l1_height..end_l1_height {
+                    self.ledger_db
+                        .put_soft_confirmation_status(SlotNumber(i), &mut schema_batch)
+                        .expect(&format!(
+                            "Failed to put soft confirmation status in the ledger db {}",
+                            i
+                        ));
+                }
             }
 
             info!(

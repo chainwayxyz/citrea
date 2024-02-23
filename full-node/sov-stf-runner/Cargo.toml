@@ -77,10 +77,9 @@ tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
 
 
 [features]
-default = []
-mock = ["native"]
 native = [
     "sov-db",
+    "sov-schema-db",
     "jsonrpsee",
     "toml",
     "tokio",
@@ -90,3 +89,5 @@ native = [
     "rayon",
     "thiserror",
 ]
+default = []
+mock = ["native"]
