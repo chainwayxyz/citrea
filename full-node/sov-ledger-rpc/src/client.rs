@@ -142,7 +142,7 @@ where
     #[method(name = "getSoftConfirmationStatus")]
     async fn get_soft_confirmation_status(
         &self,
-        soft_batch_receipt: SoftBatchReceipt<_, _, Da::Spec>,
+        soft_batch_receipt: u64,
     ) -> RpcResult<Option<String>>;
 
     /// Subscription method to receive a notification each time a slot is
