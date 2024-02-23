@@ -10,8 +10,8 @@ use sov_schema_db::{Schema, SchemaBatch, SeekKeyEncoder, DB};
 use crate::rocks_db_config::gen_rocksdb_options;
 use crate::schema::tables::{
     BatchByHash, BatchByNumber, EventByKey, EventByNumber, L2RangeByL1Height,
-    LastSequencerCommitmentSent, SlotByHash, SlotByNumber, SoftBatchByNumber,
-    SoftConfirmationStatus, TxByHash, TxByNumber, LEDGER_TABLES,
+    LastSequencerCommitmentSent, SlotByHash, SlotByNumber, SoftBatchByNumber, TxByHash, TxByNumber,
+    LEDGER_TABLES,
 };
 use crate::schema::types::{
     split_tx_for_storage, BatchNumber, EventNumber, L2HeightRange, SlotNumber, StoredBatch,
