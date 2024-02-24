@@ -104,7 +104,22 @@ impl<C: Context, Da: DaSpec, Vm: Zkvm, Cond: ValidityCondition> StfBlueprintTrai
             sov_modules_stf_blueprint::TransactionReceipt<sov_modules_stf_blueprint::TxEffect>,
         >,
         _batch_workspace: sov_modules_api::WorkingSet<C>,
+    ) -> (
+        sov_modules_stf_blueprint::BatchReceipt<(), sov_modules_stf_blueprint::TxEffect>,
+        sov_modules_api::StateCheckpoint<C>,
+    ) {
+        unimplemented!()
+    }
+
+    fn finalize_soft_batch(
+        &self,
+        _batch_receipt: sov_modules_stf_blueprint::BatchReceipt<
+            (),
+            sov_modules_stf_blueprint::TxEffect,
+        >,
+        _checkpoint: sov_modules_api::StateCheckpoint<C>,
         _pre_state: Self::PreState,
+        _soft_batch: &mut sov_modules_api::SignedSoftConfirmationBatch,
     ) -> SlotResult<
         Self::StateRoot,
         Self::ChangeSet,

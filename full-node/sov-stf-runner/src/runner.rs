@@ -12,7 +12,7 @@ use sov_modules_stf_blueprint::{ApplySoftConfirmationError, StfBlueprintTrait, T
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
-use sov_rollup_interface::stf::SlotResult;
+pub use sov_rollup_interface::stf::BatchReceipt;
 use sov_rollup_interface::stf::{SoftBatchReceipt, StateTransitionFunction, TransactionReceipt};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::{Zkvm, ZkvmHost};
@@ -230,7 +230,6 @@ where
 
         let pub_key = soft_batch.pub_key().clone();
 
-        #[allow(unused_must_use)]
         self.stf.begin_soft_batch(
             &pub_key,
             &self.state_root,
@@ -255,39 +254,29 @@ where
         sequencer_reward: u64,
         tx_receipts: Vec<TransactionReceipt<TxEffect>>,
         batch_workspace: WorkingSet<C>,
-        filtered_block: <Da as DaService>::FilteredBlock,
-        pre_state: <Sm as HierarchicalStorageManager<Da::Spec>>::NativeStorage,
-    ) -> (SlotResult<
-        <Stf as StateTransitionFunction<Vm, <Da as DaService>::Spec>>::StateRoot,
-        <Sm as HierarchicalStorageManager<<Da as DaService>::Spec>>::NativeChangeSet,
-        <Stf as StateTransitionFunction<Vm, <Da as DaService>::Spec>>::BatchReceiptContents,
-        <Stf as StateTransitionFunction<Vm, <Da as DaService>::Spec>>::TxReceiptContents,
-        <Stf as StateTransitionFunction<Vm, <Da as DaService>::Spec>>::Witness,
-    >) {
+    ) -> (BatchReceipt<(), TxEffect>, StateCheckpoint<C>) {
         self.stf.end_soft_batch(
             self.sequencer_pub_key.as_ref(),
             soft_batch,
             sequencer_reward,
             tx_receipts,
             batch_workspace,
-            pre_state,
         )
     }
 
-    /// Gets slot result, finalizessoft bathc and commits changes to ledgerdb
+    /// TODO: Docs
     pub async fn finalize_soft_confirmation(
         &mut self,
-        slot_result: SlotResult<
-            <Stf as StateTransitionFunction<Vm, <Da as DaService>::Spec>>::StateRoot,
-            <Sm as HierarchicalStorageManager<<Da as DaService>::Spec>>::NativeChangeSet,
-            <Stf as StateTransitionFunction<Vm, <Da as DaService>::Spec>>::BatchReceiptContents,
-            <Stf as StateTransitionFunction<Vm, <Da as DaService>::Spec>>::TxReceiptContents,
-            <Stf as StateTransitionFunction<Vm, <Da as DaService>::Spec>>::Witness,
-        >,
+        batch_receipt: BatchReceipt<(), TxEffect>,
+        checkpoint: StateCheckpoint<C>,
         filtered_block: <Da as DaService>::FilteredBlock,
         pre_state: <Sm as HierarchicalStorageManager<Da::Spec>>::NativeStorage,
         soft_batch: &mut SignedSoftConfirmationBatch,
     ) -> Result<(), anyhow::Error> {
+        let slot_result =
+            self.stf
+                .finalize_soft_batch(batch_receipt, checkpoint, pre_state, soft_batch);
+
         if slot_result.state_root.as_ref() == self.state_root.as_ref() {
             debug!("Limiting number is reached for the current L1 block. State root is the same as before, skipping");
             // TODO: Check if below is legit

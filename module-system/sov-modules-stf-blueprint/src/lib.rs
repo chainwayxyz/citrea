@@ -155,7 +155,15 @@ pub trait StfBlueprintTrait<C: Context, Da: DaSpec, Vm: Zkvm>:
         sequencer_reward: u64,
         tx_receipts: Vec<TransactionReceipt<TxEffect>>,
         batch_workspace: WorkingSet<C>,
+    ) -> (BatchReceipt<(), TxEffect>, StateCheckpoint<C>);
+
+    /// Finalizes a soft batch
+    fn finalize_soft_batch(
+        &self,
+        batch_receipt: BatchReceipt<(), TxEffect>,
+        checkpoint: StateCheckpoint<C>,
         pre_state: Self::PreState,
+        soft_batch: &mut SignedSoftConfirmationBatch,
     ) -> SlotResult<
         Self::StateRoot,
         Self::ChangeSet,
@@ -225,14 +233,7 @@ where
         sequencer_reward: u64,
         tx_receipts: Vec<TransactionReceipt<TxEffect>>,
         batch_workspace: WorkingSet<C>,
-        pre_state: <C>::Storage,
-    ) -> SlotResult<
-        <C::Storage as Storage>::Root,
-        C::Storage,
-        (),
-        TxEffect,
-        <<C as Spec>::Storage as Storage>::Witness,
-    > {
+    ) -> (BatchReceipt<(), TxEffect>, StateCheckpoint<C>) {
         // verify signature
         assert!(
             verify_soft_batch_signature::<C>(soft_batch, sequencer_public_key).is_ok(),
@@ -246,7 +247,21 @@ where
             batch_workspace,
         );
 
-        let batch_receipt = apply_soft_batch_result.unwrap();
+        (apply_soft_batch_result.unwrap(), checkpoint)
+    }
+    fn finalize_soft_batch(
+        &self,
+        batch_receipt: BatchReceipt<(), TxEffect>,
+        checkpoint: StateCheckpoint<C>,
+        pre_state: Self::PreState,
+        soft_batch: &mut SignedSoftConfirmationBatch,
+    ) -> SlotResult<
+        <C::Storage as Storage>::Root,
+        C::Storage,
+        (),
+        TxEffect,
+        <<C as Spec>::Storage as Storage>::Witness,
+    > {
         info!(
             "soft batch  with hash: {:?} from sequencer {:?} has been applied with #{} transactions.",
             soft_batch.hash(),
@@ -533,14 +548,15 @@ where
                 let (sequencer_reward, batch_workspace, tx_receipts) =
                     self.apply_soft_batch_txs(soft_batch.txs(), batch_workspace);
 
-                self.end_soft_batch(
+                let (batch_receipt, checkpoint) = self.end_soft_batch(
                     sequencer_public_key,
                     soft_batch,
                     sequencer_reward,
                     tx_receipts,
                     batch_workspace,
-                    pre_state,
-                )
+                );
+
+                self.finalize_soft_batch(batch_receipt, checkpoint, pre_state, soft_batch)
             }
             (
                 Err(ApplySoftConfirmationError::TooManySoftConfirmationsOnDaSlot {

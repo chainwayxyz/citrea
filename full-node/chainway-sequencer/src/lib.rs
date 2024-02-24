@@ -282,7 +282,7 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                         let mut signed_soft_batch =
                             self.sign_soft_confirmation_batch(unsigned_batch);
 
-                        let slot_result = self
+                        let (batch_receipt, checkpoint) = self
                             .rollup
                             .runner
                             .end_soft_confirmation(
@@ -290,8 +290,6 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                                 sequencer_reward,
                                 tx_receipts,
                                 batch_workspace,
-                                filtered_block,
-                                prestate,
                             )
                             .await;
 
@@ -312,7 +310,8 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                             .rollup
                             .runner
                             .finalize_soft_confirmation(
-                                slot_result,
+                                batch_receipt,
+                                checkpoint,
                                 filtered_block,
                                 prestate,
                                 &mut signed_soft_batch,

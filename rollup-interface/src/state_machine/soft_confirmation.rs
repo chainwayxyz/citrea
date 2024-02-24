@@ -39,6 +39,7 @@ pub struct SignedSoftConfirmationBatch {
 
 impl SignedSoftConfirmationBatch {
     /// Creates a signed soft confirmation batch
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         hash: [u8; 32],
         da_slot_height: u64,
