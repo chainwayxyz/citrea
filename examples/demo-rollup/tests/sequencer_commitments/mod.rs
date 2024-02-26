@@ -178,5 +178,5 @@ async fn check_sequencer_commitment(
     assert_eq!(commitment.l1_end_block_hash, end_l1_block.header.hash.0);
     assert_eq!(commitment.merkle_root, merkle_tree.root().unwrap());
 
-    return end_l1_block.header.height;
+    end_l1_block.header.height
 }

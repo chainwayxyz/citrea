@@ -373,10 +373,9 @@ where
             // TODO: Add support for multiple commitments in a single block
             let mut sequencer_commitment = None;
             for mut tx in self.da_service.extract_relevant_blobs(&filtered_block) {
-                match DaData::try_from_slice(&tx.full_data()) {
-                    Ok(SequencerCommitment(seq_com)) => sequencer_commitment = Some(seq_com),
-                    _ => {}
-                };
+                if let Ok(SequencerCommitment(seq_com)) = DaData::try_from_slice(tx.full_data()) {
+                    sequencer_commitment = Some(seq_com)
+                }
             }
 
             if sequencer_commitment.is_some() {
@@ -437,10 +436,12 @@ where
                 for i in start_l1_height..end_l1_height {
                     self.ledger_db
                         .put_soft_confirmation_status(SlotNumber(i))
-                        .expect(&format!(
-                            "Failed to put soft confirmation status in the ledger db {}",
-                            i
-                        ));
+                        .unwrap_or_else(|_| {
+                            panic!(
+                                "Failed to put soft confirmation status in the ledger db {}",
+                                i
+                            )
+                        });
                 }
             }
 
