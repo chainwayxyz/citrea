@@ -11,16 +11,50 @@ use crate::maybestd::vec::Vec;
 /// Contains raw transactions and information about the soft confirmation block
 #[derive(Debug, PartialEq, Clone, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
 pub struct UnsignedSoftConfirmationBatch {
+    da_slot_height: u64,
+    da_slot_hash: [u8; 32],
+    pre_state_root: Vec<u8>,
+    txs: Vec<Vec<u8>>,
+    l1_fee_rate: u64,
+}
+
+impl UnsignedSoftConfirmationBatch {
+    /// Creates a new unsigned soft confirmation batch
+    pub fn new(
+        da_slot_height: u64,
+        da_slot_hash: [u8; 32],
+        pre_state_root: Vec<u8>,
+        txs: Vec<Vec<u8>>,
+        l1_fee_rate: u64,
+    ) -> Self {
+        Self {
+            da_slot_height,
+            da_slot_hash,
+            pre_state_root,
+            txs,
+            l1_fee_rate,
+        }
+    }
     /// DA block to build on
-    pub da_slot_height: u64,
+    pub fn da_slot_height(&self) -> u64 {
+        self.da_slot_height
+    }
     /// DA block hash
-    pub da_slot_hash: [u8; 32],
-    /// Previous batch's post state root
-    pub pre_state_root: Vec<u8>,
+    pub fn da_slot_hash(&self) -> [u8; 32] {
+        self.da_slot_hash
+    }
+    /// Previous batch's pre state root
+    pub fn pre_state_root(&self) -> Vec<u8> {
+        self.pre_state_root.clone()
+    }
     /// Raw transactions.
-    pub txs: Vec<Vec<u8>>,
+    pub fn txs(&self) -> Vec<Vec<u8>> {
+        self.txs.clone()
+    }
     /// Base layer fee rate sats/wei etc. per byte.
-    pub l1_fee_rate: u64,
+    pub fn l1_fee_rate(&self) -> u64 {
+        self.l1_fee_rate
+    }
 }
 
 /// Signed version of the `UnsignedSoftConfirmationBatch`
@@ -77,7 +111,7 @@ impl SignedSoftConfirmationBatch {
         self.da_slot_hash
     }
 
-    /// Previous batch's post state root
+    /// Previous batch's pre state root
     pub fn pre_state_root(&self) -> Vec<u8> {
         self.pre_state_root.clone()
     }

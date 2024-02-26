@@ -88,7 +88,7 @@ pub struct HookSoftConfirmationInfo {
     pub da_slot_height: u64,
     /// DA block hash
     pub da_slot_hash: [u8; 32],
-    /// Previous batch's post state root
+    /// Previous batch's pre state root
     pub pre_state_root: Vec<u8>,
     /// Public key of signer
     pub pub_key: Vec<u8>,
@@ -129,7 +129,7 @@ impl HookSoftConfirmationInfo {
         self.da_slot_hash
     }
 
-    /// Previous batch's post state root
+    /// Previous batch's pre state root
     pub fn pre_state_root(&self) -> Vec<u8> {
         self.pre_state_root.clone()
     }

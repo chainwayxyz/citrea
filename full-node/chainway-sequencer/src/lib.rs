@@ -265,19 +265,18 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                             .await;
 
                         // create the unsigned batch with the txs then sign th sc
-                        let unsigned_batch = UnsignedSoftConfirmationBatch {
-                            da_slot_height: last_finalized_block.header().height(),
-                            txs,
-                            da_slot_hash: last_finalized_block.header().hash().into(),
-                            pre_state_root: self
-                                .rollup
+                        let unsigned_batch = UnsignedSoftConfirmationBatch::new(
+                            last_finalized_block.header().height(),
+                            last_finalized_block.header().hash().into(),
+                            self.rollup
                                 .runner
                                 .get_state_root()
                                 .clone()
                                 .as_ref()
                                 .to_vec(),
+                            txs,
                             l1_fee_rate,
-                        };
+                        );
 
                         let mut signed_soft_batch =
                             self.sign_soft_confirmation_batch(unsigned_batch);
@@ -292,19 +291,6 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                                 batch_workspace,
                             )
                             .await;
-
-                        let (filtered_block, prestate) = match self
-                            .rollup
-                            .runner
-                            .get_block_and_prestate(signed_batch.da_slot_height())
-                            .await
-                        {
-                            Ok(result) => result,
-                            Err(_) => {
-                                error!("Failed to get block and prestate");
-                                continue;
-                            } // Continue the loop if there is an error
-                        };
 
                         let _ = self
                             .rollup
@@ -375,11 +361,11 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
 
         SignedSoftConfirmationBatch::new(
             hash,
-            soft_confirmation.da_slot_height,
-            soft_confirmation.da_slot_hash,
-            soft_confirmation.pre_state_root,
-            soft_confirmation.l1_fee_rate,
-            soft_confirmation.txs,
+            soft_confirmation.da_slot_height(),
+            soft_confirmation.da_slot_hash(),
+            soft_confirmation.pre_state_root(),
+            soft_confirmation.l1_fee_rate(),
+            soft_confirmation.txs(),
             signature.try_to_vec().unwrap(),
             self.sov_tx_signer_priv_key.pub_key().try_to_vec().unwrap(),
         )
