@@ -230,15 +230,6 @@ impl LedgerDB {
         schema_batch.put::<TxByHash>(&tx.hash, tx_number)
     }
 
-    /// Saves a soft confirmation status for a given L1 height
-    pub fn put_soft_confirmation_status(
-        &self,
-        height: SlotNumber,
-        schema_batch: &mut SchemaBatch,
-    ) -> Result<(), anyhow::Error> {
-        schema_batch.put::<SoftConfirmationStatus>(&height, &true)
-    }
-
     fn put_event(
         &self,
         event: &Event,
@@ -452,6 +443,18 @@ impl LedgerDB {
 
         schema_batch
             .put::<LastSequencerCommitmentSent>(&(), &l1_height)
+            .unwrap();
+        self.db.write_schemas(schema_batch)?;
+
+        Ok(())
+    }
+
+    /// Saves a soft confirmation status for a given L1 height
+    pub fn put_soft_confirmation_status(&self, height: SlotNumber) -> Result<(), anyhow::Error> {
+        let mut schema_batch = SchemaBatch::new();
+
+        schema_batch
+            .put::<SoftConfirmationStatus>(&height, &true)
             .unwrap();
         self.db.write_schemas(schema_batch)?;
 

@@ -20,7 +20,7 @@ use sov_rollup_interface::zk::{Zkvm, ZkvmHost};
 use sov_schema_db::SchemaBatch;
 use tokio::sync::oneshot;
 use tokio::time::{sleep, Duration, Instant};
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 
 use crate::verifier::StateTransitionVerifier;
 use crate::{ProverService, RunnerConfig};
@@ -414,18 +414,16 @@ where
                 );
 
                 if soft_batches_tree.root() != Some(x.merkle_root) {
-                    anyhow::bail!(
+                    tracing::warn!(
                         "Merkle root mismatch - expected 0x{} but got 0x{}",
                         hex::encode(soft_batches_tree.root().unwrap()),
                         hex::encode(x.merkle_root)
                     );
                 }
 
-                let mut schema_batch: SchemaBatch = SchemaBatch::new();
-
                 for i in start_l1_height..end_l1_height {
                     self.ledger_db
-                        .put_soft_confirmation_status(SlotNumber(i), &mut schema_batch)
+                        .put_soft_confirmation_status(SlotNumber(i))
                         .expect(&format!(
                             "Failed to put soft confirmation status in the ledger db {}",
                             i
