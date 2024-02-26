@@ -231,7 +231,7 @@ impl DaService for BitcoinService {
 
         let block_hash;
         loop {
-            block_hash = match client.get_block_hash(height).await {
+            block_hash = match self.client.get_block_hash(height).await {
                 Ok(block_hash_response) => block_hash_response,
                 Err(error) => {
                     match error.downcast_ref::<RPCError>() {
@@ -254,7 +254,7 @@ impl DaService for BitcoinService {
 
             break;
         }
-        let block = client.get_block(block_hash).await?;
+        let block = self.client.get_block(block_hash).await?;
 
         Ok(block)
     }
@@ -440,7 +440,7 @@ impl DaService for BitcoinService {
     }
 
     async fn get_block_by_hash(&self, hash: [u8; 32]) -> Result<Self::FilteredBlock, Self::Error> {
-        info!("Getting block with hash {}", hash);
+        info!("Getting block with hash {:?}", hash);
 
         let hex_hash = hex::encode(hash.to_vec());
 

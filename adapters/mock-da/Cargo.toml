@@ -25,7 +25,6 @@ tokio-stream = { version = "0.1.14", features = ["full"], optional = true }
 pin-project = { workspace = true, optional = true }
 rusqlite = { version = "0.31.0", features = ["bundled"], optional = true }
 serde_json = { workspace = true, optional = true }
-rand = { workspace = true, optional = true }
 tracing = { workspace = true }
 
 sov-rollup-interface = { path = "../../rollup-interface", version = "0.3" }
@@ -39,7 +38,6 @@ default = []
 native = [
     "dep:rusqlite",
     "dep:serde_json",
-    "dep:rand",
     "dep:tokio",
     "dep:lazy_static",
     "dep:tokio-stream",

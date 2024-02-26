@@ -13,11 +13,12 @@ use sov_stf_runner::RollupProverConfig;
 use tokio::time::sleep;
 
 use crate::evm::make_test_client;
+use crate::test_client::TestClient;
 use crate::test_helpers::{start_rollup, NodeMode};
 
 #[tokio::test]
 async fn sequencer_sends_commitments_to_da_layer() {
-    sov_demo_rollup::initialize_logging();
+    // sov_demo_rollup::initialize_logging();
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
@@ -71,6 +72,54 @@ async fn sequencer_sends_commitments_to_da_layer() {
     sleep(Duration::from_secs(5)).await; // wait 5 secs so that new L1 block will be published
     test_client.send_publish_batch_request().await;
 
+    let start_l2_block: u64 = 1;
+    let end_l2_block: u64 = 4; // can only be the block before the one comitment landed in
+    let start_l1_block = 1;
+
+    println!("{start_l2_block} {end_l2_block} {start_l1_block}");
+    let end_l1_block = check_sequencer_commitment(
+        test_client.as_ref(),
+        &da_service,
+        start_l2_block,
+        end_l2_block,
+        start_l1_block,
+    )
+    .await;
+
+    // publish 4 soft confirmations, no commitment should be sent
+    for _ in 0..4 {
+        test_client.send_publish_batch_request().await;
+        sleep(Duration::from_secs(3)).await; // 4 * 3 = 12 seconds, we also guarantee that a new L1 block is published
+    }
+
+    test_client.send_publish_batch_request().await;
+    sleep(Duration::from_secs(1)).await;
+
+    let start_l2_block: u64 = end_l2_block + 1;
+    let end_l2_block: u64 = end_l2_block + 4; // can only be the block before the one comitment landed in
+    let start_l1_block = end_l1_block + 1;
+    println!("{start_l2_block} {end_l2_block} {start_l1_block}");
+
+    check_sequencer_commitment(
+        test_client.as_ref(),
+        &da_service,
+        start_l2_block,
+        end_l2_block,
+        start_l1_block,
+    )
+    .await;
+
+    seq_task.abort();
+}
+
+async fn check_sequencer_commitment(
+    test_client: &TestClient,
+    da_service: &MockDaService,
+    start_l2_block: u64,
+    end_l2_block: u64,
+    start_l1_block: u64,
+    // end_l1_block: u64,
+) -> u64 {
     let last_finalized_height = da_service.get_head_block_header().await.unwrap().height;
     let block = da_service
         .get_block_at(last_finalized_height)
@@ -101,9 +150,7 @@ async fn sequencer_sends_commitments_to_da_layer() {
         .unwrap()
         .into();
 
-    let start_l2_block: u64 = 1;
-    let end_l2_block: u64 = height - 1; // can only be the block before the one comitment landed in
-    let start_l1_block = da_service.get_block_at(1).await.unwrap();
+    let start_l1_block = da_service.get_block_at(start_l1_block).await.unwrap();
     let end_l1_block = da_service
         .get_block_at(commitments_last_soft_confirmation.da_slot_height)
         .await
@@ -133,79 +180,5 @@ async fn sequencer_sends_commitments_to_da_layer() {
     assert_eq!(commitment.l1_end_block_hash, end_l1_block.header.hash.0);
     assert_eq!(commitment.merkle_root, merkle_tree.root().unwrap());
 
-    // publish 4 soft confirmations, no commitment should be sent
-    for _ in 0..4 {
-        test_client.send_publish_batch_request().await;
-        sleep(Duration::from_secs(3)).await; // 4 * 3 = 12 seconds, we also guarantee that a new L1 block is published
-    }
-
-    test_client.send_publish_batch_request().await;
-    sleep(Duration::from_secs(1)).await;
-
-    let last_finalized_height = da_service.get_head_block_header().await.unwrap().height;
-    let block = da_service
-        .get_block_at(last_finalized_height)
-        .await
-        .unwrap();
-
-    let mut blobs = da_service.extract_relevant_blobs(&block);
-
-    assert_eq!(blobs.len(), 1);
-
-    let mut blob = blobs.pop().unwrap();
-
-    let data = blob.full_data();
-
-    let commitment = DaData::try_from_slice(data).unwrap();
-
-    matches!(commitment, DaData::SequencerCommitment(_));
-
-    let DaData::SequencerCommitment(commitment) = commitment else {
-        panic!("Expected SequencerCommitment, got {:?}", commitment);
-    };
-
-    let height = height + 5;
-
-    let commitments_last_soft_confirmation: SignedSoftConfirmationBatch = test_client
-        .ledger_get_soft_batch_by_number::<MockDaSpec>(height - 1) // after commitment is sent another block is published
-        .await
-        .unwrap()
-        .into();
-
-    let start_l2_block: u64 = end_l2_block + 1;
-    let end_l2_block: u64 = height - 1; // can only be the block before the one comitment landed in
-    let start_l1_block = da_service
-        .get_block_at(end_l1_block.header.height + 1)
-        .await
-        .unwrap();
-    let end_l1_block = da_service
-        .get_block_at(commitments_last_soft_confirmation.da_slot_height)
-        .await
-        .unwrap();
-
-    let mut batch_receipts = Vec::new();
-
-    for i in start_l2_block..=end_l2_block {
-        batch_receipts.push(
-            test_client
-                .ledger_get_soft_batch_by_number::<MockDaSpec>(i)
-                .await
-                .unwrap(),
-        );
-    }
-
-    // create merkle tree
-    let merkle_tree = MerkleTree::<Sha256>::from_leaves(
-        batch_receipts
-            .iter()
-            .map(|x| x.hash)
-            .collect::<Vec<_>>()
-            .as_slice(),
-    );
-
-    assert_eq!(commitment.l1_start_block_hash, start_l1_block.header.hash.0);
-    assert_eq!(commitment.l1_end_block_hash, end_l1_block.header.hash.0);
-    assert_eq!(commitment.merkle_root, merkle_tree.root().unwrap());
-
-    seq_task.abort();
+    return end_l1_block.header.height;
 }

@@ -10101,7 +10101,6 @@ dependencies = [
  "hex",
  "lazy_static",
  "pin-project",
- "rand 0.8.5",
  "rusqlite",
  "serde",
  "serde_json",

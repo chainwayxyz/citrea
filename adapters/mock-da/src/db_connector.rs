@@ -9,7 +9,7 @@ use tracing::debug;
 use crate::{MockBlock, MockBlockHeader, MockHash, MockValidityCond};
 
 lazy_static! {
-    static ref USED_THREAD: Mutex<HashSet<String>> = Mutex::new(HashSet::new()); // TODO: use a set instead of a map
+    static ref USED_THREAD: Mutex<HashSet<String>> = Mutex::new(HashSet::new());
 }
 
 pub(crate) struct DbConnector {

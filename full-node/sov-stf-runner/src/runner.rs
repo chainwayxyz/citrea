@@ -17,7 +17,6 @@ use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
 use sov_rollup_interface::stf::{SoftBatchReceipt, StateTransitionFunction};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::{Zkvm, ZkvmHost};
-use sov_schema_db::SchemaBatch;
 use tokio::sync::oneshot;
 use tokio::time::{sleep, Duration, Instant};
 use tracing::{debug, error, info, warn};
@@ -399,7 +398,7 @@ where
                     .header()
                     .height();
 
-                let range = (BatchNumber(start_l1_height)..BatchNumber(end_l1_height));
+                let range = BatchNumber(start_l1_height)..BatchNumber(end_l1_height);
 
                 // Traverse each item's field of vector of transactions, put them in merkle tree
                 // and compare the root with the one from the ledger

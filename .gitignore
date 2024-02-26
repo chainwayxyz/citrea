@@ -19,5 +19,3 @@ demo_data/
 adapters/solana/libyellowstone_grpc_geyser.dylib
 
 adapters/bitcoin/reveal_*.tx
-
-adapters/mock-da/shared-mock-da.db
