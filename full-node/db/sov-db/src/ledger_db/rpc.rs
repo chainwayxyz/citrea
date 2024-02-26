@@ -306,10 +306,15 @@ impl LedgerRpcProvider for LedgerDB {
         &self,
         l2_height: u64,
     ) -> Result<Option<String>, anyhow::Error> {
-        let l2_soft_batch = self
-            .db
-            .get::<SoftBatchByNumber>(&BatchNumber(l2_height))?
-            .expect("Soft batch not found");
+        let l2_soft_batch = match self.db.get::<SoftBatchByNumber>(&BatchNumber(l2_height)) {
+            Ok(Some(batch)) => batch,
+            _ => {
+                return Err(anyhow::anyhow!(
+                    "Soft confirmation at height {} not processed yet.",
+                    l2_height
+                ))
+            }
+        };
         let l1_height = l2_soft_batch.da_slot_height;
         match self
             .db
