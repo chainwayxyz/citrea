@@ -201,6 +201,21 @@ mod tests {
     }
 
     #[test]
+    fn test_read_by_hash() {
+        let db = DbConnector::new();
+
+        let block = get_test_block(1);
+
+        db.push_back(block.clone());
+
+        let block_from_db_by_height = db.get(0).unwrap();
+
+        let block_from_db_by_hash = db.get_by_hash(block.header.hash.into()).unwrap();
+
+        assert_eq!(block_from_db_by_height, block_from_db_by_hash);
+    }
+
+    #[test]
     fn test_len() {
         let db = DbConnector::new();
 
