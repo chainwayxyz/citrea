@@ -414,7 +414,11 @@ impl DaService for MockDaService {
     }
 
     async fn get_block_by_hash(&self, hash: [u8; 32]) -> Result<Self::FilteredBlock, Self::Error> {
-        self.get_block_by_hash(hash).await
+        self.blocks
+            .lock()
+            .await
+            .get_by_hash(hash)
+            .ok_or_else(|| anyhow::anyhow!("Block with hash {:?} not found", hash))
     }
 }
 
