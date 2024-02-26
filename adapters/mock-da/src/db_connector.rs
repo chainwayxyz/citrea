@@ -91,7 +91,6 @@ impl DbConnector {
         row.map(|row| Self::row_to_block(row))
     }
 
-    #[allow(dead_code)]
     pub fn get_by_hash(&self, hash: [u8; 32]) -> Option<MockBlock> {
         let mut stmt = self
             .conn

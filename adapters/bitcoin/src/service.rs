@@ -227,7 +227,6 @@ impl DaService for BitcoinService {
     // Make an RPC call to the node to get the block at the given height
     // If no such block exists, block until one does.
     async fn get_block_at(&self, height: u64) -> Result<Self::FilteredBlock, Self::Error> {
-        let client = self.client.clone();
         info!("Getting block at height {}", height);
 
         let block_hash;
@@ -441,19 +440,11 @@ impl DaService for BitcoinService {
     }
 
     async fn get_block_by_hash(&self, hash: [u8; 32]) -> Result<Self::FilteredBlock, Self::Error> {
-        let client = self.client.clone();
-        info!("Getting block at height {}", height);
+        info!("Getting block with hash {}", hash);
 
-        // Check: Is this hex already?
-        // If not, a middle step of hex conversion is needed
-        let vec_hash = hash.to_vec();
+        let hex_hash = hex::encode(hash.to_vec());
 
-        let hash = match String::from_utf8(vec_hash) {
-            Ok(hash) => hash,
-            Err(_) => return Err(anyhow::anyhow!("Failed to convert block hash to string")),
-        };
-
-        let block = client.get_block(hash).await?;
+        let block = client.get_block(hex_hash).await?;
         Ok(block)
     }
 }
