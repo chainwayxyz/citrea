@@ -10504,6 +10504,7 @@ dependencies = [
  "jsonrpsee 0.20.3",
  "num_cpus",
  "rayon",
+ "rs_merkle",
  "sequencer-client",
  "serde",
  "serde_json",

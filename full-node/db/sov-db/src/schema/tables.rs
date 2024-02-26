@@ -57,6 +57,7 @@ pub const LEDGER_TABLES: &[&str] = &[
     LastSequencerCommitmentSent::table_name(),
     BatchByHash::table_name(),
     BatchByNumber::table_name(),
+    SoftConfirmationStatus::table_name(),
     TxByHash::table_name(),
     TxByNumber::table_name(),
     EventByKey::table_name(),
@@ -245,6 +246,11 @@ define_table_with_seek_key_codec!(
 define_table_with_seek_key_codec!(
     /// The primary source for batch data
     (BatchByNumber) BatchNumber => StoredBatch
+);
+
+define_table_with_default_codec!(
+    /// Check whether a block is finalized
+    (SoftConfirmationStatus) SlotNumber => bool
 );
 
 define_table_with_default_codec!(

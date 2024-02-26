@@ -227,7 +227,6 @@ impl DaService for BitcoinService {
     // Make an RPC call to the node to get the block at the given height
     // If no such block exists, block until one does.
     async fn get_block_at(&self, height: u64) -> Result<Self::FilteredBlock, Self::Error> {
-        let client = self.client.clone();
         info!("Getting block at height {}", height);
 
         let block_hash;
@@ -438,6 +437,15 @@ impl DaService for BitcoinService {
         // This already returns ceil, so the conversion should work
         let res = self.client.estimate_smart_fee().await.unwrap() as u64;
         Ok(res)
+    }
+
+    async fn get_block_by_hash(&self, hash: [u8; 32]) -> Result<Self::FilteredBlock, Self::Error> {
+        info!("Getting block with hash {}", hash);
+
+        let hex_hash = hex::encode(hash.to_vec());
+
+        let block = self.client.get_block(hex_hash).await?;
+        Ok(block)
     }
 }
 

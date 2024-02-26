@@ -2,19 +2,25 @@ use std::collections::VecDeque;
 use std::net::SocketAddr;
 
 use anyhow::bail;
+use borsh::de::BorshDeserialize;
 use jsonrpsee::core::Error;
 use jsonrpsee::RpcModule;
+use rs_merkle::algorithms::Sha256;
+use rs_merkle::MerkleTree;
 use sequencer_client::SequencerClient;
 use sov_db::ledger_db::{LedgerDB, SlotCommit};
-use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
+use sov_db::schema::types::{BatchNumber, SlotNumber, StoredSoftBatch};
+use sov_rollup_interface::da::DaData::SequencerCommitment;
+use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaData, DaSpec};
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
 use sov_rollup_interface::stf::{SoftBatchReceipt, StateTransitionFunction};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::{Zkvm, ZkvmHost};
+use sov_schema_db::SchemaBatch;
 use tokio::sync::oneshot;
 use tokio::time::{sleep, Duration, Instant};
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 
 use crate::verifier::StateTransitionVerifier;
 use crate::{ProverService, RunnerConfig};
@@ -362,6 +368,69 @@ where
             //         tracing::info!("Resuming execution on height={}", height);
             //     }
             // }
+
+            // Merkle root hash - L1 start height - L1 end height
+            // TODO: How to confirm this is what we submit - use?
+            // TODO: Add support for multiple commitments in a single block
+            let mut x = None;
+            for mut tx in self.da_service.extract_relevant_blobs(&filtered_block) {
+                match DaData::try_from_slice(&tx.full_data()) {
+                    Ok(SequencerCommitment(seq_com)) => x = Some(seq_com),
+                    _ => {}
+                };
+            }
+
+            if x.is_some() {
+                let x = x.unwrap();
+
+                let start_l1_height = self
+                    .da_service
+                    .get_block_by_hash(x.l1_start_block_hash)
+                    .await
+                    .unwrap()
+                    .header()
+                    .height();
+
+                let end_l1_height = self
+                    .da_service
+                    .get_block_by_hash(x.l1_end_block_hash)
+                    .await
+                    .unwrap()
+                    .header()
+                    .height();
+
+                let range = (BatchNumber(start_l1_height)..BatchNumber(end_l1_height));
+
+                // Traverse each item's field of vector of transactions, put them in merkle tree
+                // and compare the root with the one from the ledger
+                let stored_soft_batches: Vec<StoredSoftBatch> =
+                    self.ledger_db.get_soft_batch_range(&range).unwrap();
+
+                let soft_batches_tree = MerkleTree::<Sha256>::from_leaves(
+                    stored_soft_batches
+                        .iter()
+                        .map(|x| x.hash)
+                        .collect::<Vec<_>>()
+                        .as_slice(),
+                );
+
+                if soft_batches_tree.root() != Some(x.merkle_root) {
+                    tracing::warn!(
+                        "Merkle root mismatch - expected 0x{} but got 0x{}",
+                        hex::encode(soft_batches_tree.root().unwrap()),
+                        hex::encode(x.merkle_root)
+                    );
+                }
+
+                for i in start_l1_height..end_l1_height {
+                    self.ledger_db
+                        .put_soft_confirmation_status(SlotNumber(i))
+                        .expect(&format!(
+                            "Failed to put soft confirmation status in the ledger db {}",
+                            i
+                        ));
+                }
+            }
 
             info!(
                 "Running soft confirmation batch #{} with hash: 0x{} on DA block #{}",

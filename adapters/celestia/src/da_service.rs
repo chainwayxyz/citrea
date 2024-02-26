@@ -314,6 +314,10 @@ impl DaService for CelestiaService {
     async fn get_fee_rate(&self) -> Result<u64, Self::Error> {
         unimplemented!()
     }
+
+    async fn get_block_by_hash(&self, _hash: [u8; 32]) -> Result<Self::FilteredBlock, Self::Error> {
+        unimplemented!()
+    }
 }
 
 // https://docs.celestia.org/learn/submit-data/#fees-and-gas-limits

@@ -91,6 +91,20 @@ impl DbConnector {
         row.map(|row| Self::row_to_block(row))
     }
 
+    pub fn get_by_hash(&self, hash: [u8; 32]) -> Option<MockBlock> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT * FROM blocks WHERE hash = ?")
+            .unwrap();
+        let mut rows = stmt
+            .query(params![hash])
+            .expect("DbConnector: failed to execute query");
+
+        let row = rows.next().expect("DbConnector: failed to get row");
+
+        row.map(|row| Self::row_to_block(row))
+    }
+
     pub fn len(&self) -> usize {
         let mut stmt = self
             .conn
@@ -183,6 +197,21 @@ mod tests {
         let block_from_db = db.get(0).unwrap();
 
         assert_eq!(block, block_from_db);
+    }
+
+    #[test]
+    fn test_read_by_hash() {
+        let db = DbConnector::new();
+
+        let block = get_test_block(1);
+
+        db.push_back(block.clone());
+
+        let block_from_db_by_height = db.get(0).unwrap();
+
+        let block_from_db_by_hash = db.get_by_hash(block.header.hash.into()).unwrap();
+
+        assert_eq!(block_from_db_by_height, block_from_db_by_hash);
     }
 
     #[test]

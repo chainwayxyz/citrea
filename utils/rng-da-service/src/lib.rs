@@ -117,6 +117,10 @@ impl DaService for RngDaService {
         unimplemented!()
     }
 
+    async fn get_block_by_hash(&self, _hash: [u8; 32]) -> Result<Self::FilteredBlock, Self::Error> {
+        unimplemented!()
+    }
+
     fn extract_relevant_blobs(
         &self,
         block: &Self::FilteredBlock,
