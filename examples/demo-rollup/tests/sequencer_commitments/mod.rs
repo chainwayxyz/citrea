@@ -76,7 +76,6 @@ async fn sequencer_sends_commitments_to_da_layer() {
     let end_l2_block: u64 = 4; // can only be the block before the one comitment landed in
     let start_l1_block = 1;
 
-    println!("{start_l2_block} {end_l2_block} {start_l1_block}");
     let end_l1_block = check_sequencer_commitment(
         test_client.as_ref(),
         &da_service,
@@ -96,9 +95,8 @@ async fn sequencer_sends_commitments_to_da_layer() {
     sleep(Duration::from_secs(1)).await;
 
     let start_l2_block: u64 = end_l2_block + 1;
-    let end_l2_block: u64 = end_l2_block + 4; // can only be the block before the one comitment landed in
+    let end_l2_block: u64 = end_l2_block + 5; // can only be the block before the one comitment landed in
     let start_l1_block = end_l1_block + 1;
-    println!("{start_l2_block} {end_l2_block} {start_l1_block}");
 
     check_sequencer_commitment(
         test_client.as_ref(),

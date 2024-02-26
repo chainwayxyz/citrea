@@ -34,65 +34,56 @@ pub fn get_commitment_info(
         .expect("Sequencer: Failed to get last sequencer commitment L1 height");
 
     debug!("Last commitment L1 height: {:?}", last_commitment_l1_height);
-    let mut l2_range_to_submit = None;
-    let mut _l1_height_range = None;
+
     // if none then we never submitted a commitment, start from prev_l1_height and go back as far as you can go
     // if there is a height then start from height + 1 and go to prev_l1_height
-    match last_commitment_l1_height {
-        Some(height) => {
-            let mut l1_height = height.0 + 1;
+    let (l2_range_to_submit, l1_height_range) = match last_commitment_l1_height {
+        Some(last_commitment_l1_height) => {
+            let l1_height_range = (last_commitment_l1_height.0 + 1, prev_l1_height);
 
-            _l1_height_range = Some((l1_height, l1_height));
-
-            while let Some(l2_height_range) = ledger_db
-                .get_l2_range_by_l1_height(SlotNumber(l1_height))
+            let (l2_start_height, _) = ledger_db
+                .get_l2_range_by_l1_height(SlotNumber(l1_height_range.0))
                 .expect("Sequencer: Failed to get L1 L2 connection")
-            {
-                if l2_range_to_submit.is_none() {
-                    l2_range_to_submit = Some(l2_height_range);
-                } else {
-                    l2_range_to_submit = Some((l2_range_to_submit.unwrap().0, l2_height_range.1));
-                }
+                .unwrap();
+            let (_, l2_end_height) = ledger_db
+                .get_l2_range_by_l1_height(SlotNumber(prev_l1_height))
+                .expect("Sequencer: Failed to get L1 L2 connection")
+                .unwrap();
 
-                l1_height += 1;
-            }
+            let l2_range_to_submit = (l2_start_height, l2_end_height);
 
-            _l1_height_range = Some((_l1_height_range.unwrap().0, l1_height - 1));
+            (l2_range_to_submit, l1_height_range)
         }
         None => {
-            let mut l1_height = prev_l1_height;
-
-            _l1_height_range = Some((prev_l1_height, prev_l1_height));
-
-            while let Some(l2_height_range) = ledger_db
-                .get_l2_range_by_l1_height(SlotNumber(l1_height))
-                .expect("Sequencer: Failed to get L1 L2 connection")
+            let first_soft_confirmation = match ledger_db
+                .get_soft_batch_by_number::<()>(1)
+                .expect("Failed to get soft batch")
             {
-                if l2_range_to_submit.is_none() {
-                    l2_range_to_submit = Some(l2_height_range);
-                } else {
-                    l2_range_to_submit = Some((l2_height_range.0, l2_range_to_submit.unwrap().1));
-                }
+                Some(batch) => batch,
+                None => return None, // not even the first soft confirmation is there, shouldn't happen actually
+            };
 
-                l1_height -= 1;
-            }
+            let l1_height_range = (first_soft_confirmation.da_slot_height, prev_l1_height);
 
-            _l1_height_range = Some((l1_height + 1, _l1_height_range.unwrap().1));
+            let (_, last_soft_confirmation_height) = ledger_db
+                .get_l2_range_by_l1_height(SlotNumber(prev_l1_height))
+                .expect("Sequencer: Failed to get L1 L2 connection")
+                .unwrap();
+
+            let l2_range_to_submit = (BatchNumber(1), last_soft_confirmation_height);
+
+            (l2_range_to_submit, l1_height_range)
         }
     };
 
     debug!("L2 range to submit: {:?}", l2_range_to_submit);
-    debug!("L1 height range: {:?}", _l1_height_range);
+    debug!("L1 height range: {:?}", l1_height_range);
 
-    if l2_range_to_submit.is_none()
-        || (l2_range_to_submit.unwrap().1 .0 - l2_range_to_submit.unwrap().0 .0 + 1)
-            < min_soft_confirmations_per_commitment
+    if (l2_range_to_submit.1 .0 - l2_range_to_submit.0 .0 + 1)
+        < min_soft_confirmations_per_commitment
     {
         return None;
     }
-
-    let l2_range_to_submit = l2_range_to_submit.unwrap();
-    let l1_height_range = _l1_height_range.unwrap();
 
     let l1_start_hash = ledger_db
         .get_soft_batch_by_number::<()>(l2_range_to_submit.0 .0)

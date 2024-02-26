@@ -19,7 +19,7 @@ use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::{Zkvm, ZkvmHost};
 use tokio::sync::oneshot;
 use tokio::time::{sleep, Duration, Instant};
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info};
 
 use crate::verifier::StateTransitionVerifier;
 use crate::{ProverService, RunnerConfig};
@@ -371,20 +371,20 @@ where
             // Merkle root hash - L1 start height - L1 end height
             // TODO: How to confirm this is what we submit - use?
             // TODO: Add support for multiple commitments in a single block
-            let mut x = None;
+            let mut sequencer_commitment = None;
             for mut tx in self.da_service.extract_relevant_blobs(&filtered_block) {
                 match DaData::try_from_slice(&tx.full_data()) {
-                    Ok(SequencerCommitment(seq_com)) => x = Some(seq_com),
+                    Ok(SequencerCommitment(seq_com)) => sequencer_commitment = Some(seq_com),
                     _ => {}
                 };
             }
 
-            if x.is_some() {
-                let x = x.unwrap();
+            if sequencer_commitment.is_some() {
+                let sequencer_commitment = sequencer_commitment.unwrap();
 
                 let start_l1_height = self
                     .da_service
-                    .get_block_by_hash(x.l1_start_block_hash)
+                    .get_block_by_hash(sequencer_commitment.l1_start_block_hash)
                     .await
                     .unwrap()
                     .header()
@@ -392,18 +392,31 @@ where
 
                 let end_l1_height = self
                     .da_service
-                    .get_block_by_hash(x.l1_end_block_hash)
+                    .get_block_by_hash(sequencer_commitment.l1_end_block_hash)
                     .await
                     .unwrap()
                     .header()
                     .height();
 
-                let range = BatchNumber(start_l1_height)..BatchNumber(end_l1_height);
+                let (start_l2_height, _) = self
+                    .ledger_db
+                    .get_l2_range_by_l1_height(SlotNumber(start_l1_height))
+                    .expect("Sequencer: Failed to get L1 L2 connection")
+                    .unwrap();
 
+                let (_, end_l2_height) = self
+                    .ledger_db
+                    .get_l2_range_by_l1_height(SlotNumber(start_l1_height))
+                    .expect("Sequencer: Failed to get L1 L2 connection")
+                    .unwrap();
+
+                let range_end = BatchNumber(end_l2_height.0 + 1);
                 // Traverse each item's field of vector of transactions, put them in merkle tree
                 // and compare the root with the one from the ledger
-                let stored_soft_batches: Vec<StoredSoftBatch> =
-                    self.ledger_db.get_soft_batch_range(&range).unwrap();
+                let stored_soft_batches: Vec<StoredSoftBatch> = self
+                    .ledger_db
+                    .get_soft_batch_range(&(start_l2_height..range_end))
+                    .unwrap();
 
                 let soft_batches_tree = MerkleTree::<Sha256>::from_leaves(
                     stored_soft_batches
@@ -413,11 +426,11 @@ where
                         .as_slice(),
                 );
 
-                if soft_batches_tree.root() != Some(x.merkle_root) {
+                if soft_batches_tree.root() != Some(sequencer_commitment.merkle_root) {
                     tracing::warn!(
                         "Merkle root mismatch - expected 0x{} but got 0x{}",
                         hex::encode(soft_batches_tree.root().unwrap()),
-                        hex::encode(x.merkle_root)
+                        hex::encode(sequencer_commitment.merkle_root)
                     );
                 }
 
@@ -534,6 +547,13 @@ where
             };
 
             self.ledger_db.commit_soft_batch(soft_batch_receipt, true)?;
+            self.ledger_db
+                .extend_l2_range_of_l1_slot(
+                    SlotNumber(filtered_block.header().height()),
+                    BatchNumber(height),
+                )
+                .expect("Sequencer: Failed to set L1 L2 connection");
+
             self.state_root = next_state_root;
             seen_receipts.push_back(data_to_commit);
             seen_block_headers.push_back(filtered_block.header().clone());
