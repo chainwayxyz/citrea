@@ -371,6 +371,7 @@ where
 
             // Merkle root hash - L1 start height - L1 end height
             // TODO: How to confirm this is what we submit - use?
+            // TODO: Add support for multiple commitments in a single block
             let mut x = None;
             for mut tx in self.da_service.extract_relevant_blobs(&filtered_block) {
                 match DaData::try_from_slice(&tx.full_data()) {
