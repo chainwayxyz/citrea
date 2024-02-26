@@ -398,10 +398,7 @@ where
                     .header()
                     .height();
 
-                let range = std::ops::Range {
-                    start: BatchNumber(start_l1_height),
-                    end: BatchNumber(end_l1_height),
-                };
+                let range = (BatchNumber(start_l1_height)..BatchNumber(end_l1_height));
 
                 // Traverse each item's field of vector of transactions, put them in merkle tree
                 // and compare the root with the one from the ledger
