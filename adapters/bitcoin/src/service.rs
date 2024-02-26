@@ -442,7 +442,7 @@ impl DaService for BitcoinService {
     async fn get_block_by_hash(&self, hash: [u8; 32]) -> Result<Self::FilteredBlock, Self::Error> {
         info!("Getting block with hash {:?}", hash);
 
-        let hex_hash = hex::encode(hash.to_vec());
+        let hex_hash = hex::encode(hash);
 
         let block = self.client.get_block(hex_hash).await?;
         Ok(block)
