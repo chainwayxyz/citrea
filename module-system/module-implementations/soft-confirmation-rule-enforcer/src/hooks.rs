@@ -1,6 +1,7 @@
 use anyhow::anyhow;
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::{Context, DaSpec, StateMapAccessor, StateValueAccessor, WorkingSet};
+use sov_modules_stf_blueprint::ApplySoftConfirmationError;
 use sov_state::Storage;
 
 use crate::SoftConfirmationRuleEnforcer;
@@ -18,7 +19,7 @@ where
         &self,
         soft_batch_info: &mut HookSoftConfirmationInfo,
         working_set: &mut WorkingSet<C>,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), ApplySoftConfirmationError> {
         let da_root_hash = soft_batch_info.da_slot_hash();
         let l2_block_count = self
             .get_block_count_by_da_root_hash(da_root_hash, working_set)
@@ -30,11 +31,14 @@ where
         // Adding one more l2 block will exceed the limiting number
         if l2_block_count + 1 > limiting_number {
             // block count per l1 block should not be more than limiting number
-            return Err(anyhow!(
-                "Block count per l1 block {} should not be more than limiting number {}",
-                l2_block_count,
-                limiting_number
-            ));
+            return Err(
+                ApplySoftConfirmationError::TooManySoftConfirmationsOnDaSlot {
+                    hash: da_root_hash,
+                    sequencer_pub_key: soft_batch_info.sequencer_pub_key().to_vec(),
+                    limiting_number,
+                }
+                .into(),
+            );
         }
 
         // increment the block count
@@ -54,7 +58,7 @@ where
         &self,
         soft_batch: &mut HookSoftConfirmationInfo,
         working_set: &mut WorkingSet<C>,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), ApplySoftConfirmationError> {
         let l1_fee_rate = soft_batch.l1_fee_rate();
         let last_l1_fee_rate = self.last_l1_fee_rate.get(working_set).unwrap_or(0);
 
@@ -76,11 +80,12 @@ where
         if l1_fee_rate * 100 < last_l1_fee_rate * (100 - l1_fee_rate_change_percentage)
             || l1_fee_rate * 100 > last_l1_fee_rate * (100 + l1_fee_rate_change_percentage)
         {
-            return Err(anyhow!(
-                "L1 fee rate {} changed more than allowed limit %{}",
-                l1_fee_rate,
-                l1_fee_rate_change_percentage
-            ));
+            return Err(
+                ApplySoftConfirmationError::L1FeeRateChangeMoreThanAllowedPercentage {
+                    l1_fee_rate,
+                    l1_fee_rate_change_percentage,
+                },
+            );
         }
 
         self.last_l1_fee_rate

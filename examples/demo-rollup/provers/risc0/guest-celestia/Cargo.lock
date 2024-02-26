@@ -7087,6 +7087,7 @@ dependencies = [
  "lazy_static",
  "serde",
  "sov-modules-api",
+ "sov-modules-stf-blueprint",
  "sov-prover-storage-manager",
  "sov-rollup-interface",
  "sov-state",

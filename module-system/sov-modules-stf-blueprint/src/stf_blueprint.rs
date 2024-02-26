@@ -9,6 +9,7 @@ use sov_modules_api::{
 };
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
 use sov_rollup_interface::stf::{BatchReceipt, TransactionReceipt};
+use thiserror::Error;
 use tracing::{debug, error};
 
 use crate::tx_verifier::{verify_txs_stateless, TransactionAndRawHash};
@@ -73,14 +74,31 @@ impl<A: BasicAddress> From<ApplyBatchError<A>> for BatchReceipt<SequencerOutcome
 type ApplySoftConfirmationResult = Result<BatchReceipt<(), TxEffect>, ApplySoftConfirmationError>;
 
 /// Soft confirmation error
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum ApplySoftConfirmationError {
     /// Checks count of soft confirmations on the slot
+    #[error(
+        "Too many soft confirmations on the slot {:?} by sequencer {:?} with limiting number {}",
+        hash,
+        sequencer_pub_key,
+        limiting_number
+    )]
     TooManySoftConfirmationsOnDaSlot {
         /// Hash of the slot
         hash: [u8; 32],
         /// Sequencer public key
         sequencer_pub_key: Vec<u8>,
+        /// Limiting number
+        limiting_number: u64,
+    },
+    #[error(
+        "L1 fee rate {} changed more than allowed limit %{}",
+        l1_fee_rate,
+        l1_fee_rate_change_percentage
+    )]
+    L1FeeRateChangeMoreThanAllowedPercentage {
+        l1_fee_rate: u64,
+        l1_fee_rate_change_percentage: u64,
     },
 }
 
@@ -254,12 +272,7 @@ where
             );
 
             return (
-                Err(
-                    ApplySoftConfirmationError::TooManySoftConfirmationsOnDaSlot {
-                        hash: soft_batch.hash(),
-                        sequencer_pub_key: soft_batch.pub_key(),
-                    },
-                ),
+                Err(e.into()),
                 // Reverted in apply_soft_batch and sequencer
                 batch_workspace,
             );

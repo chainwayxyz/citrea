@@ -25,7 +25,7 @@ use sov_state::Storage;
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 use sov_zk_cycle_macros::cycle_tracker;
 pub use stf_blueprint::StfBlueprint;
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 pub use tx_verifier::RawTx;
 
 pub use crate::stf_blueprint::ApplySoftConfirmationError;
@@ -558,16 +558,10 @@ where
 
                 self.finalize_soft_batch(batch_receipt, checkpoint, pre_state, soft_batch)
             }
-            (
-                Err(ApplySoftConfirmationError::TooManySoftConfirmationsOnDaSlot {
-                    hash,
-                    sequencer_pub_key,
-                }),
-                batch_workspace,
-            ) => {
-                info!(
-                    "Too many soft confirmations on da slot with hash: {:?} from sequencer {:?}",
-                    hash, sequencer_pub_key
+            (Err(err), batch_workspace) => {
+                warn!(
+                    "Error applying soft batch: {:?} \n reverting batch workspace",
+                    err
                 );
                 batch_workspace.revert();
                 SlotResult {

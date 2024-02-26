@@ -19,6 +19,7 @@ sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-man
     "test-utils",
 ] }
 sov-rollup-interface = { path = "../../../rollup-interface" }
+sov-modules-stf-blueprint = { path = "../../sov-modules-stf-blueprint" }
 
 borsh = { workspace = true }
 serde = { workspace = true }

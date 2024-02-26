@@ -41,7 +41,7 @@ use sov_modules_rollup_blueprint::{Rollup, RollupBlueprint};
 use sov_modules_stf_blueprint::ApplySoftConfirmationError;
 use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::services::da::DaService;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 pub use crate::db_provider::DbProvider;
 use crate::utils::recover_raw_transaction;
@@ -307,18 +307,9 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                         self.mempool
                             .remove_transactions(self.db_provider.last_block_tx_hashes());
                     }
-                    (
-                        Err(ApplySoftConfirmationError::TooManySoftConfirmationsOnDaSlot {
-                            hash,
-                            sequencer_pub_key: _,
-                        }),
-                        batch_workspace,
-                    ) => {
+                    (Err(err), batch_workspace) => {
+                        warn!("Failed to apply soft confirmation hook: {:?} \n reverting batch workspace", err);
                         batch_workspace.revert();
-                        error!(
-                            "Too many soft confirmations on da slot with hash: {:?}",
-                            hash
-                        );
                     }
                 }
             }
