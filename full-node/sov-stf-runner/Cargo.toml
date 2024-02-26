@@ -30,7 +30,6 @@ futures = { workspace = true, optional = true }
 async-trait = { workspace = true, optional = true }
 rayon = { workspace = true, optional = true }
 sov-db = { path = "../db/sov-db", version = "0.3", optional = true }
-sov-schema-db = { path = "../db/sov-schema-db", version = "0.3", optional = true }
 sov-rollup-interface = { path = "../../rollup-interface", version = "0.3" }
 sov-modules-stf-blueprint = { path = "../../module-system/sov-modules-stf-blueprint", features = [
     "native",
@@ -79,7 +78,6 @@ tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
 [features]
 native = [
     "sov-db",
-    "sov-schema-db",
     "jsonrpsee",
     "toml",
     "tokio",
