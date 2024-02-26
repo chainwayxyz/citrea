@@ -444,7 +444,7 @@ impl DaService for BitcoinService {
 
         let hex_hash = hex::encode(hash.to_vec());
 
-        let block = client.get_block(hex_hash).await?;
+        let block = self.client.get_block(hex_hash).await?;
         Ok(block)
     }
 }
