@@ -18,6 +18,7 @@ use tokio::time::sleep;
 use crate::evm::{init_test_rollup, make_test_client};
 use crate::test_client::TestClient;
 use crate::test_helpers::{start_rollup, NodeMode};
+use crate::DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT;
 
 async fn initialize_test() -> (
     Box<TestClient>,
@@ -38,6 +39,7 @@ async fn initialize_test() -> (
             RollupProverConfig::Execute,
             NodeMode::SequencerNode,
             None,
+            DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
         )
         .await;
     });
@@ -57,6 +59,7 @@ async fn initialize_test() -> (
             RollupProverConfig::Execute,
             NodeMode::FullNode(seq_port),
             None,
+            DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
         )
         .await;
     });
@@ -125,6 +128,7 @@ async fn test_delayed_sync_ten_blocks() -> Result<(), anyhow::Error> {
             RollupProverConfig::Execute,
             NodeMode::SequencerNode,
             None,
+            DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
         )
         .await;
     });
@@ -154,6 +158,7 @@ async fn test_delayed_sync_ten_blocks() -> Result<(), anyhow::Error> {
             RollupProverConfig::Execute,
             NodeMode::FullNode(seq_port),
             None,
+            DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
         )
         .await;
     });
@@ -214,6 +219,7 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
             RollupProverConfig::Execute,
             NodeMode::SequencerNode,
             None,
+            DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
         )
         .await;
     });
@@ -233,6 +239,7 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
             RollupProverConfig::Execute,
             NodeMode::FullNode(seq_port),
             Some("demo_data_test_close_and_reopen_full_node"),
+            DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
         )
         .await;
     });
@@ -308,6 +315,7 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
             RollupProverConfig::Execute,
             NodeMode::FullNode(seq_port),
             Some("demo_data_test_close_and_reopen_full_node_copy"),
+            DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
         )
         .await;
     });
@@ -359,6 +367,7 @@ async fn test_get_transaction_by_hash() -> Result<(), anyhow::Error> {
             RollupProverConfig::Execute,
             NodeMode::SequencerNode,
             None,
+            DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
         )
         .await;
     });
@@ -377,6 +386,7 @@ async fn test_get_transaction_by_hash() -> Result<(), anyhow::Error> {
             RollupProverConfig::Execute,
             NodeMode::FullNode(seq_port),
             None,
+            DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
         )
         .await;
     });
@@ -547,7 +557,7 @@ async fn test_soft_confirmations_on_different_blocks() -> Result<(), anyhow::Err
 
     // now that more than 5 secs passed there should be a new da block
     for _ in 1..=6 {
-        seq_test_client.send_publish_batch_request().await;
+        seq_test_client.spam_publish_batch_request().await.unwrap();
     }
 
     sleep(Duration::from_secs(2)).await;
@@ -561,8 +571,6 @@ async fn test_soft_confirmations_on_different_blocks() -> Result<(), anyhow::Err
             .ledger_get_soft_batch_by_number::<MockDaSpec>(i)
             .await
             .unwrap();
-
-        tracing::info!("seq_soft_conf: {:?}", seq_soft_conf);
 
         if i != 7 {
             assert_eq!(last_da_slot_height, seq_soft_conf.da_slot_height);
@@ -609,6 +617,7 @@ async fn test_reopen_sequencer() -> Result<(), anyhow::Error> {
             RollupProverConfig::Execute,
             NodeMode::SequencerNode,
             Some("demo_data_test_reopen_sequencer"),
+            DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
         )
         .await;
     });
@@ -648,6 +657,7 @@ async fn test_reopen_sequencer() -> Result<(), anyhow::Error> {
             RollupProverConfig::Execute,
             NodeMode::SequencerNode,
             Some("demo_data_test_reopen_sequencer_copy"),
+            DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
         )
         .await;
     });

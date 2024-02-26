@@ -47,6 +47,9 @@ pub trait DaService: Send + Sync + 'static {
     /// Should always returns the block at that height on the best fork.
     async fn get_block_at(&self, height: u64) -> Result<Self::FilteredBlock, Self::Error>;
 
+    /// Fetch block by hash.
+    async fn get_block_by_hash(&self, hash: [u8; 32]) -> Result<Self::FilteredBlock, Self::Error>;
+
     /// Fetch the [`DaSpec::BlockHeader`] of the last finalized block.
     /// If there's no finalized block yet, it should return an error.
     async fn get_last_finalized_block_header(

@@ -13,6 +13,7 @@ use sov_stf_runner::RollupProverConfig;
 
 use crate::test_client::TestClient;
 use crate::test_helpers::{start_rollup, NodeMode};
+use crate::DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT;
 
 mod archival_state;
 mod gas_price;
@@ -33,6 +34,7 @@ async fn web3_rpc_tests() -> Result<(), anyhow::Error> {
             RollupProverConfig::Skip,
             NodeMode::SequencerNode,
             None,
+            DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
         )
         .await;
     });
@@ -77,6 +79,7 @@ async fn evm_tx_tests() -> Result<(), anyhow::Error> {
             RollupProverConfig::Skip,
             NodeMode::SequencerNode,
             None,
+            DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
         )
         .await;
     });
@@ -110,6 +113,7 @@ async fn test_eth_get_logs() -> Result<(), anyhow::Error> {
             RollupProverConfig::Skip,
             NodeMode::SequencerNode,
             None,
+            DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
         )
         .await;
     });
