@@ -25,7 +25,8 @@ install-dev-tools:  ## Installs all necessary cargo helpers
 	cargo install cargo-udeps
 	cargo install flaky-finder
 	cargo install cargo-nextest --locked
-	cargo install cargo-risczero
+	cargo install cargo-binstall
+	cargo binstall cargo-risczero
 	cargo risczero install
 	rustup target add thumbv6m-none-eabi
 
