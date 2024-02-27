@@ -91,7 +91,7 @@ impl<C: Context, Da: DaSpec> ApplySoftConfirmationHooks<Da> for TestRuntime<C> {
         &self,
         _result: Self::SoftConfirmationResult,
         _working_set: &mut sov_modules_api::WorkingSet<Self::Context>,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), ApplySoftConfirmationError> {
         todo!()
     }
 }

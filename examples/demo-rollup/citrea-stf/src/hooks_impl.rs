@@ -91,7 +91,7 @@ impl<C: Context, Da: DaSpec> ApplySoftConfirmationHooks<Da> for Runtime<C, Da> {
         &self,
         _result: Self::SoftConfirmationResult,
         working_set: &mut WorkingSet<C>,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), ApplySoftConfirmationError> {
         self.evm.end_soft_confirmation_hook(working_set);
         Ok(())
     }

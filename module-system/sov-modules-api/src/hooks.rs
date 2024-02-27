@@ -107,7 +107,7 @@ pub trait ApplySoftConfirmationHooks<Da: DaSpec> {
         &self,
         result: Self::SoftConfirmationResult,
         working_set: &mut WorkingSet<Self::Context>,
-    ) -> anyhow::Result<()>;
+    ) -> Result<(), ApplySoftConfirmationError>;
 }
 
 /// Information about the soft confirmation block
