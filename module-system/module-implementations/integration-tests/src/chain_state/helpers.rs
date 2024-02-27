@@ -1,7 +1,7 @@
 use sov_chain_state::ChainState;
-use sov_modules_api::hooks::ApplySoftConfirmationError;
 use sov_modules_api::hooks::{
-    ApplyBlobHooks, ApplySoftConfirmationHooks, FinalizeHook, SlotHooks, TxHooks,
+    ApplyBlobHooks, ApplySoftConfirmationError, ApplySoftConfirmationHooks, FinalizeHook,
+    SlotHooks, TxHooks,
 };
 use sov_modules_api::macros::DefaultRuntime;
 use sov_modules_api::transaction::Transaction;

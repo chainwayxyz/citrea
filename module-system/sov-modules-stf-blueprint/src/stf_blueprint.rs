@@ -1,8 +1,7 @@
 use std::marker::PhantomData;
 
 use borsh::{BorshDeserialize, BorshSerialize};
-use sov_modules_api::hooks::ApplySoftConfirmationError;
-use sov_modules_api::hooks::HookSoftConfirmationInfo;
+use sov_modules_api::hooks::{ApplySoftConfirmationError, HookSoftConfirmationInfo};
 use sov_modules_api::runtime::capabilities::KernelSlotHooks;
 use sov_modules_api::{
     BasicAddress, BlobReaderTrait, Context, DaSpec, DispatchCall, GasUnit, StateCheckpoint,
@@ -243,7 +242,7 @@ where
             );
 
             return (
-                Err(e.into()),
+                Err(e),
                 // Reverted in apply_soft_batch and sequencer
                 batch_workspace,
             );

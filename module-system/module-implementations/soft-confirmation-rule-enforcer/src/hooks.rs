@@ -1,5 +1,4 @@
-use sov_modules_api::hooks::ApplySoftConfirmationError;
-use sov_modules_api::hooks::HookSoftConfirmationInfo;
+use sov_modules_api::hooks::{ApplySoftConfirmationError, HookSoftConfirmationInfo};
 use sov_modules_api::{Context, DaSpec, StateMapAccessor, StateValueAccessor, WorkingSet};
 use sov_state::Storage;
 
@@ -35,8 +34,7 @@ where
                     hash: da_root_hash,
                     sequencer_pub_key: soft_batch_info.sequencer_pub_key().to_vec(),
                     limiting_number,
-                }
-                .into(),
+                },
             );
         }
 

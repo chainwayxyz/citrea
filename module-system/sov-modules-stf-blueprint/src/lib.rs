@@ -9,9 +9,9 @@ mod tx_verifier;
 pub use batch::Batch;
 use borsh::BorshSerialize;
 use sov_modules_api::da::BlockHeaderTrait;
-use sov_modules_api::hooks::ApplySoftConfirmationError;
 use sov_modules_api::hooks::{
-    ApplyBlobHooks, ApplySoftConfirmationHooks, FinalizeHook, SlotHooks, TxHooks,
+    ApplyBlobHooks, ApplySoftConfirmationError, ApplySoftConfirmationHooks, FinalizeHook,
+    SlotHooks, TxHooks,
 };
 use sov_modules_api::runtime::capabilities::{Kernel, KernelSlotHooks};
 use sov_modules_api::{
