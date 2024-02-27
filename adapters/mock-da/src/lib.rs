@@ -2,6 +2,8 @@
 #![doc = include_str!("../README.md")]
 
 #[cfg(feature = "native")]
+mod db_connector;
+#[cfg(feature = "native")]
 mod service;
 mod types;
 mod validity_condition;

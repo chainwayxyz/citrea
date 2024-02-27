@@ -138,6 +138,13 @@ where
         query_mode: QueryMode,
     ) -> RpcResult<Vec<Option<Tx>>>;
 
+    /// Gets a single event by number.
+    #[method(name = "getSoftConfirmationStatus")]
+    async fn get_soft_confirmation_status(
+        &self,
+        soft_batch_receipt: u64,
+    ) -> RpcResult<Option<String>>;
+
     /// Subscription method to receive a notification each time a slot is
     /// processed.
     #[subscription(name = "subscribeSlots", item = u64)]

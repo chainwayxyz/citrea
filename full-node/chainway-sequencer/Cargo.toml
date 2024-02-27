@@ -12,8 +12,6 @@ publish = false
 resolver = "2"
 
 [dependencies]
-sov-evm = { path = "../../module-system/module-implementations/sov-evm" }
-sov-modules-rollup-blueprint = { path = "../../module-system/sov-modules-rollup-blueprint" }
 bitcoin-da = { path = "../../adapters/bitcoin" }
 anyhow = { workspace = true }
 tracing = { workspace = true }
@@ -25,6 +23,7 @@ borsh = { workspace = true }
 digest = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+rs_merkle = { workspace = true }
 
 reth-primitives = { workspace = true }
 reth-rpc-types = { workspace = true }
@@ -43,6 +42,9 @@ schnellru = "0.2.1"
 sov-rollup-interface = { path = "../../rollup-interface", features = [
     "native",
 ] }
+sov-evm = { path = "../../module-system/module-implementations/sov-evm" }
+sov-db = { path = "../db/sov-db", version = "0.3" }
+sov-modules-rollup-blueprint = { path = "../../module-system/sov-modules-rollup-blueprint" }
 
 sov-stf-runner = { path = "../sov-stf-runner" }
 

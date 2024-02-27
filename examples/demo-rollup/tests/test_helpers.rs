@@ -1,7 +1,7 @@
 use std::net::SocketAddr;
 use std::path::Path;
 
-use chainway_sequencer::ChainwaySequencer;
+use chainway_sequencer::{ChainwaySequencer, SequencingParams};
 use citrea_stf::genesis_config::GenesisPaths;
 use const_rollup_config::TEST_PRIVATE_KEY;
 use sov_demo_rollup::MockDemoRollup;
@@ -32,6 +32,7 @@ pub async fn start_rollup(
     rollup_prover_config: RollupProverConfig,
     node_mode: NodeMode,
     db_path: Option<&str>,
+    min_soft_confirmations_per_commitment: u64,
 ) {
     let mut path = db_path.map(Path::new);
     let mut temp_dir: Option<tempfile::TempDir> = None;
@@ -68,6 +69,7 @@ pub async fn start_rollup(
             }),
             NodeMode::SequencerNode => None,
         },
+        min_soft_confirmations_per_commitment,
     };
 
     let mock_demo_rollup = MockDemoRollup {};
@@ -84,7 +86,7 @@ pub async fn start_rollup(
         .create_new_rollup(
             &rt_genesis_paths,
             kernel_genesis,
-            rollup_config,
+            rollup_config.clone(),
             rollup_prover_config,
         )
         .await
@@ -112,6 +114,11 @@ pub async fn start_rollup(
                     da_service,
                     DefaultPrivateKey::from_hex(TEST_PRIVATE_KEY).unwrap(),
                     storage,
+                    SequencingParams {
+                        // TODO: Set these to reasonable values when parametrized
+                        min_soft_confirmations_per_commitment: rollup_config
+                            .min_soft_confirmations_per_commitment,
+                    },
                 );
             sequencer
                 .start_rpc_server(Some(rpc_reporting_channel))

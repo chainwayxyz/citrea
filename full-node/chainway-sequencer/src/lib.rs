@@ -1,7 +1,7 @@
+mod commitment_controller;
 pub mod db_provider;
 mod utils;
 
-use std::borrow::BorrowMut;
 use std::marker::PhantomData;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -28,6 +28,8 @@ use reth_transaction_pool::{
 };
 use sov_accounts::Accounts;
 use sov_accounts::Response::{AccountEmpty, AccountExists};
+use sov_db::ledger_db::LedgerDB;
+use sov_db::schema::types::{BatchNumber, SlotNumber};
 pub use sov_evm::DevSigner;
 use sov_evm::{CallMessage, Evm, RlpEvmTransaction};
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
@@ -38,9 +40,9 @@ use sov_modules_api::{
     WorkingSet,
 };
 use sov_modules_rollup_blueprint::{Rollup, RollupBlueprint};
-use sov_rollup_interface::da::BlockHeaderTrait;
+use sov_rollup_interface::da::{BlockHeaderTrait, DaData};
 use sov_rollup_interface::services::da::DaService;
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 
 pub use crate::db_provider::DbProvider;
 use crate::utils::recover_raw_transaction;
@@ -81,17 +83,22 @@ pub struct RpcContext<C: sov_modules_api::Context> {
     pub storage: C::Storage,
 }
 
+pub struct SequencingParams {
+    pub min_soft_confirmations_per_commitment: u64,
+}
+
 pub struct ChainwaySequencer<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> {
     rollup: Rollup<S>,
     da_service: Da,
     mempool: Arc<CitreaMempool<C>>,
     p: PhantomData<C>,
     sov_tx_signer_priv_key: C::PrivateKey,
-    sov_tx_signer_nonce: u64,
     sender: UnboundedSender<String>,
     receiver: UnboundedReceiver<String>,
     db_provider: DbProvider<C>,
     storage: C::Storage,
+    ledger_db: LedgerDB,
+    params: SequencingParams,
 }
 
 impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySequencer<C, Da, S> {
@@ -100,23 +107,16 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
         da_service: Da,
         sov_tx_signer_priv_key: C::PrivateKey,
         storage: C::Storage,
+        params: SequencingParams,
     ) -> Self {
         let (sender, receiver) = unbounded();
-
-        let accounts = Accounts::<C>::default();
-        let mut working_set = WorkingSet::<C>::new(storage.clone());
-        let nonce = match accounts
-            .get_account(sov_tx_signer_priv_key.pub_key(), &mut working_set)
-            .expect("Sequencer: Failed to get sov-account")
-        {
-            AccountExists { addr: _, nonce } => nonce,
-            AccountEmpty => 0,
-        };
 
         // used as client of reth's mempool
         let db_provider = DbProvider::new(storage.clone());
 
         let pool = create_mempool(db_provider.clone());
+
+        let ledger_db = rollup.runner.ledger_db.clone();
 
         Self {
             rollup,
@@ -124,11 +124,12 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
             mempool: Arc::new(pool),
             p: PhantomData,
             sov_tx_signer_priv_key,
-            sov_tx_signer_nonce: nonce,
             sender,
             receiver,
             db_provider,
             storage,
+            ledger_db,
+            params,
         }
     }
 
@@ -146,6 +147,9 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
     }
 
     pub async fn run(&mut self) -> Result<(), anyhow::Error> {
+        // TODO: hotfix for mock da
+        self.da_service.get_block_at(1).await.unwrap();
+
         loop {
             if (self.receiver.next().await).is_some() {
                 // best txs with base fee
@@ -174,7 +178,7 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                     .map(|rlp| RlpEvmTransaction { rlp })
                     .collect();
 
-                info!(
+                debug!(
                     "Sequencer: publishing block with {} transactions",
                     rlp_txs.len()
                 );
@@ -184,15 +188,24 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                     <Runtime<C, Da::Spec> as EncodeCall<sov_evm::Evm<C>>>::encode_call(call_txs);
                 let signed_blob = self.make_blob(raw_message);
 
-                let prev_l1_height = self
-                    .rollup
-                    .runner
+                let mut prev_l1_height = self
+                    .ledger_db
                     .get_head_soft_batch()?
-                    .map(|(_, sb)| sb.da_slot_height)
-                    // TODO: default to starting height
-                    .unwrap_or(1); // If this is the first block, then the previous block is the genesis block, may need revisiting
+                    .map(|(_, sb)| sb.da_slot_height);
 
-                let previous_l1_block = self.da_service.get_block_at(prev_l1_height).await.unwrap();
+                if prev_l1_height.is_none() {
+                    prev_l1_height = Some(
+                        self.da_service
+                            .get_last_finalized_block_header()
+                            .await
+                            .unwrap()
+                            .height(),
+                    );
+                }
+
+                let prev_l1_height = prev_l1_height.unwrap();
+
+                debug!("Sequencer: prev L1 height: {:?}", prev_l1_height);
 
                 let last_finalized_height = self
                     .da_service
@@ -200,6 +213,11 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                     .await
                     .unwrap()
                     .height();
+
+                debug!(
+                    "Sequencer: last finalized height: {:?}",
+                    last_finalized_height
+                );
 
                 let last_finalized_block = self
                     .da_service
@@ -209,12 +227,65 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
 
                 let l1_fee_rate = self.da_service.get_fee_rate().await.unwrap();
 
-                // Compare if there is no skip
-                if last_finalized_block.header().prev_hash() != previous_l1_block.header().hash() {
-                    // TODO: This shouldn't happen. If it does, then we should produce at least 1 block for the blocks in between
-                }
-
                 if last_finalized_height != prev_l1_height {
+                    let previous_l1_block =
+                        self.da_service.get_block_at(prev_l1_height).await.unwrap();
+
+                    // Compare if there is no skip
+                    if last_finalized_block.header().prev_hash()
+                        != previous_l1_block.header().hash()
+                    {
+                        // TODO: This shouldn't happen. If it does, then we should produce at least 1 block for the blocks in between
+                    }
+                    debug!("Sequencer: new L1 block, checking if commitment should be submitted");
+
+                    let commitment_info = commitment_controller::get_commitment_info(
+                        &self.ledger_db,
+                        self.params.min_soft_confirmations_per_commitment,
+                        prev_l1_height,
+                    );
+
+                    if commitment_info.is_some() {
+                        debug!("Sequencer: enough soft confirmations to submit commitment");
+                        let commitment_info = commitment_info.unwrap();
+                        let l2_range_to_submit = commitment_info.l2_height_range.clone();
+
+                        // calculate exclusive range end
+                        let range_end = BatchNumber(l2_range_to_submit.end().0 + 1); // cannnot add u64 to BatchNumber directly
+
+                        let soft_confirmation_hashes = self
+                            .ledger_db
+                            .get_soft_batch_range(&(*l2_range_to_submit.start()..range_end))
+                            .expect("Sequencer: Failed to get soft batch range")
+                            .iter()
+                            .map(|sb| sb.hash)
+                            .collect::<Vec<[u8; 32]>>();
+
+                        let commitment = commitment_controller::get_commitment(
+                            commitment_info.clone(),
+                            soft_confirmation_hashes,
+                        );
+
+                        info!("Sequencer: submitting commitment: {:?}", commitment);
+
+                        // submit commitment
+                        self.da_service
+                            .send_transaction(
+                                DaData::SequencerCommitment(commitment)
+                                    .try_to_vec()
+                                    .unwrap()
+                                    .as_slice(),
+                            )
+                            .await
+                            .expect("Sequencer: Failed to send commitment");
+
+                        self.ledger_db
+                            .set_last_sequencer_commitment_l1_height(SlotNumber(
+                                commitment_info.l1_height_range.end().0,
+                            ))
+                            .expect("Sequencer: Failed to set last sequencer commitment L1 height");
+                    }
+
                     // TODO: this is where we would include forced transactions from the new L1 block
                 }
 
@@ -305,6 +376,22 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
 
                         self.mempool
                             .remove_transactions(self.db_provider.last_block_tx_hashes());
+
+                        // not really a good way to get the last soft batch number :)
+                        let last_soft_batch_number = self
+                            .ledger_db
+                            .get_head_soft_batch()
+                            .expect("Sequencer: Failed to get head soft batch")
+                            .unwrap()
+                            .0; // cannot be None here
+
+                        // connect L1 and L2 height
+                        self.ledger_db
+                            .extend_l2_range_of_l1_slot(
+                                SlotNumber(last_finalized_block.header().height()),
+                                last_soft_batch_number,
+                            )
+                            .expect("Sequencer: Failed to set L1 L2 connection");
                     }
                     (Err(err), batch_workspace) => {
                         warn!("Failed to apply soft confirmation hook: {:?} \n reverting batch workspace", err);
@@ -318,24 +405,16 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
     /// Signs batch of messages with sovereign priv key turns them into a sov blob
     /// Returns a single sovereign transaction made up of multiple ethereum transactions
     fn make_blob(&mut self, raw_message: Vec<u8>) -> Vec<u8> {
-        let nonce = self.sov_tx_signer_nonce.borrow_mut();
+        // if a batch failed need to refetch nonce
+        // so sticking to fetching from state makes sense
+        let nonce = self.get_nonce();
 
         // TODO: figure out what to do with sov-tx fields
         // chain id gas tip and gas limit
-        let raw_tx = Transaction::<C>::new_signed_tx(
-            &self.sov_tx_signer_priv_key,
-            raw_message,
-            0,
-            0,
-            0,
-            *nonce,
-        )
-        .try_to_vec()
-        .unwrap();
 
-        *nonce += 1;
-
-        raw_tx
+        Transaction::<C>::new_signed_tx(&self.sov_tx_signer_priv_key, raw_message, 0, 0, 0, nonce)
+            .try_to_vec()
+            .unwrap()
     }
 
     /// Signs necessary info and returns a BlockTemplate
@@ -359,6 +438,20 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
             signature.try_to_vec().unwrap(),
             self.sov_tx_signer_priv_key.pub_key().try_to_vec().unwrap(),
         )
+    }
+
+    /// Fetches nonce from state
+    fn get_nonce(&self) -> u64 {
+        let accounts = Accounts::<C>::default();
+        let mut working_set = WorkingSet::<C>::new(self.storage.clone());
+
+        match accounts
+            .get_account(self.sov_tx_signer_priv_key.pub_key(), &mut working_set)
+            .expect("Sequencer: Failed to get sov-account")
+        {
+            AccountExists { addr: _, nonce } => nonce,
+            AccountEmpty => 0,
+        }
     }
 
     pub fn register_rpc_methods(&mut self) -> Result<(), jsonrpsee::core::Error> {

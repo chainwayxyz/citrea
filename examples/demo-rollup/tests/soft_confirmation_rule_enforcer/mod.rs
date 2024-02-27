@@ -6,11 +6,12 @@ use tokio::time::{sleep, Duration};
 use crate::evm::make_test_client;
 // use sov_demo_rollup::initialize_logging;
 use crate::test_helpers::{start_rollup, NodeMode};
+use crate::DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT;
 
 /// Transaction with equal nonce to last tx should not be accepted by mempool.
 #[tokio::test]
 async fn too_many_l2_block_per_l1_block() {
-    // initialize_logging();
+    // sov_demo_rollup::initialize_logging();
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
@@ -26,6 +27,7 @@ async fn too_many_l2_block_per_l1_block() {
             RollupProverConfig::Execute,
             NodeMode::SequencerNode,
             None,
+            DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
         )
         .await;
     });

@@ -139,6 +139,7 @@ async fn runner_execution(
             aggregated_proof_block_jump: 1,
         },
         sequencer_client: None,
+        min_soft_confirmations_per_commitment: 1,
     };
 
     let ledger_db = LedgerDB::with_path(path).unwrap();
