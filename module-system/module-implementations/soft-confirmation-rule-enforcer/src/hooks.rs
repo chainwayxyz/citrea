@@ -1,7 +1,6 @@
-use anyhow::anyhow;
+use sov_modules_api::hooks::ApplySoftConfirmationError;
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::{Context, DaSpec, StateMapAccessor, StateValueAccessor, WorkingSet};
-use sov_modules_stf_blueprint::ApplySoftConfirmationError;
 use sov_state::Storage;
 
 use crate::SoftConfirmationRuleEnforcer;
@@ -100,7 +99,7 @@ where
         &self,
         soft_batch: &mut HookSoftConfirmationInfo,
         working_set: &mut WorkingSet<C>,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), ApplySoftConfirmationError> {
         self.apply_block_count_rule(soft_batch, working_set)?;
 
         self.apply_fee_rate_rule(soft_batch, working_set)?;

@@ -77,7 +77,7 @@ impl<C: Context, Da: DaSpec, Vm: Zkvm, Cond: ValidityCondition> StfBlueprintTrai
         _slot_header: &<Da as DaSpec>::BlockHeader,
         _soft_batch: &mut sov_modules_api::SignedSoftConfirmationBatch,
     ) -> (
-        Result<(), sov_modules_stf_blueprint::ApplySoftConfirmationError>,
+        Result<(), sov_modules_api::hooks::ApplySoftConfirmationError>,
         sov_modules_api::WorkingSet<C>,
     ) {
         unimplemented!()

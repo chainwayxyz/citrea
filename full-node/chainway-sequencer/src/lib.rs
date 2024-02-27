@@ -38,7 +38,6 @@ use sov_modules_api::{
     WorkingSet,
 };
 use sov_modules_rollup_blueprint::{Rollup, RollupBlueprint};
-use sov_modules_stf_blueprint::ApplySoftConfirmationError;
 use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::services::da::DaService;
 use tracing::{error, info, warn};

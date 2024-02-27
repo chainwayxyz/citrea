@@ -1,4 +1,5 @@
 use sov_accounts::AccountsTxHook;
+use sov_modules_api::hooks::ApplySoftConfirmationError;
 use sov_modules_api::hooks::{
     ApplyBlobHooks, ApplySoftConfirmationHooks, FinalizeHook, HookSoftConfirmationInfo, SlotHooks,
     TxHooks,
@@ -73,7 +74,7 @@ impl<C: Context, Da: DaSpec> ApplySoftConfirmationHooks<Da> for Runtime<C, Da> {
         &self,
         soft_batch: &mut HookSoftConfirmationInfo,
         working_set: &mut WorkingSet<Self::Context>,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), ApplySoftConfirmationError> {
         self.soft_confirmation_rule_enforcer
             .begin_soft_confirmation_hook(soft_batch, working_set)?;
 

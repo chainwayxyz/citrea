@@ -3,8 +3,38 @@ use serde::{Deserialize, Serialize};
 use sov_modules_core::{AccessoryWorkingSet, Context, Spec, Storage, WorkingSet};
 use sov_rollup_interface::da::{BlobReaderTrait, DaSpec};
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
+use thiserror::Error;
 
 use crate::transaction::Transaction;
+
+/// Soft confirmation error
+#[derive(Debug, Error)]
+pub enum ApplySoftConfirmationError {
+    /// Checks count of soft confirmations on the slot
+    #[error(
+        "Too many soft confirmations on the slot {:?} by sequencer {:?} with limiting number {}",
+        hash,
+        sequencer_pub_key,
+        limiting_number
+    )]
+    TooManySoftConfirmationsOnDaSlot {
+        /// Hash of the slot
+        hash: [u8; 32],
+        /// Sequencer public key
+        sequencer_pub_key: Vec<u8>,
+        /// Limiting number
+        limiting_number: u64,
+    },
+    #[error(
+        "L1 fee rate {} changed more than allowed limit %{}",
+        l1_fee_rate,
+        l1_fee_rate_change_percentage
+    )]
+    L1FeeRateChangeMoreThanAllowedPercentage {
+        l1_fee_rate: u64,
+        l1_fee_rate_change_percentage: u64,
+    },
+}
 
 /// Hooks that execute within the `StateTransitionFunction::apply_blob` function for each processed transaction.
 ///
@@ -69,7 +99,7 @@ pub trait ApplySoftConfirmationHooks<Da: DaSpec> {
         &self,
         soft_batch: &mut HookSoftConfirmationInfo,
         working_set: &mut WorkingSet<Self::Context>,
-    ) -> anyhow::Result<()>;
+    ) -> Result<(), ApplySoftConfirmationError>;
 
     /// Executes at the end of apply_blob and rewards or slashes the sequencer
     /// If this hook returns Err rollup panics

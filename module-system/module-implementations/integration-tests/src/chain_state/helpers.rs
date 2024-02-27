@@ -1,4 +1,5 @@
 use sov_chain_state::ChainState;
+use sov_modules_api::hooks::ApplySoftConfirmationError;
 use sov_modules_api::hooks::{
     ApplyBlobHooks, ApplySoftConfirmationHooks, FinalizeHook, SlotHooks, TxHooks,
 };
@@ -82,7 +83,7 @@ impl<C: Context, Da: DaSpec> ApplySoftConfirmationHooks<Da> for TestRuntime<C> {
         &self,
         _soft_batch: &mut sov_modules_api::hooks::HookSoftConfirmationInfo,
         _working_set: &mut sov_modules_api::WorkingSet<Self::Context>,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), ApplySoftConfirmationError> {
         todo!()
     }
 

@@ -9,6 +9,7 @@ mod tx_verifier;
 pub use batch::Batch;
 use borsh::BorshSerialize;
 use sov_modules_api::da::BlockHeaderTrait;
+use sov_modules_api::hooks::ApplySoftConfirmationError;
 use sov_modules_api::hooks::{
     ApplyBlobHooks, ApplySoftConfirmationHooks, FinalizeHook, SlotHooks, TxHooks,
 };
@@ -27,8 +28,6 @@ use sov_zk_cycle_macros::cycle_tracker;
 pub use stf_blueprint::StfBlueprint;
 use tracing::{debug, info, warn};
 pub use tx_verifier::RawTx;
-
-pub use crate::stf_blueprint::ApplySoftConfirmationError;
 
 /// The tx hook for a blueprint runtime
 pub struct RuntimeTxHook<C: Context> {

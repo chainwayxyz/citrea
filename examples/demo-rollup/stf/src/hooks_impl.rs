@@ -1,5 +1,6 @@
 use sov_accounts::AccountsTxHook;
 use sov_bank::BankTxHook;
+use sov_modules_api::hooks::ApplySoftConfirmationError;
 use sov_modules_api::hooks::{
     ApplyBlobHooks, ApplySoftConfirmationHooks, FinalizeHook, HookSoftConfirmationInfo, SlotHooks,
     TxHooks,
@@ -103,7 +104,7 @@ impl<C: Context, Da: DaSpec> ApplySoftConfirmationHooks<Da> for Runtime<C, Da> {
         &self,
         _soft_batch: &mut HookSoftConfirmationInfo,
         _working_set: &mut WorkingSet<Self::Context>,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), ApplySoftConfirmationError> {
         // Before executing each batch, check that the sender is registered as a sequencer
         Ok(())
     }

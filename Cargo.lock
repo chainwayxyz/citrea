@@ -9598,7 +9598,6 @@ dependencies = [
  "serde",
  "sov-mock-da",
  "sov-modules-api",
- "sov-modules-stf-blueprint",
  "sov-prover-storage-manager",
  "sov-rollup-interface",
  "sov-state",
