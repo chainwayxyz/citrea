@@ -144,14 +144,13 @@ pub trait StfBlueprintTrait<C: Context, Da: DaSpec, Vm: Zkvm>:
         &self,
         txs: Vec<Vec<u8>>,
         batch_workspace: WorkingSet<C>,
-    ) -> (u64, WorkingSet<C>, Vec<TransactionReceipt<TxEffect>>);
+    ) -> (WorkingSet<C>, Vec<TransactionReceipt<TxEffect>>);
 
     /// End a soft batch
     fn end_soft_batch(
         &self,
         sequencer_public_key: &[u8],
         soft_batch: &mut SignedSoftConfirmationBatch,
-        sequencer_reward: u64,
         tx_receipts: Vec<TransactionReceipt<TxEffect>>,
         batch_workspace: WorkingSet<C>,
     ) -> (BatchReceipt<(), TxEffect>, StateCheckpoint<C>);
@@ -221,7 +220,7 @@ where
         &self,
         txs: Vec<Vec<u8>>,
         batch_workspace: WorkingSet<C>,
-    ) -> (u64, WorkingSet<C>, Vec<TransactionReceipt<TxEffect>>) {
+    ) -> (WorkingSet<C>, Vec<TransactionReceipt<TxEffect>>) {
         self.apply_sov_txs_inner(txs, batch_workspace)
     }
 
@@ -229,7 +228,6 @@ where
         &self,
         sequencer_public_key: &[u8],
         soft_batch: &mut SignedSoftConfirmationBatch,
-        sequencer_reward: u64,
         tx_receipts: Vec<TransactionReceipt<TxEffect>>,
         batch_workspace: WorkingSet<C>,
     ) -> (BatchReceipt<(), TxEffect>, StateCheckpoint<C>) {
@@ -239,12 +237,8 @@ where
             "Signature verification must succeed"
         );
 
-        let (apply_soft_batch_result, checkpoint) = self.end_soft_confirmation_inner(
-            soft_batch,
-            sequencer_reward,
-            tx_receipts,
-            batch_workspace,
-        );
+        let (apply_soft_batch_result, checkpoint) =
+            self.end_soft_confirmation_inner(soft_batch, tx_receipts, batch_workspace);
 
         (apply_soft_batch_result.unwrap(), checkpoint)
     }
@@ -544,13 +538,12 @@ where
             soft_batch,
         ) {
             (Ok(()), batch_workspace) => {
-                let (sequencer_reward, batch_workspace, tx_receipts) =
+                let (batch_workspace, tx_receipts) =
                     self.apply_soft_batch_txs(soft_batch.txs(), batch_workspace);
 
                 let (batch_receipt, checkpoint) = self.end_soft_batch(
                     sequencer_public_key,
                     soft_batch,
-                    sequencer_reward,
                     tx_receipts,
                     batch_workspace,
                 );

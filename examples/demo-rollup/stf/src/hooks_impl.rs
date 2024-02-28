@@ -110,7 +110,6 @@ impl<C: Context, Da: DaSpec> ApplySoftConfirmationHooks<Da> for Runtime<C, Da> {
 
     fn end_soft_confirmation_hook(
         &self,
-        _result: Self::SoftConfirmationResult,
         _working_set: &mut WorkingSet<C>,
     ) -> Result<(), ApplySoftConfirmationError> {
         Ok(())

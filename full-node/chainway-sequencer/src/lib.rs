@@ -333,7 +333,7 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                     .await
                 {
                     (Ok(()), batch_workspace) => {
-                        let (sequencer_reward, batch_workspace, tx_receipts) = self
+                        let (batch_workspace, tx_receipts) = self
                             .rollup
                             .runner
                             .apply_sov_tx(txs.clone(), batch_workspace)
@@ -361,7 +361,6 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                             .runner
                             .end_soft_confirmation(
                                 &mut signed_soft_batch,
-                                sequencer_reward,
                                 tx_receipts,
                                 batch_workspace,
                             )

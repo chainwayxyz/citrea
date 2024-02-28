@@ -270,21 +270,19 @@ where
         &mut self,
         txs: Vec<Vec<u8>>,
         batch_workspace: WorkingSet<C>,
-    ) -> (u64, WorkingSet<C>, Vec<TransactionReceipt<TxEffect>>) {
+    ) -> (WorkingSet<C>, Vec<TransactionReceipt<TxEffect>>) {
         self.stf.apply_soft_batch_txs(txs, batch_workspace)
     }
     /// Commits changes and finalizes the block
     pub async fn end_soft_confirmation(
         &mut self,
         soft_batch: &mut SignedSoftConfirmationBatch,
-        sequencer_reward: u64,
         tx_receipts: Vec<TransactionReceipt<TxEffect>>,
         batch_workspace: WorkingSet<C>,
     ) -> (BatchReceipt<(), TxEffect>, StateCheckpoint<C>) {
         self.stf.end_soft_batch(
             self.sequencer_pub_key.as_ref(),
             soft_batch,
-            sequencer_reward,
             tx_receipts,
             batch_workspace,
         )
