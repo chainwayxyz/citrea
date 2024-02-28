@@ -2,6 +2,7 @@ mod commitment_controller;
 pub mod db_provider;
 mod utils;
 
+use std::array::TryFromSliceError;
 use std::marker::PhantomData;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -305,18 +306,22 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                 let mut signed_batch: SignedSoftConfirmationBatch = batch_info.clone().into();
                 // initially create sc info and call begin soft confirmation hook with it
                 let txs = vec![signed_blob.clone()];
-                let (filtered_block, prestate) = match self
+
+                let mut working_set = WorkingSet::<C>::new(self.storage.clone());
+                let evm = Evm::<C>::default();
+                let l2_height =
+                    convert_u256_to_u64(evm.block_number(&mut working_set).unwrap()).unwrap() + 1;
+                let filtered_block = self
                     .rollup
                     .runner
-                    .get_block_and_prestate(signed_batch.da_slot_height())
-                    .await
-                {
-                    Ok(result) => result,
-                    Err(_) => {
-                        error!("Failed to get block and prestate");
-                        continue;
-                    } // Continue the loop if there is an error
-                };
+                    .get_filtered_block(last_finalized_block.header().height())
+                    .await?;
+                let prestate = self
+                    .rollup
+                    .runner
+                    .get_prestate_with_l2_height(l2_height)
+                    .await?;
+
                 match self
                     .rollup
                     .runner
@@ -371,6 +376,7 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                                 filtered_block,
                                 prestate,
                                 &mut signed_soft_batch,
+                                l2_height,
                             )
                             .await;
 
@@ -522,4 +528,10 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
         self.rollup.rpc_methods.merge(rpc).unwrap();
         Ok(())
     }
+}
+
+fn convert_u256_to_u64(u256: reth_primitives::U256) -> Result<u64, TryFromSliceError> {
+    let bytes: [u8; 32] = u256.to_be_bytes();
+    let bytes: [u8; 8] = bytes[24..].try_into()?;
+    Ok(u64::from_be_bytes(bytes))
 }

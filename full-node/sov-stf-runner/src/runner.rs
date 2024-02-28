@@ -137,10 +137,10 @@ where
                     "No history detected. Initializing chain on block_header={:?}...",
                     block_header
                 );
-                let storage = storage_manager.create_storage_on(&block_header)?;
+                let storage = storage_manager.create_storage_on_l2_height(0)?;
                 let (genesis_root, initialized_storage) = stf.init_chain(storage, params);
-                storage_manager.save_change_set(&block_header, initialized_storage)?;
-                storage_manager.finalize(&block_header)?;
+                storage_manager.save_change_set_l2(0, initialized_storage)?;
+                storage_manager.finalize_l2(0)?;
                 info!(
                     "Chain initialization is done. Genesis root: 0x{}",
                     hex::encode(genesis_root.as_ref()),
@@ -199,6 +199,26 @@ where
     /// Returns the head soft batch
     pub fn get_head_soft_batch(&self) -> anyhow::Result<Option<(BatchNumber, StoredSoftBatch)>> {
         self.ledger_db.get_head_soft_batch()
+    }
+
+    /// Returns prestate for given L2 height
+    pub async fn get_prestate_with_l2_height(
+        &mut self,
+        l2_height: u64,
+    ) -> Result<<Sm as HierarchicalStorageManager<Da::Spec>>::NativeStorage, anyhow::Error> {
+        let prestate = self
+            .storage_manager
+            .create_storage_on_l2_height(l2_height)?;
+        Ok(prestate)
+    }
+
+    /// Returns filtered block for given DA slot height
+    pub async fn get_filtered_block(
+        &self,
+        da_slot_height: u64,
+    ) -> Result<<Da as DaService>::FilteredBlock, anyhow::Error> {
+        let filtered_block = self.da_service.get_block_at(da_slot_height).await?;
+        Ok(filtered_block)
     }
 
     /// Returns filtered block and prestate
@@ -270,7 +290,7 @@ where
         )
     }
 
-    /// TODO: Docs
+    /// Finalizes the soft confirmation and calls the finalize hooks
     pub async fn finalize_soft_confirmation(
         &mut self,
         batch_receipt: BatchReceipt<(), TxEffect>,
@@ -278,6 +298,7 @@ where
         filtered_block: <Da as DaService>::FilteredBlock,
         pre_state: <Sm as HierarchicalStorageManager<Da::Spec>>::NativeStorage,
         soft_batch: &mut SignedSoftConfirmationBatch,
+        l2_height: u64,
     ) -> Result<(), anyhow::Error> {
         let slot_result =
             self.stf
@@ -287,10 +308,10 @@ where
             debug!("Limiting number is reached for the current L1 block. State root is the same as before, skipping");
             // TODO: Check if below is legit
             self.storage_manager
-                .save_change_set(filtered_block.header(), slot_result.change_set)?;
+                .save_change_set_l2(l2_height, slot_result.change_set)?;
 
-            tracing::debug!("Finalizing seen header: {:?}", filtered_block.header());
-            self.storage_manager.finalize(filtered_block.header())?;
+            tracing::debug!("Finalizing l2 height: {:?}", l2_height);
+            self.storage_manager.finalize_l2(l2_height)?;
             return Ok(());
         }
 
@@ -330,10 +351,10 @@ where
         // is merged, rpc will access up to date storage then we won't need to finalize rigth away.
         // however we need much better DA + finalization logic here
         self.storage_manager
-            .save_change_set(filtered_block.header(), slot_result.change_set)?;
+            .save_change_set_l2(l2_height, slot_result.change_set)?;
 
-        tracing::debug!("Finalizing seen header: {:?}", filtered_block.header());
-        self.storage_manager.finalize(filtered_block.header())?;
+        tracing::debug!("Finalizing l2 height: {:?}", l2_height);
+        self.storage_manager.finalize_l2(l2_height)?;
 
         self.state_root = next_state_root;
 
@@ -607,9 +628,7 @@ where
 
             let mut data_to_commit = SlotCommit::new(filtered_block.clone());
 
-            let pre_state = self
-                .storage_manager
-                .create_storage_on(filtered_block.header())?;
+            let pre_state = self.storage_manager.create_storage_on_l2_height(height)?;
 
             let slot_result = self.stf.apply_soft_batch(
                 self.sequencer_pub_key.as_slice(),
@@ -644,7 +663,7 @@ where
             //     };
 
             self.storage_manager
-                .save_change_set(filtered_block.header(), slot_result.change_set)?;
+                .save_change_set_l2(height, slot_result.change_set)?;
 
             // ----------------
             // Create ZK proof.
@@ -717,8 +736,6 @@ where
                 height, self.state_root
             );
 
-            height += 1;
-
             // ----------------
             // Finalization. Done after seen block for proper handling of instant finality
             // Can be moved to another thread to improve throughput
@@ -729,25 +746,29 @@ where
                 last_finalized.height()
             );
             // Checking all seen blocks, in case if there was delay in getting last finalized header.
-            while let Some(earliest_seen_header) = seen_block_headers.front() {
-                tracing::debug!(
-                    "Checking seen header height={}",
-                    earliest_seen_header.height()
-                );
-                if earliest_seen_header.height() <= last_finalized.height() {
-                    tracing::debug!(
-                        "Finalizing seen header height={}",
-                        earliest_seen_header.height()
-                    );
-                    self.storage_manager.finalize(earliest_seen_header)?;
-                    seen_block_headers.pop_front();
-                    let receipts = seen_receipts.pop_front().unwrap();
-                    self.ledger_db.commit_slot(receipts)?;
-                    continue;
-                }
+            // while let Some(earliest_seen_header) = seen_block_headers.front() {
+            //     tracing::debug!(
+            //         "Checking seen header height={}",
+            //         earliest_seen_header.height()
+            //     );
+            //     if earliest_seen_header.height() <= last_finalized.height() {
+            //         tracing::debug!(
+            //             "Finalizing seen header height={}",
+            //             earliest_seen_header.height()
+            //         );
 
-                break;
-            }
+            //         continue;
+            //     }
+
+            //     break;
+            // }
+            // self.storage_manager.finalize(earliest_seen_header)?;
+            seen_block_headers.pop_front();
+            let receipts = seen_receipts.pop_front().unwrap();
+            self.ledger_db.commit_slot(receipts)?;
+            self.storage_manager.finalize_l2(height)?;
+
+            height += 1;
         }
     }
 

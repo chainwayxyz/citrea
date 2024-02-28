@@ -26,6 +26,9 @@ pub struct ProverStorageManager<Da: DaSpec, S: MerkleProofSpec> {
     latest_snapshot_id: SnapshotId,
     block_hash_to_snapshot_id: HashMap<Da::SlotHash, SnapshotId>,
 
+    // L2 block height to SnapshotId mapping
+    block_height_to_snapshot_id: HashMap<u64, SnapshotId>,
+
     // This is for tracking "finalized" storage and detect errors
     // TODO: Should be removed after https://github.com/Sovereign-Labs/sovereign-sdk/issues/1218
     orphaned_snapshots: HashSet<SnapshotId>,
@@ -55,6 +58,7 @@ where
             blocks_to_parent: Default::default(),
             latest_snapshot_id: 0,
             block_hash_to_snapshot_id: Default::default(),
+            block_height_to_snapshot_id: Default::default(),
             orphaned_snapshots: Default::default(),
             snapshot_id_to_parent,
             state_snapshot_manager: Arc::new(RwLock::new(state_snapshot_manager)),
@@ -100,6 +104,24 @@ where
 
         let native_db = NativeDB::with_db_snapshot(native_db_snapshot)?;
         Ok(ProverStorage::with_db_handles(state_db, native_db))
+    }
+
+    fn finalize_by_l2_height(&mut self, l2_block_height: u64) -> anyhow::Result<()> {
+        let snapshot_id = self
+            .block_height_to_snapshot_id
+            .remove(&l2_block_height)
+            .ok_or(anyhow::anyhow!("Attempt to finalize non existing snapshot"))?;
+
+        let mut state_manager = self.state_snapshot_manager.write().unwrap();
+        let mut native_manager = self.accessory_snapshot_manager.write().unwrap();
+        let mut snapshot_id_to_parent = self.snapshot_id_to_parent.write().unwrap();
+        snapshot_id_to_parent.remove(&snapshot_id);
+
+        // Return error here, as underlying database can return error
+        state_manager.commit_snapshot(&snapshot_id)?;
+        native_manager.commit_snapshot(&snapshot_id)?;
+
+        Ok(())
     }
 
     fn finalize_by_hash_pair(
@@ -180,6 +202,80 @@ where
 {
     type NativeStorage = ProverStorage<S, SnapshotManager>;
     type NativeChangeSet = ProverStorage<S, SnapshotManager>;
+
+    fn create_storage_on_l2_height(
+        &mut self,
+        l2_block_height: u64,
+    ) -> anyhow::Result<Self::NativeStorage> {
+        tracing::trace!(
+            "Requested native storage for block at height: {:?} ",
+            l2_block_height
+        );
+        let snapshot_id = match self.block_height_to_snapshot_id.get(&l2_block_height) {
+            Some(snapshot_id) => *snapshot_id,
+            None => {
+                let new_snapshot_id = self.latest_snapshot_id + 1;
+                self.block_height_to_snapshot_id
+                    .insert(l2_block_height, new_snapshot_id);
+                self.latest_snapshot_id = new_snapshot_id;
+                new_snapshot_id
+            }
+        };
+        tracing::debug!(
+            "Requested native storage for block at height: {:?}, giving snapshot id={}",
+            l2_block_height,
+            snapshot_id
+        );
+
+        self.get_storage_with_snapshot_id(snapshot_id)
+    }
+
+    fn finalize_l2(&mut self, l2_block_height: u64) -> anyhow::Result<()> {
+        self.finalize_by_l2_height(l2_block_height)
+    }
+
+    fn save_change_set_l2(
+        &mut self,
+        l2_block_height: u64,
+        change_set: Self::NativeChangeSet,
+    ) -> anyhow::Result<()> {
+        let (state_snapshot, native_snapshot) = change_set.freeze()?;
+        let snapshot_id = state_snapshot.get_id();
+        if snapshot_id != native_snapshot.get_id() {
+            anyhow::bail!(
+                "State id={} and Native id={} snapshots have different are not matching",
+                snapshot_id,
+                native_snapshot.get_id()
+            );
+        }
+
+        // Obviously alien
+        if snapshot_id > self.latest_snapshot_id {
+            anyhow::bail!("Attempt to save unknown snapshot with id={}", snapshot_id);
+        }
+
+        if self.orphaned_snapshots.remove(&snapshot_id) {
+            tracing::debug!(
+                "Discarded reference to 'finalized' snapshot={}",
+                snapshot_id
+            );
+            return Ok(());
+        }
+
+        {
+            let mut state_manager = self.state_snapshot_manager.write().unwrap();
+            let mut native_manager = self.accessory_snapshot_manager.write().unwrap();
+
+            state_manager.add_snapshot(state_snapshot);
+            native_manager.add_snapshot(native_snapshot);
+        }
+        tracing::debug!(
+            "Snapshot id={} for block at height={} has been saved to StorageManager",
+            snapshot_id,
+            l2_block_height
+        );
+        Ok(())
+    }
 
     fn create_storage_on(
         &mut self,
