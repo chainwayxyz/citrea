@@ -43,7 +43,7 @@ use sov_modules_api::{
 use sov_modules_rollup_blueprint::{Rollup, RollupBlueprint};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaData};
 use sov_rollup_interface::services::da::DaService;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info, warn};
 
 pub use crate::db_provider::DbProvider;
 use crate::utils::recover_raw_transaction;
