@@ -61,6 +61,7 @@ fn initialize_runner(
     MockDaService,
     MockZkvm<MockValidityCond>,
     MockProverService,
+    sov_modules_api::default_context::DefaultContext,
 > {
     let address = MockAddress::new([11u8; 32]);
     let rollup_config = RollupConfig::<MockDaConfig> {

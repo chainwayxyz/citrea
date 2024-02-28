@@ -1,8 +1,40 @@
+use borsh::{BorshDeserialize, BorshSerialize};
+use serde::{Deserialize, Serialize};
 use sov_modules_core::{AccessoryWorkingSet, Context, Spec, Storage, WorkingSet};
 use sov_rollup_interface::da::{BlobReaderTrait, DaSpec};
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
+use thiserror::Error;
 
 use crate::transaction::Transaction;
+
+/// Soft confirmation error
+#[derive(Debug, Error)]
+pub enum ApplySoftConfirmationError {
+    /// Checks count of soft confirmations on the slot
+    #[error(
+        "Too many soft confirmations on the slot {:?} by sequencer {:?} with limiting number {}",
+        hash,
+        sequencer_pub_key,
+        limiting_number
+    )]
+    TooManySoftConfirmationsOnDaSlot {
+        /// Hash of the slot
+        hash: [u8; 32],
+        /// Sequencer public key
+        sequencer_pub_key: Vec<u8>,
+        /// Limiting number
+        limiting_number: u64,
+    },
+    #[error(
+        "L1 fee rate {} changed more than allowed limit %{}",
+        l1_fee_rate,
+        l1_fee_rate_change_percentage
+    )]
+    L1FeeRateChangeMoreThanAllowedPercentage {
+        l1_fee_rate: u64,
+        l1_fee_rate_change_percentage: u64,
+    },
+}
 
 /// Hooks that execute within the `StateTransitionFunction::apply_blob` function for each processed transaction.
 ///
@@ -65,9 +97,9 @@ pub trait ApplySoftConfirmationHooks<Da: DaSpec> {
     /// If this hook returns Err, batch is not applied
     fn begin_soft_confirmation_hook(
         &self,
-        soft_batch: &mut SignedSoftConfirmationBatch,
+        soft_batch: &mut HookSoftConfirmationInfo,
         working_set: &mut WorkingSet<Self::Context>,
-    ) -> anyhow::Result<()>;
+    ) -> Result<(), ApplySoftConfirmationError>;
 
     /// Executes at the end of apply_blob and rewards or slashes the sequencer
     /// If this hook returns Err rollup panics
@@ -75,7 +107,76 @@ pub trait ApplySoftConfirmationHooks<Da: DaSpec> {
         &self,
         result: Self::SoftConfirmationResult,
         working_set: &mut WorkingSet<Self::Context>,
-    ) -> anyhow::Result<()>;
+    ) -> Result<(), ApplySoftConfirmationError>;
+}
+
+/// Information about the soft confirmation block
+/// Does not include txs because txs can be appended by the sequencer
+#[derive(Debug, PartialEq, Clone, BorshDeserialize, BorshSerialize, Serialize, Deserialize, Eq)]
+pub struct HookSoftConfirmationInfo {
+    /// DA block this soft confirmation was given for
+    pub da_slot_height: u64,
+    /// DA block hash
+    pub da_slot_hash: [u8; 32],
+    /// Previous batch's pre state root
+    pub pre_state_root: Vec<u8>,
+    /// Public key of signer
+    pub pub_key: Vec<u8>,
+    /// L1 fee rate
+    pub l1_fee_rate: u64,
+}
+
+impl From<SignedSoftConfirmationBatch> for HookSoftConfirmationInfo {
+    fn from(signed_soft_confirmation_batch: SignedSoftConfirmationBatch) -> Self {
+        HookSoftConfirmationInfo {
+            da_slot_height: signed_soft_confirmation_batch.da_slot_height(),
+            da_slot_hash: signed_soft_confirmation_batch.da_slot_hash(),
+            pre_state_root: signed_soft_confirmation_batch.pre_state_root(),
+            pub_key: signed_soft_confirmation_batch.sequencer_pub_key().to_vec(),
+            l1_fee_rate: signed_soft_confirmation_batch.l1_fee_rate(),
+        }
+    }
+}
+
+impl From<HookSoftConfirmationInfo> for SignedSoftConfirmationBatch {
+    fn from(val: HookSoftConfirmationInfo) -> Self {
+        SignedSoftConfirmationBatch::new(
+            [0u8; 32],
+            val.da_slot_height,
+            val.da_slot_hash(),
+            val.pre_state_root(),
+            val.l1_fee_rate,
+            vec![],
+            vec![],
+            val.pub_key.clone(),
+        )
+    }
+}
+
+impl HookSoftConfirmationInfo {
+    /// DA block to build on
+    pub fn da_slot_hash(&self) -> [u8; 32] {
+        self.da_slot_hash
+    }
+
+    /// Previous batch's pre state root
+    pub fn pre_state_root(&self) -> Vec<u8> {
+        self.pre_state_root.clone()
+    }
+
+    /// Public key of signer
+    pub fn sequencer_pub_key(&self) -> &[u8] {
+        self.pub_key.as_ref()
+    }
+
+    /// Borsh serialized data
+    pub fn full_data(&mut self) -> Vec<u8> {
+        self.try_to_vec().unwrap()
+    }
+
+    pub fn l1_fee_rate(&self) -> u64 {
+        self.l1_fee_rate
+    }
 }
 
 /// Hooks that execute during the `StateTransitionFunction::begin_slot` and `end_slot` functions.

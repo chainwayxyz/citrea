@@ -1,6 +1,7 @@
 use sov_accounts::AccountsTxHook;
 use sov_modules_api::hooks::{
-    ApplyBlobHooks, ApplySoftConfirmationHooks, FinalizeHook, SlotHooks, TxHooks,
+    ApplyBlobHooks, ApplySoftConfirmationError, ApplySoftConfirmationHooks, FinalizeHook,
+    HookSoftConfirmationInfo, SlotHooks, TxHooks,
 };
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{AccessoryWorkingSet, Context, Spec, WorkingSet};
@@ -70,14 +71,14 @@ impl<C: Context, Da: DaSpec> ApplySoftConfirmationHooks<Da> for Runtime<C, Da> {
 
     fn begin_soft_confirmation_hook(
         &self,
-        soft_batch: &mut sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch,
+        soft_batch: &mut HookSoftConfirmationInfo,
         working_set: &mut WorkingSet<Self::Context>,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), ApplySoftConfirmationError> {
         self.soft_confirmation_rule_enforcer
             .begin_soft_confirmation_hook(soft_batch, working_set)?;
 
         self.evm.begin_soft_confirmation_hook(
-            soft_batch.hash(),
+            soft_batch.da_slot_hash(),
             &soft_batch.pre_state_root(),
             working_set,
         );
@@ -89,7 +90,7 @@ impl<C: Context, Da: DaSpec> ApplySoftConfirmationHooks<Da> for Runtime<C, Da> {
         &self,
         _result: Self::SoftConfirmationResult,
         working_set: &mut WorkingSet<C>,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), ApplySoftConfirmationError> {
         self.evm.end_soft_confirmation_hook(working_set);
         Ok(())
     }

@@ -150,7 +150,7 @@ async fn check_sequencer_commitment(
 
     let start_l1_block = da_service.get_block_at(start_l1_block).await.unwrap();
     let end_l1_block = da_service
-        .get_block_at(commitments_last_soft_confirmation.da_slot_height)
+        .get_block_at(commitments_last_soft_confirmation.da_slot_height())
         .await
         .unwrap();
 

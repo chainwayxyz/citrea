@@ -3,6 +3,8 @@ use sov_mock_da::{
     MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaSpec, MockValidityCond,
 };
 use sov_mock_zkvm::MockZkvm;
+use sov_modules_api::Context;
+use sov_modules_stf_blueprint::StfBlueprintTrait;
 use sov_prover_storage_manager::{new_orphan_storage, SnapshotManager};
 use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::stf::{SlotResult, StateTransitionFunction};
@@ -60,6 +62,72 @@ impl<Cond> HashStf<Cond> {
         }
 
         (root_hash, storage)
+    }
+}
+
+impl<C: Context, Da: DaSpec, Vm: Zkvm, Cond: ValidityCondition> StfBlueprintTrait<C, Da, Vm>
+    for HashStf<Cond>
+{
+    fn begin_soft_batch(
+        &self,
+        _sequencer_public_key: &[u8],
+        _pre_state_root: &Self::StateRoot,
+        _pre_state: Self::PreState,
+        _witness: <<C as sov_modules_api::Spec>::Storage as Storage>::Witness,
+        _slot_header: &<Da as DaSpec>::BlockHeader,
+        _soft_batch: &mut sov_modules_api::SignedSoftConfirmationBatch,
+    ) -> (
+        Result<(), sov_modules_api::hooks::ApplySoftConfirmationError>,
+        sov_modules_api::WorkingSet<C>,
+    ) {
+        unimplemented!()
+    }
+
+    fn apply_soft_batch_txs(
+        &self,
+        _txs: Vec<Vec<u8>>,
+        _batch_workspace: sov_modules_api::WorkingSet<C>,
+    ) -> (
+        u64,
+        sov_modules_api::WorkingSet<C>,
+        Vec<sov_modules_stf_blueprint::TransactionReceipt<sov_modules_stf_blueprint::TxEffect>>,
+    ) {
+        unimplemented!()
+    }
+
+    fn end_soft_batch(
+        &self,
+        _sequencer_public_key: &[u8],
+        _soft_batch: &mut sov_modules_api::SignedSoftConfirmationBatch,
+        _sequencer_reward: u64,
+        _tx_receipts: Vec<
+            sov_modules_stf_blueprint::TransactionReceipt<sov_modules_stf_blueprint::TxEffect>,
+        >,
+        _batch_workspace: sov_modules_api::WorkingSet<C>,
+    ) -> (
+        sov_modules_stf_blueprint::BatchReceipt<(), sov_modules_stf_blueprint::TxEffect>,
+        sov_modules_api::StateCheckpoint<C>,
+    ) {
+        unimplemented!()
+    }
+
+    fn finalize_soft_batch(
+        &self,
+        _batch_receipt: sov_modules_stf_blueprint::BatchReceipt<
+            (),
+            sov_modules_stf_blueprint::TxEffect,
+        >,
+        _checkpoint: sov_modules_api::StateCheckpoint<C>,
+        _pre_state: Self::PreState,
+        _soft_batch: &mut sov_modules_api::SignedSoftConfirmationBatch,
+    ) -> SlotResult<
+        Self::StateRoot,
+        Self::ChangeSet,
+        Self::BatchReceiptContents,
+        Self::TxReceiptContents,
+        Self::Witness,
+    > {
+        unimplemented!()
     }
 }
 

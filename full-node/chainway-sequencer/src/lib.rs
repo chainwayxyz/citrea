@@ -2,9 +2,11 @@ mod commitment_controller;
 pub mod db_provider;
 mod utils;
 
+use std::array::TryFromSliceError;
 use std::marker::PhantomData;
 use std::net::SocketAddr;
 use std::sync::Arc;
+use std::vec;
 
 use borsh::ser::BorshSerialize;
 use citrea_stf::runtime::Runtime;
@@ -31,6 +33,7 @@ use sov_db::ledger_db::LedgerDB;
 use sov_db::schema::types::{BatchNumber, SlotNumber};
 pub use sov_evm::DevSigner;
 use sov_evm::{CallMessage, Evm, RlpEvmTransaction};
+use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::utils::to_jsonrpsee_error_object;
 use sov_modules_api::{
@@ -40,7 +43,7 @@ use sov_modules_api::{
 use sov_modules_rollup_blueprint::{Rollup, RollupBlueprint};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaData};
 use sov_rollup_interface::services::da::DaService;
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 
 pub use crate::db_provider::DbProvider;
 use crate::utils::recover_raw_transaction;
@@ -287,9 +290,8 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                     // TODO: this is where we would include forced transactions from the new L1 block
                 }
 
-                let unsigned_batch = UnsignedSoftConfirmationBatch {
+                let batch_info = HookSoftConfirmationInfo {
                     da_slot_height: last_finalized_block.header().height(),
-                    txs: vec![signed_blob.clone()],
                     da_slot_hash: last_finalized_block.header().hash().into(),
                     pre_state_root: self
                         .rollup
@@ -298,34 +300,110 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                         .clone()
                         .as_ref()
                         .to_vec(),
+                    pub_key: self.sov_tx_signer_priv_key.pub_key().try_to_vec().unwrap(),
                     l1_fee_rate,
                 };
+                let mut signed_batch: SignedSoftConfirmationBatch = batch_info.clone().into();
+                // initially create sc info and call begin soft confirmation hook with it
+                let txs = vec![signed_blob.clone()];
 
-                let signed_soft_batch = self.sign_soft_confirmation_batch(unsigned_batch);
+                let mut working_set = WorkingSet::<C>::new(self.storage.clone());
+                let evm = Evm::<C>::default();
+                let l2_height =
+                    convert_u256_to_u64(evm.block_number(&mut working_set).unwrap()).unwrap() + 1;
+                let filtered_block = self
+                    .rollup
+                    .runner
+                    .get_filtered_block(last_finalized_block.header().height())
+                    .await?;
+                let prestate = self
+                    .rollup
+                    .runner
+                    .get_prestate_with_l2_height(l2_height)
+                    .await?;
 
-                // TODO: handle error
-                self.rollup.runner.process(signed_soft_batch).await?;
-
-                // get last block remove only txs in block
-
-                self.mempool
-                    .remove_transactions(self.db_provider.last_block_tx_hashes());
-
-                // not really a good way to get the last soft batch number :)
-                let last_soft_batch_number = self
-                    .ledger_db
-                    .get_head_soft_batch()
-                    .expect("Sequencer: Failed to get head soft batch")
-                    .unwrap()
-                    .0; // cannot be None here
-
-                // connect L1 and L2 height
-                self.ledger_db
-                    .extend_l2_range_of_l1_slot(
-                        SlotNumber(last_finalized_block.header().height()),
-                        last_soft_batch_number,
+                match self
+                    .rollup
+                    .runner
+                    .begin_soft_confirmation(
+                        &mut signed_batch,
+                        filtered_block.clone(),
+                        prestate.clone(),
                     )
-                    .expect("Sequencer: Failed to set L1 L2 connection");
+                    .await
+                {
+                    (Ok(()), batch_workspace) => {
+                        let (sequencer_reward, batch_workspace, tx_receipts) = self
+                            .rollup
+                            .runner
+                            .apply_sov_tx(txs.clone(), batch_workspace)
+                            .await;
+
+                        // create the unsigned batch with the txs then sign th sc
+                        let unsigned_batch = UnsignedSoftConfirmationBatch::new(
+                            last_finalized_block.header().height(),
+                            last_finalized_block.header().hash().into(),
+                            self.rollup
+                                .runner
+                                .get_state_root()
+                                .clone()
+                                .as_ref()
+                                .to_vec(),
+                            txs,
+                            l1_fee_rate,
+                        );
+
+                        let mut signed_soft_batch =
+                            self.sign_soft_confirmation_batch(unsigned_batch);
+
+                        let (batch_receipt, checkpoint) = self
+                            .rollup
+                            .runner
+                            .end_soft_confirmation(
+                                &mut signed_soft_batch,
+                                sequencer_reward,
+                                tx_receipts,
+                                batch_workspace,
+                            )
+                            .await;
+
+                        let _ = self
+                            .rollup
+                            .runner
+                            .finalize_soft_confirmation(
+                                batch_receipt,
+                                checkpoint,
+                                filtered_block,
+                                prestate,
+                                &mut signed_soft_batch,
+                                l2_height,
+                            )
+                            .await;
+
+                        self.mempool
+                            .remove_transactions(self.db_provider.last_block_tx_hashes());
+
+                        // not really a good way to get the last soft batch number :)
+                        let last_soft_batch_number = self
+                            .ledger_db
+                            .get_head_soft_batch()
+                            .expect("Sequencer: Failed to get head soft batch")
+                            .unwrap()
+                            .0; // cannot be None here
+
+                        // connect L1 and L2 height
+                        self.ledger_db
+                            .extend_l2_range_of_l1_slot(
+                                SlotNumber(last_finalized_block.header().height()),
+                                last_soft_batch_number,
+                            )
+                            .expect("Sequencer: Failed to set L1 L2 connection");
+                    }
+                    (Err(err), batch_workspace) => {
+                        warn!("Failed to apply soft confirmation hook: {:?} \n reverting batch workspace", err);
+                        batch_workspace.revert();
+                    }
+                }
             }
         }
     }
@@ -356,16 +434,16 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
 
         let signature = self.sov_tx_signer_priv_key.sign(&raw);
 
-        SignedSoftConfirmationBatch {
+        SignedSoftConfirmationBatch::new(
             hash,
-            da_slot_height: soft_confirmation.da_slot_height,
-            txs: soft_confirmation.txs,
-            da_slot_hash: soft_confirmation.da_slot_hash,
-            pre_state_root: soft_confirmation.pre_state_root,
-            pub_key: self.sov_tx_signer_priv_key.pub_key().try_to_vec().unwrap(),
-            signature: signature.try_to_vec().unwrap(),
-            l1_fee_rate: soft_confirmation.l1_fee_rate,
-        }
+            soft_confirmation.da_slot_height(),
+            soft_confirmation.da_slot_hash(),
+            soft_confirmation.pre_state_root(),
+            soft_confirmation.l1_fee_rate(),
+            soft_confirmation.txs(),
+            signature.try_to_vec().unwrap(),
+            self.sov_tx_signer_priv_key.pub_key().try_to_vec().unwrap(),
+        )
     }
 
     /// Fetches nonce from state
@@ -450,4 +528,10 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
         self.rollup.rpc_methods.merge(rpc).unwrap();
         Ok(())
     }
+}
+
+fn convert_u256_to_u64(u256: reth_primitives::U256) -> Result<u64, TryFromSliceError> {
+    let bytes: [u8; 32] = u256.to_be_bytes();
+    let bytes: [u8; 8] = bytes[24..].try_into()?;
+    Ok(u64::from_be_bytes(bytes))
 }

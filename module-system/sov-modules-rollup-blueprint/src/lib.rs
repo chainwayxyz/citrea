@@ -229,6 +229,7 @@ pub struct Rollup<S: RollupBlueprint> {
         S::DaService,
         S::Vm,
         S::ProverService,
+        S::NativeContext,
     >,
     /// Rpc methods for the rollup.
     pub rpc_methods: jsonrpsee::RpcModule<()>,

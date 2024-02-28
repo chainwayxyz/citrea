@@ -1,6 +1,7 @@
 use sov_chain_state::ChainState;
 use sov_modules_api::hooks::{
-    ApplyBlobHooks, ApplySoftConfirmationHooks, FinalizeHook, SlotHooks, TxHooks,
+    ApplyBlobHooks, ApplySoftConfirmationError, ApplySoftConfirmationHooks, FinalizeHook,
+    SlotHooks, TxHooks,
 };
 use sov_modules_api::macros::DefaultRuntime;
 use sov_modules_api::transaction::Transaction;
@@ -80,9 +81,9 @@ impl<C: Context, Da: DaSpec> ApplySoftConfirmationHooks<Da> for TestRuntime<C> {
 
     fn begin_soft_confirmation_hook(
         &self,
-        _soft_batch: &mut sov_modules_api::SignedSoftConfirmationBatch,
+        _soft_batch: &mut sov_modules_api::hooks::HookSoftConfirmationInfo,
         _working_set: &mut sov_modules_api::WorkingSet<Self::Context>,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), ApplySoftConfirmationError> {
         todo!()
     }
 
@@ -90,7 +91,7 @@ impl<C: Context, Da: DaSpec> ApplySoftConfirmationHooks<Da> for TestRuntime<C> {
         &self,
         _result: Self::SoftConfirmationResult,
         _working_set: &mut sov_modules_api::WorkingSet<Self::Context>,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), ApplySoftConfirmationError> {
         todo!()
     }
 }

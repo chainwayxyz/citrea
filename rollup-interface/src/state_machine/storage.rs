@@ -11,6 +11,22 @@ pub trait HierarchicalStorageManager<Da: DaSpec> {
     /// Type that is produced by `[crate::state_machine::stf::StateTransitionFunction]`.
     type NativeChangeSet;
 
+    /// Creates storage based on given l2 block height,
+    fn create_storage_on_l2_height(
+        &mut self,
+        l2_block_height: u64,
+    ) -> anyhow::Result<Self::NativeStorage>;
+
+    /// Finalizes snapshot on given l2 block height
+    fn finalize_l2(&mut self, l2_block_height: u64) -> anyhow::Result<()>;
+
+    /// Adds [`Self::NativeChangeSet`] to the storage.
+    fn save_change_set_l2(
+        &mut self,
+        l2_block_height: u64,
+        change_set: Self::NativeChangeSet,
+    ) -> anyhow::Result<()>;
+
     /// Creates storage based on given Da block header,
     /// meaning that at will have access to previous blocks state in same fork.
     fn create_storage_on(

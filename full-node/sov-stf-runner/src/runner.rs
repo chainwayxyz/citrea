@@ -10,11 +10,15 @@ use rs_merkle::MerkleTree;
 use sequencer_client::SequencerClient;
 use sov_db::ledger_db::{LedgerDB, SlotCommit};
 use sov_db::schema::types::{BatchNumber, SlotNumber, StoredSoftBatch};
+use sov_modules_api::hooks::ApplySoftConfirmationError;
+use sov_modules_api::{Context, StateCheckpoint, WorkingSet};
+use sov_modules_stf_blueprint::{StfBlueprintTrait, TxEffect};
 use sov_rollup_interface::da::DaData::SequencerCommitment;
 use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaData, DaSpec};
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
-use sov_rollup_interface::stf::{SoftBatchReceipt, StateTransitionFunction};
+pub use sov_rollup_interface::stf::BatchReceipt;
+use sov_rollup_interface::stf::{SoftBatchReceipt, StateTransitionFunction, TransactionReceipt};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::{Zkvm, ZkvmHost};
 use tokio::sync::oneshot;
@@ -32,13 +36,15 @@ const RETRY_INTERVAL: &[u64] = &[1, 5];
 const RETRY_SLEEP: u64 = 2;
 
 /// Combines `DaService` with `StateTransitionFunction` and "runs" the rollup.
-pub struct StateTransitionRunner<Stf, Sm, Da, Vm, Ps>
+pub struct StateTransitionRunner<Stf, Sm, Da, Vm, Ps, C>
 where
     Da: DaService,
     Vm: ZkvmHost,
     Sm: HierarchicalStorageManager<Da::Spec>,
-    Stf: StateTransitionFunction<Vm, Da::Spec, Condition = <Da::Spec as DaSpec>::ValidityCondition>,
+    Stf: StateTransitionFunction<Vm, Da::Spec, Condition = <Da::Spec as DaSpec>::ValidityCondition>
+        + StfBlueprintTrait<C, Da::Spec, Vm>,
     Ps: ProverService,
+    C: Context,
 {
     start_height: u64,
     da_service: Da,
@@ -52,6 +58,7 @@ where
     prover_service: Ps,
     sequencer_client: Option<SequencerClient>,
     sequencer_pub_key: Vec<u8>,
+    phantom: std::marker::PhantomData<C>,
 }
 
 /// Represents the possible modes of execution for a zkVM program
@@ -83,19 +90,19 @@ pub enum InitVariant<Stf: StateTransitionFunction<Vm, Da>, Vm: Zkvm, Da: DaSpec>
     },
 }
 
-impl<Stf, Sm, Da, Vm, Ps> StateTransitionRunner<Stf, Sm, Da, Vm, Ps>
+impl<Stf, Sm, Da, Vm, Ps, C> StateTransitionRunner<Stf, Sm, Da, Vm, Ps, C>
 where
     Da: DaService<Error = anyhow::Error> + Clone + Send + Sync + 'static,
     Vm: ZkvmHost,
     Sm: HierarchicalStorageManager<Da::Spec>,
     Stf: StateTransitionFunction<
-        Vm,
-        Da::Spec,
-        Condition = <Da::Spec as DaSpec>::ValidityCondition,
-        PreState = Sm::NativeStorage,
-        ChangeSet = Sm::NativeChangeSet,
-    >,
-
+            Vm,
+            Da::Spec,
+            Condition = <Da::Spec as DaSpec>::ValidityCondition,
+            PreState = Sm::NativeStorage,
+            ChangeSet = Sm::NativeChangeSet,
+        > + StfBlueprintTrait<C, Da::Spec, Vm>,
+    C: Context,
     Ps: ProverService<StateRoot = Stf::StateRoot, Witness = Stf::Witness, DaService = Da>,
 {
     /// Creates a new `StateTransitionRunner`.
@@ -130,10 +137,10 @@ where
                     "No history detected. Initializing chain on block_header={:?}...",
                     block_header
                 );
-                let storage = storage_manager.create_storage_on(&block_header)?;
+                let storage = storage_manager.create_storage_on_l2_height(0)?;
                 let (genesis_root, initialized_storage) = stf.init_chain(storage, params);
-                storage_manager.save_change_set(&block_header, initialized_storage)?;
-                storage_manager.finalize(&block_header)?;
+                storage_manager.save_change_set_l2(0, initialized_storage)?;
+                storage_manager.finalize_l2(0)?;
                 info!(
                     "Chain initialization is done. Genesis root: 0x{}",
                     hex::encode(genesis_root.as_ref()),
@@ -161,6 +168,7 @@ where
             prover_service,
             sequencer_client,
             sequencer_pub_key,
+            phantom: std::marker::PhantomData,
         })
     }
 
@@ -188,6 +196,171 @@ where
         });
     }
 
+    /// Returns the head soft batch
+    pub fn get_head_soft_batch(&self) -> anyhow::Result<Option<(BatchNumber, StoredSoftBatch)>> {
+        self.ledger_db.get_head_soft_batch()
+    }
+
+    /// Returns prestate for given L2 height
+    pub async fn get_prestate_with_l2_height(
+        &mut self,
+        l2_height: u64,
+    ) -> Result<<Sm as HierarchicalStorageManager<Da::Spec>>::NativeStorage, anyhow::Error> {
+        let prestate = self
+            .storage_manager
+            .create_storage_on_l2_height(l2_height)?;
+        Ok(prestate)
+    }
+
+    /// Returns filtered block for given DA slot height
+    pub async fn get_filtered_block(
+        &self,
+        da_slot_height: u64,
+    ) -> Result<<Da as DaService>::FilteredBlock, anyhow::Error> {
+        let filtered_block = self.da_service.get_block_at(da_slot_height).await?;
+        Ok(filtered_block)
+    }
+
+    /// Returns filtered block and prestate
+    pub async fn get_block_and_prestate(
+        &mut self,
+        da_slot_height: u64,
+    ) -> Result<
+        (
+            <Da as DaService>::FilteredBlock,
+            <Sm as HierarchicalStorageManager<Da::Spec>>::NativeStorage,
+        ),
+        anyhow::Error,
+    > {
+        let filtered_block = self.da_service.get_block_at(da_slot_height).await?;
+        let pre_state = self
+            .storage_manager
+            .create_storage_on(filtered_block.header())?;
+        Ok((filtered_block, pre_state))
+    }
+
+    /// Soft confirmation rules are checked, state checkpoint is created
+    pub async fn begin_soft_confirmation(
+        &mut self,
+        soft_batch: &mut SignedSoftConfirmationBatch,
+        filtered_block: <Da as DaService>::FilteredBlock,
+        pre_state: <Sm as HierarchicalStorageManager<Da::Spec>>::NativeStorage,
+    ) -> (Result<(), ApplySoftConfirmationError>, WorkingSet<C>) {
+        // TODO: check for reorgs here
+        // check out run_in_process for an example
+
+        info!(
+            "Applying soft batch on DA block: {}",
+            hex::encode(filtered_block.header().hash().into())
+        );
+
+        let pub_key = soft_batch.pub_key().clone();
+
+        self.stf.begin_soft_batch(
+            &pub_key,
+            &self.state_root,
+            pre_state,
+            Default::default(),
+            filtered_block.header(),
+            soft_batch,
+        )
+    }
+    /// Applies given txs calls pre and post tx hooks
+    pub async fn apply_sov_tx(
+        &mut self,
+        txs: Vec<Vec<u8>>,
+        batch_workspace: WorkingSet<C>,
+    ) -> (u64, WorkingSet<C>, Vec<TransactionReceipt<TxEffect>>) {
+        self.stf.apply_soft_batch_txs(txs, batch_workspace)
+    }
+    /// Commits changes and finalizes the block
+    pub async fn end_soft_confirmation(
+        &mut self,
+        soft_batch: &mut SignedSoftConfirmationBatch,
+        sequencer_reward: u64,
+        tx_receipts: Vec<TransactionReceipt<TxEffect>>,
+        batch_workspace: WorkingSet<C>,
+    ) -> (BatchReceipt<(), TxEffect>, StateCheckpoint<C>) {
+        self.stf.end_soft_batch(
+            self.sequencer_pub_key.as_ref(),
+            soft_batch,
+            sequencer_reward,
+            tx_receipts,
+            batch_workspace,
+        )
+    }
+
+    /// Finalizes the soft confirmation and calls the finalize hooks
+    pub async fn finalize_soft_confirmation(
+        &mut self,
+        batch_receipt: BatchReceipt<(), TxEffect>,
+        checkpoint: StateCheckpoint<C>,
+        filtered_block: <Da as DaService>::FilteredBlock,
+        pre_state: <Sm as HierarchicalStorageManager<Da::Spec>>::NativeStorage,
+        soft_batch: &mut SignedSoftConfirmationBatch,
+        l2_height: u64,
+    ) -> Result<(), anyhow::Error> {
+        let slot_result =
+            self.stf
+                .finalize_soft_batch(batch_receipt, checkpoint, pre_state, soft_batch);
+
+        if slot_result.state_root.as_ref() == self.state_root.as_ref() {
+            debug!("Limiting number is reached for the current L1 block. State root is the same as before, skipping");
+            // TODO: Check if below is legit
+            self.storage_manager
+                .save_change_set_l2(l2_height, slot_result.change_set)?;
+
+            tracing::debug!("Finalizing l2 height: {:?}", l2_height);
+            self.storage_manager.finalize_l2(l2_height)?;
+            return Ok(());
+        }
+
+        info!(
+            "State root after applying slot: {:?}",
+            slot_result.state_root
+        );
+
+        let mut data_to_commit = SlotCommit::new(filtered_block.clone());
+        for receipt in slot_result.batch_receipts {
+            data_to_commit.add_batch(receipt);
+        }
+
+        // TODO: This will be a single receipt once we have apply_soft_batch.
+        let batch_receipt = data_to_commit.batch_receipts()[0].clone();
+
+        let next_state_root = slot_result.state_root;
+
+        let soft_batch_receipt = SoftBatchReceipt::<_, _, Da::Spec> {
+            pre_state_root: self.state_root.as_ref().to_vec(),
+            post_state_root: next_state_root.as_ref().to_vec(),
+            inner: batch_receipt.inner,
+            batch_hash: batch_receipt.batch_hash,
+            da_slot_hash: filtered_block.header().hash(),
+            da_slot_height: filtered_block.header().height(),
+            tx_receipts: batch_receipt.tx_receipts,
+            soft_confirmation_signature: soft_batch.signature().to_vec(),
+            pub_key: soft_batch.pub_key().to_vec(),
+            l1_fee_rate: soft_batch.l1_fee_rate(),
+        };
+
+        self.ledger_db
+            .commit_soft_batch(soft_batch_receipt, false)?;
+
+        // TODO: this will only work for mock da
+        // when https://github.com/Sovereign-Labs/sovereign-sdk/issues/1218
+        // is merged, rpc will access up to date storage then we won't need to finalize rigth away.
+        // however we need much better DA + finalization logic here
+        self.storage_manager
+            .save_change_set_l2(l2_height, slot_result.change_set)?;
+
+        tracing::debug!("Finalizing l2 height: {:?}", l2_height);
+        self.storage_manager.finalize_l2(l2_height)?;
+
+        self.state_root = next_state_root;
+
+        Ok(())
+    }
+
     /// Processes sequence
     /// gets BlockTemplate from sequencer
     pub async fn process(
@@ -196,7 +369,7 @@ where
     ) -> Result<(), anyhow::Error> {
         let filtered_block = self
             .da_service
-            .get_block_at(soft_batch.da_slot_height)
+            .get_block_at(soft_batch.da_slot_height())
             .await?;
 
         let pre_state = self
@@ -211,7 +384,7 @@ where
             hex::encode(filtered_block.header().hash().into())
         );
 
-        let pub_key = soft_batch.pub_key.clone();
+        let pub_key = soft_batch.pub_key().clone();
 
         let slot_result = self.stf.apply_soft_batch(
             pub_key.as_ref(),
@@ -222,6 +395,7 @@ where
             &filtered_block.validity_condition(),
             &mut soft_batch,
         );
+
         if slot_result.state_root.as_ref() == self.state_root.as_ref() {
             debug!("Limiting number is reached for the current L1 block. State root is the same as before, skipping");
             // TODO: Check if below is legit
@@ -256,9 +430,9 @@ where
             da_slot_hash: filtered_block.header().hash(),
             da_slot_height: filtered_block.header().height(),
             tx_receipts: batch_receipt.tx_receipts,
-            soft_confirmation_signature: soft_batch.signature.to_vec(),
-            pub_key: soft_batch.pub_key.to_vec(),
-            l1_fee_rate: soft_batch.l1_fee_rate,
+            soft_confirmation_signature: soft_batch.signature().to_vec(),
+            pub_key: soft_batch.pub_key().to_vec(),
+            l1_fee_rate: soft_batch.l1_fee_rate(),
         };
 
         self.ledger_db
@@ -454,9 +628,7 @@ where
 
             let mut data_to_commit = SlotCommit::new(filtered_block.clone());
 
-            let pre_state = self
-                .storage_manager
-                .create_storage_on(filtered_block.header())?;
+            let pre_state = self.storage_manager.create_storage_on_l2_height(height)?;
 
             let slot_result = self.stf.apply_soft_batch(
                 self.sequencer_pub_key.as_slice(),
@@ -491,7 +663,7 @@ where
             //     };
 
             self.storage_manager
-                .save_change_set(filtered_block.header(), slot_result.change_set)?;
+                .save_change_set_l2(height, slot_result.change_set)?;
 
             // ----------------
             // Create ZK proof.
@@ -564,8 +736,6 @@ where
                 height, self.state_root
             );
 
-            height += 1;
-
             // ----------------
             // Finalization. Done after seen block for proper handling of instant finality
             // Can be moved to another thread to improve throughput
@@ -576,25 +746,29 @@ where
                 last_finalized.height()
             );
             // Checking all seen blocks, in case if there was delay in getting last finalized header.
-            while let Some(earliest_seen_header) = seen_block_headers.front() {
-                tracing::debug!(
-                    "Checking seen header height={}",
-                    earliest_seen_header.height()
-                );
-                if earliest_seen_header.height() <= last_finalized.height() {
-                    tracing::debug!(
-                        "Finalizing seen header height={}",
-                        earliest_seen_header.height()
-                    );
-                    self.storage_manager.finalize(earliest_seen_header)?;
-                    seen_block_headers.pop_front();
-                    let receipts = seen_receipts.pop_front().unwrap();
-                    self.ledger_db.commit_slot(receipts)?;
-                    continue;
-                }
+            // while let Some(earliest_seen_header) = seen_block_headers.front() {
+            //     tracing::debug!(
+            //         "Checking seen header height={}",
+            //         earliest_seen_header.height()
+            //     );
+            //     if earliest_seen_header.height() <= last_finalized.height() {
+            //         tracing::debug!(
+            //             "Finalizing seen header height={}",
+            //             earliest_seen_header.height()
+            //         );
 
-                break;
-            }
+            //         continue;
+            //     }
+
+            //     break;
+            // }
+            // self.storage_manager.finalize(earliest_seen_header)?;
+            seen_block_headers.pop_front();
+            let receipts = seen_receipts.pop_front().unwrap();
+            self.ledger_db.commit_slot(receipts)?;
+            self.storage_manager.finalize_l2(height)?;
+
+            height += 1;
         }
     }
 
