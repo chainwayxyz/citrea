@@ -4,7 +4,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use sov_modules_api::hooks::{ApplySoftConfirmationError, HookSoftConfirmationInfo};
 use sov_modules_api::runtime::capabilities::KernelSlotHooks;
 use sov_modules_api::{
-    BasicAddress, BlobReaderTrait, Context, DaSpec, DispatchCall, GasUnit, StateCheckpoint,
+    BasicAddress, BlobReaderTrait, Context, DaSpec, DispatchCall, StateCheckpoint,
     WorkingSet,
 };
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
@@ -56,8 +56,8 @@ impl<A: BasicAddress> From<ApplyBatchError<A>> for BatchReceipt<SequencerOutcome
             },
             ApplyBatchError::Slashed {
                 hash,
-                reason,
-                sequencer_da_address,
+                reason: _,
+                sequencer_da_address: _,
             } => BatchReceipt {
                 batch_hash: hash,
                 tx_receipts: Vec::new(),
@@ -314,7 +314,7 @@ where
                 // Explicitly revert on slashing, even though nothing has changed in pre_process.
                 let mut batch_workspace = batch_workspace.checkpoint().to_revertable();
                 let sequencer_da_address = blob.sender();
-                let sequencer_outcome = SequencerOutcome::Slashed {
+                let _sequencer_outcome = SequencerOutcome::Slashed {
                     reason,
                     sequencer_da_address: sequencer_da_address.clone(),
                 };
@@ -348,8 +348,8 @@ where
         );
 
         // TODO fetch gas price from chain state
-        let gas_elastic_price = [0, 0];
-        let mut sequencer_reward = 0u64;
+        let _gas_elastic_price = [0, 0];
+        let _sequencer_reward = 0u64;
 
         // Dispatching transactions
         let mut tx_receipts = Vec::with_capacity(txs.len());

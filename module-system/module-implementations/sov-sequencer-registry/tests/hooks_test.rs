@@ -3,7 +3,7 @@ use sov_mock_da::{MockAddress, MockBlob};
 use sov_modules_api::hooks::ApplyBlobHooks;
 use sov_modules_api::WorkingSet;
 use sov_prover_storage_manager::new_orphan_storage;
-use sov_sequencer_registry::{SequencerOutcome, SequencerRegistry};
+use sov_sequencer_registry::SequencerRegistry;
 
 mod helpers;
 

@@ -7,7 +7,7 @@ use digest::typenum::U32;
 use digest::Digest;
 use sov_rollup_interface::RollupAddress;
 
-use crate::common::{GasUnit, PublicKey, Signature, Witness};
+use crate::common::{PublicKey, Signature, Witness};
 use crate::storage::Storage;
 
 /// The `Spec` trait configures certain key primitives to be used by a by a particular instance of a rollup.

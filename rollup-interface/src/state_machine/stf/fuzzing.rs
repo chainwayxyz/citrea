@@ -183,7 +183,7 @@ impl<B: Arbitrary + 'static, R: Arbitrary + 'static> Arbitrary for BatchReceipt<
                 ),
                 any::<B>(),
             )
-                .prop_map(move |(batch_hash, txs, receipt)| {
+                .prop_map(move |(batch_hash, txs, _receipt)| {
                     let batch_hash = match args.hasher {
                         Some(ref hasher) => {
                             let mut merkle_hasher = FuzzMerkleHasher { hasher };

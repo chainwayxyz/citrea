@@ -1,10 +1,10 @@
 use helpers::*;
 use sov_bank::{
-    get_genesis_token_address, Bank, BankConfig, BankGasConfig, CallMessage, TokenConfig,
+    get_genesis_token_address, Bank, BankConfig, CallMessage, TokenConfig,
 };
 use sov_modules_api::macros::config_constant;
 use sov_modules_api::utils::generate_address;
-use sov_modules_api::{Context, GasUnit, Module, WorkingSet};
+use sov_modules_api::{Context, Module, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
 use tempfile::TempDir;
 
@@ -108,9 +108,9 @@ impl BankGasTestCase {
             ctx,
             message,
             tmpdir,
-            gas_limit,
-            native_price,
-            zk_price,
+            gas_limit: _,
+            native_price: _,
+            zk_price: _,
         } = self;
 
         bank.call(message, &ctx, &mut ws)?;

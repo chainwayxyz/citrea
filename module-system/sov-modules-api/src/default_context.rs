@@ -3,7 +3,7 @@ use std::fmt::Debug;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use sha2::Digest;
-use sov_modules_core::{Address, Context, PublicKey, Spec, TupleGasUnit};
+use sov_modules_core::{Address, Context, PublicKey, Spec};
 use sov_rollup_interface::RollupAddress;
 #[cfg(feature = "native")]
 use sov_state::ProverStorage;

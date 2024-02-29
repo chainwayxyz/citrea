@@ -26,8 +26,4 @@ pub fn get_genesis_token_address<C: sov_modules_api::Context>(
 }
 
 #[cfg(feature = "test-utils")]
-mod tests {
-    use sov_modules_api::Context;
-
-    use crate::{Bank, BankGasConfig};
-}
+mod tests {}

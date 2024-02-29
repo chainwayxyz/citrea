@@ -2,8 +2,6 @@
 
 use core::fmt;
 
-use anyhow::Result;
-
 /// A gas unit that provides scalar conversion from complex, multi-dimensional types.
 pub trait GasUnit: fmt::Debug + Clone + Send + Sync {
     /// A zeroed instance of the unit.
@@ -48,6 +46,7 @@ where
     GU: GasUnit,
 {
     remaining_funds: u64,
+    #[allow(dead_code)]
     gas_price: GU,
 }
 

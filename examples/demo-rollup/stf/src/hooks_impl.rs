@@ -8,9 +8,7 @@ use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{AccessoryWorkingSet, Context, Spec, WorkingSet};
 use sov_modules_stf_blueprint::{RuntimeTxHook, SequencerOutcome};
 use sov_rollup_interface::da::{BlobReaderTrait, DaSpec};
-use sov_sequencer_registry::SequencerRegistry;
 use sov_state::Storage;
-use tracing::info;
 
 use crate::runtime::Runtime;
 
@@ -62,7 +60,7 @@ impl<C: Context, Da: DaSpec> ApplyBlobHooks<Da::BlobTransaction> for Runtime<C, 
         self.sequencer_registry.begin_blob_hook(blob, working_set)
     }
 
-    fn end_blob_hook(&self, working_set: &mut WorkingSet<C>) -> anyhow::Result<()> {
+    fn end_blob_hook(&self, _working_set: &mut WorkingSet<C>) -> anyhow::Result<()> {
         Ok(())
     }
 }

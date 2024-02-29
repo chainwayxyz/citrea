@@ -29,7 +29,7 @@ impl<C: Context, Da: sov_modules_api::DaSpec> ApplyBlobHooks<Da::BlobTransaction
         Ok(())
     }
 
-    fn end_blob_hook(&self, working_set: &mut WorkingSet<C>) -> anyhow::Result<()> {
+    fn end_blob_hook(&self, _working_set: &mut WorkingSet<C>) -> anyhow::Result<()> {
         Ok(())
     }
 }
