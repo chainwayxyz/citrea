@@ -34,8 +34,8 @@ use sov_schema_db::schema::{KeyDecoder, KeyEncoder, ValueCodec};
 use sov_schema_db::{CodecError, SeekKeyEncoder};
 
 use super::types::{
-    AccessoryKey, AccessoryStateValue, BatchNumber, DbHash, EventNumber, JmtValue, SlotNumber,
-    StateKey, StoredBatch, StoredSlot, StoredSoftBatch, StoredTransaction, TxNumber,
+    AccessoryKey, AccessoryStateValue, BatchNumber, DbHash, EventNumber, JmtValue, L2HeightRange,
+    SlotNumber, StateKey, StoredBatch, StoredSlot, StoredSoftBatch, StoredTransaction, TxNumber,
 };
 
 /// A list of all tables used by the StateDB. These tables store rollup state - meaning
@@ -53,8 +53,11 @@ pub const LEDGER_TABLES: &[&str] = &[
     SlotByHash::table_name(),
     SoftBatchByNumber::table_name(),
     SoftBatchByHash::table_name(),
+    L2RangeByL1Height::table_name(),
+    LastSequencerCommitmentSent::table_name(),
     BatchByHash::table_name(),
     BatchByNumber::table_name(),
+    SoftConfirmationStatus::table_name(),
     TxByHash::table_name(),
     TxByNumber::table_name(),
     EventByKey::table_name(),
@@ -230,9 +233,24 @@ define_table_with_default_codec!(
     (SoftBatchByHash) DbHash => BatchNumber
 );
 
+define_table_with_default_codec!(
+    /// The primary source of reverse look-up L2 height ranges for L1 heights
+    (L2RangeByL1Height) SlotNumber => L2HeightRange
+);
+
+define_table_with_seek_key_codec!(
+    /// Sequencer uses this table to store the last commitment it sent
+    (LastSequencerCommitmentSent) () => SlotNumber
+);
+
 define_table_with_seek_key_codec!(
     /// The primary source for batch data
     (BatchByNumber) BatchNumber => StoredBatch
+);
+
+define_table_with_default_codec!(
+    /// Check whether a block is finalized
+    (SoftConfirmationStatus) SlotNumber => bool
 );
 
 define_table_with_default_codec!(

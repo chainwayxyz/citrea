@@ -3,6 +3,7 @@ use sov_mock_da::{
     MockDaVerifier, MockValidityCond, PlannedFork,
 };
 use sov_mock_zkvm::MockZkvm;
+use sov_modules_api::default_context::DefaultContext;
 use sov_stf_runner::{
     InitVariant, ParallelProverService, ProverServiceConfig, RollupConfig, RollupProverConfig,
     RpcConfig, RunnerConfig, StateTransitionRunner, StorageConfig,
@@ -138,6 +139,7 @@ async fn runner_execution(
             aggregated_proof_block_jump: 1,
         },
         sequencer_client: None,
+        min_soft_confirmations_per_commitment: 1,
     };
 
     let ledger_db = LedgerDB::with_path(path).unwrap();
@@ -164,18 +166,19 @@ async fn runner_execution(
         rollup_config.prover_service,
     );
 
-    let mut runner = StateTransitionRunner::new(
-        rollup_config.runner,
-        da_service,
-        ledger_db,
-        stf,
-        storage_manager,
-        init_variant,
-        prover_service,
-        None,
-        vec![0u8; 32],
-    )
-    .unwrap();
+    let mut runner: StateTransitionRunner<_, _, _, _, _, DefaultContext> =
+        StateTransitionRunner::new(
+            rollup_config.runner,
+            da_service,
+            ledger_db,
+            stf,
+            storage_manager,
+            init_variant,
+            prover_service,
+            None,
+            vec![0u8; 32],
+        )
+        .unwrap();
 
     let before = *runner.get_state_root();
     let end = runner.run_in_process().await;

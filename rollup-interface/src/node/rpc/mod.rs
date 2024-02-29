@@ -185,6 +185,8 @@ pub struct SoftBatchResponse {
     /// Public key of the signer
     #[serde(with = "hex::serde")]
     pub pub_key: Vec<u8>,
+    /// Base layer fee rate sats/wei etc. per byte.
+    pub l1_fee_rate: u64,
 }
 
 /// The response to a JSON-RPC request for a particular batch.
@@ -357,6 +359,13 @@ pub trait LedgerRpcProvider {
         end: u64,
         query_mode: QueryMode,
     ) -> Result<Vec<Option<TxResponse<T>>>, anyhow::Error>;
+
+    /// Takes an L2 Height and and outputs a string "trusted" or "finalized"
+    /// TODO: Add status "proven"
+    fn get_soft_confirmation_status(
+        &self,
+        soft_batch_receipt: u64,
+    ) -> Result<Option<String>, anyhow::Error>;
 
     /// Get a notification each time a slot is processed
     fn subscribe_slots(&self) -> Result<tokio::sync::broadcast::Receiver<u64>, anyhow::Error>;

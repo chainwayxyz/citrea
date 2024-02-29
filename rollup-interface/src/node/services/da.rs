@@ -47,6 +47,9 @@ pub trait DaService: Send + Sync + 'static {
     /// Should always returns the block at that height on the best fork.
     async fn get_block_at(&self, height: u64) -> Result<Self::FilteredBlock, Self::Error>;
 
+    /// Fetch block by hash.
+    async fn get_block_by_hash(&self, hash: [u8; 32]) -> Result<Self::FilteredBlock, Self::Error>;
+
     /// Fetch the [`DaSpec::BlockHeader`] of the last finalized block.
     /// If there's no finalized block yet, it should return an error.
     async fn get_last_finalized_block_header(
@@ -125,6 +128,9 @@ pub trait DaService: Send + Sync + 'static {
 
     /// Fetches all aggregated ZK proofs at a specified block height.
     async fn get_aggregated_proofs_at(&self, height: u64) -> Result<Vec<Vec<u8>>, Self::Error>;
+
+    /// Returns fee rate per byte on DA layer.
+    async fn get_fee_rate(&self) -> Result<u64, Self::Error>;
 }
 
 /// `SlotData` is the subset of a DA layer block which is stored in the rollup's database.

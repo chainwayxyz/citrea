@@ -153,6 +153,12 @@ where
             .get_transactions_range::<Tx>(args.0, args.1, args.2)
             .map_err(|e| to_jsonrpsee_error_object(e, LEDGER_RPC_ERROR))
     })?;
+    rpc.register_method("ledger_getSoftConfirmationStatus", move |params, ledger| {
+        let args: QueryArgs<u64> = extract_query_args(params)?;
+        ledger
+            .get_soft_confirmation_status(args.0)
+            .map_err(|e| to_jsonrpsee_error_object(e, LEDGER_RPC_ERROR))
+    })?;
 
     rpc.register_subscription(
         "ledger_subscribeSlots",

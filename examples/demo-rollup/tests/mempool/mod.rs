@@ -10,6 +10,7 @@ use sov_stf_runner::RollupProverConfig;
 use crate::evm::make_test_client;
 use crate::test_client::{TestClient, MAX_FEE_PER_GAS};
 use crate::test_helpers::{start_rollup, NodeMode};
+use crate::DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT;
 
 /// Transaction with equal nonce to last tx should not be accepted by mempool.
 #[tokio::test]
@@ -28,6 +29,7 @@ async fn test_same_nonce_tx_should_panic() {
             RollupProverConfig::Execute,
             NodeMode::SequencerNode,
             None,
+            DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
         )
         .await;
     });
@@ -72,6 +74,7 @@ async fn test_nonce_too_low() {
             RollupProverConfig::Execute,
             NodeMode::SequencerNode,
             None,
+            DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
         )
         .await;
     });
@@ -117,6 +120,7 @@ async fn test_nonce_too_high() {
             RollupProverConfig::Execute,
             NodeMode::SequencerNode,
             None,
+            DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
         )
         .await;
     });
@@ -166,6 +170,7 @@ async fn test_order_by_fee() {
             RollupProverConfig::Execute,
             NodeMode::SequencerNode,
             None,
+            DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
         )
         .await;
     });
@@ -284,6 +289,7 @@ async fn test_tx_with_low_base_fee() {
             RollupProverConfig::Execute,
             NodeMode::SequencerNode,
             None,
+            DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
         )
         .await;
     });
@@ -344,6 +350,7 @@ async fn test_same_nonce_tx_replacement() {
             RollupProverConfig::Execute,
             NodeMode::SequencerNode,
             None,
+            DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
         )
         .await;
     });

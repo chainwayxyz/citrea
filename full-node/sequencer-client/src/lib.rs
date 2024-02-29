@@ -83,18 +83,20 @@ pub struct GetSoftBatchResponse<Hash: Into<[u8; 32]>> {
     pub soft_confirmation_signature: Vec<u8>,
     #[serde(with = "hex::serde")]
     pub pub_key: Vec<u8>,
+    pub l1_fee_rate: u64,
 }
 
 impl<Hash: Into<[u8; 32]>> From<GetSoftBatchResponse<Hash>> for SignedSoftConfirmationBatch {
     fn from(val: GetSoftBatchResponse<Hash>) -> Self {
-        SignedSoftConfirmationBatch {
-            hash: val.hash,
-            da_slot_height: val.da_slot_height,
-            da_slot_hash: val.da_slot_hash.into(),
-            txs: val.txs.unwrap_or_default(),
-            pre_state_root: val.pre_state_root,
-            signature: val.soft_confirmation_signature,
-            pub_key: val.pub_key,
-        }
+        SignedSoftConfirmationBatch::new(
+            val.hash,
+            val.da_slot_height,
+            val.da_slot_hash.into(),
+            val.pre_state_root,
+            val.l1_fee_rate,
+            val.txs.unwrap_or_default(),
+            val.soft_confirmation_signature,
+            val.pub_key,
+        )
     }
 }

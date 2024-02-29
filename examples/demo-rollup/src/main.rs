@@ -2,7 +2,7 @@ use core::fmt::Debug as DebugTrait;
 
 use anyhow::{anyhow, Context as _};
 use bitcoin_da::service::DaServiceConfig;
-use chainway_sequencer::ChainwaySequencer;
+use chainway_sequencer::{ChainwaySequencer, SequencingParams};
 use citrea_stf::genesis_config::GenesisPaths;
 use clap::Parser;
 use const_rollup_config::TEST_PRIVATE_KEY;
@@ -180,6 +180,9 @@ where
             )
             .unwrap(),
             storage,
+            SequencingParams {
+                min_soft_confirmations_per_commitment: rollup_config.min_soft_confirmations_per_commitment,
+            },
         );
         seq.start_rpc_server(None).await?;
         seq.run().await?;

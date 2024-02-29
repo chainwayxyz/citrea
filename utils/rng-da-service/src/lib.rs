@@ -117,6 +117,10 @@ impl DaService for RngDaService {
         unimplemented!()
     }
 
+    async fn get_block_by_hash(&self, _hash: [u8; 32]) -> Result<Self::FilteredBlock, Self::Error> {
+        unimplemented!()
+    }
+
     fn extract_relevant_blobs(
         &self,
         block: &Self::FilteredBlock,
@@ -175,6 +179,10 @@ impl DaService for RngDaService {
     }
 
     async fn get_aggregated_proofs_at(&self, _height: u64) -> Result<Vec<Vec<u8>>, Self::Error> {
+        unimplemented!()
+    }
+
+    async fn get_fee_rate(&self) -> Result<u64, Self::Error> {
         unimplemented!()
     }
 }
