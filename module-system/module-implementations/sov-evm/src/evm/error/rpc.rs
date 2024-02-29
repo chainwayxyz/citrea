@@ -8,14 +8,12 @@ use jsonrpsee::core::Error as RpcError;
 use jsonrpsee::types::error::CALL_EXECUTION_FAILED_CODE;
 use jsonrpsee::types::ErrorObject;
 use reth_interfaces::RethError;
-// use reth_primitives::revm_primitives::InvalidHeader;
 use reth_primitives::{Address, Bytes, U256};
 use reth_rpc_types::error::EthRpcErrorCode;
 use reth_rpc_types::request::TransactionInputError;
 use reth_rpc_types::BlockError;
 use revm::primitives::{EVMError, ExecutionResult, HaltReason, InvalidHeader, OutOfGasError};
 
-// use reth_revm::tracing::js::JsInspectorError;
 use super::pool::{
     Eip4844PoolTransactionError, InvalidPoolTransactionError, PoolError, PoolErrorKind,
     PoolTransactionError,
