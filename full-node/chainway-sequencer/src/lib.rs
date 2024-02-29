@@ -22,8 +22,8 @@ use reth_rpc_types_compat::transaction::from_recovered;
 use reth_tasks::TokioTaskExecutor;
 use reth_transaction_pool::blobstore::NoopBlobStore;
 use reth_transaction_pool::{
-    CoinbaseTipOrdering, EthPooledTransaction, EthTransactionValidator, Pool, TransactionOrigin,
-    TransactionPool, TransactionValidationTaskExecutor,
+    BestTransactionsAttributes, CoinbaseTipOrdering, EthPooledTransaction, EthTransactionValidator,
+    Pool, TransactionOrigin, TransactionPool, TransactionValidationTaskExecutor,
 };
 use sov_accounts::Accounts;
 use sov_accounts::Response::{AccountEmpty, AccountExists};
@@ -158,7 +158,9 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                     .expect("Failed to get next block base fee")
                     .unwrap();
 
-                let best_txs_with_base_fee = self.mempool.best_transactions_with_base_fee(base_fee);
+                let best_txs_with_base_fee = self.mempool.best_transactions_with_attributes(
+                    BestTransactionsAttributes::base_fee(base_fee),
+                );
 
                 // TODO: implement block builder instead of just including every transaction in order
                 let rlp_txs: Vec<RlpEvmTransaction> = best_txs_with_base_fee

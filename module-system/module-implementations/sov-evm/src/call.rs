@@ -2,7 +2,7 @@ use core::panic;
 
 use anyhow::Result;
 use reth_primitives::TransactionSignedEcRecovered;
-use revm::primitives::{CfgEnv, EVMError, SpecId};
+use revm::primitives::{CfgEnvWithHandlerCfg, EVMError, SpecId};
 use sov_modules_api::prelude::*;
 use sov_modules_api::{CallResponse, WorkingSet};
 
@@ -120,11 +120,13 @@ impl<C: sov_modules_api::Context> Evm<C> {
 pub(crate) fn get_cfg_env(
     block_env: &BlockEnv,
     cfg: EvmChainConfig,
-    template_cfg: Option<CfgEnv>,
-) -> CfgEnv {
-    let mut cfg_env = template_cfg.unwrap_or_default();
+    template_cfg: Option<CfgEnvWithHandlerCfg>,
+) -> CfgEnvWithHandlerCfg {
+    let mut cfg_env = template_cfg.unwrap_or(CfgEnvWithHandlerCfg::new_with_spec_id(
+        Default::default(),
+        get_spec_id(cfg.spec, block_env.number),
+    ));
     cfg_env.chain_id = cfg.chain_id;
-    // cfg_env.spec_id = get_spec_id(cfg.spec, block_env.number);
     cfg_env.limit_contract_code_size = cfg.limit_contract_code_size;
     cfg_env
 }

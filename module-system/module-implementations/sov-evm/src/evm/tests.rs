@@ -2,7 +2,7 @@ use std::convert::Infallible;
 use std::str::FromStr;
 
 use reth_primitives::{Address, TransactionKind};
-use revm::primitives::{CfgEnv, ExecutionResult, Output, SpecId, KECCAK_EMPTY, U256};
+use revm::primitives::{CfgEnvWithHandlerCfg, ExecutionResult, Output, SpecId, KECCAK_EMPTY, U256};
 use revm::{Database, DatabaseCommit};
 use sov_modules_api::WorkingSet;
 use sov_prover_storage_manager::new_orphan_storage;
@@ -50,8 +50,7 @@ fn simple_contract_execution<DB: Database<Error = Infallible> + DatabaseCommit +
 
     // We are not supporting CANCUN yet
     // https://github.com/Sovereign-Labs/sovereign-sdk/issues/912
-    let mut cfg_env = CfgEnv::default();
-    // cfg_env.spec_id = SpecId::SHANGHAI;
+    let mut cfg_env = CfgEnvWithHandlerCfg::new_with_spec_id(Default::default(), SpecId::SHANGHAI);
     cfg_env.chain_id = DEFAULT_CHAIN_ID;
 
     let contract_address: Address = {

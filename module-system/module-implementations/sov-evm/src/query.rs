@@ -16,7 +16,7 @@ use reth_primitives::{
 use reth_rpc_types::trace::geth::{GethDebugTracingOptions, GethTrace};
 use reth_rpc_types_compat::block::from_primitive_with_hash;
 use revm::primitives::{
-    EVMError, Env, ExecutionResult, HaltReason, InvalidTransaction, TransactTo, KECCAK_EMPTY,
+    EVMError, ExecutionResult, HaltReason, InvalidTransaction, TransactTo, KECCAK_EMPTY,
 };
 use revm::DatabaseCommit;
 use sov_modules_api::macros::rpc_gen;
@@ -110,8 +110,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
         };
 
         // Build rpc header response
-        let header = from_primitive_with_hash(block.header.clone());
-
+        let mut header = from_primitive_with_hash(block.header.clone());
+        header.total_difficulty = Some(header.difficulty);
         // Collect transactions with ids from db
         let transactions: Vec<TransactionSignedAndRecovered> = block
             .transactions
@@ -164,11 +164,9 @@ impl<C: sov_modules_api::Context> Evm<C> {
         };
 
         // Build rpc block response
-        let total_difficulty = Some(header.difficulty);
         let block = reth_rpc_types::Block {
             header,
             size: Some(U256::from(size)),
-            // total_difficulty,
             uncles: Default::default(),
             transactions,
             withdrawals: Default::default(),
@@ -906,13 +904,13 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let mut traces = HashMap::new();
         let mut transactions = block_txs.into_iter().enumerate().peekable();
         while let Some((_index, tx)) = transactions.next() {
-            let env = Env {
-                cfg: cfg_env.clone(),
-                block: revm_block_env.clone(),
-                tx: tx_env_with_recovered(&tx),
-            };
-            let (trace, state_changes) =
-                trace_transaction(opts.clone().unwrap_or_default(), env.clone(), &mut evm_db)?;
+            let (trace, state_changes) = trace_transaction(
+                opts.clone().unwrap_or_default(),
+                cfg_env.clone(),
+                revm_block_env.clone(),
+                tx_env_with_recovered(&tx),
+                &mut evm_db,
+            )?;
             traces.insert(tx.hash(), trace);
 
             if transactions.peek().is_some() {
@@ -1296,16 +1294,18 @@ impl<C: sov_modules_api::Context> Evm<C> {
     }
 }
 
-fn get_cfg_env_template() -> revm::primitives::CfgEnv {
-    let mut cfg_env = revm::primitives::CfgEnv::default();
+fn get_cfg_env_template() -> revm::primitives::CfgEnvWithHandlerCfg {
+    // https://github.com/Sovereign-Labs/sovereign-sdk/issues/912
+    let mut cfg_env = revm::primitives::CfgEnvWithHandlerCfg::new_with_spec_id(
+        Default::default(),
+        revm::primitives::SpecId::SHANGHAI,
+    );
     // Reth sets this to true and uses only timeout, but other clients use this as a part of DOS attacks protection, with 100mln gas limit
     // https://github.com/paradigmxyz/reth/blob/62f39a5a151c5f4ddc9bf0851725923989df0412/crates/rpc/rpc/src/eth/revm_utils.rs#L215
     cfg_env.disable_block_gas_limit = false;
     cfg_env.disable_eip3607 = true;
     cfg_env.disable_base_fee = true;
     cfg_env.chain_id = 0;
-    // https://github.com/Sovereign-Labs/sovereign-sdk/issues/912
-    // cfg_env.spec_id = revm::primitives::SpecId::SHANGHAI;
     cfg_env.perf_analyse_created_bytecodes = revm::primitives::AnalysisKind::Analyse;
     cfg_env.limit_contract_code_size = None;
     cfg_env
@@ -1392,7 +1392,7 @@ fn check_tx_range(transactions_range: &Range<u64>, index: Uint<64, 1>) -> Option
 fn map_out_of_gas_err<C: sov_modules_api::Context>(
     block_env: BlockEnv,
     mut tx_env: revm::primitives::TxEnv,
-    cfg_env: revm::primitives::CfgEnv,
+    cfg_env: revm::primitives::CfgEnvWithHandlerCfg,
     db: EvmDb<'_, C>,
 ) -> EthApiError {
     let req_gas_limit = tx_env.gas_limit;

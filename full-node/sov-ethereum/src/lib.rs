@@ -14,7 +14,7 @@ use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::RpcModule;
 use reth_primitives::{
     keccak256, Address, BlockNumberOrTag, TransactionSignedNoHash as RethTransactionSignedNoHash,
-    B256, U128, U256, U64,
+    B256, U256, U64,
 };
 use reth_rpc_types::other::OtherFields;
 use reth_rpc_types::trace::geth::{GethDebugTracingOptions, GethTrace};
@@ -354,7 +354,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                 .unwrap_or(1);
 
             // get call request to estimate gas and gas prices
-            let (call_request, gas_price, max_fee_per_gas) =
+            let (call_request, _gas_price, _max_fee_per_gas) =
                 get_call_request_and_params(from, chain_id, &transaction_request);
 
             // estimate gas limit
@@ -691,7 +691,7 @@ fn get_call_request_and_params(
         gas_price: Some(U256::from(gas_price)),
         max_fee_per_gas: Some(U256::from(max_fee_per_gas)),
         value: request.value,
-        input: request.input.clone().into(),
+        input: request.input.clone(),
         nonce: request.nonce,
         chain_id: Some(U64::from(chain_id)),
         access_list: request.access_list.clone(),

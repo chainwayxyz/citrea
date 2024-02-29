@@ -6,8 +6,8 @@ use reth_rpc_types::trace::geth::{
     GethTrace, NoopFrame,
 };
 use revm::primitives::db::Database;
-use revm::primitives::{Env, ResultAndState};
-use revm::Inspector;
+use revm::primitives::{BlockEnv, CfgEnvWithHandlerCfg, ResultAndState};
+use revm::{inspector_handle_register, Inspector};
 use revm_inspectors::tracing::{FourByteInspector, TracingInspector, TracingInspectorConfig};
 
 use crate::error::rpc::{EthApiError, EthResult};
@@ -15,7 +15,9 @@ use crate::evm::db::EvmDb;
 
 pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
     opts: GethDebugTracingOptions,
-    env: Env,
+    config_env: CfgEnvWithHandlerCfg,
+    block_env: BlockEnv,
+    tx_env: TxEnv,
     db: &mut EvmDb<'_, C>,
 ) -> EthResult<(GethTrace, revm::primitives::State)> {
     let GethDebugTracingOptions {
@@ -30,7 +32,7 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
             GethDebugTracerType::BuiltInTracer(tracer) => match tracer {
                 GethDebugBuiltInTracerType::FourByteTracer => {
                     let mut inspector = FourByteInspector::default();
-                    let res = inspect(db, env, &mut inspector)?;
+                    let res = inspect(db, config_env, block_env, tx_env, &mut inspector)?;
                     return Ok((FourByteFrame::from(inspector).into(), res.state));
                 }
                 GethDebugBuiltInTracerType::CallTracer => {
@@ -41,7 +43,7 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
                         TracingInspectorConfig::from_geth_config(&config)
                             .set_record_logs(call_config.with_log.unwrap_or_default()),
                     );
-                    let res = inspect(db, env, &mut inspector)?;
+                    let res = inspect(db, config_env, block_env, tx_env, &mut inspector)?;
                     let frame = inspector
                         .into_geth_builder()
                         .geth_call_traces(call_config, res.result.gas_used());
@@ -69,7 +71,7 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
 
     let mut inspector = TracingInspector::new(inspector_config);
 
-    let res = inspect(db, env, &mut inspector)?;
+    let res = inspect(db, config_env, block_env, tx_env, &mut inspector)?;
     let gas_used = res.result.gas_used();
     let return_value = res.result.into_output().unwrap_or_default();
     let frame = inspector
@@ -80,7 +82,13 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
 }
 
 /// Executes the [Env] against the given [Database] without committing state changes.
-pub(crate) fn inspect<DB, I>(db: DB, env: Env, inspector: I) -> EthResult<ResultAndState>
+pub(crate) fn inspect<DB, I>(
+    db: DB,
+    config_env: CfgEnvWithHandlerCfg,
+    block_env: BlockEnv,
+    tx_env: TxEnv,
+    inspector: I,
+) -> EthResult<ResultAndState>
 where
     DB: Database,
     <DB as Database>::Error: Into<EthApiError>,
@@ -89,7 +97,10 @@ where
     let mut evm = revm::Evm::builder()
         .with_db(db)
         .with_external_context(inspector)
-        .with_env(Box::new(env))
+        .with_cfg_env_with_handler_cfg(config_env)
+        .with_block_env(block_env)
+        .with_tx_env(tx_env)
+        .append_handler_register(inspector_handle_register)
         .build();
     let res = evm.transact()?;
     Ok(res)
