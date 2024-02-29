@@ -1,11 +1,9 @@
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
-use std::time::Duration;
 
 use lazy_static::lazy_static;
 use rusqlite::{params, Connection};
-use tokio::time::sleep;
 use tracing::debug;
 
 use crate::{MockBlock, MockBlockHeader, MockHash, MockValidityCond};
@@ -94,16 +92,6 @@ impl DbConnector {
                 ],
             )
             .expect("DbConnector: failed to execute insert query");
-    }
-
-    pub fn get_da_last_time(&self) -> () {
-        let mut stmt = self
-            .conn
-            .prepare("SELECT * FROM last_da_slot_time")
-            .unwrap();
-        let mut rows = stmt.query([]).unwrap();
-        let row = rows.next().expect("DbConnector: failed to get row");
-        println!("row: {:?}", row);
     }
 
     pub fn five_seconds_elapsed(&self) -> bool {
