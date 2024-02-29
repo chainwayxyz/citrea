@@ -92,10 +92,10 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
             };
 
             // Return the `BatchReceipt`
-            receipts.push(BatchReceipt {
+            receipts.push(BatchReceipt::<ApplySlotResult, _> {
                 batch_hash: hash,
                 tx_receipts: vec![],
-                inner: result,
+                phantom_data: PhantomData,
             });
         }
 

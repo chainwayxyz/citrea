@@ -52,7 +52,7 @@ impl<A: BasicAddress> From<ApplyBatchError<A>> for BatchReceipt<SequencerOutcome
             ApplyBatchError::Ignored(hash) => BatchReceipt {
                 batch_hash: hash,
                 tx_receipts: Vec::new(),
-                inner: SequencerOutcome::Ignored,
+                phantom_data: PhantomData,
             },
             ApplyBatchError::Slashed {
                 hash,
@@ -61,10 +61,7 @@ impl<A: BasicAddress> From<ApplyBatchError<A>> for BatchReceipt<SequencerOutcome
             } => BatchReceipt {
                 batch_hash: hash,
                 tx_receipts: Vec::new(),
-                inner: SequencerOutcome::Slashed {
-                    reason,
-                    sequencer_da_address,
-                },
+                phantom_data: PhantomData,
             },
         }
     }
@@ -256,7 +253,7 @@ where
             Ok(BatchReceipt {
                 batch_hash: soft_batch.hash(),
                 tx_receipts,
-                inner: (),
+                phantom_data: PhantomData,
             }),
             batch_workspace.checkpoint(),
         )
@@ -321,10 +318,7 @@ where
                     reason,
                     sequencer_da_address: sequencer_da_address.clone(),
                 };
-                let checkpoint = match self
-                    .runtime
-                    .end_blob_hook(sequencer_outcome, &mut batch_workspace)
-                {
+                let checkpoint = match self.runtime.end_blob_hook(&mut batch_workspace) {
                     Ok(()) => {
                         // TODO: will be covered in https://github.com/Sovereign-Labs/sovereign-sdk/issues/421
                         batch_workspace.checkpoint()
@@ -362,12 +356,6 @@ where
         for (TransactionAndRawHash { tx, raw_tx_hash }, msg) in
             txs.into_iter().zip(messages.into_iter())
         {
-            // Update the working set gas meter with the available funds
-            let gas_price = C::GasUnit::from_arbitrary_dimensions(&gas_elastic_price);
-            let gas_limit = tx.gas_limit();
-            let gas_tip = tx.gas_tip();
-            batch_workspace.set_gas(gas_limit, gas_price);
-
             // Pre dispatch hook
             // TODO set the sequencer pubkey
             let hook = RuntimeTxHook {
@@ -398,18 +386,6 @@ where
             batch_workspace = batch_workspace.checkpoint().to_revertable();
 
             let tx_result = self.runtime.dispatch_call(msg, &mut batch_workspace, &ctx);
-
-            let remaining_gas = batch_workspace.gas_remaining_funds();
-            let gas_reward = gas_limit
-                .saturating_add(gas_tip)
-                .saturating_sub(remaining_gas);
-
-            sequencer_reward = sequencer_reward.saturating_add(gas_reward);
-            debug!(
-                "Tx {} sequencer reward: {}",
-                hex::encode(raw_tx_hash),
-                gas_reward
-            );
 
             let events = batch_workspace.take_events();
             let tx_effect = match tx_result {
@@ -445,13 +421,7 @@ where
                 .expect("inconsistent state: error in post_dispatch_tx_hook");
         }
 
-        // TODO: calculate the amount based of gas and fees
-        let sequencer_outcome = SequencerOutcome::Rewarded(sequencer_reward);
-
-        if let Err(e) = self
-            .runtime
-            .end_blob_hook(sequencer_outcome.clone(), &mut batch_workspace)
-        {
+        if let Err(e) = self.runtime.end_blob_hook(&mut batch_workspace) {
             // TODO: will be covered in https://github.com/Sovereign-Labs/sovereign-sdk/issues/421
             error!("Failed on `end_blob_hook`: {}", e);
         };
@@ -460,7 +430,7 @@ where
             Ok(BatchReceipt {
                 batch_hash: blob.hash(),
                 tx_receipts,
-                inner: sequencer_outcome,
+                phantom_data: PhantomData,
             }),
             batch_workspace.checkpoint(),
         )

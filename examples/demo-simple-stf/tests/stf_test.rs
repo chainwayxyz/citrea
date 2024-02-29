@@ -37,10 +37,4 @@ fn test_stf_success() {
     );
 
     assert_eq!(2, result.batch_receipts.len());
-
-    let receipt = &result.batch_receipts[0];
-    assert_eq!(receipt.inner, ApplySlotResult::Failure);
-
-    let receipt = &result.batch_receipts[1];
-    assert_eq!(receipt.inner, ApplySlotResult::Success);
 }

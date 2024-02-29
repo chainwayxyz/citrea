@@ -62,35 +62,8 @@ impl<C: Context, Da: DaSpec> ApplyBlobHooks<Da::BlobTransaction> for Runtime<C, 
         self.sequencer_registry.begin_blob_hook(blob, working_set)
     }
 
-    fn end_blob_hook(
-        &self,
-        result: Self::BlobResult,
-        working_set: &mut WorkingSet<C>,
-    ) -> anyhow::Result<()> {
-        match result {
-            SequencerOutcome::Rewarded(_reward) => {
-                // TODO: Process reward here or above.
-                <SequencerRegistry<C, Da> as ApplyBlobHooks<Da::BlobTransaction>>::end_blob_hook(
-                    &self.sequencer_registry,
-                    sov_sequencer_registry::SequencerOutcome::Completed,
-                    working_set,
-                )
-            }
-            SequencerOutcome::Ignored => Ok(()),
-            SequencerOutcome::Slashed {
-                reason,
-                sequencer_da_address,
-            } => {
-                info!("Sequencer {} slashed: {:?}", sequencer_da_address, reason);
-                <SequencerRegistry<C, Da> as ApplyBlobHooks<Da::BlobTransaction>>::end_blob_hook(
-                    &self.sequencer_registry,
-                    sov_sequencer_registry::SequencerOutcome::Slashed {
-                        sequencer: sequencer_da_address,
-                    },
-                    working_set,
-                )
-            }
-        }
+    fn end_blob_hook(&self, working_set: &mut WorkingSet<C>) -> anyhow::Result<()> {
+        Ok(())
     }
 }
 

@@ -36,8 +36,6 @@ impl Spec for DefaultContext {
 
 #[cfg(feature = "native")]
 impl Context for DefaultContext {
-    type GasUnit = TupleGasUnit<2>;
-
     fn sender(&self) -> &Self::Address {
         &self.sender
     }
@@ -80,8 +78,6 @@ impl Spec for ZkDefaultContext {
 }
 
 impl Context for ZkDefaultContext {
-    type GasUnit = TupleGasUnit<2>;
-
     fn sender(&self) -> &Self::Address {
         &self.sender
     }

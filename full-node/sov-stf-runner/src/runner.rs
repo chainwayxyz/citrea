@@ -1,4 +1,5 @@
 use std::collections::VecDeque;
+use std::marker::PhantomData;
 use std::net::SocketAddr;
 
 use anyhow::bail;
@@ -331,7 +332,7 @@ where
         let soft_batch_receipt = SoftBatchReceipt::<_, _, Da::Spec> {
             pre_state_root: self.state_root.as_ref().to_vec(),
             post_state_root: next_state_root.as_ref().to_vec(),
-            inner: batch_receipt.inner,
+            phantom_data: PhantomData::<u64>,
             batch_hash: batch_receipt.batch_hash,
             da_slot_hash: filtered_block.header().hash(),
             da_slot_height: filtered_block.header().height(),
@@ -423,7 +424,7 @@ where
         let soft_batch_receipt = SoftBatchReceipt::<_, _, Da::Spec> {
             pre_state_root: self.state_root.as_ref().to_vec(),
             post_state_root: next_state_root.as_ref().to_vec(),
-            inner: batch_receipt.inner,
+            phantom_data: PhantomData::<u64>,
             batch_hash: batch_receipt.batch_hash,
             da_slot_hash: filtered_block.header().hash(),
             da_slot_height: filtered_block.header().height(),
@@ -707,7 +708,7 @@ where
             let soft_batch_receipt = SoftBatchReceipt::<_, _, Da::Spec> {
                 pre_state_root: self.state_root.as_ref().to_vec(),
                 post_state_root: next_state_root.as_ref().to_vec(),
-                inner: batch_receipt.inner,
+                phantom_data: PhantomData::<u64>,
                 batch_hash: batch_receipt.batch_hash,
                 da_slot_hash: filtered_block.header().hash(),
                 da_slot_height: filtered_block.header().height(),

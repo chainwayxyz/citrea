@@ -66,7 +66,6 @@ impl<C: Context, B: BlobReaderTrait> ApplyBlobHooks<B> for TestRuntime<C> {
 
     fn end_blob_hook(
         &self,
-        _result: Self::BlobResult,
         _working_set: &mut sov_modules_api::WorkingSet<C>,
     ) -> anyhow::Result<()> {
         Ok(())

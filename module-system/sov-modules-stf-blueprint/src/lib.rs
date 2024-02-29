@@ -6,6 +6,8 @@ pub mod kernels;
 mod stf_blueprint;
 mod tx_verifier;
 
+use std::marker::PhantomData;
+
 pub use batch::Batch;
 use borsh::BorshSerialize;
 use sov_modules_api::da::BlockHeaderTrait;
@@ -487,7 +489,7 @@ where
                 blob.as_mut_ref().sender(),
                 hex::encode(batch_receipt.batch_hash),
                 batch_receipt.tx_receipts.len(),
-                batch_receipt.inner
+                batch_receipt.phantom_data
             );
             for (i, tx_receipt) in batch_receipt.tx_receipts.iter().enumerate() {
                 info!(
@@ -500,7 +502,7 @@ where
             batch_receipts.push(BatchReceipt {
                 batch_hash: batch_receipt.batch_hash,
                 tx_receipts: batch_receipt.tx_receipts,
-                inner: (),
+                phantom_data: PhantomData,
             });
         }
 

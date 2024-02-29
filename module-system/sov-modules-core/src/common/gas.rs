@@ -79,16 +79,4 @@ where
     pub const fn remaining_funds(&self) -> u64 {
         self.remaining_funds
     }
-
-    /// Deducts the provided gas unit from the remaining funds, computing the scalar value of the
-    /// funds from the price of the instance.
-    pub fn charge_gas(&mut self, gas: &GU) -> Result<()> {
-        let gas = gas.value(&self.gas_price);
-        self.remaining_funds = self
-            .remaining_funds
-            .checked_sub(gas)
-            .ok_or_else(|| anyhow::anyhow!("Not enough gas"))?;
-
-        Ok(())
-    }
 }

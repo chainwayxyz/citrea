@@ -4,6 +4,7 @@
 //! The most important trait in this module is the [`StateTransitionFunction`], which defines the
 //! main event loop of the rollup.
 use core::fmt::Debug;
+use core::marker::PhantomData;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
@@ -72,7 +73,7 @@ pub struct BatchReceipt<BatchReceiptContents, TxReceiptContents> {
     /// The receipts of all the transactions in this batch.
     pub tx_receipts: Vec<TransactionReceipt<TxReceiptContents>>,
     /// Any additional structured data to be saved in the database and served over RPC
-    pub inner: BatchReceiptContents,
+    pub phantom_data: PhantomData<BatchReceiptContents>,
 }
 
 /// A receipt for a soft batch of transactions. These receipts are stored in the rollup's database
@@ -87,7 +88,7 @@ pub struct SoftBatchReceipt<BatchReceiptContents, TxReceiptContents, DS: DaSpec>
     /// The receipts of all the transactions in this batch.
     pub tx_receipts: Vec<TransactionReceipt<TxReceiptContents>>,
     /// Any additional structured data to be saved in the database and served over RPC
-    pub inner: BatchReceiptContents,
+    pub phantom_data: PhantomData<BatchReceiptContents>,
     /// Pre state root
     pub pre_state_root: Vec<u8>,
     /// Post state root

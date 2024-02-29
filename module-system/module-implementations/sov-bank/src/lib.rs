@@ -50,10 +50,6 @@ pub struct Bank<C: sov_modules_api::Context> {
     #[address]
     pub(crate) address: C::Address,
 
-    /// The gas configuration of the sov-bank module.
-    #[gas]
-    pub(crate) gas: BankGasConfig<C::GasUnit>,
-
     /// A mapping of addresses to tokens in the sov-bank.
     #[state]
     pub(crate) tokens: sov_modules_api::StateMap<C::Address, Token<C>>,
@@ -86,7 +82,6 @@ impl<C: sov_modules_api::Context> sov_modules_api::Module for Bank<C> {
                 minter_address,
                 authorized_minters,
             } => {
-                self.charge_gas(working_set, &self.gas.create_token)?;
                 self.create_token(
                     token_name,
                     salt,
@@ -100,12 +95,10 @@ impl<C: sov_modules_api::Context> sov_modules_api::Module for Bank<C> {
             }
 
             call::CallMessage::Transfer { to, coins } => {
-                self.charge_gas(working_set, &self.gas.create_token)?;
                 Ok(self.transfer(to, coins, context, working_set)?)
             }
 
             call::CallMessage::Burn { coins } => {
-                self.charge_gas(working_set, &self.gas.burn)?;
                 Ok(self.burn_from_eoa(coins, context, working_set)?)
             }
 
@@ -113,13 +106,11 @@ impl<C: sov_modules_api::Context> sov_modules_api::Module for Bank<C> {
                 coins,
                 minter_address,
             } => {
-                self.charge_gas(working_set, &self.gas.mint)?;
                 self.mint_from_eoa(&coins, &minter_address, context, working_set)?;
                 Ok(CallResponse::default())
             }
 
             call::CallMessage::Freeze { token_address } => {
-                self.charge_gas(working_set, &self.gas.freeze)?;
                 Ok(self.freeze(token_address, context, working_set)?)
             }
         }

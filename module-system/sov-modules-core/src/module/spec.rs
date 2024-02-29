@@ -98,9 +98,6 @@ pub trait Spec {
 /// instance of the state transition function. By making modules generic over a `Context`, developers
 /// can easily update their cryptography to conform to the needs of different zk-proof systems.
 pub trait Context: Spec + Clone + Debug + PartialEq + 'static {
-    /// Gas unit for the gas price computation.
-    type GasUnit: GasUnit;
-
     /// Sender of the transaction.
     fn sender(&self) -> &Self::Address;
 

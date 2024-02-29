@@ -64,7 +64,7 @@ impl<C: Context> TxHooks for Bank<C> {
         ctx: &C,
         working_set: &mut WorkingSet<C>,
     ) -> anyhow::Result<()> {
-        let amount = working_set.gas_remaining_funds();
+        let amount = 0;
 
         if amount > 0 {
             let token_address = C::Address::from_str(GAS_TOKEN_ADDRESS)

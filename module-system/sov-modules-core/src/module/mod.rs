@@ -51,17 +51,6 @@ pub trait Module {
         _context: &Self::Context,
         _working_set: &mut WorkingSet<Self::Context>,
     ) -> Result<CallResponse, ModuleError>;
-
-    /// Attempts to charge the provided amount of gas from the working set.
-    ///
-    /// The scalar gas value will be computed from the price defined on the working set.
-    fn charge_gas(
-        &self,
-        working_set: &mut WorkingSet<Self::Context>,
-        gas: &<Self::Context as Context>::GasUnit,
-    ) -> anyhow::Result<()> {
-        working_set.charge_gas(gas)
-    }
 }
 
 /// A [`Module`] that has a well-defined and known [JSON

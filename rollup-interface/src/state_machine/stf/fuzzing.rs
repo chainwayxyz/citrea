@@ -1,5 +1,7 @@
 //! Implements fuzzing strategies for structs in the stf module
 
+use core::marker::PhantomData;
+
 use digest::typenum::U32;
 use digest::Digest;
 use proptest::prelude::{any, Arbitrary};
@@ -193,7 +195,7 @@ impl<B: Arbitrary + 'static, R: Arbitrary + 'static> Arbitrary for BatchReceipt<
                     Self {
                         batch_hash,
                         tx_receipts: txs,
-                        inner: receipt,
+                        phantom_data: PhantomData,
                     }
                 })
                 .boxed()
