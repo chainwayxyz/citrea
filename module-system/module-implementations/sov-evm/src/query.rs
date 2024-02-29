@@ -168,7 +168,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let block = reth_rpc_types::Block {
             header,
             size: Some(U256::from(size)),
-            total_difficulty,
+            // total_difficulty,
             uncles: Default::default(),
             transactions,
             withdrawals: Default::default(),

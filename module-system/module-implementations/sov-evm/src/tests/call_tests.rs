@@ -1,8 +1,8 @@
 use std::str::FromStr;
 
+use alloy_rpc_types::request::{TransactionInput, TransactionRequest};
 use reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT;
 use reth_primitives::{Address, BlockNumberOrTag, Bytes, TransactionKind, U64};
-use reth_rpc_types::{CallInput, CallRequest};
 use revm::primitives::{SpecId, B256, KECCAK_EMPTY, U256};
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::utils::generate_address;
@@ -429,7 +429,7 @@ fn log_filter_test_at_block_hash() {
     ];
 
     let filter = Filter {
-        block_option: crate::FilterBlockOption::AtBlockHash(block.header.hash),
+        block_option: crate::FilterBlockOption::AtBlockHash(block.header.hash()),
         address: address.clone(),
         topics: topics.clone(),
     };
@@ -442,7 +442,7 @@ fn log_filter_test_at_block_hash() {
     address.0.insert(contract_addr);
 
     let filter = Filter {
-        block_option: crate::FilterBlockOption::AtBlockHash(block.header.hash),
+        block_option: crate::FilterBlockOption::AtBlockHash(block.header.hash()),
         address: address.clone(),
         topics: topics.clone(),
     };
@@ -462,7 +462,7 @@ fn log_filter_test_at_block_hash() {
     topics[0] = sig_topic.clone();
 
     let filter = Filter {
-        block_option: crate::FilterBlockOption::AtBlockHash(block.header.hash),
+        block_option: crate::FilterBlockOption::AtBlockHash(block.header.hash()),
         address: address.clone(),
         topics: topics.clone(),
     };
@@ -482,7 +482,7 @@ fn log_filter_test_at_block_hash() {
     topics[3] = last_topic.clone();
 
     let filter = Filter {
-        block_option: crate::FilterBlockOption::AtBlockHash(block.header.hash),
+        block_option: crate::FilterBlockOption::AtBlockHash(block.header.hash()),
         address: address.clone(),
         topics: topics.clone(),
     };
@@ -504,7 +504,7 @@ fn log_filter_test_at_block_hash() {
     topics[3] = last_topic.clone();
 
     let filter = Filter {
-        block_option: crate::FilterBlockOption::AtBlockHash(block.header.hash),
+        block_option: crate::FilterBlockOption::AtBlockHash(block.header.hash()),
         address: address.clone(),
         topics: topics.clone(),
     };
@@ -522,7 +522,7 @@ fn log_filter_test_at_block_hash() {
     ));
 
     let filter = Filter {
-        block_option: crate::FilterBlockOption::AtBlockHash(block.header.hash),
+        block_option: crate::FilterBlockOption::AtBlockHash(block.header.hash()),
         address: address.clone(),
         topics: topics.clone(),
     };
@@ -546,7 +546,7 @@ fn log_filter_test_at_block_hash() {
     ));
 
     let filter = Filter {
-        block_option: crate::FilterBlockOption::AtBlockHash(block.header.hash),
+        block_option: crate::FilterBlockOption::AtBlockHash(block.header.hash()),
         address: address.clone(),
         topics: topics.clone(),
     };
@@ -815,7 +815,7 @@ fn test_block_hash_in_evm() {
 
     let _block_number = _last_block_number;
 
-    let mut request = CallRequest {
+    let mut request = TransactionRequest {
         from: None,
         to: Some(contract_addr),
         gas_price: None,
@@ -823,7 +823,7 @@ fn test_block_hash_in_evm() {
         max_priority_fee_per_gas: None,
         value: None,
         gas: None,
-        input: CallInput {
+        input: TransactionInput {
             data: None,
             input: Some(
                 BlockHashContract::default()
@@ -838,6 +838,8 @@ fn test_block_hash_in_evm() {
         max_fee_per_blob_gas: None,
         blob_versioned_hashes: Some(vec![]),
         transaction_type: None,
+        sidecar: None,
+        other: Default::default(),
     };
 
     for i in 0..=1000 {
@@ -856,7 +858,10 @@ fn test_block_hash_in_evm() {
             let block = evm
                 .blocks
                 .get((i) as usize, &mut working_set.accessory_state());
-            assert_eq!(resp.unwrap().to_vec(), block.unwrap().header.hash.to_vec());
+            assert_eq!(
+                resp.unwrap().to_vec(),
+                block.unwrap().header.hash().to_vec()
+            );
         }
     }
 }

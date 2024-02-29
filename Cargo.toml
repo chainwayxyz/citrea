@@ -129,23 +129,26 @@ ethers-providers = { version = "2.0", default-features = false }
 ethers-signers = { version = "2.0", default-features = false }
 ethers-middleware = { version = "2.0", default-features = false }
 
-reth-primitives = { git = "https://github.com/paradigmxyz/reth", tag = "v0.1.0-alpha.18" }
-reth-interfaces = { git = "https://github.com/paradigmxyz/reth", tag = "v0.1.0-alpha.18" }
-reth-rpc-types = { git = "https://github.com/paradigmxyz/reth", tag = "v0.1.0-alpha.18" }
-reth-rpc-types-compat = { git = "https://github.com/paradigmxyz/reth", tag = "v0.1.0-alpha.18" }
-reth-revm = { git = "https://github.com/paradigmxyz/reth", tag = "v0.1.0-alpha.18" }
-reth-transaction-pool = { git = "https://github.com/paradigmxyz/reth", tag = "v0.1.0-alpha.18" }
-reth-provider = { git = "https://github.com/paradigmxyz/reth", tag = "v0.1.0-alpha.18" }
-reth-tasks = { git = "https://github.com/paradigmxyz/reth", tag = "v0.1.0-alpha.18" }
-reth-db = { git = "https://github.com/paradigmxyz/reth", tag = "v0.1.0-alpha.18" }
-reth-trie = { git = "https://github.com/paradigmxyz/reth", tag = "v0.1.0-alpha.18" }
-reth-rpc = { git = "https://github.com/paradigmxyz/reth", tag = "v0.1.0-alpha.18" }
+reth-primitives = { git = "https://github.com/paradigmxyz/reth", tag = "v0.1.0-alpha.21" }
+reth-interfaces = { git = "https://github.com/paradigmxyz/reth", tag = "v0.1.0-alpha.21" }
+reth-rpc-types = { git = "https://github.com/paradigmxyz/reth", tag = "v0.1.0-alpha.21" }
+reth-rpc-types-compat = { git = "https://github.com/paradigmxyz/reth", tag = "v0.1.0-alpha.21" }
+reth-revm = { git = "https://github.com/paradigmxyz/reth", tag = "v0.1.0-alpha.21" }
+reth-transaction-pool = { git = "https://github.com/paradigmxyz/reth", tag = "v0.1.0-alpha.21" }
+reth-provider = { git = "https://github.com/paradigmxyz/reth", tag = "v0.1.0-alpha.21" }
+reth-tasks = { git = "https://github.com/paradigmxyz/reth", tag = "v0.1.0-alpha.21" }
+reth-db = { git = "https://github.com/paradigmxyz/reth", tag = "v0.1.0-alpha.21" }
+reth-trie = { git = "https://github.com/paradigmxyz/reth", tag = "v0.1.0-alpha.21" }
+reth-rpc = { git = "https://github.com/paradigmxyz/reth", tag = "v0.1.0-alpha.21" }
 
-revm = { git = "https://github.com/bluealloy/revm", branch = "main", features = [
+revm = { version = "6.1.0", features = [
     "std",
     "secp256k1",
 ], default-features = false }
-revm-inspectors = { git = "https://github.com/paradigmxyz/evm-inspectors" }
+revm-inspectors = { git = "https://github.com/paradigmxyz/evm-inspectors", rev = "75a187b" }
+alloy-rpc-types = { git = "https://github.com/alloy-rs/alloy", rev = "76c70fb", features = [
+    "jsonrpsee-types",
+] }
 alloy-primitives = "0.6"
 alloy-sol-types = "0.6"
 secp256k1 = { version = "0.27.0", default-features = false, features = [

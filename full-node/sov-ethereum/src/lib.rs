@@ -4,6 +4,7 @@ mod gas_price;
 use std::process::Command;
 use std::sync::{Arc, Mutex};
 
+use alloy_rpc_types::request::TransactionRequest;
 use citrea_stf::runtime::Runtime;
 use ethers::types::Bytes;
 pub use gas_price::fee_history::FeeHistoryCacheConfig;
@@ -17,7 +18,11 @@ use reth_primitives::{
 };
 use reth_rpc_types::other::OtherFields;
 use reth_rpc_types::trace::geth::{GethDebugTracingOptions, GethTrace};
-use reth_rpc_types::{FeeHistory, TransactionRequest, TypedTransactionRequest};
+use reth_rpc_types::transaction::{
+    EIP1559TransactionRequest, EIP2930TransactionRequest, EIP4844TransactionRequest,
+    LegacyTransactionRequest,
+};
+use reth_rpc_types::{FeeHistory, TransactionKind as RpcTransactionKind, TypedTransactionRequest};
 use reth_rpc_types_compat::transaction::to_primitive_transaction;
 use rustc_version_runtime::version;
 use schnellru::{ByLength, LruMap};
@@ -358,33 +363,151 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                     .to::<u64>(),
             );
 
+            let TransactionRequest {
+                to,
+                gas_price,
+                max_fee_per_gas,
+                max_priority_fee_per_gas,
+                gas,
+                value,
+                input: data,
+                nonce,
+                mut access_list,
+                max_fee_per_blob_gas,
+                blob_versioned_hashes,
+                sidecar,
+                ..
+            } = transaction_request;
+
+            // todo: remove this inlining after https://github.com/alloy-rs/alloy/pull/183#issuecomment-1928161285
+            let transaction = match (
+                gas_price,
+                max_fee_per_gas,
+                access_list.take(),
+                max_fee_per_blob_gas,
+                blob_versioned_hashes,
+                sidecar,
+            ) {
+                // legacy transaction
+                // gas price required
+                (Some(_), None, None, None, None, None) => {
+                    Some(TypedTransactionRequest::Legacy(LegacyTransactionRequest {
+                        nonce: nonce.unwrap_or_default(),
+                        gas_price: gas_price.unwrap_or_default(),
+                        gas_limit: gas.unwrap_or_default(),
+                        value: value.unwrap_or_default(),
+                        input: data.into_input().unwrap_or_default(),
+                        kind: match to {
+                            Some(to) => RpcTransactionKind::Call(to),
+                            None => RpcTransactionKind::Create,
+                        },
+                        chain_id: None,
+                    }))
+                }
+                // EIP2930
+                // if only accesslist is set, and no eip1599 fees
+                (_, None, Some(access_list), None, None, None) => Some(
+                    TypedTransactionRequest::EIP2930(EIP2930TransactionRequest {
+                        nonce: nonce.unwrap_or_default(),
+                        gas_price: gas_price.unwrap_or_default(),
+                        gas_limit: gas.unwrap_or_default(),
+                        value: value.unwrap_or_default(),
+                        input: data.into_input().unwrap_or_default(),
+                        kind: match to {
+                            Some(to) => RpcTransactionKind::Call(to),
+                            None => RpcTransactionKind::Create,
+                        },
+                        chain_id: 0,
+                        access_list,
+                    }),
+                ),
+                // EIP1559
+                // if 4844 fields missing
+                // gas_price, max_fee_per_gas, access_list, max_fee_per_blob_gas, blob_versioned_hashes,
+                // sidecar,
+                (None, _, _, None, None, None) => {
+                    // Empty fields fall back to the canonical transaction schema.
+                    Some(TypedTransactionRequest::EIP1559(
+                        EIP1559TransactionRequest {
+                            nonce: nonce.unwrap_or_default(),
+                            max_fee_per_gas: max_fee_per_gas.unwrap_or_default(),
+                            max_priority_fee_per_gas: max_priority_fee_per_gas.unwrap_or_default(),
+                            gas_limit: gas.unwrap_or_default(),
+                            value: value.unwrap_or_default(),
+                            input: data.into_input().unwrap_or_default(),
+                            kind: match to {
+                                Some(to) => RpcTransactionKind::Call(to),
+                                None => RpcTransactionKind::Create,
+                            },
+                            chain_id: 0,
+                            access_list: access_list.unwrap_or_default(),
+                        },
+                    ))
+                }
+                // EIP4884
+                // all blob fields required
+                (
+                    None,
+                    _,
+                    _,
+                    Some(max_fee_per_blob_gas),
+                    Some(blob_versioned_hashes),
+                    Some(sidecar),
+                ) => {
+                    // As per the EIP, we follow the same semantics as EIP-1559.
+                    Some(TypedTransactionRequest::EIP4844(
+                        EIP4844TransactionRequest {
+                            chain_id: 0,
+                            nonce: nonce.unwrap_or_default(),
+                            max_priority_fee_per_gas: max_priority_fee_per_gas.unwrap_or_default(),
+                            max_fee_per_gas: max_fee_per_gas.unwrap_or_default(),
+                            gas_limit: gas.unwrap_or_default(),
+                            value: value.unwrap_or_default(),
+                            input: data.into_input().unwrap_or_default(),
+                            kind: match to {
+                                Some(to) => RpcTransactionKind::Call(to),
+                                None => RpcTransactionKind::Create,
+                            },
+                            access_list: access_list.unwrap_or_default(),
+
+                            // eip-4844 specific.
+                            max_fee_per_blob_gas,
+                            blob_versioned_hashes,
+                            sidecar,
+                        },
+                    ))
+                }
+
+                _ => None,
+            };
+
             // get typed transaction request
-            let transaction_request = match transaction_request.into_typed_request() {
+            let transaction_request = match transaction {
                 Some(TypedTransactionRequest::Legacy(mut m)) => {
                     m.chain_id = Some(chain_id);
                     m.gas_limit = gas_limit;
-                    m.gas_price = gas_price;
+                    m.gas_price = gas_price.unwrap();
 
                     TypedTransactionRequest::Legacy(m)
                 }
                 Some(TypedTransactionRequest::EIP2930(mut m)) => {
                     m.chain_id = chain_id;
                     m.gas_limit = gas_limit;
-                    m.gas_price = gas_price;
+                    m.gas_price = gas_price.unwrap();
 
                     TypedTransactionRequest::EIP2930(m)
                 }
                 Some(TypedTransactionRequest::EIP1559(mut m)) => {
                     m.chain_id = chain_id;
                     m.gas_limit = gas_limit;
-                    m.max_fee_per_gas = max_fee_per_gas;
+                    m.max_fee_per_gas = max_fee_per_gas.unwrap();
 
                     TypedTransactionRequest::EIP1559(m)
                 }
                 Some(TypedTransactionRequest::EIP4844(mut m)) => {
                     m.chain_id = chain_id;
                     m.gas_limit = gas_limit;
-                    m.max_fee_per_gas = max_fee_per_gas;
+                    m.max_fee_per_gas = max_fee_per_gas.unwrap();
 
                     TypedTransactionRequest::EIP4844(m)
                 }

@@ -27,6 +27,8 @@ reth-primitives = { workspace = true }
 reth-rpc-types = { workspace = true }
 reth-rpc-types-compat = { workspace = true }
 
+alloy-rpc-types = { workspace = true, features = ["jsonrpsee-types"] }
+
 ethers = { workspace = true }
 tokio = { workspace = true }
 schnellru = "0.2.1"
@@ -35,7 +37,9 @@ sov-rollup-interface = { path = "../../rollup-interface", features = [
     "native",
 ] }
 
-citrea-stf = { path = "../../examples/demo-rollup/citrea-stf", features = ["native"] }
+citrea-stf = { path = "../../examples/demo-rollup/citrea-stf", features = [
+    "native",
+] }
 sov-modules-api = { path = "../../module-system/sov-modules-api" }
 sov-accounts = { path = "../../module-system/module-implementations/sov-accounts" }
 rustc_version_runtime = "0.3.0"

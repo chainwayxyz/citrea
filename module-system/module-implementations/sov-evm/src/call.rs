@@ -124,7 +124,7 @@ pub(crate) fn get_cfg_env(
 ) -> CfgEnv {
     let mut cfg_env = template_cfg.unwrap_or_default();
     cfg_env.chain_id = cfg.chain_id;
-    cfg_env.spec_id = get_spec_id(cfg.spec, block_env.number);
+    // cfg_env.spec_id = get_spec_id(cfg.spec, block_env.number);
     cfg_env.limit_contract_code_size = cfg.limit_contract_code_size;
     cfg_env
 }

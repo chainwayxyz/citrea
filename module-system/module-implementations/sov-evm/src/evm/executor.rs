@@ -17,16 +17,13 @@ pub(crate) fn execute_tx<DB: Database<Error = Infallible> + DatabaseCommit>(
     tx: &TransactionSignedEcRecovered,
     config_env: CfgEnv,
 ) -> Result<ExecutionResult, EVMError<Infallible>> {
-    let mut evm = revm::new();
-
-    let env = Env {
+    let env = Box::new(Env {
         block: block_env.into(),
         cfg: config_env,
         tx: create_tx_env(tx),
-    };
+    });
 
-    evm.env = env;
-    evm.database(db);
+    let mut evm = revm::Evm::builder().with_db(db).with_env(env).build();
     evm.transact_commit()
 }
 
@@ -43,10 +40,13 @@ pub(crate) fn execute_multiple_tx<DB: Database<Error = Infallible> + DatabaseCom
     let block_gas_limit = block_env.gas_limit;
     let mut cumulative_gas_used = 0u64;
 
-    let mut evm = revm::new();
-    evm.env.block = block_env.into();
-    evm.env.cfg = config_env;
-    evm.database(db);
+    let env = Box::new(Env {
+        block: block_env.into(),
+        cfg: config_env,
+        tx: TxEnv::default(),
+    });
+    let mut evm = revm::Evm::builder().with_db(db).with_env(env).build();
+
     let mut tx_results = Vec::with_capacity(txs.len());
     for tx in txs {
         let block_available_gas = block_gas_limit - cumulative_gas_used;
@@ -55,7 +55,12 @@ pub(crate) fn execute_multiple_tx<DB: Database<Error = Infallible> + DatabaseCom
                 InvalidTransaction::CallerGasLimitMoreThanBlock,
             ))
         } else {
-            evm.env.tx = create_tx_env(tx);
+            evm = evm
+                .modify()
+                .modify_env(|env| {
+                    env.tx = create_tx_env(tx);
+                })
+                .build();
             evm.transact_commit()
         };
         cumulative_gas_used += result.as_ref().map(|r| r.gas_used()).unwrap_or(0);
@@ -70,20 +75,19 @@ pub(crate) fn inspect<DB: Database<Error = Infallible> + DatabaseCommit>(
     tx: TxEnv,
     config_env: CfgEnv,
 ) -> Result<ResultAndState, EVMError<Infallible>> {
-    let mut evm = revm::new();
-
     let env = Env {
         cfg: config_env,
         block: block_env.into(),
         tx,
     };
 
-    evm.env = env;
-    evm.database(db);
-
     let config = TracingInspectorConfig::all();
 
-    let mut inspector = TracingInspector::new(config);
+    let mut evm = revm::Evm::builder()
+        .with_db(db)
+        .with_external_context(TracingInspector::new(config))
+        .with_env(Box::new(env))
+        .build();
 
-    evm.inspect(&mut inspector)
+    evm.transact()
 }

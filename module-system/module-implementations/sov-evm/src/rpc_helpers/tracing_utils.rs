@@ -30,7 +30,7 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
             GethDebugTracerType::BuiltInTracer(tracer) => match tracer {
                 GethDebugBuiltInTracerType::FourByteTracer => {
                     let mut inspector = FourByteInspector::default();
-                    let (res, _) = inspect(db, env, &mut inspector)?;
+                    let res = inspect(db, env, &mut inspector)?;
                     return Ok((FourByteFrame::from(inspector).into(), res.state));
                 }
                 GethDebugBuiltInTracerType::CallTracer => {
@@ -41,7 +41,7 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
                         TracingInspectorConfig::from_geth_config(&config)
                             .set_record_logs(call_config.with_log.unwrap_or_default()),
                     );
-                    let (res, _) = inspect(db, env, &mut inspector)?;
+                    let res = inspect(db, env, &mut inspector)?;
                     let frame = inspector
                         .into_geth_builder()
                         .geth_call_traces(call_config, res.result.gas_used());
@@ -69,7 +69,7 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
 
     let mut inspector = TracingInspector::new(inspector_config);
 
-    let (res, _) = inspect(db, env, &mut inspector)?;
+    let res = inspect(db, env, &mut inspector)?;
     let gas_used = res.result.gas_used();
     let return_value = res.result.into_output().unwrap_or_default();
     let frame = inspector
@@ -80,16 +80,19 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
 }
 
 /// Executes the [Env] against the given [Database] without committing state changes.
-pub(crate) fn inspect<DB, I>(db: DB, env: Env, inspector: I) -> EthResult<(ResultAndState, Env)>
+pub(crate) fn inspect<DB, I>(db: DB, env: Env, inspector: I) -> EthResult<ResultAndState>
 where
     DB: Database,
     <DB as Database>::Error: Into<EthApiError>,
     I: Inspector<DB>,
 {
-    let mut evm = revm::EVM::with_env(env);
-    evm.database(db);
-    let res = evm.inspect(inspector)?;
-    Ok((res, evm.env))
+    let mut evm = revm::Evm::builder()
+        .with_db(db)
+        .with_external_context(inspector)
+        .with_env(Box::new(env))
+        .build();
+    let res = evm.transact()?;
+    Ok(res)
 }
 
 /// Taken from reth
