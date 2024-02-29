@@ -417,7 +417,7 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
         // TODO: figure out what to do with sov-tx fields
         // chain id gas tip and gas limit
 
-        Transaction::<C>::new_signed_tx(&self.sov_tx_signer_priv_key, raw_message, 0, 0, 0, nonce)
+        Transaction::<C>::new_signed_tx(&self.sov_tx_signer_priv_key, raw_message, 0, nonce)
             .try_to_vec()
             .unwrap()
     }

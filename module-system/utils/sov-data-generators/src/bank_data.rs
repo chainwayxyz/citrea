@@ -156,8 +156,6 @@ impl<C: Context> MessageGenerator for BankMessageGenerator<C> {
                 mint_message.minter_pkey.clone(),
                 mint_token_tx::<C>(mint_message),
                 DEFAULT_CHAIN_ID,
-                DEFAULT_GAS_TIP,
-                DEFAULT_GAS_LIMIT,
                 nonce,
             ));
             nonce += 1;
@@ -168,8 +166,6 @@ impl<C: Context> MessageGenerator for BankMessageGenerator<C> {
                 transfer_message.sender_pkey.clone(),
                 transfer_token_tx::<C>(transfer_message),
                 DEFAULT_CHAIN_ID,
-                DEFAULT_GAS_TIP,
-                DEFAULT_GAS_LIMIT,
                 nonce,
             ));
             nonce += 1;
@@ -183,13 +179,11 @@ impl<C: Context> MessageGenerator for BankMessageGenerator<C> {
         sender: &<Self::Context as Spec>::PrivateKey,
         message: <Self::Module as Module>::CallMessage,
         chain_id: u64,
-        gas_tip: u64,
-        gas_limit: u64,
         nonce: u64,
         _is_last: bool,
     ) -> sov_modules_api::transaction::Transaction<C> {
         let message = Encoder::encode_call(message);
-        Transaction::<C>::new_signed_tx(sender, message, chain_id, gas_tip, gas_limit, nonce)
+        Transaction::<C>::new_signed_tx(sender, message, chain_id, nonce)
     }
 }
 
@@ -227,8 +221,6 @@ impl MessageGenerator for BadSerializationBankCallMessages {
                 authorized_minters: Vec::from([minter_address]),
             },
             DEFAULT_CHAIN_ID,
-            DEFAULT_GAS_TIP,
-            DEFAULT_GAS_LIMIT,
             0,
         ));
         messages.push(Message::new(
@@ -241,8 +233,6 @@ impl MessageGenerator for BadSerializationBankCallMessages {
                 },
             },
             DEFAULT_CHAIN_ID,
-            DEFAULT_GAS_TIP,
-            DEFAULT_GAS_LIMIT,
             0,
         ));
         messages
@@ -253,8 +243,6 @@ impl MessageGenerator for BadSerializationBankCallMessages {
         sender: &DefaultPrivateKey,
         message: <Bank<DefaultContext> as Module>::CallMessage,
         chain_id: u64,
-        gas_tip: u64,
-        gas_limit: u64,
         nonce: u64,
         is_last: bool,
     ) -> Transaction<DefaultContext> {
@@ -265,9 +253,7 @@ impl MessageGenerator for BadSerializationBankCallMessages {
             Encoder::encode_call(message)
         };
 
-        Transaction::<DefaultContext>::new_signed_tx(
-            sender, call_data, chain_id, gas_tip, gas_limit, nonce,
-        )
+        Transaction::<DefaultContext>::new_signed_tx(sender, call_data, chain_id, nonce)
     }
 }
 
@@ -305,8 +291,6 @@ impl MessageGenerator for BadSignatureBankCallMessages {
                 authorized_minters: Vec::from([minter_address]),
             },
             DEFAULT_CHAIN_ID,
-            DEFAULT_GAS_TIP,
-            DEFAULT_GAS_LIMIT,
             0,
         ));
         messages
@@ -317,8 +301,6 @@ impl MessageGenerator for BadSignatureBankCallMessages {
         sender: &DefaultPrivateKey,
         message: <Bank<DefaultContext> as Module>::CallMessage,
         chain_id: u64,
-        gas_tip: u64,
-        gas_limit: u64,
         nonce: u64,
         is_last: bool,
     ) -> Transaction<DefaultContext> {
@@ -329,8 +311,6 @@ impl MessageGenerator for BadSignatureBankCallMessages {
                 sender,
                 call_data.clone(),
                 chain_id,
-                gas_tip,
-                gas_limit,
                 nonce,
             );
             Transaction::new(
@@ -338,14 +318,10 @@ impl MessageGenerator for BadSignatureBankCallMessages {
                 call_data,
                 tx.signature().clone(),
                 chain_id,
-                gas_tip,
-                gas_limit,
                 nonce,
             )
         } else {
-            Transaction::<DefaultContext>::new_signed_tx(
-                sender, call_data, chain_id, gas_tip, gas_limit, nonce,
-            )
+            Transaction::<DefaultContext>::new_signed_tx(sender, call_data, chain_id, nonce)
         }
     }
 }
@@ -384,8 +360,6 @@ impl MessageGenerator for BadNonceBankCallMessages {
                 authorized_minters: Vec::from([minter_address]),
             },
             DEFAULT_CHAIN_ID,
-            DEFAULT_GAS_TIP,
-            DEFAULT_GAS_LIMIT,
             0,
         ));
         messages
@@ -396,15 +370,11 @@ impl MessageGenerator for BadNonceBankCallMessages {
         sender: &DefaultPrivateKey,
         message: <Bank<DefaultContext> as Module>::CallMessage,
         chain_id: u64,
-        gas_tip: u64,
-        gas_limit: u64,
         _nonce: u64,
         _is_last: bool,
     ) -> Transaction<DefaultContext> {
         let message = Encoder::encode_call(message);
         // hard-coding the nonce to 1000
-        Transaction::<DefaultContext>::new_signed_tx(
-            sender, message, chain_id, gas_tip, gas_limit, 1000,
-        )
+        Transaction::<DefaultContext>::new_signed_tx(sender, message, chain_id, 1000)
     }
 }

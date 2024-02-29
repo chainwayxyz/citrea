@@ -113,20 +113,14 @@ where
         E3: Into<anyhow::Error> + Send + Sync,
     {
         let chain_id;
-        let gas_tip;
-        let gas_limit;
 
         let intermediate_repr: RT::CliStringRepr<U> = match self {
             ImportTransaction::FromFile(file) => {
                 chain_id = file.chain_id();
-                gas_tip = file.gas_tip();
-                gas_limit = file.gas_limit();
                 file.try_into().map_err(Into::<anyhow::Error>::into)?
             }
             ImportTransaction::FromString(json) => {
                 chain_id = json.chain_id();
-                gas_tip = json.gas_tip();
-                gas_limit = json.gas_limit();
                 json.try_into().map_err(Into::<anyhow::Error>::into)?
             }
         };
@@ -135,7 +129,7 @@ where
             .try_into()
             .map_err(Into::<anyhow::Error>::into)?;
 
-        let tx = UnsignedTransaction::new(tx, chain_id, gas_tip, gas_limit);
+        let tx = UnsignedTransaction::new(tx, chain_id);
 
         println!("Adding the following transaction to batch:");
         println!("{}", serde_json::to_string_pretty(&tx)?);

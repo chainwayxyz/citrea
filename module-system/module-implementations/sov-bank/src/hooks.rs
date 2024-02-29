@@ -41,7 +41,7 @@ impl<C: Context> TxHooks for Bank<C> {
         hook: &BankTxHook<C>,
     ) -> anyhow::Result<()> {
         let BankTxHook { sender, sequencer } = hook;
-        let amount = tx.gas_limit().saturating_add(tx.gas_tip());
+        let amount = 0;
 
         if amount > 0 {
             let token_address = C::Address::from_str(GAS_TOKEN_ADDRESS)
