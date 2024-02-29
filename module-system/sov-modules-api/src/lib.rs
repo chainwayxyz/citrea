@@ -33,7 +33,7 @@ pub use clap;
 pub use sov_modules_core::PrivateKey;
 pub use sov_modules_core::{
     archival_state, runtime, AccessoryWorkingSet, Address, AddressBech32, CallResponse, Context,
-    DispatchCall, EncodeCall, GasUnit, Genesis, KernelModule, KernelWorkingSet, Module,
+    DispatchCall, EncodeCall, Genesis, KernelModule, KernelWorkingSet, Module,
     ModuleCallJsonSchema, ModuleError, ModuleError as Error, ModuleInfo, ModulePrefix, PublicKey,
     Signature, Spec, StateCheckpoint, StateReaderAndWriter, VersionedWorkingSet, WorkingSet,
 };
