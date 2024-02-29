@@ -13,31 +13,12 @@ pub mod utils;
 pub use call::*;
 pub use genesis::*;
 pub use hooks::BankTxHook;
-use sov_modules_api::{CallResponse, Error, GasUnit, ModuleInfo, WorkingSet};
+use sov_modules_api::{CallResponse, Error, ModuleInfo, WorkingSet};
 use token::Token;
 /// Specifies an interface to interact with tokens.
 pub use token::{Amount, Coins};
 /// Methods to get a token address.
 pub use utils::{get_genesis_token_address, get_token_address};
-
-/// Gas configuration for the bank module
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct BankGasConfig<GU: GasUnit> {
-    /// Gas price multiplier for the create token operation
-    pub create_token: GU,
-
-    /// Gas price multiplier for the transfer operation
-    pub transfer: GU,
-
-    /// Gas price multiplier for the burn operation
-    pub burn: GU,
-
-    /// Gas price multiplier for the mint operation
-    pub mint: GU,
-
-    /// Gas price multiplier for the freeze operation
-    pub freeze: GU,
-}
 
 /// The sov-bank module manages user balances. It provides functionality for:
 /// - Token creation.
