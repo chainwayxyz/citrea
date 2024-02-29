@@ -64,7 +64,7 @@ concurrency:
 jobs:
   check:
     name: check
-    runs-on: [self-hosted]
+    runs-on: ubicloud-standard-8
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
@@ -98,7 +98,7 @@ jobs:
           fi
 
   check_no_std:
-    runs-on: [self-hosted]
+    runs-on: ubicloud-standard-8
     steps:
       - uses: actions/checkout@v4
       - name: Install Rust Bare Metal
@@ -123,7 +123,7 @@ jobs:
 
   nextest:
     name: nextest
-    runs-on: self-hosted
+    runs-on: ubicloud-standard-8
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
