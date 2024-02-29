@@ -34,8 +34,6 @@ const DEFAULT_TOKEN_NAME: &str = "Token1";
 const DEFAULT_SALT: u64 = 10;
 const DEFAULT_PVT_KEY: &str = "236e80cb222c4ed0431b093b3ac53e6aa7a2273fe1f4351cd354989a823432a27b758bf2e7670fafaf6bf0015ce0ff5aa802306fc7e3f45762853ffc37180fe6";
 const DEFAULT_CHAIN_ID: u64 = 0;
-const DEFAULT_GAS_TIP: u64 = 0;
-const DEFAULT_GAS_LIMIT: u64 = 0;
 
 pub fn get_default_token_address() -> <DefaultContext as Spec>::Address {
     let minter_key = DefaultPrivateKey::from_hex(DEFAULT_PVT_KEY).unwrap();

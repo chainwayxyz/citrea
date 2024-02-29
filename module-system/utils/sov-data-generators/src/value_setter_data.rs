@@ -9,8 +9,6 @@ use super::*;
 use crate::EncodeCall;
 
 const DEFAULT_CHAIN_ID: u64 = 0;
-const DEFAULT_GAS_TIP: u64 = 0;
-const DEFAULT_GAS_LIMIT: u64 = 0;
 
 pub struct ValueSetterMessage<C: Context> {
     pub admin: Rc<C::PrivateKey>,

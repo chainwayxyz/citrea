@@ -36,7 +36,7 @@ impl<C: Context> TxHooks for Bank<C> {
 
     fn pre_dispatch_tx_hook(
         &self,
-        tx: &Transaction<C>,
+        _tx: &Transaction<C>,
         working_set: &mut WorkingSet<C>,
         hook: &BankTxHook<C>,
     ) -> anyhow::Result<()> {

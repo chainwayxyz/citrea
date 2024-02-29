@@ -4,10 +4,11 @@ use std::{env, fmt, fs, ops, process};
 use proc_macro2::{Ident, TokenStream};
 use quote::format_ident;
 use serde_json::{Map, Value};
-use syn::{PathArguments, Type, TypePath};
+use syn::Type;
 
 #[derive(Debug, Clone)]
 pub struct Manifest<'a> {
+    #[allow(dead_code)]
     parent: &'a Ident,
     path: PathBuf,
     value: Value,
