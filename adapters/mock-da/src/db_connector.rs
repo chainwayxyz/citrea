@@ -107,7 +107,7 @@ impl DbConnector {
             .execute("UPDATE last_da_slot_time SET last_time = datetime('now') WHERE last_time <= datetime('now', '-5 seconds');",())
                 .expect("DbConnector: Failed to update last time");
 
-        updated_count == 0
+        !(updated_count == 0)
     }
 
     // service.rs used index so index 0 should get block 1
