@@ -1,7 +1,5 @@
 use helpers::*;
-use sov_bank::{
-    get_genesis_token_address, Bank, BankConfig, CallMessage, TokenConfig,
-};
+use sov_bank::{get_genesis_token_address, Bank, BankConfig, CallMessage, TokenConfig};
 use sov_modules_api::macros::config_constant;
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{Context, Module, WorkingSet};
@@ -9,9 +7,6 @@ use sov_prover_storage_manager::new_orphan_storage;
 use tempfile::TempDir;
 
 mod helpers;
-
-const CREATE_TOKEN_NATIVE_COST: u64 = 2;
-const CREATE_TOKEN_ZK_COST: u64 = 3;
 
 #[allow(dead_code)]
 pub struct BankGasTestCase {

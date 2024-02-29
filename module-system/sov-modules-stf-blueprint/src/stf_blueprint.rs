@@ -4,8 +4,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use sov_modules_api::hooks::{ApplySoftConfirmationError, HookSoftConfirmationInfo};
 use sov_modules_api::runtime::capabilities::KernelSlotHooks;
 use sov_modules_api::{
-    BasicAddress, BlobReaderTrait, Context, DaSpec, DispatchCall, StateCheckpoint,
-    WorkingSet,
+    BasicAddress, BlobReaderTrait, Context, DaSpec, DispatchCall, StateCheckpoint, WorkingSet,
 };
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
 use sov_rollup_interface::stf::{BatchReceipt, TransactionReceipt};
@@ -41,7 +40,9 @@ pub(crate) enum ApplyBatchError<A: BasicAddress> {
     Ignored([u8; 32]),
     Slashed {
         hash: [u8; 32],
+        #[allow(dead_code)]
         reason: SlashingReason,
+        #[allow(dead_code)]
         sequencer_da_address: A,
     },
 }
