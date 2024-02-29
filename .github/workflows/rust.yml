@@ -162,7 +162,8 @@ jobs:
           sleep 5
           bitcoin-cli -rpcuser=chainway -rpcpassword=topsecret -rpcport=38332 -rpcwallet=testwallet -generate 250
           # Run tests specifically for the bitcoin-da package
-          cargo test --all-features -- --test-threads=1
+          cd adapters/bitcoin
+          cargo test --package bitcoin-da --all-features -- --test-threads=1
       - uses: taiki-e/install-action@nextest
       - name: Install Rust
         run: rustup show
