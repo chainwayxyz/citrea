@@ -85,17 +85,17 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
                 151, 20, 133, 110, 226, 51, 179, 144, 42, 89, 29, 13, 95, 41, 37,
             ];
 
-            let result = if hash == desired_hash {
+            let _result = if hash == desired_hash {
                 ApplySlotResult::Success
             } else {
                 ApplySlotResult::Failure
             };
 
             // Return the `BatchReceipt`
-            receipts.push(BatchReceipt {
+            receipts.push(BatchReceipt::<ApplySlotResult, _> {
                 batch_hash: hash,
                 tx_receipts: vec![],
-                inner: result,
+                phantom_data: PhantomData,
             });
         }
 

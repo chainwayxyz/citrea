@@ -66,7 +66,6 @@ impl<C: Context, B: BlobReaderTrait> ApplyBlobHooks<B> for TestRuntime<C> {
 
     fn end_blob_hook(
         &self,
-        _result: Self::BlobResult,
         _working_set: &mut sov_modules_api::WorkingSet<C>,
     ) -> anyhow::Result<()> {
         Ok(())
@@ -89,7 +88,6 @@ impl<C: Context, Da: DaSpec> ApplySoftConfirmationHooks<Da> for TestRuntime<C> {
 
     fn end_soft_confirmation_hook(
         &self,
-        _result: Self::SoftConfirmationResult,
         _working_set: &mut sov_modules_api::WorkingSet<Self::Context>,
     ) -> Result<(), ApplySoftConfirmationError> {
         todo!()

@@ -50,7 +50,11 @@ async fn sequencer_sends_commitments_to_da_layer() {
     }
 
     let mut height = 1;
-    let last_finalized = da_service.get_head_block_header().await.unwrap().height;
+    let last_finalized = da_service
+        .get_last_finalized_block_header()
+        .await
+        .unwrap()
+        .height;
 
     // look over all available da_blocks and check that no commitment was sent
     while height <= last_finalized {
@@ -118,7 +122,11 @@ async fn check_sequencer_commitment(
     start_l1_block: u64,
     // end_l1_block: u64,
 ) -> u64 {
-    let last_finalized_height = da_service.get_head_block_header().await.unwrap().height;
+    let last_finalized_height = da_service
+        .get_last_finalized_block_header()
+        .await
+        .unwrap()
+        .height;
     let block = da_service
         .get_block_at(last_finalized_height)
         .await

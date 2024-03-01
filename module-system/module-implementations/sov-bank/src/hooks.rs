@@ -36,12 +36,12 @@ impl<C: Context> TxHooks for Bank<C> {
 
     fn pre_dispatch_tx_hook(
         &self,
-        tx: &Transaction<C>,
+        _tx: &Transaction<C>,
         working_set: &mut WorkingSet<C>,
         hook: &BankTxHook<C>,
     ) -> anyhow::Result<()> {
         let BankTxHook { sender, sequencer } = hook;
-        let amount = tx.gas_limit().saturating_add(tx.gas_tip());
+        let amount = 0;
 
         if amount > 0 {
             let token_address = C::Address::from_str(GAS_TOKEN_ADDRESS)
@@ -64,7 +64,7 @@ impl<C: Context> TxHooks for Bank<C> {
         ctx: &C,
         working_set: &mut WorkingSet<C>,
     ) -> anyhow::Result<()> {
-        let amount = working_set.gas_remaining_funds();
+        let amount = 0;
 
         if amount > 0 {
             let token_address = C::Address::from_str(GAS_TOKEN_ADDRESS)

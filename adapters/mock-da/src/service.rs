@@ -325,7 +325,7 @@ impl DaService for MockDaService {
         // TODO: this is not shared between instances
         // so it's not really a good way
         // create a something on db or something shared
-        if last_called.elapsed().as_secs() >= 5 {
+        if self.blocks.lock().await.five_seconds_elapsed() {
             self.send_transaction(&[1]).await?;
             *last_called = Instant::now();
         }

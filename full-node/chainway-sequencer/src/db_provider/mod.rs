@@ -461,7 +461,7 @@ impl<C: sov_modules_api::Context> WithdrawalsProvider for DbProvider<C> {
         &self,
         _id: reth_primitives::BlockHashOrNumber,
         _timestamp: u64,
-    ) -> ProviderResult<Option<Vec<reth_primitives::Withdrawal>>> {
+    ) -> ProviderResult<Option<reth_primitives::Withdrawals>> {
         unimplemented!("withdrawals_by_block")
     }
 }

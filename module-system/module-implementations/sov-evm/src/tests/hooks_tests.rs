@@ -217,14 +217,14 @@ fn finalize_hook_creates_final_block() {
     let mut accessory_state = working_set.accessory_state();
 
     let parent_block = evm.blocks.get(0usize, &mut accessory_state).unwrap();
-    let parent_hash = parent_block.header.hash;
+    let parent_hash = parent_block.header.hash();
     let block = evm.blocks.get(1usize, &mut accessory_state).unwrap();
 
     assert_eq!(
         block,
         SealedBlock {
-            header: SealedHeader {
-                header: Header {
+            header: SealedHeader::new(
+                Header {
                     parent_hash,
                     ommers_hash: EMPTY_OMMER_ROOT_HASH,
                     beneficiary: TEST_CONFIG.coinbase,
@@ -252,17 +252,17 @@ fn finalize_hook_creates_final_block() {
                     excess_blob_gas: None,
                     parent_beacon_block_root: None,
                 },
-                hash: B256::from(hex!(
+                B256::from(hex!(
                     "4850cef91960c3097715d9294018ea79399b71d80db8b8e6089788059ddc903d"
-                )),
-            },
+                ))
+            ),
             transactions: 0..2
         }
     );
 
     assert_eq!(
         evm.block_hashes
-            .get(&block.header.hash, &mut accessory_state)
+            .get(&block.header.hash(), &mut accessory_state)
             .unwrap(),
         1u64
     );
@@ -289,7 +289,7 @@ fn begin_soft_confirmation_hook_appends_last_block_hashes() {
             .get(0, &mut working_set.accessory_state())
             .unwrap()
             .header
-            .hash
+            .hash()
     );
 
     assert!(evm
@@ -326,7 +326,7 @@ fn begin_soft_confirmation_hook_appends_last_block_hashes() {
             .get(256, &mut working_set.accessory_state())
             .unwrap()
             .header
-            .hash
+            .hash()
     );
 
     assert!(evm

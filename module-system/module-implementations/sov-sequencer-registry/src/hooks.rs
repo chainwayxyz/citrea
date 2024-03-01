@@ -29,17 +29,7 @@ impl<C: Context, Da: sov_modules_api::DaSpec> ApplyBlobHooks<Da::BlobTransaction
         Ok(())
     }
 
-    fn end_blob_hook(
-        &self,
-        result: Self::BlobResult,
-        working_set: &mut WorkingSet<C>,
-    ) -> anyhow::Result<()> {
-        match result {
-            SequencerOutcome::Completed => (),
-            SequencerOutcome::Slashed { sequencer } => {
-                self.delete(&sequencer, working_set);
-            }
-        }
+    fn end_blob_hook(&self, _working_set: &mut WorkingSet<C>) -> anyhow::Result<()> {
         Ok(())
     }
 }

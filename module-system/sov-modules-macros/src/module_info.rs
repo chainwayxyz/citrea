@@ -5,7 +5,6 @@ use syn::{
 
 use self::parsing::{ModuleField, ModuleFieldAttribute, StructDef};
 use crate::common::get_generics_type_param;
-use crate::manifest::Manifest;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum ModuleType {
@@ -107,7 +106,6 @@ fn impl_module_info(
                 impl_self_body.push(&field.ident);
             }
             ModuleFieldAttribute::Gas => {
-                impl_self_init.push(make_init_gas_config(ident, field)?);
                 impl_self_body.push(&field.ident);
             }
         };
@@ -245,16 +243,6 @@ fn make_init_module(
         let _ = <#ty as #trait_to_assert>::genesis;
         let #field_ident = <#ty as ::std::default::Default>::default();
     })
-}
-
-fn make_init_gas_config(
-    parent: &Ident,
-    field: &ModuleField,
-) -> Result<proc_macro2::TokenStream, syn::Error> {
-    let field_ident = &field.ident;
-    let ty = &field.ty;
-
-    Manifest::read_constants(parent)?.parse_gas_config(ty, field_ident)
 }
 
 fn make_module_prefix_fn(struct_ident: &Ident) -> proc_macro2::TokenStream {

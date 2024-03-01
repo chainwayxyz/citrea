@@ -81,11 +81,7 @@ pub trait ApplyBlobHooks<B: BlobReaderTrait> {
 
     /// Executes at the end of apply_blob and rewards or slashes the sequencer
     /// If this hook returns Err rollup panics
-    fn end_blob_hook(
-        &self,
-        result: Self::BlobResult,
-        working_set: &mut WorkingSet<Self::Context>,
-    ) -> anyhow::Result<()>;
+    fn end_blob_hook(&self, working_set: &mut WorkingSet<Self::Context>) -> anyhow::Result<()>;
 }
 
 /// Hooks that are executed before and after a soft confirmation is processed.
@@ -105,7 +101,6 @@ pub trait ApplySoftConfirmationHooks<Da: DaSpec> {
     /// If this hook returns Err rollup panics
     fn end_soft_confirmation_hook(
         &self,
-        result: Self::SoftConfirmationResult,
         working_set: &mut WorkingSet<Self::Context>,
     ) -> Result<(), ApplySoftConfirmationError>;
 }

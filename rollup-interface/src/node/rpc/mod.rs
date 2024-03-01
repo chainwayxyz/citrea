@@ -1,5 +1,7 @@
 //! The rpc module defines types and traits for querying chain history
 //! via an RPC interface.
+use core::marker::PhantomData;
+
 #[cfg(feature = "native")]
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -202,7 +204,8 @@ pub struct BatchResponse<B, Tx> {
     pub txs: Option<Vec<ItemOrHash<TxResponse<Tx>>>>,
     /// The custom receipt specified by the rollup. This typically contains
     /// information about the outcome of the batch.
-    pub custom_receipt: B,
+    #[serde(skip_serializing)]
+    pub phantom_data: PhantomData<B>,
 }
 
 /// The response to a JSON-RPC request for a particular transaction.
@@ -218,7 +221,8 @@ pub struct TxResponse<Tx> {
     pub body: Option<Vec<u8>>,
     /// The custom receipt specified by the rollup. This typically contains
     /// information about the outcome of the transaction.
-    pub custom_receipt: Tx,
+    #[serde(skip_serializing)]
+    pub phantom_data: PhantomData<Tx>,
 }
 
 /// An RPC response which might contain a full item or just its hash.
