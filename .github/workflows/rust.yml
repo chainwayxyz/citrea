@@ -39,15 +39,13 @@ name: Rust
 #   so you're not wasting money unless several cores are sitting idle for long.
 
 on:
-  # Relevant docs:
-  # - https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/managing-a-merge-queue#how-merge-queues-work
-  # - https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#merge_group
   merge_group:
     types: ["checks_requested"]
   push:
     branches: ["nightly", "stable"]
   pull_request:
     branches: ["nightly", "stable"]
+    types: [opened, synchronize, reopened, ready_for_review]
 
 env:
   CARGO_TERM_COLOR: always
@@ -66,6 +64,7 @@ jobs:
     name: check
     runs-on: ubicloud-standard-16
     timeout-minutes: 60
+    if: github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v4
       - uses: rui314/setup-mold@v1
@@ -99,6 +98,7 @@ jobs:
 
   check_no_std:
     runs-on: ubicloud-standard-4
+    if: github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v4
       - name: Install Rust Bare Metal
@@ -125,6 +125,7 @@ jobs:
     name: nextest
     runs-on: ubicloud-standard-16
     timeout-minutes: 60
+    if: github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v4
       - uses: rui314/setup-mold@v1
