@@ -71,7 +71,6 @@ pub struct MockDaService {
     finalized_header_sender: broadcast::Sender<MockBlockHeader>,
     wait_attempts: usize,
     planned_fork: Arc<Mutex<Option<PlannedFork>>>,
-    get_finalized_header_last_called: Arc<AsyncMutex<Instant>>,
 }
 
 impl MockDaService {
@@ -97,7 +96,6 @@ impl MockDaService {
             finalized_header_sender: tx,
             wait_attempts: 100_0000,
             planned_fork: Arc::new(Mutex::new(None)),
-            get_finalized_header_last_called: Arc::new(AsyncMutex::new(Instant::now())),
         }
     }
 
@@ -325,18 +323,6 @@ impl DaService for MockDaService {
     async fn get_last_finalized_block_header(
         &self,
     ) -> Result<<Self::Spec as DaSpec>::BlockHeader, Self::Error> {
-        // If this is not here, no new blocks are produced until we implement something
-        // that writes to DA. To implement and test soft confirmation logic, we need new blocks
-        let mut last_called = self.get_finalized_header_last_called.lock().await;
-
-        // TODO: this is not shared between instances
-        // so it's not really a good way
-        // create a something on db or something shared
-        if self.blocks.lock().await.five_seconds_elapsed() {
-            self.send_transaction(&[1]).await?;
-            *last_called = Instant::now();
-        }
-
         let blocks_len = self.blocks.lock().await.len();
 
         if blocks_len < self.blocks_to_finality as usize + 1 {

@@ -43,14 +43,6 @@ impl DbConnector {
         )
         .expect("DbConnector: failed to create table");
 
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS last_da_slot_time(
-                last_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )",
-            (),
-        )
-        .expect("DbConnector: failed to create table last_time");
-
         // first time db is opened in a thread, wipe data inside it unless it's the main thread
         // keep main thread's data since main thread runs only when running demo or mocknet
         // we would like to keep da data in that case
@@ -59,18 +51,8 @@ impl DbConnector {
             debug!("deleting db");
             conn.execute("DELETE FROM blocks", ())
                 .expect("DbConnector: failed to delete all rows");
-            conn.execute("DELETE FROM last_da_slot_time", ())
-                .expect("DbConnector: failed to delete all rows");
             set.insert(thread_name.to_string());
         }
-        // insert current time to last_da_slot_time if the table is empty
-        conn.execute(
-            "INSERT INTO last_da_slot_time (last_time)
-            SELECT CURRENT_TIMESTAMP
-            WHERE NOT EXISTS (SELECT 1 FROM last_da_slot_time);",
-            (),
-        )
-        .expect("DbConnector: failed to insert table last_time");
 
         Self { conn }
     }
@@ -92,22 +74,6 @@ impl DbConnector {
                 ],
             )
             .expect("DbConnector: failed to execute insert query");
-    }
-
-    pub fn five_seconds_elapsed(&self) -> bool {
-        /*
-           "CREATE TABLE IF NOT EXISTS last_da_slot_time(
-               last_time TIMESTAMP DEFAULT NOW()
-           )",
-           this table has a single row with a single column, last_time
-           for this table if 5 seconds have passed since the last time, update the last time with current time and return True
-           else return false
-        */
-        let updated_count = self.conn
-            .execute("UPDATE last_da_slot_time SET last_time = datetime('now') WHERE last_time <= datetime('now', '-5 seconds');",())
-                .expect("DbConnector: Failed to update last time");
-
-        updated_count == 1
     }
 
     // service.rs used index so index 0 should get block 1
@@ -220,18 +186,6 @@ mod tests {
                 MockBlob::new(vec![3; 12], MockAddress::new([2; 32]), [5; 32]),
             ],
         }
-    }
-
-    #[tokio::test]
-    async fn test_five_seconds_elapsed() {
-        let db = DbConnector::new();
-        tokio::time::sleep(Duration::from_secs(1)).await;
-        assert!(!db.five_seconds_elapsed());
-        tokio::time::sleep(Duration::from_secs(4)).await;
-        assert!(db.five_seconds_elapsed());
-        // Should be updated
-        tokio::time::sleep(Duration::from_secs(2)).await;
-        assert!(!db.five_seconds_elapsed());
     }
 
     #[test]
