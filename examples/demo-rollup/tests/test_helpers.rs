@@ -117,7 +117,7 @@ pub async fn start_rollup(
                     da_service,
                     DefaultPrivateKey::from_hex(TEST_PRIVATE_KEY).unwrap(),
                     storage,
-                    sequencer_config, // TODO: Set these to reasonable values when parametrized
+                    sequencer_config,
                 );
             sequencer
                 .start_rpc_server(Some(rpc_reporting_channel))
