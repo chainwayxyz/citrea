@@ -2,9 +2,10 @@ use std::collections::BTreeMap;
 use std::str::FromStr;
 
 use alloy_primitives::{FixedBytes, Uint};
+use alloy_rpc_types::request::{TransactionInput, TransactionRequest};
 use hex::FromHex;
 use reth_primitives::{Address, BlockId, BlockNumberOrTag, Bytes, U64};
-use reth_rpc_types::{Block, CallInput, CallRequest, Rich, TransactionReceipt};
+use reth_rpc_types::{Block, Rich, TransactionReceipt};
 use revm::primitives::{SpecId, B256, KECCAK_EMPTY, U256};
 use serde_json::json;
 use sov_modules_api::default_context::DefaultContext;
@@ -326,7 +327,7 @@ fn call_test() {
     let (evm, mut working_set, signer) = init_evm();
 
     let fail_result = evm.get_call(
-        CallRequest {
+        TransactionRequest {
             from: Some(signer.address()),
             to: Some(Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap()),
             gas: Some(U256::from(100000)),
@@ -341,6 +342,8 @@ fn call_test() {
             max_fee_per_blob_gas: None,
             blob_versioned_hashes: Some(vec![]),
             transaction_type: None,
+            sidecar: None,
+            other: Default::default(),
         },
         Some(BlockNumberOrTag::Number(100)),
         None,
@@ -355,7 +358,7 @@ fn call_test() {
     let call_data = contract.get_call_data().to_string();
 
     let nonce_too_low_result = evm.get_call(
-        CallRequest {
+        TransactionRequest {
             from: Some(signer.address()),
             to: Some(Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap()),
             gas: Some(U256::from(100000)),
@@ -363,13 +366,15 @@ fn call_test() {
             max_fee_per_gas: None,
             max_priority_fee_per_gas: None,
             value: Some(U256::from(100000000)),
-            input: CallInput::new(alloy_primitives::Bytes::from_str(&call_data).unwrap()),
+            input: TransactionInput::new(alloy_primitives::Bytes::from_str(&call_data).unwrap()),
             nonce: Some(U64::from(7)),
             chain_id: Some(U64::from(1u64)),
             access_list: None,
             max_fee_per_blob_gas: None,
             blob_versioned_hashes: Some(vec![]),
             transaction_type: None,
+            sidecar: None,
+            other: Default::default(),
         },
         Some(BlockNumberOrTag::Number(3)),
         None,
@@ -385,7 +390,7 @@ fn call_test() {
 
     let result = evm
         .get_call(
-            CallRequest {
+            TransactionRequest {
                 from: Some(signer.address()),
                 to: Some(Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap()),
                 gas: Some(U256::from(100000)),
@@ -393,13 +398,17 @@ fn call_test() {
                 max_fee_per_gas: None,
                 max_priority_fee_per_gas: None,
                 value: None,
-                input: CallInput::new(alloy_primitives::Bytes::from_str(&call_data).unwrap()),
+                input: TransactionInput::new(
+                    alloy_primitives::Bytes::from_str(&call_data).unwrap(),
+                ),
                 nonce: None,
                 chain_id: Some(U64::from(1u64)),
                 access_list: None,
                 max_fee_per_blob_gas: None,
                 blob_versioned_hashes: Some(vec![]),
                 transaction_type: None,
+                sidecar: None,
+                other: Default::default(),
             },
             // How does this work precisely? In the first block, the contract was not there?
             Some(BlockNumberOrTag::Latest),
@@ -417,7 +426,7 @@ fn call_test() {
 
     let result = evm
         .get_call(
-            CallRequest {
+            TransactionRequest {
                 from: Some(signer.address()),
                 to: Some(Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap()),
                 gas: None,
@@ -425,13 +434,17 @@ fn call_test() {
                 max_fee_per_gas: None,
                 max_priority_fee_per_gas: None,
                 value: None,
-                input: CallInput::new(alloy_primitives::Bytes::from_str(&call_data).unwrap()),
+                input: TransactionInput::new(
+                    alloy_primitives::Bytes::from_str(&call_data).unwrap(),
+                ),
                 nonce: None,
                 chain_id: None,
                 access_list: None,
                 max_fee_per_blob_gas: None,
                 blob_versioned_hashes: None,
                 transaction_type: None,
+                sidecar: None,
+                other: Default::default(),
             },
             // How does this work precisely? In the first block, the contract was not there?
             Some(BlockNumberOrTag::Latest),
@@ -499,7 +512,7 @@ fn estimate_gas_test() {
     let (evm, mut working_set, signer) = init_evm();
 
     let fail_result = evm.eth_estimate_gas(
-        CallRequest {
+        TransactionRequest {
             from: Some(signer.address()),
             to: Some(Address::from_str("0x95222290DD7278Aa3Ddd389Cc1E1d165CC4BAfe5").unwrap()),
             gas: Some(U256::from(100000)),
@@ -514,6 +527,8 @@ fn estimate_gas_test() {
             max_fee_per_blob_gas: None,
             blob_versioned_hashes: Some(vec![]),
             transaction_type: None,
+            sidecar: None,
+            other: Default::default(),
         },
         Some(BlockNumberOrTag::Number(100)),
         &mut working_set,
@@ -525,7 +540,7 @@ fn estimate_gas_test() {
     let call_data = contract.get_call_data().to_string();
 
     let result = evm.eth_estimate_gas(
-        CallRequest {
+        TransactionRequest {
             from: Some(signer.address()),
             to: Some(Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap()),
             gas: Some(U256::from(100000)),
@@ -533,13 +548,15 @@ fn estimate_gas_test() {
             max_fee_per_gas: None,
             max_priority_fee_per_gas: None,
             value: None,
-            input: CallInput::new(alloy_primitives::Bytes::from_str(&call_data).unwrap()),
+            input: TransactionInput::new(alloy_primitives::Bytes::from_str(&call_data).unwrap()),
             nonce: Some(U64::from(9)),
             chain_id: Some(U64::from(1u64)),
             access_list: None,
             max_fee_per_blob_gas: None,
             blob_versioned_hashes: Some(vec![]),
             transaction_type: None,
+            sidecar: None,
+            other: Default::default(),
         },
         // How does this work precisely? In the first block, the contract was not there?
         Some(BlockNumberOrTag::Latest),

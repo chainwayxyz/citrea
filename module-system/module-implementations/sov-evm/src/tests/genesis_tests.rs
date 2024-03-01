@@ -141,8 +141,8 @@ fn genesis_block() {
     assert_eq!(
         block,
         SealedBlock {
-            header: SealedHeader {
-                header: Header {
+            header: SealedHeader::new(
+                Header {
                     parent_hash: B256::default(),
                     state_root: *GENESIS_STATE_ROOT,
                     transactions_root: EMPTY_TRANSACTIONS,
@@ -164,8 +164,8 @@ fn genesis_block() {
                     excess_blob_gas: None,
                     parent_beacon_block_root: None,
                 },
-                hash: *GENESIS_HASH
-            },
+                *GENESIS_HASH
+            ),
             transactions: (0u64..0u64),
         }
     );
