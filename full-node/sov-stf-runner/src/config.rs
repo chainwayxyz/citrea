@@ -63,13 +63,6 @@ pub struct RollupConfig<DaServiceConfig> {
     pub prover_service: ProverServiceConfig,
 }
 
-/// Rollup Configuration
-#[derive(Debug, Clone, PartialEq, Deserialize)]
-pub struct SequencerConfig {
-    /// Min. soft confirmaitons for sequencer to commit
-    pub min_soft_confirmations_per_commitment: u64,
-}
-
 /// Reads toml file as a specific type.
 pub fn from_toml_path<P: AsRef<Path>, R: DeserializeOwned>(path: P) -> anyhow::Result<R> {
     let mut contents = String::new();
@@ -150,22 +143,6 @@ mod tests {
             prover_service: ProverServiceConfig {
                 aggregated_proof_block_jump: 22,
             },
-        };
-        assert_eq!(config, expected);
-    }
-
-    #[test]
-    fn test_correct_config_sequencer() {
-        let config = r#"
-            min_soft_confirmations_per_commitment = 123
-        "#;
-
-        let config_file = create_config_from(config);
-
-        let config: SequencerConfig = from_toml_path(config_file.path()).unwrap();
-
-        let expected = SequencerConfig {
-            min_soft_confirmations_per_commitment: 123,
         };
         assert_eq!(config, expected);
     }

@@ -1,7 +1,7 @@
 use std::net::SocketAddr;
 use std::path::Path;
 
-use chainway_sequencer::ChainwaySequencer;
+use chainway_sequencer::{ChainwaySequencer, SequencerConfig};
 use citrea_stf::genesis_config::GenesisPaths;
 use const_rollup_config::TEST_PRIVATE_KEY;
 use sov_demo_rollup::MockDemoRollup;
@@ -15,7 +15,7 @@ use sov_modules_stf_blueprint::kernels::basic::{
 };
 use sov_stf_runner::{
     ProverServiceConfig, RollupConfig, RollupProverConfig, RpcConfig, RunnerConfig,
-    SequencerClientRpcConfig, SequencerConfig, StorageConfig,
+    SequencerClientRpcConfig, StorageConfig,
 };
 use tokio::sync::oneshot;
 use tracing::warn;
@@ -117,7 +117,7 @@ pub async fn start_rollup(
                     da_service,
                     DefaultPrivateKey::from_hex(TEST_PRIVATE_KEY).unwrap(),
                     storage,
-                    sequencer_config.into(), // TODO: Set these to reasonable values when parametrized
+                    sequencer_config, // TODO: Set these to reasonable values when parametrized
                 );
             sequencer
                 .start_rpc_server(Some(rpc_reporting_channel))
