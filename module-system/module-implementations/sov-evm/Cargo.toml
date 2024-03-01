@@ -43,7 +43,7 @@ ethers = { workspace = true }
 
 alloy-primitives = { workspace = true, features = ["rand", "rlp", "serde"] }
 alloy-sol-types = { workspace = true }
-alloy-rpc-types = { workspace = true, features = ["jsonrpsee-types"] }
+alloy-rpc-types = { workspace = true }
 alloy-rlp = { workspace = true }
 revm = { workspace = true, features = [
     "optional_block_gas_limit",
