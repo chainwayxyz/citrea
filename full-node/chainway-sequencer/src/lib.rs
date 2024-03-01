@@ -88,6 +88,14 @@ pub struct SequencingParams {
     pub min_soft_confirmations_per_commitment: u64,
 }
 
+impl From<sov_stf_runner::SequencerConfig> for SequencingParams {
+    fn from(cfg: sov_stf_runner::SequencerConfig) -> Self {
+        Self {
+            min_soft_confirmations_per_commitment: cfg.min_soft_confirmations_per_commitment,
+        }
+    }
+}
+
 pub struct ChainwaySequencer<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> {
     rollup: Rollup<S>,
     da_service: Da,

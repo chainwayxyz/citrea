@@ -61,6 +61,11 @@ pub struct RollupConfig<DaServiceConfig> {
     pub sequencer_public_key: Vec<u8>,
     /// Prover service configuration.
     pub prover_service: ProverServiceConfig,
+}
+
+/// Rollup Configuration
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+pub struct SequencerConfig {
     /// Min. soft confirmaitons for sequencer to commit
     pub min_soft_confirmations_per_commitment: u64,
 }
@@ -99,7 +104,6 @@ mod tests {
     fn test_correct_config() {
         let config = r#"
             sequencer_public_key = "0000000000000000000000000000000000000000000000000000000000000000"
-            min_soft_confirmations_per_commitment = 123
             [da]
             celestia_rpc_auth_token = "SECRET_RPC_TOKEN"
             celestia_rpc_address = "http://localhost:11111/"
@@ -146,6 +150,21 @@ mod tests {
             prover_service: ProverServiceConfig {
                 aggregated_proof_block_jump: 22,
             },
+        };
+        assert_eq!(config, expected);
+    }
+
+    #[test]
+    fn test_correct_config_sequencer() {
+        let config = r#"
+            min_soft_confirmations_per_commitment = 123
+        "#;
+
+        let config_file = create_config_from(config);
+
+        let config: SequencerConfig = from_toml_path(config_file.path()).unwrap();
+
+        let expected = SequencerConfig {
             min_soft_confirmations_per_commitment: 123,
         };
         assert_eq!(config, expected);
