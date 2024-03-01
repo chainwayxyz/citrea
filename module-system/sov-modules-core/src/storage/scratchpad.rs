@@ -8,7 +8,7 @@ use sov_rollup_interface::maybestd::collections::HashMap;
 use sov_rollup_interface::stf::Event;
 
 use crate::archival_state::{ArchivalAccessoryWorkingSet, ArchivalJmtWorkingSet};
-use crate::common::{GasMeter, Prefix};
+use crate::common::Prefix;
 use crate::module::{Context, Spec};
 use crate::storage::{
     CacheKey, CacheValue, EncodeKeyLike, NativeStorage, OrderedReadsAndWrites, StateCodec,
@@ -271,7 +271,6 @@ impl<S: Storage> StateReaderAndWriter for AccessoryDelta<S> {
 pub struct StateCheckpoint<C: Context> {
     delta: Delta<C::Storage>,
     accessory_delta: AccessoryDelta<C::Storage>,
-    gas_meter: GasMeter<C::GasUnit>,
 }
 
 impl<C: Context> StateCheckpoint<C> {
@@ -281,7 +280,6 @@ impl<C: Context> StateCheckpoint<C> {
         Self {
             delta: Delta::new(inner.clone(), None),
             accessory_delta: AccessoryDelta::new(inner, None),
-            gas_meter: GasMeter::default(),
         }
     }
 
@@ -294,7 +292,6 @@ impl<C: Context> StateCheckpoint<C> {
         Self {
             delta: Delta::with_witness(inner.clone(), witness, None),
             accessory_delta: AccessoryDelta::new(inner, None),
-            gas_meter: GasMeter::default(),
         }
     }
 
@@ -304,7 +301,6 @@ impl<C: Context> StateCheckpoint<C> {
             delta: RevertableWriter::new(self.delta, None),
             accessory_delta: RevertableWriter::new(self.accessory_delta, None),
             events: Default::default(),
-            gas_meter: self.gas_meter,
             archival_working_set: None,
             archival_accessory_working_set: None,
         }
@@ -343,7 +339,6 @@ pub struct WorkingSet<C: Context> {
     delta: RevertableWriter<Delta<C::Storage>>,
     accessory_delta: RevertableWriter<AccessoryDelta<C::Storage>>,
     events: Vec<Event>,
-    gas_meter: GasMeter<C::GasUnit>,
     archival_working_set: Option<ArchivalJmtWorkingSet<C>>,
     archival_accessory_working_set: Option<ArchivalAccessoryWorkingSet<C>>,
 }
@@ -425,7 +420,6 @@ impl<C: Context> WorkingSet<C> {
         StateCheckpoint {
             delta: self.delta.commit(),
             accessory_delta: self.accessory_delta.commit(),
-            gas_meter: self.gas_meter,
         }
     }
 
@@ -435,7 +429,6 @@ impl<C: Context> WorkingSet<C> {
         StateCheckpoint {
             delta: self.delta.revert(),
             accessory_delta: self.accessory_delta.revert(),
-            gas_meter: self.gas_meter,
         }
     }
 
@@ -453,22 +446,6 @@ impl<C: Context> WorkingSet<C> {
     /// written to this working set.
     pub fn events(&self) -> &[Event] {
         &self.events
-    }
-
-    /// Returns the remaining gas funds.
-    pub const fn gas_remaining_funds(&self) -> u64 {
-        self.gas_meter.remaining_funds()
-    }
-
-    /// Overrides the current gas settings with the provided values.
-    pub fn set_gas(&mut self, funds: u64, gas_price: C::GasUnit) {
-        self.gas_meter = GasMeter::new(funds, gas_price);
-    }
-
-    /// Attempts to charge the provided gas unit from the gas meter, using the internal price to
-    /// compute the scalar value.
-    pub fn charge_gas(&mut self, gas: &C::GasUnit) -> anyhow::Result<()> {
-        self.gas_meter.charge_gas(gas)
     }
 
     /// Fetches given value and provides a proof of it presence/absence.

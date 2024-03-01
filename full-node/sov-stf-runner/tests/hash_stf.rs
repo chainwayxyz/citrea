@@ -88,7 +88,6 @@ impl<C: Context, Da: DaSpec, Vm: Zkvm, Cond: ValidityCondition> StfBlueprintTrai
         _txs: Vec<Vec<u8>>,
         _batch_workspace: sov_modules_api::WorkingSet<C>,
     ) -> (
-        u64,
         sov_modules_api::WorkingSet<C>,
         Vec<sov_modules_stf_blueprint::TransactionReceipt<sov_modules_stf_blueprint::TxEffect>>,
     ) {
@@ -99,7 +98,6 @@ impl<C: Context, Da: DaSpec, Vm: Zkvm, Cond: ValidityCondition> StfBlueprintTrai
         &self,
         _sequencer_public_key: &[u8],
         _soft_batch: &mut sov_modules_api::SignedSoftConfirmationBatch,
-        _sequencer_reward: u64,
         _tx_receipts: Vec<
             sov_modules_stf_blueprint::TransactionReceipt<sov_modules_stf_blueprint::TxEffect>,
         >,

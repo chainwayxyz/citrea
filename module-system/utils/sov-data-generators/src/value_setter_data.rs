@@ -9,8 +9,6 @@ use super::*;
 use crate::EncodeCall;
 
 const DEFAULT_CHAIN_ID: u64 = 0;
-const DEFAULT_GAS_TIP: u64 = 0;
-const DEFAULT_GAS_LIMIT: u64 = 0;
 
 pub struct ValueSetterMessage<C: Context> {
     pub admin: Rc<C::PrivateKey>,
@@ -56,8 +54,6 @@ impl<C: Context> MessageGenerator for ValueSetterMessages<C> {
                     admin.clone(),
                     set_value_msg,
                     DEFAULT_CHAIN_ID,
-                    DEFAULT_GAS_TIP,
-                    DEFAULT_GAS_LIMIT,
                     value_setter_admin_nonce.try_into().unwrap(),
                 ));
             }
@@ -70,12 +66,10 @@ impl<C: Context> MessageGenerator for ValueSetterMessages<C> {
         sender: &C::PrivateKey,
         message: <Self::Module as Module>::CallMessage,
         chain_id: u64,
-        gas_tip: u64,
-        gas_limit: u64,
         nonce: u64,
         _is_last: bool,
     ) -> Transaction<C> {
         let message = Encoder::encode_call(message);
-        Transaction::<C>::new_signed_tx(sender, message, chain_id, gas_tip, gas_limit, nonce)
+        Transaction::<C>::new_signed_tx(sender, message, chain_id, nonce)
     }
 }

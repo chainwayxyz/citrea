@@ -1,5 +1,7 @@
 //! Implements fuzzing strategies for structs in the stf module
 
+use core::marker::PhantomData;
+
 use digest::typenum::U32;
 use digest::Digest;
 use proptest::prelude::{any, Arbitrary};
@@ -181,7 +183,7 @@ impl<B: Arbitrary + 'static, R: Arbitrary + 'static> Arbitrary for BatchReceipt<
                 ),
                 any::<B>(),
             )
-                .prop_map(move |(batch_hash, txs, receipt)| {
+                .prop_map(move |(batch_hash, txs, _receipt)| {
                     let batch_hash = match args.hasher {
                         Some(ref hasher) => {
                             let mut merkle_hasher = FuzzMerkleHasher { hasher };
@@ -193,7 +195,7 @@ impl<B: Arbitrary + 'static, R: Arbitrary + 'static> Arbitrary for BatchReceipt<
                     Self {
                         batch_hash,
                         tx_receipts: txs,
-                        inner: receipt,
+                        phantom_data: PhantomData,
                     }
                 })
                 .boxed()

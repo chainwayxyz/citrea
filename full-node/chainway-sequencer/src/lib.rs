@@ -335,7 +335,7 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                     .await
                 {
                     (Ok(()), batch_workspace) => {
-                        let (sequencer_reward, batch_workspace, tx_receipts) = self
+                        let (batch_workspace, tx_receipts) = self
                             .rollup
                             .runner
                             .apply_sov_tx(txs.clone(), batch_workspace)
@@ -363,7 +363,6 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                             .runner
                             .end_soft_confirmation(
                                 &mut signed_soft_batch,
-                                sequencer_reward,
                                 tx_receipts,
                                 batch_workspace,
                             )
@@ -420,7 +419,7 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
         // TODO: figure out what to do with sov-tx fields
         // chain id gas tip and gas limit
 
-        Transaction::<C>::new_signed_tx(&self.sov_tx_signer_priv_key, raw_message, 0, 0, 0, nonce)
+        Transaction::<C>::new_signed_tx(&self.sov_tx_signer_priv_key, raw_message, 0, nonce)
             .try_to_vec()
             .unwrap()
     }

@@ -157,8 +157,6 @@ impl<C: sov_modules_api::Context + Serialize + DeserializeOwned + Send + Sync> R
                             &private_key,
                             tx.try_to_vec().unwrap(),
                             tx.chain_id,
-                            tx.gas_tip,
-                            tx.gas_limit,
                             nonce + offset as u64,
                         )
                         .try_to_vec()

@@ -303,9 +303,6 @@ impl LedgerDB {
             da_slot_hash: batch_receipt.da_slot_hash.into(),
             hash: batch_receipt.batch_hash,
             tx_range: TxNumber(first_tx_number)..TxNumber(last_tx_number),
-            custom_receipt: bincode::serialize(&batch_receipt.inner)
-                .expect("serialization to vec is infallible")
-                .into(),
             txs,
             pre_state_root: batch_receipt.pre_state_root,
             post_state_root: batch_receipt.post_state_root,
@@ -376,9 +373,6 @@ impl LedgerDB {
             let batch_to_store = StoredBatch {
                 hash: batch_receipt.batch_hash,
                 txs: TxNumber(first_tx_number)..TxNumber(last_tx_number),
-                custom_receipt: bincode::serialize(&batch_receipt.inner)
-                    .expect("serialization to vec is infallible")
-                    .into(),
             };
             self.put_batch(
                 &batch_to_store,

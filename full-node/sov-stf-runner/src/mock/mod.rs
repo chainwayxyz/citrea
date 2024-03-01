@@ -55,7 +55,7 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
             batch_receipts: vec![BatchReceipt {
                 batch_hash: [0; 32],
                 tx_receipts: vec![],
-                inner: (),
+                phantom_data: PhantomData,
             }],
             witness: (),
         }

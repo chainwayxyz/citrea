@@ -55,11 +55,7 @@ impl<C: Context, Da: DaSpec> ApplyBlobHooks<Da::BlobTransaction> for Runtime<C, 
         Ok(())
     }
 
-    fn end_blob_hook(
-        &self,
-        _result: Self::BlobResult,
-        _working_set: &mut WorkingSet<C>,
-    ) -> anyhow::Result<()> {
+    fn end_blob_hook(&self, _working_set: &mut WorkingSet<C>) -> anyhow::Result<()> {
         Ok(())
     }
 }
@@ -88,7 +84,6 @@ impl<C: Context, Da: DaSpec> ApplySoftConfirmationHooks<Da> for Runtime<C, Da> {
 
     fn end_soft_confirmation_hook(
         &self,
-        _result: Self::SoftConfirmationResult,
         working_set: &mut WorkingSet<C>,
     ) -> Result<(), ApplySoftConfirmationError> {
         self.evm.end_soft_confirmation_hook(working_set);
