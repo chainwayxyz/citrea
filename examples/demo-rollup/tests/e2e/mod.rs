@@ -556,7 +556,7 @@ async fn test_soft_confirmations_on_different_blocks() -> Result<(), anyhow::Err
     }
 
     // publish new da block
-    da_service.publish_test_mock_block().await.unwrap();
+    da_service.publish_test_block().await.unwrap();
 
     for _ in 1..=6 {
         seq_test_client.spam_publish_batch_request().await.unwrap();

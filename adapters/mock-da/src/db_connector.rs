@@ -172,8 +172,6 @@ fn workspace_dir() -> PathBuf {
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
-
     use crate::db_connector::DbConnector;
     use crate::{MockAddress, MockBlob, MockBlock, MockBlockHeader, MockValidityCond};
 

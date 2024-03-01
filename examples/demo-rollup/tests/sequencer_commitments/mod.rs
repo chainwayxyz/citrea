@@ -48,7 +48,7 @@ async fn sequencer_sends_commitments_to_da_layer() {
         test_client.send_publish_batch_request().await;
     }
 
-    da_service.publish_test_mock_block().await.unwrap();
+    da_service.publish_test_block().await.unwrap();
 
     let mut height = 1;
     let last_finalized = da_service
@@ -66,15 +66,15 @@ async fn sequencer_sends_commitments_to_da_layer() {
         for mut blob in blobs.drain(0..) {
             let data = blob.full_data();
 
-            assert_eq!(data, &[1]); // empty blocks in mock da have blobs [1]
+            assert_eq!(data, &[] as &[u8]); // empty blocks in mock da have blobs []
         }
 
         height += 1;
     }
 
-    da_service.publish_test_mock_block().await.unwrap();
+    da_service.publish_test_block().await.unwrap();
     test_client.send_publish_batch_request().await;
-    da_service.publish_test_mock_block().await.unwrap();
+    da_service.publish_test_block().await.unwrap();
     test_client.send_publish_batch_request().await;
 
     let start_l2_block: u64 = 1;
@@ -94,7 +94,7 @@ async fn sequencer_sends_commitments_to_da_layer() {
     for _ in 0..4 {
         test_client.send_publish_batch_request().await;
     }
-    da_service.publish_test_mock_block().await.unwrap();
+    da_service.publish_test_block().await.unwrap();
 
     test_client.send_publish_batch_request().await;
     sleep(Duration::from_secs(1)).await;

@@ -1,7 +1,7 @@
 use std::pin::Pin;
 use std::sync::Mutex;
 use std::task::{Context, Poll};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use async_trait::async_trait;
 use pin_project::pin_project;
@@ -173,8 +173,8 @@ impl MockDaService {
     }
 
     /// Adds a mock blob to the mock da layer for tests
-    pub async fn publish_test_mock_block(&self) -> anyhow::Result<()> {
-        let blob = vec![1];
+    pub async fn publish_test_block(&self) -> anyhow::Result<()> {
+        let blob = vec![];
         let _ = self.add_blob(&blob, Default::default()).await?;
         Ok(())
     }
@@ -302,7 +302,7 @@ impl DaService for MockDaService {
         // so if get block at 1 is called, we create it
         let len = self.blocks.lock().await.len() as u64;
         if len == 0 && height == 1 {
-            self.send_transaction(&[1]).await?;
+            self.send_transaction(&[] as &[u8]).await?;
         }
 
         // Block until there's something
