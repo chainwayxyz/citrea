@@ -9,6 +9,7 @@ use ethers::abi::Address;
 use reth_primitives::{BlockNumberOrTag, TxHash};
 use sov_evm::SimpleStorageContract;
 use sov_mock_da::MockDaSpec;
+use sov_mock_da::{MockAddress, MockBlock, MockDaService};
 use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
 use sov_rollup_interface::da::DaSpec;
 use sov_stf_runner::RollupProverConfig;
@@ -513,6 +514,8 @@ async fn test_get_transaction_by_hash() -> Result<(), anyhow::Error> {
 async fn test_soft_confirmations_on_different_blocks() -> Result<(), anyhow::Error> {
     // sov_demo_rollup::initialize_logging();
 
+    let da_service = MockDaService::new(MockAddress::default());
+
     let (seq_test_client, full_node_test_client, seq_task, full_node_task, _) =
         initialize_test().await;
 
@@ -553,9 +556,9 @@ async fn test_soft_confirmations_on_different_blocks() -> Result<(), anyhow::Err
         last_da_slot_hash = seq_soft_conf.da_slot_hash;
     }
 
-    sleep(Duration::from_secs(5)).await;
+    // publish new da block
+    da_service.publish_test_mock_block().await.unwrap();
 
-    // now that more than 5 secs passed there should be a new da block
     for _ in 1..=6 {
         seq_test_client.spam_publish_batch_request().await.unwrap();
     }

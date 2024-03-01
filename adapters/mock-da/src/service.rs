@@ -174,6 +174,13 @@ impl MockDaService {
             .unwrap_or_default() as u64
     }
 
+    /// Adds a mock blob to the mock da layer for tests
+    pub async fn publish_test_mock_block(&self) -> anyhow::Result<()> {
+        let blob = vec![1];
+        let _ = self.add_blob(&blob, Default::default()).await?;
+        Ok(())
+    }
+
     async fn add_blob(&self, blob: &[u8], zkp_proof: Vec<u8>) -> anyhow::Result<u64> {
         let blocks = self.blocks.lock().await;
 
