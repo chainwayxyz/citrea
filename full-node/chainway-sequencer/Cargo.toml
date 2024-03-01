@@ -59,7 +59,7 @@ sov-state = { path = "../../module-system/sov-state" }
 
 [dev-dependencies]
 tokio = { workspace = true }
-
+tempfile = { workspace = true }
 
 [features]
 default = []

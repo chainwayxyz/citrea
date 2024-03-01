@@ -2,7 +2,7 @@ use core::fmt::Debug as DebugTrait;
 
 use anyhow::{anyhow, Context as _};
 use bitcoin_da::service::DaServiceConfig;
-use chainway_sequencer::{ChainwaySequencer, SequencingParams};
+use chainway_sequencer::{ChainwaySequencer, SequencerConfig};
 use citrea_stf::genesis_config::GenesisPaths;
 use clap::Parser;
 use const_rollup_config::TEST_PRIVATE_KEY;
@@ -37,9 +37,9 @@ struct Args {
     #[arg(long, default_value = "mock_rollup_config.toml")]
     rollup_config_path: String,
 
-    /// If set, runs the node in sequencer mode, otherwise in full node mode.
+    /// The path to the sequencer config. If set, runs the node in sequencer mode, otherwise in full node mode.
     #[arg(long)]
-    sequence: bool,
+    sequencer_config_path: Option<String>,
 }
 
 #[derive(clap::ValueEnum, Clone, Debug)]
@@ -55,6 +55,12 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let args = Args::parse();
     let rollup_config_path = args.rollup_config_path.as_str();
+
+    let sequencer_config: Option<SequencerConfig> = args.sequencer_config_path.map(|path| {
+        from_toml_path(path)
+            .context("Failed to read sequencer configuration")
+            .unwrap()
+    });
 
     match args.da_layer {
         SupportedDaLayer::Mock => {
@@ -74,7 +80,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 kernel_genesis,
                 rollup_config_path,
                 RollupProverConfig::Execute,
-                args.sequence,
+                sequencer_config,
             )
             .await?;
         }
@@ -95,7 +101,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 kernel_genesis,
                 rollup_config_path,
                 RollupProverConfig::Execute,
-                args.sequence,
+                sequencer_config,
             )
             .await?;
         }
@@ -116,7 +122,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 kernel_genesis,
                 rollup_config_path,
                 RollupProverConfig::Execute,
-                args.sequence,
+                sequencer_config,
             )
             .await?;
         }
@@ -140,7 +146,7 @@ async fn start_rollup<S, DaC>(
     //     <S as RollupBlueprint>::NativeContext,
     //     <S as RollupBlueprint>::DaSpec,
     // >>::GenesisPaths,
-    is_sequencer: bool,
+    sequencer_config: Option<SequencerConfig>,
 ) -> Result<(), anyhow::Error>
 where
     DaC: serde::de::DeserializeOwned + DebugTrait + Clone,
@@ -153,7 +159,7 @@ where
     let rollup_blueprint = S::new();
     let da_service = rollup_blueprint.create_da_service(&rollup_config).await;
 
-    if is_sequencer {
+    if sequencer_config.is_some() {
         rollup_config.sequencer_client = None;
     }
 
@@ -167,7 +173,7 @@ where
         .await
         .unwrap();
 
-    if is_sequencer {
+    if let Some(sequencer_config) = sequencer_config {
         let mut seq: ChainwaySequencer<
             <S as RollupBlueprint>::NativeContext,
             <S as RollupBlueprint>::DaService,
@@ -180,9 +186,7 @@ where
             )
             .unwrap(),
             storage,
-            SequencingParams {
-                min_soft_confirmations_per_commitment: rollup_config.min_soft_confirmations_per_commitment,
-            },
+            sequencer_config,
         );
         seq.start_rpc_server(None).await?;
         seq.run().await?;

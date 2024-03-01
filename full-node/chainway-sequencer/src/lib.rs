@@ -27,6 +27,7 @@ use reth_transaction_pool::{
     BestTransactionsAttributes, CoinbaseTipOrdering, EthPooledTransaction, EthTransactionValidator,
     Pool, TransactionOrigin, TransactionPool, TransactionValidationTaskExecutor,
 };
+use serde::Deserialize;
 use sov_accounts::Accounts;
 use sov_accounts::Response::{AccountEmpty, AccountExists};
 use sov_db::ledger_db::LedgerDB;
@@ -84,7 +85,10 @@ pub struct RpcContext<C: sov_modules_api::Context> {
     pub storage: C::Storage,
 }
 
-pub struct SequencingParams {
+/// Rollup Configuration
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+pub struct SequencerConfig {
+    /// Min. soft confirmaitons for sequencer to commit
     pub min_soft_confirmations_per_commitment: u64,
 }
 
@@ -99,7 +103,7 @@ pub struct ChainwaySequencer<C: sov_modules_api::Context, Da: DaService, S: Roll
     db_provider: DbProvider<C>,
     storage: C::Storage,
     ledger_db: LedgerDB,
-    params: SequencingParams,
+    config: SequencerConfig,
 }
 
 impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySequencer<C, Da, S> {
@@ -108,7 +112,7 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
         da_service: Da,
         sov_tx_signer_priv_key: C::PrivateKey,
         storage: C::Storage,
-        params: SequencingParams,
+        config: SequencerConfig,
     ) -> Self {
         let (sender, receiver) = unbounded();
 
@@ -130,7 +134,7 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
             db_provider,
             storage,
             ledger_db,
-            params,
+            config,
         }
     }
 
@@ -244,7 +248,7 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
 
                     let commitment_info = commitment_controller::get_commitment_info(
                         &self.ledger_db,
-                        self.params.min_soft_confirmations_per_commitment,
+                        self.config.min_soft_confirmations_per_commitment,
                         prev_l1_height,
                     );
 
@@ -535,4 +539,36 @@ fn convert_u256_to_u64(u256: reth_primitives::U256) -> Result<u64, TryFromSliceE
     let bytes: [u8; 32] = u256.to_be_bytes();
     let bytes: [u8; 8] = bytes[24..].try_into()?;
     Ok(u64::from_be_bytes(bytes))
+}
+
+#[cfg(test)]
+mod tests {
+    use std::io::Write;
+
+    use sov_stf_runner::from_toml_path;
+    use tempfile::NamedTempFile;
+
+    use super::*;
+
+    fn create_config_from(content: &str) -> NamedTempFile {
+        let mut config_file = NamedTempFile::new().unwrap();
+        config_file.write_all(content.as_bytes()).unwrap();
+        config_file
+    }
+
+    #[test]
+    fn test_correct_config_sequencer() {
+        let config = r#"
+            min_soft_confirmations_per_commitment = 123
+        "#;
+
+        let config_file = create_config_from(config);
+
+        let config: SequencerConfig = from_toml_path(config_file.path()).unwrap();
+
+        let expected = SequencerConfig {
+            min_soft_confirmations_per_commitment: 123,
+        };
+        assert_eq!(config, expected);
+    }
 }
