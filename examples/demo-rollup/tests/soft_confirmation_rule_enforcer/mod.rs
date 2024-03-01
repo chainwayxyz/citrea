@@ -2,7 +2,7 @@ use citrea_stf::genesis_config::GenesisPaths;
 use sov_mock_da::{MockAddress, MockDaService};
 use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
 use sov_stf_runner::RollupProverConfig;
-use tokio::time::{sleep, Duration};
+
 
 use crate::evm::make_test_client;
 // use sov_demo_rollup::initialize_logging;
