@@ -454,9 +454,8 @@ where
 
     /// Runs the rollup.
     pub async fn run_in_process(&mut self) -> Result<(), anyhow::Error> {
-        let client = match &self.sequencer_client {
-            Some(client) => client,
-            None => return Err(anyhow::anyhow!("Sequencer Client is not initialized")),
+        let Some(client) = &self.sequencer_client else {
+            return Err(anyhow::anyhow!("Sequencer Client is not initialized"));
         };
 
         let mut seen_block_headers: VecDeque<<Da::Spec as DaSpec>::BlockHeader> = VecDeque::new();
@@ -478,7 +477,6 @@ where
                 match x.downcast_ref::<jsonrpsee::core::Error>() {
                     Some(Error::Transport(e)) => {
                         debug!("Soft Batch: connection error during RPC call: {:?}", e);
-                        sleep(Duration::from_secs(RETRY_SLEEP)).await;
                         Self::log_error(
                             &mut last_connection_error,
                             CONNECTION_INTERVALS,
@@ -486,6 +484,7 @@ where
                             format!("Soft Batch: connection error during RPC call: {:?}", e)
                                 .as_str(),
                         );
+                        sleep(Duration::from_secs(RETRY_SLEEP)).await;
                         continue;
                     }
                     _ => {
@@ -501,13 +500,13 @@ where
                         "Soft Batch: no batch at height {}, retrying in {} seconds",
                         height, RETRY_SLEEP
                     );
-                    sleep(Duration::from_secs(RETRY_SLEEP)).await;
                     Self::log_error(
                         &mut last_parse_error,
                         RETRY_INTERVAL,
                         &mut retry_index,
                         "No soft batch published".to_string().as_str(),
                     );
+                    sleep(Duration::from_secs(RETRY_SLEEP)).await;
                     continue;
                 }
             };
@@ -544,12 +543,31 @@ where
             // Merkle root hash - L1 start height - L1 end height
             // TODO: How to confirm this is what we submit - use?
             // TODO: Add support for multiple commitments in a single block
-            let mut sequencer_commitment = None;
-            for mut tx in self.da_service.extract_relevant_blobs(&filtered_block) {
-                if let Ok(SequencerCommitment(seq_com)) = DaData::try_from_slice(tx.full_data()) {
-                    sequencer_commitment = Some(seq_com)
-                }
+            let (da_data, da_errors): (Vec<_>, Vec<_>) = self
+                .da_service
+                .extract_relevant_blobs(&filtered_block)
+                .into_iter()
+                .map(|mut tx| DaData::try_from_slice(tx.full_data()))
+                .partition(Result::is_ok);
+
+            if !da_errors.is_empty() {
+                tracing::warn!(
+                    "Found broken DA data in block 0x{}: {:?}",
+                    hex::encode(filtered_block.hash()),
+                    da_errors
+                );
             }
+
+            let sequencer_commitments: Vec<_> = da_data
+                .into_iter()
+                .filter_map(|d| match d {
+                    Ok(SequencerCommitment(seq_com)) => Some(seq_com),
+                    _ => None,
+                })
+                .collect();
+
+            // TODO here we can support multiple commitments but for now let's take the last one.
+            let sequencer_commitment = sequencer_commitments.iter().last();
 
             if sequencer_commitment.is_some() {
                 let sequencer_commitment = sequencer_commitment.unwrap();
