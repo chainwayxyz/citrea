@@ -44,7 +44,7 @@ async fn too_many_l2_block_per_l1_block() {
 
     // create 2*limiting_number + 1 blocks so it has to give error
     for idx in 0..2 * limiting_number + 1 {
-        let _response = test_client.spam_publish_batch_request().await;
+        test_client.spam_publish_batch_request().await.unwrap();
         if idx >= limiting_number {
             // There should not be any more blocks published from this point
             // because the limiting number is reached
@@ -56,7 +56,7 @@ async fn too_many_l2_block_per_l1_block() {
     da_service.publish_test_block().await.unwrap();
 
     for idx in 0..2 * limiting_number + 1 {
-        let _response = test_client.spam_publish_batch_request().await;
+        test_client.spam_publish_batch_request().await.unwrap();
         if idx < limiting_number {
             assert_eq!(test_client.eth_block_number().await, last_block_number + 1);
         }
