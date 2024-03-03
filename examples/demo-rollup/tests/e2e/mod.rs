@@ -8,7 +8,7 @@ use ethereum_types::H256;
 use ethers::abi::Address;
 use reth_primitives::{BlockNumberOrTag, TxHash};
 use sov_evm::SimpleStorageContract;
-use sov_mock_da::MockDaSpec;
+use sov_mock_da::{MockAddress, MockDaService, MockDaSpec};
 use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
 use sov_rollup_interface::da::DaSpec;
 use sov_stf_runner::RollupProverConfig;
@@ -87,8 +87,6 @@ async fn test_full_node_send_tx() -> Result<(), anyhow::Error> {
         .send_eth(addr, None, None, None, 0u128)
         .await
         .unwrap();
-
-    sleep(Duration::from_millis(2000)).await;
 
     seq_test_client.send_publish_batch_request().await;
 
@@ -292,6 +290,9 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
         seq_test_client.send_publish_batch_request().await;
     }
 
+    let da_service = MockDaService::new(MockAddress::from([0; 32]));
+    da_service.publish_test_block().await.unwrap();
+
     // start full node again
     let (full_node_port_tx, full_node_port_rx) = tokio::sync::oneshot::channel();
 
@@ -321,7 +322,7 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
     });
 
     // TODO: There should be a better way to test this?
-    sleep(Duration::from_secs(30)).await;
+    sleep(Duration::from_secs(10)).await;
 
     let full_node_port = full_node_port_rx.await.unwrap();
 
@@ -513,6 +514,8 @@ async fn test_get_transaction_by_hash() -> Result<(), anyhow::Error> {
 async fn test_soft_confirmations_on_different_blocks() -> Result<(), anyhow::Error> {
     // sov_demo_rollup::initialize_logging();
 
+    let da_service = MockDaService::new(MockAddress::default());
+
     let (seq_test_client, full_node_test_client, seq_task, full_node_task, _) =
         initialize_test().await;
 
@@ -553,9 +556,9 @@ async fn test_soft_confirmations_on_different_blocks() -> Result<(), anyhow::Err
         last_da_slot_hash = seq_soft_conf.da_slot_hash;
     }
 
-    sleep(Duration::from_secs(5)).await;
+    // publish new da block
+    da_service.publish_test_block().await.unwrap();
 
-    // now that more than 5 secs passed there should be a new da block
     for _ in 1..=6 {
         seq_test_client.spam_publish_batch_request().await.unwrap();
     }
@@ -644,6 +647,9 @@ async fn test_reopen_sequencer() -> Result<(), anyhow::Error> {
         Path::new("demo_data_test_reopen_sequencer"),
         Path::new("demo_data_test_reopen_sequencer_copy"),
     );
+
+    let da_service = MockDaService::new(MockAddress::from([0; 32]));
+    da_service.publish_test_block().await.unwrap();
 
     sleep(Duration::from_secs(1)).await;
 
@@ -758,9 +764,14 @@ async fn execute_blocks(
 
     {
         for _ in 0..200 {
-            sequencer_client.send_publish_batch_request().await;
+            sequencer_client.spam_publish_batch_request().await.unwrap();
         }
+
+        sleep(Duration::from_secs(1)).await;
     }
+
+    let da_service = MockDaService::new(MockAddress::from([0; 32]));
+    da_service.publish_test_block().await.unwrap();
 
     {
         let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
@@ -770,7 +781,7 @@ async fn execute_blocks(
                 .send_eth(addr, None, None, None, 0u128)
                 .await
                 .unwrap();
-            sequencer_client.send_publish_batch_request().await;
+            sequencer_client.spam_publish_batch_request().await.unwrap();
         }
     }
 

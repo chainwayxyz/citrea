@@ -1,7 +1,7 @@
 use std::pin::Pin;
 use std::sync::Mutex;
 use std::task::{Context, Poll};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use async_trait::async_trait;
 use pin_project::pin_project;
@@ -71,7 +71,6 @@ pub struct MockDaService {
     finalized_header_sender: broadcast::Sender<MockBlockHeader>,
     wait_attempts: usize,
     planned_fork: Arc<Mutex<Option<PlannedFork>>>,
-    get_finalized_header_last_called: Arc<AsyncMutex<Instant>>,
 }
 
 impl MockDaService {
@@ -97,7 +96,6 @@ impl MockDaService {
             finalized_header_sender: tx,
             wait_attempts: 100_0000,
             planned_fork: Arc::new(Mutex::new(None)),
-            get_finalized_header_last_called: Arc::new(AsyncMutex::new(Instant::now())),
         }
     }
 
@@ -172,6 +170,13 @@ impl MockDaService {
             .len()
             .checked_sub(self.blocks_to_finality as usize)
             .unwrap_or_default() as u64
+    }
+
+    /// Adds a mock blob to the mock da layer for tests
+    pub async fn publish_test_block(&self) -> anyhow::Result<()> {
+        let blob = vec![];
+        let _ = self.add_blob(&blob, Default::default()).await?;
+        Ok(())
     }
 
     async fn add_blob(&self, blob: &[u8], zkp_proof: Vec<u8>) -> anyhow::Result<u64> {
@@ -297,7 +302,7 @@ impl DaService for MockDaService {
         // so if get block at 1 is called, we create it
         let len = self.blocks.lock().await.len() as u64;
         if len == 0 && height == 1 {
-            self.send_transaction(&[1]).await?;
+            self.send_transaction(&[] as &[u8]).await?;
         }
 
         // Block until there's something
@@ -318,18 +323,6 @@ impl DaService for MockDaService {
     async fn get_last_finalized_block_header(
         &self,
     ) -> Result<<Self::Spec as DaSpec>::BlockHeader, Self::Error> {
-        // If this is not here, no new blocks are produced until we implement something
-        // that writes to DA. To implement and test soft confirmation logic, we need new blocks
-        let mut last_called = self.get_finalized_header_last_called.lock().await;
-
-        // TODO: this is not shared between instances
-        // so it's not really a good way
-        // create a something on db or something shared
-        if self.blocks.lock().await.five_seconds_elapsed() {
-            self.send_transaction(&[1]).await?;
-            *last_called = Instant::now();
-        }
-
         let blocks_len = self.blocks.lock().await.len();
 
         if blocks_len < self.blocks_to_finality as usize + 1 {
