@@ -21,10 +21,10 @@ use crate::test_helpers::{start_rollup, NodeMode};
 use crate::DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT;
 
 async fn initialize_test() -> (
-    Box<TestClient>,
-    Box<TestClient>,
-    JoinHandle<()>,
-    JoinHandle<()>,
+    Box<TestClient>, /* seq_test_client */
+    Box<TestClient>, /* full_node_test_client */
+    JoinHandle<()>,  /* seq_task */
+    JoinHandle<()>,  /* full_node_task */
     Address,
 ) {
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
@@ -800,6 +800,67 @@ async fn execute_blocks(
 
     assert_eq!(seq_last_block.state_root, full_node_last_block.state_root);
     assert_eq!(seq_last_block.hash, full_node_last_block.hash);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_soft_confirmations_status() -> Result<(), anyhow::Error> {
+    sov_demo_rollup::initialize_logging();
+
+    let da_service = MockDaService::new(MockAddress::default());
+
+    let (seq_test_client, full_node_test_client, seq_task, full_node_task, _) =
+        initialize_test().await;
+
+    // first publish a few blocks fast make it land in the same da block
+    for _ in 1..=6 {
+        seq_test_client.send_publish_batch_request().await;
+    }
+
+    sleep(Duration::from_secs(2)).await;
+
+    // now retrieve confirmation status from the sequencer and full node and check if they are the same
+    for i in 1..=6 {
+        dbg!(i);
+        let status_seq = seq_test_client
+            .ledger_get_soft_confirmation_status(i)
+            .await
+            .unwrap();
+        let status_node = full_node_test_client
+            .ledger_get_soft_confirmation_status(i)
+            .await
+            .unwrap();
+
+        assert_eq!(status_seq, status_node);
+
+        assert_eq!("trusted", status_node);
+    }
+
+    // publish new da block
+    da_service.publish_test_block().await.unwrap();
+
+    sleep(Duration::from_secs(2)).await;
+
+    // now retrieve confirmation status from the sequencer and full node and check if they are the same
+    for i in 1..=6 {
+        dbg!(i);
+        let status_seq = seq_test_client
+            .ledger_get_soft_confirmation_status(i)
+            .await
+            .unwrap();
+        let status_node = full_node_test_client
+            .ledger_get_soft_confirmation_status(i)
+            .await
+            .unwrap();
+
+        assert_eq!(status_seq, status_node);
+
+        assert_eq!("finalized", status_node);
+    }
+
+    seq_task.abort();
+    full_node_task.abort();
 
     Ok(())
 }
