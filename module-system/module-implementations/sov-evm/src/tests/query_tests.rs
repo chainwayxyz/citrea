@@ -506,30 +506,31 @@ fn logs_for_filter_test() {
     // TODO: Check this better.
     assert_eq!(available_res.unwrap().len(), 8);
 }
-
 #[test]
 fn estimate_gas_test() {
     let (evm, mut working_set, signer) = init_evm();
 
+    let fail_tx_req = TransactionRequest {
+        from: Some(signer.address()),
+        to: Some(Address::from_str("0x95222290DD7278Aa3Ddd389Cc1E1d165CC4BAfe5").unwrap()),
+        gas: Some(U256::from(100000)),
+        gas_price: Some(U256::from(100000000)),
+        max_fee_per_gas: None,
+        max_priority_fee_per_gas: None,
+        value: Some(U256::from(100000000)),
+        input: None.into(),
+        nonce: Some(U64::from(7)),
+        chain_id: Some(U64::from(1u64)),
+        access_list: None,
+        max_fee_per_blob_gas: None,
+        blob_versioned_hashes: Some(vec![]),
+        transaction_type: None,
+        sidecar: None,
+        other: Default::default(),
+    };
+
     let fail_result = evm.eth_estimate_gas(
-        TransactionRequest {
-            from: Some(signer.address()),
-            to: Some(Address::from_str("0x95222290DD7278Aa3Ddd389Cc1E1d165CC4BAfe5").unwrap()),
-            gas: Some(U256::from(100000)),
-            gas_price: Some(U256::from(100000000)),
-            max_fee_per_gas: None,
-            max_priority_fee_per_gas: None,
-            value: Some(U256::from(100000000)),
-            input: None.into(),
-            nonce: Some(U64::from(7)),
-            chain_id: Some(U64::from(1u64)),
-            access_list: None,
-            max_fee_per_blob_gas: None,
-            blob_versioned_hashes: Some(vec![]),
-            transaction_type: None,
-            sidecar: None,
-            other: Default::default(),
-        },
+        fail_tx_req,
         Some(BlockNumberOrTag::Number(100)),
         &mut working_set,
     );
@@ -539,7 +540,7 @@ fn estimate_gas_test() {
     let contract = SimpleStorageContract::default();
     let call_data = contract.get_call_data().to_string();
 
-    let mut tx_req = TransactionRequest {
+    let tx_req_contract_call = TransactionRequest {
         from: Some(signer.address()),
         to: Some(Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap()),
         gas: Some(U256::from(100000)),
@@ -558,106 +559,124 @@ fn estimate_gas_test() {
         other: Default::default(),
     };
 
-    let result = evm.eth_estimate_gas(
-        tx_req.clone(),
+    let result_contract_call = evm.eth_estimate_gas(
+        tx_req_contract_call.clone(),
         Some(BlockNumberOrTag::Latest),
         &mut working_set,
     );
-
-    assert_eq!(result.unwrap(), Uint::from_str("0x5bde").unwrap());
-
-    // No sender - returns gas error (possibly fetches gas info from the sender?)
-    tx_req.from = None;
-    let result = evm.eth_estimate_gas(
-        tx_req.clone(),
-        Some(BlockNumberOrTag::Latest),
-        &mut working_set,
-    );
-    // println!("{:?}", result);
-    assert_eq!(result, Err(RpcInvalidTransactionError::GasTooHigh.into()));
-    working_set.unset_archival_version();
-
-    tx_req.from = Some(signer.address());
-    tx_req.to = None;
-
-    let result = evm.eth_estimate_gas(
-        tx_req.clone(),
-        Some(BlockNumberOrTag::Latest),
-        &mut working_set,
-    );
-
-    // println!("{:?}", result);
-    assert_eq!(result, Err(RpcInvalidTransactionError::GasTooHigh.into()));
-    working_set.unset_archival_version();
-
-    tx_req.to = Some(Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap());
-    tx_req.gas = None;
-
-    // No gas given - sets gas to the block env gas limit
-    let result = evm.eth_estimate_gas(
-        tx_req.clone(),
-        Some(BlockNumberOrTag::Latest),
-        &mut working_set,
-    );
-
-    // println!("{:?}", result);
-    assert_eq!(result.unwrap(), Uint::from_str("0x5bde").unwrap());
-    working_set.unset_archival_version();
-
-    tx_req.gas = Some(U256::from(100000));
-    tx_req.gas_price = None;
-
-    // println!("here");
-    // No gas price given - sets gas price to 0
-    let result = evm.eth_estimate_gas(
-        tx_req.clone(),
-        Some(BlockNumberOrTag::Latest),
-        &mut working_set,
-    );
-
-    // println!("{:?}", result);
-    assert_eq!(result.unwrap(), Uint::from_str("0x5bde").unwrap());
-    working_set.unset_archival_version();
-
-    tx_req.gas_price = Some(U256::from(10000));
-    tx_req.chain_id = None;
-
-    let result = evm.eth_estimate_gas(
-        tx_req.clone(),
-        Some(BlockNumberOrTag::Latest),
-        &mut working_set,
-    );
-
-    assert_eq!(result.unwrap(), Uint::from_str("0x5bde").unwrap());
-    working_set.unset_archival_version();
-
-    tx_req.chain_id = Some(U64::from(3u64));
-    let result = evm.eth_estimate_gas(
-        tx_req.clone(),
-        Some(BlockNumberOrTag::Latest),
-        &mut working_set,
-    );
-
     assert_eq!(
-        result,
+        result_contract_call.unwrap(),
+        Uint::from_str("0x5bde").unwrap()
+    );
+
+    let tx_req_no_sender = TransactionRequest {
+        from: None,
+        ..tx_req_contract_call.clone()
+    };
+
+    let result_no_sender = evm.eth_estimate_gas(
+        tx_req_no_sender,
+        Some(BlockNumberOrTag::Latest),
+        &mut working_set,
+    );
+    assert_eq!(
+        result_no_sender,
+        Err(RpcInvalidTransactionError::GasTooHigh.into())
+    );
+    working_set.unset_archival_version();
+
+    let tx_req_no_recipient = TransactionRequest {
+        to: None,
+        ..tx_req_contract_call.clone()
+    };
+
+    let result_no_recipient = evm.eth_estimate_gas(
+        tx_req_no_recipient,
+        Some(BlockNumberOrTag::Latest),
+        &mut working_set,
+    );
+    assert_eq!(
+        result_no_recipient,
+        Err(RpcInvalidTransactionError::GasTooHigh.into())
+    );
+    working_set.unset_archival_version();
+
+    let tx_req_no_gas = TransactionRequest {
+        gas: None,
+        ..tx_req_contract_call.clone()
+    };
+
+    let result_no_gas = evm.eth_estimate_gas(
+        tx_req_no_gas,
+        Some(BlockNumberOrTag::Latest),
+        &mut working_set,
+    );
+    assert_eq!(result_no_gas.unwrap(), Uint::from_str("0x5bde").unwrap());
+    working_set.unset_archival_version();
+
+    let tx_req_no_gas_price = TransactionRequest {
+        gas_price: None,
+        ..tx_req_contract_call.clone()
+    };
+
+    let result_no_gas_price = evm.eth_estimate_gas(
+        tx_req_no_gas_price,
+        Some(BlockNumberOrTag::Latest),
+        &mut working_set,
+    );
+    assert_eq!(
+        result_no_gas_price.unwrap(),
+        Uint::from_str("0x5bde").unwrap()
+    );
+    working_set.unset_archival_version();
+
+    let tx_req_no_chain_id = TransactionRequest {
+        chain_id: None,
+        ..tx_req_contract_call.clone()
+    };
+
+    let result_no_chain_id = evm.eth_estimate_gas(
+        tx_req_no_chain_id,
+        Some(BlockNumberOrTag::Latest),
+        &mut working_set,
+    );
+    assert_eq!(
+        result_no_chain_id.unwrap(),
+        Uint::from_str("0x5bde").unwrap()
+    );
+    working_set.unset_archival_version();
+
+    let tx_req_invalid_chain_id = TransactionRequest {
+        chain_id: Some(U64::from(3u64)),
+        ..tx_req_contract_call.clone()
+    };
+
+    let result_invalid_chain_id = evm.eth_estimate_gas(
+        tx_req_invalid_chain_id,
+        Some(BlockNumberOrTag::Latest),
+        &mut working_set,
+    );
+    assert_eq!(
+        result_invalid_chain_id,
         Err(RpcInvalidTransactionError::InvalidChainId.into())
     );
     working_set.unset_archival_version();
 
-    tx_req.chain_id = Some(U64::from(1u64));
-    tx_req.blob_versioned_hashes = None;
+    let tx_req_no_blob_versioned_hashes = TransactionRequest {
+        blob_versioned_hashes: None,
+        ..tx_req_contract_call.clone()
+    };
 
-    let result = evm.eth_estimate_gas(
-        tx_req.clone(),
+    let result_no_blob_versioned_hashes = evm.eth_estimate_gas(
+        tx_req_no_blob_versioned_hashes,
         Some(BlockNumberOrTag::Latest),
         &mut working_set,
     );
+    assert_eq!(
+        result_no_blob_versioned_hashes.unwrap(),
+        Uint::from_str("0x5bde").unwrap()
+    );
     working_set.unset_archival_version();
-
-    assert_eq!(result.unwrap(), Uint::from_str("0x5bde").unwrap());
-
-    // TODO: Test these even further, to the extreme.
-    // https://github.com/chainwayxyz/secret-sovereign-sdk/issues/134
 }
 
 pub(crate) fn get_evm_with_storage(
