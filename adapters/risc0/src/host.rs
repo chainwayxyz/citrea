@@ -54,7 +54,7 @@ impl<'a> Risc0Host<'a> {
             .build()
             .unwrap();
         let mut executor = ExecutorImpl::from_elf(env, self.elf)?;
-        Ok(executor.run()?)
+        executor.run()
     }
     /// Run a computation in the zkvm and generate a receipt.
     pub fn run(&mut self) -> anyhow::Result<Receipt> {
