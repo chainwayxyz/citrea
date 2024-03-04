@@ -539,32 +539,122 @@ fn estimate_gas_test() {
     let contract = SimpleStorageContract::default();
     let call_data = contract.get_call_data().to_string();
 
+    let mut tx_req = TransactionRequest {
+        from: Some(signer.address()),
+        to: Some(Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap()),
+        gas: Some(U256::from(100000)),
+        gas_price: Some(U256::from(10000)),
+        max_fee_per_gas: None,
+        max_priority_fee_per_gas: None,
+        value: None,
+        input: TransactionInput::new(alloy_primitives::Bytes::from_str(&call_data).unwrap()),
+        nonce: Some(U64::from(9)),
+        chain_id: Some(U64::from(1u64)),
+        access_list: None,
+        max_fee_per_blob_gas: None,
+        blob_versioned_hashes: Some(vec![]),
+        transaction_type: None,
+        sidecar: None,
+        other: Default::default(),
+    };
+
     let result = evm.eth_estimate_gas(
-        TransactionRequest {
-            from: Some(signer.address()),
-            to: Some(Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap()),
-            gas: Some(U256::from(100000)),
-            gas_price: Some(U256::from(10000)),
-            max_fee_per_gas: None,
-            max_priority_fee_per_gas: None,
-            value: None,
-            input: TransactionInput::new(alloy_primitives::Bytes::from_str(&call_data).unwrap()),
-            nonce: Some(U64::from(9)),
-            chain_id: Some(U64::from(1u64)),
-            access_list: None,
-            max_fee_per_blob_gas: None,
-            blob_versioned_hashes: Some(vec![]),
-            transaction_type: None,
-            sidecar: None,
-            other: Default::default(),
-        },
-        // How does this work precisely? In the first block, the contract was not there?
+        tx_req.clone(),
+        Some(BlockNumberOrTag::Latest),
+        &mut working_set,
+    );
+
+    assert_eq!(result.unwrap(), Uint::from_str("0x5bde").unwrap());
+
+    // No sender - returns gas error (possibly fetches gas info from the sender?)
+    tx_req.from = None;
+    let result = evm.eth_estimate_gas(
+        tx_req.clone(),
+        Some(BlockNumberOrTag::Latest),
+        &mut working_set,
+    );
+    // println!("{:?}", result);
+    assert_eq!(result, Err(RpcInvalidTransactionError::GasTooHigh.into()));
+    working_set.unset_archival_version();
+
+    tx_req.from = Some(signer.address());
+    tx_req.to = None;
+
+    let result = evm.eth_estimate_gas(
+        tx_req.clone(),
+        Some(BlockNumberOrTag::Latest),
+        &mut working_set,
+    );
+
+    // println!("{:?}", result);
+    assert_eq!(result, Err(RpcInvalidTransactionError::GasTooHigh.into()));
+    working_set.unset_archival_version();
+
+    tx_req.to = Some(Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap());
+    tx_req.gas = None;
+
+    // No gas given - sets gas to the block env gas limit
+    let result = evm.eth_estimate_gas(
+        tx_req.clone(),
+        Some(BlockNumberOrTag::Latest),
+        &mut working_set,
+    );
+
+    // println!("{:?}", result);
+    assert_eq!(result.unwrap(), Uint::from_str("0x5bde").unwrap());
+    working_set.unset_archival_version();
+
+    tx_req.gas = Some(U256::from(100000));
+    tx_req.gas_price = None;
+
+    // println!("here");
+    // No gas price given - sets gas price to 0
+    let result = evm.eth_estimate_gas(
+        tx_req.clone(),
+        Some(BlockNumberOrTag::Latest),
+        &mut working_set,
+    );
+
+    // println!("{:?}", result);
+    assert_eq!(result.unwrap(), Uint::from_str("0x5bde").unwrap());
+    working_set.unset_archival_version();
+
+    tx_req.gas_price = Some(U256::from(10000));
+    tx_req.chain_id = None;
+
+    let result = evm.eth_estimate_gas(
+        tx_req.clone(),
         Some(BlockNumberOrTag::Latest),
         &mut working_set,
     );
 
     assert_eq!(result.unwrap(), Uint::from_str("0x5bde").unwrap());
     working_set.unset_archival_version();
+
+    tx_req.chain_id = Some(U64::from(3u64));
+    let result = evm.eth_estimate_gas(
+        tx_req.clone(),
+        Some(BlockNumberOrTag::Latest),
+        &mut working_set,
+    );
+
+    assert_eq!(
+        result,
+        Err(RpcInvalidTransactionError::InvalidChainId.into())
+    );
+    working_set.unset_archival_version();
+
+    tx_req.chain_id = Some(U64::from(1u64));
+    tx_req.blob_versioned_hashes = None;
+
+    let result = evm.eth_estimate_gas(
+        tx_req.clone(),
+        Some(BlockNumberOrTag::Latest),
+        &mut working_set,
+    );
+    working_set.unset_archival_version();
+
+    assert_eq!(result.unwrap(), Uint::from_str("0x5bde").unwrap());
 
     // TODO: Test these even further, to the extreme.
     // https://github.com/chainwayxyz/secret-sovereign-sdk/issues/134
