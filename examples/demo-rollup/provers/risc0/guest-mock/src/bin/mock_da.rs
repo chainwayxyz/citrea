@@ -34,7 +34,7 @@ pub fn main() {
     let guest = Risc0Guest::new();
     let storage = ZkStorage::new();
     #[cfg(feature = "bench")]
-    let start_cycles = env::get_cycle_count();
+    let start_cycles = env::cycle_count();
 
     let stf: StfBlueprint<ZkDefaultContext, _, _, Runtime<_, _>, BasicKernel<_, _>> =
         StfBlueprint::new();
@@ -47,7 +47,7 @@ pub fn main() {
 
     #[cfg(feature = "bench")]
     {
-        let end_cycles = env::get_cycle_count();
+        let end_cycles = env::cycle_count();
         report_bench_metrics(start_cycles, end_cycles);
     }
 }

@@ -26,6 +26,6 @@ pub fn get_syscall_name_cycles() -> SyscallName {
 
 pub fn print_cycle_count() {
     let metrics_syscall_name = get_syscall_name_cycles();
-    let serialized = (risc0_zkvm::guest::env::get_cycle_count() as u64).to_le_bytes();
+    let serialized = (risc0_zkvm::guest::env::cycle_count() as u64).to_le_bytes();
     risc0_zkvm::guest::env::send_recv_slice::<u8, u8>(metrics_syscall_name, &serialized);
 }
