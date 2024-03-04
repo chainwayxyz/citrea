@@ -5,8 +5,8 @@
 ```toml
 [dependencies]
 sov-zk-cycle-macros = {path = "../../utils/zk-cycle-macros", optional=true}
-risc0-zkvm = { version = "0.16", default-features = false, features = ["std"], optional=true}
-risc0-zkvm-platform = { version = "0.16", optional=true}
+risc0-zkvm = { version = "0.20", default-features = false, features = ["std"], optional=true}
+risc0-zkvm-platform = { version = "0.20", optional=true}
 sov-zk-cycle-utils = {path = "../../utils/zk-cycle-utils", optional=true}
 
 [features]
