@@ -6,17 +6,14 @@ use ethers_signers::{LocalWallet, Signer};
 use reth_primitives::BlockNumberOrTag;
 use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
 use sov_stf_runner::RollupProverConfig;
+use tokio::task::JoinHandle;
 
 use crate::evm::make_test_client;
 use crate::test_client::{TestClient, MAX_FEE_PER_GAS};
 use crate::test_helpers::{start_rollup, NodeMode};
 use crate::DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT;
 
-/// Transaction with equal nonce to last tx should not be accepted by mempool.
-#[tokio::test]
-async fn test_same_nonce_tx_should_panic() {
-    // sov_demo_rollup::initialize_logging();
-
+async fn initialize_test() -> (JoinHandle<()>, Box<TestClient>) {
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
     let seq_task = tokio::spawn(async {
@@ -36,6 +33,16 @@ async fn test_same_nonce_tx_should_panic() {
 
     let seq_port = seq_port_rx.await.unwrap();
     let test_client = make_test_client(seq_port).await;
+
+    (seq_task, test_client)
+}
+
+/// Transaction with equal nonce to last tx should not be accepted by mempool.
+#[tokio::test]
+async fn test_same_nonce_tx_should_panic() {
+    // sov_demo_rollup::initialize_logging();
+
+    let (seq_task, test_client) = initialize_test().await;
 
     let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
 
@@ -62,25 +69,7 @@ async fn test_same_nonce_tx_should_panic() {
 async fn test_nonce_too_low() {
     // sov_demo_rollup::initialize_logging();
 
-    let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
-
-    let seq_task = tokio::spawn(async {
-        start_rollup(
-            seq_port_tx,
-            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
-            BasicKernelGenesisPaths {
-                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
-            },
-            RollupProverConfig::Execute,
-            NodeMode::SequencerNode,
-            None,
-            DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
-        )
-        .await;
-    });
-
-    let seq_port = seq_port_rx.await.unwrap();
-    let test_client = make_test_client(seq_port).await;
+    let (seq_task, test_client) = initialize_test().await;
 
     let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
 
@@ -108,25 +97,7 @@ async fn test_nonce_too_low() {
 async fn test_nonce_too_high() {
     // sov_demo_rollup::initialize_logging();
 
-    let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
-
-    let seq_task = tokio::spawn(async {
-        start_rollup(
-            seq_port_tx,
-            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
-            BasicKernelGenesisPaths {
-                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
-            },
-            RollupProverConfig::Execute,
-            NodeMode::SequencerNode,
-            None,
-            DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
-        )
-        .await;
-    });
-
-    let seq_port = seq_port_rx.await.unwrap();
-    let test_client = make_test_client(seq_port).await;
+    let (seq_task, test_client) = initialize_test().await;
 
     let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
 
@@ -158,25 +129,7 @@ async fn test_nonce_too_high() {
 
 #[tokio::test]
 async fn test_order_by_fee() {
-    let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
-
-    let seq_task = tokio::spawn(async {
-        start_rollup(
-            seq_port_tx,
-            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
-            BasicKernelGenesisPaths {
-                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
-            },
-            RollupProverConfig::Execute,
-            NodeMode::SequencerNode,
-            None,
-            DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
-        )
-        .await;
-    });
-
-    let seq_port = seq_port_rx.await.unwrap();
-    let test_client = make_test_client(seq_port).await;
+    let (seq_task, test_client) = initialize_test().await;
 
     let chain_id: u64 = 5655;
     let key = "0xdcf2cbdd171a21c480aa7f53d77f31bb102282b3ff099c78e3118b37348c72f7"
@@ -185,7 +138,7 @@ async fn test_order_by_fee() {
         .with_chain_id(chain_id);
     let poor_addr = key.address();
 
-    let poor_test_client = TestClient::new(chain_id, key, poor_addr, seq_port).await;
+    let poor_test_client = TestClient::new(chain_id, key, poor_addr, test_client.rpc_addr).await;
 
     let _addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
 
@@ -277,25 +230,7 @@ async fn test_order_by_fee() {
 /// Publish block, tx should not be in block but should still be in the mempool.
 #[tokio::test]
 async fn test_tx_with_low_base_fee() {
-    let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
-
-    let seq_task = tokio::spawn(async {
-        start_rollup(
-            seq_port_tx,
-            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
-            BasicKernelGenesisPaths {
-                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
-            },
-            RollupProverConfig::Execute,
-            NodeMode::SequencerNode,
-            None,
-            DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
-        )
-        .await;
-    });
-
-    let seq_port = seq_port_rx.await.unwrap();
-    let test_client = make_test_client(seq_port).await;
+    let (seq_task, test_client) = initialize_test().await;
 
     let chain_id: u64 = 5655;
     let key = "0xdcf2cbdd171a21c480aa7f53d77f31bb102282b3ff099c78e3118b37348c72f7"
@@ -338,25 +273,7 @@ async fn test_tx_with_low_base_fee() {
 
 #[tokio::test]
 async fn test_same_nonce_tx_replacement() {
-    let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
-
-    let seq_task = tokio::spawn(async {
-        start_rollup(
-            seq_port_tx,
-            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
-            BasicKernelGenesisPaths {
-                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
-            },
-            RollupProverConfig::Execute,
-            NodeMode::SequencerNode,
-            None,
-            DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
-        )
-        .await;
-    });
-
-    let seq_port = seq_port_rx.await.unwrap();
-    let test_client = make_test_client(seq_port).await;
+    let (seq_task, test_client) = initialize_test().await;
 
     let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
 
