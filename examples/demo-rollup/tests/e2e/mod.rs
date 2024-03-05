@@ -875,7 +875,7 @@ async fn test_soft_confirmations_status_two_l1() -> Result<(), anyhow::Error> {
         .await;
 
     // first publish a few blocks fast make it land in the same da block
-    for _ in 1..=3 {
+    for _ in 1..=2 {
         seq_test_client.send_publish_batch_request().await;
     }
 
@@ -884,7 +884,7 @@ async fn test_soft_confirmations_status_two_l1() -> Result<(), anyhow::Error> {
     // publish new da block
     da_service.publish_test_block().await.unwrap();
 
-    for _ in 3..=6 {
+    for _ in 2..=6 {
         seq_test_client.send_publish_batch_request().await;
     }
 
@@ -896,6 +896,21 @@ async fn test_soft_confirmations_status_two_l1() -> Result<(), anyhow::Error> {
     seq_test_client.send_publish_batch_request().await; // TODO https://github.com/chainwayxyz/secret-sovereign-sdk/issues/214
 
     sleep(Duration::from_secs(2)).await;
+
+    // Check that these L2 blocks are bounded on different L1 block
+    let mut batch_infos = vec![];
+    for i in 1..=6 {
+        let full_node_soft_conf = full_node_test_client
+            .ledger_get_soft_batch_by_number::<MockDaSpec>(i)
+            .await
+            .unwrap();
+        batch_infos.push(full_node_soft_conf);
+    }
+    assert_eq!(batch_infos[0].da_slot_height, batch_infos[1].da_slot_height);
+    assert!(batch_infos[2..]
+        .iter()
+        .all(|x| x.da_slot_height == batch_infos[2].da_slot_height));
+    assert_ne!(batch_infos[0].da_slot_height, batch_infos[5].da_slot_height);
 
     // now retrieve confirmation status from the sequencer and full node and check if they are the same
     for i in 1..=6 {
