@@ -316,16 +316,16 @@ impl LedgerRpcProvider for LedgerDB {
             }
         };
         let l1_height = l2_soft_batch.da_slot_height;
-        match self
+        let status = self
             .db
-            .get::<SoftConfirmationStatus>(&SlotNumber(l1_height))
-        {
-            Ok(Some(status)) => match status {
+            .get::<SoftConfirmationStatus>(&SlotNumber(l1_height))?;
+
+        match status {
+            Some(status) => match status {
                 true => Ok(Some("finalized".to_string())),
                 false => Ok(Some("trusted".to_string())),
             },
-            Ok(None) => Ok(None),
-            Err(e) => Err(e),
+            None => Ok(Some("trusted".to_string())),
         }
     }
 

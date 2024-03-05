@@ -624,7 +624,7 @@ where
                     );
                 }
 
-                for i in start_l1_height..end_l1_height {
+                for i in start_l1_height..=end_l1_height {
                     self.ledger_db
                         .put_soft_confirmation_status(SlotNumber(i))
                         .unwrap_or_else(|_| {
