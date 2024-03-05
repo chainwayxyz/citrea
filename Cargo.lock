@@ -10058,7 +10058,6 @@ dependencies = [
  "secp256k1 0.27.0",
  "serde",
  "serde_json",
- "sov-evm",
  "sov-modules-api",
  "sov-prover-storage-manager",
  "sov-state",

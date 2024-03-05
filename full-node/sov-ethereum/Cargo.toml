@@ -12,7 +12,9 @@ publish = false
 resolver = "2"
 
 [dependencies]
-sov-evm = { path = "../../module-system/module-implementations/sov-evm" }
+sov-evm = { path = "../../module-system/module-implementations/sov-evm", features = [
+    "native",
+] }
 sov-stf-runner = { path = "../sov-stf-runner" }
 sequencer-client = { path = "../sequencer-client" }
 anyhow = { workspace = true }
@@ -52,4 +54,4 @@ proptest = { workspace = true }
 [features]
 default = ["local"]
 local = []
-native = ["citrea-stf/native", "sov-evm/native"]
+native = []

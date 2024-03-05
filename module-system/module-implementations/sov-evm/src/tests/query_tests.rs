@@ -16,11 +16,12 @@ use sov_state::{DefaultStorageSpec, ProverStorage, Storage};
 
 use super::call_tests::{create_contract_transaction, publish_event_message, set_arg_message};
 use crate::call::CallMessage;
+use crate::smart_contracts::{LogsContract, SimpleStorageContract};
 use crate::tests::genesis_tests::GENESIS_STATE_ROOT;
 use crate::tests::test_signer::TestSigner;
 use crate::{
-    AccountData, EthApiError, Evm, EvmConfig, Filter, FilterBlockOption, FilterSet, LogsContract,
-    RlpEvmTransaction, RpcInvalidTransactionError, SimpleStorageContract,
+    AccountData, EthApiError, Evm, EvmConfig, Filter, FilterBlockOption, FilterSet,
+    RlpEvmTransaction, RpcInvalidTransactionError,
 };
 
 type C = DefaultContext;

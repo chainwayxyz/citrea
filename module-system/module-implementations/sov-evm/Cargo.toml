@@ -48,20 +48,18 @@ alloy-rlp = { workspace = true }
 revm = { workspace = true, features = [
     "optional_block_gas_limit",
     "optional_eip3607",
-    "optional_no_base_fee",
 ] }
-revm-inspectors = { workspace = true }
+revm-inspectors = { workspace = true, optional = true }
 reth-primitives = { workspace = true }
 reth-interfaces = { workspace = true }
-reth-rpc-types = { workspace = true }
-reth-rpc-types-compat = { workspace = true }
-reth-revm = { workspace = true }
-reth-rpc = { workspace = true }
+reth-rpc-types = { workspace = true, optional = true }
+reth-rpc-types-compat = { workspace = true, optional = true }
+reth-revm = { workspace = true, optional = true }
+reth-rpc = { workspace = true, optional = true }
 secp256k1 = { workspace = true }
 itertools = "0.11.0"
 
 [dev-dependencies]
-sov-evm = { path = ".", features = ["smart_contracts"] }
 tokio = { workspace = true }
 tempfile = { workspace = true }
 bytes = { workspace = true }
@@ -79,6 +77,11 @@ native = [
     "clap",
     "sov-state/native",
     "sov-modules-api/native",
+    "reth-rpc",
+    "reth-rpc-types",
+    "reth-rpc-types-compat",
+    "reth-revm",
+    "revm-inspectors",
 ]
 serde = []
 smart_contracts = ["native"]

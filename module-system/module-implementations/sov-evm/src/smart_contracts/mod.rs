@@ -9,8 +9,8 @@ mod self_destructor_contract;
 mod simple_storage_contract;
 
 pub use blockhash_contract::BlockHashContract;
-pub use caller_contract::CallerContract;
-pub use coinbase_contract::CoinbaseContract;
+// pub use caller_contract::CallerContract;
+// pub use coinbase_contract::CoinbaseContract;
 use ethers_contract::BaseContract;
 use ethers_core::abi::Abi;
 use ethers_core::types::Bytes;

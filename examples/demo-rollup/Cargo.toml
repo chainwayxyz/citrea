@@ -77,9 +77,6 @@ sov-prover-storage-manager = { path = "../../full-node/sov-prover-storage-manage
     "test-utils",
 ] }
 sov-mock-da = { path = "../../adapters/mock-da" }
-sov-evm = { path = "../../module-system/module-implementations/sov-evm", features = [
-    "smart_contracts",
-] }
 sov-bank = { path = "../../module-system/module-implementations/sov-bank", features = [
     "native",
 ] }

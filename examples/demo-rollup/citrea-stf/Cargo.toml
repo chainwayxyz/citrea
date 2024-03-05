@@ -67,6 +67,7 @@ native = [
     "sov-nft-module/native",
     "sov-cli",
     "sov-accounts/native",
+    "sov-evm/native",
     "sov-sequencer-registry/native",
     "sov-blob-storage/native",
     "sov-chain-state/native",

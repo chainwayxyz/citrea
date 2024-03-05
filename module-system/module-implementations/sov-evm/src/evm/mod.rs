@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use sov_modules_api::{StateMap, StateVec};
 use sov_state::Prefix;
 
+#[cfg(feature = "native")]
 pub(crate) mod call;
 pub(crate) mod conversions;
 pub(crate) mod db;
@@ -14,7 +15,7 @@ pub(crate) mod executor;
 pub(crate) mod primitive_types;
 #[cfg(test)]
 mod tests;
-
+#[cfg(feature = "native")]
 pub(crate) use call::prepare_call_env;
 pub use primitive_types::RlpEvmTransaction;
 use sov_state::codec::BcsCodec;

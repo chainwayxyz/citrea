@@ -42,7 +42,9 @@ schnellru = "0.2.1"
 sov-rollup-interface = { path = "../../rollup-interface", features = [
     "native",
 ] }
-sov-evm = { path = "../../module-system/module-implementations/sov-evm" }
+sov-evm = { path = "../../module-system/module-implementations/sov-evm", features = [
+    "native",
+] }
 sov-db = { path = "../db/sov-db", version = "0.3" }
 sov-modules-rollup-blueprint = { path = "../../module-system/sov-modules-rollup-blueprint" }
 
@@ -64,4 +66,4 @@ tempfile = { workspace = true }
 [features]
 default = []
 local = []
-native = ["citrea-stf/native", "sov-evm/native"]
+native = []
