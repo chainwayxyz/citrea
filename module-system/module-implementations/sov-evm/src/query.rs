@@ -646,7 +646,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let tx_env = match prepare_call_env(&block_env, request.clone()) {
             Ok(tx_env) => tx_env,
             Err(err) => {
-                println!("Here - Error: {:?}", err);
                 return Err(EthApiError::from(err).into());
             }
         };
@@ -1418,20 +1417,6 @@ fn map_out_of_gas_err<C: sov_modules_api::Context>(
         },
         Err(err) => EthApiError::from(err),
     }
-
-    // let res = executor::inspect(db, &block_env, tx_env, cfg_env).unwrap();
-    // match res.result {
-    //     ExecutionResult::Success { .. } => {
-    //         // transaction succeeded by manually increasing the gas limit to
-    //         // highest, which means the caller lacks funds to pay for the tx
-    //         RpcInvalidTransactionError::BasicOutOfGas(U256::from(req_gas_limit)).into()
-    //     }
-    //     ExecutionResult::Revert { output, .. } => {
-    //         // reverted again after bumping the limit
-    //         RpcInvalidTransactionError::Revert(RevertError::new(output)).into()
-    //     }
-    //     ExecutionResult::Halt { reason, .. } => RpcInvalidTransactionError::EvmHalt(reason).into(),
-    // }
 }
 
 fn convert_u256_to_u64(u256: reth_primitives::U256) -> Result<u64, TryFromSliceError> {

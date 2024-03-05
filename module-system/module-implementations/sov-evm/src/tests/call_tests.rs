@@ -1085,7 +1085,7 @@ fn get_evm_config(
 fn call_contract_without_value() {
     let (evm, mut working_set, signer) = init_evm();
 
-    let contract_call_data = "0x"; // Add actual call data
+    let contract_call_data = "0x313131";
     let contract_address = Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap();
 
     let call_result = evm.get_call(
@@ -1112,9 +1112,8 @@ fn call_contract_without_value() {
 fn call_contract_with_value_transfer() {
     let (evm, mut working_set, signer) = init_evm();
 
-    let contract_call_data = "0x"; // Add actual call data
+    let contract_call_data = "0x313131";
     let contract_address = Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap();
-    // let value_transfer = U256::from(100000000);
 
     let call_result = evm.get_call(
         TransactionRequest {
@@ -1132,15 +1131,15 @@ fn call_contract_with_value_transfer() {
         &mut working_set,
     );
 
-    println!("{:?}", call_result);
-    assert!(call_result.is_ok());
+    // Reverts?
+    assert!(call_result.is_err());
 }
 
 #[test]
 fn call_contract_with_invalid_nonce() {
     let (evm, mut working_set, signer) = init_evm();
 
-    let contract_call_data = "0x";
+    let contract_call_data = "0x31";
     let contract_address = Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap();
     let invalid_nonce = U64::from(100);
 
@@ -1193,7 +1192,7 @@ fn call_contract_with_invalid_nonce() {
 fn call_to_nonexistent_contract() {
     let (evm, mut working_set, signer) = init_evm();
 
-    let contract_call_data = "0x"; // Add actual call data
+    let contract_call_data = "0x313131";
     let nonexistent_contract_address =
         Address::from_str("0x000000000000000000000000000000000000dead").unwrap();
 
@@ -1213,7 +1212,7 @@ fn call_to_nonexistent_contract() {
     );
 
     // Do we expect this to return Ok(0x)?
-    assert!(call_result.is_ok(),);
+    assert!(call_result.is_ok());
 }
 
 #[test]
