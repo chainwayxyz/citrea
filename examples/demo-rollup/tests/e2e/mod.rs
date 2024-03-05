@@ -888,7 +888,15 @@ async fn test_soft_confirmations_status_two_l1() -> Result<(), anyhow::Error> {
         seq_test_client.send_publish_batch_request().await;
     }
 
-    // TODO check status=trusted
+    // now retrieve confirmation status from the sequencer and full node and check if they are the same
+    for i in 1..=2 {
+        let status_node = full_node_test_client
+            .ledger_get_soft_confirmation_status(i)
+            .await
+            .unwrap();
+
+        assert_eq!("trusted", status_node);
+    }
 
     // publish new da block
     da_service.publish_test_block().await.unwrap();
