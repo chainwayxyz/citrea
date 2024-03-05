@@ -15,7 +15,9 @@ pub use rpc_helpers::*;
 mod query;
 #[cfg(feature = "native")]
 pub use query::*;
+#[cfg(feature = "native")]
 mod signer;
+#[cfg(feature = "native")]
 pub use signer::DevSigner;
 #[cfg(test)]
 mod smart_contracts;

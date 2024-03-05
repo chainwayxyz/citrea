@@ -1,10 +1,12 @@
 mod call;
 mod genesis;
 mod hooks;
+#[cfg(feature = "native")]
 mod query;
 mod tests;
 pub use call::*;
 pub use genesis::*;
+#[cfg(feature = "native")]
 pub use query::*;
 // "Given DA slot hasn't been used for more than N soft confirmation blocks."
 use sov_modules_api::{Context, DaSpec, ModuleInfo, StateMap, StateValue, WorkingSet};

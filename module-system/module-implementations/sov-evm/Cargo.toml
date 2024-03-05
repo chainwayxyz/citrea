@@ -34,7 +34,6 @@ derive_more = { workspace = true }
 lazy_static = "1.4.0"
 
 
-ethereum-types = { workspace = true }
 ethers-core = { workspace = true }
 ethers-contract = { workspace = true }
 ethers-middleware = { workspace = true }
@@ -50,8 +49,9 @@ revm = { workspace = true, features = [
     "optional_eip3607",
 ] }
 revm-inspectors = { workspace = true, optional = true }
-reth-primitives = { workspace = true }
 reth-interfaces = { workspace = true }
+reth-primitives = { workspace = true }
+# reth-interfaces = { workspace = true, optional = true }
 reth-rpc-types = { workspace = true, optional = true }
 reth-rpc-types-compat = { workspace = true, optional = true }
 reth-revm = { workspace = true, optional = true }
@@ -67,10 +67,11 @@ rand = { workspace = true }
 sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-manager", features = [
     "test-utils",
 ] }
+ethereum-types = { workspace = true }
 
 
 [features]
-default = ["native"]
+default = []
 native = [
     "jsonrpsee",
     "schemars",
@@ -78,6 +79,7 @@ native = [
     "sov-state/native",
     "sov-modules-api/native",
     "reth-rpc",
+    # "reth-interfaces",
     "reth-rpc-types",
     "reth-rpc-types-compat",
     "reth-revm",

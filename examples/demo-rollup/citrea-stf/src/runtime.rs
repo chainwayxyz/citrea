@@ -60,7 +60,6 @@ use crate::genesis_config::GenesisPaths;
 pub struct Runtime<C: Context, Da: DaSpec> {
     /// The Accounts module.
     pub accounts: sov_accounts::Accounts<C>,
-    #[cfg_attr(feature = "native", cli_skip)]
     /// The EVM module.
     pub evm: sov_evm::Evm<C>,
     /// The soft confirmation rule enforcer module.

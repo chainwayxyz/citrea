@@ -14,23 +14,28 @@ resolver = "2"
 [dependencies]
 sov-modules-api = { path = "../../sov-modules-api", version = "0.3" }
 sov-state = { path = "../../sov-state", version = "0.3" }
-tempfile = { workspace = true }
-sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-manager", features = [
-    "test-utils",
-] }
 sov-rollup-interface = { path = "../../../rollup-interface" }
 
 borsh = { workspace = true }
 serde = { workspace = true }
 anyhow = { workspace = true }
-jsonrpsee = { workspace = true, features = ["macros", "client-core", "server"] }
-lazy_static = "1.4.0"
+jsonrpsee = { workspace = true, features = [
+    "macros",
+    "client-core",
+    "server",
+], optional = true }
 
 [dev-dependencies]
 sov-mock-da = { path = "../../../adapters/mock-da", features = ["native"] }
+tempfile = { workspace = true }
+sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-manager", features = [
+    "test-utils",
+] }
+lazy_static = "1.4.0"
 
 
 [features]
 default = []
-native = ["sov-modules-api/native"]
+# native = ["sov-modules-api/native", "jsonrpsee"]
+native = ["jsonrpsee"]
 serde = []
