@@ -1,9 +1,9 @@
-use crate::tests::query_tests::init_evm;
 use std::str::FromStr;
 
 use alloy_rpc_types::request::{TransactionInput, TransactionRequest};
 use reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT;
 use reth_primitives::{Address, BlockNumberOrTag, Bytes, TransactionKind, U64};
+use reth_rpc::eth::error::RpcInvalidTransactionError;
 use revm::primitives::{SpecId, B256, KECCAK_EMPTY, U256};
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::utils::generate_address;
@@ -13,12 +13,12 @@ use crate::call::CallMessage;
 use crate::evm::primitive_types::Receipt;
 use crate::smart_contracts::{SelfDestructorContract, SimpleStorageContract, TestContract};
 use crate::tests::genesis_tests::get_evm;
+use crate::tests::query_tests::init_evm;
 use crate::tests::test_signer::TestSigner;
 use crate::tests::DEFAULT_CHAIN_ID;
 use crate::{
     AccountData, BlockHashContract, EvmConfig, Filter, FilterSet, LogsContract, RlpEvmTransaction,
 };
-use reth_rpc::eth::error::RpcInvalidTransactionError;
 
 type C = DefaultContext;
 
