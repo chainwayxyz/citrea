@@ -12,7 +12,7 @@ use sov_demo_rollup::{initialize_logging, BitcoinRollup, CelestiaDemoRollup, Moc
 use sov_mock_da::MockDaConfig;
 use sov_modules_api::runtime::capabilities::Kernel;
 use sov_modules_api::Spec;
-use sov_modules_rollup_blueprint::{RollupAndStorage, RollupBlueprint};
+use sov_modules_rollup_blueprint::{RollupAndStorage, RollupBlueprint, Sequencer};
 use sov_modules_stf_blueprint::kernels::basic::{
     BasicKernelGenesisConfig, BasicKernelGenesisPaths,
 };
@@ -157,40 +157,31 @@ where
         .context("Failed to read rollup configuration")
         .unwrap();
     let rollup_blueprint = S::new();
+
     let da_service = rollup_blueprint.create_da_service(&rollup_config).await;
 
-    if sequencer_config.is_some() {
+    if let Some(sequencer_config) = sequencer_config {
         rollup_config.sequencer_client = None;
-    }
 
-    let RollupAndStorage { rollup, storage } = rollup_blueprint
-        .create_new_rollup(
+        let Sequencer {
+            runner,
+            rpc_methods,
+        } = rollup_blueprint.create_new_sequencer(
             rt_genesis_paths,
             kernel_genesis,
             rollup_config.clone(),
-            prover_config,
-        )
-        .await
-        .unwrap();
-
-    if let Some(sequencer_config) = sequencer_config {
-        let mut seq: ChainwaySequencer<
-            <S as RollupBlueprint>::NativeContext,
-            <S as RollupBlueprint>::DaService,
-            S,
-            > = ChainwaySequencer::new(
-            rollup,
-            da_service,
-            <<<S as RollupBlueprint>::NativeContext as Spec>::PrivateKey as TryFrom<&[u8]>>::try_from(
-                hex::decode(TEST_PRIVATE_KEY).unwrap().as_slice(),
-            )
-            .unwrap(),
-            storage,
             sequencer_config,
         );
-        seq.start_rpc_server(None).await?;
-        seq.run().await?;
     } else {
+        let RollupAndStorage { rollup, storage } = rollup_blueprint
+            .create_new_rollup(
+                rt_genesis_paths,
+                kernel_genesis,
+                rollup_config.clone(),
+                prover_config,
+            )
+            .await
+            .unwrap();
         if rollup_config.sequencer_client.is_none() {
             return Err(anyhow!("Must have sequencer client for full nodes!"));
         }

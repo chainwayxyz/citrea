@@ -31,43 +31,32 @@ use serde::Deserialize;
 use sov_accounts::Accounts;
 use sov_accounts::Response::{AccountEmpty, AccountExists};
 use sov_db::ledger_db::LedgerDB;
+use sov_db::ledger_db::SlotCommit;
 use sov_db::schema::types::{BatchNumber, SlotNumber};
 pub use sov_evm::DevSigner;
 use sov_evm::{CallMessage, Evm, RlpEvmTransaction};
+use sov_modules_api::hooks::ApplySoftConfirmationError;
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::utils::to_jsonrpsee_error_object;
+use sov_modules_api::StateCheckpoint;
 use sov_modules_api::{
     EncodeCall, PrivateKey, SignedSoftConfirmationBatch, SlotData, UnsignedSoftConfirmationBatch,
     WorkingSet,
 };
+use sov_modules_stf_blueprint::{StfBlueprintTrait, TxEffect};
+use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaData};
 use sov_rollup_interface::services::da::DaService;
-use sov_rollup_interface::stf::StateTransitionFunction;
-use sov_stf_runner::{InitVariant, RunnerConfig};
-use tracing::{debug, info, warn};
-
-use std::collections::VecDeque;
-
-use anyhow::bail;
-use borsh::de::BorshDeserialize;
-use jsonrpsee::core::Error;
-use rs_merkle::algorithms::Sha256;
-use rs_merkle::MerkleTree;
-use sov_db::ledger_db::SlotCommit;
-use sov_db::schema::types::StoredSoftBatch;
-use sov_modules_api::hooks::ApplySoftConfirmationError;
-use sov_modules_api::{Context, StateCheckpoint};
-use sov_modules_stf_blueprint::{StfBlueprintTrait, TxEffect};
-use sov_rollup_interface::da::DaData::SequencerCommitment;
-use sov_rollup_interface::da::{BlobReaderTrait, DaSpec};
-
 pub use sov_rollup_interface::stf::BatchReceipt;
+use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::stf::{SoftBatchReceipt, TransactionReceipt};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::{Zkvm, ZkvmHost};
+use sov_stf_runner::{InitVariant, RunnerConfig};
 use tokio::sync::oneshot;
 use tokio::time::{sleep, Duration, Instant};
+use tracing::{debug, info, warn};
 
 pub use crate::db_provider::DbProvider;
 use crate::utils::recover_raw_transaction;

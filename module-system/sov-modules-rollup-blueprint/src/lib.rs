@@ -6,7 +6,8 @@ mod wallet;
 use std::net::SocketAddr;
 
 use async_trait::async_trait;
-use chainway_sequencer::ChainwaySequencer;
+use chainway_sequencer::{ChainwaySequencer, SequencerConfig};
+use const_rollup_config::TEST_PRIVATE_KEY;
 pub use runtime_rpc::*;
 use sequencer_client::SequencerClient;
 use sov_db::ledger_db::LedgerDB;
@@ -129,6 +130,85 @@ pub trait RollupBlueprint: Sized + Send + Sync {
     /// Creates instance of a LedgerDB.
     fn create_ledger_db(&self, rollup_config: &RollupConfig<Self::DaConfig>) -> LedgerDB {
         LedgerDB::with_path(&rollup_config.storage.path).expect("Ledger DB failed to open")
+    }
+
+    /// Creates a new sequencer
+    async fn create_new_sequencer(
+        &self,
+        runtime_genesis_paths: &<Self::NativeRuntime as RuntimeTrait<
+            Self::NativeContext,
+            Self::DaSpec,
+        >>::GenesisPaths,
+        kernel_genesis_config: <Self::NativeKernel as Kernel<Self::NativeContext, Self::DaSpec>>::GenesisConfig,
+        rollup_config: RollupConfig<Self::DaConfig>,
+        sequencer_config: SequencerConfig,
+    ) -> Result<Sequencer<Self>, anyhow::Error>
+    where
+        <Self::NativeContext as Spec>::Storage: NativeStorage,
+    {
+        let da_service = self.create_da_service(&rollup_config).await;
+
+        // TODO: Double check what kind of storage needed here.
+        // Maybe whole "prev_root" can be initialized inside runner
+        // Getting block here, so prover_service doesn't have to be `Send`
+        let last_finalized_block_header = da_service.get_last_finalized_block_header().await?;
+
+        let ledger_db = self.create_ledger_db(&rollup_config);
+        let genesis_config = self.create_genesis_config(
+            runtime_genesis_paths,
+            kernel_genesis_config,
+            &rollup_config,
+        )?;
+
+        let mut storage_manager = self.create_storage_manager(&rollup_config)?;
+        let prover_storage = storage_manager.create_finalized_storage()?;
+
+        let prev_root = ledger_db
+            .get_head_soft_batch()?
+            .map(|(number, _)| prover_storage.get_root_hash(number.0 + 1))
+            .transpose()?;
+
+        // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1218)
+        let rpc_methods =
+            self.create_rpc_methods(&prover_storage, &ledger_db, &da_service, None)?;
+
+        let native_stf = StfBlueprint::new();
+
+        let genesis_root = prover_storage.get_root_hash(0);
+
+        let init_variant = match prev_root {
+            Some(root_hash) => InitVariant::Initialized(root_hash),
+            None => match genesis_root {
+                Ok(root_hash) => InitVariant::Initialized(root_hash),
+                _ => InitVariant::Genesis {
+                    block_header: last_finalized_block_header.clone(),
+                    genesis_params: genesis_config,
+                },
+            },
+        };
+
+        let seq =
+            ChainwaySequencer::new(
+                da_service,
+                <<<Self as RollupBlueprint>::NativeContext as Spec>::PrivateKey as TryFrom<
+                    &[u8],
+                >>::try_from(hex::decode(TEST_PRIVATE_KEY).unwrap().as_slice())
+                .unwrap(),
+                prover_storage,
+                sequencer_config,
+                native_stf,
+                storage_manager,
+                init_variant,
+                rollup_config.sequencer_public_key,
+                ledger_db,
+                rollup_config.runner,
+            )
+            .unwrap();
+
+        Ok(Sequencer {
+            runner: seq,
+            rpc_methods,
+        })
     }
 
     /// Creates a new rollup.
