@@ -31,33 +31,33 @@ jsonrpsee = { workspace = true, features = [
 ], optional = true }
 tracing = { workspace = true }
 derive_more = { workspace = true }
-lazy_static = "1.4.0"
 
 
-ethers-core = { workspace = true }
-ethers-contract = { workspace = true }
-ethers-middleware = { workspace = true }
-ethers-signers = { workspace = true }
-ethers = { workspace = true }
+# ethers-middleware = { workspace = true }
 
 alloy-primitives = { workspace = true, features = ["rand", "rlp", "serde"] }
 alloy-sol-types = { workspace = true }
-alloy-rpc-types = { workspace = true }
+alloy-rpc-types = { workspace = true, optional = true }
 alloy-rlp = { workspace = true }
 revm = { workspace = true, features = [
     "optional_block_gas_limit",
     "optional_eip3607",
 ] }
 revm-inspectors = { workspace = true, optional = true }
-reth-interfaces = { workspace = true }
 reth-primitives = { workspace = true }
-# reth-interfaces = { workspace = true, optional = true }
+reth-interfaces = { workspace = true, optional = true }
 reth-rpc-types = { workspace = true, optional = true }
 reth-rpc-types-compat = { workspace = true, optional = true }
 reth-revm = { workspace = true, optional = true }
 reth-rpc = { workspace = true, optional = true }
 secp256k1 = { workspace = true }
 itertools = "0.11.0"
+
+ethereum-types = { workspace = true, optional = true }
+ethers-core = { workspace = true, optional = true }
+ethers-contract = { workspace = true, optional = true }
+ethers-signers = { workspace = true, optional = true }
+ethers = { workspace = true, optional = true }
 
 [dev-dependencies]
 tokio = { workspace = true }
@@ -67,23 +67,33 @@ rand = { workspace = true }
 sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-manager", features = [
     "test-utils",
 ] }
-ethereum-types = { workspace = true }
+
+lazy_static = "1.4.0"
+
+sov-evm = { path = ".", features = ["test-utils"] }
 
 
 [features]
 default = []
 native = [
+    "alloy-rpc-types",
     "jsonrpsee",
     "schemars",
     "clap",
     "sov-state/native",
     "sov-modules-api/native",
     "reth-rpc",
-    # "reth-interfaces",
+    "reth-interfaces",
     "reth-rpc-types",
     "reth-rpc-types-compat",
     "reth-revm",
     "revm-inspectors",
 ]
 serde = []
-smart_contracts = ["native"]
+test-utils = [
+    "ethereum-types",
+    "ethers-core",
+    "ethers-contract",
+    "ethers-signers",
+    "ethers",
+]

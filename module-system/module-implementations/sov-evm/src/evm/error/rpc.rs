@@ -14,6 +14,7 @@ use reth_rpc_types::request::TransactionInputError;
 use reth_rpc_types::BlockError;
 use revm::primitives::{EVMError, ExecutionResult, HaltReason, InvalidHeader, OutOfGasError};
 
+use super::super::conversions::ConversionError;
 use super::pool::{
     Eip4844PoolTransactionError, InvalidPoolTransactionError, PoolError, PoolErrorKind,
     PoolTransactionError,
@@ -203,6 +204,17 @@ impl From<RethError> for EthApiError {
         match error {
             RethError::Provider(err) => err.into(),
             err => EthApiError::Internal(err),
+        }
+    }
+}
+
+impl From<ConversionError> for EthApiError {
+    fn from(error: ConversionError) -> Self {
+        match error {
+            ConversionError::EmptyRawTransactionData => EthApiError::EmptyRawTransactionData,
+            ConversionError::FailedToDecodeSignedTransaction => {
+                EthApiError::FailedToDecodeSignedTransaction
+            }
         }
     }
 }

@@ -170,7 +170,10 @@ impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
         &self,
         raw_tx: RlpEvmTransaction,
     ) -> Result<(B256, Vec<u8>), jsonrpsee::core::Error> {
-        let signed_transaction: RethTransactionSignedNoHash = raw_tx.clone().try_into()?;
+        let signed_transaction: RethTransactionSignedNoHash = raw_tx
+            .clone()
+            .try_into()
+            .map_err(|err| Into::<EthApiError>::into(err))?;
 
         let tx_hash = signed_transaction.hash();
 

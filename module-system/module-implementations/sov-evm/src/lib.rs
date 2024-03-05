@@ -5,11 +5,14 @@ mod evm;
 mod genesis;
 mod hooks;
 mod provider_functions;
+#[cfg(feature = "native")]
 mod rpc_helpers;
 pub use call::*;
+#[cfg(feature = "native")]
 pub use error::rpc::*;
 pub use evm::*;
 pub use genesis::*;
+#[cfg(feature = "native")]
 pub use rpc_helpers::*;
 #[cfg(feature = "native")]
 mod query;
@@ -19,8 +22,9 @@ pub use query::*;
 mod signer;
 #[cfg(feature = "native")]
 pub use signer::DevSigner;
-#[cfg(test)]
-mod smart_contracts;
+#[cfg(feature = "test-utils")]
+/// Test contracts for the EVM module.
+pub mod smart_contracts;
 
 #[cfg(test)]
 mod tests;

@@ -13,6 +13,7 @@ publish = false
 [dependencies]
 anyhow = { workspace = true }
 borsh = { workspace = true }
+clap = { workspace = true, optional = true }
 serde = { workspace = true, optional = true }
 serde_json = { workspace = true, optional = true }
 toml = { workspace = true, optional = true }
@@ -48,6 +49,7 @@ sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-man
 [features]
 default = []
 native = [
+    "clap",
     "sov-stf-runner/native",
     "dep:sov-cli",
     "sov-accounts/native",

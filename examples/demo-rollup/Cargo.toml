@@ -84,6 +84,10 @@ sov-nft-module = { path = "../../module-system/module-implementations/sov-nft-mo
     "native",
 ] }
 sov-zk-cycle-macros = { path = "../../utils/zk-cycle-macros" }
+sov-evm = { path = "../../module-system/module-implementations/sov-evm", features = [
+    "native",
+    "test-utils",
+] }
 humantime = "2.1"
 rs_merkle = { workspace = true }
 borsh = { workspace = true }
