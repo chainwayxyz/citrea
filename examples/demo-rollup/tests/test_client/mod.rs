@@ -27,6 +27,7 @@ pub struct TestClient {
     client: SignerMiddleware<Provider<Http>, Wallet<SigningKey>>,
     http_client: HttpClient,
     current_nonce: AtomicU64,
+    pub(crate) rpc_addr: std::net::SocketAddr,
 }
 
 impl TestClient {
@@ -51,6 +52,7 @@ impl TestClient {
             client,
             http_client,
             current_nonce: AtomicU64::new(0),
+            rpc_addr,
         };
         client.sync_nonce().await;
         client
