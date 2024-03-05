@@ -20,7 +20,21 @@ use crate::test_client::TestClient;
 use crate::test_helpers::{start_rollup, NodeMode};
 use crate::DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT;
 
-async fn initialize_test() -> (
+struct TestConfig {
+    seq_min_soft_confirmations: u64,
+}
+
+impl Default for TestConfig {
+    fn default() -> Self {
+        Self {
+            seq_min_soft_confirmations: DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
+        }
+    }
+}
+
+async fn initialize_test(
+    config: TestConfig,
+) -> (
     Box<TestClient>, /* seq_test_client */
     Box<TestClient>, /* full_node_test_client */
     JoinHandle<()>,  /* seq_task */
@@ -39,7 +53,7 @@ async fn initialize_test() -> (
             RollupProverConfig::Execute,
             NodeMode::SequencerNode,
             None,
-            3,
+            config.seq_min_soft_confirmations,
         )
         .await;
     });
@@ -81,7 +95,7 @@ async fn test_full_node_send_tx() -> Result<(), anyhow::Error> {
     // sov_demo_rollup::initialize_logging();
 
     let (seq_test_client, full_node_test_client, seq_task, full_node_task, addr) =
-        initialize_test().await;
+        initialize_test(Default::default()).await;
 
     let tx_hash = full_node_test_client
         .send_eth(addr, None, None, None, 0u128)
@@ -187,7 +201,7 @@ async fn test_e2e_same_block_sync() -> Result<(), anyhow::Error> {
     // sov_demo_rollup::initialize_logging();
 
     let (seq_test_client, full_node_test_client, seq_task, full_node_task, _) =
-        initialize_test().await;
+        initialize_test(Default::default()).await;
 
     let _ = execute_blocks(&seq_test_client, &full_node_test_client).await;
 
@@ -517,7 +531,7 @@ async fn test_soft_confirmations_on_different_blocks() -> Result<(), anyhow::Err
     let da_service = MockDaService::new(MockAddress::default());
 
     let (seq_test_client, full_node_test_client, seq_task, full_node_task, _) =
-        initialize_test().await;
+        initialize_test(Default::default()).await;
 
     // first publish a few blocks fast make it land in the same da block
     for _ in 1..=6 {
@@ -808,10 +822,15 @@ async fn execute_blocks(
 async fn test_soft_confirmations_status() -> Result<(), anyhow::Error> {
     sov_demo_rollup::initialize_logging();
 
+    // fn test_it(da_blocks)
+
     let da_service = MockDaService::new(MockAddress::default());
 
     let (seq_test_client, full_node_test_client, seq_task, full_node_task, _) =
-        initialize_test().await;
+        initialize_test(TestConfig {
+            seq_min_soft_confirmations: 3,
+        })
+        .await;
 
     // first publish a few blocks fast make it land in the same da block
     for _ in 1..=6 {
@@ -846,17 +865,10 @@ async fn test_soft_confirmations_status() -> Result<(), anyhow::Error> {
 
     // now retrieve confirmation status from the sequencer and full node and check if they are the same
     for i in 1..=6 {
-        dbg!(i);
-        // let status_seq = seq_test_client
-        //     .ledger_get_soft_confirmation_status(i)
-        //     .await
-        //     .unwrap();
         let status_node = full_node_test_client
             .ledger_get_soft_confirmation_status(i)
             .await
             .unwrap();
-
-        // assert_eq!(status_seq, status_node);
 
         assert_eq!("finalized", status_node);
     }
