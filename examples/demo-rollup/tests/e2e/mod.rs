@@ -819,10 +819,8 @@ async fn execute_blocks(
 }
 
 #[tokio::test]
-async fn test_soft_confirmations_status() -> Result<(), anyhow::Error> {
-    sov_demo_rollup::initialize_logging();
-
-    // fn test_it(da_blocks)
+async fn test_soft_confirmations_status_one_l1() -> Result<(), anyhow::Error> {
+    // sov_demo_rollup::initialize_logging();
 
     let da_service = MockDaService::new(MockAddress::default());
 
@@ -837,29 +835,65 @@ async fn test_soft_confirmations_status() -> Result<(), anyhow::Error> {
         seq_test_client.send_publish_batch_request().await;
     }
 
+    // TODO check status=trusted
+
+    sleep(Duration::from_secs(2)).await;
+
+    // publish new da block
+    da_service.publish_test_block().await.unwrap();
+    seq_test_client.send_publish_batch_request().await; // FIXME should work without L2 block
+    seq_test_client.send_publish_batch_request().await; // FIXME should work without L2 block
+
     sleep(Duration::from_secs(2)).await;
 
     // now retrieve confirmation status from the sequencer and full node and check if they are the same
     for i in 1..=6 {
-        dbg!(i);
-        // let status_seq = seq_test_client
-        //     .ledger_get_soft_confirmation_status(i)
-        //     .await
-        //     .unwrap();
-        // let status_node = full_node_test_client
-        //     .ledger_get_soft_confirmation_status(i)
-        //     .await
-        //     .unwrap();
+        let status_node = full_node_test_client
+            .ledger_get_soft_confirmation_status(i)
+            .await
+            .unwrap();
 
-        // assert_eq!(status_seq, status_node);
-
-        // assert_eq!("trusted", status_node);
+        assert_eq!("finalized", status_node);
     }
+
+    seq_task.abort();
+    full_node_task.abort();
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_soft_confirmations_status_two_l1() -> Result<(), anyhow::Error> {
+    // sov_demo_rollup::initialize_logging();
+
+    let da_service = MockDaService::new(MockAddress::default());
+
+    let (seq_test_client, full_node_test_client, seq_task, full_node_task, _) =
+        initialize_test(TestConfig {
+            seq_min_soft_confirmations: 3,
+        })
+        .await;
+
+    // first publish a few blocks fast make it land in the same da block
+    for _ in 1..=3 {
+        seq_test_client.send_publish_batch_request().await;
+    }
+
+    sleep(Duration::from_secs(2)).await;
 
     // publish new da block
     da_service.publish_test_block().await.unwrap();
-    seq_test_client.send_publish_batch_request().await;
-    seq_test_client.send_publish_batch_request().await;
+
+    for _ in 3..=6 {
+        seq_test_client.send_publish_batch_request().await;
+    }
+
+    // TODO check status=trusted
+
+    // publish new da block
+    da_service.publish_test_block().await.unwrap();
+    seq_test_client.send_publish_batch_request().await; // FIXME should work without L2 block
+    seq_test_client.send_publish_batch_request().await; // FIXME should work without L2 block
 
     sleep(Duration::from_secs(2)).await;
 
