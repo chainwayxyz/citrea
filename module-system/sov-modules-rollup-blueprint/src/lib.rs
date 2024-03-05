@@ -6,6 +6,7 @@ mod wallet;
 use std::net::SocketAddr;
 
 use async_trait::async_trait;
+use chainway_sequencer::ChainwaySequencer;
 pub use runtime_rpc::*;
 use sequencer_client::SequencerClient;
 use sov_db::ledger_db::LedgerDB;
@@ -217,6 +218,21 @@ pub trait RollupBlueprint: Sized + Send + Sync {
             storage: prover_storage,
         })
     }
+}
+
+/// Sequencer stf runner
+pub struct Sequencer<S: RollupBlueprint> {
+    /// The State Transition Runner of Sequencer.
+    #[allow(clippy::type_complexity)]
+    pub runner: ChainwaySequencer<
+        S::NativeContext,
+        S::DaService,
+        S::StorageManager,
+        S::Vm,
+        StfBlueprint<S::NativeContext, S::DaSpec, S::Vm, S::NativeRuntime, S::NativeKernel>,
+    >,
+    /// Rpc methods for the rollup.
+    pub rpc_methods: jsonrpsee::RpcModule<()>,
 }
 
 /// Dependencies needed to run the rollup.
