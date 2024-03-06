@@ -2,7 +2,9 @@ use std::str::FromStr;
 
 use alloy_primitives::Uint;
 use alloy_rpc_types::request::{TransactionInput, TransactionRequest};
+use hex::FromHex;
 use jsonrpsee::core::RpcResult;
+use reth_primitives::hex::ToHexExt;
 use reth_primitives::{Address, BlockNumberOrTag, Bytes, U64};
 use reth_rpc::eth::error::RpcInvalidTransactionError;
 use revm::primitives::U256;
@@ -21,7 +23,7 @@ fn test_tx_request_fields_gas() {
 
     let fail_tx_req = TransactionRequest {
         from: Some(signer.address()),
-        to: Some(Address::from_str("0x95222290DD7278Aa3Ddd389Cc1E1d165CC4BAfe5").unwrap()),
+        to: Some(Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap()),
         gas: Some(U256::from(100000)),
         gas_price: Some(U256::from(100000000)),
         max_fee_per_gas: None,
@@ -426,36 +428,48 @@ fn test_estimate_gas_with_eip1559_fields(
 fn estimate_gas_with_varied_inputs_test() {
     let (evm, mut working_set, signer) = init_evm();
 
-    // Testing with simple input data
-    let simple_call_data = "0x00"; // Represents a no-op or simple call
+    let simple_call_data = 0;
     let simple_result =
-        test_estimate_gas_with_input(&evm, &mut working_set, &signer, &simple_call_data);
-    // Execution Reverted
-    assert!(simple_result.is_err());
+        test_estimate_gas_with_input(&evm, &mut working_set, &signer, simple_call_data);
 
-    // Testing with non-zero value transfer
-    let value_transfer_result = test_estimate_gas_with_value(
-        &evm,
-        &mut working_set,
-        &signer,
-        U256::from(1_000_000), // 1 ETH in wei
+    assert_eq!(
+        simple_result.unwrap(),
+        Uint::from_str_radix("67ee", 16).unwrap()
     );
 
-    // Execution Reverted
-    assert!(value_transfer_result.is_err(),);
+    let simple_call_data = 131;
+    let simple_result =
+        test_estimate_gas_with_input(&evm, &mut working_set, &signer, simple_call_data);
+
+    assert_eq!(
+        simple_result.unwrap(),
+        Uint::from_str_radix("67fa", 16).unwrap()
+    );
+
+    // Testing with non-zero value transfer EOA
+    let value_transfer_result =
+        test_estimate_gas_with_value(&evm, &mut working_set, &signer, U256::from(1_000_000));
+
+    assert_eq!(
+        value_transfer_result.unwrap(),
+        Uint::from_str_radix("5208", 16).unwrap()
+    );
 }
 
 fn test_estimate_gas_with_input(
     evm: &Evm<C>,
     working_set: &mut WorkingSet<C>,
     signer: &TestSigner,
-    input_data: &str,
+    input_data: u32,
 ) -> RpcResult<U64> {
+    let input_data = SimpleStorageContract::default()
+        .set_call_data(input_data)
+        .encode_hex();
     let tx_req = TransactionRequest {
         from: Some(signer.address()),
         to: Some(Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap()),
         gas: Some(U256::from(100_000)),
-        input: TransactionInput::new(Bytes::from_str(input_data).unwrap()),
+        input: TransactionInput::new(Bytes::from_hex(input_data).unwrap()),
         ..Default::default()
     };
 
@@ -470,7 +484,7 @@ fn test_estimate_gas_with_value(
 ) -> RpcResult<U64> {
     let tx_req = TransactionRequest {
         from: Some(signer.address()),
-        to: Some(Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap()),
+        to: Some(Address::from_str("0xabababababababababababababababababababab").unwrap()),
         value: Some(value),
         ..Default::default()
     };
