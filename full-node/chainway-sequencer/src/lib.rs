@@ -1,5 +1,6 @@
 mod commitment_controller;
 pub mod db_provider;
+mod mempool;
 mod utils;
 
 use std::array::TryFromSliceError;
@@ -15,17 +16,11 @@ use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
 use futures::StreamExt;
 use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::RpcModule;
-use reth_primitives::{
-    BaseFeeParamsKind, Bytes, Chain, ChainSpec, FromRecoveredPooledTransaction,
-    IntoRecoveredTransaction, B256,
-};
+use reth_primitives::{Bytes, FromRecoveredPooledTransaction, IntoRecoveredTransaction, B256};
 use reth_provider::BlockReaderIdExt;
 use reth_rpc_types_compat::transaction::from_recovered;
-use reth_tasks::TokioTaskExecutor;
-use reth_transaction_pool::blobstore::NoopBlobStore;
 use reth_transaction_pool::{
-    BestTransactionsAttributes, CoinbaseTipOrdering, EthPooledTransaction, EthTransactionValidator,
-    Pool, TransactionOrigin, TransactionPool, TransactionValidationTaskExecutor,
+    BestTransactionsAttributes, EthPooledTransaction, TransactionOrigin, TransactionPool,
 };
 use serde::Deserialize;
 use sov_accounts::Accounts;
@@ -47,37 +42,10 @@ use sov_rollup_interface::services::da::DaService;
 use tracing::{debug, info, warn};
 
 pub use crate::db_provider::DbProvider;
+use crate::mempool::{create_mempool, CitreaMempool};
 use crate::utils::recover_raw_transaction;
 
-type CitreaMempool<C> = Pool<
-    TransactionValidationTaskExecutor<EthTransactionValidator<DbProvider<C>, EthPooledTransaction>>,
-    CoinbaseTipOrdering<EthPooledTransaction>,
-    NoopBlobStore,
->;
-
 const ETH_RPC_ERROR: &str = "ETH_RPC_ERROR";
-
-fn create_mempool<C: sov_modules_api::Context>(client: DbProvider<C>) -> CitreaMempool<C> {
-    let blob_store = NoopBlobStore::default();
-    let genesis_hash = client.genesis_block().unwrap().unwrap().header.hash;
-    let evm_config = client.cfg();
-    let chain_spec = ChainSpec {
-        chain: Chain::from_id(evm_config.chain_id),
-        genesis_hash,
-        base_fee_params: BaseFeeParamsKind::Constant(evm_config.base_fee_params),
-        ..Default::default()
-    };
-    Pool::eth_pool(
-        TransactionValidationTaskExecutor::eth(
-            client,
-            Arc::new(chain_spec),
-            blob_store,
-            TokioTaskExecutor::default(),
-        ),
-        blob_store,
-        Default::default(),
-    )
-}
 
 pub struct RpcContext<C: sov_modules_api::Context> {
     pub mempool: Arc<CitreaMempool<C>>,
