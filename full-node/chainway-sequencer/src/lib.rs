@@ -1,4 +1,5 @@
 mod commitment_controller;
+mod config;
 pub mod db_provider;
 mod mempool;
 mod utils;
@@ -22,7 +23,6 @@ use reth_rpc_types_compat::transaction::from_recovered;
 use reth_transaction_pool::{
     BestTransactionsAttributes, EthPooledTransaction, TransactionOrigin, TransactionPool,
 };
-use serde::Deserialize;
 use sov_accounts::Accounts;
 use sov_accounts::Response::{AccountEmpty, AccountExists};
 use sov_db::ledger_db::LedgerDB;
@@ -41,6 +41,7 @@ use sov_rollup_interface::da::{BlockHeaderTrait, DaData};
 use sov_rollup_interface::services::da::DaService;
 use tracing::{debug, info, warn};
 
+pub use crate::config::SequencerConfig;
 pub use crate::db_provider::DbProvider;
 use crate::mempool::{create_mempool, CitreaMempool};
 use crate::utils::recover_raw_transaction;
@@ -51,13 +52,6 @@ pub struct RpcContext<C: sov_modules_api::Context> {
     pub mempool: Arc<CitreaMempool<C>>,
     pub sender: UnboundedSender<String>,
     pub storage: C::Storage,
-}
-
-/// Rollup Configuration
-#[derive(Debug, Clone, PartialEq, Deserialize)]
-pub struct SequencerConfig {
-    /// Min. soft confirmaitons for sequencer to commit
-    pub min_soft_confirmations_per_commitment: u64,
 }
 
 pub struct ChainwaySequencer<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> {
@@ -507,36 +501,4 @@ fn convert_u256_to_u64(u256: reth_primitives::U256) -> Result<u64, TryFromSliceE
     let bytes: [u8; 32] = u256.to_be_bytes();
     let bytes: [u8; 8] = bytes[24..].try_into()?;
     Ok(u64::from_be_bytes(bytes))
-}
-
-#[cfg(test)]
-mod tests {
-    use std::io::Write;
-
-    use sov_stf_runner::from_toml_path;
-    use tempfile::NamedTempFile;
-
-    use super::*;
-
-    fn create_config_from(content: &str) -> NamedTempFile {
-        let mut config_file = NamedTempFile::new().unwrap();
-        config_file.write_all(content.as_bytes()).unwrap();
-        config_file
-    }
-
-    #[test]
-    fn test_correct_config_sequencer() {
-        let config = r#"
-            min_soft_confirmations_per_commitment = 123
-        "#;
-
-        let config_file = create_config_from(config);
-
-        let config: SequencerConfig = from_toml_path(config_file.path()).unwrap();
-
-        let expected = SequencerConfig {
-            min_soft_confirmations_per_commitment: 123,
-        };
-        assert_eq!(config, expected);
-    }
 }
