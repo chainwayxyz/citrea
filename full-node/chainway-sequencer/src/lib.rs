@@ -34,18 +34,18 @@ use sov_db::ledger_db::{LedgerDB, SlotCommit};
 use sov_db::schema::types::{BatchNumber, SlotNumber};
 pub use sov_evm::DevSigner;
 use sov_evm::{CallMessage, Evm, RlpEvmTransaction};
-use sov_modules_api::hooks::{ApplySoftConfirmationError, HookSoftConfirmationInfo};
+use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::utils::to_jsonrpsee_error_object;
 use sov_modules_api::{
-    EncodeCall, PrivateKey, SignedSoftConfirmationBatch, SlotData, StateCheckpoint,
-    UnsignedSoftConfirmationBatch, WorkingSet,
+    EncodeCall, PrivateKey, SignedSoftConfirmationBatch, SlotData, UnsignedSoftConfirmationBatch,
+    WorkingSet,
 };
-use sov_modules_stf_blueprint::{StfBlueprintTrait, TxEffect};
+use sov_modules_stf_blueprint::StfBlueprintTrait;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaData, DaSpec};
 use sov_rollup_interface::services::da::DaService;
 pub use sov_rollup_interface::stf::BatchReceipt;
-use sov_rollup_interface::stf::{SoftBatchReceipt, StateTransitionFunction, TransactionReceipt};
+use sov_rollup_interface::stf::{SoftBatchReceipt, StateTransitionFunction};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::ZkvmHost;
 use sov_stf_runner::{InitVariant, RunnerConfig};
