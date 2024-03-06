@@ -9,7 +9,7 @@ use sov_mock_da::{MockAddress, MockDaConfig, MockDaService};
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
 use sov_modules_api::PrivateKey;
-use sov_modules_rollup_blueprint::{RollupAndStorage, RollupBlueprint};
+use sov_modules_rollup_blueprint::{RollupAndStorage, RollupBlueprint, Sequencer};
 use sov_modules_stf_blueprint::kernels::basic::{
     BasicKernelGenesisConfig, BasicKernelGenesisPaths,
 };
@@ -85,45 +85,43 @@ pub async fn start_rollup(
         .expect("Failed to parse chain_state genesis config"),
     };
 
-    let RollupAndStorage { rollup, storage } = mock_demo_rollup
-        .create_new_rollup(
-            &rt_genesis_paths,
-            kernel_genesis,
-            rollup_config.clone(),
-            rollup_prover_config,
-        )
-        .await
-        .unwrap();
-
     match node_mode {
         NodeMode::FullNode(_) => {
+            let RollupAndStorage { rollup, storage } = mock_demo_rollup
+                .create_new_rollup(
+                    &rt_genesis_paths,
+                    kernel_genesis,
+                    rollup_config.clone(),
+                    rollup_prover_config,
+                )
+                .await
+                .unwrap();
             rollup
                 .run_and_report_rpc_port(Some(rpc_reporting_channel))
                 .await
                 .unwrap();
         }
         NodeMode::SequencerNode => {
-            let da_service = MockDaService::new(MockAddress::new([0u8; 32]));
-
             warn!(
                 "Starting sequencer node pub key: {:?}",
                 DefaultPrivateKey::from_hex(TEST_PRIVATE_KEY)
                     .unwrap()
                     .pub_key()
             );
-            let mut sequencer: ChainwaySequencer<DefaultContext, MockDaService, _> =
-                ChainwaySequencer::new(
-                    rollup,
-                    da_service,
-                    DefaultPrivateKey::from_hex(TEST_PRIVATE_KEY).unwrap(),
-                    storage,
+
+            let sequencer_rollup = mock_demo_rollup
+                .create_new_sequencer(
+                    &rt_genesis_paths,
+                    kernel_genesis,
+                    rollup_config.clone(),
                     sequencer_config,
-                );
-            sequencer
-                .start_rpc_server(Some(rpc_reporting_channel))
+                )
                 .await
                 .unwrap();
-            sequencer.run().await.unwrap();
+            sequencer_rollup
+                .run(Some(rpc_reporting_channel))
+                .await
+                .unwrap();
         }
     }
 

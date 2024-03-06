@@ -215,7 +215,7 @@ where
     }
 
     pub async fn start_rpc_server(
-        &mut self,
+        &self,
         channel: Option<tokio::sync::oneshot::Sender<SocketAddr>>,
         methods: RpcModule<()>,
     ) -> Result<(), anyhow::Error> {
@@ -670,7 +670,7 @@ where
     }
 
     pub fn register_rpc_methods(
-        &mut self,
+        &self,
         mut rpc_methods: jsonrpsee::RpcModule<()>,
     ) -> Result<jsonrpsee::RpcModule<()>, jsonrpsee::core::Error> {
         let sc_sender = self.sender.clone();

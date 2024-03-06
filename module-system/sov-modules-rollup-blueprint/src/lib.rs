@@ -315,6 +315,21 @@ pub struct Sequencer<S: RollupBlueprint> {
     pub rpc_methods: jsonrpsee::RpcModule<()>,
 }
 
+impl<S: RollupBlueprint> Sequencer<S> {
+    /// Runs the sequencer.
+    pub async fn run(
+        self,
+        channel: Option<oneshot::Sender<SocketAddr>>,
+    ) -> Result<(), anyhow::Error> {
+        let mut seq = self.runner;
+        seq.start_rpc_server(channel, self.rpc_methods)
+            .await
+            .unwrap();
+        seq.run().await?;
+        Ok(())
+    }
+}
+
 /// Dependencies needed to run the rollup.
 pub struct Rollup<S: RollupBlueprint> {
     /// The State Transition Runner.
