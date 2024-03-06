@@ -1,6 +1,6 @@
 use core::fmt::Debug as DebugTrait;
 
-use anyhow::anyhow;
+use anyhow::{anyhow, Context as _};
 use bitcoin_da::service::DaServiceConfig;
 use chainway_sequencer::SequencerConfig;
 use citrea_stf::genesis_config::GenesisPaths;
