@@ -161,13 +161,6 @@ where
     ) -> Result<Self, anyhow::Error> {
         let (sender, receiver) = unbounded();
 
-        // used as client of reth's mempool
-        let db_provider = DbProvider::new(storage.clone());
-
-        let pool = create_mempool(db_provider.clone());
-
-        let rpc_config = runner_config.rpc_config;
-
         let prev_state_root = match init_variant {
             InitVariant::Initialized(state_root) => {
                 debug!("Chain is already initialized. Skipping initialization.");
@@ -192,6 +185,13 @@ where
                 genesis_root
             }
         };
+
+        // used as client of reth's mempool
+        let db_provider = DbProvider::new(storage.clone());
+
+        let pool = create_mempool(db_provider.clone());
+
+        let rpc_config = runner_config.rpc_config;
 
         let listen_address = SocketAddr::new(rpc_config.bind_host.parse()?, rpc_config.bind_port);
 

@@ -164,14 +164,19 @@ where
         rollup_config.sequencer_client = None;
 
         let Sequencer {
-            runner,
+            runner: mut seq,
             rpc_methods,
-        } = rollup_blueprint.create_new_sequencer(
-            rt_genesis_paths,
-            kernel_genesis,
-            rollup_config.clone(),
-            sequencer_config,
-        );
+        } = rollup_blueprint
+            .create_new_sequencer(
+                rt_genesis_paths,
+                kernel_genesis,
+                rollup_config.clone(),
+                sequencer_config,
+            )
+            .await
+            .unwrap();
+        seq.start_rpc_server(None, rpc_methods).await.unwrap();
+        seq.run().await.unwrap();
     } else {
         let RollupAndStorage { rollup, storage } = rollup_blueprint
             .create_new_rollup(
