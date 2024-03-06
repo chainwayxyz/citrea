@@ -137,12 +137,13 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                 let rlp_txs: Vec<RlpEvmTransaction> = best_txs_with_base_fee
                     .into_iter()
                     .map(|tx| {
-                        tx.to_recovered_transaction()
+                        let rlp = tx
+                            .to_recovered_transaction()
                             .into_signed()
                             .envelope_encoded()
-                            .to_vec()
+                            .to_vec();
+                        RlpEvmTransaction { rlp }
                     })
-                    .map(|rlp| RlpEvmTransaction { rlp })
                     .collect();
 
                 debug!(
@@ -379,9 +380,6 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
         // if a batch failed need to refetch nonce
         // so sticking to fetching from state makes sense
         let nonce = self.get_nonce();
-
-        // TODO: figure out what to do with sov-tx fields
-        // chain id gas tip and gas limit
 
         Transaction::<C>::new_signed_tx(&self.sov_tx_signer_priv_key, raw_message, 0, nonce)
             .try_to_vec()
