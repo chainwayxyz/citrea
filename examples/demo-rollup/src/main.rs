@@ -10,7 +10,7 @@ use sov_demo_rollup::{initialize_logging, BitcoinRollup, CelestiaDemoRollup, Moc
 use sov_mock_da::MockDaConfig;
 use sov_modules_api::runtime::capabilities::Kernel;
 use sov_modules_api::Spec;
-use sov_modules_rollup_blueprint::{RollupAndStorage, RollupBlueprint, Sequencer};
+use sov_modules_rollup_blueprint::{RollupBlueprint, Sequencer};
 use sov_modules_stf_blueprint::kernels::basic::{
     BasicKernelGenesisConfig, BasicKernelGenesisPaths,
 };
@@ -174,7 +174,7 @@ where
         seq.start_rpc_server(None, rpc_methods).await.unwrap();
         seq.run().await.unwrap();
     } else {
-        let RollupAndStorage { rollup, storage: _ } = rollup_blueprint
+        let rollup = rollup_blueprint
             .create_new_rollup(
                 rt_genesis_paths,
                 kernel_genesis,

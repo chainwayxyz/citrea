@@ -8,7 +8,7 @@ use sov_demo_rollup::MockDemoRollup;
 use sov_mock_da::{MockAddress, MockDaConfig};
 use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
 use sov_modules_api::PrivateKey;
-use sov_modules_rollup_blueprint::{RollupAndStorage, RollupBlueprint};
+use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_modules_stf_blueprint::kernels::basic::{
     BasicKernelGenesisConfig, BasicKernelGenesisPaths,
 };
@@ -87,7 +87,7 @@ pub async fn start_rollup(
 
     match node_mode {
         NodeMode::FullNode(_) => {
-            let RollupAndStorage { rollup, storage: _ } = mock_demo_rollup
+            let rollup = mock_demo_rollup
                 .create_new_rollup(
                     &rt_genesis_paths,
                     kernel_genesis,
