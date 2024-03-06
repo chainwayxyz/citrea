@@ -1,15 +1,14 @@
 use std::net::SocketAddr;
 use std::path::Path;
 
-use chainway_sequencer::{ChainwaySequencer, SequencerConfig};
+use chainway_sequencer::SequencerConfig;
 use citrea_stf::genesis_config::GenesisPaths;
 use const_rollup_config::TEST_PRIVATE_KEY;
 use sov_demo_rollup::MockDemoRollup;
-use sov_mock_da::{MockAddress, MockDaConfig, MockDaService};
-use sov_modules_api::default_context::DefaultContext;
+use sov_mock_da::{MockAddress, MockDaConfig};
 use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
 use sov_modules_api::PrivateKey;
-use sov_modules_rollup_blueprint::{RollupAndStorage, RollupBlueprint, Sequencer};
+use sov_modules_rollup_blueprint::{RollupAndStorage, RollupBlueprint};
 use sov_modules_stf_blueprint::kernels::basic::{
     BasicKernelGenesisConfig, BasicKernelGenesisPaths,
 };
@@ -19,6 +18,7 @@ use sov_stf_runner::{
 };
 use tokio::sync::oneshot;
 use tracing::warn;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NodeMode {
     FullNode(SocketAddr),
@@ -87,7 +87,7 @@ pub async fn start_rollup(
 
     match node_mode {
         NodeMode::FullNode(_) => {
-            let RollupAndStorage { rollup, storage } = mock_demo_rollup
+            let RollupAndStorage { rollup, storage: _ } = mock_demo_rollup
                 .create_new_rollup(
                     &rt_genesis_paths,
                     kernel_genesis,

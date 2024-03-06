@@ -1,12 +1,10 @@
 use core::fmt::Debug as DebugTrait;
 
-use anyhow::{anyhow, Context as _};
+use anyhow::anyhow;
 use bitcoin_da::service::DaServiceConfig;
-use chainway_sequencer::{ChainwaySequencer, SequencerConfig};
+use chainway_sequencer::SequencerConfig;
 use citrea_stf::genesis_config::GenesisPaths;
 use clap::Parser;
-use const_rollup_config::TEST_PRIVATE_KEY;
-use reth_primitives::hex;
 use sov_celestia_adapter::CelestiaConfig;
 use sov_demo_rollup::{initialize_logging, BitcoinRollup, CelestiaDemoRollup, MockDemoRollup};
 use sov_mock_da::MockDaConfig;
@@ -158,8 +156,6 @@ where
         .unwrap();
     let rollup_blueprint = S::new();
 
-    let da_service = rollup_blueprint.create_da_service(&rollup_config).await;
-
     if let Some(sequencer_config) = sequencer_config {
         rollup_config.sequencer_client = None;
 
@@ -178,7 +174,7 @@ where
         seq.start_rpc_server(None, rpc_methods).await.unwrap();
         seq.run().await.unwrap();
     } else {
-        let RollupAndStorage { rollup, storage } = rollup_blueprint
+        let RollupAndStorage { rollup, storage: _ } = rollup_blueprint
             .create_new_rollup(
                 rt_genesis_paths,
                 kernel_genesis,

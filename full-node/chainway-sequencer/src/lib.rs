@@ -30,32 +30,25 @@ use reth_transaction_pool::{
 use serde::Deserialize;
 use sov_accounts::Accounts;
 use sov_accounts::Response::{AccountEmpty, AccountExists};
-use sov_db::ledger_db::LedgerDB;
-use sov_db::ledger_db::SlotCommit;
+use sov_db::ledger_db::{LedgerDB, SlotCommit};
 use sov_db::schema::types::{BatchNumber, SlotNumber};
 pub use sov_evm::DevSigner;
 use sov_evm::{CallMessage, Evm, RlpEvmTransaction};
-use sov_modules_api::hooks::ApplySoftConfirmationError;
-use sov_modules_api::hooks::HookSoftConfirmationInfo;
+use sov_modules_api::hooks::{ApplySoftConfirmationError, HookSoftConfirmationInfo};
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::utils::to_jsonrpsee_error_object;
-use sov_modules_api::StateCheckpoint;
 use sov_modules_api::{
-    EncodeCall, PrivateKey, SignedSoftConfirmationBatch, SlotData, UnsignedSoftConfirmationBatch,
-    WorkingSet,
+    EncodeCall, PrivateKey, SignedSoftConfirmationBatch, SlotData, StateCheckpoint,
+    UnsignedSoftConfirmationBatch, WorkingSet,
 };
 use sov_modules_stf_blueprint::{StfBlueprintTrait, TxEffect};
-use sov_rollup_interface::da::DaSpec;
-use sov_rollup_interface::da::{BlockHeaderTrait, DaData};
+use sov_rollup_interface::da::{BlockHeaderTrait, DaData, DaSpec};
 use sov_rollup_interface::services::da::DaService;
 pub use sov_rollup_interface::stf::BatchReceipt;
-use sov_rollup_interface::stf::StateTransitionFunction;
-use sov_rollup_interface::stf::{SoftBatchReceipt, TransactionReceipt};
+use sov_rollup_interface::stf::{SoftBatchReceipt, StateTransitionFunction, TransactionReceipt};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
-use sov_rollup_interface::zk::{Zkvm, ZkvmHost};
+use sov_rollup_interface::zk::ZkvmHost;
 use sov_stf_runner::{InitVariant, RunnerConfig};
-use tokio::sync::oneshot;
-use tokio::time::{sleep, Duration, Instant};
 use tracing::{debug, info, warn};
 
 pub use crate::db_provider::DbProvider;
@@ -105,7 +98,6 @@ pub struct SequencerConfig {
 }
 
 type StateRoot<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::StateRoot;
-type GenesisParams<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::GenesisParams;
 
 pub struct ChainwaySequencer<C, Da, Sm, Vm, Stf>
 where
