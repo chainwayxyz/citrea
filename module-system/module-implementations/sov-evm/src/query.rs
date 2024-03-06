@@ -646,7 +646,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let tx_env = match prepare_call_env(&block_env, request.clone()) {
             Ok(tx_env) => tx_env,
             Err(err) => {
-                return Err(EthApiError::from(err).into());
+                return Err(err.into());
             }
         };
 

@@ -9,7 +9,7 @@ use revm::primitives::U256;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::WorkingSet;
 
-use crate::tests::query_tests::init_evm;
+use crate::tests::queries::basic_queries::init_evm;
 use crate::tests::test_signer::TestSigner;
 use crate::{EthApiError, Evm, SimpleStorageContract};
 

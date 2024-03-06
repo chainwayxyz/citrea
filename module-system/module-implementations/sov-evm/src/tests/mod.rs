@@ -1,9 +1,10 @@
 mod call_tests;
 mod cfg_tests;
-mod gas_tests;
 mod genesis_tests;
 mod hooks_tests;
-mod query_tests;
+
+mod queries;
+// mod query_tests;
 pub(crate) mod test_signer;
 mod tx_tests;
 

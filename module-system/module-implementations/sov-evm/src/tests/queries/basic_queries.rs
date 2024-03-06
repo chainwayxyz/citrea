@@ -15,13 +15,15 @@ use sov_modules_api::{Context, Module, WorkingSet};
 use sov_prover_storage_manager::{new_orphan_storage, SnapshotManager};
 use sov_state::{DefaultStorageSpec, ProverStorage, Storage};
 
-use super::call_tests::{create_contract_transaction, publish_event_message, set_arg_message};
 use crate::call::CallMessage;
+use crate::tests::call_tests::{
+    create_contract_transaction, publish_event_message, set_arg_message,
+};
 use crate::tests::genesis_tests::GENESIS_STATE_ROOT;
 use crate::tests::test_signer::TestSigner;
 use crate::{
-    AccountData, EthApiError, Evm, EvmConfig, Filter, FilterBlockOption, FilterSet, LogsContract,
-    RlpEvmTransaction, SimpleStorageContract,
+    AccountData, EthApiError, Evm, EvmConfig, LogsContract, RlpEvmTransaction,
+    SimpleStorageContract,
 };
 
 type C = DefaultContext;
@@ -463,49 +465,6 @@ fn call_test() {
 
     // TODO: Test these even further, to the extreme.
     // https://github.com/chainwayxyz/secret-sovereign-sdk/issues/134
-}
-
-#[test]
-fn logs_for_filter_test() {
-    let (evm, mut working_set, _) = init_evm();
-
-    let result = evm.eth_get_logs(
-        Filter {
-            block_option: FilterBlockOption::AtBlockHash(B256::from([1u8; 32])),
-            address: FilterSet::default(),
-            topics: [
-                FilterSet::default(),
-                FilterSet::default(),
-                FilterSet::default(),
-                FilterSet::default(),
-            ],
-        },
-        &mut working_set,
-    );
-
-    assert_eq!(result, Err(EthApiError::UnknownBlockNumber.into()));
-
-    let available_res = evm.eth_get_logs(
-        Filter {
-            block_option: FilterBlockOption::AtBlockHash(
-                FixedBytes::from_hex(
-                    "0x463f932c9ef1c01a59f2495ddcb7ae16d1a4afc2b5f38998486c4bf16cc94a76",
-                )
-                .unwrap(),
-            ),
-            address: FilterSet::default(),
-            topics: [
-                FilterSet::default(),
-                FilterSet::default(),
-                FilterSet::default(),
-                FilterSet::default(),
-            ],
-        },
-        &mut working_set,
-    );
-
-    // TODO: Check this better.
-    assert_eq!(available_res.unwrap().len(), 8);
 }
 
 pub(crate) fn get_evm_with_storage(
