@@ -398,13 +398,24 @@ where
                     .await?;
                 let prestate: <Sm as HierarchicalStorageManager<<Da as DaService>::Spec>>::NativeStorage = self.get_prestate_with_l2_height(l2_height).await?;
 
-                match self
-                    .begin_soft_confirmation(&mut signed_batch, filtered_block.clone(), prestate)
-                    .await
-                {
+                info!(
+                    "Applying soft batch on DA block: {}",
+                    hex::encode(filtered_block.header().hash().into())
+                );
+
+                let pub_key = signed_batch.pub_key().clone();
+
+                match self.stf.begin_soft_batch(
+                    &pub_key,
+                    &self.state_root,
+                    prestate,
+                    Default::default(),
+                    filtered_block.header(),
+                    &mut signed_batch,
+                ) {
                     (Ok(()), batch_workspace) => {
                         let (batch_workspace, tx_receipts) =
-                            self.apply_sov_tx(txs.clone(), batch_workspace).await;
+                            self.stf.apply_soft_batch_txs(txs.clone(), batch_workspace);
 
                         // create the unsigned batch with the txs then sign th sc
                         let unsigned_batch = UnsignedSoftConfirmationBatch::new(
@@ -418,26 +429,77 @@ where
                         let mut signed_soft_batch =
                             self.sign_soft_confirmation_batch(unsigned_batch);
 
-                        let (batch_receipt, checkpoint) = self
-                            .end_soft_confirmation(
-                                &mut signed_soft_batch,
-                                tx_receipts,
-                                batch_workspace,
-                            )
-                            .await;
+                        let (batch_receipt, checkpoint) = self.stf.end_soft_batch(
+                            self.sequencer_pub_key.as_ref(),
+                            &mut signed_soft_batch,
+                            tx_receipts,
+                            batch_workspace,
+                        );
                         let prestate: <Sm as HierarchicalStorageManager<
                             <Da as DaService>::Spec,
                         >>::NativeStorage = self.get_prestate_with_l2_height(l2_height).await?;
-                        let _ = self
-                            .finalize_soft_confirmation(
-                                batch_receipt,
-                                checkpoint,
-                                filtered_block,
-                                prestate,
-                                &mut signed_soft_batch,
-                                l2_height,
-                            )
-                            .await;
+
+                        // Finalize soft confirmation
+                        let slot_result = self.stf.finalize_soft_batch(
+                            batch_receipt,
+                            checkpoint,
+                            prestate,
+                            &mut signed_soft_batch,
+                        );
+
+                        if slot_result.state_root.as_ref() == self.state_root.as_ref() {
+                            debug!("Limiting number is reached for the current L1 block. State root is the same as before, skipping");
+                            // TODO: Check if below is legit
+                            self.storage_manager
+                                .save_change_set_l2(l2_height, slot_result.change_set)?;
+
+                            tracing::debug!("Finalizing l2 height: {:?}", l2_height);
+                            self.storage_manager.finalize_l2(l2_height)?;
+                            return Ok(());
+                        }
+
+                        info!(
+                            "State root after applying slot: {:?}",
+                            slot_result.state_root
+                        );
+
+                        let mut data_to_commit = SlotCommit::new(filtered_block.clone());
+                        for receipt in slot_result.batch_receipts {
+                            data_to_commit.add_batch(receipt);
+                        }
+
+                        // TODO: This will be a single receipt once we have apply_soft_batch.
+                        let batch_receipt = data_to_commit.batch_receipts()[0].clone();
+
+                        let next_state_root = slot_result.state_root;
+
+                        let soft_batch_receipt = SoftBatchReceipt::<_, _, Da::Spec> {
+                            pre_state_root: self.state_root.as_ref().to_vec(),
+                            post_state_root: next_state_root.as_ref().to_vec(),
+                            phantom_data: PhantomData::<u64>,
+                            batch_hash: batch_receipt.batch_hash,
+                            da_slot_hash: filtered_block.header().hash(),
+                            da_slot_height: filtered_block.header().height(),
+                            tx_receipts: batch_receipt.tx_receipts,
+                            soft_confirmation_signature: signed_soft_batch.signature().to_vec(),
+                            pub_key: signed_soft_batch.pub_key().to_vec(),
+                            l1_fee_rate: signed_soft_batch.l1_fee_rate(),
+                        };
+
+                        self.ledger_db
+                            .commit_soft_batch(soft_batch_receipt, false)?;
+
+                        // TODO: this will only work for mock da
+                        // when https://github.com/Sovereign-Labs/sovereign-sdk/issues/1218
+                        // is merged, rpc will access up to date storage then we won't need to finalize rigth away.
+                        // however we need much better DA + finalization logic here
+                        self.storage_manager
+                            .save_change_set_l2(l2_height, slot_result.change_set)?;
+
+                        tracing::debug!("Finalizing l2 height: {:?}", l2_height);
+                        self.storage_manager.finalize_l2(l2_height)?;
+
+                        self.state_root = next_state_root;
 
                         self.mempool
                             .remove_transactions(self.db_provider.last_block_tx_hashes());
@@ -488,126 +550,6 @@ where
             .create_storage_on_l2_height(l2_height)
             .unwrap();
         Ok(prestate)
-    }
-
-    /// Soft confirmation rules are checked, state checkpoint is created
-    async fn begin_soft_confirmation(
-        &mut self,
-        soft_batch: &mut SignedSoftConfirmationBatch,
-        filtered_block: <Da as DaService>::FilteredBlock,
-        pre_state: <Sm as HierarchicalStorageManager<Da::Spec>>::NativeStorage,
-    ) -> (Result<(), ApplySoftConfirmationError>, WorkingSet<C>) {
-        // TODO: check for reorgs here
-        // check out run_in_process for an example
-
-        info!(
-            "Applying soft batch on DA block: {}",
-            hex::encode(filtered_block.header().hash().into())
-        );
-
-        let pub_key = soft_batch.pub_key().clone();
-
-        self.stf.begin_soft_batch(
-            &pub_key,
-            &self.state_root,
-            pre_state,
-            Default::default(),
-            filtered_block.header(),
-            soft_batch,
-        )
-    }
-    /// Applies given txs calls pre and post tx hooks
-    async fn apply_sov_tx(
-        &mut self,
-        txs: Vec<Vec<u8>>,
-        batch_workspace: WorkingSet<C>,
-    ) -> (WorkingSet<C>, Vec<TransactionReceipt<TxEffect>>) {
-        self.stf.apply_soft_batch_txs(txs, batch_workspace)
-    }
-    /// Commits changes and finalizes the block
-    async fn end_soft_confirmation(
-        &mut self,
-        soft_batch: &mut SignedSoftConfirmationBatch,
-        tx_receipts: Vec<TransactionReceipt<TxEffect>>,
-        batch_workspace: WorkingSet<C>,
-    ) -> (BatchReceipt<(), TxEffect>, StateCheckpoint<C>) {
-        self.stf.end_soft_batch(
-            self.sequencer_pub_key.as_ref(),
-            soft_batch,
-            tx_receipts,
-            batch_workspace,
-        )
-    }
-
-    /// Finalizes the soft confirmation and calls the finalize hooks
-    async fn finalize_soft_confirmation(
-        &mut self,
-        batch_receipt: BatchReceipt<(), TxEffect>,
-        checkpoint: StateCheckpoint<C>,
-        filtered_block: <Da as DaService>::FilteredBlock,
-        pre_state: <Sm as HierarchicalStorageManager<Da::Spec>>::NativeStorage,
-        soft_batch: &mut SignedSoftConfirmationBatch,
-        l2_height: u64,
-    ) -> Result<(), anyhow::Error> {
-        let slot_result =
-            self.stf
-                .finalize_soft_batch(batch_receipt, checkpoint, pre_state, soft_batch);
-
-        if slot_result.state_root.as_ref() == self.state_root.as_ref() {
-            debug!("Limiting number is reached for the current L1 block. State root is the same as before, skipping");
-            // TODO: Check if below is legit
-            self.storage_manager
-                .save_change_set_l2(l2_height, slot_result.change_set)?;
-
-            tracing::debug!("Finalizing l2 height: {:?}", l2_height);
-            self.storage_manager.finalize_l2(l2_height)?;
-            return Ok(());
-        }
-
-        info!(
-            "State root after applying slot: {:?}",
-            slot_result.state_root
-        );
-
-        let mut data_to_commit = SlotCommit::new(filtered_block.clone());
-        for receipt in slot_result.batch_receipts {
-            data_to_commit.add_batch(receipt);
-        }
-
-        // TODO: This will be a single receipt once we have apply_soft_batch.
-        let batch_receipt = data_to_commit.batch_receipts()[0].clone();
-
-        let next_state_root = slot_result.state_root;
-
-        let soft_batch_receipt = SoftBatchReceipt::<_, _, Da::Spec> {
-            pre_state_root: self.state_root.as_ref().to_vec(),
-            post_state_root: next_state_root.as_ref().to_vec(),
-            phantom_data: PhantomData::<u64>,
-            batch_hash: batch_receipt.batch_hash,
-            da_slot_hash: filtered_block.header().hash(),
-            da_slot_height: filtered_block.header().height(),
-            tx_receipts: batch_receipt.tx_receipts,
-            soft_confirmation_signature: soft_batch.signature().to_vec(),
-            pub_key: soft_batch.pub_key().to_vec(),
-            l1_fee_rate: soft_batch.l1_fee_rate(),
-        };
-
-        self.ledger_db
-            .commit_soft_batch(soft_batch_receipt, false)?;
-
-        // TODO: this will only work for mock da
-        // when https://github.com/Sovereign-Labs/sovereign-sdk/issues/1218
-        // is merged, rpc will access up to date storage then we won't need to finalize rigth away.
-        // however we need much better DA + finalization logic here
-        self.storage_manager
-            .save_change_set_l2(l2_height, slot_result.change_set)?;
-
-        tracing::debug!("Finalizing l2 height: {:?}", l2_height);
-        self.storage_manager.finalize_l2(l2_height)?;
-
-        self.state_root = next_state_root;
-
-        Ok(())
     }
 
     /// Signs batch of messages with sovereign priv key turns them into a sov blob
