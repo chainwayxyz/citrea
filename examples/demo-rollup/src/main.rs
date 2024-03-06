@@ -10,7 +10,7 @@ use sov_demo_rollup::{initialize_logging, BitcoinRollup, CelestiaDemoRollup, Moc
 use sov_mock_da::MockDaConfig;
 use sov_modules_api::runtime::capabilities::Kernel;
 use sov_modules_api::Spec;
-use sov_modules_rollup_blueprint::{RollupBlueprint, Sequencer};
+use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_modules_stf_blueprint::kernels::basic::{
     BasicKernelGenesisConfig, BasicKernelGenesisPaths,
 };
@@ -159,10 +159,7 @@ where
     if let Some(sequencer_config) = sequencer_config {
         rollup_config.sequencer_client = None;
 
-        let Sequencer {
-            runner: mut seq,
-            rpc_methods,
-        } = rollup_blueprint
+        let sequencer_rollup = rollup_blueprint
             .create_new_sequencer(
                 rt_genesis_paths,
                 kernel_genesis,
@@ -171,21 +168,20 @@ where
             )
             .await
             .unwrap();
-        seq.start_rpc_server(None, rpc_methods).await.unwrap();
-        seq.run().await.unwrap();
+        sequencer_rollup.run().await?;
     } else {
+        if rollup_config.sequencer_client.is_none() {
+            return Err(anyhow!("Must have sequencer client for full nodes!"));
+        }
         let rollup = rollup_blueprint
             .create_new_rollup(
                 rt_genesis_paths,
                 kernel_genesis,
-                rollup_config.clone(),
+                rollup_config,
                 prover_config,
             )
             .await
             .unwrap();
-        if rollup_config.sequencer_client.is_none() {
-            return Err(anyhow!("Must have sequencer client for full nodes!"));
-        }
         rollup.run().await?;
     }
 

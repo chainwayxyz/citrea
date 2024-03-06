@@ -38,8 +38,8 @@ use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::utils::to_jsonrpsee_error_object;
 use sov_modules_api::{
-    EncodeCall, PrivateKey, SignedSoftConfirmationBatch, SlotData, UnsignedSoftConfirmationBatch,
-    WorkingSet,
+    Context, EncodeCall, PrivateKey, SignedSoftConfirmationBatch, SlotData,
+    UnsignedSoftConfirmationBatch, WorkingSet,
 };
 use sov_modules_stf_blueprint::StfBlueprintTrait;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaData, DaSpec};
@@ -62,7 +62,7 @@ type CitreaMempool<C> = Pool<
 
 const ETH_RPC_ERROR: &str = "ETH_RPC_ERROR";
 
-fn create_mempool<C: sov_modules_api::Context>(client: DbProvider<C>) -> CitreaMempool<C> {
+fn create_mempool<C: Context>(client: DbProvider<C>) -> CitreaMempool<C> {
     let blob_store = NoopBlobStore::default();
     let genesis_hash = client.genesis_block().unwrap().unwrap().header.hash;
     let evm_config = client.cfg();
@@ -84,7 +84,7 @@ fn create_mempool<C: sov_modules_api::Context>(client: DbProvider<C>) -> CitreaM
     )
 }
 
-pub struct RpcContext<C: sov_modules_api::Context> {
+pub struct RpcContext<C: Context> {
     pub mempool: Arc<CitreaMempool<C>>,
     pub sender: UnboundedSender<String>,
     pub storage: C::Storage,
@@ -101,7 +101,7 @@ type StateRoot<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::StateRoot;
 
 pub struct ChainwaySequencer<C, Da, Sm, Vm, Stf>
 where
-    C: sov_modules_api::Context,
+    C: Context,
     Da: DaService,
     Sm: HierarchicalStorageManager<Da::Spec>,
     Vm: ZkvmHost,
@@ -126,7 +126,7 @@ where
 
 impl<C, Da, Sm, Vm, Stf> ChainwaySequencer<C, Da, Sm, Vm, Stf>
 where
-    C: sov_modules_api::Context,
+    C: Context,
     Da: DaService,
     Sm: HierarchicalStorageManager<Da::Spec>,
     Vm: ZkvmHost,
@@ -392,9 +392,14 @@ where
                 let l2_height =
                     convert_u256_to_u64(evm.block_number(&mut working_set).unwrap()).unwrap() + 1;
                 let filtered_block = self
-                    .get_filtered_block(last_finalized_block.header().height())
-                    .await?;
-                let prestate: <Sm as HierarchicalStorageManager<<Da as DaService>::Spec>>::NativeStorage = self.get_prestate_with_l2_height(l2_height).await?;
+                    .da_service
+                    .get_block_at(last_finalized_block.header().height())
+                    .await
+                    .unwrap();
+                let prestate = self
+                    .storage_manager
+                    .create_storage_on_l2_height(l2_height)
+                    .unwrap();
 
                 info!(
                     "Applying soft batch on DA block: {}",
@@ -433,9 +438,10 @@ where
                             tx_receipts,
                             batch_workspace,
                         );
-                        let prestate: <Sm as HierarchicalStorageManager<
-                            <Da as DaService>::Spec,
-                        >>::NativeStorage = self.get_prestate_with_l2_height(l2_height).await?;
+                        let prestate = self
+                            .storage_manager
+                            .create_storage_on_l2_height(l2_height)
+                            .unwrap();
 
                         // Finalize soft confirmation
                         let slot_result = self.stf.finalize_soft_batch(
@@ -525,29 +531,6 @@ where
                 }
             }
         }
-    }
-
-    /// Returns filtered block for given DA slot height
-    async fn get_filtered_block(
-        &self,
-        da_slot_height: u64,
-    ) -> Result<<Da as DaService>::FilteredBlock, anyhow::Error> {
-        // TODO: Handle error
-        let filtered_block = self.da_service.get_block_at(da_slot_height).await.unwrap();
-        Ok(filtered_block)
-    }
-
-    /// Returns prestate for given L2 height
-    async fn get_prestate_with_l2_height(
-        &mut self,
-        l2_height: u64,
-    ) -> Result<<Sm as HierarchicalStorageManager<Da::Spec>>::NativeStorage, anyhow::Error> {
-        // TODO: Handle error
-        let prestate = self
-            .storage_manager
-            .create_storage_on_l2_height(l2_height)
-            .unwrap();
-        Ok(prestate)
     }
 
     /// Signs batch of messages with sovereign priv key turns them into a sov blob

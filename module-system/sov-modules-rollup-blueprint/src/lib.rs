@@ -314,7 +314,12 @@ pub struct Sequencer<S: RollupBlueprint> {
 
 impl<S: RollupBlueprint> Sequencer<S> {
     /// Runs the sequencer.
-    pub async fn run(
+    pub async fn run(self) -> Result<(), anyhow::Error> {
+        self.run_and_report_rpc_port(None).await
+    }
+
+    /// Runs the sequencer.
+    pub async fn run_and_report_rpc_port(
         self,
         channel: Option<oneshot::Sender<SocketAddr>>,
     ) -> Result<(), anyhow::Error> {
