@@ -490,7 +490,7 @@ pub(crate) fn get_evm_with_storage(
     (evm, working_set, prover_storage)
 }
 
-fn commit(
+pub fn commit(
     working_set: WorkingSet<DefaultContext>,
     storage: ProverStorage<DefaultStorageSpec, SnapshotManager>,
 ) {

@@ -22,7 +22,7 @@ mod smart_contracts;
 #[cfg(feature = "smart_contracts")]
 pub use smart_contracts::{
     BlockHashContract, CallerContract, CoinbaseContract, LogsContract, SelfDestructorContract,
-    SimpleStorageContract, TestContract,
+    SimplePayableContract, SimpleStorageContract, TestContract,
 };
 
 #[cfg(test)]
