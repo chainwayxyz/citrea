@@ -50,7 +50,7 @@ const ETH_RPC_ERROR: &str = "ETH_RPC_ERROR";
 
 pub struct RpcContext<C: sov_modules_api::Context> {
     pub mempool: Arc<CitreaMempool<C>>,
-    pub sender: UnboundedSender<String>,
+    pub l2_force_block_tx: UnboundedSender<()>,
     pub storage: C::Storage,
 }
 
@@ -60,8 +60,8 @@ pub struct ChainwaySequencer<C: sov_modules_api::Context, Da: DaService, S: Roll
     mempool: Arc<CitreaMempool<C>>,
     p: PhantomData<C>,
     sov_tx_signer_priv_key: C::PrivateKey,
-    sender: UnboundedSender<String>,
-    receiver: UnboundedReceiver<String>,
+    l2_force_block_tx: UnboundedSender<()>,
+    l2_force_block_rx: UnboundedReceiver<()>,
     db_provider: DbProvider<C>,
     storage: C::Storage,
     ledger_db: LedgerDB,
@@ -76,7 +76,7 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
         storage: C::Storage,
         config: SequencerConfig,
     ) -> Self {
-        let (sender, receiver) = unbounded();
+        let (l2_force_block_tx, l2_force_block_rx) = unbounded();
 
         // used as client of reth's mempool
         let db_provider = DbProvider::new(storage.clone());
@@ -91,8 +91,8 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
             mempool: Arc::new(pool),
             p: PhantomData,
             sov_tx_signer_priv_key,
-            sender,
-            receiver,
+            l2_force_block_tx,
+            l2_force_block_rx,
             db_provider,
             storage,
             ledger_db,
@@ -118,7 +118,7 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
         self.da_service.get_block_at(1).await.unwrap();
 
         loop {
-            if (self.receiver.next().await).is_some() {
+            if (self.l2_force_block_rx.next().await).is_some() {
                 // best txs with base fee
                 // get base fee from last blocks => header => next base fee() function
                 let cfg: sov_evm::EvmChainConfig = self.db_provider.cfg();
@@ -428,10 +428,10 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
     }
 
     pub fn register_rpc_methods(&mut self) -> Result<(), jsonrpsee::core::Error> {
-        let sc_sender = self.sender.clone();
+        let l2_force_block_tx = self.l2_force_block_tx.clone();
         let rpc_context = RpcContext {
             mempool: self.mempool.clone(),
-            sender: sc_sender.clone(),
+            l2_force_block_tx,
             storage: self.storage.clone(),
         };
         let mut rpc = RpcModule::new(rpc_context);
@@ -456,7 +456,7 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
         })?;
         rpc.register_async_method("eth_publishBatch", |_, ctx| async move {
             info!("Sequencer: eth_publishBatch");
-            ctx.sender.unbounded_send("msg".to_string()).unwrap();
+            ctx.l2_force_block_tx.unbounded_send(()).unwrap();
             Ok::<(), ErrorObjectOwned>(())
         })?;
         rpc.register_async_method("eth_getTransactionByHash", |parameters, ctx| async move {
