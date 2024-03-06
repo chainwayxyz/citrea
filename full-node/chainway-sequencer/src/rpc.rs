@@ -11,8 +11,8 @@ use sov_modules_api::utils::to_jsonrpsee_error_object;
 use sov_modules_api::WorkingSet;
 use tracing::info;
 
+use crate::mempool::CitreaMempool;
 use crate::utils::recover_raw_transaction;
-use crate::CitreaMempool;
 
 const ETH_RPC_ERROR: &str = "ETH_RPC_ERROR";
 
