@@ -213,7 +213,7 @@ where
             "pre state roots must match"
         );
 
-        let checkpoint = StateCheckpoint::with_witness(pre_state.clone(), witness);
+        let checkpoint = StateCheckpoint::with_witness(pre_state, witness);
 
         self.begin_soft_confirmation_inner(checkpoint, soft_batch)
     }

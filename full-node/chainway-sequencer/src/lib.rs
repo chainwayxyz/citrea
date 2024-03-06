@@ -387,11 +387,15 @@ where
                 // initially create sc info and call begin soft confirmation hook with it
                 let txs = vec![signed_blob.clone()];
 
-                let mut working_set = WorkingSet::<C>::new(self.storage.clone());
-                let evm = Evm::<C>::default();
-                let l2_height =
-                    convert_u256_to_u64(evm.block_number(&mut working_set).unwrap()).unwrap() + 1;
-                let filtered_block = self
+                let l2_height = match self
+                    .ledger_db
+                    .get_head_soft_batch()
+                    .expect("Sequencer: Failed to get head soft batch")
+                {
+                    Some((l2_height, _)) => l2_height.0 + 1,
+                    None => 0,
+                };
+                let last_finalized_block = self
                     .da_service
                     .get_block_at(last_finalized_block.header().height())
                     .await
@@ -403,7 +407,7 @@ where
 
                 info!(
                     "Applying soft batch on DA block: {}",
-                    hex::encode(filtered_block.header().hash().into())
+                    hex::encode(last_finalized_block.header().hash().into())
                 );
 
                 let pub_key = signed_batch.pub_key().clone();
@@ -411,9 +415,9 @@ where
                 match self.stf.begin_soft_batch(
                     &pub_key,
                     &self.state_root,
-                    prestate,
+                    prestate.clone(),
                     Default::default(),
-                    filtered_block.header(),
+                    last_finalized_block.header(),
                     &mut signed_batch,
                 ) {
                     (Ok(()), batch_workspace) => {
@@ -438,10 +442,6 @@ where
                             tx_receipts,
                             batch_workspace,
                         );
-                        let prestate = self
-                            .storage_manager
-                            .create_storage_on_l2_height(l2_height)
-                            .unwrap();
 
                         // Finalize soft confirmation
                         let slot_result = self.stf.finalize_soft_batch(
@@ -467,7 +467,7 @@ where
                             slot_result.state_root
                         );
 
-                        let mut data_to_commit = SlotCommit::new(filtered_block.clone());
+                        let mut data_to_commit = SlotCommit::new(last_finalized_block.clone());
                         for receipt in slot_result.batch_receipts {
                             data_to_commit.add_batch(receipt);
                         }
@@ -482,16 +482,13 @@ where
                             post_state_root: next_state_root.as_ref().to_vec(),
                             phantom_data: PhantomData::<u64>,
                             batch_hash: batch_receipt.batch_hash,
-                            da_slot_hash: filtered_block.header().hash(),
-                            da_slot_height: filtered_block.header().height(),
+                            da_slot_hash: last_finalized_block.header().hash(),
+                            da_slot_height: last_finalized_block.header().height(),
                             tx_receipts: batch_receipt.tx_receipts,
                             soft_confirmation_signature: signed_soft_batch.signature().to_vec(),
                             pub_key: signed_soft_batch.pub_key().to_vec(),
                             l1_fee_rate: signed_soft_batch.l1_fee_rate(),
                         };
-
-                        self.ledger_db
-                            .commit_soft_batch(soft_batch_receipt, false)?;
 
                         // TODO: this will only work for mock da
                         // when https://github.com/Sovereign-Labs/sovereign-sdk/issues/1218
@@ -505,22 +502,17 @@ where
 
                         self.state_root = next_state_root;
 
+                        self.ledger_db
+                            .commit_soft_batch(soft_batch_receipt, false)?;
+
                         self.mempool
                             .remove_transactions(self.db_provider.last_block_tx_hashes());
-
-                        // not really a good way to get the last soft batch number :)
-                        let last_soft_batch_number = self
-                            .ledger_db
-                            .get_head_soft_batch()
-                            .expect("Sequencer: Failed to get head soft batch")
-                            .unwrap()
-                            .0; // cannot be None here
 
                         // connect L1 and L2 height
                         self.ledger_db
                             .extend_l2_range_of_l1_slot(
                                 SlotNumber(last_finalized_block.header().height()),
-                                last_soft_batch_number,
+                                BatchNumber(l2_height),
                             )
                             .expect("Sequencer: Failed to set L1 L2 connection");
                     }
