@@ -110,7 +110,6 @@ where
 {
     da_service: Da,
     mempool: Arc<CitreaMempool<C>>,
-    p: PhantomData<C>,
     sov_tx_signer_priv_key: C::PrivateKey,
     sender: UnboundedSender<String>,
     receiver: UnboundedReceiver<String>,
@@ -191,7 +190,6 @@ where
         Ok(Self {
             da_service,
             mempool: Arc::new(pool),
-            p: PhantomData,
             sov_tx_signer_priv_key,
             sender,
             receiver,
