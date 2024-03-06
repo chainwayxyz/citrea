@@ -139,6 +139,7 @@ where
             ChangeSet = Sm::NativeChangeSet,
         > + StfBlueprintTrait<C, Da::Spec, Vm>,
 {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         da_service: Da,
         sov_tx_signer_priv_key: C::PrivateKey,
