@@ -2,7 +2,6 @@ mod commitment_controller;
 pub mod db_provider;
 mod utils;
 
-use std::array::TryFromSliceError;
 use std::marker::PhantomData;
 use std::net::SocketAddr;
 use std::sync::Arc;
