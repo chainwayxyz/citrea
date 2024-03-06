@@ -8,6 +8,7 @@ use revm::primitives::{
 use revm::{self, inspector_handle_register, Database, DatabaseCommit};
 
 use super::conversions::create_tx_env;
+use super::handler::citrea_handle_register;
 use super::primitive_types::BlockEnv;
 
 #[allow(dead_code)]
@@ -22,6 +23,7 @@ pub(crate) fn execute_tx<DB: Database<Error = Infallible> + DatabaseCommit>(
         .with_cfg_env_with_handler_cfg(config_env)
         .with_block_env(block_env.into())
         .with_tx_env(create_tx_env(tx))
+        .append_handler_register(citrea_handle_register)
         .build();
     evm.transact_commit()
 }
@@ -43,6 +45,7 @@ pub(crate) fn execute_multiple_tx<DB: Database<Error = Infallible> + DatabaseCom
         .with_db(db)
         .with_cfg_env_with_handler_cfg(config_env)
         .with_block_env(block_env.into())
+        .append_handler_register(citrea_handle_register)
         .build();
 
     let mut tx_results = Vec::with_capacity(txs.len());
@@ -81,6 +84,7 @@ pub(crate) fn inspect<DB: Database<Error = Infallible> + DatabaseCommit>(
         .with_cfg_env_with_handler_cfg(config_env)
         .with_block_env(block_env.into())
         .with_tx_env(tx)
+        .append_handler_register(citrea_handle_register)
         .append_handler_register(inspector_handle_register)
         .build();
 
