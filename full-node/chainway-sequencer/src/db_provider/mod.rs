@@ -74,28 +74,28 @@ impl<C: sov_modules_api::Context> BlockReaderIdExt for DbProvider<C> {
         &self,
         _id: reth_primitives::BlockId,
     ) -> ProviderResult<Option<reth_primitives::Block>> {
-        unimplemented!()
+        unimplemented!("block_by_id")
     }
     fn block_by_number_or_tag(
         &self,
         _id: reth_primitives::BlockNumberOrTag,
     ) -> ProviderResult<Option<reth_primitives::Block>> {
-        unimplemented!()
+        unimplemented!("block_by_number_or_tag")
     }
     fn finalized_header(&self) -> ProviderResult<Option<reth_primitives::SealedHeader>> {
-        unimplemented!()
+        unimplemented!("finalized_header")
     }
     fn header_by_id(
         &self,
         _id: reth_primitives::BlockId,
     ) -> ProviderResult<Option<reth_primitives::Header>> {
-        unimplemented!()
+        unimplemented!("header_by_id")
     }
     fn header_by_number_or_tag(
         &self,
         _id: reth_primitives::BlockNumberOrTag,
     ) -> ProviderResult<Option<reth_primitives::Header>> {
-        unimplemented!()
+        unimplemented!("header_by_number_or_tag")
     }
     fn latest_header(&self) -> ProviderResult<Option<SealedHeader>> {
         let latest_header = {
@@ -108,16 +108,16 @@ impl<C: sov_modules_api::Context> BlockReaderIdExt for DbProvider<C> {
         &self,
         _id: reth_primitives::BlockId,
     ) -> ProviderResult<Option<Vec<reth_primitives::Header>>> {
-        unimplemented!()
+        unimplemented!("ommers_by_id")
     }
     fn ommers_by_number_or_tag(
         &self,
         _id: reth_primitives::BlockNumberOrTag,
     ) -> ProviderResult<Option<Vec<reth_primitives::Header>>> {
-        unimplemented!()
+        unimplemented!("ommers_by_number_or_tag")
     }
     fn pending_header(&self) -> ProviderResult<Option<reth_primitives::SealedHeader>> {
-        unimplemented!()
+        unimplemented!("pending_header")
     }
     fn safe_header(&self) -> ProviderResult<Option<reth_primitives::SealedHeader>> {
         unimplemented!("safe_header")
@@ -200,40 +200,40 @@ impl<C: sov_modules_api::Context> BlockHashReader for DbProvider<C> {
         _start: reth_primitives::BlockNumber,
         _end: reth_primitives::BlockNumber,
     ) -> ProviderResult<Vec<B256>> {
-        unimplemented!()
+        unimplemented!("canonical_hashes_range")
     }
     fn convert_block_hash(
         &self,
         _hash_or_number: reth_rpc_types::BlockHashOrNumber,
     ) -> ProviderResult<Option<reth_primitives::B256>> {
-        unimplemented!()
+        unimplemented!("convert_block_hash")
     }
 }
 
 impl<C: sov_modules_api::Context> BlockNumReader for DbProvider<C> {
     fn best_block_number(&self) -> ProviderResult<reth_primitives::BlockNumber> {
-        unimplemented!()
+        unimplemented!("best_block_number")
     }
     fn block_number(&self, _hash: B256) -> ProviderResult<Option<reth_primitives::BlockNumber>> {
-        unimplemented!()
+        unimplemented!("block_number")
     }
     fn chain_info(&self) -> ProviderResult<reth_primitives::ChainInfo> {
-        unimplemented!()
+        unimplemented!("chain_info")
     }
     fn convert_hash_or_number(
         &self,
         _id: reth_primitives::BlockHashOrNumber,
     ) -> ProviderResult<Option<reth_primitives::BlockNumber>> {
-        unimplemented!()
+        unimplemented!("convert_hash_or_number")
     }
     fn convert_number(
         &self,
         _id: reth_primitives::BlockHashOrNumber,
     ) -> ProviderResult<Option<B256>> {
-        unimplemented!()
+        unimplemented!("convert_number")
     }
     fn last_block_number(&self) -> ProviderResult<reth_primitives::BlockNumber> {
-        unimplemented!()
+        unimplemented!("last_block_number")
     }
 }
 
@@ -242,40 +242,40 @@ impl<C: sov_modules_api::Context> BlockIdReader for DbProvider<C> {
         &self,
         _block_id: reth_primitives::BlockId,
     ) -> ProviderResult<Option<B256>> {
-        unimplemented!()
+        unimplemented!("block_hash_for_id")
     }
     fn block_number_for_id(
         &self,
         _block_id: reth_primitives::BlockId,
     ) -> ProviderResult<Option<reth_primitives::BlockNumber>> {
-        unimplemented!()
+        unimplemented!("block_number_for_id")
     }
     fn convert_block_number(
         &self,
         _num: reth_primitives::BlockNumberOrTag,
     ) -> ProviderResult<Option<reth_primitives::BlockNumber>> {
-        unimplemented!()
+        unimplemented!("convert_block_number")
     }
     fn finalized_block_hash(&self) -> ProviderResult<Option<B256>> {
-        unimplemented!()
+        unimplemented!("finalized_block_hash")
     }
     fn finalized_block_num_hash(&self) -> ProviderResult<Option<reth_primitives::BlockNumHash>> {
-        unimplemented!()
+        unimplemented!("finalized_block_num_hash")
     }
     fn finalized_block_number(&self) -> ProviderResult<Option<reth_primitives::BlockNumber>> {
-        unimplemented!()
+        unimplemented!("finalized_block_number")
     }
     fn pending_block_num_hash(&self) -> ProviderResult<Option<reth_primitives::BlockNumHash>> {
-        unimplemented!()
+        unimplemented!("pending_block_num_hash")
     }
     fn safe_block_hash(&self) -> ProviderResult<Option<B256>> {
-        unimplemented!()
+        unimplemented!("safe_block_hash")
     }
     fn safe_block_num_hash(&self) -> ProviderResult<Option<reth_primitives::BlockNumHash>> {
-        unimplemented!()
+        unimplemented!("safe_block_num_hash")
     }
     fn safe_block_number(&self) -> ProviderResult<Option<reth_primitives::BlockNumber>> {
-        unimplemented!()
+        unimplemented!("safe_block_number")
     }
 }
 
@@ -443,13 +443,13 @@ impl<C: sov_modules_api::Context> ReceiptProviderIdExt for DbProvider<C> {
         &self,
         _block: reth_primitives::BlockId,
     ) -> ProviderResult<Option<Vec<reth_primitives::Receipt>>> {
-        unimplemented!()
+        unimplemented!("receipts_by_block_id")
     }
     fn receipts_by_number_or_tag(
         &self,
         _number_or_tag: reth_primitives::BlockNumberOrTag,
     ) -> ProviderResult<Option<Vec<reth_primitives::Receipt>>> {
-        unimplemented!()
+        unimplemented!("receipts_by_number_or_tag")
     }
 }
 
@@ -468,7 +468,7 @@ impl<C: sov_modules_api::Context> WithdrawalsProvider for DbProvider<C> {
 
 impl<C: sov_modules_api::Context> ChainSpecProvider for DbProvider<C> {
     fn chain_spec(&self) -> std::sync::Arc<reth_primitives::ChainSpec> {
-        unimplemented!()
+        unimplemented!("chain_spec")
     }
 }
 
@@ -477,49 +477,49 @@ impl<C: sov_modules_api::Context> StateProviderFactory for DbProvider<C> {
         &self,
         _block: reth_primitives::BlockHash,
     ) -> ProviderResult<reth_provider::StateProviderBox> {
-        unimplemented!()
+        unimplemented!("history_by_block_hash")
     }
     fn history_by_block_number(
         &self,
         _block: reth_primitives::BlockNumber,
     ) -> ProviderResult<reth_provider::StateProviderBox> {
-        unimplemented!()
+        unimplemented!("history_by_block_number")
     }
     fn latest(&self) -> ProviderResult<reth_provider::StateProviderBox> {
         Ok(Box::new(self.clone()))
     }
     fn pending(&self) -> ProviderResult<reth_provider::StateProviderBox> {
-        unimplemented!()
+        unimplemented!("pending")
     }
     fn pending_state_by_hash(
         &self,
         _block_hash: B256,
     ) -> ProviderResult<Option<reth_provider::StateProviderBox>> {
-        unimplemented!()
+        unimplemented!("pending_state_by_hash")
     }
     fn pending_with_provider(
         &self,
         _post_state_data: Box<dyn reth_provider::BundleStateDataProvider>,
     ) -> ProviderResult<reth_provider::StateProviderBox> {
-        unimplemented!()
+        unimplemented!("pending_with_provider")
     }
     fn state_by_block_hash(
         &self,
         _block: reth_primitives::BlockHash,
     ) -> ProviderResult<reth_provider::StateProviderBox> {
-        unimplemented!()
+        unimplemented!("state_by_block_hash")
     }
     fn state_by_block_id(
         &self,
         _block_id: reth_primitives::BlockId,
     ) -> ProviderResult<reth_provider::StateProviderBox> {
-        unimplemented!()
+        unimplemented!("state_by_block_id")
     }
     fn state_by_block_number_or_tag(
         &self,
         _number_or_tag: reth_primitives::BlockNumberOrTag,
     ) -> ProviderResult<reth_provider::StateProviderBox> {
-        unimplemented!()
+        unimplemented!("state_by_block_number_or_tag")
     }
 }
 
@@ -535,7 +535,7 @@ impl<C: sov_modules_api::Context> StateRootProvider for DbProvider<C> {
         &self,
         _bundle_state: &BundleStateWithReceipts,
     ) -> reth_interfaces::provider::ProviderResult<(reth_primitives::B256, TrieUpdates)> {
-        unimplemented!()
+        unimplemented!("state_root_with_updates")
     }
 }
 
