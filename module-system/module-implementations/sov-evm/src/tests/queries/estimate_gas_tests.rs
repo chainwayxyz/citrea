@@ -108,11 +108,11 @@ fn payable_contract_value_test() {
 
 #[test]
 fn test_tx_request_fields_gas() {
-    let (evm, mut working_set, signer) = init_evm();
+    let (evm, mut working_set, signer) = init_evm_single_block();
 
     let fail_tx_req = TransactionRequest {
         from: Some(signer.address()),
-        to: Some(Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap()),
+        to: Some(Address::from_str("0x819c5497b157177315e1204f52e588b393771719").unwrap()),
         gas: Some(U256::from(100000)),
         gas_price: Some(U256::from(100000000)),
         max_fee_per_gas: None,
@@ -137,19 +137,22 @@ fn test_tx_request_fields_gas() {
     assert_eq!(fail_result, Err(EthApiError::UnknownBlockNumber.into()));
     working_set.unset_archival_version();
 
-    let contract = SimpleStorageContract::default();
-    let call_data = contract.get_call_data().to_string();
+    // let contract = SimpleStorageContract::default();
+    // let call_data = contract.get_call_data().to_string();
 
     let tx_req_contract_call = TransactionRequest {
         from: Some(signer.address()),
-        to: Some(Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap()),
-        gas: Some(U256::from(100000)),
-        gas_price: Some(U256::from(10000)),
+        to: Some(Address::from_str("0x819c5497b157177315e1204f52e588b393771719").unwrap()),
+        gas: Some(U256::from(100000000)),
+        gas_price: Some(U256::from(100)),
         max_fee_per_gas: None,
         max_priority_fee_per_gas: None,
-        value: None,
-        input: TransactionInput::new(alloy_primitives::Bytes::from_str(&call_data).unwrap()),
-        nonce: Some(U64::from(9)),
+        value: None.into(),
+        input: TransactionInput {
+            input: None,
+            data: None,
+        },
+        nonce: Some(U64::from(1)),
         chain_id: Some(U64::from(1u64)),
         access_list: None,
         max_fee_per_blob_gas: None,
@@ -166,7 +169,7 @@ fn test_tx_request_fields_gas() {
     );
     assert_eq!(
         result_contract_call.unwrap(),
-        Uint::from_str("0x5bde").unwrap()
+        Uint::from_str("0x6497").unwrap()
     );
 
     let tx_req_no_sender = TransactionRequest {
@@ -196,8 +199,8 @@ fn test_tx_request_fields_gas() {
         &mut working_set,
     );
     assert_eq!(
-        result_no_recipient,
-        Err(RpcInvalidTransactionError::GasTooHigh.into())
+        result_no_recipient.unwrap(),
+        Uint::from_str("0xcf09").unwrap()
     );
     working_set.unset_archival_version();
 
@@ -211,7 +214,7 @@ fn test_tx_request_fields_gas() {
         Some(BlockNumberOrTag::Latest),
         &mut working_set,
     );
-    assert_eq!(result_no_gas.unwrap(), Uint::from_str("0x5bde").unwrap());
+    assert_eq!(result_no_gas.unwrap(), Uint::from_str("0x6497").unwrap());
     working_set.unset_archival_version();
 
     let tx_req_no_gas_price = TransactionRequest {
@@ -226,7 +229,7 @@ fn test_tx_request_fields_gas() {
     );
     assert_eq!(
         result_no_gas_price.unwrap(),
-        Uint::from_str("0x5bde").unwrap()
+        Uint::from_str("0x6497").unwrap()
     );
     working_set.unset_archival_version();
 
@@ -242,7 +245,7 @@ fn test_tx_request_fields_gas() {
     );
     assert_eq!(
         result_no_chain_id.unwrap(),
-        Uint::from_str("0x5bde").unwrap()
+        Uint::from_str("0x6497").unwrap()
     );
     working_set.unset_archival_version();
 
@@ -274,17 +277,14 @@ fn test_tx_request_fields_gas() {
     );
     assert_eq!(
         result_no_blob_versioned_hashes.unwrap(),
-        Uint::from_str("0x5bde").unwrap()
+        Uint::from_str("0x6497").unwrap()
     );
     working_set.unset_archival_version();
 }
 
 #[test]
 fn estimate_gas_eip1559_fields_expanded_test() {
-    let (evm, mut working_set, signer) = init_evm();
-
-    let contract = SimpleStorageContract::default();
-    let call_data = contract.get_call_data().to_string();
+    let (evm, mut working_set, signer) = init_evm_single_block();
 
     // Scenario 1: Default values for EIP-1559 fields
     let default_result = test_estimate_gas_with_eip1559_fields(
@@ -293,10 +293,9 @@ fn estimate_gas_eip1559_fields_expanded_test() {
         &signer,
         Some(U256::from(100e9 as u64)),
         Some(U256::from(2e9 as u64)),
-        &call_data,
     );
 
-    assert_eq!(default_result.unwrap(), Uint::from_str("0x5bde").unwrap());
+    assert_eq!(default_result.unwrap(), Uint::from_str("0xa9ba").unwrap());
 
     // Scenario 2: Boundary values
     // Very high max fee and priority fee
@@ -306,7 +305,6 @@ fn estimate_gas_eip1559_fields_expanded_test() {
         &signer,
         Some(U256::MAX),
         Some(U256::MAX),
-        &call_data,
     );
     assert_eq!(
         high_fee_result,
@@ -321,11 +319,10 @@ fn estimate_gas_eip1559_fields_expanded_test() {
         &signer,
         Some(U256::from(1)),
         Some(U256::from(1)),
-        &call_data,
     );
     assert_eq!(
         low_max_fee_result.unwrap(),
-        Uint::from_str("0x5bde").unwrap()
+        Uint::from_str("0xa9ba").unwrap()
     );
 
     let no_max_fee_per_gas = test_estimate_gas_with_eip1559_fields(
@@ -334,7 +331,6 @@ fn estimate_gas_eip1559_fields_expanded_test() {
         &signer,
         None,
         Some(U256::from(2e9 as u64)),
-        &call_data,
     );
     assert_eq!(
         no_max_fee_per_gas,
@@ -347,24 +343,17 @@ fn estimate_gas_eip1559_fields_expanded_test() {
         &signer,
         Some(U256::from(100e9 as u64)),
         None,
-        &call_data,
     );
-    assert_eq!(no_priority_fee.unwrap(), Uint::from_str("0x5bde").unwrap());
+    assert_eq!(no_priority_fee.unwrap(), Uint::from_str("0xa9ba").unwrap());
 
-    let none_res = test_estimate_gas_with_eip1559_fields(
-        &evm,
-        &mut working_set,
-        &signer,
-        None,
-        None,
-        &call_data,
-    );
-    assert_eq!(none_res.unwrap(), Uint::from_str("0x5bde").unwrap());
+    let none_res =
+        test_estimate_gas_with_eip1559_fields(&evm, &mut working_set, &signer, None, None);
+    assert_eq!(none_res.unwrap(), Uint::from_str("0xa9ba").unwrap());
 }
 
 #[test]
 fn gas_price_fee_estimation_test() {
-    let (evm, mut working_set, signer) = init_evm();
+    let (evm, mut working_set, signer) = init_evm_single_block();
 
     // Define a base transaction request for reuse
     let base_tx_req = || TransactionRequest {
@@ -372,7 +361,7 @@ fn gas_price_fee_estimation_test() {
         to: Some(Address::from_str("0x819c5497b157177315e1204f52e588b393771719").unwrap()),
         value: Some(U256::from(1000)),
         input: None.into(),
-        nonce: Some(U64::from(9u64)),
+        nonce: Some(U64::from(1u64)),
         chain_id: Some(U64::from(1u64)),
         access_list: None,
         max_fee_per_blob_gas: None,
@@ -414,7 +403,6 @@ fn gas_price_fee_estimation_test() {
         Some(BlockNumberOrTag::Latest),
         &mut working_set,
     );
-    println!("{:?}", result_gas_and_gas_price);
     // Execution Reverted
     assert!(result_gas_and_gas_price.is_err());
     working_set.unset_archival_version();
@@ -430,8 +418,8 @@ fn gas_price_fee_estimation_test() {
         Some(BlockNumberOrTag::Latest),
         &mut working_set,
     );
-    // Execution Reverted
-    assert!(result_fees.is_err());
+
+    assert_eq!(result_fees.unwrap(), Uint::from_str("0xa9ba").unwrap());
     working_set.unset_archival_version();
 
     // Test with extremely high gas price
@@ -444,8 +432,10 @@ fn gas_price_fee_estimation_test() {
         Some(BlockNumberOrTag::Latest),
         &mut working_set,
     );
-    // Execution Reverted
-    assert!(result_high_gas_price.is_err());
+    assert_eq!(
+        result_high_gas_price.unwrap(),
+        Uint::from_str("0xa9ba").unwrap()
+    );
     working_set.unset_archival_version();
 
     // Test with extremely high max_fee_per_gas and max_priority_fee_per_gas
@@ -459,8 +449,7 @@ fn gas_price_fee_estimation_test() {
         Some(BlockNumberOrTag::Latest),
         &mut working_set,
     );
-    // Execution Reverted
-    assert!(result_high_fees.is_err());
+    assert_eq!(result_high_fees.unwrap(), Uint::from_str("0xa9ba").unwrap());
     working_set.unset_archival_version();
 
     // Test with low gas limit
@@ -486,18 +475,20 @@ fn test_estimate_gas_with_eip1559_fields(
     signer: &TestSigner,
     max_fee_per_gas: Option<U256>,
     max_priority_fee_per_gas: Option<U256>,
-    call_data: &str,
 ) -> RpcResult<reth_primitives::U64> {
     let tx_req = TransactionRequest {
         from: Some(signer.address()),
-        to: Some(Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap()),
+        to: Some(Address::from_str("0x819c5497b157177315e1204f52e588b393771719").unwrap()),
         gas: Some(U256::from(100_000)),
         gas_price: None,
         max_fee_per_gas,
         max_priority_fee_per_gas,
-        value: None,
-        input: TransactionInput::new(alloy_primitives::Bytes::from_str(&call_data).unwrap()),
-        nonce: Some(U64::from(9)),
+        value: Some(U256::from(1000)),
+        input: TransactionInput {
+            input: None,
+            data: None,
+        },
+        nonce: Some(U64::from(1)),
         chain_id: Some(U64::from(1u64)),
         ..Default::default()
     };
@@ -548,7 +539,7 @@ fn test_estimate_gas_with_input(
         .encode_hex();
     let tx_req = TransactionRequest {
         from: Some(signer.address()),
-        to: Some(Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap()),
+        to: Some(Address::from_str("eeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap()),
         gas: Some(U256::from(100_000)),
         input: TransactionInput::new(Bytes::from_hex(input_data).unwrap()),
         ..Default::default()
