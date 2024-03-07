@@ -33,7 +33,7 @@ use evm::DbAccount;
 use reth_primitives::{Address, B256};
 pub use revm::primitives::SpecId;
 use revm::primitives::U256;
-use sov_modules_api::{Error, ModuleInfo, WorkingSet};
+use sov_modules_api::{Error, ModuleInfo, StateValueAccessor, WorkingSet};
 use sov_state::codec::BcsCodec;
 
 use crate::evm::primitive_types::{
@@ -122,6 +122,10 @@ pub struct Evm<C: sov_modules_api::Context> {
     /// Used only by the RPC: Receipts.
     #[state]
     pub(crate) receipts: sov_modules_api::AccessoryStateVec<Receipt, BcsCodec>,
+
+    /// L1 fee rate.
+    #[state]
+    pub(crate) l1_fee_rate: sov_modules_api::StateValue<usize, BcsCodec>,
 }
 
 impl<C: sov_modules_api::Context> sov_modules_api::Module for Evm<C> {
@@ -143,7 +147,8 @@ impl<C: sov_modules_api::Context> sov_modules_api::Module for Evm<C> {
         context: &Self::Context,
         working_set: &mut WorkingSet<C>,
     ) -> Result<sov_modules_api::CallResponse, Error> {
-        Ok(self.execute_call(msg.txs, context, working_set)?)
+        let l1_fee_rate = self.l1_fee_rate.get(working_set).unwrap(); // TODO
+        Ok(self.execute_call(msg.txs, context, working_set, l1_fee_rate)?)
     }
 }
 

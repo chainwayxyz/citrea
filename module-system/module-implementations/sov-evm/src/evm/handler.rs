@@ -68,7 +68,7 @@ fn state_diff_size(state: &State) -> usize {
     let mut diff_size = 0usize;
     for account in state.values() {
         for (k, v) in account.changed_storage_slots() {
-            //
+            // TODO diff calc https://github.com/chainwayxyz/secret-sovereign-sdk/issues/116
             let p = &v.previous_or_original_value;
             let c = &v.present_value;
             let slot_size = size_of_val(k) + size_of_val(p) + size_of_val(c);

@@ -32,6 +32,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         txs: Vec<RlpEvmTransaction>,
         _context: &C,
         working_set: &mut WorkingSet<C>,
+        l1_fee_rate: usize,
     ) -> Result<CallResponse> {
         let evm_txs_recovered: Vec<TransactionSignedEcRecovered> = txs
             .into_iter()
@@ -47,11 +48,16 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .expect("Pending block must be set");
 
         let cfg = self.cfg.get(working_set).expect("Evm config must be set");
-        let cfg_env = get_cfg_env(&block_env, cfg, None);
+        let cfg_env: CfgEnvWithHandlerCfg = get_cfg_env(&block_env, cfg, None);
 
         let evm_db: EvmDb<'_, C> = self.get_db(working_set);
-        let results =
-            executor::execute_multiple_tx(evm_db, &block_env, &evm_txs_recovered, cfg_env);
+        let results = executor::execute_multiple_tx(
+            evm_db,
+            &block_env,
+            &evm_txs_recovered,
+            cfg_env,
+            l1_fee_rate,
+        );
 
         // Iterate each evm_txs_recovered and results pair
         // Create a PendingTransaction for each pair

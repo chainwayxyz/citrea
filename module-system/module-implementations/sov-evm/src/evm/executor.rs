@@ -17,10 +17,11 @@ pub(crate) fn execute_tx<DB: Database<Error = Infallible> + DatabaseCommit>(
     block_env: &BlockEnv,
     tx: &TransactionSignedEcRecovered,
     config_env: CfgEnvWithHandlerCfg,
+    l1_fee_rate: usize,
 ) -> Result<ExecutionResult, EVMError<Infallible>> {
     let mut evm = revm::Evm::builder()
         .with_db(db)
-        .with_external_context(CitreaExternalContext::new(1)) // TODO
+        .with_external_context(CitreaExternalContext::new(l1_fee_rate)) // TODO
         .with_cfg_env_with_handler_cfg(config_env)
         .with_block_env(block_env.into())
         .with_tx_env(create_tx_env(tx))
@@ -34,6 +35,7 @@ pub(crate) fn execute_multiple_tx<DB: Database<Error = Infallible> + DatabaseCom
     block_env: &BlockEnv,
     txs: &[TransactionSignedEcRecovered],
     config_env: CfgEnvWithHandlerCfg,
+    l1_fee_rate: usize,
 ) -> Vec<Result<ExecutionResult, EVMError<Infallible>>> {
     if txs.is_empty() {
         return vec![];
@@ -44,7 +46,7 @@ pub(crate) fn execute_multiple_tx<DB: Database<Error = Infallible> + DatabaseCom
 
     let mut evm = revm::Evm::builder()
         .with_db(db)
-        .with_external_context(CitreaExternalContext::new(1)) // TODO
+        .with_external_context(CitreaExternalContext::new(l1_fee_rate)) // TODO
         .with_cfg_env_with_handler_cfg(config_env)
         .with_block_env(block_env.into())
         .append_handler_register(citrea_handle_register)
