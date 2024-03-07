@@ -84,7 +84,7 @@ impl DaVerifier for BitcoinVerifier {
             block_hash: block_header.prev_hash().to_byte_array(),
         };
 
-        // completeness proof
+        // check that wtxid's of transactions in completeness proof are included in the InclusionMultiProof.
 
         // create hash set of blobs
         let mut blobs_iter = blobs.iter();

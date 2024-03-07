@@ -4,4 +4,14 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct InclusionMultiProof {
     pub txs: Vec<[u8; 32]>,
+    pub wtxids: Vec<[u8; 32]>,
+}
+
+impl Default for InclusionMultiProof {
+    fn default() -> Self {
+        InclusionMultiProof {
+            txs: vec![],
+            wtxids: vec![],
+        }
+    }
 }

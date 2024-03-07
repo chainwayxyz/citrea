@@ -349,24 +349,26 @@ impl DaService for BitcoinService {
 
         let mut completeness_proof = Vec::with_capacity(block.txdata.len());
 
-        let block_txs = block
-            .txdata
-            .iter()
-            .map(|tx| {
-                let tx_hash = tx.txid().to_raw_hash().to_byte_array();
+        let mut inclusion_multi_proof = InclusionMultiProof::default();
 
-                // if tx_hash has two leading zeros, it is in the completeness proof
-                if tx_hash[0..2] == [0, 0] {
-                    completeness_proof.push(tx.clone());
-                }
+        block.txdata.iter().for_each(|tx| {
+            let tx_hash = tx.txid().to_raw_hash().to_byte_array();
+            let wtxid = tx.wtxid().to_raw_hash().to_byte_array();
 
-                tx_hash
-            })
-            .collect::<Vec<_>>();
+            // if wtxid of a tx is 0 then it is a coinbase tx
+            if wtxid == [0; 32] && inclusion_multi_proof.wtxids.is_empty() {
+                inclusion_multi_proof.wtxids.push(wtxid);
+            }
 
-        let inclusion_proof = InclusionMultiProof { txs: block_txs };
+            // if tx_hash has two leading zeros, it is in the completeness proof
+            if tx_hash.starts_with(self.reveal_tx_id_prefix.as_slice()) {
+                completeness_proof.push(tx.clone());
+            }
 
-        (inclusion_proof, completeness_proof)
+            inclusion_multi_proof.txs.push(tx_hash);
+        });
+
+        (inclusion_multi_proof, completeness_proof)
     }
 
     // Extract the list blob transactions relevant to a particular rollup from a block, along with inclusion and
