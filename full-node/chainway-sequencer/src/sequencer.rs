@@ -1,4 +1,3 @@
-use std::array::TryFromSliceError;
 use std::marker::PhantomData;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -9,23 +8,28 @@ use citrea_stf::runtime::Runtime;
 use digest::Digest;
 use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
 use futures::StreamExt;
+use jsonrpsee::RpcModule;
 use reth_primitives::IntoRecoveredTransaction;
 use reth_provider::BlockReaderIdExt;
 use reth_transaction_pool::{BestTransactionsAttributes, TransactionPool};
 use sov_accounts::Accounts;
 use sov_accounts::Response::{AccountEmpty, AccountExists};
-use sov_db::ledger_db::LedgerDB;
+use sov_db::ledger_db::{LedgerDB, SlotCommit};
 use sov_db::schema::types::{BatchNumber, SlotNumber};
-use sov_evm::{CallMessage, Evm, RlpEvmTransaction};
+use sov_evm::{CallMessage, RlpEvmTransaction};
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{
-    EncodeCall, PrivateKey, SignedSoftConfirmationBatch, SlotData, UnsignedSoftConfirmationBatch,
-    WorkingSet,
+    Context, EncodeCall, PrivateKey, SignedSoftConfirmationBatch, SlotData,
+    UnsignedSoftConfirmationBatch, WorkingSet,
 };
-use sov_modules_rollup_blueprint::{Rollup, RollupBlueprint};
-use sov_rollup_interface::da::{BlockHeaderTrait, DaData};
+use sov_modules_stf_blueprint::StfBlueprintTrait;
+use sov_rollup_interface::da::{BlockHeaderTrait, DaData, DaSpec};
 use sov_rollup_interface::services::da::DaService;
+use sov_rollup_interface::stf::{SoftBatchReceipt, StateTransitionFunction};
+use sov_rollup_interface::storage::HierarchicalStorageManager;
+use sov_rollup_interface::zk::ZkvmHost;
+use sov_stf_runner::{InitVariant, RunnerConfig};
 use tracing::{debug, info, warn};
 
 use crate::commitment_controller;
@@ -34,11 +38,19 @@ use crate::db_provider::DbProvider;
 use crate::mempool::{create_mempool, CitreaMempool};
 use crate::rpc::{create_rpc_module, RpcContext};
 
-pub struct ChainwaySequencer<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> {
-    rollup: Rollup<S>,
+type StateRoot<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::StateRoot;
+
+pub struct ChainwaySequencer<C, Da, Sm, Vm, Stf>
+where
+    C: Context,
+    Da: DaService,
+    Sm: HierarchicalStorageManager<Da::Spec>,
+    Vm: ZkvmHost,
+    Stf: StateTransitionFunction<Vm, Da::Spec, Condition = <Da::Spec as DaSpec>::ValidityCondition>
+        + StfBlueprintTrait<C, Da::Spec, Vm>,
+{
     da_service: Da,
     mempool: Arc<CitreaMempool<C>>,
-    p: PhantomData<C>,
     sov_tx_signer_priv_key: C::PrivateKey,
     l2_force_block_tx: UnboundedSender<()>,
     l2_force_block_rx: UnboundedReceiver<()>,
@@ -46,30 +58,79 @@ pub struct ChainwaySequencer<C: sov_modules_api::Context, Da: DaService, S: Roll
     storage: C::Storage,
     ledger_db: LedgerDB,
     config: SequencerConfig,
+    stf: Stf,
+    storage_manager: Sm,
+    state_root: StateRoot<Stf, Vm, Da::Spec>,
+    sequencer_pub_key: Vec<u8>,
+    listen_address: SocketAddr,
 }
 
-impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySequencer<C, Da, S> {
+impl<C, Da, Sm, Vm, Stf> ChainwaySequencer<C, Da, Sm, Vm, Stf>
+where
+    C: Context,
+    Da: DaService,
+    Sm: HierarchicalStorageManager<Da::Spec>,
+    Vm: ZkvmHost,
+    Stf: StateTransitionFunction<
+            Vm,
+            Da::Spec,
+            Condition = <Da::Spec as DaSpec>::ValidityCondition,
+            PreState = Sm::NativeStorage,
+            ChangeSet = Sm::NativeChangeSet,
+        > + StfBlueprintTrait<C, Da::Spec, Vm>,
+{
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
-        rollup: Rollup<S>,
         da_service: Da,
         sov_tx_signer_priv_key: C::PrivateKey,
         storage: C::Storage,
         config: SequencerConfig,
-    ) -> Self {
+        stf: Stf,
+        mut storage_manager: Sm,
+        init_variant: InitVariant<Stf, Vm, Da::Spec>,
+        sequencer_pub_key: Vec<u8>,
+        ledger_db: LedgerDB,
+        runner_config: RunnerConfig,
+    ) -> Result<Self, anyhow::Error> {
         let (l2_force_block_tx, l2_force_block_rx) = unbounded();
+
+        let prev_state_root = match init_variant {
+            InitVariant::Initialized(state_root) => {
+                debug!("Chain is already initialized. Skipping initialization.");
+                state_root
+            }
+            InitVariant::Genesis {
+                block_header,
+                genesis_params: params,
+            } => {
+                info!(
+                    "No history detected. Initializing chain on block_header={:?}...",
+                    block_header
+                );
+                let storage = storage_manager.create_storage_on_l2_height(0)?;
+                let (genesis_root, initialized_storage) = stf.init_chain(storage, params);
+                storage_manager.save_change_set_l2(0, initialized_storage)?;
+                storage_manager.finalize_l2(0)?;
+                info!(
+                    "Chain initialization is done. Genesis root: 0x{}",
+                    hex::encode(genesis_root.as_ref()),
+                );
+                genesis_root
+            }
+        };
 
         // used as client of reth's mempool
         let db_provider = DbProvider::new(storage.clone());
 
         let pool = create_mempool(db_provider.clone());
 
-        let ledger_db = rollup.runner.ledger_db.clone();
+        let rpc_config = runner_config.rpc_config;
 
-        Self {
-            rollup,
+        let listen_address = SocketAddr::new(rpc_config.bind_host.parse()?, rpc_config.bind_port);
+
+        Ok(Self {
             da_service,
             mempool: Arc::new(pool),
-            p: PhantomData,
             sov_tx_signer_priv_key,
             l2_force_block_tx,
             l2_force_block_rx,
@@ -77,37 +138,37 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
             storage,
             ledger_db,
             config,
-        }
-    }
-
-    /// Creates a shared RpcContext with all required data.
-    fn create_rpc_context(&self) -> RpcContext<C> {
-        let l2_force_block_tx = self.l2_force_block_tx.clone();
-        RpcContext {
-            mempool: self.mempool.clone(),
-            l2_force_block_tx,
-            storage: self.storage.clone(),
-        }
-    }
-
-    /// Creates a new RpcModule with a new context.
-    fn register_rpc_methods(&mut self) -> Result<(), jsonrpsee::core::Error> {
-        let rpc_context = self.create_rpc_context();
-        let rpc = create_rpc_module(rpc_context)?;
-        self.rollup.rpc_methods.merge(rpc).unwrap();
-        Ok(())
+            stf,
+            storage_manager,
+            state_root: prev_state_root,
+            sequencer_pub_key,
+            listen_address,
+        })
     }
 
     pub async fn start_rpc_server(
-        &mut self,
+        &self,
         channel: Option<tokio::sync::oneshot::Sender<SocketAddr>>,
+        methods: RpcModule<()>,
     ) -> Result<(), anyhow::Error> {
-        self.register_rpc_methods()?;
+        let methods = self.register_rpc_methods(methods)?;
 
-        self.rollup
-            .runner
-            .start_rpc_server(self.rollup.rpc_methods.clone(), channel)
-            .await;
+        let listen_address = self.listen_address;
+        let _handle = tokio::spawn(async move {
+            let server = jsonrpsee::server::ServerBuilder::default()
+                .build([listen_address].as_ref())
+                .await
+                .unwrap();
+
+            let bound_address = server.local_addr().unwrap();
+            if let Some(channel) = channel {
+                channel.send(bound_address).unwrap();
+            }
+            info!("Starting RPC server at {} ", &bound_address);
+
+            let _server_handle = server.start(methods);
+            futures::future::pending::<()>().await;
+        });
         Ok(())
     }
 
@@ -137,13 +198,12 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                 let rlp_txs: Vec<RlpEvmTransaction> = best_txs_with_base_fee
                     .into_iter()
                     .map(|tx| {
-                        let rlp = tx
-                            .to_recovered_transaction()
+                        tx.to_recovered_transaction()
                             .into_signed()
                             .envelope_encoded()
-                            .to_vec();
-                        RlpEvmTransaction { rlp }
+                            .to_vec()
                     })
+                    .map(|rlp| RlpEvmTransaction { rlp })
                     .collect();
 
                 debug!(
@@ -260,13 +320,7 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                 let batch_info = HookSoftConfirmationInfo {
                     da_slot_height: last_finalized_block.header().height(),
                     da_slot_hash: last_finalized_block.header().hash().into(),
-                    pre_state_root: self
-                        .rollup
-                        .runner
-                        .get_state_root()
-                        .clone()
-                        .as_ref()
-                        .to_vec(),
+                    pre_state_root: self.state_root.clone().as_ref().to_vec(),
                     pub_key: self.sov_tx_signer_priv_key.pub_key().try_to_vec().unwrap(),
                     l1_fee_rate,
                 };
@@ -274,48 +328,48 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                 // initially create sc info and call begin soft confirmation hook with it
                 let txs = vec![signed_blob.clone()];
 
-                let mut working_set = WorkingSet::<C>::new(self.storage.clone());
-                let evm = Evm::<C>::default();
-                let l2_height =
-                    convert_u256_to_u64(evm.block_number(&mut working_set).unwrap()).unwrap() + 1;
-                let filtered_block = self
-                    .rollup
-                    .runner
-                    .get_filtered_block(last_finalized_block.header().height())
-                    .await?;
-                let prestate = self
-                    .rollup
-                    .runner
-                    .get_prestate_with_l2_height(l2_height)
-                    .await?;
-
-                match self
-                    .rollup
-                    .runner
-                    .begin_soft_confirmation(
-                        &mut signed_batch,
-                        filtered_block.clone(),
-                        prestate.clone(),
-                    )
-                    .await
+                let l2_height = match self
+                    .ledger_db
+                    .get_head_soft_batch()
+                    .expect("Sequencer: Failed to get head soft batch")
                 {
+                    Some((l2_height, _)) => l2_height.0 + 1,
+                    None => 0,
+                };
+                let last_finalized_block = self
+                    .da_service
+                    .get_block_at(last_finalized_block.header().height())
+                    .await
+                    .unwrap();
+                let prestate = self
+                    .storage_manager
+                    .create_storage_on_l2_height(l2_height)
+                    .unwrap();
+
+                info!(
+                    "Applying soft batch on DA block: {}",
+                    hex::encode(last_finalized_block.header().hash().into())
+                );
+
+                let pub_key = signed_batch.pub_key().clone();
+
+                match self.stf.begin_soft_batch(
+                    &pub_key,
+                    &self.state_root,
+                    prestate.clone(),
+                    Default::default(),
+                    last_finalized_block.header(),
+                    &mut signed_batch,
+                ) {
                     (Ok(()), batch_workspace) => {
-                        let (batch_workspace, tx_receipts) = self
-                            .rollup
-                            .runner
-                            .apply_sov_tx(txs.clone(), batch_workspace)
-                            .await;
+                        let (batch_workspace, tx_receipts) =
+                            self.stf.apply_soft_batch_txs(txs.clone(), batch_workspace);
 
                         // create the unsigned batch with the txs then sign th sc
                         let unsigned_batch = UnsignedSoftConfirmationBatch::new(
                             last_finalized_block.header().height(),
                             last_finalized_block.header().hash().into(),
-                            self.rollup
-                                .runner
-                                .get_state_root()
-                                .clone()
-                                .as_ref()
-                                .to_vec(),
+                            self.state_root.clone().as_ref().to_vec(),
                             txs,
                             l1_fee_rate,
                         );
@@ -323,45 +377,83 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
                         let mut signed_soft_batch =
                             self.sign_soft_confirmation_batch(unsigned_batch);
 
-                        let (batch_receipt, checkpoint) = self
-                            .rollup
-                            .runner
-                            .end_soft_confirmation(
-                                &mut signed_soft_batch,
-                                tx_receipts,
-                                batch_workspace,
-                            )
-                            .await;
+                        let (batch_receipt, checkpoint) = self.stf.end_soft_batch(
+                            self.sequencer_pub_key.as_ref(),
+                            &mut signed_soft_batch,
+                            tx_receipts,
+                            batch_workspace,
+                        );
 
-                        let _ = self
-                            .rollup
-                            .runner
-                            .finalize_soft_confirmation(
-                                batch_receipt,
-                                checkpoint,
-                                filtered_block,
-                                prestate,
-                                &mut signed_soft_batch,
-                                l2_height,
-                            )
-                            .await;
+                        // Finalize soft confirmation
+                        let slot_result = self.stf.finalize_soft_batch(
+                            batch_receipt,
+                            checkpoint,
+                            prestate,
+                            &mut signed_soft_batch,
+                        );
+
+                        if slot_result.state_root.as_ref() == self.state_root.as_ref() {
+                            debug!("Limiting number is reached for the current L1 block. State root is the same as before, skipping");
+                            // TODO: Check if below is legit
+                            self.storage_manager
+                                .save_change_set_l2(l2_height, slot_result.change_set)?;
+
+                            tracing::debug!("Finalizing l2 height: {:?}", l2_height);
+                            self.storage_manager.finalize_l2(l2_height)?;
+                            return Ok(());
+                        }
+
+                        info!(
+                            "State root after applying slot: {:?}",
+                            slot_result.state_root
+                        );
+
+                        let mut data_to_commit = SlotCommit::new(last_finalized_block.clone());
+                        for receipt in slot_result.batch_receipts {
+                            data_to_commit.add_batch(receipt);
+                        }
+
+                        // TODO: This will be a single receipt once we have apply_soft_batch.
+                        let batch_receipt = data_to_commit.batch_receipts()[0].clone();
+
+                        let next_state_root = slot_result.state_root;
+
+                        let soft_batch_receipt = SoftBatchReceipt::<_, _, Da::Spec> {
+                            pre_state_root: self.state_root.as_ref().to_vec(),
+                            post_state_root: next_state_root.as_ref().to_vec(),
+                            phantom_data: PhantomData::<u64>,
+                            batch_hash: batch_receipt.batch_hash,
+                            da_slot_hash: last_finalized_block.header().hash(),
+                            da_slot_height: last_finalized_block.header().height(),
+                            tx_receipts: batch_receipt.tx_receipts,
+                            soft_confirmation_signature: signed_soft_batch.signature().to_vec(),
+                            pub_key: signed_soft_batch.pub_key().to_vec(),
+                            l1_fee_rate: signed_soft_batch.l1_fee_rate(),
+                        };
+
+                        // TODO: this will only work for mock da
+                        // when https://github.com/Sovereign-Labs/sovereign-sdk/issues/1218
+                        // is merged, rpc will access up to date storage then we won't need to finalize rigth away.
+                        // however we need much better DA + finalization logic here
+                        self.storage_manager
+                            .save_change_set_l2(l2_height, slot_result.change_set)?;
+
+                        tracing::debug!("Finalizing l2 height: {:?}", l2_height);
+                        self.storage_manager.finalize_l2(l2_height)?;
+
+                        self.state_root = next_state_root;
+
+                        self.ledger_db
+                            .commit_soft_batch(soft_batch_receipt, false)?;
 
                         self.mempool
                             .remove_transactions(self.db_provider.last_block_tx_hashes());
-
-                        // not really a good way to get the last soft batch number :)
-                        let last_soft_batch_number = self
-                            .ledger_db
-                            .get_head_soft_batch()
-                            .expect("Sequencer: Failed to get head soft batch")
-                            .unwrap()
-                            .0; // cannot be None here
 
                         // connect L1 and L2 height
                         self.ledger_db
                             .extend_l2_range_of_l1_slot(
                                 SlotNumber(last_finalized_block.header().height()),
-                                last_soft_batch_number,
+                                BatchNumber(l2_height),
                             )
                             .expect("Sequencer: Failed to set L1 L2 connection");
                     }
@@ -380,6 +472,9 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
         // if a batch failed need to refetch nonce
         // so sticking to fetching from state makes sense
         let nonce = self.get_nonce();
+
+        // TODO: figure out what to do with sov-tx fields
+        // chain id gas tip and gas limit
 
         Transaction::<C>::new_signed_tx(&self.sov_tx_signer_priv_key, raw_message, 0, nonce)
             .try_to_vec()
@@ -422,10 +517,25 @@ impl<C: sov_modules_api::Context, Da: DaService, S: RollupBlueprint> ChainwaySeq
             AccountEmpty => 0,
         }
     }
-}
 
-fn convert_u256_to_u64(u256: reth_primitives::U256) -> Result<u64, TryFromSliceError> {
-    let bytes: [u8; 32] = u256.to_be_bytes();
-    let bytes: [u8; 8] = bytes[24..].try_into()?;
-    Ok(u64::from_be_bytes(bytes))
+    /// Creates a shared RpcContext with all required data.
+    fn create_rpc_context(&self) -> RpcContext<C> {
+        let l2_force_block_tx = self.l2_force_block_tx.clone();
+        RpcContext {
+            mempool: self.mempool.clone(),
+            l2_force_block_tx,
+            storage: self.storage.clone(),
+        }
+    }
+
+    /// Updates the given RpcModule with Sequencer methods.
+    pub fn register_rpc_methods(
+        &self,
+        mut rpc_methods: jsonrpsee::RpcModule<()>,
+    ) -> Result<jsonrpsee::RpcModule<()>, jsonrpsee::core::Error> {
+        let rpc_context = self.create_rpc_context();
+        let rpc = create_rpc_module(rpc_context)?;
+        rpc_methods.merge(rpc).unwrap();
+        Ok(rpc_methods)
+    }
 }
