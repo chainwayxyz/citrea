@@ -12,7 +12,6 @@ use revm_inspectors::tracing::{FourByteInspector, TracingInspector, TracingInspe
 
 use crate::error::rpc::{EthApiError, EthResult};
 use crate::evm::db::EvmDb;
-use crate::evm::handler::citrea_handle_register;
 
 pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
     opts: GethDebugTracingOptions,
@@ -101,7 +100,6 @@ where
         .with_cfg_env_with_handler_cfg(config_env)
         .with_block_env(block_env)
         .with_tx_env(tx_env)
-        .append_handler_register(citrea_handle_register)
         .append_handler_register(inspector_handle_register)
         .build();
     let res = evm.transact()?;

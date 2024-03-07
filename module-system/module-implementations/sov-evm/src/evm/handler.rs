@@ -6,9 +6,29 @@ use revm::interpreter::InstructionResult;
 use revm::primitives::{EVMError, ExecutionResult, ResultAndState, State, U256};
 use revm::{Context, Database, FrameResult};
 
-pub(crate) fn citrea_handle_register<EXT, DB>(handler: &mut EvmHandler<'_, EXT, DB>)
+pub(crate) trait CitreaExternal {
+    fn get_l1_fee_rate(&self) -> usize;
+}
+pub(crate) struct CitreaExternalContext {
+    l1_fee_rate: usize,
+}
+
+impl CitreaExternalContext {
+    pub(crate) fn new(l1_fee_rate: usize) -> Self {
+        Self { l1_fee_rate }
+    }
+}
+
+impl CitreaExternal for CitreaExternalContext {
+    fn get_l1_fee_rate(&self) -> usize {
+        self.l1_fee_rate
+    }
+}
+
+pub(crate) fn citrea_handle_register<DB, EXT>(handler: &mut EvmHandler<'_, EXT, DB>)
 where
     DB: Database,
+    EXT: CitreaExternal,
 {
     let post_execution = &mut handler.post_execution;
     post_execution.output = Arc::new(CitreaHandler::<EXT, DB>::post_execution_output);
@@ -18,7 +38,7 @@ struct CitreaHandler<EXT, DB> {
     _phantom: std::marker::PhantomData<(EXT, DB)>,
 }
 
-impl<EXT, DB: Database> CitreaHandler<EXT, DB> {
+impl<EXT: CitreaExternal, DB: Database> CitreaHandler<EXT, DB> {
     fn post_execution_output(
         context: &mut Context<EXT, DB>,
         result: FrameResult,
@@ -27,7 +47,7 @@ impl<EXT, DB: Database> CitreaHandler<EXT, DB> {
         let ResultAndState { result, state } = result_and_state;
         if result.is_success() {
             let diff_size = state_diff_size(&state);
-            let l1_fee_rate = 1; // TODO: get it somehow
+            let l1_fee_rate = context.external.get_l1_fee_rate();
             let l1_fee = U256::from(diff_size * l1_fee_rate);
             if let Some(_out_of_funds) = decrease_caller_balance(context, l1_fee)? {
                 let result = ExecutionResult::Revert {
