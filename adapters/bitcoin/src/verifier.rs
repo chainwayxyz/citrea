@@ -84,7 +84,39 @@ impl DaVerifier for BitcoinVerifier {
             block_hash: block_header.prev_hash().to_byte_array(),
         };
 
-        // check that wtxid's of transactions in completeness proof are included in the InclusionMultiProof.
+        // check that wtxid's of transactions in completeness proof are included in the InclusionMultiProof.,
+        for tx in completeness_proof.iter() {
+            if !inclusion_proof.wtxids.contains(&tx.wtxid().to_byte_array()) {
+                return Err(ValidationError::InvalidProof);
+            }
+        }
+
+        // verify that one of the outputs of the coinbase transaction has script pub key starting with 0x6a24aa21a9ed,
+        // and the rest of the script pub key is the merkle root of supplied wtxid's.
+        if !completeness_proof.is_empty() {
+            let coinbase_tx = completeness_proof[0].clone();
+
+            for output in coinbase_tx.output {
+                if output
+                    .script_pubkey
+                    .to_bytes()
+                    .starts_with(&[0x6a, 0x24, 0xaa, 0x21, 0xa9, 0xed])
+                {
+                    let script_pubkey = output.script_pubkey.clone();
+                    script_pubkey.to_bytes().drain(..6);
+                    let merkle_root = merkle_tree::calculate_root(
+                        inclusion_proof
+                            .wtxids
+                            .iter()
+                            .map(|wtxid| Txid::from_byte_array(*wtxid)),
+                    )
+                    .unwrap();
+                    if script_pubkey.to_bytes() != merkle_root.to_byte_array() {
+                        return Err(ValidationError::InvalidBlock);
+                    }
+                }
+            }
+        }
 
         // create hash set of blobs
         let mut blobs_iter = blobs.iter();
@@ -292,6 +324,11 @@ mod tests {
                 .iter()
                 .map(|t| t.txid().to_raw_hash().to_byte_array())
                 .collect(),
+            wtxids: block_txs
+                .iter()
+                .map(|t| t.wtxid().to_byte_array())
+                .collect(),
+            coinbase_tx: block_txs[0].clone(),
         };
 
         let txs: Vec<BlobWithSender> = vec![

@@ -357,14 +357,14 @@ impl DaService for BitcoinService {
 
             // if wtxid of a tx is 0 then it is a coinbase tx
             if wtxid == [0; 32] && inclusion_multi_proof.wtxids.is_empty() {
-                inclusion_multi_proof.wtxids.push(wtxid);
+                inclusion_multi_proof.coinbase_tx = tx.clone();
             }
 
             // if tx_hash has two leading zeros, it is in the completeness proof
             if tx_hash.starts_with(self.reveal_tx_id_prefix.as_slice()) {
                 completeness_proof.push(tx.clone());
             }
-
+            inclusion_multi_proof.wtxids.push(wtxid);
             inclusion_multi_proof.txs.push(tx_hash);
         });
 
@@ -654,7 +654,7 @@ mod tests {
 
         // no 00 bytes left behind completeness proof
         inclusion_proof.txs.iter().for_each(|tx_hash| {
-            if tx_hash[0..2] == [0, 0] {
+            if tx_hash.starts_with(da_service.reveal_tx_id_prefix.as_slice()) {
                 assert!(completeness_tx_hashes.remove(tx_hash));
             }
         });

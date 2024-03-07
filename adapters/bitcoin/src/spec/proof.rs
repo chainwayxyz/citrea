@@ -1,3 +1,7 @@
+use bitcoin::{
+    absolute::{Height, LockTime},
+    Transaction,
+};
 use serde::{Deserialize, Serialize};
 
 // Set of proofs for inclusion of a transaction in a block
@@ -5,6 +9,7 @@ use serde::{Deserialize, Serialize};
 pub struct InclusionMultiProof {
     pub txs: Vec<[u8; 32]>,
     pub wtxids: Vec<[u8; 32]>,
+    pub coinbase_tx: Transaction,
 }
 
 impl Default for InclusionMultiProof {
@@ -12,6 +17,12 @@ impl Default for InclusionMultiProof {
         InclusionMultiProof {
             txs: vec![],
             wtxids: vec![],
+            coinbase_tx: Transaction {
+                version: 0,
+                lock_time: LockTime::Blocks(Height::min_value()),
+                input: vec![],
+                output: vec![],
+            },
         }
     }
 }
