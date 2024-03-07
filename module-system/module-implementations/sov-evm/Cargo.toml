@@ -35,7 +35,7 @@ derive_more = { workspace = true }
 
 # ethers-middleware = { workspace = true }
 
-alloy-primitives = { workspace = true, features = ["rand", "rlp", "serde"] }
+alloy-primitives = { workspace = true }
 alloy-sol-types = { workspace = true }
 alloy-rpc-types = { workspace = true, optional = true }
 alloy-rlp = { workspace = true }
