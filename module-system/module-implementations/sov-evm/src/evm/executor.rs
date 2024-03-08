@@ -17,7 +17,7 @@ pub(crate) fn execute_tx<DB: Database<Error = Infallible> + DatabaseCommit>(
     block_env: &BlockEnv,
     tx: &TransactionSignedEcRecovered,
     config_env: CfgEnvWithHandlerCfg,
-    l1_fee_rate: usize,
+    l1_fee_rate: u64,
 ) -> Result<ExecutionResult, EVMError<Infallible>> {
     let mut evm = revm::Evm::builder()
         .with_db(db)
@@ -35,7 +35,7 @@ pub(crate) fn execute_multiple_tx<DB: Database<Error = Infallible> + DatabaseCom
     block_env: &BlockEnv,
     txs: &[TransactionSignedEcRecovered],
     config_env: CfgEnvWithHandlerCfg,
-    l1_fee_rate: usize,
+    l1_fee_rate: u64,
 ) -> Vec<Result<ExecutionResult, EVMError<Infallible>>> {
     if txs.is_empty() {
         return vec![];

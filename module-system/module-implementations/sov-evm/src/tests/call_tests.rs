@@ -46,7 +46,9 @@ fn call_multiple_test() {
             .as_slice(),
     );
 
-    evm.begin_soft_confirmation_hook([5u8; 32], &[10u8; 32], &mut working_set);
+    let l1_fee_rate = 0;
+
+    evm.begin_soft_confirmation_hook([5u8; 32], &[10u8; 32], &mut working_set, l1_fee_rate);
 
     let set_arg = 999;
     {
@@ -140,8 +142,9 @@ fn call_test() {
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
     let (evm, mut working_set) = get_evm(&config);
+    let l1_fee_rate = 0;
 
-    evm.begin_soft_confirmation_hook([5u8; 32], &[10u8; 32], &mut working_set);
+    evm.begin_soft_confirmation_hook([5u8; 32], &[10u8; 32], &mut working_set, l1_fee_rate);
 
     let set_arg = 999;
     {
@@ -206,8 +209,9 @@ fn failed_transaction_test() {
     let dev_signer: TestSigner = TestSigner::new_random();
     let (evm, mut working_set) = get_evm(&EvmConfig::default());
     let working_set = &mut working_set;
+    let l1_fee_rate = 0;
 
-    evm.begin_soft_confirmation_hook([5u8; 32], &[10u8; 32], working_set);
+    evm.begin_soft_confirmation_hook([5u8; 32], &[10u8; 32], working_set, l1_fee_rate);
     {
         let sender_address = generate_address::<C>("sender");
         let sequencer_address = generate_address::<C>("sequencer");
@@ -254,8 +258,9 @@ fn self_destruct_test() {
     let (config, dev_signer, contract_addr) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
     let (evm, mut working_set) = get_evm(&config);
+    let l1_fee_rate = 0;
 
-    evm.begin_soft_confirmation_hook([5u8; 32], &[10u8; 32], &mut working_set);
+    evm.begin_soft_confirmation_hook([5u8; 32], &[10u8; 32], &mut working_set, l1_fee_rate);
     {
         let sender_address = generate_address::<C>("sender");
         let sequencer_address = generate_address::<C>("sequencer");
@@ -301,8 +306,9 @@ fn self_destruct_test() {
 
     // Test if the key is set in the keys statevec
     assert_eq!(db_contract.keys.len(&mut working_set), 1);
+    let l1_fee_rate = 0;
 
-    evm.begin_soft_confirmation_hook([5u8; 32], &[99u8; 32], &mut working_set);
+    evm.begin_soft_confirmation_hook([5u8; 32], &[99u8; 32], &mut working_set, l1_fee_rate);
     {
         let sender_address = generate_address::<C>("sender");
         let sequencer_address = generate_address::<C>("sequencer");
@@ -369,8 +375,9 @@ fn log_filter_test_at_block_hash() {
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
     let (evm, mut working_set) = get_evm(&config);
+    let l1_fee_rate = 0;
 
-    evm.begin_soft_confirmation_hook([5u8; 32], &[10u8; 32], &mut working_set);
+    evm.begin_soft_confirmation_hook([5u8; 32], &[10u8; 32], &mut working_set, l1_fee_rate);
     {
         let sender_address = generate_address::<C>("sender");
         let sequencer_address = generate_address::<C>("sequencer");
@@ -563,8 +570,9 @@ fn log_filter_test_with_range() {
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
     let (evm, mut working_set) = get_evm(&config);
+    let l1_fee_rate = 0;
 
-    evm.begin_soft_confirmation_hook([5u8; 32], &[10u8; 32], &mut working_set);
+    evm.begin_soft_confirmation_hook([5u8; 32], &[10u8; 32], &mut working_set, l1_fee_rate);
     {
         let sender_address = generate_address::<C>("sender");
         let sequencer_address = generate_address::<C>("sequencer");
@@ -610,10 +618,11 @@ fn log_filter_test_with_range() {
     };
 
     let rpc_logs = evm.eth_get_logs(filter, &mut working_set).unwrap();
-
     assert_eq!(rpc_logs.len(), 4);
 
-    evm.begin_soft_confirmation_hook([5u8; 32], &[99u8; 32], &mut working_set);
+    let l1_fee_rate = 0;
+
+    evm.begin_soft_confirmation_hook([5u8; 32], &[99u8; 32], &mut working_set, l1_fee_rate);
     {
         let sender_address = generate_address::<C>("sender");
         let sequencer_address = generate_address::<C>("sequencer");
@@ -661,8 +670,9 @@ fn test_log_limits() {
     );
 
     let (evm, mut working_set) = get_evm(&config);
+    let l1_fee_rate = 0;
 
-    evm.begin_soft_confirmation_hook([5u8; 32], &[10u8; 32], &mut working_set);
+    evm.begin_soft_confirmation_hook([5u8; 32], &[10u8; 32], &mut working_set, l1_fee_rate);
     {
         let sender_address = generate_address::<C>("sender");
         let sequencer_address = generate_address::<C>("sequencer");
@@ -750,7 +760,8 @@ fn test_log_limits() {
 
     for _ in 1..100_001 {
         // generate 100_000 blocks to test the max block range limit
-        evm.begin_soft_confirmation_hook([5u8; 32], &[99u8; 32], &mut working_set);
+        let l1_fee_rate = 0;
+        evm.begin_soft_confirmation_hook([5u8; 32], &[99u8; 32], &mut working_set, l1_fee_rate);
         evm.end_soft_confirmation_hook(&mut working_set);
         evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
     }
@@ -779,7 +790,9 @@ fn test_block_hash_in_evm() {
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
     let (evm, mut working_set) = get_evm(&config);
-    evm.begin_soft_confirmation_hook([5u8; 32], &[10u8; 32], &mut working_set);
+    let l1_fee_rate = 0;
+
+    evm.begin_soft_confirmation_hook([5u8; 32], &[10u8; 32], &mut working_set, l1_fee_rate);
     {
         let sender_address = generate_address::<C>("sender");
         let sequencer_address = generate_address::<C>("sequencer");
@@ -801,7 +814,8 @@ fn test_block_hash_in_evm() {
 
     for _i in 0..514 {
         // generate 514 more blocks
-        evm.begin_soft_confirmation_hook([5u8; 32], &[99u8; 32], &mut working_set);
+        let l1_fee_rate = 0;
+        evm.begin_soft_confirmation_hook([5u8; 32], &[99u8; 32], &mut working_set, l1_fee_rate);
         evm.end_soft_confirmation_hook(&mut working_set);
         evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
     }
@@ -874,8 +888,9 @@ fn test_block_gas_limit() {
     );
 
     let (evm, mut working_set) = get_evm(&config);
+    let l1_fee_rate = 0;
 
-    evm.begin_soft_confirmation_hook([5u8; 32], &[10u8; 32], &mut working_set);
+    evm.begin_soft_confirmation_hook([5u8; 32], &[10u8; 32], &mut working_set, l1_fee_rate);
     {
         let sender_address = generate_address::<C>("sender");
         let sequencer_address = generate_address::<C>("sequencer");

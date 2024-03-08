@@ -32,7 +32,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
         txs: Vec<RlpEvmTransaction>,
         _context: &C,
         working_set: &mut WorkingSet<C>,
-        l1_fee_rate: usize,
     ) -> Result<CallResponse> {
         let evm_txs_recovered: Vec<TransactionSignedEcRecovered> = txs
             .into_iter()
@@ -49,6 +48,11 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         let cfg = self.cfg.get(working_set).expect("Evm config must be set");
         let cfg_env: CfgEnvWithHandlerCfg = get_cfg_env(&block_env, cfg, None);
+
+        let l1_fee_rate = self
+            .l1_fee_rate
+            .get(working_set)
+            .expect("L1 fee rate must be set");
 
         let evm_db: EvmDb<'_, C> = self.get_db(working_set);
         let results = executor::execute_multiple_tx(

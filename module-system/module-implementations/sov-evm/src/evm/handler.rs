@@ -8,20 +8,20 @@ use revm::primitives::{Address, EVMError, ExecutionResult, ResultAndState, State
 use revm::{Context, Database, FrameResult, JournalEntry};
 
 pub(crate) trait CitreaExternal {
-    fn get_l1_fee_rate(&self) -> usize;
+    fn l1_fee_rate(&self) -> u64;
 }
 pub(crate) struct CitreaExternalContext {
-    l1_fee_rate: usize,
+    l1_fee_rate: u64,
 }
 
 impl CitreaExternalContext {
-    pub(crate) fn new(l1_fee_rate: usize) -> Self {
+    pub(crate) fn new(l1_fee_rate: u64) -> Self {
         Self { l1_fee_rate }
     }
 }
 
 impl CitreaExternal for CitreaExternalContext {
-    fn get_l1_fee_rate(&self) -> usize {
+    fn l1_fee_rate(&self) -> u64 {
         self.l1_fee_rate
     }
 }
@@ -57,9 +57,9 @@ impl<EXT: CitreaExternal, DB: Database> CitreaHandler<EXT, DB> {
         let result_and_state = revm::handler::mainnet::output(context, result)?;
         let ResultAndState { result, state } = result_and_state;
         if result.is_success() {
-            let diff_size = state_diff_size(&state, journal);
-            let l1_fee_rate = context.external.get_l1_fee_rate();
-            let l1_fee = U256::from(diff_size * l1_fee_rate);
+            let diff_size = U256::from(state_diff_size(&state, journal));
+            let l1_fee_rate = U256::from(context.external.l1_fee_rate());
+            let l1_fee = diff_size * l1_fee_rate;
             if let Some(_out_of_funds) = decrease_caller_balance(context, l1_fee)? {
                 let result = ExecutionResult::Revert {
                     gas_used: result.gas_used(),
