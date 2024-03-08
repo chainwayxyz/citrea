@@ -505,7 +505,7 @@ mod tests {
             runtime_config,
             RollupParams {
                 rollup_name: "sov-btc".to_string(),
-                reveal_tx_id_prefix: vec![],
+                reveal_tx_id_prefix: vec![0],
             },
         )
         .await
@@ -656,7 +656,7 @@ mod tests {
 
         // no 00 bytes left behind completeness proof
         inclusion_proof.txs.iter().for_each(|tx_hash| {
-            if tx_hash.starts_with(da_service.reveal_tx_id_prefix.as_slice()) {
+            if tx_hash[0..1] == [0] {
                 assert!(completeness_tx_hashes.remove(tx_hash));
             }
         });
