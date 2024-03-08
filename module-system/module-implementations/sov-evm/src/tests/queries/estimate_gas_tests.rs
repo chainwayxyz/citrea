@@ -12,9 +12,8 @@ use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{Context, Module, WorkingSet};
 
-use super::basic_queries::{commit, get_evm_with_storage};
 use crate::tests::call_tests::create_contract_transaction;
-use crate::tests::queries::basic_queries::init_evm;
+use crate::tests::queries::{commit, get_evm_with_storage, init_evm};
 use crate::tests::test_signer::TestSigner;
 use crate::{
     AccountData, CallMessage, EthApiError, Evm, EvmConfig, SimplePayableContract,

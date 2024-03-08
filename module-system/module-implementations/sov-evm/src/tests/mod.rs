@@ -4,7 +4,6 @@ mod genesis_tests;
 mod hooks_tests;
 
 mod queries;
-// mod query_tests;
 pub(crate) mod test_signer;
 mod tx_tests;
 

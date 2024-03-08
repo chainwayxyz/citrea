@@ -5,7 +5,7 @@ use reth_primitives::{Address, BlockNumberOrTag, Bytes, U64};
 use reth_rpc::eth::error::RpcInvalidTransactionError;
 use revm::primitives::U256;
 
-use crate::tests::queries::basic_queries::init_evm;
+use crate::tests::queries::init_evm;
 
 #[test]
 fn call_contract_without_value() {
