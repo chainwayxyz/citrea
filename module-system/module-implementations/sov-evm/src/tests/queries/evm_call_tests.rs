@@ -8,7 +8,7 @@ use revm::primitives::U256;
 use sov_modules_api::WorkingSet;
 
 use super::C;
-use crate::tests::queries::init_evm;
+use crate::tests::queries::{init_evm, init_evm_single_block};
 use crate::tests::test_signer::TestSigner;
 use crate::Evm;
 
@@ -268,4 +268,138 @@ fn eth_call_eip1559(
         None,
         working_set,
     )
+}
+
+#[test]
+fn gas_price_fee_estimation_test() {
+    let (evm, mut working_set, signer) = init_evm_single_block();
+
+    // Define a base transaction request for reuse
+    let base_tx_req = || TransactionRequest {
+        from: Some(signer.address()),
+        to: Some(Address::from_str("0x819c5497b157177315e1204f52e588b393771719").unwrap()),
+        value: Some(U256::from(1000)),
+        input: None.into(),
+        nonce: Some(U64::from(1u64)),
+        chain_id: Some(U64::from(1u64)),
+        access_list: None,
+        max_fee_per_blob_gas: None,
+        blob_versioned_hashes: None,
+        transaction_type: None,
+        sidecar: None,
+        other: Default::default(),
+        // Gas, gas_price, max_fee_per_gas, and max_priority_fee_per_gas will be varied
+        gas: None,
+        gas_price: None,
+        max_fee_per_gas: None,
+        max_priority_fee_per_gas: None,
+    };
+
+    // Test with only gas specified
+    let tx_req_only_gas = base_tx_req();
+    let result_only_gas = evm.get_call(
+        TransactionRequest {
+            gas: Some(U256::from(21000)),
+            ..tx_req_only_gas
+        },
+        Some(BlockNumberOrTag::Latest),
+        None,
+        None,
+        &mut working_set,
+    );
+
+    assert_eq!(
+        result_only_gas,
+        Err(RpcInvalidTransactionError::BasicOutOfGas(U256::from(21000)).into())
+    );
+    working_set.unset_archival_version();
+
+    // Test with gas and gas_price specified
+    let tx_req_gas_and_gas_price = base_tx_req();
+    let result_gas_and_gas_price = evm.get_call(
+        TransactionRequest {
+            gas: Some(U256::from(25000)),
+            gas_price: Some(U256::from(20e9 as u64)),
+            ..tx_req_gas_and_gas_price
+        },
+        Some(BlockNumberOrTag::Latest),
+        None,
+        None,
+        &mut working_set,
+    );
+
+    assert_eq!(
+        result_gas_and_gas_price,
+        Err(RpcInvalidTransactionError::BasicOutOfGas(U256::from(25000)).into())
+    );
+    working_set.unset_archival_version();
+
+    // Test with max_fee_per_gas and max_priority_fee_per_gas specified
+    let tx_req_fees = base_tx_req();
+    let result_fees = evm.get_call(
+        TransactionRequest {
+            max_fee_per_gas: Some(U256::from(30e9 as u64)),
+            max_priority_fee_per_gas: Some(U256::from(10e9 as u64)),
+            ..tx_req_fees
+        },
+        Some(BlockNumberOrTag::Latest),
+        None,
+        None,
+        &mut working_set,
+    );
+
+    assert!(result_fees.is_ok());
+    working_set.unset_archival_version();
+
+    // Test with extremely high gas price
+    let tx_req_high_gas_price = base_tx_req();
+    let result_high_gas_price = evm.get_call(
+        TransactionRequest {
+            gas_price: Some(U256::from(1e12 as u64)),
+            ..tx_req_high_gas_price
+        },
+        Some(BlockNumberOrTag::Latest),
+        None,
+        None,
+        &mut working_set,
+    );
+
+    assert!(result_high_gas_price.is_ok());
+    working_set.unset_archival_version();
+
+    // Test with extremely high max_fee_per_gas and max_priority_fee_per_gas
+    let tx_req_high_fees = base_tx_req();
+    let result_high_fees = evm.get_call(
+        TransactionRequest {
+            max_fee_per_gas: Some(U256::from(1e12 as u64)),
+            max_priority_fee_per_gas: Some(U256::from(500e9 as u64)),
+            ..tx_req_high_fees
+        },
+        Some(BlockNumberOrTag::Latest),
+        None,
+        None,
+        &mut working_set,
+    );
+
+    assert!(result_high_fees.is_ok());
+    working_set.unset_archival_version();
+
+    // Test with low gas limit
+    let tx_req_low_gas = base_tx_req();
+    let result_low_gas = evm.get_call(
+        TransactionRequest {
+            gas: Some(U256::from(21000)),
+            ..tx_req_low_gas
+        },
+        Some(BlockNumberOrTag::Latest),
+        None,
+        None,
+        &mut working_set,
+    );
+
+    assert_eq!(
+        result_low_gas,
+        Err(RpcInvalidTransactionError::BasicOutOfGas(U256::from(21000)).into())
+    );
+    working_set.unset_archival_version();
 }
