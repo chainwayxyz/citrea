@@ -76,7 +76,54 @@ impl<EXT: CitreaExternal, DB: Database> CitreaHandler<EXT, DB> {
 
 /// Calculates the diff of the modified state.
 fn state_diff_size(state: &State, journal: Vec<JournalEntry>) -> usize {
+    let nonce_changes: HashSet<&Address> = journal
+        .iter()
+        .filter_map(|entry| match entry {
+            JournalEntry::NonceChange { address } => Some(address),
+            _ => None,
+        })
+        .collect();
+
+    let balance_changes: HashSet<&Address> = journal
+        .iter()
+        .filter_map(|entry| match entry {
+            JournalEntry::BalanceTransfer { from, to, .. } => Some([from, to]),
+            _ => None,
+        })
+        .flatten()
+        .collect();
+
+    let storage_changes: HashSet<&Address> = journal
+        .iter()
+        .filter_map(|entry| match entry {
+            JournalEntry::StorageChange { address, .. } => Some(address),
+            _ => None,
+        })
+        .collect();
+
+    let mut all_changed_addresses = HashSet::<&Address>::new();
+    all_changed_addresses.extend(&nonce_changes);
+    all_changed_addresses.extend(&balance_changes);
+    all_changed_addresses.extend(&storage_changes);
+
     let mut diff_size = 0usize;
+
+    // Apply size of changed addresses
+    for _addr in all_changed_addresses {
+        diff_size += size_of::<Address>();
+    }
+
+    // Apply size of changed nonces
+    for _addr in nonce_changes {
+        diff_size += size_of::<u64>(); // Nonces are u64
+    }
+
+    // Apply size of changed balances
+    for _addr in balance_changes {
+        diff_size += size_of::<U256>(); // Balances are U256
+    }
+
+    // Apply size of changed slots
     for account in state.values() {
         for (k, v) in account.changed_storage_slots() {
             // TODO diff calc https://github.com/chainwayxyz/secret-sovereign-sdk/issues/116
@@ -86,27 +133,7 @@ fn state_diff_size(state: &State, journal: Vec<JournalEntry>) -> usize {
             diff_size += slot_size;
         }
     }
-    let nonce_changes: HashSet<&Address> = journal
-        .iter()
-        .filter_map(|entry| match entry {
-            JournalEntry::NonceChange { address } => Some(address),
-            _ => None,
-        })
-        .collect();
-    for _addr in nonce_changes {
-        diff_size += size_of::<u64>(); // Nonces are u64
-    }
-    let balance_changes: HashSet<&Address> = journal
-        .iter()
-        .filter_map(|entry| match entry {
-            JournalEntry::BalanceTransfer { from, to, .. } => Some([from, to]),
-            _ => None,
-        })
-        .flatten()
-        .collect();
-    for _addr in balance_changes {
-        diff_size += size_of::<U256>(); // Balances are U256
-    }
+
     diff_size
 }
 
