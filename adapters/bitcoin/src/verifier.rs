@@ -258,7 +258,7 @@ mod tests {
     use bitcoin::hash_types::TxMerkleNode;
     use bitcoin::hashes::{sha256d, Hash};
     use bitcoin::string::FromHexStr;
-    use bitcoin::{BlockHash, CompactTarget};
+    use bitcoin::{BlockHash, CompactTarget, ScriptBuf, Witness};
     use sov_rollup_interface::da::{DaSpec, DaVerifier};
 
     use super::BitcoinVerifier;
@@ -374,6 +374,236 @@ mod tests {
                 completeness_proof
             )
             .is_ok());
+    }
+
+    #[test]
+    fn false_coinbase_script_pubkey_should_fail() {
+        let verifier = BitcoinVerifier::new(RollupParams {
+            rollup_name: "sov-btc".to_string(),
+            reveal_tx_id_prefix: vec![0, 0],
+        });
+
+        let header = HeaderWrapper::new(
+            Header {
+                version: Version::from_consensus(536870912),
+                prev_blockhash: BlockHash::from_str(
+                    "6b15a2e4b17b0aabbd418634ae9410b46feaabf693eea4c8621ffe71435d24b0",
+                )
+                .unwrap(),
+                merkle_root: TxMerkleNode::from_str(
+                    "7750076b3b5498aad3e2e7da55618c66394d1368dc08f19f0b13d1e5b83ae056",
+                )
+                .unwrap(),
+                time: 1694177029,
+                bits: CompactTarget::from_hex_str_no_prefix("207fffff").unwrap(),
+                nonce: 0,
+            },
+            13,
+            2,
+        );
+
+        let mut block_txs = get_mock_txs();
+
+        let idx = block_txs[0]
+            .output
+            .iter()
+            .position(|output| {
+                output
+                    .script_pubkey
+                    .to_bytes()
+                    .starts_with(&[0x6a, 0x24, 0xaa, 0x21, 0xa9, 0xed])
+            })
+            .unwrap();
+
+        // the 7th byte of script pubkey is changed from 104 to 105
+        block_txs[0].output[idx].script_pubkey = ScriptBuf::from_bytes(vec![
+            106, 36, 170, 33, 169, 237, 105, 181, 249, 155, 21, 242, 213, 115, 55, 123, 70, 108,
+            15, 173, 14, 106, 243, 231, 186, 128, 75, 251, 178, 9, 24, 228, 200, 177, 144, 89, 95,
+            182,
+        ]);
+
+        // relevant txs are on 6, 8, 10, 12 indices
+        let completeness_proof = vec![
+            block_txs[6].clone(),
+            block_txs[8].clone(),
+            block_txs[10].clone(),
+            block_txs[12].clone(),
+        ];
+
+        let mut inclusion_proof = InclusionMultiProof {
+            txs: block_txs
+                .iter()
+                .map(|t| t.txid().to_raw_hash().to_byte_array())
+                .collect(),
+            wtxids: block_txs
+                .iter()
+                .map(|t| t.wtxid().to_byte_array())
+                .collect(),
+            coinbase_tx: block_txs[0].clone(),
+        };
+
+        // Coinbase tx wtxid should be [0u8;32]
+        inclusion_proof.wtxids[0] = [0; 32];
+
+        let txs: Vec<BlobWithSender> = vec![
+            get_blob_with_sender(&block_txs[6]),
+            get_blob_with_sender(&block_txs[8]),
+            get_blob_with_sender(&block_txs[10]),
+            get_blob_with_sender(&block_txs[12]),
+        ];
+
+        assert!(verifier
+            .verify_relevant_tx_list(&header, txs.as_slice(), inclusion_proof, completeness_proof)
+            .is_err());
+    }
+
+    #[test]
+    fn false_witness_script_should_fail() {
+        let verifier = BitcoinVerifier::new(RollupParams {
+            rollup_name: "sov-btc".to_string(),
+            reveal_tx_id_prefix: vec![0, 0],
+        });
+        // let (header, mut inclusion_proof, completeness_proof, txs) = get_mock_data();
+
+        let header = HeaderWrapper::new(
+            Header {
+                version: Version::from_consensus(536870912),
+                prev_blockhash: BlockHash::from_str(
+                    "6b15a2e4b17b0aabbd418634ae9410b46feaabf693eea4c8621ffe71435d24b0",
+                )
+                .unwrap(),
+                merkle_root: TxMerkleNode::from_str(
+                    "7750076b3b5498aad3e2e7da55618c66394d1368dc08f19f0b13d1e5b83ae056",
+                )
+                .unwrap(),
+                time: 1694177029,
+                bits: CompactTarget::from_hex_str_no_prefix("207fffff").unwrap(),
+                nonce: 0,
+            },
+            13,
+            2,
+        );
+
+        let mut block_txs = get_mock_txs();
+
+        // This is the changed witness of the 6th tx, the first byte of script is changed from 32 to 33
+        // This creates a different wtxid, thus the verification should fail
+        let changed_witness: Vec<Vec<u8>> = vec![
+            vec![
+                81, 88, 52, 28, 35, 77, 19, 30, 98, 146, 2, 231, 141, 193, 70, 58, 24, 252, 94,
+                184, 169, 253, 234, 219, 176, 172, 224, 112, 128, 144, 70, 134, 16, 75, 6, 112,
+                182, 76, 230, 26, 239, 154, 8, 219, 123, 102, 210, 203, 74, 187, 185, 45, 3, 35,
+                94, 95, 64, 209, 195, 34, 66, 246, 47, 239,
+            ],
+            vec![
+                33, 113, 162, 71, 125, 67, 165, 112, 30, 91, 79, 0, 158, 242, 217, 32, 194, 150,
+                158, 249, 221, 71, 241, 82, 79, 243, 107, 93, 250, 8, 122, 90, 29, 172, 0, 99, 1,
+                1, 7, 115, 111, 118, 45, 98, 116, 99, 1, 2, 64, 204, 75, 35, 210, 203, 62, 34, 178,
+                197, 122, 89, 242, 64, 136, 118, 79, 57, 247, 183, 137, 132, 126, 152, 59, 158,
+                233, 206, 118, 130, 87, 140, 43, 125, 189, 244, 56, 78, 35, 12, 148, 43, 145, 174,
+                92, 230, 177, 186, 51, 88, 127, 84, 159, 237, 238, 77, 25, 229, 79, 243, 168, 229,
+                70, 1, 232, 1, 3, 33, 2, 88, 141, 32, 42, 252, 193, 238, 74, 181, 37, 76, 120, 71,
+                236, 37, 185, 161, 53, 187, 218, 15, 43, 198, 158, 225, 167, 20, 116, 159, 215,
+                125, 201, 1, 4, 3, 140, 4, 3, 0, 76, 196, 27, 123, 1, 248, 69, 199, 134, 177, 14,
+                144, 99, 139, 92, 216, 128, 35, 8, 24, 35, 176, 108, 32, 185, 0, 64, 64, 16, 82,
+                134, 7, 56, 167, 198, 205, 96, 199, 53, 143, 88, 17, 88, 187, 247, 230, 188, 146,
+                199, 57, 30, 254, 87, 237, 64, 197, 147, 216, 162, 224, 152, 57, 150, 149, 38, 166,
+                136, 221, 108, 223, 62, 19, 150, 90, 236, 168, 89, 44, 83, 183, 232, 187, 206, 143,
+                137, 234, 84, 146, 177, 70, 242, 67, 179, 229, 165, 3, 94, 174, 81, 199, 235, 230,
+                184, 188, 60, 171, 3, 72, 123, 113, 167, 153, 1, 22, 216, 181, 175, 220, 83, 55,
+                14, 149, 187, 22, 167, 192, 173, 189, 132, 137, 116, 155, 150, 173, 21, 174, 68,
+                140, 43, 227, 187, 51, 47, 125, 195, 155, 109, 150, 123, 2, 111, 159, 89, 26, 249,
+                111, 54, 105, 241, 247, 201, 204, 123, 29, 208, 71, 162, 195, 146, 187, 209, 69,
+                218, 241, 17, 66, 119, 98, 83, 228, 32, 245, 236, 204, 22, 154, 251, 85, 105, 61,
+                15, 235, 194, 127, 13, 177, 89, 3, 104,
+            ],
+            vec![
+                193, 113, 162, 71, 125, 67, 165, 112, 30, 91, 79, 0, 158, 242, 217, 32, 194, 150,
+                158, 249, 221, 71, 241, 82, 79, 243, 107, 93, 250, 8, 122, 90, 29,
+            ],
+        ];
+
+        block_txs[6].input[0].witness = Witness::from_slice(&changed_witness);
+        // relevant txs are on 6, 8, 10, 12 indices
+        let completeness_proof = vec![
+            block_txs[6].clone(),
+            block_txs[8].clone(),
+            block_txs[10].clone(),
+            block_txs[12].clone(),
+        ];
+
+        let mut inclusion_proof = InclusionMultiProof {
+            txs: block_txs
+                .iter()
+                .map(|t| t.txid().to_raw_hash().to_byte_array())
+                .collect(),
+            wtxids: block_txs
+                .iter()
+                .map(|t| t.wtxid().to_byte_array())
+                .collect(),
+            coinbase_tx: block_txs[0].clone(),
+        };
+
+        // Coinbase tx wtxid should be [0u8;32]
+        inclusion_proof.wtxids[0] = [0; 32];
+
+        let txs: Vec<BlobWithSender> = vec![
+            get_blob_with_sender(&block_txs[6]),
+            get_blob_with_sender(&block_txs[8]),
+            get_blob_with_sender(&block_txs[10]),
+            get_blob_with_sender(&block_txs[12]),
+        ];
+
+        assert!(verifier
+            .verify_relevant_tx_list(&header, txs.as_slice(), inclusion_proof, completeness_proof)
+            .is_err());
+
+        // (header, inclusion_proof, completeness_proof, txs)
+    }
+
+    // verifies it, and then changes the witness and sees that it cannot be verified
+    #[test]
+    fn different_wtxid_fails_verification() {
+        let verifier = BitcoinVerifier::new(RollupParams {
+            rollup_name: "sov-btc".to_string(),
+            reveal_tx_id_prefix: vec![0, 0],
+        });
+
+        let (block_header, mut inclusion_proof, completeness_proof, txs) = get_mock_data();
+
+        assert!(verifier
+            .verify_relevant_tx_list(
+                &block_header,
+                txs.as_slice(),
+                inclusion_proof.clone(),
+                completeness_proof.clone()
+            )
+            .is_ok());
+
+        // cahnging the witness txid of coinbase tx to [1; 32] will make it fail
+        inclusion_proof.wtxids[0] = [1; 32];
+
+        assert!(verifier
+            .verify_relevant_tx_list(
+                &block_header,
+                txs.as_slice(),
+                inclusion_proof.clone(),
+                completeness_proof.clone()
+            )
+            .is_err());
+
+        inclusion_proof.wtxids[0] = [0; 32];
+
+        inclusion_proof.wtxids[1] = [16; 32];
+
+        assert!(verifier
+            .verify_relevant_tx_list(
+                &block_header,
+                txs.as_slice(),
+                inclusion_proof,
+                completeness_proof
+            )
+            .is_err());
     }
 
     #[test]
