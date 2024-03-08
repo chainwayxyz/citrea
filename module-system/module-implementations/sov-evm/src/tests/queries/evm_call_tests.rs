@@ -1,6 +1,7 @@
 use std::str::FromStr;
 
 use alloy_rpc_types::request::{TransactionInput, TransactionRequest};
+use hex::FromHex;
 use jsonrpsee::core::RpcResult;
 use reth_primitives::{Address, BlockNumberOrTag, Bytes, U64};
 use reth_rpc::eth::error::RpcInvalidTransactionError;
@@ -271,7 +272,7 @@ fn eth_call_eip1559(
 }
 
 #[test]
-fn gas_price_fee_estimation_test() {
+fn gas_price_call_test() {
     let (evm, mut working_set, signer) = init_evm_single_block();
 
     // Define a base transaction request for reuse
@@ -401,5 +402,22 @@ fn gas_price_fee_estimation_test() {
         result_low_gas,
         Err(RpcInvalidTransactionError::BasicOutOfGas(U256::from(21000)).into())
     );
+    working_set.unset_archival_version();
+
+    // Test with increased gas limit
+    let tx_req_low_gas = base_tx_req();
+    let result_low_gas = evm.get_call(
+        TransactionRequest {
+            gas: Some(U256::from(80000)),
+            ..tx_req_low_gas
+        },
+        Some(BlockNumberOrTag::Latest),
+        None,
+        None,
+        &mut working_set,
+    );
+
+    let empty_bytes = Bytes::from_hex("0x").unwrap();
+    assert_eq!(result_low_gas, Ok(empty_bytes));
     working_set.unset_archival_version();
 }
