@@ -580,7 +580,12 @@ impl<C: sov_modules_api::Context> Evm<C> {
             }
         };
 
-        let tx_env = prepare_call_env(&block_env, request.clone()).unwrap();
+        let tx_env = match prepare_call_env(&block_env, request.clone()) {
+            Ok(tx_env) => tx_env,
+            Err(err) => {
+                return Err(err.into());
+            }
+        };
 
         let cfg = self
             .cfg

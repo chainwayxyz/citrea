@@ -196,75 +196,6 @@ fn test_tx_request_fields_gas() {
 }
 
 #[test]
-fn estimate_gas_eip1559_fields_expanded_test() {
-    let (evm, mut working_set, signer) = init_evm_single_block();
-
-    // Scenario 1: Default values for EIP-1559 fields
-    let default_result = test_estimate_gas_with_eip1559_fields(
-        &evm,
-        &mut working_set,
-        &signer,
-        Some(U256::from(100e9 as u64)),
-        Some(U256::from(2e9 as u64)),
-    );
-
-    assert_eq!(default_result.unwrap(), Uint::from_str("0xa9ba").unwrap());
-
-    // Scenario 2: Boundary values
-    // Very high max fee and priority fee
-    let high_fee_result = test_estimate_gas_with_eip1559_fields(
-        &evm,
-        &mut working_set,
-        &signer,
-        Some(U256::MAX),
-        Some(U256::MAX),
-    );
-    assert_eq!(
-        high_fee_result,
-        Err(RpcInvalidTransactionError::GasTooHigh.into())
-    );
-
-    // Very low max fee (just above 0) and priority fee
-    // Why this is OK?
-    let low_max_fee_result = test_estimate_gas_with_eip1559_fields(
-        &evm,
-        &mut working_set,
-        &signer,
-        Some(U256::from(1)),
-        Some(U256::from(1)),
-    );
-    assert_eq!(
-        low_max_fee_result.unwrap(),
-        Uint::from_str("0xa9ba").unwrap()
-    );
-
-    let no_max_fee_per_gas = test_estimate_gas_with_eip1559_fields(
-        &evm,
-        &mut working_set,
-        &signer,
-        None,
-        Some(U256::from(2e9 as u64)),
-    );
-    assert_eq!(
-        no_max_fee_per_gas,
-        Err(RpcInvalidTransactionError::TipAboveFeeCap.into())
-    );
-
-    let no_priority_fee = test_estimate_gas_with_eip1559_fields(
-        &evm,
-        &mut working_set,
-        &signer,
-        Some(U256::from(100e9 as u64)),
-        None,
-    );
-    assert_eq!(no_priority_fee.unwrap(), Uint::from_str("0xa9ba").unwrap());
-
-    let none_res =
-        test_estimate_gas_with_eip1559_fields(&evm, &mut working_set, &signer, None, None);
-    assert_eq!(none_res.unwrap(), Uint::from_str("0xa9ba").unwrap());
-}
-
-#[test]
 fn gas_price_fee_estimation_test() {
     let (evm, mut working_set, signer) = init_evm_single_block();
 
@@ -380,33 +311,6 @@ fn gas_price_fee_estimation_test() {
         Err(RpcInvalidTransactionError::BasicOutOfGas(U256::from(21000)).into())
     );
     working_set.unset_archival_version();
-}
-
-fn test_estimate_gas_with_eip1559_fields(
-    evm: &Evm<C>,
-    working_set: &mut WorkingSet<C>,
-    signer: &TestSigner,
-    max_fee_per_gas: Option<U256>,
-    max_priority_fee_per_gas: Option<U256>,
-) -> RpcResult<reth_primitives::U64> {
-    let tx_req = TransactionRequest {
-        from: Some(signer.address()),
-        to: Some(Address::from_str("0x819c5497b157177315e1204f52e588b393771719").unwrap()),
-        gas: Some(U256::from(100_000)),
-        gas_price: None,
-        max_fee_per_gas,
-        max_priority_fee_per_gas,
-        value: Some(U256::from(1000)),
-        input: TransactionInput {
-            input: None,
-            data: None,
-        },
-        nonce: Some(U64::from(1)),
-        chain_id: Some(U64::from(1u64)),
-        ..Default::default()
-    };
-
-    evm.eth_estimate_gas(tx_req, Some(BlockNumberOrTag::Latest), working_set)
 }
 
 #[test]

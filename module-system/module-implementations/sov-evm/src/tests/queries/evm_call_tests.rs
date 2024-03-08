@@ -1,11 +1,16 @@
 use std::str::FromStr;
 
 use alloy_rpc_types::request::{TransactionInput, TransactionRequest};
+use jsonrpsee::core::RpcResult;
 use reth_primitives::{Address, BlockNumberOrTag, Bytes, U64};
 use reth_rpc::eth::error::RpcInvalidTransactionError;
 use revm::primitives::U256;
+use sov_modules_api::WorkingSet;
 
+use super::C;
 use crate::tests::queries::init_evm;
+use crate::tests::test_signer::TestSigner;
+use crate::Evm;
 
 #[test]
 fn call_contract_without_value() {
@@ -167,4 +172,100 @@ fn call_with_high_gas_price() {
         call_result,
         Err(RpcInvalidTransactionError::InsufficientFunds.into())
     );
+}
+
+#[test]
+fn test_eip1559_fields_call() {
+    let (evm, mut working_set, signer) = init_evm();
+
+    let default_result = eth_call_eip1559(
+        &evm,
+        &mut working_set,
+        &signer,
+        Some(U256::from(100e9 as u64)),
+        Some(U256::from(2e9 as u64)),
+    );
+    // Reverts
+    assert!(default_result.is_err());
+
+    let high_fee_result = eth_call_eip1559(
+        &evm,
+        &mut working_set,
+        &signer,
+        Some(U256::MAX),
+        Some(U256::MAX),
+    );
+    assert_eq!(
+        high_fee_result,
+        Err(RpcInvalidTransactionError::GasUintOverflow.into())
+    );
+
+    let low_max_fee_result = eth_call_eip1559(
+        &evm,
+        &mut working_set,
+        &signer,
+        Some(U256::from(1)),
+        Some(U256::from(1)),
+    );
+
+    assert!(low_max_fee_result.is_err());
+
+    let no_max_fee_per_gas = eth_call_eip1559(
+        &evm,
+        &mut working_set,
+        &signer,
+        None,
+        Some(U256::from(2e9 as u64)),
+    );
+    assert_eq!(
+        no_max_fee_per_gas,
+        Err(RpcInvalidTransactionError::TipAboveFeeCap.into())
+    );
+
+    let no_priority_fee = eth_call_eip1559(
+        &evm,
+        &mut working_set,
+        &signer,
+        Some(U256::from(100e9 as u64)),
+        None,
+    );
+    // Reverts
+    assert!(no_priority_fee.is_err());
+
+    let none_res = eth_call_eip1559(&evm, &mut working_set, &signer, None, None);
+    // Reverts
+    assert!(none_res.is_err());
+}
+
+fn eth_call_eip1559(
+    evm: &Evm<C>,
+    working_set: &mut WorkingSet<C>,
+    signer: &TestSigner,
+    max_fee_per_gas: Option<U256>,
+    max_priority_fee_per_gas: Option<U256>,
+) -> RpcResult<reth_primitives::Bytes> {
+    let tx_req = TransactionRequest {
+        from: Some(signer.address()),
+        to: Some(Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap()),
+        gas: Some(U256::from(100_000)),
+        gas_price: None,
+        max_fee_per_gas,
+        max_priority_fee_per_gas,
+        value: Some(U256::from(1000)),
+        input: TransactionInput {
+            input: None,
+            data: None,
+        },
+        nonce: Some(U64::from(9)),
+        chain_id: Some(U64::from(1u64)),
+        ..Default::default()
+    };
+
+    evm.get_call(
+        tx_req,
+        Some(BlockNumberOrTag::Latest),
+        None,
+        None,
+        working_set,
+    )
 }
