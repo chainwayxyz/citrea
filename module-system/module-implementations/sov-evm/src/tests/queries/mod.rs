@@ -26,7 +26,7 @@ type C = DefaultContext;
 /// Creates evm instance with 3 blocks (including genesis)
 /// Block 1 has 2 transactions
 /// Block 2 has 4 transactions
-pub fn init_evm() -> (Evm<C>, WorkingSet<C>, TestSigner) {
+fn init_evm() -> (Evm<C>, WorkingSet<C>, TestSigner) {
     let dev_signer: TestSigner = TestSigner::new_random();
 
     let config = EvmConfig {
@@ -144,7 +144,7 @@ pub fn init_evm() -> (Evm<C>, WorkingSet<C>, TestSigner) {
     (evm, working_set, dev_signer)
 }
 
-pub(crate) fn get_evm_with_storage(
+fn get_evm_with_storage(
     config: &EvmConfig,
 ) -> (
     Evm<C>,
@@ -167,7 +167,7 @@ pub(crate) fn get_evm_with_storage(
     (evm, working_set, prover_storage)
 }
 
-pub fn commit(
+fn commit(
     working_set: WorkingSet<DefaultContext>,
     storage: ProverStorage<DefaultStorageSpec, SnapshotManager>,
 ) {

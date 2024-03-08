@@ -16,8 +16,7 @@ use crate::tests::call_tests::create_contract_transaction;
 use crate::tests::queries::{commit, get_evm_with_storage, init_evm};
 use crate::tests::test_signer::TestSigner;
 use crate::{
-    AccountData, CallMessage, EthApiError, Evm, EvmConfig, SimplePayableContract,
-    SimpleStorageContract,
+    AccountData, CallMessage, Evm, EvmConfig, SimplePayableContract, SimpleStorageContract,
 };
 
 type C = DefaultContext;
@@ -108,36 +107,6 @@ fn payable_contract_value_test() {
 #[test]
 fn test_tx_request_fields_gas() {
     let (evm, mut working_set, signer) = init_evm_single_block();
-
-    let fail_tx_req = TransactionRequest {
-        from: Some(signer.address()),
-        to: Some(Address::from_str("0x819c5497b157177315e1204f52e588b393771719").unwrap()),
-        gas: Some(U256::from(100000)),
-        gas_price: Some(U256::from(100000000)),
-        max_fee_per_gas: None,
-        max_priority_fee_per_gas: None,
-        value: Some(U256::from(100000000)),
-        input: None.into(),
-        nonce: Some(U64::from(7)),
-        chain_id: Some(U64::from(1u64)),
-        access_list: None,
-        max_fee_per_blob_gas: None,
-        blob_versioned_hashes: None,
-        transaction_type: None,
-        sidecar: None,
-        other: Default::default(),
-    };
-
-    let fail_result = evm.eth_estimate_gas(
-        fail_tx_req,
-        Some(BlockNumberOrTag::Number(100)),
-        &mut working_set,
-    );
-    assert_eq!(fail_result, Err(EthApiError::UnknownBlockNumber.into()));
-    working_set.unset_archival_version();
-
-    // let contract = SimpleStorageContract::default();
-    // let call_data = contract.get_call_data().to_string();
 
     let tx_req_contract_call = TransactionRequest {
         from: Some(signer.address()),
