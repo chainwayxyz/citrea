@@ -54,16 +54,12 @@ impl TestContract for SimplePayableContract {
 
 impl SimplePayableContract {
     /// Getter for the contract's balance.
-    pub fn get_balance_call_data(&self) -> Bytes {
+    pub fn get_balance(&self) -> Bytes {
         self.base_contract.encode("getBalance", ()).unwrap()
     }
-    /// Function to create data for sending Ether to the contract.
-    /// It's an empty data payload since sending Ether doesn't require call data.
-    pub fn send_ether_value() -> Bytes {
-        Bytes::from(vec![])
-    }
+
     /// Withdraw function call data.
-    pub fn withdraw_call_data(&self) -> Bytes {
+    pub fn withdraw(&self) -> Bytes {
         self.base_contract.encode("withdraw", ()).unwrap()
     }
 }
