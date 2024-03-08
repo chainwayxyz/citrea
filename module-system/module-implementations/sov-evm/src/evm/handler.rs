@@ -1,10 +1,10 @@
-use std::collections::HashSet;
-use std::mem::{size_of, size_of_val};
+use std::collections::{HashMap, HashSet};
+use std::mem::size_of;
 use std::sync::Arc;
 
 use revm::handler::register::EvmHandler;
 use revm::interpreter::InstructionResult;
-use revm::primitives::{Address, EVMError, ExecutionResult, ResultAndState, State, U256};
+use revm::primitives::{Address, EVMError, ExecutionResult, HaltReason, ResultAndState, U256};
 use revm::{Context, Database, FrameResult, JournalEntry};
 
 pub(crate) trait CitreaExternal {
@@ -44,38 +44,41 @@ impl<EXT: CitreaExternal, DB: Database> CitreaHandler<EXT, DB> {
         context: &mut Context<EXT, DB>,
         result: FrameResult,
     ) -> Result<ResultAndState, EVMError<<DB as Database>::Error>> {
-        // We have to copy the journal entry because
-        // it will be modified by the mainnet::output function.
-        let journal = context
-            .evm
-            .journaled_state
-            .journal
-            .last()
-            .cloned()
-            .unwrap_or(vec![]);
-
-        let result_and_state = revm::handler::mainnet::output(context, result)?;
-        let ResultAndState { result, state } = result_and_state;
-        if result.is_success() {
-            let diff_size = U256::from(state_diff_size(&state, journal));
+        if !result.interpreter_result().is_error() {
+            // Get the last journal entry to calculate diff.
+            let journal = context
+                .evm
+                .journaled_state
+                .journal
+                .last()
+                .cloned()
+                .unwrap_or(vec![]);
+            let diff_size = U256::from(journal_diff_size(journal));
             let l1_fee_rate = U256::from(context.external.l1_fee_rate());
             let l1_fee = diff_size * l1_fee_rate;
             if let Some(_out_of_funds) = decrease_caller_balance(context, l1_fee)? {
-                let result = ExecutionResult::Revert {
-                    gas_used: result.gas_used(),
-                    output: result
-                        .into_output()
-                        .expect("ExecutionResult::Success always has an output"),
+                let gas_refunded = result.gas().refunded() as u64;
+                let final_gas_used = result.gas().spend() - gas_refunded;
+                // reset journal and return present state.
+                let (state, _) = context.evm.journaled_state.finalize();
+
+                context.evm.error = Err(EVMError::Custom("Not enought funds for L1 fee".into()));
+
+                let result = ExecutionResult::Halt {
+                    reason: HaltReason::OutOfFunds,
+                    gas_used: final_gas_used,
                 };
+
                 return Ok(ResultAndState { result, state });
             }
         }
-        Ok(ResultAndState { result, state })
+
+        revm::handler::mainnet::output(context, result)
     }
 }
 
 /// Calculates the diff of the modified state.
-fn state_diff_size(state: &State, journal: Vec<JournalEntry>) -> usize {
+fn journal_diff_size(journal: Vec<JournalEntry>) -> usize {
     let nonce_changes: HashSet<&Address> = journal
         .iter()
         .filter_map(|entry| match entry {
@@ -93,10 +96,10 @@ fn state_diff_size(state: &State, journal: Vec<JournalEntry>) -> usize {
         .flatten()
         .collect();
 
-    let storage_changes: HashSet<&Address> = journal
+    let storage_changes: HashMap<&Address, _> = journal
         .iter()
         .filter_map(|entry| match entry {
-            JournalEntry::StorageChange { address, .. } => Some(address),
+            JournalEntry::StorageChange { address, key, .. } => Some((address, key)),
             _ => None,
         })
         .collect();
@@ -104,7 +107,7 @@ fn state_diff_size(state: &State, journal: Vec<JournalEntry>) -> usize {
     let mut all_changed_addresses = HashSet::<&Address>::new();
     all_changed_addresses.extend(&nonce_changes);
     all_changed_addresses.extend(&balance_changes);
-    all_changed_addresses.extend(&storage_changes);
+    all_changed_addresses.extend(storage_changes.keys());
 
     let mut diff_size = 0usize;
 
@@ -124,14 +127,10 @@ fn state_diff_size(state: &State, journal: Vec<JournalEntry>) -> usize {
     }
 
     // Apply size of changed slots
-    for account in state.values() {
-        for (k, v) in account.changed_storage_slots() {
-            // TODO diff calc https://github.com/chainwayxyz/secret-sovereign-sdk/issues/116
-            let p = &v.previous_or_original_value;
-            let c = &v.present_value;
-            let slot_size = size_of_val(k) + size_of_val(p) + size_of_val(c);
-            diff_size += slot_size;
-        }
+    for _slot in storage_changes.values() {
+        // TODO diff calc https://github.com/chainwayxyz/secret-sovereign-sdk/issues/116
+        let slot_size = 3 * size_of::<U256>(); // key, prev, present;
+        diff_size += slot_size;
     }
 
     diff_size
