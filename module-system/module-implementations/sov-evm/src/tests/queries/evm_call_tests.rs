@@ -137,8 +137,7 @@ fn call_to_nonexistent_contract() {
         &mut working_set,
     );
 
-    // Do we expect this to return Ok(0x)?
-    assert!(call_result.is_ok());
+    assert_eq!(call_result.unwrap(), Bytes::from_str("0x").unwrap());
 }
 
 #[test]

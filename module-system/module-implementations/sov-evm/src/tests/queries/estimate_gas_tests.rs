@@ -94,7 +94,7 @@ fn payable_contract_value_test() {
         chain_id: Some(U64::from(1u64)),
         access_list: None,
         max_fee_per_blob_gas: None,
-        blob_versioned_hashes: Some(vec![]),
+        blob_versioned_hashes: None,
         transaction_type: None,
         sidecar: None,
         other: Default::default(),
@@ -123,7 +123,7 @@ fn test_tx_request_fields_gas() {
         chain_id: Some(U64::from(1u64)),
         access_list: None,
         max_fee_per_blob_gas: None,
-        blob_versioned_hashes: Some(vec![]),
+        blob_versioned_hashes: None,
         transaction_type: None,
         sidecar: None,
         other: Default::default(),
@@ -156,7 +156,7 @@ fn test_tx_request_fields_gas() {
         chain_id: Some(U64::from(1u64)),
         access_list: None,
         max_fee_per_blob_gas: None,
-        blob_versioned_hashes: Some(vec![]),
+        blob_versioned_hashes: None,
         transaction_type: None,
         sidecar: None,
         other: Default::default(),
@@ -365,7 +365,7 @@ fn gas_price_fee_estimation_test() {
         chain_id: Some(U64::from(1u64)),
         access_list: None,
         max_fee_per_blob_gas: None,
-        blob_versioned_hashes: Some(vec![]),
+        blob_versioned_hashes: None,
         transaction_type: None,
         sidecar: None,
         other: Default::default(),
@@ -504,19 +504,13 @@ fn estimate_gas_with_varied_inputs_test() {
     let simple_result =
         test_estimate_gas_with_input(&evm, &mut working_set, &signer, simple_call_data);
 
-    assert_eq!(
-        simple_result.unwrap(),
-        Uint::from_str_radix("67ee", 16).unwrap()
-    );
+    assert_eq!(simple_result.unwrap(), Uint::from_str("0x67ee").unwrap());
 
     let simple_call_data = 131;
     let simple_result =
         test_estimate_gas_with_input(&evm, &mut working_set, &signer, simple_call_data);
 
-    assert_eq!(
-        simple_result.unwrap(),
-        Uint::from_str_radix("67fa", 16).unwrap()
-    );
+    assert_eq!(simple_result.unwrap(), Uint::from_str("0x67fa").unwrap());
 
     // Testing with non-zero value transfer EOA
     let value_transfer_result =
@@ -524,7 +518,7 @@ fn estimate_gas_with_varied_inputs_test() {
 
     assert_eq!(
         value_transfer_result.unwrap(),
-        Uint::from_str_radix("5208", 16).unwrap()
+        Uint::from_str("0x5208").unwrap()
     );
 }
 

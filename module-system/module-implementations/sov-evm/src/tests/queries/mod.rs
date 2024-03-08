@@ -1,4 +1,4 @@
-pub mod basic_queries;
-pub mod estimate_gas_tests;
-pub mod evm_call_tests;
-pub mod log_tests;
+mod basic_queries;
+mod estimate_gas_tests;
+mod evm_call_tests;
+mod log_tests;

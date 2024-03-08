@@ -424,7 +424,7 @@ fn test_block_hash_in_evm() {
         chain_id: Some(U64::from(DEFAULT_CHAIN_ID)),
         access_list: None,
         max_fee_per_blob_gas: None,
-        blob_versioned_hashes: Some(vec![]),
+        blob_versioned_hashes: None,
         transaction_type: None,
         sidecar: None,
         other: Default::default(),
@@ -641,7 +641,7 @@ pub(crate) fn publish_event_message(
         .unwrap()
 }
 
-pub fn get_evm_config(
+pub(crate) fn get_evm_config(
     signer_balance: U256,
     block_gas_limit: Option<u64>,
 ) -> (EvmConfig, TestSigner, Address) {
