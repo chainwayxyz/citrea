@@ -353,9 +353,11 @@ impl DaService for BitcoinService {
 
         inclusion_multi_proof.coinbase_tx = block.txdata[0].clone();
         inclusion_multi_proof.wtxids.push([0u8; 32]);
-        inclusion_multi_proof
-            .txs
-            .push(block.txdata[0].txid().to_raw_hash().to_byte_array());
+        let coinbase_tx_hash = block.txdata[0].txid().to_raw_hash().to_byte_array();
+        inclusion_multi_proof.txs.push(coinbase_tx_hash.clone());
+        if coinbase_tx_hash.starts_with(self.reveal_tx_id_prefix.as_slice()) {
+            completeness_proof.push(block.txdata[0].clone());
+        }
 
         block.txdata[1..].iter().for_each(|tx| {
             let tx_hash = tx.txid().to_raw_hash().to_byte_array();
@@ -505,7 +507,7 @@ mod tests {
             runtime_config,
             RollupParams {
                 rollup_name: "sov-btc".to_string(),
-                reveal_tx_id_prefix: vec![0],
+                reveal_tx_id_prefix: vec![],
             },
         )
         .await
@@ -656,7 +658,7 @@ mod tests {
 
         // no 00 bytes left behind completeness proof
         inclusion_proof.txs.iter().for_each(|tx_hash| {
-            if tx_hash[0..1] == [0] {
+            if tx_hash.starts_with(&da_service.reveal_tx_id_prefix.as_slice()) {
                 assert!(completeness_tx_hashes.remove(tx_hash));
             }
         });

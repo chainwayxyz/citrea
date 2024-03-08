@@ -1,7 +1,5 @@
-use bitcoin::{
-    absolute::{Height, LockTime},
-    Transaction,
-};
+use bitcoin::absolute::{Height, LockTime};
+use bitcoin::Transaction;
 use serde::{Deserialize, Serialize};
 
 // Set of proofs for inclusion of a transaction in a block
