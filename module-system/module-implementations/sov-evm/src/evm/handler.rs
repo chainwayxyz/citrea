@@ -1,10 +1,11 @@
-use std::mem::size_of_val;
+use std::collections::HashSet;
+use std::mem::{size_of, size_of_val};
 use std::sync::Arc;
 
 use revm::handler::register::EvmHandler;
 use revm::interpreter::InstructionResult;
-use revm::primitives::{EVMError, ExecutionResult, ResultAndState, State, U256};
-use revm::{Context, Database, FrameResult};
+use revm::primitives::{Address, EVMError, ExecutionResult, ResultAndState, State, U256};
+use revm::{Context, Database, FrameResult, JournalEntry};
 
 pub(crate) trait CitreaExternal {
     fn get_l1_fee_rate(&self) -> usize;
@@ -43,10 +44,20 @@ impl<EXT: CitreaExternal, DB: Database> CitreaHandler<EXT, DB> {
         context: &mut Context<EXT, DB>,
         result: FrameResult,
     ) -> Result<ResultAndState, EVMError<<DB as Database>::Error>> {
+        // We have to copy the journal entry because
+        // it will be modified by the mainnet::output function.
+        let journal = context
+            .evm
+            .journaled_state
+            .journal
+            .last()
+            .cloned()
+            .unwrap_or(vec![]);
+
         let result_and_state = revm::handler::mainnet::output(context, result)?;
         let ResultAndState { result, state } = result_and_state;
         if result.is_success() {
-            let diff_size = state_diff_size(&state);
+            let diff_size = state_diff_size(&state, journal);
             let l1_fee_rate = context.external.get_l1_fee_rate();
             let l1_fee = U256::from(diff_size * l1_fee_rate);
             if let Some(_out_of_funds) = decrease_caller_balance(context, l1_fee)? {
@@ -64,7 +75,7 @@ impl<EXT: CitreaExternal, DB: Database> CitreaHandler<EXT, DB> {
 }
 
 /// Calculates the diff of the modified state.
-fn state_diff_size(state: &State) -> usize {
+fn state_diff_size(state: &State, journal: Vec<JournalEntry>) -> usize {
     let mut diff_size = 0usize;
     for account in state.values() {
         for (k, v) in account.changed_storage_slots() {
@@ -74,6 +85,27 @@ fn state_diff_size(state: &State) -> usize {
             let slot_size = size_of_val(k) + size_of_val(p) + size_of_val(c);
             diff_size += slot_size;
         }
+    }
+    let nonce_changes: HashSet<&Address> = journal
+        .iter()
+        .filter_map(|entry| match entry {
+            JournalEntry::NonceChange { address } => Some(address),
+            _ => None,
+        })
+        .collect();
+    for _addr in nonce_changes {
+        diff_size += size_of::<u64>(); // Nonces are u64
+    }
+    let balance_changes: HashSet<&Address> = journal
+        .iter()
+        .filter_map(|entry| match entry {
+            JournalEntry::BalanceTransfer { from, to, .. } => Some([from, to]),
+            _ => None,
+        })
+        .flatten()
+        .collect();
+    for _addr in balance_changes {
+        diff_size += size_of::<U256>(); // Balances are U256
     }
     diff_size
 }
