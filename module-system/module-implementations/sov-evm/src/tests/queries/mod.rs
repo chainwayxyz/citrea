@@ -19,7 +19,10 @@ use crate::tests::call_tests::{
 };
 use crate::tests::genesis_tests::GENESIS_STATE_ROOT;
 use crate::tests::test_signer::TestSigner;
-use crate::{AccountData, Evm, EvmConfig, LogsContract, RlpEvmTransaction, SimpleStorageContract};
+use crate::{
+    AccountData, Evm, EvmConfig, LogsContract, RlpEvmTransaction, SimplePayableContract,
+    SimpleStorageContract,
+};
 
 type C = DefaultContext;
 
@@ -140,6 +143,57 @@ fn init_evm() -> (Evm<C>, WorkingSet<C>, TestSigner) {
     commit(working_set, prover_storage.clone());
 
     let working_set: WorkingSet<DefaultContext> = WorkingSet::new(prover_storage.clone());
+
+    (evm, working_set, dev_signer)
+}
+
+pub fn init_evm_single_block() -> (Evm<C>, WorkingSet<C>, TestSigner) {
+    let dev_signer: TestSigner = TestSigner::new_random();
+
+    let config = EvmConfig {
+        data: vec![AccountData {
+            address: dev_signer.address(),
+            balance: U256::from_str("100000000000000000000").unwrap(), // Setting initial balance
+            code_hash: KECCAK_EMPTY,
+            code: Bytes::default(),
+            nonce: 0,
+        }],
+        spec: vec![(0, SpecId::SHANGHAI)].into_iter().collect(),
+        ..Default::default()
+    };
+
+    let (evm, mut working_set, prover_storage) = get_evm_with_storage(&config);
+
+    // let contract_addr: Address = Address::from_slice(
+    //     hex::decode("819c5497b157177315e1204f52e588b393771719")
+    //         .unwrap()
+    //         .as_slice(),
+    // );
+
+    evm.begin_soft_confirmation_hook([1u8; 32], &[0u8; 32], &mut working_set);
+
+    let simple_payable_contract_tx =
+        create_contract_transaction(&dev_signer, 0, SimplePayableContract::default());
+
+    let sender_address = generate_address::<C>("sender");
+    let sequencer_address = generate_address::<C>("sequencer");
+    let context = C::new(sender_address, sequencer_address, 1);
+
+    evm.call(
+        CallMessage {
+            txs: vec![simple_payable_contract_tx],
+        },
+        &context,
+        &mut working_set,
+    )
+    .unwrap();
+
+    evm.end_soft_confirmation_hook(&mut working_set);
+    evm.finalize_hook(&[2u8; 32].into(), &mut working_set.accessory_state());
+
+    commit(working_set, prover_storage.clone());
+
+    let working_set: WorkingSet<DefaultContext> = WorkingSet::new(prover_storage);
 
     (evm, working_set, dev_signer)
 }
