@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use bitcoin::hashes::Hash;
+use bitcoin::hashes::{sha256d, Hash};
 use bitcoin::{merkle_tree, Txid};
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
@@ -83,7 +83,6 @@ impl DaVerifier for BitcoinVerifier {
             prev_hash: block_header.prev_hash().to_byte_array(),
             block_hash: block_header.prev_hash().to_byte_array(),
         };
-
         // check that wtxid's of transactions in completeness proof are included in the InclusionMultiProof.,
         for tx in completeness_proof.iter() {
             if !inclusion_proof.wtxids.contains(&tx.wtxid().to_byte_array()) {
@@ -94,8 +93,7 @@ impl DaVerifier for BitcoinVerifier {
         // verify that one of the outputs of the coinbase transaction has script pub key starting with 0x6a24aa21a9ed,
         // and the rest of the script pub key is the merkle root of supplied wtxid's.
         if !completeness_proof.is_empty() {
-            let coinbase_tx = completeness_proof[0].clone();
-
+            let coinbase_tx = inclusion_proof.coinbase_tx.clone();
             for output in coinbase_tx.output {
                 if output
                     .script_pubkey
@@ -103,15 +101,30 @@ impl DaVerifier for BitcoinVerifier {
                     .starts_with(&[0x6a, 0x24, 0xaa, 0x21, 0xa9, 0xed])
                 {
                     let script_pubkey = output.script_pubkey.clone();
-                    script_pubkey.to_bytes().drain(..6);
-                    let merkle_root = merkle_tree::calculate_root(
-                        inclusion_proof
-                            .wtxids
-                            .iter()
-                            .map(|wtxid| Txid::from_byte_array(*wtxid)),
-                    )
-                    .unwrap();
-                    if script_pubkey.to_bytes() != merkle_root.to_byte_array() {
+
+                    let wtxids = inclusion_proof
+                        .wtxids
+                        .clone()
+                        .into_iter()
+                        .map(|wtxid| Txid::from_slice(&wtxid).unwrap());
+
+                    let merkle_root = merkle_tree::calculate_root(wtxids.into_iter()).unwrap();
+
+                    let input_witness_value = coinbase_tx.input[0]
+                        .witness
+                        .into_iter()
+                        .next()
+                        .unwrap()
+                        .to_vec();
+
+                    let mut vec_merkle = merkle_root.to_byte_array().to_vec();
+
+                    vec_merkle.extend(input_witness_value);
+
+                    // check with sha256(sha256(<merkle root><witness value>))
+                    let commitment = sha256d::Hash::hash(&vec_merkle);
+
+                    if script_pubkey.to_bytes()[6..] != *commitment.as_byte_array() {
                         return Err(ValidationError::InvalidBlock);
                     }
                 }
@@ -319,7 +332,7 @@ mod tests {
             block_txs[12].clone(),
         ];
 
-        let inclusion_proof = InclusionMultiProof {
+        let mut inclusion_proof = InclusionMultiProof {
             txs: block_txs
                 .iter()
                 .map(|t| t.txid().to_raw_hash().to_byte_array())
@@ -330,6 +343,9 @@ mod tests {
                 .collect(),
             coinbase_tx: block_txs[0].clone(),
         };
+
+        // Coinbase tx wtxid should be [0u8;32]
+        inclusion_proof.wtxids[0] = [0; 32];
 
         let txs: Vec<BlobWithSender> = vec![
             get_blob_with_sender(&block_txs[6]),

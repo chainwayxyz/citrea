@@ -351,21 +351,23 @@ impl DaService for BitcoinService {
 
         let mut inclusion_multi_proof = InclusionMultiProof::default();
 
-        block.txdata.iter().for_each(|tx| {
+        inclusion_multi_proof.coinbase_tx = block.txdata[0].clone();
+        inclusion_multi_proof.wtxids.push([0u8; 32]);
+        inclusion_multi_proof
+            .txs
+            .push(block.txdata[0].txid().to_raw_hash().to_byte_array());
+
+        block.txdata[1..].iter().for_each(|tx| {
             let tx_hash = tx.txid().to_raw_hash().to_byte_array();
             let wtxid = tx.wtxid().to_raw_hash().to_byte_array();
-
-            // if wtxid of a tx is 0 then it is a coinbase tx
-            if wtxid == [0; 32] && inclusion_multi_proof.wtxids.is_empty() {
-                inclusion_multi_proof.coinbase_tx = tx.clone();
-            }
 
             // if tx_hash has two leading zeros, it is in the completeness proof
             if tx_hash.starts_with(self.reveal_tx_id_prefix.as_slice()) {
                 completeness_proof.push(tx.clone());
             }
-            inclusion_multi_proof.wtxids.push(wtxid);
-            inclusion_multi_proof.txs.push(tx_hash);
+
+            inclusion_multi_proof.wtxids.push(tx_hash);
+            inclusion_multi_proof.txs.push(wtxid);
         });
 
         (inclusion_multi_proof, completeness_proof)
