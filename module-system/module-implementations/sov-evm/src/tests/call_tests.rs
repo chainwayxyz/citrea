@@ -1093,3 +1093,44 @@ fn get_evm_config(
     };
     (config, dev_signer, contract_addr)
 }
+
+#[test]
+fn test_l1_fee() {
+    fn run_tx(l1_fee_rate: u64, expected_balance: U256) {
+        let (config, dev_signer, _) =
+            get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
+
+        let (evm, mut working_set) = get_evm(&config);
+
+        evm.begin_soft_confirmation_hook([5u8; 32], &[10u8; 32], &mut working_set, l1_fee_rate);
+        {
+            let sender_address = generate_address::<C>("sender");
+            let sequencer_address = generate_address::<C>("sequencer");
+            let context = C::new(sender_address, sequencer_address, 1);
+
+            let deploy_message =
+                create_contract_message(&dev_signer, 0, BlockHashContract::default());
+
+            evm.call(
+                CallMessage {
+                    txs: vec![deploy_message],
+                },
+                &context,
+                &mut working_set,
+            )
+            .unwrap();
+        }
+        evm.end_soft_confirmation_hook(&mut working_set);
+        evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+
+        let db_account = evm
+            .accounts
+            .get(&dev_signer.address(), &mut working_set)
+            .unwrap();
+
+        assert_eq!(db_account.info.balance, expected_balance,);
+    }
+
+    run_tx(0, U256::from_str("99999900044375000000").unwrap());
+    run_tx(1, U256::from_str("99999900044374999896").unwrap());
+}
