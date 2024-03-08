@@ -354,7 +354,7 @@ impl DaService for BitcoinService {
         inclusion_multi_proof.coinbase_tx = block.txdata[0].clone();
         inclusion_multi_proof.wtxids.push([0u8; 32]);
         let coinbase_tx_hash = block.txdata[0].txid().to_raw_hash().to_byte_array();
-        inclusion_multi_proof.txs.push(coinbase_tx_hash.clone());
+        inclusion_multi_proof.txs.push(coinbase_tx_hash);
         if coinbase_tx_hash.starts_with(self.reveal_tx_id_prefix.as_slice()) {
             completeness_proof.push(block.txdata[0].clone());
         }
@@ -658,7 +658,7 @@ mod tests {
 
         // no 00 bytes left behind completeness proof
         inclusion_proof.txs.iter().for_each(|tx_hash| {
-            if tx_hash.starts_with(&da_service.reveal_tx_id_prefix.as_slice()) {
+            if tx_hash.starts_with(da_service.reveal_tx_id_prefix.as_slice()) {
                 assert!(completeness_tx_hashes.remove(tx_hash));
             }
         });
