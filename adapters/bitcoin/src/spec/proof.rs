@@ -1,4 +1,4 @@
-use bitcoin::absolute::{Height, LockTime};
+use bitcoin::absolute::{LockTime, Time};
 use bitcoin::Transaction;
 use serde::{Deserialize, Serialize};
 
@@ -17,7 +17,7 @@ impl Default for InclusionMultiProof {
             wtxids: vec![],
             coinbase_tx: Transaction {
                 version: 0,
-                lock_time: LockTime::Blocks(Height::min_value()),
+                lock_time: LockTime::Seconds(Time::MIN),
                 input: vec![],
                 output: vec![],
             },

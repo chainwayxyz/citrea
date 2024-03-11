@@ -83,12 +83,13 @@ impl DaVerifier for BitcoinVerifier {
             prev_hash: block_header.prev_hash().to_byte_array(),
             block_hash: block_header.prev_hash().to_byte_array(),
         };
-        // check that wtxid's of transactions in completeness proof are included in the InclusionMultiProof.,
-        for tx in completeness_proof.iter() {
-            if !inclusion_proof.wtxids.contains(&tx.wtxid().to_byte_array()) {
-                return Err(ValidationError::InvalidProof);
-            }
-        }
+
+        // check that wtxid's of transactions in completeness proof are included in the InclusionMultiProof
+        // and are in the same order as in the completeness proof
+        let mut iter = inclusion_proof.wtxids.iter();
+        completeness_proof
+            .iter()
+            .all(|tx| iter.any(|&y| y == tx.wtxid().to_byte_array()));
 
         // verify that one of the outputs of the coinbase transaction has script pub key starting with 0x6a24aa21a9ed,
         // and the rest of the script pub key is the merkle root of supplied wtxid's.
@@ -269,6 +270,7 @@ mod tests {
     use crate::spec::proof::InclusionMultiProof;
     use crate::spec::transaction::Transaction;
     use crate::spec::RollupParams;
+    use crate::verifier::ValidationError;
 
     fn get_mock_txs() -> Vec<Transaction> {
         // relevant txs are on 6, 8, 10, 12 indices
@@ -452,9 +454,15 @@ mod tests {
             get_blob_with_sender(&block_txs[12]),
         ];
 
-        assert!(verifier
-            .verify_relevant_tx_list(&header, txs.as_slice(), inclusion_proof, completeness_proof)
-            .is_err());
+        assert!(matches!(
+            verifier.verify_relevant_tx_list(
+                &header,
+                txs.as_slice(),
+                inclusion_proof,
+                completeness_proof
+            ),
+            Err(ValidationError::InvalidBlock)
+        ));
     }
 
     #[test]
@@ -554,11 +562,15 @@ mod tests {
             get_blob_with_sender(&block_txs[12]),
         ];
 
-        assert!(verifier
-            .verify_relevant_tx_list(&header, txs.as_slice(), inclusion_proof, completeness_proof)
-            .is_err());
-
-        // (header, inclusion_proof, completeness_proof, txs)
+        assert!(matches!(
+            verifier.verify_relevant_tx_list(
+                &header,
+                txs.as_slice(),
+                inclusion_proof,
+                completeness_proof
+            ),
+            Err(ValidationError::InvalidBlock)
+        ));
     }
 
     // verifies it, and then changes the witness and sees that it cannot be verified
