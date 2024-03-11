@@ -41,6 +41,41 @@ fn call_contract_without_value() {
 }
 
 #[test]
+fn test_state_change() {
+    let (evm, mut working_set, signer) = init_evm();
+
+    let balance_1 = evm.get_balance(signer.address(), None, &mut working_set);
+
+    let random_address = Address::from_str("0x000000000000000000000000000000000000dead").unwrap();
+
+    evm.begin_soft_confirmation_hook([5u8; 32], &[10u8; 32], &mut working_set);
+
+    let call_result = evm.get_call(
+        TransactionRequest {
+            from: Some(signer.address()),
+            to: Some(random_address),
+            gas: Some(U256::from(100000)),
+            gas_price: Some(U256::from(100000000)),
+            value: Some(U256::from(123134235)),
+            ..Default::default()
+        },
+        Some(BlockNumberOrTag::Latest),
+        None,
+        None,
+        &mut working_set,
+    );
+
+    assert_eq!(call_result.unwrap(), Bytes::from_str("0x").unwrap());
+
+    evm.end_soft_confirmation_hook(&mut working_set);
+    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+    // Is it necessary to commit storage here?
+
+    let balance_2 = evm.get_balance(signer.address(), None, &mut working_set);
+    assert_eq!(balance_1, balance_2);
+}
+
+#[test]
 fn call_contract_with_value_transfer() {
     let (evm, mut working_set, signer) = init_evm();
 
