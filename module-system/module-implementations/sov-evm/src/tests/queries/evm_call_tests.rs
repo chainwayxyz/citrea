@@ -20,8 +20,7 @@ fn call_contract_without_value() {
     let contract = SimpleStorageContract::default();
     let contract_address = Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap();
 
-    let call_data = contract.set_call_data(5);
-    let reth_call_data = Bytes::from(call_data.to_vec());
+    let contract_call_data = Bytes::from(contract.set_call_data(5).to_vec());
 
     let call_result = evm.get_call(
         TransactionRequest {
@@ -30,7 +29,7 @@ fn call_contract_without_value() {
             gas: Some(U256::from(100000)),
             gas_price: Some(U256::from(100000000)),
             value: None,
-            input: TransactionInput::new(reth_call_data),
+            input: TransactionInput::new(contract_call_data),
             ..Default::default()
         },
         Some(BlockNumberOrTag::Latest),
@@ -81,8 +80,10 @@ fn test_state_change() {
 fn call_contract_with_value_transfer() {
     let (evm, mut working_set, signer) = init_evm();
 
-    let contract_call_data = "0x313131";
+    let contract = SimpleStorageContract::default();
     let contract_address = Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap();
+
+    let contract_call_data = Bytes::from(contract.set_call_data(5).to_vec());
 
     let call_result = evm.get_call(
         TransactionRequest {
@@ -90,8 +91,8 @@ fn call_contract_with_value_transfer() {
             to: Some(contract_address),
             gas: Some(U256::from(100000)),
             gas_price: Some(U256::from(100000000)),
-            value: Some(U256::from(100000000)),
-            input: TransactionInput::new(Bytes::from_str(&contract_call_data).unwrap()),
+            value: Some(U256::from(100000000)), // reverts here.
+            input: TransactionInput::new(contract_call_data),
             ..Default::default()
         },
         Some(BlockNumberOrTag::Latest),
@@ -100,7 +101,6 @@ fn call_contract_with_value_transfer() {
         &mut working_set,
     );
 
-    // Reverts?
     assert!(call_result.is_err());
 }
 
@@ -108,8 +108,11 @@ fn call_contract_with_value_transfer() {
 fn call_contract_with_invalid_nonce() {
     let (evm, mut working_set, signer) = init_evm();
 
-    let contract_call_data = "0x31";
+    let contract = SimpleStorageContract::default();
     let contract_address = Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap();
+
+    let contract_call_data = Bytes::from(contract.set_call_data(5).to_vec());
+
     let invalid_nonce = U64::from(100);
 
     let call_result = evm.get_call(
@@ -119,7 +122,7 @@ fn call_contract_with_invalid_nonce() {
             gas: Some(U256::from(100000)),
             gas_price: Some(U256::from(100000000)),
             nonce: Some(invalid_nonce),
-            input: TransactionInput::new(Bytes::from_str(&contract_call_data).unwrap()),
+            input: TransactionInput::new(contract_call_data.clone()),
             ..Default::default()
         },
         Some(BlockNumberOrTag::Latest),
@@ -142,7 +145,7 @@ fn call_contract_with_invalid_nonce() {
             gas: Some(U256::from(100000)),
             gas_price: Some(U256::from(100000000)),
             nonce: Some(low_nonce),
-            input: TransactionInput::new(Bytes::from_str(&contract_call_data).unwrap()),
+            input: TransactionInput::new(contract_call_data),
             ..Default::default()
         },
         Some(BlockNumberOrTag::Latest),
@@ -161,7 +164,6 @@ fn call_contract_with_invalid_nonce() {
 fn call_to_nonexistent_contract() {
     let (evm, mut working_set, signer) = init_evm();
 
-    let contract_call_data = "0x313131";
     let nonexistent_contract_address =
         Address::from_str("0x000000000000000000000000000000000000dead").unwrap();
 
@@ -171,7 +173,10 @@ fn call_to_nonexistent_contract() {
             to: Some(nonexistent_contract_address),
             gas: Some(U256::from(100000)),
             gas_price: Some(U256::from(100000000)),
-            input: TransactionInput::new(Bytes::from_str(&contract_call_data).unwrap()),
+            input: TransactionInput {
+                input: None,
+                data: None,
+            },
             ..Default::default()
         },
         Some(BlockNumberOrTag::Latest),
@@ -187,8 +192,11 @@ fn call_to_nonexistent_contract() {
 fn call_with_high_gas_price() {
     let (evm, mut working_set, signer) = init_evm();
 
-    let contract_call_data = "0x";
+    let contract = SimpleStorageContract::default();
     let contract_address = Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap();
+
+    let contract_call_data = Bytes::from(contract.set_call_data(5).to_vec());
+
     let high_gas_price = U256::from(1000) * U256::from(10_000_000_000_000_000_000 as i128); // A very high gas price
 
     let call_result = evm.get_call(
@@ -197,7 +205,7 @@ fn call_with_high_gas_price() {
             to: Some(contract_address),
             gas: Some(U256::from(100000)),
             gas_price: Some(high_gas_price),
-            input: TransactionInput::new(Bytes::from_str(&contract_call_data).unwrap()),
+            input: TransactionInput::new(contract_call_data),
             ..Default::default()
         },
         Some(BlockNumberOrTag::Latest),
