@@ -95,13 +95,35 @@ impl DaVerifier for BitcoinVerifier {
         // and the rest of the script pub key is the merkle root of supplied wtxid's.
         if !completeness_proof.is_empty() {
             let coinbase_tx = inclusion_proof.coinbase_tx.clone();
-            for output in coinbase_tx.output {
-                if output
+            // If there are more than one scriptPubKey matching the pattern,
+            // the one with highest output index is assumed to be the commitment.
+            // That  is why the iterator is reversed.
+            let commitment_idx = coinbase_tx.output.iter().rev().position(|output| {
+                output
                     .script_pubkey
                     .to_bytes()
                     .starts_with(&[0x6a, 0x24, 0xaa, 0x21, 0xa9, 0xed])
-                {
-                    let script_pubkey = output.script_pubkey.clone();
+            });
+            match commitment_idx {
+                // If commitmet does not exist
+                None => {
+                    // Relevant txs should be empty if there is no wtiness data
+                    if !blobs.is_empty() {
+                        return Err(ValidationError::InvalidBlock);
+                    }
+                    // Check if all the wtxids are equal to txids
+                    for (wtxid, txid) in inclusion_proof
+                        .wtxids
+                        .iter()
+                        .zip(inclusion_proof.txs.iter())
+                    {
+                        if wtxid != txid {
+                            return Err(ValidationError::InvalidBlock);
+                        }
+                    }
+                }
+                Some(commitment_idx) => {
+                    let script_pubkey = coinbase_tx.output[commitment_idx].script_pubkey.clone();
 
                     let wtxids = inclusion_proof
                         .wtxids
@@ -270,12 +292,21 @@ mod tests {
     use crate::spec::proof::InclusionMultiProof;
     use crate::spec::transaction::Transaction;
     use crate::spec::RollupParams;
-    use crate::verifier::ValidationError;
+    use crate::verifier::{ChainValidityCondition, ValidationError};
 
     fn get_mock_txs() -> Vec<Transaction> {
         // relevant txs are on 6, 8, 10, 12 indices
         let txs = std::fs::read_to_string("test_data/mock_txs.txt").unwrap();
 
+        txs.lines()
+            .map(|tx| parse_hex_transaction(tx).unwrap())
+            .collect()
+    }
+
+    fn get_non_segwit_mock_txs() -> Vec<Transaction> {
+        // There are no relevant txs
+        let txs = std::fs::read_to_string("test_data/mock_non_segwit_txs.txt").unwrap();
+        // txs[2] is a non-segwit tx but its txid has the prefix 00
         txs.lines()
             .map(|tx| parse_hex_transaction(tx).unwrap())
             .collect()
@@ -377,6 +408,78 @@ mod tests {
             )
             .is_ok());
     }
+    #[test]
+    fn test_non_segwit_block() {
+        let verifier = BitcoinVerifier::new(RollupParams {
+            rollup_name: "sov-btc".to_string(),
+            reveal_tx_id_prefix: vec![0, 0],
+        });
+        let header = HeaderWrapper::new(
+            Header {
+                version: Version::from_consensus(536870912),
+                prev_blockhash: BlockHash::from_str(
+                    "6b15a2e4b17b0aabbd418634ae9410b46feaabf693eea4c8621ffe71435d24b0",
+                )
+                .unwrap(),
+                merkle_root: TxMerkleNode::from_slice(&[
+                    164, 71, 72, 235, 241, 189, 131, 141, 120, 210, 207, 233, 212, 171, 56, 52, 25,
+                    40, 83, 62, 135, 211, 81, 44, 3, 109, 10, 127, 210, 213, 124, 221,
+                ])
+                .unwrap(),
+                time: 1694177029,
+                bits: CompactTarget::from_hex_str_no_prefix("207fffff").unwrap(),
+                nonce: 0,
+            },
+            6,
+            2,
+        );
+
+        let block_txs = get_non_segwit_mock_txs();
+
+        // block does not have any segwit txs
+        assert!(block_txs[0]
+            .output
+            .iter()
+            .position(|output| {
+                output
+                    .script_pubkey
+                    .to_bytes()
+                    .starts_with(&[0x6a, 0x24, 0xaa, 0x21, 0xa9, 0xed])
+            })
+            .is_none());
+
+        // tx with txid 00... is not relevant is in this proof
+        // only used so the completeness proof is not empty
+        let completeness_proof = vec![];
+
+        let inclusion_proof = InclusionMultiProof {
+            txs: block_txs
+                .iter()
+                .map(|t| t.txid().to_raw_hash().to_byte_array())
+                .collect(),
+            wtxids: block_txs
+                .iter()
+                .map(|t| t.wtxid().to_byte_array())
+                .collect(),
+            coinbase_tx: block_txs[0].clone(),
+        };
+
+        // There should not be any blobs
+        let txs: Vec<BlobWithSender> = vec![];
+
+        assert!(matches!(
+            verifier.verify_relevant_tx_list(
+                &header,
+                txs.as_slice(),
+                inclusion_proof,
+                completeness_proof
+            ),
+            Ok(ChainValidityCondition {
+                prev_hash: _,
+                block_hash: _
+            })
+        ));
+    }
 
     #[test]
     fn false_coinbase_script_pubkey_should_fail() {
@@ -471,7 +574,6 @@ mod tests {
             rollup_name: "sov-btc".to_string(),
             reveal_tx_id_prefix: vec![0, 0],
         });
-        // let (header, mut inclusion_proof, completeness_proof, txs) = get_mock_data();
 
         let header = HeaderWrapper::new(
             Header {
