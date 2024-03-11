@@ -7,7 +7,7 @@ use crate::da::DaSpec;
 /// So different rollup state can be mapped to DA state 1 to 1, including chain forks.
 pub trait HierarchicalStorageManager<Da: DaSpec> {
     /// Type that can be consumed by `[crate::state_machine::stf::StateTransitionFunction]` in native context.
-    type NativeStorage;
+    type NativeStorage: Clone;
     /// Type that is produced by `[crate::state_machine::stf::StateTransitionFunction]`.
     type NativeChangeSet;
 

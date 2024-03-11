@@ -52,9 +52,9 @@ pub fn get_syscall_name_handler() -> (SyscallName, fn(&[u8]) -> Vec<u8>) {
 * We use it to pass cycle metrics to the host
 * Cycles are tracked by the macro which gets a cycle count at the beginning and end of the function
 ```rust
-let before = risc0_zkvm::guest::env::get_cycle_count();
+let before = risc0_zkvm::guest::env::cycle_count();
 let result = (|| #block)();
-let after = risc0_zkvm::guest::env::get_cycle_count();
+let after = risc0_zkvm::guest::env::cycle_count();
 ```
 * We feature gate the application of the macro `cycle_tracker` with both the target_os set to `zkvm` and the feature flag `bench`
 * The reason for using both is that we need conditional compilation to work in all cases

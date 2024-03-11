@@ -27,6 +27,7 @@ pub struct TestClient {
     client: SignerMiddleware<Provider<Http>, Wallet<SigningKey>>,
     http_client: HttpClient,
     current_nonce: AtomicU64,
+    pub(crate) rpc_addr: std::net::SocketAddr,
 }
 
 impl TestClient {
@@ -51,6 +52,7 @@ impl TestClient {
             client,
             http_client,
             current_nonce: AtomicU64::new(0),
+            rpc_addr,
         };
         client.sync_nonce().await;
         client
@@ -512,6 +514,19 @@ impl TestClient {
     ) -> Option<GetSoftBatchResponse<DaSpec::SlotHash>> {
         self.http_client
             .request("ledger_getSoftBatchByNumber", rpc_params![num])
+            .await
+            .unwrap()
+    }
+
+    pub(crate) async fn ledger_get_soft_confirmation_status(
+        &self,
+        soft_batch_receipt: u64,
+    ) -> Option<String> {
+        self.http_client
+            .request(
+                "ledger_getSoftConfirmationStatus",
+                rpc_params![soft_batch_receipt],
+            )
             .await
             .unwrap()
     }

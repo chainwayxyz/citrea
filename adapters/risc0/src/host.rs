@@ -54,7 +54,7 @@ impl<'a> Risc0Host<'a> {
             .build()
             .unwrap();
         let mut executor = ExecutorImpl::from_elf(env, self.elf)?;
-        Ok(executor.run()?)
+        executor.run()
     }
     /// Run a computation in the zkvm and generate a receipt.
     pub fn run(&mut self) -> anyhow::Result<Receipt> {
@@ -172,7 +172,12 @@ fn verify_from_slice<'a>(
         receipt, journal, ..
     } = bincode::deserialize(serialized_proof)?;
 
-    receipt.verify(code_commitment.0, journal)?;
+    // after upgrade to risc0, verify is now in type Receipt
+    // unless we change trait return types we have to clone here.
+    let receipt: Receipt = Receipt::new(receipt, journal.to_vec());
+
+    receipt.verify(code_commitment.0)?;
+
     Ok(journal)
 }
 
