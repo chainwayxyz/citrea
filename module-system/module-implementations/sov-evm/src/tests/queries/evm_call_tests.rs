@@ -11,14 +11,17 @@ use sov_modules_api::WorkingSet;
 use super::C;
 use crate::tests::queries::{init_evm, init_evm_single_block};
 use crate::tests::test_signer::TestSigner;
-use crate::Evm;
+use crate::{Evm, SimpleStorageContract};
 
 #[test]
 fn call_contract_without_value() {
     let (evm, mut working_set, signer) = init_evm();
 
-    let contract_call_data = "0x313131";
+    let contract = SimpleStorageContract::default();
     let contract_address = Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap();
+
+    let call_data = contract.set_call_data(5);
+    let reth_call_data = Bytes::from(call_data.to_vec());
 
     let call_result = evm.get_call(
         TransactionRequest {
@@ -27,7 +30,7 @@ fn call_contract_without_value() {
             gas: Some(U256::from(100000)),
             gas_price: Some(U256::from(100000000)),
             value: None,
-            input: TransactionInput::new(Bytes::from_str(&contract_call_data).unwrap()),
+            input: TransactionInput::new(reth_call_data),
             ..Default::default()
         },
         Some(BlockNumberOrTag::Latest),
@@ -36,8 +39,7 @@ fn call_contract_without_value() {
         &mut working_set,
     );
 
-    // Reverts?
-    assert!(call_result.is_err());
+    assert_eq!(call_result.unwrap(), Bytes::from_str("0x").unwrap());
 }
 
 #[test]
