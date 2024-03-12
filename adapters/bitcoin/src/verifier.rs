@@ -165,11 +165,11 @@ impl DaVerifier for BitcoinVerifier {
             .iter()
             .enumerate()
             .map(|(index_completeness, tx)| {
-                let tx_hash = tx.txid().to_raw_hash().to_byte_array();
+                let txid = tx.txid().to_raw_hash().to_byte_array();
 
                 // make sure it starts with the correct prefix
                 assert!(
-                    tx_hash.starts_with(prefix),
+                    txid.starts_with(prefix),
                     "non-relevant tx found in completeness proof"
                 );
 
@@ -178,7 +178,7 @@ impl DaVerifier for BitcoinVerifier {
                 // ordering should be preserved naturally
                 let mut is_found_in_block = false;
                 for i in prev_index_in_inclusion..inclusion_proof.txids.len() {
-                    if inclusion_proof.txids[i] == tx_hash {
+                    if inclusion_proof.txids[i] == txid {
                         is_found_in_block = true;
                         prev_index_in_inclusion = i + 1;
                         break;
@@ -220,7 +220,7 @@ impl DaVerifier for BitcoinVerifier {
                     }
                 }
 
-                tx_hash
+                txid
             })
             .collect::<HashSet<_>>();
 

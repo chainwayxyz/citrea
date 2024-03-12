@@ -359,16 +359,16 @@ impl DaService for BitcoinService {
         }
 
         block.txdata[1..].iter().for_each(|tx| {
-            let tx_hash = tx.txid().to_raw_hash().to_byte_array();
+            let txid = tx.txid().to_raw_hash().to_byte_array();
             let wtxid = tx.wtxid().to_raw_hash().to_byte_array();
 
             // if tx_hash has two leading zeros, it is in the completeness proof
-            if tx_hash.starts_with(self.reveal_tx_id_prefix.as_slice()) {
+            if txid.starts_with(self.reveal_tx_id_prefix.as_slice()) {
                 completeness_proof.push(tx.clone());
             }
 
-            wtxids.push(tx_hash);
-            txids.push(wtxid);
+            wtxids.push(wtxid);
+            txids.push(txid);
         });
 
         (
@@ -641,7 +641,7 @@ mod tests {
         let mut completeness_tx_hashes = completeness_proof
             .iter()
             .map(|tx| {
-                let tx_hash = tx.txid().to_raw_hash().to_byte_array();
+                let txid = tx.txid().to_raw_hash().to_byte_array();
 
                 // it must parsed correctly
                 if let Ok(parsed_tx) = parse_transaction(tx, &da_service.rollup_name) {
@@ -651,7 +651,7 @@ mod tests {
                     assert!(txs_to_check.remove(&blob_hash));
                 }
 
-                tx_hash
+                txid
             })
             .collect::<HashSet<_>>();
 
