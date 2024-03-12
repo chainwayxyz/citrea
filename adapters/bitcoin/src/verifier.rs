@@ -557,7 +557,7 @@ mod tests {
             get_blob_with_sender(&block_txs[12]),
         ];
 
-        assert!(matches!(
+        assert_eq!(
             verifier.verify_relevant_tx_list(
                 &header,
                 txs.as_slice(),
@@ -565,7 +565,7 @@ mod tests {
                 completeness_proof
             ),
             Err(ValidationError::NonMatchingScript)
-        ));
+        );
     }
 
     #[test]
@@ -644,7 +644,7 @@ mod tests {
             get_blob_with_sender(&block_txs[12]),
         ];
 
-        assert!(matches!(
+        assert_eq!(
             verifier.verify_relevant_tx_list(
                 &header,
                 txs.as_slice(),
@@ -652,7 +652,7 @@ mod tests {
                 completeness_proof
             ),
             Err(ValidationError::NonMatchingScript)
-        ));
+        );
     }
 
     #[test]
@@ -751,7 +751,7 @@ mod tests {
             get_blob_with_sender(&block_txs[12]),
         ];
 
-        assert!(matches!(
+        assert_eq!(
             verifier.verify_relevant_tx_list(
                 &header,
                 txs.as_slice(),
@@ -759,7 +759,7 @@ mod tests {
                 completeness_proof
             ),
             Err(ValidationError::NonMatchingScript)
-        ));
+        );
     }
 
     // verifies it, and then changes the witness and sees that it cannot be verified
@@ -818,7 +818,7 @@ mod tests {
 
         inclusion_proof.txids.push([1; 32]);
 
-        assert!(matches!(
+        assert_eq!(
             verifier.verify_relevant_tx_list(
                 &block_header,
                 txs.as_slice(),
@@ -826,7 +826,7 @@ mod tests {
                 completeness_proof,
             ),
             Err(ValidationError::IncorrectInclusionProof)
-        ));
+        );
     }
 
     #[test]
@@ -840,7 +840,7 @@ mod tests {
 
         inclusion_proof.txids.pop();
 
-        assert!(matches!(
+        assert_eq!(
             verifier.verify_relevant_tx_list(
                 &block_header,
                 txs.as_slice(),
@@ -848,7 +848,7 @@ mod tests {
                 completeness_proof,
             ),
             Err(ValidationError::CompletenessProofNotFound)
-        ));
+        );
     }
 
     #[test]
@@ -862,7 +862,7 @@ mod tests {
 
         inclusion_proof.txids.clear();
 
-        assert!(matches!(
+        assert_eq!(
             verifier.verify_relevant_tx_list(
                 &block_header,
                 txs.as_slice(),
@@ -870,7 +870,7 @@ mod tests {
                 completeness_proof,
             ),
             Err(ValidationError::CompletenessProofNotFound)
-        ));
+        );
     }
 
     #[test]
@@ -884,7 +884,7 @@ mod tests {
 
         inclusion_proof.txids.swap(0, 1);
 
-        assert!(matches!(
+        assert_eq!(
             verifier.verify_relevant_tx_list(
                 &block_header,
                 txs.as_slice(),
@@ -892,7 +892,7 @@ mod tests {
                 completeness_proof,
             ),
             Err(ValidationError::IncorrectInclusionProof)
-        ));
+        );
     }
 
     #[test]
@@ -906,7 +906,7 @@ mod tests {
 
         completeness_proof.pop();
 
-        assert!(matches!(
+        assert_eq!(
             verifier.verify_relevant_tx_list(
                 &block_header,
                 txs.as_slice(),
@@ -914,7 +914,7 @@ mod tests {
                 completeness_proof,
             ),
             Err(ValidationError::IncorrectCompletenessProof)
-        ));
+        );
     }
 
     #[test]
@@ -928,7 +928,7 @@ mod tests {
 
         completeness_proof.clear();
 
-        assert!(matches!(
+        assert_eq!(
             verifier.verify_relevant_tx_list(
                 &block_header,
                 txs.as_slice(),
@@ -936,7 +936,7 @@ mod tests {
                 completeness_proof,
             ),
             Err(ValidationError::IncorrectCompletenessProof)
-        ));
+        );
     }
 
     #[test]
@@ -950,7 +950,7 @@ mod tests {
 
         completeness_proof.push(get_mock_txs().get(1).unwrap().clone());
 
-        assert!(matches!(
+        assert_eq!(
             verifier.verify_relevant_tx_list(
                 &block_header,
                 txs.as_slice(),
@@ -958,7 +958,7 @@ mod tests {
                 completeness_proof,
             ),
             Err(ValidationError::NonRelevantTxInProof)
-        ));
+        );
     }
 
     #[test]
@@ -973,7 +973,7 @@ mod tests {
         completeness_proof.swap(2, 3);
         txs.swap(2, 3);
 
-        assert!(matches!(
+        assert_eq!(
             verifier.verify_relevant_tx_list(
                 &block_header,
                 txs.as_slice(),
@@ -981,7 +981,7 @@ mod tests {
                 completeness_proof,
             ),
             Err(ValidationError::CompletenessProofNotFound)
-        ));
+        );
     }
 
     #[test]
@@ -995,7 +995,7 @@ mod tests {
 
         txs.swap(0, 1);
 
-        assert!(matches!(
+        assert_eq!(
             verifier.verify_relevant_tx_list(
                 &block_header,
                 txs.as_slice(),
@@ -1003,7 +1003,7 @@ mod tests {
                 completeness_proof,
             ),
             Err(ValidationError::BlobWasTamperedWith)
-        ));
+        );
     }
 
     #[test]
@@ -1018,7 +1018,7 @@ mod tests {
         txs.swap(0, 1);
         completeness_proof.swap(0, 1);
 
-        assert!(matches!(
+        assert_eq!(
             verifier.verify_relevant_tx_list(
                 &block_header,
                 txs.as_slice(),
@@ -1026,7 +1026,7 @@ mod tests {
                 completeness_proof,
             ),
             Err(ValidationError::CompletenessProofNotFound)
-        ));
+        );
     }
 
     #[test]
@@ -1041,7 +1041,7 @@ mod tests {
         let new_blob = vec![2; 152];
 
         txs[1] = BlobWithSender::new(new_blob, txs[1].sender.0.clone(), txs[1].hash);
-        assert!(matches!(
+        assert_eq!(
             verifier.verify_relevant_tx_list(
                 &block_header,
                 txs.as_slice(),
@@ -1049,7 +1049,7 @@ mod tests {
                 completeness_proof,
             ),
             Err(ValidationError::BlobContentWasModified)
-        ));
+        );
     }
 
     #[test]
@@ -1069,7 +1069,7 @@ mod tests {
             txs[1].hash,
         );
 
-        assert!(matches!(
+        assert_eq!(
             verifier.verify_relevant_tx_list(
                 &block_header,
                 txs.as_slice(),
@@ -1077,7 +1077,7 @@ mod tests {
                 completeness_proof,
             ),
             Err(ValidationError::IncorrectSenderInBlob)
-        ));
+        );
     }
 
     #[test]
@@ -1091,7 +1091,7 @@ mod tests {
 
         txs = vec![txs[0].clone(), txs[1].clone(), txs[2].clone()];
 
-        assert!(matches!(
+        assert_eq!(
             verifier.verify_relevant_tx_list(
                 &block_header,
                 txs.as_slice(),
@@ -1099,6 +1099,6 @@ mod tests {
                 completeness_proof,
             ),
             Err(ValidationError::ValidBlobNotFoundInBlobs)
-        ));
+        );
     }
 }
