@@ -70,30 +70,25 @@ impl<EXT: CitreaExternal, DB: Database> CitreaHandler<EXT, DB> {
 
 /// Calculates the diff of the modified state.
 fn journal_diff_size(journal: Vec<JournalEntry>) -> usize {
-    let nonce_changes: HashSet<&Address> = journal
-        .iter()
-        .filter_map(|entry| match entry {
-            JournalEntry::NonceChange { address } => Some(address),
-            _ => None,
-        })
-        .collect();
+    let mut nonce_changes = HashSet::<&Address>::new();
+    let mut balance_changes = HashSet::<&Address>::new();
+    let mut storage_changes = HashMap::<&Address, HashSet<&U256>>::new();
 
-    let balance_changes: HashSet<&Address> = journal
-        .iter()
-        .filter_map(|entry| match entry {
-            JournalEntry::BalanceTransfer { from, to, .. } => Some([from, to]),
-            _ => None,
-        })
-        .flatten()
-        .collect();
-
-    let storage_changes: HashMap<&Address, _> = journal
-        .iter()
-        .filter_map(|entry| match entry {
-            JournalEntry::StorageChange { address, key, .. } => Some((address, key)),
-            _ => None,
-        })
-        .collect();
+    for entry in &journal {
+        match entry {
+            JournalEntry::NonceChange { address } => {
+                nonce_changes.insert(address);
+            }
+            JournalEntry::BalanceTransfer { from, to, .. } => {
+                balance_changes.insert(from);
+                balance_changes.insert(to);
+            }
+            JournalEntry::StorageChange { address, key, .. } => {
+                storage_changes.entry(address).or_default().insert(key);
+            }
+            _ => {}
+        }
+    }
 
     let mut all_changed_addresses = HashSet::<&Address>::new();
     all_changed_addresses.extend(&nonce_changes);
@@ -118,10 +113,10 @@ fn journal_diff_size(journal: Vec<JournalEntry>) -> usize {
     }
 
     // Apply size of changed slots
-    for _slot in storage_changes.values() {
+    for (_addr, keys) in storage_changes {
         // TODO diff calc https://github.com/chainwayxyz/secret-sovereign-sdk/issues/116
         let slot_size = 3 * size_of::<U256>(); // key, prev, present;
-        diff_size += slot_size;
+        diff_size += slot_size * keys.len();
     }
 
     diff_size
