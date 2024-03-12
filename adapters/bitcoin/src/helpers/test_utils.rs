@@ -1,4 +1,3 @@
-
 use core::str::FromStr;
 
 use bitcoin::block::{Header, Version};
