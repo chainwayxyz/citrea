@@ -10,11 +10,13 @@ use sov_modules_api::{Context, Module, StateMapAccessor, StateVecAccessor};
 
 use crate::call::CallMessage;
 use crate::evm::primitive_types::Receipt;
-use crate::smart_contracts::{SelfDestructorContract, SimpleStorageContract, TestContract};
+use crate::smart_contracts::{
+    BlockHashContract, LogsContract, SelfDestructorContract, SimpleStorageContract, TestContract,
+};
 use crate::tests::genesis_tests::get_evm;
 use crate::tests::test_signer::TestSigner;
 use crate::tests::DEFAULT_CHAIN_ID;
-use crate::{AccountData, BlockHashContract, EvmConfig, LogsContract, RlpEvmTransaction};
+use crate::{AccountData, EvmConfig, RlpEvmTransaction};
 
 type C = DefaultContext;
 

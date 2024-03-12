@@ -11,9 +11,10 @@ use revm::primitives::U256;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::WorkingSet;
 
+use crate::smart_contracts::SimpleStorageContract;
 use crate::tests::queries::{init_evm, init_evm_single_block};
 use crate::tests::test_signer::TestSigner;
-use crate::{Evm, SimpleStorageContract};
+use crate::Evm;
 
 type C = DefaultContext;
 

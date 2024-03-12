@@ -1,3 +1,4 @@
+//! Includes the smart contracts used by the sov-evm and the rollup itself, extensively for testing.
 use std::any::Any;
 use std::path::PathBuf;
 

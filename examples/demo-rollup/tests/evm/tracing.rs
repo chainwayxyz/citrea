@@ -10,7 +10,7 @@ use reth_rpc_types::trace::geth::{
     GethDebugTracingOptions,
 };
 use serde_json::{self, json};
-use sov_evm::{CallerContract, SimpleStorageContract};
+use sov_evm::smart_contracts::{CallerContract, SimpleStorageContract};
 use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
 use sov_stf_runner::RollupProverConfig;
 

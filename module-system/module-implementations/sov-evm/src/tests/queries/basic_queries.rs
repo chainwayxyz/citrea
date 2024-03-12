@@ -10,8 +10,9 @@ use reth_rpc_types::{Block, Rich, TransactionReceipt};
 use revm::primitives::{B256, U256};
 use serde_json::json;
 
+use crate::smart_contracts::SimpleStorageContract;
 use crate::tests::queries::init_evm;
-use crate::{EthApiError, SimpleStorageContract};
+use crate::EthApiError;
 
 #[test]
 fn get_block_by_hash_test() {

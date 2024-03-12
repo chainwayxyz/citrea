@@ -14,15 +14,13 @@ use sov_prover_storage_manager::{new_orphan_storage, SnapshotManager};
 use sov_state::{DefaultStorageSpec, ProverStorage, Storage};
 
 use crate::call::CallMessage;
+use crate::smart_contracts::{LogsContract, SimplePayableContract, SimpleStorageContract};
 use crate::tests::call_tests::{
     create_contract_transaction, publish_event_message, set_arg_message,
 };
 use crate::tests::genesis_tests::GENESIS_STATE_ROOT;
 use crate::tests::test_signer::TestSigner;
-use crate::{
-    AccountData, Evm, EvmConfig, LogsContract, RlpEvmTransaction, SimplePayableContract,
-    SimpleStorageContract,
-};
+use crate::{AccountData, Evm, EvmConfig, RlpEvmTransaction};
 
 type C = DefaultContext;
 
