@@ -16,8 +16,8 @@ where
         &self,
         da_root_hash: [u8; 32],
         pre_state_root: &[u8],
-        working_set: &mut WorkingSet<C>,
         l1_fee_rate: u64,
+        working_set: &mut WorkingSet<C>,
     ) {
         let mut parent_block = self
             .head

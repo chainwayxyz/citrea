@@ -18,12 +18,7 @@ pub use query::*;
 mod signer;
 pub use signer::DevSigner;
 #[cfg(feature = "smart_contracts")]
-mod smart_contracts;
-#[cfg(feature = "smart_contracts")]
-pub use smart_contracts::{
-    BlockHashContract, CallerContract, CoinbaseContract, LogsContract, SelfDestructorContract,
-    SimpleStorageContract, TestContract,
-};
+pub mod smart_contracts;
 
 #[cfg(test)]
 mod tests;
