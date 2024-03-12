@@ -17,6 +17,7 @@ where
         da_root_hash: [u8; 32],
         pre_state_root: &[u8],
         working_set: &mut WorkingSet<C>,
+        l1_fee_rate: u64,
     ) {
         let mut parent_block = self
             .head
@@ -52,6 +53,7 @@ where
             gas_limit: cfg.block_gas_limit,
         };
         self.block_env.set(&new_pending_env, working_set);
+        self.l1_fee_rate.set(&l1_fee_rate, working_set);
 
         // if hight > 256, start removing the oldest block
         // keeping only 256 most recent blocks

@@ -46,7 +46,9 @@ fn call_multiple_test() {
             .as_slice(),
     );
 
-    evm.begin_soft_confirmation_hook([5u8; 32], &[10u8; 32], &mut working_set);
+    let l1_fee_rate = 0;
+
+    evm.begin_soft_confirmation_hook([5u8; 32], &[10u8; 32], &mut working_set, l1_fee_rate);
 
     let set_arg = 999;
     {
@@ -140,8 +142,9 @@ fn call_test() {
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
     let (evm, mut working_set) = get_evm(&config);
+    let l1_fee_rate = 0;
 
-    evm.begin_soft_confirmation_hook([5u8; 32], &[10u8; 32], &mut working_set);
+    evm.begin_soft_confirmation_hook([5u8; 32], &[10u8; 32], &mut working_set, l1_fee_rate);
 
     let set_arg = 999;
     {
@@ -206,8 +209,9 @@ fn failed_transaction_test() {
     let dev_signer: TestSigner = TestSigner::new_random();
     let (evm, mut working_set) = get_evm(&EvmConfig::default());
     let working_set = &mut working_set;
+    let l1_fee_rate = 0;
 
-    evm.begin_soft_confirmation_hook([5u8; 32], &[10u8; 32], working_set);
+    evm.begin_soft_confirmation_hook([5u8; 32], &[10u8; 32], working_set, l1_fee_rate);
     {
         let sender_address = generate_address::<C>("sender");
         let sequencer_address = generate_address::<C>("sequencer");
@@ -254,8 +258,9 @@ fn self_destruct_test() {
     let (config, dev_signer, contract_addr) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
     let (evm, mut working_set) = get_evm(&config);
+    let l1_fee_rate = 0;
 
-    evm.begin_soft_confirmation_hook([5u8; 32], &[10u8; 32], &mut working_set);
+    evm.begin_soft_confirmation_hook([5u8; 32], &[10u8; 32], &mut working_set, l1_fee_rate);
     {
         let sender_address = generate_address::<C>("sender");
         let sequencer_address = generate_address::<C>("sequencer");
@@ -301,8 +306,9 @@ fn self_destruct_test() {
 
     // Test if the key is set in the keys statevec
     assert_eq!(db_contract.keys.len(&mut working_set), 1);
+    let l1_fee_rate = 0;
 
-    evm.begin_soft_confirmation_hook([5u8; 32], &[99u8; 32], &mut working_set);
+    evm.begin_soft_confirmation_hook([5u8; 32], &[99u8; 32], &mut working_set, l1_fee_rate);
     {
         let sender_address = generate_address::<C>("sender");
         let sequencer_address = generate_address::<C>("sequencer");
@@ -369,7 +375,9 @@ fn test_block_hash_in_evm() {
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
     let (evm, mut working_set) = get_evm(&config);
-    evm.begin_soft_confirmation_hook([5u8; 32], &[10u8; 32], &mut working_set);
+    let l1_fee_rate = 0;
+
+    evm.begin_soft_confirmation_hook([5u8; 32], &[10u8; 32], &mut working_set, l1_fee_rate);
     {
         let sender_address = generate_address::<C>("sender");
         let sequencer_address = generate_address::<C>("sequencer");
@@ -391,7 +399,8 @@ fn test_block_hash_in_evm() {
 
     for _i in 0..514 {
         // generate 514 more blocks
-        evm.begin_soft_confirmation_hook([5u8; 32], &[99u8; 32], &mut working_set);
+        let l1_fee_rate = 0;
+        evm.begin_soft_confirmation_hook([5u8; 32], &[99u8; 32], &mut working_set, l1_fee_rate);
         evm.end_soft_confirmation_hook(&mut working_set);
         evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
     }
@@ -464,8 +473,9 @@ fn test_block_gas_limit() {
     );
 
     let (evm, mut working_set) = get_evm(&config);
+    let l1_fee_rate = 0;
 
-    evm.begin_soft_confirmation_hook([5u8; 32], &[10u8; 32], &mut working_set);
+    evm.begin_soft_confirmation_hook([5u8; 32], &[10u8; 32], &mut working_set, l1_fee_rate);
     {
         let sender_address = generate_address::<C>("sender");
         let sequencer_address = generate_address::<C>("sequencer");
@@ -523,6 +533,23 @@ pub fn create_contract_message<T: TestContract>(
             contract.byte_code().to_vec(),
             nonce,
             0,
+        )
+        .unwrap()
+}
+
+fn create_contract_message_with_fee<T: TestContract>(
+    dev_signer: &TestSigner,
+    nonce: u64,
+    contract: T,
+    max_fee_per_gas: u128,
+) -> RlpEvmTransaction {
+    dev_signer
+        .sign_default_transaction_with_fee(
+            TransactionKind::Create,
+            contract.byte_code().to_vec(),
+            nonce,
+            0,
+            max_fee_per_gas,
         )
         .unwrap()
 }
@@ -667,4 +694,119 @@ pub(crate) fn get_evm_config(
         ..Default::default()
     };
     (config, dev_signer, contract_addr)
+}
+
+fn get_evm_config_starting_base_fee(
+    signer_balance: U256,
+    block_gas_limit: Option<u64>,
+    starting_base_fee: u64,
+) -> (EvmConfig, TestSigner, Address) {
+    let dev_signer: TestSigner = TestSigner::new_random();
+
+    let contract_addr: Address = Address::from_slice(
+        hex::decode("819c5497b157177315e1204f52e588b393771719")
+            .unwrap()
+            .as_slice(),
+    );
+    let config = EvmConfig {
+        data: vec![AccountData {
+            address: dev_signer.address(),
+            balance: signer_balance,
+            code_hash: KECCAK_EMPTY,
+            code: Bytes::default(),
+            nonce: 0,
+        }],
+        spec: vec![(0, SpecId::SHANGHAI)].into_iter().collect(),
+        block_gas_limit: block_gas_limit.unwrap_or(ETHEREUM_BLOCK_GAS_LIMIT),
+        starting_base_fee,
+        ..Default::default()
+    };
+    (config, dev_signer, contract_addr)
+}
+
+#[test]
+fn test_l1_fee_success() {
+    fn run_tx(l1_fee_rate: u64, expected_balance: U256) {
+        let (config, dev_signer, _) =
+            get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
+
+        let (evm, mut working_set) = get_evm(&config);
+
+        evm.begin_soft_confirmation_hook([5u8; 32], &[10u8; 32], &mut working_set, l1_fee_rate);
+        {
+            let sender_address = generate_address::<C>("sender");
+            let sequencer_address = generate_address::<C>("sequencer");
+            let context = C::new(sender_address, sequencer_address, 1);
+
+            let deploy_message =
+                create_contract_message(&dev_signer, 0, BlockHashContract::default());
+
+            evm.call(
+                CallMessage {
+                    txs: vec![deploy_message],
+                },
+                &context,
+                &mut working_set,
+            )
+            .unwrap();
+        }
+        evm.end_soft_confirmation_hook(&mut working_set);
+        evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+
+        let db_account = evm
+            .accounts
+            .get(&dev_signer.address(), &mut working_set)
+            .unwrap();
+
+        assert_eq!(db_account.info.balance, expected_balance,);
+    }
+
+    run_tx(0, U256::from_str("99999900044375000000").unwrap());
+    run_tx(1, U256::from_str("99999900044374999575").unwrap());
+}
+
+#[test]
+fn test_l1_fee_not_enough_funds() {
+    let (config, dev_signer, _) =
+        get_evm_config_starting_base_fee(U256::from_str("1000000").unwrap(), None, 1);
+
+    let l1_fee_rate = 10000;
+    let (evm, mut working_set) = get_evm(&config);
+
+    evm.begin_soft_confirmation_hook([5u8; 32], &[10u8; 32], &mut working_set, l1_fee_rate);
+    {
+        let sender_address = generate_address::<C>("sender");
+        let sequencer_address = generate_address::<C>("sequencer");
+        let context = C::new(sender_address, sequencer_address, 1);
+
+        let deploy_message =
+            create_contract_message_with_fee(&dev_signer, 0, BlockHashContract::default(), 1);
+
+        let call_result = evm.call(
+            CallMessage {
+                txs: vec![deploy_message],
+            },
+            &context,
+            &mut working_set,
+        );
+        assert!(call_result.is_err());
+        let err = call_result.unwrap_err();
+        assert!(err.to_string().contains("Not enought funds for L1 fee"));
+    }
+
+    evm.end_soft_confirmation_hook(&mut working_set);
+    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+
+    let db_account = evm
+        .accounts
+        .get(&dev_signer.address(), &mut working_set)
+        .unwrap();
+
+    // The account balance is unchanged
+    assert_eq!(db_account.info.balance, U256::from(1000000));
+    assert_eq!(db_account.info.nonce, 0);
+
+    // The coinbase was not created
+    let db_coinbase = evm.accounts.get(&config.coinbase, &mut working_set);
+    assert!(db_coinbase.is_none());
 }
