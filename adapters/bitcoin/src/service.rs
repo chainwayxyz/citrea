@@ -349,14 +349,11 @@ impl DaService for BitcoinService {
 
         let mut completeness_proof = Vec::with_capacity(block.txdata.len());
 
-        let mut inclusion_multi_proof = InclusionMultiProof {
-            coinbase_tx: block.txdata[0].clone(),
-            ..Default::default()
-        };
-
-        inclusion_multi_proof.wtxids.push([0u8; 32]);
+        let mut txids = Vec::with_capacity(block.txdata.len());
+        let mut wtxids = Vec::with_capacity(block.txdata.len());
+        wtxids.push([0u8; 32]);
         let coinbase_tx_hash = block.txdata[0].txid().to_raw_hash().to_byte_array();
-        inclusion_multi_proof.txids.push(coinbase_tx_hash);
+        txids.push(coinbase_tx_hash);
         if coinbase_tx_hash.starts_with(self.reveal_tx_id_prefix.as_slice()) {
             completeness_proof.push(block.txdata[0].clone());
         }
@@ -370,11 +367,14 @@ impl DaService for BitcoinService {
                 completeness_proof.push(tx.clone());
             }
 
-            inclusion_multi_proof.wtxids.push(tx_hash);
-            inclusion_multi_proof.txids.push(wtxid);
+            wtxids.push(tx_hash);
+            txids.push(wtxid);
         });
 
-        (inclusion_multi_proof, completeness_proof)
+        (
+            InclusionMultiProof::new(txids, wtxids, block.txdata[0].clone()),
+            completeness_proof,
+        )
     }
 
     // Extract the list blob transactions relevant to a particular rollup from a block, along with inclusion and

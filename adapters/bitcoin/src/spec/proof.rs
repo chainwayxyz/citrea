@@ -10,6 +10,20 @@ pub struct InclusionMultiProof {
     pub coinbase_tx: Transaction,
 }
 
+impl InclusionMultiProof {
+    pub(crate) fn new(
+        txids: Vec<[u8; 32]>,
+        wtxids: Vec<[u8; 32]>,
+        coinbase_tx: Transaction,
+    ) -> Self {
+        InclusionMultiProof {
+            txids,
+            wtxids,
+            coinbase_tx,
+        }
+    }
+}
+
 impl Default for InclusionMultiProof {
     fn default() -> Self {
         InclusionMultiProof {
