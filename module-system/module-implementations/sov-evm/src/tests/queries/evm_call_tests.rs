@@ -198,7 +198,7 @@ fn call_with_high_gas_price() {
 
     let contract_call_data = Bytes::from(contract.set_call_data(5).to_vec());
 
-    let high_gas_price = U256::from(1000) * U256::from(10_000_000_000_000_000_000 as i128); // A very high gas price
+    let high_gas_price = U256::from(1000) * U256::from(10_000_000_000_000_000_000_i128); // A very high gas price
 
     let call_result = evm.get_call(
         TransactionRequest {

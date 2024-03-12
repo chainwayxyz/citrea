@@ -61,7 +61,7 @@ fn test_tx_request_fields_gas() {
         gas_price: Some(U256::from(100)),
         max_fee_per_gas: None,
         max_priority_fee_per_gas: None,
-        value: None.into(),
+        value: None,
         input: TransactionInput {
             input: None,
             data: None,
