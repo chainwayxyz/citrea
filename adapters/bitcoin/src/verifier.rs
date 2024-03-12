@@ -478,6 +478,88 @@ mod tests {
     }
 
     #[test]
+    fn false_coinbase_input_witness_should_fail() {
+        let verifier = BitcoinVerifier::new(RollupParams {
+            rollup_name: "sov-btc".to_string(),
+            reveal_tx_id_prefix: vec![0, 0],
+        });
+
+        let header = HeaderWrapper::new(
+            Header {
+                version: Version::from_consensus(536870912),
+                prev_blockhash: BlockHash::from_str(
+                    "6b15a2e4b17b0aabbd418634ae9410b46feaabf693eea4c8621ffe71435d24b0",
+                )
+                .unwrap(),
+                merkle_root: TxMerkleNode::from_str(
+                    "7750076b3b5498aad3e2e7da55618c66394d1368dc08f19f0b13d1e5b83ae056",
+                )
+                .unwrap(),
+                time: 1694177029,
+                bits: CompactTarget::from_hex_str_no_prefix("207fffff").unwrap(),
+                nonce: 0,
+            },
+            13,
+            2,
+        );
+
+        let mut block_txs = get_mock_txs();
+
+        let idx = block_txs[0]
+            .output
+            .iter()
+            .position(|output| {
+                output
+                    .script_pubkey
+                    .to_bytes()
+                    .starts_with(&[0x6a, 0x24, 0xaa, 0x21, 0xa9, 0xed])
+            })
+            .unwrap();
+
+        block_txs[0].input[0].witness = Witness::from_slice(&[vec![1u8; 32]]);
+
+        // relevant txs are on 6, 8, 10, 12 indices
+        let completeness_proof = vec![
+            block_txs[6].clone(),
+            block_txs[8].clone(),
+            block_txs[10].clone(),
+            block_txs[12].clone(),
+        ];
+
+        let mut inclusion_proof = InclusionMultiProof {
+            txids: block_txs
+                .iter()
+                .map(|t| t.txid().to_raw_hash().to_byte_array())
+                .collect(),
+            wtxids: block_txs
+                .iter()
+                .map(|t| t.wtxid().to_byte_array())
+                .collect(),
+            coinbase_tx: block_txs[0].clone(),
+        };
+
+        // Coinbase tx wtxid should be [0u8;32]
+        inclusion_proof.wtxids[0] = [0; 32];
+
+        let txs: Vec<BlobWithSender> = vec![
+            get_blob_with_sender(&block_txs[6]),
+            get_blob_with_sender(&block_txs[8]),
+            get_blob_with_sender(&block_txs[10]),
+            get_blob_with_sender(&block_txs[12]),
+        ];
+
+        assert!(matches!(
+            verifier.verify_relevant_tx_list(
+                &header,
+                txs.as_slice(),
+                inclusion_proof,
+                completeness_proof
+            ),
+            Err(ValidationError::NonMatchingScript)
+        ));
+    }
+
+    #[test]
     fn false_coinbase_script_pubkey_should_fail() {
         let verifier = BitcoinVerifier::new(RollupParams {
             rollup_name: "sov-btc".to_string(),
