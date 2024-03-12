@@ -381,6 +381,23 @@ fn gas_price_call_test() {
     );
     working_set.unset_archival_version();
 
+    // Test with gas and gas_price specified - this time successful
+    let tx_req_gas_and_gas_price = base_tx_req();
+    let result_gas_and_gas_price = evm.get_call(
+        TransactionRequest {
+            gas: Some(U256::from_str("2500000").unwrap()),
+            gas_price: Some(U256::from(20e9 as u64)),
+            ..tx_req_gas_and_gas_price
+        },
+        Some(BlockNumberOrTag::Latest),
+        None,
+        None,
+        &mut working_set,
+    );
+
+    assert_eq!(result_gas_and_gas_price, Ok(Bytes::from_hex("0x").unwrap()));
+    working_set.unset_archival_version();
+
     // Test with max_fee_per_gas and max_priority_fee_per_gas specified
     let tx_req_fees = base_tx_req();
     let result_fees = evm.get_call(

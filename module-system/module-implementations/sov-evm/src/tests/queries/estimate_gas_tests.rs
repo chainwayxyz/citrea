@@ -179,6 +179,7 @@ fn test_tx_request_fields_gas() {
     );
     working_set.unset_archival_version();
 
+    // We don't have EIP-4844 now, so this is just to see if it's working.
     let tx_req_no_blob_versioned_hashes = TransactionRequest {
         blob_versioned_hashes: None,
         ..tx_req_contract_call.clone()
