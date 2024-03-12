@@ -24,6 +24,8 @@ pub enum ValidationError {
     InvalidTx,
     InvalidProof,
     InvalidBlock,
+    NonMatchingScript,
+    InvalidSegWitCommitment,
 }
 
 #[derive(
@@ -92,7 +94,7 @@ impl DaVerifier for BitcoinVerifier {
             .all(|tx| iter.any(|&y| y == tx.wtxid().to_byte_array()));
 
         // verify that one of the outputs of the coinbase transaction has script pub key starting with 0x6a24aa21a9ed,
-        // and the rest of the script pub key is the merkle root of supplied wtxid's.
+        // and the rest of the script pub key is the commitment of witness data.
         if !completeness_proof.is_empty() {
             let coinbase_tx = inclusion_proof.coinbase_tx.clone();
             // If there are more than one scriptPubKey matching the pattern,
@@ -107,7 +109,7 @@ impl DaVerifier for BitcoinVerifier {
             match commitment_idx {
                 // If commitmet does not exist
                 None => {
-                    // Relevant txs should be empty if there is no wtiness data
+                    // Relevant txs should be empty if there is no wtiness data because data is inscribed in the witness
                     if !blobs.is_empty() {
                         return Err(ValidationError::InvalidBlock);
                     }
@@ -118,7 +120,7 @@ impl DaVerifier for BitcoinVerifier {
                         .zip(inclusion_proof.txids.iter())
                     {
                         if wtxid != txid {
-                            return Err(ValidationError::InvalidBlock);
+                            return Err(ValidationError::InvalidSegWitCommitment);
                         }
                     }
                 }
@@ -148,7 +150,7 @@ impl DaVerifier for BitcoinVerifier {
                     let commitment = sha256d::Hash::hash(&vec_merkle);
 
                     if script_pubkey.to_bytes()[6..] != *commitment.as_byte_array() {
-                        return Err(ValidationError::InvalidBlock);
+                        return Err(ValidationError::NonMatchingScript);
                     }
                 }
             }
@@ -564,7 +566,7 @@ mod tests {
                 inclusion_proof,
                 completeness_proof
             ),
-            Err(ValidationError::InvalidBlock)
+            Err(ValidationError::InvalidSegWitCommitment)
         ));
     }
 
