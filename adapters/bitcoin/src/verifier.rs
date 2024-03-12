@@ -25,7 +25,6 @@ pub enum ValidationError {
     NonMatchingScript,
     InvalidSegWitCommitment,
     NonRelevantTxInProof,
-    CompletenessProofNotFound,
     ValidBlobNotFoundInBlobs,
     BlobWasTamperedWith,
     IncorrectSenderInBlob,
@@ -174,69 +173,59 @@ impl DaVerifier for BitcoinVerifier {
         let prefix = self.reveal_tx_id_prefix.as_slice();
         // Check starting bytes tx that parsed correctly is in blobs
         let mut completeness_tx_hashes = HashSet::new();
-        let fold_result =
-            completeness_proof
-                .iter()
-                .enumerate()
-                .try_fold((), |_, (index_completeness, tx)| {
-                    let txid = tx.txid().to_raw_hash().to_byte_array();
 
-                    // make sure it starts with the correct prefix
-                    if !txid.starts_with(prefix) {
-                        return Err(ValidationError::NonRelevantTxInProof);
+        for (index_completeness, tx) in completeness_proof.iter().enumerate() {
+            let txid = tx.txid().to_raw_hash().to_byte_array();
+
+            // make sure it starts with the correct prefix
+            if !txid.starts_with(prefix) {
+                return Err(ValidationError::NonRelevantTxInProof);
+            }
+
+            // make sure completeness txs are ordered same in inclusion proof
+            // this logic always start seaching from the last found index
+            // ordering should be preserved naturally
+            let is_found_in_block = inclusion_iter.any(|&txid_in_proof| txid_in_proof == txid);
+
+            // assert tx is included in inclusion proof, thus in block
+            if !is_found_in_block {
+                return Err(ValidationError::RelevantTxNotFoundInBlock);
+            }
+
+            // it must be parsed correctly
+            if let Ok(parsed_tx) = parse_transaction(tx, &self.rollup_name) {
+                if let Some(blob_hash) = parsed_tx.get_sig_verified_hash() {
+                    let blob = blobs_iter.next();
+
+                    if !(blob.is_some()) {
+                        return Err(ValidationError::ValidBlobNotFoundInBlobs);
                     }
 
-                    // make sure completeness txs are ordered same in inclusion proof
-                    // this logic always start seaching from the last found index
-                    // ordering should be preserved naturally
-                    let is_found_in_block =
-                        inclusion_iter.any(|&txid_in_proof| txid_in_proof == txid);
-
-                    // assert tx is included in inclusion proof, thus in block
-                    if !is_found_in_block {
-                        return Err(ValidationError::RelevantTxNotFoundInBlock);
+                    let blob = blob.unwrap();
+                    if blob.hash != blob_hash {
+                        return Err(ValidationError::BlobWasTamperedWith);
                     }
 
-                    // it must be parsed correctly
-                    if let Ok(parsed_tx) = parse_transaction(tx, &self.rollup_name) {
-                        if let Some(blob_hash) = parsed_tx.get_sig_verified_hash() {
-                            let blob = blobs_iter.next();
-
-                            if !(blob.is_some()) {
-                                return Err(ValidationError::ValidBlobNotFoundInBlobs);
-                            }
-
-                            let blob = blob.unwrap();
-                            if blob.hash != blob_hash {
-                                return Err(ValidationError::BlobWasTamperedWith);
-                            }
-
-                            if parsed_tx.public_key != blob.sender.0 {
-                                return Err(ValidationError::IncorrectSenderInBlob);
-                            }
-
-                            // decompress the blob
-                            let decompressed_blob = decompress_blob(&parsed_tx.body);
-
-                            // read the supplied blob from txs
-                            let mut blob_content = blobs[index_completeness].blob.clone();
-                            blob_content.advance(blob_content.total_len());
-                            let blob_content = blob_content.accumulator();
-
-                            // assert tx content is not modified
-                            if blob_content != decompressed_blob {
-                                return Err(ValidationError::BlobContentWasModified);
-                            }
-                        }
+                    if parsed_tx.public_key != blob.sender.0 {
+                        return Err(ValidationError::IncorrectSenderInBlob);
                     }
 
-                    completeness_tx_hashes.insert(txid);
-                    Ok(())
-                });
+                    // decompress the blob
+                    let decompressed_blob = decompress_blob(&parsed_tx.body);
 
-        match fold_result {
-            Ok(_) => {}              // Continue if no error occurred
-            Err(e) => return Err(e), // Return the error if one occurred
+                    // read the supplied blob from txs
+                    let mut blob_content = blobs[index_completeness].blob.clone();
+                    blob_content.advance(blob_content.total_len());
+                    let blob_content = blob_content.accumulator();
+
+                    // assert tx content is not modified
+                    if blob_content != decompressed_blob {
+                        return Err(ValidationError::BlobContentWasModified);
+                    }
+                }
+            }
+
+            completeness_tx_hashes.insert(txid);
         }
 
         // assert no extra txs than the ones in the completeness proof are left
@@ -245,7 +234,7 @@ impl DaVerifier for BitcoinVerifier {
         }
 
         // no prefix bytes left behind completeness proof
-        match inclusion_proof.txids.iter().try_for_each(|tx_hash| {
+        inclusion_proof.txids.iter().try_for_each(|tx_hash| {
             if tx_hash.starts_with(prefix) {
                 // assert all prefixed transactions are included in completeness proof
                 if !completeness_tx_hashes.remove(tx_hash) {
@@ -253,10 +242,7 @@ impl DaVerifier for BitcoinVerifier {
                 }
             }
             Ok(())
-        }) {
-            Ok(_) => {}
-            Err(e) => return Err(e),
-        }
+        })?;
 
         // assert no other (irrelevant) tx is in completeness proof
         if !completeness_tx_hashes.is_empty() {
