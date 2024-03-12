@@ -121,7 +121,7 @@ fn calc_diff_size<EXT, DB: Database>(
         }
     }
 
-    let slot_size = 3 * size_of::<U256>(); // key, prev, present;
+    let slot_size = 2 * size_of::<U256>(); // key + value;
     let mut diff_size = 0usize;
 
     for (addr, account) in account_changes {
