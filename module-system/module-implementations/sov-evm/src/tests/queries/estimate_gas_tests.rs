@@ -46,8 +46,6 @@ fn payable_contract_value_test() {
 
     let result = evm.eth_estimate_gas(tx_req, Some(BlockNumberOrTag::Latest), &mut working_set);
     assert_eq!(result.unwrap(), Uint::from_str("0xa9ba").unwrap());
-
-    working_set.unset_archival_version();
 }
 
 #[test]

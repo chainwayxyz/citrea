@@ -103,11 +103,7 @@ impl CallFees {
             (None, max_fee_per_gas, max_priority_fee_per_gas, Some(max_fee_per_blob_gas)) => {
                 // request for eip-4844 transaction
                 let max_fee = max_fee_per_gas.unwrap_or(block_base_fee);
-                let check_valid_fee_cap = ensure_valid_fee_cap(max_fee, max_priority_fee_per_gas);
-
-                if check_valid_fee_cap.is_err() {
-                    return Err(RpcInvalidTransactionError::TipAboveFeeCap.into());
-                }
+                ensure_valid_fee_cap(max_fee, max_priority_fee_per_gas)?;
 
                 // Ensure blob_hashes are present
                 if !has_blob_hashes {
