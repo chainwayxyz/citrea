@@ -19,13 +19,23 @@ pub struct BitcoinVerifier {
 }
 
 // TODO: custom errors based on our implementation
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum ValidationError {
     InvalidTx,
     InvalidProof,
     InvalidBlock,
     NonMatchingScript,
     InvalidSegWitCommitment,
+    NonRelevantTxInProof,
+    CompletenessProofNotFound,
+    ValidBlobNotFoundInBlobs,
+    BlobWasTamperedWith,
+    IncorrectSenderInBlob,
+    BlobContentWasModified,
+    IncorrectCompletenessProof,
+    RelevantTxNotInProof,
+    IncorrectInclusionProof,
+    MerkleRootCalculationError,
 }
 
 #[derive(
@@ -164,84 +174,95 @@ impl DaVerifier for BitcoinVerifier {
 
         let prefix = self.reveal_tx_id_prefix.as_slice();
         // Check starting bytes tx that parsed correctly is in blobs
-        let mut completeness_tx_hashes = completeness_proof
-            .iter()
-            .enumerate()
-            .map(|(index_completeness, tx)| {
-                let txid = tx.txid().to_raw_hash().to_byte_array();
+        let mut completeness_tx_hashes = HashSet::new();
+        let fold_result =
+            completeness_proof
+                .iter()
+                .enumerate()
+                .try_fold((), |_, (index_completeness, tx)| {
+                    let txid = tx.txid().to_raw_hash().to_byte_array();
 
-                // make sure it starts with the correct prefix
-                assert!(
-                    txid.starts_with(prefix),
-                    "non-relevant tx found in completeness proof"
-                );
-
-                // make sure completeness txs are ordered same in inclusion proof
-                // this logic always start seaching from the last found index
-                // ordering should be preserved naturally
-                let is_found_in_block = inclusion_iter.any(|&txid_in_proof| txid_in_proof == txid);
-
-                // assert tx is included in inclusion proof, thus in block
-                assert!(
-                    is_found_in_block,
-                    "tx in completeness proof is not found in DA block or order was not preserved"
-                );
-
-                // it must be parsed correctly
-                if let Ok(parsed_tx) = parse_transaction(tx, &self.rollup_name) {
-                    if let Some(blob_hash) = parsed_tx.get_sig_verified_hash() {
-                        let blob = blobs_iter.next();
-
-                        assert!(blob.is_some(), "valid blob was not found in blobs");
-
-                        let blob = blob.unwrap();
-
-                        assert_eq!(blob.hash, blob_hash, "blobs was tampered with");
-
-                        assert_eq!(
-                            parsed_tx.public_key, blob.sender.0,
-                            "incorrect sender in blob"
-                        );
-
-                        // decompress the blob
-                        let decompressed_blob = decompress_blob(&parsed_tx.body);
-
-                        // read the supplied blob from txs
-                        let mut blob_content = blobs[index_completeness].blob.clone();
-                        blob_content.advance(blob_content.total_len());
-                        let blob_content = blob_content.accumulator();
-
-                        // assert tx content is not modified
-                        assert_eq!(blob_content, decompressed_blob, "blob content was modified");
+                    // make sure it starts with the correct prefix
+                    if !txid.starts_with(prefix) {
+                        return Err(ValidationError::NonRelevantTxInProof);
                     }
-                }
 
-                txid
-            })
-            .collect::<HashSet<_>>();
+                    // make sure completeness txs are ordered same in inclusion proof
+                    // this logic always start seaching from the last found index
+                    // ordering should be preserved naturally
+                    let is_found_in_block =
+                        inclusion_iter.any(|&txid_in_proof| txid_in_proof == txid);
+
+                    // assert tx is included in inclusion proof, thus in block
+                    if !is_found_in_block {
+                        return Err(ValidationError::CompletenessProofNotFound);
+                    }
+
+                    // it must be parsed correctly
+                    if let Ok(parsed_tx) = parse_transaction(tx, &self.rollup_name) {
+                        if let Some(blob_hash) = parsed_tx.get_sig_verified_hash() {
+                            let blob = blobs_iter.next();
+
+                            if !(blob.is_some()) {
+                                return Err(ValidationError::ValidBlobNotFoundInBlobs);
+                            }
+
+                            let blob = blob.unwrap();
+                            if blob.hash != blob_hash {
+                                return Err(ValidationError::BlobWasTamperedWith);
+                            }
+
+                            if parsed_tx.public_key != blob.sender.0 {
+                                return Err(ValidationError::IncorrectSenderInBlob);
+                            }
+
+                            // decompress the blob
+                            let decompressed_blob = decompress_blob(&parsed_tx.body);
+
+                            // read the supplied blob from txs
+                            let mut blob_content = blobs[index_completeness].blob.clone();
+                            blob_content.advance(blob_content.total_len());
+                            let blob_content = blob_content.accumulator();
+
+                            // assert tx content is not modified
+                            if blob_content != decompressed_blob {
+                                return Err(ValidationError::BlobContentWasModified);
+                            }
+                        }
+                    }
+
+                    completeness_tx_hashes.insert(txid);
+                    Ok(())
+                });
+
+        match fold_result {
+            Ok(_) => {}              // Continue if no error occurred
+            Err(e) => return Err(e), // Return the error if one occurred
+        }
 
         // assert no extra txs than the ones in the completeness proof are left
-        assert!(
-            blobs_iter.next().is_none(),
-            "completeness proof is incorrect"
-        );
+        if blobs_iter.next().is_some() {
+            return Err(ValidationError::IncorrectCompletenessProof);
+        }
 
         // no prefix bytes left behind completeness proof
-        inclusion_proof.txids.iter().for_each(|tx_hash| {
+        match inclusion_proof.txids.iter().try_for_each(|tx_hash| {
             if tx_hash.starts_with(prefix) {
                 // assert all prefixed transactions are included in completeness proof
-                assert!(
-                    completeness_tx_hashes.remove(tx_hash),
-                    "relevant transaction in DA block was not included in completeness proof"
-                );
+                if !completeness_tx_hashes.remove(tx_hash) {
+                    return Err(ValidationError::RelevantTxNotInProof);
+                }
             }
-        });
+            Ok(())
+        }) {
+            Ok(_) => {}
+            Err(e) => return Err(e),
+        }
 
         // assert no other (irrelevant) tx is in completeness proof
-        assert!(
-            completeness_tx_hashes.is_empty(),
-            "non-relevant transaction found in completeness proof"
-        );
+        if !completeness_tx_hashes.is_empty() {
+            return Err(ValidationError::NonRelevantTxInProof);
+        }
 
         let tx_root = block_header.merkle_root().to_raw_hash().to_byte_array();
 
@@ -256,11 +277,13 @@ impl DaVerifier for BitcoinVerifier {
             let root_from_inclusion = root_from_inclusion.to_raw_hash().to_byte_array();
 
             // Check that the tx root in the block header matches the tx root in the inclusion proof.
-            assert_eq!(root_from_inclusion, tx_root, "inclusion proof is incorrect");
+            if root_from_inclusion != tx_root {
+                return Err(ValidationError::IncorrectInclusionProof);
+            }
 
             Ok(validity_condition)
         } else {
-            panic!("merkle root couldn't be computed")
+            return Err(ValidationError::MerkleRootCalculationError);
         }
     }
 }
@@ -501,17 +524,6 @@ mod tests {
         );
 
         let mut block_txs = get_mock_txs();
-
-        let _idx = block_txs[0]
-            .output
-            .iter()
-            .position(|output| {
-                output
-                    .script_pubkey
-                    .to_bytes()
-                    .starts_with(&[0x6a, 0x24, 0xaa, 0x21, 0xa9, 0xed])
-            })
-            .unwrap();
 
         block_txs[0].input[0].witness = Witness::from_slice(&[vec![1u8; 32]]);
 
@@ -796,7 +808,6 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "inclusion proof is incorrect")]
     fn extra_tx_in_inclusion() {
         let verifier = BitcoinVerifier::new(RollupParams {
             rollup_name: "sov-btc".to_string(),
@@ -807,20 +818,18 @@ mod tests {
 
         inclusion_proof.txids.push([1; 32]);
 
-        verifier
-            .verify_relevant_tx_list(
+        assert!(matches!(
+            verifier.verify_relevant_tx_list(
                 &block_header,
                 txs.as_slice(),
                 inclusion_proof,
                 completeness_proof,
-            )
-            .unwrap();
+            ),
+            Err(ValidationError::IncorrectInclusionProof)
+        ));
     }
 
     #[test]
-    #[should_panic(
-        expected = "tx in completeness proof is not found in DA block or order was not preserved"
-    )]
     fn missing_tx_in_inclusion() {
         let verifier = BitcoinVerifier::new(RollupParams {
             rollup_name: "sov-btc".to_string(),
@@ -831,18 +840,18 @@ mod tests {
 
         inclusion_proof.txids.pop();
 
-        verifier
-            .verify_relevant_tx_list(
+        assert!(matches!(
+            verifier.verify_relevant_tx_list(
                 &block_header,
                 txs.as_slice(),
                 inclusion_proof,
                 completeness_proof,
-            )
-            .unwrap();
+            ),
+            Err(ValidationError::CompletenessProofNotFound)
+        ));
     }
 
     #[test]
-    #[should_panic = "tx in completeness proof is not found in DA block or order was not preserved"]
     fn empty_inclusion() {
         let verifier = BitcoinVerifier::new(RollupParams {
             rollup_name: "sov-btc".to_string(),
@@ -853,18 +862,18 @@ mod tests {
 
         inclusion_proof.txids.clear();
 
-        verifier
-            .verify_relevant_tx_list(
+        assert!(matches!(
+            verifier.verify_relevant_tx_list(
                 &block_header,
                 txs.as_slice(),
                 inclusion_proof,
                 completeness_proof,
-            )
-            .unwrap();
+            ),
+            Err(ValidationError::CompletenessProofNotFound)
+        ));
     }
 
     #[test]
-    #[should_panic = "inclusion proof is incorrect"]
     fn break_order_of_inclusion() {
         let verifier = BitcoinVerifier::new(RollupParams {
             rollup_name: "sov-btc".to_string(),
@@ -875,18 +884,18 @@ mod tests {
 
         inclusion_proof.txids.swap(0, 1);
 
-        verifier
-            .verify_relevant_tx_list(
+        assert!(matches!(
+            verifier.verify_relevant_tx_list(
                 &block_header,
                 txs.as_slice(),
                 inclusion_proof,
                 completeness_proof,
-            )
-            .unwrap();
+            ),
+            Err(ValidationError::IncorrectInclusionProof)
+        ));
     }
 
     #[test]
-    #[should_panic(expected = "completeness proof is incorrect")]
     fn missing_tx_in_completeness_proof() {
         let verifier = BitcoinVerifier::new(RollupParams {
             rollup_name: "sov-btc".to_string(),
@@ -897,18 +906,18 @@ mod tests {
 
         completeness_proof.pop();
 
-        verifier
-            .verify_relevant_tx_list(
+        assert!(matches!(
+            verifier.verify_relevant_tx_list(
                 &block_header,
                 txs.as_slice(),
                 inclusion_proof,
                 completeness_proof,
-            )
-            .unwrap();
+            ),
+            Err(ValidationError::IncorrectCompletenessProof)
+        ));
     }
 
     #[test]
-    #[should_panic(expected = "completeness proof is incorrect")]
     fn empty_completeness_proof() {
         let verifier = BitcoinVerifier::new(RollupParams {
             rollup_name: "sov-btc".to_string(),
@@ -919,18 +928,18 @@ mod tests {
 
         completeness_proof.clear();
 
-        verifier
-            .verify_relevant_tx_list(
+        assert!(matches!(
+            verifier.verify_relevant_tx_list(
                 &block_header,
                 txs.as_slice(),
                 inclusion_proof,
                 completeness_proof,
-            )
-            .unwrap();
+            ),
+            Err(ValidationError::IncorrectCompletenessProof)
+        ));
     }
 
     #[test]
-    #[should_panic(expected = "non-relevant tx found in completeness proof")]
     fn non_relevant_tx_in_completeness_proof() {
         let verifier = BitcoinVerifier::new(RollupParams {
             rollup_name: "sov-btc".to_string(),
@@ -941,20 +950,18 @@ mod tests {
 
         completeness_proof.push(get_mock_txs().get(1).unwrap().clone());
 
-        verifier
-            .verify_relevant_tx_list(
+        assert!(matches!(
+            verifier.verify_relevant_tx_list(
                 &block_header,
                 txs.as_slice(),
                 inclusion_proof,
                 completeness_proof,
-            )
-            .unwrap();
+            ),
+            Err(ValidationError::NonRelevantTxInProof)
+        ));
     }
 
     #[test]
-    #[should_panic(
-        expected = "tx in completeness proof is not found in DA block or order was not preserved"
-    )]
     fn break_completeness_proof_order() {
         let verifier = BitcoinVerifier::new(RollupParams {
             rollup_name: "sov-btc".to_string(),
@@ -966,18 +973,18 @@ mod tests {
         completeness_proof.swap(2, 3);
         txs.swap(2, 3);
 
-        verifier
-            .verify_relevant_tx_list(
+        assert!(matches!(
+            verifier.verify_relevant_tx_list(
                 &block_header,
                 txs.as_slice(),
                 inclusion_proof,
                 completeness_proof,
-            )
-            .unwrap();
+            ),
+            Err(ValidationError::CompletenessProofNotFound)
+        ));
     }
 
     #[test]
-    #[should_panic(expected = "blobs was tampered with")]
     fn break_rel_tx_order() {
         let verifier = BitcoinVerifier::new(RollupParams {
             rollup_name: "sov-btc".to_string(),
@@ -988,18 +995,18 @@ mod tests {
 
         txs.swap(0, 1);
 
-        verifier
-            .verify_relevant_tx_list(
+        assert!(matches!(
+            verifier.verify_relevant_tx_list(
                 &block_header,
                 txs.as_slice(),
                 inclusion_proof,
                 completeness_proof,
-            )
-            .unwrap();
+            ),
+            Err(ValidationError::BlobWasTamperedWith)
+        ));
     }
 
     #[test]
-    #[should_panic = "tx in completeness proof is not found in DA block or order was not preserved"]
     fn break_rel_tx_and_completeness_proof_order() {
         let verifier = BitcoinVerifier::new(RollupParams {
             rollup_name: "sov-btc".to_string(),
@@ -1011,18 +1018,18 @@ mod tests {
         txs.swap(0, 1);
         completeness_proof.swap(0, 1);
 
-        verifier
-            .verify_relevant_tx_list(
+        assert!(matches!(
+            verifier.verify_relevant_tx_list(
                 &block_header,
                 txs.as_slice(),
                 inclusion_proof,
                 completeness_proof,
-            )
-            .unwrap();
+            ),
+            Err(ValidationError::CompletenessProofNotFound)
+        ));
     }
 
     #[test]
-    #[should_panic(expected = "blob content was modified")]
     fn tamper_rel_tx_content() {
         let verifier = BitcoinVerifier::new(RollupParams {
             rollup_name: "sov-btc".to_string(),
@@ -1034,19 +1041,18 @@ mod tests {
         let new_blob = vec![2; 152];
 
         txs[1] = BlobWithSender::new(new_blob, txs[1].sender.0.clone(), txs[1].hash);
-
-        verifier
-            .verify_relevant_tx_list(
+        assert!(matches!(
+            verifier.verify_relevant_tx_list(
                 &block_header,
                 txs.as_slice(),
                 inclusion_proof,
                 completeness_proof,
-            )
-            .unwrap();
+            ),
+            Err(ValidationError::BlobContentWasModified)
+        ));
     }
 
     #[test]
-    #[should_panic(expected = "incorrect sender in blob")]
     fn tamper_senders() {
         let verifier = BitcoinVerifier::new(RollupParams {
             rollup_name: "sov-btc".to_string(),
@@ -1063,18 +1069,18 @@ mod tests {
             txs[1].hash,
         );
 
-        verifier
-            .verify_relevant_tx_list(
+        assert!(matches!(
+            verifier.verify_relevant_tx_list(
                 &block_header,
                 txs.as_slice(),
                 inclusion_proof,
                 completeness_proof,
-            )
-            .unwrap();
+            ),
+            Err(ValidationError::IncorrectSenderInBlob)
+        ));
     }
 
     #[test]
-    #[should_panic(expected = "valid blob was not found in blobs")]
     fn missing_rel_tx() {
         let verifier = BitcoinVerifier::new(RollupParams {
             rollup_name: "sov-btc".to_string(),
@@ -1085,13 +1091,14 @@ mod tests {
 
         txs = vec![txs[0].clone(), txs[1].clone(), txs[2].clone()];
 
-        verifier
-            .verify_relevant_tx_list(
+        assert!(matches!(
+            verifier.verify_relevant_tx_list(
                 &block_header,
                 txs.as_slice(),
                 inclusion_proof,
                 completeness_proof,
-            )
-            .unwrap();
+            ),
+            Err(ValidationError::ValidBlobNotFoundInBlobs)
+        ));
     }
 }
