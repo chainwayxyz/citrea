@@ -462,8 +462,10 @@ mod tests {
 
     use super::{BitcoinService, FINALITY_DEPTH};
     use crate::helpers::parsers::parse_transaction;
+    use crate::helpers::test_utils::{get_mock_data, get_mock_txs};
     use crate::rpc::BitcoinNode;
     use crate::service::DaServiceConfig;
+    use crate::spec::block::BitcoinBlock;
     use crate::spec::RollupParams;
 
     async fn get_service() -> BitcoinService {
@@ -585,7 +587,6 @@ mod tests {
     //     }
     // }
 
-    #[tokio::test]
     async fn get_block_at() {
         let da_service = get_service().await;
 
@@ -598,28 +599,31 @@ mod tests {
     #[tokio::test]
     async fn extract_relevant_blobs() {
         let da_service = get_service().await;
+        let (header, _inclusion_proof, _completeness_proof, relevant_txs) = get_mock_data();
 
-        let block = da_service
-            .get_block_at(132)
-            .await
-            .expect("Failed to get block");
-        // panic!();
+        let block_txs = get_mock_txs();
+
+        let block = BitcoinBlock {
+            header,
+            txdata: block_txs,
+        };
 
         let txs = da_service.extract_relevant_blobs(&block);
 
-        for tx in txs {
-            println!("blob: {:?}", tx.blob);
-        }
+        assert_eq!(txs, relevant_txs)
     }
 
     #[tokio::test]
     async fn extract_relevant_blobs_with_proof() {
         let da_service = get_service().await;
+        let (header, _inclusion_proof, _completeness_proof, relevant_txs) = get_mock_data();
 
-        let block = da_service
-            .get_block_at(142)
-            .await
-            .expect("Failed to get block");
+        let block_txs = get_mock_txs();
+
+        let block = BitcoinBlock {
+            header,
+            txdata: block_txs,
+        };
 
         let (txs, inclusion_proof, completeness_proof) =
             da_service.extract_relevant_blobs_with_proof(&block).await;
@@ -684,7 +688,6 @@ mod tests {
         println!("\n--- Extracted #{:?} txs ---\n", txs.len());
     }
 
-    #[tokio::test]
     async fn send_transaction() {
         let da_service = get_service().await;
 
@@ -695,7 +698,6 @@ mod tests {
             .expect("Failed to send transaction");
     }
 
-    #[tokio::test]
     async fn send_transaction_with_fee_rate() {
         let da_service = get_service().await;
         let fee_rate = da_service
