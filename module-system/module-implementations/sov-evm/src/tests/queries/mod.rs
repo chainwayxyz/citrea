@@ -58,7 +58,7 @@ fn init_evm() -> (Evm<C>, WorkingSet<C>, TestSigner) {
             .as_slice(),
     );
 
-    evm.begin_soft_confirmation_hook([5u8; 32], &[10u8; 32], &mut working_set);
+    evm.begin_soft_confirmation_hook([5u8; 32], &[10u8; 32], 1, &mut working_set);
 
     {
         let sender_address = generate_address::<C>("sender");
@@ -86,7 +86,7 @@ fn init_evm() -> (Evm<C>, WorkingSet<C>, TestSigner) {
 
     let mut working_set: WorkingSet<DefaultContext> = WorkingSet::new(prover_storage.clone());
 
-    evm.begin_soft_confirmation_hook([8u8; 32], &[99u8; 32], &mut working_set);
+    evm.begin_soft_confirmation_hook([8u8; 32], &[99u8; 32], 1, &mut working_set);
 
     {
         let sender_address = generate_address::<C>("sender");
@@ -115,7 +115,7 @@ fn init_evm() -> (Evm<C>, WorkingSet<C>, TestSigner) {
 
     let mut working_set: WorkingSet<DefaultContext> = WorkingSet::new(prover_storage.clone());
 
-    evm.begin_soft_confirmation_hook([10u8; 32], &[100u8; 32], &mut working_set);
+    evm.begin_soft_confirmation_hook([10u8; 32], &[100u8; 32], 1, &mut working_set);
 
     {
         let sender_address = generate_address::<C>("sender");
@@ -168,7 +168,7 @@ pub fn init_evm_single_block() -> (Evm<C>, WorkingSet<C>, TestSigner) {
     //         .as_slice(),
     // );
 
-    evm.begin_soft_confirmation_hook([1u8; 32], &[0u8; 32], &mut working_set);
+    evm.begin_soft_confirmation_hook([1u8; 32], &[0u8; 32], 1, &mut working_set);
 
     let simple_payable_contract_tx =
         create_contract_transaction(&dev_signer, 0, SimplePayableContract::default());
