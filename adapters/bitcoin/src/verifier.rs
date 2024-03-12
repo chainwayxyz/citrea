@@ -160,7 +160,7 @@ impl DaVerifier for BitcoinVerifier {
         // create hash set of blobs
         let mut blobs_iter = blobs.iter();
 
-        let mut prev_index_in_inclusion = 0;
+        let mut inclusion_iter = inclusion_proof.txids.iter();
 
         let prefix = self.reveal_tx_id_prefix.as_slice();
         // Check starting bytes tx that parsed correctly is in blobs
@@ -179,14 +179,7 @@ impl DaVerifier for BitcoinVerifier {
                 // make sure completeness txs are ordered same in inclusion proof
                 // this logic always start seaching from the last found index
                 // ordering should be preserved naturally
-                let mut is_found_in_block = false;
-                for i in prev_index_in_inclusion..inclusion_proof.txids.len() {
-                    if inclusion_proof.txids[i] == txid {
-                        is_found_in_block = true;
-                        prev_index_in_inclusion = i + 1;
-                        break;
-                    }
-                }
+                let is_found_in_block = inclusion_iter.any(|&txid_in_proof| txid_in_proof == txid);
 
                 // assert tx is included in inclusion proof, thus in block
                 assert!(
