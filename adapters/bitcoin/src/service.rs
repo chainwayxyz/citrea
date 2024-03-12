@@ -462,14 +462,13 @@ mod tests {
     use core::str::FromStr;
     use std::collections::HashSet;
 
-    use bitcoin::hashes::{sha256d, Hash};
-    use bitcoin::secp256k1::KeyPair;
-    use bitcoin::{merkle_tree, Transaction, Txid};
     // use futures::{Stream, StreamExt};
     use bitcoin::block::{Header, Version};
     use bitcoin::hash_types::TxMerkleNode;
+    use bitcoin::hashes::{sha256d, Hash};
+    use bitcoin::secp256k1::KeyPair;
     use bitcoin::string::FromHexStr;
-    use bitcoin::{BlockHash, CompactTarget};
+    use bitcoin::{merkle_tree, BlockHash, CompactTarget, Transaction, Txid};
     use sov_rollup_interface::services::da::DaService;
 
     use super::BitcoinService;

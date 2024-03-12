@@ -7,4 +7,5 @@ const BODY_TAG: &[u8] = &[];
 
 pub mod builders;
 pub mod parsers;
+#[cfg(test)]
 pub mod test_utils;

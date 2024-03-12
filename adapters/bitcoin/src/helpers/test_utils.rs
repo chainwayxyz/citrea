@@ -1,3 +1,4 @@
+
 use core::str::FromStr;
 
 use bitcoin::block::{Header, Version};
@@ -42,7 +43,7 @@ pub(crate) fn get_blob_with_sender(tx: &Transaction) -> BlobWithSender {
 }
 
 #[allow(clippy::type_complexity)]
-pub fn get_mock_data() -> (
+pub(crate) fn get_mock_data() -> (
     <<BitcoinVerifier as DaVerifier>::Spec as DaSpec>::BlockHeader, // block header
     <<BitcoinVerifier as DaVerifier>::Spec as DaSpec>::InclusionMultiProof, // inclusion proof
     <<BitcoinVerifier as DaVerifier>::Spec as DaSpec>::CompletenessProof, // completeness proof
@@ -102,7 +103,7 @@ pub fn get_mock_data() -> (
     (header, inclusion_proof, completeness_proof, txs)
 }
 
-pub fn get_non_segwit_mock_txs() -> Vec<Transaction> {
+pub(crate) fn get_non_segwit_mock_txs() -> Vec<Transaction> {
     // There are no relevant txs
     let txs = std::fs::read_to_string("test_data/mock_non_segwit_txs.txt").unwrap();
     // txs[2] is a non-segwit tx but its txid has the prefix 00
