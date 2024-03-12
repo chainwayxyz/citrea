@@ -124,7 +124,8 @@ impl DaVerifier for BitcoinVerifier {
                         }
                     }
                 }
-                Some(commitment_idx) => {
+                Some(mut commitment_idx) => {
+                    commitment_idx = coinbase_tx.output.len() - commitment_idx - 1; // The index is reversed
                     let script_pubkey = coinbase_tx.output[commitment_idx].script_pubkey.clone();
 
                     let wtxids = inclusion_proof
@@ -566,7 +567,7 @@ mod tests {
                 inclusion_proof,
                 completeness_proof
             ),
-            Err(ValidationError::InvalidSegWitCommitment)
+            Err(ValidationError::NonMatchingScript)
         ));
     }
 
@@ -673,7 +674,7 @@ mod tests {
                 inclusion_proof,
                 completeness_proof
             ),
-            Err(ValidationError::InvalidBlock)
+            Err(ValidationError::NonMatchingScript)
         ));
     }
 
