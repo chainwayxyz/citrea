@@ -93,6 +93,10 @@ pub struct Evm<C: sov_modules_api::Context> {
     #[state]
     pub(crate) latest_block_hashes: sov_modules_api::StateMap<U256, B256, BcsCodec>,
 
+    /// L1 fee rate.
+    #[state]
+    pub(crate) l1_fee_rate: sov_modules_api::StateValue<u64, BcsCodec>,
+
     /// Used only by the RPC: This represents the head of the chain and is set in two distinct stages:
     /// 1. `end_slot_hook`: the pending head is populated with data from pending_transactions.
     /// 2. `finalize_hook` the `root_hash` is populated.

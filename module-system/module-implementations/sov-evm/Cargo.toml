@@ -70,7 +70,6 @@ sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-man
     "test-utils",
 ] }
 
-
 [features]
 default = ["native"]
 native = [

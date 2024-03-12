@@ -8,6 +8,7 @@ use revm::primitives::{
 use revm::{self, inspector_handle_register, Database, DatabaseCommit};
 
 use super::conversions::create_tx_env;
+use super::handler::{citrea_handle_register, CitreaExternalContext};
 use super::primitive_types::BlockEnv;
 
 #[allow(dead_code)]
@@ -16,12 +17,15 @@ pub(crate) fn execute_tx<DB: Database<Error = Infallible> + DatabaseCommit>(
     block_env: &BlockEnv,
     tx: &TransactionSignedEcRecovered,
     config_env: CfgEnvWithHandlerCfg,
+    l1_fee_rate: u64,
 ) -> Result<ExecutionResult, EVMError<Infallible>> {
     let mut evm = revm::Evm::builder()
         .with_db(db)
+        .with_external_context(CitreaExternalContext::new(l1_fee_rate))
         .with_cfg_env_with_handler_cfg(config_env)
         .with_block_env(block_env.into())
         .with_tx_env(create_tx_env(tx))
+        .append_handler_register(citrea_handle_register)
         .build();
     evm.transact_commit()
 }
@@ -31,6 +35,7 @@ pub(crate) fn execute_multiple_tx<DB: Database<Error = Infallible> + DatabaseCom
     block_env: &BlockEnv,
     txs: &[TransactionSignedEcRecovered],
     config_env: CfgEnvWithHandlerCfg,
+    l1_fee_rate: u64,
 ) -> Vec<Result<ExecutionResult, EVMError<Infallible>>> {
     if txs.is_empty() {
         return vec![];
@@ -41,8 +46,10 @@ pub(crate) fn execute_multiple_tx<DB: Database<Error = Infallible> + DatabaseCom
 
     let mut evm = revm::Evm::builder()
         .with_db(db)
+        .with_external_context(CitreaExternalContext::new(l1_fee_rate))
         .with_cfg_env_with_handler_cfg(config_env)
         .with_block_env(block_env.into())
+        .append_handler_register(citrea_handle_register)
         .build();
 
     let mut tx_results = Vec::with_capacity(txs.len());
