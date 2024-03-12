@@ -1177,7 +1177,7 @@ fn test_l1_fee_success() {
     }
 
     run_tx(0, U256::from_str("99999900044375000000").unwrap());
-    run_tx(1, U256::from_str("99999900044374999896").unwrap());
+    run_tx(1, U256::from_str("99999900044374999575").unwrap());
 }
 
 #[test]

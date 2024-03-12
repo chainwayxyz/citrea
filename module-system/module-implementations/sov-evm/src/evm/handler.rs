@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use revm::handler::register::EvmHandler;
 use revm::interpreter::InstructionResult;
-use revm::primitives::{Address, EVMError, ResultAndState, U256};
+use revm::primitives::{Address, EVMError, ResultAndState, B256, U256};
 use revm::{Context, Database, FrameResult, JournalEntry};
 
 pub(crate) trait CitreaExternal {
@@ -45,15 +45,7 @@ impl<EXT: CitreaExternal, DB: Database> CitreaHandler<EXT, DB> {
         result: FrameResult,
     ) -> Result<ResultAndState, EVMError<<DB as Database>::Error>> {
         if !result.interpreter_result().is_error() {
-            // Get the last journal entry to calculate diff.
-            let journal = context
-                .evm
-                .journaled_state
-                .journal
-                .last()
-                .cloned()
-                .unwrap_or(vec![]);
-            let diff_size = U256::from(journal_diff_size(journal));
+            let diff_size = U256::from(calc_diff_size(context).map_err(EVMError::Database)?);
             let l1_fee_rate = U256::from(context.external.l1_fee_rate());
             let l1_fee = diff_size * l1_fee_rate;
             if let Some(_out_of_funds) = decrease_caller_balance(context, l1_fee)? {
@@ -69,57 +61,126 @@ impl<EXT: CitreaExternal, DB: Database> CitreaHandler<EXT, DB> {
 }
 
 /// Calculates the diff of the modified state.
-fn journal_diff_size(journal: Vec<JournalEntry>) -> usize {
-    let mut nonce_changes = HashSet::<&Address>::new();
-    let mut balance_changes = HashSet::<&Address>::new();
-    let mut storage_changes = HashMap::<&Address, HashSet<&U256>>::new();
+fn calc_diff_size<EXT, DB: Database>(
+    context: &mut Context<EXT, DB>,
+) -> Result<usize, <DB as Database>::Error> {
+    // Get the last journal entry to calculate diff.
+    let journal = context
+        .evm
+        .journaled_state
+        .journal
+        .last()
+        .cloned()
+        .unwrap_or(vec![]);
+    let state = &context.evm.journaled_state.state;
+
+    #[derive(Default)]
+    struct AccountChange<'a> {
+        created: bool,
+        destroyed: bool,
+        nonce_changed: bool,
+        code_changed: bool,
+        balance_changed: bool,
+        storage_changes: HashSet<&'a U256>,
+    }
+
+    let mut account_changes: HashMap<&Address, AccountChange<'_>> = HashMap::new();
 
     for entry in &journal {
         match entry {
             JournalEntry::NonceChange { address } => {
-                nonce_changes.insert(address);
+                let account = account_changes.entry(address).or_default();
+                account.nonce_changed = true;
             }
             JournalEntry::BalanceTransfer { from, to, .. } => {
-                balance_changes.insert(from);
-                balance_changes.insert(to);
+                let from = account_changes.entry(from).or_default();
+                from.balance_changed = true;
+                let to = account_changes.entry(to).or_default();
+                to.balance_changed = true;
             }
             JournalEntry::StorageChange { address, key, .. } => {
-                storage_changes.entry(address).or_default().insert(key);
+                let account = account_changes.entry(address).or_default();
+                account.storage_changes.insert(key);
+            }
+            JournalEntry::CodeChange { address } => {
+                let account = account_changes.entry(address).or_default();
+                account.code_changed = true;
+            }
+            JournalEntry::AccountCreated { address } => {
+                let account = account_changes.entry(address).or_default();
+                account.created = true;
+                // When account is created, there is a transfer to init its balance.
+                // So we need to only force the nonce change.
+                account.nonce_changed = true;
+            }
+            JournalEntry::AccountDestroyed { address, .. } => {
+                let account = account_changes.entry(address).or_default();
+                account.destroyed = true;
             }
             _ => {}
         }
     }
 
-    let mut all_changed_addresses = HashSet::<&Address>::new();
-    all_changed_addresses.extend(&nonce_changes);
-    all_changed_addresses.extend(&balance_changes);
-    all_changed_addresses.extend(storage_changes.keys());
-
+    let slot_size = 3 * size_of::<U256>(); // key, prev, present;
     let mut diff_size = 0usize;
 
-    // Apply size of changed addresses
-    for _addr in all_changed_addresses {
+    for (addr, account) in account_changes {
+        if account.created && account.destroyed {
+            // ignore it because it's a temporary account
+            continue;
+        }
+
+        // Apply size of address of changed account
         diff_size += size_of::<Address>();
+
+        if account.destroyed {
+            let account = &state[addr];
+            diff_size += slot_size * account.storage.len(); // Storage size
+            diff_size += size_of::<u64>(); // Nonces are u64
+            diff_size += size_of::<U256>(); // Balances are U256
+            diff_size += size_of::<B256>(); // Code hashes are B256
+
+            // Retrieve code from DB and apply its size
+            if let Some(info) = context.evm.db.basic(*addr)? {
+                if let Some(code) = info.code {
+                    diff_size += code.len();
+                } else {
+                    let code = context.evm.db.code_by_hash(info.code_hash)?;
+                    diff_size += code.len();
+                }
+            }
+            continue;
+        }
+
+        // Apply size of changed nonce
+        if account.nonce_changed {
+            diff_size += size_of::<u64>(); // Nonces are u64
+        }
+
+        // Apply size of changed balances
+        if account.balance_changed {
+            diff_size += size_of::<U256>(); // Balances are U256
+        }
+
+        // Apply size of changed slots
+        diff_size += slot_size * account.storage_changes.len();
+
+        // Apply size of changed codes
+        if account.code_changed {
+            let account = &state[addr];
+            diff_size += size_of::<B256>(); // Code hashes are B256
+            if let Some(code) = account.info.code.as_ref() {
+                diff_size += code.len()
+            } else {
+                tracing::warn!(
+                    "Code must exist for account when calculating diff: {}",
+                    addr,
+                );
+            }
+        }
     }
 
-    // Apply size of changed nonces
-    for _addr in nonce_changes {
-        diff_size += size_of::<u64>(); // Nonces are u64
-    }
-
-    // Apply size of changed balances
-    for _addr in balance_changes {
-        diff_size += size_of::<U256>(); // Balances are U256
-    }
-
-    // Apply size of changed slots
-    for (_addr, keys) in storage_changes {
-        // TODO diff calc https://github.com/chainwayxyz/secret-sovereign-sdk/issues/116
-        let slot_size = 3 * size_of::<U256>(); // key, prev, present;
-        diff_size += slot_size * keys.len();
-    }
-
-    diff_size
+    Ok(diff_size)
 }
 
 /// Decreases the balance of the caller by the given amount.
