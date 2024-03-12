@@ -40,6 +40,28 @@ fn call_contract_without_value() {
     );
 
     assert_eq!(call_result.unwrap(), Bytes::from_str("0x").unwrap());
+
+    let call_result = evm.get_call(
+        TransactionRequest {
+            from: Some(signer.address()),
+            to: Some(contract_address),
+            gas: Some(U256::from(100000)),
+            gas_price: Some(U256::from(100000000)),
+            value: None,
+            input: TransactionInput::new(contract.get_call_data().to_vec().into()),
+            ..Default::default()
+        },
+        Some(BlockNumberOrTag::Latest),
+        None,
+        None,
+        &mut working_set,
+    );
+
+    assert_eq!(
+        call_result.unwrap(),
+        Bytes::from_str("0x00000000000000000000000000000000000000000000000000000000000001de")
+            .unwrap()
+    );
 }
 
 #[test]
@@ -71,7 +93,6 @@ fn test_state_change() {
 
     evm.end_soft_confirmation_hook(&mut working_set);
     evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
-    // Is it necessary to commit storage here?
 
     let balance_2 = evm.get_balance(signer.address(), None, &mut working_set);
     assert_eq!(balance_1, balance_2);
@@ -232,8 +253,11 @@ fn test_eip1559_fields_call() {
         Some(U256::from(100e9 as u64)),
         Some(U256::from(2e9 as u64)),
     );
-    // Reverts
-    assert!(default_result.is_err());
+
+    assert_eq!(
+        default_result.unwrap().to_string(),
+        "0x00000000000000000000000000000000000000000000000000000000000001de"
+    );
 
     let high_fee_result = eth_call_eip1559(
         &evm,
@@ -255,7 +279,10 @@ fn test_eip1559_fields_call() {
         Some(U256::from(1)),
     );
 
-    assert!(low_max_fee_result.is_err());
+    assert_eq!(
+        low_max_fee_result.unwrap().to_string(),
+        "0x00000000000000000000000000000000000000000000000000000000000001de"
+    );
 
     let no_max_fee_per_gas = eth_call_eip1559(
         &evm,
@@ -276,12 +303,18 @@ fn test_eip1559_fields_call() {
         Some(U256::from(100e9 as u64)),
         None,
     );
-    // Reverts
-    assert!(no_priority_fee.is_err());
+
+    assert_eq!(
+        no_priority_fee.unwrap().to_string(),
+        "0x00000000000000000000000000000000000000000000000000000000000001de"
+    );
 
     let none_res = eth_call_eip1559(&evm, &mut working_set, &signer, None, None);
-    // Reverts
-    assert!(none_res.is_err());
+
+    assert_eq!(
+        none_res.unwrap().to_string(),
+        "0x00000000000000000000000000000000000000000000000000000000000001de"
+    );
 }
 
 fn eth_call_eip1559(
@@ -291,6 +324,8 @@ fn eth_call_eip1559(
     max_fee_per_gas: Option<U256>,
     max_priority_fee_per_gas: Option<U256>,
 ) -> RpcResult<reth_primitives::Bytes> {
+    let contract = SimpleStorageContract::default();
+
     let tx_req = TransactionRequest {
         from: Some(signer.address()),
         to: Some(Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap()),
@@ -298,11 +333,8 @@ fn eth_call_eip1559(
         gas_price: None,
         max_fee_per_gas,
         max_priority_fee_per_gas,
-        value: Some(U256::from(1000)),
-        input: TransactionInput {
-            input: None,
-            data: None,
-        },
+        value: None,
+        input: TransactionInput::new(contract.get_call_data().to_vec().into()),
         nonce: Some(U64::from(9)),
         chain_id: Some(U64::from(1u64)),
         ..Default::default()
