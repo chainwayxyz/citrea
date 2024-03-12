@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use revm::handler::register::EvmHandler;
 use revm::interpreter::InstructionResult;
-use revm::primitives::{Address, EVMError, ExecutionResult, HaltReason, ResultAndState, U256};
+use revm::primitives::{Address, EVMError, ResultAndState, U256};
 use revm::{Context, Database, FrameResult, JournalEntry};
 
 pub(crate) trait CitreaExternal {
@@ -56,19 +56,11 @@ impl<EXT: CitreaExternal, DB: Database> CitreaHandler<EXT, DB> {
             let diff_size = U256::from(journal_diff_size(journal));
             let l1_fee_rate = U256::from(context.external.l1_fee_rate());
             let l1_fee = diff_size * l1_fee_rate;
-            if let Some(_out_of_funds) = decrease_caller_balance(context, l1_fee)? {
-                let gas_refunded = result.gas().refunded() as u64;
-                let final_gas_used = result.gas().spend() - gas_refunded;
-                // reset journal and return present state.
-                let (state, _) = context.evm.journaled_state.finalize();
-
-                context.evm.error = Err(EVMError::Custom("Not enought funds for L1 fee".into()));
-
-                let result = ExecutionResult::Halt {
-                    reason: HaltReason::OutOfFunds,
-                    gas_used: final_gas_used,
-                };
-                return Ok(ResultAndState { result, state });
+            if let Some(_out_of_funds) = decrease_caller_balance(context, l1_fee.clone())? {
+                return Err(EVMError::Custom(format!(
+                    "Not enought funds for L1 fee: {}",
+                    l1_fee.to_string()
+                )));
             }
         }
 
@@ -151,7 +143,6 @@ fn decrease_caller_balance<EXT, DB: Database>(
     let balance = &mut caller_account.info.balance;
 
     let Some(new_balance) = balance.checked_sub(amount) else {
-        *balance = U256::from(0); // If the balance is not enough, set it to 0.
         return Ok(Some(InstructionResult::OutOfFunds));
     };
 

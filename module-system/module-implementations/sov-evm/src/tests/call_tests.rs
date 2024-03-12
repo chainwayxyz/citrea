@@ -1204,7 +1204,9 @@ fn test_l1_fee_not_enough_funds() {
             &context,
             &mut working_set,
         );
-        assert!(call_result.is_ok()); // The tx is successful but with the Halt state.
+        assert!(call_result.is_err());
+        let err = call_result.unwrap_err();
+        assert!(err.to_string().contains("Not enought funds for L1 fee"));
     }
 
     evm.end_soft_confirmation_hook(&mut working_set);
@@ -1215,7 +1217,6 @@ fn test_l1_fee_not_enough_funds() {
         .get(&dev_signer.address(), &mut working_set)
         .unwrap();
 
-    // Although the transaction halted, the account must be charged with the L1 fee
-    // In case the balance is not enough to cover L1 it should be set to 0
-    assert_eq!(db_account.info.balance, U256::from(0));
+    // The account balance is unchanged
+    assert_eq!(db_account.info.balance, U256::from(1000000));
 }
