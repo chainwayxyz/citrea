@@ -197,7 +197,7 @@ impl DaVerifier for BitcoinVerifier {
                 if let Some(blob_hash) = parsed_tx.get_sig_verified_hash() {
                     let blob = blobs_iter.next();
 
-                    if !(blob.is_some()) {
+                    if blob.is_none() {
                         return Err(ValidationError::ValidBlobNotFoundInBlobs);
                     }
 
@@ -268,7 +268,7 @@ impl DaVerifier for BitcoinVerifier {
 
             Ok(validity_condition)
         } else {
-            return Err(ValidationError::FailedToCalculateMerkleRoot);
+            Err(ValidationError::FailedToCalculateMerkleRoot)
         }
     }
 }
