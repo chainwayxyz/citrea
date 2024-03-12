@@ -356,7 +356,7 @@ impl DaService for BitcoinService {
 
         inclusion_multi_proof.wtxids.push([0u8; 32]);
         let coinbase_tx_hash = block.txdata[0].txid().to_raw_hash().to_byte_array();
-        inclusion_multi_proof.txs.push(coinbase_tx_hash);
+        inclusion_multi_proof.txids.push(coinbase_tx_hash);
         if coinbase_tx_hash.starts_with(self.reveal_tx_id_prefix.as_slice()) {
             completeness_proof.push(block.txdata[0].clone());
         }
@@ -371,7 +371,7 @@ impl DaService for BitcoinService {
             }
 
             inclusion_multi_proof.wtxids.push(tx_hash);
-            inclusion_multi_proof.txs.push(wtxid);
+            inclusion_multi_proof.txids.push(wtxid);
         });
 
         (inclusion_multi_proof, completeness_proof)
@@ -659,7 +659,7 @@ mod tests {
         assert!(txs_to_check.is_empty());
 
         // no 00 bytes left behind completeness proof
-        inclusion_proof.txs.iter().for_each(|tx_hash| {
+        inclusion_proof.txids.iter().for_each(|tx_hash| {
             if tx_hash.starts_with(da_service.reveal_tx_id_prefix.as_slice()) {
                 assert!(completeness_tx_hashes.remove(tx_hash));
             }
@@ -674,7 +674,7 @@ mod tests {
 
         // Inclusion proof is all the txs in the block.
         let tx_hashes = inclusion_proof
-            .txs
+            .txids
             .iter()
             .map(|tx| Txid::from_slice(tx).unwrap())
             .collect::<Vec<_>>();

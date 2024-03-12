@@ -115,7 +115,7 @@ impl DaVerifier for BitcoinVerifier {
                     for (wtxid, txid) in inclusion_proof
                         .wtxids
                         .iter()
-                        .zip(inclusion_proof.txs.iter())
+                        .zip(inclusion_proof.txids.iter())
                     {
                         if wtxid != txid {
                             return Err(ValidationError::InvalidBlock);
@@ -177,8 +177,8 @@ impl DaVerifier for BitcoinVerifier {
                 // this logic always start seaching from the last found index
                 // ordering should be preserved naturally
                 let mut is_found_in_block = false;
-                for i in prev_index_in_inclusion..inclusion_proof.txs.len() {
-                    if inclusion_proof.txs[i] == tx_hash {
+                for i in prev_index_in_inclusion..inclusion_proof.txids.len() {
+                    if inclusion_proof.txids[i] == tx_hash {
                         is_found_in_block = true;
                         prev_index_in_inclusion = i + 1;
                         break;
@@ -231,7 +231,7 @@ impl DaVerifier for BitcoinVerifier {
         );
 
         // no prefix bytes left behind completeness proof
-        inclusion_proof.txs.iter().for_each(|tx_hash| {
+        inclusion_proof.txids.iter().for_each(|tx_hash| {
             if tx_hash.starts_with(prefix) {
                 // assert all prefixed transactions are included in completeness proof
                 assert!(
@@ -251,7 +251,7 @@ impl DaVerifier for BitcoinVerifier {
 
         // Inclusion proof is all the txs in the block.
         let tx_hashes = inclusion_proof
-            .txs
+            .txids
             .iter()
             .map(|tx| Txid::from_slice(tx).unwrap())
             .collect::<Vec<_>>();
@@ -366,7 +366,7 @@ mod tests {
         ];
 
         let mut inclusion_proof = InclusionMultiProof {
-            txs: block_txs
+            txids: block_txs
                 .iter()
                 .map(|t| t.txid().to_raw_hash().to_byte_array())
                 .collect(),
@@ -453,7 +453,7 @@ mod tests {
         let completeness_proof = vec![];
 
         let inclusion_proof = InclusionMultiProof {
-            txs: block_txs
+            txids: block_txs
                 .iter()
                 .map(|t| t.txid().to_raw_hash().to_byte_array())
                 .collect(),
@@ -536,7 +536,7 @@ mod tests {
         ];
 
         let mut inclusion_proof = InclusionMultiProof {
-            txs: block_txs
+            txids: block_txs
                 .iter()
                 .map(|t| t.txid().to_raw_hash().to_byte_array())
                 .collect(),
@@ -643,7 +643,7 @@ mod tests {
         ];
 
         let mut inclusion_proof = InclusionMultiProof {
-            txs: block_txs
+            txids: block_txs
                 .iter()
                 .map(|t| t.txid().to_raw_hash().to_byte_array())
                 .collect(),
@@ -730,7 +730,7 @@ mod tests {
 
         let (block_header, mut inclusion_proof, completeness_proof, txs) = get_mock_data();
 
-        inclusion_proof.txs.push([1; 32]);
+        inclusion_proof.txids.push([1; 32]);
 
         verifier
             .verify_relevant_tx_list(
@@ -754,7 +754,7 @@ mod tests {
 
         let (block_header, mut inclusion_proof, completeness_proof, txs) = get_mock_data();
 
-        inclusion_proof.txs.pop();
+        inclusion_proof.txids.pop();
 
         verifier
             .verify_relevant_tx_list(
@@ -776,7 +776,7 @@ mod tests {
 
         let (block_header, mut inclusion_proof, completeness_proof, txs) = get_mock_data();
 
-        inclusion_proof.txs.clear();
+        inclusion_proof.txids.clear();
 
         verifier
             .verify_relevant_tx_list(
@@ -798,7 +798,7 @@ mod tests {
 
         let (block_header, mut inclusion_proof, completeness_proof, txs) = get_mock_data();
 
-        inclusion_proof.txs.swap(0, 1);
+        inclusion_proof.txids.swap(0, 1);
 
         verifier
             .verify_relevant_tx_list(
