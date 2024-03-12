@@ -21,8 +21,6 @@ pub struct BitcoinVerifier {
 // TODO: custom errors based on our implementation
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum ValidationError {
-    InvalidTx,
-    InvalidProof,
     InvalidBlock,
     NonMatchingScript,
     InvalidSegWitCommitment,
@@ -35,7 +33,8 @@ pub enum ValidationError {
     IncorrectCompletenessProof,
     RelevantTxNotInProof,
     IncorrectInclusionProof,
-    MerkleRootCalculationError,
+    FailedToCalculateMerkleRoot,
+    RelevantTxNotFoundInBlock,
 }
 
 #[derive(
@@ -195,7 +194,7 @@ impl DaVerifier for BitcoinVerifier {
 
                     // assert tx is included in inclusion proof, thus in block
                     if !is_found_in_block {
-                        return Err(ValidationError::CompletenessProofNotFound);
+                        return Err(ValidationError::RelevantTxNotFoundInBlock);
                     }
 
                     // it must be parsed correctly
@@ -283,7 +282,7 @@ impl DaVerifier for BitcoinVerifier {
 
             Ok(validity_condition)
         } else {
-            return Err(ValidationError::MerkleRootCalculationError);
+            return Err(ValidationError::FailedToCalculateMerkleRoot);
         }
     }
 }
@@ -847,7 +846,7 @@ mod tests {
                 inclusion_proof,
                 completeness_proof,
             ),
-            Err(ValidationError::CompletenessProofNotFound)
+            Err(ValidationError::RelevantTxNotFoundInBlock)
         );
     }
 
@@ -869,7 +868,7 @@ mod tests {
                 inclusion_proof,
                 completeness_proof,
             ),
-            Err(ValidationError::CompletenessProofNotFound)
+            Err(ValidationError::RelevantTxNotFoundInBlock)
         );
     }
 
@@ -980,7 +979,7 @@ mod tests {
                 inclusion_proof,
                 completeness_proof,
             ),
-            Err(ValidationError::CompletenessProofNotFound)
+            Err(ValidationError::RelevantTxNotFoundInBlock)
         );
     }
 
@@ -1025,7 +1024,7 @@ mod tests {
                 inclusion_proof,
                 completeness_proof,
             ),
-            Err(ValidationError::CompletenessProofNotFound)
+            Err(ValidationError::RelevantTxNotFoundInBlock)
         );
     }
 
