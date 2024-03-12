@@ -433,16 +433,13 @@ mod tests {
         let block_txs = get_non_segwit_mock_txs();
 
         // block does not have any segwit txs
-        assert!(block_txs[0]
-            .output
-            .iter()
-            .position(|output| {
-                output
-                    .script_pubkey
-                    .to_bytes()
-                    .starts_with(&[0x6a, 0x24, 0xaa, 0x21, 0xa9, 0xed])
-            })
-            .is_none());
+        let idx = block_txs[0].output.iter().position(|output| {
+            output
+                .script_pubkey
+                .to_bytes()
+                .starts_with(&[0x6a, 0x24, 0xaa, 0x21, 0xa9, 0xed])
+        });
+        assert!(idx.is_none());
 
         // tx with txid 00... is not relevant is in this proof
         // only used so the completeness proof is not empty
@@ -505,7 +502,7 @@ mod tests {
 
         let mut block_txs = get_mock_txs();
 
-        let idx = block_txs[0]
+        let _idx = block_txs[0]
             .output
             .iter()
             .position(|output| {
