@@ -69,7 +69,6 @@ rand = { workspace = true }
 sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-manager", features = [
     "test-utils",
 ] }
-tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
 
 [features]
 default = ["native"]

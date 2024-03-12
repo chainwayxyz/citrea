@@ -68,7 +68,6 @@ impl<EXT: CitreaExternal, DB: Database> CitreaHandler<EXT, DB> {
                     reason: HaltReason::OutOfFunds,
                     gas_used: final_gas_used,
                 };
-
                 return Ok(ResultAndState { result, state });
             }
         }
@@ -152,6 +151,7 @@ fn decrease_caller_balance<EXT, DB: Database>(
     let balance = &mut caller_account.info.balance;
 
     let Some(new_balance) = balance.checked_sub(amount) else {
+        *balance = U256::from(0); // If the balance is not enough, set it to 0.
         return Ok(Some(InstructionResult::OutOfFunds));
     };
 

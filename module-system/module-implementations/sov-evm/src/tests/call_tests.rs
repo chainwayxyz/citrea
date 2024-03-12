@@ -20,22 +20,6 @@ use crate::{
 
 type C = DefaultContext;
 
-fn initialize_logging() {
-    use tracing_subscriber::layer::SubscriberExt;
-    use tracing_subscriber::util::SubscriberInitExt;
-    use tracing_subscriber::{fmt, EnvFilter};
-    tracing_subscriber::registry()
-        .with(fmt::layer())
-        .with(
-            EnvFilter::from_str(
-                &std::env::var("RUST_LOG")
-                    .unwrap_or_else(|_| "debug,hyper=info,risc0_zkvm=info".to_string()),
-            )
-            .unwrap(),
-        )
-        .init();
-}
-
 #[test]
 fn call_multiple_test() {
     let dev_signer1: TestSigner = TestSigner::new_random();
@@ -968,6 +952,23 @@ fn create_contract_message<T: TestContract>(
         .unwrap()
 }
 
+fn create_contract_message_with_fee<T: TestContract>(
+    dev_signer: &TestSigner,
+    nonce: u64,
+    contract: T,
+    max_fee_per_gas: u128,
+) -> RlpEvmTransaction {
+    dev_signer
+        .sign_default_transaction_with_fee(
+            TransactionKind::Create,
+            contract.byte_code().to_vec(),
+            nonce,
+            0,
+            max_fee_per_gas,
+        )
+        .unwrap()
+}
+
 pub(crate) fn create_contract_transaction<T: TestContract>(
     dev_signer: &TestSigner,
     nonce: u64,
@@ -1110,6 +1111,34 @@ fn get_evm_config(
     (config, dev_signer, contract_addr)
 }
 
+fn get_evm_config_starting_base_fee(
+    signer_balance: U256,
+    block_gas_limit: Option<u64>,
+    starting_base_fee: u64,
+) -> (EvmConfig, TestSigner, Address) {
+    let dev_signer: TestSigner = TestSigner::new_random();
+
+    let contract_addr: Address = Address::from_slice(
+        hex::decode("819c5497b157177315e1204f52e588b393771719")
+            .unwrap()
+            .as_slice(),
+    );
+    let config = EvmConfig {
+        data: vec![AccountData {
+            address: dev_signer.address(),
+            balance: signer_balance,
+            code_hash: KECCAK_EMPTY,
+            code: Bytes::default(),
+            nonce: 0,
+        }],
+        spec: vec![(0, SpecId::SHANGHAI)].into_iter().collect(),
+        block_gas_limit: block_gas_limit.unwrap_or(ETHEREUM_BLOCK_GAS_LIMIT),
+        starting_base_fee,
+        ..Default::default()
+    };
+    (config, dev_signer, contract_addr)
+}
+
 #[test]
 fn test_l1_fee_success() {
     fn run_tx(l1_fee_rate: u64, expected_balance: U256) {
@@ -1153,10 +1182,10 @@ fn test_l1_fee_success() {
 
 #[test]
 fn test_l1_fee_not_enough_funds() {
-    initialize_logging();
-    let (config, dev_signer, _) = get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
+    let (config, dev_signer, _) =
+        get_evm_config_starting_base_fee(U256::from_str("1000000").unwrap(), None, 1);
 
-    let l1_fee_rate = 0;
+    let l1_fee_rate = 10000;
     let (evm, mut working_set) = get_evm(&config);
 
     evm.begin_soft_confirmation_hook([5u8; 32], &[10u8; 32], &mut working_set, l1_fee_rate);
@@ -1165,16 +1194,17 @@ fn test_l1_fee_not_enough_funds() {
         let sequencer_address = generate_address::<C>("sequencer");
         let context = C::new(sender_address, sequencer_address, 1);
 
-        let deploy_message = create_contract_message(&dev_signer, 0, BlockHashContract::default());
+        let deploy_message =
+            create_contract_message_with_fee(&dev_signer, 0, BlockHashContract::default(), 1);
 
-        evm.call(
+        let call_result = evm.call(
             CallMessage {
                 txs: vec![deploy_message],
             },
             &context,
             &mut working_set,
-        )
-        .unwrap(); // TODO should be error
+        );
+        assert!(call_result.is_ok()); // The tx is successful but with the Halt state.
     }
 
     evm.end_soft_confirmation_hook(&mut working_set);
@@ -1185,6 +1215,7 @@ fn test_l1_fee_not_enough_funds() {
         .get(&dev_signer.address(), &mut working_set)
         .unwrap();
 
-    println!("{}", db_account.info.balance.to_string());
-
+    // Although the transaction halted, the account must be charged with the L1 fee
+    // In case the balance is not enough to cover L1 it should be set to 0
+    assert_eq!(db_account.info.balance, U256::from(0));
 }
