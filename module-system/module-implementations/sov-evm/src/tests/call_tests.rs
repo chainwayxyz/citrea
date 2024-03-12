@@ -1219,4 +1219,9 @@ fn test_l1_fee_not_enough_funds() {
 
     // The account balance is unchanged
     assert_eq!(db_account.info.balance, U256::from(1000000));
+    assert_eq!(db_account.info.nonce, 0);
+
+    // The coinbase was not created
+    let db_coinbase = evm.accounts.get(&config.coinbase, &mut working_set);
+    assert!(db_coinbase.is_none());
 }
