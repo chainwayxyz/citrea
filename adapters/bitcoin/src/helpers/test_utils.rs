@@ -42,7 +42,7 @@ pub(crate) fn get_blob_with_sender(tx: &Transaction) -> BlobWithSender {
 }
 
 #[allow(clippy::type_complexity)]
-pub(crate) fn get_mock_data() -> (
+pub fn get_mock_data() -> (
     <<BitcoinVerifier as DaVerifier>::Spec as DaSpec>::BlockHeader, // block header
     <<BitcoinVerifier as DaVerifier>::Spec as DaSpec>::InclusionMultiProof, // inclusion proof
     <<BitcoinVerifier as DaVerifier>::Spec as DaSpec>::CompletenessProof, // completeness proof
@@ -77,12 +77,20 @@ pub(crate) fn get_mock_data() -> (
         block_txs[12].clone(),
     ];
 
-    let inclusion_proof = InclusionMultiProof {
-        txs: block_txs
+    let mut inclusion_proof = InclusionMultiProof {
+        txids: block_txs
             .iter()
             .map(|t| t.txid().to_raw_hash().to_byte_array())
             .collect(),
+        wtxids: block_txs
+            .iter()
+            .map(|t| t.wtxid().to_byte_array())
+            .collect(),
+        coinbase_tx: block_txs[0].clone(),
     };
+
+    // Coinbase tx wtxid should be [0u8;32]
+    inclusion_proof.wtxids[0] = [0; 32];
 
     let txs: Vec<BlobWithSender> = vec![
         get_blob_with_sender(&block_txs[6]),
@@ -92,4 +100,13 @@ pub(crate) fn get_mock_data() -> (
     ];
 
     (header, inclusion_proof, completeness_proof, txs)
+}
+
+pub fn get_non_segwit_mock_txs() -> Vec<Transaction> {
+    // There are no relevant txs
+    let txs = std::fs::read_to_string("test_data/mock_non_segwit_txs.txt").unwrap();
+    // txs[2] is a non-segwit tx but its txid has the prefix 00
+    txs.lines()
+        .map(|tx| parse_hex_transaction(tx).unwrap())
+        .collect()
 }

@@ -63,8 +63,11 @@ fn simple_contract_execution<DB: Database<Error = Infallible> + DatabaseCommit +
             gas_limit: reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT,
             ..Default::default()
         };
+        let l1_fee_rate = 0;
 
-        let result = executor::execute_tx(&mut evm_db, &block_env, tx, cfg_env.clone()).unwrap();
+        let result =
+            executor::execute_tx(&mut evm_db, &block_env, tx, cfg_env.clone(), l1_fee_rate)
+                .unwrap();
         contract_address(&result).expect("Expected successful contract creation")
     };
 
@@ -81,9 +84,17 @@ fn simple_contract_execution<DB: Database<Error = Infallible> + DatabaseCommit +
                 0,
             )
             .unwrap();
-
         let tx = &tx.try_into().unwrap();
-        executor::execute_tx(&mut evm_db, &BlockEnv::default(), tx, cfg_env.clone()).unwrap();
+        let l1_fee_rate = 0;
+
+        executor::execute_tx(
+            &mut evm_db,
+            &BlockEnv::default(),
+            tx,
+            cfg_env.clone(),
+            l1_fee_rate,
+        )
+        .unwrap();
     }
 
     let get_res = {
@@ -99,8 +110,16 @@ fn simple_contract_execution<DB: Database<Error = Infallible> + DatabaseCommit +
             .unwrap();
 
         let tx = &tx.try_into().unwrap();
-        let result =
-            executor::execute_tx(&mut evm_db, &BlockEnv::default(), tx, cfg_env.clone()).unwrap();
+        let l1_fee_rate = 0;
+
+        let result = executor::execute_tx(
+            &mut evm_db,
+            &BlockEnv::default(),
+            tx,
+            cfg_env.clone(),
+            l1_fee_rate,
+        )
+        .unwrap();
 
         let out = output(result);
         ethereum_types::U256::from(out.as_ref())
@@ -119,10 +138,17 @@ fn simple_contract_execution<DB: Database<Error = Infallible> + DatabaseCommit +
                 0,
             )
             .unwrap();
-
         let tx = &tx.try_into().unwrap();
-        let result =
-            executor::execute_tx(&mut evm_db, &BlockEnv::default(), tx, cfg_env.clone()).unwrap();
+        let l1_fee_rate = 0;
+
+        let result = executor::execute_tx(
+            &mut evm_db,
+            &BlockEnv::default(),
+            tx,
+            cfg_env.clone(),
+            l1_fee_rate,
+        )
+        .unwrap();
 
         assert!(matches!(result, ExecutionResult::Revert { .. }));
     }

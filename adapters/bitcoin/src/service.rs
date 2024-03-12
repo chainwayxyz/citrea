@@ -349,24 +349,32 @@ impl DaService for BitcoinService {
 
         let mut completeness_proof = Vec::with_capacity(block.txdata.len());
 
-        let block_txs = block
-            .txdata
-            .iter()
-            .map(|tx| {
-                let tx_hash = tx.txid().to_raw_hash().to_byte_array();
+        let mut txids = Vec::with_capacity(block.txdata.len());
+        let mut wtxids = Vec::with_capacity(block.txdata.len());
+        wtxids.push([0u8; 32]);
+        let coinbase_tx_hash = block.txdata[0].txid().to_raw_hash().to_byte_array();
+        txids.push(coinbase_tx_hash);
+        if coinbase_tx_hash.starts_with(self.reveal_tx_id_prefix.as_slice()) {
+            completeness_proof.push(block.txdata[0].clone());
+        }
 
-                // if tx_hash has two leading zeros, it is in the completeness proof
-                if tx_hash[0..2] == [0, 0] {
-                    completeness_proof.push(tx.clone());
-                }
+        block.txdata[1..].iter().for_each(|tx| {
+            let txid = tx.txid().to_raw_hash().to_byte_array();
+            let wtxid = tx.wtxid().to_raw_hash().to_byte_array();
 
-                tx_hash
-            })
-            .collect::<Vec<_>>();
+            // if tx_hash has two leading zeros, it is in the completeness proof
+            if txid.starts_with(self.reveal_tx_id_prefix.as_slice()) {
+                completeness_proof.push(tx.clone());
+            }
 
-        let inclusion_proof = InclusionMultiProof { txs: block_txs };
+            wtxids.push(wtxid);
+            txids.push(txid);
+        });
 
-        (inclusion_proof, completeness_proof)
+        (
+            InclusionMultiProof::new(txids, wtxids, block.txdata[0].clone()),
+            completeness_proof,
+        )
     }
 
     // Extract the list blob transactions relevant to a particular rollup from a block, along with inclusion and
@@ -578,7 +586,7 @@ mod tests {
         let mut completeness_tx_hashes = completeness_proof
             .iter()
             .map(|tx| {
-                let tx_hash = tx.txid().to_raw_hash().to_byte_array();
+                let txid = tx.txid().to_raw_hash().to_byte_array();
 
                 // it must parsed correctly
                 if let Ok(parsed_tx) = parse_transaction(tx, &da_service.rollup_name) {
@@ -588,7 +596,7 @@ mod tests {
                     assert!(txs_to_check.remove(&blob_hash));
                 }
 
-                tx_hash
+                txid
             })
             .collect::<HashSet<_>>();
 
@@ -596,8 +604,8 @@ mod tests {
         assert!(txs_to_check.is_empty());
 
         // no 00 bytes left behind completeness proof
-        inclusion_proof.txs.iter().for_each(|tx_hash| {
-            if tx_hash[0..2] == [0, 0] {
+        inclusion_proof.txids.iter().for_each(|tx_hash| {
+            if tx_hash.starts_with(da_service.reveal_tx_id_prefix.as_slice()) {
                 assert!(completeness_tx_hashes.remove(tx_hash));
             }
         });
@@ -611,7 +619,7 @@ mod tests {
 
         // Inclusion proof is all the txs in the block.
         let tx_hashes = inclusion_proof
-            .txs
+            .txids
             .iter()
             .map(|tx| Txid::from_slice(tx).unwrap())
             .collect::<Vec<_>>();
