@@ -456,37 +456,23 @@ mod tests {
 
     use bitcoin::hashes::{sha256d, Hash};
     use bitcoin::secp256k1::KeyPair;
-    use bitcoin::{merkle_tree, Address, Txid};
+    use bitcoin::{merkle_tree, Transaction, Txid};
     // use futures::{Stream, StreamExt};
+    use bitcoin::block::{Header, Version};
+    use bitcoin::hash_types::TxMerkleNode;
+    use bitcoin::string::FromHexStr;
+    use bitcoin::{BlockHash, CompactTarget};
     use sov_rollup_interface::services::da::DaService;
 
-    use super::{BitcoinService, FINALITY_DEPTH};
-    use crate::helpers::parsers::parse_transaction;
+    use super::BitcoinService;
+    use crate::helpers::parsers::{parse_hex_transaction, parse_transaction};
     use crate::helpers::test_utils::{get_mock_data, get_mock_txs};
-    use crate::rpc::BitcoinNode;
     use crate::service::DaServiceConfig;
     use crate::spec::block::BitcoinBlock;
+    use crate::spec::header::HeaderWrapper;
     use crate::spec::RollupParams;
 
     async fn get_service() -> BitcoinService {
-        let rpc = BitcoinNode::new(
-            "http://localhost:38332".to_string(),
-            "chainway".to_string(),
-            "topsecret".to_string(),
-            bitcoin::Network::Regtest,
-        );
-
-        // empty regtest mempool
-        rpc.generate_to_address(
-            Address::from_str("bcrt1qxuds94z3pqwqea2p4f4ev4f25s6uu7y3avljrl")
-                .unwrap()
-                .require_network(bitcoin::Network::Regtest)
-                .unwrap(),
-            1,
-        )
-        .await
-        .unwrap();
-
         let runtime_config = DaServiceConfig {
             node_url: "http://localhost:38332".to_string(),
             node_username: "chainway".to_string(),
@@ -518,42 +504,6 @@ mod tests {
     //         .await
     //         .expect("Failed to get block");
     // }
-
-    #[tokio::test]
-    async fn get_finalized_header() {
-        let da_service = get_service().await;
-
-        let get_curr_header = da_service
-            .get_last_finalized_block_header()
-            .await
-            .expect("Failed to get block");
-
-        let get_head_header = da_service
-            .get_head_block_header()
-            .await
-            .expect("Failed to get block");
-
-        assert_ne!(get_curr_header, get_head_header);
-
-        let _new_block_hashes = da_service
-            .client
-            .generate_to_address(
-                Address::from_str("bcrt1qxuds94z3pqwqea2p4f4ev4f25s6uu7y3avljrl")
-                    .unwrap()
-                    .require_network(bitcoin::Network::Regtest)
-                    .unwrap(),
-                FINALITY_DEPTH as u32,
-            )
-            .await
-            .unwrap();
-
-        let new_finalized_header = da_service
-            .get_last_finalized_block_header()
-            .await
-            .expect("Failed to get block");
-
-        assert_eq!(get_head_header, new_finalized_header);
-    }
 
     // #[tokio::test]
     // async fn subscription_test() {
@@ -587,15 +537,6 @@ mod tests {
     //     }
     // }
 
-    async fn get_block_at() {
-        let da_service = get_service().await;
-
-        da_service
-            .get_block_at(132)
-            .await
-            .expect("Failed to get block");
-    }
-
     #[tokio::test]
     async fn extract_relevant_blobs() {
         let da_service = get_service().await;
@@ -616,7 +557,7 @@ mod tests {
     #[tokio::test]
     async fn extract_relevant_blobs_with_proof() {
         let da_service = get_service().await;
-        let (header, _inclusion_proof, _completeness_proof, relevant_txs) = get_mock_data();
+        let (header, _inclusion_proof, _completeness_proof, _relevant_txs) = get_mock_data();
 
         let block_txs = get_mock_txs();
 
@@ -688,44 +629,8 @@ mod tests {
         println!("\n--- Extracted #{:?} txs ---\n", txs.len());
     }
 
-    async fn send_transaction() {
-        let da_service = get_service().await;
-
-        let blob = "01000000b60000002adbd76606f2bd4125080e6f44df7ba2d728409955c80b8438eb1828ddf23e3c12188eeac7ecf6323be0ed5668e21cc354fca90d8bca513d6c0a240c26afa7007b758bf2e7670fafaf6bf0015ce0ff5aa802306fc7e3f45762853ffc37180fe64a0000000001fea6ac5b8751120fb62fff67b54d2eac66aef307c7dde1d394dea1e09e43dd44c800000000000000135d23aee8cb15c890831ff36db170157acaac31df9bba6cd40e7329e608eabd0000000000000000";
-        da_service
-            .send_transaction(blob.as_bytes())
-            .await
-            .expect("Failed to send transaction");
-    }
-
-    async fn send_transaction_with_fee_rate() {
-        let da_service = get_service().await;
-        let fee_rate = da_service
-            .client
-            .estimate_smart_fee()
-            .await
-            .expect("Failed to get fee");
-
-        let blob = "01000000b60000002adbd76606f2bd4125080e6f44df7ba2d728409955c80b8438eb1828ddf23e3c12188eeac7ecf6323be0ed5668e21cc354fca90d8bca513d6c0a240c26afa7007b758bf2e7670fafaf6bf0015ce0ff5aa802306fc7e3f45762853ffc37180fe64a0000000001fea6ac5b8751120fb62fff67b54d2eac66aef307c7dde1d394dea1e09e43dd44c800000000000000135d23aee8cb15c890831ff36db170157acaac31df9bba6cd40e7329e608eabd0000000000000000";
-
-        for i in 0..3 {
-            println!("Sending tx #{}", i);
-            da_service
-                .send_transaction_with_fee_rate(blob.as_bytes(), fee_rate)
-                .await
-                .expect("Failed to send transaction");
-        }
-    }
-
     #[tokio::test]
     async fn check_signature() {
-        let rpc = BitcoinNode::new(
-            "http://localhost:38332".to_string(),
-            "chainway".to_string(),
-            "topsecret".to_string(),
-            bitcoin::Network::Regtest,
-        );
-
         let da_service = get_service().await;
         let secp = bitcoin::secp256k1::Secp256k1::new();
         let da_pubkey = KeyPair::from_secret_key(&secp, &da_service.sequencer_da_private_key)
@@ -733,30 +638,37 @@ mod tests {
             .serialize()
             .to_vec();
 
-        // incorrect private key
+        // blob written in tx is: "01000000b60000002adbd76606f2bd4125080e6f44df7ba2d728409955c80b8438eb1828ddf23e3c12188eeac7ecf6323be0ed5668e21cc354fca90d8bca513d6c0a240c26afa7007b758bf2e7670fafaf6bf0015ce0ff5aa802306fc7e3f45762853ffc37180fe64a0000000001fea6ac5b8751120fb62fff67b54d2eac66aef307c7dde1d394dea1e09e43dd44c800000000000000135d23aee8cb15c890831ff36db170157acaac31df9bba6cd40e7329e608eabd0000000000000000";
+        // tx id = 0x8a1df48198a509cd91930ff44cbb92ef46e80458b1999e16aa6923171894fba3
+        // block hash = 0x4ebbe86ead2e7f397419c25b0757bea281353a0592eb692614d13f0e87c5a7ff
+        // the tx_hex = "020000000001012a2b5f4a9aef27067aff1bfe058076043667f0618075b94253d58c9f5b7b85d40000000000fdffffff01220200000000000016001421e826b290c95a5c65059b3a48e97a91f422d1330340f1148ce0807ebd683fad97376225ea2eea0dcef89f609e6e563bc5bb4f25c34d96e4741da9d84130ddb9b5a111703332983fdd20a461ae25c9434cde1e9d8733fd60012044e67148e60dd2ab07bb2505f2e3e9298aada763dd4635bce71bcf2f96a6691aac0063010107736f762d627463010240cc4b23d2cb3e22b2c57a59f24088764f39f7b789847e983b9ee9ce7682578c2b7dbdf4384e230c942b91ae5ce6b1ba33587f549fedee4d19e54ff3a8e54601e801032102588d202afcc1ee4ab5254c7847ec25b9a135bbda0f2bc69ee1a714749fd77dc9010400004cc41b7b01f845c786b10e90638b5cd88023081823b06c20b90040401052860738a7c6cd60c7358f581158bbf7e6bc92c7391efe57ed40c593d8a2e09839969526a688dd6cdf3e13965aeca8592c53b7e8bbce8f89ea5492b146f243b3e5a5035eae51c7ebe6b8bc3cab03487b71a7990116d8b5afdc53370e95bb16a7c0adbd8489749b96ad15ae448c2be3bb332f7dc39b6d967b026f9f591af96f3669f1f7c9cc7b1dd047a2c392bbd145daf11142776253e420f5eccc169afb55693d0febc27f0db159036821c044e67148e60dd2ab07bb2505f2e3e9298aada763dd4635bce71bcf2f96a6691a00000000";
+        let header = HeaderWrapper::new(
+            Header {
+                version: Version::from_consensus(536870912),
+                prev_blockhash: BlockHash::from_str(
+                    "427b67c04afcbbee6856b764535c512dc22d0eeef21a55ebb2a37157074563b7",
+                )
+                .unwrap(),
+                merkle_root: TxMerkleNode::from_str(
+                    "574efcf98001bf273b489f3b5065cdd8b983ec9b9c31e001e2f3397a885911ca",
+                )
+                .unwrap(),
+                time: 1694177029,
+                bits: CompactTarget::from_hex_str_no_prefix("207fffff").unwrap(),
+                nonce: 0,
+            },
+            3,
+            2273,
+        );
 
-        let blob = "01000000b60000002adbd76606f2bd4125080e6f44df7ba2d728409955c80b8438eb1828ddf23e3c12188eeac7ecf6323be0ed5668e21cc354fca90d8bca513d6c0a240c26afa7007b758bf2e7670fafaf6bf0015ce0ff5aa802306fc7e3f45762853ffc37180fe64a0000000001fea6ac5b8751120fb62fff67b54d2eac66aef307c7dde1d394dea1e09e43dd44c800000000000000135d23aee8cb15c890831ff36db170157acaac31df9bba6cd40e7329e608eabd0000000000000000";
-        da_service
-            .send_transaction(blob.as_bytes())
-            .await
-            .expect("Failed to send transaction");
+        let txs_str = std::fs::read_to_string("test_data/mock_txs.txt").unwrap();
 
-        let hashes = rpc
-            .generate_to_address(
-                Address::from_str("bcrt1qxuds94z3pqwqea2p4f4ev4f25s6uu7y3avljrl")
-                    .unwrap()
-                    .require_network(bitcoin::Network::Regtest)
-                    .unwrap(),
-                1,
-            )
-            .await
-            .unwrap();
+        let txdata: Vec<Transaction> = txs_str
+            .lines()
+            .map(|tx| parse_hex_transaction(tx).unwrap())
+            .collect();
 
-        let block_hash = hashes[0];
-
-        let block = rpc.get_block(block_hash.to_string()).await.unwrap();
-
-        let block = da_service.get_block_at(block.header.height).await.unwrap();
+        let block = BitcoinBlock { header, txdata };
 
         let txs = da_service.extract_relevant_blobs(&block);
 
