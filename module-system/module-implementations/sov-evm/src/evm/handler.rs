@@ -56,10 +56,10 @@ impl<EXT: CitreaExternal, DB: Database> CitreaHandler<EXT, DB> {
             let diff_size = U256::from(journal_diff_size(journal));
             let l1_fee_rate = U256::from(context.external.l1_fee_rate());
             let l1_fee = diff_size * l1_fee_rate;
-            if let Some(_out_of_funds) = decrease_caller_balance(context, l1_fee.clone())? {
+            if let Some(_out_of_funds) = decrease_caller_balance(context, l1_fee)? {
                 return Err(EVMError::Custom(format!(
                     "Not enought funds for L1 fee: {}",
-                    l1_fee.to_string()
+                    l1_fee
                 )));
             }
         }
