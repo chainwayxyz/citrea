@@ -96,10 +96,6 @@ impl BitcoinService {
         .await
     }
 
-    pub fn alter_private_key(&mut self, private_key: SecretKey) {
-        self.sequencer_da_private_key = private_key;
-    }
-
     pub async fn with_client(
         client: BitcoinNode,
         rollup_name: String,
@@ -591,21 +587,40 @@ mod tests {
 
     #[tokio::test]
     async fn incorrect_private_key_signature_should_fail() {
-        let mut da_service = get_service().await;
+        // The transaction was sent with this service and the tx data is stored in false_signature_txs.txt
+        let da_service = get_service().await;
         let secp = bitcoin::secp256k1::Secp256k1::new();
         let da_pubkey = KeyPair::from_secret_key(&secp, &da_service.sequencer_da_private_key)
             .public_key()
             .serialize()
             .to_vec();
-        let incorrect_private_key =
-            SecretKey::from_str("E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67FC233AA33261")
-                .expect("Invalid private key");
-        let incorrect_pub_key = KeyPair::from_secret_key(&secp, &incorrect_private_key)
-            .public_key()
-            .serialize()
-            .to_vec();
 
-        da_service.alter_private_key(incorrect_private_key);
+        let runtime_config = DaServiceConfig {
+            node_url: "http://localhost:38332".to_string(),
+            node_username: "chainway".to_string(),
+            node_password: "topsecret".to_string(),
+            network: "regtest".to_string(),
+            address: "bcrt1qy85zdv5se9d9ceg9nvay36t6j86z95fny4rdzu".to_string(),
+            sequencer_da_private_key: Some(
+                "E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67FC233AA33261".to_string(), // Test key, safe to publish
+            ),
+            fee_rates_to_avg: Some(2), // small to speed up tests
+        };
+
+        let incorrect_service = BitcoinService::new(
+            runtime_config,
+            RollupParams {
+                rollup_name: "sov-btc".to_string(),
+                reveal_tx_id_prefix: vec![0, 0],
+            },
+        )
+        .await;
+
+        let incorrect_pub_key =
+            KeyPair::from_secret_key(&secp, &incorrect_service.sequencer_da_private_key)
+                .public_key()
+                .serialize()
+                .to_vec();
 
         let header = HeaderWrapper::new(
             Header {
