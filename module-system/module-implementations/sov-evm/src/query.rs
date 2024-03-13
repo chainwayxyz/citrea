@@ -580,7 +580,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             }
         };
 
-        let tx_env = prepare_call_env(&block_env, request.clone()).unwrap();
+        let tx_env = prepare_call_env(&block_env, request.clone())?;
 
         let cfg = self
             .cfg
@@ -643,7 +643,12 @@ impl<C: sov_modules_api::Context> Evm<C> {
             }
         };
 
-        let tx_env = prepare_call_env(&block_env, request.clone()).unwrap();
+        let tx_env = match prepare_call_env(&block_env, request.clone()) {
+            Ok(tx_env) => tx_env,
+            Err(err) => {
+                return Err(err.into());
+            }
+        };
 
         let cfg = self
             .cfg
@@ -839,7 +844,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             let tx = self
                 .transactions
                 .get(number as usize, &mut accessory_state)
-                .unwrap_or_else(|| panic!("Transaction with known hash {} and number {} must be set in all {} transaction",                
+                .unwrap_or_else(|| panic!("Transaction with known hash {} and number {} must be set in all {} transaction",
                 hash,
                 number,
                 self.transactions.len(&mut accessory_state)));
@@ -1394,18 +1399,23 @@ fn map_out_of_gas_err<C: sov_modules_api::Context>(
 ) -> EthApiError {
     let req_gas_limit = tx_env.gas_limit;
     tx_env.gas_limit = block_env.gas_limit;
-    let res = executor::inspect(db, &block_env, tx_env, cfg_env).unwrap();
-    match res.result {
-        ExecutionResult::Success { .. } => {
-            // transaction succeeded by manually increasing the gas limit to
-            // highest, which means the caller lacks funds to pay for the tx
-            RpcInvalidTransactionError::BasicOutOfGas(U256::from(req_gas_limit)).into()
-        }
-        ExecutionResult::Revert { output, .. } => {
-            // reverted again after bumping the limit
-            RpcInvalidTransactionError::Revert(RevertError::new(output)).into()
-        }
-        ExecutionResult::Halt { reason, .. } => RpcInvalidTransactionError::EvmHalt(reason).into(),
+
+    match executor::inspect(db, &block_env, tx_env.clone(), cfg_env.clone()) {
+        Ok(res) => match res.result {
+            ExecutionResult::Success { .. } => {
+                // transaction succeeded by manually increasing the gas limit to
+                // highest, which means the caller lacks funds to pay for the tx
+                RpcInvalidTransactionError::BasicOutOfGas(U256::from(req_gas_limit)).into()
+            }
+            ExecutionResult::Revert { output, .. } => {
+                // reverted again after bumping the limit
+                RpcInvalidTransactionError::Revert(RevertError::new(output)).into()
+            }
+            ExecutionResult::Halt { reason, .. } => {
+                RpcInvalidTransactionError::EvmHalt(reason).into()
+            }
+        },
+        Err(err) => EthApiError::from(err),
     }
 }
 

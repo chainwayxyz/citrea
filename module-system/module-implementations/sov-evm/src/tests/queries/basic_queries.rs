@@ -1,156 +1,18 @@
 use std::collections::BTreeMap;
 use std::str::FromStr;
 
-use alloy_primitives::{FixedBytes, Uint};
+use alloy_primitives::FixedBytes;
 use alloy_rpc_types::request::{TransactionInput, TransactionRequest};
 use hex::FromHex;
-use reth_primitives::{Address, BlockId, BlockNumberOrTag, Bytes, U64};
+use reth_primitives::{Address, BlockId, BlockNumberOrTag, U64};
+use reth_rpc::eth::error::RpcInvalidTransactionError;
 use reth_rpc_types::{Block, Rich, TransactionReceipt};
-use revm::primitives::{SpecId, B256, KECCAK_EMPTY, U256};
+use revm::primitives::{B256, U256};
 use serde_json::json;
-use sov_modules_api::default_context::DefaultContext;
-use sov_modules_api::utils::generate_address;
-use sov_modules_api::{Context, Module, WorkingSet};
-use sov_prover_storage_manager::{new_orphan_storage, SnapshotManager};
-use sov_state::{DefaultStorageSpec, ProverStorage, Storage};
 
-use super::call_tests::{create_contract_transaction, publish_event_message, set_arg_message};
-use crate::call::CallMessage;
-use crate::tests::genesis_tests::GENESIS_STATE_ROOT;
-use crate::tests::test_signer::TestSigner;
-use crate::{
-    AccountData, EthApiError, Evm, EvmConfig, Filter, FilterBlockOption, FilterSet, LogsContract,
-    RlpEvmTransaction, RpcInvalidTransactionError, SimpleStorageContract,
-};
-
-type C = DefaultContext;
-
-/// Creates evm instance with 3 blocks (including genesis)
-/// Block 1 has 2 transactions
-/// Block 2 has 4 transactions
-fn init_evm() -> (Evm<C>, WorkingSet<C>, TestSigner) {
-    let dev_signer: TestSigner = TestSigner::new_random();
-
-    let config = EvmConfig {
-        data: vec![AccountData {
-            address: dev_signer.address(),
-            balance: U256::from_str("100000000000000000000").unwrap(),
-            code_hash: KECCAK_EMPTY,
-            code: Bytes::default(),
-            nonce: 0,
-        }],
-        // SHANGAI instead of LATEST
-        // https://github.com/Sovereign-Labs/sovereign-sdk/issues/912
-        spec: vec![(0, SpecId::SHANGHAI)].into_iter().collect(),
-        ..Default::default()
-    };
-
-    let (evm, mut working_set, prover_storage) = get_evm_with_storage(&config);
-
-    let contract_addr: Address = Address::from_slice(
-        hex::decode("819c5497b157177315e1204f52e588b393771719")
-            .unwrap()
-            .as_slice(),
-    );
-
-    let contract_addr2: Address = Address::from_slice(
-        hex::decode("eeb03d20dae810f52111b853b31c8be6f30f4cd3")
-            .unwrap()
-            .as_slice(),
-    );
-
-    let l1_fee_rate = 0;
-
-    evm.begin_soft_confirmation_hook([5u8; 32], &[10u8; 32], &mut working_set, l1_fee_rate);
-
-    {
-        let sender_address = generate_address::<C>("sender");
-        let sequencer_address = generate_address::<C>("sequencer");
-        let context = C::new(sender_address, sequencer_address, 1);
-
-        let transactions: Vec<RlpEvmTransaction> = vec![
-            create_contract_transaction(&dev_signer, 0, LogsContract::default()),
-            publish_event_message(contract_addr, &dev_signer, 1, "hello".to_string()),
-            publish_event_message(contract_addr, &dev_signer, 2, "hi".to_string()),
-        ];
-
-        evm.call(
-            CallMessage { txs: transactions },
-            &context,
-            &mut working_set,
-        )
-        .unwrap();
-    }
-
-    evm.end_soft_confirmation_hook(&mut working_set);
-    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
-
-    commit(working_set, prover_storage.clone());
-
-    let mut working_set: WorkingSet<DefaultContext> = WorkingSet::new(prover_storage.clone());
-
-    let l1_fee_rate = 0;
-
-    evm.begin_soft_confirmation_hook([8u8; 32], &[99u8; 32], &mut working_set, l1_fee_rate);
-
-    {
-        let sender_address = generate_address::<C>("sender");
-        let sequencer_address = generate_address::<C>("sequencer");
-        let context = C::new(sender_address, sequencer_address, 1);
-
-        let transactions: Vec<RlpEvmTransaction> = vec![
-            publish_event_message(contract_addr, &dev_signer, 3, "hello2".to_string()),
-            publish_event_message(contract_addr, &dev_signer, 4, "hi2".to_string()),
-            publish_event_message(contract_addr, &dev_signer, 5, "hi3".to_string()),
-            publish_event_message(contract_addr, &dev_signer, 6, "hi4".to_string()),
-        ];
-
-        evm.call(
-            CallMessage { txs: transactions },
-            &context,
-            &mut working_set,
-        )
-        .unwrap();
-    }
-
-    evm.end_soft_confirmation_hook(&mut working_set);
-    evm.finalize_hook(&[100u8; 32].into(), &mut working_set.accessory_state());
-
-    commit(working_set, prover_storage.clone());
-
-    let mut working_set: WorkingSet<DefaultContext> = WorkingSet::new(prover_storage.clone());
-
-    let l1_fee_rate = 0;
-
-    evm.begin_soft_confirmation_hook([10u8; 32], &[100u8; 32], &mut working_set, l1_fee_rate);
-
-    {
-        let sender_address = generate_address::<C>("sender");
-        let sequencer_address = generate_address::<C>("sequencer");
-        let context = C::new(sender_address, sequencer_address, 1);
-
-        let transactions: Vec<RlpEvmTransaction> = vec![
-            create_contract_transaction(&dev_signer, 7, SimpleStorageContract::default()),
-            set_arg_message(contract_addr2, &dev_signer, 8, 478),
-        ];
-
-        evm.call(
-            CallMessage { txs: transactions },
-            &context,
-            &mut working_set,
-        )
-        .unwrap();
-    }
-
-    evm.end_soft_confirmation_hook(&mut working_set);
-    evm.finalize_hook(&[101u8; 32].into(), &mut working_set.accessory_state());
-
-    commit(working_set, prover_storage.clone());
-
-    let working_set: WorkingSet<DefaultContext> = WorkingSet::new(prover_storage.clone());
-
-    (evm, working_set, dev_signer)
-}
+use crate::smart_contracts::SimpleStorageContract;
+use crate::tests::queries::init_evm;
+use crate::EthApiError;
 
 #[test]
 fn get_block_by_hash_test() {
@@ -346,7 +208,7 @@ fn call_test() {
             chain_id: Some(U64::from(1u64)),
             access_list: None,
             max_fee_per_blob_gas: None,
-            blob_versioned_hashes: Some(vec![]),
+            blob_versioned_hashes: None,
             transaction_type: None,
             sidecar: None,
             other: Default::default(),
@@ -377,7 +239,7 @@ fn call_test() {
             chain_id: Some(U64::from(1u64)),
             access_list: None,
             max_fee_per_blob_gas: None,
-            blob_versioned_hashes: Some(vec![]),
+            blob_versioned_hashes: None,
             transaction_type: None,
             sidecar: None,
             other: Default::default(),
@@ -411,7 +273,7 @@ fn call_test() {
                 chain_id: Some(U64::from(1u64)),
                 access_list: None,
                 max_fee_per_blob_gas: None,
-                blob_versioned_hashes: Some(vec![]),
+                blob_versioned_hashes: None,
                 transaction_type: None,
                 sidecar: None,
                 other: Default::default(),
@@ -468,155 +330,6 @@ fn call_test() {
 
     // TODO: Test these even further, to the extreme.
     // https://github.com/chainwayxyz/secret-sovereign-sdk/issues/134
-}
-
-#[test]
-fn logs_for_filter_test() {
-    let (evm, mut working_set, _) = init_evm();
-
-    let result = evm.eth_get_logs(
-        Filter {
-            block_option: FilterBlockOption::AtBlockHash(B256::from([1u8; 32])),
-            address: FilterSet::default(),
-            topics: [
-                FilterSet::default(),
-                FilterSet::default(),
-                FilterSet::default(),
-                FilterSet::default(),
-            ],
-        },
-        &mut working_set,
-    );
-
-    assert_eq!(result, Err(EthApiError::UnknownBlockNumber.into()));
-
-    let available_res = evm.eth_get_logs(
-        Filter {
-            block_option: FilterBlockOption::AtBlockHash(
-                FixedBytes::from_hex(
-                    "0x463f932c9ef1c01a59f2495ddcb7ae16d1a4afc2b5f38998486c4bf16cc94a76",
-                )
-                .unwrap(),
-            ),
-            address: FilterSet::default(),
-            topics: [
-                FilterSet::default(),
-                FilterSet::default(),
-                FilterSet::default(),
-                FilterSet::default(),
-            ],
-        },
-        &mut working_set,
-    );
-
-    // TODO: Check this better.
-    assert_eq!(available_res.unwrap().len(), 8);
-}
-
-#[test]
-fn estimate_gas_test() {
-    let (evm, mut working_set, signer) = init_evm();
-
-    let fail_result = evm.eth_estimate_gas(
-        TransactionRequest {
-            from: Some(signer.address()),
-            to: Some(Address::from_str("0x95222290DD7278Aa3Ddd389Cc1E1d165CC4BAfe5").unwrap()),
-            gas: Some(U256::from(100000)),
-            gas_price: Some(U256::from(100000000)),
-            max_fee_per_gas: None,
-            max_priority_fee_per_gas: None,
-            value: Some(U256::from(100000000)),
-            input: None.into(),
-            nonce: Some(U64::from(7)),
-            chain_id: Some(U64::from(1u64)),
-            access_list: None,
-            max_fee_per_blob_gas: None,
-            blob_versioned_hashes: Some(vec![]),
-            transaction_type: None,
-            sidecar: None,
-            other: Default::default(),
-        },
-        Some(BlockNumberOrTag::Number(100)),
-        &mut working_set,
-    );
-    assert_eq!(fail_result, Err(EthApiError::UnknownBlockNumber.into()));
-    working_set.unset_archival_version();
-
-    let contract = SimpleStorageContract::default();
-    let call_data = contract.get_call_data().to_string();
-
-    let result = evm.eth_estimate_gas(
-        TransactionRequest {
-            from: Some(signer.address()),
-            to: Some(Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap()),
-            gas: Some(U256::from(100000)),
-            gas_price: Some(U256::from(10000)),
-            max_fee_per_gas: None,
-            max_priority_fee_per_gas: None,
-            value: None,
-            input: TransactionInput::new(alloy_primitives::Bytes::from_str(&call_data).unwrap()),
-            nonce: Some(U64::from(9)),
-            chain_id: Some(U64::from(1u64)),
-            access_list: None,
-            max_fee_per_blob_gas: None,
-            blob_versioned_hashes: Some(vec![]),
-            transaction_type: None,
-            sidecar: None,
-            other: Default::default(),
-        },
-        // How does this work precisely? In the first block, the contract was not there?
-        Some(BlockNumberOrTag::Latest),
-        &mut working_set,
-    );
-
-    assert_eq!(result.unwrap(), Uint::from_str("0x5bde").unwrap());
-    working_set.unset_archival_version();
-
-    // TODO: Test these even further, to the extreme.
-    // https://github.com/chainwayxyz/secret-sovereign-sdk/issues/134
-}
-
-pub(crate) fn get_evm_with_storage(
-    config: &EvmConfig,
-) -> (
-    Evm<C>,
-    WorkingSet<DefaultContext>,
-    ProverStorage<DefaultStorageSpec, SnapshotManager>,
-) {
-    let tmpdir = tempfile::tempdir().unwrap();
-    let prover_storage = new_orphan_storage(tmpdir.path()).unwrap();
-    let mut working_set = WorkingSet::new(prover_storage.clone());
-    let evm = Evm::<C>::default();
-    evm.genesis(config, &mut working_set).unwrap();
-
-    let mut genesis_state_root = [0u8; 32];
-    genesis_state_root.copy_from_slice(GENESIS_STATE_ROOT.as_ref());
-
-    evm.finalize_hook(
-        &genesis_state_root.into(),
-        &mut working_set.accessory_state(),
-    );
-    (evm, working_set, prover_storage)
-}
-
-fn commit(
-    working_set: WorkingSet<DefaultContext>,
-    storage: ProverStorage<DefaultStorageSpec, SnapshotManager>,
-) {
-    // Save checkpoint
-    let mut checkpoint = working_set.checkpoint();
-
-    let (cache_log, witness) = checkpoint.freeze();
-
-    let (_, authenticated_node_batch) = storage
-        .compute_state_update(cache_log, &witness)
-        .expect("jellyfish merkle tree update must succeed");
-
-    let working_set = checkpoint.to_revertable();
-
-    let accessory_log = working_set.checkpoint().freeze_non_provable();
-
-    storage.commit(&authenticated_node_batch, &accessory_log);
 }
 
 fn check_against_third_block(block: &Rich<Block>) {

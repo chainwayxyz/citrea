@@ -1,4 +1,4 @@
-name: Rust
+name: Checks
 
 # On Rust, GitHub Actions, and caching
 # ===========
@@ -50,6 +50,8 @@ on:
 env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: -D warnings
+  FOUNDRY_PROFILE: ci
+
 
 # Automatically cancels a job if a new commit if pushed to the same PR, branch, or tag.
 # Source: <https://stackoverflow.com/a/72408109/5148606>
@@ -156,3 +158,32 @@ jobs:
         run: rustup show
       - name: Run nextest
         run: SKIP_GUEST_BUILD=1 make test
+
+  system-contracts:
+    strategy:
+      fail-fast: true
+
+    name: Foundry project
+    runs-on: ubicloud-standard-2
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly
+
+      - name: Run Forge build
+        run: |
+          cd module-system/module-implementations/sov-evm/src/evm/system_contracts
+          forge --version
+          forge build --sizes
+        id: build
+
+      - name: Run Forge tests
+        run: |
+          cd module-system/module-implementations/sov-evm/src/evm/system_contracts
+          forge test -vvv
+        id: test
