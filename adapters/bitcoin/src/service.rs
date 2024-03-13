@@ -96,6 +96,10 @@ impl BitcoinService {
         .await
     }
 
+    pub fn alter_private_key(&mut self, private_key: SecretKey) {
+        self.sequencer_da_private_key = private_key;
+    }
+
     pub async fn with_client(
         client: BitcoinNode,
         rollup_name: String,
@@ -474,6 +478,7 @@ mod tests {
     use crate::helpers::parsers::parse_hex_transaction;
     use crate::helpers::test_utils::{get_mock_data, get_mock_txs};
     use crate::service::DaServiceConfig;
+    use crate::service::SecretKey;
     use crate::spec::block::BitcoinBlock;
     use crate::spec::header::HeaderWrapper;
     use crate::spec::RollupParams;
@@ -583,6 +588,67 @@ mod tests {
         assert!(verifier
             .verify_relevant_tx_list(block.header(), &txs, inclusion_proof, completeness_proof)
             .is_ok());
+    }
+
+    #[tokio::test]
+    async fn incorrect_private_key_signature_should_fail() {
+        let mut da_service = get_service().await;
+        let secp = bitcoin::secp256k1::Secp256k1::new();
+        let da_pubkey = KeyPair::from_secret_key(&secp, &da_service.sequencer_da_private_key)
+            .public_key()
+            .serialize()
+            .to_vec();
+        let incorrect_private_key =
+            SecretKey::from_str("E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67FC233AA33261")
+                .expect("Invalid private key");
+        let incorrect_pub_key = KeyPair::from_secret_key(&secp, &incorrect_private_key)
+            .public_key()
+            .serialize()
+            .to_vec();
+
+        da_service.alter_private_key(incorrect_private_key);
+
+        let header = HeaderWrapper::new(
+            Header {
+                version: Version::from_consensus(536870912),
+                prev_blockhash: BlockHash::from_str(
+                    "19bd253df7a58cb8131f223fa4d99db2ad4eee171b47e31c2b1a75d7c0c89ea6",
+                )
+                .unwrap(),
+                merkle_root: TxMerkleNode::from_str(
+                    "478fd2a0d8b251d37bcda9b408d4b50a5b5387dedb9af1cfb16c0e543e8f2a9b",
+                )
+                .unwrap(),
+                time: 1694177029,
+                bits: CompactTarget::from_hex_str_no_prefix("207fffff").unwrap(),
+                nonce: 0,
+            },
+            3,
+            1,
+        );
+
+        let txs_str = std::fs::read_to_string("test_data/false_signature_txs.txt").unwrap();
+
+        let txdata: Vec<Transaction> = txs_str
+            .lines()
+            .map(|tx| parse_hex_transaction(tx).unwrap())
+            .collect();
+
+        let block = BitcoinBlock { header, txdata };
+
+        let txs = da_service.extract_relevant_blobs(&block);
+
+        assert_ne!(
+            txs.first().unwrap().sender.0,
+            da_pubkey,
+            "Publickey recovered incorrectly!"
+        );
+
+        assert_eq!(
+            txs.first().unwrap().sender.0,
+            incorrect_pub_key,
+            "Publickey recovered incorrectly!"
+        );
     }
 
     #[tokio::test]
