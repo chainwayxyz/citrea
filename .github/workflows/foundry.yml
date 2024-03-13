@@ -1,4 +1,4 @@
-name: test
+name: foundry
 
 on: workflow_dispatch
 
@@ -24,11 +24,13 @@ jobs:
 
       - name: Run Forge build
         run: |
+          cd module-system/module-implementations/sov-evm/src/evm/system_contracts
           forge --version
           forge build --sizes
         id: build
 
       - name: Run Forge tests
         run: |
+          cd module-system/module-implementations/sov-evm/src/evm/system_contracts
           forge test -vvv
         id: test
