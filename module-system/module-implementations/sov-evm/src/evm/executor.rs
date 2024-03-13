@@ -22,6 +22,7 @@ pub(crate) fn execute_tx<
     config_env: CfgEnvWithHandlerCfg,
     ext: &mut EXT,
 ) -> Result<ExecutionResult, EVMError<Infallible>> {
+    ext.set_current_tx_hash(tx.hash());
     let mut evm = revm::Evm::builder()
         .with_db(db)
         .with_external_context(ext)
@@ -68,6 +69,9 @@ pub(crate) fn execute_multiple_tx<
         } else {
             evm = evm
                 .modify()
+                .modify_external_context(|ext| {
+                    ext.set_current_tx_hash(tx.hash());
+                })
                 .modify_env(|env| {
                     env.tx = create_tx_env(tx);
                 })

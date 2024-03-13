@@ -8,7 +8,14 @@ use revm::primitives::{Address, EVMError, ResultAndState, B256, U256};
 use revm::{Context, Database, FrameResult, JournalEntry};
 
 pub(crate) trait CitreaHandlerContext {
+    /// Get current l1 fee rate.
     fn l1_fee_rate(&self) -> u64;
+    /// Set tx hash for the current execution context.
+    fn set_current_tx_hash(&mut self, hash: B256);
+    /// Set L1 fee for the current tx hash.
+    fn set_l1_fee(&mut self, fee: U256);
+    /// Get L1 fee for the given tx by its hash.
+    fn get_l1_fee(&self, tx_hash: B256) -> Option<U256>;
 }
 
 // Blanked impl for &mut T: CitreaExternal
@@ -16,21 +23,50 @@ impl<T: CitreaHandlerContext> CitreaHandlerContext for &mut T {
     fn l1_fee_rate(&self) -> u64 {
         (**self).l1_fee_rate()
     }
+    fn set_current_tx_hash(&mut self, hash: B256) {
+        (**self).set_current_tx_hash(hash);
+    }
+    fn set_l1_fee(&mut self, fee: U256) {
+        (**self).set_l1_fee(fee)
+    }
+    fn get_l1_fee(&self, tx_hash: B256) -> Option<U256> {
+        (**self).get_l1_fee(tx_hash)
+    }
 }
 
+#[derive(Default)]
 pub(crate) struct CitreaHandlerExt {
     l1_fee_rate: u64,
+    current_tx_hash: Option<B256>,
+    l1_fees: HashMap<B256, U256>,
 }
 
 impl CitreaHandlerExt {
     pub(crate) fn new(l1_fee_rate: u64) -> Self {
-        Self { l1_fee_rate }
+        Self {
+            l1_fee_rate,
+            ..Default::default()
+        }
     }
 }
 
 impl CitreaHandlerContext for CitreaHandlerExt {
     fn l1_fee_rate(&self) -> u64 {
         self.l1_fee_rate
+    }
+    fn set_current_tx_hash(&mut self, hash: B256) {
+        self.current_tx_hash.replace(hash);
+    }
+    fn set_l1_fee(&mut self, fee: U256) {
+        let current_tx_hash = self.current_tx_hash.take();
+        if let Some(hash) = current_tx_hash {
+            self.l1_fees.insert(hash, fee);
+        } else {
+            tracing::error!("No hash set for the current tx in Citrea handler");
+        }
+    }
+    fn get_l1_fee(&self, tx_hash: B256) -> Option<U256> {
+        self.l1_fees.get(&tx_hash).copied()
     }
 }
 
@@ -56,6 +92,7 @@ impl<EXT: CitreaHandlerContext, DB: Database> CitreaHandler<EXT, DB> {
             let diff_size = U256::from(calc_diff_size(context).map_err(EVMError::Database)?);
             let l1_fee_rate = U256::from(context.external.l1_fee_rate());
             let l1_fee = diff_size * l1_fee_rate;
+            context.external.set_l1_fee(l1_fee);
             if let Some(_out_of_funds) = decrease_caller_balance(context, l1_fee)? {
                 return Err(EVMError::Custom(format!(
                     "Not enought funds for L1 fee: {}",

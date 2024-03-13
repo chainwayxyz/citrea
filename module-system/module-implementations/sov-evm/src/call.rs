@@ -2,7 +2,7 @@ use core::panic;
 
 use anyhow::Result;
 use reth_primitives::TransactionSignedEcRecovered;
-use revm::primitives::{CfgEnvWithHandlerCfg, EVMError, SpecId, U256};
+use revm::primitives::{CfgEnvWithHandlerCfg, EVMError, SpecId};
 use sov_modules_api::prelude::*;
 use sov_modules_api::{CallResponse, WorkingSet};
 
@@ -11,6 +11,7 @@ use crate::evm::executor::{self};
 use crate::evm::handler::CitreaHandlerExt;
 use crate::evm::primitive_types::{BlockEnv, Receipt, TransactionSignedAndRecovered};
 use crate::evm::{EvmChainConfig, RlpEvmTransaction};
+use crate::handler::CitreaHandlerContext;
 use crate::{Evm, PendingTransaction};
 
 #[cfg_attr(
@@ -81,6 +82,15 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 Ok(result) => {
                     let logs: Vec<_> = result.logs().into_iter().map(Into::into).collect();
                     let gas_used = result.gas_used();
+                    let l1_fee = citrea_handler_ext
+                        .get_l1_fee(evm_tx_recovered.hash())
+                        .unwrap_or_else(|| {
+                            tracing::error!(
+                                "evm: Could not get associated l1 fee for tx: {}",
+                                evm_tx_recovered.hash()
+                            );
+                            Default::default()
+                        });
 
                     let receipt = Receipt {
                         receipt: reth_primitives::Receipt {
@@ -92,7 +102,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                         },
                         gas_used,
                         log_index_start,
-                        l1_fee: U256::from(0), // TODO
+                        l1_fee,
                         error: None,
                     };
 
