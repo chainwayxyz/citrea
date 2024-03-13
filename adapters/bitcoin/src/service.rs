@@ -473,7 +473,7 @@ mod tests {
     use super::BitcoinService;
     use crate::helpers::parsers::parse_hex_transaction;
     use crate::helpers::test_utils::{get_mock_data, get_mock_txs};
-    use crate::service::{DaServiceConfig, SecretKey};
+    use crate::service::DaServiceConfig;
     use crate::spec::block::BitcoinBlock;
     use crate::spec::header::HeaderWrapper;
     use crate::spec::RollupParams;
