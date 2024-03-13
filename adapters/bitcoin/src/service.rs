@@ -460,24 +460,24 @@ impl DaService for BitcoinService {
 #[cfg(test)]
 mod tests {
     use core::str::FromStr;
-    use std::collections::HashSet;
 
     // use futures::{Stream, StreamExt};
     use bitcoin::block::{Header, Version};
     use bitcoin::hash_types::TxMerkleNode;
-    use bitcoin::hashes::{sha256d, Hash};
     use bitcoin::secp256k1::KeyPair;
     use bitcoin::string::FromHexStr;
-    use bitcoin::{merkle_tree, BlockHash, CompactTarget, Transaction, Txid};
-    use sov_rollup_interface::services::da::DaService;
+    use bitcoin::{BlockHash, CompactTarget, Transaction};
+    use sov_rollup_interface::da::DaVerifier;
+    use sov_rollup_interface::services::da::{DaService, SlotData};
 
     use super::BitcoinService;
-    use crate::helpers::parsers::{parse_hex_transaction, parse_transaction};
+    use crate::helpers::parsers::parse_hex_transaction;
     use crate::helpers::test_utils::{get_mock_data, get_mock_txs};
     use crate::service::DaServiceConfig;
     use crate::spec::block::BitcoinBlock;
     use crate::spec::header::HeaderWrapper;
     use crate::spec::RollupParams;
+    use crate::verifier::BitcoinVerifier;
 
     async fn get_service() -> BitcoinService {
         let runtime_config = DaServiceConfig {
@@ -496,7 +496,7 @@ mod tests {
             runtime_config,
             RollupParams {
                 rollup_name: "sov-btc".to_string(),
-                reveal_tx_id_prefix: vec![],
+                reveal_tx_id_prefix: vec![0, 0],
             },
         )
         .await
@@ -563,9 +563,13 @@ mod tests {
 
     #[tokio::test]
     async fn extract_relevant_blobs_with_proof() {
+        let verifier = BitcoinVerifier::new(RollupParams {
+            rollup_name: "sov-btc".to_string(),
+            reveal_tx_id_prefix: vec![0, 0],
+        });
+
         let da_service = get_service().await;
         let (header, _inclusion_proof, _completeness_proof, _relevant_txs) = get_mock_data();
-
         let block_txs = get_mock_txs();
 
         let block = BitcoinBlock {
@@ -576,64 +580,9 @@ mod tests {
         let (txs, inclusion_proof, completeness_proof) =
             da_service.extract_relevant_blobs_with_proof(&block).await;
 
-        // completeness proof
-
-        // create hash set of txs
-        let mut txs_to_check = txs.iter().map(|blob| blob.hash).collect::<HashSet<_>>();
-
-        // Check every 00 bytes tx that parsed correctly is in txs
-        let mut completeness_tx_hashes = completeness_proof
-            .iter()
-            .map(|tx| {
-                let txid = tx.txid().to_raw_hash().to_byte_array();
-
-                // it must parsed correctly
-                if let Ok(parsed_tx) = parse_transaction(tx, &da_service.rollup_name) {
-                    let blob = parsed_tx.body;
-                    let blob_hash: [u8; 32] = sha256d::Hash::hash(&blob).to_byte_array();
-                    // it must be in txs
-                    assert!(txs_to_check.remove(&blob_hash));
-                }
-
-                txid
-            })
-            .collect::<HashSet<_>>();
-
-        // assert no extra txs than the ones in the completeness proof are left
-        assert!(txs_to_check.is_empty());
-
-        // no 00 bytes left behind completeness proof
-        inclusion_proof.txids.iter().for_each(|tx_hash| {
-            if tx_hash.starts_with(da_service.reveal_tx_id_prefix.as_slice()) {
-                assert!(completeness_tx_hashes.remove(tx_hash));
-            }
-        });
-
-        // assert all transactions are included in block
-        assert!(completeness_tx_hashes.is_empty());
-
-        println!("\n--- Completeness proof verified ---\n");
-
-        let tx_root = block.header.merkle_root().to_raw_hash().to_byte_array();
-
-        // Inclusion proof is all the txs in the block.
-        let tx_hashes = inclusion_proof
-            .txids
-            .iter()
-            .map(|tx| Txid::from_slice(tx).unwrap())
-            .collect::<Vec<_>>();
-
-        let root_from_inclusion = merkle_tree::calculate_root(tx_hashes.into_iter())
-            .unwrap()
-            .to_raw_hash()
-            .to_byte_array();
-
-        // Check that the tx root in the block header matches the tx root in the inclusion proof.
-        assert_eq!(root_from_inclusion, tx_root);
-
-        println!("\n--- Inclusion proof verified ---\n");
-
-        println!("\n--- Extracted #{:?} txs ---\n", txs.len());
+        assert!(verifier
+            .verify_relevant_tx_list(block.header(), &txs, inclusion_proof, completeness_proof)
+            .is_ok());
     }
 
     #[tokio::test]
