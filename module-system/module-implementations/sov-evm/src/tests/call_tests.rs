@@ -732,9 +732,9 @@ fn get_evm_config_starting_base_fee(
 
 #[test]
 fn test_l1_fee_success() {
-    fn run_tx(l1_fee_rate: u64, expected_balance: U256) {
+    fn run_tx(l1_fee_rate: u64, expected_balance: U256, expected_l1_fee: U256) {
         let (config, dev_signer, _) =
-            get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
+            get_evm_config_starting_base_fee(U256::from_str("1000000").unwrap(), None, 1);
 
         let (evm, mut working_set) = get_evm(&config);
 
@@ -745,7 +745,7 @@ fn test_l1_fee_success() {
             let context = C::new(sender_address, sequencer_address, 1);
 
             let deploy_message =
-                create_contract_message(&dev_signer, 0, BlockHashContract::default());
+                create_contract_message_with_fee(&dev_signer, 0, BlockHashContract::default(), 1);
 
             evm.call(
                 CallMessage {
@@ -764,11 +764,29 @@ fn test_l1_fee_success() {
             .get(&dev_signer.address(), &mut working_set)
             .unwrap();
 
-        assert_eq!(db_account.info.balance, expected_balance,);
+        assert_eq!(db_account.info.balance, expected_balance);
+
+        assert_eq!(
+            evm.receipts
+                .iter(&mut working_set.accessory_state())
+                .collect::<Vec<_>>(),
+            [Receipt {
+                receipt: reth_primitives::Receipt {
+                    tx_type: reth_primitives::TxType::EIP1559,
+                    success: true,
+                    cumulative_gas_used: 114235,
+                    logs: vec![],
+                },
+                gas_used: 114235,
+                log_index_start: 0,
+                l1_fee: expected_l1_fee,
+                error: None,
+            },]
+        )
     }
 
-    run_tx(0, U256::from_str("99999900044375000000").unwrap());
-    run_tx(1, U256::from_str("99999900044374999575").unwrap());
+    run_tx(0, U256::from(885765), U256::from(0));
+    run_tx(1, U256::from(885340), U256::from(425));
 }
 
 #[test]
