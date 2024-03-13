@@ -115,7 +115,14 @@ fn calc_diff_size<EXT, DB: Database>(
             }
             JournalEntry::AccountDestroyed { address, .. } => {
                 let account = account_changes.entry(address).or_default();
-                account.destroyed = true;
+                if account.created {
+                    // That's a temporary account.
+                    // Delete it from the account changes to enable cancun support.
+                    // Acc with the same address can be created again in the same tx.
+                    account_changes.remove(address);
+                } else {
+                    account.destroyed = true;
+                }
             }
             _ => {}
         }
@@ -125,11 +132,6 @@ fn calc_diff_size<EXT, DB: Database>(
     let mut diff_size = 0usize;
 
     for (addr, account) in account_changes {
-        if account.created && account.destroyed {
-            // ignore it because it's a temporary account
-            continue;
-        }
-
         // Apply size of address of changed account
         diff_size += size_of::<Address>();
 
