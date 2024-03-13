@@ -2,12 +2,13 @@ use core::panic;
 
 use anyhow::Result;
 use reth_primitives::TransactionSignedEcRecovered;
-use revm::primitives::{CfgEnvWithHandlerCfg, EVMError, SpecId};
+use revm::primitives::{CfgEnvWithHandlerCfg, EVMError, SpecId, U256};
 use sov_modules_api::prelude::*;
 use sov_modules_api::{CallResponse, WorkingSet};
 
 use crate::evm::db::EvmDb;
 use crate::evm::executor::{self};
+use crate::evm::handler::CitreaHandlerExt;
 use crate::evm::primitive_types::{BlockEnv, Receipt, TransactionSignedAndRecovered};
 use crate::evm::{EvmChainConfig, RlpEvmTransaction};
 use crate::{Evm, PendingTransaction};
@@ -53,6 +54,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .l1_fee_rate
             .get(working_set)
             .expect("L1 fee rate must be set");
+        let mut citrea_handler_ext = CitreaHandlerExt::new(l1_fee_rate);
 
         let evm_db: EvmDb<'_, C> = self.get_db(working_set);
         let results = executor::execute_multiple_tx(
@@ -60,7 +62,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             &block_env,
             &evm_txs_recovered,
             cfg_env,
-            l1_fee_rate,
+            &mut citrea_handler_ext,
         );
 
         // Iterate each evm_txs_recovered and results pair
@@ -90,6 +92,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                         },
                         gas_used,
                         log_index_start,
+                        l1_fee: U256::from(0), // TODO
                         error: None,
                     };
 

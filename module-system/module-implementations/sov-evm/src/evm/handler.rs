@@ -7,20 +7,28 @@ use revm::interpreter::InstructionResult;
 use revm::primitives::{Address, EVMError, ResultAndState, B256, U256};
 use revm::{Context, Database, FrameResult, JournalEntry};
 
-pub(crate) trait CitreaExternal {
+pub(crate) trait CitreaHandlerContext {
     fn l1_fee_rate(&self) -> u64;
 }
-pub(crate) struct CitreaExternalContext {
+
+// Blanked impl for &mut T: CitreaExternal
+impl<T: CitreaHandlerContext> CitreaHandlerContext for &mut T {
+    fn l1_fee_rate(&self) -> u64 {
+        (**self).l1_fee_rate()
+    }
+}
+
+pub(crate) struct CitreaHandlerExt {
     l1_fee_rate: u64,
 }
 
-impl CitreaExternalContext {
+impl CitreaHandlerExt {
     pub(crate) fn new(l1_fee_rate: u64) -> Self {
         Self { l1_fee_rate }
     }
 }
 
-impl CitreaExternal for CitreaExternalContext {
+impl CitreaHandlerContext for CitreaHandlerExt {
     fn l1_fee_rate(&self) -> u64 {
         self.l1_fee_rate
     }
@@ -29,7 +37,7 @@ impl CitreaExternal for CitreaExternalContext {
 pub(crate) fn citrea_handle_register<DB, EXT>(handler: &mut EvmHandler<'_, EXT, DB>)
 where
     DB: Database,
-    EXT: CitreaExternal,
+    EXT: CitreaHandlerContext,
 {
     let post_execution = &mut handler.post_execution;
     post_execution.output = Arc::new(CitreaHandler::<EXT, DB>::post_execution_output);
@@ -39,7 +47,7 @@ struct CitreaHandler<EXT, DB> {
     _phantom: std::marker::PhantomData<(EXT, DB)>,
 }
 
-impl<EXT: CitreaExternal, DB: Database> CitreaHandler<EXT, DB> {
+impl<EXT: CitreaHandlerContext, DB: Database> CitreaHandler<EXT, DB> {
     fn post_execution_output(
         context: &mut Context<EXT, DB>,
         result: FrameResult,

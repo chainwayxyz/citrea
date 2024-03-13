@@ -97,6 +97,7 @@ fn call_multiple_test() {
                 },
                 gas_used: 132943,
                 log_index_start: 0,
+                l1_fee: U256::from(0),
                 error: None,
             },
             Receipt {
@@ -108,6 +109,7 @@ fn call_multiple_test() {
                 },
                 gas_used: 43730,
                 log_index_start: 0,
+                l1_fee: U256::from(0),
                 error: None,
             },
             Receipt {
@@ -119,6 +121,7 @@ fn call_multiple_test() {
                 },
                 gas_used: 26630,
                 log_index_start: 0,
+                l1_fee: U256::from(0),
                 error: None,
             },
             Receipt {
@@ -130,6 +133,7 @@ fn call_multiple_test() {
                 },
                 gas_used: 26630,
                 log_index_start: 0,
+                l1_fee: U256::from(0),
                 error: None,
             }
         ]
@@ -187,6 +191,7 @@ fn call_test() {
                 },
                 gas_used: 132943,
                 log_index_start: 0,
+                l1_fee: U256::from(0),
                 error: None,
             },
             Receipt {
@@ -198,6 +203,7 @@ fn call_test() {
                 },
                 gas_used: 43730,
                 log_index_start: 0,
+                l1_fee: U256::from(0),
                 error: None,
             }
         ]

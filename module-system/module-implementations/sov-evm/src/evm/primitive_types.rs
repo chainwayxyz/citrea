@@ -1,6 +1,6 @@
 use std::ops::Range;
 
-use reth_primitives::{Address, Header, SealedHeader, TransactionSigned, B256};
+use reth_primitives::{Address, Header, SealedHeader, TransactionSigned, B256, U256};
 use revm::primitives::EVMError;
 
 #[derive(serde::Deserialize, serde::Serialize, Debug, PartialEq, Clone)]
@@ -116,5 +116,6 @@ pub(crate) struct Receipt {
     pub(crate) receipt: reth_primitives::Receipt,
     pub(crate) gas_used: u64,
     pub(crate) log_index_start: u64,
+    pub(crate) l1_fee: U256,
     pub(crate) error: Option<EVMError<u8>>,
 }
