@@ -80,7 +80,14 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
             match result {
                 Ok(result) => {
-                    let logs: Vec<_> = result.logs().into_iter().map(Into::into).collect();
+                    // take ownership of result.log() and use into()
+
+                    let logs: Vec<_> = result
+                        .logs()
+                        .into_iter()
+                        .map(|log| log.clone().into())
+                        .collect();
+
                     let gas_used = result.gas_used();
                     let tx_hash = evm_tx_recovered.hash();
                     let tx_info = citrea_handler_ext.get_tx_info(tx_hash).unwrap_or_else(|| {
