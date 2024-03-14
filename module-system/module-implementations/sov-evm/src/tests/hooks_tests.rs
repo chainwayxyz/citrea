@@ -101,6 +101,7 @@ fn end_soft_confirmation_hook_sets_head() {
                 excess_blob_gas: None,
                 parent_beacon_block_root: None,
             },
+            l1_fee_rate: 0,
             transactions: 0..2
         }
     );
@@ -265,6 +266,7 @@ fn finalize_hook_creates_final_block() {
                     "4850cef91960c3097715d9294018ea79399b71d80db8b8e6089788059ddc903d"
                 ))
             ),
+            l1_fee_rate: 0,
             transactions: 0..2
         }
     );

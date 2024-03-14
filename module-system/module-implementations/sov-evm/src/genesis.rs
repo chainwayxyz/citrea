@@ -170,6 +170,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         let block = Block {
             header,
+            l1_fee_rate: 0,
             transactions: 0u64..0u64,
         };
 

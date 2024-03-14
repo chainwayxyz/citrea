@@ -79,6 +79,9 @@ pub(crate) struct Block {
     /// Block header.
     pub(crate) header: Header,
 
+    /// L1 fee rate.
+    pub(crate) l1_fee_rate: u64,
+
     /// Transactions in this block.
     pub(crate) transactions: Range<u64>,
 }
@@ -87,6 +90,7 @@ impl Block {
     pub(crate) fn seal(self) -> SealedBlock {
         SealedBlock {
             header: self.header.seal_slow(),
+            l1_fee_rate: self.l1_fee_rate,
             transactions: self.transactions,
         }
     }
@@ -101,6 +105,9 @@ impl Block {
 pub(crate) struct SealedBlock {
     /// Block header.
     pub(crate) header: SealedHeader,
+
+    /// L1 fee rate.
+    pub(crate) l1_fee_rate: u64,
 
     /// Transactions in this block.
     pub(crate) transactions: Range<u64>,
