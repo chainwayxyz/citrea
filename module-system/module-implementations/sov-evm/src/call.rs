@@ -83,8 +83,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     let logs: Vec<_> = result.logs().into_iter().map(Into::into).collect();
                     let gas_used = result.gas_used();
                     let tx_hash = evm_tx_recovered.hash();
-                    let l1_fee = citrea_handler_ext.get_l1_fee(tx_hash).unwrap_or_else(|| {
-                        panic!("evm: Could not get associated l1 fee for tx: {tx_hash}")
+                    let tx_info = citrea_handler_ext.get_tx_info(tx_hash).unwrap_or_else(|| {
+                        panic!("evm: Could not get associated info for tx: {tx_hash}")
                     });
 
                     let receipt = Receipt {
@@ -97,7 +97,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
                         },
                         gas_used,
                         log_index_start,
-                        l1_fee,
+                        l1_fee_rate: citrea_handler_ext.l1_fee_rate(),
+                        diff_size: tx_info.diff_size,
                         error: None,
                     };
 

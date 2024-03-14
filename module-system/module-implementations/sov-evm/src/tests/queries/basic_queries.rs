@@ -383,7 +383,8 @@ fn check_against_third_block_receipts(receipts: Vec<TransactionReceipt>) {
         "effectiveGasPrice": "0x2dbf4076",
         "from": "0x9e1abd37ec34bbc688b6a2b7d9387d9256cf1773",
         "to": "0x819c5497b157177315e1204f52e588b393771719",
-        "l1_fee": "0x0000000000000000000000000000000000000000000000000000000000000068",
+        "l1FeeRate": 1,
+        "diffSize": 104,
         "contractAddress": null,
         "logs": [
             {
@@ -431,7 +432,8 @@ fn check_against_third_block_receipts(receipts: Vec<TransactionReceipt>) {
         "effectiveGasPrice": "0x2dbf4076",
         "from": "0x9e1abd37ec34bbc688b6a2b7d9387d9256cf1773",
         "to": "0x819c5497b157177315e1204f52e588b393771719",
-        "l1_fee": "0x0000000000000000000000000000000000000000000000000000000000000068",
+        "l1FeeRate": 1,
+        "diffSize": 104,
         "contractAddress": null,
         "logs": [
             {
@@ -479,7 +481,8 @@ fn check_against_third_block_receipts(receipts: Vec<TransactionReceipt>) {
         "effectiveGasPrice": "0x2dbf4076",
         "from": "0x9e1abd37ec34bbc688b6a2b7d9387d9256cf1773",
         "to": "0x819c5497b157177315e1204f52e588b393771719",
-        "l1_fee": "0x0000000000000000000000000000000000000000000000000000000000000068",
+        "l1FeeRate": 1,
+        "diffSize": 104,
         "contractAddress": null,
         "logs": [
             {
@@ -527,7 +530,8 @@ fn check_against_third_block_receipts(receipts: Vec<TransactionReceipt>) {
         "effectiveGasPrice": "0x2dbf4076",
         "from": "0x9e1abd37ec34bbc688b6a2b7d9387d9256cf1773",
         "to": "0x819c5497b157177315e1204f52e588b393771719",
-        "l1_fee": "0x0000000000000000000000000000000000000000000000000000000000000068",
+        "l1FeeRate": 1,
+        "diffSize": 104,
         "contractAddress": null,
         "logs": [
             {

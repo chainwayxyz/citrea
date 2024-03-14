@@ -1329,9 +1329,12 @@ pub(crate) fn build_rpc_receipt(
     let block_hash = Some(block.header.hash());
     let block_number = Some(U256::from(block.header.number));
     let other = OtherFields::new(
-        [("l1_fee".into(), format!("{:#x}", receipt.l1_fee).into())]
-            .into_iter()
-            .collect(),
+        [
+            ("l1FeeRate".into(), receipt.l1_fee_rate.into()),
+            ("diffSize".into(), receipt.diff_size.into()),
+        ]
+        .into_iter()
+        .collect(),
     );
 
     reth_rpc_types::TransactionReceipt {

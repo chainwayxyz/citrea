@@ -97,7 +97,8 @@ fn call_multiple_test() {
                 },
                 gas_used: 132943,
                 log_index_start: 0,
-                l1_fee: U256::from(0),
+                l1_fee_rate: 0,
+                diff_size: 513,
                 error: None,
             },
             Receipt {
@@ -109,7 +110,8 @@ fn call_multiple_test() {
                 },
                 gas_used: 43730,
                 log_index_start: 0,
-                l1_fee: U256::from(0),
+                l1_fee_rate: 0,
+                diff_size: 168,
                 error: None,
             },
             Receipt {
@@ -121,7 +123,8 @@ fn call_multiple_test() {
                 },
                 gas_used: 26630,
                 log_index_start: 0,
-                l1_fee: U256::from(0),
+                l1_fee_rate: 0,
+                diff_size: 168,
                 error: None,
             },
             Receipt {
@@ -133,7 +136,8 @@ fn call_multiple_test() {
                 },
                 gas_used: 26630,
                 log_index_start: 0,
-                l1_fee: U256::from(0),
+                l1_fee_rate: 0,
+                diff_size: 168,
                 error: None,
             }
         ]
@@ -191,7 +195,8 @@ fn call_test() {
                 },
                 gas_used: 132943,
                 log_index_start: 0,
-                l1_fee: U256::from(0),
+                l1_fee_rate: 0,
+                diff_size: 513,
                 error: None,
             },
             Receipt {
@@ -203,7 +208,8 @@ fn call_test() {
                 },
                 gas_used: 43730,
                 log_index_start: 0,
-                l1_fee: U256::from(0),
+                l1_fee_rate: 0,
+                diff_size: 168,
                 error: None,
             }
         ]
@@ -732,7 +738,7 @@ fn get_evm_config_starting_base_fee(
 
 #[test]
 fn test_l1_fee_success() {
-    fn run_tx(l1_fee_rate: u64, expected_balance: U256, expected_l1_fee: U256) {
+    fn run_tx(l1_fee_rate: u64, expected_balance: U256) {
         let (config, dev_signer, _) =
             get_evm_config_starting_base_fee(U256::from_str("1000000").unwrap(), None, 1);
 
@@ -779,14 +785,15 @@ fn test_l1_fee_success() {
                 },
                 gas_used: 114235,
                 log_index_start: 0,
-                l1_fee: expected_l1_fee,
+                l1_fee_rate,
+                diff_size: 425,
                 error: None,
             },]
         )
     }
 
-    run_tx(0, U256::from(885765), U256::from(0));
-    run_tx(1, U256::from(885340), U256::from(425));
+    run_tx(0, U256::from(885765));
+    run_tx(1, U256::from(885340));
 }
 
 #[test]
