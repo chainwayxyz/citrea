@@ -11,6 +11,7 @@ use reth_primitives::{
     Block, BlockId, BlockNumberOrTag, SealedHeader, TransactionSignedEcRecovered, U128, U256, U64,
 };
 use reth_rpc_types::trace::geth::{GethDebugTracingOptions, GethTrace};
+use reth_rpc_types::AccessListWithGasUsed;
 use reth_rpc_types_compat::block::from_primitive_with_hash;
 use revm::primitives::{
     EVMError, ExecutionResult, HaltReason, InvalidTransaction, TransactTo, KECCAK_EMPTY,
@@ -612,6 +613,72 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 .saturating_sub(1),
         );
         Ok(block_number)
+    }
+
+    /// Handler for `eth_createAccessList`
+    #[rpc_method(name = "eth_createAccessList")]
+    pub fn create_access_list(
+        &self,
+        request: reth_rpc_types::TransactionRequest,
+        block_number: Option<BlockNumberOrTag>,
+        working_set: &mut WorkingSet<C>,
+    ) -> RpcResult<AccessListWithGasUsed> {
+        info!("evm module: eth_createAccessList");
+
+        let mut block_env = match block_number {
+            Some(BlockNumberOrTag::Pending) => {
+                self.block_env.get(working_set).unwrap_or_default().clone()
+            }
+            None | Some(BlockNumberOrTag::Latest) => {
+                // so we don't unnecessarily set archival version
+                self.block_env.get(working_set).unwrap_or_default().clone()
+            }
+            _ => {
+                let block = match self.get_sealed_block_by_number(block_number, working_set) {
+                    Some(block) => block,
+                    None => return Err(EthApiError::UnknownBlockNumber.into()),
+                };
+
+                working_set.set_archival_version(block.header.number);
+                BlockEnv::from(&block)
+            }
+        };
+
+        let tx_env = match prepare_call_env(&block_env, request.clone()) {
+            Ok(tx_env) => tx_env,
+            Err(err) => {
+                return Err(err.into());
+            }
+        };
+
+        let cfg = self
+            .cfg
+            .get(working_set)
+            .expect("EVM chain config should be set");
+        let mut cfg_env = get_cfg_env(&block_env, cfg, Some(get_cfg_env_template()));
+        cfg_env.disable_block_gas_limit = true;
+
+        let evm_db = self.get_db(working_set);
+
+        let result = executor::inspect(evm_db, &block_env, tx_env, cfg_env);
+
+        let access_list = match result {
+            Ok(result) => match result.result {
+                ExecutionResult::Success { access_list, .. } => access_list,
+                ExecutionResult::Halt { reason, gas_used } => {
+                    return Err(RpcInvalidTransactionError::halt(reason, gas_used).into())
+                }
+                ExecutionResult::Revert { output, .. } => {
+                    return Err(RpcInvalidTransactionError::Revert(RevertError::new(output)).into())
+                }
+            },
+            Err(err) => return Err(EthApiError::from(err).into()),
+        };
+
+        Ok(AccessListWithGasUsed {
+            access_list,
+            gas_used: U256::from(result.unwrap().gas_used()),
+        })
     }
 
     /// Handler for: `eth_estimateGas`
