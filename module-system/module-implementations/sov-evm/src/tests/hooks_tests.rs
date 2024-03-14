@@ -177,7 +177,7 @@ fn create_pending_transaction(hash: B256, index: u64) -> PendingTransaction {
         },
         receipt: Receipt {
             receipt: reth_primitives::Receipt {
-                tx_type: reth_primitives::TxType::EIP1559,
+                tx_type: reth_primitives::TxType::Eip1559,
                 success: true,
                 cumulative_gas_used: 100u64 * index,
                 logs: vec![],

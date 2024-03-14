@@ -90,7 +90,7 @@ fn call_multiple_test() {
         [
             Receipt {
                 receipt: reth_primitives::Receipt {
-                    tx_type: reth_primitives::TxType::EIP1559,
+                    tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
                     cumulative_gas_used: 132943,
                     logs: vec![],
@@ -103,7 +103,7 @@ fn call_multiple_test() {
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
-                    tx_type: reth_primitives::TxType::EIP1559,
+                    tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
                     cumulative_gas_used: 176673,
                     logs: vec![],
@@ -116,7 +116,7 @@ fn call_multiple_test() {
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
-                    tx_type: reth_primitives::TxType::EIP1559,
+                    tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
                     cumulative_gas_used: 203303,
                     logs: vec![],
@@ -129,7 +129,7 @@ fn call_multiple_test() {
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
-                    tx_type: reth_primitives::TxType::EIP1559,
+                    tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
                     cumulative_gas_used: 229933,
                     logs: vec![],
@@ -188,7 +188,7 @@ fn call_test() {
         [
             Receipt {
                 receipt: reth_primitives::Receipt {
-                    tx_type: reth_primitives::TxType::EIP1559,
+                    tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
                     cumulative_gas_used: 132943,
                     logs: vec![],
@@ -201,7 +201,7 @@ fn call_test() {
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
-                    tx_type: reth_primitives::TxType::EIP1559,
+                    tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
                     cumulative_gas_used: 176673,
                     logs: vec![],
@@ -778,7 +778,7 @@ fn test_l1_fee_success() {
                 .collect::<Vec<_>>(),
             [Receipt {
                 receipt: reth_primitives::Receipt {
-                    tx_type: reth_primitives::TxType::EIP1559,
+                    tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
                     cumulative_gas_used: 114235,
                     logs: vec![],
