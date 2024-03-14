@@ -16,7 +16,8 @@ use reth_rpc_types_compat::block::from_primitive_with_hash;
 use revm::primitives::{
     EVMError, ExecutionResult, HaltReason, InvalidTransaction, TransactTo, KECCAK_EMPTY,
 };
-use revm::DatabaseCommit;
+use revm::{Database, DatabaseCommit};
+use revm_inspectors::access_list::AccessListInspector;
 use sov_modules_api::macros::rpc_gen;
 use sov_modules_api::prelude::*;
 use sov_modules_api::WorkingSet;
@@ -24,9 +25,11 @@ use tracing::info;
 
 use crate::call::get_cfg_env;
 use crate::error::rpc::{ensure_success, EthApiError, RevertError, RpcInvalidTransactionError};
+use crate::evm::call::get_precompiles;
 use crate::evm::db::EvmDb;
 use crate::evm::primitive_types::{BlockEnv, Receipt, SealedBlock, TransactionSignedAndRecovered};
 use crate::evm::{executor, prepare_call_env};
+use crate::rpc_helpers::tracing_utils::inspect;
 use crate::rpc_helpers::*;
 use crate::{
     BloomFilter, Evm, EvmChainConfig, FilterBlockOption, FilterError, MIN_CREATE_GAS,
@@ -625,6 +628,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
     ) -> RpcResult<AccessListWithGasUsed> {
         info!("evm module: eth_createAccessList");
 
+        let mut request = request.clone();
+
         let mut block_env = match block_number {
             Some(BlockNumberOrTag::Pending) => {
                 self.block_env.get(working_set).unwrap_or_default().clone()
@@ -644,7 +649,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             }
         };
 
-        let tx_env = match prepare_call_env(&block_env, request.clone()) {
+        let mut tx_env = match prepare_call_env(&block_env, request.clone()) {
             Ok(tx_env) => tx_env,
             Err(err) => {
                 return Err(err.into());
@@ -657,28 +662,56 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .expect("EVM chain config should be set");
         let mut cfg_env = get_cfg_env(&block_env, cfg, Some(get_cfg_env_template()));
         cfg_env.disable_block_gas_limit = true;
+        cfg_env.disable_base_fee = true;
 
-        let evm_db = self.get_db(working_set);
+        let mut evm_db = self.get_db(working_set);
 
-        let result = executor::inspect(evm_db, &block_env, tx_env, cfg_env);
+        if request.gas.is_none() && tx_env.gas_price > U256::ZERO {
+            // if gas price is set, we need to cap the gas limit
+            cap_tx_gas_limit_with_caller_allowance(&mut evm_db, &mut tx_env)?;
+        }
 
-        let access_list = match result {
-            Ok(result) => match result.result {
-                ExecutionResult::Success { access_list, .. } => access_list,
-                ExecutionResult::Halt { reason, gas_used } => {
-                    return Err(RpcInvalidTransactionError::halt(reason, gas_used).into())
-                }
-                ExecutionResult::Revert { output, .. } => {
-                    return Err(RpcInvalidTransactionError::Revert(RevertError::new(output)).into())
-                }
-            },
-            Err(err) => return Err(EthApiError::from(err).into()),
+        let from = request.from.unwrap_or_default();
+        let to = if let Some(to) = request.to {
+            to
+        } else {
+            let account = match evm_db.basic(from) {
+                Ok(account) => account,
+                Err(_) => return Err(EthApiError::UnknownBlockNumber.into()),
+            };
+
+            let nonce = account.unwrap_or_default().nonce;
+            from.create(nonce)
         };
 
-        Ok(AccessListWithGasUsed {
-            access_list,
-            gas_used: U256::from(result.unwrap().gas_used()),
-        })
+        // can consume the list since we're not using the request anymore
+        let initial = request.access_list.take().unwrap_or_default();
+
+        let precompiles = get_precompiles(cfg_env.handler_cfg.spec_id);
+        let mut inspector = AccessListInspector::new(initial, from, to, precompiles);
+
+        // let (result, env) = inspect(&mut evm_db, cfg_env, block_env, tx_env, inspector);
+
+        todo!();
+        // let result = executor::inspect(evm_db, &block_env, tx_env, cfg_env);
+
+        // let access_list = match result {
+        //     Ok(result) => match result.result {
+        //         ExecutionResult::Success { access_list, .. } => access_list,
+        //         ExecutionResult::Halt { reason, gas_used } => {
+        //             return Err(RpcInvalidTransactionError::halt(reason, gas_used).into())
+        //         }
+        //         ExecutionResult::Revert { output, .. } => {
+        //             return Err(RpcInvalidTransactionError::Revert(RevertError::new(output)).into())
+        //         }
+        //     },
+        //     Err(err) => return Err(EthApiError::from(err).into()),
+        // };
+
+        // Ok(AccessListWithGasUsed {
+        //     access_list,
+        //     gas_used: U256::from(result.unwrap().gas_used()),
+        // })
     }
 
     /// Handler for: `eth_estimateGas`

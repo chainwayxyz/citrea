@@ -1,7 +1,7 @@
 use core::panic;
 
 use anyhow::Result;
-use reth_primitives::TransactionSignedEcRecovered;
+use reth_primitives::{Log, TransactionSignedEcRecovered};
 use revm::primitives::{CfgEnvWithHandlerCfg, EVMError, SpecId};
 use sov_modules_api::prelude::*;
 use sov_modules_api::{CallResponse, WorkingSet};
@@ -77,7 +77,9 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
             match result {
                 Ok(result) => {
-                    let logs: Vec<_> = result.logs().into_iter().map(Into::into).collect();
+                    // let logs: Vec<_> = result.logs().into_iter().map(Into::into).collect();
+
+                    let logs: Vec<Log> = result.logs().into_iter().map(|log| log.into()).collect();
                     let gas_used = result.gas_used();
 
                     let receipt = Receipt {
