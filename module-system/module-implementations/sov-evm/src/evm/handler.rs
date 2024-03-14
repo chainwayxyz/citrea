@@ -2,10 +2,14 @@ use std::collections::{HashMap, HashSet};
 use std::mem::size_of;
 use std::sync::Arc;
 
+use alloy_primitives::Log;
+use reth_revm::tracing::{TracingInspector, TracingInspectorConfig};
 use revm::handler::register::EvmHandler;
-use revm::interpreter::InstructionResult;
+use revm::interpreter::{
+    CallInputs, CallOutcome, CreateInputs, CreateOutcome, InstructionResult, Interpreter,
+};
 use revm::primitives::{Address, EVMError, ResultAndState, B256, U256};
-use revm::{Context, Database, FrameResult, JournalEntry};
+use revm::{Context, Database, EvmContext, FrameResult, Inspector, JournalEntry};
 
 #[derive(Copy, Clone)]
 pub struct TxInfo {
@@ -39,10 +43,14 @@ impl<T: CitreaHandlerContext> CitreaHandlerContext for &mut T {
     }
 }
 
+/// This is a context for the EVM handler to deal with L1 fees.
 #[derive(Default)]
 pub(crate) struct CitreaHandlerExt {
+    /// L1 fee multiplier
     l1_fee_rate: u64,
+    /// The hash of the current transaction EVM is dealing with
     current_tx_hash: Option<B256>,
+    /// Map of hash(tx) => tx info
     tx_infos: HashMap<B256, TxInfo>,
 }
 
@@ -72,6 +80,90 @@ impl CitreaHandlerContext for CitreaHandlerExt {
     }
     fn get_tx_info(&self, tx_hash: B256) -> Option<TxInfo> {
         self.tx_infos.get(&tx_hash).copied()
+    }
+}
+
+/// This is both a Citrea external context and a `TracingInspector`.
+pub(crate) struct TracingCitreaHandler {
+    ext: CitreaHandlerExt,
+    inspector: TracingInspector,
+}
+
+impl TracingCitreaHandler {
+    pub(crate) fn new(l1_fee_rate: u64) -> Self {
+        let inspector = TracingInspector::new(TracingInspectorConfig::all());
+        Self {
+            ext: CitreaHandlerExt::new(l1_fee_rate),
+            inspector,
+        }
+    }
+}
+
+// Pass all methods to self.ext
+impl CitreaHandlerContext for TracingCitreaHandler {
+    fn l1_fee_rate(&self) -> u64 {
+        self.ext.l1_fee_rate()
+    }
+    fn set_current_tx_hash(&mut self, hash: B256) {
+        self.ext.set_current_tx_hash(hash);
+    }
+    fn set_tx_info(&mut self, info: TxInfo) {
+        self.ext.set_tx_info(info);
+    }
+    fn get_tx_info(&self, tx_hash: B256) -> Option<TxInfo> {
+        self.ext.get_tx_info(tx_hash)
+    }
+}
+
+// Pass all methods to self.inspector
+impl<DB> Inspector<DB> for TracingCitreaHandler
+where
+    DB: Database,
+{
+    fn initialize_interp(&mut self, interp: &mut Interpreter, context: &mut EvmContext<DB>) {
+        self.inspector.initialize_interp(interp, context)
+    }
+    fn step(&mut self, interp: &mut Interpreter, context: &mut EvmContext<DB>) {
+        self.inspector.step(interp, context)
+    }
+    fn step_end(&mut self, interp: &mut Interpreter, context: &mut EvmContext<DB>) {
+        self.inspector.step_end(interp, context)
+    }
+    fn log(&mut self, context: &mut EvmContext<DB>, log: &Log) {
+        self.inspector.log(context, log)
+    }
+    fn call(
+        &mut self,
+        context: &mut EvmContext<DB>,
+        inputs: &mut CallInputs,
+    ) -> Option<CallOutcome> {
+        self.inspector.call(context, inputs)
+    }
+    fn call_end(
+        &mut self,
+        context: &mut EvmContext<DB>,
+        inputs: &CallInputs,
+        outcome: CallOutcome,
+    ) -> CallOutcome {
+        self.inspector.call_end(context, inputs, outcome)
+    }
+    fn create(
+        &mut self,
+        context: &mut EvmContext<DB>,
+        inputs: &mut CreateInputs,
+    ) -> Option<CreateOutcome> {
+        self.inspector.create(context, inputs)
+    }
+    fn create_end(
+        &mut self,
+        context: &mut EvmContext<DB>,
+        inputs: &CreateInputs,
+        outcome: CreateOutcome,
+    ) -> CreateOutcome {
+        self.inspector.create_end(context, inputs, outcome)
+    }
+    fn selfdestruct(&mut self, contract: Address, target: Address, value: U256) {
+        (&mut self.inspector as &mut dyn Inspector<DB>).selfdestruct(contract, target, value)
     }
 }
 

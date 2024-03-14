@@ -1,14 +1,13 @@
 use std::convert::Infallible;
 
 use reth_primitives::TransactionSignedEcRecovered;
-use reth_revm::tracing::{TracingInspector, TracingInspectorConfig};
 use revm::primitives::{
     CfgEnvWithHandlerCfg, EVMError, ExecutionResult, InvalidTransaction, ResultAndState, TxEnv,
 };
 use revm::{self, inspector_handle_register, Database, DatabaseCommit};
 
 use super::conversions::create_tx_env;
-use super::handler::{citrea_handle_register, CitreaHandlerContext};
+use super::handler::{citrea_handle_register, CitreaHandlerContext, TracingCitreaHandler};
 use super::primitive_types::BlockEnv;
 
 #[allow(dead_code)]
@@ -90,14 +89,15 @@ pub(crate) fn inspect<DB: Database<Error = Infallible> + DatabaseCommit>(
     tx: TxEnv,
     config_env: CfgEnvWithHandlerCfg,
 ) -> Result<ResultAndState, EVMError<Infallible>> {
-    let config = TracingInspectorConfig::all();
+    let mut ext = TracingCitreaHandler::new(0); // TODO
 
     let mut evm = revm::Evm::builder()
         .with_db(db)
-        .with_external_context(TracingInspector::new(config))
+        .with_external_context(&mut ext)
         .with_cfg_env_with_handler_cfg(config_env)
         .with_block_env(block_env.into())
         .with_tx_env(tx)
+        .append_handler_register(citrea_handle_register)
         .append_handler_register(inspector_handle_register)
         .build();
 
