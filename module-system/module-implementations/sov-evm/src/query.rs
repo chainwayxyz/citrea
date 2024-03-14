@@ -1330,8 +1330,14 @@ pub(crate) fn build_rpc_receipt(
     let block_number = Some(U256::from(block.header.number));
     let other = OtherFields::new(
         [
-            ("l1FeeRate".into(), receipt.l1_fee_rate.into()),
-            ("diffSize".into(), receipt.diff_size.into()),
+            (
+                "l1FeeRate".into(),
+                format!("{:#x}", receipt.l1_fee_rate).into(),
+            ),
+            (
+                "diffSize".into(),
+                format!("{:#x}", receipt.diff_size).into(),
+            ),
         ]
         .into_iter()
         .collect(),
