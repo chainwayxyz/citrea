@@ -81,12 +81,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             match result {
                 Ok(result) => {
                     // take ownership of result.log() and use into()
-
-                    let logs: Vec<_> = result
-                        .logs()
-                        .into_iter()
-                        .map(|log| log.clone().into())
-                        .collect();
+                    let logs: Vec<_> = result.logs().iter().cloned().map(Into::into).collect();
 
                     let gas_used = result.gas_used();
                     let tx_hash = evm_tx_recovered.hash();
