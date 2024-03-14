@@ -147,7 +147,7 @@ revm = { version = "7.1.0", features = [
     "std",
     "secp256k1",
 ], default-features = false }
-alloy-rpc-types = { git = "https://github.com/alloy-rs/alloy", rev = "76c70fb", features = [
+alloy-rpc-types = { git = "https://github.com/alloy-rs/alloy", rev = "9ac2c90", features = [
     "jsonrpsee-types",
 ] }
 alloy-primitives = "0.6"
