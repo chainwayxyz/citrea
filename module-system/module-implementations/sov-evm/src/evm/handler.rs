@@ -5,31 +5,80 @@ use std::sync::Arc;
 use revm::handler::register::EvmHandler;
 use revm::interpreter::InstructionResult;
 use revm::primitives::{Address, EVMError, ResultAndState, B256, U256};
-use revm::{Context, Database, FrameResult, JournalEntry};
+use revm::{Context, Database, FrameResult, InnerEvmContext, JournalEntry};
 
-pub(crate) trait CitreaExternal {
+#[derive(Copy, Clone)]
+pub struct TxInfo {
+    pub diff_size: u64,
+}
+
+pub(crate) trait CitreaHandlerContext {
+    /// Get current l1 fee rate.
     fn l1_fee_rate(&self) -> u64;
-}
-pub(crate) struct CitreaExternalContext {
-    l1_fee_rate: u64,
+    /// Set tx hash for the current execution context.
+    fn set_current_tx_hash(&mut self, hash: B256);
+    /// Set tx info for the current tx hash.
+    fn set_tx_info(&mut self, info: TxInfo);
+    /// Get tx info for the given tx by its hash.
+    fn get_tx_info(&self, tx_hash: B256) -> Option<TxInfo>;
 }
 
-impl CitreaExternalContext {
-    pub(crate) fn new(l1_fee_rate: u64) -> Self {
-        Self { l1_fee_rate }
+// Blanked impl for &mut T: CitreaExternal
+impl<T: CitreaHandlerContext> CitreaHandlerContext for &mut T {
+    fn l1_fee_rate(&self) -> u64 {
+        (**self).l1_fee_rate()
+    }
+    fn set_current_tx_hash(&mut self, hash: B256) {
+        (**self).set_current_tx_hash(hash);
+    }
+    fn set_tx_info(&mut self, info: TxInfo) {
+        (**self).set_tx_info(info)
+    }
+    fn get_tx_info(&self, tx_hash: B256) -> Option<TxInfo> {
+        (**self).get_tx_info(tx_hash)
     }
 }
 
-impl CitreaExternal for CitreaExternalContext {
+#[derive(Default)]
+pub(crate) struct CitreaHandlerExt {
+    l1_fee_rate: u64,
+    current_tx_hash: Option<B256>,
+    tx_infos: HashMap<B256, TxInfo>,
+}
+
+impl CitreaHandlerExt {
+    pub(crate) fn new(l1_fee_rate: u64) -> Self {
+        Self {
+            l1_fee_rate,
+            ..Default::default()
+        }
+    }
+}
+
+impl CitreaHandlerContext for CitreaHandlerExt {
     fn l1_fee_rate(&self) -> u64 {
         self.l1_fee_rate
+    }
+    fn set_current_tx_hash(&mut self, hash: B256) {
+        self.current_tx_hash.replace(hash);
+    }
+    fn set_tx_info(&mut self, info: TxInfo) {
+        let current_tx_hash = self.current_tx_hash.take();
+        if let Some(hash) = current_tx_hash {
+            self.tx_infos.insert(hash, info);
+        } else {
+            tracing::error!("No hash set for the current tx in Citrea handler");
+        }
+    }
+    fn get_tx_info(&self, tx_hash: B256) -> Option<TxInfo> {
+        self.tx_infos.get(&tx_hash).copied()
     }
 }
 
 pub(crate) fn citrea_handle_register<DB, EXT>(handler: &mut EvmHandler<'_, EXT, DB>)
 where
     DB: Database,
-    EXT: CitreaExternal,
+    EXT: CitreaHandlerContext,
 {
     let post_execution = &mut handler.post_execution;
     post_execution.output = Arc::new(CitreaHandler::<EXT, DB>::post_execution_output);
@@ -39,15 +88,16 @@ struct CitreaHandler<EXT, DB> {
     _phantom: std::marker::PhantomData<(EXT, DB)>,
 }
 
-impl<EXT: CitreaExternal, DB: Database> CitreaHandler<EXT, DB> {
+impl<EXT: CitreaHandlerContext, DB: Database> CitreaHandler<EXT, DB> {
     fn post_execution_output(
         context: &mut Context<EXT, DB>,
         result: FrameResult,
     ) -> Result<ResultAndState, EVMError<<DB as Database>::Error>> {
         if !result.interpreter_result().is_error() {
-            let diff_size = U256::from(calc_diff_size(context).map_err(EVMError::Database)?);
+            let diff_size = calc_diff_size(context).map_err(EVMError::Database)? as u64;
             let l1_fee_rate = U256::from(context.external.l1_fee_rate());
-            let l1_fee = diff_size * l1_fee_rate;
+            let l1_fee = U256::from(diff_size) * l1_fee_rate;
+            context.external.set_tx_info(TxInfo { diff_size });
             if let Some(_out_of_funds) = decrease_caller_balance(context, l1_fee)? {
                 return Err(EVMError::Custom(format!(
                     "Not enought funds for L1 fee: {}",
@@ -64,15 +114,15 @@ impl<EXT: CitreaExternal, DB: Database> CitreaHandler<EXT, DB> {
 fn calc_diff_size<EXT, DB: Database>(
     context: &mut Context<EXT, DB>,
 ) -> Result<usize, <DB as Database>::Error> {
+    let InnerEvmContext {
+        db,
+        journaled_state,
+        ..
+    } = &mut context.evm.inner;
+
     // Get the last journal entry to calculate diff.
-    let journal = context
-        .evm
-        .journaled_state
-        .journal
-        .last()
-        .cloned()
-        .unwrap_or(vec![]);
-    let state = &context.evm.journaled_state.state;
+    let journal = journaled_state.journal.last().cloned().unwrap_or(vec![]);
+    let state = &journaled_state.state;
 
     #[derive(Default)]
     struct AccountChange<'a> {
@@ -143,11 +193,11 @@ fn calc_diff_size<EXT, DB: Database>(
             diff_size += size_of::<B256>(); // Code hashes are B256
 
             // Retrieve code from DB and apply its size
-            if let Some(info) = context.evm.db.basic(*addr)? {
+            if let Some(info) = db.basic(*addr)? {
                 if let Some(code) = info.code {
                     diff_size += code.len();
                 } else {
-                    let code = context.evm.db.code_by_hash(info.code_hash)?;
+                    let code = db.code_by_hash(info.code_hash)?;
                     diff_size += code.len();
                 }
             }
@@ -193,10 +243,13 @@ fn decrease_caller_balance<EXT, DB: Database>(
 ) -> Result<Option<InstructionResult>, EVMError<DB::Error>> {
     let caller = context.evm.env.tx.caller;
 
-    let (caller_account, _) = context
-        .evm
-        .journaled_state
-        .load_account(caller, &mut context.evm.db)?;
+    let InnerEvmContext {
+        journaled_state,
+        db,
+        ..
+    } = &mut context.evm.inner;
+
+    let (caller_account, _) = journaled_state.load_account(caller, db)?;
 
     let balance = &mut caller_account.info.balance;
 

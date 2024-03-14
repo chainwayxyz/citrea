@@ -101,6 +101,7 @@ fn end_soft_confirmation_hook_sets_head() {
                 excess_blob_gas: None,
                 parent_beacon_block_root: None,
             },
+            l1_fee_rate: 0,
             transactions: 0..2
         }
     );
@@ -168,7 +169,7 @@ fn create_pending_transaction(hash: B256, index: u64) -> PendingTransaction {
                     max_fee_per_gas: 2000u64 as u128,
                     max_priority_fee_per_gas: 3000u64 as u128,
                     to: reth_primitives::TransactionKind::Call(Address::from([3u8; 20])),
-                    value: 4000u128.into(),
+                    value: U256::from(4000u128),
                     access_list: reth_primitives::AccessList::default(),
                     input: Bytes::from([4u8; 20]),
                 }),
@@ -177,13 +178,14 @@ fn create_pending_transaction(hash: B256, index: u64) -> PendingTransaction {
         },
         receipt: Receipt {
             receipt: reth_primitives::Receipt {
-                tx_type: reth_primitives::TxType::EIP1559,
+                tx_type: reth_primitives::TxType::Eip1559,
                 success: true,
                 cumulative_gas_used: 100u64 * index,
                 logs: vec![],
             },
             gas_used: 100u64,
             log_index_start: 0,
+            diff_size: 0,
             error: None,
         },
     }
@@ -263,6 +265,7 @@ fn finalize_hook_creates_final_block() {
                     "4850cef91960c3097715d9294018ea79399b71d80db8b8e6089788059ddc903d"
                 ))
             ),
+            l1_fee_rate: 0,
             transactions: 0..2
         }
     );

@@ -74,7 +74,7 @@ pub(crate) fn create_tx_env(tx: &TransactionSignedEcRecovered) -> TxEnv {
         gas_price: U256::from(tx.effective_gas_price(None)),
         gas_priority_fee: tx.max_priority_fee_per_gas().map(U256::from),
         transact_to: to,
-        value: tx.value().into(),
+        value: tx.value(),
         data: RethBytes::from(tx.input().to_vec()),
         chain_id: tx.chain_id(),
         nonce: Some(tx.nonce()),

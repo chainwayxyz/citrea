@@ -2,7 +2,7 @@ use ethers_core::rand::rngs::StdRng;
 use ethers_core::rand::SeedableRng;
 use reth_primitives::{
     Address, Bytes as RethBytes, Transaction as RethTransaction, TransactionKind,
-    TxEip1559 as RethTxEip1559,
+    TxEip1559 as RethTxEip1559, U256,
 };
 use secp256k1::{PublicKey, SecretKey};
 
@@ -64,7 +64,7 @@ impl TestSigner {
             to,
             input: RethBytes::from(data),
             nonce,
-            value: value.into(),
+            value: U256::from(value),
             chain_id: DEFAULT_CHAIN_ID,
             gas_limit: 1_000_000u64,
             max_fee_per_gas,

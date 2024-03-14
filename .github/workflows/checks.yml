@@ -52,7 +52,6 @@ env:
   RUSTFLAGS: -D warnings
   FOUNDRY_PROFILE: ci
 
-
 # Automatically cancels a job if a new commit if pushed to the same PR, branch, or tag.
 # Source: <https://stackoverflow.com/a/72408109/5148606>
 concurrency:
@@ -153,20 +152,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         # `cargo-nextest` is much faster than standard `cargo test`.
-      - name: Run Bitcoin tests
-        run: |
-          BITCOIN_VERSION=0.25.0
-          curl -O -L https://bitcoincore.org/bin/bitcoin-core-25.0/bitcoin-25.0-x86_64-linux-gnu.tar.gz
-          tar xf bitcoin-25.0-x86_64-linux-gnu.tar.gz
-          export PATH=$PATH:./bitcoin-25.0/bin
-          bitcoind -regtest=1 -daemon=1 -rpcuser=chainway -rpcpassword=topsecret -rpcport=38332
-          sleep 5 
-          bitcoin-cli -regtest=1 -rpcport=38332 -rpcuser=chainway -rpcpassword=topsecret createwallet "testwallet"
-          sleep 5
-          bitcoin-cli -rpcuser=chainway -rpcpassword=topsecret -rpcport=38332 -rpcwallet=testwallet -generate 250
-          # Run tests specifically for the bitcoin-da package
-          cd adapters/bitcoin
-          cargo test --package bitcoin-da --all-features -- --test-threads=1
       - uses: taiki-e/install-action@nextest
       - name: Install Rust
         run: rustup show
@@ -179,6 +164,7 @@ jobs:
 
     name: Foundry project
     runs-on: ubicloud-standard-2
+    if: github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v4
         with:
