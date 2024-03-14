@@ -129,6 +129,7 @@ fn prepare_call_env_conversion() {
 fn prepare_call_block_env() {
     let block = Block {
         header: Default::default(),
+        l1_fee_rate: Default::default(),
         transactions: Default::default(),
     };
 

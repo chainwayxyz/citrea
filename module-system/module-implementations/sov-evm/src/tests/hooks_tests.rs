@@ -101,6 +101,7 @@ fn end_soft_confirmation_hook_sets_head() {
                 excess_blob_gas: None,
                 parent_beacon_block_root: None,
             },
+            l1_fee_rate: 0,
             transactions: 0..2
         }
     );
@@ -184,7 +185,6 @@ fn create_pending_transaction(hash: B256, index: u64) -> PendingTransaction {
             },
             gas_used: 100u64,
             log_index_start: 0,
-            l1_fee_rate: 0,
             diff_size: 0,
             error: None,
         },
@@ -265,6 +265,7 @@ fn finalize_hook_creates_final_block() {
                     "4850cef91960c3097715d9294018ea79399b71d80db8b8e6089788059ddc903d"
                 ))
             ),
+            l1_fee_rate: 0,
             transactions: 0..2
         }
     );

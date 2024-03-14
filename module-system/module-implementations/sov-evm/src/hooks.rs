@@ -80,6 +80,11 @@ where
             .get(working_set)
             .expect("Pending block should always be set");
 
+        let l1_fee_rate = self
+            .l1_fee_rate
+            .get(working_set)
+            .expect("L1 fee rate must be set");
+
         let parent_block = self
             .head
             .get(working_set)
@@ -148,6 +153,7 @@ where
 
         let block = Block {
             header,
+            l1_fee_rate,
             transactions: start_tx_index..start_tx_index + pending_transactions.len() as u64,
         };
 

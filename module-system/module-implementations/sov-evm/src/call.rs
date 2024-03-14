@@ -99,7 +99,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
                         },
                         gas_used,
                         log_index_start,
-                        l1_fee_rate,
                         diff_size: tx_info.diff_size,
                         error: None,
                     };

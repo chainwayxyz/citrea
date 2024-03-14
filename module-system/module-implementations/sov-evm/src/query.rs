@@ -1332,7 +1332,7 @@ pub(crate) fn build_rpc_receipt(
         [
             (
                 "l1FeeRate".into(),
-                format!("{:#x}", receipt.l1_fee_rate).into(),
+                format!("{:#x}", block.l1_fee_rate).into(),
             ),
             (
                 "diffSize".into(),
