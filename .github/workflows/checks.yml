@@ -52,7 +52,6 @@ env:
   RUSTFLAGS: -D warnings
   FOUNDRY_PROFILE: ci
 
-
 # Automatically cancels a job if a new commit if pushed to the same PR, branch, or tag.
 # Source: <https://stackoverflow.com/a/72408109/5148606>
 concurrency:
@@ -165,6 +164,7 @@ jobs:
 
     name: Foundry project
     runs-on: ubicloud-standard-2
+    if: github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v4
         with:
