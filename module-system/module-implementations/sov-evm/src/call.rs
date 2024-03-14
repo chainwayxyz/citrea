@@ -8,8 +8,10 @@ use sov_modules_api::{CallResponse, WorkingSet};
 
 use crate::evm::db::EvmDb;
 use crate::evm::executor::{self};
+use crate::evm::handler::CitreaHandlerExt;
 use crate::evm::primitive_types::{BlockEnv, Receipt, TransactionSignedAndRecovered};
 use crate::evm::{EvmChainConfig, RlpEvmTransaction};
+use crate::handler::CitreaHandlerContext;
 use crate::{Evm, PendingTransaction};
 
 #[cfg_attr(
@@ -53,6 +55,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .l1_fee_rate
             .get(working_set)
             .expect("L1 fee rate must be set");
+        let mut citrea_handler_ext = CitreaHandlerExt::new(l1_fee_rate);
 
         let evm_db: EvmDb<'_, C> = self.get_db(working_set);
         let results = executor::execute_multiple_tx(
@@ -60,7 +63,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             &block_env,
             &evm_txs_recovered,
             cfg_env,
-            l1_fee_rate,
+            &mut citrea_handler_ext,
         );
 
         // Iterate each evm_txs_recovered and results pair
@@ -79,6 +82,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 Ok(result) => {
                     let logs: Vec<_> = result.logs().into_iter().map(Into::into).collect();
                     let gas_used = result.gas_used();
+                    let tx_hash = evm_tx_recovered.hash();
+                    let tx_info = citrea_handler_ext.get_tx_info(tx_hash).unwrap_or_else(|| {
+                        panic!("evm: Could not get associated info for tx: {tx_hash}")
+                    });
 
                     let receipt = Receipt {
                         receipt: reth_primitives::Receipt {
@@ -90,6 +97,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
                         },
                         gas_used,
                         log_index_start,
+                        l1_fee_rate,
+                        diff_size: tx_info.diff_size,
                         error: None,
                     };
 

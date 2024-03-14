@@ -10,6 +10,7 @@ use reth_primitives::TransactionKind::{Call, Create};
 use reth_primitives::{
     Block, BlockId, BlockNumberOrTag, SealedHeader, TransactionSignedEcRecovered, U128, U256, U64,
 };
+use reth_rpc_types::other::OtherFields;
 use reth_rpc_types::trace::geth::{GethDebugTracingOptions, GethTrace};
 use reth_rpc_types_compat::block::from_primitive_with_hash;
 use revm::primitives::{
@@ -1327,6 +1328,20 @@ pub(crate) fn build_rpc_receipt(
     let transaction_index = tx_number - block.transactions.start;
     let block_hash = Some(block.header.hash());
     let block_number = Some(U256::from(block.header.number));
+    let other = OtherFields::new(
+        [
+            (
+                "l1FeeRate".into(),
+                format!("{:#x}", receipt.l1_fee_rate).into(),
+            ),
+            (
+                "diffSize".into(),
+                format!("{:#x}", receipt.diff_size).into(),
+            ),
+        ]
+        .into_iter()
+        .collect(),
+    );
 
     reth_rpc_types::TransactionReceipt {
         transaction_hash,
@@ -1376,7 +1391,7 @@ pub(crate) fn build_rpc_receipt(
                 removed: false,
             })
             .collect(),
-        other: Default::default(),
+        other,
     }
 }
 

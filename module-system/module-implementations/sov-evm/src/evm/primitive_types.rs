@@ -116,5 +116,7 @@ pub(crate) struct Receipt {
     pub(crate) receipt: reth_primitives::Receipt,
     pub(crate) gas_used: u64,
     pub(crate) log_index_start: u64,
+    pub(crate) l1_fee_rate: u64,
+    pub(crate) diff_size: u64,
     pub(crate) error: Option<EVMError<u8>>,
 }

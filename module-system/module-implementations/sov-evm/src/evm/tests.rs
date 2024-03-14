@@ -10,6 +10,7 @@ use sov_prover_storage_manager::new_orphan_storage;
 use super::db::EvmDb;
 use super::db_init::InitEvmDb;
 use super::executor;
+use crate::evm::handler::CitreaHandlerExt;
 use crate::evm::primitive_types::BlockEnv;
 use crate::evm::AccountInfo;
 use crate::smart_contracts::SimpleStorageContract;
@@ -53,6 +54,8 @@ fn simple_contract_execution<DB: Database<Error = Infallible> + DatabaseCommit +
     let mut cfg_env = CfgEnvWithHandlerCfg::new_with_spec_id(Default::default(), SpecId::SHANGHAI);
     cfg_env.chain_id = DEFAULT_CHAIN_ID;
 
+    let mut citrea_ext = CitreaHandlerExt::new(0);
+
     let contract_address: Address = {
         let tx = dev_signer
             .sign_default_transaction(TransactionKind::Create, contract.byte_code().to_vec(), 1, 0)
@@ -63,11 +66,15 @@ fn simple_contract_execution<DB: Database<Error = Infallible> + DatabaseCommit +
             gas_limit: reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT,
             ..Default::default()
         };
-        let l1_fee_rate = 0;
 
-        let result =
-            executor::execute_tx(&mut evm_db, &block_env, tx, cfg_env.clone(), l1_fee_rate)
-                .unwrap();
+        let result = executor::execute_tx(
+            &mut evm_db,
+            &block_env,
+            tx,
+            cfg_env.clone(),
+            &mut citrea_ext,
+        )
+        .unwrap();
         contract_address(&result).expect("Expected successful contract creation")
     };
 
@@ -85,14 +92,13 @@ fn simple_contract_execution<DB: Database<Error = Infallible> + DatabaseCommit +
             )
             .unwrap();
         let tx = &tx.try_into().unwrap();
-        let l1_fee_rate = 0;
 
         executor::execute_tx(
             &mut evm_db,
             &BlockEnv::default(),
             tx,
             cfg_env.clone(),
-            l1_fee_rate,
+            &mut citrea_ext,
         )
         .unwrap();
     }
@@ -110,14 +116,13 @@ fn simple_contract_execution<DB: Database<Error = Infallible> + DatabaseCommit +
             .unwrap();
 
         let tx = &tx.try_into().unwrap();
-        let l1_fee_rate = 0;
 
         let result = executor::execute_tx(
             &mut evm_db,
             &BlockEnv::default(),
             tx,
             cfg_env.clone(),
-            l1_fee_rate,
+            &mut citrea_ext,
         )
         .unwrap();
 
@@ -139,14 +144,13 @@ fn simple_contract_execution<DB: Database<Error = Infallible> + DatabaseCommit +
             )
             .unwrap();
         let tx = &tx.try_into().unwrap();
-        let l1_fee_rate = 0;
 
         let result = executor::execute_tx(
             &mut evm_db,
             &BlockEnv::default(),
             tx,
             cfg_env.clone(),
-            l1_fee_rate,
+            &mut citrea_ext,
         )
         .unwrap();
 
