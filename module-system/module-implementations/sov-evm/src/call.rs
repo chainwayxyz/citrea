@@ -82,15 +82,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 Ok(result) => {
                     let logs: Vec<_> = result.logs().into_iter().map(Into::into).collect();
                     let gas_used = result.gas_used();
-                    let l1_fee = citrea_handler_ext
-                        .get_l1_fee(evm_tx_recovered.hash())
-                        .unwrap_or_else(|| {
-                            tracing::error!(
-                                "evm: Could not get associated l1 fee for tx: {}",
-                                evm_tx_recovered.hash()
-                            );
-                            Default::default()
-                        });
+                    let tx_hash = evm_tx_recovered.hash();
+                    let l1_fee = citrea_handler_ext.get_l1_fee(tx_hash).unwrap_or_else(|| {
+                        panic!("evm: Could not get associated l1 fee for tx: {tx_hash}")
+                    });
 
                     let receipt = Receipt {
                         receipt: reth_primitives::Receipt {
