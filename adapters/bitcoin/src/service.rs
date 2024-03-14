@@ -96,6 +96,34 @@ impl BitcoinService {
         .await
     }
 
+    #[cfg(test)]
+    pub async fn new_without_client(config: DaServiceConfig, chain_params: RollupParams) -> Self {
+        let network =
+            bitcoin::Network::from_str(&config.network).expect("Invalid bitcoin network name");
+
+        let client = BitcoinNode::new(
+            config.node_url,
+            config.node_username,
+            config.node_password,
+            network,
+        );
+
+        let address = Address::from_str(&config.address).expect("Invalid bitcoin address");
+
+        let private_key =
+            SecretKey::from_str(&config.sequencer_da_private_key.unwrap_or("".to_owned()))
+                .expect("Invalid private key");
+
+        Self {
+            client,
+            rollup_name: chain_params.rollup_name,
+            network,
+            address,
+            sequencer_da_private_key: private_key,
+            reveal_tx_id_prefix: chain_params.reveal_tx_id_prefix,
+        }
+    }
+
     pub async fn with_client(
         client: BitcoinNode,
         rollup_name: String,
@@ -492,7 +520,7 @@ mod tests {
             fee_rates_to_avg: Some(2), // small to speed up tests
         };
 
-        BitcoinService::new(
+        BitcoinService::new_without_client(
             runtime_config,
             RollupParams {
                 rollup_name: "sov-btc".to_string(),
@@ -607,7 +635,7 @@ mod tests {
             fee_rates_to_avg: Some(2), // small to speed up tests
         };
 
-        let incorrect_service = BitcoinService::new(
+        let incorrect_service = BitcoinService::new_without_client(
             runtime_config,
             RollupParams {
                 rollup_name: "sov-btc".to_string(),
