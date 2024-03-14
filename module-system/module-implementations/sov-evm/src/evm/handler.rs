@@ -5,7 +5,7 @@ use std::sync::Arc;
 use revm::handler::register::EvmHandler;
 use revm::interpreter::InstructionResult;
 use revm::primitives::{Address, EVMError, ResultAndState, B256, U256};
-use revm::{Context, Database, FrameResult, JournalEntry};
+use revm::{Context, Database, FrameResult, InnerEvmContext, JournalEntry};
 
 #[derive(Copy, Clone)]
 pub struct TxInfo {
@@ -114,15 +114,15 @@ impl<EXT: CitreaHandlerContext, DB: Database> CitreaHandler<EXT, DB> {
 fn calc_diff_size<EXT, DB: Database>(
     context: &mut Context<EXT, DB>,
 ) -> Result<usize, <DB as Database>::Error> {
+    let InnerEvmContext {
+        db,
+        journaled_state,
+        ..
+    } = &mut context.evm.inner;
+
     // Get the last journal entry to calculate diff.
-    let journal = context
-        .evm
-        .journaled_state
-        .journal
-        .last()
-        .cloned()
-        .unwrap_or(vec![]);
-    let state = &context.evm.journaled_state.state;
+    let journal = journaled_state.journal.last().cloned().unwrap_or(vec![]);
+    let state = &journaled_state.state;
 
     #[derive(Default)]
     struct AccountChange<'a> {
@@ -193,11 +193,11 @@ fn calc_diff_size<EXT, DB: Database>(
             diff_size += size_of::<B256>(); // Code hashes are B256
 
             // Retrieve code from DB and apply its size
-            if let Some(info) = context.evm.db.basic(*addr)? {
+            if let Some(info) = db.basic(*addr)? {
                 if let Some(code) = info.code {
                     diff_size += code.len();
                 } else {
-                    let code = context.evm.db.code_by_hash(info.code_hash)?;
+                    let code = db.code_by_hash(info.code_hash)?;
                     diff_size += code.len();
                 }
             }
@@ -243,10 +243,13 @@ fn decrease_caller_balance<EXT, DB: Database>(
 ) -> Result<Option<InstructionResult>, EVMError<DB::Error>> {
     let caller = context.evm.env.tx.caller;
 
-    let (caller_account, _) = context
-        .evm
-        .journaled_state
-        .load_account(caller, &mut context.evm.db)?;
+    let InnerEvmContext {
+        journaled_state,
+        db,
+        ..
+    } = &mut context.evm.inner;
+
+    let (caller_account, _) = journaled_state.load_account(caller, db)?;
 
     let balance = &mut caller_account.info.balance;
 
