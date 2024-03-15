@@ -691,19 +691,12 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let precompiles = get_precompiles(cfg_env.handler_cfg.spec_id);
         let mut inspector = AccessListInspector::new(initial, from, to, precompiles);
 
-        let mut alternative_block_env = reth_primitives::revm_primitives::BlockEnv::default();
-
-        alternative_block_env.number = U256::from(block_env.number);
-        alternative_block_env.coinbase = block_env.coinbase;
-        alternative_block_env.gas_limit = U256::from(block_env.gas_limit);
-        alternative_block_env.timestamp = U256::from(block_env.timestamp);
-        alternative_block_env.prevrandao = Some(block_env.prevrandao);
-        alternative_block_env.basefee = U256::from(block_env.basefee);
+        let revm_block_env = revm::primitives::BlockEnv::from(&block_env);
 
         let result = crate::rpc_helpers::inspect(
             &mut evm_db,
             cfg_env.clone(),
-            alternative_block_env,
+            revm_block_env,
             tx_env.clone(),
             &mut inspector,
         )?;
