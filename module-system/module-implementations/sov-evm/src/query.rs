@@ -33,7 +33,7 @@ use crate::evm::primitive_types::{BlockEnv, Receipt, SealedBlock, TransactionSig
 use crate::evm::{executor, prepare_call_env};
 use crate::rpc_helpers::*;
 use crate::{
-    BloomFilter, Evm, EvmChainConfig, FilterBlockOption, FilterError, MIN_CREATE_GAS,
+    BloomFilter, EthResult, Evm, EvmChainConfig, FilterBlockOption, FilterError, MIN_CREATE_GAS,
     MIN_TRANSACTION_GAS,
 };
 
@@ -783,7 +783,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             }
         };
 
-        let tx_env = match prepare_call_env(&block_env, request.clone()) {
+        let mut tx_env = match prepare_call_env(&block_env, request.clone()) {
             Ok(tx_env) => tx_env,
             Err(err) => {
                 return Err(err.into());
@@ -843,12 +843,12 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         // if the provided gas limit is less than computed cap, use that
         let gas_limit = std::cmp::min(U256::from(tx_env.gas_limit), highest_gas_limit);
-        block_env.gas_limit = convert_u256_to_u64(gas_limit).unwrap();
+        tx_env.gas_limit = convert_u256_to_u64(gas_limit).unwrap();
 
-        let evm_db = self.get_db(working_set);
+        let mut evm_db = self.get_db(working_set);
 
         // execute the call without writing to db
-        let result = executor::inspect(evm_db, &block_env, tx_env.clone(), cfg_env.clone());
+        let result = executor::inspect(&mut evm_db, &block_env, tx_env.clone(), cfg_env.clone());
 
         // Exceptional case: init used too much gas, we need to increase the gas limit and try
         // again
@@ -888,13 +888,36 @@ impl<C: sov_modules_api::Context> Evm<C> {
         // possible range NOTE: this is the gas the transaction used, which is less than the
         // transaction requires to succeed
         let gas_used = result.gas_used();
-        // the lowest value is capped by the gas it takes for a transfer
-        let mut lowest_gas_limit = if tx_env.transact_to.is_create() {
-            MIN_CREATE_GAS
-        } else {
-            MIN_TRANSACTION_GAS
-        };
         let mut highest_gas_limit: u64 = highest_gas_limit.try_into().unwrap_or(u64::MAX);
+
+        // the lowest value is capped by the gas used by the unconstrained transaction
+        let mut lowest_gas_limit = gas_used.saturating_sub(1);
+
+        let gas_refund = match result {
+            ExecutionResult::Success { gas_refunded, .. } => gas_refunded,
+            _ => 0,
+        };
+        // As stated in Geth, there is a good change that the transaction will pass if we set the
+        // gas limit to the execution gas used plus the gas refund, so we check this first
+        // <https://github.com/ethereum/go-ethereum/blob/a5a4fa7032bb248f5a7c40f4e8df2b131c4186a4/eth/gasestimator/gasestimator.go#L135
+        let optimistic_gas_limit = (gas_used + gas_refund) * 64 / 63;
+        if optimistic_gas_limit < highest_gas_limit {
+            tx_env.gas_limit = optimistic_gas_limit;
+            // (result, env) = executor::transact(&mut db, env)?;
+            let curr_result =
+                executor::inspect(&mut evm_db, &block_env, tx_env.clone(), cfg_env.clone());
+            let curr_result = match curr_result {
+                Ok(result) => result,
+                Err(err) => return Err(EthApiError::from(err).into()),
+            };
+            update_estimated_gas_range(
+                curr_result.result,
+                optimistic_gas_limit,
+                &mut highest_gas_limit,
+                &mut lowest_gas_limit,
+            )?;
+        };
+
         // pick a point that's close to the estimated gas
         let mut mid_gas_limit = std::cmp::min(
             gas_used * 3,
@@ -1577,4 +1600,43 @@ fn convert_u256_to_u64(u256: reth_primitives::U256) -> Result<u64, TryFromSliceE
     let bytes: [u8; 32] = u256.to_be_bytes();
     let bytes: [u8; 8] = bytes[24..].try_into()?;
     Ok(u64::from_be_bytes(bytes))
+}
+
+/// Updates the highest and lowest gas limits for binary search
+///  based on the result of the execution
+#[inline]
+fn update_estimated_gas_range(
+    result: ExecutionResult,
+    tx_gas_limit: u64,
+    highest_gas_limit: &mut u64,
+    lowest_gas_limit: &mut u64,
+) -> EthResult<()> {
+    match result {
+        ExecutionResult::Success { .. } => {
+            // cap the highest gas limit with succeeding gas limit
+            *highest_gas_limit = tx_gas_limit;
+        }
+        ExecutionResult::Revert { .. } => {
+            // increase the lowest gas limit
+            *lowest_gas_limit = tx_gas_limit;
+        }
+        ExecutionResult::Halt { reason, .. } => {
+            match reason {
+                HaltReason::OutOfGas(_) | HaltReason::InvalidFEOpcode => {
+                    // either out of gas or invalid opcode can be thrown dynamically if
+                    // gasLeft is too low, so we treat this as `out of gas`, we know this
+                    // call succeeds with a higher gaslimit. common usage of invalid opcode in openzeppelin <https://github.com/OpenZeppelin/openzeppelin-contracts/blob/94697be8a3f0dfcd95dfb13ffbd39b5973f5c65d/contracts/metatx/ERC2771Forwarder.sol#L360-L367>
+
+                    // increase the lowest gas limit
+                    *lowest_gas_limit = tx_gas_limit;
+                }
+                err => {
+                    // these should be unreachable because we know the transaction succeeds,
+                    // but we consider these cases an error
+                    return Err(RpcInvalidTransactionError::EvmHalt(err).into());
+                }
+            }
+        }
+    };
+    Ok(())
 }
