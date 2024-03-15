@@ -2,9 +2,9 @@ use std::collections::{HashMap, HashSet};
 use std::mem::size_of;
 use std::sync::Arc;
 
-use revm::handler::register::EvmHandler;
+use revm::handler::register::{EvmHandler, HandleRegisters};
 use revm::interpreter::InstructionResult;
-use revm::primitives::{Address, EVMError, ResultAndState, B256, U256};
+use revm::primitives::{Address, EVMError, HandlerCfg, ResultAndState, B256, U256};
 use revm::{Context, Database, FrameResult, InnerEvmContext, JournalEntry};
 
 #[derive(Copy, Clone)]
@@ -75,7 +75,17 @@ impl CitreaHandlerContext for CitreaHandlerExt {
     }
 }
 
-pub(crate) fn citrea_handle_register<DB, EXT>(handler: &mut EvmHandler<'_, EXT, DB>)
+pub(crate) fn citrea_handler<'a, DB, EXT>(cfg: HandlerCfg) -> EvmHandler<'a, EXT, DB>
+where
+    DB: Database,
+    EXT: CitreaHandlerContext,
+{
+    let mut handler = EvmHandler::mainnet_with_spec(cfg.spec_id);
+    handler.append_handler_register(HandleRegisters::Plain(citrea_handle_register));
+    handler
+}
+
+fn citrea_handle_register<DB, EXT>(handler: &mut EvmHandler<'_, EXT, DB>)
 where
     DB: Database,
     EXT: CitreaHandlerContext,
