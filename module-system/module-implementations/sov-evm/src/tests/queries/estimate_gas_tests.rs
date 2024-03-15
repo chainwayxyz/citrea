@@ -1,12 +1,13 @@
 use std::str::FromStr;
 
-use alloy_primitives::Uint;
+use alloy_primitives::{FixedBytes, Uint};
 use alloy_rpc_types::request::{TransactionInput, TransactionRequest};
 use hex::FromHex;
 use jsonrpsee::core::RpcResult;
 use reth_primitives::hex::ToHexExt;
-use reth_primitives::{Address, BlockNumberOrTag, Bytes, U64};
+use reth_primitives::{AccessList, AccessListItem, Address, BlockNumberOrTag, Bytes, U64};
 use reth_rpc::eth::error::RpcInvalidTransactionError;
+use reth_rpc_types::AccessListWithGasUsed;
 use revm::primitives::U256;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::WorkingSet;
@@ -193,6 +194,35 @@ fn test_tx_request_fields_gas() {
         Uint::from_str("0x6497").unwrap()
     );
     working_set.unset_archival_version();
+
+    let access_list_test = TransactionRequest {
+        access_list: None,
+        ..tx_req_contract_call.clone()
+    };
+
+    let test = evm.create_access_list(
+        access_list_test,
+        Some(BlockNumberOrTag::Latest),
+        &mut working_set,
+    );
+
+    assert_eq!(
+        test.unwrap(),
+        AccessListWithGasUsed {
+            access_list: AccessList {
+                0: vec![AccessListItem {
+                    address: Address::from_str("0x819c5497b157177315e1204f52e588b393771719")
+                        .unwrap(),
+                    storage_keys: vec![FixedBytes::from_hex(
+                        "0xd17c80a661d193357ea7c5311e029471883989438c7bcae8362437311a764685"
+                    )
+                    .unwrap()]
+                }]
+            }
+            .into(),
+            gas_used: Uint::from_str("0x6497").unwrap()
+        }
+    );
 }
 
 #[test]
