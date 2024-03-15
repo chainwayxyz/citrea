@@ -38,7 +38,7 @@ pub use crate::EvmConfig;
 
 // Gas per transaction not creating a contract.
 pub(crate) const MIN_TRANSACTION_GAS: u64 = 21_000u64;
-pub(crate) const MIN_CREATE_GAS: u64 = 53_000u64;
+// pub(crate) const MIN_CREATE_GAS: u64 = 53_000u64;
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub(crate) struct PendingTransaction {

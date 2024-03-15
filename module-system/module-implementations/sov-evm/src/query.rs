@@ -33,7 +33,7 @@ use crate::evm::primitive_types::{BlockEnv, Receipt, SealedBlock, TransactionSig
 use crate::evm::{executor, prepare_call_env};
 use crate::rpc_helpers::*;
 use crate::{
-    BloomFilter, EthResult, Evm, EvmChainConfig, FilterBlockOption, FilterError, MIN_CREATE_GAS,
+    BloomFilter, EthResult, Evm, EvmChainConfig, FilterBlockOption, FilterError,
     MIN_TRANSACTION_GAS,
 };
 
@@ -631,7 +631,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         let mut request = request.clone();
 
-        let mut block_env = match block_number {
+        let block_env = match block_number {
             Some(BlockNumberOrTag::Pending) => {
                 self.block_env.get(working_set).unwrap_or_default().clone()
             }

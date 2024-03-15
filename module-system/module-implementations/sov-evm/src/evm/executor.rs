@@ -3,15 +3,14 @@ use std::convert::Infallible;
 use reth_primitives::TransactionSignedEcRecovered;
 use reth_revm::tracing::{TracingInspector, TracingInspectorConfig};
 use revm::primitives::{
-    CfgEnvWithHandlerCfg, EVMError, EnvWithHandlerCfg, ExecutionResult, InvalidTransaction,
-    ResultAndState, TxEnv,
+    CfgEnvWithHandlerCfg, EVMError, ExecutionResult, InvalidTransaction, ResultAndState, TxEnv,
 };
 use revm::{self, inspector_handle_register, Database, DatabaseCommit};
 
 use super::conversions::create_tx_env;
 use super::handler::{citrea_handle_register, CitreaHandlerContext};
 use super::primitive_types::BlockEnv;
-use crate::{EthApiError, EthResult};
+// use crate::{EthApiError, EthResult};
 
 #[allow(dead_code)]
 pub(crate) fn execute_tx<
@@ -106,20 +105,20 @@ pub(crate) fn inspect<DB: Database<Error = Infallible> + DatabaseCommit>(
     evm.transact()
 }
 
-/// Executes the [EnvWithHandlerCfg] against the given [Database] without committing state changes.
-pub(crate) fn transact<DB>(
-    db: DB,
-    env: EnvWithHandlerCfg,
-) -> EthResult<(ResultAndState, EnvWithHandlerCfg)>
-where
-    DB: Database,
-    <DB as Database>::Error: Into<EthApiError>,
-{
-    let mut evm = revm::Evm::builder()
-        .with_db(db)
-        .with_env_with_handler_cfg(env)
-        .build();
-    let res = evm.transact()?;
-    let (_, env) = evm.into_db_and_env_with_handler_cfg();
-    Ok((res, env))
-}
+// /// Executes the [EnvWithHandlerCfg] against the given [Database] without committing state changes.
+// pub(crate) fn transact<DB>(
+//     db: DB,
+//     env: EnvWithHandlerCfg,
+// ) -> EthResult<(ResultAndState, EnvWithHandlerCfg)>
+// where
+//     DB: Database,
+//     <DB as Database>::Error: Into<EthApiError>,
+// {
+//     let mut evm = revm::Evm::builder()
+//         .with_db(db)
+//         .with_env_with_handler_cfg(env)
+//         .build();
+//     let res = evm.transact()?;
+//     let (_, env) = evm.into_db_and_env_with_handler_cfg();
+//     Ok((res, env))
+// }
