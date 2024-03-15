@@ -10,7 +10,6 @@ use revm::{self, inspector_handle_register, Database, DatabaseCommit};
 use super::conversions::create_tx_env;
 use super::handler::{citrea_handle_register, CitreaHandlerContext};
 use super::primitive_types::BlockEnv;
-// use crate::{EthApiError, EthResult};
 
 #[allow(dead_code)]
 pub(crate) fn execute_tx<

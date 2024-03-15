@@ -700,20 +700,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
         alternative_block_env.prevrandao = Some(block_env.prevrandao);
         alternative_block_env.basefee = U256::from(block_env.basefee);
 
-        // let env_with_handler_cfg = revm::primitives::EnvWithHandlerCfg::new_with_cfg_env(
-        //     cfg_env,
-        //     alternative_block_env,
-        //     tx_env,
-        // );
-
-        // let result_and_state = inspect(
-        //     &mut evm_db,
-        //     cfg_env,
-        //     alternative_block_env,
-        //     tx_env,
-        //     inspector,
-        // )?;
-
         let result = crate::rpc_helpers::inspect(
             &mut evm_db,
             cfg_env.clone(),
