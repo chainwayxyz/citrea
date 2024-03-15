@@ -16,7 +16,7 @@ use reth_rpc_types::AccessListWithGasUsed;
 use reth_rpc_types_compat::block::from_primitive_with_hash;
 use revm::primitives::{
     CfgEnvWithHandlerCfg, EVMError, ExecutionResult, HaltReason, InvalidTransaction, TransactTo,
-    KECCAK_EMPTY,
+    TxEnv, KECCAK_EMPTY,
 };
 use revm::{Database, DatabaseCommit};
 use revm_inspectors::access_list::AccessListInspector;
@@ -718,7 +718,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             &mut evm_db,
             cfg_env,
             alternative_block_env,
-            tx_env,
+            tx_env.clone(),
             &mut inspector,
         )?;
 
@@ -742,60 +742,29 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         request.access_list = Some(access_list.clone());
 
-        // let gas_used = self.eth_estimate_gas(
-        //     request, block_number, working_set
-        // )?;
+        let gas_used = self.estimate_gas_with_env(
+            request,
+            block_env,
+            cfg_with_spec_id,
+            &mut tx_env,
+            working_set,
+        )?;
 
-        todo!();
-
-        // Ok(AccessListWithGasUsed {
-        //     access_list,
-        //     gas_used: U256::from(result.unwrap().gas_used()),
-        // })
+        Ok(AccessListWithGasUsed {
+            access_list,
+            gas_used: U256::from(gas_used),
+        })
     }
 
-    /// Handler for: `eth_estimateGas`
-    // https://github.com/paradigmxyz/reth/blob/main/crates/rpc/rpc/src/eth/api/call.rs#L172
-    #[rpc_method(name = "eth_estimateGas")]
-    pub fn eth_estimate_gas(
+    /// Inner gas estimator
+    pub(crate) fn estimate_gas_with_env(
         &self,
         request: reth_rpc_types::TransactionRequest,
-        block_number: Option<BlockNumberOrTag>,
+        block_env: BlockEnv,
+        cfg_env: CfgEnvWithHandlerCfg,
+        tx_env: &mut TxEnv,
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<reth_primitives::U64> {
-        info!("evm module: eth_estimateGas");
-        let mut block_env = match block_number {
-            Some(BlockNumberOrTag::Pending) => {
-                self.block_env.get(working_set).unwrap_or_default().clone()
-            }
-            None | Some(BlockNumberOrTag::Latest) => {
-                // so we don't unnecessarily set archival version
-                self.block_env.get(working_set).unwrap_or_default().clone()
-            }
-            _ => {
-                let block = match self.get_sealed_block_by_number(block_number, working_set) {
-                    Some(block) => block,
-                    None => return Err(EthApiError::UnknownBlockNumber.into()),
-                };
-
-                working_set.set_archival_version(block.header.number);
-                BlockEnv::from(&block)
-            }
-        };
-
-        let mut tx_env = match prepare_call_env(&block_env, request.clone()) {
-            Ok(tx_env) => tx_env,
-            Err(err) => {
-                return Err(err.into());
-            }
-        };
-
-        let cfg = self
-            .cfg
-            .get(working_set)
-            .expect("EVM chain config should be set");
-        let cfg_env = get_cfg_env(&block_env, cfg, Some(get_cfg_env_template()));
-
         let request_gas = request.gas;
         let request_gas_price = request.gas_price;
         let env_gas_limit = block_env.gas_limit;
@@ -858,7 +827,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             // again with the block's gas limit to check if revert is gas related or not
             if request_gas.is_some() || request_gas_price.is_some() {
                 let evm_db = self.get_db(working_set);
-                return Err(map_out_of_gas_err(block_env, tx_env, cfg_env, evm_db).into());
+                return Err(map_out_of_gas_err(block_env, tx_env.clone(), cfg_env, evm_db).into());
             }
         }
 
@@ -873,7 +842,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     // again with the block's gas limit to check if revert is gas related or not
                     return if request_gas.is_some() || request_gas_price.is_some() {
                         let evm_db = self.get_db(working_set);
-                        Err(map_out_of_gas_err(block_env, tx_env, cfg_env, evm_db).into())
+                        Err(map_out_of_gas_err(block_env, tx_env.clone(), cfg_env, evm_db).into())
                     } else {
                         // the transaction did revert
                         Err(RpcInvalidTransactionError::Revert(RevertError::new(output)).into())
@@ -976,6 +945,51 @@ impl<C: sov_modules_api::Context> Evm<C> {
         }
 
         Ok(reth_primitives::U64::from(highest_gas_limit))
+    }
+
+    /// Handler for: `eth_estimateGas`
+    // https://github.com/paradigmxyz/reth/blob/main/crates/rpc/rpc/src/eth/api/call.rs#L172
+    #[rpc_method(name = "eth_estimateGas")]
+    pub fn eth_estimate_gas(
+        &self,
+        request: reth_rpc_types::TransactionRequest,
+        block_number: Option<BlockNumberOrTag>,
+        working_set: &mut WorkingSet<C>,
+    ) -> RpcResult<reth_primitives::U64> {
+        info!("evm module: eth_estimateGas");
+        let block_env = match block_number {
+            Some(BlockNumberOrTag::Pending) => {
+                self.block_env.get(working_set).unwrap_or_default().clone()
+            }
+            None | Some(BlockNumberOrTag::Latest) => {
+                // so we don't unnecessarily set archival version
+                self.block_env.get(working_set).unwrap_or_default().clone()
+            }
+            _ => {
+                let block = match self.get_sealed_block_by_number(block_number, working_set) {
+                    Some(block) => block,
+                    None => return Err(EthApiError::UnknownBlockNumber.into()),
+                };
+
+                working_set.set_archival_version(block.header.number);
+                BlockEnv::from(&block)
+            }
+        };
+
+        let mut tx_env = match prepare_call_env(&block_env, request.clone()) {
+            Ok(tx_env) => tx_env,
+            Err(err) => {
+                return Err(err.into());
+            }
+        };
+
+        let cfg = self
+            .cfg
+            .get(working_set)
+            .expect("EVM chain config should be set");
+        let cfg_env = get_cfg_env(&block_env, cfg, Some(get_cfg_env_template()));
+
+        self.estimate_gas_with_env(request, block_env, cfg_env, &mut tx_env, working_set)
     }
 
     /// Returns logs matching given filter object.
