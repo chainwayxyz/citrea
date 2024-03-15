@@ -23,21 +23,23 @@ pub enum CallMessage<C: Context> {
 }
 
 impl<C: Context, Da: DaSpec> SoftConfirmationRuleEnforcer<C, Da> {
+    /// Returns the address of authority.
+    fn get_authority(&self, working_set: &mut WorkingSet<C>) -> C::Address {
+        self.authority
+            .get(working_set)
+            .expect("Authority must be set")
+    }
+
     pub(crate) fn change_authority(
         &self,
         address: C::Address,
         context: &C,
         working_set: &mut WorkingSet<C>,
     ) -> anyhow::Result<CallResponse> {
-        let sender = context.sender();
-        if *sender
-            != self
-                .authority
-                .get(working_set)
-                .expect("Authority must be set")
-        {
-            return Err(anyhow::anyhow!("Only authority can change the authority"));
-        }
+        anyhow::ensure!(
+            *context.sender() == self.get_authority(working_set),
+            "Only authority can change the authority"
+        );
         self.authority.set(&address, working_set);
         Ok(CallResponse::default())
     }
@@ -48,17 +50,10 @@ impl<C: Context, Da: DaSpec> SoftConfirmationRuleEnforcer<C, Da> {
         context: &C,
         working_set: &mut WorkingSet<C>,
     ) -> anyhow::Result<CallResponse> {
-        let sender = context.sender();
-        if *sender
-            != self
-                .authority
-                .get(working_set)
-                .expect("Authority must be set")
-        {
-            return Err(anyhow::anyhow!(
-                "Only authority can change the limiting number"
-            ));
-        }
+        anyhow::ensure!(
+            *context.sender() == self.get_authority(working_set),
+            "Only authority can change the limiting number"
+        );
         self.limiting_number.set(&limiting_number, working_set);
         Ok(CallResponse::default())
     }
