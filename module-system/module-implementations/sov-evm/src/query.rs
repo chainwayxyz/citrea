@@ -714,9 +714,9 @@ impl<C: sov_modules_api::Context> Evm<C> {
         //     inspector,
         // )?;
 
-        let (result, env) = crate::rpc_helpers::inspect_with_env(
+        let result = crate::rpc_helpers::inspect(
             &mut evm_db,
-            cfg_env,
+            cfg_env.clone(),
             alternative_block_env,
             tx_env.clone(),
             &mut inspector,
@@ -735,20 +735,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         let access_list = inspector.into_access_list();
 
-        let cfg_with_spec_id = CfgEnvWithHandlerCfg {
-            cfg_env: env.cfg.clone(),
-            handler_cfg: env.handler_cfg,
-        };
-
         request.access_list = Some(access_list.clone());
 
-        let gas_used = self.estimate_gas_with_env(
-            request,
-            block_env,
-            cfg_with_spec_id,
-            &mut tx_env,
-            working_set,
-        )?;
+        let gas_used =
+            self.estimate_gas_with_env(request, block_env, cfg_env, &mut tx_env, working_set)?;
 
         Ok(AccessListWithGasUsed {
             access_list,

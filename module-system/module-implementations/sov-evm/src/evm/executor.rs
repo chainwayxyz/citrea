@@ -104,21 +104,3 @@ pub(crate) fn inspect<DB: Database<Error = Infallible> + DatabaseCommit>(
 
     evm.transact()
 }
-
-// /// Executes the [EnvWithHandlerCfg] against the given [Database] without committing state changes.
-// pub(crate) fn transact<DB>(
-//     db: DB,
-//     env: EnvWithHandlerCfg,
-// ) -> EthResult<(ResultAndState, EnvWithHandlerCfg)>
-// where
-//     DB: Database,
-//     <DB as Database>::Error: Into<EthApiError>,
-// {
-//     let mut evm = revm::Evm::builder()
-//         .with_db(db)
-//         .with_env_with_handler_cfg(env)
-//         .build();
-//     let res = evm.transact()?;
-//     let (_, env) = evm.into_db_and_env_with_handler_cfg();
-//     Ok((res, env))
-// }
