@@ -55,7 +55,7 @@ fn test_tx_request_fields_gas() {
     let tx_req_contract_call = TransactionRequest {
         from: Some(signer.address()),
         to: Some(Address::from_str("0x819c5497b157177315e1204f52e588b393771719").unwrap()),
-        gas: Some(U256::from(100000000)),
+        gas: Some(U256::from(10000000)),
         gas_price: Some(U256::from(100)),
         max_fee_per_gas: None,
         max_priority_fee_per_gas: None,
@@ -112,7 +112,7 @@ fn test_tx_request_fields_gas() {
     );
     assert_eq!(
         result_no_recipient.unwrap(),
-        Uint::from_str("0xcf09").unwrap()
+        Uint::from_str("0xcf08").unwrap()
     );
     working_set.unset_archival_version();
 
