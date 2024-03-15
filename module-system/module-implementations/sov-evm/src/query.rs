@@ -10,6 +10,7 @@ use reth_primitives::TransactionKind::{Call, Create};
 use reth_primitives::{
     Block, BlockId, BlockNumberOrTag, SealedHeader, TransactionSignedEcRecovered, U128, U256, U64,
 };
+use reth_rpc_types::other::OtherFields;
 use reth_rpc_types::trace::geth::{GethDebugTracingOptions, GethTrace};
 use reth_rpc_types_compat::block::from_primitive_with_hash;
 use revm::primitives::{
@@ -580,7 +581,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             }
         };
 
-        let tx_env = prepare_call_env(&block_env, request.clone()).unwrap();
+        let tx_env = prepare_call_env(&block_env, request.clone())?;
 
         let cfg = self
             .cfg
@@ -643,7 +644,12 @@ impl<C: sov_modules_api::Context> Evm<C> {
             }
         };
 
-        let tx_env = prepare_call_env(&block_env, request.clone()).unwrap();
+        let tx_env = match prepare_call_env(&block_env, request.clone()) {
+            Ok(tx_env) => tx_env,
+            Err(err) => {
+                return Err(err.into());
+            }
+        };
 
         let cfg = self
             .cfg
@@ -840,7 +846,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             let tx = self
                 .transactions
                 .get(number as usize, &mut accessory_state)
-                .unwrap_or_else(|| panic!("Transaction with known hash {} and number {} must be set in all {} transaction",                
+                .unwrap_or_else(|| panic!("Transaction with known hash {} and number {} must be set in all {} transaction",
                 hash,
                 number,
                 self.transactions.len(&mut accessory_state)));
@@ -1323,6 +1329,20 @@ pub(crate) fn build_rpc_receipt(
     let transaction_index = tx_number - block.transactions.start;
     let block_hash = Some(block.header.hash());
     let block_number = Some(U256::from(block.header.number));
+    let other = OtherFields::new(
+        [
+            (
+                "l1FeeRate".into(),
+                format!("{:#x}", block.l1_fee_rate).into(),
+            ),
+            (
+                "diffSize".into(),
+                format!("{:#x}", receipt.diff_size).into(),
+            ),
+        ]
+        .into_iter()
+        .collect(),
+    );
 
     reth_rpc_types::TransactionReceipt {
         transaction_hash,
@@ -1372,7 +1392,7 @@ pub(crate) fn build_rpc_receipt(
                 removed: false,
             })
             .collect(),
-        other: Default::default(),
+        other,
     }
 }
 

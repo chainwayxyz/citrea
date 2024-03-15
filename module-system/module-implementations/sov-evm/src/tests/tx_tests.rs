@@ -86,7 +86,7 @@ fn prepare_call_env_conversion() {
         chain_id: Some(U64::from(1u64)),
         access_list: None,
         transaction_type: Some(U8::from(2u8)),
-        blob_versioned_hashes: Some(vec![]),
+        blob_versioned_hashes: None,
         max_fee_per_blob_gas: None,
         sidecar: None,
         other: Default::default(),
@@ -129,6 +129,7 @@ fn prepare_call_env_conversion() {
 fn prepare_call_block_env() {
     let block = Block {
         header: Default::default(),
+        l1_fee_rate: Default::default(),
         transactions: Default::default(),
     };
 

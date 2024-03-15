@@ -20,11 +20,25 @@ use crate::test_client::TestClient;
 use crate::test_helpers::{start_rollup, NodeMode};
 use crate::DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT;
 
-async fn initialize_test() -> (
-    Box<TestClient>,
-    Box<TestClient>,
-    JoinHandle<()>,
-    JoinHandle<()>,
+struct TestConfig {
+    seq_min_soft_confirmations: u64,
+}
+
+impl Default for TestConfig {
+    fn default() -> Self {
+        Self {
+            seq_min_soft_confirmations: DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
+        }
+    }
+}
+
+async fn initialize_test(
+    config: TestConfig,
+) -> (
+    Box<TestClient>, /* seq_test_client */
+    Box<TestClient>, /* full_node_test_client */
+    JoinHandle<()>,  /* seq_task */
+    JoinHandle<()>,  /* full_node_task */
     Address,
 ) {
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
@@ -39,7 +53,7 @@ async fn initialize_test() -> (
             RollupProverConfig::Execute,
             NodeMode::SequencerNode,
             None,
-            DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
+            config.seq_min_soft_confirmations,
         )
         .await;
     });
@@ -81,7 +95,7 @@ async fn test_full_node_send_tx() -> Result<(), anyhow::Error> {
     // sov_demo_rollup::initialize_logging();
 
     let (seq_test_client, full_node_test_client, seq_task, full_node_task, addr) =
-        initialize_test().await;
+        initialize_test(Default::default()).await;
 
     let tx_hash = full_node_test_client
         .send_eth(addr, None, None, None, 0u128)
@@ -187,7 +201,7 @@ async fn test_e2e_same_block_sync() -> Result<(), anyhow::Error> {
     // sov_demo_rollup::initialize_logging();
 
     let (seq_test_client, full_node_test_client, seq_task, full_node_task, _) =
-        initialize_test().await;
+        initialize_test(Default::default()).await;
 
     let _ = execute_blocks(&seq_test_client, &full_node_test_client).await;
 
@@ -517,7 +531,7 @@ async fn test_soft_confirmations_on_different_blocks() -> Result<(), anyhow::Err
     let da_service = MockDaService::new(MockAddress::default());
 
     let (seq_test_client, full_node_test_client, seq_task, full_node_task, _) =
-        initialize_test().await;
+        initialize_test(Default::default()).await;
 
     // first publish a few blocks fast make it land in the same da block
     for _ in 1..=6 {
@@ -800,6 +814,124 @@ async fn execute_blocks(
 
     assert_eq!(seq_last_block.state_root, full_node_last_block.state_root);
     assert_eq!(seq_last_block.hash, full_node_last_block.hash);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_soft_confirmations_status_one_l1() -> Result<(), anyhow::Error> {
+    // sov_demo_rollup::initialize_logging();
+
+    let da_service = MockDaService::new(MockAddress::default());
+
+    let (seq_test_client, full_node_test_client, seq_task, full_node_task, _) =
+        initialize_test(TestConfig {
+            seq_min_soft_confirmations: 3,
+        })
+        .await;
+
+    // first publish a few blocks fast make it land in the same da block
+    for _ in 1..=6 {
+        seq_test_client.send_publish_batch_request().await;
+    }
+
+    // TODO check status=trusted
+
+    sleep(Duration::from_secs(2)).await;
+
+    // publish new da block
+    da_service.publish_test_block().await.unwrap();
+    seq_test_client.send_publish_batch_request().await; // TODO https://github.com/chainwayxyz/secret-sovereign-sdk/issues/214
+    seq_test_client.send_publish_batch_request().await; // TODO https://github.com/chainwayxyz/secret-sovereign-sdk/issues/214
+
+    sleep(Duration::from_secs(2)).await;
+
+    // now retrieve confirmation status from the sequencer and full node and check if they are the same
+    for i in 1..=6 {
+        let status_node = full_node_test_client
+            .ledger_get_soft_confirmation_status(i)
+            .await
+            .unwrap();
+
+        assert_eq!("finalized", status_node);
+    }
+
+    seq_task.abort();
+    full_node_task.abort();
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_soft_confirmations_status_two_l1() -> Result<(), anyhow::Error> {
+    // sov_demo_rollup::initialize_logging();
+
+    let da_service = MockDaService::new(MockAddress::default());
+
+    let (seq_test_client, full_node_test_client, seq_task, full_node_task, _) =
+        initialize_test(TestConfig {
+            seq_min_soft_confirmations: 3,
+        })
+        .await;
+
+    // first publish a few blocks fast make it land in the same da block
+    for _ in 1..=2 {
+        seq_test_client.send_publish_batch_request().await;
+    }
+
+    sleep(Duration::from_secs(2)).await;
+
+    // publish new da block
+    da_service.publish_test_block().await.unwrap();
+
+    for _ in 2..=6 {
+        seq_test_client.send_publish_batch_request().await;
+    }
+
+    // now retrieve confirmation status from the sequencer and full node and check if they are the same
+    for i in 1..=2 {
+        let status_node = full_node_test_client
+            .ledger_get_soft_confirmation_status(i)
+            .await
+            .unwrap();
+
+        assert_eq!("trusted", status_node);
+    }
+
+    // publish new da block
+    da_service.publish_test_block().await.unwrap();
+    seq_test_client.send_publish_batch_request().await; // TODO https://github.com/chainwayxyz/secret-sovereign-sdk/issues/214
+    seq_test_client.send_publish_batch_request().await; // TODO https://github.com/chainwayxyz/secret-sovereign-sdk/issues/214
+
+    sleep(Duration::from_secs(2)).await;
+
+    // Check that these L2 blocks are bounded on different L1 block
+    let mut batch_infos = vec![];
+    for i in 1..=6 {
+        let full_node_soft_conf = full_node_test_client
+            .ledger_get_soft_batch_by_number::<MockDaSpec>(i)
+            .await
+            .unwrap();
+        batch_infos.push(full_node_soft_conf);
+    }
+    assert_eq!(batch_infos[0].da_slot_height, batch_infos[1].da_slot_height);
+    assert!(batch_infos[2..]
+        .iter()
+        .all(|x| x.da_slot_height == batch_infos[2].da_slot_height));
+    assert_ne!(batch_infos[0].da_slot_height, batch_infos[5].da_slot_height);
+
+    // now retrieve confirmation status from the sequencer and full node and check if they are the same
+    for i in 1..=6 {
+        let status_node = full_node_test_client
+            .ledger_get_soft_confirmation_status(i)
+            .await
+            .unwrap();
+
+        assert_eq!("finalized", status_node);
+    }
+
+    seq_task.abort();
+    full_node_task.abort();
 
     Ok(())
 }

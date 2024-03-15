@@ -5,29 +5,41 @@ use revm::primitives::{CfgEnvWithHandlerCfg, EVMError, ExecutionResult, InvalidT
 use revm::{self, Database, DatabaseCommit};
 
 use super::conversions::create_tx_env;
+use super::handler::{citrea_handle_register, CitreaHandlerContext};
 use super::primitive_types::BlockEnv;
 
 #[allow(dead_code)]
-pub(crate) fn execute_tx<DB: Database<Error = Infallible> + DatabaseCommit>(
+pub(crate) fn execute_tx<
+    DB: Database<Error = Infallible> + DatabaseCommit,
+    EXT: CitreaHandlerContext,
+>(
     db: DB,
     block_env: &BlockEnv,
     tx: &TransactionSignedEcRecovered,
     config_env: CfgEnvWithHandlerCfg,
+    ext: &mut EXT,
 ) -> Result<ExecutionResult, EVMError<Infallible>> {
+    ext.set_current_tx_hash(tx.hash());
     let mut evm = revm::Evm::builder()
         .with_db(db)
+        .with_external_context(ext)
         .with_cfg_env_with_handler_cfg(config_env)
         .with_block_env(block_env.into())
         .with_tx_env(create_tx_env(tx))
+        .append_handler_register(citrea_handle_register)
         .build();
     evm.transact_commit()
 }
 
-pub(crate) fn execute_multiple_tx<DB: Database<Error = Infallible> + DatabaseCommit>(
+pub(crate) fn execute_multiple_tx<
+    DB: Database<Error = Infallible> + DatabaseCommit,
+    EXT: CitreaHandlerContext,
+>(
     db: DB,
     block_env: &BlockEnv,
     txs: &[TransactionSignedEcRecovered],
     config_env: CfgEnvWithHandlerCfg,
+    ext: &mut EXT,
 ) -> Vec<Result<ExecutionResult, EVMError<Infallible>>> {
     if txs.is_empty() {
         return vec![];
@@ -38,8 +50,10 @@ pub(crate) fn execute_multiple_tx<DB: Database<Error = Infallible> + DatabaseCom
 
     let mut evm = revm::Evm::builder()
         .with_db(db)
+        .with_external_context(ext)
         .with_cfg_env_with_handler_cfg(config_env)
         .with_block_env(block_env.into())
+        .append_handler_register(citrea_handle_register)
         .build();
 
     let mut tx_results = Vec::with_capacity(txs.len());
@@ -52,6 +66,9 @@ pub(crate) fn execute_multiple_tx<DB: Database<Error = Infallible> + DatabaseCom
         } else {
             evm = evm
                 .modify()
+                .modify_external_context(|ext| {
+                    ext.set_current_tx_hash(tx.hash());
+                })
                 .modify_env(|env| {
                     env.tx = create_tx_env(tx);
                 })

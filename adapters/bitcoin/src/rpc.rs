@@ -291,39 +291,3 @@ impl BitcoinNode {
         }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use crate::rpc::BitcoinNode;
-
-    fn get_bitcoin_node() -> BitcoinNode {
-        BitcoinNode::new(
-            "http://localhost:38332".to_string(),
-            "chainway".to_string(),
-            "topsecret".to_string(),
-            bitcoin::Network::Regtest,
-        )
-    }
-
-    #[tokio::test]
-    async fn get_utxos() {
-        let node = get_bitcoin_node();
-
-        let utxos = node.get_utxos().await.unwrap();
-
-        utxos.iter().for_each(|utxo| {
-            println!("address: {}, amount: {}", utxo.address, utxo.amount);
-        });
-    }
-
-    #[tokio::test]
-    async fn list_wallets() {
-        let node = get_bitcoin_node();
-
-        let wallets = node.list_wallets().await.unwrap();
-
-        wallets.iter().for_each(|wallet| {
-            println!("wallet: {}", wallet);
-        });
-    }
-}

@@ -166,6 +166,7 @@ fn genesis_block() {
                 },
                 *GENESIS_HASH
             ),
+            l1_fee_rate: 0,
             transactions: (0u64..0u64),
         }
     );
@@ -201,6 +202,7 @@ fn genesis_head() {
                 excess_blob_gas: None,
                 parent_beacon_block_root: None,
             },
+            l1_fee_rate: 0,
             transactions: (0u64..0u64),
         }
     );
