@@ -6,7 +6,7 @@ use reth_rpc_types::trace::geth::{
     GethTrace, NoopFrame,
 };
 use revm::primitives::db::Database;
-use revm::primitives::{BlockEnv, CfgEnvWithHandlerCfg, ResultAndState};
+use revm::primitives::{BlockEnv, CfgEnvWithHandlerCfg, EnvWithHandlerCfg, ResultAndState};
 use revm::{inspector_handle_register, Inspector};
 use revm_inspectors::tracing::{FourByteInspector, TracingInspector, TracingInspectorConfig};
 
@@ -107,6 +107,36 @@ where
         .build();
 
     Ok(evm.transact()?)
+}
+
+/// Executes the [Env] against the given [Database] without committing state changes.
+pub(crate) fn inspect_with_env<DB, I>(
+    db: DB,
+    config_env: CfgEnvWithHandlerCfg,
+    block_env: BlockEnv,
+    tx_env: TxEnv,
+    inspector: I,
+) -> EthResult<(ResultAndState, EnvWithHandlerCfg)>
+where
+    DB: Database,
+    <DB as Database>::Error: Into<EthApiError>,
+    I: Inspector<DB>,
+{
+    let mut evm = revm::Evm::builder()
+        .with_db(db)
+        .with_external_context(inspector)
+        .with_cfg_env_with_handler_cfg(config_env)
+        .with_block_env(block_env)
+        .with_tx_env(tx_env)
+        .append_handler_register(inspector_handle_register)
+        .build();
+
+    // Ok(evm.transact()?)
+    let res = evm.transact()?;
+
+    let (_, env) = evm.into_db_and_env_with_handler_cfg();
+
+    Ok((res, env))
 }
 
 /// Taken from reth

@@ -15,7 +15,8 @@ use reth_rpc_types::trace::geth::{GethDebugTracingOptions, GethTrace};
 use reth_rpc_types::AccessListWithGasUsed;
 use reth_rpc_types_compat::block::from_primitive_with_hash;
 use revm::primitives::{
-    EVMError, ExecutionResult, HaltReason, InvalidTransaction, TransactTo, KECCAK_EMPTY,
+    CfgEnvWithHandlerCfg, EVMError, ExecutionResult, HaltReason, InvalidTransaction, TransactTo,
+    KECCAK_EMPTY,
 };
 use revm::{Database, DatabaseCommit};
 use revm_inspectors::access_list::AccessListInspector;
@@ -30,7 +31,6 @@ use crate::evm::call::get_precompiles;
 use crate::evm::db::EvmDb;
 use crate::evm::primitive_types::{BlockEnv, Receipt, SealedBlock, TransactionSignedAndRecovered};
 use crate::evm::{executor, prepare_call_env};
-use crate::rpc_helpers::tracing_utils::inspect;
 use crate::rpc_helpers::*;
 use crate::{
     BloomFilter, Evm, EvmChainConfig, FilterBlockOption, FilterError, MIN_CREATE_GAS,
@@ -691,23 +691,62 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let precompiles = get_precompiles(cfg_env.handler_cfg.spec_id);
         let mut inspector = AccessListInspector::new(initial, from, to, precompiles);
 
-        // let (result, env) = inspect(&mut evm_db, cfg_env, block_env, tx_env, inspector);
+        let mut alternative_block_env = reth_primitives::revm_primitives::BlockEnv::default();
+
+        alternative_block_env.number = U256::from(block_env.number);
+        alternative_block_env.coinbase = block_env.coinbase;
+        alternative_block_env.gas_limit = U256::from(block_env.gas_limit);
+        alternative_block_env.timestamp = U256::from(block_env.timestamp);
+        alternative_block_env.prevrandao = Some(block_env.prevrandao);
+        alternative_block_env.basefee = U256::from(block_env.basefee);
+
+        // let env_with_handler_cfg = revm::primitives::EnvWithHandlerCfg::new_with_cfg_env(
+        //     cfg_env,
+        //     alternative_block_env,
+        //     tx_env,
+        // );
+
+        // let result_and_state = inspect(
+        //     &mut evm_db,
+        //     cfg_env,
+        //     alternative_block_env,
+        //     tx_env,
+        //     inspector,
+        // )?;
+
+        let (result, env) = crate::rpc_helpers::inspect_with_env(
+            &mut evm_db,
+            cfg_env,
+            alternative_block_env,
+            tx_env,
+            &mut inspector,
+        )?;
+
+        match result.result {
+            ExecutionResult::Halt { reason, .. } => Err(match reason {
+                HaltReason::NonceOverflow => RpcInvalidTransactionError::NonceMaxValue,
+                halt => RpcInvalidTransactionError::EvmHalt(halt),
+            }),
+            ExecutionResult::Revert { output, .. } => {
+                Err(RpcInvalidTransactionError::Revert(RevertError::new(output)))
+            }
+            ExecutionResult::Success { .. } => Ok(()),
+        }?;
+
+        let access_list = inspector.into_access_list();
+
+        let cfg_with_spec_id = CfgEnvWithHandlerCfg {
+            cfg_env: env.cfg.clone(),
+            handler_cfg: env.handler_cfg,
+        };
+
+        request.access_list = Some(access_list.clone());
+
+        // let gas_used = self.eth_estimate_gas(
+        //     request, block_number, working_set
+        // )?;
 
         todo!();
-        // let result = executor::inspect(evm_db, &block_env, tx_env, cfg_env);
-
-        // let access_list = match result {
-        //     Ok(result) => match result.result {
-        //         ExecutionResult::Success { access_list, .. } => access_list,
-        //         ExecutionResult::Halt { reason, gas_used } => {
-        //             return Err(RpcInvalidTransactionError::halt(reason, gas_used).into())
-        //         }
-        //         ExecutionResult::Revert { output, .. } => {
-        //             return Err(RpcInvalidTransactionError::Revert(RevertError::new(output)).into())
-        //         }
-        //     },
-        //     Err(err) => return Err(EthApiError::from(err).into()),
-        // };
 
         // Ok(AccessListWithGasUsed {
         //     access_list,

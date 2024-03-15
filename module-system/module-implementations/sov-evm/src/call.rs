@@ -1,7 +1,7 @@
 use core::panic;
 
 use anyhow::Result;
-use reth_primitives::{Log, TransactionSignedEcRecovered};
+use reth_primitives::TransactionSignedEcRecovered;
 use revm::primitives::{CfgEnvWithHandlerCfg, EVMError, SpecId};
 use sov_modules_api::prelude::*;
 use sov_modules_api::{CallResponse, WorkingSet};
