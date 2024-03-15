@@ -36,6 +36,7 @@ bitcoin = { version = "0.30.1", features = ["serde", "rand"] }
 brotli = "3.3.4"
 async-recursion = "1.0.5"
 futures.workspace = true
+test-bitcoincore-rpc = { path = "./test-bitcoincore-rpc" }
 
 
 [features]
