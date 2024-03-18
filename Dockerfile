@@ -34,7 +34,7 @@ COPY --from=builder /app/target/release/sov-demo-rollup /app/examples/demo-rollu
 COPY --from=builder /app /app
 RUN rm -rf /app/target && cargo
 
-EXPOSE 12345
+EXPOSE 8545
 
 WORKDIR /app/examples/demo-rollup
-ENTRYPOINT ["sh", "-c", "./publish_block.sh & ./sov-demo-rollup --sequencer-config-path mock_sequencer_config.toml"]
+ENTRYPOINT ["sh", "-c", "./publish_block.sh & ./sov-demo-rollup --rollup-config-path mock_dockerized_rollup_config.toml --sequencer-config-path mock_sequencer_config.toml"]
