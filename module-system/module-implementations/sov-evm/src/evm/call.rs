@@ -2,8 +2,7 @@
 
 use reth_primitives::{B256, U256};
 use reth_rpc_types::TransactionRequest;
-use revm::precompile::{PrecompileSpecId, Precompiles};
-use revm::primitives::{Address, SpecId, TransactTo, TxEnv};
+use revm::primitives::{TransactTo, TxEnv};
 
 use crate::error::rpc::{EthApiError, EthResult, RpcInvalidTransactionError};
 use crate::primitive_types::BlockEnv;
@@ -203,14 +202,4 @@ pub(crate) fn prepare_call_env(
     };
 
     Ok(env)
-}
-
-/// Returns the addresses of the precompiles corresponding to the SpecId.
-#[inline]
-pub(crate) fn get_precompiles(spec_id: SpecId) -> impl IntoIterator<Item = Address> {
-    let spec = PrecompileSpecId::from_spec_id(spec_id);
-    Precompiles::new(spec)
-        .addresses()
-        .copied()
-        .map(Address::from)
 }

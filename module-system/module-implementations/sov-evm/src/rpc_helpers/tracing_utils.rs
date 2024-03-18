@@ -5,8 +5,9 @@ use reth_rpc_types::trace::geth::{
     FourByteFrame, GethDebugBuiltInTracerType, GethDebugTracerType, GethDebugTracingOptions,
     GethTrace, NoopFrame,
 };
+use revm::precompile::{PrecompileSpecId, Precompiles};
 use revm::primitives::db::Database;
-use revm::primitives::{BlockEnv, CfgEnvWithHandlerCfg, ResultAndState};
+use revm::primitives::{Address, BlockEnv, CfgEnvWithHandlerCfg, ResultAndState, SpecId};
 use revm::{inspector_handle_register, Inspector};
 use revm_inspectors::tracing::{FourByteInspector, TracingInspector, TracingInspectorConfig};
 
@@ -184,4 +185,14 @@ where
         .checked_div(env.gas_price)
         // This will be 0 if gas price is 0. It is fine, because we check it before.
         .unwrap_or_default())
+}
+
+/// Returns the addresses of the precompiles corresponding to the SpecId.
+#[inline]
+pub(crate) fn get_precompiles(spec_id: SpecId) -> impl IntoIterator<Item = Address> {
+    let spec = PrecompileSpecId::from_spec_id(spec_id);
+    Precompiles::new(spec)
+        .addresses()
+        .copied()
+        .map(Address::from)
 }
