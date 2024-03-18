@@ -276,6 +276,7 @@ fn increase_coinbase_balance<EXT, DB: Database>(
     } = &mut context.evm.inner;
 
     let (coinbase_account, _) = journaled_state.load_account(coinbase, db)?;
+    coinbase_account.mark_touch();
 
     let balance = &mut coinbase_account.info.balance;
 
