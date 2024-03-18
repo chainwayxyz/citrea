@@ -12,6 +12,7 @@ use crate::common::{AlignedVec, Prefix, Version, Witness};
 
 mod cache;
 mod codec;
+mod read_access;
 mod scratchpad;
 
 pub use cache::*;

@@ -10,6 +10,7 @@ use sov_rollup_interface::stf::Event;
 use crate::archival_state::{ArchivalAccessoryWorkingSet, ArchivalJmtWorkingSet};
 use crate::common::Prefix;
 use crate::module::{Context, Spec};
+use crate::storage::read_access::{AsReadonly, IsolationLevel, StateSnapshot};
 use crate::storage::{
     CacheKey, CacheValue, EncodeKeyLike, NativeStorage, OrderedReadsAndWrites, StateCodec,
     StateValueCodec, Storage, StorageInternalCache, StorageKey, StorageProof, StorageValue,
@@ -328,6 +329,23 @@ impl<C: Context> StateCheckpoint<C> {
     /// the data extracted with [`StateCheckpoint::freeze`].
     pub fn freeze_non_provable(&mut self) -> OrderedReadsAndWrites {
         self.accessory_delta.freeze()
+    }
+}
+
+impl<C: Context> AsReadonly for StateCheckpoint<C> {
+    type Readonly = StateSnapshot<<C as Spec>::Storage>;
+
+    fn as_readonly(&self, level: Option<IsolationLevel>) -> Self::Readonly {
+        // TODO think about uncommitted changes and how to handle them. There are three options
+        //  1. Return a snapshot of the current state, ignoring uncommitted changes
+        //  2. Return a snapshot of the current state, but also include uncommitted changes
+        //  3. Return an error
+
+        let level = level.unwrap_or_else(|| IsolationLevel::ReadCommitted);
+        match level {
+            IsolationLevel::ReadCommitted => StateSnapshot::new(self.delta.inner.clone()),
+            IsolationLevel::DirtyRead => StateSnapshot::new(self.delta.inner.clone()), // TODO clone cache?
+        }
     }
 }
 
