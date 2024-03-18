@@ -6,7 +6,7 @@ use reth_rpc_types::trace::geth::{
     GethTrace, NoopFrame,
 };
 use revm::primitives::db::Database;
-use revm::primitives::{BlockEnv, CfgEnvWithHandlerCfg, ResultAndState};
+use revm::primitives::{BlockEnv, CfgEnvWithHandlerCfg, EVMError, ResultAndState};
 use revm::{inspector_handle_register, Inspector};
 use revm_inspectors::tracing::{FourByteInspector, TracingInspector, TracingInspectorConfig};
 
@@ -90,7 +90,7 @@ pub(crate) fn inspect<DB, I>(
     block_env: BlockEnv,
     tx_env: TxEnv,
     inspector: I,
-) -> EthResult<ResultAndState>
+) -> Result<ResultAndState, EVMError<DB::Error>>
 where
     DB: Database,
     <DB as Database>::Error: Into<EthApiError>,
@@ -104,8 +104,8 @@ where
         .with_tx_env(tx_env)
         .append_handler_register(inspector_handle_register)
         .build();
-    let res = evm.transact()?;
-    Ok(res)
+
+    evm.transact()
 }
 
 /// Taken from reth

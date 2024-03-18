@@ -67,14 +67,9 @@ fn simple_contract_execution<DB: Database<Error = Infallible> + DatabaseCommit +
             ..Default::default()
         };
 
-        let result = executor::execute_tx(
-            &mut evm_db,
-            &block_env,
-            tx,
-            cfg_env.clone(),
-            &mut citrea_ext,
-        )
-        .unwrap();
+        let result =
+            executor::execute_tx(&mut evm_db, block_env, tx, cfg_env.clone(), &mut citrea_ext)
+                .unwrap();
         contract_address(&result).expect("Expected successful contract creation")
     };
 
@@ -95,7 +90,7 @@ fn simple_contract_execution<DB: Database<Error = Infallible> + DatabaseCommit +
 
         executor::execute_tx(
             &mut evm_db,
-            &BlockEnv::default(),
+            BlockEnv::default(),
             tx,
             cfg_env.clone(),
             &mut citrea_ext,
@@ -119,7 +114,7 @@ fn simple_contract_execution<DB: Database<Error = Infallible> + DatabaseCommit +
 
         let result = executor::execute_tx(
             &mut evm_db,
-            &BlockEnv::default(),
+            BlockEnv::default(),
             tx,
             cfg_env.clone(),
             &mut citrea_ext,
@@ -147,7 +142,7 @@ fn simple_contract_execution<DB: Database<Error = Infallible> + DatabaseCommit +
 
         let result = executor::execute_tx(
             &mut evm_db,
-            &BlockEnv::default(),
+            BlockEnv::default(),
             tx,
             cfg_env.clone(),
             &mut citrea_ext,
