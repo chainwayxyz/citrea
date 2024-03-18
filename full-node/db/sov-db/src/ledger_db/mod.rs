@@ -3,6 +3,7 @@ use std::sync::{Arc, Mutex};
 
 use serde::Serialize;
 use sov_rollup_interface::da::DaSpec;
+use sov_rollup_interface::rpc::SoftConfirmationEnum;
 use sov_rollup_interface::services::da::SlotData;
 use sov_rollup_interface::stf::{BatchReceipt, Event, SoftBatchReceipt};
 use sov_schema_db::{Schema, SchemaBatch, SeekKeyEncoder, DB};
@@ -444,11 +445,15 @@ impl LedgerDB {
     }
 
     /// Saves a soft confirmation status for a given L1 height
-    pub fn put_soft_confirmation_status(&self, height: SlotNumber) -> Result<(), anyhow::Error> {
+    pub fn put_soft_confirmation_status(
+        &self,
+        height: SlotNumber,
+        status: SoftConfirmationEnum,
+    ) -> Result<(), anyhow::Error> {
         let mut schema_batch = SchemaBatch::new();
 
         schema_batch
-            .put::<SoftConfirmationStatus>(&height, &true)
+            .put::<SoftConfirmationStatus>(&height, &status)
             .unwrap();
         self.db.write_schemas(schema_batch)?;
 

@@ -5,7 +5,7 @@
 
 use jsonrpsee::proc_macros::rpc;
 use sov_rollup_interface::rpc::{
-    BatchIdentifier, EventIdentifier, QueryMode, SlotIdentifier, TxIdentifier,
+    BatchIdentifier, EventIdentifier, QueryMode, SlotIdentifier, SoftConfirmationEnum, TxIdentifier,
 };
 use sov_rollup_interface::stf::Event;
 
@@ -143,7 +143,7 @@ where
     async fn get_soft_confirmation_status(
         &self,
         soft_batch_receipt: u64,
-    ) -> RpcResult<Option<String>>;
+    ) -> RpcResult<SoftConfirmationEnum>;
 
     /// Subscription method to receive a notification each time a slot is
     /// processed.

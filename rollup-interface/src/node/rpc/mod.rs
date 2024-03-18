@@ -2,6 +2,7 @@
 //! via an RPC interface.
 use core::marker::PhantomData;
 
+use borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(feature = "native")]
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -235,6 +236,17 @@ pub enum ItemOrHash<T> {
     Full(T),
 }
 
+/// Statuses for soft confirmation
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
+pub enum SoftConfirmationEnum {
+    /// No confirmation yet, rely on the sequencer
+    Trusted,
+    /// The soft batch has been finalized
+    Finalized,
+    /// The soft batch has been ZK-proven
+    Proven,
+}
+
 /// A LedgerRpcProvider provides a way to query the ledger for information about slots, batches, transactions, and events.
 #[cfg(feature = "native")]
 pub trait LedgerRpcProvider {
@@ -364,12 +376,11 @@ pub trait LedgerRpcProvider {
         query_mode: QueryMode,
     ) -> Result<Vec<Option<TxResponse<T>>>, anyhow::Error>;
 
-    /// Takes an L2 Height and and outputs a string "trusted" or "finalized"
-    /// TODO: Add status "proven"
+    /// Takes an L2 Height and and returns the soft confirmation status of the soft batch
     fn get_soft_confirmation_status(
         &self,
         soft_batch_receipt: u64,
-    ) -> Result<Option<String>, anyhow::Error>;
+    ) -> Result<SoftConfirmationEnum, anyhow::Error>;
 
     /// Get a notification each time a slot is processed
     fn subscribe_slots(&self) -> Result<tokio::sync::broadcast::Receiver<u64>, anyhow::Error>;

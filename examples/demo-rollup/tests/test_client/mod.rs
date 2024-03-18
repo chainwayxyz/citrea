@@ -17,6 +17,7 @@ use reth_primitives::BlockNumberOrTag;
 use reth_rpc_types::trace::geth::{GethDebugTracingOptions, GethTrace};
 use sequencer_client::GetSoftBatchResponse;
 use sov_evm::LogResponse;
+use sov_rollup_interface::rpc::SoftConfirmationEnum;
 
 pub const MAX_FEE_PER_GAS: u64 = 1000000001;
 const GAS: u64 = 900000u64;
@@ -521,7 +522,7 @@ impl TestClient {
     pub(crate) async fn ledger_get_soft_confirmation_status(
         &self,
         soft_batch_receipt: u64,
-    ) -> Option<String> {
+    ) -> Option<SoftConfirmationEnum> {
         self.http_client
             .request(
                 "ledger_getSoftConfirmationStatus",

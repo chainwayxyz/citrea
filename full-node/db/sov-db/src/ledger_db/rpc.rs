@@ -2,7 +2,8 @@ use serde::de::DeserializeOwned;
 use sov_rollup_interface::rpc::{
     BatchIdAndOffset, BatchIdentifier, BatchResponse, EventIdentifier, ItemOrHash,
     LedgerRpcProvider, QueryMode, SlotIdAndOffset, SlotIdentifier, SlotResponse,
-    SoftBatchIdentifier, SoftBatchResponse, TxIdAndOffset, TxIdentifier, TxResponse,
+    SoftBatchIdentifier, SoftBatchResponse, SoftConfirmationEnum, TxIdAndOffset, TxIdentifier,
+    TxResponse,
 };
 use sov_rollup_interface::stf::Event;
 use tokio::sync::broadcast::Receiver;
@@ -305,7 +306,7 @@ impl LedgerRpcProvider for LedgerDB {
     fn get_soft_confirmation_status(
         &self,
         l2_height: u64,
-    ) -> Result<Option<String>, anyhow::Error> {
+    ) -> Result<SoftConfirmationEnum, anyhow::Error> {
         let l2_soft_batch = match self.db.get::<SoftBatchByNumber>(&BatchNumber(l2_height)) {
             Ok(Some(batch)) => batch,
             _ => {
@@ -321,11 +322,8 @@ impl LedgerRpcProvider for LedgerDB {
             .get::<SoftConfirmationStatus>(&SlotNumber(l1_height))?;
 
         match status {
-            Some(status) => match status {
-                true => Ok(Some("finalized".to_string())),
-                false => Ok(Some("trusted".to_string())),
-            },
-            None => Ok(Some("trusted".to_string())),
+            Some(status) => Ok(status),
+            None => Ok(SoftConfirmationEnum::Trusted),
         }
     }
 
