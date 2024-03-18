@@ -15,7 +15,7 @@ use sov_modules_api::Context;
 use sov_modules_stf_blueprint::StfBlueprintTrait;
 use sov_rollup_interface::da::DaData::SequencerCommitment;
 use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaData, DaSpec};
-use sov_rollup_interface::rpc::SoftConfirmationEnum;
+use sov_rollup_interface::rpc::SoftConfirmationStatus;
 use sov_rollup_interface::services::da::{DaService, SlotData};
 pub use sov_rollup_interface::stf::BatchReceipt;
 use sov_rollup_interface::stf::{SoftBatchReceipt, StateTransitionFunction};
@@ -377,7 +377,7 @@ where
                     self.ledger_db
                         .put_soft_confirmation_status(
                             SlotNumber(i),
-                            SoftConfirmationEnum::Finalized,
+                            SoftConfirmationStatus::Finalized,
                         )
                         .unwrap_or_else(|_| {
                             panic!(

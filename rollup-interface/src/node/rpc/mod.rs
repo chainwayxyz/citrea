@@ -238,10 +238,10 @@ pub enum ItemOrHash<T> {
 
 /// Statuses for soft confirmation
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
-pub enum SoftConfirmationEnum {
+pub enum SoftConfirmationStatus {
     /// No confirmation yet, rely on the sequencer
     Trusted,
-    /// The soft batch has been finalized
+    /// The soft confirmation has been finalized with a sequencer commitment
     Finalized,
     /// The soft batch has been ZK-proven
     Proven,
@@ -380,7 +380,7 @@ pub trait LedgerRpcProvider {
     fn get_soft_confirmation_status(
         &self,
         soft_batch_receipt: u64,
-    ) -> Result<SoftConfirmationEnum, anyhow::Error>;
+    ) -> Result<SoftConfirmationStatus, anyhow::Error>;
 
     /// Get a notification each time a slot is processed
     fn subscribe_slots(&self) -> Result<tokio::sync::broadcast::Receiver<u64>, anyhow::Error>;

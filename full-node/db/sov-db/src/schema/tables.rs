@@ -29,7 +29,6 @@ use borsh::{maybestd, BorshDeserialize, BorshSerialize};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use jmt::storage::{NibblePath, Node, NodeKey};
 use jmt::Version;
-use sov_rollup_interface::rpc::SoftConfirmationEnum;
 use sov_rollup_interface::stf::{Event, EventKey};
 use sov_schema_db::schema::{KeyDecoder, KeyEncoder, ValueCodec};
 use sov_schema_db::{CodecError, SeekKeyEncoder};
@@ -251,7 +250,7 @@ define_table_with_seek_key_codec!(
 
 define_table_with_default_codec!(
     /// Check whether a block is finalized
-    (SoftConfirmationStatus) SlotNumber => SoftConfirmationEnum
+    (SoftConfirmationStatus) SlotNumber => sov_rollup_interface::rpc::SoftConfirmationStatus
 );
 
 define_table_with_default_codec!(

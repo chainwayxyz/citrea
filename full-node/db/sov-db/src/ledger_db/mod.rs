@@ -3,7 +3,6 @@ use std::sync::{Arc, Mutex};
 
 use serde::Serialize;
 use sov_rollup_interface::da::DaSpec;
-use sov_rollup_interface::rpc::SoftConfirmationEnum;
 use sov_rollup_interface::services::da::SlotData;
 use sov_rollup_interface::stf::{BatchReceipt, Event, SoftBatchReceipt};
 use sov_schema_db::{Schema, SchemaBatch, SeekKeyEncoder, DB};
@@ -448,7 +447,7 @@ impl LedgerDB {
     pub fn put_soft_confirmation_status(
         &self,
         height: SlotNumber,
-        status: SoftConfirmationEnum,
+        status: sov_rollup_interface::rpc::SoftConfirmationStatus,
     ) -> Result<(), anyhow::Error> {
         let mut schema_batch = SchemaBatch::new();
 

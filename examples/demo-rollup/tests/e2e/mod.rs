@@ -11,7 +11,7 @@ use sov_evm::smart_contracts::SimpleStorageContract;
 use sov_mock_da::{MockAddress, MockDaService, MockDaSpec};
 use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
 use sov_rollup_interface::da::DaSpec;
-use sov_rollup_interface::rpc::SoftConfirmationEnum;
+use sov_rollup_interface::rpc::SoftConfirmationStatus;
 use sov_stf_runner::RollupProverConfig;
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
@@ -854,7 +854,7 @@ async fn test_soft_confirmations_status_one_l1() -> Result<(), anyhow::Error> {
             .await
             .unwrap();
 
-        assert_eq!(SoftConfirmationEnum::Finalized, status_node);
+        assert_eq!(SoftConfirmationStatus::Finalized, status_node);
     }
 
     seq_task.abort();
@@ -896,7 +896,7 @@ async fn test_soft_confirmations_status_two_l1() -> Result<(), anyhow::Error> {
             .await
             .unwrap();
 
-        assert_eq!(SoftConfirmationEnum::Trusted, status_node);
+        assert_eq!(SoftConfirmationStatus::Trusted, status_node);
     }
 
     // publish new da block
@@ -928,7 +928,7 @@ async fn test_soft_confirmations_status_two_l1() -> Result<(), anyhow::Error> {
             .await
             .unwrap();
 
-        assert_eq!(SoftConfirmationEnum::Finalized, status_node);
+        assert_eq!(SoftConfirmationStatus::Finalized, status_node);
     }
 
     seq_task.abort();
