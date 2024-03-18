@@ -676,10 +676,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let to = if let Some(to) = request.to {
             to
         } else {
-            let account = match evm_db.basic(from) {
-                Ok(account) => account,
-                Err(_) => return Err(EthApiError::UnknownBlockNumber.into()),
-            };
+            let account = evm_db.basic(from).unwrap_or_default();
 
             let nonce = account.unwrap_or_default().nonce;
             from.create(nonce)
