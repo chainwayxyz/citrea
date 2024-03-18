@@ -1,0 +1,25 @@
+{
+  "data": [
+    {
+      "address": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+      "balance": "0x09184e72a000",
+      "code_hash": "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
+      "code": "0x",
+      "nonce": 0
+    }
+  ],
+  "chain_id": 5655,
+  "limit_contract_code_size": null,
+  "spec": {
+    "0": "SHANGHAI"
+  },
+  "coinbase": "0x8888f1f195afa192cfee860698584c030f4c9db1",
+  "starting_base_fee": 1000000000,
+  "block_gas_limit": 3141592,
+  "genesis_timestamp": 1422494849,
+  "block_timestamp_delta": 2,
+  "base_fee_params": {
+    "max_change_denominator": 8,
+    "elasticity_multiplier": 2
+  }
+}

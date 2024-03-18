@@ -37,4 +37,4 @@ RUN rm -rf /app/target && cargo
 EXPOSE 8545
 
 WORKDIR /app/examples/demo-rollup
-ENTRYPOINT ["sh", "-c", "./publish_block.sh & ./sov-demo-rollup --rollup-config-path mock_dockerized_rollup_config.toml --sequencer-config-path mock_sequencer_config.toml"]
+ENTRYPOINT ["sh", "-c", "./publish_block.sh & ./sov-demo-rollup --genesis-type docker --rollup-config-path mock_dockerized_rollup_config.toml --sequencer-config-path mock_sequencer_config.toml"]

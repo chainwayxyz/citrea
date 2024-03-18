@@ -27,6 +27,13 @@ mod test_rpc;
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
+    /// The genesis type which can be different for each data layer and if dockerized or not.
+    /// Defines the genesis of module states like evm.
+    /// For dockerized nodes for all da layers, it should be "docker".
+    /// Possible values are "docker", "mock", "celestia", "bitcoin"
+    #[arg(long)]
+    genesis_type: String,
+
     /// The data layer type.
     #[arg(long, default_value = "mock")]
     da_layer: SupportedDaLayer,
@@ -74,7 +81,10 @@ async fn main() -> Result<(), anyhow::Error> {
             };
 
             start_rollup::<MockDemoRollup, MockDaConfig>(
-                &GenesisPaths::from_dir("../test-data/genesis/demo-tests/mock"),
+                &GenesisPaths::from_dir(format!(
+                    "../test-data/genesis/demo-tests/{}",
+                    args.genesis_type
+                )),
                 kernel_genesis,
                 rollup_config_path,
                 RollupProverConfig::Execute,
@@ -95,7 +105,10 @@ async fn main() -> Result<(), anyhow::Error> {
             };
 
             start_rollup::<BitcoinRollup, DaServiceConfig>(
-                &GenesisPaths::from_dir("../test-data/genesis/demo-tests/bitcoin"),
+                &GenesisPaths::from_dir(format!(
+                    "../test-data/genesis/demo-tests/{}",
+                    args.genesis_type
+                )),
                 kernel_genesis,
                 rollup_config_path,
                 RollupProverConfig::Execute,
@@ -116,7 +129,10 @@ async fn main() -> Result<(), anyhow::Error> {
             };
 
             start_rollup::<CelestiaDemoRollup, CelestiaConfig>(
-                &GenesisPaths::from_dir("../test-data/genesis/demo-tests/celestia"),
+                &GenesisPaths::from_dir(format!(
+                    "../test-data/genesis/demo-tests/{}",
+                    args.genesis_type
+                )),
                 kernel_genesis,
                 rollup_config_path,
                 RollupProverConfig::Execute,
