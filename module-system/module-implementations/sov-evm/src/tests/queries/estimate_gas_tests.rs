@@ -46,7 +46,7 @@ fn payable_contract_value_test() {
     };
 
     let result = evm.eth_estimate_gas(tx_req, Some(BlockNumberOrTag::Latest), &mut working_set);
-    assert_eq!(result.unwrap(), Uint::from_str("0xa9ba").unwrap());
+    assert_eq!(result.unwrap(), Uint::from_str("0xab12").unwrap());
 }
 
 #[test]
@@ -82,7 +82,7 @@ fn test_tx_request_fields_gas() {
     );
     assert_eq!(
         result_contract_call.unwrap(),
-        Uint::from_str("0x6497").unwrap()
+        Uint::from_str("0x6601").unwrap()
     );
 
     let tx_req_no_sender = TransactionRequest {
@@ -113,7 +113,7 @@ fn test_tx_request_fields_gas() {
     );
     assert_eq!(
         result_no_recipient.unwrap(),
-        Uint::from_str("0xcf08").unwrap()
+        Uint::from_str("0xd0ac").unwrap()
     );
     working_set.unset_archival_version();
 
@@ -127,7 +127,7 @@ fn test_tx_request_fields_gas() {
         Some(BlockNumberOrTag::Latest),
         &mut working_set,
     );
-    assert_eq!(result_no_gas.unwrap(), Uint::from_str("0x6497").unwrap());
+    assert_eq!(result_no_gas.unwrap(), Uint::from_str("0x6601").unwrap());
     working_set.unset_archival_version();
 
     let tx_req_no_gas_price = TransactionRequest {
@@ -142,7 +142,7 @@ fn test_tx_request_fields_gas() {
     );
     assert_eq!(
         result_no_gas_price.unwrap(),
-        Uint::from_str("0x6497").unwrap()
+        Uint::from_str("0x6601").unwrap()
     );
     working_set.unset_archival_version();
 
@@ -158,7 +158,7 @@ fn test_tx_request_fields_gas() {
     );
     assert_eq!(
         result_no_chain_id.unwrap(),
-        Uint::from_str("0x6497").unwrap()
+        Uint::from_str("0x6601").unwrap()
     );
     working_set.unset_archival_version();
 
@@ -191,7 +191,7 @@ fn test_tx_request_fields_gas() {
     );
     assert_eq!(
         result_no_blob_versioned_hashes.unwrap(),
-        Uint::from_str("0x6497").unwrap()
+        Uint::from_str("0x6601").unwrap()
     );
     working_set.unset_archival_version();
 
@@ -220,7 +220,7 @@ fn test_tx_request_fields_gas() {
                 }]
             }
             .into(),
-            gas_used: Uint::from_str("0x6497").unwrap()
+            gas_used: Uint::from_str("0x6601").unwrap()
         }
     );
 }
@@ -233,13 +233,13 @@ fn estimate_gas_with_varied_inputs_test() {
     let simple_result =
         test_estimate_gas_with_input(&evm, &mut working_set, &signer, simple_call_data);
 
-    assert_eq!(simple_result.unwrap(), Uint::from_str("0x67ee").unwrap());
+    assert_eq!(simple_result.unwrap(), Uint::from_str("0x684d").unwrap());
 
     let simple_call_data = 131;
     let simple_result =
         test_estimate_gas_with_input(&evm, &mut working_set, &signer, simple_call_data);
 
-    assert_eq!(simple_result.unwrap(), Uint::from_str("0x67fa").unwrap());
+    assert_eq!(simple_result.unwrap(), Uint::from_str("0x68cc").unwrap());
 
     // Testing with non-zero value transfer EOA
     let value_transfer_result =

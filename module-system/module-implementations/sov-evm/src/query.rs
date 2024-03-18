@@ -34,7 +34,7 @@ use crate::evm::{executor, prepare_call_env};
 use crate::rpc_helpers::*;
 use crate::{
     BloomFilter, EthResult, Evm, EvmChainConfig, FilterBlockOption, FilterError,
-    MIN_TRANSACTION_GAS,
+    ESTIMATE_GAS_ERROR_RATIO, MIN_TRANSACTION_GAS,
 };
 
 #[rpc_gen(client, server)]
@@ -822,12 +822,13 @@ impl<C: sov_modules_api::Context> Evm<C> {
         };
 
         // at this point we know the call succeeded but want to find the _best_ (lowest) gas the
-        // transaction succeeds with. we  find this by doing a binary search over the
+        // transaction succeeds with. We find this by doing a binary search over the
         // possible range NOTE: this is the gas the transaction used, which is less than the
         // transaction requires to succeed
         let gas_used = result.gas_used();
         let mut highest_gas_limit: u64 = highest_gas_limit.try_into().unwrap_or(u64::MAX);
 
+        // https://github.com/paradigmxyz/reth/pull/7133/files
         // the lowest value is capped by the gas used by the unconstrained transaction
         let mut lowest_gas_limit = gas_used.saturating_sub(1);
 
@@ -863,6 +864,15 @@ impl<C: sov_modules_api::Context> Evm<C> {
         );
         // binary search
         while (highest_gas_limit - lowest_gas_limit) > 1 {
+            // An estimation error is allowed once the current gas limit range used in the binary
+            // search is small enough (less than 1.5% of the highest gas limit)
+            // <https://github.com/ethereum/go-ethereum/blob/a5a4fa7032bb248f5a7c40f4e8df2b131c4186a4/eth/gasestimator/gasestimator.go#L152
+            if (highest_gas_limit - lowest_gas_limit) as f64 / (highest_gas_limit as f64)
+                < ESTIMATE_GAS_ERROR_RATIO
+            {
+                break;
+            };
+
             let mut tx_env = tx_env.clone();
             tx_env.gas_limit = mid_gas_limit;
 
@@ -882,32 +892,12 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 continue;
             }
 
-            match result {
-                Ok(result) => match result.result {
-                    ExecutionResult::Success { .. } => {
-                        // cap the highest gas limit with succeeding gas limit
-                        highest_gas_limit = mid_gas_limit;
-                    }
-                    ExecutionResult::Revert { .. } => {
-                        // increase the lowest gas limit
-                        lowest_gas_limit = mid_gas_limit;
-                    }
-                    ExecutionResult::Halt { reason, .. } => {
-                        match reason {
-                            HaltReason::OutOfGas(_) => {
-                                // increase the lowest gas limit
-                                lowest_gas_limit = mid_gas_limit;
-                            }
-                            err => {
-                                // these should be unreachable because we know the transaction succeeds,
-                                // but we consider these cases an error
-                                return Err(RpcInvalidTransactionError::EvmHalt(err).into());
-                            }
-                        }
-                    }
-                },
-                Err(err) => return Err(EthApiError::from(err).into()),
-            };
+            update_estimated_gas_range(
+                result.expect("Result must be set").result,
+                mid_gas_limit,
+                &mut highest_gas_limit,
+                &mut lowest_gas_limit,
+            )?;
 
             // new midpoint
             mid_gas_limit = ((highest_gas_limit as u128 + lowest_gas_limit as u128) / 2) as u64;
