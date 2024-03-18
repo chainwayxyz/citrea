@@ -250,7 +250,7 @@ define_table_with_seek_key_codec!(
 
 define_table_with_default_codec!(
     /// Check whether a block is finalized
-    (SoftConfirmationStatus) SlotNumber => bool
+    (SoftConfirmationStatus) SlotNumber => sov_rollup_interface::rpc::SoftConfirmationStatus
 );
 
 define_table_with_default_codec!(

@@ -11,6 +11,7 @@ use sov_evm::smart_contracts::SimpleStorageContract;
 use sov_mock_da::{MockAddress, MockDaService, MockDaSpec};
 use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
 use sov_rollup_interface::da::DaSpec;
+use sov_rollup_interface::rpc::SoftConfirmationStatus;
 use sov_stf_runner::RollupProverConfig;
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
@@ -853,7 +854,7 @@ async fn test_soft_confirmations_status_one_l1() -> Result<(), anyhow::Error> {
             .await
             .unwrap();
 
-        assert_eq!("finalized", status_node);
+        assert_eq!(SoftConfirmationStatus::Finalized, status_node.unwrap());
     }
 
     seq_task.abort();
@@ -895,7 +896,7 @@ async fn test_soft_confirmations_status_two_l1() -> Result<(), anyhow::Error> {
             .await
             .unwrap();
 
-        assert_eq!("trusted", status_node);
+        assert_eq!(SoftConfirmationStatus::Trusted, status_node.unwrap());
     }
 
     // publish new da block
@@ -927,8 +928,15 @@ async fn test_soft_confirmations_status_two_l1() -> Result<(), anyhow::Error> {
             .await
             .unwrap();
 
-        assert_eq!("finalized", status_node);
+        assert_eq!(SoftConfirmationStatus::Finalized, status_node.unwrap());
     }
+
+    let status_node = full_node_test_client
+        .ledger_get_soft_confirmation_status(410)
+        .await;
+
+    assert!(format!("{:?}", status_node.err())
+        .contains("Soft confirmation at height 410 not processed yet."));
 
     seq_task.abort();
     full_node_task.abort();
