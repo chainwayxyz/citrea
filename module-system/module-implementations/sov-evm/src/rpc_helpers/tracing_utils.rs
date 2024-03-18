@@ -8,7 +8,7 @@ use reth_rpc_types::trace::geth::{
 use revm::primitives::db::Database;
 use revm::primitives::{BlockEnv, CfgEnvWithHandlerCfg, ResultAndState};
 use revm::{inspector_handle_register, Inspector};
-use revm_inspectors::tracing::{FourByteInspector, TracingInspector, TracingInspectorConfig};
+use revm_inspectors::tracing::{FourByteInspector, TracingInspector, TracingInspectorConfig, MuxInspector};
 
 use crate::error::rpc::{EthApiError, EthResult};
 use crate::evm::db::EvmDb;
@@ -58,7 +58,19 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
                     Ok((NoopFrame::default().into(), Default::default()))
                 }
                 // TODO: either implement or return unsupported
-                GethDebugBuiltInTracerType::MuxTracer => todo!("MuxTracer"),
+                GethDebugBuiltInTracerType::MuxTracer => {
+                    let mux_config = tracer_config
+                        .into_mux_config()
+                        .map_err(|_| EthApiError::InvalidTracerConfig)?;
+
+                    let mut inspector = MuxInspector::try_from_config(mux_config)?;
+                    //! To reviewer: RETH uses inspect_and_return_db but I suppose we don't have that
+                    let res = inspect(db, config_env, block_env, tx_env, &mut inspector)?;
+                    //! Is it fine that we are feeding the same db to the inspector instead of the the one returned by inspect_and_return_db
+                    let frame = inspector.try_into_mux_frame(&res, &db)?; 
+                                
+                    return Ok((frame.into(), res.state));
+                }
             },
             GethDebugTracerType::JsTracer(_code) => {
                 // This also requires DatabaseRef trait

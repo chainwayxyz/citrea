@@ -13,6 +13,7 @@ use reth_rpc_types::error::EthRpcErrorCode;
 use reth_rpc_types::request::TransactionInputError;
 use reth_rpc_types::BlockError;
 use revm::primitives::{EVMError, ExecutionResult, HaltReason, InvalidHeader, OutOfGasError};
+use reth_revm::tracing::MuxError;
 
 use super::pool::{
     Eip4844PoolTransactionError, InvalidPoolTransactionError, PoolError, PoolErrorKind,
@@ -109,6 +110,9 @@ pub enum EthApiError {
     #[error(transparent)]
     /// Transaction Input error when both `data` and `input` fields are set and not equal.
     TransactionInputError(#[from] TransactionInputError),
+    /// Error thrown when tracing with a muxTracer fails
+    #[error(transparent)]
+    MuxTracerError(#[from] MuxError),
     // /// Optimism related error
     // #[error(transparent)]
     // #[cfg(feature = "optimism")]
@@ -170,6 +174,7 @@ impl From<EthApiError> for ErrorObject<'static> {
             err @ EthApiError::InternalBlockingTaskError => internal_rpc_err(err.to_string()),
             err @ EthApiError::InternalEthError => internal_rpc_err(err.to_string()),
             err @ EthApiError::TransactionInputError(_) => invalid_params_rpc_err(err.to_string()),
+            EthApiError::MuxTracerError(msg) => internal_rpc_err(msg.to_string()),
             // #[cfg(feature = "optimism")]
             // EthApiError::Optimism(err) => match err {
             //     OptimismEthApiError::HyperError(err) => internal_rpc_err(err.to_string()),
@@ -206,6 +211,15 @@ impl From<RethError> for EthApiError {
         }
     }
 }
+
+// impl From<MuxError> for EthApiError {
+//     fn from(error: MuxError) -> Self {
+//         match error {
+//             // !!! To reviewer: Is this alright? And why do we need this function, Reth doesn't have it.
+//             MuxError => EthApiError::MuxTracerError(error.to_string()),
+//         }
+//     }
+// }
 
 impl From<reth_interfaces::provider::ProviderError> for EthApiError {
     fn from(error: reth_interfaces::provider::ProviderError) -> Self {
