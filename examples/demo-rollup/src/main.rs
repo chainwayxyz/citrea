@@ -32,7 +32,7 @@ struct Args {
     /// For dockerized nodes for all da layers, it should be "docker".
     /// Possible values are "docker", "mock", "celestia", "bitcoin"
     #[arg(long)]
-    genesis_type: String,
+    genesis_paths: String,
 
     /// The data layer type.
     #[arg(long, default_value = "mock")]
@@ -81,10 +81,7 @@ async fn main() -> Result<(), anyhow::Error> {
             };
 
             start_rollup::<MockDemoRollup, MockDaConfig>(
-                &GenesisPaths::from_dir(format!(
-                    "../test-data/genesis/demo-tests/{}",
-                    args.genesis_type
-                )),
+                &GenesisPaths::from_dir(&args.genesis_paths),
                 kernel_genesis,
                 rollup_config_path,
                 RollupProverConfig::Execute,
@@ -105,10 +102,7 @@ async fn main() -> Result<(), anyhow::Error> {
             };
 
             start_rollup::<BitcoinRollup, DaServiceConfig>(
-                &GenesisPaths::from_dir(format!(
-                    "../test-data/genesis/demo-tests/{}",
-                    args.genesis_type
-                )),
+                &GenesisPaths::from_dir(&args.genesis_paths),
                 kernel_genesis,
                 rollup_config_path,
                 RollupProverConfig::Execute,
@@ -129,10 +123,7 @@ async fn main() -> Result<(), anyhow::Error> {
             };
 
             start_rollup::<CelestiaDemoRollup, CelestiaConfig>(
-                &GenesisPaths::from_dir(format!(
-                    "../test-data/genesis/demo-tests/{}",
-                    args.genesis_type
-                )),
+                &GenesisPaths::from_dir(&args.genesis_paths),
                 kernel_genesis,
                 rollup_config_path,
                 RollupProverConfig::Execute,
