@@ -104,6 +104,7 @@ impl<EXT: CitreaHandlerContext, DB: Database> CitreaHandler<EXT, DB> {
                     l1_fee
                 )));
             }
+            increase_coinbase_balance(context, l1_fee)?;
         }
 
         revm::handler::mainnet::output(context, result)
@@ -260,4 +261,27 @@ fn decrease_caller_balance<EXT, DB: Database>(
     *balance = new_balance;
 
     Ok(None)
+}
+
+fn increase_coinbase_balance<EXT, DB: Database>(
+    context: &mut Context<EXT, DB>,
+    amount: U256,
+) -> Result<(), EVMError<DB::Error>> {
+    let coinbase = context.evm.env.block.coinbase;
+
+    let InnerEvmContext {
+        journaled_state,
+        db,
+        ..
+    } = &mut context.evm.inner;
+
+    let (coinbase_account, _) = journaled_state.load_account(coinbase, db)?;
+
+    let balance = &mut coinbase_account.info.balance;
+
+    let new_balance = balance.saturating_add(amount);
+
+    *balance = new_balance;
+
+    Ok(())
 }
