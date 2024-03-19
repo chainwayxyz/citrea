@@ -236,9 +236,16 @@ fn calc_diff_size<EXT, DB: Database>(
     // The diff size of balance change originating from priority fee is not included if priority fee is zero or None
     // However l1 fee will be applied in any case thus balance change diff size must be applied
     match context.evm.env.tx.gas_priority_fee {
-        None | Some(U256::ZERO) => {
-            // If priority fee is zero or None balance change diff size is applied
+        Some(U256::ZERO) => {
+            // EIP 1559 enabled transaction, priority fee is zero, include the diff size of balance change for l1 fee
             diff_size += size_of::<U256>();
+        }
+        None => {
+            // If priority fee is None, meaning it is a legacy transaction
+            // Check if effective gas price is zero, if so include the diff size of balance change for l1 fee
+            if context.evm.env.effective_gas_price() == U256::ZERO {
+                diff_size += size_of::<U256>();
+            }
         }
         _ => {}
     }
