@@ -147,6 +147,7 @@ impl FillableTransaction for TransactionSigned {
     }
 }
 
+/// https://github.com/paradigmxyz/reth/blob/332e412a0f8d34ff2bbb7e07921f8cacdcf69d64/crates/rpc/rpc/src/eth/revm_utils.rs#L385
 /// Caps the configured [TxEnv] `gas_limit` with the allowance of the caller.
 pub(crate) fn cap_tx_gas_limit_with_caller_allowance<DB>(db: DB, env: &mut TxEnv) -> EthResult<()>
 where
@@ -160,6 +161,7 @@ where
     Ok(())
 }
 
+/// https://github.com/paradigmxyz/reth/blob/332e412a0f8d34ff2bbb7e07921f8cacdcf69d64/crates/rpc/rpc/src/eth/revm_utils.rs#L403
 /// Calculates the caller gas allowance.
 ///
 /// `allowance = (account.balance - tx.value) / tx.gas_price`
