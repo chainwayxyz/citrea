@@ -97,7 +97,7 @@ fn call_multiple_test() {
                 },
                 gas_used: 132943,
                 log_index_start: 0,
-                diff_size: 513,
+                diff_size: 545,
                 error: None,
             },
             Receipt {
@@ -109,7 +109,7 @@ fn call_multiple_test() {
                 },
                 gas_used: 43730,
                 log_index_start: 0,
-                diff_size: 168,
+                diff_size: 200,
                 error: None,
             },
             Receipt {
@@ -121,7 +121,7 @@ fn call_multiple_test() {
                 },
                 gas_used: 26630,
                 log_index_start: 0,
-                diff_size: 168,
+                diff_size: 200,
                 error: None,
             },
             Receipt {
@@ -133,7 +133,7 @@ fn call_multiple_test() {
                 },
                 gas_used: 26630,
                 log_index_start: 0,
-                diff_size: 168,
+                diff_size: 200,
                 error: None,
             }
         ]
@@ -191,7 +191,7 @@ fn call_test() {
                 },
                 gas_used: 132943,
                 log_index_start: 0,
-                diff_size: 513,
+                diff_size: 545,
                 error: None,
             },
             Receipt {
@@ -203,7 +203,7 @@ fn call_test() {
                 },
                 gas_used: 43730,
                 log_index_start: 0,
-                diff_size: 168,
+                diff_size: 200,
                 error: None,
             }
         ]
@@ -792,8 +792,6 @@ fn test_l1_fee_success() {
     }
 
     run_tx(0, U256::from(885765), U256::ZERO);
-    // Coinbase should increase 425 + 32 = 457
-    // 32 comes from zero priority fee balance change
     run_tx(1, U256::from(885308), U256::from(457));
 }
 
