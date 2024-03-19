@@ -24,7 +24,7 @@ pub enum NodeMode {
     FullNode(SocketAddr),
     SequencerNode,
     #[allow(dead_code)]
-    ProverNode(SocketAddr),
+    Prover(SocketAddr),
 }
 
 pub async fn start_rollup(
@@ -66,7 +66,7 @@ pub async fn start_rollup(
             aggregated_proof_block_jump: 1,
         },
         sequencer_client: match node_mode {
-            NodeMode::FullNode(socket_addr) | NodeMode::ProverNode(socket_addr) => {
+            NodeMode::FullNode(socket_addr) | NodeMode::Prover(socket_addr) => {
                 Some(SequencerClientRpcConfig {
                     url: format!("http://localhost:{}", socket_addr.port()),
                 })
@@ -106,7 +106,7 @@ pub async fn start_rollup(
                 .await
                 .unwrap();
         }
-        NodeMode::ProverNode(_) => {
+        NodeMode::Prover(_) => {
             let rollup = mock_demo_rollup
                 .create_new_rollup(
                     &rt_genesis_paths,
