@@ -732,6 +732,51 @@ impl<C: sov_modules_api::Context> Evm<C> {
         })
     }
 
+    /// Handler for: `eth_estimateGas`
+    // https://github.com/paradigmxyz/reth/blob/main/crates/rpc/rpc/src/eth/api/call.rs#L172
+    #[rpc_method(name = "eth_estimateGas")]
+    pub fn eth_estimate_gas(
+        &self,
+        request: reth_rpc_types::TransactionRequest,
+        block_number: Option<BlockNumberOrTag>,
+        working_set: &mut WorkingSet<C>,
+    ) -> RpcResult<reth_primitives::U64> {
+        info!("evm module: eth_estimateGas");
+        let block_env = match block_number {
+            Some(BlockNumberOrTag::Pending) => {
+                self.block_env.get(working_set).unwrap_or_default().clone()
+            }
+            None | Some(BlockNumberOrTag::Latest) => {
+                // so we don't unnecessarily set archival version
+                self.block_env.get(working_set).unwrap_or_default().clone()
+            }
+            _ => {
+                let block = match self.get_sealed_block_by_number(block_number, working_set) {
+                    Some(block) => block,
+                    None => return Err(EthApiError::UnknownBlockNumber.into()),
+                };
+
+                working_set.set_archival_version(block.header.number);
+                BlockEnv::from(&block)
+            }
+        };
+
+        let mut tx_env = match prepare_call_env(&block_env, request.clone()) {
+            Ok(tx_env) => tx_env,
+            Err(err) => {
+                return Err(err.into());
+            }
+        };
+
+        let cfg = self
+            .cfg
+            .get(working_set)
+            .expect("EVM chain config should be set");
+        let cfg_env = get_cfg_env(&block_env, cfg, Some(get_cfg_env_template()));
+
+        self.estimate_gas_with_env(request, block_env, cfg_env, &mut tx_env, working_set)
+    }
+
     /// Inner gas estimator
     pub(crate) fn estimate_gas_with_env(
         &self,
@@ -928,51 +973,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
         }
 
         Ok(reth_primitives::U64::from(highest_gas_limit))
-    }
-
-    /// Handler for: `eth_estimateGas`
-    // https://github.com/paradigmxyz/reth/blob/main/crates/rpc/rpc/src/eth/api/call.rs#L172
-    #[rpc_method(name = "eth_estimateGas")]
-    pub fn eth_estimate_gas(
-        &self,
-        request: reth_rpc_types::TransactionRequest,
-        block_number: Option<BlockNumberOrTag>,
-        working_set: &mut WorkingSet<C>,
-    ) -> RpcResult<reth_primitives::U64> {
-        info!("evm module: eth_estimateGas");
-        let block_env = match block_number {
-            Some(BlockNumberOrTag::Pending) => {
-                self.block_env.get(working_set).unwrap_or_default().clone()
-            }
-            None | Some(BlockNumberOrTag::Latest) => {
-                // so we don't unnecessarily set archival version
-                self.block_env.get(working_set).unwrap_or_default().clone()
-            }
-            _ => {
-                let block = match self.get_sealed_block_by_number(block_number, working_set) {
-                    Some(block) => block,
-                    None => return Err(EthApiError::UnknownBlockNumber.into()),
-                };
-
-                working_set.set_archival_version(block.header.number);
-                BlockEnv::from(&block)
-            }
-        };
-
-        let mut tx_env = match prepare_call_env(&block_env, request.clone()) {
-            Ok(tx_env) => tx_env,
-            Err(err) => {
-                return Err(err.into());
-            }
-        };
-
-        let cfg = self
-            .cfg
-            .get(working_set)
-            .expect("EVM chain config should be set");
-        let cfg_env = get_cfg_env(&block_env, cfg, Some(get_cfg_env_template()));
-
-        self.estimate_gas_with_env(request, block_env, cfg_env, &mut tx_env, working_set)
     }
 
     /// Returns logs matching given filter object.
