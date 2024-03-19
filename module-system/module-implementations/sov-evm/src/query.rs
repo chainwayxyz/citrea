@@ -694,15 +694,14 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let precompiles = get_precompiles(cfg_env.handler_cfg.spec_id);
         let mut inspector = AccessListInspector::new(initial, from, to, precompiles);
 
-        let revm_block_env = revm::primitives::BlockEnv::from(&block_env);
-
-        let result = crate::rpc_helpers::inspect(
+        let result = inspect(
             &mut evm_db,
             cfg_env.clone(),
-            revm_block_env,
+            block_env.clone().into(),
             tx_env.clone(),
             &mut inspector,
-        )?;
+        )
+        .map_err(EthApiError::from)?;
 
         match result.result {
             ExecutionResult::Halt { reason, .. } => Err(match reason {
@@ -719,8 +718,13 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         request.access_list = Some(access_list.clone());
 
-        let gas_used =
-            self.estimate_gas_with_env(request, block_env, cfg_env, &mut tx_env, working_set)?;
+        let gas_used = self.estimate_gas_with_env(
+            request,
+            block_env.clone(),
+            cfg_env,
+            &mut tx_env,
+            working_set,
+        )?;
 
         Ok(AccessListWithGasUsed {
             access_list,
@@ -786,7 +790,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let gas_limit = std::cmp::min(U256::from(tx_env.gas_limit), highest_gas_limit);
         tx_env.gas_limit = convert_u256_to_u64(gas_limit).unwrap();
 
-        let mut evm_db = self.get_db(working_set);
+        let evm_db = self.get_db(working_set);
 
         // execute the call without writing to db
         let result = inspect(
@@ -852,8 +856,13 @@ impl<C: sov_modules_api::Context> Evm<C> {
         if optimistic_gas_limit < highest_gas_limit {
             tx_env.gas_limit = optimistic_gas_limit;
             // (result, env) = executor::transact(&mut db, env)?;
-            let curr_result =
-                executor::inspect(&mut evm_db, &block_env, tx_env.clone(), cfg_env.clone());
+            let curr_result = inspect(
+                self.get_db(working_set),
+                cfg_env.clone(),
+                block_env.clone().into(),
+                tx_env.clone(),
+                TracingInspector::new(TracingInspectorConfig::all()),
+            );
             let curr_result = match curr_result {
                 Ok(result) => result,
                 Err(err) => return Err(EthApiError::from(err).into()),
@@ -1053,7 +1062,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
         // EvmDB is the replacement of revm::CacheDB because cachedb requires immutable state
         // TODO: Move to CacheDB once immutable state is implemented
         let mut evm_db = self.get_db(working_set);
-        let revm_block_env = revm::primitives::BlockEnv::from(block_env);
 
         // TODO: Convert below steps to blocking task like in reth after implementing the semaphores
         let mut traces = Vec::new();
@@ -1063,7 +1071,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             let (trace, state_changes) = trace_transaction(
                 opts.clone().unwrap_or_default(),
                 cfg_env.clone(),
-                revm_block_env.clone(),
+                block_env.clone().into(),
                 tx_env_with_recovered(&tx),
                 &mut evm_db,
             )?;
