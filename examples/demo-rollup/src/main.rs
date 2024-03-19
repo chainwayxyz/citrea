@@ -27,10 +27,8 @@ mod test_rpc;
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
-    /// The genesis type which can be different for each data layer and if dockerized or not.
+    /// Path to the genesis configuration.
     /// Defines the genesis of module states like evm.
-    /// For dockerized nodes for all da layers, it should be "docker".
-    /// Possible values are "docker", "mock", "celestia", "bitcoin"
     #[arg(long)]
     genesis_paths: String,
 
