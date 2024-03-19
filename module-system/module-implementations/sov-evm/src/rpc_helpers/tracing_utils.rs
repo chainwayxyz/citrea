@@ -7,7 +7,7 @@ use reth_rpc_types::trace::geth::{
 };
 use revm::precompile::{PrecompileSpecId, Precompiles};
 use revm::primitives::db::Database;
-use revm::primitives::{Address, BlockEnv, CfgEnvWithHandlerCfg, ResultAndState, SpecId};
+use revm::primitives::{Address, BlockEnv, CfgEnvWithHandlerCfg, EVMError, ResultAndState, SpecId};
 use revm::{inspector_handle_register, Inspector};
 use revm_inspectors::tracing::{FourByteInspector, TracingInspector, TracingInspectorConfig};
 
@@ -92,7 +92,7 @@ pub(crate) fn inspect<DB, I>(
     block_env: BlockEnv,
     tx_env: TxEnv,
     inspector: I,
-) -> EthResult<ResultAndState>
+) -> Result<ResultAndState, EVMError<DB::Error>>
 where
     DB: Database,
     <DB as Database>::Error: Into<EthApiError>,
@@ -107,7 +107,7 @@ where
         .append_handler_register(inspector_handle_register)
         .build();
 
-    Ok(evm.transact()?)
+    evm.transact()
 }
 
 /// Taken from reth

@@ -305,7 +305,7 @@ impl LedgerRpcProvider for LedgerDB {
     fn get_soft_confirmation_status(
         &self,
         l2_height: u64,
-    ) -> Result<Option<String>, anyhow::Error> {
+    ) -> Result<sov_rollup_interface::rpc::SoftConfirmationStatus, anyhow::Error> {
         let l2_soft_batch = match self.db.get::<SoftBatchByNumber>(&BatchNumber(l2_height)) {
             Ok(Some(batch)) => batch,
             _ => {
@@ -321,11 +321,8 @@ impl LedgerRpcProvider for LedgerDB {
             .get::<SoftConfirmationStatus>(&SlotNumber(l1_height))?;
 
         match status {
-            Some(status) => match status {
-                true => Ok(Some("finalized".to_string())),
-                false => Ok(Some("trusted".to_string())),
-            },
-            None => Ok(Some("trusted".to_string())),
+            Some(status) => Ok(status),
+            None => Ok(sov_rollup_interface::rpc::SoftConfirmationStatus::Trusted),
         }
     }
 
