@@ -318,7 +318,7 @@ where
                 _ => {}
             });
 
-            if zk_proofs.is_empty() {
+            if !zk_proofs.is_empty() {
                 // TODO: Implement this
             }
 
