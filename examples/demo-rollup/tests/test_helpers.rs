@@ -23,6 +23,7 @@ use tracing::warn;
 pub enum NodeMode {
     FullNode(SocketAddr),
     SequencerNode,
+    #[allow(dead_code)]
     ProverNode(SocketAddr),
 }
 
