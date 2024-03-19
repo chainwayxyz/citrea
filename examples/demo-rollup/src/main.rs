@@ -27,6 +27,11 @@ mod test_rpc;
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
+    /// Path to the genesis configuration.
+    /// Defines the genesis of module states like evm.
+    #[arg(long)]
+    genesis_paths: String,
+
     /// The data layer type.
     #[arg(long, default_value = "mock")]
     da_layer: SupportedDaLayer,
@@ -74,7 +79,7 @@ async fn main() -> Result<(), anyhow::Error> {
             };
 
             start_rollup::<MockDemoRollup, MockDaConfig>(
-                &GenesisPaths::from_dir("../test-data/genesis/demo-tests/mock"),
+                &GenesisPaths::from_dir(&args.genesis_paths),
                 kernel_genesis,
                 rollup_config_path,
                 RollupProverConfig::Execute,
@@ -95,7 +100,7 @@ async fn main() -> Result<(), anyhow::Error> {
             };
 
             start_rollup::<BitcoinRollup, DaServiceConfig>(
-                &GenesisPaths::from_dir("../test-data/genesis/demo-tests/bitcoin"),
+                &GenesisPaths::from_dir(&args.genesis_paths),
                 kernel_genesis,
                 rollup_config_path,
                 RollupProverConfig::Execute,
@@ -116,7 +121,7 @@ async fn main() -> Result<(), anyhow::Error> {
             };
 
             start_rollup::<CelestiaDemoRollup, CelestiaConfig>(
-                &GenesisPaths::from_dir("../test-data/genesis/demo-tests/celestia"),
+                &GenesisPaths::from_dir(&args.genesis_paths),
                 kernel_genesis,
                 rollup_config_path,
                 RollupProverConfig::Execute,
