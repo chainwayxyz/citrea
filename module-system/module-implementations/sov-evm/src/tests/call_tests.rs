@@ -732,7 +732,7 @@ fn get_evm_config_starting_base_fee(
 
 #[test]
 fn test_l1_fee_success() {
-    fn run_tx(l1_fee_rate: u64, expected_balance: U256) {
+    fn run_tx(l1_fee_rate: u64, expected_balance: U256, expected_coinbase_balance: U256) {
         let (config, dev_signer, _) =
             get_evm_config_starting_base_fee(U256::from_str("1000000").unwrap(), None, 1);
 
@@ -764,7 +764,13 @@ fn test_l1_fee_success() {
             .get(&dev_signer.address(), &mut working_set)
             .unwrap();
 
+        let coinbase_account = evm
+            .accounts
+            .get(&config.coinbase, &mut working_set)
+            .unwrap();
+
         assert_eq!(db_account.info.balance, expected_balance);
+        assert_eq!(coinbase_account.info.balance, expected_coinbase_balance);
 
         assert_eq!(
             evm.receipts
@@ -785,8 +791,8 @@ fn test_l1_fee_success() {
         )
     }
 
-    run_tx(0, U256::from(885765));
-    run_tx(1, U256::from(885340));
+    run_tx(0, U256::from(885765), U256::ZERO);
+    run_tx(1, U256::from(885340), U256::from(425));
 }
 
 #[test]

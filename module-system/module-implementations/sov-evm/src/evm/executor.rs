@@ -1,11 +1,8 @@
 use std::convert::Infallible;
 
 use reth_primitives::TransactionSignedEcRecovered;
-use reth_revm::tracing::{TracingInspector, TracingInspectorConfig};
-use revm::primitives::{
-    CfgEnvWithHandlerCfg, EVMError, Env, ExecutionResult, InvalidTransaction, ResultAndState, TxEnv,
-};
-use revm::{self, inspector_handle_register, Context, Database, DatabaseCommit, EvmContext};
+use revm::primitives::{CfgEnvWithHandlerCfg, EVMError, Env, ExecutionResult, InvalidTransaction};
+use revm::{self, Context, Database, DatabaseCommit, EvmContext};
 
 use super::conversions::create_tx_env;
 use super::handler::{citrea_handler, CitreaHandlerContext};
@@ -21,7 +18,7 @@ where
     EXT: CitreaHandlerContext,
 {
     /// Creates a new Citrea EVM with the given parameters.
-    fn new(db: DB, block_env: &BlockEnv, config_env: CfgEnvWithHandlerCfg, ext: EXT) -> Self {
+    fn new(db: DB, block_env: BlockEnv, config_env: CfgEnvWithHandlerCfg, ext: EXT) -> Self {
         let evm_env = Env::boxed(config_env.cfg_env, block_env.into(), Default::default());
         let evm_context = EvmContext::new_with_env(db, evm_env);
         let context = Context::new(evm_context, ext);
@@ -47,7 +44,7 @@ pub(crate) fn execute_tx<
     EXT: CitreaHandlerContext,
 >(
     db: DB,
-    block_env: &BlockEnv,
+    block_env: BlockEnv,
     tx: &TransactionSignedEcRecovered,
     config_env: CfgEnvWithHandlerCfg,
     ext: &mut EXT,
@@ -61,7 +58,7 @@ pub(crate) fn execute_multiple_tx<
     EXT: CitreaHandlerContext,
 >(
     db: DB,
-    block_env: &BlockEnv,
+    block_env: BlockEnv,
     txs: &[TransactionSignedEcRecovered],
     config_env: CfgEnvWithHandlerCfg,
     ext: &mut EXT,
@@ -70,10 +67,10 @@ pub(crate) fn execute_multiple_tx<
         return vec![];
     }
 
-    let mut evm = CitreaEvm::new(db, block_env, config_env, ext);
-
     let block_gas_limit = block_env.gas_limit;
     let mut cumulative_gas_used = 0u64;
+
+    let mut evm = CitreaEvm::new(db, block_env, config_env, ext);
 
     let mut tx_results = Vec::with_capacity(txs.len());
     for tx in txs {
@@ -89,24 +86,4 @@ pub(crate) fn execute_multiple_tx<
         tx_results.push(result);
     }
     tx_results
-}
-
-pub(crate) fn inspect<DB: Database<Error = Infallible> + DatabaseCommit>(
-    db: DB,
-    block_env: &BlockEnv,
-    tx: TxEnv,
-    config_env: CfgEnvWithHandlerCfg,
-) -> Result<ResultAndState, EVMError<Infallible>> {
-    let config = TracingInspectorConfig::all();
-
-    let mut evm = revm::Evm::builder()
-        .with_db(db)
-        .with_external_context(TracingInspector::new(config))
-        .with_cfg_env_with_handler_cfg(config_env)
-        .with_block_env(block_env.into())
-        .with_tx_env(tx)
-        .append_handler_register(inspector_handle_register)
-        .build();
-
-    evm.transact()
 }

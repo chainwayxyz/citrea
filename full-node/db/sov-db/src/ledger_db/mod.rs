@@ -444,11 +444,15 @@ impl LedgerDB {
     }
 
     /// Saves a soft confirmation status for a given L1 height
-    pub fn put_soft_confirmation_status(&self, height: SlotNumber) -> Result<(), anyhow::Error> {
+    pub fn put_soft_confirmation_status(
+        &self,
+        height: SlotNumber,
+        status: sov_rollup_interface::rpc::SoftConfirmationStatus,
+    ) -> Result<(), anyhow::Error> {
         let mut schema_batch = SchemaBatch::new();
 
         schema_batch
-            .put::<SoftConfirmationStatus>(&height, &true)
+            .put::<SoftConfirmationStatus>(&height, &status)
             .unwrap();
         self.db.write_schemas(schema_batch)?;
 
