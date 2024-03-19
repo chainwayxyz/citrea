@@ -200,6 +200,7 @@ fn test_tx_request_fields_gas() {
         ..tx_req_contract_call.clone()
     };
 
+    // TODO: Fix create_access_list returning wrong gas (i.e. returns as if access list is none, rather than the provided argument).
     let create_no_access_list_test = evm.create_access_list(
         no_access_list_req,
         Some(BlockNumberOrTag::Latest),
