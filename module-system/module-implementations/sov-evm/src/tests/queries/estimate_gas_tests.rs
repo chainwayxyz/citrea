@@ -12,8 +12,8 @@ use revm::primitives::U256;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::WorkingSet;
 
-use crate::smart_contracts::SimpleStorageContract;
-use crate::tests::queries::{init_evm, init_evm_single_block};
+use crate::smart_contracts::{CallerContract, SimpleStorageContract};
+use crate::tests::queries::{init_evm, init_evm_single_block, init_evm_with_caller_contract};
 use crate::tests::test_signer::TestSigner;
 use crate::Evm;
 
@@ -247,7 +247,7 @@ fn test_tx_request_fields_gas() {
         &mut working_set,
     );
 
-    // Why did the consumption go up...
+    // Wrong access punishment.
     assert_eq!(
         access_list_gas_test.unwrap(),
         Uint::from_str("0x6e66").unwrap()
@@ -276,6 +276,87 @@ fn test_tx_request_fields_gas() {
             gas_used: Uint::from_str("0x6e66").unwrap()
         }
     );
+}
+
+#[test]
+fn test_access_list() {
+    // 0x819c5497b157177315e1204f52e588b393771719 -- Storage contract
+    // 0x5ccda3e6d071a059f00d4f3f25a1adc244eb5c93 -- Caller contract
+
+    let (evm, mut working_set, signer) = init_evm_with_caller_contract();
+
+    let caller = CallerContract::default();
+    let input_data = Bytes::from(
+        caller
+            .call_set_call_data(
+                Address::from_str("0x819c5497b157177315e1204f52e588b393771719").unwrap(),
+                42,
+            )
+            .to_vec(),
+    );
+
+    let tx_req_contract_call = TransactionRequest {
+        from: Some(signer.address()),
+        to: Some(Address::from_str("0x5ccda3e6d071a059f00d4f3f25a1adc244eb5c93").unwrap()),
+        gas: Some(U256::from(10000000)),
+        gas_price: Some(U256::from(100)),
+        max_fee_per_gas: None,
+        max_priority_fee_per_gas: None,
+        value: None,
+        input: TransactionInput::new(input_data),
+        nonce: Some(U64::from(3)),
+        chain_id: Some(U64::from(1u64)),
+        access_list: None,
+        max_fee_per_blob_gas: None,
+        blob_versioned_hashes: None,
+        transaction_type: None,
+        sidecar: None,
+        other: Default::default(),
+    };
+
+    let no_access_list = evm.eth_estimate_gas(tx_req_contract_call.clone(), None, &mut working_set);
+    assert_eq!(no_access_list.unwrap(), Uint::from_str("0x788b").unwrap());
+
+    let form_access_list =
+        evm.create_access_list(tx_req_contract_call.clone(), None, &mut working_set);
+
+    assert_eq!(
+        form_access_list.unwrap(),
+        AccessListWithGasUsed {
+            access_list: AccessList {
+                0: vec![AccessListItem {
+                    address: Address::from_str("0x819c5497b157177315e1204f52e588b393771719")
+                        .unwrap(),
+                    storage_keys: vec![FixedBytes::from_hex(
+                        "0x0000000000000000000000000000000000000000000000000000000000000000"
+                    )
+                    .unwrap()]
+                }]
+            }
+            .into(),
+            gas_used: Uint::from_str("0x788b").unwrap()
+        }
+    );
+
+    let tx_req_with_access_list = TransactionRequest {
+        access_list: Some(
+            AccessList {
+                0: vec![AccessListItem {
+                    address: Address::from_str("0x819c5497b157177315e1204f52e588b393771719")
+                        .unwrap(),
+                    storage_keys: vec![FixedBytes::from_hex(
+                        "0x0000000000000000000000000000000000000000000000000000000000000000",
+                    )
+                    .unwrap()],
+                }],
+            }
+            .into(),
+        ),
+        ..tx_req_contract_call.clone()
+    };
+
+    let with_access_list = evm.eth_estimate_gas(tx_req_with_access_list, None, &mut working_set);
+    assert_eq!(with_access_list.unwrap(), Uint::from_str("0x775d").unwrap());
 }
 
 #[test]
