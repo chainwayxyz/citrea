@@ -23,6 +23,7 @@ use tracing::warn;
 pub enum NodeMode {
     FullNode(SocketAddr),
     SequencerNode,
+    ProverNode(SocketAddr),
 }
 
 pub async fn start_rollup(
@@ -64,9 +65,11 @@ pub async fn start_rollup(
             aggregated_proof_block_jump: 1,
         },
         sequencer_client: match node_mode {
-            NodeMode::FullNode(socket_addr) => Some(SequencerClientRpcConfig {
-                url: format!("http://localhost:{}", socket_addr.port()),
-            }),
+            NodeMode::FullNode(socket_addr) | NodeMode::ProverNode(socket_addr) => {
+                Some(SequencerClientRpcConfig {
+                    url: format!("http://localhost:{}", socket_addr.port()),
+                })
+            }
             NodeMode::SequencerNode => None,
         },
     };
@@ -93,6 +96,23 @@ pub async fn start_rollup(
                     kernel_genesis,
                     rollup_config.clone(),
                     rollup_prover_config,
+                    false,
+                )
+                .await
+                .unwrap();
+            rollup
+                .run_and_report_rpc_port(Some(rpc_reporting_channel))
+                .await
+                .unwrap();
+        }
+        NodeMode::ProverNode(_) => {
+            let rollup = mock_demo_rollup
+                .create_new_rollup(
+                    &rt_genesis_paths,
+                    kernel_genesis,
+                    rollup_config.clone(),
+                    rollup_prover_config,
+                    true,
                 )
                 .await
                 .unwrap();

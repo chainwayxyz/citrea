@@ -221,6 +221,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         kernel_genesis_config: <Self::NativeKernel as Kernel<Self::NativeContext, Self::DaSpec>>::GenesisConfig,
         rollup_config: RollupConfig<Self::DaConfig>,
         prover_config: RollupProverConfig,
+        is_prover: bool,
     ) -> Result<Rollup<Self>, anyhow::Error>
     where
         <Self::NativeContext as Spec>::Storage: NativeStorage,
@@ -231,9 +232,14 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         // Maybe whole "prev_root" can be initialized inside runner
         // Getting block here, so prover_service doesn't have to be `Send`
         let last_finalized_block_header = da_service.get_last_finalized_block_header().await?;
-        let prover_service = self
-            .create_prover_service(prover_config, &rollup_config, &da_service)
-            .await;
+
+        let prover_service = match is_prover {
+            true => Some(
+                self.create_prover_service(prover_config, &rollup_config, &da_service)
+                    .await,
+            ),
+            false => None,
+        };
 
         let ledger_db = self.create_ledger_db(&rollup_config);
         let genesis_config = self.create_genesis_config(
