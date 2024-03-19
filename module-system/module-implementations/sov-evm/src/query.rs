@@ -10,6 +10,7 @@ use reth_primitives::TransactionKind::{Call, Create};
 use reth_primitives::{
     Block, BlockId, BlockNumberOrTag, SealedHeader, TransactionSignedEcRecovered, U128, U256, U64,
 };
+use reth_revm::tracing::{TracingInspector, TracingInspectorConfig};
 use reth_rpc_types::other::OtherFields;
 use reth_rpc_types::trace::geth::{GethDebugTracingOptions, GethTrace};
 use reth_rpc_types_compat::block::from_primitive_with_hash;
@@ -25,8 +26,8 @@ use tracing::info;
 use crate::call::get_cfg_env;
 use crate::error::rpc::{ensure_success, EthApiError, RevertError, RpcInvalidTransactionError};
 use crate::evm::db::EvmDb;
+use crate::evm::prepare_call_env;
 use crate::evm::primitive_types::{BlockEnv, Receipt, SealedBlock, TransactionSignedAndRecovered};
-use crate::evm::{executor, prepare_call_env};
 use crate::rpc_helpers::*;
 use crate::{
     BloomFilter, Evm, EvmChainConfig, FilterBlockOption, FilterError, MIN_CREATE_GAS,
@@ -591,7 +592,13 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         let evm_db: EvmDb<'_, C> = self.get_db(working_set);
 
-        let result = match executor::inspect(evm_db, &block_env, tx_env, cfg_env) {
+        let result = match inspect(
+            evm_db,
+            cfg_env,
+            block_env.into(),
+            tx_env,
+            TracingInspector::new(TracingInspectorConfig::all()),
+        ) {
             Ok(result) => result.result,
             Err(err) => return Err(EthApiError::from(err).into()),
         };
@@ -709,7 +716,13 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let evm_db = self.get_db(working_set);
 
         // execute the call without writing to db
-        let result = executor::inspect(evm_db, &block_env, tx_env.clone(), cfg_env.clone());
+        let result = inspect(
+            evm_db,
+            cfg_env.clone(),
+            block_env.clone().into(),
+            tx_env.clone(),
+            TracingInspector::new(TracingInspectorConfig::all()),
+        );
 
         // Exceptional case: init used too much gas, we need to increase the gas limit and try
         // again
@@ -767,7 +780,13 @@ impl<C: sov_modules_api::Context> Evm<C> {
             tx_env.gas_limit = mid_gas_limit;
 
             let evm_db = self.get_db(working_set);
-            let result = executor::inspect(evm_db, &block_env, tx_env.clone(), cfg_env.clone());
+            let result = inspect(
+                evm_db,
+                cfg_env.clone(),
+                block_env.clone().into(),
+                tx_env.clone(),
+                TracingInspector::new(TracingInspectorConfig::all()),
+            );
 
             // Exceptional case: init used too much gas, we need to increase the gas limit and try
             // again
@@ -903,7 +922,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         // EvmDB is the replacement of revm::CacheDB because cachedb requires immutable state
         // TODO: Move to CacheDB once immutable state is implemented
         let mut evm_db = self.get_db(working_set);
-        let revm_block_env = revm::primitives::BlockEnv::from(&block_env);
+        let revm_block_env = revm::primitives::BlockEnv::from(block_env);
 
         // TODO: Convert below steps to blocking task like in reth after implementing the semaphores
         let mut traces = Vec::new();
@@ -1415,7 +1434,13 @@ fn map_out_of_gas_err<C: sov_modules_api::Context>(
     let req_gas_limit = tx_env.gas_limit;
     tx_env.gas_limit = block_env.gas_limit;
 
-    match executor::inspect(db, &block_env, tx_env.clone(), cfg_env.clone()) {
+    match inspect(
+        db,
+        cfg_env,
+        block_env.into(),
+        tx_env,
+        TracingInspector::new(TracingInspectorConfig::all()),
+    ) {
         Ok(res) => match res.result {
             ExecutionResult::Success { .. } => {
                 // transaction succeeded by manually increasing the gas limit to

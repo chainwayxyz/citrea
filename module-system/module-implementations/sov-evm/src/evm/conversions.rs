@@ -45,8 +45,8 @@ impl From<AccountInfo> for reth_primitives::Account {
     }
 }
 
-impl From<&BlockEnv> for ReVmBlockEnv {
-    fn from(block_env: &BlockEnv) -> Self {
+impl From<BlockEnv> for ReVmBlockEnv {
+    fn from(block_env: BlockEnv) -> Self {
         Self {
             number: U256::from(block_env.number),
             coinbase: block_env.coinbase,

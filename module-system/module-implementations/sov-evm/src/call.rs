@@ -57,10 +57,11 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .expect("L1 fee rate must be set");
         let mut citrea_handler_ext = CitreaHandlerExt::new(l1_fee_rate);
 
+        let block_number = block_env.number;
         let evm_db: EvmDb<'_, C> = self.get_db(working_set);
         let results = executor::execute_multiple_tx(
             evm_db,
-            &block_env,
+            block_env,
             &evm_txs_recovered,
             cfg_env,
             &mut citrea_handler_ext,
@@ -107,7 +108,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                         transaction: TransactionSignedAndRecovered {
                             signer: evm_tx_recovered.signer(),
                             signed_transaction: evm_tx_recovered.into(),
-                            block_number: block_env.number,
+                            block_number,
                         },
                         receipt,
                     };
