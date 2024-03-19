@@ -233,6 +233,16 @@ fn calc_diff_size<EXT, DB: Database>(
         }
     }
 
+    // The diff of priority fee is not included if priority fee is zero or None
+    // However l1 fee will be applied in any case thus we need to apply balance change diff size
+    match context.evm.env.tx.gas_priority_fee {
+        None | Some(U256::ZERO) => {
+            // If priority fee is zero or None we need to apply balance change diff size
+            diff_size += size_of::<U256>();
+        }
+        _ => {}
+    }
+
     Ok(diff_size)
 }
 
