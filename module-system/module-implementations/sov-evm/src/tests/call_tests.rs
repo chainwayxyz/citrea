@@ -785,14 +785,16 @@ fn test_l1_fee_success() {
                 },
                 gas_used: 114235,
                 log_index_start: 0,
-                diff_size: 425,
+                diff_size: 457,
                 error: None,
             },]
         )
     }
 
     run_tx(0, U256::from(885765), U256::ZERO);
-    run_tx(1, U256::from(885340), U256::from(425));
+    // Coinbase should increase 425 + 32 = 457
+    // 32 comes from zero priority fee balance change
+    run_tx(1, U256::from(885308), U256::from(457));
 }
 
 #[test]
