@@ -239,12 +239,16 @@ fn calc_diff_size<EXT, DB: Database>(
         Some(U256::ZERO) => {
             // EIP 1559 enabled transaction, priority fee is zero, include the diff size of balance change for l1 fee
             diff_size += size_of::<U256>();
+            // Include the diff size of coinbase address for l1 fee
+            diff_size += size_of::<Address>();
         }
         None => {
             // If priority fee is None, meaning it is a legacy transaction
             // Check if effective gas price is zero, if so include the diff size of balance change for l1 fee
             if context.evm.env.effective_gas_price() == U256::ZERO {
                 diff_size += size_of::<U256>();
+                // Include the diff size of coinbase address for l1 fee
+                diff_size += size_of::<Address>();
             }
         }
         _ => {}

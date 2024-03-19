@@ -384,7 +384,7 @@ fn check_against_third_block_receipts(receipts: Vec<TransactionReceipt>) {
         "from": "0x9e1abd37ec34bbc688b6a2b7d9387d9256cf1773",
         "to": "0x819c5497b157177315e1204f52e588b393771719",
         "l1FeeRate": "0x1",
-        "diffSize": "0x88",
+        "diffSize": "0x9c",
         "contractAddress": null,
         "logs": [
             {
@@ -433,7 +433,7 @@ fn check_against_third_block_receipts(receipts: Vec<TransactionReceipt>) {
         "from": "0x9e1abd37ec34bbc688b6a2b7d9387d9256cf1773",
         "to": "0x819c5497b157177315e1204f52e588b393771719",
         "l1FeeRate": "0x1",
-        "diffSize": "0x88",
+        "diffSize": "0x9c",
         "contractAddress": null,
         "logs": [
             {
@@ -482,7 +482,7 @@ fn check_against_third_block_receipts(receipts: Vec<TransactionReceipt>) {
         "from": "0x9e1abd37ec34bbc688b6a2b7d9387d9256cf1773",
         "to": "0x819c5497b157177315e1204f52e588b393771719",
         "l1FeeRate": "0x1",
-        "diffSize": "0x88",
+        "diffSize": "0x9c",
         "contractAddress": null,
         "logs": [
             {
@@ -531,7 +531,7 @@ fn check_against_third_block_receipts(receipts: Vec<TransactionReceipt>) {
         "from": "0x9e1abd37ec34bbc688b6a2b7d9387d9256cf1773",
         "to": "0x819c5497b157177315e1204f52e588b393771719",
         "l1FeeRate": "0x1",
-        "diffSize": "0x88",
+        "diffSize": "0x9c",
         "contractAddress": null,
         "logs": [
             {
@@ -569,13 +569,6 @@ fn check_against_third_block_receipts(receipts: Vec<TransactionReceipt>) {
         "status": "0x1",
         "type": "0x2"
     }])).unwrap();
-
-    println!("\n\n\nreceipts:\n\n{:?}\n\n\n\n\n", receipts);
-    // print receipts  as json stirng
-    println!(
-        "\n\n\nreceipts as json:\n\n{}\n\n\n\n\n",
-        serde_json::to_string(&receipts).unwrap()
-    );
 
     assert_eq!(receipts, test_receipts)
 }
