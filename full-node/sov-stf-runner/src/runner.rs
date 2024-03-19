@@ -13,8 +13,9 @@ use sov_db::ledger_db::{LedgerDB, SlotCommit};
 use sov_db::schema::types::{BatchNumber, SlotNumber, StoredSoftBatch};
 use sov_modules_api::Context;
 use sov_modules_stf_blueprint::StfBlueprintTrait;
-use sov_rollup_interface::da::DaData::SequencerCommitment;
-use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaData, DaSpec};
+use sov_rollup_interface::da::{
+    BatchProof, BlobReaderTrait, BlockHeaderTrait, DaData, DaSpec, SequencerCommitment,
+};
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
 use sov_rollup_interface::services::da::{DaService, SlotData};
 pub use sov_rollup_interface::stf::BatchReceipt;
@@ -307,13 +308,19 @@ where
                 );
             }
 
-            let sequencer_commitments: Vec<_> = da_data
-                .into_iter()
-                .filter_map(|d| match d {
-                    Ok(SequencerCommitment(seq_com)) => Some(seq_com),
-                    _ => None,
-                })
-                .collect();
+            // seperate DaData into sequencer commitments and proofs
+            let mut sequencer_commitments = Vec::<SequencerCommitment>::new();
+            let mut zk_proofs = Vec::<BatchProof>::new();
+
+            da_data.into_iter().for_each(|da_data| match da_data {
+                Ok(DaData::SequencerCommitment(seq_com)) => sequencer_commitments.push(seq_com),
+                Ok(DaData::ZKProof(batch_proof)) => zk_proofs.push(batch_proof),
+                _ => {}
+            });
+
+            if !zk_proofs.is_empty() {
+                // TODO: Implement this
+            }
 
             // TODO here we can support multiple commitments but for now let's take the last one.
             let sequencer_commitment = sequencer_commitments.iter().last();
