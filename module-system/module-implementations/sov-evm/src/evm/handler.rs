@@ -3,15 +3,20 @@ use std::mem::size_of;
 use std::sync::Arc;
 
 use revm::handler::register::{EvmHandler, HandleRegisters};
-use revm::interpreter::InstructionResult;
-use revm::primitives::{Address, EVMError, HandlerCfg, ResultAndState, B256, U256};
+use revm::interpreter::{Gas, InstructionResult};
+use revm::primitives::{
+    spec_to_generic, Address, EVMError, Env, HandlerCfg, ResultAndState, Spec, SpecId, B256, U256,
+};
 use revm::{Context, Database, FrameResult, InnerEvmContext, JournalEntry};
+
+use crate::signer::SYSTEM_SIGNER;
 
 #[derive(Copy, Clone)]
 pub struct TxInfo {
     pub diff_size: u64,
 }
 
+/// An external context appended to the EVM.
 pub(crate) trait CitreaHandlerContext {
     /// Get current l1 fee rate.
     fn l1_fee_rate(&self) -> u64;
@@ -75,6 +80,28 @@ impl CitreaHandlerContext for CitreaHandlerExt {
     }
 }
 
+/// Additional methods applied to the EVM environment.
+trait CitreaEnv {
+    /// Whether the call is made by `SYSTEM_SIGNER`.
+    fn is_system_caller(&self) -> bool;
+    /// Returns the address of the caller.
+    fn caller(&self) -> Address;
+    /// Returns the address of the coinbase.
+    fn coinbase(&self) -> Address;
+}
+
+impl CitreaEnv for &'_ Env {
+    fn is_system_caller(&self) -> bool {
+        SYSTEM_SIGNER == self.caller()
+    }
+    fn caller(&self) -> Address {
+        self.tx.caller
+    }
+    fn coinbase(&self) -> Address {
+        self.block.coinbase
+    }
+}
+
 pub(crate) fn citrea_handler<'a, DB, EXT>(cfg: HandlerCfg) -> EvmHandler<'a, EXT, DB>
 where
     DB: Database,
@@ -90,15 +117,74 @@ where
     DB: Database,
     EXT: CitreaHandlerContext,
 {
-    let post_execution = &mut handler.post_execution;
-    post_execution.output = Arc::new(CitreaHandler::<EXT, DB>::post_execution_output);
+    spec_to_generic!(handler.cfg.spec_id, {
+        let validation = &mut handler.validation;
+        let pre_execution = &mut handler.pre_execution;
+        let execution = &mut handler.execution;
+        let post_execution = &mut handler.post_execution;
+        validation.env = Arc::new(CitreaHandler::<SPEC, EXT, DB>::validate_env);
+        validation.tx_against_state =
+            Arc::new(CitreaHandler::<SPEC, EXT, DB>::validate_tx_against_state);
+        pre_execution.load_accounts = Arc::new(CitreaHandler::<SPEC, EXT, DB>::load_accounts);
+        pre_execution.deduct_caller = Arc::new(CitreaHandler::<SPEC, EXT, DB>::deduct_caller);
+        execution.last_frame_return = Arc::new(CitreaHandler::<SPEC, EXT, DB>::last_frame_return);
+        post_execution.reward_beneficiary =
+            Arc::new(CitreaHandler::<SPEC, EXT, DB>::reward_beneficiary);
+        post_execution.output = Arc::new(CitreaHandler::<SPEC, EXT, DB>::post_execution_output);
+        post_execution.end = Arc::new(CitreaHandler::<SPEC, EXT, DB>::end);
+    });
 }
 
-struct CitreaHandler<EXT, DB> {
-    _phantom: std::marker::PhantomData<(EXT, DB)>,
+struct CitreaHandler<SPEC, EXT, DB> {
+    _phantom: std::marker::PhantomData<(SPEC, EXT, DB)>,
 }
 
-impl<EXT: CitreaHandlerContext, DB: Database> CitreaHandler<EXT, DB> {
+impl<SPEC: Spec, EXT: CitreaHandlerContext, DB: Database> CitreaHandler<SPEC, EXT, DB> {
+    fn validate_env(env: &Env) -> Result<(), EVMError<DB::Error>> {
+        if env.is_system_caller() {
+            // TODO custom logic
+        }
+        revm::handler::mainnet::validate_env::<SPEC, DB>(env)
+    }
+    fn validate_tx_against_state(
+        context: &mut Context<EXT, DB>,
+    ) -> Result<(), EVMError<DB::Error>> {
+        if (&*context.evm.env).is_system_caller() {
+            // TODO custom logic
+        }
+        revm::handler::mainnet::validate_tx_against_state::<SPEC, EXT, DB>(context)
+    }
+    fn load_accounts(context: &mut Context<EXT, DB>) -> Result<(), EVMError<DB::Error>> {
+        if (&*context.evm.env).is_system_caller() {
+            // TODO custom logic
+        }
+        revm::handler::mainnet::load_accounts::<SPEC, EXT, DB>(context)
+    }
+    fn deduct_caller(context: &mut Context<EXT, DB>) -> Result<(), EVMError<DB::Error>> {
+        if (&*context.evm.env).is_system_caller() {
+            // TODO custom logic
+        }
+        revm::handler::mainnet::deduct_caller::<SPEC, EXT, DB>(context)
+    }
+    fn last_frame_return(
+        context: &mut Context<EXT, DB>,
+        frame_result: &mut FrameResult,
+    ) -> Result<(), EVMError<DB::Error>> {
+        if (&*context.evm.env).is_system_caller() {
+            // TODO custom logic
+        }
+        revm::handler::mainnet::last_frame_return::<SPEC, EXT, DB>(context, frame_result)
+    }
+    fn reward_beneficiary(
+        context: &mut Context<EXT, DB>,
+        gas: &Gas,
+    ) -> Result<(), EVMError<DB::Error>> {
+        if (&*context.evm.env).is_system_caller() {
+            // TODO custom logic
+        }
+        revm::handler::mainnet::reward_beneficiary::<SPEC, EXT, DB>(context, gas)
+    }
+
     fn post_execution_output(
         context: &mut Context<EXT, DB>,
         result: FrameResult,
@@ -118,6 +204,16 @@ impl<EXT: CitreaHandlerContext, DB: Database> CitreaHandler<EXT, DB> {
         }
 
         revm::handler::mainnet::output(context, result)
+    }
+
+    fn end(
+        context: &mut Context<EXT, DB>,
+        evm_output: Result<ResultAndState, EVMError<DB::Error>>,
+    ) -> Result<ResultAndState, EVMError<DB::Error>> {
+        if (&*context.evm.env).is_system_caller() {
+            // TODO custom logic
+        }
+        revm::handler::mainnet::end::<EXT, DB>(context, evm_output)
     }
 }
 
@@ -267,26 +363,30 @@ fn calc_diff_size<EXT, DB: Database>(
     Ok(diff_size)
 }
 
-/// Decreases the balance of the caller by the given amount.
-/// Returns Ok(Some) if the caller's balance is not enough.
-fn decrease_caller_balance<EXT, DB: Database>(
+fn change_balance<EXT, DB: Database>(
     context: &mut Context<EXT, DB>,
     amount: U256,
+    positive: bool,
+    address: Address,
 ) -> Result<Option<InstructionResult>, EVMError<DB::Error>> {
-    let caller = context.evm.env.tx.caller;
-
     let InnerEvmContext {
         journaled_state,
         db,
         ..
     } = &mut context.evm.inner;
 
-    let (caller_account, _) = journaled_state.load_account(caller, db)?;
+    let (account, _) = journaled_state.load_account(address, db)?;
+    account.mark_touch();
 
-    let balance = &mut caller_account.info.balance;
+    let balance = &mut account.info.balance;
 
-    let Some(new_balance) = balance.checked_sub(amount) else {
-        return Ok(Some(InstructionResult::OutOfFunds));
+    let new_balance = if positive {
+        balance.saturating_add(amount)
+    } else {
+        let Some(new_balance) = balance.checked_sub(amount) else {
+            return Ok(Some(InstructionResult::OutOfFunds));
+        };
+        new_balance
     };
 
     *balance = new_balance;
@@ -294,26 +394,19 @@ fn decrease_caller_balance<EXT, DB: Database>(
     Ok(None)
 }
 
+/// Decreases the balance of the caller by the given amount.
+/// Returns Ok(Some) if the caller's balance is not enough.
+fn decrease_caller_balance<EXT, DB: Database>(
+    context: &mut Context<EXT, DB>,
+    amount: U256,
+) -> Result<Option<InstructionResult>, EVMError<DB::Error>> {
+    change_balance(context, amount, false, (&*context.evm.env).caller())
+}
+
 fn increase_coinbase_balance<EXT, DB: Database>(
     context: &mut Context<EXT, DB>,
     amount: U256,
 ) -> Result<(), EVMError<DB::Error>> {
-    let coinbase = context.evm.env.block.coinbase;
-
-    let InnerEvmContext {
-        journaled_state,
-        db,
-        ..
-    } = &mut context.evm.inner;
-
-    let (coinbase_account, _) = journaled_state.load_account(coinbase, db)?;
-    coinbase_account.mark_touch();
-
-    let balance = &mut coinbase_account.info.balance;
-
-    let new_balance = balance.saturating_add(amount);
-
-    *balance = new_balance;
-
+    change_balance(context, amount, true, (&*context.evm.env).coinbase())?;
     Ok(())
 }
