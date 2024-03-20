@@ -210,16 +210,13 @@ fn test_tx_request_fields_gas() {
     assert_eq!(
         create_no_access_list_test.unwrap(),
         AccessListWithGasUsed {
-            access_list: AccessList {
-                0: vec![AccessListItem {
-                    address: Address::from_str("0x819c5497b157177315e1204f52e588b393771719")
-                        .unwrap(),
-                    storage_keys: vec![FixedBytes::from_hex(
-                        "0xd17c80a661d193357ea7c5311e029471883989438c7bcae8362437311a764685"
-                    )
-                    .unwrap()]
-                }]
-            }
+            access_list: AccessList(vec![AccessListItem {
+                address: Address::from_str("0x819c5497b157177315e1204f52e588b393771719").unwrap(),
+                storage_keys: vec![FixedBytes::from_hex(
+                    "0xd17c80a661d193357ea7c5311e029471883989438c7bcae8362437311a764685"
+                )
+                .unwrap()]
+            }])
             .into(),
             // This should actually be 0x6e66
             // See: https://github.com/chainwayxyz/secret-sovereign-sdk/issues/272
@@ -229,16 +226,13 @@ fn test_tx_request_fields_gas() {
 
     let access_list_req = TransactionRequest {
         access_list: Some(
-            AccessList {
-                0: vec![AccessListItem {
-                    address: Address::from_str("0x819c5497b157177315e1204f52e588b393771719")
-                        .unwrap(),
-                    storage_keys: vec![FixedBytes::from_hex(
-                        "0xd17c80a661d193357ea7c5311e029471883989438c7bcae8362437311a764685",
-                    )
-                    .unwrap()],
-                }],
-            }
+            AccessList(vec![AccessListItem {
+                address: Address::from_str("0x819c5497b157177315e1204f52e588b393771719").unwrap(),
+                storage_keys: vec![FixedBytes::from_hex(
+                    "0xd17c80a661d193357ea7c5311e029471883989438c7bcae8362437311a764685",
+                )
+                .unwrap()],
+            }])
             .into(),
         ),
         ..tx_req_contract_call.clone()
@@ -265,16 +259,13 @@ fn test_tx_request_fields_gas() {
     assert_eq!(
         already_formed_list.unwrap(),
         AccessListWithGasUsed {
-            access_list: AccessList {
-                0: vec![AccessListItem {
-                    address: Address::from_str("0x819c5497b157177315e1204f52e588b393771719")
-                        .unwrap(),
-                    storage_keys: vec![FixedBytes::from_hex(
-                        "0xd17c80a661d193357ea7c5311e029471883989438c7bcae8362437311a764685"
-                    )
-                    .unwrap()]
-                }]
-            }
+            access_list: AccessList(vec![AccessListItem {
+                address: Address::from_str("0x819c5497b157177315e1204f52e588b393771719").unwrap(),
+                storage_keys: vec![FixedBytes::from_hex(
+                    "0xd17c80a661d193357ea7c5311e029471883989438c7bcae8362437311a764685"
+                )
+                .unwrap()]
+            }])
             .into(),
             gas_used: Uint::from_str("0x6e66").unwrap()
         }
@@ -326,16 +317,13 @@ fn test_access_list() {
     assert_eq!(
         form_access_list.unwrap(),
         AccessListWithGasUsed {
-            access_list: AccessList {
-                0: vec![AccessListItem {
-                    address: Address::from_str("0x819c5497b157177315e1204f52e588b393771719")
-                        .unwrap(),
-                    storage_keys: vec![FixedBytes::from_hex(
-                        "0x0000000000000000000000000000000000000000000000000000000000000000"
-                    )
-                    .unwrap()]
-                }]
-            }
+            access_list: AccessList(vec![AccessListItem {
+                address: Address::from_str("0x819c5497b157177315e1204f52e588b393771719").unwrap(),
+                storage_keys: vec![FixedBytes::from_hex(
+                    "0x0000000000000000000000000000000000000000000000000000000000000000"
+                )
+                .unwrap()]
+            }])
             .into(),
             gas_used: Uint::from_str("0x788b").unwrap()
         }
@@ -343,16 +331,13 @@ fn test_access_list() {
 
     let tx_req_with_access_list = TransactionRequest {
         access_list: Some(
-            AccessList {
-                0: vec![AccessListItem {
-                    address: Address::from_str("0x819c5497b157177315e1204f52e588b393771719")
-                        .unwrap(),
-                    storage_keys: vec![FixedBytes::from_hex(
-                        "0x0000000000000000000000000000000000000000000000000000000000000000",
-                    )
-                    .unwrap()],
-                }],
-            }
+            AccessList(vec![AccessListItem {
+                address: Address::from_str("0x819c5497b157177315e1204f52e588b393771719").unwrap(),
+                storage_keys: vec![FixedBytes::from_hex(
+                    "0x0000000000000000000000000000000000000000000000000000000000000000",
+                )
+                .unwrap()],
+            }])
             .into(),
         ),
         ..tx_req_contract_call.clone()
