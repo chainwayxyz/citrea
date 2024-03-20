@@ -56,7 +56,7 @@ where
     state_root: StateRoot<Stf, Vm, Da::Spec>,
     listen_address: SocketAddr,
     #[allow(dead_code)]
-    prover_service: Ps,
+    prover_service: Option<Ps>,
     sequencer_client: Option<SequencerClient>,
     sequencer_pub_key: Vec<u8>,
     phantom: std::marker::PhantomData<C>,
@@ -119,7 +119,7 @@ where
         stf: Stf,
         mut storage_manager: Sm,
         init_variant: InitVariant<Stf, Vm, Da::Spec>,
-        prover_service: Ps,
+        prover_service: Option<Ps>,
         sequencer_client: Option<SequencerClient>,
         sequencer_pub_key: Vec<u8>,
     ) -> Result<Self, anyhow::Error> {

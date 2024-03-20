@@ -173,7 +173,7 @@ async fn runner_execution(
             stf,
             storage_manager,
             init_variant,
-            prover_service,
+            Some(prover_service),
             None,
             vec![0u8; 32],
         )
