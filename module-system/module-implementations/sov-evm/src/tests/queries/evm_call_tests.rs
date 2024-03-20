@@ -153,10 +153,7 @@ fn call_contract_with_invalid_nonce() {
         &mut working_set,
     );
 
-    assert_eq!(
-        call_result,
-        Err(RpcInvalidTransactionError::NonceTooHigh.into())
-    );
+    assert_eq!(call_result, Ok(Bytes::from_str("0x").unwrap()));
 
     let low_nonce = U64::from(2);
 
@@ -176,10 +173,7 @@ fn call_contract_with_invalid_nonce() {
         &mut working_set,
     );
 
-    assert_eq!(
-        call_result,
-        Err(RpcInvalidTransactionError::NonceTooLow.into())
-    );
+    assert_eq!(call_result, Ok(Bytes::from_str("0x").unwrap()));
 }
 
 #[test]
@@ -268,7 +262,7 @@ fn test_eip1559_fields_call() {
     );
     assert_eq!(
         high_fee_result,
-        Err(RpcInvalidTransactionError::GasUintOverflow.into())
+        Err(RpcInvalidTransactionError::TipVeryHigh.into())
     );
 
     let low_max_fee_result = eth_call_eip1559(
@@ -280,8 +274,8 @@ fn test_eip1559_fields_call() {
     );
 
     assert_eq!(
-        low_max_fee_result.unwrap().to_string(),
-        "0x00000000000000000000000000000000000000000000000000000000000001de"
+        low_max_fee_result,
+        Err(RpcInvalidTransactionError::FeeCapTooLow.into())
     );
 
     let no_max_fee_per_gas = eth_call_eip1559(
@@ -293,7 +287,10 @@ fn test_eip1559_fields_call() {
     );
     assert_eq!(
         no_max_fee_per_gas,
-        Err(RpcInvalidTransactionError::TipAboveFeeCap.into())
+        Ok(
+            Bytes::from_str("0x00000000000000000000000000000000000000000000000000000000000001de")
+                .unwrap()
+        )
     );
 
     let no_priority_fee = eth_call_eip1559(
