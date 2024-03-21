@@ -50,7 +50,7 @@ pub(crate) fn create_rpc_module<C: sov_modules_api::Context>(
         ctx.l2_force_block_tx.unbounded_send(()).unwrap();
         Ok::<(), ErrorObjectOwned>(())
     })?;
-    rpc.register_async_method("da_publishBlock", |_, ctx| async move {
+    rpc.register_async_method("da_publishBlock", |_, _ctx| async move {
         info!("Sequencer: da_publishBlock");
         let da = MockDaService::new(MockAddress::from([0; 32]));
         da.publish_test_block()
