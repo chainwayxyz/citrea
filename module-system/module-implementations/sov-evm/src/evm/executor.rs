@@ -5,7 +5,7 @@ use revm::primitives::{CfgEnvWithHandlerCfg, EVMError, Env, ExecutionResult, Inv
 use revm::{self, Context, Database, DatabaseCommit, EvmContext};
 
 use super::conversions::create_tx_env;
-use super::handler::{citrea_handler, CitreaHandlerContext};
+use super::handler::{citrea_handler, CitreaExternalExt};
 use super::primitive_types::BlockEnv;
 
 struct CitreaEvm<'a, EXT, DB: Database> {
@@ -15,7 +15,7 @@ struct CitreaEvm<'a, EXT, DB: Database> {
 impl<'a, EXT, DB> CitreaEvm<'a, EXT, DB>
 where
     DB: Database<Error = Infallible> + DatabaseCommit,
-    EXT: CitreaHandlerContext,
+    EXT: CitreaExternalExt,
 {
     /// Creates a new Citrea EVM with the given parameters.
     fn new(db: DB, block_env: BlockEnv, config_env: CfgEnvWithHandlerCfg, ext: EXT) -> Self {
@@ -41,7 +41,7 @@ where
 #[allow(dead_code)]
 pub(crate) fn execute_tx<
     DB: Database<Error = Infallible> + DatabaseCommit,
-    EXT: CitreaHandlerContext,
+    EXT: CitreaExternalExt,
 >(
     db: DB,
     block_env: BlockEnv,
@@ -55,7 +55,7 @@ pub(crate) fn execute_tx<
 
 pub(crate) fn execute_multiple_tx<
     DB: Database<Error = Infallible> + DatabaseCommit,
-    EXT: CitreaHandlerContext,
+    EXT: CitreaExternalExt,
 >(
     db: DB,
     block_env: BlockEnv,

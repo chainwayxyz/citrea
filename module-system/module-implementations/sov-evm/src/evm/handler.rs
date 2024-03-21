@@ -17,7 +17,8 @@ pub struct TxInfo {
 }
 
 /// An external context appended to the EVM.
-pub(crate) trait CitreaHandlerContext {
+/// In terms of Revm this is the trait for EXT for `Evm<'a, EXT, DB>`.
+pub(crate) trait CitreaExternalExt {
     /// Get current l1 fee rate.
     fn l1_fee_rate(&self) -> u64;
     /// Set tx hash for the current execution context.
@@ -28,8 +29,8 @@ pub(crate) trait CitreaHandlerContext {
     fn get_tx_info(&self, tx_hash: B256) -> Option<TxInfo>;
 }
 
-// Blanked impl for &mut T: CitreaExternal
-impl<T: CitreaHandlerContext> CitreaHandlerContext for &mut T {
+// Blanked impl for &mut T: CitreaExternalExt
+impl<T: CitreaExternalExt> CitreaExternalExt for &mut T {
     fn l1_fee_rate(&self) -> u64 {
         (**self).l1_fee_rate()
     }
@@ -44,14 +45,16 @@ impl<T: CitreaHandlerContext> CitreaHandlerContext for &mut T {
     }
 }
 
+/// This is an external context to be passed to the EVM.
+/// In terms of Revm this type replaces EXT in `Evm<'a, EXT, DB>`.
 #[derive(Default)]
-pub(crate) struct CitreaHandlerExt {
+pub(crate) struct CitreaExternal {
     l1_fee_rate: u64,
     current_tx_hash: Option<B256>,
     tx_infos: HashMap<B256, TxInfo>,
 }
 
-impl CitreaHandlerExt {
+impl CitreaExternal {
     pub(crate) fn new(l1_fee_rate: u64) -> Self {
         Self {
             l1_fee_rate,
@@ -60,7 +63,7 @@ impl CitreaHandlerExt {
     }
 }
 
-impl CitreaHandlerContext for CitreaHandlerExt {
+impl CitreaExternalExt for CitreaExternal {
     fn l1_fee_rate(&self) -> u64 {
         self.l1_fee_rate
     }
@@ -84,28 +87,24 @@ impl CitreaHandlerContext for CitreaHandlerExt {
 trait CitreaEnv {
     /// Whether the call is made by `SYSTEM_SIGNER`.
     fn is_system_caller(&self) -> bool;
-    /// Returns the address of the caller.
-    fn caller(&self) -> Address;
-    /// Returns the address of the coinbase.
-    fn coinbase(&self) -> Address;
 }
 
 impl CitreaEnv for &'_ Env {
     fn is_system_caller(&self) -> bool {
-        SYSTEM_SIGNER == self.caller()
+        SYSTEM_SIGNER == self.tx.caller
     }
-    fn caller(&self) -> Address {
-        self.tx.caller
-    }
-    fn coinbase(&self) -> Address {
-        self.block.coinbase
+}
+
+impl<EXT, DB: Database> CitreaEnv for &'_ mut Context<EXT, DB> {
+    fn is_system_caller(&self) -> bool {
+        (&*self.evm.env).is_system_caller()
     }
 }
 
 pub(crate) fn citrea_handler<'a, DB, EXT>(cfg: HandlerCfg) -> EvmHandler<'a, EXT, DB>
 where
     DB: Database,
-    EXT: CitreaHandlerContext,
+    EXT: CitreaExternalExt,
 {
     let mut handler = EvmHandler::mainnet_with_spec(cfg.spec_id);
     handler.append_handler_register(HandleRegisters::Plain(citrea_handle_register));
@@ -115,7 +114,7 @@ where
 fn citrea_handle_register<DB, EXT>(handler: &mut EvmHandler<'_, EXT, DB>)
 where
     DB: Database,
-    EXT: CitreaHandlerContext,
+    EXT: CitreaExternalExt,
 {
     spec_to_generic!(handler.cfg.spec_id, {
         let validation = &mut handler.validation;
@@ -139,7 +138,7 @@ struct CitreaHandler<SPEC, EXT, DB> {
     _phantom: std::marker::PhantomData<(SPEC, EXT, DB)>,
 }
 
-impl<SPEC: Spec, EXT: CitreaHandlerContext, DB: Database> CitreaHandler<SPEC, EXT, DB> {
+impl<SPEC: Spec, EXT: CitreaExternalExt, DB: Database> CitreaHandler<SPEC, EXT, DB> {
     fn validate_env(env: &Env) -> Result<(), EVMError<DB::Error>> {
         if env.is_system_caller() {
             // TODO custom logic
@@ -149,19 +148,19 @@ impl<SPEC: Spec, EXT: CitreaHandlerContext, DB: Database> CitreaHandler<SPEC, EX
     fn validate_tx_against_state(
         context: &mut Context<EXT, DB>,
     ) -> Result<(), EVMError<DB::Error>> {
-        if (&*context.evm.env).is_system_caller() {
+        if context.is_system_caller() {
             // TODO custom logic
         }
         revm::handler::mainnet::validate_tx_against_state::<SPEC, EXT, DB>(context)
     }
     fn load_accounts(context: &mut Context<EXT, DB>) -> Result<(), EVMError<DB::Error>> {
-        if (&*context.evm.env).is_system_caller() {
+        if context.is_system_caller() {
             // TODO custom logic
         }
         revm::handler::mainnet::load_accounts::<SPEC, EXT, DB>(context)
     }
     fn deduct_caller(context: &mut Context<EXT, DB>) -> Result<(), EVMError<DB::Error>> {
-        if (&*context.evm.env).is_system_caller() {
+        if context.is_system_caller() {
             // TODO custom logic
         }
         revm::handler::mainnet::deduct_caller::<SPEC, EXT, DB>(context)
@@ -170,7 +169,7 @@ impl<SPEC: Spec, EXT: CitreaHandlerContext, DB: Database> CitreaHandler<SPEC, EX
         context: &mut Context<EXT, DB>,
         frame_result: &mut FrameResult,
     ) -> Result<(), EVMError<DB::Error>> {
-        if (&*context.evm.env).is_system_caller() {
+        if context.is_system_caller() {
             // TODO custom logic
         }
         revm::handler::mainnet::last_frame_return::<SPEC, EXT, DB>(context, frame_result)
@@ -179,7 +178,7 @@ impl<SPEC: Spec, EXT: CitreaHandlerContext, DB: Database> CitreaHandler<SPEC, EX
         context: &mut Context<EXT, DB>,
         gas: &Gas,
     ) -> Result<(), EVMError<DB::Error>> {
-        if (&*context.evm.env).is_system_caller() {
+        if context.is_system_caller() {
             // TODO custom logic
         }
         revm::handler::mainnet::reward_beneficiary::<SPEC, EXT, DB>(context, gas)
@@ -210,7 +209,7 @@ impl<SPEC: Spec, EXT: CitreaHandlerContext, DB: Database> CitreaHandler<SPEC, EX
         context: &mut Context<EXT, DB>,
         evm_output: Result<ResultAndState, EVMError<DB::Error>>,
     ) -> Result<ResultAndState, EVMError<DB::Error>> {
-        if (&*context.evm.env).is_system_caller() {
+        if context.is_system_caller() {
             // TODO custom logic
         }
         revm::handler::mainnet::end::<EXT, DB>(context, evm_output)
@@ -400,13 +399,15 @@ fn decrease_caller_balance<EXT, DB: Database>(
     context: &mut Context<EXT, DB>,
     amount: U256,
 ) -> Result<Option<InstructionResult>, EVMError<DB::Error>> {
-    change_balance(context, amount, false, (&*context.evm.env).caller())
+    let address = context.evm.env.tx.caller;
+    change_balance(context, amount, false, address)
 }
 
 fn increase_coinbase_balance<EXT, DB: Database>(
     context: &mut Context<EXT, DB>,
     amount: U256,
 ) -> Result<(), EVMError<DB::Error>> {
-    change_balance(context, amount, true, (&*context.evm.env).coinbase())?;
+    let address = context.evm.env.block.coinbase;
+    change_balance(context, amount, true, address)?;
     Ok(())
 }
