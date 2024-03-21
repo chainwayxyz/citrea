@@ -9,16 +9,16 @@ use bitcoin::blockdata::opcodes::all::{OP_CHECKSIG, OP_ENDIF, OP_IF};
 use bitcoin::blockdata::opcodes::OP_FALSE;
 use bitcoin::blockdata::script;
 use bitcoin::hashes::{sha256d, Hash};
-use bitcoin::key::{TapTweak, TweakedPublicKey, UntweakedKeyPair};
-use bitcoin::psbt::Prevouts;
+use bitcoin::key::{TapTweak, TweakedPublicKey, UntweakedKeypair};
 use bitcoin::script::PushBytesBuf;
 use bitcoin::secp256k1::constants::SCHNORR_SIGNATURE_SIZE;
 use bitcoin::secp256k1::schnorr::Signature;
 use bitcoin::secp256k1::{self, Secp256k1, SecretKey, XOnlyPublicKey};
-use bitcoin::sighash::SighashCache;
+use bitcoin::sighash::{Prevouts, SighashCache};
 use bitcoin::taproot::{ControlBlock, LeafVersion, TapLeafHash, TaprootBuilder};
 use bitcoin::{
-    Address, Network, OutPoint, ScriptBuf, Sequence, Transaction, TxIn, TxOut, Txid, Witness,
+    Address, Amount, Network, OutPoint, ScriptBuf, Sequence, Transaction, TxIn, TxOut, Txid,
+    Witness,
 };
 use brotli::{CompressorWriter, DecompressorWriter};
 
@@ -45,7 +45,7 @@ pub fn sign_blob_with_private_key(
     let message = sha256d::Hash::hash(blob).to_byte_array();
     let secp = Secp256k1::new();
     let public_key = secp256k1::PublicKey::from_secret_key(&secp, private_key);
-    let msg = secp256k1::Message::from_slice(&message).unwrap();
+    let msg = secp256k1::Message::from_digest_slice(&message).unwrap();
     let sig = secp.sign_ecdsa(&msg, private_key);
     Ok((
         sig.serialize_compact().to_vec(),
@@ -64,7 +64,7 @@ fn get_size(
         input: inputs.clone(),
         output: outputs.clone(),
         lock_time: LockTime::ZERO,
-        version: 2,
+        version: bitcoin::transaction::Version(2),
     };
 
     for i in 0..tx.input.len() {
@@ -147,7 +147,7 @@ fn build_commit_transaction(
         }],
         &vec![TxOut {
             script_pubkey: recipient.clone().script_pubkey(),
-            value: output_value,
+            value: Amount::from_sat(output_value),
         }],
         None,
         None,
@@ -176,7 +176,7 @@ fn build_commit_transaction(
         let mut outputs: Vec<TxOut> = vec![];
 
         outputs.push(TxOut {
-            value: output_value,
+            value: Amount::from_sat(output_value),
             script_pubkey: recipient.script_pubkey(),
         });
 
@@ -184,7 +184,7 @@ fn build_commit_transaction(
         if let Some(excess) = sum.checked_sub(input_total) {
             if excess >= 546 {
                 outputs.push(TxOut {
-                    value: excess,
+                    value: Amount::from_sat(excess),
                     script_pubkey: change_address.script_pubkey(),
                 });
             } else {
@@ -211,7 +211,7 @@ fn build_commit_transaction(
         if size == last_size || direct_return {
             break Transaction {
                 lock_time: LockTime::ZERO,
-                version: 2,
+                version: bitcoin::transaction::Version(2),
                 input: inputs,
                 output: outputs,
             };
@@ -235,7 +235,7 @@ fn build_reveal_transaction(
     control_block: &ControlBlock,
 ) -> Result<Transaction, anyhow::Error> {
     let outputs: Vec<TxOut> = vec![TxOut {
-        value: output_value,
+        value: Amount::from_sat(output_value),
         script_pubkey: recipient.script_pubkey(),
     }];
 
@@ -255,13 +255,14 @@ fn build_reveal_transaction(
 
     let input_total = output_value + fee;
 
-    if input_utxo.value < 546 || input_utxo.value < input_total {
+    if input_utxo.value < Amount::from_sat(546) || input_utxo.value < Amount::from_sat(input_total)
+    {
         return Err(anyhow::anyhow!("input UTXO not big enough"));
     }
 
     let tx = Transaction {
         lock_time: LockTime::ZERO,
-        version: 2,
+        version: bitcoin::transaction::Version(2),
         input: inputs,
         output: outputs,
     };
@@ -288,7 +289,7 @@ pub fn create_inscription_transactions(
 ) -> Result<(Transaction, Transaction), anyhow::Error> {
     // Create commit key
     let secp256k1 = Secp256k1::new();
-    let key_pair = UntweakedKeyPair::new(&secp256k1, &mut rand::thread_rng());
+    let key_pair = UntweakedKeypair::new(&secp256k1, &mut rand::thread_rng());
     let (public_key, _parity) = XOnlyPublicKey::from_keypair(&key_pair);
 
     // start creating inscription content
@@ -375,7 +376,7 @@ pub fn create_inscription_transactions(
             }],
             &vec![TxOut {
                 script_pubkey: recipient.clone().script_pubkey(),
-                value: reveal_value,
+                value: Amount::from_sat(reveal_value),
             }],
             Some(&reveal_script),
             Some(&control_block),
@@ -425,7 +426,7 @@ pub fn create_inscription_transactions(
 
             // sign reveal tx data
             let signature = secp256k1.sign_schnorr_with_rng(
-                &secp256k1::Message::from_slice(signature_hash.as_byte_array())
+                &secp256k1::Message::from_digest_slice(signature_hash.as_byte_array())
                     .expect("should be cryptographically secure hash"),
                 &key_pair,
                 &mut rand::thread_rng(),
@@ -470,7 +471,7 @@ mod tests {
     use bitcoin::secp256k1::constants::SCHNORR_SIGNATURE_SIZE;
     use bitcoin::secp256k1::schnorr::Signature;
     use bitcoin::taproot::ControlBlock;
-    use bitcoin::{Address, ScriptBuf, TxOut, Txid};
+    use bitcoin::{Address, Amount, ScriptBuf, TxOut, Txid};
 
     use crate::helpers::builders::{compress_blob, decompress_blob};
     use crate::helpers::parsers::parse_transaction;
@@ -647,9 +648,9 @@ mod tests {
         assert_eq!(tx.vsize(), 154);
         assert_eq!(tx.input.len(), 1);
         assert_eq!(tx.output.len(), 2);
-        assert_eq!(tx.output[0].value, 5_000);
+        assert_eq!(tx.output[0].value, Amount::from_sat(5_000));
         assert_eq!(tx.output[0].script_pubkey, recipient.script_pubkey());
-        assert_eq!(tx.output[1].value, 3_768);
+        assert_eq!(tx.output[1].value, Amount::from_sat(3_768));
         assert_eq!(tx.output[1].script_pubkey, address.script_pubkey());
 
         let mut tx = super::build_commit_transaction(
@@ -674,7 +675,7 @@ mod tests {
         assert_eq!(tx.vsize(), 111);
         assert_eq!(tx.input.len(), 1);
         assert_eq!(tx.output.len(), 1);
-        assert_eq!(tx.output[0].value, 5_000);
+        assert_eq!(tx.output[0].value, Amount::from_sat(5_000));
         assert_eq!(tx.output[0].script_pubkey, recipient.script_pubkey());
 
         let mut tx = super::build_commit_transaction(
@@ -704,7 +705,7 @@ mod tests {
         assert_eq!(tx.vsize(), 111);
         assert_eq!(tx.input.len(), 1);
         assert_eq!(tx.output.len(), 1);
-        assert_eq!(tx.output[0].value, 5_000);
+        assert_eq!(tx.output[0].value, Amount::from_sat(5_000));
         assert_eq!(tx.output[0].script_pubkey, recipient.script_pubkey());
 
         let mut tx = super::build_commit_transaction(
@@ -734,9 +735,9 @@ mod tests {
         assert_eq!(tx.vsize(), 212);
         assert_eq!(tx.input.len(), 2);
         assert_eq!(tx.output.len(), 2);
-        assert_eq!(tx.output[0].value, 1_050_000);
+        assert_eq!(tx.output[0].value, Amount::from_sat(1_050_000));
         assert_eq!(tx.output[0].script_pubkey, recipient.script_pubkey());
-        assert_eq!(tx.output[1].value, 48940);
+        assert_eq!(tx.output[1].value, Amount::from_sat(48940));
         assert_eq!(tx.output[1].script_pubkey, address.script_pubkey());
 
         let tx = super::build_commit_transaction(
@@ -789,7 +790,7 @@ mod tests {
 
         let mut tx = super::build_reveal_transaction(
             TxOut {
-                value: utxo.amount,
+                value: Amount::from_sat(utxo.amount),
                 script_pubkey: ScriptBuf::from_hex(utxo.script_pubkey.as_str()).unwrap(),
             },
             utxo.tx_id,
@@ -811,14 +812,14 @@ mod tests {
         assert_eq!(tx.input[0].previous_output.vout, utxo.vout);
 
         assert_eq!(tx.output.len(), 1);
-        assert_eq!(tx.output[0].value, 546);
+        assert_eq!(tx.output[0].value, Amount::from_sat(546));
         assert_eq!(tx.output[0].script_pubkey, address.script_pubkey());
 
         let utxo = utxos.get(2).unwrap();
 
         let tx = super::build_reveal_transaction(
             TxOut {
-                value: utxo.amount,
+                value: Amount::from_sat(utxo.amount),
                 script_pubkey: ScriptBuf::from_hex(utxo.script_pubkey.as_str()).unwrap(),
             },
             utxo.tx_id,
@@ -837,7 +838,7 @@ mod tests {
 
         let tx = super::build_reveal_transaction(
             TxOut {
-                value: utxo.amount,
+                value: Amount::from_sat(utxo.amount),
                 script_pubkey: ScriptBuf::from_hex(utxo.script_pubkey.as_str()).unwrap(),
             },
             utxo.tx_id,

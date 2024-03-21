@@ -4,6 +4,11 @@ use bitcoin::blockdata::opcodes::all::{OP_ENDIF, OP_IF};
 use bitcoin::blockdata::script::{Instruction, Instructions};
 use bitcoin::consensus::Decodable;
 use bitcoin::hashes::{sha256d, Hash};
+use bitcoin::opcodes::all::{
+    OP_PUSHNUM_1, OP_PUSHNUM_10, OP_PUSHNUM_11, OP_PUSHNUM_12, OP_PUSHNUM_13, OP_PUSHNUM_14,
+    OP_PUSHNUM_15, OP_PUSHNUM_16, OP_PUSHNUM_2, OP_PUSHNUM_3, OP_PUSHNUM_4, OP_PUSHNUM_5,
+    OP_PUSHNUM_6, OP_PUSHNUM_7, OP_PUSHNUM_8, OP_PUSHNUM_9,
+};
 use bitcoin::opcodes::OP_FALSE;
 use bitcoin::secp256k1::{ecdsa, Message, Secp256k1};
 use bitcoin::{secp256k1, Script, Transaction};
@@ -24,7 +29,7 @@ impl ParsedInscription {
         let public_key = secp256k1::PublicKey::from_slice(&self.public_key);
         let signature = ecdsa::Signature::from_compact(&self.signature);
         let hash = sha256d::Hash::hash(&self.body).to_byte_array();
-        let message = Message::from_slice(&hash).unwrap(); // cannot fail
+        let message = Message::from_digest_slice(&hash).unwrap(); // cannot fail
 
         let secp = Secp256k1::new();
 
@@ -99,13 +104,29 @@ fn parse_relevant_inscriptions(
                     break; // we are done parsing
                 }
             }
-            Instruction::Op(another_op) => {
-                // don't allow anything except data pushes inside envelope
+            Instruction::Op(OP_PUSHNUM_1)
+            | Instruction::Op(OP_PUSHNUM_2)
+            | Instruction::Op(OP_PUSHNUM_3)
+            | Instruction::Op(OP_PUSHNUM_4)
+            | Instruction::Op(OP_PUSHNUM_5)
+            | Instruction::Op(OP_PUSHNUM_6)
+            | Instruction::Op(OP_PUSHNUM_7)
+            | Instruction::Op(OP_PUSHNUM_8)
+            | Instruction::Op(OP_PUSHNUM_9)
+            | Instruction::Op(OP_PUSHNUM_10)
+            | Instruction::Op(OP_PUSHNUM_11)
+            | Instruction::Op(OP_PUSHNUM_12)
+            | Instruction::Op(OP_PUSHNUM_13)
+            | Instruction::Op(OP_PUSHNUM_14)
+            | Instruction::Op(OP_PUSHNUM_15)
+            | Instruction::Op(OP_PUSHNUM_16) => {
                 if inside_envelope {
-                    return Err(ParserError::EnvelopeHasNonPushOp);
-                }
+                    if inside_envelope_index != 7 {
+                        return Err(ParserError::EnvelopeHasNonPushOp);
+                    }
 
-                last_op = Some(another_op);
+                    inside_envelope_index += 1;
+                }
             }
             Instruction::PushBytes(bytes) => {
                 if inside_envelope {
@@ -136,6 +157,14 @@ fn parse_relevant_inscriptions(
                 } else if bytes.is_empty() {
                     last_op = Some(OP_FALSE); // rust bitcoin pushes [] instead of op_false
                 }
+            }
+            Instruction::Op(another_op) => {
+                // don't allow anything except data pushes inside envelope
+                if inside_envelope {
+                    return Err(ParserError::EnvelopeHasNonPushOp);
+                }
+
+                last_op = Some(another_op);
             }
         }
     }
