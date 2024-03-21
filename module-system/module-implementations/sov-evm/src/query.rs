@@ -585,7 +585,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
             }
         };
 
-        let tx_env = prepare_call_env(&block_env, request.clone())?;
+        let mut tx_env = prepare_call_env(&block_env, request.clone())?;
+
+        // https://github.com/paradigmxyz/reth/issues/6574
+        tx_env.nonce = None;
 
         let cfg = self
             .cfg
@@ -603,7 +606,9 @@ impl<C: sov_modules_api::Context> Evm<C> {
             TracingInspector::new(TracingInspectorConfig::all()),
         ) {
             Ok(result) => result.result,
-            Err(err) => return Err(EthApiError::from(err).into()),
+            Err(err) => {
+                return Err(EthApiError::from(err).into());
+            }
         };
 
         Ok(ensure_success(result)?)
