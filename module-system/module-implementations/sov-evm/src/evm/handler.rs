@@ -103,11 +103,12 @@ impl<EXT: CitreaHandlerContext, DB: Database> CitreaHandler<EXT, DB> {
         context: &mut Context<EXT, DB>,
         result: FrameResult,
     ) -> Result<ResultAndState, EVMError<<DB as Database>::Error>> {
-        if !result.interpreter_result().is_error() {
-            let diff_size = calc_diff_size(context).map_err(EVMError::Database)? as u64;
-            let l1_fee_rate = U256::from(context.external.l1_fee_rate());
-            let l1_fee = U256::from(diff_size) * l1_fee_rate;
-            context.external.set_tx_info(TxInfo { diff_size });
+        let diff_size = calc_diff_size(context).map_err(EVMError::Database)? as u64;
+        let l1_fee_rate = U256::from(context.external.l1_fee_rate());
+        let l1_fee = U256::from(diff_size) * l1_fee_rate;
+        context.external.set_tx_info(TxInfo { diff_size });
+        if result.interpreter_result().is_ok() {
+            // Deduct L1 fee only if tx is successful.
             if let Some(_out_of_funds) = decrease_caller_balance(context, l1_fee)? {
                 return Err(EVMError::Custom(format!(
                     "Not enought funds for L1 fee: {}",
