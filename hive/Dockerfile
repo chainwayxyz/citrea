@@ -1,4 +1,4 @@
-FROM lukemathwalker/cargo-chef:latest-rust-1.76.0 AS chef
+FROM lukemathwalker/cargo-chef:latest-rust-1.77.0 AS chef
 WORKDIR /app
 
 # Builds a cargo-chef plan
@@ -20,7 +20,7 @@ COPY . .
 RUN SKIP_GUEST_BUILD=1 cargo build --release --bin sov-demo-rollup
 
 # We need cargo to run the binary because of some path finding dependencies
-FROM rust:1.76 AS runtime
+FROM rust:1.77 AS runtime
 WORKDIR /app
 
 # Install curl
@@ -37,4 +37,4 @@ RUN rm -rf /app/target && cargo
 EXPOSE 8545
 
 WORKDIR /app/examples/demo-rollup
-ENTRYPOINT ["sh", "-c", "chmod +x ../../hive/hive_publish_block.sh ; ../../hive/hive_publish_block.sh & ./sov-demo-rollup --genesis-paths ../../hive/genesis --rollup-config-path mock_dockerized_rollup_config.toml --sequencer-config-path mock_sequencer_config.toml"]
+ENTRYPOINT ["sh", "-c", "chmod +x ../../hive/hive_publish_block.sh ; ../../hive/hive_publish_block.sh & ./publish_da_block.sh & ./sov-demo-rollup --genesis-paths ../../hive/genesis --rollup-config-path mock_dockerized_rollup_config.toml --sequencer-config-path mock_sequencer_config.toml"]
