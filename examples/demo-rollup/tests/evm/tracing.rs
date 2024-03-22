@@ -33,6 +33,7 @@ async fn tracing_tests() -> Result<(), Box<dyn std::error::Error>> {
             NodeMode::SequencerNode,
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
+            false,
         )
         .await;
     });

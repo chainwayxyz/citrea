@@ -28,6 +28,7 @@ async fn too_many_l2_block_per_l1_block() {
             NodeMode::SequencerNode,
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
+            false,
         )
         .await;
     });

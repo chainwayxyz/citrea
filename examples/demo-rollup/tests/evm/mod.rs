@@ -35,6 +35,7 @@ async fn web3_rpc_tests() -> Result<(), anyhow::Error> {
             NodeMode::SequencerNode,
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
+            false,
         )
         .await;
     });
@@ -80,6 +81,7 @@ async fn evm_tx_tests() -> Result<(), anyhow::Error> {
             NodeMode::SequencerNode,
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
+            false,
         )
         .await;
     });
@@ -114,6 +116,7 @@ async fn test_eth_get_logs() -> Result<(), anyhow::Error> {
             NodeMode::SequencerNode,
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
+            false,
         )
         .await;
     });

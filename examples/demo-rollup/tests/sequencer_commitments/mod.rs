@@ -35,6 +35,7 @@ async fn sequencer_sends_commitments_to_da_layer() {
             NodeMode::SequencerNode,
             None,
             4,
+            false,
         )
         .await;
     });
