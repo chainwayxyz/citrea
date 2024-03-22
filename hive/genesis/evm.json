@@ -2,13 +2,20 @@
   "data": [
     {
       "address": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
-      "balance": "0x09184e72a000",
+      "balance": "0xffffffffffffffff",
+      "code_hash": "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
+      "code": "0x",
+      "nonce": 0
+    },
+    {
+      "address": "0xcf49fda3be353c69b41ed96333cd24302da4556f",
+      "balance": "0xffffffffffffffff",
       "code_hash": "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
       "code": "0x",
       "nonce": 0
     }
   ],
-  "chain_id": 1,
+  "chain_id": 5655,
   "limit_contract_code_size": null,
   "spec": {
     "0": "SHANGHAI"
