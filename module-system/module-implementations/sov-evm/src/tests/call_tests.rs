@@ -876,12 +876,22 @@ fn test_system_caller() {
     let signed_no_hash = TransactionSignedNoHash::try_from(deploy_message.clone()).unwrap();
     assert!(
         signed_no_hash.recover_signer().is_none(),
-        "System signed message is invalid"
+        "System signed message must be unrecoverable"
     );
 
     let signed_recovered: TransactionSignedEcRecovered =
         TransactionSignedEcRecovered::try_from(deploy_message.clone()).unwrap();
-    assert_eq!(signed_recovered.signer(), SYSTEM_SIGNER);
+    assert_eq!(
+        signed_recovered.signer(),
+        SYSTEM_SIGNER,
+        "SYSTEM_SIGNATURE must be transformed into SYSTEM_SIGNER"
+    );
+
+    let system_account = evm.accounts.get(&SYSTEM_SIGNER, &mut working_set);
+    assert!(
+        system_account.is_none(),
+        "There is no system account before call"
+    ); // That's optional but if the acc will exist in the future its balance must be zero.
 
     evm.begin_soft_confirmation_hook([5u8; 32], &[10u8; 32], l1_fee_rate, &mut working_set);
     {
@@ -901,8 +911,10 @@ fn test_system_caller() {
     evm.end_soft_confirmation_hook(&mut working_set);
     evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
 
-    let system_account = evm.accounts.get(&SYSTEM_SIGNER, &mut working_set);
-    assert!(system_account.is_none());
+    let system_account = evm.accounts.get(&SYSTEM_SIGNER, &mut working_set).unwrap();
+    // The system caller balance is unchanged(if exists)/or should be 0
+    assert_eq!(system_account.info.balance, U256::from(0));
+    assert_eq!(system_account.info.nonce, 1);
 
     let coinbase_account = evm.accounts.get(&config.coinbase, &mut working_set);
     assert!(coinbase_account.is_none());

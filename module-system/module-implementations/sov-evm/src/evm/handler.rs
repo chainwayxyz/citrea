@@ -119,18 +119,28 @@ where
     spec_to_generic!(handler.cfg.spec_id, {
         let validation = &mut handler.validation;
         let pre_execution = &mut handler.pre_execution;
-        let execution = &mut handler.execution;
+        // let execution = &mut handler.execution;
         let post_execution = &mut handler.post_execution;
-        validation.env = Arc::new(CitreaHandler::<SPEC, EXT, DB>::validate_env);
+        // validation.initial_tx_gas = can be overloaded too
+        // validation.env =
         validation.tx_against_state =
             Arc::new(CitreaHandler::<SPEC, EXT, DB>::validate_tx_against_state);
-        pre_execution.load_accounts = Arc::new(CitreaHandler::<SPEC, EXT, DB>::load_accounts);
+        // pre_execution.load_accounts =
+        // pre_execution.load_accounts =
         pre_execution.deduct_caller = Arc::new(CitreaHandler::<SPEC, EXT, DB>::deduct_caller);
-        execution.last_frame_return = Arc::new(CitreaHandler::<SPEC, EXT, DB>::last_frame_return);
+        // execution.last_frame_return =
+        // execution.call =
+        // execution.call_return =
+        // execution.insert_call_outcome =
+        // execution.create =
+        // execution.create_return =
+        // execution.insert_create_outcome =
+        post_execution.reimburse_caller =
+            Arc::new(CitreaHandler::<SPEC, EXT, DB>::reimburse_caller);
         post_execution.reward_beneficiary =
             Arc::new(CitreaHandler::<SPEC, EXT, DB>::reward_beneficiary);
         post_execution.output = Arc::new(CitreaHandler::<SPEC, EXT, DB>::post_execution_output);
-        post_execution.end = Arc::new(CitreaHandler::<SPEC, EXT, DB>::end);
+        // post_execution.end =
     });
 }
 
@@ -139,47 +149,39 @@ struct CitreaHandler<SPEC, EXT, DB> {
 }
 
 impl<SPEC: Spec, EXT: CitreaExternalExt, DB: Database> CitreaHandler<SPEC, EXT, DB> {
-    fn validate_env(env: &Env) -> Result<(), EVMError<DB::Error>> {
-        if env.is_system_caller() {
-            // TODO custom logic
-        }
-        revm::handler::mainnet::validate_env::<SPEC, DB>(env)
-    }
     fn validate_tx_against_state(
         context: &mut Context<EXT, DB>,
     ) -> Result<(), EVMError<DB::Error>> {
         if context.is_system_caller() {
-            // TODO custom logic
+            // Don't verify nonce and balance.
+            return Ok(());
         }
         revm::handler::mainnet::validate_tx_against_state::<SPEC, EXT, DB>(context)
     }
-    fn load_accounts(context: &mut Context<EXT, DB>) -> Result<(), EVMError<DB::Error>> {
-        if context.is_system_caller() {
-            // TODO custom logic
-        }
-        revm::handler::mainnet::load_accounts::<SPEC, EXT, DB>(context)
-    }
     fn deduct_caller(context: &mut Context<EXT, DB>) -> Result<(), EVMError<DB::Error>> {
         if context.is_system_caller() {
-            // TODO custom logic
+            // System caller doesn't spend gas.
+            return Ok(());
         }
         revm::handler::mainnet::deduct_caller::<SPEC, EXT, DB>(context)
     }
-    fn last_frame_return(
+    fn reimburse_caller(
         context: &mut Context<EXT, DB>,
-        frame_result: &mut FrameResult,
+        gas: &Gas,
     ) -> Result<(), EVMError<DB::Error>> {
         if context.is_system_caller() {
-            // TODO custom logic
+            // System caller doesn't spend gas.
+            return Ok(());
         }
-        revm::handler::mainnet::last_frame_return::<SPEC, EXT, DB>(context, frame_result)
+        revm::handler::mainnet::reimburse_caller::<SPEC, EXT, DB>(context, gas)
     }
     fn reward_beneficiary(
         context: &mut Context<EXT, DB>,
         gas: &Gas,
     ) -> Result<(), EVMError<DB::Error>> {
         if context.is_system_caller() {
-            // TODO custom logic
+            // System caller doesn't spend gas.
+            return Ok(());
         }
         revm::handler::mainnet::reward_beneficiary::<SPEC, EXT, DB>(context, gas)
     }
@@ -188,31 +190,26 @@ impl<SPEC: Spec, EXT: CitreaExternalExt, DB: Database> CitreaHandler<SPEC, EXT, 
         context: &mut Context<EXT, DB>,
         result: FrameResult,
     ) -> Result<ResultAndState, EVMError<<DB as Database>::Error>> {
-        if !result.interpreter_result().is_error() {
-            let diff_size = calc_diff_size(context).map_err(EVMError::Database)? as u64;
-            let l1_fee_rate = U256::from(context.external.l1_fee_rate());
-            let l1_fee = U256::from(diff_size) * l1_fee_rate;
-            context.external.set_tx_info(TxInfo { diff_size });
-            if let Some(_out_of_funds) = decrease_caller_balance(context, l1_fee)? {
-                return Err(EVMError::Custom(format!(
-                    "Not enought funds for L1 fee: {}",
-                    l1_fee
-                )));
+        let diff_size = calc_diff_size(context).map_err(EVMError::Database)? as u64;
+        let l1_fee_rate = U256::from(context.external.l1_fee_rate());
+        let l1_fee = U256::from(diff_size) * l1_fee_rate;
+        context.external.set_tx_info(TxInfo { diff_size });
+        if result.interpreter_result().is_ok() {
+            // Deduct L1 fee only if tx is successful.
+            if context.is_system_caller() {
+                // System caller doesn't pay L1 fee.
+            } else {
+                if let Some(_out_of_funds) = decrease_caller_balance(context, l1_fee)? {
+                    return Err(EVMError::Custom(format!(
+                        "Not enought funds for L1 fee: {}",
+                        l1_fee
+                    )));
+                }
+                increase_coinbase_balance(context, l1_fee)?;
             }
-            increase_coinbase_balance(context, l1_fee)?;
         }
 
         revm::handler::mainnet::output(context, result)
-    }
-
-    fn end(
-        context: &mut Context<EXT, DB>,
-        evm_output: Result<ResultAndState, EVMError<DB::Error>>,
-    ) -> Result<ResultAndState, EVMError<DB::Error>> {
-        if context.is_system_caller() {
-            // TODO custom logic
-        }
-        revm::handler::mainnet::end::<EXT, DB>(context, evm_output)
     }
 }
 
