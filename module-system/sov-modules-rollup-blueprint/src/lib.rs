@@ -294,6 +294,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
             prover_service,
             sequencer_client,
             rollup_config.sequencer_public_key,
+            rollup_config.ignore_tx_body,
         )?;
 
         Ok(Rollup {

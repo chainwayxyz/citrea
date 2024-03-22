@@ -61,6 +61,8 @@ pub struct RollupConfig<DaServiceConfig> {
     pub sequencer_public_key: Vec<u8>,
     /// Prover service configuration.
     pub prover_service: ProverServiceConfig,
+    /// Ignore Tx Body
+    pub ignore_tx_body: bool,
 }
 
 /// Reads toml file as a specific type.
@@ -97,6 +99,7 @@ mod tests {
     fn test_correct_config() {
         let config = r#"
             sequencer_public_key = "0000000000000000000000000000000000000000000000000000000000000000"
+            ignore_tx_body = false
             [da]
             celestia_rpc_auth_token = "SECRET_RPC_TOKEN"
             celestia_rpc_address = "http://localhost:11111/"
@@ -143,6 +146,7 @@ mod tests {
             prover_service: ProverServiceConfig {
                 aggregated_proof_block_jump: 22,
             },
+            ignore_tx_body: false,
         };
         assert_eq!(config, expected);
     }

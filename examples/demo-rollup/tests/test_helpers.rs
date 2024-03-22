@@ -73,6 +73,7 @@ pub async fn start_rollup(
             }
             NodeMode::SequencerNode => None,
         },
+        ignore_tx_body: false,
     };
 
     let sequencer_config = SequencerConfig {
