@@ -1045,8 +1045,7 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
 
 #[tokio::test]
 async fn test_reopen_prover() -> Result<(), anyhow::Error> {
-    initialize_logging();
-
+    let _ = fs::remove_dir_all(Path::new("demo_data_test_reopen_prover_copy2"));
     let _ = fs::remove_dir_all(Path::new("demo_data_test_reopen_prover_copy"));
     let _ = fs::remove_dir_all(Path::new("demo_data_test_reopen_prover"));
 
@@ -1094,7 +1093,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
 
     // publish 3 soft confirmations, no commitment should be sent
     for _ in 0..3 {
-        seq_test_client.send_publish_batch_request().await; // 3
+        seq_test_client.send_publish_batch_request().await;
     }
 
     sleep(Duration::from_secs(2)).await;
@@ -1103,15 +1102,14 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     assert_eq!(prover_node_test_client.eth_block_number().await, 0);
 
     da_service.publish_test_block().await.unwrap();
-    println!("2");
-    seq_test_client.send_publish_batch_request().await; // 4
-    println!("3");
+
+    seq_test_client.send_publish_batch_request().await;
+
     // sequencer commitment should be sent
     da_service.publish_test_block().await.unwrap();
-    println!("4");
     // start l1 height = 1, end = 2
-    seq_test_client.send_publish_batch_request().await; // 5
-    println!("5");
+    seq_test_client.send_publish_batch_request().await;
+
     // wait for prover to sync
     sleep(Duration::from_secs(5)).await;
 
@@ -1123,8 +1121,6 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
         Path::new("demo_data_test_reopen_prover"),
         Path::new("demo_data_test_reopen_prover_copy"),
     );
-
-    println!("1");
 
     // Reopen prover with the new path
     let (prover_node_port_tx, prover_node_port_rx) = tokio::sync::oneshot::channel();
@@ -1147,30 +1143,28 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     let prover_node_port = prover_node_port_rx.await.unwrap();
     let prover_node_test_client = make_test_client(prover_node_port).await;
 
-    sleep(Duration::from_secs(5)).await;
+    sleep(Duration::from_secs(2)).await;
 
-    println!("6");
     seq_test_client.send_publish_batch_request().await;
-    println!("7");
+
     sleep(Duration::from_secs(3)).await;
-    println!("8");
-    // Still should have 4 blokcs there are no commitments yet
-    assert_eq!(prover_node_test_client.eth_block_number().await, 4);
-    println!("9");
-    seq_test_client.send_publish_batch_request().await;
-    seq_test_client.send_publish_batch_request().await;
-    sleep(Duration::from_secs(3)).await;
+
     // Still should have 4 blokcs there are no commitments yet
     assert_eq!(prover_node_test_client.eth_block_number().await, 4);
 
-    seq_task.abort();
+    prover_node_task.abort();
+
+    sleep(Duration::from_secs(2)).await;
+
+    seq_test_client.send_publish_batch_request().await;
+    seq_test_client.send_publish_batch_request().await;
 
     let _ = copy_dir_recursive(
         Path::new("demo_data_test_reopen_prover_copy"),
         Path::new("demo_data_test_reopen_prover_copy2"),
     );
 
-    // Reopen prover with the new path copy2
+    // Reopen prover with the new path
     let (prover_node_port_tx, prover_node_port_rx) = tokio::sync::oneshot::channel();
 
     let prover_node_task = tokio::spawn(async move {
@@ -1191,6 +1185,9 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     let prover_node_port = prover_node_port_rx.await.unwrap();
     let prover_node_test_client = make_test_client(prover_node_port).await;
 
+    sleep(Duration::from_secs(3)).await;
+    // Still should have 4 blokcs there are no commitments yet
+    assert_eq!(prover_node_test_client.eth_block_number().await, 4);
     da_service.publish_test_block().await.unwrap();
 
     // Commitment is sent right before the 9th block is published
@@ -1204,5 +1201,9 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     // TODO: Also test with multiple commitments in single Mock DA Block
     seq_task.abort();
     prover_node_task.abort();
+
+    let _ = fs::remove_dir_all(Path::new("demo_data_test_reopen_prover_copy2"));
+    let _ = fs::remove_dir_all(Path::new("demo_data_test_reopen_prover_copy"));
+    let _ = fs::remove_dir_all(Path::new("demo_data_test_reopen_prover"));
     Ok(())
 }
