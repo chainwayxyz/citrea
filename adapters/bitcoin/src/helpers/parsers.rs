@@ -104,6 +104,10 @@ fn parse_relevant_inscriptions(
                     break; // we are done parsing
                 }
             }
+            // If the found nonce is less than or equal to 16, push_int of reveal_script_builder
+            // uses the dedicated opcode OP_PUSHNUM before OP_PUSHDATA rather than OP_PUSHBYTES.
+            // When occurred, it was causing our tests to fail in the last match arm and returning an error.
+            // This giga fix is added to not to fail inside the envelope at the end when nonce <= 16.
             Instruction::Op(OP_PUSHNUM_1)
             | Instruction::Op(OP_PUSHNUM_2)
             | Instruction::Op(OP_PUSHNUM_3)
