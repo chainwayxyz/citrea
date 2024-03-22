@@ -20,7 +20,10 @@ pub(crate) struct DbConnector {
 impl DbConnector {
     pub fn new() -> Self {
         let thread = std::thread::current();
-        let thread_name = thread.name().unwrap_or("unnamed");
+        let mut thread_name = thread.name().unwrap_or("unnamed");
+        if thread_name == "tokio-runtime-worker" {
+            thread_name = "main"
+        }
         let dir = workspace_dir()
             .join("test-da-dbs")
             .join(thread_name.to_string() + ".db");

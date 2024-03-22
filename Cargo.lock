@@ -1803,6 +1803,7 @@ dependencies = [
  "sov-accounts",
  "sov-db",
  "sov-evm",
+ "sov-mock-da",
  "sov-modules-api",
  "sov-modules-stf-blueprint",
  "sov-rollup-interface",
