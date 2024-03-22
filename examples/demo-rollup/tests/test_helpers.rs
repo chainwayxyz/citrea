@@ -27,6 +27,7 @@ pub enum NodeMode {
     Prover(SocketAddr),
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn start_rollup(
     rpc_reporting_channel: oneshot::Sender<SocketAddr>,
     rt_genesis_paths: GenesisPaths,
