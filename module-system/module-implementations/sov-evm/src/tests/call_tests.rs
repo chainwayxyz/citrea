@@ -31,6 +31,7 @@ fn call_multiple_test() {
             code_hash: KECCAK_EMPTY,
             code: Bytes::default(),
             nonce: 0,
+            storage: None,
         }],
         // SHANGAI instead of LATEST
         // https://github.com/Sovereign-Labs/sovereign-sdk/issues/912
@@ -455,7 +456,7 @@ fn test_block_hash_in_evm() {
                 .into(),
         );
         let resp = evm.get_call(request.clone(), None, None, None, &mut working_set);
-        if !(259..=514).contains(&i) {
+        if !(260..=515).contains(&i) {
             // Should be 0, there is more than 256 blocks between the last block and the block number
             assert_eq!(resp.unwrap().to_vec(), vec![0u8; 32]);
         } else {
@@ -694,6 +695,7 @@ pub(crate) fn get_evm_config(
             code_hash: KECCAK_EMPTY,
             code: Bytes::default(),
             nonce: 0,
+            storage: None,
         }],
         spec: vec![(0, SpecId::SHANGHAI)].into_iter().collect(),
         block_gas_limit: block_gas_limit.unwrap_or(ETHEREUM_BLOCK_GAS_LIMIT),
@@ -721,6 +723,7 @@ fn get_evm_config_starting_base_fee(
             code_hash: KECCAK_EMPTY,
             code: Bytes::default(),
             nonce: 0,
+            storage: None,
         }],
         spec: vec![(0, SpecId::SHANGHAI)].into_iter().collect(),
         block_gas_limit: block_gas_limit.unwrap_or(ETHEREUM_BLOCK_GAS_LIMIT),
