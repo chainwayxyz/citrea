@@ -18,6 +18,7 @@ use crate::{
 enum ProverStatus<StateRoot, Witness, Da: DaSpec> {
     WitnessSubmitted(StateTransitionData<StateRoot, Witness, Da>),
     ProvingInProgress,
+    #[allow(dead_code)]
     Proved(Proof),
     Err(anyhow::Error),
 }
