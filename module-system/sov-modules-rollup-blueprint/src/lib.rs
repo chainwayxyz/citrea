@@ -251,6 +251,10 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         let mut storage_manager = self.create_storage_manager(&rollup_config)?;
         let prover_storage = storage_manager.create_finalized_storage()?;
 
+        println!(
+            "\n\nhead_soft_batch: {:?}\n\n",
+            ledger_db.get_head_soft_batch()?
+        );
         let prev_root = ledger_db
             .get_head_soft_batch()?
             .map(|(number, _)| prover_storage.get_root_hash(number.0 + 1))
@@ -276,7 +280,10 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         let init_variant = match prev_root {
             Some(root_hash) => InitVariant::Initialized(root_hash),
             None => match genesis_root {
-                Ok(root_hash) => InitVariant::Initialized(root_hash),
+                Ok(root_hash) => {
+                    println!("Genesis root hash: {:?}", root_hash.as_ref());
+                    InitVariant::Initialized(root_hash)
+                }
                 _ => InitVariant::Genesis {
                     block_header: last_finalized_block_header.clone(),
                     genesis_params: genesis_config,

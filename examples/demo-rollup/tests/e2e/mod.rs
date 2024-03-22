@@ -7,6 +7,7 @@ use citrea_stf::genesis_config::GenesisPaths;
 use ethereum_types::H256;
 use ethers::abi::Address;
 use reth_primitives::{BlockNumberOrTag, TxHash};
+use sov_demo_rollup::initialize_logging;
 use sov_evm::smart_contracts::SimpleStorageContract;
 use sov_mock_da::{MockAddress, MockDaService, MockDaSpec};
 use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
@@ -941,5 +942,267 @@ async fn test_soft_confirmations_status_two_l1() -> Result<(), anyhow::Error> {
     seq_task.abort();
     full_node_task.abort();
 
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
+    initialize_logging();
+    let da_service = MockDaService::new(MockAddress::default());
+
+    let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
+
+    let seq_task = tokio::spawn(async move {
+        start_rollup(
+            seq_port_tx,
+            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
+            BasicKernelGenesisPaths {
+                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
+            },
+            RollupProverConfig::Execute,
+            NodeMode::SequencerNode,
+            None,
+            4,
+        )
+        .await;
+    });
+
+    let seq_port = seq_port_rx.await.unwrap();
+    let seq_test_client = make_test_client(seq_port).await;
+
+    let (prover_node_port_tx, prover_node_port_rx) = tokio::sync::oneshot::channel();
+
+    let prover_node_task = tokio::spawn(async move {
+        start_rollup(
+            prover_node_port_tx,
+            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
+            BasicKernelGenesisPaths {
+                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
+            },
+            RollupProverConfig::Execute,
+            NodeMode::Prover(seq_port),
+            None,
+            4,
+        )
+        .await;
+    });
+
+    let prover_node_port = prover_node_port_rx.await.unwrap();
+    let prover_node_test_client = make_test_client(prover_node_port).await;
+
+    // publish 3 soft confirmations, no commitment should be sent
+    for _ in 0..3 {
+        seq_test_client.send_publish_batch_request().await;
+    }
+
+    sleep(Duration::from_secs(2)).await;
+
+    // prover should not have any blocks saved
+    assert_eq!(prover_node_test_client.eth_block_number().await, 0);
+
+    da_service.publish_test_block().await.unwrap();
+
+    seq_test_client.send_publish_batch_request().await;
+
+    // sequencer commitment should be sent
+    da_service.publish_test_block().await.unwrap();
+    // start l1 height = 1, end = 2
+    seq_test_client.send_publish_batch_request().await;
+
+    // wait for prover to sync
+    sleep(Duration::from_secs(5)).await;
+
+    // prover should have synced all 4 l2 blocks
+    assert_eq!(prover_node_test_client.eth_block_number().await, 4);
+
+    seq_test_client.send_publish_batch_request().await;
+
+    sleep(Duration::from_secs(3)).await;
+
+    // Still should have 4 blokcs there are no commitments yet
+    assert_eq!(prover_node_test_client.eth_block_number().await, 4);
+
+    seq_test_client.send_publish_batch_request().await;
+    seq_test_client.send_publish_batch_request().await;
+    sleep(Duration::from_secs(3)).await;
+    // Still should have 4 blokcs there are no commitments yet
+    assert_eq!(prover_node_test_client.eth_block_number().await, 4);
+    da_service.publish_test_block().await.unwrap();
+
+    // Commitment is sent right before the 9th block is published
+    seq_test_client.send_publish_batch_request().await;
+
+    // Wait for prover to sync
+    sleep(Duration::from_secs(5)).await;
+    // Should now have 8 blocks = 2 commitments of blocks 1-4 and 5-8
+    assert_eq!(prover_node_test_client.eth_block_number().await, 8);
+
+    // TODO: Also test with multiple commitments in single Mock DA Block
+    seq_task.abort();
+    prover_node_task.abort();
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_reopen_prover() -> Result<(), anyhow::Error> {
+    initialize_logging();
+
+    let _ = fs::remove_dir_all(Path::new("demo_data_test_reopen_prover_copy"));
+    let _ = fs::remove_dir_all(Path::new("demo_data_test_reopen_prover"));
+
+    let da_service = MockDaService::new(MockAddress::default());
+
+    let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
+
+    let seq_task = tokio::spawn(async move {
+        start_rollup(
+            seq_port_tx,
+            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
+            BasicKernelGenesisPaths {
+                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
+            },
+            RollupProverConfig::Execute,
+            NodeMode::SequencerNode,
+            None,
+            4,
+        )
+        .await;
+    });
+
+    let seq_port = seq_port_rx.await.unwrap();
+    let seq_test_client = make_test_client(seq_port).await;
+
+    let (prover_node_port_tx, prover_node_port_rx) = tokio::sync::oneshot::channel();
+
+    let prover_node_task = tokio::spawn(async move {
+        start_rollup(
+            prover_node_port_tx,
+            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
+            BasicKernelGenesisPaths {
+                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
+            },
+            RollupProverConfig::Execute,
+            NodeMode::Prover(seq_port),
+            Some("demo_data_test_reopen_prover"),
+            4,
+        )
+        .await;
+    });
+
+    let prover_node_port = prover_node_port_rx.await.unwrap();
+    let prover_node_test_client = make_test_client(prover_node_port).await;
+
+    // publish 3 soft confirmations, no commitment should be sent
+    for _ in 0..3 {
+        seq_test_client.send_publish_batch_request().await; // 3
+    }
+
+    sleep(Duration::from_secs(2)).await;
+
+    // prover should not have any blocks saved
+    assert_eq!(prover_node_test_client.eth_block_number().await, 0);
+
+    da_service.publish_test_block().await.unwrap();
+    println!("2");
+    seq_test_client.send_publish_batch_request().await; // 4
+    println!("3");
+    // sequencer commitment should be sent
+    da_service.publish_test_block().await.unwrap();
+    println!("4");
+    // start l1 height = 1, end = 2
+    seq_test_client.send_publish_batch_request().await; // 5
+    println!("5");
+    // wait for prover to sync
+    sleep(Duration::from_secs(5)).await;
+
+    // prover should have synced all 4 l2 blocks
+    assert_eq!(prover_node_test_client.eth_block_number().await, 4);
+
+    prover_node_task.abort();
+    let _ = copy_dir_recursive(
+        Path::new("demo_data_test_reopen_prover"),
+        Path::new("demo_data_test_reopen_prover_copy"),
+    );
+
+    println!("1");
+
+    // Reopen prover with the new path
+    let (prover_node_port_tx, prover_node_port_rx) = tokio::sync::oneshot::channel();
+
+    let prover_node_task = tokio::spawn(async move {
+        start_rollup(
+            prover_node_port_tx,
+            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
+            BasicKernelGenesisPaths {
+                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
+            },
+            RollupProverConfig::Execute,
+            NodeMode::Prover(seq_port),
+            Some("demo_data_test_reopen_prover_copy"),
+            4,
+        )
+        .await;
+    });
+
+    let prover_node_port = prover_node_port_rx.await.unwrap();
+    let prover_node_test_client = make_test_client(prover_node_port).await;
+
+    sleep(Duration::from_secs(5)).await;
+
+    println!("6");
+    seq_test_client.send_publish_batch_request().await;
+    println!("7");
+    sleep(Duration::from_secs(3)).await;
+    println!("8");
+    // Still should have 4 blokcs there are no commitments yet
+    assert_eq!(prover_node_test_client.eth_block_number().await, 4);
+    println!("9");
+    seq_test_client.send_publish_batch_request().await;
+    seq_test_client.send_publish_batch_request().await;
+    sleep(Duration::from_secs(3)).await;
+    // Still should have 4 blokcs there are no commitments yet
+    assert_eq!(prover_node_test_client.eth_block_number().await, 4);
+
+    seq_task.abort();
+
+    let _ = copy_dir_recursive(
+        Path::new("demo_data_test_reopen_prover_copy"),
+        Path::new("demo_data_test_reopen_prover_copy2"),
+    );
+
+    // Reopen prover with the new path copy2
+    let (prover_node_port_tx, prover_node_port_rx) = tokio::sync::oneshot::channel();
+
+    let prover_node_task = tokio::spawn(async move {
+        start_rollup(
+            prover_node_port_tx,
+            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
+            BasicKernelGenesisPaths {
+                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
+            },
+            RollupProverConfig::Execute,
+            NodeMode::Prover(seq_port),
+            Some("demo_data_test_reopen_prover_copy2"),
+            4,
+        )
+        .await;
+    });
+
+    let prover_node_port = prover_node_port_rx.await.unwrap();
+    let prover_node_test_client = make_test_client(prover_node_port).await;
+
+    da_service.publish_test_block().await.unwrap();
+
+    // Commitment is sent right before the 9th block is published
+    seq_test_client.send_publish_batch_request().await;
+
+    // Wait for prover to sync
+    sleep(Duration::from_secs(5)).await;
+    // Should now have 8 blocks = 2 commitments of blocks 1-4 and 5-8
+    assert_eq!(prover_node_test_client.eth_block_number().await, 8);
+
+    // TODO: Also test with multiple commitments in single Mock DA Block
+    seq_task.abort();
+    prover_node_task.abort();
     Ok(())
 }

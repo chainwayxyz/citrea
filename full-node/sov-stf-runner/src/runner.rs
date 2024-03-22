@@ -146,6 +146,8 @@ where
                     "Chain initialization is done. Genesis root: 0x{}",
                     hex::encode(genesis_root.as_ref()),
                 );
+
+                println!("runner new genesis root: {:?}", genesis_root.as_ref());
                 genesis_root
             }
         };
@@ -221,36 +223,84 @@ where
         let mut seen_block_headers: VecDeque<<Da::Spec as DaSpec>::BlockHeader> = VecDeque::new();
         // let mut seen_receipts: VecDeque<_> = VecDeque::new();
         let mut height = self.start_height;
+        println!(
+            "\n\n\n\n\n\n AAAAAAAAheight: {:?}\n\n\n\n\n",
+            self.start_height
+        );
         info!("Prover trying to sync from height {}", height);
 
-        // Get the latest soft batch
-        // TODO: Handle error
-        let soft_batch = client
-            .get_soft_batch::<Da::Spec>(height)
-            .await
-            .unwrap()
-            .unwrap();
+        let soft_batch = loop {
+            let soft_batch = client.get_soft_batch::<Da::Spec>(height).await;
+
+            if soft_batch.is_err() {
+                let x = soft_batch.unwrap_err();
+                match x.downcast_ref::<jsonrpsee::core::Error>() {
+                    Some(Error::Transport(e)) => {
+                        debug!("Soft Batch: connection error during RPC call: {:?}", e);
+                        Self::log_error(
+                            &mut last_connection_error,
+                            CONNECTION_INTERVALS,
+                            &mut connection_index,
+                            format!("Soft Batch: connection error during RPC call: {:?}", e)
+                                .as_str(),
+                        );
+                        sleep(Duration::from_secs(RETRY_SLEEP)).await;
+                        continue;
+                    }
+                    _ => {
+                        anyhow::bail!("Soft Batch: unknown error from RPC call: {:?}", x);
+                    }
+                }
+            }
+
+            let soft_batch = match soft_batch.unwrap() {
+                Some(soft_batch) => soft_batch,
+                None => {
+                    debug!(
+                        "Soft Batch: no batch at height {}, retrying in {} seconds",
+                        height, RETRY_SLEEP
+                    );
+                    Self::log_error(
+                        &mut last_parse_error,
+                        RETRY_INTERVAL,
+                        &mut retry_index,
+                        "No soft batch published".to_string().as_str(),
+                    );
+                    sleep(Duration::from_secs(RETRY_SLEEP)).await;
+                    continue;
+                }
+            };
+            break soft_batch;
+        };
+
+        println!(
+            "\n\nINITIAL soft_batch: {:?}\n\n",
+            soft_batch.pre_state_root
+        );
+        println!("my state root: {:?}\n\n", self.state_root.as_ref());
+        // the l1 height of the soft batch
+        let mut l1_height = soft_batch.da_slot_height;
+        // println!("l1_height: {:?}", self.p);
 
         loop {
-            let filtered_block = self
-                .da_service
-                .get_block_at(soft_batch.da_slot_height)
-                .await?;
+            let filtered_block = self.da_service.get_block_at(l1_height).await?;
 
-            let (da_data, da_errors): (Vec<_>, Vec<_>) = self
+            // println!("filtered_block: {:?}", filtered_block);
+
+            let (da_data, _da_errors): (Vec<_>, Vec<_>) = self
                 .da_service
                 .extract_relevant_blobs(&filtered_block)
                 .into_iter()
                 .map(|mut tx| DaData::try_from_slice(tx.full_data()))
                 .partition(Result::is_ok);
 
-            if !da_errors.is_empty() {
-                tracing::warn!(
-                    "Found broken DA data in block 0x{}: {:?}",
-                    hex::encode(filtered_block.hash()),
-                    da_errors
-                );
-            }
+            // if !da_errors.is_empty() {
+            //     tracing::warn!(
+            //         "Found broken DA data in block 0x{}: {:?}",
+            //         hex::encode(filtered_block.hash()),
+            //         da_errors
+            //     );
+            // }
 
             // seperate DaData into sequencer commitments and proofs
             let mut sequencer_commitments = Vec::<SequencerCommitment>::new();
@@ -287,8 +337,14 @@ where
                         .header()
                         .height();
 
+                    println!("start_l1_height: {:?}", start_l1_height);
+                    println!("end_l1_height: {:?}", end_l1_height);
+
                     // get the latest l2 block of the commitment and start sync up to that block
-                    let start_l2_height = self.start_height;
+                    let start_l2_height = height;
+
+                    println!("start_l2_height: {:?}", start_l2_height);
+
                     // start fetching blocks from sequencer, when you see a softbatch with l1 height more than end_l1_height, stop
                     // while getting the blocks to all the same ops as full node
                     // after stopping call continue  and look for a new seq_commitment
@@ -296,19 +352,28 @@ where
 
                     loop {
                         let soft_batch = client
-                            .get_soft_batch::<Da::Spec>(start_l2_height)
+                            .get_soft_batch::<Da::Spec>(height)
                             .await
                             .unwrap()
                             .unwrap();
 
+                        println!("\n\nsoft_batch height is : {:?}\n\n", height);
+
                         if soft_batch.da_slot_height > end_l1_height {
-                            let range_end = BatchNumber(height - 1);
+                            println!("start_l1_height: {:?}", start_l1_height);
+                            println!("end_l1_height: {:?}", end_l1_height);
+                            println!("\n\n\n\nBBBB\n\n\n\n\n\n\n\nBBBB\n\n\n\n\n\n\n\nBBBB\n\n\n\n\n\n\n\nBBBB\n\n\n\n");
+                            let range_end = BatchNumber(height);
+                            println!("range_end: {:?}", range_end);
                             // Traverse each item's field of vector of transactions, put them in merkle tree
                             // and compare the root with the one from the ledger
                             let stored_soft_batches: Vec<StoredSoftBatch> = self
                                 .ledger_db
                                 .get_soft_batch_range(&(BatchNumber(start_l2_height)..range_end))
                                 .unwrap();
+
+                            println!("start_l2_height: {:?}", start_l2_height);
+                            println!("range_end: {:?}", range_end);
 
                             let soft_batches_tree = MerkleTree::<Sha256>::from_leaves(
                                 stored_soft_batches
@@ -321,6 +386,14 @@ where
                             if soft_batches_tree.root() != Some(sequencer_commitment.merkle_root) {
                                 tracing::warn!(
                                     "Merkle root mismatch - expected 0x{} but got 0x{}",
+                                    hex::encode(soft_batches_tree.root().unwrap()),
+                                    hex::encode(sequencer_commitment.merkle_root)
+                                );
+                            } else if soft_batches_tree.root()
+                                == Some(sequencer_commitment.merkle_root)
+                            {
+                                tracing::error!(
+                                    "\n\n\n\n merkle root match - expected 0x{}  got 0x{}\n\n",
                                     hex::encode(soft_batches_tree.root().unwrap()),
                                     hex::encode(sequencer_commitment.merkle_root)
                                 );
@@ -339,6 +412,7 @@ where
                             )
                                     });
                             }
+                            l1_height += 1;
                             break;
                         }
 
@@ -348,6 +422,14 @@ where
                             hex::encode(soft_batch.hash),
                             filtered_block.header().height()
                         );
+
+                        println!("soft_batch: {:?}", soft_batch);
+
+                        // The filtered block of soft batch, which is the block at the da_slot_height of soft batch
+                        let filtered_block = self
+                            .da_service
+                            .get_block_at(soft_batch.da_slot_height)
+                            .await?;
 
                         let mut data_to_commit = SlotCommit::new(filtered_block.clone());
 
@@ -493,9 +575,22 @@ where
                         self.storage_manager.finalize_l2(height)?;
 
                         height += 1;
+                        println!("height: {:?}", self.start_height);
                     }
                 }
-                _ => {}
+                _ => {
+                    // if there is no sequencer commitment, increase the l1_height
+                    // if the finalized l1_height is less than the l1_height, then stop
+                    let last_finalized_height = self
+                        .da_service
+                        .get_last_finalized_block_header()
+                        .await?
+                        .height();
+                    if l1_height < last_finalized_height {
+                        l1_height += 1;
+                        sleep(Duration::from_millis(100)).await;
+                    }
+                }
             }
         }
 

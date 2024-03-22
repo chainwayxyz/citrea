@@ -90,6 +90,8 @@ async fn sequencer_sends_commitments_to_da_layer() {
     )
     .await;
 
+    println!("end_l1_block: {}", end_l1_block);
+
     // publish 4 soft confirmations, no commitment should be sent
     for _ in 0..4 {
         test_client.send_publish_batch_request().await;
