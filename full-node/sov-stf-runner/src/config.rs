@@ -61,7 +61,7 @@ pub struct RollupConfig<DaServiceConfig> {
     pub sequencer_public_key: Vec<u8>,
     /// Prover service configuration.
     pub prover_service: ProverServiceConfig,
-    /// Ignore Tx Body
+    /// Saves sequencer soft batches if set to false
     pub ignore_tx_body: bool,
 }
 

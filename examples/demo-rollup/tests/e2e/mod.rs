@@ -116,7 +116,6 @@ async fn test_soft_batch_save() -> Result<(), anyhow::Error> {
     });
 
     let seq_port = seq_port_rx.await.unwrap();
-    // let seq_test_client = make_test_client(seq_port).await;
     let seq_test_client = init_test_rollup(seq_port).await;
     let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
 
