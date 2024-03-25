@@ -22,7 +22,6 @@ jobs:
     timeout-minutes: 60
     name: Build and publish Docker image
     runs-on: ubicloud-standard-2
-    if: github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v4
       - name: Docker Setup Buildx
