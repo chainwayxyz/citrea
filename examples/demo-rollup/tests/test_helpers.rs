@@ -27,6 +27,7 @@ pub enum NodeMode {
     Prover(SocketAddr),
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn start_rollup(
     rpc_reporting_channel: oneshot::Sender<SocketAddr>,
     rt_genesis_paths: GenesisPaths,
@@ -35,6 +36,7 @@ pub async fn start_rollup(
     node_mode: NodeMode,
     db_path: Option<&str>,
     min_soft_confirmations_per_commitment: u64,
+    include_tx_body: bool,
 ) {
     let mut path = db_path.map(Path::new);
     let mut temp_dir: Option<tempfile::TempDir> = None;
@@ -73,6 +75,7 @@ pub async fn start_rollup(
             }
             NodeMode::SequencerNode => None,
         },
+        include_tx_body,
     };
 
     let sequencer_config = SequencerConfig {

@@ -1,5 +1,6 @@
 sequencer_public_key = "0000000000000000000000000000000000000000000000000000000000000000"
 min_soft_confirmations_per_commitment = 1000
+include_tx_body = false
 
 [da]
 node_url = "http://localhost:38332"

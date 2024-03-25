@@ -245,7 +245,7 @@ impl LedgerDB {
     pub fn commit_soft_batch<B: Serialize, T: Serialize, DS: DaSpec>(
         &self,
         batch_receipt: SoftBatchReceipt<B, T, DS>,
-        ignore_tx_body: bool,
+        include_tx_body: bool,
     ) -> Result<(), anyhow::Error> {
         // Create a scope to ensure that the lock is released before we commit to the db
         let mut current_item_numbers = {
@@ -284,7 +284,7 @@ impl LedgerDB {
 
             // Rollup full nodes don't need to store the tx body as they already store evm body
             // Sequencer full nodes need to store the tx body as they are the only ones that have it
-            if ignore_tx_body {
+            if !include_tx_body {
                 tx_to_store.body = None;
             }
 

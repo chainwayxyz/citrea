@@ -55,6 +55,7 @@ async fn initialize_test(
             NodeMode::SequencerNode,
             None,
             config.seq_min_soft_confirmations,
+            true,
         )
         .await;
     });
@@ -75,6 +76,7 @@ async fn initialize_test(
             NodeMode::FullNode(seq_port),
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
+            true,
         )
         .await;
     });
@@ -89,6 +91,101 @@ async fn initialize_test(
         full_node_task,
         Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap(),
     )
+}
+
+#[tokio::test]
+async fn test_soft_batch_save() -> Result<(), anyhow::Error> {
+    let config = TestConfig::default();
+
+    let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
+
+    let seq_task = tokio::spawn(async move {
+        start_rollup(
+            seq_port_tx,
+            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
+            BasicKernelGenesisPaths {
+                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
+            },
+            RollupProverConfig::Execute,
+            NodeMode::SequencerNode,
+            None,
+            config.seq_min_soft_confirmations,
+            true,
+        )
+        .await;
+    });
+
+    let seq_port = seq_port_rx.await.unwrap();
+    let seq_test_client = init_test_rollup(seq_port).await;
+
+    let (full_node_port_tx, full_node_port_rx) = tokio::sync::oneshot::channel();
+
+    let full_node_task = tokio::spawn(async move {
+        start_rollup(
+            full_node_port_tx,
+            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
+            BasicKernelGenesisPaths {
+                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
+            },
+            RollupProverConfig::Execute,
+            NodeMode::FullNode(seq_port),
+            None,
+            DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
+            true,
+        )
+        .await;
+    });
+
+    let full_node_port = full_node_port_rx.await.unwrap();
+    let full_node_test_client = make_test_client(full_node_port).await;
+
+    let _ = execute_blocks(&seq_test_client, &full_node_test_client).await;
+
+    sleep(Duration::from_secs(10)).await;
+
+    let (full_node_port_tx_2, full_node_port_rx_2) = tokio::sync::oneshot::channel();
+
+    let full_node_task_2 = tokio::spawn(async move {
+        start_rollup(
+            full_node_port_tx_2,
+            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
+            BasicKernelGenesisPaths {
+                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
+            },
+            RollupProverConfig::Execute,
+            NodeMode::FullNode(full_node_port),
+            None,
+            DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
+            false,
+        )
+        .await;
+    });
+
+    let full_node_port_2 = full_node_port_rx_2.await.unwrap();
+    let full_node_test_client_2 = make_test_client(full_node_port_2).await;
+
+    sleep(Duration::from_secs(20)).await;
+
+    let seq_block = seq_test_client
+        .eth_get_block_by_number(Some(BlockNumberOrTag::Latest))
+        .await;
+    let full_node_block = full_node_test_client
+        .eth_get_block_by_number(Some(BlockNumberOrTag::Latest))
+        .await;
+    let full_node_block_2 = full_node_test_client_2
+        .eth_get_block_by_number(Some(BlockNumberOrTag::Latest))
+        .await;
+
+    assert_eq!(seq_block.state_root, full_node_block.state_root);
+    assert_eq!(full_node_block.state_root, full_node_block_2.state_root);
+    assert_eq!(seq_block.hash, full_node_block.hash);
+    assert_eq!(full_node_block.hash, full_node_block_2.hash);
+
+    seq_task.abort();
+    full_node_task.abort();
+    full_node_task_2.abort();
+
+    Ok(())
 }
 
 #[tokio::test]
@@ -142,6 +239,7 @@ async fn test_delayed_sync_ten_blocks() -> Result<(), anyhow::Error> {
             NodeMode::SequencerNode,
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
+            true,
         )
         .await;
     });
@@ -172,6 +270,7 @@ async fn test_delayed_sync_ten_blocks() -> Result<(), anyhow::Error> {
             NodeMode::FullNode(seq_port),
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
+            true,
         )
         .await;
     });
@@ -233,6 +332,7 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
             NodeMode::SequencerNode,
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
+            true,
         )
         .await;
     });
@@ -253,6 +353,7 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
             NodeMode::FullNode(seq_port),
             Some("demo_data_test_close_and_reopen_full_node"),
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
+            true,
         )
         .await;
     });
@@ -332,6 +433,7 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
             NodeMode::FullNode(seq_port),
             Some("demo_data_test_close_and_reopen_full_node_copy"),
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
+            true,
         )
         .await;
     });
@@ -384,6 +486,7 @@ async fn test_get_transaction_by_hash() -> Result<(), anyhow::Error> {
             NodeMode::SequencerNode,
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
+            true,
         )
         .await;
     });
@@ -403,6 +506,7 @@ async fn test_get_transaction_by_hash() -> Result<(), anyhow::Error> {
             NodeMode::FullNode(seq_port),
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
+            true,
         )
         .await;
     });
@@ -636,6 +740,7 @@ async fn test_reopen_sequencer() -> Result<(), anyhow::Error> {
             NodeMode::SequencerNode,
             Some("demo_data_test_reopen_sequencer"),
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
+            true,
         )
         .await;
     });
@@ -679,6 +784,7 @@ async fn test_reopen_sequencer() -> Result<(), anyhow::Error> {
             NodeMode::SequencerNode,
             Some("demo_data_test_reopen_sequencer_copy"),
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
+            true,
         )
         .await;
     });
