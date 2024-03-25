@@ -26,9 +26,10 @@ use crate::{AccountData, Evm, EvmConfig, RlpEvmTransaction};
 
 type C = DefaultContext;
 
-/// Creates evm instance with 3 blocks (including genesis)
-/// Block 1 has 2 transactions
+/// Creates evm instance with 4 blocks (including genesis)
+/// Block 1 has 3 transactions
 /// Block 2 has 4 transactions
+/// Block 3 has 2 transactions
 fn init_evm() -> (Evm<C>, WorkingSet<C>, TestSigner) {
     let dev_signer: TestSigner = TestSigner::new_random();
 
