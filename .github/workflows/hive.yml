@@ -76,7 +76,7 @@ jobs:
 
     needs: prepare
     name: run
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-2
     permissions:
       issues: write
     steps:
