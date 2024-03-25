@@ -139,10 +139,6 @@ async fn test_soft_batch_save() -> Result<(), anyhow::Error> {
     let full_node_port = full_node_port_rx.await.unwrap();
     let full_node_test_client = make_test_client(full_node_port).await;
 
-    let _ = execute_blocks(&seq_test_client, &full_node_test_client).await;
-
-    sleep(Duration::from_secs(10)).await;
-
     let (full_node_port_tx_2, full_node_port_rx_2) = tokio::sync::oneshot::channel();
 
     let full_node_task_2 = tokio::spawn(async move {
@@ -164,7 +160,9 @@ async fn test_soft_batch_save() -> Result<(), anyhow::Error> {
     let full_node_port_2 = full_node_port_rx_2.await.unwrap();
     let full_node_test_client_2 = make_test_client(full_node_port_2).await;
 
-    sleep(Duration::from_secs(20)).await;
+    let _ = execute_blocks(&seq_test_client, &full_node_test_client).await;
+
+    sleep(Duration::from_secs(10)).await;
 
     let seq_block = seq_test_client
         .eth_get_block_by_number(Some(BlockNumberOrTag::Latest))
