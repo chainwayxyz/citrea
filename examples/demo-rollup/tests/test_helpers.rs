@@ -36,7 +36,7 @@ pub async fn start_rollup(
     node_mode: NodeMode,
     db_path: Option<&str>,
     min_soft_confirmations_per_commitment: u64,
-    ignore_tx_body: bool,
+    include_tx_body: bool,
 ) {
     let mut path = db_path.map(Path::new);
     let mut temp_dir: Option<tempfile::TempDir> = None;
@@ -75,7 +75,7 @@ pub async fn start_rollup(
             }
             NodeMode::SequencerNode => None,
         },
-        ignore_tx_body,
+        include_tx_body,
     };
 
     let sequencer_config = SequencerConfig {

@@ -55,7 +55,7 @@ async fn initialize_test(
             NodeMode::SequencerNode,
             None,
             config.seq_min_soft_confirmations,
-            false,
+            true,
         )
         .await;
     });
@@ -76,7 +76,7 @@ async fn initialize_test(
             NodeMode::FullNode(seq_port),
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
-            false,
+            true,
         )
         .await;
     });
@@ -110,7 +110,7 @@ async fn test_soft_batch_save() -> Result<(), anyhow::Error> {
             NodeMode::SequencerNode,
             None,
             config.seq_min_soft_confirmations,
-            false,
+            true,
         )
         .await;
     });
@@ -140,7 +140,7 @@ async fn test_soft_batch_save() -> Result<(), anyhow::Error> {
             NodeMode::FullNode(seq_port),
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
-            false,
+            true,
         )
         .await;
     });
@@ -163,7 +163,7 @@ async fn test_soft_batch_save() -> Result<(), anyhow::Error> {
             NodeMode::FullNode(full_node_port),
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
-            true,
+            false,
         )
         .await;
     });
@@ -246,7 +246,7 @@ async fn test_delayed_sync_ten_blocks() -> Result<(), anyhow::Error> {
             NodeMode::SequencerNode,
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
-            false,
+            true,
         )
         .await;
     });
@@ -277,7 +277,7 @@ async fn test_delayed_sync_ten_blocks() -> Result<(), anyhow::Error> {
             NodeMode::FullNode(seq_port),
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
-            false,
+            true,
         )
         .await;
     });
@@ -339,7 +339,7 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
             NodeMode::SequencerNode,
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
-            false,
+            true,
         )
         .await;
     });
@@ -360,7 +360,7 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
             NodeMode::FullNode(seq_port),
             Some("demo_data_test_close_and_reopen_full_node"),
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
-            false,
+            true,
         )
         .await;
     });
@@ -440,7 +440,7 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
             NodeMode::FullNode(seq_port),
             Some("demo_data_test_close_and_reopen_full_node_copy"),
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
-            false,
+            true,
         )
         .await;
     });
@@ -493,7 +493,7 @@ async fn test_get_transaction_by_hash() -> Result<(), anyhow::Error> {
             NodeMode::SequencerNode,
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
-            false,
+            true,
         )
         .await;
     });
@@ -513,7 +513,7 @@ async fn test_get_transaction_by_hash() -> Result<(), anyhow::Error> {
             NodeMode::FullNode(seq_port),
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
-            false,
+            true,
         )
         .await;
     });
@@ -747,7 +747,7 @@ async fn test_reopen_sequencer() -> Result<(), anyhow::Error> {
             NodeMode::SequencerNode,
             Some("demo_data_test_reopen_sequencer"),
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
-            false,
+            true,
         )
         .await;
     });
@@ -791,7 +791,7 @@ async fn test_reopen_sequencer() -> Result<(), anyhow::Error> {
             NodeMode::SequencerNode,
             Some("demo_data_test_reopen_sequencer_copy"),
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
-            false,
+            true,
         )
         .await;
     });

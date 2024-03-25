@@ -83,7 +83,7 @@ fn initialize_runner(
             aggregated_proof_block_jump: 1,
         },
         sequencer_client: None,
-        ignore_tx_body: false,
+        include_tx_body: true,
     };
 
     let da_service = MockDaService::new(address);
@@ -123,7 +123,7 @@ fn initialize_runner(
         Some(prover_service),
         None,
         vec![0u8; 32],
-        false,
+        true,
     )
     .unwrap()
 }

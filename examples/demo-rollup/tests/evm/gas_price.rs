@@ -33,7 +33,7 @@ async fn test_gas_price_increase() -> Result<(), anyhow::Error> {
             NodeMode::SequencerNode,
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
-            false,
+            true,
         )
         .await;
     });
