@@ -117,15 +117,6 @@ async fn test_soft_batch_save() -> Result<(), anyhow::Error> {
 
     let seq_port = seq_port_rx.await.unwrap();
     let seq_test_client = init_test_rollup(seq_port).await;
-    let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
-
-    for _ in 0..10 {
-        seq_test_client
-            .send_eth(addr, None, None, None, 0u128)
-            .await
-            .unwrap();
-        seq_test_client.send_publish_batch_request().await;
-    }
 
     let (full_node_port_tx, full_node_port_rx) = tokio::sync::oneshot::channel();
 
@@ -147,6 +138,8 @@ async fn test_soft_batch_save() -> Result<(), anyhow::Error> {
 
     let full_node_port = full_node_port_rx.await.unwrap();
     let full_node_test_client = make_test_client(full_node_port).await;
+
+    let _ = execute_blocks(&seq_test_client, &full_node_test_client).await;
 
     sleep(Duration::from_secs(10)).await;
 
@@ -174,13 +167,13 @@ async fn test_soft_batch_save() -> Result<(), anyhow::Error> {
     sleep(Duration::from_secs(10)).await;
 
     let seq_block = seq_test_client
-        .eth_get_block_by_number(Some(BlockNumberOrTag::Number(10)))
+        .eth_get_block_by_number(Some(BlockNumberOrTag::Latest))
         .await;
     let full_node_block = full_node_test_client
-        .eth_get_block_by_number(Some(BlockNumberOrTag::Number(10)))
+        .eth_get_block_by_number(Some(BlockNumberOrTag::Latest))
         .await;
     let full_node_block_2 = full_node_test_client_2
-        .eth_get_block_by_number(Some(BlockNumberOrTag::Number(10)))
+        .eth_get_block_by_number(Some(BlockNumberOrTag::Latest))
         .await;
 
     assert_eq!(seq_block.state_root, full_node_block.state_root);
