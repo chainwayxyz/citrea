@@ -54,7 +54,7 @@ jobs:
     strategy:
       fail-fast: false
 
-    needs: [docker, prepare]
+    needs: prepare
     name: run
     runs-on: ubicloud-standard-4
     permissions:
