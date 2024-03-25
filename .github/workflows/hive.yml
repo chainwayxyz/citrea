@@ -21,7 +21,7 @@ jobs:
   docker:
     timeout-minutes: 60
     name: Build and publish Docker image
-    runs-on: ubicloud-standard-2
+    runs-on: ubicloud-standard-16
     steps:
       - uses: actions/checkout@v4
       - name: Docker Setup Buildx
@@ -41,7 +41,7 @@ jobs:
   
   prepare:
     timeout-minutes: 45
-    runs-on: ubicloud-standard-2
+    runs-on: ubicloud-standard-4
     steps:
       - uses: actions/checkout@v4
       - run: mkdir artifacts
@@ -76,7 +76,7 @@ jobs:
 
     needs: prepare
     name: run
-    runs-on: ubicloud-standard-2
+    runs-on: ubicloud-standard-4
     permissions:
       issues: write
     steps:
@@ -108,7 +108,7 @@ jobs:
         run: |
           cat hivetests/workspace/logs/*simulator*.log
 
-      - name: Print reth client logs
+      - name: Print citrea client logs
         if: ${{ failure() }}
         run: |
-          cat hivetests/workspace/logs/reth/client-*.log
+          cat hivetests/workspace/logs/citrea/client-*.log
