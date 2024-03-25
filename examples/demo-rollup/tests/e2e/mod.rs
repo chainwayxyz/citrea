@@ -162,7 +162,7 @@ async fn test_soft_batch_save() -> Result<(), anyhow::Error> {
 
     let _ = execute_blocks(&seq_test_client, &full_node_test_client).await;
 
-    sleep(Duration::from_secs(5)).await;
+    sleep(Duration::from_secs(10)).await;
 
     let seq_block = seq_test_client
         .eth_get_block_by_number(Some(BlockNumberOrTag::Latest))
