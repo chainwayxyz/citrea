@@ -1,0 +1,114 @@
+# Runs `ethereum/hive` tests.
+
+name: hive
+
+on:
+  workflow_dispatch:
+  schedule:
+    # every day
+    - cron: "13 21 * * *" # 21:13 UTC
+
+env:
+  CARGO_TERM_COLOR: always
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  # Except in `nightly` and `stable` branches! Any cancelled job will cause the
+  # CI run to fail, and we want to keep a clean history for major branches.
+  cancel-in-progress: ${{ (github.ref != 'refs/heads/nightly') && (github.ref != 'refs/heads/stable') }}
+
+jobs:
+  docker:
+    timeout-minutes: 60
+    name: Build and publish Docker image
+    runs-on: ubicloud-standard-16
+    steps:
+      - uses: actions/checkout@v4
+      - name: Docker Setup Buildx
+        uses: docker/setup-buildx-action@v3.2.0
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Build and push
+        uses: docker/build-push-action@v5.3.0
+        with:
+          context: .
+          file: ./hive/Dockerfile
+          push: true
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/citrea:latest
+  
+  prepare:
+    timeout-minutes: 45
+    runs-on: ubicloud-standard-4
+    steps:
+      - uses: actions/checkout@v4
+      - run: mkdir artifacts
+
+      - name: Checkout hive tests
+        uses: actions/checkout@v4
+        with:
+          repository: chainwayxyz/hive
+          ref: main
+          path: hivetests
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "^1.13.1"
+      - run: go version
+      - name: Build hive tool
+        run: |
+          cd hivetests
+          go build .
+          mv ./hive ../artifacts/
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: artifacts
+          path: ./artifacts
+
+  test:
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+
+    needs: prepare
+    name: run
+    runs-on: ubicloud-standard-4
+    permissions:
+      issues: write
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: artifacts
+          path: /tmp
+
+      - name: Move hive binary
+        run: |
+          mv /tmp/hive /usr/local/bin
+          chmod +x /usr/local/bin/hive
+
+      - name: Checkout hive tests
+        uses: actions/checkout@v4
+        with:
+          repository: chainwayxyz/hive
+          ref: main
+          path: hivetests
+
+      - name: Run ethereum/rpc simulator
+        run: |
+          cd hivetests
+          hive --sim "ethereum/rpc" --sim.limit "/http" --client citrea
+
+      - name: Print simulator output
+        if: ${{ failure() }}
+        run: |
+          cat hivetests/workspace/logs/*simulator*.log
+
+      - name: Print citrea client logs
+        if: ${{ failure() }}
+        run: |
+          cat hivetests/workspace/logs/citrea/client-*.log
