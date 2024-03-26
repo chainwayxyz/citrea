@@ -25,7 +25,7 @@ impl DbConnector {
             thread_name = "main"
         }
         let dir = workspace_dir()
-            .join("test-da-dbs")
+            .join("sovereign-sdk/test-da-dbs")
             .join(thread_name.to_string() + ".db");
         let db_name = dir.to_str().unwrap().to_string();
 
