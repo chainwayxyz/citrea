@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 use std::mem::size_of;
 use std::sync::Arc;
@@ -5,7 +6,8 @@ use std::sync::Arc;
 use revm::handler::register::{EvmHandler, HandleRegisters};
 use revm::interpreter::{Gas, InstructionResult};
 use revm::primitives::{
-    spec_to_generic, Address, EVMError, Env, HandlerCfg, ResultAndState, Spec, SpecId, B256, U256,
+    spec_to_generic, Address, EVMError, Env, HandlerCfg, InvalidTransaction, ResultAndState, Spec,
+    SpecId, B256, U256,
 };
 use revm::{Context, Database, FrameResult, InnerEvmContext, JournalEntry};
 
@@ -153,7 +155,26 @@ impl<SPEC: Spec, EXT: CitreaExternalExt, DB: Database> CitreaHandler<SPEC, EXT, 
         context: &mut Context<EXT, DB>,
     ) -> Result<(), EVMError<DB::Error>> {
         if context.is_system_caller() {
-            // Don't verify nonce and balance.
+            // Don't verify balance but nonce only.
+            let tx_caller = context.evm.env.tx.caller;
+            let (caller_account, _) = context
+                .evm
+                .inner
+                .journaled_state
+                .load_account(tx_caller, &mut context.evm.inner.db)?;
+            // Check that the transaction's nonce is correct
+            if let Some(tx) = context.evm.inner.env.tx.nonce {
+                let state = caller_account.info.nonce;
+                match tx.cmp(&state) {
+                    Ordering::Greater => {
+                        return Err(InvalidTransaction::NonceTooHigh { tx, state })?;
+                    }
+                    Ordering::Less => {
+                        return Err(InvalidTransaction::NonceTooLow { tx, state })?;
+                    }
+                    _ => {}
+                }
+            }
             return Ok(());
         }
         revm::handler::mainnet::validate_tx_against_state::<SPEC, EXT, DB>(context)

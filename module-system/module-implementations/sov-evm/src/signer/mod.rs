@@ -9,7 +9,6 @@ use secp256k1::{PublicKey, SecretKey};
 use crate::error::rpc::SignError;
 
 /// This is a special signature to force tx.signer to be set to SYSTEM_SIGNER
-// TODO: bikeshed address
 pub const SYSTEM_SIGNATURE: Signature = Signature {
     r: U256::ZERO,
     s: U256::ZERO,
@@ -17,8 +16,7 @@ pub const SYSTEM_SIGNATURE: Signature = Signature {
 };
 
 /// This is a special system address to indicate a tx is called by system not by a user/contract.
-// TODO: bikeshed the address
-pub const SYSTEM_SIGNER: Address = address!("D34Db335D34Db335D34Db335D34Db335DeadC001");
+pub const SYSTEM_SIGNER: Address = address!("deaddeaddeaddeaddeaddeaddeaddeaddeaddead");
 
 /// Ethereum transaction signer.
 #[derive(Clone)]
