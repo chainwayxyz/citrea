@@ -3,25 +3,10 @@ use std::str::FromStr;
 use anyhow::Context as _;
 use ethereum_rpc::{EthRpcConfig, FeeHistoryCacheConfig, GasPriceOracleConfig};
 use sequencer_client::SequencerClient;
-use sov_cli::wallet_state::PrivateKeyAndAddress;
 use sov_modules_api::default_context::DefaultContext;
-use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
 use sov_prover_storage_manager::SnapshotManager;
 use sov_rollup_interface::services::da::DaService;
 use sov_state::ProverStorage;
-
-const TX_SIGNER_PRIV_KEY_PATH: &str = "../test-data/keys/tx_signer_private_key.json";
-
-/// Ethereum RPC wraps EVM transaction in a rollup transaction.
-/// This function reads the private key of the rollup transaction signer.
-fn read_sov_tx_signer_priv_key() -> Result<DefaultPrivateKey, anyhow::Error> {
-    let data = std::fs::read_to_string(TX_SIGNER_PRIV_KEY_PATH).context("Unable to read file")?;
-
-    let key_and_address: PrivateKeyAndAddress<DefaultContext> = serde_json::from_str(&data)
-        .unwrap_or_else(|_| panic!("Unable to convert data {} to PrivateKeyAndAddress", &data));
-
-    Ok(key_and_address.private_key)
-}
 
 // register ethereum methods.
 pub(crate) fn register_ethereum<Da: DaService>(
@@ -32,9 +17,7 @@ pub(crate) fn register_ethereum<Da: DaService>(
 ) -> Result<(), anyhow::Error> {
     let eth_rpc_config = {
         let eth_signer = eth_dev_signer();
-        EthRpcConfig::<DefaultContext> {
-            min_blob_size: Some(1),
-            sov_tx_signer_priv_key: read_sov_tx_signer_priv_key()?,
+        EthRpcConfig {
             eth_signer,
             gas_price_oracle_config: GasPriceOracleConfig::default(),
             fee_history_cache_config: FeeHistoryCacheConfig::default(),
