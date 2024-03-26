@@ -39,7 +39,7 @@ pub(crate) fn create_storage_manager_for_tests(
 pub(crate) fn get_genesis_config_for_tests<Da: DaSpec>(
 ) -> GenesisParams<GenesisConfig<DefaultContext, Da>, BasicKernelGenesisConfig<DefaultContext, Da>>
 {
-    let integ_test_conf_dir: &Path = "../../test-data/genesis/integration-tests".as_ref();
+    let integ_test_conf_dir: &Path = "../../../citrea/test-data/genesis/integration-tests".as_ref();
     let rt_params =
         get_genesis_config::<DefaultContext, Da>(&GenesisPaths::from_dir(integ_test_conf_dir))
             .unwrap();

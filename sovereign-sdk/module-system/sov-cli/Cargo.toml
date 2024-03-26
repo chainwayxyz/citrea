@@ -35,5 +35,5 @@ jsonrpsee = { workspace = true, features = ["client"] }
 
 [dev-dependencies]
 tempfile = { workspace = true }
-demo-stf = { path = "../../../citrea/rollup/stf", features = ["native"] }
+demo-stf = { path = "../../examples/demo-stf", features = ["native"] }
 sov-mock-da = { path = "../../adapters/mock-da", features = ["native"] }

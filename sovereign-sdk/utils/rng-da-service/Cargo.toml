@@ -18,7 +18,9 @@ serde = { workspace = true }
 tokio = { workspace = true }
 futures = { workspace = true }
 # Sovereign dependencies
-demo-stf = { path = "../../../citrea/rollup/stf", features = ["native"] }
+demo-stf = { path = "../../../sovereign-sdk/examples/demo-stf", features = [
+    "native",
+] }
 sov-bank = { path = "../../module-system/module-implementations/sov-bank" }
 sov-modules-api = { path = "../../module-system/sov-modules-api", features = [
     "native",

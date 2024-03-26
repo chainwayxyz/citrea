@@ -276,7 +276,7 @@ fn test_sequencer_unknown_sequencer() {
 
 fn read_private_key<C: Context>() -> PrivateKeyAndAddress<C> {
     let token_deployer_data =
-        std::fs::read_to_string("../../test-data/keys/token_deployer_private_key.json")
+        std::fs::read_to_string("../../../citrea/test-data/keys/token_deployer_private_key.json")
             .expect("Unable to read file to string");
 
     let token_deployer: PrivateKeyAndAddress<C> = serde_json::from_str(&token_deployer_data)

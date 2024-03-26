@@ -22,6 +22,7 @@ members = [
     "sovereign-sdk/examples/const-rollup-config",
     "sovereign-sdk/examples/demo-simple-stf",
     "sovereign-sdk/examples/simple-nft-module",
+    "sovereign-sdk/examples/demo-stf",
     # Full Node
     "sovereign-sdk/full-node/db/sov-db",
     "sovereign-sdk/full-node/sov-sequencer",

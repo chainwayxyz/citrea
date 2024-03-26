@@ -56,7 +56,6 @@ reth-transaction-pool = { workspace = true }
 reth-rpc-types = { workspace = true }
 tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
 
-citrea-evm = { path = "../evm" }
 soft-confirmation-rule-enforcer = { path = "../soft-confirmation-rule-enforcer" }
 sov-db = { path = "../../sovereign-sdk/full-node/db/sov-db" }
 ethereum-rpc = { path = "../ethereum-rpc" }
