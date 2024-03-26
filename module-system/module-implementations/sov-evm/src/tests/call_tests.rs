@@ -97,7 +97,7 @@ fn call_multiple_test() {
                 },
                 gas_used: 132943,
                 log_index_start: 0,
-                diff_size: 513,
+                diff_size: 565,
                 error: None,
             },
             Receipt {
@@ -109,7 +109,7 @@ fn call_multiple_test() {
                 },
                 gas_used: 43730,
                 log_index_start: 0,
-                diff_size: 168,
+                diff_size: 220,
                 error: None,
             },
             Receipt {
@@ -121,7 +121,7 @@ fn call_multiple_test() {
                 },
                 gas_used: 26630,
                 log_index_start: 0,
-                diff_size: 168,
+                diff_size: 220,
                 error: None,
             },
             Receipt {
@@ -133,7 +133,7 @@ fn call_multiple_test() {
                 },
                 gas_used: 26630,
                 log_index_start: 0,
-                diff_size: 168,
+                diff_size: 220,
                 error: None,
             }
         ]
@@ -191,7 +191,7 @@ fn call_test() {
                 },
                 gas_used: 132943,
                 log_index_start: 0,
-                diff_size: 513,
+                diff_size: 565,
                 error: None,
             },
             Receipt {
@@ -203,7 +203,7 @@ fn call_test() {
                 },
                 gas_used: 43730,
                 log_index_start: 0,
-                diff_size: 168,
+                diff_size: 220,
                 error: None,
             }
         ]
@@ -732,7 +732,7 @@ fn get_evm_config_starting_base_fee(
 
 #[test]
 fn test_l1_fee_success() {
-    fn run_tx(l1_fee_rate: u64, expected_balance: U256) {
+    fn run_tx(l1_fee_rate: u64, expected_balance: U256, expected_coinbase_balance: U256) {
         let (config, dev_signer, _) =
             get_evm_config_starting_base_fee(U256::from_str("1000000").unwrap(), None, 1);
 
@@ -764,7 +764,13 @@ fn test_l1_fee_success() {
             .get(&dev_signer.address(), &mut working_set)
             .unwrap();
 
+        let coinbase_account = evm
+            .accounts
+            .get(&config.coinbase, &mut working_set)
+            .unwrap();
+
         assert_eq!(db_account.info.balance, expected_balance);
+        assert_eq!(coinbase_account.info.balance, expected_coinbase_balance);
 
         assert_eq!(
             evm.receipts
@@ -779,14 +785,14 @@ fn test_l1_fee_success() {
                 },
                 gas_used: 114235,
                 log_index_start: 0,
-                diff_size: 425,
+                diff_size: 477,
                 error: None,
             },]
         )
     }
 
-    run_tx(0, U256::from(885765));
-    run_tx(1, U256::from(885340));
+    run_tx(0, U256::from(885765), U256::ZERO);
+    run_tx(1, U256::from(885288), U256::from(477));
 }
 
 #[test]

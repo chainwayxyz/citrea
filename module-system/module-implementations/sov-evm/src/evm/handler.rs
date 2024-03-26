@@ -2,9 +2,9 @@ use std::collections::{HashMap, HashSet};
 use std::mem::size_of;
 use std::sync::Arc;
 
-use revm::handler::register::EvmHandler;
+use revm::handler::register::{EvmHandler, HandleRegisters};
 use revm::interpreter::InstructionResult;
-use revm::primitives::{Address, EVMError, ResultAndState, B256, U256};
+use revm::primitives::{Address, EVMError, HandlerCfg, ResultAndState, B256, U256};
 use revm::{Context, Database, FrameResult, InnerEvmContext, JournalEntry};
 
 #[derive(Copy, Clone)]
@@ -75,7 +75,17 @@ impl CitreaHandlerContext for CitreaHandlerExt {
     }
 }
 
-pub(crate) fn citrea_handle_register<DB, EXT>(handler: &mut EvmHandler<'_, EXT, DB>)
+pub(crate) fn citrea_handler<'a, DB, EXT>(cfg: HandlerCfg) -> EvmHandler<'a, EXT, DB>
+where
+    DB: Database,
+    EXT: CitreaHandlerContext,
+{
+    let mut handler = EvmHandler::mainnet_with_spec(cfg.spec_id);
+    handler.append_handler_register(HandleRegisters::Plain(citrea_handle_register));
+    handler
+}
+
+fn citrea_handle_register<DB, EXT>(handler: &mut EvmHandler<'_, EXT, DB>)
 where
     DB: Database,
     EXT: CitreaHandlerContext,
@@ -93,17 +103,19 @@ impl<EXT: CitreaHandlerContext, DB: Database> CitreaHandler<EXT, DB> {
         context: &mut Context<EXT, DB>,
         result: FrameResult,
     ) -> Result<ResultAndState, EVMError<<DB as Database>::Error>> {
-        if !result.interpreter_result().is_error() {
-            let diff_size = calc_diff_size(context).map_err(EVMError::Database)? as u64;
-            let l1_fee_rate = U256::from(context.external.l1_fee_rate());
-            let l1_fee = U256::from(diff_size) * l1_fee_rate;
-            context.external.set_tx_info(TxInfo { diff_size });
+        let diff_size = calc_diff_size(context).map_err(EVMError::Database)? as u64;
+        let l1_fee_rate = U256::from(context.external.l1_fee_rate());
+        let l1_fee = U256::from(diff_size) * l1_fee_rate;
+        context.external.set_tx_info(TxInfo { diff_size });
+        if result.interpreter_result().is_ok() {
+            // Deduct L1 fee only if tx is successful.
             if let Some(_out_of_funds) = decrease_caller_balance(context, l1_fee)? {
                 return Err(EVMError::Custom(format!(
                     "Not enought funds for L1 fee: {}",
                     l1_fee
                 )));
             }
+            increase_coinbase_balance(context, l1_fee)?;
         }
 
         revm::handler::mainnet::output(context, result)
@@ -232,6 +244,27 @@ fn calc_diff_size<EXT, DB: Database>(
         }
     }
 
+    // The diff size of balance change originating from priority fee is not included if priority fee is zero or None
+    // However l1 fee will be applied in any case thus balance change diff size must be applied
+    match context.evm.env.tx.gas_priority_fee {
+        Some(U256::ZERO) => {
+            // EIP 1559 enabled transaction, priority fee is zero, include the diff size of balance change for l1 fee
+            diff_size += size_of::<U256>();
+            // Include the diff size of coinbase address for l1 fee
+            diff_size += size_of::<Address>();
+        }
+        None => {
+            // If priority fee is None, meaning it is a legacy transaction
+            // Check if effective gas price is zero, if so include the diff size of balance change for l1 fee
+            if context.evm.env.effective_gas_price() == U256::ZERO {
+                diff_size += size_of::<U256>();
+                // Include the diff size of coinbase address for l1 fee
+                diff_size += size_of::<Address>();
+            }
+        }
+        _ => {}
+    }
+
     Ok(diff_size)
 }
 
@@ -260,4 +293,28 @@ fn decrease_caller_balance<EXT, DB: Database>(
     *balance = new_balance;
 
     Ok(None)
+}
+
+fn increase_coinbase_balance<EXT, DB: Database>(
+    context: &mut Context<EXT, DB>,
+    amount: U256,
+) -> Result<(), EVMError<DB::Error>> {
+    let coinbase = context.evm.env.block.coinbase;
+
+    let InnerEvmContext {
+        journaled_state,
+        db,
+        ..
+    } = &mut context.evm.inner;
+
+    let (coinbase_account, _) = journaled_state.load_account(coinbase, db)?;
+    coinbase_account.mark_touch();
+
+    let balance = &mut coinbase_account.info.balance;
+
+    let new_balance = balance.saturating_add(amount);
+
+    *balance = new_balance;
+
+    Ok(())
 }

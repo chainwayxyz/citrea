@@ -13,8 +13,10 @@ use sov_db::ledger_db::{LedgerDB, SlotCommit};
 use sov_db::schema::types::{BatchNumber, SlotNumber, StoredSoftBatch};
 use sov_modules_api::Context;
 use sov_modules_stf_blueprint::StfBlueprintTrait;
-use sov_rollup_interface::da::DaData::SequencerCommitment;
-use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaData, DaSpec};
+use sov_rollup_interface::da::{
+    BatchProof, BlobReaderTrait, BlockHeaderTrait, DaData, DaSpec, SequencerCommitment,
+};
+use sov_rollup_interface::rpc::SoftConfirmationStatus;
 use sov_rollup_interface::services::da::{DaService, SlotData};
 pub use sov_rollup_interface::stf::BatchReceipt;
 use sov_rollup_interface::stf::{SoftBatchReceipt, StateTransitionFunction};
@@ -54,10 +56,11 @@ where
     state_root: StateRoot<Stf, Vm, Da::Spec>,
     listen_address: SocketAddr,
     #[allow(dead_code)]
-    prover_service: Ps,
+    prover_service: Option<Ps>,
     sequencer_client: Option<SequencerClient>,
     sequencer_pub_key: Vec<u8>,
     phantom: std::marker::PhantomData<C>,
+    include_tx_body: bool,
 }
 
 /// Represents the possible modes of execution for a zkVM program
@@ -117,9 +120,10 @@ where
         stf: Stf,
         mut storage_manager: Sm,
         init_variant: InitVariant<Stf, Vm, Da::Spec>,
-        prover_service: Ps,
+        prover_service: Option<Ps>,
         sequencer_client: Option<SequencerClient>,
         sequencer_pub_key: Vec<u8>,
+        include_tx_body: bool,
     ) -> Result<Self, anyhow::Error> {
         let rpc_config = runner_config.rpc_config;
 
@@ -168,6 +172,7 @@ where
             sequencer_client,
             sequencer_pub_key,
             phantom: std::marker::PhantomData,
+            include_tx_body,
         })
     }
 
@@ -306,13 +311,19 @@ where
                 );
             }
 
-            let sequencer_commitments: Vec<_> = da_data
-                .into_iter()
-                .filter_map(|d| match d {
-                    Ok(SequencerCommitment(seq_com)) => Some(seq_com),
-                    _ => None,
-                })
-                .collect();
+            // seperate DaData into sequencer commitments and proofs
+            let mut sequencer_commitments = Vec::<SequencerCommitment>::new();
+            let mut zk_proofs = Vec::<BatchProof>::new();
+
+            da_data.into_iter().for_each(|da_data| match da_data {
+                Ok(DaData::SequencerCommitment(seq_com)) => sequencer_commitments.push(seq_com),
+                Ok(DaData::ZKProof(batch_proof)) => zk_proofs.push(batch_proof),
+                _ => {}
+            });
+
+            if !zk_proofs.is_empty() {
+                // TODO: Implement this
+            }
 
             // TODO here we can support multiple commitments but for now let's take the last one.
             let sequencer_commitment = sequencer_commitments.iter().last();
@@ -374,7 +385,10 @@ where
 
                 for i in start_l1_height..=end_l1_height {
                     self.ledger_db
-                        .put_soft_confirmation_status(SlotNumber(i))
+                        .put_soft_confirmation_status(
+                            SlotNumber(i),
+                            SoftConfirmationStatus::Finalized,
+                        )
                         .unwrap_or_else(|_| {
                             panic!(
                                 "Failed to put soft confirmation status in the ledger db {}",
@@ -484,7 +498,8 @@ where
                 l1_fee_rate: soft_batch.l1_fee_rate,
             };
 
-            self.ledger_db.commit_soft_batch(soft_batch_receipt, true)?;
+            self.ledger_db
+                .commit_soft_batch(soft_batch_receipt, self.include_tx_body)?;
             self.ledger_db
                 .extend_l2_range_of_l1_slot(
                     SlotNumber(filtered_block.header().height()),

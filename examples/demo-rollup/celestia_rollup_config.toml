@@ -1,3 +1,5 @@
+include_tx_body = false
+
 [da]
 # The JWT used to authenticate with the celestia light client. Instructions for generating this token can be found in the README
 celestia_rpc_auth_token = "MY.SECRET.TOKEN"

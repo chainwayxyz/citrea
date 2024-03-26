@@ -30,7 +30,7 @@ impl Default for InclusionMultiProof {
             txids: vec![],
             wtxids: vec![],
             coinbase_tx: Transaction {
-                version: 0,
+                version: bitcoin::transaction::Version(0),
                 lock_time: LockTime::Seconds(Time::MIN),
                 input: vec![],
                 output: vec![],

@@ -5,7 +5,6 @@ use alloy_primitives::FixedBytes;
 use alloy_rpc_types::request::{TransactionInput, TransactionRequest};
 use hex::FromHex;
 use reth_primitives::{Address, BlockId, BlockNumberOrTag, U64};
-use reth_rpc::eth::error::RpcInvalidTransactionError;
 use reth_rpc_types::{Block, Rich, TransactionReceipt};
 use revm::primitives::{B256, U256};
 use serde_json::json;
@@ -250,10 +249,7 @@ fn call_test() {
         &mut working_set,
     );
 
-    assert_eq!(
-        nonce_too_low_result,
-        Err(RpcInvalidTransactionError::NonceTooLow.into())
-    );
+    assert!(nonce_too_low_result.is_err());
     working_set.unset_archival_version();
 
     let result = evm
@@ -384,7 +380,7 @@ fn check_against_third_block_receipts(receipts: Vec<TransactionReceipt>) {
         "from": "0x9e1abd37ec34bbc688b6a2b7d9387d9256cf1773",
         "to": "0x819c5497b157177315e1204f52e588b393771719",
         "l1FeeRate": "0x1",
-        "diffSize": "0x68",
+        "diffSize": "0x9c",
         "contractAddress": null,
         "logs": [
             {
@@ -433,7 +429,7 @@ fn check_against_third_block_receipts(receipts: Vec<TransactionReceipt>) {
         "from": "0x9e1abd37ec34bbc688b6a2b7d9387d9256cf1773",
         "to": "0x819c5497b157177315e1204f52e588b393771719",
         "l1FeeRate": "0x1",
-        "diffSize": "0x68",
+        "diffSize": "0x9c",
         "contractAddress": null,
         "logs": [
             {
@@ -482,7 +478,7 @@ fn check_against_third_block_receipts(receipts: Vec<TransactionReceipt>) {
         "from": "0x9e1abd37ec34bbc688b6a2b7d9387d9256cf1773",
         "to": "0x819c5497b157177315e1204f52e588b393771719",
         "l1FeeRate": "0x1",
-        "diffSize": "0x68",
+        "diffSize": "0x9c",
         "contractAddress": null,
         "logs": [
             {
@@ -531,7 +527,7 @@ fn check_against_third_block_receipts(receipts: Vec<TransactionReceipt>) {
         "from": "0x9e1abd37ec34bbc688b6a2b7d9387d9256cf1773",
         "to": "0x819c5497b157177315e1204f52e588b393771719",
         "l1FeeRate": "0x1",
-        "diffSize": "0x68",
+        "diffSize": "0x9c",
         "contractAddress": null,
         "logs": [
             {

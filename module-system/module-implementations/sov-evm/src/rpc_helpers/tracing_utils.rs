@@ -1,17 +1,19 @@
 use reth_primitives::revm::env::{fill_tx_env, fill_tx_env_with_recovered};
 use reth_primitives::revm_primitives::TxEnv;
-use reth_primitives::{TransactionSigned, TransactionSignedEcRecovered, TxHash};
+use reth_primitives::{TransactionSigned, TransactionSignedEcRecovered, TxHash, U256};
 use reth_rpc_types::trace::geth::{
     FourByteFrame, GethDebugBuiltInTracerType, GethDebugTracerType, GethDebugTracingOptions,
     GethTrace, NoopFrame,
 };
+use revm::precompile::{PrecompileSpecId, Precompiles};
 use revm::primitives::db::Database;
-use revm::primitives::{BlockEnv, CfgEnvWithHandlerCfg, ResultAndState};
+use revm::primitives::{Address, BlockEnv, CfgEnvWithHandlerCfg, EVMError, ResultAndState, SpecId};
 use revm::{inspector_handle_register, Inspector};
 use revm_inspectors::tracing::{FourByteInspector, TracingInspector, TracingInspectorConfig};
 
 use crate::error::rpc::{EthApiError, EthResult};
 use crate::evm::db::EvmDb;
+use crate::RpcInvalidTransactionError;
 
 pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
     opts: GethDebugTracingOptions,
@@ -90,7 +92,7 @@ pub(crate) fn inspect<DB, I>(
     block_env: BlockEnv,
     tx_env: TxEnv,
     inspector: I,
-) -> EthResult<ResultAndState>
+) -> Result<ResultAndState, EVMError<DB::Error>>
 where
     DB: Database,
     <DB as Database>::Error: Into<EthApiError>,
@@ -104,8 +106,8 @@ where
         .with_tx_env(tx_env)
         .append_handler_register(inspector_handle_register)
         .build();
-    let res = evm.transact()?;
-    Ok(res)
+
+    evm.transact()
 }
 
 /// Taken from reth
@@ -143,4 +145,56 @@ impl FillableTransaction for TransactionSigned {
         fill_tx_env(tx_env, self, signer);
         Ok(())
     }
+}
+
+/// https://github.com/paradigmxyz/reth/blob/332e412a0f8d34ff2bbb7e07921f8cacdcf69d64/crates/rpc/rpc/src/eth/revm_utils.rs#L385
+/// Caps the configured [TxEnv] `gas_limit` with the allowance of the caller.
+pub(crate) fn cap_tx_gas_limit_with_caller_allowance<DB>(db: DB, env: &mut TxEnv) -> EthResult<()>
+where
+    DB: Database,
+    EthApiError: From<<DB as Database>::Error>,
+{
+    if let Ok(gas_limit) = caller_gas_allowance(db, env)?.try_into() {
+        env.gas_limit = gas_limit;
+    }
+
+    Ok(())
+}
+
+/// https://github.com/paradigmxyz/reth/blob/332e412a0f8d34ff2bbb7e07921f8cacdcf69d64/crates/rpc/rpc/src/eth/revm_utils.rs#L403
+/// Calculates the caller gas allowance.
+///
+/// `allowance = (account.balance - tx.value) / tx.gas_price`
+///
+/// Returns an error if the caller has insufficient funds.
+/// Caution: This assumes non-zero `env.gas_price`. Otherwise, zero allowance will be returned.
+pub(crate) fn caller_gas_allowance<DB>(mut db: DB, env: &TxEnv) -> EthResult<U256>
+where
+    DB: Database,
+    EthApiError: From<<DB as Database>::Error>,
+{
+    Ok(db
+        // Get the caller account.
+        .basic(env.caller)?
+        // Get the caller balance.
+        .map(|acc| acc.balance)
+        .unwrap_or_default()
+        // Subtract transferred value from the caller balance.
+        .checked_sub(env.value)
+        // Return error if the caller has insufficient funds.
+        .ok_or_else(|| RpcInvalidTransactionError::InsufficientFunds)?
+        // Calculate the amount of gas the caller can afford with the specified gas price.
+        .checked_div(env.gas_price)
+        // This will be 0 if gas price is 0. It is fine, because we check it before.
+        .unwrap_or_default())
+}
+
+/// Returns the addresses of the precompiles corresponding to the SpecId.
+#[inline]
+pub(crate) fn get_precompiles(spec_id: SpecId) -> impl IntoIterator<Item = Address> {
+    let spec = PrecompileSpecId::from_spec_id(spec_id);
+    Precompiles::new(spec)
+        .addresses()
+        .copied()
+        .map(Address::from)
 }

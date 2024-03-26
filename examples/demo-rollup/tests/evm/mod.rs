@@ -34,6 +34,7 @@ async fn web3_rpc_tests() -> Result<(), anyhow::Error> {
             NodeMode::SequencerNode,
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
+            true,
         )
         .await;
     });
@@ -48,7 +49,7 @@ async fn web3_rpc_tests() -> Result<(), anyhow::Error> {
 
     assert_eq!(
         test_client.web3_client_version().await,
-        format!("citrea/{}/{}/rust-1.76.0", tag, arch)
+        format!("citrea/{}/{}/rust-1.77.0", tag, arch)
     );
     assert_eq!(
         test_client
@@ -79,6 +80,7 @@ async fn evm_tx_tests() -> Result<(), anyhow::Error> {
             NodeMode::SequencerNode,
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
+            true,
         )
         .await;
     });
@@ -113,6 +115,7 @@ async fn test_eth_get_logs() -> Result<(), anyhow::Error> {
             NodeMode::SequencerNode,
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
+            true,
         )
         .await;
     });

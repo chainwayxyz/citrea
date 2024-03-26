@@ -27,6 +27,7 @@ async fn initialize_test() -> (JoinHandle<()>, Box<TestClient>) {
             NodeMode::SequencerNode,
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
+            true,
         )
         .await;
     });

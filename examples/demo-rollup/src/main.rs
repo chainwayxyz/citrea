@@ -27,6 +27,11 @@ mod test_rpc;
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
+    /// Path to the genesis configuration.
+    /// Defines the genesis of module states like evm.
+    #[arg(long)]
+    genesis_paths: String,
+
     /// The data layer type.
     #[arg(long, default_value = "mock")]
     da_layer: SupportedDaLayer,
@@ -38,6 +43,11 @@ struct Args {
     /// The path to the sequencer config. If set, runs the node in sequencer mode, otherwise in full node mode.
     #[arg(long)]
     sequencer_config_path: Option<String>,
+
+    /// If set, runs the node in prover mode, else in full node mode.
+    /// Can't be set if sequencer_config_path is set.
+    #[arg(long, conflicts_with = "sequencer_config_path")]
+    prover: bool,
 }
 
 #[derive(clap::ValueEnum, Clone, Debug)]
@@ -60,6 +70,7 @@ async fn main() -> Result<(), anyhow::Error> {
             .unwrap()
     });
 
+    let is_prover = args.prover;
     match args.da_layer {
         SupportedDaLayer::Mock => {
             let kernel_genesis_paths = &BasicKernelGenesisPaths {
@@ -74,11 +85,12 @@ async fn main() -> Result<(), anyhow::Error> {
             };
 
             start_rollup::<MockDemoRollup, MockDaConfig>(
-                &GenesisPaths::from_dir("../test-data/genesis/demo-tests/mock"),
+                &GenesisPaths::from_dir(&args.genesis_paths),
                 kernel_genesis,
                 rollup_config_path,
                 RollupProverConfig::Execute,
                 sequencer_config,
+                is_prover,
             )
             .await?;
         }
@@ -95,11 +107,12 @@ async fn main() -> Result<(), anyhow::Error> {
             };
 
             start_rollup::<BitcoinRollup, DaServiceConfig>(
-                &GenesisPaths::from_dir("../test-data/genesis/demo-tests/bitcoin"),
+                &GenesisPaths::from_dir(&args.genesis_paths),
                 kernel_genesis,
                 rollup_config_path,
                 RollupProverConfig::Execute,
                 sequencer_config,
+                is_prover,
             )
             .await?;
         }
@@ -116,11 +129,12 @@ async fn main() -> Result<(), anyhow::Error> {
             };
 
             start_rollup::<CelestiaDemoRollup, CelestiaConfig>(
-                &GenesisPaths::from_dir("../test-data/genesis/demo-tests/celestia"),
+                &GenesisPaths::from_dir(&args.genesis_paths),
                 kernel_genesis,
                 rollup_config_path,
                 RollupProverConfig::Execute,
                 sequencer_config,
+                is_prover,
             )
             .await?;
         }
@@ -145,6 +159,7 @@ async fn start_rollup<S, DaC>(
     //     <S as RollupBlueprint>::DaSpec,
     // >>::GenesisPaths,
     sequencer_config: Option<SequencerConfig>,
+    is_prover: bool,
 ) -> Result<(), anyhow::Error>
 where
     DaC: serde::de::DeserializeOwned + DebugTrait + Clone,
@@ -179,6 +194,7 @@ where
                 kernel_genesis,
                 rollup_config,
                 prover_config,
+                is_prover,
             )
             .await
             .unwrap();

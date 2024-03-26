@@ -139,6 +139,7 @@ async fn runner_execution(
             aggregated_proof_block_jump: 1,
         },
         sequencer_client: None,
+        include_tx_body: true,
     };
 
     let ledger_db = LedgerDB::with_path(path).unwrap();
@@ -173,9 +174,10 @@ async fn runner_execution(
             stf,
             storage_manager,
             init_variant,
-            prover_service,
+            Some(prover_service),
             None,
             vec![0u8; 32],
+            true,
         )
         .unwrap();
 

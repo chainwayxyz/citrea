@@ -365,6 +365,7 @@ pub(crate) fn rpc_gen(
     build_rpc_trait(attrs, type_name.clone(), input)
 }
 
+#[allow(dead_code)]
 struct TypeList(pub Punctuated<syn::Type, syn::token::Comma>);
 
 impl Parse for TypeList {
