@@ -2,6 +2,13 @@
 resolver = "2"
 members = [
     # Citrea
+    "citrea/bitcoin-da",
+    "citrea/evm",
+    "citrea/rollup",
+    "citrea/sequencer",
+    "citrea/sequencer-client",
+    "citrea/soft-confirmation-rule-enforcer",
+    "citrea/sov-ethereum",
 
 
     # Sovereign sdk
@@ -9,20 +16,15 @@ members = [
     "sovereign-sdk/adapters/avail",
     "sovereign-sdk/adapters/risc0",
     "sovereign-sdk/adapters/celestia",
-    "sovereign-sdk/adapters/bitcoin",
     "sovereign-sdk/adapters/mock-da",
     "sovereign-sdk/adapters/mock-zkvm",
     # Examples
     "sovereign-sdk/examples/const-rollup-config",
     "sovereign-sdk/examples/demo-simple-stf",
-    "sovereign-sdk/examples/demo-rollup",
     "sovereign-sdk/examples/simple-nft-module",
     # Full Node
-    "sovereign-sdk/full-node/chainway-sequencer",
-    "sovereign-sdk/full-node/sequencer-client",
     "sovereign-sdk/full-node/db/sov-db",
     "sovereign-sdk/full-node/sov-sequencer",
-    "sovereign-sdk/full-node/sov-ethereum",
     "sovereign-sdk/full-node/sov-ledger-rpc",
     "sovereign-sdk/full-node/sov-stf-runner",
     "sovereign-sdk/full-node/sov-prover-storage-manager",
@@ -47,7 +49,6 @@ members = [
     "sovereign-sdk/module-system/module-implementations/sov-nft-module",
     "sovereign-sdk/module-system/module-implementations/sov-chain-state",
     "sovereign-sdk/module-system/module-implementations/sov-blob-storage",
-    "sovereign-sdk/module-system/module-implementations/sov-evm",
     "sovereign-sdk/module-system/module-implementations/sov-prover-incentives",
     "sovereign-sdk/module-system/module-implementations/sov-attester-incentives",
     "sovereign-sdk/module-system/module-implementations/sov-sequencer-registry",
@@ -56,7 +57,6 @@ members = [
     "sovereign-sdk/module-system/module-implementations/examples/sov-vec-setter",
     "sovereign-sdk/module-system/module-implementations/examples/sov-accessory-state",
     "sovereign-sdk/module-system/module-implementations/integration-tests",
-    "sovereign-sdk/module-system/module-implementations/soft-confirmation-rule-enforcer",
 ]
 
 [workspace.package]

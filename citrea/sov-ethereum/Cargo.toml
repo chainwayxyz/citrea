@@ -12,8 +12,8 @@ publish = false
 resolver = "2"
 
 [dependencies]
-sov-evm = { path = "../../module-system/module-implementations/sov-evm" }
-sov-stf-runner = { path = "../sov-stf-runner" }
+sov-evm = { path = "../evm" }
+sov-stf-runner = { path = "../../sovereign-sdk/full-node/sov-stf-runner" }
 sequencer-client = { path = "../sequencer-client" }
 anyhow = { workspace = true }
 tracing = { workspace = true }
@@ -33,15 +33,13 @@ ethers = { workspace = true }
 tokio = { workspace = true }
 schnellru = "0.2.1"
 
-sov-rollup-interface = { path = "../../rollup-interface", features = [
+sov-rollup-interface = { path = "../../sovereign-sdk/rollup-interface", features = [
     "native",
 ] }
 
-citrea-stf = { path = "../../examples/demo-rollup/citrea-stf", features = [
-    "native",
-] }
-sov-modules-api = { path = "../../module-system/sov-modules-api" }
-sov-accounts = { path = "../../module-system/module-implementations/sov-accounts" }
+citrea-stf = { path = "../rollup/citrea-stf", features = ["native"] }
+sov-modules-api = { path = "../../sovereign-sdk/module-system/sov-modules-api" }
+sov-accounts = { path = "../../sovereign-sdk/module-system/module-implementations/sov-accounts" }
 rustc_version_runtime = "0.3.0"
 
 [dev-dependencies]

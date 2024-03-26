@@ -12,7 +12,7 @@ rust-version = "1.66"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-sov-rollup-interface = { path = "../../rollup-interface" }
+sov-rollup-interface = { path = "../../sovereign-sdk/rollup-interface" }
 
 tokio = { workspace = true, features = ["full"], optional = true }
 

@@ -13,31 +13,32 @@ default-run = "sov-demo-rollup"
 
 [dependencies]
 # non-optional dependencies
-sov-celestia-adapter = { path = "../../adapters/celestia", features = [
+sov-celestia-adapter = { path = "../../sovereign-sdk/adapters/celestia", features = [
     "native",
 ] }
-bitcoin-da = { path = "../../adapters/bitcoin", features = ["native"] }
-sov-mock-da = { path = "../../adapters/mock-da", features = ["native"] }
-const-rollup-config = { path = "../const-rollup-config" }
-sov-stf-runner = { path = "../../full-node/sov-stf-runner", features = [
+bitcoin-da = { path = "../bitcoin-da", features = ["native"] }
+sov-mock-da = { path = "../../sovereign-sdk/adapters/mock-da", features = [
     "native",
 ] }
-sov-rollup-interface = { path = "../../rollup-interface", features = [
+const-rollup-config = { path = "../../sovereign-sdk/examples/const-rollup-config" }
+sov-stf-runner = { path = "../../sovereign-sdk/full-node/sov-stf-runner", features = [
     "native",
 ] }
-sov-prover-storage-manager = { path = "../../full-node/sov-prover-storage-manager" }
+sov-rollup-interface = { path = "../../sovereign-sdk/rollup-interface", features = [
+    "native",
+] }
+sov-prover-storage-manager = { path = "../../sovereign-sdk/full-node/sov-prover-storage-manager" }
 
-sov-modules-rollup-blueprint = { path = "../../module-system/sov-modules-rollup-blueprint" }
-sov-modules-stf-blueprint = { path = "../../module-system/sov-modules-stf-blueprint", features = [
+sov-modules-rollup-blueprint = { path = "../../sovereign-sdk/module-system/sov-modules-rollup-blueprint" }
+sov-modules-stf-blueprint = { path = "../../sovereign-sdk/module-system/sov-modules-stf-blueprint", features = [
     "native",
 ] }
-sov-modules-api = { path = "../../module-system/sov-modules-api", features = [
+sov-modules-api = { path = "../../sovereign-sdk/module-system/sov-modules-api", features = [
     "native",
 ] }
-sov-nft-module = { path = "../../module-system/module-implementations/sov-nft-module" }
-demo-stf = { path = "./stf", features = ["native"] }
+sov-nft-module = { path = "../../sovereign-sdk/module-system/module-implementations/sov-nft-module" }
 citrea-stf = { path = "./citrea-stf", features = ["native"] }
-sov-ledger-rpc = { path = "../../full-node/sov-ledger-rpc", features = [
+sov-ledger-rpc = { path = "../../sovereign-sdk/full-node/sov-ledger-rpc", features = [
     "server",
 ] }
 risc0 = { path = "./provers/risc0" }
@@ -55,38 +56,40 @@ reth-transaction-pool = { workspace = true }
 reth-rpc-types = { workspace = true }
 tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
 
-sov-evm = { path = "../../module-system/module-implementations/sov-evm" }
-soft-confirmation-rule-enforcer = { path = "../../module-system/module-implementations/soft-confirmation-rule-enforcer" }
-sov-db = { path = "../../full-node/db/sov-db" }
-sov-ethereum = { path = "../../full-node/sov-ethereum" }
-sov-sequencer = { path = "../../full-node/sov-sequencer" }
-sequencer-client = { path = "../../full-node/sequencer-client" }
-chainway-sequencer = { path = "../../full-node/chainway-sequencer" }
-sov-risc0-adapter = { path = "../../adapters/risc0", features = ["native"] }
-sov-state = { path = "../../module-system/sov-state", features = ["native"] }
-sov-cli = { path = "../../module-system/sov-cli" }
+sov-evm = { path = "../evm" }
+soft-confirmation-rule-enforcer = { path = "../soft-confirmation-rule-enforcer" }
+sov-db = { path = "../../sovereign-sdk/full-node/db/sov-db" }
+sov-ethereum = { path = "../sov-ethereum" }
+sov-sequencer = { path = "../../sovereign-sdk/full-node/sov-sequencer" }
+sequencer-client = { path = "../sequencer-client" }
+chainway-sequencer = { path = "../sequencer" }
+sov-risc0-adapter = { path = "../../sovereign-sdk/adapters/risc0", features = [
+    "native",
+] }
+sov-state = { path = "../../sovereign-sdk/module-system/sov-state", features = [
+    "native",
+] }
+sov-cli = { path = "../../sovereign-sdk/module-system/sov-cli" }
 clap = { workspace = true }
 secp256k1 = { workspace = true }
 
 [dev-dependencies]
-sov-rng-da-service = { path = "../../utils/rng-da-service" }
-sov-rollup-interface = { path = "../../rollup-interface", features = [
+sov-rng-da-service = { path = "../../sovereign-sdk/utils/rng-da-service" }
+sov-rollup-interface = { path = "../../sovereign-sdk/rollup-interface", features = [
     "fuzzing",
 ] }
-sov-prover-storage-manager = { path = "../../full-node/sov-prover-storage-manager", features = [
+sov-prover-storage-manager = { path = "../../sovereign-sdk/full-node/sov-prover-storage-manager", features = [
     "test-utils",
 ] }
-sov-mock-da = { path = "../../adapters/mock-da" }
-sov-evm = { path = "../../module-system/module-implementations/sov-evm", features = [
-    "smart_contracts",
-] }
-sov-bank = { path = "../../module-system/module-implementations/sov-bank", features = [
+sov-mock-da = { path = "../../sovereign-sdk/adapters/mock-da" }
+sov-evm = { path = "../evm", features = ["smart_contracts"] }
+sov-bank = { path = "../../sovereign-sdk/module-system/module-implementations/sov-bank", features = [
     "native",
 ] }
-sov-nft-module = { path = "../../module-system/module-implementations/sov-nft-module", features = [
+sov-nft-module = { path = "../../sovereign-sdk/module-system/module-implementations/sov-nft-module", features = [
     "native",
 ] }
-sov-zk-cycle-macros = { path = "../../utils/zk-cycle-macros" }
+sov-zk-cycle-macros = { path = "../../sovereign-sdk/utils/zk-cycle-macros" }
 humantime = "2.1"
 rs_merkle = { workspace = true }
 borsh = { workspace = true }
@@ -127,7 +130,6 @@ bench = [
     "sov-zk-cycle-macros/bench",
     "risc0/bench",
 ]
-offchain = ["demo-stf/offchain"]
 
 [[bench]]
 name = "rollup_bench"

@@ -12,7 +12,7 @@ publish = false
 resolver = "2"
 
 [dependencies]
-sov-rollup-interface = { path = "../../rollup-interface" }
+sov-rollup-interface = { path = "../../sovereign-sdk/rollup-interface" }
 
 anyhow = { workspace = true }
 tracing = { workspace = true }

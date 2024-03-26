@@ -12,13 +12,13 @@ publish = false
 resolver = "2"
 
 [dependencies]
-sov-modules-api = { path = "../../sov-modules-api", version = "0.3" }
-sov-state = { path = "../../sov-state", version = "0.3" }
+sov-modules-api = { path = "../../sovereign-sdk/module-system/sov-modules-api", version = "0.3" }
+sov-state = { path = "../../sovereign-sdk/module-system/sov-state", version = "0.3" }
 tempfile = { workspace = true }
-sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-manager", features = [
+sov-prover-storage-manager = { path = "../../sovereign-sdk/full-node/sov-prover-storage-manager", features = [
     "test-utils",
 ] }
-sov-rollup-interface = { path = "../../../rollup-interface" }
+sov-rollup-interface = { path = "../../sovereign-sdk/rollup-interface" }
 
 borsh = { workspace = true }
 serde = { workspace = true }
@@ -27,7 +27,9 @@ jsonrpsee = { workspace = true, features = ["macros", "client-core", "server"] }
 lazy_static = "1.4.0"
 
 [dev-dependencies]
-sov-mock-da = { path = "../../../adapters/mock-da", features = ["native"] }
+sov-mock-da = { path = "../../sovereign-sdk/adapters/mock-da", features = [
+    "native",
+] }
 
 
 [features]
