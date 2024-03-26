@@ -18,7 +18,7 @@ sov-rollup-interface = { path = "../../rollup-interface", features = [
 sov-stf-runner = { path = "../../full-node/sov-stf-runner", features = [
     "native",
 ], version = "0.3" }
-chainway-sequencer = { path = "../../../citrea/sequencer", features = [
+citrea-sequencer = { path = "../../../citrea/sequencer", features = [
 ], version = "0.3" }
 const-rollup-config = { path = "../../examples/const-rollup-config" }
 sov-state = { path = "../sov-state", version = "0.3" }

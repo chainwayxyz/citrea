@@ -267,7 +267,7 @@ async fn test_tx_with_low_base_fee() {
 
     assert!(!block.transactions.contains(&tx_hash_low_fee.tx_hash()));
 
-    // TODO: also check if tx is in the mempool after https://github.com/chainwayxyz/secret-sovereign-sdk/issues/83
+    // TODO: also check if tx is in the mempool after https://github.com/chainwayxyz/citrea/issues/83
 
     seq_task.abort();
 }

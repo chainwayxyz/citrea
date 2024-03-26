@@ -1,5 +1,5 @@
 [package]
-name = "chainway-sequencer"
+name = "citrea-sequencer"
 authors = { workspace = true }
 edition = { workspace = true }
 homepage = { workspace = true }

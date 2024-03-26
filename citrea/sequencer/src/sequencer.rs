@@ -40,7 +40,7 @@ use crate::rpc::{create_rpc_module, RpcContext};
 
 type StateRoot<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::StateRoot;
 
-pub struct ChainwaySequencer<C, Da, Sm, Vm, Stf>
+pub struct CitreaSequencer<C, Da, Sm, Vm, Stf>
 where
     C: Context,
     Da: DaService,
@@ -65,7 +65,7 @@ where
     listen_address: SocketAddr,
 }
 
-impl<C, Da, Sm, Vm, Stf> ChainwaySequencer<C, Da, Sm, Vm, Stf>
+impl<C, Da, Sm, Vm, Stf> CitreaSequencer<C, Da, Sm, Vm, Stf>
 where
     C: Context,
     Da: DaService,

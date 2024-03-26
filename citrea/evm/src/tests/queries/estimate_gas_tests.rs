@@ -219,7 +219,7 @@ fn test_tx_request_fields_gas() {
             }])
             .into(),
             // This should actually be 0x6e66
-            // See: https://github.com/chainwayxyz/secret-sovereign-sdk/issues/272
+            // See: https://github.com/chainwayxyz/citrea/issues/272
             gas_used: Uint::from_str("0x6601").unwrap()
         }
     );

@@ -946,8 +946,8 @@ async fn test_soft_confirmations_status_one_l1() -> Result<(), anyhow::Error> {
 
     // publish new da block
     da_service.publish_test_block().await.unwrap();
-    seq_test_client.send_publish_batch_request().await; // TODO https://github.com/chainwayxyz/secret-sovereign-sdk/issues/214
-    seq_test_client.send_publish_batch_request().await; // TODO https://github.com/chainwayxyz/secret-sovereign-sdk/issues/214
+    seq_test_client.send_publish_batch_request().await; // TODO https://github.com/chainwayxyz/citrea/issues/214
+    seq_test_client.send_publish_batch_request().await; // TODO https://github.com/chainwayxyz/citrea/issues/214
 
     sleep(Duration::from_secs(2)).await;
 
@@ -1005,8 +1005,8 @@ async fn test_soft_confirmations_status_two_l1() -> Result<(), anyhow::Error> {
 
     // publish new da block
     da_service.publish_test_block().await.unwrap();
-    seq_test_client.send_publish_batch_request().await; // TODO https://github.com/chainwayxyz/secret-sovereign-sdk/issues/214
-    seq_test_client.send_publish_batch_request().await; // TODO https://github.com/chainwayxyz/secret-sovereign-sdk/issues/214
+    seq_test_client.send_publish_batch_request().await; // TODO https://github.com/chainwayxyz/citrea/issues/214
+    seq_test_client.send_publish_batch_request().await; // TODO https://github.com/chainwayxyz/citrea/issues/214
 
     sleep(Duration::from_secs(2)).await;
 

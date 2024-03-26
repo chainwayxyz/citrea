@@ -325,7 +325,7 @@ fn call_test() {
     working_set.unset_archival_version();
 
     // TODO: Test these even further, to the extreme.
-    // https://github.com/chainwayxyz/secret-sovereign-sdk/issues/134
+    // https://github.com/chainwayxyz/citrea/issues/134
 }
 
 fn check_against_third_block(block: &Rich<Block>) {

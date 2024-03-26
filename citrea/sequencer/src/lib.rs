@@ -7,4 +7,4 @@ mod sequencer;
 mod utils;
 
 pub use config::SequencerConfig;
-pub use sequencer::ChainwaySequencer;
+pub use sequencer::CitreaSequencer;

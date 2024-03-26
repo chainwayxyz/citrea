@@ -6,7 +6,7 @@ mod wallet;
 use std::net::SocketAddr;
 
 use async_trait::async_trait;
-use chainway_sequencer::{ChainwaySequencer, SequencerConfig};
+use citrea_sequencer::{CitreaSequencer, SequencerConfig};
 use const_rollup_config::TEST_PRIVATE_KEY;
 pub use runtime_rpc::*;
 use sequencer_client::SequencerClient;
@@ -188,7 +188,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         };
 
         let seq =
-            ChainwaySequencer::new(
+            CitreaSequencer::new(
                 da_service,
                 <<<Self as RollupBlueprint>::NativeContext as Spec>::PrivateKey as TryFrom<
                     &[u8],
@@ -308,7 +308,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
 pub struct Sequencer<S: RollupBlueprint> {
     /// The State Transition Runner of Sequencer.
     #[allow(clippy::type_complexity)]
-    pub runner: ChainwaySequencer<
+    pub runner: CitreaSequencer<
         S::NativeContext,
         S::DaService,
         S::StorageManager,

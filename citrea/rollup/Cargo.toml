@@ -62,7 +62,7 @@ sov-db = { path = "../../sovereign-sdk/full-node/db/sov-db" }
 sov-ethereum = { path = "../sov-ethereum" }
 sov-sequencer = { path = "../../sovereign-sdk/full-node/sov-sequencer" }
 sequencer-client = { path = "../sequencer-client" }
-chainway-sequencer = { path = "../sequencer" }
+citrea-sequencer = { path = "../sequencer" }
 sov-risc0-adapter = { path = "../../sovereign-sdk/adapters/risc0", features = [
     "native",
 ] }
