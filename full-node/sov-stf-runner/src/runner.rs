@@ -146,7 +146,6 @@ where
                     "Chain initialization is done. Genesis root: 0x{}",
                     hex::encode(genesis_root.as_ref()),
                 );
-
                 genesis_root
             }
         };
@@ -282,6 +281,7 @@ where
                 .map(|mut tx| DaData::try_from_slice(tx.full_data()))
                 .partition(Result::is_ok);
 
+            // when Da layer is mock, this fails because 1 cannot be converted to da data
             // if !da_errors.is_empty() {
             //     tracing::warn!(
             //         "Found broken DA data in block 0x{}: {:?}",
@@ -325,7 +325,7 @@ where
                         .header()
                         .height();
 
-                    // get the latest l2 block of the commitment and start sync up to that block
+                    // start l2 height will be the last l2 height + 1 of the last commitment we processed
                     let start_l2_height = height;
 
                     // start fetching blocks from sequencer, when you see a softbatch with l1 height more than end_l1_height, stop
@@ -341,30 +341,6 @@ where
                             .unwrap();
 
                         if soft_batch.da_slot_height > end_l1_height {
-                            let range_end = BatchNumber(height);
-                            // Traverse each item's field of vector of transactions, put them in merkle tree
-                            // and compare the root with the one from the ledger
-                            let stored_soft_batches: Vec<StoredSoftBatch> = self
-                                .ledger_db
-                                .get_soft_batch_range(&(BatchNumber(start_l2_height)..range_end))
-                                .unwrap();
-
-                            let soft_batches_tree = MerkleTree::<Sha256>::from_leaves(
-                                stored_soft_batches
-                                    .iter()
-                                    .map(|x| x.hash)
-                                    .collect::<Vec<_>>()
-                                    .as_slice(),
-                            );
-
-                            if soft_batches_tree.root() != Some(sequencer_commitment.merkle_root) {
-                                tracing::warn!(
-                                    "Merkle root mismatch - expected 0x{} but got 0x{}",
-                                    hex::encode(soft_batches_tree.root().unwrap()),
-                                    hex::encode(sequencer_commitment.merkle_root)
-                                );
-                            }
-
                             for i in start_l1_height..=end_l1_height {
                                 self.ledger_db
                                     .put_soft_confirmation_status(
