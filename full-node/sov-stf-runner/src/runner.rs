@@ -325,9 +325,6 @@ where
                         .header()
                         .height();
 
-                    // start l2 height will be the last l2 height + 1 of the last commitment we processed
-                    let start_l2_height = height;
-
                     // start fetching blocks from sequencer, when you see a softbatch with l1 height more than end_l1_height, stop
                     // while getting the blocks to all the same ops as full node
                     // after stopping call continue  and look for a new seq_commitment
@@ -532,8 +529,6 @@ where
                 }
             }
         }
-
-        Ok(())
     }
 
     /// Runs the rollup.
