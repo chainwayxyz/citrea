@@ -1,3 +1,4 @@
+use borsh::BorshSerialize;
 use sov_modules_api::hooks::TxHooks;
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{Context, StateMapAccessor, WorkingSet};
@@ -39,7 +40,8 @@ impl<C: Context> TxHooks for Accounts<C> {
         let sender = self.get_or_create_default(tx.pub_key(), working_set)?;
         let sequencer = self.get_or_create_default(sequencer, working_set)?;
         let tx_nonce = tx.nonce();
-
+        println!("tx_nonce: {}", tx_nonce);
+        println!("sender.nonce: {}", sender.nonce);
         anyhow::ensure!(
             sender.nonce == tx_nonce,
             "Tx bad nonce, expected: {}, but found: {}",
@@ -61,7 +63,9 @@ impl<C: Context> TxHooks for Accounts<C> {
     ) -> anyhow::Result<()> {
         let mut account = self.accounts.get_or_err(tx.pub_key(), working_set)?;
         account.nonce += 1;
+        println!("account.nonce: {}", account.nonce);
         self.accounts.set(tx.pub_key(), &account, working_set);
+        println!("tx pubkey: {:?}", tx.pub_key().try_to_vec().unwrap());
         Ok(())
     }
 }

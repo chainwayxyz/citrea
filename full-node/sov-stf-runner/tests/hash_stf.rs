@@ -219,6 +219,27 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
     > {
         todo!()
     }
+
+    fn apply_soft_batches(
+        &self,
+        sequencer_public_key: &[u8],
+        pre_state_root: &Self::StateRoot,
+        pre_state: Self::PreState,
+        witness: Self::Witness,
+        slot_header: Vec<&<Da as DaSpec>::BlockHeader>,
+        validity_condition: Vec<<Da as DaSpec>::ValidityCondition>,
+        soft_batch: Vec<sov_modules_api::SignedSoftConfirmationBatch>,
+    ) -> Vec<
+        SlotResult<
+            Self::StateRoot,
+            Self::ChangeSet,
+            Self::BatchReceiptContents,
+            Self::TxReceiptContents,
+            Self::Witness,
+        >,
+    > {
+        todo!()
+    }
 }
 
 #[test]

@@ -326,16 +326,19 @@ where
                         .height();
 
                     // start l2 height will be the last l2 height + 1 of the last commitment we processed
-                    let start_l2_height = height;
+                    let mut start_l2_height = height;
 
                     // start fetching blocks from sequencer, when you see a softbatch with l1 height more than end_l1_height, stop
                     // while getting the blocks to all the same ops as full node
                     // after stopping call continue  and look for a new seq_commitment
                     // change the itemnumbers only after the sync is done so not for every da block
-
+                    let mut soft_batches: Vec<sov_modules_api::SignedSoftConfirmationBatch> =
+                        Vec::new();
+                    let mut filtered_blocks = Vec::new();
+                    let mut post_state_roots = Vec::new();
                     loop {
                         let soft_batch = client
-                            .get_soft_batch::<Da::Spec>(height)
+                            .get_soft_batch::<Da::Spec>(start_l2_height)
                             .await
                             .unwrap()
                             .unwrap();
@@ -357,6 +360,9 @@ where
                             l1_height += 1;
                             break;
                         }
+                        post_state_roots.push(soft_batch.post_state_root.clone());
+
+                        soft_batches.push(soft_batch.clone().into());
 
                         info!(
                             "Running soft confirmation batch #{} with hash: 0x{} on DA block #{}",
@@ -370,21 +376,43 @@ where
                             .da_service
                             .get_block_at(soft_batch.da_slot_height)
                             .await?;
+                        filtered_blocks.push(filtered_block);
 
-                        let mut data_to_commit = SlotCommit::new(filtered_block.clone());
+                        start_l2_height += 1;
+                    }
+                    let pre_state = self.storage_manager.create_storage_on_l2_height(height)?;
+                    for sb in soft_batches.iter() {
+                        println!("Soft batch: {:?}\n\n", sb);
+                    }
+                    for fb in filtered_blocks.iter() {
+                        println!("Soft batch: {:?}\n\n", fb);
+                    }
+                    for psr in &post_state_roots {
+                        println!("post state root: {:?}\n\n", post_state_roots);
+                        // print hex
+                        println!("post state root: {:?}\n\n", hex::encode(psr));
+                    }
 
-                        let pre_state = self.storage_manager.create_storage_on_l2_height(height)?;
+                    let headers = filtered_blocks
+                        .iter()
+                        .map(|x| x.header())
+                        .collect::<Vec<_>>();
+                    let validity_conditions = filtered_blocks
+                        .iter()
+                        .map(|x| x.validity_condition())
+                        .collect::<Vec<_>>();
+                    let slot_results = self.stf.apply_soft_batches(
+                        self.sequencer_pub_key.as_slice(),
+                        &self.state_root,
+                        pre_state.clone(),
+                        Default::default(),
+                        headers,
+                        validity_conditions,
+                        soft_batches.clone(),
+                    );
 
-                        let slot_result = self.stf.apply_soft_batch(
-                            self.sequencer_pub_key.as_slice(),
-                            // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1247): incorrect pre-state root in case of re-org
-                            &self.state_root,
-                            pre_state,
-                            Default::default(),
-                            filtered_block.header(),
-                            &filtered_block.validity_condition(),
-                            &mut soft_batch.clone().into(),
-                        );
+                    for (idx, slot_result) in slot_results.into_iter().enumerate() {
+                        let mut data_to_commit = SlotCommit::new(filtered_blocks[idx].clone());
 
                         for receipt in slot_result.batch_receipts {
                             data_to_commit.add_batch(receipt);
@@ -408,7 +436,7 @@ where
                         //     };
 
                         self.storage_manager
-                            .save_change_set_l2(height, slot_result.change_set)?;
+                            .save_change_set_l2(height + idx as u64, slot_result.change_set)?;
 
                         // ----------------
                         // Create ZK proof.
@@ -456,11 +484,11 @@ where
                             post_state_root: next_state_root.as_ref().to_vec(),
                             phantom_data: PhantomData::<u64>,
                             batch_hash: batch_receipt.batch_hash,
-                            da_slot_hash: filtered_block.header().hash(),
-                            da_slot_height: filtered_block.header().height(),
+                            da_slot_hash: filtered_blocks[idx].header().hash(),
+                            da_slot_height: filtered_blocks[idx].header().height(),
                             tx_receipts: batch_receipt.tx_receipts,
-                            soft_confirmation_signature: soft_batch.soft_confirmation_signature,
-                            pub_key: soft_batch.pub_key,
+                            soft_confirmation_signature: soft_batches[idx].signature(),
+                            pub_key: soft_batches[idx].pub_key(),
                             l1_fee_rate: soft_batch.l1_fee_rate,
                         };
 

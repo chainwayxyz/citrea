@@ -129,6 +129,10 @@ where
                 height: 1,
                 sequencer: tx.pub_key().clone(),
             };
+            println!(
+                "pre dispatch tx pub key: {:?}",
+                tx.pub_key().try_to_vec().unwrap()
+            );
             let ctx = match self
                 .runtime
                 .pre_dispatch_tx_hook(&tx, &mut batch_workspace, &hook)

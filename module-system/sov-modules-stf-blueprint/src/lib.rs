@@ -212,6 +212,7 @@ where
             pre_state_root.as_ref(),
             "pre state roots must match"
         );
+        println!("\n\nmatch!\n\n");
 
         let checkpoint = StateCheckpoint::with_witness(pre_state, witness);
 
@@ -513,6 +514,44 @@ where
             batch_receipts,
             witness,
         }
+    }
+
+    fn apply_soft_batches(
+        &self,
+        sequencer_public_key: &[u8],
+        mut pre_state_root: &Self::StateRoot,
+        pre_state: Self::PreState,
+        witness: Self::Witness,
+        slot_header: Vec<&<Da as DaSpec>::BlockHeader>,
+        validity_condition: Vec<<Da as DaSpec>::ValidityCondition>,
+        soft_batch: Vec<SignedSoftConfirmationBatch>,
+    ) -> Vec<
+        SlotResult<
+            Self::StateRoot,
+            Self::ChangeSet,
+            Self::BatchReceiptContents,
+            Self::TxReceiptContents,
+            Self::Witness,
+        >,
+    > {
+        let mut results = Vec::new();
+        let mut psr = pre_state_root.clone();
+        println!("psr: {:?}", psr);
+        for i in 0..soft_batch.len() {
+            let slot_result = self.apply_soft_batch(
+                sequencer_public_key,
+                &psr,
+                pre_state.clone(),
+                Default::default(),
+                slot_header[i],
+                &validity_condition[i],
+                &mut soft_batch[i].clone(),
+            );
+            psr = slot_result.state_root.clone();
+            println!("\n\nupdated psr: {:?}\n\n", psr);
+            results.push(slot_result);
+        }
+        results
     }
 
     fn apply_soft_batch(

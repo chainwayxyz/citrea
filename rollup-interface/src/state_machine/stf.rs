@@ -221,6 +221,26 @@ pub trait StateTransitionFunction<Vm: Zkvm, Da: DaSpec> {
         Self::TxReceiptContents,
         Self::Witness,
     >;
+
+    /// Calls apply soft batch multiple times
+    fn apply_soft_batches(
+        &self,
+        sequencer_public_key: &[u8],
+        pre_state_root: &Self::StateRoot,
+        pre_state: Self::PreState,
+        witness: Self::Witness,
+        slot_header: Vec<&Da::BlockHeader>,
+        validity_condition: Vec<Da::ValidityCondition>,
+        soft_batch: Vec<SignedSoftConfirmationBatch>,
+    ) -> Vec<
+        SlotResult<
+            Self::StateRoot,
+            Self::ChangeSet,
+            Self::BatchReceiptContents,
+            Self::TxReceiptContents,
+            Self::Witness,
+        >,
+    >;
 }
 
 /// A key-value pair representing a change to the rollup state
