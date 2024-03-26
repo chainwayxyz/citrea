@@ -1,9 +1,9 @@
 use std::sync::Mutex;
 
+use citrea_evm::EthResult;
 use reth_primitives::{BlockNumberOrTag, B256};
 use reth_rpc_types::{Block, BlockTransactions, Rich, TransactionReceipt};
 use schnellru::{ByLength, LruMap};
-use sov_evm::EthResult;
 use sov_modules_api::WorkingSet;
 
 use super::gas_oracle::convert_u256_to_u64;
@@ -13,11 +13,11 @@ pub struct BlockCache<C: sov_modules_api::Context> {
     // Assuming number_to_hash and cache are always in sync
     number_to_hash: Mutex<LruMap<u64, B256, ByLength>>, // Number -> hash mapping
     cache: Mutex<LruMap<B256, Rich<Block>, ByLength>>,
-    provider: sov_evm::Evm<C>,
+    provider: citrea_evm::Evm<C>,
 }
 
 impl<C: sov_modules_api::Context> BlockCache<C> {
-    pub fn new(max_size: u32, provider: sov_evm::Evm<C>) -> Self {
+    pub fn new(max_size: u32, provider: citrea_evm::Evm<C>) -> Self {
         Self {
             number_to_hash: Mutex::new(LruMap::new(ByLength::new(max_size))),
             cache: Mutex::new(LruMap::new(ByLength::new(max_size))),

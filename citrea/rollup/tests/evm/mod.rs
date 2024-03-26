@@ -1,13 +1,13 @@
 use std::net::SocketAddr;
 use std::str::FromStr;
 
+// use sov_demo_rollup::initialize_logging;
+use citrea_evm::smart_contracts::{LogsContract, SimpleStorageContract, TestContract};
 use citrea_stf::genesis_config::GenesisPaths;
 use ethers_core::abi::Address;
 use ethers_core::types::{BlockId, Bytes, U256};
 use ethers_signers::{LocalWallet, Signer};
 use reth_primitives::BlockNumberOrTag;
-// use sov_demo_rollup::initialize_logging;
-use sov_evm::smart_contracts::{LogsContract, SimpleStorageContract, TestContract};
 use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
 use sov_stf_runner::RollupProverConfig;
 

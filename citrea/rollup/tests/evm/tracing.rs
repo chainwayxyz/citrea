@@ -1,7 +1,8 @@
 use std::str::FromStr;
 
-use citrea_stf::genesis_config::GenesisPaths;
 // use sov_demo_rollup::initialize_logging;
+use citrea_evm::smart_contracts::{CallerContract, SimpleStorageContract};
+use citrea_stf::genesis_config::GenesisPaths;
 use ethers::abi::Address;
 use reth_primitives::BlockNumberOrTag;
 use reth_rpc_types::trace::geth::GethTrace::{self, CallTracer, FourByteTracer};
@@ -10,7 +11,6 @@ use reth_rpc_types::trace::geth::{
     GethDebugTracingOptions,
 };
 use serde_json::{self, json};
-use sov_evm::smart_contracts::{CallerContract, SimpleStorageContract};
 use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
 use sov_stf_runner::RollupProverConfig;
 

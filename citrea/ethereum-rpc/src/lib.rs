@@ -6,6 +6,9 @@ use std::process::Command;
 use std::sync::{Arc, Mutex};
 
 use alloy_rpc_types::request::TransactionRequest;
+#[cfg(feature = "local")]
+pub use citrea_evm::DevSigner;
+use citrea_evm::{CallMessage, EthApiError, Evm, RlpEvmTransaction, SignError};
 use citrea_stf::runtime::Runtime;
 use ethers::types::Bytes;
 pub use gas_price::fee_history::FeeHistoryCacheConfig;
@@ -32,9 +35,6 @@ use rustc_version_runtime::version;
 use schnellru::{ByLength, LruMap};
 use sequencer_client::SequencerClient;
 use serde_json::json;
-#[cfg(feature = "local")]
-pub use sov_evm::DevSigner;
-use sov_evm::{CallMessage, EthApiError, Evm, RlpEvmTransaction, SignError};
 use sov_modules_api::utils::to_jsonrpsee_error_object;
 use sov_modules_api::{EncodeCall, PrivateKey, WorkingSet};
 use sov_rollup_interface::services::da::DaService;
@@ -175,7 +175,7 @@ impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
         let tx_hash = signed_transaction.hash();
 
         let tx = CallMessage { txs: vec![raw_tx] };
-        let message = <Runtime<C, Da::Spec> as EncodeCall<sov_evm::Evm<C>>>::encode_call(tx);
+        let message = <Runtime<C, Da::Spec> as EncodeCall<citrea_evm::Evm<C>>>::encode_call(tx);
 
         Ok((B256::from(tx_hash), message))
     }

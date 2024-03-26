@@ -6,10 +6,10 @@ use std::convert::AsRef;
 use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context as _};
+use citrea_evm::EvmConfig;
 use soft_confirmation_rule_enforcer::SoftConfirmationRuleEnforcerConfig;
 use sov_accounts::AccountConfig;
 use sov_bank::BankConfig;
-use sov_evm::EvmConfig;
 pub use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::Context;
 use sov_modules_stf_blueprint::Runtime as RuntimeTrait;

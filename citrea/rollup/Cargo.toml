@@ -56,7 +56,7 @@ reth-transaction-pool = { workspace = true }
 reth-rpc-types = { workspace = true }
 tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
 
-sov-evm = { path = "../evm" }
+citrea-evm = { path = "../evm" }
 soft-confirmation-rule-enforcer = { path = "../soft-confirmation-rule-enforcer" }
 sov-db = { path = "../../sovereign-sdk/full-node/db/sov-db" }
 ethereum-rpc = { path = "../ethereum-rpc" }
@@ -82,7 +82,7 @@ sov-prover-storage-manager = { path = "../../sovereign-sdk/full-node/sov-prover-
     "test-utils",
 ] }
 sov-mock-da = { path = "../../sovereign-sdk/adapters/mock-da" }
-sov-evm = { path = "../evm", features = ["smart_contracts"] }
+citrea-evm = { path = "../evm", features = ["smart_contracts"] }
 sov-bank = { path = "../../sovereign-sdk/module-system/module-implementations/sov-bank", features = [
     "native",
 ] }

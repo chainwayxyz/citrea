@@ -1,7 +1,7 @@
 //! Commonly used code snippets
 
+use citrea_evm::{EthApiError, EthResult};
 use reth_primitives::{Bytes, PooledTransactionsElement, PooledTransactionsElementEcRecovered};
-use sov_evm::{EthApiError, EthResult};
 
 /// Recovers a [PooledTransactionsElementEcRecovered] from an enveloped encoded byte stream.
 ///

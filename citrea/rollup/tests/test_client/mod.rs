@@ -2,6 +2,7 @@ use std::str::FromStr;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
+use citrea_evm::LogResponse;
 use ethereum_types::H160;
 use ethers_core::abi::Address;
 use ethers_core::k256::ecdsa::SigningKey;
@@ -16,7 +17,6 @@ use jsonrpsee::rpc_params;
 use reth_primitives::BlockNumberOrTag;
 use reth_rpc_types::trace::geth::{GethDebugTracingOptions, GethTrace};
 use sequencer_client::GetSoftBatchResponse;
-use sov_evm::LogResponse;
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
 
 pub const MAX_FEE_PER_GAS: u64 = 1000000001;

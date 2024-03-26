@@ -2,13 +2,13 @@
 use std::fmt::Debug;
 use std::sync::{Arc, Mutex};
 
+use citrea_evm::EthApiError;
 use reth_primitives::{B256, U256};
 use reth_rpc_types::{
     Block, BlockTransactions, Rich, Transaction, TransactionReceipt, TxGasAndReward,
 };
 use schnellru::{ByLength, LruMap};
 use serde::{Deserialize, Serialize};
-use sov_evm::EthApiError;
 use sov_modules_api::WorkingSet;
 
 use super::cache::BlockCache;

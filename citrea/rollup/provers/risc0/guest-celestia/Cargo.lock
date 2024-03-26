@@ -1393,7 +1393,7 @@ dependencies = [
  "sov-bank",
  "sov-blob-storage",
  "sov-chain-state",
- "sov-evm",
+ "citrea-evm",
  "sov-mock-da",
  "sov-modules-api",
  "sov-modules-stf-blueprint",
@@ -7393,7 +7393,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "sov-evm"
+name = "citrea-evm"
 version = "0.3.0"
 dependencies = [
  "alloy-primitives",

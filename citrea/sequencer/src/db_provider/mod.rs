@@ -1,3 +1,4 @@
+use citrea_evm::{Evm, EvmChainConfig};
 use reth_db::models::StoredBlockBodyIndices;
 use reth_interfaces::provider::ProviderResult;
 use reth_primitives::{
@@ -12,7 +13,6 @@ use reth_provider::{
 };
 use reth_rpc_types::{Block, BlockTransactions};
 use reth_trie::updates::TrieUpdates;
-use sov_evm::{Evm, EvmChainConfig};
 use sov_modules_api::WorkingSet;
 
 #[derive(Clone)]

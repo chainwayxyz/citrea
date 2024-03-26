@@ -51,7 +51,7 @@ pub(crate) struct PendingTransaction {
     pub(crate) receipt: Receipt,
 }
 
-/// The sov-evm module provides compatibility with the EVM.
+/// The citrea-evm module provides compatibility with the EVM.
 #[allow(dead_code)]
 // #[cfg_attr(feature = "native", derive(sov_modules_api::ModuleCallJsonSchema))]
 #[derive(ModuleInfo, Clone)]

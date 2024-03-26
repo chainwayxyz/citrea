@@ -32,13 +32,13 @@
 
 #![allow(unused_doc_comments)]
 #[cfg(feature = "native")]
+use citrea_evm::{EvmRpcImpl, EvmRpcServer};
+#[cfg(feature = "native")]
 use soft_confirmation_rule_enforcer::{
     SoftConfirmationRuleEnforcerRpcImpl, SoftConfirmationRuleEnforcerRpcServer,
 };
 #[cfg(feature = "native")]
 use sov_accounts::{AccountsRpcImpl, AccountsRpcServer};
-#[cfg(feature = "native")]
-use sov_evm::{EvmRpcImpl, EvmRpcServer};
 #[cfg(feature = "native")]
 pub use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::macros::DefaultRuntime;
@@ -62,7 +62,7 @@ pub struct Runtime<C: Context, Da: DaSpec> {
     pub accounts: sov_accounts::Accounts<C>,
     #[cfg_attr(feature = "native", cli_skip)]
     /// The EVM module.
-    pub evm: sov_evm::Evm<C>,
+    pub evm: citrea_evm::Evm<C>,
     /// The soft confirmation rule enforcer module.
     pub soft_confirmation_rule_enforcer:
         soft_confirmation_rule_enforcer::SoftConfirmationRuleEnforcer<C, Da>,

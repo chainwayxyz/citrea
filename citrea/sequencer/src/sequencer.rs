@@ -4,6 +4,7 @@ use std::sync::Arc;
 use std::vec;
 
 use borsh::ser::BorshSerialize;
+use citrea_evm::{CallMessage, RlpEvmTransaction};
 use citrea_stf::runtime::Runtime;
 use digest::Digest;
 use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
@@ -16,7 +17,6 @@ use sov_accounts::Accounts;
 use sov_accounts::Response::{AccountEmpty, AccountExists};
 use sov_db::ledger_db::{LedgerDB, SlotCommit};
 use sov_db::schema::types::{BatchNumber, SlotNumber};
-use sov_evm::{CallMessage, RlpEvmTransaction};
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{
@@ -180,7 +180,7 @@ where
             if (self.l2_force_block_rx.next().await).is_some() {
                 // best txs with base fee
                 // get base fee from last blocks => header => next base fee() function
-                let cfg: sov_evm::EvmChainConfig = self.db_provider.cfg();
+                let cfg: citrea_evm::EvmChainConfig = self.db_provider.cfg();
 
                 let base_fee = self
                     .db_provider
@@ -213,7 +213,7 @@ where
 
                 let call_txs = CallMessage { txs: rlp_txs };
                 let raw_message =
-                    <Runtime<C, Da::Spec> as EncodeCall<sov_evm::Evm<C>>>::encode_call(call_txs);
+                    <Runtime<C, Da::Spec> as EncodeCall<citrea_evm::Evm<C>>>::encode_call(call_txs);
                 let signed_blob = self.make_blob(raw_message);
 
                 let mut prev_l1_height = self

@@ -42,7 +42,7 @@ schnellru = "0.2.1"
 sov-rollup-interface = { path = "../../sovereign-sdk/rollup-interface", features = [
     "native",
 ] }
-sov-evm = { path = "../evm" }
+citrea-evm = { path = "../evm" }
 sov-db = { path = "../../sovereign-sdk/full-node/db/sov-db", version = "0.3" }
 
 sov-stf-runner = { path = "../../sovereign-sdk/full-node/sov-stf-runner" }
@@ -63,4 +63,4 @@ tempfile = { workspace = true }
 [features]
 default = []
 local = []
-native = ["citrea-stf/native", "sov-evm/native"]
+native = ["citrea-stf/native", "citrea-evm/native"]

@@ -1,12 +1,12 @@
 use std::sync::Arc;
 
+use citrea_evm::Evm;
 use futures::channel::mpsc::UnboundedSender;
 use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::RpcModule;
 use reth_primitives::{Bytes, FromRecoveredPooledTransaction, IntoRecoveredTransaction, B256};
 use reth_rpc_types_compat::transaction::from_recovered;
 use reth_transaction_pool::{EthPooledTransaction, TransactionOrigin, TransactionPool};
-use sov_evm::Evm;
 use sov_mock_da::{MockAddress, MockDaService};
 use sov_modules_api::utils::to_jsonrpsee_error_object;
 use sov_modules_api::WorkingSet;

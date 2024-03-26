@@ -3,11 +3,11 @@ use std::path::Path;
 use std::str::FromStr;
 use std::time::Duration;
 
+use citrea_evm::smart_contracts::SimpleStorageContract;
 use citrea_stf::genesis_config::GenesisPaths;
 use ethereum_types::H256;
 use ethers::abi::Address;
 use reth_primitives::{BlockNumberOrTag, TxHash};
-use sov_evm::smart_contracts::SimpleStorageContract;
 use sov_mock_da::{MockAddress, MockDaService, MockDaSpec};
 use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
 use sov_rollup_interface::da::DaSpec;
