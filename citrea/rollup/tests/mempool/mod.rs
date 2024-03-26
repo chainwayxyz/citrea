@@ -41,7 +41,7 @@ async fn initialize_test() -> (JoinHandle<()>, Box<TestClient>) {
 /// Transaction with equal nonce to last tx should not be accepted by mempool.
 #[tokio::test]
 async fn test_same_nonce_tx_should_panic() {
-    // sov_demo_rollup::initialize_logging();
+    // citrea::initialize_logging();
 
     let (seq_task, test_client) = initialize_test().await;
 
@@ -68,7 +68,7 @@ async fn test_same_nonce_tx_should_panic() {
 ///  Transaction with nonce lower than account's nonce on state should not be accepted by mempool.
 #[tokio::test]
 async fn test_nonce_too_low() {
-    // sov_demo_rollup::initialize_logging();
+    // citrea::initialize_logging();
 
     let (seq_task, test_client) = initialize_test().await;
 
@@ -96,7 +96,7 @@ async fn test_nonce_too_low() {
 /// but shouldn't be received by the sequencer (so it doesn't end up in the block)
 #[tokio::test]
 async fn test_nonce_too_high() {
-    // sov_demo_rollup::initialize_logging();
+    // citrea::initialize_logging();
 
     let (seq_task, test_client) = initialize_test().await;
 

@@ -2,11 +2,11 @@ use core::fmt::Debug as DebugTrait;
 
 use anyhow::{anyhow, Context as _};
 use bitcoin_da::service::DaServiceConfig;
+use citrea::{initialize_logging, BitcoinRollup, CelestiaDemoRollup, MockDemoRollup};
 use citrea_sequencer::SequencerConfig;
 use citrea_stf::genesis_config::GenesisPaths;
 use clap::Parser;
 use sov_celestia_adapter::CelestiaConfig;
-use sov_demo_rollup::{initialize_logging, BitcoinRollup, CelestiaDemoRollup, MockDemoRollup};
 use sov_mock_da::MockDaConfig;
 use sov_modules_api::runtime::capabilities::Kernel;
 use sov_modules_api::Spec;

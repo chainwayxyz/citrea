@@ -350,7 +350,7 @@ fn log_filter_test_with_range() {
 
 #[test]
 fn test_log_limits() {
-    // sov_demo_rollup::initialize_logging();
+    // citrea::initialize_logging();
 
     // bigger block is needed to be able to include all the transactions
     let (config, dev_signer, contract_addr) = get_evm_config(

@@ -17,7 +17,7 @@ RUN SKIP_GUEST_BUILD=1 cargo chef cook --release --recipe-path recipe.json
 
 COPY . .
 # Build the project
-RUN SKIP_GUEST_BUILD=1 cargo build --release --bin sov-demo-rollup
+RUN SKIP_GUEST_BUILD=1 cargo build --release --bin citrea
 
 # We need cargo to run the binary because of some path finding dependencies
 FROM rust:1.76 AS runtime
@@ -28,7 +28,7 @@ RUN apt-get update && \
     apt-get install -y curl
 
 # Copy the binary from the builder stage
-COPY --from=builder /app/target/release/sov-demo-rollup /app/examples/demo-rollup/sov-demo-rollup
+COPY --from=builder /app/target/release/citrea /app/examples/demo-rollup/citrea
 
 # Copying the directory except the target directory
 COPY --from=builder /app /app
@@ -37,4 +37,4 @@ RUN rm -rf /app/target && cargo
 EXPOSE 8545
 
 WORKDIR /app/examples/demo-rollup
-ENTRYPOINT ["sh", "-c", "../../hive/hive_publish_block.sh & ./sov-demo-rollup --genesis-paths ../../hive/genesis --rollup-config-path mock_dockerized_rollup_config.toml --sequencer-config-path mock_sequencer_config.toml"]
+ENTRYPOINT ["sh", "-c", "../../hive/hive_publish_block.sh & ./citrea --genesis-paths ../../hive/genesis --rollup-config-path mock_dockerized_rollup_config.toml --sequencer-config-path mock_sequencer_config.toml"]

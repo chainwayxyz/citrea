@@ -1,10 +1,10 @@
 use std::net::SocketAddr;
 use std::path::Path;
 
+use citrea::MockDemoRollup;
 use citrea_sequencer::SequencerConfig;
 use citrea_stf::genesis_config::GenesisPaths;
 use const_rollup_config::TEST_PRIVATE_KEY;
-use sov_demo_rollup::MockDemoRollup;
 use sov_mock_da::{MockAddress, MockDaConfig};
 use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
 use sov_modules_api::PrivateKey;

@@ -1,7 +1,7 @@
 use std::net::SocketAddr;
 use std::str::FromStr;
 
-// use sov_demo_rollup::initialize_logging;
+// use citrea::initialize_logging;
 use citrea_evm::smart_contracts::{LogsContract, SimpleStorageContract, TestContract};
 use citrea_stf::genesis_config::GenesisPaths;
 use ethers_core::abi::Address;
@@ -21,7 +21,7 @@ mod tracing;
 
 #[tokio::test]
 async fn web3_rpc_tests() -> Result<(), anyhow::Error> {
-    // sov_demo_rollup::initialize_logging();
+    // citrea::initialize_logging();
     let (port_tx, port_rx) = tokio::sync::oneshot::channel();
     let rollup_task = tokio::spawn(async {
         // Don't provide a prover since the EVM is not currently provable
@@ -65,7 +65,7 @@ async fn web3_rpc_tests() -> Result<(), anyhow::Error> {
 
 #[tokio::test]
 async fn evm_tx_tests() -> Result<(), anyhow::Error> {
-    // sov_demo_rollup::initialize_logging();
+    // citrea::initialize_logging();
 
     let (port_tx, port_rx) = tokio::sync::oneshot::channel();
 

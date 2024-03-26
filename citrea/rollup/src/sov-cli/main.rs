@@ -1,5 +1,5 @@
+use citrea::CelestiaDemoRollup;
 use citrea_stf::runtime::RuntimeSubcommand;
-use sov_demo_rollup::CelestiaDemoRollup;
 use sov_modules_api::cli::{FileNameArg, JsonStringArg};
 use sov_modules_rollup_blueprint::WalletBlueprint;
 

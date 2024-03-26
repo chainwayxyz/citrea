@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-// use sov_demo_rollup::initialize_logging;
+// use citrea::initialize_logging;
 use citrea_evm::smart_contracts::{CallerContract, SimpleStorageContract};
 use citrea_stf::genesis_config::GenesisPaths;
 use ethers::abi::Address;

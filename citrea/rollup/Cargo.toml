@@ -1,5 +1,5 @@
 [package]
-name = "sov-demo-rollup"
+name = "citrea"
 version = { workspace = true }
 edition = { workspace = true }
 authors = { workspace = true }
@@ -7,7 +7,7 @@ license = { workspace = true }
 homepage = "sovereign.xyz"
 publish = false
 resolver = "2"
-default-run = "sov-demo-rollup"
+default-run = "citrea"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -154,5 +154,5 @@ path = "src/sov-cli/main.rs"
 
 
 [[bin]]
-name = "sov-demo-rollup"
+name = "citrea"
 path = "src/main.rs"

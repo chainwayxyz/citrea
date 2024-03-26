@@ -4,14 +4,14 @@ use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
 use sov_stf_runner::RollupProverConfig;
 
 use crate::evm::make_test_client;
-// use sov_demo_rollup::initialize_logging;
+// use citrea::initialize_logging;
 use crate::test_helpers::{start_rollup, NodeMode};
 use crate::DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT;
 
 /// Transaction with equal nonce to last tx should not be accepted by mempool.
 #[tokio::test]
 async fn too_many_l2_block_per_l1_block() {
-    // sov_demo_rollup::initialize_logging();
+    // citrea::initialize_logging();
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 

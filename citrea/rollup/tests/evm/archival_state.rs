@@ -15,7 +15,7 @@ use crate::DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT;
 
 #[tokio::test]
 async fn test_archival_state() -> Result<(), anyhow::Error> {
-    // sov_demo_rollup::initialize_logging();
+    // citrea::initialize_logging();
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 

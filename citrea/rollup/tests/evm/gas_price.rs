@@ -17,7 +17,7 @@ use crate::DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT;
 
 #[tokio::test]
 async fn test_gas_price_increase() -> Result<(), anyhow::Error> {
-    // sov_demo_rollup::initialize_logging();
+    // citrea::initialize_logging();
 
     let (port_tx, port_rx) = tokio::sync::oneshot::channel();
 
