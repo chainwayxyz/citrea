@@ -7,7 +7,7 @@ use ethers_core::types::{BlockId, Bytes, U256};
 use ethers_signers::{LocalWallet, Signer};
 use reth_primitives::BlockNumberOrTag;
 // use sov_demo_rollup::initialize_logging;
-use sov_evm::smart_contracts::{LogsContract, SimpleStorageContract, TestContract};
+use sov_evm::smart_contracts::{HiveContract, LogsContract, SimpleStorageContract, TestContract};
 use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
 use sov_stf_runner::RollupProverConfig;
 
@@ -126,6 +126,82 @@ async fn test_eth_get_logs() -> Result<(), anyhow::Error> {
     test_getlogs(&test_client).await.unwrap();
 
     rollup_task.abort();
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_genesis_contract_call() -> Result<(), Box<dyn std::error::Error>> {
+    let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
+
+    let seq_task = tokio::spawn(async move {
+        start_rollup(
+            seq_port_tx,
+            GenesisPaths::from_dir("../../hive/genesis"),
+            BasicKernelGenesisPaths {
+                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
+            },
+            RollupProverConfig::Execute,
+            NodeMode::SequencerNode,
+            None,
+            123456,
+        )
+        .await;
+    });
+
+    let seq_port = seq_port_rx.await.unwrap();
+    let seq_test_client = make_test_client(seq_port).await;
+    // call the contract with address 0x0000000000000000000000000000000000000314
+    // call function func_019D()
+    let contract_address = Address::from_str("0x0000000000000000000000000000000000000314").unwrap();
+
+    let code = seq_test_client
+        .eth_get_code(contract_address, None)
+        .await
+        .unwrap();
+
+    println!("code: {:?}", code);
+
+    let hive_contract = HiveContract::new();
+
+    let to_deploy = seq_test_client
+        .deploy_contract(hive_contract.byte_code(), None)
+        .await
+        .unwrap();
+
+    seq_test_client.send_publish_batch_request().await;
+
+    let contract_address_new = to_deploy.await.unwrap().unwrap().contract_address.unwrap();
+
+    let new_code = seq_test_client
+        .eth_get_code(contract_address_new, None)
+        .await
+        .unwrap();
+
+    println!("new code: {:?}", new_code);
+
+    let res_new: String = seq_test_client
+        .contract_call(
+            contract_address_new,
+            hive_contract.call_const_func(1, 2, 4),
+            None,
+        )
+        .await
+        .unwrap();
+
+    println!("res new: {:?}", res_new);
+
+    let res: String = seq_test_client
+        .contract_call(
+            contract_address,
+            hive_contract.call_const_func(1, 2, 4),
+            None,
+        )
+        .await
+        .unwrap();
+
+    println!("res: {:?}", res);
+
+    seq_task.abort();
     Ok(())
 }
 
