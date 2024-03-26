@@ -37,7 +37,7 @@ struct Args {
     da_layer: SupportedDaLayer,
 
     /// The path to the rollup config.
-    #[arg(long, default_value = "mock_rollup_config.toml")]
+    #[arg(long, default_value = "configs/mock/rollup_config.toml")]
     rollup_config_path: String,
 
     /// The path to the sequencer config. If set, runs the node in sequencer mode, otherwise in full node mode.
