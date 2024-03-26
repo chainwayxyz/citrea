@@ -59,7 +59,7 @@ tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
 sov-evm = { path = "../evm" }
 soft-confirmation-rule-enforcer = { path = "../soft-confirmation-rule-enforcer" }
 sov-db = { path = "../../sovereign-sdk/full-node/db/sov-db" }
-sov-ethereum = { path = "../sov-ethereum" }
+ethereum-rpc = { path = "../ethereum-rpc" }
 sov-sequencer = { path = "../../sovereign-sdk/full-node/sov-sequencer" }
 sequencer-client = { path = "../sequencer-client" }
 citrea-sequencer = { path = "../sequencer" }

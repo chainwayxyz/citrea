@@ -1,5 +1,5 @@
 [package]
-name = "sov-ethereum"
+name = "ethereum-rpc"
 authors = { workspace = true }
 edition = { workspace = true }
 homepage = { workspace = true }

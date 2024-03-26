@@ -45,7 +45,7 @@ async fn web3_rpc_tests() -> Result<(), anyhow::Error> {
 
     let test_client = make_test_client(port).await;
 
-    let tag = sov_ethereum::get_latest_git_tag().unwrap_or_else(|_| "unknown".to_string());
+    let tag = ethereum_rpc::get_latest_git_tag().unwrap_or_else(|_| "unknown".to_string());
     let arch = std::env::consts::ARCH;
 
     assert_eq!(

@@ -1,9 +1,9 @@
 use std::str::FromStr;
 
 use anyhow::Context as _;
+use ethereum_rpc::{EthRpcConfig, FeeHistoryCacheConfig, GasPriceOracleConfig};
 use sequencer_client::SequencerClient;
 use sov_cli::wallet_state::PrivateKeyAndAddress;
-use sov_ethereum::{EthRpcConfig, FeeHistoryCacheConfig, GasPriceOracleConfig};
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
 use sov_prover_storage_manager::SnapshotManager;
@@ -41,7 +41,7 @@ pub(crate) fn register_ethereum<Da: DaService>(
         }
     };
 
-    let ethereum_rpc = sov_ethereum::get_ethereum_rpc::<DefaultContext, Da>(
+    let ethereum_rpc = ethereum_rpc::get_ethereum_rpc::<DefaultContext, Da>(
         da_service,
         eth_rpc_config,
         storage,
@@ -53,8 +53,8 @@ pub(crate) fn register_ethereum<Da: DaService>(
 }
 
 // TODO: #840
-fn eth_dev_signer() -> sov_ethereum::DevSigner {
-    sov_ethereum::DevSigner::new(vec![secp256k1::SecretKey::from_str(
+fn eth_dev_signer() -> ethereum_rpc::DevSigner {
+    ethereum_rpc::DevSigner::new(vec![secp256k1::SecretKey::from_str(
         "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
     )
     .unwrap()])

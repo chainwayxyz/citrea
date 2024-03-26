@@ -984,7 +984,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     }
 
     /// Handler for: `eth_getTransactionByHash`
-    /// RPC method is moved to sequencer and sov-ethereum modules
+    /// RPC method is moved to sequencer and ethereum-rpc modules
     pub fn get_transaction_by_hash(
         &self,
         hash: reth_primitives::B256,

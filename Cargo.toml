@@ -8,7 +8,7 @@ members = [
     "citrea/sequencer",
     "citrea/sequencer-client",
     "citrea/soft-confirmation-rule-enforcer",
-    "citrea/sov-ethereum",
+    "citrea/ethereum-rpc",
 
 
     # Sovereign sdk

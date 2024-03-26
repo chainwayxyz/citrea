@@ -3312,6 +3312,34 @@ dependencies = [
 ]
 
 [[package]]
+name = "ethereum-rpc"
+version = "0.3.0"
+dependencies = [
+ "alloy-rpc-types",
+ "anyhow",
+ "borsh",
+ "citrea-stf",
+ "ethers",
+ "jsonrpsee 0.20.3",
+ "proptest",
+ "reth-primitives",
+ "reth-rpc-types",
+ "reth-rpc-types-compat",
+ "rustc_version_runtime",
+ "schnellru",
+ "sequencer-client",
+ "serde",
+ "serde_json",
+ "sov-accounts",
+ "sov-evm",
+ "sov-modules-api",
+ "sov-rollup-interface",
+ "sov-stf-runner",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "ethereum-types"
 version = "0.14.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -10040,6 +10068,7 @@ dependencies = [
  "clap 4.5.4",
  "const-rollup-config",
  "criterion",
+ "ethereum-rpc",
  "ethereum-types",
  "ethers",
  "ethers-contract",
@@ -10073,7 +10102,6 @@ dependencies = [
  "sov-celestia-adapter",
  "sov-cli",
  "sov-db",
- "sov-ethereum",
  "sov-evm",
  "sov-ledger-rpc",
  "sov-mock-da",
@@ -10094,34 +10122,6 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber 0.3.18",
-]
-
-[[package]]
-name = "sov-ethereum"
-version = "0.3.0"
-dependencies = [
- "alloy-rpc-types",
- "anyhow",
- "borsh",
- "citrea-stf",
- "ethers",
- "jsonrpsee 0.20.3",
- "proptest",
- "reth-primitives",
- "reth-rpc-types",
- "reth-rpc-types-compat",
- "rustc_version_runtime",
- "schnellru",
- "sequencer-client",
- "serde",
- "serde_json",
- "sov-accounts",
- "sov-evm",
- "sov-modules-api",
- "sov-rollup-interface",
- "sov-stf-runner",
- "tokio",
- "tracing",
 ]
 
 [[package]]
