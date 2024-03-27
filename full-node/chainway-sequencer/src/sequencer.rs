@@ -183,6 +183,19 @@ where
             "Sequencer: publishing block with {} transactions",
             rlp_txs.len()
         );
+        let da_height = da_block.header().height();
+        let (l2_height, l1_height) = match self
+            .ledger_db
+            .get_head_soft_batch()
+            .expect("Sequencer: Failed to get head soft batch")
+        {
+            Some((l2_height, sb)) => (l2_height.0 + 1, sb.da_slot_height),
+            None => (0, da_height),
+        };
+        anyhow::ensure!(
+            l1_height == da_height || l1_height + 1 == da_height,
+            "Sequencer: L1 height mismatch, expected {da_height} (or {da_height}-1), got {l1_height}",
+        );
         let batch_info = HookSoftConfirmationInfo {
             da_slot_height: da_block.header().height(),
             da_slot_hash: da_block.header().hash().into(),
@@ -198,14 +211,6 @@ where
         let signed_blob = self.make_blob(raw_message);
         let txs = vec![signed_blob.clone()];
 
-        let l2_height = match self
-            .ledger_db
-            .get_head_soft_batch()
-            .expect("Sequencer: Failed to get head soft batch")
-        {
-            Some((l2_height, _)) => l2_height.0 + 1,
-            None => 0,
-        };
         let prestate = self
             .storage_manager
             .create_storage_on_l2_height(l2_height)
@@ -385,6 +390,7 @@ where
                 );
 
                 let l1_fee_rate = self.da_service.get_fee_rate().await.unwrap();
+
                 let new_da_block = match last_finalized_height.cmp(&prev_l1_height) {
                     Ordering::Less => {
                         panic!("DA L1 height is less than Ledger finalized height");
