@@ -1,0 +1,66 @@
+[package]
+name = "citrea-sequencer"
+authors = { workspace = true }
+edition = { workspace = true }
+homepage = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+
+version = { workspace = true }
+readme = "README.md"
+publish = false
+resolver = "2"
+
+[dependencies]
+bitcoin-da = { path = "../bitcoin-da" }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+jsonrpsee = { workspace = true, features = ["http-client", "server"] }
+
+futures = { workspace = true }
+
+borsh = { workspace = true }
+digest = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+rs_merkle = { workspace = true }
+
+reth-primitives = { workspace = true }
+reth-rpc-types = { workspace = true }
+reth-transaction-pool = { workspace = true }
+reth-provider = { workspace = true }
+reth-tasks = { workspace = true }
+reth-interfaces = { workspace = true }
+reth-db = { workspace = true }
+reth-trie = { workspace = true }
+reth-rpc-types-compat = { workspace = true }
+
+ethers = { workspace = true }
+tokio = { workspace = true }
+schnellru = "0.2.1"
+
+sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface", features = [
+    "native",
+] }
+citrea-evm = { path = "../evm" }
+sov-db = { path = "../sovereign-sdk/full-node/db/sov-db", version = "0.3" }
+
+sov-stf-runner = { path = "../sovereign-sdk/full-node/sov-stf-runner" }
+
+sov-modules-stf-blueprint = { path = "../sovereign-sdk/module-system/sov-modules-stf-blueprint" }
+
+citrea-stf = { path = "../citrea-stf", features = ["native"] }
+sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api" }
+sov-accounts = { path = "../sovereign-sdk/module-system/module-implementations/sov-accounts" }
+sov-state = { path = "../sovereign-sdk/module-system/sov-state" }
+sov-mock-da = { path = "../sovereign-sdk/adapters/mock-da" }
+hex = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }
+tempfile = { workspace = true }
+
+[features]
+default = []
+local = []
+native = ["citrea-stf/native", "citrea-evm/native"]

@@ -2,70 +2,70 @@
 resolver = "2"
 members = [
     # Citrea
-    "citrea/bitcoin-da",
-    "citrea/evm",
-    "citrea/rollup",
-    "citrea/sequencer",
-    "citrea/sequencer-client",
-    "citrea/soft-confirmation-rule-enforcer",
-    "citrea/ethereum-rpc",
+    "crates/bitcoin-da",
+    "crates/evm",
+    "bin/citrea",
+    "crates/sequencer",
+    "crates/sequencer-client",
+    "crates/soft-confirmation-rule-enforcer",
+    "crates/ethereum-rpc",
     # Sovereign sdk
-    "sovereign-sdk/rollup-interface",
-    "sovereign-sdk/adapters/avail",
-    "sovereign-sdk/adapters/risc0",
-    "sovereign-sdk/adapters/celestia",
-    "sovereign-sdk/adapters/mock-da",
-    "sovereign-sdk/adapters/mock-zkvm",
+    "crates/sovereign-sdk/rollup-interface",
+    "crates/sovereign-sdk/adapters/avail",
+    "crates/sovereign-sdk/adapters/risc0",
+    "crates/sovereign-sdk/adapters/celestia",
+    "crates/sovereign-sdk/adapters/mock-da",
+    "crates/sovereign-sdk/adapters/mock-zkvm",
     # Examples
-    "sovereign-sdk/examples/const-rollup-config",
-    "sovereign-sdk/examples/demo-simple-stf",
-    "sovereign-sdk/examples/simple-nft-module",
-    "sovereign-sdk/examples/demo-stf",
+    "crates/sovereign-sdk/examples/const-rollup-config",
+    "crates/sovereign-sdk/examples/demo-simple-stf",
+    "crates/sovereign-sdk/examples/simple-nft-module",
+    "crates/sovereign-sdk/examples/demo-stf",
     # Full Node
-    "sovereign-sdk/full-node/db/sov-db",
-    "sovereign-sdk/full-node/sov-sequencer",
-    "sovereign-sdk/full-node/sov-ledger-rpc",
-    "sovereign-sdk/full-node/sov-stf-runner",
-    "sovereign-sdk/full-node/sov-prover-storage-manager",
+    "crates/sovereign-sdk/full-node/db/sov-db",
+    "crates/sovereign-sdk/full-node/sov-sequencer",
+    "crates/sovereign-sdk/full-node/sov-ledger-rpc",
+    "crates/sovereign-sdk/full-node/sov-stf-runner",
+    "crates/sovereign-sdk/full-node/sov-prover-storage-manager",
     # Utils
-    "sovereign-sdk/utils/zk-cycle-macros",
-    "sovereign-sdk/utils/zk-cycle-utils",
-    "sovereign-sdk/utils/bashtestmd",
-    "sovereign-sdk/utils/rng-da-service",
+    "crates/sovereign-sdk/utils/zk-cycle-macros",
+    "crates/sovereign-sdk/utils/zk-cycle-utils",
+    "crates/sovereign-sdk/utils/bashtestmd",
+    "crates/sovereign-sdk/utils/rng-da-service",
     # Module System
-    "sovereign-sdk/module-system/sov-cli",
-    "sovereign-sdk/module-system/sov-modules-stf-blueprint",
-    "sovereign-sdk/module-system/sov-modules-rollup-blueprint",
-    "sovereign-sdk/module-system/sov-modules-macros",
-    "sovereign-sdk/module-system/sov-modules-core",
-    "sovereign-sdk/module-system/sov-soft-confirmations-kernel",
-    "sovereign-sdk/module-system/sov-state",
-    "sovereign-sdk/module-system/sov-modules-api",
-    "sovereign-sdk/module-system/module-schemas",
-    "sovereign-sdk/module-system/utils/sov-data-generators",
-    "sovereign-sdk/module-system/module-implementations/sov-accounts",
-    "sovereign-sdk/module-system/module-implementations/sov-bank",
-    "sovereign-sdk/module-system/module-implementations/sov-nft-module",
-    "sovereign-sdk/module-system/module-implementations/sov-chain-state",
-    "sovereign-sdk/module-system/module-implementations/sov-blob-storage",
-    "sovereign-sdk/module-system/module-implementations/sov-prover-incentives",
-    "sovereign-sdk/module-system/module-implementations/sov-attester-incentives",
-    "sovereign-sdk/module-system/module-implementations/sov-sequencer-registry",
-    "sovereign-sdk/module-system/module-implementations/module-template",
-    "sovereign-sdk/module-system/module-implementations/examples/sov-value-setter",
-    "sovereign-sdk/module-system/module-implementations/examples/sov-vec-setter",
-    "sovereign-sdk/module-system/module-implementations/examples/sov-accessory-state",
-    "sovereign-sdk/module-system/module-implementations/integration-tests",
+    "crates/sovereign-sdk/module-system/sov-cli",
+    "crates/sovereign-sdk/module-system/sov-modules-stf-blueprint",
+    "crates/sovereign-sdk/module-system/sov-modules-rollup-blueprint",
+    "crates/sovereign-sdk/module-system/sov-modules-macros",
+    "crates/sovereign-sdk/module-system/sov-modules-core",
+    "crates/sovereign-sdk/module-system/sov-soft-confirmations-kernel",
+    "crates/sovereign-sdk/module-system/sov-state",
+    "crates/sovereign-sdk/module-system/sov-modules-api",
+    "crates/sovereign-sdk/module-system/module-schemas",
+    "crates/sovereign-sdk/module-system/utils/sov-data-generators",
+    "crates/sovereign-sdk/module-system/module-implementations/sov-accounts",
+    "crates/sovereign-sdk/module-system/module-implementations/sov-bank",
+    "crates/sovereign-sdk/module-system/module-implementations/sov-nft-module",
+    "crates/sovereign-sdk/module-system/module-implementations/sov-chain-state",
+    "crates/sovereign-sdk/module-system/module-implementations/sov-blob-storage",
+    "crates/sovereign-sdk/module-system/module-implementations/sov-prover-incentives",
+    "crates/sovereign-sdk/module-system/module-implementations/sov-attester-incentives",
+    "crates/sovereign-sdk/module-system/module-implementations/sov-sequencer-registry",
+    "crates/sovereign-sdk/module-system/module-implementations/module-template",
+    "crates/sovereign-sdk/module-system/module-implementations/examples/sov-value-setter",
+    "crates/sovereign-sdk/module-system/module-implementations/examples/sov-vec-setter",
+    "crates/sovereign-sdk/module-system/module-implementations/examples/sov-accessory-state",
+    "crates/sovereign-sdk/module-system/module-implementations/integration-tests",
 ]
 
 [workspace.package]
 version = "0.3.0"
 edition = "2021"
-license = "MIT OR Apache-2.0"
-authors = ["Sovereign Labs <info@sovereign.xyz>"]
-homepage = "https://www.sovereign.xyz"
+license = "GPLv3"
+authors = ["Chainwa Labs <info@chainway.xyz>"]
+homepage = "https://chainway.xyz"
 publish = false
-repository = "https://github.com/sovereign-labs/sovereign-sdk"
+repository = "https://github.com/chainwayxyz/citrea"
 
 [workspace.dependencies]
 # Dependencies maintained by Sovereign
