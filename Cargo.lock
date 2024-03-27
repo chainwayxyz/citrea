@@ -1870,7 +1870,6 @@ dependencies = [
  "sha2 0.10.8",
  "soft-confirmation-rule-enforcer",
  "sov-bank",
- "sov-celestia-adapter",
  "sov-db",
  "sov-ledger-rpc",
  "sov-mock-da",

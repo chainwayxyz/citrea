@@ -13,9 +13,6 @@ default-run = "citrea"
 
 [dependencies]
 # non-optional dependencies
-sov-celestia-adapter = { path = "../../sovereign-sdk/adapters/celestia", features = [
-    "native",
-] }
 bitcoin-da = { path = "../bitcoin-da", features = ["native"] }
 sov-mock-da = { path = "../../sovereign-sdk/adapters/mock-da", features = [
     "native",
@@ -121,31 +118,12 @@ regex = "1.10"
 default = [
 ] # Deviate from convention by making the "native" feature active by default. This aligns with how this package is meant to be used (as a binary first, library second).
 
-
 bench = [
     "hex",
     "sov-risc0-adapter/bench",
     "sov-zk-cycle-macros/bench",
     "risc0/bench",
 ]
-
-[[bench]]
-name = "rollup_bench"
-path = "benches/node/rollup_bench.rs"
-harness = false
-required-features = ["bench"]
-
-[[bench]]
-name = "rollup_coarse_measure"
-path = "benches/node/rollup_coarse_measure.rs"
-harness = false
-required-features = ["bench"]
-
-[[bench]]
-name = "prover_bench"
-path = "benches/prover/prover_bench.rs"
-harness = false
-required-features = ["bench"]
 
 [[bin]]
 name = "citrea"
