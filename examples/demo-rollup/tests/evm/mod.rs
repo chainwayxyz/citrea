@@ -163,32 +163,7 @@ async fn test_genesis_contract_call() -> Result<(), Box<dyn std::error::Error>> 
 
     let hive_contract = HiveContract::new();
 
-    let to_deploy = seq_test_client
-        .deploy_contract(hive_contract.byte_code(), None)
-        .await
-        .unwrap();
-
-    seq_test_client.send_publish_batch_request().await;
-
-    let contract_address_new = to_deploy.await.unwrap().unwrap().contract_address.unwrap();
-
-    let new_code = seq_test_client
-        .eth_get_code(contract_address_new, None)
-        .await
-        .unwrap();
-
-    println!("new code: {:?}", new_code);
-
-    let res_new: String = seq_test_client
-        .contract_call(
-            contract_address_new,
-            hive_contract.call_const_func(1, 2, 4),
-            None,
-        )
-        .await
-        .unwrap();
-
-    println!("res new: {:?}", res_new);
+    let expected = "0x000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000004";
 
     let res: String = seq_test_client
         .contract_call(
@@ -198,9 +173,8 @@ async fn test_genesis_contract_call() -> Result<(), Box<dyn std::error::Error>> 
         )
         .await
         .unwrap();
-
-    println!("res: {:?}", res);
-
+    let expected_res = "0x000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000004";
+    assert_eq!(res, expected_res);
     seq_task.abort();
     Ok(())
 }
