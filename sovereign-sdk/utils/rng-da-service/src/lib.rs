@@ -159,19 +159,6 @@ impl DaService for RngDaService {
         unimplemented!()
     }
 
-    fn convert_rollup_batch_to_da_blob(
-        &self,
-        _blob: &[u8],
-    ) -> Result<
-        (
-            <Self::Spec as sov_rollup_interface::da::DaSpec>::BlobTransaction,
-            Vec<u8>,
-        ),
-        Self::Error,
-    > {
-        unimplemented!()
-    }
-
     async fn send_aggregated_zk_proof(&self, _proof: &[u8]) -> Result<u64, Self::Error> {
         unimplemented!()
     }

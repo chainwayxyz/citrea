@@ -512,7 +512,7 @@ impl TestClient {
     >(
         &self,
         num: u64,
-    ) -> Option<GetSoftBatchResponse<DaSpec::SlotHash>> {
+    ) -> Option<GetSoftBatchResponse> {
         self.http_client
             .request("ledger_getSoftBatchByNumber", rpc_params![num])
             .await

@@ -62,17 +62,18 @@ async fn main() -> Result<(), anyhow::Error> {
     let args = Args::parse();
     let rollup_config_path = args.rollup_config_path.as_str();
 
-    let sequencer_config: Option<SequencerConfig> = args.sequencer_config_path.map(|path| {
-        from_toml_path(path)
-            .context("Failed to read sequencer configuration")
-            .unwrap()
-    });
+    let sequencer_config: Option<SequencerConfig> =
+        args.sequencer_config_path.clone().map(|path| {
+            from_toml_path(path)
+                .context("Failed to read sequencer configuration")
+                .unwrap()
+        });
 
     let is_prover = args.prover;
     match args.da_layer {
         SupportedDaLayer::Mock => {
             let kernel_genesis_paths = &BasicKernelGenesisPaths {
-                chain_state: "../test-data/genesis/demo-tests/mock/chain_state.json".into(),
+                chain_state: (args.genesis_paths.clone() + "/chain_state.json").into(),
             };
 
             let kernel_genesis = BasicKernelGenesisConfig {
@@ -94,7 +95,7 @@ async fn main() -> Result<(), anyhow::Error> {
         }
         SupportedDaLayer::Bitcoin => {
             let kernel_genesis_paths = &BasicKernelGenesisPaths {
-                chain_state: "../test-data/genesis/demo-tests/bitcoin/chain_state.json".into(),
+                chain_state: (args.genesis_paths.clone() + "/chain_state.json").into(),
             };
 
             let kernel_genesis = BasicKernelGenesisConfig {

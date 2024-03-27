@@ -289,13 +289,6 @@ impl DaService for DaProvider {
         ((), ())
     }
 
-    fn convert_rollup_batch_to_da_blob(
-        &self,
-        _blob: &[u8],
-    ) -> Result<(<Self::Spec as DaSpec>::BlobTransaction, Vec<u8>), Self::Error> {
-        unimplemented!();
-    }
-
     async fn send_transaction(&self, blob: &[u8]) -> Result<(), Self::Error> {
         let data_transfer = api::tx()
             .data_availability()

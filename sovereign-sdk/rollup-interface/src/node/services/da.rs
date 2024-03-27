@@ -113,13 +113,6 @@ pub trait DaService: Send + Sync + 'static {
     /// Returns nothing if the transaction was successfully sent.
     async fn send_transaction(&self, blob: &[u8]) -> Result<Self::TransactionId, Self::Error>;
 
-    #[allow(clippy::type_complexity)]
-    /// Convert blob to a DA layer transaction.
-    fn convert_rollup_batch_to_da_blob(
-        &self,
-        blob: &[u8],
-    ) -> Result<(<Self::Spec as DaSpec>::BlobTransaction, Vec<u8>), Self::Error>;
-
     /// Sends am aggregated ZK proofs to the DA layer.
     async fn send_aggregated_zk_proof(
         &self,

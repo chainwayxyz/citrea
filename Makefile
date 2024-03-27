@@ -9,6 +9,11 @@ build: ## Build the the project
 clean: ## Cleans compiled
 	@cargo clean
 
+clean-node: ## Cleans local dbs needed for sequencer and nodes
+	rm -rf sequencer-db
+	rm -rf full-node-db
+	rm test-da-dbs/*.db
+
 test-legacy: ## Runs test suite with output from tests printed
 	@cargo test -- --nocapture -Zunstable-options --report-time
 
