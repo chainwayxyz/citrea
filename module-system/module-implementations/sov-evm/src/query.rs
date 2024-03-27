@@ -13,11 +13,14 @@ use reth_primitives::{
 use reth_revm::tracing::{TracingInspector, TracingInspectorConfig};
 use reth_rpc_types::other::OtherFields;
 use reth_rpc_types::trace::geth::{GethDebugTracingOptions, GethTrace};
+use reth_rpc_types::AccessListWithGasUsed;
 use reth_rpc_types_compat::block::from_primitive_with_hash;
 use revm::primitives::{
-    EVMError, ExecutionResult, HaltReason, InvalidTransaction, TransactTo, KECCAK_EMPTY,
+    CfgEnvWithHandlerCfg, EVMError, ExecutionResult, HaltReason, InvalidTransaction, TransactTo,
+    TxEnv, KECCAK_EMPTY,
 };
-use revm::DatabaseCommit;
+use revm::{Database, DatabaseCommit};
+use revm_inspectors::access_list::AccessListInspector;
 use sov_modules_api::macros::rpc_gen;
 use sov_modules_api::prelude::*;
 use sov_modules_api::WorkingSet;
@@ -30,8 +33,8 @@ use crate::evm::prepare_call_env;
 use crate::evm::primitive_types::{BlockEnv, Receipt, SealedBlock, TransactionSignedAndRecovered};
 use crate::rpc_helpers::*;
 use crate::{
-    BloomFilter, Evm, EvmChainConfig, FilterBlockOption, FilterError, MIN_CREATE_GAS,
-    MIN_TRANSACTION_GAS,
+    BloomFilter, EthResult, Evm, EvmChainConfig, FilterBlockOption, FilterError,
+    ESTIMATE_GAS_ERROR_RATIO, MIN_TRANSACTION_GAS,
 };
 
 #[rpc_gen(client, server)]
@@ -582,7 +585,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
             }
         };
 
-        let tx_env = prepare_call_env(&block_env, request.clone())?;
+        let mut tx_env = prepare_call_env(&block_env, request.clone())?;
+
+        // https://github.com/paradigmxyz/reth/issues/6574
+        tx_env.nonce = None;
 
         let cfg = self
             .cfg
@@ -600,7 +606,9 @@ impl<C: sov_modules_api::Context> Evm<C> {
             TracingInspector::new(TracingInspectorConfig::all()),
         ) {
             Ok(result) => result.result,
-            Err(err) => return Err(EthApiError::from(err).into()),
+            Err(err) => {
+                return Err(EthApiError::from(err).into());
+            }
         };
 
         Ok(ensure_success(result)?)
@@ -622,17 +630,19 @@ impl<C: sov_modules_api::Context> Evm<C> {
         Ok(block_number)
     }
 
-    /// Handler for: `eth_estimateGas`
-    // https://github.com/paradigmxyz/reth/blob/main/crates/rpc/rpc/src/eth/api/call.rs#L172
-    #[rpc_method(name = "eth_estimateGas")]
-    pub fn eth_estimate_gas(
+    /// Handler for `eth_createAccessList`
+    #[rpc_method(name = "eth_createAccessList")]
+    pub fn create_access_list(
         &self,
         request: reth_rpc_types::TransactionRequest,
         block_number: Option<BlockNumberOrTag>,
         working_set: &mut WorkingSet<C>,
-    ) -> RpcResult<reth_primitives::U64> {
-        info!("evm module: eth_estimateGas");
-        let mut block_env = match block_number {
+    ) -> RpcResult<AccessListWithGasUsed> {
+        info!("evm module: eth_createAccessList");
+
+        let mut request = request.clone();
+
+        let block_env = match block_number {
             Some(BlockNumberOrTag::Pending) => {
                 self.block_env.get(working_set).unwrap_or_default().clone()
             }
@@ -651,12 +661,107 @@ impl<C: sov_modules_api::Context> Evm<C> {
             }
         };
 
-        let tx_env = match prepare_call_env(&block_env, request.clone()) {
-            Ok(tx_env) => tx_env,
-            Err(err) => {
-                return Err(err.into());
+        let mut tx_env = prepare_call_env(&block_env, request.clone())?;
+
+        let cfg = self
+            .cfg
+            .get(working_set)
+            .expect("EVM chain config should be set");
+        let mut cfg_env = get_cfg_env(&block_env, cfg, Some(get_cfg_env_template()));
+        cfg_env.disable_block_gas_limit = true;
+        cfg_env.disable_base_fee = true;
+
+        let mut evm_db = self.get_db(working_set);
+
+        if request.gas.is_none() && tx_env.gas_price > U256::ZERO {
+            // if gas price is set, we need to cap the gas limit
+            cap_tx_gas_limit_with_caller_allowance(&mut evm_db, &mut tx_env)?;
+        }
+
+        let from = request.from.unwrap_or_default();
+        let to = if let Some(to) = request.to {
+            to
+        } else {
+            let account = evm_db.basic(from).unwrap_or_default();
+
+            let nonce = account.unwrap_or_default().nonce;
+            from.create(nonce)
+        };
+
+        // can consume the list since we're not using the request anymore
+        let initial = request.access_list.take().unwrap_or_default();
+
+        let precompiles = get_precompiles(cfg_env.handler_cfg.spec_id);
+        let mut inspector = AccessListInspector::new(initial, from, to, precompiles);
+
+        let result = inspect(
+            &mut evm_db,
+            cfg_env.clone(),
+            block_env.clone().into(),
+            tx_env.clone(),
+            &mut inspector,
+        )
+        .map_err(EthApiError::from)?;
+
+        match result.result {
+            ExecutionResult::Halt { reason, .. } => Err(match reason {
+                HaltReason::NonceOverflow => RpcInvalidTransactionError::NonceMaxValue,
+                halt => RpcInvalidTransactionError::EvmHalt(halt),
+            }),
+            ExecutionResult::Revert { output, .. } => {
+                Err(RpcInvalidTransactionError::Revert(RevertError::new(output)))
+            }
+            ExecutionResult::Success { .. } => Ok(()),
+        }?;
+
+        let access_list = inspector.into_access_list();
+
+        request.access_list = Some(access_list.clone());
+
+        let gas_used = self.estimate_gas_with_env(
+            request,
+            block_env.clone(),
+            cfg_env,
+            &mut tx_env,
+            working_set,
+        )?;
+
+        Ok(AccessListWithGasUsed {
+            access_list,
+            gas_used: U256::from(gas_used),
+        })
+    }
+
+    /// Handler for: `eth_estimateGas`
+    // https://github.com/paradigmxyz/reth/blob/main/crates/rpc/rpc/src/eth/api/call.rs#L172
+    #[rpc_method(name = "eth_estimateGas")]
+    pub fn eth_estimate_gas(
+        &self,
+        request: reth_rpc_types::TransactionRequest,
+        block_number: Option<BlockNumberOrTag>,
+        working_set: &mut WorkingSet<C>,
+    ) -> RpcResult<reth_primitives::U64> {
+        info!("evm module: eth_estimateGas");
+        let block_env = match block_number {
+            Some(BlockNumberOrTag::Pending) => {
+                self.block_env.get(working_set).unwrap_or_default().clone()
+            }
+            None | Some(BlockNumberOrTag::Latest) => {
+                // so we don't unnecessarily set archival version
+                self.block_env.get(working_set).unwrap_or_default().clone()
+            }
+            _ => {
+                let block = match self.get_sealed_block_by_number(block_number, working_set) {
+                    Some(block) => block,
+                    None => return Err(EthApiError::UnknownBlockNumber.into()),
+                };
+
+                working_set.set_archival_version(block.header.number);
+                BlockEnv::from(&block)
             }
         };
+
+        let mut tx_env = prepare_call_env(&block_env, request.clone())?;
 
         let cfg = self
             .cfg
@@ -664,6 +769,18 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .expect("EVM chain config should be set");
         let cfg_env = get_cfg_env(&block_env, cfg, Some(get_cfg_env_template()));
 
+        self.estimate_gas_with_env(request, block_env, cfg_env, &mut tx_env, working_set)
+    }
+
+    /// Inner gas estimator
+    pub(crate) fn estimate_gas_with_env(
+        &self,
+        request: reth_rpc_types::TransactionRequest,
+        block_env: BlockEnv,
+        cfg_env: CfgEnvWithHandlerCfg,
+        tx_env: &mut TxEnv,
+        working_set: &mut WorkingSet<C>,
+    ) -> RpcResult<reth_primitives::U64> {
         let request_gas = request.gas;
         let request_gas_price = request.gas_price;
         let env_gas_limit = block_env.gas_limit;
@@ -711,7 +828,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         // if the provided gas limit is less than computed cap, use that
         let gas_limit = std::cmp::min(U256::from(tx_env.gas_limit), highest_gas_limit);
-        block_env.gas_limit = convert_u256_to_u64(gas_limit).unwrap();
+        tx_env.gas_limit = convert_u256_to_u64(gas_limit).unwrap();
 
         let evm_db = self.get_db(working_set);
 
@@ -732,7 +849,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             // again with the block's gas limit to check if revert is gas related or not
             if request_gas.is_some() || request_gas_price.is_some() {
                 let evm_db = self.get_db(working_set);
-                return Err(map_out_of_gas_err(block_env, tx_env, cfg_env, evm_db).into());
+                return Err(map_out_of_gas_err(block_env, tx_env.clone(), cfg_env, evm_db).into());
             }
         }
 
@@ -747,7 +864,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     // again with the block's gas limit to check if revert is gas related or not
                     return if request_gas.is_some() || request_gas_price.is_some() {
                         let evm_db = self.get_db(working_set);
-                        Err(map_out_of_gas_err(block_env, tx_env, cfg_env, evm_db).into())
+                        Err(map_out_of_gas_err(block_env, tx_env.clone(), cfg_env, evm_db).into())
                     } else {
                         // the transaction did revert
                         Err(RpcInvalidTransactionError::Revert(RevertError::new(output)).into())
@@ -758,17 +875,46 @@ impl<C: sov_modules_api::Context> Evm<C> {
         };
 
         // at this point we know the call succeeded but want to find the _best_ (lowest) gas the
-        // transaction succeeds with. we  find this by doing a binary search over the
+        // transaction succeeds with. We find this by doing a binary search over the
         // possible range NOTE: this is the gas the transaction used, which is less than the
         // transaction requires to succeed
         let gas_used = result.gas_used();
-        // the lowest value is capped by the gas it takes for a transfer
-        let mut lowest_gas_limit = if tx_env.transact_to.is_create() {
-            MIN_CREATE_GAS
-        } else {
-            MIN_TRANSACTION_GAS
-        };
         let mut highest_gas_limit: u64 = highest_gas_limit.try_into().unwrap_or(u64::MAX);
+
+        // https://github.com/paradigmxyz/reth/pull/7133/files
+        // the lowest value is capped by the gas used by the unconstrained transaction
+        let mut lowest_gas_limit = gas_used.saturating_sub(1);
+
+        let gas_refund = match result {
+            ExecutionResult::Success { gas_refunded, .. } => gas_refunded,
+            _ => 0,
+        };
+        // As stated in Geth, there is a good change that the transaction will pass if we set the
+        // gas limit to the execution gas used plus the gas refund, so we check this first
+        // <https://github.com/ethereum/go-ethereum/blob/a5a4fa7032bb248f5a7c40f4e8df2b131c4186a4/eth/gasestimator/gasestimator.go#L135
+        let optimistic_gas_limit = (gas_used + gas_refund) * 64 / 63;
+        if optimistic_gas_limit < highest_gas_limit {
+            tx_env.gas_limit = optimistic_gas_limit;
+            // (result, env) = executor::transact(&mut db, env)?;
+            let curr_result = inspect(
+                self.get_db(working_set),
+                cfg_env.clone(),
+                block_env.clone().into(),
+                tx_env.clone(),
+                TracingInspector::new(TracingInspectorConfig::all()),
+            );
+            let curr_result = match curr_result {
+                Ok(result) => result,
+                Err(err) => return Err(EthApiError::from(err).into()),
+            };
+            update_estimated_gas_range(
+                curr_result.result,
+                optimistic_gas_limit,
+                &mut highest_gas_limit,
+                &mut lowest_gas_limit,
+            )?;
+        };
+
         // pick a point that's close to the estimated gas
         let mut mid_gas_limit = std::cmp::min(
             gas_used * 3,
@@ -776,6 +922,15 @@ impl<C: sov_modules_api::Context> Evm<C> {
         );
         // binary search
         while (highest_gas_limit - lowest_gas_limit) > 1 {
+            // An estimation error is allowed once the current gas limit range used in the binary
+            // search is small enough (less than 1.5% of the highest gas limit)
+            // <https://github.com/ethereum/go-ethereum/blob/a5a4fa7032bb248f5a7c40f4e8df2b131c4186a4/eth/gasestimator/gasestimator.go#L152
+            if (highest_gas_limit - lowest_gas_limit) as f64 / (highest_gas_limit as f64)
+                < ESTIMATE_GAS_ERROR_RATIO
+            {
+                break;
+            };
+
             let mut tx_env = tx_env.clone();
             tx_env.gas_limit = mid_gas_limit;
 
@@ -801,32 +956,12 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 continue;
             }
 
-            match result {
-                Ok(result) => match result.result {
-                    ExecutionResult::Success { .. } => {
-                        // cap the highest gas limit with succeeding gas limit
-                        highest_gas_limit = mid_gas_limit;
-                    }
-                    ExecutionResult::Revert { .. } => {
-                        // increase the lowest gas limit
-                        lowest_gas_limit = mid_gas_limit;
-                    }
-                    ExecutionResult::Halt { reason, .. } => {
-                        match reason {
-                            HaltReason::OutOfGas(_) => {
-                                // increase the lowest gas limit
-                                lowest_gas_limit = mid_gas_limit;
-                            }
-                            err => {
-                                // these should be unreachable because we know the transaction succeeds,
-                                // but we consider these cases an error
-                                return Err(RpcInvalidTransactionError::EvmHalt(err).into());
-                            }
-                        }
-                    }
-                },
-                Err(err) => return Err(EthApiError::from(err).into()),
-            };
+            update_estimated_gas_range(
+                result.expect("Result must be set").result,
+                mid_gas_limit,
+                &mut highest_gas_limit,
+                &mut lowest_gas_limit,
+            )?;
 
             // new midpoint
             mid_gas_limit = ((highest_gas_limit as u128 + lowest_gas_limit as u128) / 2) as u64;
@@ -922,7 +1057,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
         // EvmDB is the replacement of revm::CacheDB because cachedb requires immutable state
         // TODO: Move to CacheDB once immutable state is implemented
         let mut evm_db = self.get_db(working_set);
-        let revm_block_env = revm::primitives::BlockEnv::from(block_env);
 
         // TODO: Convert below steps to blocking task like in reth after implementing the semaphores
         let mut traces = Vec::new();
@@ -932,7 +1066,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             let (trace, state_changes) = trace_transaction(
                 opts.clone().unwrap_or_default(),
                 cfg_env.clone(),
-                revm_block_env.clone(),
+                block_env.clone().into(),
                 tx_env_with_recovered(&tx),
                 &mut evm_db,
             )?;
@@ -1463,4 +1597,43 @@ fn convert_u256_to_u64(u256: reth_primitives::U256) -> Result<u64, TryFromSliceE
     let bytes: [u8; 32] = u256.to_be_bytes();
     let bytes: [u8; 8] = bytes[24..].try_into()?;
     Ok(u64::from_be_bytes(bytes))
+}
+
+/// Updates the highest and lowest gas limits for binary search
+///  based on the result of the execution
+#[inline]
+fn update_estimated_gas_range(
+    result: ExecutionResult,
+    tx_gas_limit: u64,
+    highest_gas_limit: &mut u64,
+    lowest_gas_limit: &mut u64,
+) -> EthResult<()> {
+    match result {
+        ExecutionResult::Success { .. } => {
+            // cap the highest gas limit with succeeding gas limit
+            *highest_gas_limit = tx_gas_limit;
+        }
+        ExecutionResult::Revert { .. } => {
+            // increase the lowest gas limit
+            *lowest_gas_limit = tx_gas_limit;
+        }
+        ExecutionResult::Halt { reason, .. } => {
+            match reason {
+                HaltReason::OutOfGas(_) | HaltReason::InvalidFEOpcode => {
+                    // either out of gas or invalid opcode can be thrown dynamically if
+                    // gasLeft is too low, so we treat this as `out of gas`, we know this
+                    // call succeeds with a higher gaslimit. common usage of invalid opcode in openzeppelin <https://github.com/OpenZeppelin/openzeppelin-contracts/blob/94697be8a3f0dfcd95dfb13ffbd39b5973f5c65d/contracts/metatx/ERC2771Forwarder.sol#L360-L367>
+
+                    // increase the lowest gas limit
+                    *lowest_gas_limit = tx_gas_limit;
+                }
+                err => {
+                    // these should be unreachable because we know the transaction succeeds,
+                    // but we consider these cases an error
+                    return Err(RpcInvalidTransactionError::EvmHalt(err).into());
+                }
+            }
+        }
+    };
+    Ok(())
 }

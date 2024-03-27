@@ -492,7 +492,7 @@ mod tests {
     // use futures::{Stream, StreamExt};
     use bitcoin::block::{Header, Version};
     use bitcoin::hash_types::TxMerkleNode;
-    use bitcoin::secp256k1::KeyPair;
+    use bitcoin::secp256k1::Keypair;
     use bitcoin::string::FromHexStr;
     use bitcoin::{BlockHash, CompactTarget, Transaction};
     use sov_rollup_interface::da::DaVerifier;
@@ -618,7 +618,7 @@ mod tests {
         // The transaction was sent with this service and the tx data is stored in false_signature_txs.txt
         let da_service = get_service().await;
         let secp = bitcoin::secp256k1::Secp256k1::new();
-        let da_pubkey = KeyPair::from_secret_key(&secp, &da_service.sequencer_da_private_key)
+        let da_pubkey = Keypair::from_secret_key(&secp, &da_service.sequencer_da_private_key)
             .public_key()
             .serialize()
             .to_vec();
@@ -645,7 +645,7 @@ mod tests {
         .await;
 
         let incorrect_pub_key =
-            KeyPair::from_secret_key(&secp, &incorrect_service.sequencer_da_private_key)
+            Keypair::from_secret_key(&secp, &incorrect_service.sequencer_da_private_key)
                 .public_key()
                 .serialize()
                 .to_vec();
@@ -697,7 +697,7 @@ mod tests {
     async fn check_signature() {
         let da_service = get_service().await;
         let secp = bitcoin::secp256k1::Secp256k1::new();
-        let da_pubkey = KeyPair::from_secret_key(&secp, &da_service.sequencer_da_private_key)
+        let da_pubkey = Keypair::from_secret_key(&secp, &da_service.sequencer_da_private_key)
             .public_key()
             .serialize()
             .to_vec();

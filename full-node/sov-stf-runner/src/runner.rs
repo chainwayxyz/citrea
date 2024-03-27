@@ -60,6 +60,7 @@ where
     sequencer_client: Option<SequencerClient>,
     sequencer_pub_key: Vec<u8>,
     phantom: std::marker::PhantomData<C>,
+    include_tx_body: bool,
 }
 
 /// Represents the possible modes of execution for a zkVM program
@@ -122,6 +123,7 @@ where
         prover_service: Option<Ps>,
         sequencer_client: Option<SequencerClient>,
         sequencer_pub_key: Vec<u8>,
+        include_tx_body: bool,
     ) -> Result<Self, anyhow::Error> {
         let rpc_config = runner_config.rpc_config;
 
@@ -170,6 +172,7 @@ where
             sequencer_client,
             sequencer_pub_key,
             phantom: std::marker::PhantomData,
+            include_tx_body,
         })
     }
 
@@ -824,7 +827,8 @@ where
                 l1_fee_rate: soft_batch.l1_fee_rate,
             };
 
-            self.ledger_db.commit_soft_batch(soft_batch_receipt, true)?;
+            self.ledger_db
+                .commit_soft_batch(soft_batch_receipt, self.include_tx_body)?;
             self.ledger_db
                 .extend_l2_range_of_l1_slot(
                     SlotNumber(filtered_block.header().height()),
