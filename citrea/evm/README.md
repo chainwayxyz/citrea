@@ -14,5 +14,3 @@ This EVM crate is key of Citrea's compatibility with the EVM, while utilizing th
   - These tests are independent from [Hive](https://github.com/ethereum/hive) tests of Ethereum Foundation. We maintain them in the `hive` folder.
 
 We -mostly- use the types that are developed for [Reth](https://github.com/paradigmxyz/reth), and update them on a regular basis.
-
-Please feel free to submit a PR/issue in case you encounter a problem regarding any implementation/usage in this crate.
