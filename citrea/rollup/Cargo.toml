@@ -68,7 +68,6 @@ sov-risc0-adapter = { path = "../../sovereign-sdk/adapters/risc0", features = [
 sov-state = { path = "../../sovereign-sdk/module-system/sov-state", features = [
     "native",
 ] }
-sov-cli = { path = "../../sovereign-sdk/module-system/sov-cli" }
 clap = { workspace = true }
 secp256k1 = { workspace = true }
 
@@ -147,11 +146,6 @@ name = "prover_bench"
 path = "benches/prover/prover_bench.rs"
 harness = false
 required-features = ["bench"]
-
-[[bin]]
-name = "sov-cli"
-path = "src/sov-cli/main.rs"
-
 
 [[bin]]
 name = "citrea"

@@ -1871,7 +1871,6 @@ dependencies = [
  "soft-confirmation-rule-enforcer",
  "sov-bank",
  "sov-celestia-adapter",
- "sov-cli",
  "sov-db",
  "sov-ledger-rpc",
  "sov-mock-da",
