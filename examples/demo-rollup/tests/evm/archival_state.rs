@@ -30,6 +30,7 @@ async fn test_archival_state() -> Result<(), anyhow::Error> {
             NodeMode::SequencerNode,
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
+            true,
         )
         .await;
     });

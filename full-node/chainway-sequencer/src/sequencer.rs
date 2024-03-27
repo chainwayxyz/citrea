@@ -443,8 +443,7 @@ where
 
                         self.state_root = next_state_root;
 
-                        self.ledger_db
-                            .commit_soft_batch(soft_batch_receipt, false)?;
+                        self.ledger_db.commit_soft_batch(soft_batch_receipt, true)?;
 
                         self.mempool
                             .remove_transactions(self.db_provider.last_block_tx_hashes());
