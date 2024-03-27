@@ -8,7 +8,7 @@ use citrea_stf::genesis_config::GenesisPaths;
 use ethereum_types::H256;
 use ethers::abi::Address;
 use reth_primitives::{BlockNumberOrTag, TxHash};
-use sov_mock_da::{MockAddress, MockDaService, MockDaSpec};
+use sov_mock_da::{MockAddress, MockDaService, MockDaSpec, MockHash};
 use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
@@ -659,7 +659,7 @@ async fn test_soft_confirmations_on_different_blocks() -> Result<(), anyhow::Err
 
         if i != 1 {
             assert_eq!(last_da_slot_height, seq_soft_conf.da_slot_height);
-            assert_eq!(last_da_slot_hash, seq_soft_conf.da_slot_hash);
+            assert_eq!(last_da_slot_hash, MockHash(seq_soft_conf.da_slot_hash));
         }
 
         assert_eq!(
@@ -670,7 +670,7 @@ async fn test_soft_confirmations_on_different_blocks() -> Result<(), anyhow::Err
         assert_eq!(seq_soft_conf.da_slot_hash, full_node_soft_conf.da_slot_hash);
 
         last_da_slot_height = seq_soft_conf.da_slot_height;
-        last_da_slot_hash = seq_soft_conf.da_slot_hash;
+        last_da_slot_hash = MockHash(seq_soft_conf.da_slot_hash);
     }
 
     // publish new da block
@@ -694,10 +694,10 @@ async fn test_soft_confirmations_on_different_blocks() -> Result<(), anyhow::Err
 
         if i != 7 {
             assert_eq!(last_da_slot_height, seq_soft_conf.da_slot_height);
-            assert_eq!(last_da_slot_hash, seq_soft_conf.da_slot_hash);
+            assert_eq!(last_da_slot_hash, MockHash(seq_soft_conf.da_slot_hash));
         } else {
             assert_ne!(last_da_slot_height, seq_soft_conf.da_slot_height);
-            assert_ne!(last_da_slot_hash, seq_soft_conf.da_slot_hash);
+            assert_ne!(last_da_slot_hash, MockHash(seq_soft_conf.da_slot_hash));
         }
 
         assert_eq!(
@@ -708,7 +708,7 @@ async fn test_soft_confirmations_on_different_blocks() -> Result<(), anyhow::Err
         assert_eq!(seq_soft_conf.da_slot_hash, full_node_soft_conf.da_slot_hash);
 
         last_da_slot_height = seq_soft_conf.da_slot_height;
-        last_da_slot_hash = seq_soft_conf.da_slot_hash;
+        last_da_slot_hash = MockHash(seq_soft_conf.da_slot_hash);
     }
 
     seq_task.abort();

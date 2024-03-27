@@ -27,11 +27,11 @@ impl SequencerClient {
     pub async fn get_soft_batch<DaSpec: sov_rollup_interface::da::DaSpec>(
         &self,
         num: u64,
-    ) -> anyhow::Result<Option<GetSoftBatchResponse<DaSpec::SlotHash>>> {
-        let res: Result<Option<GetSoftBatchResponse<DaSpec::SlotHash>>, jsonrpsee::core::Error> =
-            self.client
-                .request("ledger_getSoftBatchByNumber", rpc_params![num])
-                .await;
+    ) -> anyhow::Result<Option<GetSoftBatchResponse>> {
+        let res: Result<Option<GetSoftBatchResponse>, jsonrpsee::core::Error> = self
+            .client
+            .request("ledger_getSoftBatchByNumber", rpc_params![num])
+            .await;
         tracing::error!("res: {:?}", res);
         match res {
             Ok(res) => Ok(res),
@@ -68,11 +68,12 @@ impl SequencerClient {
 }
 
 #[derive(Deserialize, Debug, Clone)]
-pub struct GetSoftBatchResponse<Hash: Into<[u8; 32]>> {
+pub struct GetSoftBatchResponse {
     #[serde(with = "hex::serde")]
     pub hash: [u8; 32],
     pub da_slot_height: u64,
-    pub da_slot_hash: Hash,
+    #[serde(with = "hex::serde")]
+    pub da_slot_hash: [u8; 32],
     #[serde(skip_serializing_if = "Option::is_none")]
     pub txs: Option<Vec<Vec<u8>>>,
     #[serde(with = "hex::serde")]
@@ -86,12 +87,12 @@ pub struct GetSoftBatchResponse<Hash: Into<[u8; 32]>> {
     pub l1_fee_rate: u64,
 }
 
-impl<Hash: Into<[u8; 32]>> From<GetSoftBatchResponse<Hash>> for SignedSoftConfirmationBatch {
-    fn from(val: GetSoftBatchResponse<Hash>) -> Self {
+impl From<GetSoftBatchResponse> for SignedSoftConfirmationBatch {
+    fn from(val: GetSoftBatchResponse) -> Self {
         SignedSoftConfirmationBatch::new(
             val.hash,
             val.da_slot_height,
-            val.da_slot_hash.into(),
+            val.da_slot_hash,
             val.pre_state_root,
             val.l1_fee_rate,
             val.txs.unwrap_or_default(),
