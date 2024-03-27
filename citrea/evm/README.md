@@ -1,6 +1,6 @@
 ## Citrea EVM
 
-This EVM crate is key of Citrea's compatibility with the EVM, while utilizing the logic implemented by the Sovereign SDK. The key features related to this crate are:
+This crate is key to Citrea's compatibility with the EVM, while utilizing the logic implemented by the Sovereign SDK. The key features related to this crate are:
 
 - Implementation of EVM logic & methods on top of Sovereign SDK's Module API
   - The way EVM-related parts work, and its implementation on `sov-modules-api` for the Sovereign SDK & rollup to function properly.

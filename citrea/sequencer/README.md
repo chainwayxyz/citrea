@@ -1,3 +1,7 @@
 ## Sequencer
 
-This crate provides the core functionality for the Citrea sequencer to run. It is also responsible for the sequencer to create the mempool, register the necessary RPC methods, produce & handle blocks & soft commitments, use its own DB logic.
+This crate defines the behaviour of Citrea sequencer.
+
+The crate is also responsible for Citrea's mempool and serving necessary information for full nodes to sync.
+
+Contrary to full nodes, the `CitreaSequencer` does not use the `StateTransitionFunction::apply_soft_batch` function, instead it drives the `State Transition Function` using its inner functions. This gives the sequencer to see the results of transactions, without making a pending soft confirmation available to other nodes.

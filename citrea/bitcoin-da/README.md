@@ -60,8 +60,7 @@ that data into the format expected by the DA verifier and returns.
 
 ## License
 
-Licensed under the [Apache License, Version
-2.0](./LICENSE).
+Licensed under the [Apache License, Version 2.0](./LICENSE).
 
 Unless you explicitly state otherwise, any contribution intentionally submitted
 for inclusion in this repository by you, as defined in the Apache-2.0 license, shall be
