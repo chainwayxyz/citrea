@@ -97,7 +97,7 @@ fn test_tx_request_fields_gas() {
     );
     assert_eq!(
         result_no_sender,
-        Err(RpcInvalidTransactionError::GasTooHigh.into())
+        Err(RpcInvalidTransactionError::NonceTooHigh.into())
     );
     working_set.unset_archival_version();
 
