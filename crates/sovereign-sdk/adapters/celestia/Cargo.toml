@@ -39,7 +39,9 @@ pin-project = { workspace = true, optional = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 sov-zk-cycle-macros = { path = "../../utils/zk-cycle-macros", version = "0.3", optional = true }
-risc0-zkvm = { workspace = true, default-features = false, features = ["std"], optional = true }
+risc0-zkvm = { workspace = true, default-features = false, features = [
+    "std",
+], optional = true }
 risc0-zkvm-platform = { workspace = true, optional = true }
 
 sov-rollup-interface = { path = "../../rollup-interface", version = "0.3" }
@@ -63,11 +65,5 @@ native = [
     "tendermint/default",
     "sov-rollup-interface/native",
 ]
-risc0 = [
-    "dep:risc0-zkvm",
-    "dep:risc0-zkvm-platform"
-]
-bench = [
-    "sov-zk-cycle-macros/bench",
-    "risc0"
-]
+risc0 = ["dep:risc0-zkvm", "dep:risc0-zkvm-platform"]
+bench = ["sov-zk-cycle-macros/bench", "risc0"]

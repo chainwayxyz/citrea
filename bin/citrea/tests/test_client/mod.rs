@@ -507,6 +507,7 @@ impl TestClient {
         eth_logs
     }
 
+    #[allow(clippy::extra_unused_type_parameters)]
     pub(crate) async fn ledger_get_soft_batch_by_number<
         DaSpec: sov_rollup_interface::da::DaSpec,
     >(

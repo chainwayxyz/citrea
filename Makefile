@@ -48,7 +48,7 @@ check-features: ## Checks that project compiles with all combinations of feature
 	cargo hack check --workspace --feature-powerset --exclude-features default --all-targets
 
 check-fuzz: ## Checks that fuzz member compiles
-	$(MAKE) -C sovereign-sdk/fuzz check
+	$(MAKE) -C crates/sovereign-sdk/fuzz check
 
 check-no-std: ## Checks that project compiles without std
 	$(MAKE) -C ./rollup-interface $@

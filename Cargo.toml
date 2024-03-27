@@ -2,9 +2,9 @@
 resolver = "2"
 members = [
     # Citrea
+    "bin/citrea",
     "crates/bitcoin-da",
     "crates/evm",
-    "bin/citrea",
     "crates/sequencer",
     "crates/sequencer-client",
     "crates/soft-confirmation-rule-enforcer",
