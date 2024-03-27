@@ -405,10 +405,6 @@ where
                 filtered_block.header().height()
             );
 
-            info!(
-                "Corresponding soft: {:?}",
-                Into::<sov_modules_api::SignedSoftConfirmationBatch>::into(soft_batch.clone())
-            );
             let mut data_to_commit = SlotCommit::new(filtered_block.clone());
 
             let pre_state = self.storage_manager.create_storage_on_l2_height(height)?;

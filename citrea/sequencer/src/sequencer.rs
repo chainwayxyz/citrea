@@ -334,7 +334,7 @@ where
                     .expect("Sequencer: Failed to get head soft batch")
                 {
                     Some((l2_height, _)) => l2_height.0 + 1,
-                    None => 0,
+                    None => 1,
                 };
                 let last_finalized_block = self
                     .da_service
@@ -398,7 +398,6 @@ where
                             self.storage_manager
                                 .save_change_set_l2(l2_height, slot_result.change_set)?;
 
-                            tracing::debug!("Finalizing l2 height: {:?}", l2_height);
                             self.storage_manager.finalize_l2(l2_height)?;
                             return Ok(());
                         }
