@@ -13,7 +13,7 @@ impl BlockHashTrait for BlockHashWrapper {}
 
 impl From<BlockHashWrapper> for [u8; 32] {
     fn from(val: BlockHashWrapper) -> Self {
-        *val.0.as_ref()
+        val.0.as_raw_hash().to_byte_array()
     }
 }
 

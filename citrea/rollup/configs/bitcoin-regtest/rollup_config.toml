@@ -1,5 +1,4 @@
-sequencer_public_key = "0000000000000000000000000000000000000000000000000000000000000000"
-min_soft_confirmations_per_commitment = 1000
+sequencer_public_key = "204040e364c10f2bec9c1fe500a1cd4c247c89d650a01ed7e82caba867877c21"
 include_tx_body = false
 
 [da]
@@ -8,10 +7,10 @@ node_username = "chainway"
 node_password = "topsecret"
 network = "regtest"
 address = "bcrt1q02g8qhycr0v8cnflt86kksfe2sqhm486fdkx4l"
-sequencer_da_private_key = "E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67FC233AA33262"
+
 [storage]
 # The path to the rollup's data directory. Paths that do not begin with `/` are interpreted as relative paths.
-path = "demo_data"
+path = "full-node-db"
 
 # We define the rollup's genesis to occur at block number `start_height`. The rollup will ignore
 # any blocks before this height
@@ -20,8 +19,11 @@ start_height = 3
 
 [runner.rpc_config]
 # the host and port to bind the rpc server for
-bind_host = "0.0.0.0"
-bind_port = 12345
+bind_host = "127.0.0.1"
+bind_port = 12346
 
 [sequencer_client]
-url = "http://0.0.0.0:12346"
+url = "http://0.0.0.0:12345"
+
+[prover_service]
+aggregated_proof_block_jump = 1

@@ -8,8 +8,6 @@ echo "Publishing da blocks every 60 seconds"
 echo "Sequencer URL: $SEQUENCER_URL"
 
 while true; do
-    sleep $SLEEP_DURATION
-
     curl -s -o /dev/null --location $SEQUENCER_URL \
         --header 'Content-Type: application/json' \
         --data '{
@@ -18,5 +16,5 @@ while true; do
         "params": [],
         "id": 1
         }'
-
+    sleep $SLEEP_DURATION
 done

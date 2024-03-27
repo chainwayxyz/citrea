@@ -373,25 +373,6 @@ impl DaService for MockDaService {
         Ok(())
     }
 
-    /// Convert Batch to a DA layer blob.
-    fn convert_rollup_batch_to_da_blob(
-        &self,
-        blob: &[u8],
-    ) -> Result<
-        (
-            <Self::Spec as sov_rollup_interface::da::DaSpec>::BlobTransaction,
-            Vec<u8>,
-        ),
-        Self::Error,
-    > {
-        let blob = MockBlob::new(
-            blob.to_vec(),
-            self.sequencer_da_address,
-            hash_to_array(blob),
-        );
-        Ok((blob, vec![]))
-    }
-
     async fn send_aggregated_zk_proof(&self, proof: &[u8]) -> Result<u64, Self::Error> {
         self.add_blob(Default::default(), proof.to_vec()).await
     }

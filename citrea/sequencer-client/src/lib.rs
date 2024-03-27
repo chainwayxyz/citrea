@@ -32,7 +32,7 @@ impl SequencerClient {
             self.client
                 .request("ledger_getSoftBatchByNumber", rpc_params![num])
                 .await;
-
+        tracing::error!("res: {:?}", res);
         match res {
             Ok(res) => Ok(res),
             Err(e) => match e {

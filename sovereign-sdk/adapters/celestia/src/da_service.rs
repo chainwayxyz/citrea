@@ -270,19 +270,6 @@ impl DaService for CelestiaService {
         Ok(())
     }
 
-    fn convert_rollup_batch_to_da_blob(
-        &self,
-        _blob: &[u8],
-    ) -> Result<
-        (
-            <Self::Spec as sov_rollup_interface::da::DaSpec>::BlobTransaction,
-            Vec<u8>,
-        ),
-        Self::Error,
-    > {
-        unimplemented!();
-    }
-
     async fn send_aggregated_zk_proof(&self, aggregated_proof: &[u8]) -> Result<u64, Self::Error> {
         let gas_limit = get_gas_limit_for_bytes(aggregated_proof.len()) as u64;
         let fee = gas_limit * GAS_PRICE as u64;
