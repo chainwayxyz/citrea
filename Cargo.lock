@@ -1839,6 +1839,7 @@ dependencies = [
  "clap 4.5.4",
  "const-rollup-config",
  "criterion",
+ "demo-stf",
  "ethereum-rpc",
  "ethereum-types",
  "ethers",

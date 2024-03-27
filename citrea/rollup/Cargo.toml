@@ -24,6 +24,9 @@ const-rollup-config = { path = "../../sovereign-sdk/examples/const-rollup-config
 sov-stf-runner = { path = "../../sovereign-sdk/full-node/sov-stf-runner", features = [
     "native",
 ] }
+demo-stf = { path = "../../sovereign-sdk/examples/demo-stf", features = [
+    "native",
+] }
 sov-rollup-interface = { path = "../../sovereign-sdk/rollup-interface", features = [
     "native",
 ] }
