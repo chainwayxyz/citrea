@@ -174,7 +174,7 @@ where
 
     async fn produce_l2_block(
         &mut self,
-        last_finalized_block: <Da as DaService>::FilteredBlock,
+        da_block: <Da as DaService>::FilteredBlock,
         l1_fee_rate: u64,
         rlp_txs: Vec<RlpEvmTransaction>,
     ) -> Result<(), anyhow::Error> {
@@ -183,8 +183,8 @@ where
             rlp_txs.len()
         );
         let batch_info = HookSoftConfirmationInfo {
-            da_slot_height: last_finalized_block.header().height(),
-            da_slot_hash: last_finalized_block.header().hash().into(),
+            da_slot_height: da_block.header().height(),
+            da_slot_hash: da_block.header().hash().into(),
             pre_state_root: self.state_root.clone().as_ref().to_vec(),
             pub_key: self.sov_tx_signer_priv_key.pub_key().try_to_vec().unwrap(),
             l1_fee_rate,
@@ -205,11 +205,6 @@ where
             Some((l2_height, _)) => l2_height.0 + 1,
             None => 0,
         };
-        let last_finalized_block = self
-            .da_service
-            .get_block_at(last_finalized_block.header().height())
-            .await
-            .unwrap();
         let prestate = self
             .storage_manager
             .create_storage_on_l2_height(l2_height)
@@ -217,7 +212,7 @@ where
 
         info!(
             "Applying soft batch on DA block: {}",
-            hex::encode(last_finalized_block.header().hash().into())
+            hex::encode(da_block.header().hash().into())
         );
 
         let pub_key = signed_batch.pub_key().clone();
@@ -227,7 +222,7 @@ where
             &self.state_root,
             prestate.clone(),
             Default::default(),
-            last_finalized_block.header(),
+            da_block.header(),
             &mut signed_batch,
         ) {
             (Ok(()), batch_workspace) => {
@@ -236,8 +231,8 @@ where
 
                 // create the unsigned batch with the txs then sign th sc
                 let unsigned_batch = UnsignedSoftConfirmationBatch::new(
-                    last_finalized_block.header().height(),
-                    last_finalized_block.header().hash().into(),
+                    da_block.header().height(),
+                    da_block.header().hash().into(),
                     self.state_root.clone().as_ref().to_vec(),
                     txs,
                     l1_fee_rate,
@@ -276,7 +271,7 @@ where
                     slot_result.state_root
                 );
 
-                let mut data_to_commit = SlotCommit::new(last_finalized_block.clone());
+                let mut data_to_commit = SlotCommit::new(da_block.clone());
                 for receipt in slot_result.batch_receipts {
                     data_to_commit.add_batch(receipt);
                 }
@@ -291,8 +286,8 @@ where
                     post_state_root: next_state_root.as_ref().to_vec(),
                     phantom_data: PhantomData::<u64>,
                     batch_hash: batch_receipt.batch_hash,
-                    da_slot_hash: last_finalized_block.header().hash(),
-                    da_slot_height: last_finalized_block.header().height(),
+                    da_slot_hash: da_block.header().hash(),
+                    da_slot_height: da_block.header().height(),
                     tx_receipts: batch_receipt.tx_receipts,
                     soft_confirmation_signature: signed_soft_batch.signature().to_vec(),
                     pub_key: signed_soft_batch.pub_key().to_vec(),
@@ -319,7 +314,7 @@ where
                 // connect L1 and L2 height
                 self.ledger_db
                     .extend_l2_range_of_l1_slot(
-                        SlotNumber(last_finalized_block.header().height()),
+                        SlotNumber(da_block.header().height()),
                         BatchNumber(l2_height),
                     )
                     .expect("Sequencer: Failed to set L1 L2 connection");
