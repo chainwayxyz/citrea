@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::marker::PhantomData;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -383,24 +384,32 @@ where
                     last_finalized_height
                 );
 
-                let last_finalized_block = self
-                    .da_service
-                    .get_block_at(last_finalized_height)
-                    .await
-                    .unwrap();
-
                 let l1_fee_rate = self.da_service.get_fee_rate().await.unwrap();
-
-                if last_finalized_height != prev_l1_height {
-                    let previous_l1_block =
-                        self.da_service.get_block_at(prev_l1_height).await.unwrap();
-
-                    // Compare if there is no skip
-                    if last_finalized_block.header().prev_hash()
-                        != previous_l1_block.header().hash()
-                    {
-                        // TODO: This shouldn't happen. If it does, then we should produce at least 1 block for the blocks in between
+                let new_da_block = match last_finalized_height.cmp(&prev_l1_height) {
+                    Ordering::Less => {
+                        panic!("DA L1 height is less than Ledger finalized height");
                     }
+                    Ordering::Equal => None,
+                    Ordering::Greater => {
+                        // Compare if there is no skip
+                        if last_finalized_height - prev_l1_height > 1 {
+                            // This shouldn't happen. If it does, then we should produce at least 1 block for the blocks in between
+                            for skipped_height in (prev_l1_height + 1)..last_finalized_height {
+                                debug!(
+                                    "Sequencer: publishing empty L2 for skipped L1 block: {:?}",
+                                    skipped_height
+                                );
+                                let da_block =
+                                    self.da_service.get_block_at(skipped_height).await.unwrap();
+                                self.produce_l2_block(da_block, l1_fee_rate, vec![]).await?;
+                            }
+                        }
+                        let prev_l1_height = last_finalized_height - 1;
+                        Some(prev_l1_height)
+                    }
+                };
+
+                if let Some(prev_l1_height) = new_da_block {
                     debug!("Sequencer: new L1 block, checking if commitment should be submitted");
 
                     let commitment_info = commitment_controller::get_commitment_info(
@@ -464,6 +473,12 @@ where
                     })
                     .map(|rlp| RlpEvmTransaction { rlp })
                     .collect();
+
+                let last_finalized_block = self
+                    .da_service
+                    .get_block_at(last_finalized_height)
+                    .await
+                    .unwrap();
 
                 self.produce_l2_block(last_finalized_block, l1_fee_rate, rlp_txs)
                     .await?;
