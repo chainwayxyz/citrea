@@ -2,11 +2,10 @@ use core::fmt::Debug as DebugTrait;
 
 use anyhow::{anyhow, Context as _};
 use bitcoin_da::service::DaServiceConfig;
-use citrea::{initialize_logging, BitcoinRollup, CelestiaDemoRollup, MockDemoRollup};
+use citrea::{initialize_logging, BitcoinRollup, MockDemoRollup};
 use citrea_sequencer::SequencerConfig;
 use citrea_stf::genesis_config::GenesisPaths;
 use clap::Parser;
-use sov_celestia_adapter::CelestiaConfig;
 use sov_mock_da::MockDaConfig;
 use sov_modules_api::runtime::capabilities::Kernel;
 use sov_modules_api::Spec;
@@ -52,7 +51,6 @@ struct Args {
 
 #[derive(clap::ValueEnum, Clone, Debug)]
 enum SupportedDaLayer {
-    Celestia,
     Mock,
     Bitcoin,
 }
@@ -108,28 +106,6 @@ async fn main() -> Result<(), anyhow::Error> {
             };
 
             start_rollup::<BitcoinRollup, DaServiceConfig>(
-                &GenesisPaths::from_dir(&args.genesis_paths),
-                kernel_genesis,
-                rollup_config_path,
-                RollupProverConfig::Execute,
-                sequencer_config,
-                is_prover,
-            )
-            .await?;
-        }
-        SupportedDaLayer::Celestia => {
-            let kernel_genesis_paths = &BasicKernelGenesisPaths {
-                chain_state: (args.genesis_paths.clone() + "/chain_state.json").into(),
-            };
-
-            let kernel_genesis = BasicKernelGenesisConfig {
-                chain_state: serde_json::from_str(
-                    &std::fs::read_to_string(&kernel_genesis_paths.chain_state)
-                        .context("Failed to read chain state")?,
-                )?,
-            };
-
-            start_rollup::<CelestiaDemoRollup, CelestiaConfig>(
                 &GenesisPaths::from_dir(&args.genesis_paths),
                 kernel_genesis,
                 rollup_config_path,

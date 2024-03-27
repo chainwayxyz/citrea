@@ -2,7 +2,9 @@
 ![](assets/citrea-logo.png)
 
 ## Instructions
+
 Clone the repository
+
 ```sh
 git clone https://github.com/chainwayxyz/citrea.git
 ```
