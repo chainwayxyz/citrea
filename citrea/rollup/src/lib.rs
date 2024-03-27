@@ -1,5 +1,5 @@
 #![deny(missing_docs)]
-#![doc = include_str!("../../../README.md")]
+#![doc = include_str!("../README.md")]
 
 use std::env;
 use std::str::FromStr;
