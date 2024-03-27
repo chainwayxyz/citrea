@@ -1067,6 +1067,7 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
             NodeMode::SequencerNode,
             None,
             4,
+            true,
         )
         .await;
     });
@@ -1087,6 +1088,7 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
             NodeMode::Prover(seq_port),
             None,
             4,
+            true,
         )
         .await;
     });
@@ -1168,6 +1170,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
             NodeMode::SequencerNode,
             None,
             4,
+            true,
         )
         .await;
     });
@@ -1188,6 +1191,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
             NodeMode::Prover(seq_port),
             Some("demo_data_test_reopen_prover"),
             4,
+            true,
         )
         .await;
     });
@@ -1240,6 +1244,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
             NodeMode::Prover(seq_port),
             Some("demo_data_test_reopen_prover_copy"),
             4,
+            true,
         )
         .await;
     });
@@ -1282,6 +1287,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
             NodeMode::Prover(seq_port),
             Some("demo_data_test_reopen_prover_copy2"),
             4,
+            true,
         )
         .await;
     });
