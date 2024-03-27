@@ -75,8 +75,6 @@ async fn sequencer_sends_commitments_to_da_layer() {
 
     da_service.publish_test_block().await.unwrap();
     test_client.send_publish_batch_request().await;
-    da_service.publish_test_block().await.unwrap();
-    test_client.send_publish_batch_request().await;
 
     let start_l2_block: u64 = 1;
     let end_l2_block: u64 = 4; // can only be the block before the one comitment landed in
