@@ -7,9 +7,9 @@
 > [!WARNING]
 > Citrea is still work-in-progress. It has not been audited and should not be used in production under any circumstances. Many key features are under heavy development, and its proper integration with [Bitcoin](https://github.com/bitcoin/bitcoin) and [Clementine](https://github.com/chainwayxyz/clementine) is still ongoing. \
 > \
-> Please note that Citrea has not been deployed to Bitcoin or any other network - not on mainnet, not on testnet, not on devnet. \
+> Please note that Citrea has not been deployed to Bitcoin or any other network. \
 > \
-> Follow our website & social media accounts for announcements regarding testnet & mainnet phases of Citrea. Also, do not forget that Citrea **does not** have any tokens. \
+> Follow our website & social media accounts for announcements regarding testnet & mainnet phases of Citrea. Also, do not forget that Citrea **does not** have a token, uses <b><span style="color: orange;">BTC</span></b> as its native token. \
 > \
 > Please be aware of scams!
 
