@@ -59,7 +59,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.3.0"
+version = "0.1.0"
 edition = "2021"
 license = "GPLv3"
 authors = ["Chainway Labs <info@chainway.xyz>"]
