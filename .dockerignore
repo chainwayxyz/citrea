@@ -2,15 +2,8 @@
 *
 
 # include source files
-!/adapters
-!/examples
-!/full-node
-!/fuzz
-!/module-system
-!/rollup-interface
-!/scripts
-!/test-da-dbs
-!/utils
+!/citrea
+!/sovereign-sdk
 !/hive
 !Cargo.lock
 !Cargo.toml

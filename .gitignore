@@ -10,6 +10,8 @@ fuzz/Cargo.lock
 .DS_Store
 
 demo_data/
+sequencer-db/
+full-node-db/
 /.vscode/*
 
 /docker/credentials/*
