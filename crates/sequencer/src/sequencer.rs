@@ -207,7 +207,7 @@ where
         // initially create sc info and call begin soft confirmation hook with it
         let call_txs = CallMessage { txs: rlp_txs };
         let raw_message =
-            <Runtime<C, Da::Spec> as EncodeCall<sov_evm::Evm<C>>>::encode_call(call_txs);
+            <Runtime<C, Da::Spec> as EncodeCall<citrea_evm::Evm<C>>>::encode_call(call_txs);
         let signed_blob = self.make_blob(raw_message);
         let txs = vec![signed_blob.clone()];
 
