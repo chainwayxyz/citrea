@@ -31,7 +31,7 @@ abstract contract Ownable {
         pendingOwner = newOwner;
         emit OwnershipTransferRequested(owner, newOwner);
     }
-    
+
     function acceptOwnership() public onlyPendingOwner {
         address old_owner = owner;
         owner = pendingOwner;
