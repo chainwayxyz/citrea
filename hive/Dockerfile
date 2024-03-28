@@ -27,14 +27,15 @@ WORKDIR /app
 RUN apt-get update && \
     apt-get install -y curl
 
-# Copy the binary from the builder stage
-COPY --from=builder /app/target/release/citrea /app/examples/demo-rollup/citrea
-
 # Copying the directory except the target directory
 COPY --from=builder /app /app
+
+# Copy the binary from the builder stage
+COPY --from=builder /app/target/release/citrea /app/bin/citrea
+
 RUN rm -rf /app/target && cargo
 
 EXPOSE 8545
 
-WORKDIR /app/examples/demo-rollup
-ENTRYPOINT ["sh", "-c", "../../hive/hive_publish_block.sh & ./citrea --genesis-paths ../../hive/genesis --rollup-config-path mock_dockerized_rollup_config.toml --sequencer-config-path mock_sequencer_config.toml"]
+WORKDIR /app/bin/citrea
+ENTRYPOINT ["sh", "-c", "chmod +x ../../hive/hive_publish_block.sh ; ../../hive/hive_publish_block.sh &  ./publish_da_block.sh & ./citrea --genesis-paths ../../hive/genesis --rollup-config-path configs/mock-dockerized/rollup_config.toml --sequencer-config-path configs/mock-dockerized/sequencer_config.toml"]
