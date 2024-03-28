@@ -15,7 +15,7 @@
 
 ## What is Citrea?
 
-Citrea is the first rolluıp that enhances the capabilities of Bitcoin blockspace with zero-knowledge technology, making it possible to build everything on Bitcoin.
+Citrea is the first rollup that enhances the capabilities of Bitcoin blockspace with zero-knowledge technology, making it possible to build everything on Bitcoin.
 
 Every transaction occuring on Citrea, is fully secured by zero-knowledge proofs and optimistically verified by Bitcoin. The execution environment of Citrea is trustless with respect to Bitcoin and is accessible to all participants of the Bitcoin Network.
 
