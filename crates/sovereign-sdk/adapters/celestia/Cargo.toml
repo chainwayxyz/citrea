@@ -54,7 +54,7 @@ sov-celestia-adapter = { path = ".", features = ["native"] }
 wiremock = "0.5"
 
 [features]
-default = []
+default = ["native"]
 native = [
     "dep:tokio",
     "dep:futures",
