@@ -791,10 +791,10 @@ fn test_l1_fee_success() {
         )
     }
 
-    let gas_used = 114235;
+    let gas_fee_paid = 114235;
 
-    run_tx(0, U256::from(885765), U256::from(gas_used));
-    run_tx(1, U256::from(885288), U256::from(gas_used + 477));
+    run_tx(0, U256::from(885765), U256::from(gas_fee_paid));
+    run_tx(1, U256::from(885288), U256::from(gas_fee_paid + 477));
 }
 
 #[test]
