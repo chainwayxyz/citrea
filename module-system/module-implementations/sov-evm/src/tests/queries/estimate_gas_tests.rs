@@ -87,6 +87,7 @@ fn test_tx_request_fields_gas() {
 
     let tx_req_no_sender = TransactionRequest {
         from: None,
+        nonce: None,
         ..tx_req_contract_call.clone()
     };
 
@@ -95,10 +96,7 @@ fn test_tx_request_fields_gas() {
         Some(BlockNumberOrTag::Latest),
         &mut working_set,
     );
-    assert_eq!(
-        result_no_sender,
-        Err(RpcInvalidTransactionError::NonceTooHigh.into())
-    );
+    assert_eq!(result_no_sender.unwrap(), Uint::from_str("0x6601").unwrap());
     working_set.unset_archival_version();
 
     let tx_req_no_recipient = TransactionRequest {
