@@ -2,9 +2,12 @@ sequencer_public_key = "204040e364c10f2bec9c1fe500a1cd4c247c89d650a01ed7e82caba8
 include_tx_body = false
 
 [da]
-node_url = "http://localhost:38332"
-node_username = "chainway"
-node_password = "topsecret"
+# fill here
+node_url = ""
+# fill here
+node_username = ""
+# fill here                                       
+node_password = ""
 network = "regtest"
 address = "bcrt1q02g8qhycr0v8cnflt86kksfe2sqhm486fdkx4l"
 

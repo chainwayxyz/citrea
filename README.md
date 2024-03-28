@@ -14,7 +14,7 @@ Citrea's vision is to build scalable infrastructure that advances Bitcoin into i
 
 ## FAQ
 
-|Question| |
+|Question| Answer |
 |--------|-|
 |How do I set up the development environment?| [dev-setup.md](./docs/dev-setup.md)|
 |How do I run Citrea for testing and development?| [run.md](./docs/run.md) |

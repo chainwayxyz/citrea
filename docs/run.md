@@ -41,19 +41,31 @@ Run on local Bitcoin network.
 
 Run Bitcoin Regtest:
 ```sh
-bitcoind -regtest -rpcuser=chainway -rpcpassword=topsecret -rpcport=38332 -txindex=1
+bitcoind -regtest -txindex=1
 ```
 Keep this terminal open.
 
 Create bitcoin wallet for Bitcoin DA adapter.
 ```sh
-bitcoin-cli -regtest  -rpcuser=chainway -rpcpassword=topsecret -rpcport=38332 createwallet citreatesting
-bitcoin-cli -regtest  -rpcuser=chainway -rpcpassword=topsecret -rpcport=38332 loadwallet citreatesting
+bitcoin-cli -regtest createwallet citreatesting
+bitcoin-cli -regtest loadwallet citreatesting
 ```
 
 Mine blocks so that the wallet has BTC:
 ```sh
-bitcoin-cli -regtest  -rpcuser=chainway -rpcpassword=topsecret -rpcport=38332 -generate 201
+bitcoin-cli -regtest -generate 201
+```
+
+Edit `bin/citrea/configs/bitcoin-regtest/sequencer_rollup_config.toml` and `bin/citrea/configs/bitcoin-regtest/sequencer_rollup_config.toml` files and put in your rpc url, username and password:
+
+```toml
+[da]
+# fill here
+node_url = ""
+# fill here
+node_username = ""
+# fill here                                       
+node_password = ""
 ```
 
 Run sequencer:
