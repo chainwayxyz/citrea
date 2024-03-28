@@ -13,7 +13,7 @@ error[E0277]: the trait bound `S: sov_modules_api::Context` is not satisfied
    |                ^ the trait `sov_modules_api::Context` is not implemented for `S`
    |
 note: required by a bound in `sov_modules_api::Genesis::Context`
-  --> $WORKSPACE/sovereign-sdk/module-system/sov-modules-core/src/module/mod.rs
+  --> $WORKSPACE/crates/sovereign-sdk/module-system/sov-modules-core/src/module/mod.rs
    |
    |     type Context: Context;
    |                   ^^^^^^^ required by this bound in `Genesis::Context`
@@ -35,7 +35,7 @@ note: required because it appears within the type `PhantomData<<S as TestSpec>::
    | pub struct PhantomData<T: ?Sized>;
    |            ^^^^^^^^^^^
 note: required because it appears within the type `sov_modules_api::StateValue<<S as TestSpec>::Data>`
-  --> $WORKSPACE/sovereign-sdk/module-system/sov-modules-api/src/containers/value.rs
+  --> $WORKSPACE/crates/sovereign-sdk/module-system/sov-modules-api/src/containers/value.rs
    |
    | pub struct StateValue<V, Codec = BorshCodec> {
    |            ^^^^^^^^^^
@@ -50,7 +50,7 @@ note: required because it appears within the type `Runtime<S, C>`
 99 | struct Runtime<S: TestSpec, C: Context> {
    |        ^^^^^^^
 note: required by a bound in `sov_modules_api::DispatchCall`
-  --> $WORKSPACE/sovereign-sdk/module-system/sov-modules-core/src/module/dispatch.rs
+  --> $WORKSPACE/crates/sovereign-sdk/module-system/sov-modules-core/src/module/dispatch.rs
    |
    | pub trait DispatchCall: Send + Sync {
    |                                ^^^^ required by this bound in `DispatchCall`
@@ -72,7 +72,7 @@ note: required because it appears within the type `PhantomData<<S as TestSpec>::
    | pub struct PhantomData<T: ?Sized>;
    |            ^^^^^^^^^^^
 note: required because it appears within the type `sov_modules_api::StateValue<<S as TestSpec>::Data>`
-  --> $WORKSPACE/sovereign-sdk/module-system/sov-modules-api/src/containers/value.rs
+  --> $WORKSPACE/crates/sovereign-sdk/module-system/sov-modules-api/src/containers/value.rs
    |
    | pub struct StateValue<V, Codec = BorshCodec> {
    |            ^^^^^^^^^^
@@ -87,7 +87,7 @@ note: required because it appears within the type `Runtime<S, C>`
 99 | struct Runtime<S: TestSpec, C: Context> {
    |        ^^^^^^^
 note: required by a bound in `sov_modules_api::DispatchCall`
-  --> $WORKSPACE/sovereign-sdk/module-system/sov-modules-core/src/module/dispatch.rs
+  --> $WORKSPACE/crates/sovereign-sdk/module-system/sov-modules-core/src/module/dispatch.rs
    |
    | pub trait DispatchCall: Send + Sync {
    |                         ^^^^ required by this bound in `DispatchCall`
@@ -103,7 +103,7 @@ error[E0277]: the trait bound `S: sov_modules_api::Context` is not satisfied
    |                ^ the trait `sov_modules_api::Context` is not implemented for `S`
    |
 note: required by a bound in `sov_modules_api::DispatchCall::Context`
-  --> $WORKSPACE/sovereign-sdk/module-system/sov-modules-core/src/module/dispatch.rs
+  --> $WORKSPACE/crates/sovereign-sdk/module-system/sov-modules-core/src/module/dispatch.rs
    |
    |     type Context: Context;
    |                   ^^^^^^^ required by this bound in `DispatchCall::Context`
@@ -125,7 +125,7 @@ note: required because it appears within the type `RuntimeCall<S, C>`
 97 | #[derive(Genesis, DispatchCall, MessageCodec, DefaultRuntime)]
    |                   ^^^^^^^^^^^^
 note: required by a bound in `sov_modules_api::DispatchCall::Decodable`
-  --> $WORKSPACE/sovereign-sdk/module-system/sov-modules-core/src/module/dispatch.rs
+  --> $WORKSPACE/crates/sovereign-sdk/module-system/sov-modules-core/src/module/dispatch.rs
    |
    |     type Decodable: Send + Sync;
    |                            ^^^^ required by this bound in `DispatchCall::Decodable`
@@ -148,7 +148,7 @@ note: required because it appears within the type `RuntimeCall<S, C>`
 97 | #[derive(Genesis, DispatchCall, MessageCodec, DefaultRuntime)]
    |                   ^^^^^^^^^^^^
 note: required by a bound in `sov_modules_api::DispatchCall::Decodable`
-  --> $WORKSPACE/sovereign-sdk/module-system/sov-modules-core/src/module/dispatch.rs
+  --> $WORKSPACE/crates/sovereign-sdk/module-system/sov-modules-core/src/module/dispatch.rs
    |
    |     type Decodable: Send + Sync;
    |                     ^^^^ required by this bound in `DispatchCall::Decodable`
@@ -214,7 +214,7 @@ error[E0277]: the trait bound `S: sov_modules_api::Context` is not satisfied
    |          ^^^^^^^ the trait `sov_modules_api::Context` is not implemented for `S`
    |
 note: required by a bound in `sov_modules_api::WorkingSet`
-  --> $WORKSPACE/sovereign-sdk/module-system/sov-modules-core/src/storage/scratchpad.rs
+  --> $WORKSPACE/crates/sovereign-sdk/module-system/sov-modules-core/src/storage/scratchpad.rs
    |
    | pub struct WorkingSet<C: Context> {
    |                          ^^^^^^^ required by this bound in `WorkingSet`
@@ -231,7 +231,7 @@ error[E0277]: the trait bound `S: sov_modules_api::Context` is not satisfied
    |                   ^^^^^^^^^^^^ the trait `sov_modules_api::Context` is not implemented for `S`
    |
 note: required by a bound in `sov_modules_api::WorkingSet`
-  --> $WORKSPACE/sovereign-sdk/module-system/sov-modules-core/src/storage/scratchpad.rs
+  --> $WORKSPACE/crates/sovereign-sdk/module-system/sov-modules-core/src/storage/scratchpad.rs
    |
    | pub struct WorkingSet<C: Context> {
    |                          ^^^^^^^ required by this bound in `WorkingSet`
@@ -248,7 +248,7 @@ error[E0277]: the trait bound `S: sov_modules_api::Context` is not satisfied
    | ^^^^^^^^^^^^^ the trait `sov_modules_api::Context` is not implemented for `S`
    |
 note: required by a bound in `sov_modules_api::WorkingSet`
-  --> $WORKSPACE/sovereign-sdk/module-system/sov-modules-core/src/storage/scratchpad.rs
+  --> $WORKSPACE/crates/sovereign-sdk/module-system/sov-modules-core/src/storage/scratchpad.rs
    |
    | pub struct WorkingSet<C: Context> {
    |                          ^^^^^^^ required by this bound in `WorkingSet`
