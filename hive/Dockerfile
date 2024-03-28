@@ -1,4 +1,4 @@
-FROM lukemathwalker/cargo-chef:latest-rust-1.76.0 AS chef
+FROM lukemathwalker/cargo-chef:latest-rust-1.77.0 AS chef
 WORKDIR /app
 
 # Builds a cargo-chef plan
@@ -20,21 +20,22 @@ COPY . .
 RUN SKIP_GUEST_BUILD=1 cargo build --release --bin citrea
 
 # We need cargo to run the binary because of some path finding dependencies
-FROM rust:1.76 AS runtime
+FROM rust:1.77 AS runtime
 WORKDIR /app
 
 # Install curl
 RUN apt-get update && \
     apt-get install -y curl
 
-# Copy the binary from the builder stage
-COPY --from=builder /app/target/release/citrea /app/examples/demo-rollup/citrea
-
 # Copying the directory except the target directory
 COPY --from=builder /app /app
+
+# Copy the binary from the builder stage
+COPY --from=builder /app/target/release/citrea /app/bin/citrea
+
 RUN rm -rf /app/target && cargo
 
 EXPOSE 8545
 
-WORKDIR /app/examples/demo-rollup
-ENTRYPOINT ["sh", "-c", "../../hive/hive_publish_block.sh & ./citrea --genesis-paths ../../hive/genesis --rollup-config-path mock_dockerized_rollup_config.toml --sequencer-config-path mock_sequencer_config.toml"]
+WORKDIR /app/bin/citrea
+ENTRYPOINT ["sh", "-c", "chmod +x ../../hive/hive_publish_block.sh ; ../../hive/hive_publish_block.sh &  ./publish_da_block.sh & ./citrea --genesis-paths ../../hive/genesis --rollup-config-path configs/mock-dockerized/rollup_config.toml --sequencer-config-path configs/mock-dockerized/sequencer_config.toml"]
