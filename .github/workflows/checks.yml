@@ -177,13 +177,13 @@ jobs:
 
       - name: Run Forge build
         run: |
-          cd citrea/evm/src/evm/system_contracts
+          cd crates/evm/src/evm/system_contracts
           forge --version
           forge build --sizes
         id: build
 
       - name: Run Forge tests
         run: |
-          cd citrea/evm/src/evm/system_contracts
+          cd crates/evm/src/evm/system_contracts
           forge test -vvv
         id: test

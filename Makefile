@@ -51,8 +51,8 @@ check-fuzz: ## Checks that fuzz member compiles
 	$(MAKE) -C crates/sovereign-sdk/fuzz check
 
 check-no-std: ## Checks that project compiles without std
-	$(MAKE) -C ./rollup-interface $@
-	$(MAKE) -C ./module-system/sov-modules-core $@
+	$(MAKE) -C crates/sovereign-sdk/rollup-interface $@
+	$(MAKE) -C crates/sovereign-sdk/module-system/sov-modules-core $@
 
 find-unused-deps: ## Prints unused dependencies for project. Note: requires nightly
 	cargo +nightly udeps --all-targets --all-features
@@ -65,9 +65,6 @@ coverage: ## Coverage in lcov format
 
 coverage-html: ## Coverage in HTML format
 	cargo llvm-cov --locked --all-features --html
-
-dry-run-publish: 
-	yq '.[]' packages_to_publish.yml | xargs -I _ cargo publish --allow-dirty --dry-run -p _
 
 docs:  ## Generates documentation locally
 	cargo doc --open

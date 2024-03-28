@@ -89,6 +89,10 @@ To publish blocks on Bitcoin Regtest, run this and keep the terminal open:
  ./citrea/rollup/publish_block.sh
 ```
 
+To delete sequencer or full nodes databases run:
+```sh
+make clean-node
+```
 
 ## Testing
 
