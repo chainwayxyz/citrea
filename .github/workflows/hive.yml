@@ -50,13 +50,13 @@ jobs:
           path: ./artifacts
 
   test:
-    timeout-minutes: 15
+    timeout-minutes: 120
     strategy:
       fail-fast: false
 
     needs: prepare
     name: run
-    runs-on: ubicloud-standard-4
+    runs-on: ubicloud-standard-8
     permissions:
       issues: write
     steps:
