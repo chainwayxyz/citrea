@@ -9,7 +9,7 @@
 > \
 > Please note that Citrea has not been deployed to Bitcoin or any other network yet. \
 > \
-> Follow our website & social media accounts for announcements regarding testnet & mainnet phases of Citrea. \
+> Follow our [website](https://citrea.xyz) & [social media accounts](https://twitter.com/citrea_xyz) for announcements regarding testnet & mainnet phases of Citrea. \
 > \
 > Citrea uses **BTC** as its native token. **There's no Citrea token**. Please beware of scams!
 
