@@ -16,12 +16,11 @@ Every transaction occuring on Citrea, is fully secured by zero-knowledge proofs 
 Citrea's vision is to build scalable infrastructure that advances Bitcoin into its next phase, foundation for world's finance. Citrea represents Bitcoin Security at Scale with its execution shard that keeps the settlement and data availability on-chain, on-Bitcoin.
 
 ## FAQ
-
 | Question                                         | Answer                                                                                                                     |
 | ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
 | How do I set up the development environment?     | [dev-setup.md](./docs/dev-setup.md)                                                                                        |
 | How do I run Citrea for testing and development? | [run.md](./docs/run.md)                                                                                                    |
-| Where can I read more about the architecture?    | Technical docs for the repo are in progress, in the meantime refer to [our official documentation](htps://docs.citrea.xyz) |
+| Where can I read more about the architecture?    | Technical docs for the repo are in progress, in the meantime refer to [our official documentation](https://docs.citrea.xyz) |
 
 ## Official Links
 
@@ -32,6 +31,5 @@ Citrea's vision is to build scalable infrastructure that advances Bitcoin into i
 - [Discord](https://discord.citrea.xyz)
 
 ## Acknowledments
-
-- [Sovereign SDK](https://github.com/Sovereign-Labs/sovereign-sdk):
-- [Reth](https://github.com/paradigmxyz/reth/issues/5746):
+- [Sovereign SDK](https://github.com/Sovereign-Labs/sovereign-sdk): 
+- [Reth](https://github.com/paradigmxyz/reth): 
