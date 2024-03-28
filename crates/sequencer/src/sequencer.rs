@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::marker::PhantomData;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -172,6 +173,169 @@ where
         Ok(())
     }
 
+    async fn produce_l2_block(
+        &mut self,
+        da_block: <Da as DaService>::FilteredBlock,
+        l1_fee_rate: u64,
+        rlp_txs: Vec<RlpEvmTransaction>,
+    ) -> Result<(), anyhow::Error> {
+        debug!(
+            "Sequencer: publishing block with {} transactions",
+            rlp_txs.len()
+        );
+        let da_height = da_block.header().height();
+        let (l2_height, l1_height) = match self
+            .ledger_db
+            .get_head_soft_batch()
+            .expect("Sequencer: Failed to get head soft batch")
+        {
+            Some((l2_height, sb)) => (l2_height.0 + 1, sb.da_slot_height),
+            None => (0, da_height),
+        };
+        anyhow::ensure!(
+            l1_height == da_height || l1_height + 1 == da_height,
+            "Sequencer: L1 height mismatch, expected {da_height} (or {da_height}-1), got {l1_height}",
+        );
+        let batch_info = HookSoftConfirmationInfo {
+            da_slot_height: da_block.header().height(),
+            da_slot_hash: da_block.header().hash().into(),
+            pre_state_root: self.state_root.clone().as_ref().to_vec(),
+            pub_key: self.sov_tx_signer_priv_key.pub_key().try_to_vec().unwrap(),
+            l1_fee_rate,
+        };
+        let mut signed_batch: SignedSoftConfirmationBatch = batch_info.clone().into();
+        // initially create sc info and call begin soft confirmation hook with it
+        let call_txs = CallMessage { txs: rlp_txs };
+        let raw_message =
+            <Runtime<C, Da::Spec> as EncodeCall<citrea_evm::Evm<C>>>::encode_call(call_txs);
+        let signed_blob = self.make_blob(raw_message);
+        let txs = vec![signed_blob.clone()];
+
+        let prestate = self
+            .storage_manager
+            .create_storage_on_l2_height(l2_height)
+            .unwrap();
+
+        info!(
+            "Applying soft batch on DA block: {}",
+            hex::encode(da_block.header().hash().into())
+        );
+
+        let pub_key = signed_batch.pub_key().clone();
+
+        match self.stf.begin_soft_batch(
+            &pub_key,
+            &self.state_root,
+            prestate.clone(),
+            Default::default(),
+            da_block.header(),
+            &mut signed_batch,
+        ) {
+            (Ok(()), batch_workspace) => {
+                let (batch_workspace, tx_receipts) =
+                    self.stf.apply_soft_batch_txs(txs.clone(), batch_workspace);
+
+                // create the unsigned batch with the txs then sign th sc
+                let unsigned_batch = UnsignedSoftConfirmationBatch::new(
+                    da_block.header().height(),
+                    da_block.header().hash().into(),
+                    self.state_root.clone().as_ref().to_vec(),
+                    txs,
+                    l1_fee_rate,
+                );
+
+                let mut signed_soft_batch = self.sign_soft_confirmation_batch(unsigned_batch);
+
+                let (batch_receipt, checkpoint) = self.stf.end_soft_batch(
+                    self.sequencer_pub_key.as_ref(),
+                    &mut signed_soft_batch,
+                    tx_receipts,
+                    batch_workspace,
+                );
+
+                // Finalize soft confirmation
+                let slot_result = self.stf.finalize_soft_batch(
+                    batch_receipt,
+                    checkpoint,
+                    prestate,
+                    &mut signed_soft_batch,
+                );
+
+                if slot_result.state_root.as_ref() == self.state_root.as_ref() {
+                    debug!("Limiting number is reached for the current L1 block. State root is the same as before, skipping");
+                    // TODO: Check if below is legit
+                    self.storage_manager
+                        .save_change_set_l2(l2_height, slot_result.change_set)?;
+
+                    tracing::debug!("Finalizing l2 height: {:?}", l2_height);
+                    self.storage_manager.finalize_l2(l2_height)?;
+                    return Ok(());
+                }
+
+                info!(
+                    "State root after applying slot: {:?}",
+                    slot_result.state_root
+                );
+
+                let mut data_to_commit = SlotCommit::new(da_block.clone());
+                for receipt in slot_result.batch_receipts {
+                    data_to_commit.add_batch(receipt);
+                }
+
+                // TODO: This will be a single receipt once we have apply_soft_batch.
+                let batch_receipt = data_to_commit.batch_receipts()[0].clone();
+
+                let next_state_root = slot_result.state_root;
+
+                let soft_batch_receipt = SoftBatchReceipt::<_, _, Da::Spec> {
+                    pre_state_root: self.state_root.as_ref().to_vec(),
+                    post_state_root: next_state_root.as_ref().to_vec(),
+                    phantom_data: PhantomData::<u64>,
+                    batch_hash: batch_receipt.batch_hash,
+                    da_slot_hash: da_block.header().hash(),
+                    da_slot_height: da_block.header().height(),
+                    tx_receipts: batch_receipt.tx_receipts,
+                    soft_confirmation_signature: signed_soft_batch.signature().to_vec(),
+                    pub_key: signed_soft_batch.pub_key().to_vec(),
+                    l1_fee_rate: signed_soft_batch.l1_fee_rate(),
+                };
+
+                // TODO: this will only work for mock da
+                // when https://github.com/Sovereign-Labs/sovereign-sdk/issues/1218
+                // is merged, rpc will access up to date storage then we won't need to finalize rigth away.
+                // however we need much better DA + finalization logic here
+                self.storage_manager
+                    .save_change_set_l2(l2_height, slot_result.change_set)?;
+
+                tracing::debug!("Finalizing l2 height: {:?}", l2_height);
+                self.storage_manager.finalize_l2(l2_height)?;
+
+                self.state_root = next_state_root;
+
+                self.ledger_db.commit_soft_batch(soft_batch_receipt, true)?;
+
+                self.mempool
+                    .remove_transactions(self.db_provider.last_block_tx_hashes());
+
+                // connect L1 and L2 height
+                self.ledger_db
+                    .extend_l2_range_of_l1_slot(
+                        SlotNumber(da_block.header().height()),
+                        BatchNumber(l2_height),
+                    )
+                    .expect("Sequencer: Failed to set L1 L2 connection");
+            }
+            (Err(err), batch_workspace) => {
+                warn!(
+                    "Failed to apply soft confirmation hook: {:?} \n reverting batch workspace",
+                    err
+                );
+                batch_workspace.revert();
+            }
+        }
+        Ok(())
+    }
+
     pub async fn run(&mut self) -> Result<(), anyhow::Error> {
         // TODO: hotfix for mock da
         self.da_service.get_block_at(1).await.unwrap();
@@ -193,28 +357,6 @@ where
                 let best_txs_with_base_fee = self.mempool.best_transactions_with_attributes(
                     BestTransactionsAttributes::base_fee(base_fee),
                 );
-
-                // TODO: implement block builder instead of just including every transaction in order
-                let rlp_txs: Vec<RlpEvmTransaction> = best_txs_with_base_fee
-                    .into_iter()
-                    .map(|tx| {
-                        tx.to_recovered_transaction()
-                            .into_signed()
-                            .envelope_encoded()
-                            .to_vec()
-                    })
-                    .map(|rlp| RlpEvmTransaction { rlp })
-                    .collect();
-
-                debug!(
-                    "Sequencer: publishing block with {} transactions",
-                    rlp_txs.len()
-                );
-
-                let call_txs = CallMessage { txs: rlp_txs };
-                let raw_message =
-                    <Runtime<C, Da::Spec> as EncodeCall<citrea_evm::Evm<C>>>::encode_call(call_txs);
-                let signed_blob = self.make_blob(raw_message);
 
                 let mut prev_l1_height = self
                     .ledger_db
@@ -247,24 +389,33 @@ where
                     last_finalized_height
                 );
 
-                let last_finalized_block = self
-                    .da_service
-                    .get_block_at(last_finalized_height)
-                    .await
-                    .unwrap();
-
                 let l1_fee_rate = self.da_service.get_fee_rate().await.unwrap();
 
-                if last_finalized_height != prev_l1_height {
-                    let previous_l1_block =
-                        self.da_service.get_block_at(prev_l1_height).await.unwrap();
-
-                    // Compare if there is no skip
-                    if last_finalized_block.header().prev_hash()
-                        != previous_l1_block.header().hash()
-                    {
-                        // TODO: This shouldn't happen. If it does, then we should produce at least 1 block for the blocks in between
+                let new_da_block = match last_finalized_height.cmp(&prev_l1_height) {
+                    Ordering::Less => {
+                        panic!("DA L1 height is less than Ledger finalized height");
                     }
+                    Ordering::Equal => None,
+                    Ordering::Greater => {
+                        // Compare if there is no skip
+                        if last_finalized_height - prev_l1_height > 1 {
+                            // This shouldn't happen. If it does, then we should produce at least 1 block for the blocks in between
+                            for skipped_height in (prev_l1_height + 1)..last_finalized_height {
+                                debug!(
+                                    "Sequencer: publishing empty L2 for skipped L1 block: {:?}",
+                                    skipped_height
+                                );
+                                let da_block =
+                                    self.da_service.get_block_at(skipped_height).await.unwrap();
+                                self.produce_l2_block(da_block, l1_fee_rate, vec![]).await?;
+                            }
+                        }
+                        let prev_l1_height = last_finalized_height - 1;
+                        Some(prev_l1_height)
+                    }
+                };
+
+                if let Some(prev_l1_height) = new_da_block {
                     debug!("Sequencer: new L1 block, checking if commitment should be submitted");
 
                     let commitment_info = commitment_controller::get_commitment_info(
@@ -317,149 +468,26 @@ where
                     // TODO: this is where we would include forced transactions from the new L1 block
                 }
 
-                let batch_info = HookSoftConfirmationInfo {
-                    da_slot_height: last_finalized_block.header().height(),
-                    da_slot_hash: last_finalized_block.header().hash().into(),
-                    pre_state_root: self.state_root.clone().as_ref().to_vec(),
-                    pub_key: self.sov_tx_signer_priv_key.pub_key().try_to_vec().unwrap(),
-                    l1_fee_rate,
-                };
-                let mut signed_batch: SignedSoftConfirmationBatch = batch_info.clone().into();
-                // initially create sc info and call begin soft confirmation hook with it
-                let txs = vec![signed_blob.clone()];
+                // TODO: implement block builder instead of just including every transaction in order
+                let rlp_txs: Vec<RlpEvmTransaction> = best_txs_with_base_fee
+                    .into_iter()
+                    .map(|tx| {
+                        tx.to_recovered_transaction()
+                            .into_signed()
+                            .envelope_encoded()
+                            .to_vec()
+                    })
+                    .map(|rlp| RlpEvmTransaction { rlp })
+                    .collect();
 
-                let l2_height = match self
-                    .ledger_db
-                    .get_head_soft_batch()
-                    .expect("Sequencer: Failed to get head soft batch")
-                {
-                    Some((l2_height, _)) => l2_height.0 + 1,
-                    None => 1,
-                };
                 let last_finalized_block = self
                     .da_service
-                    .get_block_at(last_finalized_block.header().height())
+                    .get_block_at(last_finalized_height)
                     .await
                     .unwrap();
-                let prestate = self
-                    .storage_manager
-                    .create_storage_on_l2_height(l2_height)
-                    .unwrap();
 
-                info!(
-                    "Applying soft batch on DA block: {}",
-                    hex::encode(last_finalized_block.header().hash().into())
-                );
-
-                let pub_key = signed_batch.pub_key().clone();
-
-                match self.stf.begin_soft_batch(
-                    &pub_key,
-                    &self.state_root,
-                    prestate.clone(),
-                    Default::default(),
-                    last_finalized_block.header(),
-                    &mut signed_batch,
-                ) {
-                    (Ok(()), batch_workspace) => {
-                        let (batch_workspace, tx_receipts) =
-                            self.stf.apply_soft_batch_txs(txs.clone(), batch_workspace);
-
-                        // create the unsigned batch with the txs then sign th sc
-                        let unsigned_batch = UnsignedSoftConfirmationBatch::new(
-                            last_finalized_block.header().height(),
-                            last_finalized_block.header().hash().into(),
-                            self.state_root.clone().as_ref().to_vec(),
-                            txs,
-                            l1_fee_rate,
-                        );
-
-                        let mut signed_soft_batch =
-                            self.sign_soft_confirmation_batch(unsigned_batch);
-
-                        let (batch_receipt, checkpoint) = self.stf.end_soft_batch(
-                            self.sequencer_pub_key.as_ref(),
-                            &mut signed_soft_batch,
-                            tx_receipts,
-                            batch_workspace,
-                        );
-
-                        // Finalize soft confirmation
-                        let slot_result = self.stf.finalize_soft_batch(
-                            batch_receipt,
-                            checkpoint,
-                            prestate,
-                            &mut signed_soft_batch,
-                        );
-
-                        if slot_result.state_root.as_ref() == self.state_root.as_ref() {
-                            debug!("Limiting number is reached for the current L1 block. State root is the same as before, skipping");
-                            // TODO: Check if below is legit
-                            self.storage_manager
-                                .save_change_set_l2(l2_height, slot_result.change_set)?;
-
-                            self.storage_manager.finalize_l2(l2_height)?;
-                            return Ok(());
-                        }
-
-                        info!(
-                            "State root after applying slot: {:?}",
-                            slot_result.state_root
-                        );
-
-                        let mut data_to_commit = SlotCommit::new(last_finalized_block.clone());
-                        for receipt in slot_result.batch_receipts {
-                            data_to_commit.add_batch(receipt);
-                        }
-
-                        // TODO: This will be a single receipt once we have apply_soft_batch.
-                        let batch_receipt = data_to_commit.batch_receipts()[0].clone();
-
-                        let next_state_root = slot_result.state_root;
-
-                        let soft_batch_receipt = SoftBatchReceipt::<_, _, Da::Spec> {
-                            pre_state_root: self.state_root.as_ref().to_vec(),
-                            post_state_root: next_state_root.as_ref().to_vec(),
-                            phantom_data: PhantomData::<u64>,
-                            batch_hash: batch_receipt.batch_hash,
-                            da_slot_hash: last_finalized_block.header().hash(),
-                            da_slot_height: last_finalized_block.header().height(),
-                            tx_receipts: batch_receipt.tx_receipts,
-                            soft_confirmation_signature: signed_soft_batch.signature().to_vec(),
-                            pub_key: signed_soft_batch.pub_key().to_vec(),
-                            l1_fee_rate: signed_soft_batch.l1_fee_rate(),
-                        };
-
-                        // TODO: this will only work for mock da
-                        // when https://github.com/Sovereign-Labs/sovereign-sdk/issues/1218
-                        // is merged, rpc will access up to date storage then we won't need to finalize rigth away.
-                        // however we need much better DA + finalization logic here
-                        self.storage_manager
-                            .save_change_set_l2(l2_height, slot_result.change_set)?;
-
-                        tracing::debug!("Finalizing l2 height: {:?}", l2_height);
-                        self.storage_manager.finalize_l2(l2_height)?;
-
-                        self.state_root = next_state_root;
-
-                        self.ledger_db.commit_soft_batch(soft_batch_receipt, true)?;
-
-                        self.mempool
-                            .remove_transactions(self.db_provider.last_block_tx_hashes());
-
-                        // connect L1 and L2 height
-                        self.ledger_db
-                            .extend_l2_range_of_l1_slot(
-                                SlotNumber(last_finalized_block.header().height()),
-                                BatchNumber(l2_height),
-                            )
-                            .expect("Sequencer: Failed to set L1 L2 connection");
-                    }
-                    (Err(err), batch_workspace) => {
-                        warn!("Failed to apply soft confirmation hook: {:?} \n reverting batch workspace", err);
-                        batch_workspace.revert();
-                    }
-                }
+                self.produce_l2_block(last_finalized_block, l1_fee_rate, rlp_txs)
+                    .await?;
             }
         }
     }
