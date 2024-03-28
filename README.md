@@ -1,97 +1,37 @@
 # Citrea
 
+**The first rollup that enhances the capabilities of Bitcoin blockspace with zero-knowledge technology.**
+
 ![](assets/banner.png)
-
-## Instructions
-
-Clone the repository
-
-```sh
-git clone https://github.com/chainwayxyz/citrea.git
-```
 
 > [!WARNING]
 > Citrea is still work-in-progress. It has not been audited and should not be used in production under any circumstances. Many key features are under heavy development, and its proper integration with [Bitcoin](https://github.com/bitcoin/bitcoin) and [Clementine](https://github.com/chainwayxyz/clementine) is still ongoing.
 
-Build citrea:
+## What is Citrea?
 
-```sh
-SKIP_GUEST_BUILD=1 make build
-```
+Citrea is the first rolluıp that enhances the capabilities of Bitcoin blockspace with zero-knowledge technology, making it possible to build everything on Bitcoin.
 
-### Run on Mock DA
+Every transaction occuring on Citrea, is fully secured by zero-knowledge proofs and optimistically verified by Bitcoin. The execution environment of Citrea is trustless with respect to Bitcoin and is accessible to all participants of the Bitcoin Network.
 
-Run on a local da layer, sharable between nodes that run on your computer.
+Citrea's vision is to build scalable infrastructure that advances Bitcoin into its next phase, foundation for world's finance. Citrea represents Bitcoin Security at Scale with its execution shard that keeps the settlement and data availability on-chain, on-Bitcoin.
 
-Run sequencer on Mock DA:
+## FAQ
 
-```sh
-./target/debug/citrea --da-layer mock --rollup-config-path citrea/rollup/configs/mock/sequencer_rollup_config.toml --sequencer-config-path citrea/rollup/configs/mock/sequencer_config.toml --genesis-paths citrea/test-data/genesis/demo-tests/mock
-```
+| Question                                         | Answer                                                                                                                     |
+| ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| How do I set up the development environment?     | [dev-setup.md](./docs/dev-setup.md)                                                                                        |
+| How do I run Citrea for testing and development? | [run.md](./docs/run.md)                                                                                                    |
+| Where can I read more about the architecture?    | Technical docs for the repo are in progress, in the meantime refer to [our official documentation](htps://docs.citrea.xyz) |
 
-Sequencer RPC is accessible at `127.0.0.1:12345`
+## Official Links
 
-_Optional_: Run full node on Mock DA:
+- [Website](https://citrea.xyz)
+- [Docs](https://docs.citrea.xyz)
+- [Blog](https://blog.citrea.xyz)
+- [X](https://x.com/citrea_xyz)
+- [Discord](https://discord.citrea.xyz)
 
-```sh
-./target/debug/citrea --rollup-config-path citrea/rollup/configs/mock/rollup_config.toml --genesis-paths citrea/test-data/genesis/demo-tests/mock
-```
+## Acknowledments
 
-Full node RPC is accessible at `127.0.0.1:12346`
-
-To publish blocks on Mock DA, run these on two seperate terminals:
-
-```sh
- ./citrea/rollup/publish_block.sh
-
- ./citrea/rollup/publish_da_block.sh
-```
-
-### Run on Bitcoin Regtest
-
-Run on local Bitcoin network.
-
-Run Bitcoin Regtest:
-
-```sh
-bitcoind -regtest -rpcuser=chainway -rpcpassword=topsecret -rpcport=38332 -txindex=1
-```
-
-Keep this terminal open.
-
-Create bitcoin wallet for Bitcoin DA adapter.
-
-```sh
-bitcoin-cli -regtest  -rpcuser=chainway -rpcpassword=topsecret -rpcport=38332 createwallet citreatesting
-bitcoin-cli -regtest  -rpcuser=chainway -rpcpassword=topsecret -rpcport=38332 loadwallet citreatesting
-```
-
-Mine blocks so that the wallet has BTC:
-
-```sh
-bitcoin-cli -regtest  -rpcuser=chainway -rpcpassword=topsecret -rpcport=38332 -generate 201
-```
-
-Run sequencer:
-
-```sh
-./target/debug/citrea --da-layer bitcoin --rollup-config-path citrea/rollup/configs/bitcoin-regtest/sequencer_rollup_config.toml --sequencer-config-path citrea/rollup/configs/bitcoin-regtest/sequencer_config.toml --genesis-paths citrea/test-data/genesis/demo-tests/bitcoin-regtest
-```
-
-Sequencer RPC is accessible at `127.0.0.1:12345`
-
-_Optional_: Run full node
-
-Run full node:
-
-```sh
-./target/debug/citrea --da-layer bitcoin --rollup-config-path citrea/rollup/configs/bitcoin-regtest/rollup_config.toml --genesis-paths citrea/test-data/genesis/demo-tests/bitcoin-regtest
-```
-
-Full node RPC is accessible at `127.0.0.1:12346`
-
-To publish blocks on Bitcoin Regtest, run this and keep the terminal open:
-
-```sh
- ./citrea/rollup/publish_block.sh
-```
+- [Sovereign SDK](https://github.com/Sovereign-Labs/sovereign-sdk):
+- [Reth](https://github.com/paradigmxyz/reth/issues/5746):
