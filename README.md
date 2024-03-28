@@ -37,7 +37,7 @@ Citrea's vision is to build scalable infrastructure that advances Bitcoin into i
 - [X](https://x.com/citrea_xyz)
 - [Discord](https://discord.citrea.xyz)
 
-## Acknowledments
+## Acknowledgements
 
-- [Sovereign SDK](https://github.com/Sovereign-Labs/sovereign-sdk):
-- [Reth](https://github.com/paradigmxyz/reth):
+- [Sovereign SDK](https://github.com/Sovereign-Labs/sovereign-sdk): Citrea is built on a forked version of the Sovereign SDK. We're deeply thankful to the development & support of Sovereign Labs through our journey.
+- [Reth](https://github.com/paradigmxyz/reth): We use Reth crates in various components in Citrea. We're grateful for their rapid development & contribution to the Rust-Ethereum ecosystem.
