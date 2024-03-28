@@ -14,7 +14,7 @@ The following crates from the Sovereign SDK have been forked, modified, and upda
 - sov-evm
 - sov-ethereum
 
-The original source code for these crates is available at the Sovereign SDK repository: [https://github.com/sovereign/sovereign-sdk](https://github.com/sovereign/sovereign-sdk)
+The original source code for these crates is available at the Sovereign SDK repository: [https://github.com/Sovereign-Labs/sovereign-sdk](https://github.com/Sovereign-Labs/sovereign-sdk)
 
 ![](./assets/banner.jpg)
 
