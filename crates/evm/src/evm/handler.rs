@@ -204,9 +204,29 @@ impl<SPEC: Spec, EXT: CitreaExternalExt, DB: Database> CitreaHandler<SPEC, EXT, 
             // System caller doesn't spend gas.
             return Ok(());
         }
-        revm::handler::mainnet::reward_beneficiary::<SPEC, EXT, DB>(context, gas)
-    }
 
+        let beneficiary = context.evm.env.block.coinbase;
+        let effective_gas_price = context.evm.env.effective_gas_price();
+
+        // EIP-1559 discard basefee for coinbase transfer.
+        // ^ But we don't do that.
+        // We don't sub block.basefee from effective_gas_price.
+        let coinbase_gas_price = effective_gas_price;
+
+        let (coinbase_account, _) = context
+            .evm
+            .inner
+            .journaled_state
+            .load_account(beneficiary, &mut context.evm.inner.db)?;
+
+        coinbase_account.mark_touch();
+        coinbase_account.info.balance = coinbase_account
+            .info
+            .balance
+            .saturating_add(coinbase_gas_price * U256::from(gas.spend() - gas.refunded() as u64));
+
+        Ok(())
+    }
     fn post_execution_output(
         context: &mut Context<EXT, DB>,
         result: FrameResult,
