@@ -540,6 +540,7 @@ mod tests {
         let block_header = MockBlockHeader {
             prev_hash: MockHash::from([1; 32]),
             hash: MockHash::from([2; 32]),
+            merkle_root: MockHash::from([3; 32]),
             height: 1,
             time: Time::now(),
         };
@@ -579,6 +580,7 @@ mod tests {
         let block_header = MockBlockHeader {
             prev_hash: MockHash::from([0; 32]),
             hash: MockHash::from([1; 32]),
+            merkle_root: MockHash::from([42; 32]),
             height: 1,
             time: Time::now(),
         };
@@ -621,6 +623,7 @@ mod tests {
         let block_header = MockBlockHeader {
             prev_hash: MockHash::from([1; 32]),
             hash: MockHash::from([1; 32]),
+            merkle_root: MockHash::from([42; 32]),
             height: 1,
             time: Time::now(),
         };
@@ -645,12 +648,14 @@ mod tests {
         let block_a = MockBlockHeader {
             prev_hash: MockHash::from([1; 32]),
             hash: MockHash::from([2; 32]),
+            merkle_root: MockHash::from([42; 32]),
             height: 1,
             time: Time::now(),
         };
         let block_b = MockBlockHeader {
             prev_hash: MockHash::from([2; 32]),
             hash: MockHash::from([1; 32]),
+            merkle_root: MockHash::from([43; 32]),
             height: 2,
             time: Time::now(),
         };
@@ -679,6 +684,7 @@ mod tests {
         let block_header = MockBlockHeader {
             prev_hash: MockHash::from([1; 32]),
             hash: MockHash::from([2; 32]),
+            merkle_root: MockHash::from([42; 32]),
             height: 1,
             time: Time::now(),
         };
@@ -704,6 +710,7 @@ mod tests {
         let block_a = MockBlockHeader {
             prev_hash: MockHash::from([1; 32]),
             hash: MockHash::from([2; 32]),
+            merkle_root: MockHash::from([42; 32]),
             height: 1,
             time: Time::now(),
         };
@@ -741,6 +748,7 @@ mod tests {
         let block_a = MockBlockHeader {
             prev_hash: MockHash::from([0; 32]),
             hash: MockHash::from([1; 32]),
+            merkle_root: MockHash::from([42; 32]),
             height: 1,
             time: Time::now(),
         };
@@ -748,6 +756,7 @@ mod tests {
         let block_b = MockBlockHeader {
             prev_hash: MockHash::from([2; 32]),
             hash: MockHash::from([3; 32]),
+            merkle_root: MockHash::from([43; 32]),
             height: 2,
             time: Time::now(),
         };
@@ -818,6 +827,7 @@ mod tests {
         let block_from_i = |i: u8| MockBlockHeader {
             prev_hash: MockHash::from([i; 32]),
             hash: MockHash::from([i + 1; 32]),
+            merkle_root: MockHash::from([i + 1; 32]),
             height: i as u64 + 1,
             time: Time::now(),
         };
@@ -866,6 +876,7 @@ mod tests {
             let block = MockBlockHeader {
                 prev_hash: MockHash::from([prev_hash; 32]),
                 hash: MockHash::from([next_hash; 32]),
+                merkle_root: MockHash::from([42; 32]),
                 height: height as u64,
                 time: Time::now(),
             };
@@ -877,6 +888,7 @@ mod tests {
             let block = MockBlockHeader {
                 prev_hash: MockHash::from([prev_hash; 32]),
                 hash: MockHash::from([prev_hash + 1; 32]),
+                merkle_root: MockHash::from([42; 32]),
                 height: prev_hash as u64 + 1,
                 time: Time::now(),
             };
@@ -983,66 +995,77 @@ mod tests {
         let block_a = MockBlockHeader {
             prev_hash: MockHash::from([0; 32]),
             hash: MockHash::from([1; 32]),
+            merkle_root: MockHash::from([42; 32]),
             height: 1,
             time: Time::now(),
         };
         let block_b = MockBlockHeader {
             prev_hash: MockHash::from([1; 32]),
             hash: MockHash::from([2; 32]),
+            merkle_root: MockHash::from([43; 32]),
             height: 2,
             time: Time::now(),
         };
         let block_c = MockBlockHeader {
             prev_hash: MockHash::from([2; 32]),
             hash: MockHash::from([3; 32]),
+            merkle_root: MockHash::from([44; 32]),
             height: 3,
             time: Time::now(),
         };
         let block_d = MockBlockHeader {
             prev_hash: MockHash::from([3; 32]),
             hash: MockHash::from([4; 32]),
+            merkle_root: MockHash::from([45; 32]),
             height: 4,
             time: Time::now(),
         };
         let block_e = MockBlockHeader {
             prev_hash: MockHash::from([4; 32]),
             hash: MockHash::from([5; 32]),
+            merkle_root: MockHash::from([46; 32]),
             height: 5,
             time: Time::now(),
         };
         let block_f = MockBlockHeader {
             prev_hash: MockHash::from([1; 32]),
             hash: MockHash::from([32; 32]),
+            merkle_root: MockHash::from([47; 32]),
             height: 2,
             time: Time::now(),
         };
         let block_g = MockBlockHeader {
             prev_hash: MockHash::from([2; 32]),
             hash: MockHash::from([23; 32]),
+            merkle_root: MockHash::from([48; 32]),
             height: 3,
             time: Time::now(),
         };
         let block_h = MockBlockHeader {
             prev_hash: MockHash::from([23; 32]),
             hash: MockHash::from([24; 32]),
+            merkle_root: MockHash::from([49; 32]),
             height: 4,
             time: Time::now(),
         };
         let block_k = MockBlockHeader {
             prev_hash: MockHash::from([32; 32]),
             hash: MockHash::from([33; 32]),
+            merkle_root: MockHash::from([50; 32]),
             height: 3,
             time: Time::now(),
         };
         let block_l = MockBlockHeader {
             prev_hash: MockHash::from([2; 32]),
             hash: MockHash::from([13; 32]),
+            merkle_root: MockHash::from([51; 32]),
             height: 3,
             time: Time::now(),
         };
         let block_m = MockBlockHeader {
             prev_hash: MockHash::from([13; 32]),
             hash: MockHash::from([14; 32]),
+            merkle_root: MockHash::from([52; 32]),
             height: 4,
             time: Time::now(),
         };
@@ -1321,6 +1344,7 @@ mod tests {
         let new_block_after_e = MockBlockHeader {
             prev_hash: MockHash::from([5; 32]),
             hash: MockHash::from([6; 32]),
+            merkle_root: MockHash::from([42; 32]),
             height: 6,
             time: Time::now(),
         };

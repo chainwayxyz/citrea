@@ -20,6 +20,7 @@ use crate::{MockBlockHeader, MockHash};
 const GENESIS_HEADER: MockBlockHeader = MockBlockHeader {
     prev_hash: MockHash([0; 32]),
     hash: MockHash([1; 32]),
+    merkle_root: MockHash([1; 32]),
     height: 0,
     // 2023-01-01T00:00:00Z
     time: Time::from_secs(1672531200),
@@ -201,6 +202,7 @@ impl MockDaService {
         let header = MockBlockHeader {
             prev_hash: previous_block_hash,
             hash: block_hash,
+            merkle_root: block_hash,
             height,
             time: Time::from_secs(10000000000), // TODO: had to mock this for now, causes different state roots
         };

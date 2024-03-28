@@ -576,6 +576,7 @@ fn verify_soft_batch_signature<C: Context>(
     let unsigned = UnsignedSoftConfirmationBatch::new(
         soft_batch.da_slot_height(),
         soft_batch.da_slot_hash(),
+        soft_batch.da_slot_merkle_root(),
         soft_batch.pre_state_root(),
         soft_batch.txs(),
         soft_batch.l1_fee_rate(),

@@ -88,6 +88,7 @@ impl DaService for RngDaService {
         let block = MockBlock {
             header: MockBlockHeader {
                 hash: barray.into(),
+                merkle_root: barray.into(),
                 prev_hash: [0u8; 32].into(),
                 height,
                 time: Time::now(),

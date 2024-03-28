@@ -171,6 +171,9 @@ pub struct SoftBatchResponse {
     // deserialize in `SequencerClient`
     #[serde(with = "hex::serde")]
     pub da_slot_hash: [u8; 32],
+    #[serde(with = "hex::serde")]
+    /// The DA slot merkle root of the soft batch.
+    pub da_slot_merkle_root: [u8; 32],
     /// The hash of the soft batch.
     #[serde(with = "hex::serde")]
     pub hash: [u8; 32],

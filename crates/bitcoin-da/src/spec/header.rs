@@ -25,6 +25,10 @@ impl BlockHeaderTrait for HeaderWrapper {
         BlockHashWrapper(self.header.block_hash())
     }
 
+    fn merkle_root(&self) -> Self::Hash {
+        BlockHashWrapper(BlockHash::from_raw_hash(self.header.merkle_root.into()))
+    }
+
     fn height(&self) -> u64 {
         self.height
     }

@@ -37,6 +37,7 @@ impl DbConnector {
             "CREATE TABLE IF NOT EXISTS blocks (
                     prev_hash BLOB,
                     hash BLOB,
+                    merkle_root BLOB,
                     height INTEGER unique,
                     time TEXT,
                     is_valid INTEGER,
@@ -63,11 +64,12 @@ impl DbConnector {
     pub fn push_back(&self, block: MockBlock) {
         self.conn
             .execute(
-                "INSERT INTO blocks (prev_hash, hash, height, time, is_valid, blobs)
-                VALUES (?, ?, ?, ?, ?, ?)",
+                "INSERT INTO blocks (prev_hash, hash, merkle_root, height, time, is_valid, blobs)
+                VALUES (?, ?, ?, ?, ?, ?, ?)",
                 params![
                     block.header.prev_hash.0,
                     block.header.hash.0,
+                    block.header.merkle_root.0,
                     block.header.height,
                     serde_json::to_string(&block.header.time)
                         .expect("DbConnector: Failed to serialize time"),
@@ -150,13 +152,14 @@ impl DbConnector {
             header: MockBlockHeader {
                 prev_hash: MockHash(row.get(0).unwrap()),
                 hash: MockHash(row.get(1).unwrap()),
-                height: row.get(2).unwrap(),
-                time: serde_json::from_str(row.get::<_, String>(3).unwrap().as_str()).unwrap(),
+                merkle_root: MockHash(row.get(2).unwrap()),
+                height: row.get(3).unwrap(),
+                time: serde_json::from_str(row.get::<_, String>(4).unwrap().as_str()).unwrap(),
             },
             validity_cond: MockValidityCond {
-                is_valid: row.get(4).unwrap(),
+                is_valid: row.get(5).unwrap(),
             },
-            blobs: serde_json::from_str(row.get::<_, String>(5).unwrap().as_str()).unwrap(),
+            blobs: serde_json::from_str(row.get::<_, String>(6).unwrap().as_str()).unwrap(),
         }
     }
 }
