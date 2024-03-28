@@ -1,0 +1,32 @@
+sequencer_public_key = "204040e364c10f2bec9c1fe500a1cd4c247c89d650a01ed7e82caba867877c21"
+include_tx_body = false
+
+[da]
+# fill here
+node_url = ""
+# fill here
+node_username = ""
+# fill here                                       
+node_password = ""
+network = "regtest"
+address = "bcrt1q02g8qhycr0v8cnflt86kksfe2sqhm486fdkx4l"
+
+[storage]
+# The path to the rollup's data directory. Paths that do not begin with `/` are interpreted as relative paths.
+path = "full-node-db"
+
+# We define the rollup's genesis to occur at block number `start_height`. The rollup will ignore
+# any blocks before this height
+[runner]
+start_height = 3
+
+[runner.rpc_config]
+# the host and port to bind the rpc server for
+bind_host = "127.0.0.1"
+bind_port = 12346
+
+[sequencer_client]
+url = "http://0.0.0.0:12345"
+
+[prover_service]
+aggregated_proof_block_jump = 1

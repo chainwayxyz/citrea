@@ -9,6 +9,11 @@ build: ## Build the the project
 clean: ## Cleans compiled
 	@cargo clean
 
+clean-node: ## Cleans local dbs needed for sequencer and nodes
+	rm -rf sequencer-db
+	rm -rf full-node-db
+	rm test-da-dbs/*.db
+
 test-legacy: ## Runs test suite with output from tests printed
 	@cargo test -- --nocapture -Zunstable-options --report-time
 
@@ -43,11 +48,11 @@ check-features: ## Checks that project compiles with all combinations of feature
 	cargo hack check --workspace --feature-powerset --exclude-features default --all-targets
 
 check-fuzz: ## Checks that fuzz member compiles
-	$(MAKE) -C fuzz check
+	$(MAKE) -C crates/sovereign-sdk/fuzz check
 
 check-no-std: ## Checks that project compiles without std
-	$(MAKE) -C ./rollup-interface $@
-	$(MAKE) -C ./module-system/sov-modules-core $@
+	$(MAKE) -C crates/sovereign-sdk/rollup-interface $@
+	$(MAKE) -C crates/sovereign-sdk/module-system/sov-modules-core $@
 
 find-unused-deps: ## Prints unused dependencies for project. Note: requires nightly
 	cargo +nightly udeps --all-targets --all-features
@@ -60,9 +65,6 @@ coverage: ## Coverage in lcov format
 
 coverage-html: ## Coverage in HTML format
 	cargo llvm-cov --locked --all-features --html
-
-dry-run-publish: 
-	yq '.[]' packages_to_publish.yml | xargs -I _ cargo publish --allow-dirty --dry-run -p _
 
 docs:  ## Generates documentation locally
 	cargo doc --open
