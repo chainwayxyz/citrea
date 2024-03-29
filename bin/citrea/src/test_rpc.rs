@@ -98,7 +98,7 @@ fn regular_test_helper(payload: serde_json::Value, expected: &serde_json::Value)
         header: MockBlockHeader {
             prev_hash: sha2::Sha256::digest(b"prev_header").into(),
             hash: sha2::Sha256::digest(b"slot_data").into(),
-            merkle_root: sha2::Sha256::digest(b"merkle_root").into(),
+            txs_commitment: sha2::Sha256::digest(b"txs_commitment").into(),
             height: 0,
             time: Time::now(),
         },
@@ -304,7 +304,7 @@ prop_compose! {
             let mut new_slot = SlotCommit::new(MockBlock {
                 header: MockBlockHeader {
                     hash: hash.into(),
-                    merkle_root: hash.into(),
+                    txs_commitment: hash.into(),
                     prev_hash,
                     height: 0,
                     time: Time::now(),

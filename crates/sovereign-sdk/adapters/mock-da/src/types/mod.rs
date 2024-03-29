@@ -71,8 +71,8 @@ pub struct MockBlockHeader {
     pub prev_hash: MockHash,
     /// The hash of this block.
     pub hash: MockHash,
-    /// The merkle root of this block.
-    pub merkle_root: MockHash,
+    /// The transactions commitment of this block.
+    pub txs_commitment: MockHash,
     /// The height of this block
     pub height: u64,
     /// The time at which this block was created
@@ -85,11 +85,11 @@ impl MockBlockHeader {
     pub fn from_height(height: u64) -> MockBlockHeader {
         let prev_hash = u64_to_bytes(height);
         let hash = u64_to_bytes(height + 1);
-        let merkle_root = u64_to_bytes(height + 1);
+        let txs_commitment = u64_to_bytes(height + 1);
         MockBlockHeader {
             prev_hash: MockHash(prev_hash),
             hash: MockHash(hash),
-            merkle_root: MockHash(merkle_root),
+            txs_commitment: MockHash(txs_commitment),
             height,
             time: Time::now(),
         }
@@ -125,8 +125,8 @@ impl BlockHeaderTrait for MockBlockHeader {
         self.hash
     }
 
-    fn merkle_root(&self) -> Self::Hash {
-        self.merkle_root
+    fn txs_commitment(&self) -> Self::Hash {
+        self.txs_commitment
     }
 
     fn height(&self) -> u64 {

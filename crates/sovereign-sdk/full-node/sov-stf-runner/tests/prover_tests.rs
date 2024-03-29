@@ -226,7 +226,7 @@ fn make_transition_data(
         da_block_header: MockBlockHeader {
             prev_hash: [0; 32].into(),
             hash: header_hash,
-            merkle_root: header_hash,
+            txs_commitment: header_hash,
             height: 0,
             time: Time::now(),
         },

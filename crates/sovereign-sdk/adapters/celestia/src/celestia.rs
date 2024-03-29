@@ -244,7 +244,7 @@ impl BlockHeader for CelestiaHeader {
         TmHash(self.header.hash())
     }
 
-    fn merkle_root(&self) -> Self::Hash {
+    fn txs_commitment(&self) -> Self::Hash {
         TmHash(self.header.merkle_root())
     }
 

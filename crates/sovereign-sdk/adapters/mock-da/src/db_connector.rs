@@ -37,7 +37,7 @@ impl DbConnector {
             "CREATE TABLE IF NOT EXISTS blocks (
                     prev_hash BLOB,
                     hash BLOB,
-                    merkle_root BLOB,
+                    txs_commitment BLOB,
                     height INTEGER unique,
                     time TEXT,
                     is_valid INTEGER,
@@ -64,12 +64,12 @@ impl DbConnector {
     pub fn push_back(&self, block: MockBlock) {
         self.conn
             .execute(
-                "INSERT INTO blocks (prev_hash, hash, merkle_root, height, time, is_valid, blobs)
+                "INSERT INTO blocks (prev_hash, hash, txs_commitment, height, time, is_valid, blobs)
                 VALUES (?, ?, ?, ?, ?, ?, ?)",
                 params![
                     block.header.prev_hash.0,
                     block.header.hash.0,
-                    block.header.merkle_root.0,
+                    block.header.txs_commitment.0,
                     block.header.height,
                     serde_json::to_string(&block.header.time)
                         .expect("DbConnector: Failed to serialize time"),
@@ -152,7 +152,7 @@ impl DbConnector {
             header: MockBlockHeader {
                 prev_hash: MockHash(row.get(0).unwrap()),
                 hash: MockHash(row.get(1).unwrap()),
-                merkle_root: MockHash(row.get(2).unwrap()),
+                txs_commitment: MockHash(row.get(2).unwrap()),
                 height: row.get(3).unwrap(),
                 time: serde_json::from_str(row.get::<_, String>(4).unwrap().as_str()).unwrap(),
             },

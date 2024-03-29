@@ -83,8 +83,8 @@ pub struct SoftBatchReceipt<BatchReceiptContents, TxReceiptContents, DS: DaSpec>
     pub da_slot_height: u64,
     /// DA layer block hash
     pub da_slot_hash: <DS as DaSpec>::SlotHash,
-    /// DA layer merkle root
-    pub da_slot_merkle_root: <DS as DaSpec>::SlotHash,
+    /// DA layer transactions commitment
+    pub da_slot_txs_commitment: <DS as DaSpec>::SlotHash,
     /// The canonical hash of this batch
     pub batch_hash: [u8; 32],
     /// The receipts of all the transactions in this batch.

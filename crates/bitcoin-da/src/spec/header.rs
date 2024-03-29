@@ -25,7 +25,7 @@ impl BlockHeaderTrait for HeaderWrapper {
         BlockHashWrapper(self.header.block_hash())
     }
 
-    fn merkle_root(&self) -> Self::Hash {
+    fn txs_commitment(&self) -> Self::Hash {
         BlockHashWrapper(BlockHash::from_raw_hash(self.header.merkle_root.into()))
     }
 
@@ -51,7 +51,7 @@ impl HeaderWrapper {
         self.header.block_hash()
     }
 
-    pub fn merkle_root(&self) -> TxMerkleNode {
+    pub fn txs_commitment(&self) -> TxMerkleNode {
         self.header.merkle_root
     }
 }

@@ -75,7 +75,7 @@ pub struct GetSoftBatchResponse {
     #[serde(with = "hex::serde")]
     pub da_slot_hash: [u8; 32],
     #[serde(with = "hex::serde")]
-    pub da_slot_merkle_root: [u8; 32],
+    pub da_slot_txs_commitment: [u8; 32],
     #[serde(skip_serializing_if = "Option::is_none")]
     pub txs: Option<Vec<Vec<u8>>>,
     #[serde(with = "hex::serde")]
@@ -95,7 +95,7 @@ impl From<GetSoftBatchResponse> for SignedSoftConfirmationBatch {
             val.hash,
             val.da_slot_height,
             val.da_slot_hash,
-            val.da_slot_merkle_root,
+            val.da_slot_txs_commitment,
             val.pre_state_root,
             val.l1_fee_rate,
             val.txs.unwrap_or_default(),

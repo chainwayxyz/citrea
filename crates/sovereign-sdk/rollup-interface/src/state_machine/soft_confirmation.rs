@@ -13,7 +13,7 @@ use crate::maybestd::vec::Vec;
 pub struct UnsignedSoftConfirmationBatch {
     da_slot_height: u64,
     da_slot_hash: [u8; 32],
-    da_slot_merkle_root: [u8; 32],
+    da_slot_txs_commitment: [u8; 32],
     pre_state_root: Vec<u8>,
     txs: Vec<Vec<u8>>,
     l1_fee_rate: u64,
@@ -24,7 +24,7 @@ impl UnsignedSoftConfirmationBatch {
     pub fn new(
         da_slot_height: u64,
         da_slot_hash: [u8; 32],
-        da_slot_merkle_root: [u8; 32],
+        da_slot_txs_commitment: [u8; 32],
         pre_state_root: Vec<u8>,
         txs: Vec<Vec<u8>>,
         l1_fee_rate: u64,
@@ -32,7 +32,7 @@ impl UnsignedSoftConfirmationBatch {
         Self {
             da_slot_height,
             da_slot_hash,
-            da_slot_merkle_root,
+            da_slot_txs_commitment,
             pre_state_root,
             txs,
             l1_fee_rate,
@@ -46,9 +46,9 @@ impl UnsignedSoftConfirmationBatch {
     pub fn da_slot_hash(&self) -> [u8; 32] {
         self.da_slot_hash
     }
-    /// DA block merkle root
-    pub fn da_slot_merkle_root(&self) -> [u8; 32] {
-        self.da_slot_merkle_root
+    /// DA block transactions commitment
+    pub fn da_slot_txs_commitment(&self) -> [u8; 32] {
+        self.da_slot_txs_commitment
     }
     /// Previous batch's pre state root
     pub fn pre_state_root(&self) -> Vec<u8> {
@@ -71,7 +71,7 @@ pub struct SignedSoftConfirmationBatch {
     hash: [u8; 32],
     da_slot_height: u64,
     da_slot_hash: [u8; 32],
-    da_slot_merkle_root: [u8; 32],
+    da_slot_txs_commitment: [u8; 32],
     pre_state_root: Vec<u8>,
     l1_fee_rate: u64,
     txs: Vec<Vec<u8>>,
@@ -86,7 +86,7 @@ impl SignedSoftConfirmationBatch {
         hash: [u8; 32],
         da_slot_height: u64,
         da_slot_hash: [u8; 32],
-        da_slot_merkle_root: [u8; 32],
+        da_slot_txs_commitment: [u8; 32],
         pre_state_root: Vec<u8>,
         l1_fee_rate: u64,
         txs: Vec<Vec<u8>>,
@@ -97,7 +97,7 @@ impl SignedSoftConfirmationBatch {
             hash,
             da_slot_height,
             da_slot_hash,
-            da_slot_merkle_root,
+            da_slot_txs_commitment,
             pre_state_root,
             l1_fee_rate,
             txs,
@@ -121,9 +121,9 @@ impl SignedSoftConfirmationBatch {
         self.da_slot_hash
     }
 
-    /// DA block merkle root
-    pub fn da_slot_merkle_root(&self) -> [u8; 32] {
-        self.da_slot_merkle_root
+    /// DA block transactions commitment
+    pub fn da_slot_txs_commitment(&self) -> [u8; 32] {
+        self.da_slot_txs_commitment
     }
 
     /// Previous batch's pre state root

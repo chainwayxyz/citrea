@@ -301,7 +301,7 @@ impl LedgerDB {
         let batch_to_store = StoredSoftBatch {
             da_slot_height: batch_receipt.da_slot_height,
             da_slot_hash: batch_receipt.da_slot_hash.into(),
-            da_slot_merkle_root: batch_receipt.da_slot_merkle_root.into(),
+            da_slot_txs_commitment: batch_receipt.da_slot_txs_commitment.into(),
             hash: batch_receipt.batch_hash,
             tx_range: TxNumber(first_tx_number)..TxNumber(last_tx_number),
             txs,

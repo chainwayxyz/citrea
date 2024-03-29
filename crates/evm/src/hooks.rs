@@ -15,7 +15,7 @@ where
     pub fn begin_soft_confirmation_hook(
         &self,
         da_slot_hash: [u8; 32],
-        _da_slot_merkle_root: [u8; 32],
+        _da_slot_txs_commitment: [u8; 32],
         pre_state_root: &[u8],
         l1_fee_rate: u64,
         working_set: &mut WorkingSet<C>,

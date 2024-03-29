@@ -53,7 +53,7 @@ impl BlockHeaderTrait for AvailHeader {
         self.hash.clone()
     }
 
-    fn merkle_root(&self) -> Self::Hash {
+    fn txs_commitment(&self) -> Self::Hash {
         AvailHash::new(self.header.state_root)
     }
 
