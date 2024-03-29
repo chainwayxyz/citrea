@@ -206,6 +206,13 @@ where
             "DA slot hashes must match"
         );
 
+        // then verify da transactions commitment match
+        assert_eq!(
+            soft_batch.da_slot_txs_commitment(),
+            slot_header.txs_commitment().into(),
+            "DA slot hashes must match"
+        );
+
         // then verify pre state root matches
         assert_eq!(
             soft_batch.pre_state_root(),
