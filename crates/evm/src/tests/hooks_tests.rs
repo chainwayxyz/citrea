@@ -25,6 +25,7 @@ fn begin_soft_confirmation_hook_creates_pending_block() {
     let l1_fee_rate = 0;
     evm.begin_soft_confirmation_hook(
         DA_ROOT_HASH.0,
+        1,
         [42u8; 32],
         &[10u8; 32],
         l1_fee_rate,
@@ -54,6 +55,7 @@ fn end_soft_confirmation_hook_sets_head() {
 
     evm.begin_soft_confirmation_hook(
         DA_ROOT_HASH.0,
+        1,
         txs_commitment.into(),
         &pre_state_root,
         l1_fee_rate,
@@ -121,6 +123,7 @@ fn end_soft_confirmation_hook_moves_transactions_and_receipts() {
     let l1_fee_rate = 0;
     evm.begin_soft_confirmation_hook(
         DA_ROOT_HASH.0,
+        1,
         [42u8; 32],
         &[10u8; 32],
         l1_fee_rate,
@@ -215,6 +218,7 @@ fn finalize_hook_creates_final_block() {
 
     evm.begin_soft_confirmation_hook(
         DA_ROOT_HASH.0,
+        1,
         txs_commitment.into(),
         &pre_state_root,
         l1_fee_rate,
@@ -239,6 +243,7 @@ fn finalize_hook_creates_final_block() {
 
     evm.begin_soft_confirmation_hook(
         DA_ROOT_HASH.0,
+        1,
         txs_commitment.into(),
         &root_hash,
         l1_fee_rate,
@@ -313,6 +318,7 @@ fn begin_soft_confirmation_hook_appends_last_block_hashes() {
 
     evm.begin_soft_confirmation_hook(
         DA_ROOT_HASH.0,
+        1,
         txs_commitment.into(),
         &state_root,
         l1_fee_rate,
@@ -347,6 +353,7 @@ fn begin_soft_confirmation_hook_appends_last_block_hashes() {
         let l1_fee_rate = 0;
         evm.begin_soft_confirmation_hook(
             DA_ROOT_HASH.0,
+            1,
             random_32_bytes,
             &random_32_bytes,
             l1_fee_rate,
@@ -363,6 +370,7 @@ fn begin_soft_confirmation_hook_appends_last_block_hashes() {
     let l1_fee_rate = 0;
     evm.begin_soft_confirmation_hook(
         DA_ROOT_HASH.0,
+        1,
         random_32_bytes,
         &random_32_bytes,
         l1_fee_rate,

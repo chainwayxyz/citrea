@@ -67,6 +67,7 @@ fn test_system_caller() {
 
     evm.begin_soft_confirmation_hook(
         [5u8; 32],
+        1,
         [42u8; 32],
         &[10u8; 32],
         l1_fee_rate,

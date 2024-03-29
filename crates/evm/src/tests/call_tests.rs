@@ -50,6 +50,7 @@ fn call_multiple_test() {
 
     evm.begin_soft_confirmation_hook(
         [5u8; 32],
+        1,
         [42u8; 32],
         &[10u8; 32],
         l1_fee_rate,
@@ -156,6 +157,7 @@ fn call_test() {
 
     evm.begin_soft_confirmation_hook(
         [5u8; 32],
+        1,
         [42u8; 32],
         &[10u8; 32],
         l1_fee_rate,
@@ -229,7 +231,14 @@ fn failed_transaction_test() {
     let working_set = &mut working_set;
     let l1_fee_rate = 0;
 
-    evm.begin_soft_confirmation_hook([5u8; 32], [42u8; 32], &[10u8; 32], l1_fee_rate, working_set);
+    evm.begin_soft_confirmation_hook(
+        [5u8; 32],
+        1,
+        [42u8; 32],
+        &[10u8; 32],
+        l1_fee_rate,
+        working_set,
+    );
     {
         let sender_address = generate_address::<C>("sender");
         let sequencer_address = generate_address::<C>("sequencer");
@@ -280,6 +289,7 @@ fn self_destruct_test() {
 
     evm.begin_soft_confirmation_hook(
         [5u8; 32],
+        1,
         [42u8; 32],
         &[10u8; 32],
         l1_fee_rate,
@@ -334,6 +344,7 @@ fn self_destruct_test() {
 
     evm.begin_soft_confirmation_hook(
         [5u8; 32],
+        2,
         [42u8; 32],
         &[99u8; 32],
         l1_fee_rate,
@@ -409,6 +420,7 @@ fn test_block_hash_in_evm() {
 
     evm.begin_soft_confirmation_hook(
         [5u8; 32],
+        1,
         [42u8; 32],
         &[10u8; 32],
         l1_fee_rate,
@@ -438,6 +450,7 @@ fn test_block_hash_in_evm() {
         let l1_fee_rate = 0;
         evm.begin_soft_confirmation_hook(
             [5u8; 32],
+            1,
             [42u8; 32],
             &[99u8; 32],
             l1_fee_rate,
@@ -519,6 +532,7 @@ fn test_block_gas_limit() {
 
     evm.begin_soft_confirmation_hook(
         [5u8; 32],
+        1,
         [42u8; 32],
         &[10u8; 32],
         l1_fee_rate,
@@ -782,6 +796,7 @@ fn test_l1_fee_success() {
 
         evm.begin_soft_confirmation_hook(
             [5u8; 32],
+            1,
             [42u8; 32],
             &[10u8; 32],
             l1_fee_rate,
@@ -855,6 +870,7 @@ fn test_l1_fee_not_enough_funds() {
 
     evm.begin_soft_confirmation_hook(
         [5u8; 32],
+        1,
         [42u8; 32],
         &[10u8; 32],
         l1_fee_rate,
