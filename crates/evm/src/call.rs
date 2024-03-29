@@ -47,6 +47,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .get(working_set)
             .expect("Pending block must be set");
 
+        let _system_events = self.system_events.iter(working_set).collect::<Vec<_>>();
+
         let cfg = self.cfg.get(working_set).expect("Evm config must be set");
         let cfg_env: CfgEnvWithHandlerCfg = get_cfg_env(&block_env, cfg, None);
 
@@ -58,6 +60,9 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         let block_number = block_env.number;
         let evm_db: EvmDb<'_, C> = self.get_db(working_set);
+
+        // TODO cast system events to evm txs and prepend them to txs
+
         let results = executor::execute_multiple_tx(
             evm_db,
             block_env,

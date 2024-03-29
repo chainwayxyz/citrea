@@ -5,7 +5,7 @@ use sov_modules_api::{AccessoryWorkingSet, Spec, WorkingSet};
 use sov_state::Storage;
 
 use crate::evm::primitive_types::{Block, BlockEnv};
-use crate::{Evm, PendingTransaction};
+use crate::{Evm, PendingTransaction, SystemEvent};
 
 impl<C: sov_modules_api::Context> Evm<C>
 where
@@ -15,8 +15,8 @@ where
     pub fn begin_soft_confirmation_hook(
         &self,
         da_slot_hash: [u8; 32],
-        _da_slot_height: u64,
-        _da_slot_txs_commitment: [u8; 32],
+        da_slot_height: u64,
+        da_slot_txs_commitment: [u8; 32],
         pre_state_root: &[u8],
         l1_fee_rate: u64,
         working_set: &mut WorkingSet<C>,
@@ -38,6 +38,26 @@ where
             &last_block_hash,
             working_set,
         );
+
+        if let Some(last_l1_hash) = self.last_l1_hash.get(working_set) {
+            if last_l1_hash != da_slot_hash {
+                // That's a new L1 block
+                self.system_events.push(
+                    &SystemEvent::L1BlockHashSetBlockInfo(da_slot_hash, da_slot_txs_commitment),
+                    working_set,
+                );
+            }
+        } else {
+            // That's the first L2 block in the first seen L1 block.
+            self.system_events.push(
+                &SystemEvent::L1BlockHashInitialize(da_slot_height),
+                working_set,
+            );
+            self.system_events.push(
+                &SystemEvent::L1BlockHashSetBlockInfo(da_slot_hash, da_slot_txs_commitment),
+                working_set,
+            );
+        }
 
         let cfg = self
             .cfg
@@ -99,6 +119,10 @@ where
             "Pending head must be set to block {}, but found block {}",
             expected_block_number, block_env.number
         );
+
+        self.last_l1_hash.set(&block_env.prevrandao, working_set);
+
+        self.system_events.clear(working_set);
 
         let pending_transactions: Vec<PendingTransaction> =
             self.pending_transactions.iter(working_set).collect();

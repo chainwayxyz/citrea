@@ -34,6 +34,7 @@ use sov_state::codec::BcsCodec;
 use crate::evm::primitive_types::{
     Block, BlockEnv, Receipt, SealedBlock, TransactionSignedAndRecovered,
 };
+use crate::evm::system_events::SystemEvent;
 pub use crate::EvmConfig;
 
 // Gas per transaction not creating a contract.
@@ -87,6 +88,10 @@ pub struct Evm<C: sov_modules_api::Context> {
     #[state]
     pub(crate) head: sov_modules_api::StateValue<Block, BcsCodec>,
 
+    /// Last seen L1 block hash.
+    #[state]
+    pub(crate) last_l1_hash: sov_modules_api::StateValue<B256, BcsCodec>,
+
     /// Last 256 block hashes. Latest blockhash is populated in `begin_slot_hook`.
     /// Removes the oldest blockhash in `finalize_hook`
     /// Used by the EVM to calculate the `blockhash` opcode.
@@ -96,6 +101,10 @@ pub struct Evm<C: sov_modules_api::Context> {
     /// L1 fee rate.
     #[state]
     pub(crate) l1_fee_rate: sov_modules_api::StateValue<u64, BcsCodec>,
+
+    /// System events that will be added as system transactions to the beginning of the current block.
+    #[state]
+    pub(crate) system_events: sov_modules_api::StateVec<SystemEvent, BcsCodec>,
 
     /// Used only by the RPC: This represents the head of the chain and is set in two distinct stages:
     /// 1. `end_slot_hook`: the pending head is populated with data from pending_transactions.

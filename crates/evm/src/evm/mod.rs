@@ -13,6 +13,7 @@ pub(crate) mod error;
 pub(crate) mod executor;
 pub(crate) mod handler;
 pub(crate) mod primitive_types;
+pub(crate) mod system_events;
 #[cfg(test)]
 mod tests;
 
