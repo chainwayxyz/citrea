@@ -2,9 +2,9 @@ use std::collections::BTreeMap;
 use std::str::FromStr;
 
 use alloy_primitives::FixedBytes;
-use alloy_rpc_types::request::{TransactionInput, TransactionRequest};
 use hex::FromHex;
 use reth_primitives::{Address, BlockId, BlockNumberOrTag, U64};
+use reth_rpc_types::request::{TransactionInput, TransactionRequest};
 use reth_rpc_types::{Block, Rich, TransactionReceipt};
 use revm::primitives::{B256, U256};
 use serde_json::json;
@@ -190,6 +190,52 @@ fn get_transaction_by_block_number_and_index_test() {
 }
 
 #[test]
+fn get_block_transaction_count_by_hash_test() {
+    let (evm, mut working_set, _) = init_evm();
+
+    let result =
+        evm.eth_get_block_transaction_count_by_hash(B256::from([0u8; 32]), &mut working_set);
+    // Non-existent blockhash should return None
+    assert_eq!(result, Ok(None));
+
+    let bock_hash_1 = evm
+        .get_block_by_number(Some(BlockNumberOrTag::Number(1)), None, &mut working_set)
+        .unwrap()
+        .unwrap()
+        .header
+        .hash
+        .unwrap();
+
+    let result = evm.eth_get_block_transaction_count_by_hash(bock_hash_1, &mut working_set);
+
+    assert_eq!(result, Ok(Some(U256::from(3))));
+
+    let bock_hash_2 = evm
+        .get_block_by_number(Some(BlockNumberOrTag::Number(2)), None, &mut working_set)
+        .unwrap()
+        .unwrap()
+        .header
+        .hash
+        .unwrap();
+
+    let result = evm.eth_get_block_transaction_count_by_hash(bock_hash_2, &mut working_set);
+
+    assert_eq!(result, Ok(Some(U256::from(4))));
+
+    let bock_hash_3 = evm
+        .get_block_by_number(Some(BlockNumberOrTag::Number(3)), None, &mut working_set)
+        .unwrap()
+        .unwrap()
+        .header
+        .hash
+        .unwrap();
+
+    let result = evm.eth_get_block_transaction_count_by_hash(bock_hash_3, &mut working_set);
+
+    assert_eq!(result, Ok(Some(U256::from(2))));
+}
+
+#[test]
 fn call_test() {
     let (evm, mut working_set, signer) = init_evm();
 
@@ -204,7 +250,7 @@ fn call_test() {
             value: Some(U256::from(100000000)),
             input: None.into(),
             nonce: Some(U64::from(7)),
-            chain_id: Some(U64::from(1u64)),
+            chain_id: Some(1u64),
             access_list: None,
             max_fee_per_blob_gas: None,
             blob_versioned_hashes: None,
@@ -235,7 +281,7 @@ fn call_test() {
             value: Some(U256::from(100000000)),
             input: TransactionInput::new(alloy_primitives::Bytes::from_str(&call_data).unwrap()),
             nonce: Some(U64::from(7)),
-            chain_id: Some(U64::from(1u64)),
+            chain_id: Some(1u64),
             access_list: None,
             max_fee_per_blob_gas: None,
             blob_versioned_hashes: None,
@@ -266,7 +312,7 @@ fn call_test() {
                     alloy_primitives::Bytes::from_str(&call_data).unwrap(),
                 ),
                 nonce: None,
-                chain_id: Some(U64::from(1u64)),
+                chain_id: Some(1u64),
                 access_list: None,
                 max_fee_per_blob_gas: None,
                 blob_versioned_hashes: None,

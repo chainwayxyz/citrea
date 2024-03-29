@@ -1,8 +1,8 @@
 use std::str::FromStr;
 
-use alloy_rpc_types::request::{TransactionInput, TransactionRequest};
 use reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT;
 use reth_primitives::{Address, BlockNumberOrTag, Bytes, TransactionKind, U64};
+use reth_rpc_types::request::{TransactionInput, TransactionRequest};
 use revm::primitives::{SpecId, KECCAK_EMPTY, U256};
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::utils::generate_address;
@@ -475,7 +475,7 @@ fn test_block_hash_in_evm() {
             ),
         },
         nonce: Some(U64::from(0u64)),
-        chain_id: Some(U64::from(DEFAULT_CHAIN_ID)),
+        chain_id: Some(DEFAULT_CHAIN_ID),
         access_list: None,
         max_fee_per_blob_gas: None,
         blob_versioned_hashes: None,

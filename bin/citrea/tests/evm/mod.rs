@@ -2,12 +2,16 @@ use std::net::SocketAddr;
 use std::str::FromStr;
 
 // use citrea::initialize_logging;
-use citrea_evm::smart_contracts::{LogsContract, SimpleStorageContract, TestContract};
+use citrea_evm::smart_contracts::{
+    HiveContract, LogsContract, SimpleStorageContract, TestContract,
+};
 use citrea_stf::genesis_config::GenesisPaths;
+use ethers::abi::AbiEncode;
 use ethers_core::abi::Address;
 use ethers_core::types::{BlockId, Bytes, U256};
 use ethers_signers::{LocalWallet, Signer};
 use reth_primitives::BlockNumberOrTag;
+// use sov_demo_rollup::initialize_logging;
 use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
 use sov_stf_runner::RollupProverConfig;
 
@@ -129,6 +133,72 @@ async fn test_eth_get_logs() -> Result<(), anyhow::Error> {
     test_getlogs(&test_client).await.unwrap();
 
     rollup_task.abort();
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_genesis_contract_call() -> Result<(), Box<dyn std::error::Error>> {
+    let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
+
+    let seq_task = tokio::spawn(async move {
+        start_rollup(
+            seq_port_tx,
+            GenesisPaths::from_dir("../../hive/genesis"),
+            BasicKernelGenesisPaths {
+                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
+            },
+            RollupProverConfig::Execute,
+            NodeMode::SequencerNode,
+            None,
+            123456,
+            true,
+        )
+        .await;
+    });
+
+    let seq_port = seq_port_rx.await.unwrap();
+    let seq_test_client = make_test_client(seq_port).await;
+    // call the contract with address 0x0000000000000000000000000000000000000314
+    let contract_address = Address::from_str("0x0000000000000000000000000000000000000314").unwrap();
+
+    let code = seq_test_client
+        .eth_get_code(contract_address, None)
+        .await
+        .unwrap();
+
+    let expected_code = "60606040526000357c0100000000000000000000000000000000000000000000000000000000900463ffffffff168063a223e05d1461006a578063abd1a0cf1461008d578063abfced1d146100d4578063e05c914a14610110578063e6768b451461014c575b610000565b346100005761007761019d565b6040518082815260200191505060405180910390f35b34610000576100be600480803573ffffffffffffffffffffffffffffffffffffffff169060200190919050506101a3565b6040518082815260200191505060405180910390f35b346100005761010e600480803573ffffffffffffffffffffffffffffffffffffffff169060200190919080359060200190919050506101ed565b005b346100005761014a600480803590602001909190803573ffffffffffffffffffffffffffffffffffffffff16906020019091905050610236565b005b346100005761017960048080359060200190919080359060200190919080359060200190919050506103c4565b60405180848152602001838152602001828152602001935050505060405180910390f35b60005481565b6000600160008373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020019081526020016000205490505b919050565b80600160008473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001908152602001600020819055505b5050565b7f6031a8d62d7c95988fa262657cd92107d90ed96e08d8f867d32f26edfe85502260405180905060405180910390a17f47e2689743f14e97f7dcfa5eec10ba1dff02f83b3d1d4b9c07b206cbbda66450826040518082815260200191505060405180910390a1817fa48a6b249a5084126c3da369fbc9b16827ead8cb5cdc094b717d3f1dcd995e2960405180905060405180910390a27f7890603b316f3509577afd111710f9ebeefa15e12f72347d9dffd0d65ae3bade81604051808273ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16815260200191505060405180910390a18073ffffffffffffffffffffffffffffffffffffffff167f7efef9ea3f60ddc038e50cccec621f86a0195894dc0520482abf8b5c6b659e4160405180905060405180910390a28181604051808381526020018273ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020019250505060405180910390a05b5050565b6000600060008585859250925092505b935093509390505600a165627a7a72305820aaf842d0d0c35c45622c5263cbb54813d2974d3999c8c38551d7c613ea2bc1170029";
+    assert_eq!(code.to_vec(), hex::decode(expected_code).unwrap());
+
+    let hive_contract = HiveContract::new();
+
+    let res: String = seq_test_client
+        .contract_call(
+            contract_address,
+            hive_contract.call_const_func(1, 2, 4),
+            None,
+        )
+        .await
+        .unwrap();
+    let expected_res = "0x000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000004";
+    assert_eq!(res, expected_res);
+
+    let storage_value = seq_test_client
+        .eth_get_storage_at(contract_address, U256::zero(), None)
+        .await
+        .unwrap();
+    assert_eq!(storage_value, 4660.into());
+
+    let storage_value = seq_test_client
+        .eth_get_storage_at(
+            contract_address,
+            U256::from_str("0x6661e9d6d8b923d5bbaab1b96e1dd51ff6ea2a93520fdc9eb75d059238b8c5e9")
+                .unwrap(),
+            None,
+        )
+        .await
+        .unwrap();
+    assert_eq!(storage_value, 1.into());
+    seq_task.abort();
     Ok(())
 }
 
