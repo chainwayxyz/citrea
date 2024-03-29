@@ -3,6 +3,7 @@ pragma solidity ^0.8.13;
 
 import "../lib/Ownable.sol";
 import "./interfaces/IL1BlockHashList.sol";
+import "bitcoin-spv/solidity/contracts/ValidateSPV.sol";
 
 /// @title A system contract that stores block hashes and merkle roots of L1 blocks
 /// @author Citrea
@@ -54,23 +55,16 @@ contract L1BlockHashList is Ownable, IL1BlockHashList {
         return witnessRoots[blockHashes[_blockNumber]];
     }
 
-    function verifyInclusion(bytes32 _blockHash, bytes32 _wtxId, bytes32[] calldata _proof) external view returns (bool) {
-        return _verifyInclusion(_blockHash, _wtxId, _proof);
+    function verifyInclusion(bytes32 _blockHash, bytes32 _wtxId, bytes calldata _proof, uint256 _index) external view returns (bool) {
+        return _verifyInclusion(_blockHash, _wtxId, _proof, _index);
     }
 
-    function verifyInclusion(uint256 _blockNumber, bytes32 _wtxId, bytes32[] calldata _proof) external view returns (bool) {
-        return _verifyInclusion(blockHashes[_blockNumber], _wtxId, _proof);
+    function verifyInclusion(uint256 _blockNumber, bytes32 _wtxId, bytes calldata _proof, uint256 _index) external view returns (bool) {
+        return _verifyInclusion(blockHashes[_blockNumber], _wtxId, _proof, _index);
     }
 
-    function _verifyInclusion(bytes32 _blockHash, bytes32 _wtxId, bytes32[] calldata _proof) internal view returns (bool) {
-        bytes32 result = _wtxId;
-        for (uint256 i = 0; i < _proof.length; i++) {
-            result = hash256(abi.encodePacked(result, _proof[i]));
-        }
-        return result == witnessRoots[_blockHash];
-    }
-
-    function hash256(bytes memory _bytes) internal pure returns (bytes32) {
-        return sha256(abi.encodePacked(sha256(_bytes)));
+    function _verifyInclusion(bytes32 _blockHash, bytes32 _wtxId, bytes calldata _proof, uint256 _index) internal view returns (bool) {
+        bytes32 _witnessRoot = witnessRoots[_blockHash];
+        return ValidateSPV.prove(_witnessRoot, _wtxId, _proof, _index);
     }
 }
