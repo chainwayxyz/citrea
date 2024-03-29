@@ -53,6 +53,10 @@ impl BlockHeaderTrait for AvailHeader {
         self.hash.clone()
     }
 
+    fn txs_commitment(&self) -> Self::Hash {
+        unimplemented!("txs_commitment")
+    }
+
     fn height(&self) -> u64 {
         self.header.number as u64
     }

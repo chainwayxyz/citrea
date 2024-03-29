@@ -199,6 +199,7 @@ where
         let batch_info = HookSoftConfirmationInfo {
             da_slot_height: da_block.header().height(),
             da_slot_hash: da_block.header().hash().into(),
+            da_slot_txs_commitment: da_block.header().txs_commitment().into(),
             pre_state_root: self.state_root.clone().as_ref().to_vec(),
             pub_key: self.sov_tx_signer_priv_key.pub_key().try_to_vec().unwrap(),
             l1_fee_rate,
@@ -239,6 +240,7 @@ where
                 let unsigned_batch = UnsignedSoftConfirmationBatch::new(
                     da_block.header().height(),
                     da_block.header().hash().into(),
+                    da_block.header().txs_commitment().into(),
                     self.state_root.clone().as_ref().to_vec(),
                     txs,
                     l1_fee_rate,
@@ -294,6 +296,7 @@ where
                     batch_hash: batch_receipt.batch_hash,
                     da_slot_hash: da_block.header().hash(),
                     da_slot_height: da_block.header().height(),
+                    da_slot_txs_commitment: da_block.header().txs_commitment(),
                     tx_receipts: batch_receipt.tx_receipts,
                     soft_confirmation_signature: signed_soft_batch.signature().to_vec(),
                     pub_key: signed_soft_batch.pub_key().to_vec(),
@@ -522,6 +525,7 @@ where
             hash,
             soft_confirmation.da_slot_height(),
             soft_confirmation.da_slot_hash(),
+            soft_confirmation.da_slot_txs_commitment(),
             soft_confirmation.pre_state_root(),
             soft_confirmation.l1_fee_rate(),
             soft_confirmation.txs(),

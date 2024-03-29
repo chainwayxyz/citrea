@@ -223,6 +223,9 @@ pub trait BlockHeaderTrait: PartialEq + Debug + Clone + Serialize + DeserializeO
     /// Hash the type to get the digest.
     fn hash(&self) -> Self::Hash;
 
+    /// Transactions commitment of the block.
+    fn txs_commitment(&self) -> Self::Hash;
+
     /// The current header height
     fn height(&self) -> u64;
 

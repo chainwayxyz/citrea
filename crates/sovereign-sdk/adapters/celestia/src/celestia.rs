@@ -240,6 +240,10 @@ impl BlockHeader for CelestiaHeader {
         TmHash(self.header.hash())
     }
 
+    fn txs_commitment(&self) -> Self::Hash {
+        unimplemented!("txs_commitment")
+    }
+
     fn height(&self) -> u64 {
         let height = tendermint::block::Height::decode(self.header.height.as_slice())
             .expect("Height must be valid");

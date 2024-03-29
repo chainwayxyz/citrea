@@ -113,6 +113,8 @@ pub struct HookSoftConfirmationInfo {
     pub da_slot_height: u64,
     /// DA block hash
     pub da_slot_hash: [u8; 32],
+    /// DA block transactions commitment
+    pub da_slot_txs_commitment: [u8; 32],
     /// Previous batch's pre state root
     pub pre_state_root: Vec<u8>,
     /// Public key of signer
@@ -126,6 +128,7 @@ impl From<SignedSoftConfirmationBatch> for HookSoftConfirmationInfo {
         HookSoftConfirmationInfo {
             da_slot_height: signed_soft_confirmation_batch.da_slot_height(),
             da_slot_hash: signed_soft_confirmation_batch.da_slot_hash(),
+            da_slot_txs_commitment: signed_soft_confirmation_batch.da_slot_txs_commitment(),
             pre_state_root: signed_soft_confirmation_batch.pre_state_root(),
             pub_key: signed_soft_confirmation_batch.sequencer_pub_key().to_vec(),
             l1_fee_rate: signed_soft_confirmation_batch.l1_fee_rate(),
@@ -139,6 +142,7 @@ impl From<HookSoftConfirmationInfo> for SignedSoftConfirmationBatch {
             [0u8; 32],
             val.da_slot_height,
             val.da_slot_hash(),
+            val.da_slot_txs_commitment(),
             val.pre_state_root(),
             val.l1_fee_rate,
             vec![],
@@ -152,6 +156,11 @@ impl HookSoftConfirmationInfo {
     /// DA block to build on
     pub fn da_slot_hash(&self) -> [u8; 32] {
         self.da_slot_hash
+    }
+
+    /// DA block transactions commitment
+    pub fn da_slot_txs_commitment(&self) -> [u8; 32] {
+        self.da_slot_txs_commitment
     }
 
     /// Previous batch's pre state root

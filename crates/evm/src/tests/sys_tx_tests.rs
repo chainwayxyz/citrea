@@ -65,7 +65,13 @@ fn test_system_caller() {
         "There is no system account before call"
     ); // That's optional but if the acc will exist in the future its balance must be zero.
 
-    evm.begin_soft_confirmation_hook([5u8; 32], &[10u8; 32], l1_fee_rate, &mut working_set);
+    evm.begin_soft_confirmation_hook(
+        [5u8; 32],
+        [42u8; 32],
+        &[10u8; 32],
+        l1_fee_rate,
+        &mut working_set,
+    );
     {
         let sender_address = generate_address::<C>("sender");
         let sequencer_address = generate_address::<C>("sequencer");
