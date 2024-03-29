@@ -249,7 +249,7 @@ impl DaVerifier for BitcoinVerifier {
             return Err(ValidationError::NonRelevantTxInProof);
         }
 
-        let tx_root = block_header.txs_commitment().to_raw_hash().to_byte_array();
+        let tx_root = block_header.merkle_root().to_raw_hash().to_byte_array();
 
         // Inclusion proof is all the txs in the block.
         let tx_hashes = inclusion_proof
