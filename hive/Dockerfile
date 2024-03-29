@@ -1,4 +1,4 @@
-FROM lukemathwalker/cargo-chef:latest-rust-1.77.0 AS chef
+FROM lukemathwalker/cargo-chef:latest-rust-1 AS chef
 WORKDIR /app
 
 # Builds a cargo-chef plan
@@ -20,7 +20,7 @@ COPY . .
 RUN SKIP_GUEST_BUILD=1 cargo build --release --bin citrea
 
 # We need cargo to run the binary because of some path finding dependencies
-FROM rust:1.77 AS runtime
+FROM rust:latest AS runtime
 WORKDIR /app
 
 # Install curl
