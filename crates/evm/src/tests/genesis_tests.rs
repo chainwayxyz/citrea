@@ -44,6 +44,9 @@ lazy_static! {
     pub(crate) static ref GENESIS_STATE_ROOT: B256 = B256::from(hex!(
         "c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470"
     ));
+    pub(crate) static ref GENESIS_DA_TXS_COMMITMENT: B256 = B256::from(hex!(
+        "0x4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b"
+    ));
     pub(crate) static ref BENEFICIARY: Address = Address::from([3u8; 20]);
 }
 
