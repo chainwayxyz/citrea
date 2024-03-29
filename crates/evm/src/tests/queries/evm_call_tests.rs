@@ -72,7 +72,7 @@ fn test_state_change() {
 
     let random_address = Address::from_str("0x000000000000000000000000000000000000dead").unwrap();
 
-    evm.begin_soft_confirmation_hook([5u8; 32], &[10u8; 32], 1, &mut working_set);
+    evm.begin_soft_confirmation_hook([5u8; 32], [42u8; 32], &[10u8; 32], 1, &mut working_set);
 
     let call_result = evm.get_call(
         TransactionRequest {

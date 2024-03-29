@@ -11,10 +11,11 @@ impl<C: sov_modules_api::Context> Evm<C>
 where
     <C::Storage as Storage>::Root: Into<[u8; 32]>,
 {
-    /// Logic executed at the beginning of the slot. Here we set the root hash of the previous head.
+    /// Logic executed at the beginning of the slot. Here we set the state root of the previous head.
     pub fn begin_soft_confirmation_hook(
         &self,
-        da_root_hash: [u8; 32],
+        da_slot_hash: [u8; 32],
+        _da_slot_txs_commitment: [u8; 32],
         pre_state_root: &[u8],
         l1_fee_rate: u64,
         working_set: &mut WorkingSet<C>,
@@ -45,7 +46,7 @@ where
             number: parent_block.header.number + 1,
             coinbase: cfg.coinbase,
             timestamp: parent_block.header.timestamp + cfg.block_timestamp_delta,
-            prevrandao: da_root_hash.into(),
+            prevrandao: da_slot_hash.into(),
             basefee: parent_block
                 .header
                 .next_block_base_fee(cfg.base_fee_params)

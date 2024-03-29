@@ -492,6 +492,7 @@ where
                 batch_hash: batch_receipt.batch_hash,
                 da_slot_hash: filtered_block.header().hash(),
                 da_slot_height: filtered_block.header().height(),
+                da_slot_txs_commitment: filtered_block.header().txs_commitment(),
                 tx_receipts: batch_receipt.tx_receipts,
                 soft_confirmation_signature: soft_batch.soft_confirmation_signature,
                 pub_key: soft_batch.pub_key,
