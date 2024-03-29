@@ -54,7 +54,7 @@ impl BlockHeaderTrait for AvailHeader {
     }
 
     fn txs_commitment(&self) -> Self::Hash {
-        AvailHash::new(self.header.state_root)
+        unimplemented!("txs_commitment")
     }
 
     fn height(&self) -> u64 {

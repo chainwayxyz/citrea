@@ -157,10 +157,6 @@ impl CompactHeader {
 
         Hash::Sha256(simple_hash_from_byte_vectors::<Sha256>(&fields_bytes))
     }
-
-    fn merkle_root(&self) -> Hash {
-        Hash::Sha256(self.data_hash.clone().unwrap().0)
-    }
 }
 
 // TODO: derive borsh Serialize, Deserialize <https://github.com/eigerco/celestia-node-rs/issues/155>
@@ -245,7 +241,7 @@ impl BlockHeader for CelestiaHeader {
     }
 
     fn txs_commitment(&self) -> Self::Hash {
-        TmHash(self.header.merkle_root())
+        unimplemented!("txs_commitment")
     }
 
     fn height(&self) -> u64 {
