@@ -7,7 +7,7 @@ use reth_primitives::{
 };
 use sov_modules_api::{StateMapAccessor, StateValueAccessor, StateVecAccessor};
 
-use super::genesis_tests::{get_evm, TEST_CONFIG, GENESIS_DA_TXS_COMMITMENT};
+use super::genesis_tests::{get_evm, GENESIS_DA_TXS_COMMITMENT, TEST_CONFIG};
 use crate::evm::primitive_types::{
     Block, BlockEnv, Receipt, SealedBlock, TransactionSignedAndRecovered,
 };
