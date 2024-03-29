@@ -51,7 +51,7 @@ impl HeaderWrapper {
         self.header.block_hash()
     }
 
-    pub fn txs_commitment(&self) -> TxMerkleNode {
+    pub fn merkle_root(&self) -> TxMerkleNode {
         self.header.merkle_root
     }
 }
