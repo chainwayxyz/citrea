@@ -323,8 +323,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .and_then(|account| account.storage.get(&index, working_set))
             .unwrap_or_default();
 
-        println!("storage_slot: {:?}", storage_slot);
-
         Ok(storage_slot)
     }
 
