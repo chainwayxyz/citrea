@@ -33,8 +33,17 @@ fn begin_soft_confirmation_hook_checks_limiting_number() {
         .call(call_message, &context, &mut working_set)
         .unwrap();
 
-    let signed_soft_confirmation_batch =
-        SignedSoftConfirmationBatch::new([0; 32], 0, [0; 32], vec![], 1, vec![], vec![], vec![]);
+    let signed_soft_confirmation_batch = SignedSoftConfirmationBatch::new(
+        [0; 32],
+        0,
+        [0; 32],
+        [0; 32],
+        vec![],
+        1,
+        vec![],
+        vec![],
+        vec![],
+    );
 
     // call begin_slot_hook 11 times
     for i in 0..11 {
@@ -56,8 +65,17 @@ fn begin_soft_confirmation_hook_checks_l1_fee_rate() {
     let (soft_confirmation_rule_enforcer, mut working_set) =
         get_soft_confirmation_rule_enforcer::<MockDaSpec>(&TEST_CONFIG);
 
-    let mut signed_soft_confirmation_batch =
-        SignedSoftConfirmationBatch::new([0; 32], 0, [0; 32], vec![], 100, vec![], vec![], vec![]);
+    let mut signed_soft_confirmation_batch = SignedSoftConfirmationBatch::new(
+        [0; 32],
+        0,
+        [0; 32],
+        [0; 32],
+        vec![],
+        100,
+        vec![],
+        vec![],
+        vec![],
+    );
 
     // call first with 100 fee rate to set last_l1_fee_rate
     let res = soft_confirmation_rule_enforcer.begin_soft_confirmation_hook(

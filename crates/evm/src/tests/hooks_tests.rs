@@ -7,7 +7,7 @@ use reth_primitives::{
 };
 use sov_modules_api::{StateMapAccessor, StateValueAccessor, StateVecAccessor};
 
-use super::genesis_tests::{get_evm, TEST_CONFIG};
+use super::genesis_tests::{get_evm, GENESIS_DA_TXS_COMMITMENT, TEST_CONFIG};
 use crate::evm::primitive_types::{
     Block, BlockEnv, Receipt, SealedBlock, TransactionSignedAndRecovered,
 };
@@ -23,7 +23,13 @@ lazy_static! {
 fn begin_soft_confirmation_hook_creates_pending_block() {
     let (evm, mut working_set) = get_evm(&TEST_CONFIG);
     let l1_fee_rate = 0;
-    evm.begin_soft_confirmation_hook(DA_ROOT_HASH.0, &[10u8; 32], l1_fee_rate, &mut working_set);
+    evm.begin_soft_confirmation_hook(
+        DA_ROOT_HASH.0,
+        [42u8; 32],
+        &[10u8; 32],
+        l1_fee_rate,
+        &mut working_set,
+    );
     let pending_block = evm.block_env.get(&mut working_set).unwrap();
     assert_eq!(
         pending_block,
@@ -43,11 +49,13 @@ fn end_soft_confirmation_hook_sets_head() {
     let (evm, mut working_set) = get_evm(&TEST_CONFIG);
     let mut pre_state_root = [0u8; 32];
     pre_state_root.copy_from_slice(GENESIS_STATE_ROOT.as_ref());
+    let txs_commitment = *GENESIS_DA_TXS_COMMITMENT;
     let l1_fee_rate = 0;
 
     evm.begin_soft_confirmation_hook(
         DA_ROOT_HASH.0,
-        GENESIS_STATE_ROOT.as_ref(),
+        txs_commitment.into(),
+        &pre_state_root,
         l1_fee_rate,
         &mut working_set,
     );
@@ -112,7 +120,13 @@ fn end_soft_confirmation_hook_sets_head() {
 fn end_soft_confirmation_hook_moves_transactions_and_receipts() {
     let (evm, mut working_set) = get_evm(&TEST_CONFIG);
     let l1_fee_rate = 0;
-    evm.begin_soft_confirmation_hook(DA_ROOT_HASH.0, &[10u8; 32], l1_fee_rate, &mut working_set);
+    evm.begin_soft_confirmation_hook(
+        DA_ROOT_HASH.0,
+        [42u8; 32],
+        &[10u8; 32],
+        l1_fee_rate,
+        &mut working_set,
+    );
 
     let tx1 = create_pending_transaction(B256::from([1u8; 32]), 1);
     evm.pending_transactions.push(&tx1, &mut working_set);
@@ -204,7 +218,17 @@ fn finalize_hook_creates_final_block() {
         .unwrap();
     let root = binding.header.header().state_root.as_slice();
 
-    evm.begin_soft_confirmation_hook(DA_ROOT_HASH.0, &root, l1_fee_rate, &mut working_set);
+    let txs_commitment = *GENESIS_DA_TXS_COMMITMENT;
+    let l1_fee_rate = 0;
+
+    evm.begin_soft_confirmation_hook(
+        root,
+        txs_commitment.into(),
+        &pre_state_root,
+        l1_fee_rate,
+        &mut working_set,
+    );
+
     evm.pending_transactions.push(
         &create_pending_transaction(B256::from([1u8; 32]), 1),
         &mut working_set,
@@ -221,7 +245,13 @@ fn finalize_hook_creates_final_block() {
     evm.finalize_hook(&root_hash.into(), &mut accessory_state);
     assert_eq!(evm.blocks.len(&mut accessory_state), 3);
 
-    evm.begin_soft_confirmation_hook(DA_ROOT_HASH.0, &root_hash, l1_fee_rate, &mut working_set);
+    evm.begin_soft_confirmation_hook(
+        DA_ROOT_HASH.0,
+        txs_commitment.into(),
+        &root_hash,
+        l1_fee_rate,
+        &mut working_set,
+    );
 
     let mut accessory_state = working_set.accessory_state();
 
@@ -285,10 +315,16 @@ fn begin_soft_confirmation_hook_appends_last_block_hashes() {
     let (evm, mut working_set) = get_evm(&TEST_CONFIG);
 
     let root: [u8; 32] = rand::thread_rng().gen::<[u8; 32]>();
-
+    let txs_commitment = *GENESIS_DA_TXS_COMMITMENT;
     let l1_fee_rate = 0;
 
-    evm.begin_soft_confirmation_hook(DA_ROOT_HASH.0, &root, l1_fee_rate, &mut working_set);
+    evm.begin_soft_confirmation_hook(
+        root,
+        txs_commitment.into(),
+        &state_root,
+        l1_fee_rate,
+        &mut working_set,
+    );
 
     // on block 2, only block 0 and 1 exists, so the last block hash should be the genesis hash
     // the others should not exist
@@ -320,6 +356,7 @@ fn begin_soft_confirmation_hook_appends_last_block_hashes() {
         let l1_fee_rate = 0;
         evm.begin_soft_confirmation_hook(
             DA_ROOT_HASH.0,
+            random_32_bytes,
             &random_32_bytes,
             l1_fee_rate,
             &mut working_set,
@@ -335,6 +372,7 @@ fn begin_soft_confirmation_hook_appends_last_block_hashes() {
     let l1_fee_rate = 0;
     evm.begin_soft_confirmation_hook(
         DA_ROOT_HASH.0,
+        random_32_bytes,
         &random_32_bytes,
         l1_fee_rate,
         &mut working_set,

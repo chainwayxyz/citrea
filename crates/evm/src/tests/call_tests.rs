@@ -49,7 +49,13 @@ fn call_multiple_test() {
 
     let l1_fee_rate = 0;
 
-    evm.begin_soft_confirmation_hook([5u8; 32], &[10u8; 32], l1_fee_rate, &mut working_set);
+    evm.begin_soft_confirmation_hook(
+        [5u8; 32],
+        [42u8; 32],
+        &[10u8; 32],
+        l1_fee_rate,
+        &mut working_set,
+    );
 
     let set_arg = 999;
     {
@@ -149,7 +155,13 @@ fn call_test() {
     let (evm, mut working_set) = get_evm(&config);
     let l1_fee_rate = 0;
 
-    evm.begin_soft_confirmation_hook([5u8; 32], &[10u8; 32], l1_fee_rate, &mut working_set);
+    evm.begin_soft_confirmation_hook(
+        [5u8; 32],
+        [42u8; 32],
+        &[10u8; 32],
+        l1_fee_rate,
+        &mut working_set,
+    );
 
     let set_arg = 999;
     {
@@ -218,7 +230,7 @@ fn failed_transaction_test() {
     let working_set = &mut working_set;
     let l1_fee_rate = 0;
 
-    evm.begin_soft_confirmation_hook([5u8; 32], &[10u8; 32], l1_fee_rate, working_set);
+    evm.begin_soft_confirmation_hook([5u8; 32], [42u8; 32], &[10u8; 32], l1_fee_rate, working_set);
     {
         let sender_address = generate_address::<C>("sender");
         let sequencer_address = generate_address::<C>("sequencer");
@@ -267,7 +279,13 @@ fn self_destruct_test() {
     let (evm, mut working_set) = get_evm(&config);
     let l1_fee_rate = 0;
 
-    evm.begin_soft_confirmation_hook([5u8; 32], &[10u8; 32], l1_fee_rate, &mut working_set);
+    evm.begin_soft_confirmation_hook(
+        [5u8; 32],
+        [42u8; 32],
+        &[10u8; 32],
+        l1_fee_rate,
+        &mut working_set,
+    );
     {
         let sender_address = generate_address::<C>("sender");
         let sequencer_address = generate_address::<C>("sequencer");
@@ -315,7 +333,13 @@ fn self_destruct_test() {
     assert_eq!(db_contract.keys.len(&mut working_set), 1);
     let l1_fee_rate = 0;
 
-    evm.begin_soft_confirmation_hook([5u8; 32], &[99u8; 32], l1_fee_rate, &mut working_set);
+    evm.begin_soft_confirmation_hook(
+        [5u8; 32],
+        [42u8; 32],
+        &[99u8; 32],
+        l1_fee_rate,
+        &mut working_set,
+    );
     {
         let sender_address = generate_address::<C>("sender");
         let sequencer_address = generate_address::<C>("sequencer");
@@ -384,7 +408,13 @@ fn test_block_hash_in_evm() {
     let (evm, mut working_set) = get_evm(&config);
     let l1_fee_rate = 0;
 
-    evm.begin_soft_confirmation_hook([5u8; 32], &[10u8; 32], l1_fee_rate, &mut working_set);
+    evm.begin_soft_confirmation_hook(
+        [5u8; 32],
+        [42u8; 32],
+        &[10u8; 32],
+        l1_fee_rate,
+        &mut working_set,
+    );
     {
         let sender_address = generate_address::<C>("sender");
         let sequencer_address = generate_address::<C>("sequencer");
@@ -407,7 +437,13 @@ fn test_block_hash_in_evm() {
     for _i in 0..514 {
         // generate 514 more blocks
         let l1_fee_rate = 0;
-        evm.begin_soft_confirmation_hook([5u8; 32], &[99u8; 32], l1_fee_rate, &mut working_set);
+        evm.begin_soft_confirmation_hook(
+            [5u8; 32],
+            [42u8; 32],
+            &[99u8; 32],
+            l1_fee_rate,
+            &mut working_set,
+        );
         evm.end_soft_confirmation_hook(&mut working_set);
         evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
     }
@@ -482,7 +518,13 @@ fn test_block_gas_limit() {
     let (evm, mut working_set) = get_evm(&config);
     let l1_fee_rate = 0;
 
-    evm.begin_soft_confirmation_hook([5u8; 32], &[10u8; 32], l1_fee_rate, &mut working_set);
+    evm.begin_soft_confirmation_hook(
+        [5u8; 32],
+        [42u8; 32],
+        &[10u8; 32],
+        l1_fee_rate,
+        &mut working_set,
+    );
     {
         let sender_address = generate_address::<C>("sender");
         let sequencer_address = generate_address::<C>("sequencer");
@@ -741,7 +783,13 @@ fn test_l1_fee_success() {
 
         let (evm, mut working_set) = get_evm(&config);
 
-        evm.begin_soft_confirmation_hook([5u8; 32], &[10u8; 32], l1_fee_rate, &mut working_set);
+        evm.begin_soft_confirmation_hook(
+            [5u8; 32],
+            [42u8; 32],
+            &[10u8; 32],
+            l1_fee_rate,
+            &mut working_set,
+        );
         {
             let sender_address = generate_address::<C>("sender");
             let sequencer_address = generate_address::<C>("sequencer");
@@ -794,8 +842,10 @@ fn test_l1_fee_success() {
         )
     }
 
-    run_tx(0, U256::from(885765), U256::ZERO);
-    run_tx(1, U256::from(885288), U256::from(477));
+    let gas_fee_paid = 114235;
+
+    run_tx(0, U256::from(885765), U256::from(gas_fee_paid));
+    run_tx(1, U256::from(885288), U256::from(gas_fee_paid + 477));
 }
 
 #[test]
@@ -806,7 +856,13 @@ fn test_l1_fee_not_enough_funds() {
     let l1_fee_rate = 10000;
     let (evm, mut working_set) = get_evm(&config);
 
-    evm.begin_soft_confirmation_hook([5u8; 32], &[10u8; 32], l1_fee_rate, &mut working_set);
+    evm.begin_soft_confirmation_hook(
+        [5u8; 32],
+        [42u8; 32],
+        &[10u8; 32],
+        l1_fee_rate,
+        &mut working_set,
+    );
     {
         let sender_address = generate_address::<C>("sender");
         let sequencer_address = generate_address::<C>("sequencer");

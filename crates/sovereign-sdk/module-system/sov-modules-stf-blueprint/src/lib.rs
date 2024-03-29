@@ -206,6 +206,13 @@ where
             "DA slot hashes must match"
         );
 
+        // then verify da transactions commitment match
+        assert_eq!(
+            soft_batch.da_slot_txs_commitment(),
+            slot_header.txs_commitment().into(),
+            "DA slot hashes must match"
+        );
+
         // then verify pre state root matches
         assert_eq!(
             soft_batch.pre_state_root(),
@@ -576,6 +583,7 @@ fn verify_soft_batch_signature<C: Context>(
     let unsigned = UnsignedSoftConfirmationBatch::new(
         soft_batch.da_slot_height(),
         soft_batch.da_slot_hash(),
+        soft_batch.da_slot_txs_commitment(),
         soft_batch.pre_state_root(),
         soft_batch.txs(),
         soft_batch.l1_fee_rate(),

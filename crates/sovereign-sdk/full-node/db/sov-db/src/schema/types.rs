@@ -76,6 +76,8 @@ pub struct StoredSoftBatch {
     pub da_slot_height: u64,
     /// The da hash of the batch
     pub da_slot_hash: [u8; 32],
+    /// The da transactions commitment of the batch
+    pub da_slot_txs_commitment: [u8; 32],
     /// The hash of the batch
     pub hash: DbHash,
     /// The range of transactions which occurred in this batch.
@@ -104,6 +106,7 @@ impl TryFrom<StoredSoftBatch> for SoftBatchResponse {
         Ok(Self {
             da_slot_hash: value.da_slot_hash,
             da_slot_height: value.da_slot_height,
+            da_slot_txs_commitment: value.da_slot_txs_commitment,
             hash: value.hash,
             txs: Some(value.txs.into_iter().filter_map(|tx| tx.body).collect()), // Rollup full nodes don't store tx bodies
             pre_state_root: value.pre_state_root,
