@@ -469,7 +469,7 @@ mod tests {
 
     // use futures::{Stream, StreamExt};
     use bitcoin::block::{Header, Version};
-    use bitcoin::hash_types::TxMerkleNode;
+    use bitcoin::hash_types::{TxMerkleNode, WitnessMerkleNode};
     use bitcoin::hex::DisplayHex;
     use bitcoin::secp256k1::Keypair;
     use bitcoin::string::FromHexStr;
@@ -647,6 +647,10 @@ mod tests {
             },
             3,
             1,
+            WitnessMerkleNode::from_str(
+                "a8b25755ed6e2f1df665b07e751f6acc1ff4e1ec765caa93084176e34fa5ad71",
+            )
+            .unwrap(),
         );
 
         let txs_str = std::fs::read_to_string("test_data/false_signature_txs.txt").unwrap();
@@ -706,6 +710,10 @@ mod tests {
             },
             3,
             2273,
+            WitnessMerkleNode::from_str(
+                "a8b25755ed6e2f1df665b07e751f6acc1ff4e1ec765caa93084176e34fa5ad71",
+            )
+            .unwrap(),
         );
 
         let txs_str = std::fs::read_to_string("test_data/mock_txs.txt").unwrap();

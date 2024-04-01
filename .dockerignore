@@ -2,9 +2,10 @@
 *
 
 # include source files
-!/citrea
-!/sovereign-sdk
+!/bin
+!/crates
 !/hive
+!/test-da-dbs
 !Cargo.lock
 !Cargo.toml
 !deny.toml
@@ -18,8 +19,7 @@
 # include for vergen constants
 !/.git
 
-# include dist directory, where the reth binary is located after compilation
-!/dist
+
 
 # include licenses
 !LICENSE-*
