@@ -41,11 +41,12 @@ We have an integrated CI workflow in our repository, with Rust version set to st
 | No-std  | `make check-no-std`             |
 | Foundry | `forge test -vvv`               |
 
-We kindly expect you to run these and check everything is correct on your side before opening a ready Pull Request. We do not merge things until these pass, as expected :) If you want to check more about this workflow, feel free the to check it from [**here**](https://github.com/chainwayxyz/citrea/blob/nightly/.github/workflows/checks.yml) .
+We kindly expect you to run these and check everything is correct on your side before opening a ready Pull Request. We do not merge things until these pass, as expected :) If you want to check more about this workflow, feel free the to check it from [here](https://github.com/chainwayxyz/citrea/blob/nightly/.github/workflows/checks.yml).
 
 #### Styling
 
-There's also a Git Hook for you to run, in terms of styling. You can see / run it from [**here**](https://github.com/chainwayxyz/citrea/blob/nightly/.githooks/pre-commit).
+There's also a Git Hook for you to run, in terms of styling. You can see / run it from [here](https://github.com/chainwayxyz/citrea/blob/nightly/.githooks/pre-commit).
+Alternatively, you can run `make set-git-hook` to configure it automatically via the [Makefile](https://github.com/chainwayxyz/citrea/blob/585c84a921ba0e896f449a203d199d5bac34050d/Makefile#L72).
 
 ### Code of Conduct
 
