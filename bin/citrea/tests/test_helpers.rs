@@ -62,7 +62,10 @@ pub async fn start_rollup(
             },
         },
         da: MockDaConfig {
-            sender_address: MockAddress::from([0; 32]),
+            sender_address: MockAddress::from([
+                32, 64, 64, 227, 100, 193, 15, 43, 236, 156, 31, 229, 0, 161, 205, 76, 36, 124,
+                137, 214, 80, 160, 30, 215, 232, 44, 171, 168, 103, 135, 124, 33,
+            ]),
         },
         prover_service: ProverServiceConfig {
             aggregated_proof_block_jump: 1,

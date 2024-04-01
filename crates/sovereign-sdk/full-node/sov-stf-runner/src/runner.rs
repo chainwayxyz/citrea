@@ -300,6 +300,7 @@ where
                 .da_service
                 .extract_relevant_blobs(&filtered_block)
                 .into_iter()
+                .filter(|tx| tx.sender().as_ref() == self.sequencer_pub_key.as_slice())
                 .map(|mut tx| DaData::try_from_slice(tx.full_data()))
                 .partition(Result::is_ok);
 
