@@ -6,8 +6,7 @@ use async_recursion::async_recursion;
 use bitcoin::block::{Header, Version};
 use bitcoin::hash_types::{TxMerkleNode, WitnessMerkleNode};
 use bitcoin::hashes::Hash;
-use bitcoin::merkle_tree;
-use bitcoin::{Address, BlockHash, CompactTarget, Network, Wtxid};
+use bitcoin::{merkle_tree, Address, BlockHash, CompactTarget, Network, Wtxid};
 use reqwest::header::HeaderMap;
 use serde::{Deserialize, Serialize};
 use serde_json::value::RawValue;
@@ -152,7 +151,7 @@ impl BitcoinNode {
         let witness_root = Self::calculate_witness_root(&full_block.txdata).unwrap();
 
         let header_wrapper: HeaderWrapper = HeaderWrapper::new(
-            full_block.header.header().clone(),
+            *full_block.header.header(),
             full_block.txdata.len() as u32,
             full_block.header.height,
             witness_root,
