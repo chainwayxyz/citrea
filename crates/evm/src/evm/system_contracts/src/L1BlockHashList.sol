@@ -79,6 +79,7 @@ contract L1BlockHashList is Ownable, IL1BlockHashList {
 
     function _verifyInclusion(bytes32 _blockHash, bytes32 _wtxId, bytes calldata _proof, uint256 _index) internal view returns (bool) {
         bytes32 _witnessRoot = witnessRoots[_blockHash];
+        require(_wtxId != bytes32(0), "Cannot verify coinbase transaction");
         return ValidateSPV.prove(_wtxId, _witnessRoot, _proof, _index);
     }
 }
