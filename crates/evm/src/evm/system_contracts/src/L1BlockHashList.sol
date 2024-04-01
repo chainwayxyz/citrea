@@ -5,8 +5,12 @@ import "../lib/Ownable.sol";
 import "./interfaces/IL1BlockHashList.sol";
 import "bitcoin-spv/solidity/contracts/ValidateSPV.sol";
 
-/// @title A system contract that stores block hashes and merkle roots of L1 blocks
+/// @title A system contract that stores block hashes and witness root hashes of L1 blocks
 /// @author Citrea
+
+//  WARNING: Integrators must be aware of the following points:
+// - Block hash getters returning 0 value means no such block is recorded
+// - Witness root getters returning 0 value doesn't necessarily mean no such block is recorded, as 0 is also a valid witness root hash in the case of a 1 transaction block
 
 contract L1BlockHashList is Ownable, IL1BlockHashList {
     mapping(uint256 => bytes32) public blockHashes;
@@ -79,7 +83,6 @@ contract L1BlockHashList is Ownable, IL1BlockHashList {
 
     function _verifyInclusion(bytes32 _blockHash, bytes32 _wtxId, bytes calldata _proof, uint256 _index) internal view returns (bool) {
         bytes32 _witnessRoot = witnessRoots[_blockHash];
-        require(_wtxId != bytes32(0), "Cannot verify coinbase transaction");
         return ValidateSPV.prove(_wtxId, _witnessRoot, _proof, _index);
     }
 }
