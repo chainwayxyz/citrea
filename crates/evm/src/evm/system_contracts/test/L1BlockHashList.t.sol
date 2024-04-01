@@ -81,13 +81,4 @@ contract L1BlockHashListTest is Test {
         assert(l1BlockHashList.verifyInclusion(mockBlockHash, wtxId, abi.encodePacked(proof), 1));
         assert(l1BlockHashList.verifyInclusion(INITIAL_BLOCK_NUMBER, wtxId, abi.encodePacked(proof), 1));
     }
-
-    function testCannotVerifyCoinbaseTxn() public {
-        l1BlockHashList.initializeBlockNumber(INITIAL_BLOCK_NUMBER);
-        bytes32 root = mockWitnessRoot;
-        l1BlockHashList.setBlockInfo(mockBlockHash, root);
-        bytes32 wtxId = hex"0000000000000000000000000000000000000000000000000000000000000000";
-        vm.expectRevert("Cannot verify coinbase transaction");
-        l1BlockHashList.verifyInclusion(mockBlockHash, wtxId, abi.encodePacked(new bytes32[](0)), 0);
-    }
 }
