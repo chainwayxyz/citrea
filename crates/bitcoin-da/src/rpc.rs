@@ -4,8 +4,10 @@ use core::str::FromStr;
 use anyhow::anyhow;
 use async_recursion::async_recursion;
 use bitcoin::block::{Header, Version};
-use bitcoin::hash_types::TxMerkleNode;
-use bitcoin::{Address, BlockHash, CompactTarget, Network};
+use bitcoin::hash_types::{TxMerkleNode, WitnessMerkleNode};
+use bitcoin::hashes::Hash;
+use bitcoin::merkle_tree;
+use bitcoin::{Address, BlockHash, CompactTarget, Network, Wtxid};
 use reqwest::header::HeaderMap;
 use serde::{Deserialize, Serialize};
 use serde_json::value::RawValue;
@@ -131,33 +133,29 @@ impl BitcoinNode {
         self.call::<String>("getbestblockhash", vec![]).await
     }
 
+    fn calculate_witness_root(txdata: &[Transaction]) -> Option<WitnessMerkleNode> {
+        let hashes = txdata.iter().enumerate().map(|(i, t)| {
+            if i == 0 {
+                // Replace the first hash with zeroes.
+                Wtxid::all_zeros().to_raw_hash()
+            } else {
+                t.wtxid().to_raw_hash()
+            }
+        });
+        merkle_tree::calculate_root(hashes).map(|h| h.into())
+    }
+
     // get_block_header returns a particular block header with a given hash
     pub async fn get_block_header(&self, hash: String) -> Result<HeaderWrapper, anyhow::Error> {
-        let result = self
-            .call::<Box<RawValue>>("getblockheader", vec![to_value(hash.clone())?])
-            .await?
-            .to_string();
-
-        let full_header: serde_json::Value = serde_json::from_str(&result)?;
-
-        let header: Header = Header {
-            bits: CompactTarget::from_consensus(u32::from_str_radix(
-                full_header["bits"].as_str().unwrap(),
-                16,
-            )?),
-            merkle_root: TxMerkleNode::from_str(full_header["merkleroot"].as_str().unwrap())?,
-            nonce: full_header["nonce"].as_u64().unwrap() as u32,
-            prev_blockhash: BlockHash::from_str(
-                full_header["previousblockhash"].as_str().unwrap(),
-            )?,
-            time: full_header["time"].as_u64().unwrap() as u32,
-            version: Version::from_consensus(full_header["version"].as_u64().unwrap() as i32),
-        };
+        // The full block is requested here because txs_commitment is the witness root
+        let full_block = self.get_block(hash).await?;
+        let witness_root = Self::calculate_witness_root(&full_block.txdata).unwrap();
 
         let header_wrapper: HeaderWrapper = HeaderWrapper::new(
-            header,
-            full_header["nTx"].as_u64().unwrap() as u32,
-            full_header["height"].as_u64().unwrap(),
+            full_block.header.header().clone(),
+            full_block.txdata.len() as u32,
+            full_block.header.height,
+            witness_root,
         );
 
         Ok(header_wrapper)
@@ -195,10 +193,13 @@ impl BitcoinNode {
             })
             .collect();
 
+        let witness_root =
+            Self::calculate_witness_root(&txs).unwrap_or(WitnessMerkleNode::all_zeros());
+
         let height = full_block["height"].as_u64().unwrap();
 
         Ok(BitcoinBlock {
-            header: HeaderWrapper::new(header, txs.len() as u32, height),
+            header: HeaderWrapper::new(header, txs.len() as u32, height, witness_root),
             txdata: txs,
         })
     }
