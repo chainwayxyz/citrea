@@ -1,19 +1,18 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import "openzeppelin-contracts/contracts/access/Ownable.sol";
 import "bitcoin-spv/solidity/contracts/ValidateSPV.sol";
 import "bitcoin-spv/solidity/contracts/BTCUtils.sol";
 
 import "./MerkleTree.sol";
-import "./IL1BlockHashList.sol";
+import "./L1BlockHashList.sol";
 
 /// @title Bridge contract of Clementine
 /// @author Citrea
 
 contract Bridge is MerkleTree, Ownable {
     // TODO: Update this to be the actual address of the L1BlockHashList contract
-    IL1BlockHashList public constant BLOCK_HASH_LIST = IL1BlockHashList(address(0xdeaddeaddeaddeaddeaddeaddeaddeaddeaddead)); 
+    L1BlockHashList public constant BLOCK_HASH_LIST = L1BlockHashList(address(0xdeaDDeADDEaDdeaDdEAddEADDEAdDeadDEADDEaD)); 
 
     bytes public DEPOSIT_TXOUT_0 = hex"c2ddf50500000000225120fc6eb6fa4fd4ed1e8519a7edfa171eddcedfbd0e0be49b5e531ef36e7e66eb05"; 
     uint256 public constant DEPOSIT_AMOUNT = 1 ether;
@@ -32,7 +31,7 @@ contract Bridge is MerkleTree, Ownable {
         _;
     }
 
-    constructor(uint32 _levels) MerkleTree(_levels) Ownable(msg.sender) {}
+    constructor(uint32 _levels) MerkleTree(_levels) {}
 
     /// @notice Sets the expected first transaction output of a deposit transaction on Bitcoin, which signifies the multisig address on Bitcoin
     /// @dev TxOut0 is derived from the multisig on Bitcoin so it stays constant as long as the multisig doesn't change
@@ -106,23 +105,11 @@ contract Bridge is MerkleTree, Ownable {
         }
     }
 
-    /// @notice Checks if passed in Bitcoin block hash exists in the list of block hashes
-    /// @param block_hash The queried block hash 
-    function isCorrectBlockHash(bytes32 block_hash) public view returns (bool) {
-        return blockHashes[block_hash];
-    }
-
     /// @notice Adds a block hash to the list of block hashes
     /// @param block_hash The block hash to be added
     function addBlockHash(bytes32 block_hash) external onlyOwner {
         blockHashes[block_hash] = true;
         emit BlockHashAdded(block_hash);
-    }
-    
-    /// @notice Checks if passed in Bitcoin block hash exists in the list of block hashes
-    /// @param block_hash The queried block hash 
-    function isCorrectBlockHash(bytes32 block_hash) public view returns (bool) {
-        return blockHashes[block_hash];
     }
     
     /// @notice Sets the operator address that can process user deposits
