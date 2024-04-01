@@ -17,7 +17,7 @@ contract L1BlockHashList is Ownable, IL1BlockHashList {
     constructor() Ownable(){ }
 
     /// @notice Sets the initial value for the block number, can only be called once
-    /// @param _blockNumber The L1 block number that is associated with the genesis block of Citrea
+    /// @param _blockNumber L1 block number that is associated with the genesis block of Citrea
     function initializeBlockNumber(uint256 _blockNumber) external onlyOwner {
         require(blockNumber == 0, "Already initialized");
         blockNumber = _blockNumber;
@@ -25,9 +25,9 @@ contract L1BlockHashList is Ownable, IL1BlockHashList {
 
     /// @notice Sets the block hash and witness root for a given block
     /// @notice Can only be called after the initial block number is set
-    /// @dev The block number is incremented by the contract as no block info should be overwritten or skipped
-    /// @param _blockHash The hash of the current L1 block
-    /// @param _witnessRoot The witness root of the current L1 block 
+    /// @dev Block number is incremented by the contract as no block info should be overwritten or skipped
+    /// @param _blockHash Hash of the current L1 block
+    /// @param _witnessRoot Witness root of the current L1 block, must be in little endian 
     function setBlockInfo(bytes32 _blockHash, bytes32 _witnessRoot) external onlyOwner {
         uint256 _blockNumber = blockNumber;
         require(_blockNumber != 0, "Not initialized");
@@ -37,34 +37,48 @@ contract L1BlockHashList is Ownable, IL1BlockHashList {
         emit BlockInfoAdded(blockNumber, _blockHash, _witnessRoot);
     }
 
-    /// @param _blockNumber The number of the block to get the hash for
-    /// @return The block hash for the given block
+    /// @param _blockNumber Number of the block to get the hash for
+    /// @return Block hash for the given block
     function getBlockHash(uint256 _blockNumber) external view returns (bytes32) {
         return blockHashes[_blockNumber];
     }
 
-    /// @param _blockHash The block hash of the block to get the witness root for
-    /// @return The witness root for the given block
+    /// @param _blockHash Block hash of the block to get the witness root for
+    /// @return Witness root for the given block
     function getWitnessRootByHash(bytes32 _blockHash) external view returns (bytes32) {
         return witnessRoots[_blockHash];
     }
 
-    /// @param _blockNumber The block number of the block to get the witness root for
-    /// @return The merkle root for the given block
+    /// @param _blockNumber Block number of the block to get the witness root for
+    /// @return Merkle root for the given block
     function getWitnessRootByNumber(uint256 _blockNumber) external view returns (bytes32) {
         return witnessRoots[blockHashes[_blockNumber]];
     }
 
+    /// @notice Verifies the inclusion of a witness transaction ID in the witness root hash of a block
+    /// @dev Witness transaction ID and proof elements must be in little endian
+    /// @param _blockHash Block hash of the block
+    /// @param _wtxId Witness transaction ID
+    /// @param _proof Merkle proof
+    /// @param _index Index of the transaction
+    /// @return If the witness transaction ID is included in the witness root hash of the block
     function verifyInclusion(bytes32 _blockHash, bytes32 _wtxId, bytes calldata _proof, uint256 _index) external view returns (bool) {
         return _verifyInclusion(_blockHash, _wtxId, _proof, _index);
     }
 
+    /// @notice Verifies the inclusion of a witness transaction ID in the witness root hash of a block
+    /// @dev Witness transaction ID and proof elements must be in little endian
+    /// @param _blockNumber Block number of the block
+    /// @param _wtxId Witness transaction ID
+    /// @param _proof Merkle proof
+    /// @param _index Index of the transaction
+    /// @return If the witness transaction ID is included in the witness root hash of the block
     function verifyInclusion(uint256 _blockNumber, bytes32 _wtxId, bytes calldata _proof, uint256 _index) external view returns (bool) {
         return _verifyInclusion(blockHashes[_blockNumber], _wtxId, _proof, _index);
     }
 
     function _verifyInclusion(bytes32 _blockHash, bytes32 _wtxId, bytes calldata _proof, uint256 _index) internal view returns (bool) {
         bytes32 _witnessRoot = witnessRoots[_blockHash];
-        return ValidateSPV.prove(_witnessRoot, _wtxId, _proof, _index);
+        return ValidateSPV.prove(_wtxId, _witnessRoot, _proof, _index);
     }
 }

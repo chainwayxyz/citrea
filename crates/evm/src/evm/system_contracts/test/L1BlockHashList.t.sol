@@ -66,14 +66,19 @@ contract L1BlockHashListTest is Test {
 
     function testVerifyInclusion() public {
         l1BlockHashList.initializeBlockNumber(INITIAL_BLOCK_NUMBER);
-        // 2975efaf781b03df6a635e8f38160492413a311b083d4dc640c524782f695ccc
-        // 4cf9d14bae01332bbd96fb4d46731c024c0d82ffdfcc70a4fa97aa7395e38f7d
-        bytes32 root = hex"1603c518f01939a30b46000912288d827588d5bbc70a04098f731c0c5b978c1b";
+        // Bitcoin Block 553724
+        // wtxId 0: 0000000000000000000000000000000000000000000000000000000000000000 (coinbase)
+        // wtxId 1: A28E549DC50610430BF7E224EFFD50DB0662356780C934AF0F1A9EB346D50087 (little endian)
+        // wtxId 2: 87CBCB26EF9618F1363C0B0AE62C3AB6DE1DAF67FA6404C416A4D36059AB4BC5 (little endian)
+        // wtxId 3: 85770DFEB29679FDB24E7CA87CA7D162962F6247269282F155F99E0061E31DE5 (little endian)
+        // wtx root: DBEE9A868A8CAA2A1DDF683AF1642A88DFB7AC7CE3ECB5D043586811A41FDBF2 (little endian)
+        bytes32 root = hex"DBEE9A868A8CAA2A1DDF683AF1642A88DFB7AC7CE3ECB5D043586811A41FDBF2";
         l1BlockHashList.setBlockInfo(randomBlockHash, root);
-        bytes32[] memory proof = new bytes32[](1);
-        proof[0] = hex"4cf9d14bae01332bbd96fb4d46731c024c0d82ffdfcc70a4fa97aa7395e38f7d";
-        bytes32 wtxId = hex"0000000000000000000000000000000000000000000000000000000000000000";
-        assert(l1BlockHashList.verifyInclusion(randomBlockHash, wtxId, proof));
-        assert(l1BlockHashList.verifyInclusion(INITIAL_BLOCK_NUMBER, wtxId, proof));
+        bytes32[] memory proof = new bytes32[](2);
+        proof[0] = hex"0000000000000000000000000000000000000000000000000000000000000000";
+        proof[1] = hex"6B1DAB5721B7B8D68B2C7F795D689998A35EFED7E5C99E12E6C8D5C587A1628D";
+        bytes32 wtxId = hex"A28E549DC50610430BF7E224EFFD50DB0662356780C934AF0F1A9EB346D50087";
+        assert(l1BlockHashList.verifyInclusion(randomBlockHash, wtxId, abi.encodePacked(proof), 1));
+        assert(l1BlockHashList.verifyInclusion(INITIAL_BLOCK_NUMBER, wtxId, abi.encodePacked(proof), 1));
     }
 }
