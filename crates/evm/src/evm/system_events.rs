@@ -23,14 +23,14 @@ pub(crate) enum SystemEvent {
     L1BlockHashSetBlockInfo(/*hash*/ [u8; 32], /*merkle root*/ [u8; 32]),
 }
 
-fn system_event_to_transaction(event: SystemEvent, nonce: u64) -> Transaction {
+fn system_event_to_transaction(event: SystemEvent, nonce: u64, chain_id: u64) -> Transaction {
     let sys_block_hash = L1BlockHashList::default();
     let body: TxEip1559 = match event {
         SystemEvent::L1BlockHashInitialize(block_number) => TxEip1559 {
             to: TransactionKind::Call(sys_block_hash.address()),
             input: RethBytes::from(sys_block_hash.init(block_number).to_vec()),
             nonce,
-            chain_id: 1, // TODO?
+            chain_id,
             value: U256::ZERO,
             gas_limit: reth_primitives::constants::MINIMUM_GAS_LIMIT,
             ..Default::default()
@@ -43,7 +43,7 @@ fn system_event_to_transaction(event: SystemEvent, nonce: u64) -> Transaction {
                     .to_vec(),
             ),
             nonce,
-            chain_id: 1, // TODO?
+            chain_id,
             value: U256::ZERO,
             gas_limit: reth_primitives::constants::MINIMUM_GAS_LIMIT,
             ..Default::default()
@@ -52,8 +52,12 @@ fn system_event_to_transaction(event: SystemEvent, nonce: u64) -> Transaction {
     Transaction::Eip1559(body)
 }
 
-fn signed_system_transaction(event: SystemEvent, nonce: u64) -> TransactionSignedEcRecovered {
-    let transaction = system_event_to_transaction(event, nonce);
+fn signed_system_transaction(
+    event: SystemEvent,
+    nonce: u64,
+    chain_id: u64,
+) -> TransactionSignedEcRecovered {
+    let transaction = system_event_to_transaction(event, nonce, chain_id);
     let signed_no_hash = TransactionSignedNoHash {
         signature: SYSTEM_SIGNATURE,
         transaction,
@@ -65,10 +69,11 @@ fn signed_system_transaction(event: SystemEvent, nonce: u64) -> TransactionSigne
 pub(crate) fn create_system_transactions<I: IntoIterator<Item = SystemEvent>>(
     events: I,
     mut starting_nonce: u64,
+    chain_id: u64,
 ) -> Vec<TransactionSignedEcRecovered> {
     let mut transactions = vec![];
     for event in events {
-        transactions.push(signed_system_transaction(event, starting_nonce));
+        transactions.push(signed_system_transaction(event, starting_nonce, chain_id));
         starting_nonce += 1;
     }
     transactions

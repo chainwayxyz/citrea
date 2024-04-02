@@ -56,6 +56,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let system_events = self.system_events.iter(working_set).collect::<Vec<_>>();
 
         let cfg = self.cfg.get(working_set).expect("Evm config must be set");
+        let chain_id = cfg.chain_id;
         let cfg_env: CfgEnvWithHandlerCfg = get_cfg_env(&block_env, cfg, None);
 
         let l1_fee_rate = self
@@ -67,7 +68,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let block_number = block_env.number;
         let evm_db: EvmDb<'_, C> = self.get_db(working_set);
 
-        let system_txs = create_system_transactions(system_events, system_nonce);
+        let system_txs = create_system_transactions(system_events, system_nonce, chain_id);
 
         let all_txs = system_txs.into_iter().chain(users_txs).collect::<Vec<_>>();
 
