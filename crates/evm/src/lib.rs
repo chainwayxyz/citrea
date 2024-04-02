@@ -16,9 +16,10 @@ mod query;
 #[cfg(feature = "native")]
 pub use query::*;
 mod signer;
-pub use signer::{DevSigner, SYSTEM_SIGNER};
+pub use signer::DevSigner;
 #[cfg(feature = "smart_contracts")]
 pub mod smart_contracts;
+pub use system_events::SYSTEM_SIGNER;
 
 #[cfg(test)]
 mod tests;

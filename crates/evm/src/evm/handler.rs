@@ -11,7 +11,7 @@ use revm::primitives::{
 };
 use revm::{Context, Database, FrameResult, InnerEvmContext, JournalEntry};
 
-use crate::signer::SYSTEM_SIGNER;
+use crate::system_events::SYSTEM_SIGNER;
 
 #[derive(Copy, Clone)]
 pub struct TxInfo {

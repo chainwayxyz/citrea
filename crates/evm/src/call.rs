@@ -11,6 +11,7 @@ use crate::evm::executor::{self};
 use crate::evm::handler::{CitreaExternal, CitreaExternalExt};
 use crate::evm::primitive_types::{BlockEnv, Receipt, TransactionSignedAndRecovered};
 use crate::evm::{EvmChainConfig, RlpEvmTransaction};
+use crate::system_events::{create_system_transactions, SYSTEM_SIGNER};
 use crate::{Evm, PendingTransaction};
 
 #[cfg_attr(
@@ -34,7 +35,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         _context: &C,
         working_set: &mut WorkingSet<C>,
     ) -> Result<CallResponse> {
-        let evm_txs_recovered: Vec<TransactionSignedEcRecovered> = txs
+        let users_txs: Vec<TransactionSignedEcRecovered> = txs
             .into_iter()
             .filter_map(|tx| match tx.try_into() {
                 Ok(tx) => Some(tx),
@@ -47,7 +48,12 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .get(working_set)
             .expect("Pending block must be set");
 
-        let _system_events = self.system_events.iter(working_set).collect::<Vec<_>>();
+        let system_nonce = self
+            .accounts
+            .get(&SYSTEM_SIGNER, working_set)
+            .map(|acc| acc.info.nonce)
+            .unwrap_or(0);
+        let system_events = self.system_events.iter(working_set).collect::<Vec<_>>();
 
         let cfg = self.cfg.get(working_set).expect("Evm config must be set");
         let cfg_env: CfgEnvWithHandlerCfg = get_cfg_env(&block_env, cfg, None);
@@ -61,12 +67,14 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let block_number = block_env.number;
         let evm_db: EvmDb<'_, C> = self.get_db(working_set);
 
-        // TODO cast system events to evm txs and prepend them to txs
+        let system_txs = create_system_transactions(system_events, system_nonce);
+
+        let all_txs = system_txs.into_iter().chain(users_txs).collect::<Vec<_>>();
 
         let results = executor::execute_multiple_tx(
             evm_db,
             block_env,
-            &evm_txs_recovered,
+            &all_txs,
             cfg_env,
             &mut citrea_handler_ext,
         );
@@ -74,7 +82,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         // Iterate each evm_txs_recovered and results pair
         // Create a PendingTransaction for each pair
         // Push each PendingTransaction to pending_transactions
-        for (evm_tx_recovered, result) in evm_txs_recovered.into_iter().zip(results.into_iter()) {
+        for (evm_tx_recovered, result) in all_txs.into_iter().zip(results.into_iter()) {
             let previous_transaction = self.pending_transactions.last(working_set);
             let previous_transaction_cumulative_gas_used = previous_transaction
                 .as_ref()

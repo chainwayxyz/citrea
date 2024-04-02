@@ -78,32 +78,4 @@ impl TestSigner {
             rlp: signed.envelope_encoded().to_vec(),
         })
     }
-
-    /// Signs default Eip1559 transaction with to, data and nonce overridden.
-    pub(crate) fn sign_system_transaction_with_fee(
-        &self,
-        to: TransactionKind,
-        data: Vec<u8>,
-        nonce: u64,
-        value: u128,
-        max_fee_per_gas: u128,
-    ) -> Result<RlpEvmTransaction, SignError> {
-        let reth_tx = RethTxEip1559 {
-            to,
-            input: RethBytes::from(data),
-            nonce,
-            value: U256::from(value),
-            chain_id: DEFAULT_CHAIN_ID,
-            gas_limit: 1_000_000u64,
-            max_fee_per_gas,
-            ..Default::default()
-        };
-
-        let reth_tx = RethTransaction::Eip1559(reth_tx);
-        let signed = unsafe { self.signer.sign_system_transaction(reth_tx)? };
-
-        Ok(RlpEvmTransaction {
-            rlp: signed.envelope_encoded().to_vec(),
-        })
-    }
 }

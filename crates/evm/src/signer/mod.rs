@@ -1,22 +1,9 @@
 use std::collections::HashMap;
 
-use alloy_primitives::address;
-use reth_primitives::{
-    sign_message, Address, Signature, Transaction, TransactionSigned, B256, U256,
-};
+use reth_primitives::{sign_message, Address, Transaction, TransactionSigned, B256};
 use secp256k1::{PublicKey, SecretKey};
 
 use crate::error::rpc::SignError;
-
-/// This is a special signature to force tx.signer to be set to SYSTEM_SIGNER
-pub const SYSTEM_SIGNATURE: Signature = Signature {
-    r: U256::ZERO,
-    s: U256::ZERO,
-    odd_y_parity: false,
-};
-
-/// This is a special system address to indicate a tx is called by system not by a user/contract.
-pub const SYSTEM_SIGNER: Address = address!("deaddeaddeaddeaddeaddeaddeaddeaddeaddead");
 
 /// Ethereum transaction signer.
 #[derive(Clone)]
@@ -54,20 +41,6 @@ impl DevSigner {
         Ok(TransactionSigned::from_transaction_and_signature(
             transaction,
             signature,
-        ))
-    }
-
-    /// Signs an system ethereum transaction.
-    ///
-    /// # Safety
-    /// This should be called only for transactions we want to be marked as "executed by system".
-    pub unsafe fn sign_system_transaction(
-        &self,
-        transaction: Transaction,
-    ) -> Result<TransactionSigned, SignError> {
-        Ok(TransactionSigned::from_transaction_and_signature(
-            transaction,
-            SYSTEM_SIGNATURE,
         ))
     }
 

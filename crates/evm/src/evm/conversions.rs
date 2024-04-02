@@ -9,7 +9,6 @@ use revm::primitives::{
 use super::primitive_types::{BlockEnv, RlpEvmTransaction, TransactionSignedAndRecovered};
 use super::AccountInfo;
 use crate::error::rpc::EthApiError;
-use crate::signer::{SYSTEM_SIGNATURE, SYSTEM_SIGNER};
 
 impl From<AccountInfo> for ReVmAccountInfo {
     fn from(info: AccountInfo) -> Self {
@@ -110,13 +109,6 @@ impl TryFrom<RlpEvmTransaction> for TransactionSignedEcRecovered {
     fn try_from(evm_tx: RlpEvmTransaction) -> Result<Self, Self::Error> {
         let tx = TransactionSignedNoHash::try_from(evm_tx)?;
         let tx: TransactionSigned = tx.into();
-        if *tx.signature() == SYSTEM_SIGNATURE {
-            // This is a special case where the transaction is called by the system account
-            return Ok(TransactionSignedEcRecovered::from_signed_transaction(
-                tx,
-                SYSTEM_SIGNER,
-            ));
-        }
         let tx = tx
             .into_ecrecovered()
             .ok_or(EthApiError::FailedToDecodeSignedTransaction)?;
