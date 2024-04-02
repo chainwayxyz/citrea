@@ -91,6 +91,32 @@ where
         Ok(())
     }
 
+    /// Checks that the current block's timestamp is greater than the last block's timestamp.
+    fn apply_timestamp_rule(
+        &self,
+        soft_batch: &mut HookSoftConfirmationInfo,
+        working_set: &mut WorkingSet<C>,
+    ) -> Result<(), ApplySoftConfirmationError> {
+        let current_timestamp = soft_batch.timestamp();
+        let last_timestamp = self
+            .last_timestamp
+            .get(working_set)
+            .expect("Last block's timestamp should be set");
+
+        if current_timestamp <= last_timestamp {
+            return Err(
+                ApplySoftConfirmationError::CurrentTimestampIsNotGreaterThanPrev {
+                    current: current_timestamp,
+                    prev: last_timestamp,
+                },
+            );
+        }
+
+        self.last_timestamp.set(&current_timestamp, working_set);
+
+        Ok(())
+    }
+
     /// Logic executed at the beginning of the soft confirmation.
     /// Checks two rules: block count rule and fee rate rule.
     pub fn begin_soft_confirmation_hook(
@@ -101,6 +127,8 @@ where
         self.apply_block_count_rule(soft_batch, working_set)?;
 
         self.apply_fee_rate_rule(soft_batch, working_set)?;
+
+        self.apply_timestamp_rule(soft_batch, working_set)?;
 
         Ok(())
     }

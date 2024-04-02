@@ -34,6 +34,12 @@ pub enum ApplySoftConfirmationError {
         l1_fee_rate: u64,
         l1_fee_rate_change_percentage: u64,
     },
+    #[error(
+        "Current block's timestamp {} is not greater than the previous block's one {}",
+        current,
+        prev
+    )]
+    CurrentTimestampIsNotGreaterThanPrev { current: u64, prev: u64 },
 }
 
 /// Hooks that execute within the `StateTransitionFunction::apply_blob` function for each processed transaction.
