@@ -1,5 +1,5 @@
 use bitcoin::block::Header;
-use bitcoin::hash_types::TxMerkleNode;
+use bitcoin::hash_types::{TxMerkleNode, WitnessMerkleNode};
 use bitcoin::BlockHash;
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::BlockHeaderTrait;
@@ -12,6 +12,7 @@ pub struct HeaderWrapper {
     header: Header, // not pub to prevent uses like block.header.header.merkle_root
     pub tx_count: u32,
     pub height: u64,
+    txs_commitment: WitnessMerkleNode,
 }
 
 impl BlockHeaderTrait for HeaderWrapper {
@@ -26,7 +27,7 @@ impl BlockHeaderTrait for HeaderWrapper {
     }
 
     fn txs_commitment(&self) -> Self::Hash {
-        BlockHashWrapper(BlockHash::from_raw_hash(self.header.merkle_root.into()))
+        BlockHashWrapper(BlockHash::from_raw_hash(self.txs_commitment.into()))
     }
 
     fn height(&self) -> u64 {
@@ -39,11 +40,17 @@ impl BlockHeaderTrait for HeaderWrapper {
 }
 
 impl HeaderWrapper {
-    pub fn new(header: Header, tx_count: u32, height: u64) -> Self {
+    pub fn new(
+        header: Header,
+        tx_count: u32,
+        height: u64,
+        txs_commitment: WitnessMerkleNode,
+    ) -> Self {
         Self {
             header,
             tx_count,
             height,
+            txs_commitment,
         }
     }
 
@@ -53,5 +60,9 @@ impl HeaderWrapper {
 
     pub fn merkle_root(&self) -> TxMerkleNode {
         self.header.merkle_root
+    }
+
+    pub fn header(&self) -> &Header {
+        &self.header
     }
 }
