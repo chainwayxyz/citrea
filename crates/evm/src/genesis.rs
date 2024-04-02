@@ -64,8 +64,6 @@ pub struct EvmConfig {
     pub starting_base_fee: u64,
     /// Gas limit for single block
     pub block_gas_limit: u64,
-    /// Genesis timestamp.
-    pub genesis_timestamp: u64,
     /// Delta to add to parent block timestamp,
     pub block_timestamp_delta: u64,
     /// Base fee params.
@@ -84,7 +82,6 @@ impl Default for EvmConfig {
             starting_base_fee: reth_primitives::constants::EIP1559_INITIAL_BASE_FEE,
             block_gas_limit: reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT,
             block_timestamp_delta: reth_primitives::constants::SLOT_DURATION.as_secs(),
-            genesis_timestamp: 0,
             base_fee_params: reth_primitives::BaseFeeParams::ethereum(),
         }
     }
@@ -164,7 +161,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             number: 0,
             gas_limit: config.block_gas_limit,
             gas_used: 0,
-            timestamp: config.genesis_timestamp,
+            timestamp: 0,
             mix_hash: B256::default(),
             nonce: 0,
             base_fee_per_gas: Some(config.starting_base_fee),
@@ -241,7 +238,6 @@ mod tests {
                 "coinbase":"0x0000000000000000000000000000000000000000",
                 "starting_base_fee":1000000000,
                 "block_gas_limit":30000000,
-                "genesis_timestamp":0,
                 "block_timestamp_delta":1,
                 "base_fee_params":{
                     "max_change_denominator":8,
@@ -303,8 +299,6 @@ mod tests {
                 "coinbase":"0x0000000000000000000000000000000000000000",
                 "starting_base_fee":1000000000,
                 "block_gas_limit":30000000,
-                "genesis_timestamp":0,
-                "block_timestamp_delta":1,
                 "base_fee_params":{
                     "max_change_denominator":8,
                     "elasticity_multiplier":2
