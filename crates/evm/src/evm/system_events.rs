@@ -17,7 +17,7 @@ pub const SYSTEM_SIGNER: Address = address!("deaddeaddeaddeaddeaddeaddeaddeaddea
 
 /// A system event is an event that is emitted on special conditions by the EVM.
 /// There events will be transformed into Evm transactions and put in the begining of the block.
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, Eq, PartialEq)]
 pub(crate) enum SystemEvent {
     L1BlockHashInitialize(/*block number*/ u64),
     L1BlockHashSetBlockInfo(/*hash*/ [u8; 32], /*merkle root*/ [u8; 32]),
@@ -27,16 +27,17 @@ fn system_event_to_transaction(event: SystemEvent, nonce: u64, chain_id: u64) ->
     let sys_block_hash = L1BlockHashList::default();
     let body: TxEip1559 = match event {
         SystemEvent::L1BlockHashInitialize(block_number) => TxEip1559 {
-            to: TransactionKind::Call(sys_block_hash.address()),
+            to: TransactionKind::Call(L1BlockHashList::address()),
             input: RethBytes::from(sys_block_hash.init(block_number).to_vec()),
             nonce,
             chain_id,
             value: U256::ZERO,
-            gas_limit: reth_primitives::constants::MINIMUM_GAS_LIMIT,
+            gas_limit: 1_000_000u64,
+            max_fee_per_gas: u64::MAX as u128,
             ..Default::default()
         },
         SystemEvent::L1BlockHashSetBlockInfo(block_hash, txs_commitments) => TxEip1559 {
-            to: TransactionKind::Call(sys_block_hash.address()),
+            to: TransactionKind::Call(L1BlockHashList::address()),
             input: RethBytes::from(
                 sys_block_hash
                     .set_block_info(block_hash, txs_commitments)
@@ -45,7 +46,8 @@ fn system_event_to_transaction(event: SystemEvent, nonce: u64, chain_id: u64) ->
             nonce,
             chain_id,
             value: U256::ZERO,
-            gas_limit: reth_primitives::constants::MINIMUM_GAS_LIMIT,
+            gas_limit: 1_000_000u64,
+            max_fee_per_gas: u64::MAX as u128,
             ..Default::default()
         },
     };
@@ -68,13 +70,11 @@ fn signed_system_transaction(
 
 pub(crate) fn create_system_transactions<I: IntoIterator<Item = SystemEvent>>(
     events: I,
-    mut starting_nonce: u64,
+    nonce: u64,
     chain_id: u64,
 ) -> Vec<TransactionSignedEcRecovered> {
-    let mut transactions = vec![];
-    for event in events {
-        transactions.push(signed_system_transaction(event, starting_nonce, chain_id));
-        starting_nonce += 1;
-    }
-    transactions
+    events
+        .into_iter()
+        .map(|event| signed_system_transaction(event, nonce, chain_id))
+        .collect()
 }

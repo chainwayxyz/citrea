@@ -25,7 +25,7 @@ impl Default for L1BlockHashList {
 }
 
 impl L1BlockHashList {
-    pub(crate) fn address(&self) -> Address {
+    pub(crate) fn address() -> Address {
         address!("3100000000000000000000000000000000000001")
     }
     pub(crate) fn init(&self, block_number: u64) -> Bytes {
