@@ -19,6 +19,8 @@ use crate::schema::types::{
 const MAX_SLOTS_PER_REQUEST: u64 = 10;
 /// The maximum number of batches that can be requested in a single RPC range query
 const MAX_BATCHES_PER_REQUEST: u64 = 20;
+/// The maximum number of soft batches that can be requested in a single RPC range query
+const MAX_SOFT_BATCHES_PER_REQUEST: u64 = 20;
 /// The maximum number of transactions that can be requested in a single RPC range query
 const MAX_TRANSACTIONS_PER_REQUEST: u64 = 100;
 /// The maximum number of events that can be requested in a single RPC range query
@@ -59,9 +61,9 @@ impl LedgerRpcProvider for LedgerDB {
 
     fn get_soft_batch(
         &self,
-        batch_id: SoftBatchIdentifier,
+        batch_id: &SoftBatchIdentifier,
     ) -> Result<Option<SoftBatchResponse>, anyhow::Error> {
-        let batch_num = self.resolve_soft_batch_identifier(&batch_id)?;
+        let batch_num = self.resolve_soft_batch_identifier(batch_id)?;
         Ok(match batch_num {
             Some(num) => {
                 if let Some(stored_batch) = self.db.get::<SoftBatchByNumber>(&num)? {
@@ -193,7 +195,7 @@ impl LedgerRpcProvider for LedgerDB {
         &self,
         hash: &[u8; 32],
     ) -> Result<Option<SoftBatchResponse>, anyhow::Error> {
-        self.get_soft_batch(SoftBatchIdentifier::Hash(*hash))
+        self.get_soft_batch(&SoftBatchIdentifier::Hash(*hash))
     }
 
     fn get_batch_by_hash<B: DeserializeOwned, T: DeserializeOwned>(
@@ -228,7 +230,7 @@ impl LedgerRpcProvider for LedgerDB {
         &self,
         number: u64,
     ) -> Result<Option<SoftBatchResponse>, anyhow::Error> {
-        self.get_soft_batch(SoftBatchIdentifier::Number(number))
+        self.get_soft_batch(&SoftBatchIdentifier::Number(number))
     }
 
     fn get_batch_by_number<B: DeserializeOwned, T: DeserializeOwned>(
@@ -284,6 +286,43 @@ impl LedgerRpcProvider for LedgerDB {
         );
         let ids: Vec<_> = (start..=end).map(BatchIdentifier::Number).collect();
         self.get_batches(&ids, query_mode)
+    }
+
+    fn get_soft_batches(
+        &self,
+        soft_batch_ids: &Vec<SoftBatchIdentifier>,
+    ) -> Result<Vec<Option<SoftBatchResponse>>, anyhow::Error> {
+        anyhow::ensure!(
+            soft_batch_ids.len() <= MAX_SOFT_BATCHES_PER_REQUEST as usize,
+            "requested too many soft batches. Requested: {}. Max: {}",
+            soft_batch_ids.len(),
+            MAX_BATCHES_PER_REQUEST
+        );
+
+        let mut out = Vec::with_capacity(soft_batch_ids.len());
+        for soft_batch_id in soft_batch_ids {
+            if let Some(soft_batch) = self.get_soft_batch(soft_batch_id)? {
+                out.push(Some(soft_batch));
+            } else {
+                out.push(None);
+            }
+        }
+        Ok(out)
+    }
+
+    fn get_soft_batches_range(
+        &self,
+        start: u64,
+        end: u64,
+    ) -> Result<Vec<Option<SoftBatchResponse>>, anyhow::Error> {
+        anyhow::ensure!(start <= end, "start must be <= end");
+        anyhow::ensure!(
+            end - start <= MAX_BATCHES_PER_REQUEST,
+            "requested batch range too large. Max: {}",
+            MAX_BATCHES_PER_REQUEST
+        );
+        let ids: Vec<_> = (start..=end).map(SoftBatchIdentifier::Number).collect();
+        self.get_soft_batches(&ids)
     }
 
     fn get_transactions_range<T: DeserializeOwned>(
@@ -347,7 +386,10 @@ impl LedgerDB {
         batch_id: &SoftBatchIdentifier,
     ) -> Result<Option<BatchNumber>, anyhow::Error> {
         match batch_id {
-            SoftBatchIdentifier::Hash(hash) => self.db.get::<SoftBatchByHash>(hash),
+            SoftBatchIdentifier::Hash(hash) => {
+                println!("Hash: {:?}", hash);
+                self.db.get::<SoftBatchByHash>(hash)
+            }
             SoftBatchIdentifier::Number(num) => Ok(Some(BatchNumber(*num))),
         }
     }
