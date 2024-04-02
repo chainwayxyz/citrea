@@ -116,6 +116,7 @@ impl TryFrom<StoredSoftBatch> for SoftBatchResponse {
             soft_confirmation_signature: value.soft_confirmation_signature,
             pub_key: value.pub_key,
             l1_fee_rate: value.l1_fee_rate,
+            timestamp: value.timestamp,
         })
     }
 }
