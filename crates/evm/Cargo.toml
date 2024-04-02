@@ -1,0 +1,218 @@
+[package]
+name = "citrea-evm"
+description = "EVM Module of Citrea"
+authors = { workspace = true }
+edition = { workspace = true }
+homepage = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+
+version = { workspace = true }
+readme = "README.md"
+publish = false
+
+[dependencies]
+sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api", version = "0.3" }
+sov-state = { path = "../sovereign-sdk/module-system/sov-state", version = "0.3" }
+
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+bytes = { workspace = true }
+schemars = { workspace = true, optional = true }
+clap = { workspace = true, optional = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+borsh = { workspace = true, features = ["rc"] }
+hex = { workspace = true }
+jsonrpsee = { workspace = true, features = [
+    "macros",
+    "client-core",
+    "server",
+], optional = true }
+tracing = { workspace = true }
+derive_more = { workspace = true }
+
+
+# ethers-middleware = { workspace = true }
+
+alloy-primitives = { workspace = true }
+alloy-sol-types = { workspace = true }
+alloy-rlp = { workspace = true }
+revm = { workspace = true, features = [
+    "optional_block_gas_limit",
+    "optional_eip3607",
+] }
+revm-inspectors = { workspace = true, optional = true }
+reth-primitives = { workspace = true }
+reth-interfaces = { workspace = true, optional = true }
+reth-rpc-types = { workspace = true, optional = true }
+reth-rpc-types-compat = { workspace = true, optional = true }
+reth-revm = { workspace = true, optional = true }
+reth-rpc = { workspace = true, optional = true }
+secp256k1 = { workspace = true }
+itertools = "0.11.0"
+
+ethereum-types = { workspace = true, optional = true }
+ethers-core = { workspace = true, optional = true }
+ethers-contract = { workspace = true, optional = true }
+ethers-signers = { workspace = true, optional = true }
+ethers = { workspace = true, optional = true }
+
+[dev-dependencies]
+citrea-evm = { path = ".", features = ["test-utils"] }
+tokio = { workspace = true }
+tempfile = { workspace = true }
+bytes = { workspace = true }
+rand = { workspace = true }
+sov-prover-storage-manager = { path = "../sovereign-sdk/full-node/sov-prover-storage-manager", features = [
+    "test-utils",
+] }
+lazy_static = "1.4.0"
+
+
+[features]
+default = []
+native = [
+    "jsonrpsee",
+    "schemars",
+    "clap",
+    "sov-state/native",
+    "sov-modules-api/native",
+    "reth-rpc",
+    "reth-interfaces",
+    "reth-rpc-types",
+    "reth-rpc-types-compat",
+    "reth-revm",
+    "revm-inspectors",
+]
+serde = []
+test-utils = [
+    "ethereum-types",
+    "ethers-core",
+    "ethers-contract",
+    "ethers-signers",
+    "ethers",
+]
+
+
+# [package]
+# name = "citrea-evm"
+# description = "EVM Module of Citrea"
+# authors = { workspace = true }
+# edition = { workspace = true }
+# homepage = { workspace = true }
+# license = { workspace = true }
+# repository = { workspace = true }
+
+# version = { workspace = true }
+# readme = "README.md"
+# publish = false
+
+# [dependencies]
+# sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api", version = "0.3" }
+# sov-state = { path = "../sovereign-sdk/module-system/sov-state", version = "0.3" }
+
+# anyhow = { workspace = true }
+# thiserror = { workspace = true }
+# bytes = { workspace = true }
+# schemars = { workspace = true, optional = true }
+# clap = { workspace = true, optional = true }
+# serde = { workspace = true }
+# serde_json = { workspace = true }
+# borsh = { workspace = true, features = ["rc"] }
+# hex = { workspace = true }
+# jsonrpsee = { workspace = true, features = [
+#     "macros",
+#     "client-core",
+#     "server",
+# ], optional = true }
+# tracing = { workspace = true }
+# derive_more = { workspace = true }
+# lazy_static = "1.4.0"
+
+
+# ethereum-types = { workspace = true }
+# ethers-core = { workspace = true }
+# ethers-contract = { workspace = true }
+# ethers-middleware = { workspace = true }
+# ethers-signers = { workspace = true }
+# ethers = { workspace = true }
+
+# alloy-primitives = { workspace = true, features = ["rand", "rlp", "serde"] }
+# alloy-sol-types = { workspace = true }
+# alloy-rlp = { workspace = true }
+# revm = { workspace = true, features = [
+#     "optional_block_gas_limit",
+#     "optional_eip3607",
+#     "optional_no_base_fee",
+# ] }
+# revm-inspectors = { workspace = true }
+# reth-primitives = { workspace = true }
+# reth-interfaces = { workspace = true }
+# reth-rpc-types = { workspace = true }
+# reth-rpc-types-compat = { workspace = true }
+# reth-revm = { workspace = true }
+# reth-rpc = { workspace = true }
+# secp256k1 = { workspace = true }
+# itertools = "0.11.0"
+
+# [dev-dependencies]
+# citrea-evm = { path = ".", features = ["smart_contracts"] }
+# tokio = { workspace = true }
+# tempfile = { workspace = true }
+# bytes = { workspace = true }
+# rand = { workspace = true }
+# sov-prover-storage-manager = { path = "../sovereign-sdk/full-node/sov-prover-storage-manager", features = [
+#     "test-utils",
+# ] }
+
+# [features]
+# default = ["native"]
+# native = [
+#     "jsonrpsee",
+#     "schemars",
+#     "clap",
+#     "sov-state/native",
+#     "sov-modules-api/native",
+# ]
+# serde = []
+# smart_contracts = ["native"]
+
+# [package]
+# name = "soft-confirmation-rule-enforcer"
+# authors = { workspace = true }
+# edition = { workspace = true }
+# homepage = { workspace = true }
+# license = { workspace = true }
+# repository = { workspace = true }
+
+# version = { workspace = true }
+# readme = "README.md"
+# publish = false
+# resolver = "2"
+
+# [dependencies]
+# sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api", version = "0.3" }
+# sov-state = { path = "../sovereign-sdk/module-system/sov-state", version = "0.3" }
+# tempfile = { workspace = true }
+# sov-prover-storage-manager = { path = "../sovereign-sdk/full-node/sov-prover-storage-manager", features = [
+#     "test-utils",
+# ] }
+# sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
+
+# borsh = { workspace = true }
+# serde = { workspace = true }
+# anyhow = { workspace = true }
+# jsonrpsee = { workspace = true, features = ["macros", "client-core", "server"] }
+# lazy_static = "1.4.0"
+
+# [dev-dependencies]
+# sov-mock-da = { path = "../sovereign-sdk/adapters/mock-da", features = [
+#     "native",
+# ] }
+
+
+# [features]
+# default = []
+# native = ["sov-modules-api/native"]
+# serde = []
