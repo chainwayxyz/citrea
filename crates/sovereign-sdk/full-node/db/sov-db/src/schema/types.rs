@@ -94,6 +94,8 @@ pub struct StoredSoftBatch {
     pub pub_key: Vec<u8>,
     /// L1 fee rate
     pub l1_fee_rate: u64,
+    /// Sequencer's block timestamp
+    pub timestamp: u64,
 }
 
 /// The range of L2 heights (soft confirmations) for a given L1 block
