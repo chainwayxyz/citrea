@@ -11,7 +11,7 @@ use super::genesis_tests::{get_evm, GENESIS_DA_TXS_COMMITMENT, TEST_CONFIG};
 use crate::evm::primitive_types::{
     Block, BlockEnv, Receipt, SealedBlock, TransactionSignedAndRecovered,
 };
-use crate::tests::genesis_tests::{BENEFICIARY, GENESIS_HASH, GENESIS_STATE_ROOT};
+use crate::tests::genesis_tests::{BENEFICIARY, GENESIS_STATE_ROOT};
 use crate::tests::DEFAULT_CHAIN_ID;
 use crate::PendingTransaction;
 
@@ -34,11 +34,11 @@ fn begin_soft_confirmation_hook_creates_pending_block() {
     assert_eq!(
         pending_block,
         BlockEnv {
-            number: 1,
+            number: 2,
             coinbase: *BENEFICIARY,
-            timestamp: TEST_CONFIG.genesis_timestamp + TEST_CONFIG.block_timestamp_delta,
+            timestamp: TEST_CONFIG.genesis_timestamp + TEST_CONFIG.block_timestamp_delta * 2,
             prevrandao: *DA_ROOT_HASH,
-            basefee: 875000000,
+            basefee: 765625000,
             gas_limit: TEST_CONFIG.block_gas_limit,
         }
     );
@@ -82,8 +82,9 @@ fn end_soft_confirmation_hook_sets_head() {
         head,
         Block {
             header: Header {
-                // TODO: temp parent hash until: https://github.com/Sovereign-Labs/sovereign-sdk/issues/876
-                parent_hash: *GENESIS_HASH,
+                parent_hash: B256::from(hex!(
+                    "21e219024dad4f384408f43f1d179b32b1bd91f91bc0b3b8574d3e9839f6c2cc"
+                )),
 
                 ommers_hash: EMPTY_OMMER_ROOT_HASH,
                 beneficiary: TEST_CONFIG.coinbase,
@@ -97,13 +98,13 @@ fn end_soft_confirmation_hook_sets_head() {
                 withdrawals_root: None,
                 logs_bloom: Bloom::default(),
                 difficulty: U256::ZERO,
-                number: 1,
+                number: 2,
                 gas_limit: TEST_CONFIG.block_gas_limit,
                 gas_used: 200u64,
-                timestamp: TEST_CONFIG.genesis_timestamp + TEST_CONFIG.block_timestamp_delta,
+                timestamp: TEST_CONFIG.genesis_timestamp + TEST_CONFIG.block_timestamp_delta * 2,
                 mix_hash: *DA_ROOT_HASH,
                 nonce: 0,
-                base_fee_per_gas: Some(875000000),
+                base_fee_per_gas: Some(765625000),
                 extra_data: Bytes::default(),
                 blob_gas_used: None,
                 excess_blob_gas: None,
@@ -208,18 +209,25 @@ fn create_pending_transaction(hash: B256, index: u64) -> PendingTransaction {
 #[test]
 fn finalize_hook_creates_final_block() {
     let (evm, mut working_set) = get_evm(&TEST_CONFIG);
-    let mut pre_state_root = [0u8; 32];
-    pre_state_root.copy_from_slice(GENESIS_STATE_ROOT.as_ref());
+
+    // hack to get the root hash
+    let binding = evm
+        .blocks
+        .get(1, &mut working_set.accessory_state())
+        .unwrap();
+    let root = binding.header.header().state_root.as_slice();
+
     let txs_commitment = *GENESIS_DA_TXS_COMMITMENT;
     let l1_fee_rate = 0;
 
     evm.begin_soft_confirmation_hook(
-        DA_ROOT_HASH.0,
+        [5u8; 32],
         txs_commitment.into(),
-        &pre_state_root,
+        root,
         l1_fee_rate,
         &mut working_set,
     );
+
     evm.pending_transactions.push(
         &create_pending_transaction(B256::from([1u8; 32]), 1),
         &mut working_set,
@@ -234,8 +242,7 @@ fn finalize_hook_creates_final_block() {
 
     let mut accessory_state = working_set.accessory_state();
     evm.finalize_hook(&root_hash.into(), &mut accessory_state);
-    assert_eq!(evm.blocks.len(&mut accessory_state), 2);
-    let l1_fee_rate = 0;
+    assert_eq!(evm.blocks.len(&mut accessory_state), 3);
 
     evm.begin_soft_confirmation_hook(
         DA_ROOT_HASH.0,
@@ -247,9 +254,9 @@ fn finalize_hook_creates_final_block() {
 
     let mut accessory_state = working_set.accessory_state();
 
-    let parent_block = evm.blocks.get(0usize, &mut accessory_state).unwrap();
+    let parent_block = evm.blocks.get(1usize, &mut accessory_state).unwrap();
     let parent_hash = parent_block.header.hash();
-    let block = evm.blocks.get(1usize, &mut accessory_state).unwrap();
+    let block = evm.blocks.get(2usize, &mut accessory_state).unwrap();
 
     assert_eq!(
         block,
@@ -269,22 +276,22 @@ fn finalize_hook_creates_final_block() {
                     withdrawals_root: None,
                     logs_bloom: Bloom::default(),
                     difficulty: U256::ZERO,
-                    number: 1,
+                    number: 2,
                     gas_limit: 30000000,
                     gas_used: 200,
-                    timestamp: 52,
+                    timestamp: 54,
                     mix_hash: B256::from(hex!(
                         "0505050505050505050505050505050505050505050505050505050505050505"
                     )),
                     nonce: 0,
-                    base_fee_per_gas: Some(875000000),
+                    base_fee_per_gas: Some(765625000),
                     extra_data: Bytes::default(),
                     blob_gas_used: None,
                     excess_blob_gas: None,
                     parent_beacon_block_root: None,
                 },
                 B256::from(hex!(
-                    "4850cef91960c3097715d9294018ea79399b71d80db8b8e6089788059ddc903d"
+                    "2bedf6277f41df20a79af6e9c77ae349dc8ad18c8eae5ed9bac45db2a492825e"
                 ))
             ),
             l1_fee_rate: 0,
@@ -296,7 +303,7 @@ fn finalize_hook_creates_final_block() {
         evm.block_hashes
             .get(&block.header.hash(), &mut accessory_state)
             .unwrap(),
-        1u64
+        2u64
     );
 
     assert_eq!(evm.pending_head.get(&mut accessory_state), None);
@@ -306,35 +313,41 @@ fn finalize_hook_creates_final_block() {
 fn begin_soft_confirmation_hook_appends_last_block_hashes() {
     let (evm, mut working_set) = get_evm(&TEST_CONFIG);
 
-    let mut state_root = [0u8; 32];
-    state_root.copy_from_slice(&GENESIS_STATE_ROOT.0);
+    // hack to get the root hash
+    let binding = evm
+        .blocks
+        .get(1, &mut working_set.accessory_state())
+        .unwrap();
+    let root = binding.header.header().state_root.as_slice();
+
     let txs_commitment = *GENESIS_DA_TXS_COMMITMENT;
     let l1_fee_rate = 0;
 
     evm.begin_soft_confirmation_hook(
         DA_ROOT_HASH.0,
         txs_commitment.into(),
-        &state_root,
+        root,
         l1_fee_rate,
         &mut working_set,
     );
 
-    // on block 1, only block 0 exists, so the last block hash should be the genesis hash
-    // the others should not exist
-    assert_eq!(
-        evm.latest_block_hashes
-            .get(&U256::from(0), &mut working_set)
-            .unwrap(),
-        evm.blocks
-            .get(0, &mut working_set.accessory_state())
-            .unwrap()
-            .header
-            .hash()
-    );
+    // on block 2, only block 0 and 1 exists
+    for i in 0..2 {
+        assert_eq!(
+            evm.latest_block_hashes
+                .get(&U256::from(i), &mut working_set)
+                .unwrap(),
+            evm.blocks
+                .get(i, &mut working_set.accessory_state())
+                .unwrap()
+                .header
+                .hash()
+        );
+    }
 
     assert!(evm
         .latest_block_hashes
-        .get(&U256::from(1), &mut working_set)
+        .get(&U256::from(2), &mut working_set)
         .is_none());
 
     evm.end_soft_confirmation_hook(&mut working_set);
@@ -342,8 +355,8 @@ fn begin_soft_confirmation_hook_appends_last_block_hashes() {
     let mut random_32_bytes: [u8; 32] = rand::thread_rng().gen::<[u8; 32]>();
     evm.finalize_hook(&random_32_bytes.into(), &mut working_set.accessory_state());
 
-    // finalize blocks 1-256 with random state root hashes
-    for _ in 1..256 {
+    // finalize blocks 2-257 with random state root hashes
+    for _ in 2..257 {
         let l1_fee_rate = 0;
         evm.begin_soft_confirmation_hook(
             DA_ROOT_HASH.0,
@@ -359,7 +372,7 @@ fn begin_soft_confirmation_hook_appends_last_block_hashes() {
         evm.finalize_hook(&random_32_bytes.into(), &mut working_set.accessory_state());
     }
 
-    // start environment for block 257
+    // start environment for block 258
     let l1_fee_rate = 0;
     evm.begin_soft_confirmation_hook(
         DA_ROOT_HASH.0,
@@ -369,9 +382,9 @@ fn begin_soft_confirmation_hook_appends_last_block_hashes() {
         &mut working_set,
     );
 
-    // only the last 256 blocks should exist on block 257
-    // which is [1, 256]
-    // not 0
+    // only the last 256 blocks should exist on block 258
+    // which is [2, 257]
+    // not 0 and 1
     assert_eq!(
         evm.latest_block_hashes
             .get(&U256::from(256), &mut working_set)
@@ -389,10 +402,14 @@ fn begin_soft_confirmation_hook_appends_last_block_hashes() {
         .is_none());
     assert!(evm
         .latest_block_hashes
-        .get(&U256::from(257), &mut working_set)
+        .get(&U256::from(1), &mut working_set)
         .is_none());
     assert!(evm
         .latest_block_hashes
-        .get(&U256::from(1), &mut working_set)
+        .get(&U256::from(258), &mut working_set)
+        .is_none());
+    assert!(evm
+        .latest_block_hashes
+        .get(&U256::from(2), &mut working_set)
         .is_some());
 }

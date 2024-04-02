@@ -1,3 +1,6 @@
+use std::collections::HashMap;
+
+use hex::FromHex;
 use lazy_static::lazy_static;
 use reth_primitives::constants::{EMPTY_RECEIPTS, EMPTY_TRANSACTIONS, ETHEREUM_BLOCK_GAS_LIMIT};
 use reth_primitives::hex_literal::hex;
@@ -10,7 +13,8 @@ use sov_modules_api::prelude::*;
 use sov_modules_api::{Module, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
 
-use crate::evm::primitive_types::{Block, SealedBlock};
+use super::queries::commit;
+use crate::evm::primitive_types::SealedBlock;
 use crate::evm::{AccountInfo, DbAccount, EvmChainConfig};
 use crate::{AccountData, Evm, EvmConfig};
 
@@ -24,6 +28,25 @@ lazy_static! {
             code_hash: KECCAK_EMPTY,
             code: Bytes::default(),
             nonce: 0,
+            storage: Default::default(),
+        },
+        AccountData {
+            address:Address::from([2u8; 20]),
+            balance: U256::checked_mul(U256::from(1000),
+            U256::pow(U256::from(10), U256::from(18))).unwrap(), // 1000 ETH,
+            code_hash: B256::from_slice(&[2u8; 32]), code: Bytes::from_hex("60606040526000357c0100000000000000000000000000000000000000000000000000000000900463ffffffff168063a223e05d1461006a578063").unwrap(), storage: {
+                let mut storage = HashMap::new();
+                storage.insert(U256::from(0), U256::from(0x4321));
+                storage.insert(
+                    U256::from_be_slice(
+                        &hex::decode("6661e9d6d8b923d5bbaab1b96e1dd51ff6ea2a93520fdc9eb75d059238b8c5e9").unwrap(),
+                    ),
+                    U256::from(8),
+                );
+
+                storage
+            },
+            nonce: 1
         }],
         spec: vec![(0, SpecId::BERLIN), (1, SpecId::SHANGHAI)]
             .into_iter()
@@ -39,10 +62,10 @@ lazy_static! {
     };
 
     pub(crate) static ref GENESIS_HASH: B256 = B256::from(hex!(
-        "9187222a036b606a937ab9e1d08cce85fcf4f234e67cc53ac7c42de352ca312d"
+        "5c3afd4e90c378a3807947cfbaab0485031a4a2f647e1c5323777997338775a0"
     ));
     pub(crate) static ref GENESIS_STATE_ROOT: B256 = B256::from(hex!(
-        "c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470"
+        "aad642e56d49fbdb0a7b7ad7da81490fde7cb22b3860c77ae92c4c1d37af98b4"
     ));
     pub(crate) static ref GENESIS_DA_TXS_COMMITMENT: B256 = B256::from(hex!(
         "4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b"
@@ -61,6 +84,29 @@ fn genesis_data() {
         .get(&account.address, &mut working_set)
         .unwrap();
 
+    let contract = &TEST_CONFIG.data[1];
+
+    let contract_account = evm
+        .accounts
+        .get(&contract.address, &mut working_set)
+        .unwrap();
+
+    let contract_storage1 = evm
+        .get_storage_at(contract.address, U256::from(0), None, &mut working_set)
+        .unwrap();
+
+    let contract_storage2 = evm
+        .get_storage_at(
+            contract.address,
+            U256::from_be_slice(
+                &hex::decode("6661e9d6d8b923d5bbaab1b96e1dd51ff6ea2a93520fdc9eb75d059238b8c5e9")
+                    .unwrap(),
+            ),
+            None,
+            &mut working_set,
+        )
+        .unwrap();
+
     let evm_db = evm.get_db(&mut working_set);
 
     assert_eq!(
@@ -75,6 +121,22 @@ fn genesis_data() {
             }
         ),
     );
+
+    assert_eq!(
+        contract_account,
+        DbAccount::new_with_info(
+            evm_db.accounts.prefix(),
+            contract.address,
+            AccountInfo {
+                balance: contract.balance,
+                code_hash: contract.code_hash,
+                nonce: contract.nonce,
+            }
+        ),
+    );
+
+    assert_eq!(contract_storage1, U256::from(0x4321));
+    assert_eq!(contract_storage2, U256::from(8));
 }
 
 #[test]
@@ -180,49 +242,64 @@ fn genesis_head() {
     let (evm, mut working_set) = get_evm(&TEST_CONFIG);
     let head = evm.head.get(&mut working_set).unwrap();
 
+    assert_eq!(head.header.parent_hash, *GENESIS_HASH);
+    let genesis_block = evm
+        .blocks
+        .get(0, &mut working_set.accessory_state())
+        .unwrap();
+
     assert_eq!(
-        head,
-        Block {
-            header: Header {
-                parent_hash: B256::default(),
-                state_root: *GENESIS_STATE_ROOT,
-                transactions_root: EMPTY_TRANSACTIONS,
-                receipts_root: EMPTY_RECEIPTS,
-                logs_bloom: Bloom::default(),
-                difficulty: U256::ZERO,
-                number: 0,
-                gas_limit: ETHEREUM_BLOCK_GAS_LIMIT,
-                gas_used: 0,
-                timestamp: 50,
-                extra_data: Bytes::default(),
-                mix_hash: B256::default(),
-                nonce: 0,
-                base_fee_per_gas: Some(1000000000),
-                ommers_hash: EMPTY_OMMER_ROOT_HASH,
-                beneficiary: *BENEFICIARY,
-                withdrawals_root: None,
-                blob_gas_used: None,
-                excess_blob_gas: None,
-                parent_beacon_block_root: None,
-            },
-            l1_fee_rate: 0,
-            transactions: (0u64..0u64),
+        *genesis_block.header.header(),
+        Header {
+            parent_hash: B256::default(),
+            state_root: *GENESIS_STATE_ROOT,
+            transactions_root: EMPTY_TRANSACTIONS,
+            receipts_root: EMPTY_RECEIPTS,
+            logs_bloom: Bloom::default(),
+            difficulty: U256::ZERO,
+            number: 0,
+            gas_limit: ETHEREUM_BLOCK_GAS_LIMIT,
+            gas_used: 0,
+            timestamp: 50,
+            extra_data: Bytes::default(),
+            mix_hash: B256::default(),
+            nonce: 0,
+            base_fee_per_gas: Some(1000000000),
+            ommers_hash: EMPTY_OMMER_ROOT_HASH,
+            beneficiary: *BENEFICIARY,
+            withdrawals_root: None,
+            blob_gas_used: None,
+            excess_blob_gas: None,
+            parent_beacon_block_root: None,
         }
     );
+
+    assert_eq!(genesis_block.l1_fee_rate, 0);
+
+    assert_eq!(genesis_block.transactions, (0u64..0u64));
 }
 
 pub(crate) fn get_evm(config: &EvmConfig) -> (Evm<C>, WorkingSet<DefaultContext>) {
     let tmpdir = tempfile::tempdir().unwrap();
-    let mut working_set = WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let storage = new_orphan_storage(tmpdir.path()).unwrap();
+    let mut working_set = WorkingSet::new(storage.clone());
     let evm = Evm::<C>::default();
     evm.genesis(config, &mut working_set).unwrap();
 
-    let mut genesis_state_root = [0u8; 32];
-    genesis_state_root.copy_from_slice(GENESIS_STATE_ROOT.as_ref());
+    let root = commit(working_set, storage.clone());
 
-    evm.finalize_hook(
-        &genesis_state_root.into(),
-        &mut working_set.accessory_state(),
-    );
+    let mut working_set: WorkingSet<DefaultContext> = WorkingSet::new(storage.clone());
+    evm.finalize_hook(&root.into(), &mut working_set.accessory_state());
+
+    evm.begin_soft_confirmation_hook([1u8; 32], [2u8; 32], &root, 0, &mut working_set);
+    evm.end_soft_confirmation_hook(&mut working_set);
+
+    let root = commit(working_set, storage.clone());
+    let mut working_set: WorkingSet<DefaultContext> = WorkingSet::new(storage.clone());
+    evm.finalize_hook(&root.into(), &mut working_set.accessory_state());
+
+    // let mut genesis_state_root = [0u8; 32];
+    // genesis_state_root.copy_from_slice(GENESIS_STATE_ROOT.as_ref());
+
     (evm, working_set)
 }

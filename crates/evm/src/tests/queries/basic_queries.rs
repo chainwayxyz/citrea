@@ -190,6 +190,52 @@ fn get_transaction_by_block_number_and_index_test() {
 }
 
 #[test]
+fn get_block_transaction_count_by_hash_test() {
+    let (evm, mut working_set, _) = init_evm();
+
+    let result =
+        evm.eth_get_block_transaction_count_by_hash(B256::from([0u8; 32]), &mut working_set);
+    // Non-existent blockhash should return None
+    assert_eq!(result, Ok(None));
+
+    let bock_hash_1 = evm
+        .get_block_by_number(Some(BlockNumberOrTag::Number(1)), None, &mut working_set)
+        .unwrap()
+        .unwrap()
+        .header
+        .hash
+        .unwrap();
+
+    let result = evm.eth_get_block_transaction_count_by_hash(bock_hash_1, &mut working_set);
+
+    assert_eq!(result, Ok(Some(U256::from(3))));
+
+    let bock_hash_2 = evm
+        .get_block_by_number(Some(BlockNumberOrTag::Number(2)), None, &mut working_set)
+        .unwrap()
+        .unwrap()
+        .header
+        .hash
+        .unwrap();
+
+    let result = evm.eth_get_block_transaction_count_by_hash(bock_hash_2, &mut working_set);
+
+    assert_eq!(result, Ok(Some(U256::from(4))));
+
+    let bock_hash_3 = evm
+        .get_block_by_number(Some(BlockNumberOrTag::Number(3)), None, &mut working_set)
+        .unwrap()
+        .unwrap()
+        .header
+        .hash
+        .unwrap();
+
+    let result = evm.eth_get_block_transaction_count_by_hash(bock_hash_3, &mut working_set);
+
+    assert_eq!(result, Ok(Some(U256::from(2))));
+}
+
+#[test]
 fn call_test() {
     let (evm, mut working_set, signer) = init_evm();
 

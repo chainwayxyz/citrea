@@ -772,6 +772,23 @@ impl<C: sov_modules_api::Context> Evm<C> {
         self.estimate_gas_with_env(request, block_env, cfg_env, &mut tx_env, working_set)
     }
 
+    /// Handler for: `eth_getBlockTransactionCountByHash`
+    // https://github.com/paradigmxyz/reth/blob/main/crates/rpc/rpc/src/eth/api/call.rs#L172
+    #[rpc_method(name = "eth_getBlockTransactionCountByHash")]
+    pub fn eth_get_block_transaction_count_by_hash(
+        &self,
+        block_hash: reth_primitives::B256,
+        working_set: &mut WorkingSet<C>,
+    ) -> RpcResult<Option<reth_primitives::U256>> {
+        info!("evm module: eth_getBlockTransactionCountByHash");
+        // Get the number of transactions in a block given blockhash
+        let block = self.get_block_by_hash(block_hash, None, working_set)?;
+        match block {
+            Some(block) => Ok(Some(U256::from(block.transactions.len()))),
+            None => Ok(None),
+        }
+    }
+
     /// Inner gas estimator
     pub(crate) fn estimate_gas_with_env(
         &self,
