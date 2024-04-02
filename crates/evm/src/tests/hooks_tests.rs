@@ -11,7 +11,7 @@ use super::genesis_tests::{get_evm, GENESIS_DA_TXS_COMMITMENT, TEST_CONFIG};
 use crate::evm::primitive_types::{
     Block, BlockEnv, Receipt, SealedBlock, TransactionSignedAndRecovered,
 };
-use crate::tests::genesis_tests::{BENEFICIARY, GENESIS_HASH, GENESIS_STATE_ROOT};
+use crate::tests::genesis_tests::{BENEFICIARY, GENESIS_STATE_ROOT};
 use crate::tests::DEFAULT_CHAIN_ID;
 use crate::PendingTransaction;
 
@@ -83,7 +83,7 @@ fn end_soft_confirmation_hook_sets_head() {
         Block {
             header: Header {
                 parent_hash: B256::from(hex!(
-                    "1163a852eff98caafa21d45c339b1160ea8e7a365f3b14aa36d95348c61cd19c"
+                    "21e219024dad4f384408f43f1d179b32b1bd91f91bc0b3b8574d3e9839f6c2cc"
                 )),
 
                 ommers_hash: EMPTY_OMMER_ROOT_HASH,
@@ -209,7 +209,6 @@ fn create_pending_transaction(hash: B256, index: u64) -> PendingTransaction {
 #[test]
 fn finalize_hook_creates_final_block() {
     let (evm, mut working_set) = get_evm(&TEST_CONFIG);
-    let l1_fee_rate = 0;
 
     // hack to get the root hash
     let binding = evm
@@ -222,9 +221,9 @@ fn finalize_hook_creates_final_block() {
     let l1_fee_rate = 0;
 
     evm.begin_soft_confirmation_hook(
-        root,
+        [5u8; 32],
         txs_commitment.into(),
-        &pre_state_root,
+        root,
         l1_fee_rate,
         &mut working_set,
     );
@@ -292,7 +291,7 @@ fn finalize_hook_creates_final_block() {
                     parent_beacon_block_root: None,
                 },
                 B256::from(hex!(
-                    "da7d8670c43cab7a537d251ff0fa0164625fb211172cfcce07c31c915b548409"
+                    "2bedf6277f41df20a79af6e9c77ae349dc8ad18c8eae5ed9bac45db2a492825e"
                 ))
             ),
             l1_fee_rate: 0,
@@ -314,27 +313,32 @@ fn finalize_hook_creates_final_block() {
 fn begin_soft_confirmation_hook_appends_last_block_hashes() {
     let (evm, mut working_set) = get_evm(&TEST_CONFIG);
 
-    let root: [u8; 32] = rand::thread_rng().gen::<[u8; 32]>();
+    // hack to get the root hash
+    let binding = evm
+        .blocks
+        .get(1, &mut working_set.accessory_state())
+        .unwrap();
+    let root = binding.header.header().state_root.as_slice();
+
     let txs_commitment = *GENESIS_DA_TXS_COMMITMENT;
     let l1_fee_rate = 0;
 
     evm.begin_soft_confirmation_hook(
-        root,
+        DA_ROOT_HASH.0,
         txs_commitment.into(),
-        &state_root,
+        root,
         l1_fee_rate,
         &mut working_set,
     );
 
-    // on block 2, only block 0 and 1 exists, so the last block hash should be the genesis hash
-    // the others should not exist
+    // on block 2, only block 0 and 1 exists
     for i in 0..2 {
         assert_eq!(
             evm.latest_block_hashes
-                .get(&U256::from(0), &mut working_set)
+                .get(&U256::from(i), &mut working_set)
                 .unwrap(),
             evm.blocks
-                .get(0, &mut working_set.accessory_state())
+                .get(i, &mut working_set.accessory_state())
                 .unwrap()
                 .header
                 .hash()

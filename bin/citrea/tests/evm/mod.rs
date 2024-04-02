@@ -6,7 +6,6 @@ use citrea_evm::smart_contracts::{
     HiveContract, LogsContract, SimpleStorageContract, TestContract,
 };
 use citrea_stf::genesis_config::GenesisPaths;
-use ethers::abi::AbiEncode;
 use ethers_core::abi::Address;
 use ethers_core::types::{BlockId, Bytes, U256};
 use ethers_signers::{LocalWallet, Signer};

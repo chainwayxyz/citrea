@@ -9,6 +9,12 @@ pub struct HiveContract {
     base_contract: BaseContract,
 }
 
+impl Default for HiveContract {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl HiveContract {
     /// Create a new instance of HiveContract.
     pub fn new() -> Self {

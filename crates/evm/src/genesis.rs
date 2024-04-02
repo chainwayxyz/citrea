@@ -110,7 +110,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
                 if let Some(storage) = &acc.storage {
                     for (k, v) in storage {
-                        evm_db.insert_storage(acc.address, (*k).into(), (*v).into());
+                        evm_db.insert_storage(acc.address, *k, *v);
                     }
                 }
             }

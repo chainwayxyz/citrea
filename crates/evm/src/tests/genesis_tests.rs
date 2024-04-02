@@ -14,7 +14,7 @@ use sov_modules_api::{Module, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
 
 use super::queries::commit;
-use crate::evm::primitive_types::{Block, SealedBlock};
+use crate::evm::primitive_types::SealedBlock;
 use crate::evm::{AccountInfo, DbAccount, EvmChainConfig};
 use crate::{AccountData, Evm, EvmConfig};
 
@@ -62,10 +62,10 @@ lazy_static! {
     };
 
     pub(crate) static ref GENESIS_HASH: B256 = B256::from(hex!(
-        "07567243179b9d676542085e156eb515dc37f5724c7349f37791d452b3e5e08e"
+        "5c3afd4e90c378a3807947cfbaab0485031a4a2f647e1c5323777997338775a0"
     ));
     pub(crate) static ref GENESIS_STATE_ROOT: B256 = B256::from(hex!(
-        "f516e12405562cf8dae23ae3c53b2496638a4ed6804e1c74fec82471667f35ef"
+        "aad642e56d49fbdb0a7b7ad7da81490fde7cb22b3860c77ae92c4c1d37af98b4"
     ));
     pub(crate) static ref GENESIS_DA_TXS_COMMITMENT: B256 = B256::from(hex!(
         "4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b"
@@ -291,7 +291,7 @@ pub(crate) fn get_evm(config: &EvmConfig) -> (Evm<C>, WorkingSet<DefaultContext>
     let mut working_set: WorkingSet<DefaultContext> = WorkingSet::new(storage.clone());
     evm.finalize_hook(&root.into(), &mut working_set.accessory_state());
 
-    evm.begin_soft_confirmation_hook([1u8; 32], &root, 0, &mut working_set);
+    evm.begin_soft_confirmation_hook([1u8; 32], [2u8; 32], &root, 0, &mut working_set);
     evm.end_soft_confirmation_hook(&mut working_set);
 
     let root = commit(working_set, storage.clone());

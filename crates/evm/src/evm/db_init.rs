@@ -47,6 +47,6 @@ impl InitEvmDb for CacheDB<EmptyDB> {
     }
 
     fn insert_storage(&mut self, address: Address, index: U256, value: U256) {
-        self.insert_account_storage(address, index, value);
+        self.insert_account_storage(address, index, value).unwrap();
     }
 }
