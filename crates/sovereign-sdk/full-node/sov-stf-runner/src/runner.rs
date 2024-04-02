@@ -497,6 +497,7 @@ where
                 soft_confirmation_signature: soft_batch.soft_confirmation_signature,
                 pub_key: soft_batch.pub_key,
                 l1_fee_rate: soft_batch.l1_fee_rate,
+                timestamp: soft_batch.timestamp,
             };
 
             self.ledger_db

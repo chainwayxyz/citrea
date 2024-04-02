@@ -310,6 +310,7 @@ impl LedgerDB {
             soft_confirmation_signature: batch_receipt.soft_confirmation_signature,
             pub_key: batch_receipt.pub_key,
             l1_fee_rate: batch_receipt.l1_fee_rate,
+            timestamp: batch_receipt.timestamp,
         };
         self.put_soft_batch(
             &batch_to_store,
