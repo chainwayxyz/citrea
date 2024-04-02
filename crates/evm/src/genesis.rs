@@ -111,10 +111,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
             if acc.code.len() > 0 {
                 evm_db.insert_code(acc.code_hash, acc.code.clone());
 
-                if !acc.storage.is_empty() {
-                    for (k, v) in acc.storage.iter() {
-                        evm_db.insert_storage(acc.address, *k, *v);
-                    }
+                for (k, v) in acc.storage.iter() {
+                    evm_db.insert_storage(acc.address, *k, *v);
                 }
             }
         }
