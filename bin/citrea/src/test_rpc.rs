@@ -348,6 +348,16 @@ fn test_get_soft_batch() {
 }
 
 #[test]
+fn test_get_soft_batch_status() {
+    let payload = jsonrpc_req!("ledger_getSoftConfirmationStatus", [1]);
+    let expected = jsonrpc_result!("Trusted");
+    regular_test_helper(payload, &expected);
+    let payload = jsonrpc_req!("ledger_getSoftConfirmationStatus", [1]);
+    let expected = jsonrpc_result!("Trusted");
+    regular_test_helper(payload, &expected);
+}
+
+#[test]
 fn test_get_events() {
     let payload = jsonrpc_req!("ledger_getEvents", [1]);
     let expected = jsonrpc_result!([{
