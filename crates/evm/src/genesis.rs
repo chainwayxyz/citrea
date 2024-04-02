@@ -299,6 +299,7 @@ mod tests {
                 "coinbase":"0x0000000000000000000000000000000000000000",
                 "starting_base_fee":1000000000,
                 "block_gas_limit":30000000,
+                "block_timestamp_delta": 1,
                 "base_fee_params":{
                     "max_change_denominator":8,
                     "elasticity_multiplier":2

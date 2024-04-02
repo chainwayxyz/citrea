@@ -54,7 +54,6 @@ lazy_static! {
         chain_id: 1000,
         block_gas_limit: reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT,
         block_timestamp_delta: 2,
-        genesis_timestamp: 50,
         coinbase: Address::from([3u8; 20]),
         limit_contract_code_size: Some(5000),
         starting_base_fee: 1000000000,
@@ -62,10 +61,10 @@ lazy_static! {
     };
 
     pub(crate) static ref GENESIS_HASH: B256 = B256::from(hex!(
-        "5c3afd4e90c378a3807947cfbaab0485031a4a2f647e1c5323777997338775a0"
+        "4e9bf2c5ace397aee0e37c4614566b947773f7023cdb05010349419cacbd2b44"
     ));
     pub(crate) static ref GENESIS_STATE_ROOT: B256 = B256::from(hex!(
-        "aad642e56d49fbdb0a7b7ad7da81490fde7cb22b3860c77ae92c4c1d37af98b4"
+        "bd86fd85964d4aac6a0bdd77011a791522ca71e23895bd1b3f7f2a1803cb4902"
     ));
     pub(crate) static ref GENESIS_DA_TXS_COMMITMENT: B256 = B256::from(hex!(
         "4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b"
@@ -217,7 +216,7 @@ fn genesis_block() {
                     number: 0,
                     gas_limit: ETHEREUM_BLOCK_GAS_LIMIT,
                     gas_used: 0,
-                    timestamp: 50,
+                    timestamp: 0,
                     extra_data: Bytes::default(),
                     mix_hash: B256::default(),
                     nonce: 0,
@@ -260,7 +259,7 @@ fn genesis_head() {
             number: 0,
             gas_limit: ETHEREUM_BLOCK_GAS_LIMIT,
             gas_used: 0,
-            timestamp: 50,
+            timestamp: 0,
             extra_data: Bytes::default(),
             mix_hash: B256::default(),
             nonce: 0,
@@ -291,7 +290,7 @@ pub(crate) fn get_evm(config: &EvmConfig) -> (Evm<C>, WorkingSet<DefaultContext>
     let mut working_set: WorkingSet<DefaultContext> = WorkingSet::new(storage.clone());
     evm.finalize_hook(&root.into(), &mut working_set.accessory_state());
 
-    evm.begin_soft_confirmation_hook([1u8; 32], [2u8; 32], &root, 0, &mut working_set);
+    evm.begin_soft_confirmation_hook([1u8; 32], [2u8; 32], &root, 0, 0, &mut working_set);
     evm.end_soft_confirmation_hook(&mut working_set);
 
     let root = commit(working_set, storage.clone());

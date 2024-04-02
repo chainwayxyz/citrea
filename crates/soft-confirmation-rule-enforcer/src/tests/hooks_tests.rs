@@ -43,6 +43,7 @@ fn begin_soft_confirmation_hook_checks_limiting_number() {
         vec![],
         vec![],
         vec![],
+        10,
     );
 
     // call begin_slot_hook 11 times
@@ -75,6 +76,7 @@ fn begin_soft_confirmation_hook_checks_l1_fee_rate() {
         vec![],
         vec![],
         vec![],
+        1,
     );
 
     // call first with 100 fee rate to set last_l1_fee_rate

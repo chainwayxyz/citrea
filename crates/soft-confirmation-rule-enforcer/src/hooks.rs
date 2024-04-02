@@ -98,12 +98,9 @@ where
         working_set: &mut WorkingSet<C>,
     ) -> Result<(), ApplySoftConfirmationError> {
         let current_timestamp = soft_batch.timestamp();
-        let last_timestamp = self
-            .last_timestamp
-            .get(working_set)
-            .expect("Last block's timestamp should be set");
+        let last_timestamp = self.last_timestamp.get(working_set).unwrap_or(0);
 
-        if current_timestamp <= last_timestamp {
+        if current_timestamp < last_timestamp {
             return Err(
                 ApplySoftConfirmationError::CurrentTimestampIsNotGreaterThanPrev {
                     current: current_timestamp,
