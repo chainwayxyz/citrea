@@ -77,7 +77,7 @@ where
         self.block_env.set(&new_pending_env, working_set);
         self.l1_fee_rate.set(&l1_fee_rate, working_set);
 
-        // if hight > 256, start removing the oldest block
+        // if height > 256, start removing the oldest block
         // keeping only 256 most recent blocks
         // this first happens on txs in block 257
         // remove block 0, keep blocks 1-256

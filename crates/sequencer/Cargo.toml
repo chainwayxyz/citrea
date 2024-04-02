@@ -35,6 +35,8 @@ reth-db = { workspace = true }
 reth-trie = { workspace = true }
 reth-rpc-types-compat = { workspace = true }
 
+revm = { workspace = true }
+
 ethers = { workspace = true }
 tokio = { workspace = true }
 schnellru = "0.2.1"

@@ -1,8 +1,8 @@
 use std::str::FromStr;
 
-use alloy_rpc_types::request::{TransactionInput, TransactionRequest};
 use reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT;
 use reth_primitives::{Address, BlockNumberOrTag, Bytes, TransactionKind, U64};
+use reth_rpc_types::request::{TransactionInput, TransactionRequest};
 use revm::primitives::{SpecId, KECCAK_EMPTY, U256};
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::utils::generate_address;
@@ -31,6 +31,7 @@ fn call_multiple_test() {
             code_hash: KECCAK_EMPTY,
             code: Bytes::default(),
             nonce: 0,
+            storage: Default::default(),
         }],
         // SHANGAI instead of LATEST
         // https://github.com/Sovereign-Labs/sovereign-sdk/issues/912
@@ -487,7 +488,7 @@ fn test_block_hash_in_evm() {
             ),
         },
         nonce: Some(U64::from(0u64)),
-        chain_id: Some(U64::from(DEFAULT_CHAIN_ID)),
+        chain_id: Some(DEFAULT_CHAIN_ID),
         access_list: None,
         max_fee_per_blob_gas: None,
         blob_versioned_hashes: None,
@@ -504,7 +505,7 @@ fn test_block_hash_in_evm() {
                 .into(),
         );
         let resp = evm.get_call(request.clone(), None, None, None, &mut working_set);
-        if !(259..=514).contains(&i) {
+        if !(260..=515).contains(&i) {
             // Should be 0, there is more than 256 blocks between the last block and the block number
             assert_eq!(resp.unwrap().to_vec(), vec![0u8; 32]);
         } else {
@@ -750,6 +751,7 @@ pub(crate) fn get_evm_config(
             code_hash: KECCAK_EMPTY,
             code: Bytes::default(),
             nonce: 0,
+            storage: Default::default(),
         }],
         spec: vec![(0, SpecId::SHANGHAI)].into_iter().collect(),
         block_gas_limit: block_gas_limit.unwrap_or(ETHEREUM_BLOCK_GAS_LIMIT),
@@ -777,6 +779,7 @@ pub(crate) fn get_evm_config_starting_base_fee(
             code_hash: KECCAK_EMPTY,
             code: Bytes::default(),
             nonce: 0,
+            storage: Default::default(),
         }],
         spec: vec![(0, SpecId::SHANGHAI)].into_iter().collect(),
         block_gas_limit: block_gas_limit.unwrap_or(ETHEREUM_BLOCK_GAS_LIMIT),

@@ -26,9 +26,10 @@ use crate::{AccountData, Evm, EvmConfig, RlpEvmTransaction};
 
 type C = DefaultContext;
 
-/// Creates evm instance with 3 blocks (including genesis)
-/// Block 1 has 2 transactions
+/// Creates evm instance with 4 blocks (including genesis)
+/// Block 1 has 3 transactions
 /// Block 2 has 4 transactions
+/// Block 3 has 2 transactions
 fn init_evm() -> (Evm<C>, WorkingSet<C>, TestSigner) {
     let dev_signer: TestSigner = TestSigner::new_random();
 
@@ -39,6 +40,7 @@ fn init_evm() -> (Evm<C>, WorkingSet<C>, TestSigner) {
             code_hash: KECCAK_EMPTY,
             code: Bytes::default(),
             nonce: 0,
+            storage: Default::default(),
         }],
         // SHANGAI instead of LATEST
         // https://github.com/Sovereign-Labs/sovereign-sdk/issues/912
@@ -157,6 +159,7 @@ pub fn init_evm_single_block() -> (Evm<C>, WorkingSet<C>, TestSigner) {
             code_hash: KECCAK_EMPTY,
             code: Bytes::default(),
             nonce: 0,
+            storage: Default::default(),
         }],
         spec: vec![(0, SpecId::SHANGHAI)].into_iter().collect(),
         ..Default::default()
@@ -208,6 +211,7 @@ pub fn init_evm_with_caller_contract() -> (Evm<C>, WorkingSet<C>, TestSigner) {
             code_hash: KECCAK_EMPTY,
             code: Bytes::default(),
             nonce: 0,
+            storage: Default::default(),
         }],
         spec: vec![(0, SpecId::SHANGHAI)].into_iter().collect(),
         ..Default::default()
@@ -309,16 +313,16 @@ fn get_evm_with_storage(
     (evm, working_set, prover_storage)
 }
 
-fn commit(
+pub(crate) fn commit(
     working_set: WorkingSet<DefaultContext>,
     storage: ProverStorage<DefaultStorageSpec, SnapshotManager>,
-) {
+) -> [u8; 32] {
     // Save checkpoint
     let mut checkpoint = working_set.checkpoint();
 
     let (cache_log, witness) = checkpoint.freeze();
 
-    let (_, authenticated_node_batch) = storage
+    let (root, authenticated_node_batch) = storage
         .compute_state_update(cache_log, &witness)
         .expect("jellyfish merkle tree update must succeed");
 
@@ -327,4 +331,6 @@ fn commit(
     let accessory_log = working_set.checkpoint().freeze_non_provable();
 
     storage.commit(&authenticated_node_batch, &accessory_log);
+
+    root.0
 }
