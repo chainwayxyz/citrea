@@ -772,7 +772,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         self.estimate_gas_with_env(request, block_env, cfg_env, &mut tx_env, working_set)
     }
 
-    /// Handler for: `eth_estimateGas`
+    /// Handler for: `eth_getBlockTransactionCountByHash`
     // https://github.com/paradigmxyz/reth/blob/main/crates/rpc/rpc/src/eth/api/call.rs#L172
     #[rpc_method(name = "eth_getBlockTransactionCountByHash")]
     pub fn eth_get_block_transaction_count_by_hash(

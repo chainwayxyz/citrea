@@ -28,7 +28,7 @@ lazy_static! {
             code_hash: KECCAK_EMPTY,
             code: Bytes::default(),
             nonce: 0,
-            storage: None,
+            storage: Default::default(),
         },
         AccountData {
             address:Address::from([2u8; 20]),
@@ -44,7 +44,7 @@ lazy_static! {
                     U256::from(8),
                 );
 
-                Some(storage)
+                storage
             },
             nonce: 1
         }],

@@ -40,7 +40,7 @@ fn init_evm() -> (Evm<C>, WorkingSet<C>, TestSigner) {
             code_hash: KECCAK_EMPTY,
             code: Bytes::default(),
             nonce: 0,
-            storage: None,
+            storage: Default::default(),
         }],
         // SHANGAI instead of LATEST
         // https://github.com/Sovereign-Labs/sovereign-sdk/issues/912
@@ -159,7 +159,7 @@ pub fn init_evm_single_block() -> (Evm<C>, WorkingSet<C>, TestSigner) {
             code_hash: KECCAK_EMPTY,
             code: Bytes::default(),
             nonce: 0,
-            storage: None,
+            storage: Default::default(),
         }],
         spec: vec![(0, SpecId::SHANGHAI)].into_iter().collect(),
         ..Default::default()
@@ -211,7 +211,7 @@ pub fn init_evm_with_caller_contract() -> (Evm<C>, WorkingSet<C>, TestSigner) {
             code_hash: KECCAK_EMPTY,
             code: Bytes::default(),
             nonce: 0,
-            storage: None,
+            storage: Default::default(),
         }],
         spec: vec![(0, SpecId::SHANGHAI)].into_iter().collect(),
         ..Default::default()

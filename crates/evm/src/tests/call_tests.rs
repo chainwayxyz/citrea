@@ -31,7 +31,7 @@ fn call_multiple_test() {
             code_hash: KECCAK_EMPTY,
             code: Bytes::default(),
             nonce: 0,
-            storage: None,
+            storage: Default::default(),
         }],
         // SHANGAI instead of LATEST
         // https://github.com/Sovereign-Labs/sovereign-sdk/issues/912
@@ -737,7 +737,7 @@ pub(crate) fn get_evm_config(
             code_hash: KECCAK_EMPTY,
             code: Bytes::default(),
             nonce: 0,
-            storage: None,
+            storage: Default::default(),
         }],
         spec: vec![(0, SpecId::SHANGHAI)].into_iter().collect(),
         block_gas_limit: block_gas_limit.unwrap_or(ETHEREUM_BLOCK_GAS_LIMIT),
@@ -765,7 +765,7 @@ fn get_evm_config_starting_base_fee(
             code_hash: KECCAK_EMPTY,
             code: Bytes::default(),
             nonce: 0,
-            storage: None,
+            storage: Default::default(),
         }],
         spec: vec![(0, SpecId::SHANGHAI)].into_iter().collect(),
         block_gas_limit: block_gas_limit.unwrap_or(ETHEREUM_BLOCK_GAS_LIMIT),

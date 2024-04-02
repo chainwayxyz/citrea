@@ -25,9 +25,12 @@ pub struct AccountData {
     pub code_hash: B256,
     /// Smart contract code.
     pub code: Bytes,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default = "Default::default",
+        skip_serializing_if = "HashMap::is_empty"
+    )]
     /// Smart contract storage
-    pub storage: Option<HashMap<U256, U256>>,
+    pub storage: HashMap<U256, U256>,
     /// Account nonce.
     pub nonce: u64,
 }
@@ -108,8 +111,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
             if acc.code.len() > 0 {
                 evm_db.insert_code(acc.code_hash, acc.code.clone());
 
-                if let Some(storage) = &acc.storage {
-                    for (k, v) in storage {
+                if !acc.storage.is_empty() {
+                    for (k, v) in acc.storage.iter() {
                         evm_db.insert_storage(acc.address, *k, *v);
                     }
                 }
@@ -213,7 +216,7 @@ mod tests {
                 code_hash: AccountData::empty_code(),
                 code: Bytes::default(),
                 nonce: 0,
-                storage: None,
+                storage: Default::default(),
             }],
             chain_id: 1,
             limit_contract_code_size: None,
@@ -269,7 +272,7 @@ mod tests {
                 code_hash: AccountData::empty_code(),
                 code: Bytes::from_hex("0x60606040526000357c0100000000000000000000000000000000000000000000000000000000900463ffffffff168063a223e05d1461006a578063").unwrap(),
                 nonce: 0,
-                storage: Some(storage),
+                storage,
             }],
             chain_id: 1,
             limit_contract_code_size: None,
