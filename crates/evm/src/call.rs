@@ -54,6 +54,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .map(|acc| acc.info.nonce)
             .unwrap_or(0);
         let system_events = self.system_events.iter(working_set).collect::<Vec<_>>();
+        self.system_events.clear(working_set);
 
         let cfg = self.cfg.get(working_set).expect("Evm config must be set");
         let chain_id = cfg.chain_id;

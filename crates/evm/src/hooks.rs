@@ -122,8 +122,6 @@ where
 
         self.last_l1_hash.set(&block_env.prevrandao, working_set);
 
-        self.system_events.clear(working_set);
-
         let pending_transactions: Vec<PendingTransaction> =
             self.pending_transactions.iter(working_set).collect();
 
