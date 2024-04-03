@@ -197,12 +197,7 @@ where
             "Sequencer: L1 height mismatch, expected {da_height} (or {da_height}-1), got {l1_height}",
         );
 
-        let timestamp = self
-            .db_provider
-            .latest_header()
-            .expect("Failed to get latest header")
-            .map(|header| header.timestamp)
-            .expect("Failed to get next block timestamp");
+        let timestamp = chrono::Local::now().timestamp() as u64;
 
         let batch_info = HookSoftConfirmationInfo {
             da_slot_height: da_block.header().height(),
