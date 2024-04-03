@@ -306,7 +306,6 @@ where
             let mut sequencer_commitments = Vec::<SequencerCommitment>::new();
             let mut zk_proofs = Vec::<BatchProof>::new();
 
-            // Iterating through the transactions to fill the vectors
             self.da_service
                 .extract_relevant_blobs(&filtered_block)
                 .into_iter()
