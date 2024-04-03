@@ -45,7 +45,6 @@ pub fn sign_blob_with_private_key(
     let message = sha256d::Hash::hash(blob).to_byte_array();
     let secp = Secp256k1::new();
     let public_key = secp256k1::PublicKey::from_secret_key(&secp, private_key);
-    println!("public key: {:?}", public_key.serialize().to_vec());
     let msg = secp256k1::Message::from_digest_slice(&message).unwrap();
     let sig = secp.sign_ecdsa(&msg, private_key);
     Ok((
