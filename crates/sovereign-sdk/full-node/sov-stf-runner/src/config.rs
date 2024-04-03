@@ -22,7 +22,7 @@ pub struct RpcConfig {
     /// RPC port.
     pub bind_port: u16,
     /// Maximum number of concurrent requests.
-    /// if not set defaults to 1024.
+    /// if not set defaults to 100.
     #[serde(default = "default_max_connections")]
     pub max_connections: u32,
 }
