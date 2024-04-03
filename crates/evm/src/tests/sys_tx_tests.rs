@@ -14,7 +14,7 @@ use crate::tests::call_tests::{
     create_contract_message_with_fee, get_evm_config_starting_base_fee,
 };
 use crate::tests::genesis_tests::get_evm;
-use crate::{AccountData, SystemEvent, SYSTEM_SIGNER};
+use crate::{AccountData, SYSTEM_SIGNER};
 
 type C = DefaultContext;
 
@@ -31,20 +31,17 @@ fn test_sys_l1blockhashlist() {
         nonce: 0,
         storage: [
             (U256::from_be_slice(&hex!("0000000000000000000000000000000000000000000000000000000000000000")), U256::from_be_slice(SYSTEM_SIGNER.into_word().as_slice())),
-            (U256::from_be_slice(&hex!("6661e9d6d8b923d5bbaab1b96e1dd51ff6ea2a93520fdc9eb75d059238b8c5e9")), U256::from(1))
         ].into_iter().collect(),
     });
 
     let (evm, mut working_set) = get_evm(&config);
 
-    let system_events: Vec<_> = evm.system_events.iter(&mut working_set).collect();
+    // L1BlockHashInitialize and L1BlockHashSetBlockInfo
+    let system_txs: Vec<_> = evm.pending_transactions.iter(&mut working_set).collect();
     assert_eq!(
-        system_events,
-        vec![
-            SystemEvent::L1BlockHashInitialize(1),
-            SystemEvent::L1BlockHashSetBlockInfo([1; 32], [2; 32])
-        ],
-        "System events must be produced in the get_evm() call"
+        system_txs.len(),
+        2,
+        "System tx must be produced in the get_evm() call"
     );
 
     let l1_fee_rate = 1;
@@ -79,12 +76,6 @@ fn test_sys_l1blockhashlist() {
             &mut working_set,
         )
         .unwrap();
-
-        let system_events: Vec<_> = evm.system_events.iter(&mut working_set).collect();
-        assert!(
-            system_events.is_empty(),
-            "System events must be empty after evm.call()"
-        );
     }
     evm.end_soft_confirmation_hook(&mut working_set);
     evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
@@ -159,10 +150,11 @@ fn test_sys_l1blockhashlist() {
         &mut working_set,
     );
 
-    let system_events: Vec<_> = evm.system_events.iter(&mut working_set).collect();
+    // check for L1BlockHashSetBlockInfo
+    let system_txs: Vec<_> = evm.pending_transactions.iter(&mut working_set).collect();
     assert_eq!(
-        system_events,
-        vec![SystemEvent::L1BlockHashSetBlockInfo([2; 32], [3; 32])],
-        "System event must be produced in the begin_soft_confirmation_hook() call"
+        system_txs.len(),
+        1,
+        "System tx must be produced in the begin_soft_confirmation_hook() call"
     );
 }

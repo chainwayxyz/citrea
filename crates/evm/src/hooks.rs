@@ -5,7 +5,8 @@ use sov_modules_api::{AccessoryWorkingSet, Spec, WorkingSet};
 use sov_state::Storage;
 
 use crate::evm::primitive_types::{Block, BlockEnv};
-use crate::{Evm, PendingTransaction, SystemEvent};
+use crate::evm::system_events::SystemEvent;
+use crate::{Evm, PendingTransaction};
 
 impl<C: sov_modules_api::Context> Evm<C>
 where
@@ -39,24 +40,23 @@ where
             working_set,
         );
 
+        // populate system events
+        let mut system_events = vec![];
         if let Some(last_l1_hash) = self.last_l1_hash.get(working_set) {
             if last_l1_hash != da_slot_hash {
                 // That's a new L1 block
-                self.system_events.push(
-                    &SystemEvent::L1BlockHashSetBlockInfo(da_slot_hash, da_slot_txs_commitment),
-                    working_set,
-                );
+                system_events.push(SystemEvent::L1BlockHashSetBlockInfo(
+                    da_slot_hash,
+                    da_slot_txs_commitment,
+                ));
             }
         } else {
             // That's the first L2 block in the first seen L1 block.
-            self.system_events.push(
-                &SystemEvent::L1BlockHashInitialize(da_slot_height),
-                working_set,
-            );
-            self.system_events.push(
-                &SystemEvent::L1BlockHashSetBlockInfo(da_slot_hash, da_slot_txs_commitment),
-                working_set,
-            );
+            system_events.push(SystemEvent::L1BlockHashInitialize(da_slot_height));
+            system_events.push(SystemEvent::L1BlockHashSetBlockInfo(
+                da_slot_hash,
+                da_slot_txs_commitment,
+            ));
         }
 
         let cfg = self
@@ -74,8 +74,11 @@ where
                 .unwrap(),
             gas_limit: cfg.block_gas_limit,
         };
+
         self.block_env.set(&new_pending_env, working_set);
         self.l1_fee_rate.set(&l1_fee_rate, working_set);
+
+        self.execute_system_events(system_events, working_set);
 
         // if height > 256, start removing the oldest block
         // keeping only 256 most recent blocks

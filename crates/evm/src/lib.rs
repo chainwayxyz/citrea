@@ -103,10 +103,6 @@ pub struct Evm<C: sov_modules_api::Context> {
     #[state]
     pub(crate) l1_fee_rate: sov_modules_api::StateValue<u64, BcsCodec>,
 
-    /// System events that will be added as system transactions to the beginning of the current block.
-    #[state]
-    pub(crate) system_events: sov_modules_api::StateVec<SystemEvent, BcsCodec>,
-
     /// Used only by the RPC: This represents the head of the chain and is set in two distinct stages:
     /// 1. `end_slot_hook`: the pending head is populated with data from pending_transactions.
     /// 2. `finalize_hook` the `root_hash` is populated.

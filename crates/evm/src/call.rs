@@ -11,8 +11,9 @@ use crate::evm::executor::{self};
 use crate::evm::handler::{CitreaExternal, CitreaExternalExt};
 use crate::evm::primitive_types::{BlockEnv, Receipt, TransactionSignedAndRecovered};
 use crate::evm::{EvmChainConfig, RlpEvmTransaction};
+use crate::system_contracts::L1BlockHashList;
 use crate::system_events::{create_system_transactions, SYSTEM_SIGNER};
-use crate::{Evm, PendingTransaction};
+use crate::{Evm, PendingTransaction, SystemEvent};
 
 #[cfg_attr(
     feature = "serde",
@@ -28,6 +29,106 @@ pub struct CallMessage {
 }
 
 impl<C: sov_modules_api::Context> Evm<C> {
+    /// Executes system events for the current block and push tx to pending_transactions.
+    ///
+    /// Returns cumulative used gas.
+    pub(crate) fn execute_system_events(
+        &self,
+        system_events: Vec<SystemEvent>,
+        working_set: &mut WorkingSet<C>,
+    ) {
+        if system_events.is_empty() {
+            return;
+        }
+
+        let mut block_env = self
+            .block_env
+            .get(working_set)
+            .expect("Pending block must be set");
+
+        let cfg = self.cfg.get(working_set).expect("Evm config must be set");
+        let cfg_env: CfgEnvWithHandlerCfg = get_cfg_env(&block_env, cfg, None);
+
+        let l1_fee_rate = self
+            .l1_fee_rate
+            .get(working_set)
+            .expect("L1 fee rate must be set");
+
+        let l1_block_hash_exists = self
+            .accounts
+            .get(&L1BlockHashList::address(), working_set)
+            .is_some();
+        if !l1_block_hash_exists {
+            tracing::error!("System contract not found: L1BlockHashList");
+            return;
+        }
+
+        let system_nonce = self
+            .accounts
+            .get(&SYSTEM_SIGNER, working_set)
+            .map(|acc| acc.info.nonce)
+            .unwrap_or(0);
+
+        let db: EvmDb<'_, C> = self.get_db(working_set);
+        let system_txs = create_system_transactions(system_events, system_nonce, cfg_env.chain_id);
+
+        let mut citrea_handler_ext = CitreaExternal::new(l1_fee_rate);
+        let tx_results = executor::execute_system_txs(
+            db,
+            block_env.clone(),
+            &system_txs,
+            cfg_env,
+            &mut citrea_handler_ext,
+        );
+
+        let mut cumulative_gas_used = 0;
+        let mut log_index_start = 0;
+        if let Some(tx) = self.pending_transactions.last(working_set) {
+            cumulative_gas_used = tx.receipt.receipt.cumulative_gas_used;
+            log_index_start = tx.receipt.log_index_start + tx.receipt.receipt.logs.len() as u64;
+        }
+
+        let mut pending_txs = vec![];
+        for (tx, result) in system_txs.into_iter().zip(tx_results.into_iter()) {
+            let logs: Vec<_> = result.logs().iter().cloned().map(Into::into).collect();
+            let logs_len = logs.len() as u64;
+            let gas_used = result.gas_used();
+            cumulative_gas_used += gas_used;
+            let tx_hash = tx.hash();
+            let tx_info = citrea_handler_ext
+                .get_tx_info(tx_hash)
+                .unwrap_or_else(|| panic!("evm: Could not get associated info for tx: {tx_hash}"));
+            let receipt = Receipt {
+                receipt: reth_primitives::Receipt {
+                    tx_type: tx.tx_type(),
+                    success: result.is_success(),
+                    cumulative_gas_used,
+                    logs,
+                },
+                gas_used,
+                log_index_start,
+                diff_size: tx_info.diff_size,
+                error: None,
+            };
+            log_index_start += logs_len;
+
+            let pending_transaction = PendingTransaction {
+                transaction: TransactionSignedAndRecovered {
+                    signer: tx.signer(),
+                    signed_transaction: tx.into(),
+                    block_number: block_env.number,
+                },
+                receipt,
+            };
+            pending_txs.push(pending_transaction);
+        }
+        for pending_tx in pending_txs {
+            self.pending_transactions.push(&pending_tx, working_set);
+        }
+
+        // block_env.gas_used += cumulative_gas_used;
+    }
+
     /// Executes a call message.
     pub(crate) fn execute_call(
         &self,
@@ -48,16 +149,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .get(working_set)
             .expect("Pending block must be set");
 
-        let system_nonce = self
-            .accounts
-            .get(&SYSTEM_SIGNER, working_set)
-            .map(|acc| acc.info.nonce)
-            .unwrap_or(0);
-        let system_events = self.system_events.iter(working_set).collect::<Vec<_>>();
-        self.system_events.clear(working_set);
-
         let cfg = self.cfg.get(working_set).expect("Evm config must be set");
-        let chain_id = cfg.chain_id;
         let cfg_env: CfgEnvWithHandlerCfg = get_cfg_env(&block_env, cfg, None);
 
         let l1_fee_rate = self
@@ -69,14 +161,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let block_number = block_env.number;
         let evm_db: EvmDb<'_, C> = self.get_db(working_set);
 
-        let system_txs = create_system_transactions(system_events, system_nonce, chain_id);
-
-        let all_txs = system_txs.into_iter().chain(users_txs).collect::<Vec<_>>();
-
         let results = executor::execute_multiple_tx(
             evm_db,
             block_env,
-            &all_txs,
+            &users_txs,
             cfg_env,
             &mut citrea_handler_ext,
         );
@@ -84,7 +172,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         // Iterate each evm_txs_recovered and results pair
         // Create a PendingTransaction for each pair
         // Push each PendingTransaction to pending_transactions
-        for (evm_tx_recovered, result) in all_txs.into_iter().zip(results.into_iter()) {
+        for (evm_tx_recovered, result) in users_txs.into_iter().zip(results.into_iter()) {
             let previous_transaction = self.pending_transactions.last(working_set);
             let previous_transaction_cumulative_gas_used = previous_transaction
                 .as_ref()
