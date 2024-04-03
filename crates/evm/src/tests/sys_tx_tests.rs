@@ -36,55 +36,6 @@ fn test_sys_l1blockhashlist() {
 
     let (evm, mut working_set) = get_evm(&config);
 
-    // L1BlockHashInitialize and L1BlockHashSetBlockInfo
-    let system_txs: Vec<_> = evm.pending_transactions.iter(&mut working_set).collect();
-    assert_eq!(
-        system_txs.len(),
-        2,
-        "System tx must be produced in the get_evm() call"
-    );
-
-    let l1_fee_rate = 1;
-
-    let deploy_message =
-        create_contract_message_with_fee(&dev_signer, 0, BlockHashContract::default(), 1);
-
-    let system_account = evm.accounts.get(&SYSTEM_SIGNER, &mut working_set);
-    assert!(
-        system_account.is_none(),
-        "There is no system account before call"
-    ); // That's optional but if the acc will exist in the future its balance must be zero.
-
-    evm.begin_soft_confirmation_hook(
-        [1u8; 32],
-        1,
-        [2u8; 32],
-        &[10u8; 32],
-        l1_fee_rate,
-        &mut working_set,
-    );
-    {
-        let sender_address = generate_address::<C>("sender");
-        let sequencer_address = generate_address::<C>("sequencer");
-        let context = C::new(sender_address, sequencer_address, 1);
-
-        evm.call(
-            CallMessage {
-                txs: vec![deploy_message],
-            },
-            &context,
-            &mut working_set,
-        )
-        .unwrap();
-    }
-    evm.end_soft_confirmation_hook(&mut working_set);
-    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
-
-    let system_account = evm.accounts.get(&SYSTEM_SIGNER, &mut working_set).unwrap();
-    // The system caller balance is unchanged(if exists)/or should be 0
-    assert_eq!(system_account.info.balance, U256::from(0));
-    assert_eq!(system_account.info.nonce, 0);
-
     assert_eq!(
         evm.receipts
             .iter(&mut working_set.accessory_state())
@@ -120,11 +71,82 @@ fn test_sys_l1blockhashlist() {
                 diff_size: 412,
                 error: None
             },
+        ]
+    );
+
+    let l1_fee_rate = 1;
+
+    let deploy_message =
+        create_contract_message_with_fee(&dev_signer, 0, BlockHashContract::default(), 1);
+
+    let system_account = evm.accounts.get(&SYSTEM_SIGNER, &mut working_set).unwrap();
+    // The system caller balance is unchanged(if exists)/or should be 0
+    assert_eq!(system_account.info.balance, U256::from(0));
+    assert_eq!(system_account.info.nonce, 0);
+
+    // New L1 block №2
+    evm.begin_soft_confirmation_hook(
+        [2u8; 32],
+        2,
+        [3u8; 32],
+        &[10u8; 32],
+        l1_fee_rate,
+        &mut working_set,
+    );
+    {
+        let sender_address = generate_address::<C>("sender");
+        let sequencer_address = generate_address::<C>("sequencer");
+        let context = C::new(sender_address, sequencer_address, 1);
+
+        evm.call(
+            CallMessage {
+                txs: vec![deploy_message],
+            },
+            &context,
+            &mut working_set,
+        )
+        .unwrap();
+    }
+    evm.end_soft_confirmation_hook(&mut working_set);
+    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+
+    let system_account = evm.accounts.get(&SYSTEM_SIGNER, &mut working_set).unwrap();
+    // The system caller balance is unchanged(if exists)/or should be 0
+    assert_eq!(system_account.info.balance, U256::from(0));
+    assert_eq!(system_account.info.nonce, 0);
+
+    let receipts: Vec<_> = evm
+        .receipts
+        .iter(&mut working_set.accessory_state())
+        .collect();
+    assert_eq!(receipts.len(), 4); // 2 from #1 L1 block and 2 from #2 block
+    let receipts = receipts[2..].to_vec();
+
+    assert_eq!(receipts,
+        [
+            Receipt { // L1BlockHashList::setBlockInfo(U256, U256)
+                receipt: reth_primitives::Receipt {
+                    tx_type: reth_primitives::TxType::Eip1559,
+                    success: true,
+                    cumulative_gas_used: 75665,
+                    logs: vec![
+                        Log {
+                            address: L1BlockHashList::address(),
+                            topics: vec![b256!("32eff959e2e8d1609edc4b39ccf75900aa6c1da5719f8432752963fdf008234f")],
+                            data: Bytes::from_static(&hex!("000000000000000000000000000000000000000000000000000000000000000302020202020202020202020202020202020202020202020202020202020202020303030303030303030303030303030303030303030303030303030303030303")),
+                        }
+                    ]
+                },
+                gas_used: 75665,
+                log_index_start: 0,
+                diff_size: 412,
+                error: None
+            },
             Receipt {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
-                    cumulative_gas_used: 235611,
+                    cumulative_gas_used: 189900,
                     logs: vec![]
                 },
                 gas_used: 114235,
@@ -140,21 +162,4 @@ fn test_sys_l1blockhashlist() {
         .get(&config.coinbase, &mut working_set)
         .unwrap();
     assert_eq!(coinbase_account.info.balance, U256::from(114235 + 477));
-
-    evm.begin_soft_confirmation_hook(
-        [2u8; 32],
-        2,
-        [3u8; 32],
-        &[10u8; 32],
-        l1_fee_rate,
-        &mut working_set,
-    );
-
-    // check for L1BlockHashSetBlockInfo
-    let system_txs: Vec<_> = evm.pending_transactions.iter(&mut working_set).collect();
-    assert_eq!(
-        system_txs.len(),
-        1,
-        "System tx must be produced in the begin_soft_confirmation_hook() call"
-    );
 }
