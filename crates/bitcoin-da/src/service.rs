@@ -470,7 +470,6 @@ mod tests {
     // use futures::{Stream, StreamExt};
     use bitcoin::block::{Header, Version};
     use bitcoin::hash_types::{TxMerkleNode, WitnessMerkleNode};
-    use bitcoin::hex::DisplayHex;
     use bitcoin::secp256k1::Keypair;
     use bitcoin::string::FromHexStr;
     use bitcoin::{BlockHash, CompactTarget, Transaction};
@@ -686,8 +685,6 @@ mod tests {
                 .public_key()
                 .serialize()
                 .to_vec();
-
-        println!("DA pubkey: {:?}", da_pubkey.to_lower_hex_string());
 
         // blob written in tx is: "01000000b60000002adbd76606f2bd4125080e6f44df7ba2d728409955c80b8438eb1828ddf23e3c12188eeac7ecf6323be0ed5668e21cc354fca90d8bca513d6c0a240c26afa7007b758bf2e7670fafaf6bf0015ce0ff5aa802306fc7e3f45762853ffc37180fe64a0000000001fea6ac5b8751120fb62fff67b54d2eac66aef307c7dde1d394dea1e09e43dd44c800000000000000135d23aee8cb15c890831ff36db170157acaac31df9bba6cd40e7329e608eabd0000000000000000";
         // tx id = 0x8a1df48198a509cd91930ff44cbb92ef46e80458b1999e16aa6923171894fba3

@@ -59,6 +59,8 @@ where
     prover_service: Option<Ps>,
     sequencer_client: Option<SequencerClient>,
     sequencer_pub_key: Vec<u8>,
+    sequencer_da_pub_key: Vec<u8>,
+    prover_da_pub_key: Vec<u8>,
     phantom: std::marker::PhantomData<C>,
     include_tx_body: bool,
 }
@@ -123,6 +125,8 @@ where
         prover_service: Option<Ps>,
         sequencer_client: Option<SequencerClient>,
         sequencer_pub_key: Vec<u8>,
+        sequencer_da_pub_key: Vec<u8>,
+        prover_da_pub_key: Vec<u8>,
         include_tx_body: bool,
     ) -> Result<Self, anyhow::Error> {
         let rpc_config = runner_config.rpc_config;
@@ -171,6 +175,8 @@ where
             prover_service,
             sequencer_client,
             sequencer_pub_key,
+            sequencer_da_pub_key,
+            prover_da_pub_key,
             phantom: std::marker::PhantomData,
             include_tx_body,
         })
@@ -300,7 +306,10 @@ where
                 .da_service
                 .extract_relevant_blobs(&filtered_block)
                 .into_iter()
-                .filter(|tx| tx.sender().as_ref() == self.sequencer_pub_key.as_slice())
+                .filter(|tx| {
+                    tx.sender().as_ref() == self.sequencer_da_pub_key.as_slice()
+                        || tx.sender().as_ref() == self.prover_da_pub_key.as_slice()
+                })
                 .map(|mut tx| DaData::try_from_slice(tx.full_data()))
                 .partition(Result::is_ok);
 
