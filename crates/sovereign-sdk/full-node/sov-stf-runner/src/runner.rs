@@ -302,34 +302,39 @@ where
             // Merkle root hash - L1 start height - L1 end height
             // TODO: How to confirm this is what we submit - use?
             // TODO: Add support for multiple commitments in a single block
-            let (da_data, da_errors): (Vec<_>, Vec<_>) = self
-                .da_service
-                .extract_relevant_blobs(&filtered_block)
-                .into_iter()
-                .filter(|tx| {
-                    tx.sender().as_ref() == self.sequencer_da_pub_key.as_slice()
-                        || tx.sender().as_ref() == self.prover_da_pub_key.as_slice()
-                })
-                .map(|mut tx| DaData::try_from_slice(tx.full_data()))
-                .partition(Result::is_ok);
 
-            if !da_errors.is_empty() {
-                tracing::warn!(
-                    "Found broken DA data in block 0x{}: {:?}",
-                    hex::encode(filtered_block.hash()),
-                    da_errors
-                );
-            }
-
-            // seperate DaData into sequencer commitments and proofs
             let mut sequencer_commitments = Vec::<SequencerCommitment>::new();
             let mut zk_proofs = Vec::<BatchProof>::new();
 
-            da_data.into_iter().for_each(|da_data| match da_data {
-                Ok(DaData::SequencerCommitment(seq_com)) => sequencer_commitments.push(seq_com),
-                Ok(DaData::ZKProof(batch_proof)) => zk_proofs.push(batch_proof),
-                _ => {}
-            });
+            // Iterating through the transactions to fill the vectors
+            self.da_service
+                .extract_relevant_blobs(&filtered_block)
+                .into_iter()
+                .for_each(|mut tx| {
+                    let data = DaData::try_from_slice(tx.full_data());
+
+                    if tx.sender().as_ref() == self.sequencer_da_pub_key.as_slice() {
+                        if let Ok(DaData::SequencerCommitment(seq_com)) = data {
+                            sequencer_commitments.push(seq_com);
+                        } else {
+                            tracing::warn!(
+                                "Found broken DA data in block 0x{}: {:?}",
+                                hex::encode(filtered_block.hash()),
+                                data
+                            );
+                        }
+                    } else if tx.sender().as_ref() == self.prover_da_pub_key.as_slice() {
+                        if let Ok(DaData::ZKProof(batch_proof)) = data {
+                            zk_proofs.push(batch_proof);
+                        } else {
+                            tracing::warn!(
+                                "Found broken DA data in block 0x{}: {:?}",
+                                hex::encode(filtered_block.hash()),
+                                data
+                            );
+                        }
+                    }
+                });
 
             if !zk_proofs.is_empty() {
                 // TODO: Implement this
