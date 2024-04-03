@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::marker::PhantomData;
 
+use hex::ToHex;
 use proptest::prelude::any_with;
 use proptest::strategy::Strategy;
 use proptest::{prop_compose, proptest};
@@ -315,7 +316,7 @@ fn test_get_batches() {
 fn test_get_soft_batch() {
     // Get the first soft batch by number
     let payload = jsonrpc_req!("ledger_getSoftBatchByNumber", [1]);
-    let expected = jsonrpc_result!({"da_slot_height":0,"da_slot_hash":"0000000000000000000000000000000000000000000000000000000000000000","da_slot_txs_commitment":"0101010101010101010101010101010101010101010101010101010101010101","hash":"b5515a80204963f7db40e98af11aedb49a394b1c7e3d8b5b7a33346b8627444f","txs":[[116,120,49,32,98,111,100,121],[116,120,50,32,98,111,100,121]],"pre_state_root":"","post_state_root":"","soft_confirmation_signature":"","pub_key":"","l1_fee_rate":0});
+    let expected = jsonrpc_result!({"da_slot_height":0,"da_slot_hash":"0000000000000000000000000000000000000000000000000000000000000000","da_slot_txs_commitment":"0101010101010101010101010101010101010101010101010101010101010101","hash":"b5515a80204963f7db40e98af11aedb49a394b1c7e3d8b5b7a33346b8627444f","txs":["0x74783120626f6479", "0x74783220626f6479"],"pre_state_root":"","post_state_root":"","soft_confirmation_signature":"","pub_key":"","l1_fee_rate":0});
     regular_test_helper(payload, &expected);
 
     // Get the first soft batch by hash
@@ -327,8 +328,17 @@ fn test_get_soft_batch() {
 
     // Get the second soft batch by number
     let payload = jsonrpc_req!("ledger_getSoftBatchByNumber", [2]);
+    let txs = batch2_tx_receipts()
+        .into_iter()
+        .map(|tx_receipt| {
+            format!(
+                "0x{}",
+                tx_receipt.body_to_save.unwrap().encode_hex::<String>()
+            )
+        })
+        .collect::<Vec<String>>();
     let expected = jsonrpc_result!(
-        {"da_slot_height":1,"da_slot_hash":"0202020202020202020202020202020202020202020202020202020202020202","da_slot_txs_commitment":"0303030303030303030303030303030303030303030303030303030303030303","hash":"f85fe0cb36fdaeca571c896ed476b49bb3c8eff00d935293a8967e1e9a62071e","txs": batch2_tx_receipts().into_iter().map(|tx_receipt| tx_receipt.body_to_save.unwrap()).collect::<Vec<_>>(), "pre_state_root":"","post_state_root":"","soft_confirmation_signature":"","pub_key":"","l1_fee_rate":0}
+        {"da_slot_height":1,"da_slot_hash":"0202020202020202020202020202020202020202020202020202020202020202","da_slot_txs_commitment":"0303030303030303030303030303030303030303030303030303030303030303","hash":"f85fe0cb36fdaeca571c896ed476b49bb3c8eff00d935293a8967e1e9a62071e","txs": txs, "pre_state_root":"","post_state_root":"","soft_confirmation_signature":"","pub_key":"","l1_fee_rate":0}
     );
     regular_test_helper(payload, &expected);
 
@@ -341,8 +351,18 @@ fn test_get_soft_batch() {
 
     // Get range of soft batches
     let payload = jsonrpc_req!("ledger_getSoftBatchRange", [1, 2]);
+
+    let txs = batch2_tx_receipts()
+        .into_iter()
+        .map(|tx_receipt| {
+            format!(
+                "0x{}",
+                tx_receipt.body_to_save.unwrap().encode_hex::<String>()
+            )
+        })
+        .collect::<Vec<String>>();
     let expected = jsonrpc_result!(
-        [{"da_slot_height":0,"da_slot_hash":"0000000000000000000000000000000000000000000000000000000000000000","da_slot_txs_commitment":"0101010101010101010101010101010101010101010101010101010101010101","hash":"b5515a80204963f7db40e98af11aedb49a394b1c7e3d8b5b7a33346b8627444f","txs":[[116,120,49,32,98,111,100,121],[116,120,50,32,98,111,100,121]],"pre_state_root":"","post_state_root":"","soft_confirmation_signature":"","pub_key":"","l1_fee_rate":0},{"da_slot_height":1,"da_slot_hash":"0202020202020202020202020202020202020202020202020202020202020202","da_slot_txs_commitment":"0303030303030303030303030303030303030303030303030303030303030303","hash":"f85fe0cb36fdaeca571c896ed476b49bb3c8eff00d935293a8967e1e9a62071e","txs": batch2_tx_receipts().into_iter().map(|tx_receipt| tx_receipt.body_to_save.unwrap()).collect::<Vec<_>>(), "pre_state_root":"","post_state_root":"","soft_confirmation_signature":"","pub_key":"","l1_fee_rate":0}
+        [{"da_slot_height":0,"da_slot_hash":"0000000000000000000000000000000000000000000000000000000000000000","da_slot_txs_commitment":"0101010101010101010101010101010101010101010101010101010101010101","hash":"b5515a80204963f7db40e98af11aedb49a394b1c7e3d8b5b7a33346b8627444f","txs":["0x74783120626f6479", "0x74783220626f6479"],"pre_state_root":"","post_state_root":"","soft_confirmation_signature":"","pub_key":"","l1_fee_rate":0},{"da_slot_height":1,"da_slot_hash":"0202020202020202020202020202020202020202020202020202020202020202","da_slot_txs_commitment":"0303030303030303030303030303030303030303030303030303030303030303","hash":"f85fe0cb36fdaeca571c896ed476b49bb3c8eff00d935293a8967e1e9a62071e","txs": txs, "pre_state_root":"","post_state_root":"","soft_confirmation_signature":"","pub_key":"","l1_fee_rate":0}
         ]
     );
     regular_test_helper(payload, &expected);

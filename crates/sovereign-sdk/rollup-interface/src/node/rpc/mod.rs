@@ -491,11 +491,6 @@ pub mod utils {
         use serde::Serializer;
 
         /// Serializes `data` as hex string using lowercase characters and prefixing with '0x'.
-        ///
-        /// Lowercase characters are used (e.g. `f9b4ca`). The resulting string's length
-        /// is always even, each byte in data is always encoded using two hex digits.
-        /// Thus, the resulting string contains exactly twice as many bytes as the input
-        /// data.
         pub fn serialize<S>(data: &Option<Vec<Vec<u8>>>, serializer: S) -> Result<S::Ok, S::Error>
         where
             S: Serializer,
