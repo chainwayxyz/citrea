@@ -1,11 +1,11 @@
 sequencer_public_key = "204040e364c10f2bec9c1fe500a1cd4c247c89d650a01ed7e82caba867877c21"
 include_tx_body = false
 
-sequencer_da_pub_key = ""
+sequencer_da_pub_key = "7777777777777777777777777777777777777777777777777777777777777777"
 prover_da_pub_key = ""
 
 [da]
-sender_address = "0000000000000000000000000000000000000000000000000000000000000000"
+sender_address = "7777777777777777777777777777777777777777777777777777777777777777"
 
 [storage]
 # The path to the rollup's data directory. Paths that do not begin with `/` are interpreted as relative paths.

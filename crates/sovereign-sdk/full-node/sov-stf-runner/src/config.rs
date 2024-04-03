@@ -108,7 +108,7 @@ mod tests {
         let config = r#"
             sequencer_public_key = "0000000000000000000000000000000000000000000000000000000000000000"
             include_tx_body = true
-            sequencer_da_pub_key = ""
+            sequencer_da_pub_key = "7777777777777777777777777777777777777777777777777777777777777777"
             prover_da_pub_key = ""
             [da]
             celestia_rpc_auth_token = "SECRET_RPC_TOKEN"
@@ -156,7 +156,7 @@ mod tests {
             prover_service: ProverServiceConfig {
                 aggregated_proof_block_jump: 22,
             },
-            sequencer_da_pub_key: vec![],
+            sequencer_da_pub_key: vec![119; 32],
             prover_da_pub_key: vec![],
             include_tx_body: true,
         };
