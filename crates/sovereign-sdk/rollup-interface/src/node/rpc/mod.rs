@@ -178,7 +178,10 @@ pub struct SoftBatchResponse {
     #[serde(with = "hex::serde")]
     pub hash: [u8; 32],
     /// The transactions in this batch.
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "utils::tx_hex::serialize"
+    )]
     pub txs: Option<Vec<Vec<u8>>>,
     /// Pre-state root of the soft batch.
     #[serde(with = "hex::serde")]
@@ -474,6 +477,40 @@ pub mod utils {
             }
 
             deserializer.deserialize_str(HexStrVisitor(PhantomData))
+        }
+    }
+
+    /// Serialize an optional vector of transactions, each into a hex format.
+    ///
+    /// This would override the existing way of serializing the transactions by emitting
+    /// the actual vector of bytes by returning the hexidecimal representation of those bytes
+    /// for each item.
+    pub mod tx_hex {
+        use hex::ToHex;
+        use serde::ser::SerializeSeq;
+        use serde::Serializer;
+
+        /// Serializes `data` as hex string using lowercase characters and prefixing with '0x'.
+        ///
+        /// Lowercase characters are used (e.g. `f9b4ca`). The resulting string's length
+        /// is always even, each byte in data is always encoded using two hex digits.
+        /// Thus, the resulting string contains exactly twice as many bytes as the input
+        /// data.
+        pub fn serialize<S>(data: &Option<Vec<Vec<u8>>>, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: Serializer,
+        {
+            if let Some(data) = data {
+                let data = data
+                    .iter()
+                    .map(|item| format!("0x{}", item.encode_hex::<String>()));
+                let mut seq = serializer.serialize_seq(Some(data.len()))?;
+                for e in data {
+                    seq.serialize_element(&e)?;
+                }
+                return seq.end();
+            }
+            serializer.serialize_none()
         }
     }
 }
