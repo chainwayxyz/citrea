@@ -276,10 +276,16 @@ pub trait LedgerRpcProvider {
         query_mode: QueryMode,
     ) -> Result<Vec<Option<BatchResponse<B, T>>>, anyhow::Error>;
 
+    /// Get a list of soft batches by id. The IDs need not be ordered.
+    fn get_soft_batches(
+        &self,
+        batch_ids: &[SoftBatchIdentifier],
+    ) -> Result<Vec<Option<SoftBatchResponse>>, anyhow::Error>;
+
     /// Get soft batch
     fn get_soft_batch(
         &self,
-        batch_id: SoftBatchIdentifier,
+        batch_id: &SoftBatchIdentifier,
     ) -> Result<Option<SoftBatchResponse>, anyhow::Error>;
 
     /// Get a list of transactions by id. The IDs need not be ordered.
@@ -371,6 +377,13 @@ pub trait LedgerRpcProvider {
         end: u64,
         query_mode: QueryMode,
     ) -> Result<Vec<Option<BatchResponse<B, T>>>, anyhow::Error>;
+
+    /// Get a range of soft batches.
+    fn get_soft_batches_range(
+        &self,
+        start: u64,
+        end: u64,
+    ) -> Result<Vec<Option<SoftBatchResponse>>, anyhow::Error>;
 
     /// Get a range of batches. This query is the most efficient way to
     /// fetch large numbers of transactions, since it allows for easy batching of

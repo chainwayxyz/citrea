@@ -27,7 +27,7 @@ use tokio::time::{sleep, Duration, Instant};
 use tracing::{debug, error, info};
 
 use crate::verifier::StateTransitionVerifier;
-use crate::{ProverService, RunnerConfig};
+use crate::{ProverService, RpcConfig, RunnerConfig};
 
 type StateRoot<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::StateRoot;
 type GenesisParams<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::GenesisParams;
@@ -54,11 +54,13 @@ where
     /// made pub so that sequencer can clone it
     pub ledger_db: LedgerDB,
     state_root: StateRoot<Stf, Vm, Da::Spec>,
-    listen_address: SocketAddr,
+    rpc_config: RpcConfig,
     #[allow(dead_code)]
     prover_service: Option<Ps>,
     sequencer_client: Option<SequencerClient>,
     sequencer_pub_key: Vec<u8>,
+    sequencer_da_pub_key: Vec<u8>,
+    prover_da_pub_key: Vec<u8>,
     phantom: std::marker::PhantomData<C>,
     include_tx_body: bool,
 }
@@ -123,6 +125,8 @@ where
         prover_service: Option<Ps>,
         sequencer_client: Option<SequencerClient>,
         sequencer_pub_key: Vec<u8>,
+        sequencer_da_pub_key: Vec<u8>,
+        prover_da_pub_key: Vec<u8>,
         include_tx_body: bool,
     ) -> Result<Self, anyhow::Error> {
         let rpc_config = runner_config.rpc_config;
@@ -152,8 +156,6 @@ where
             }
         };
 
-        let listen_address = SocketAddr::new(rpc_config.bind_host.parse()?, rpc_config.bind_port);
-
         // Start the main rollup loop
         let item_numbers = ledger_db.get_next_items_numbers();
         let last_soft_batch_processed_before_shutdown = item_numbers.soft_batch_number;
@@ -167,10 +169,12 @@ where
             storage_manager,
             ledger_db,
             state_root: prev_state_root,
-            listen_address,
+            rpc_config,
             prover_service,
             sequencer_client,
             sequencer_pub_key,
+            sequencer_da_pub_key,
+            prover_da_pub_key,
             phantom: std::marker::PhantomData,
             include_tx_body,
         })
@@ -182,9 +186,19 @@ where
         methods: RpcModule<()>,
         channel: Option<oneshot::Sender<SocketAddr>>,
     ) {
-        let listen_address = self.listen_address;
+        let listen_address = SocketAddr::new(
+            self.rpc_config
+                .bind_host
+                .parse()
+                .expect("Failed to parse bind host"),
+            self.rpc_config.bind_port,
+        );
+
+        let max_connections = self.rpc_config.max_connections;
+
         let _handle = tokio::spawn(async move {
             let server = jsonrpsee::server::ServerBuilder::default()
+                .max_connections(max_connections)
                 .build([listen_address].as_ref())
                 .await
                 .unwrap();
@@ -296,30 +310,40 @@ where
             // Merkle root hash - L1 start height - L1 end height
             // TODO: How to confirm this is what we submit - use?
             // TODO: Add support for multiple commitments in a single block
-            let (da_data, da_errors): (Vec<_>, Vec<_>) = self
-                .da_service
-                .extract_relevant_blobs(&filtered_block)
-                .into_iter()
-                .map(|mut tx| DaData::try_from_slice(tx.full_data()))
-                .partition(Result::is_ok);
 
-            if !da_errors.is_empty() {
-                tracing::warn!(
-                    "Found broken DA data in block 0x{}: {:?}",
-                    hex::encode(filtered_block.hash()),
-                    da_errors
-                );
-            }
-
-            // seperate DaData into sequencer commitments and proofs
             let mut sequencer_commitments = Vec::<SequencerCommitment>::new();
             let mut zk_proofs = Vec::<BatchProof>::new();
 
-            da_data.into_iter().for_each(|da_data| match da_data {
-                Ok(DaData::SequencerCommitment(seq_com)) => sequencer_commitments.push(seq_com),
-                Ok(DaData::ZKProof(batch_proof)) => zk_proofs.push(batch_proof),
-                _ => {}
-            });
+            self.da_service
+                .extract_relevant_blobs(&filtered_block)
+                .into_iter()
+                .for_each(|mut tx| {
+                    let data = DaData::try_from_slice(tx.full_data());
+
+                    if tx.sender().as_ref() == self.sequencer_da_pub_key.as_slice() {
+                        if let Ok(DaData::SequencerCommitment(seq_com)) = data {
+                            sequencer_commitments.push(seq_com);
+                        } else {
+                            tracing::warn!(
+                                "Found broken DA data in block 0x{}: {:?}",
+                                hex::encode(filtered_block.hash()),
+                                data
+                            );
+                        }
+                    } else if tx.sender().as_ref() == self.prover_da_pub_key.as_slice() {
+                        if let Ok(DaData::ZKProof(batch_proof)) = data {
+                            zk_proofs.push(batch_proof);
+                        } else {
+                            tracing::warn!(
+                                "Found broken DA data in block 0x{}: {:?}",
+                                hex::encode(filtered_block.hash()),
+                                data
+                            );
+                        }
+                    } else {
+                        // TODO: This is where force transactions will land - try to parse DA data force transaction
+                    }
+                });
 
             if !zk_proofs.is_empty() {
                 // TODO: Implement this

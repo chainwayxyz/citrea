@@ -21,6 +21,15 @@ pub struct RpcConfig {
     pub bind_host: String,
     /// RPC port.
     pub bind_port: u16,
+    /// Maximum number of concurrent requests.
+    /// if not set defaults to 100.
+    #[serde(default = "default_max_connections")]
+    pub max_connections: u32,
+}
+
+#[inline]
+const fn default_max_connections() -> u32 {
+    100
 }
 
 /// Simple storage configuration
@@ -59,6 +68,14 @@ pub struct RollupConfig<DaServiceConfig> {
     /// serialized as hex
     #[serde(with = "hex::serde")]
     pub sequencer_public_key: Vec<u8>,
+    /// DA Signing Public Key of the Sequencer
+    /// serialized as hex
+    #[serde(with = "hex::serde")]
+    pub sequencer_da_pub_key: Vec<u8>,
+    /// DA Signing Public Key of the Prover
+    /// serialized as hex
+    #[serde(with = "hex::serde")]
+    pub prover_da_pub_key: Vec<u8>,
     /// Prover service configuration.
     pub prover_service: ProverServiceConfig,
     /// Saves sequencer soft batches if set to true
@@ -100,6 +117,8 @@ mod tests {
         let config = r#"
             sequencer_public_key = "0000000000000000000000000000000000000000000000000000000000000000"
             include_tx_body = true
+            sequencer_da_pub_key = "7777777777777777777777777777777777777777777777777777777777777777"
+            prover_da_pub_key = ""
             [da]
             celestia_rpc_auth_token = "SECRET_RPC_TOKEN"
             celestia_rpc_address = "http://localhost:11111/"
@@ -111,6 +130,7 @@ mod tests {
             [runner.rpc_config]
             bind_host = "127.0.0.1"
             bind_port = 12345
+            max_connections = 500
             [sequencer_client]
             url = "http://0.0.0.0:12346"
             [prover_service]
@@ -128,6 +148,7 @@ mod tests {
                 rpc_config: RpcConfig {
                     bind_host: "127.0.0.1".to_string(),
                     bind_port: 12345,
+                    max_connections: 500,
                 },
             },
 
@@ -146,6 +167,8 @@ mod tests {
             prover_service: ProverServiceConfig {
                 aggregated_proof_block_jump: 22,
             },
+            sequencer_da_pub_key: vec![119; 32],
+            prover_da_pub_key: vec![],
             include_tx_body: true,
         };
         assert_eq!(config, expected);

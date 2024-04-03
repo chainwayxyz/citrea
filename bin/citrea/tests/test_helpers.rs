@@ -59,10 +59,11 @@ pub async fn start_rollup(
             rpc_config: RpcConfig {
                 bind_host: "127.0.0.1".into(),
                 bind_port: 0,
+                max_connections: 100,
             },
         },
         da: MockDaConfig {
-            sender_address: MockAddress::from([0; 32]),
+            sender_address: MockAddress::from([5; 32]),
         },
         prover_service: ProverServiceConfig {
             aggregated_proof_block_jump: 1,
@@ -75,6 +76,8 @@ pub async fn start_rollup(
             }
             NodeMode::SequencerNode => None,
         },
+        sequencer_da_pub_key: vec![5; 32],
+        prover_da_pub_key: vec![],
         include_tx_body,
     };
 
