@@ -46,4 +46,10 @@ impl<C: Context, Da: DaSpec> SoftConfirmationRuleEnforcer<C, Da> {
     pub fn get_last_l1_fee_rate(&self, working_set: &mut WorkingSet<C>) -> RpcResult<u64> {
         Ok(self.last_l1_fee_rate.get(working_set).unwrap_or(0))
     }
+    #[rpc_method(name = "getLatestBlockTimestamp")]
+    /// Get the latest block's timestamp.
+    /// 0 at genesis.
+    pub fn get_last_timestamp(&self, working_set: &mut WorkingSet<C>) -> RpcResult<u64> {
+        Ok(self.last_timestamp.get(working_set).unwrap_or(0))
+    }
 }

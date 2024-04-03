@@ -138,3 +138,50 @@ fn get_last_l1_fee_rate_must_be_correct() {
         1
     );
 }
+
+#[test]
+fn get_last_timestamp_must_be_correct() {
+    let (soft_confirmation_rule_enforcer, mut working_set) =
+        get_soft_confirmation_rule_enforcer::<MockDaSpec>(&TEST_CONFIG);
+
+    assert_eq!(
+        soft_confirmation_rule_enforcer
+            .get_last_timestamp(&mut working_set)
+            .unwrap(),
+        0
+    );
+
+    let timestamp = chrono::Local::now().timestamp() as u64;
+    let signed_soft_confirmation_batch = SignedSoftConfirmationBatch::new(
+        [0; 32],
+        0,
+        [0; 32],
+        [0; 32],
+        vec![],
+        1,
+        vec![],
+        vec![],
+        vec![],
+        timestamp,
+    );
+    soft_confirmation_rule_enforcer
+        .begin_soft_confirmation_hook(
+            &mut signed_soft_confirmation_batch.clone().into(),
+            &mut working_set,
+        )
+        .unwrap();
+
+    assert_ne!(
+        soft_confirmation_rule_enforcer
+            .get_last_timestamp(&mut working_set)
+            .unwrap(),
+        0,
+    );
+    // now set to 1
+    assert_eq!(
+        soft_confirmation_rule_enforcer
+            .get_last_timestamp(&mut working_set)
+            .unwrap(),
+        timestamp,
+    );
+}

@@ -9950,6 +9950,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "borsh",
+ "chrono",
  "jsonrpsee 0.20.3",
  "lazy_static",
  "serde",

@@ -185,4 +185,9 @@ impl SignedSoftConfirmationBatch {
     pub fn timestamp(&self) -> u64 {
         self.timestamp
     }
+
+    /// Sets timestamp
+    pub fn set_timestamp(&mut self, timestamp: u64) {
+        self.timestamp = timestamp;
+    }
 }
