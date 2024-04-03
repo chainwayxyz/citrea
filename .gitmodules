@@ -1,3 +1,6 @@
 [submodule "crates/evm/src/evm/system_contracts/lib/forge-std"]
 	path = crates/evm/src/evm/system_contracts/lib/forge-std
-	url = https://github.com/foundry-rs/forge-std
+	url = https://github.com/foundry-rs/forge-std,
+[submodule "contracts/lib/bitcoin-spv"]
+ 	path = contracts/lib/bitcoin-spv
+ 	url = https://github.com/keep-network/bitcoin-spv
