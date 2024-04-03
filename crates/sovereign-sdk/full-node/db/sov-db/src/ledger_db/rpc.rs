@@ -317,7 +317,7 @@ impl LedgerRpcProvider for LedgerDB {
     ) -> Result<Vec<Option<SoftBatchResponse>>, anyhow::Error> {
         anyhow::ensure!(start <= end, "start must be <= end");
         anyhow::ensure!(
-            end - start <= MAX_BATCHES_PER_REQUEST,
+            end - start < MAX_BATCHES_PER_REQUEST,
             "requested batch range too large. Max: {}",
             MAX_BATCHES_PER_REQUEST
         );
@@ -387,7 +387,6 @@ impl LedgerDB {
     ) -> Result<Option<BatchNumber>, anyhow::Error> {
         match batch_id {
             SoftBatchIdentifier::Hash(hash) => {
-                println!("Hash: {:?}", hash);
                 self.db.get::<SoftBatchByHash>(hash)
             }
             SoftBatchIdentifier::Number(num) => Ok(Some(BatchNumber(*num))),
