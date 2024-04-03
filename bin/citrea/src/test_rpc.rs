@@ -76,6 +76,7 @@ fn test_helper(test_queries: Vec<TestExpect>, slots: Vec<SlotCommit<MockBlock, u
         let rpc_config = RpcConfig {
             bind_host: "127.0.0.1".to_string(),
             bind_port: addr.port(),
+            max_concurrent_requests: 100,
         };
 
         queries_test_runner(test_queries, rpc_config).await;

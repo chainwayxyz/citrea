@@ -21,6 +21,15 @@ pub struct RpcConfig {
     pub bind_host: String,
     /// RPC port.
     pub bind_port: u16,
+    /// Maximum number of concurrent requests.
+    /// if not set defaults to 1024.
+    #[serde(default = "default_max_concurrent_requests")]
+    pub max_concurrent_requests: u32,
+}
+
+#[inline]
+const fn default_max_concurrent_requests() -> u32 {
+    100
 }
 
 /// Simple storage configuration
@@ -111,6 +120,7 @@ mod tests {
             [runner.rpc_config]
             bind_host = "127.0.0.1"
             bind_port = 12345
+            max_concurrent_requests = 500
             [sequencer_client]
             url = "http://0.0.0.0:12346"
             [prover_service]
@@ -128,6 +138,7 @@ mod tests {
                 rpc_config: RpcConfig {
                     bind_host: "127.0.0.1".to_string(),
                     bind_port: 12345,
+                    max_concurrent_requests: 500,
                 },
             },
 

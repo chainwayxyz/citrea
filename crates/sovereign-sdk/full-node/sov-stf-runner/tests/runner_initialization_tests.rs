@@ -74,6 +74,7 @@ fn initialize_runner(
             rpc_config: RpcConfig {
                 bind_host: "127.0.0.1".to_string(),
                 bind_port: 0,
+                max_concurrent_requests: 100,
             },
         },
         da: MockDaConfig {
