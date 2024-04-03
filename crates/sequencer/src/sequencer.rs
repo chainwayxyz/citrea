@@ -30,7 +30,7 @@ use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::stf::{SoftBatchReceipt, StateTransitionFunction};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::ZkvmHost;
-use sov_stf_runner::{InitVariant, RunnerConfig};
+use sov_stf_runner::{InitVariant, RpcConfig, RunnerConfig};
 use tracing::{debug, info, warn};
 
 use crate::commitment_controller;
@@ -63,7 +63,7 @@ where
     storage_manager: Sm,
     state_root: StateRoot<Stf, Vm, Da::Spec>,
     sequencer_pub_key: Vec<u8>,
-    listen_address: SocketAddr,
+    rpc_config: RpcConfig,
 }
 
 impl<C, Da, Sm, Vm, Stf> CitreaSequencer<C, Da, Sm, Vm, Stf>
@@ -125,10 +125,6 @@ where
 
         let pool = create_mempool(db_provider.clone());
 
-        let rpc_config = runner_config.rpc_config;
-
-        let listen_address = SocketAddr::new(rpc_config.bind_host.parse()?, rpc_config.bind_port);
-
         Ok(Self {
             da_service,
             mempool: Arc::new(pool),
@@ -143,7 +139,7 @@ where
             storage_manager,
             state_root: prev_state_root,
             sequencer_pub_key,
-            listen_address,
+            rpc_config: runner_config.rpc_config,
         })
     }
 
@@ -154,9 +150,19 @@ where
     ) -> Result<(), anyhow::Error> {
         let methods = self.register_rpc_methods(methods)?;
 
-        let listen_address = self.listen_address;
+        let listen_address = SocketAddr::new(
+            self.rpc_config
+                .bind_host
+                .parse()
+                .expect("Failed to parse bind host"),
+            self.rpc_config.bind_port,
+        );
+
+        let max_concurrent_requests = self.rpc_config.max_concurrent_requests;
+
         let _handle = tokio::spawn(async move {
             let server = jsonrpsee::server::ServerBuilder::default()
+                .max_connections(max_concurrent_requests)
                 .build([listen_address].as_ref())
                 .await
                 .unwrap();
