@@ -213,7 +213,7 @@ fn begin_soft_confirmation_hook_checks_timestamp() {
 
     let original_timestamp = chrono::Local::now().timestamp() as u64;
 
-    let mut signed_soft_confirmation_batch = SignedSoftConfirmationBatch::new(
+    let signed_soft_confirmation_batch = SignedSoftConfirmationBatch::new(
         [0; 32],
         0,
         [0; 32],
@@ -236,7 +236,18 @@ fn begin_soft_confirmation_hook_checks_timestamp() {
 
     // now call with a timestamp before the original one.
     // should fail
-    signed_soft_confirmation_batch.set_timestamp(original_timestamp - 1000);
+    let signed_soft_confirmation_batch = SignedSoftConfirmationBatch::new(
+        [0; 32],
+        0,
+        [0; 32],
+        [0; 32],
+        vec![],
+        100,
+        vec![],
+        vec![],
+        vec![],
+        original_timestamp - 1000,
+    );
 
     let res = soft_confirmation_rule_enforcer.begin_soft_confirmation_hook(
         &mut signed_soft_confirmation_batch.clone().into(),
@@ -262,7 +273,18 @@ fn begin_soft_confirmation_hook_checks_timestamp() {
 
     // now call with a timestamp after the original one.
     // should fail
-    signed_soft_confirmation_batch.set_timestamp(original_timestamp + 1000);
+    let signed_soft_confirmation_batch = SignedSoftConfirmationBatch::new(
+        [0; 32],
+        0,
+        [0; 32],
+        [0; 32],
+        vec![],
+        100,
+        vec![],
+        vec![],
+        vec![],
+        original_timestamp + 1000,
+    );
 
     let res = soft_confirmation_rule_enforcer.begin_soft_confirmation_hook(
         &mut signed_soft_confirmation_batch.clone().into(),
