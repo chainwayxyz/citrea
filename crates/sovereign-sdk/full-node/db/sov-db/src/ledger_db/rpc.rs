@@ -290,7 +290,7 @@ impl LedgerRpcProvider for LedgerDB {
 
     fn get_soft_batches(
         &self,
-        soft_batch_ids: &Vec<SoftBatchIdentifier>,
+        soft_batch_ids: &[SoftBatchIdentifier],
     ) -> Result<Vec<Option<SoftBatchResponse>>, anyhow::Error> {
         anyhow::ensure!(
             soft_batch_ids.len() <= MAX_SOFT_BATCHES_PER_REQUEST as usize,

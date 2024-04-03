@@ -277,7 +277,7 @@ pub trait LedgerRpcProvider {
     /// Get a list of soft batches by id. The IDs need not be ordered.
     fn get_soft_batches(
         &self,
-        batch_ids: &Vec<SoftBatchIdentifier>,
+        batch_ids: &[SoftBatchIdentifier],
     ) -> Result<Vec<Option<SoftBatchResponse>>, anyhow::Error>;
 
     /// Get soft batch

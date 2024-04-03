@@ -1,0 +1,257 @@
+citrea-evm v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/evm)
+├── alloy-primitives v0.6.4
+│   ├── alloy-rlp v0.3.4
+│   │   ├── alloy-rlp-derive v0.3.4 (proc-macro)
+│   │   ├── arrayvec v0.7.4
+│   │   └── bytes v1.6.0
+│   ├── bytes v1.6.0 (*)
+│   ├── cfg-if v1.0.0
+│   ├── const-hex v1.11.3
+│   │   ├── cfg-if v1.0.0
+│   │   └── serde v1.0.197
+│   ├── derive_more v0.99.17 (proc-macro)
+│   │   ├── convert_case v0.4.0
+│   │   ├── proc-macro2 v1.0.79
+│   │   ├── quote v1.0.35
+│   │   └── syn v1.0.109
+│   ├── getrandom v0.2.12
+│   │   ├── cfg-if v1.0.0
+│   │   └── libc v0.2.153
+│   ├── hex-literal v0.4.1
+│   ├── itoa v1.0.11
+│   ├── rand v0.8.5
+│   │   ├── libc v0.2.153
+│   │   ├── rand_chacha v0.3.1
+│   │   └── rand_core v0.6.4
+│   ├── ruint v1.12.1
+│   │   ├── alloy-rlp v0.3.4 (*)
+│   │   ├── rand v0.8.5 (*)
+│   │   ├── ruint-macro v1.2.0 (proc-macro)
+│   │   └── serde v1.0.197 (*)
+│   ├── serde v1.0.197 (*)
+│   └── tiny-keccak v2.0.2
+│       └── crunchy v0.2.2
+├── alloy-rlp v0.3.4 (*)
+├── alloy-sol-types v0.6.4
+│   ├── alloy-primitives v0.6.4 (*)
+│   ├── alloy-sol-macro v0.6.4 (proc-macro)
+│   │   ├── const-hex v1.11.3
+│   │   ├── dunce v1.0.4
+│   │   ├── heck v0.4.1
+│   │   ├── indexmap v2.2.6
+│   │   ├── proc-macro-error v1.0.4
+│   │   ├── proc-macro2 v1.0.79 (*)
+│   │   ├── quote v1.0.35 (*)
+│   │   ├── syn v2.0.55
+│   │   ├── syn-solidity v0.6.4
+│   │   └── tiny-keccak v2.0.2 (*)
+│   └── const-hex v1.11.3 (*)
+├── anyhow v1.0.81
+├── borsh v0.10.3
+│   ├── borsh-derive v0.10.3 (proc-macro)
+│   │   ├── borsh-derive-internal v0.10.3
+│   │   ├── borsh-schema-derive-internal v0.10.3
+│   │   ├── proc-macro-crate v0.1.5
+│   │   ├── proc-macro2 v1.0.79 (*)
+│   │   └── syn v1.0.109 (*)
+│   ├── bytes v1.6.0 (*)
+│   └── hashbrown v0.13.2
+│       └── ahash v0.8.11
+├── bytes v1.6.0 (*)
+├── derive_more v0.99.17 (proc-macro) (*)
+├── hex v0.4.3
+│   └── serde v1.0.197 (*)
+├── itertools v0.11.0
+│   └── either v1.10.0
+├── reth-primitives v0.2.0-beta.4 (https://github.com/Sovereign-Labs/reth?rev=bd2945a988ad2bb93dccf3967f4349e99e25da90#bd2945a9)
+│   ├── alloy-chains v0.1.15
+│   │   ├── alloy-rlp v0.3.4 (*)
+│   │   ├── num_enum v0.7.2
+│   │   ├── serde v1.0.197 (*)
+│   │   └── strum v0.26.2
+│   ├── alloy-eips v0.1.0 (https://github.com/alloy-rs/alloy?rev=7e39c85#7e39c85f)
+│   │   ├── alloy-primitives v0.6.4 (*)
+│   │   ├── alloy-rlp v0.3.4 (*)
+│   │   ├── alloy-serde v0.1.0 (https://github.com/alloy-rs/alloy?rev=7e39c85#7e39c85f)
+│   │   └── serde v1.0.197 (*)
+│   ├── alloy-genesis v0.1.0 (https://github.com/alloy-rs/alloy?rev=7e39c85#7e39c85f)
+│   │   ├── alloy-primitives v0.6.4 (*)
+│   │   ├── alloy-serde v0.1.0 (https://github.com/alloy-rs/alloy?rev=7e39c85#7e39c85f) (*)
+│   │   └── serde v1.0.197 (*)
+│   ├── alloy-primitives v0.6.4 (*)
+│   ├── alloy-rlp v0.3.4 (*)
+│   ├── alloy-trie v0.3.0
+│   │   ├── alloy-primitives v0.6.4 (*)
+│   │   ├── alloy-rlp v0.3.4 (*)
+│   │   ├── derive_more v0.99.17 (proc-macro) (*)
+│   │   ├── hashbrown v0.14.3
+│   │   ├── nybbles v0.2.1
+│   │   ├── serde v1.0.197 (*)
+│   │   ├── smallvec v1.13.2
+│   │   └── tracing v0.1.40
+│   ├── byteorder v1.5.0
+│   ├── bytes v1.6.0 (*)
+│   ├── c-kzg v1.0.0
+│   │   ├── blst v0.3.11
+│   │   ├── hex v0.4.3 (*)
+│   │   ├── libc v0.2.153
+│   │   └── serde v1.0.197 (*)
+│   ├── cfg-if v1.0.0
+│   ├── derive_more v0.99.17 (proc-macro) (*)
+│   ├── enr v0.10.0
+│   │   ├── base64 v0.21.7
+│   │   ├── bytes v1.6.0 (*)
+│   │   ├── hex v0.4.3 (*)
+│   │   ├── k256 v0.13.3
+│   │   ├── log v0.4.21
+│   │   ├── rand v0.8.5 (*)
+│   │   ├── rlp v0.5.2
+│   │   ├── secp256k1 v0.27.0
+│   │   ├── serde v1.0.197 (*)
+│   │   ├── sha3 v0.10.8
+│   │   └── zeroize v1.7.0
+│   ├── itertools v0.12.1
+│   │   └── either v1.10.0
+│   ├── modular-bitfield v0.11.2
+│   │   ├── modular-bitfield-impl v0.11.2 (proc-macro)
+│   │   └── static_assertions v1.1.0
+│   ├── nybbles v0.2.1 (*)
+│   ├── once_cell v1.19.0
+│   ├── rayon v1.10.0
+│   │   ├── either v1.10.0
+│   │   └── rayon-core v1.12.1
+│   ├── reth-codecs v0.2.0-beta.4 (https://github.com/Sovereign-Labs/reth?rev=bd2945a988ad2bb93dccf3967f4349e99e25da90#bd2945a9)
+│   │   ├── alloy-primitives v0.6.4 (*)
+│   │   ├── bytes v1.6.0 (*)
+│   │   └── reth-codecs-derive v0.2.0-beta.4 (proc-macro) (https://github.com/Sovereign-Labs/reth?rev=bd2945a988ad2bb93dccf3967f4349e99e25da90#bd2945a9)
+│   ├── reth-ethereum-forks v0.2.0-beta.4 (https://github.com/Sovereign-Labs/reth?rev=bd2945a988ad2bb93dccf3967f4349e99e25da90#bd2945a9)
+│   │   ├── alloy-chains v0.1.15 (*)
+│   │   ├── alloy-primitives v0.6.4 (*)
+│   │   ├── alloy-rlp v0.3.4 (*)
+│   │   ├── crc v3.0.1
+│   │   ├── serde v1.0.197 (*)
+│   │   └── thiserror v1.0.58
+│   ├── reth-rpc-types v0.2.0-beta.4 (https://github.com/Sovereign-Labs/reth?rev=bd2945a988ad2bb93dccf3967f4349e99e25da90#bd2945a9)
+│   │   ├── alloy-genesis v0.1.0 (https://github.com/alloy-rs/alloy?rev=7e39c85#7e39c85f) (*)
+│   │   ├── alloy-primitives v0.6.4 (*)
+│   │   ├── alloy-rlp v0.3.4 (*)
+│   │   ├── alloy-rpc-engine-types v0.1.0 (https://github.com/alloy-rs/alloy?rev=7e39c85#7e39c85f)
+│   │   ├── alloy-rpc-trace-types v0.1.0 (https://github.com/alloy-rs/alloy?rev=7e39c85#7e39c85f)
+│   │   ├── alloy-rpc-types v0.1.0 (https://github.com/alloy-rs/alloy?rev=7e39c85#7e39c85f)
+│   │   ├── enr v0.10.0 (*)
+│   │   ├── jsonrpsee-types v0.20.3
+│   │   ├── secp256k1 v0.27.0 (*)
+│   │   ├── serde v1.0.197 (*)
+│   │   ├── serde_json v1.0.115
+│   │   ├── serde_with v3.7.0
+│   │   ├── thiserror v1.0.58 (*)
+│   │   └── url v2.5.0
+│   ├── revm v7.2.0
+│   │   ├── auto_impl v1.2.0 (proc-macro)
+│   │   ├── cfg-if v1.0.0
+│   │   ├── dyn-clone v1.0.17
+│   │   ├── revm-interpreter v3.4.0
+│   │   └── revm-precompile v5.1.0
+│   ├── revm-primitives v3.1.0
+│   │   ├── alloy-primitives v0.6.4 (*)
+│   │   ├── auto_impl v1.2.0 (proc-macro) (*)
+│   │   ├── bitflags v2.5.0
+│   │   ├── bitvec v1.0.1
+│   │   ├── c-kzg v1.0.0 (*)
+│   │   ├── cfg-if v1.0.0
+│   │   ├── derive_more v0.99.17 (proc-macro) (*)
+│   │   ├── dyn-clone v1.0.17
+│   │   ├── enumn v0.1.13 (proc-macro)
+│   │   ├── hashbrown v0.14.3 (*)
+│   │   ├── once_cell v1.19.0
+│   │   └── serde v1.0.197 (*)
+│   ├── roaring v0.10.3
+│   │   ├── bytemuck v1.15.0
+│   │   └── byteorder v1.5.0
+│   ├── secp256k1 v0.27.0 (*)
+│   ├── serde v1.0.197 (*)
+│   ├── serde_json v1.0.115 (*)
+│   ├── serde_with v3.7.0 (*)
+│   ├── sha2 v0.10.8
+│   │   ├── cfg-if v1.0.0
+│   │   ├── cpufeatures v0.2.12
+│   │   └── digest v0.10.7
+│   ├── strum v0.26.2 (*)
+│   ├── tempfile v3.10.1
+│   │   ├── cfg-if v1.0.0
+│   │   ├── fastrand v2.0.2
+│   │   └── rustix v0.38.32
+│   ├── thiserror v1.0.58 (*)
+│   └── zstd v0.13.0
+│       └── zstd-safe v7.0.0
+├── revm v7.2.0 (*)
+├── secp256k1 v0.27.0 (*)
+├── serde v1.0.197 (*)
+├── serde_json v1.0.115 (*)
+├── sov-modules-api v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/module-system/sov-modules-api)
+│   ├── anyhow v1.0.81
+│   ├── bech32 v0.9.1
+│   ├── borsh v0.10.3 (*)
+│   ├── derive_more v0.99.17 (proc-macro) (*)
+│   ├── ed25519-dalek v2.0.0
+│   │   ├── curve25519-dalek v4.1.2
+│   │   ├── ed25519 v2.2.3
+│   │   ├── serde v1.0.197 (*)
+│   │   └── sha2 v0.10.8 (*)
+│   ├── hex v0.4.3 (*)
+│   ├── jmt v0.9.0 (https://github.com/penumbra-zone/jmt.git?rev=1d007e11cb68aa5ca13e9a5af4a12e6439d5f7b6#1d007e11)
+│   │   ├── anyhow v1.0.81
+│   │   ├── borsh v0.10.3 (*)
+│   │   ├── digest v0.10.7 (*)
+│   │   ├── hashbrown v0.13.2 (*)
+│   │   ├── hex v0.4.3 (*)
+│   │   ├── ics23 v0.11.1
+│   │   ├── itertools v0.10.5
+│   │   ├── mirai-annotations v1.12.0
+│   │   ├── num-derive v0.3.3 (proc-macro)
+│   │   ├── num-traits v0.2.18
+│   │   ├── serde v1.0.197 (*)
+│   │   ├── sha2 v0.10.8 (*)
+│   │   ├── thiserror v1.0.58 (*)
+│   │   └── tracing v0.1.40 (*)
+│   ├── serde v1.0.197 (*)
+│   ├── sha2 v0.10.8 (*)
+│   ├── sov-modules-core v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/module-system/sov-modules-core)
+│   │   ├── anyhow v1.0.81
+│   │   ├── bech32 v0.9.1
+│   │   ├── borsh v0.10.3 (*)
+│   │   ├── derive_more v0.99.17 (proc-macro) (*)
+│   │   ├── digest v0.10.7 (*)
+│   │   ├── hex v0.4.3 (*)
+│   │   ├── jmt v0.9.0 (https://github.com/penumbra-zone/jmt.git?rev=1d007e11cb68aa5ca13e9a5af4a12e6439d5f7b6#1d007e11) (*)
+│   │   ├── schemars v0.8.16
+│   │   ├── serde v1.0.197 (*)
+│   │   ├── sha2 v0.10.8 (*)
+│   │   ├── sov-rollup-interface v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/rollup-interface)
+│   │   └── thiserror v1.0.58 (*)
+│   ├── sov-modules-macros v0.3.0 (proc-macro) (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/module-system/sov-modules-macros)
+│   │   ├── anyhow v1.0.81
+│   │   ├── borsh v0.10.3 (*)
+│   │   ├── proc-macro2 v1.0.79 (*)
+│   │   ├── quote v1.0.35 (*)
+│   │   ├── schemars v0.8.16 (*)
+│   │   ├── serde_json v1.0.115
+│   │   ├── sov-modules-core v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/module-system/sov-modules-core) (*)
+│   │   └── syn v1.0.109 (*)
+│   ├── sov-rollup-interface v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/rollup-interface) (*)
+│   ├── sov-state v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/module-system/sov-state)
+│   │   ├── anyhow v1.0.81
+│   │   ├── bcs v0.1.6
+│   │   ├── borsh v0.10.3 (*)
+│   │   ├── hex v0.4.3 (*)
+│   │   ├── jmt v0.9.0 (https://github.com/penumbra-zone/jmt.git?rev=1d007e11cb68aa5ca13e9a5af4a12e6439d5f7b6#1d007e11) (*)
+│   │   ├── serde v1.0.197 (*)
+│   │   ├── serde_json v1.0.115 (*)
+│   │   ├── sha2 v0.10.8 (*)
+│   │   ├── sov-modules-core v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/module-system/sov-modules-core) (*)
+│   │   ├── sov-rollup-interface v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/rollup-interface) (*)
+│   │   └── thiserror v1.0.58 (*)
+│   └── thiserror v1.0.58 (*)
+├── sov-state v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/module-system/sov-state) (*)
+├── thiserror v1.0.58 (*)
+└── tracing v0.1.40 (*)

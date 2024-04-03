@@ -1,0 +1,1465 @@
+citrea-stf v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/citrea-stf)
+├── anyhow v1.0.81
+├── borsh v0.10.3
+│   ├── borsh-derive v0.10.3 (proc-macro)
+│   │   ├── borsh-derive-internal v0.10.3
+│   │   │   ├── proc-macro2 v1.0.79
+│   │   │   │   └── unicode-ident v1.0.12
+│   │   │   ├── quote v1.0.35
+│   │   │   │   └── proc-macro2 v1.0.79 (*)
+│   │   │   └── syn v1.0.109
+│   │   │       ├── proc-macro2 v1.0.79 (*)
+│   │   │       ├── quote v1.0.35 (*)
+│   │   │       └── unicode-ident v1.0.12
+│   │   ├── borsh-schema-derive-internal v0.10.3
+│   │   │   ├── proc-macro2 v1.0.79 (*)
+│   │   │   ├── quote v1.0.35 (*)
+│   │   │   └── syn v1.0.109 (*)
+│   │   ├── proc-macro-crate v0.1.5
+│   │   │   └── toml v0.5.11
+│   │   │       └── serde v1.0.197
+│   │   │           └── serde_derive v1.0.197 (proc-macro)
+│   │   │               ├── proc-macro2 v1.0.79 (*)
+│   │   │               ├── quote v1.0.35 (*)
+│   │   │               └── syn v2.0.55
+│   │   │                   ├── proc-macro2 v1.0.79 (*)
+│   │   │                   ├── quote v1.0.35 (*)
+│   │   │                   └── unicode-ident v1.0.12
+│   │   ├── proc-macro2 v1.0.79 (*)
+│   │   └── syn v1.0.109 (*)
+│   ├── bytes v1.6.0
+│   │   └── serde v1.0.197 (*)
+│   └── hashbrown v0.13.2
+│       └── ahash v0.8.11
+│           ├── cfg-if v1.0.0
+│           ├── once_cell v1.19.0
+│           └── zerocopy v0.7.32
+├── citrea-evm v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/evm)
+│   ├── alloy-primitives v0.6.4
+│   │   ├── alloy-rlp v0.3.4
+│   │   │   ├── alloy-rlp-derive v0.3.4 (proc-macro)
+│   │   │   │   ├── proc-macro2 v1.0.79 (*)
+│   │   │   │   ├── quote v1.0.35 (*)
+│   │   │   │   └── syn v2.0.55 (*)
+│   │   │   ├── arrayvec v0.7.4
+│   │   │   └── bytes v1.6.0 (*)
+│   │   ├── bytes v1.6.0 (*)
+│   │   ├── cfg-if v1.0.0
+│   │   ├── const-hex v1.11.3
+│   │   │   ├── cfg-if v1.0.0
+│   │   │   ├── hex v0.4.3
+│   │   │   │   └── serde v1.0.197 (*)
+│   │   │   └── serde v1.0.197 (*)
+│   │   ├── derive_more v0.99.17 (proc-macro)
+│   │   │   ├── convert_case v0.4.0
+│   │   │   ├── proc-macro2 v1.0.79 (*)
+│   │   │   ├── quote v1.0.35 (*)
+│   │   │   └── syn v1.0.109 (*)
+│   │   ├── getrandom v0.2.12
+│   │   │   ├── cfg-if v1.0.0
+│   │   │   └── libc v0.2.153
+│   │   ├── hex-literal v0.4.1
+│   │   ├── itoa v1.0.11
+│   │   ├── rand v0.8.5
+│   │   │   ├── libc v0.2.153
+│   │   │   ├── rand_chacha v0.3.1
+│   │   │   │   ├── ppv-lite86 v0.2.17
+│   │   │   │   └── rand_core v0.6.4
+│   │   │   │       └── getrandom v0.2.12 (*)
+│   │   │   └── rand_core v0.6.4 (*)
+│   │   ├── ruint v1.12.1
+│   │   │   ├── alloy-rlp v0.3.4 (*)
+│   │   │   ├── rand v0.8.5 (*)
+│   │   │   ├── ruint-macro v1.2.0 (proc-macro)
+│   │   │   └── serde v1.0.197 (*)
+│   │   ├── serde v1.0.197 (*)
+│   │   └── tiny-keccak v2.0.2
+│   │       └── crunchy v0.2.2
+│   ├── alloy-rlp v0.3.4 (*)
+│   ├── alloy-sol-types v0.6.4
+│   │   ├── alloy-primitives v0.6.4 (*)
+│   │   ├── alloy-sol-macro v0.6.4 (proc-macro)
+│   │   │   ├── const-hex v1.11.3
+│   │   │   │   ├── cfg-if v1.0.0
+│   │   │   │   └── hex v0.4.3 (*)
+│   │   │   ├── dunce v1.0.4
+│   │   │   ├── heck v0.4.1
+│   │   │   ├── indexmap v2.2.6
+│   │   │   │   ├── equivalent v1.0.1
+│   │   │   │   └── hashbrown v0.14.3
+│   │   │   ├── proc-macro-error v1.0.4
+│   │   │   │   ├── proc-macro-error-attr v1.0.4 (proc-macro)
+│   │   │   │   │   ├── proc-macro2 v1.0.79 (*)
+│   │   │   │   │   └── quote v1.0.35 (*)
+│   │   │   │   ├── proc-macro2 v1.0.79 (*)
+│   │   │   │   ├── quote v1.0.35 (*)
+│   │   │   │   └── syn v1.0.109 (*)
+│   │   │   ├── proc-macro2 v1.0.79 (*)
+│   │   │   ├── quote v1.0.35 (*)
+│   │   │   ├── syn v2.0.55 (*)
+│   │   │   ├── syn-solidity v0.6.4
+│   │   │   │   ├── paste v1.0.14 (proc-macro)
+│   │   │   │   ├── proc-macro2 v1.0.79 (*)
+│   │   │   │   ├── quote v1.0.35 (*)
+│   │   │   │   └── syn v2.0.55 (*)
+│   │   │   └── tiny-keccak v2.0.2 (*)
+│   │   └── const-hex v1.11.3 (*)
+│   ├── anyhow v1.0.81
+│   ├── borsh v0.10.3 (*)
+│   ├── bytes v1.6.0 (*)
+│   ├── derive_more v0.99.17 (proc-macro) (*)
+│   ├── hex v0.4.3 (*)
+│   ├── itertools v0.11.0
+│   │   └── either v1.10.0
+│   ├── reth-primitives v0.2.0-beta.4 (https://github.com/Sovereign-Labs/reth?rev=bd2945a988ad2bb93dccf3967f4349e99e25da90#bd2945a9)
+│   │   ├── alloy-chains v0.1.15
+│   │   │   ├── alloy-rlp v0.3.4 (*)
+│   │   │   ├── num_enum v0.7.2
+│   │   │   │   └── num_enum_derive v0.7.2 (proc-macro)
+│   │   │   │       ├── proc-macro-crate v2.0.2
+│   │   │   │       │   ├── toml_datetime v0.6.3
+│   │   │   │       │   │   └── serde v1.0.197 (*)
+│   │   │   │       │   └── toml_edit v0.20.2
+│   │   │   │       │       ├── indexmap v2.2.6 (*)
+│   │   │   │       │       ├── serde v1.0.197 (*)
+│   │   │   │       │       ├── serde_spanned v0.6.5
+│   │   │   │       │       │   └── serde v1.0.197 (*)
+│   │   │   │       │       ├── toml_datetime v0.6.3 (*)
+│   │   │   │       │       └── winnow v0.5.40
+│   │   │   │       ├── proc-macro2 v1.0.79 (*)
+│   │   │   │       ├── quote v1.0.35 (*)
+│   │   │   │       └── syn v2.0.55 (*)
+│   │   │   ├── serde v1.0.197 (*)
+│   │   │   └── strum v0.26.2
+│   │   │       └── strum_macros v0.26.2 (proc-macro)
+│   │   │           ├── heck v0.4.1
+│   │   │           ├── proc-macro2 v1.0.79 (*)
+│   │   │           ├── quote v1.0.35 (*)
+│   │   │           ├── rustversion v1.0.14 (proc-macro)
+│   │   │           └── syn v2.0.55 (*)
+│   │   ├── alloy-eips v0.1.0 (https://github.com/alloy-rs/alloy?rev=7e39c85#7e39c85f)
+│   │   │   ├── alloy-primitives v0.6.4 (*)
+│   │   │   ├── alloy-rlp v0.3.4 (*)
+│   │   │   ├── alloy-serde v0.1.0 (https://github.com/alloy-rs/alloy?rev=7e39c85#7e39c85f)
+│   │   │   │   ├── alloy-primitives v0.6.4 (*)
+│   │   │   │   ├── serde v1.0.197 (*)
+│   │   │   │   └── serde_json v1.0.115
+│   │   │   │       ├── itoa v1.0.11
+│   │   │   │       ├── ryu v1.0.17
+│   │   │   │       └── serde v1.0.197 (*)
+│   │   │   └── serde v1.0.197 (*)
+│   │   ├── alloy-genesis v0.1.0 (https://github.com/alloy-rs/alloy?rev=7e39c85#7e39c85f)
+│   │   │   ├── alloy-primitives v0.6.4 (*)
+│   │   │   ├── alloy-serde v0.1.0 (https://github.com/alloy-rs/alloy?rev=7e39c85#7e39c85f) (*)
+│   │   │   └── serde v1.0.197 (*)
+│   │   ├── alloy-primitives v0.6.4 (*)
+│   │   ├── alloy-rlp v0.3.4 (*)
+│   │   ├── alloy-trie v0.3.0
+│   │   │   ├── alloy-primitives v0.6.4 (*)
+│   │   │   ├── alloy-rlp v0.3.4 (*)
+│   │   │   ├── derive_more v0.99.17 (proc-macro) (*)
+│   │   │   ├── hashbrown v0.14.3
+│   │   │   │   ├── ahash v0.8.11 (*)
+│   │   │   │   ├── allocator-api2 v0.2.16
+│   │   │   │   └── serde v1.0.197 (*)
+│   │   │   ├── nybbles v0.2.1
+│   │   │   │   ├── alloy-rlp v0.3.4 (*)
+│   │   │   │   ├── const-hex v1.11.3 (*)
+│   │   │   │   ├── serde v1.0.197 (*)
+│   │   │   │   └── smallvec v1.13.2
+│   │   │   │       └── serde v1.0.197 (*)
+│   │   │   ├── serde v1.0.197 (*)
+│   │   │   ├── smallvec v1.13.2 (*)
+│   │   │   └── tracing v0.1.40
+│   │   │       ├── log v0.4.21
+│   │   │       ├── pin-project-lite v0.2.13
+│   │   │       ├── tracing-attributes v0.1.27 (proc-macro)
+│   │   │       │   ├── proc-macro2 v1.0.79 (*)
+│   │   │       │   ├── quote v1.0.35 (*)
+│   │   │       │   └── syn v2.0.55 (*)
+│   │   │       └── tracing-core v0.1.32
+│   │   │           └── once_cell v1.19.0
+│   │   ├── byteorder v1.5.0
+│   │   ├── bytes v1.6.0 (*)
+│   │   ├── c-kzg v1.0.0
+│   │   │   ├── blst v0.3.11
+│   │   │   │   ├── threadpool v1.8.1
+│   │   │   │   │   └── num_cpus v1.16.0
+│   │   │   │   │       └── libc v0.2.153
+│   │   │   │   └── zeroize v1.7.0
+│   │   │   │       └── zeroize_derive v1.4.2 (proc-macro)
+│   │   │   │           ├── proc-macro2 v1.0.79 (*)
+│   │   │   │           ├── quote v1.0.35 (*)
+│   │   │   │           └── syn v2.0.55 (*)
+│   │   │   ├── hex v0.4.3 (*)
+│   │   │   ├── libc v0.2.153
+│   │   │   └── serde v1.0.197 (*)
+│   │   ├── cfg-if v1.0.0
+│   │   ├── derive_more v0.99.17 (proc-macro) (*)
+│   │   ├── enr v0.10.0
+│   │   │   ├── base64 v0.21.7
+│   │   │   ├── bytes v1.6.0 (*)
+│   │   │   ├── hex v0.4.3 (*)
+│   │   │   ├── k256 v0.13.3
+│   │   │   │   ├── cfg-if v1.0.0
+│   │   │   │   ├── ecdsa v0.16.9
+│   │   │   │   │   ├── der v0.7.8
+│   │   │   │   │   │   ├── const-oid v0.9.6
+│   │   │   │   │   │   └── zeroize v1.7.0 (*)
+│   │   │   │   │   ├── digest v0.10.7
+│   │   │   │   │   │   ├── block-buffer v0.10.4
+│   │   │   │   │   │   │   └── generic-array v0.14.7
+│   │   │   │   │   │   │       ├── typenum v1.17.0
+│   │   │   │   │   │   │       └── zeroize v1.7.0 (*)
+│   │   │   │   │   │   ├── const-oid v0.9.6
+│   │   │   │   │   │   ├── crypto-common v0.1.6
+│   │   │   │   │   │   │   ├── generic-array v0.14.7 (*)
+│   │   │   │   │   │   │   └── typenum v1.17.0
+│   │   │   │   │   │   └── subtle v2.4.1
+│   │   │   │   │   ├── elliptic-curve v0.13.8
+│   │   │   │   │   │   ├── base16ct v0.2.0
+│   │   │   │   │   │   ├── crypto-bigint v0.5.5
+│   │   │   │   │   │   │   ├── generic-array v0.14.7 (*)
+│   │   │   │   │   │   │   ├── rand_core v0.6.4 (*)
+│   │   │   │   │   │   │   ├── subtle v2.4.1
+│   │   │   │   │   │   │   └── zeroize v1.7.0 (*)
+│   │   │   │   │   │   ├── digest v0.10.7 (*)
+│   │   │   │   │   │   ├── ff v0.13.0
+│   │   │   │   │   │   │   ├── rand_core v0.6.4 (*)
+│   │   │   │   │   │   │   └── subtle v2.4.1
+│   │   │   │   │   │   ├── generic-array v0.14.7 (*)
+│   │   │   │   │   │   ├── group v0.13.0
+│   │   │   │   │   │   │   ├── ff v0.13.0 (*)
+│   │   │   │   │   │   │   ├── rand_core v0.6.4 (*)
+│   │   │   │   │   │   │   └── subtle v2.4.1
+│   │   │   │   │   │   ├── pkcs8 v0.10.2
+│   │   │   │   │   │   │   ├── der v0.7.8 (*)
+│   │   │   │   │   │   │   └── spki v0.7.3
+│   │   │   │   │   │   │       └── der v0.7.8 (*)
+│   │   │   │   │   │   ├── rand_core v0.6.4 (*)
+│   │   │   │   │   │   ├── sec1 v0.7.3
+│   │   │   │   │   │   │   ├── base16ct v0.2.0
+│   │   │   │   │   │   │   ├── der v0.7.8 (*)
+│   │   │   │   │   │   │   ├── generic-array v0.14.7 (*)
+│   │   │   │   │   │   │   ├── subtle v2.4.1
+│   │   │   │   │   │   │   └── zeroize v1.7.0 (*)
+│   │   │   │   │   │   ├── subtle v2.4.1
+│   │   │   │   │   │   └── zeroize v1.7.0 (*)
+│   │   │   │   │   ├── rfc6979 v0.4.0
+│   │   │   │   │   │   ├── hmac v0.12.1
+│   │   │   │   │   │   │   └── digest v0.10.7 (*)
+│   │   │   │   │   │   └── subtle v2.4.1
+│   │   │   │   │   ├── signature v2.2.0
+│   │   │   │   │   │   ├── digest v0.10.7 (*)
+│   │   │   │   │   │   └── rand_core v0.6.4 (*)
+│   │   │   │   │   └── spki v0.7.3 (*)
+│   │   │   │   ├── elliptic-curve v0.13.8 (*)
+│   │   │   │   ├── once_cell v1.19.0
+│   │   │   │   ├── sha2 v0.10.8
+│   │   │   │   │   ├── cfg-if v1.0.0
+│   │   │   │   │   ├── cpufeatures v0.2.12
+│   │   │   │   │   │   └── libc v0.2.153
+│   │   │   │   │   └── digest v0.10.7 (*)
+│   │   │   │   └── signature v2.2.0 (*)
+│   │   │   ├── log v0.4.21
+│   │   │   ├── rand v0.8.5 (*)
+│   │   │   ├── rlp v0.5.2
+│   │   │   │   ├── bytes v1.6.0 (*)
+│   │   │   │   ├── rlp-derive v0.1.0 (proc-macro)
+│   │   │   │   │   ├── proc-macro2 v1.0.79 (*)
+│   │   │   │   │   ├── quote v1.0.35 (*)
+│   │   │   │   │   └── syn v1.0.109 (*)
+│   │   │   │   └── rustc-hex v2.1.0
+│   │   │   ├── secp256k1 v0.27.0
+│   │   │   │   ├── rand v0.8.5 (*)
+│   │   │   │   └── secp256k1-sys v0.8.1
+│   │   │   ├── serde v1.0.197 (*)
+│   │   │   ├── sha3 v0.10.8
+│   │   │   │   ├── digest v0.10.7 (*)
+│   │   │   │   └── keccak v0.1.5
+│   │   │   │       └── cpufeatures v0.2.12 (*)
+│   │   │   └── zeroize v1.7.0 (*)
+│   │   ├── itertools v0.12.1
+│   │   │   └── either v1.10.0
+│   │   ├── modular-bitfield v0.11.2
+│   │   │   ├── modular-bitfield-impl v0.11.2 (proc-macro)
+│   │   │   │   ├── proc-macro2 v1.0.79 (*)
+│   │   │   │   ├── quote v1.0.35 (*)
+│   │   │   │   └── syn v1.0.109 (*)
+│   │   │   └── static_assertions v1.1.0
+│   │   ├── nybbles v0.2.1 (*)
+│   │   ├── once_cell v1.19.0
+│   │   ├── rayon v1.10.0
+│   │   │   ├── either v1.10.0
+│   │   │   └── rayon-core v1.12.1
+│   │   │       ├── crossbeam-deque v0.8.5
+│   │   │       │   ├── crossbeam-epoch v0.9.18
+│   │   │       │   │   └── crossbeam-utils v0.8.19
+│   │   │       │   └── crossbeam-utils v0.8.19
+│   │   │       └── crossbeam-utils v0.8.19
+│   │   ├── reth-codecs v0.2.0-beta.4 (https://github.com/Sovereign-Labs/reth?rev=bd2945a988ad2bb93dccf3967f4349e99e25da90#bd2945a9)
+│   │   │   ├── alloy-primitives v0.6.4 (*)
+│   │   │   ├── bytes v1.6.0 (*)
+│   │   │   └── reth-codecs-derive v0.2.0-beta.4 (proc-macro) (https://github.com/Sovereign-Labs/reth?rev=bd2945a988ad2bb93dccf3967f4349e99e25da90#bd2945a9)
+│   │   │       ├── convert_case v0.6.0
+│   │   │       │   └── unicode-segmentation v1.11.0
+│   │   │       ├── proc-macro2 v1.0.79 (*)
+│   │   │       ├── quote v1.0.35 (*)
+│   │   │       └── syn v2.0.55 (*)
+│   │   ├── reth-ethereum-forks v0.2.0-beta.4 (https://github.com/Sovereign-Labs/reth?rev=bd2945a988ad2bb93dccf3967f4349e99e25da90#bd2945a9)
+│   │   │   ├── alloy-chains v0.1.15 (*)
+│   │   │   ├── alloy-primitives v0.6.4 (*)
+│   │   │   ├── alloy-rlp v0.3.4 (*)
+│   │   │   ├── crc v3.0.1
+│   │   │   │   └── crc-catalog v2.4.0
+│   │   │   ├── serde v1.0.197 (*)
+│   │   │   └── thiserror v1.0.58
+│   │   │       └── thiserror-impl v1.0.58 (proc-macro)
+│   │   │           ├── proc-macro2 v1.0.79 (*)
+│   │   │           ├── quote v1.0.35 (*)
+│   │   │           └── syn v2.0.55 (*)
+│   │   ├── reth-rpc-types v0.2.0-beta.4 (https://github.com/Sovereign-Labs/reth?rev=bd2945a988ad2bb93dccf3967f4349e99e25da90#bd2945a9)
+│   │   │   ├── alloy-genesis v0.1.0 (https://github.com/alloy-rs/alloy?rev=7e39c85#7e39c85f) (*)
+│   │   │   ├── alloy-primitives v0.6.4 (*)
+│   │   │   ├── alloy-rlp v0.3.4 (*)
+│   │   │   ├── alloy-rpc-engine-types v0.1.0 (https://github.com/alloy-rs/alloy?rev=7e39c85#7e39c85f)
+│   │   │   │   ├── alloy-primitives v0.6.4 (*)
+│   │   │   │   ├── alloy-rlp v0.3.4 (*)
+│   │   │   │   ├── alloy-rpc-types v0.1.0 (https://github.com/alloy-rs/alloy?rev=7e39c85#7e39c85f)
+│   │   │   │   │   ├── alloy-consensus v0.1.0 (https://github.com/alloy-rs/alloy?rev=7e39c85#7e39c85f)
+│   │   │   │   │   │   ├── alloy-eips v0.1.0 (https://github.com/alloy-rs/alloy?rev=7e39c85#7e39c85f) (*)
+│   │   │   │   │   │   ├── alloy-primitives v0.6.4 (*)
+│   │   │   │   │   │   ├── alloy-rlp v0.3.4 (*)
+│   │   │   │   │   │   └── sha2 v0.10.8 (*)
+│   │   │   │   │   ├── alloy-eips v0.1.0 (https://github.com/alloy-rs/alloy?rev=7e39c85#7e39c85f) (*)
+│   │   │   │   │   ├── alloy-primitives v0.6.4 (*)
+│   │   │   │   │   ├── alloy-rlp v0.3.4 (*)
+│   │   │   │   │   ├── alloy-serde v0.1.0 (https://github.com/alloy-rs/alloy?rev=7e39c85#7e39c85f) (*)
+│   │   │   │   │   ├── itertools v0.12.1 (*)
+│   │   │   │   │   ├── jsonrpsee-types v0.20.3
+│   │   │   │   │   │   ├── anyhow v1.0.81
+│   │   │   │   │   │   ├── beef v0.5.2
+│   │   │   │   │   │   │   └── serde v1.0.197 (*)
+│   │   │   │   │   │   ├── serde v1.0.197 (*)
+│   │   │   │   │   │   ├── serde_json v1.0.115 (*)
+│   │   │   │   │   │   ├── thiserror v1.0.58 (*)
+│   │   │   │   │   │   └── tracing v0.1.40 (*)
+│   │   │   │   │   ├── serde v1.0.197 (*)
+│   │   │   │   │   ├── serde_json v1.0.115 (*)
+│   │   │   │   │   └── thiserror v1.0.58 (*)
+│   │   │   │   ├── alloy-serde v0.1.0 (https://github.com/alloy-rs/alloy?rev=7e39c85#7e39c85f) (*)
+│   │   │   │   ├── jsonrpsee-types v0.20.3 (*)
+│   │   │   │   ├── serde v1.0.197 (*)
+│   │   │   │   └── thiserror v1.0.58 (*)
+│   │   │   ├── alloy-rpc-trace-types v0.1.0 (https://github.com/alloy-rs/alloy?rev=7e39c85#7e39c85f)
+│   │   │   │   ├── alloy-primitives v0.6.4 (*)
+│   │   │   │   ├── alloy-rpc-types v0.1.0 (https://github.com/alloy-rs/alloy?rev=7e39c85#7e39c85f) (*)
+│   │   │   │   ├── alloy-serde v0.1.0 (https://github.com/alloy-rs/alloy?rev=7e39c85#7e39c85f) (*)
+│   │   │   │   ├── serde v1.0.197 (*)
+│   │   │   │   └── serde_json v1.0.115 (*)
+│   │   │   ├── alloy-rpc-types v0.1.0 (https://github.com/alloy-rs/alloy?rev=7e39c85#7e39c85f) (*)
+│   │   │   ├── enr v0.10.0 (*)
+│   │   │   ├── jsonrpsee-types v0.20.3 (*)
+│   │   │   ├── secp256k1 v0.27.0 (*)
+│   │   │   ├── serde v1.0.197 (*)
+│   │   │   ├── serde_json v1.0.115 (*)
+│   │   │   ├── serde_with v3.7.0
+│   │   │   │   ├── serde v1.0.197 (*)
+│   │   │   │   ├── serde_derive v1.0.197 (proc-macro) (*)
+│   │   │   │   └── serde_with_macros v3.7.0 (proc-macro)
+│   │   │   │       ├── darling v0.20.8
+│   │   │   │       │   ├── darling_core v0.20.8
+│   │   │   │       │   │   ├── fnv v1.0.7
+│   │   │   │       │   │   ├── ident_case v1.0.1
+│   │   │   │       │   │   ├── proc-macro2 v1.0.79 (*)
+│   │   │   │       │   │   ├── quote v1.0.35 (*)
+│   │   │   │       │   │   ├── strsim v0.10.0
+│   │   │   │       │   │   └── syn v2.0.55 (*)
+│   │   │   │       │   └── darling_macro v0.20.8 (proc-macro)
+│   │   │   │       │       ├── darling_core v0.20.8 (*)
+│   │   │   │       │       ├── quote v1.0.35 (*)
+│   │   │   │       │       └── syn v2.0.55 (*)
+│   │   │   │       ├── proc-macro2 v1.0.79 (*)
+│   │   │   │       ├── quote v1.0.35 (*)
+│   │   │   │       └── syn v2.0.55 (*)
+│   │   │   ├── thiserror v1.0.58 (*)
+│   │   │   └── url v2.5.0
+│   │   │       ├── form_urlencoded v1.2.1
+│   │   │       │   └── percent-encoding v2.3.1
+│   │   │       ├── idna v0.5.0
+│   │   │       │   ├── unicode-bidi v0.3.15
+│   │   │       │   └── unicode-normalization v0.1.23
+│   │   │       │       └── tinyvec v1.6.0
+│   │   │       │           └── tinyvec_macros v0.1.1
+│   │   │       └── percent-encoding v2.3.1
+│   │   ├── revm v7.2.0
+│   │   │   ├── auto_impl v1.2.0 (proc-macro)
+│   │   │   │   ├── proc-macro2 v1.0.79 (*)
+│   │   │   │   ├── quote v1.0.35 (*)
+│   │   │   │   └── syn v2.0.55 (*)
+│   │   │   ├── cfg-if v1.0.0
+│   │   │   ├── dyn-clone v1.0.17
+│   │   │   ├── revm-interpreter v3.4.0
+│   │   │   │   └── revm-primitives v3.1.0
+│   │   │   │       ├── alloy-primitives v0.6.4 (*)
+│   │   │   │       ├── auto_impl v1.2.0 (proc-macro) (*)
+│   │   │   │       ├── bitflags v2.5.0
+│   │   │   │       │   └── serde v1.0.197 (*)
+│   │   │   │       ├── bitvec v1.0.1
+│   │   │   │       │   ├── funty v2.0.0
+│   │   │   │       │   ├── radium v0.7.0
+│   │   │   │       │   ├── serde v1.0.197 (*)
+│   │   │   │       │   ├── tap v1.0.1
+│   │   │   │       │   └── wyz v0.5.1
+│   │   │   │       │       └── tap v1.0.1
+│   │   │   │       ├── c-kzg v1.0.0 (*)
+│   │   │   │       ├── cfg-if v1.0.0
+│   │   │   │       ├── derive_more v0.99.17 (proc-macro) (*)
+│   │   │   │       ├── dyn-clone v1.0.17
+│   │   │   │       ├── enumn v0.1.13 (proc-macro)
+│   │   │   │       │   ├── proc-macro2 v1.0.79 (*)
+│   │   │   │       │   ├── quote v1.0.35 (*)
+│   │   │   │       │   └── syn v2.0.55 (*)
+│   │   │   │       ├── hashbrown v0.14.3 (*)
+│   │   │   │       ├── once_cell v1.19.0
+│   │   │   │       └── serde v1.0.197 (*)
+│   │   │   └── revm-precompile v5.1.0
+│   │   │       ├── aurora-engine-modexp v1.0.0
+│   │   │       │   ├── hex v0.4.3 (*)
+│   │   │       │   └── num v0.4.1
+│   │   │       │       ├── num-bigint v0.4.4
+│   │   │       │       │   ├── num-integer v0.1.46
+│   │   │       │       │   │   └── num-traits v0.2.18
+│   │   │       │       │   └── num-traits v0.2.18
+│   │   │       │       ├── num-complex v0.4.5
+│   │   │       │       │   └── num-traits v0.2.18
+│   │   │       │       ├── num-integer v0.1.46 (*)
+│   │   │       │       ├── num-iter v0.1.44
+│   │   │       │       │   ├── num-integer v0.1.46 (*)
+│   │   │       │       │   └── num-traits v0.2.18
+│   │   │       │       ├── num-rational v0.4.1
+│   │   │       │       │   ├── num-bigint v0.4.4 (*)
+│   │   │       │       │   ├── num-integer v0.1.46 (*)
+│   │   │       │       │   └── num-traits v0.2.18
+│   │   │       │       └── num-traits v0.2.18
+│   │   │       ├── c-kzg v1.0.0 (*)
+│   │   │       ├── k256 v0.13.3 (*)
+│   │   │       ├── once_cell v1.19.0
+│   │   │       ├── revm-primitives v3.1.0 (*)
+│   │   │       ├── ripemd v0.1.3
+│   │   │       │   └── digest v0.10.7 (*)
+│   │   │       ├── secp256k1 v0.28.2
+│   │   │       │   ├── rand v0.8.5 (*)
+│   │   │       │   └── secp256k1-sys v0.9.2
+│   │   │       ├── sha2 v0.10.8 (*)
+│   │   │       └── substrate-bn v0.6.0
+│   │   │           ├── byteorder v1.5.0
+│   │   │           ├── crunchy v0.2.2
+│   │   │           ├── lazy_static v1.4.0
+│   │   │           │   └── spin v0.5.2
+│   │   │           ├── rand v0.8.5 (*)
+│   │   │           └── rustc-hex v2.1.0
+│   │   ├── revm-primitives v3.1.0 (*)
+│   │   ├── roaring v0.10.3
+│   │   │   ├── bytemuck v1.15.0
+│   │   │   └── byteorder v1.5.0
+│   │   ├── secp256k1 v0.27.0 (*)
+│   │   ├── serde v1.0.197 (*)
+│   │   ├── serde_json v1.0.115 (*)
+│   │   ├── serde_with v3.7.0 (*)
+│   │   ├── sha2 v0.10.8 (*)
+│   │   ├── strum v0.26.2 (*)
+│   │   ├── tempfile v3.10.1
+│   │   │   ├── cfg-if v1.0.0
+│   │   │   ├── fastrand v2.0.2
+│   │   │   └── rustix v0.38.32
+│   │   │       ├── bitflags v2.5.0 (*)
+│   │   │       ├── errno v0.3.8
+│   │   │       │   └── libc v0.2.153
+│   │   │       └── libc v0.2.153
+│   │   ├── thiserror v1.0.58 (*)
+│   │   └── zstd v0.13.0
+│   │       └── zstd-safe v7.0.0
+│   │           └── zstd-sys v2.0.9+zstd.1.5.5
+│   ├── revm v7.2.0 (*)
+│   ├── secp256k1 v0.27.0 (*)
+│   ├── serde v1.0.197 (*)
+│   ├── serde_json v1.0.115 (*)
+│   ├── sov-modules-api v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/module-system/sov-modules-api)
+│   │   ├── anyhow v1.0.81
+│   │   ├── bech32 v0.9.1
+│   │   ├── borsh v0.10.3 (*)
+│   │   ├── clap v4.5.4
+│   │   │   ├── clap_builder v4.5.2
+│   │   │   │   ├── anstream v0.6.13
+│   │   │   │   │   ├── anstyle v1.0.6
+│   │   │   │   │   ├── anstyle-parse v0.2.3
+│   │   │   │   │   │   └── utf8parse v0.2.1
+│   │   │   │   │   ├── anstyle-query v1.0.2
+│   │   │   │   │   ├── colorchoice v1.0.0
+│   │   │   │   │   └── utf8parse v0.2.1
+│   │   │   │   ├── anstyle v1.0.6
+│   │   │   │   ├── clap_lex v0.7.0
+│   │   │   │   └── strsim v0.11.0
+│   │   │   └── clap_derive v4.5.4 (proc-macro)
+│   │   │       ├── heck v0.5.0
+│   │   │       ├── proc-macro2 v1.0.79 (*)
+│   │   │       ├── quote v1.0.35 (*)
+│   │   │       └── syn v2.0.55 (*)
+│   │   ├── derive_more v0.99.17 (proc-macro) (*)
+│   │   ├── ed25519-dalek v2.0.0
+│   │   │   ├── curve25519-dalek v4.1.2
+│   │   │   │   ├── cfg-if v1.0.0
+│   │   │   │   ├── digest v0.10.7 (*)
+│   │   │   │   ├── subtle v2.4.1
+│   │   │   │   └── zeroize v1.7.0 (*)
+│   │   │   ├── ed25519 v2.2.3
+│   │   │   │   ├── serde v1.0.197 (*)
+│   │   │   │   └── signature v2.2.0 (*)
+│   │   │   ├── rand_core v0.6.4 (*)
+│   │   │   ├── serde v1.0.197 (*)
+│   │   │   ├── sha2 v0.10.8 (*)
+│   │   │   └── zeroize v1.7.0 (*)
+│   │   ├── hex v0.4.3 (*)
+│   │   ├── jmt v0.9.0 (https://github.com/penumbra-zone/jmt.git?rev=1d007e11cb68aa5ca13e9a5af4a12e6439d5f7b6#1d007e11)
+│   │   │   ├── anyhow v1.0.81
+│   │   │   ├── borsh v0.10.3 (*)
+│   │   │   ├── digest v0.10.7 (*)
+│   │   │   ├── hashbrown v0.13.2 (*)
+│   │   │   ├── hex v0.4.3 (*)
+│   │   │   ├── ics23 v0.11.1
+│   │   │   │   ├── anyhow v1.0.81
+│   │   │   │   ├── blake2 v0.10.6
+│   │   │   │   │   └── digest v0.10.7 (*)
+│   │   │   │   ├── blake3 v1.5.1
+│   │   │   │   │   ├── arrayref v0.3.7
+│   │   │   │   │   ├── arrayvec v0.7.4
+│   │   │   │   │   ├── cfg-if v1.0.0
+│   │   │   │   │   └── constant_time_eq v0.3.0
+│   │   │   │   ├── bytes v1.6.0 (*)
+│   │   │   │   ├── hex v0.4.3 (*)
+│   │   │   │   ├── informalsystems-pbjson v0.7.0
+│   │   │   │   │   ├── base64 v0.21.7
+│   │   │   │   │   └── serde v1.0.197 (*)
+│   │   │   │   ├── prost v0.12.3
+│   │   │   │   │   ├── bytes v1.6.0 (*)
+│   │   │   │   │   └── prost-derive v0.12.3 (proc-macro)
+│   │   │   │   │       ├── anyhow v1.0.81
+│   │   │   │   │       ├── itertools v0.11.0
+│   │   │   │   │       │   └── either v1.10.0
+│   │   │   │   │       ├── proc-macro2 v1.0.79 (*)
+│   │   │   │   │       ├── quote v1.0.35 (*)
+│   │   │   │   │       └── syn v2.0.55 (*)
+│   │   │   │   ├── ripemd v0.1.3 (*)
+│   │   │   │   ├── serde v1.0.197 (*)
+│   │   │   │   ├── sha2 v0.10.8 (*)
+│   │   │   │   └── sha3 v0.10.8 (*)
+│   │   │   ├── itertools v0.10.5
+│   │   │   │   └── either v1.10.0
+│   │   │   ├── mirai-annotations v1.12.0
+│   │   │   ├── num-derive v0.3.3 (proc-macro)
+│   │   │   │   ├── proc-macro2 v1.0.79 (*)
+│   │   │   │   ├── quote v1.0.35 (*)
+│   │   │   │   └── syn v1.0.109 (*)
+│   │   │   ├── num-traits v0.2.18
+│   │   │   ├── serde v1.0.197 (*)
+│   │   │   ├── sha2 v0.10.8 (*)
+│   │   │   ├── thiserror v1.0.58 (*)
+│   │   │   └── tracing v0.1.40 (*)
+│   │   ├── jsonrpsee v0.20.3
+│   │   │   ├── jsonrpsee-core v0.20.3
+│   │   │   │   ├── anyhow v1.0.81
+│   │   │   │   ├── async-trait v0.1.79 (proc-macro)
+│   │   │   │   │   ├── proc-macro2 v1.0.79 (*)
+│   │   │   │   │   ├── quote v1.0.35 (*)
+│   │   │   │   │   └── syn v2.0.55 (*)
+│   │   │   │   ├── beef v0.5.2 (*)
+│   │   │   │   ├── futures-util v0.3.30
+│   │   │   │   │   ├── futures-channel v0.3.30
+│   │   │   │   │   │   ├── futures-core v0.3.30
+│   │   │   │   │   │   └── futures-sink v0.3.30
+│   │   │   │   │   ├── futures-core v0.3.30
+│   │   │   │   │   ├── futures-io v0.3.30
+│   │   │   │   │   ├── futures-macro v0.3.30 (proc-macro)
+│   │   │   │   │   │   ├── proc-macro2 v1.0.79 (*)
+│   │   │   │   │   │   ├── quote v1.0.35 (*)
+│   │   │   │   │   │   └── syn v2.0.55 (*)
+│   │   │   │   │   ├── futures-sink v0.3.30
+│   │   │   │   │   ├── futures-task v0.3.30
+│   │   │   │   │   ├── memchr v2.7.1
+│   │   │   │   │   ├── pin-project-lite v0.2.13
+│   │   │   │   │   ├── pin-utils v0.1.0
+│   │   │   │   │   └── slab v0.4.9
+│   │   │   │   ├── hyper v0.14.28
+│   │   │   │   │   ├── bytes v1.6.0 (*)
+│   │   │   │   │   ├── futures-channel v0.3.30 (*)
+│   │   │   │   │   ├── futures-core v0.3.30
+│   │   │   │   │   ├── futures-util v0.3.30 (*)
+│   │   │   │   │   ├── h2 v0.3.25
+│   │   │   │   │   │   ├── bytes v1.6.0 (*)
+│   │   │   │   │   │   ├── fnv v1.0.7
+│   │   │   │   │   │   ├── futures-core v0.3.30
+│   │   │   │   │   │   ├── futures-sink v0.3.30
+│   │   │   │   │   │   ├── futures-util v0.3.30 (*)
+│   │   │   │   │   │   ├── http v0.2.12
+│   │   │   │   │   │   │   ├── bytes v1.6.0 (*)
+│   │   │   │   │   │   │   ├── fnv v1.0.7
+│   │   │   │   │   │   │   └── itoa v1.0.11
+│   │   │   │   │   │   ├── indexmap v2.2.6 (*)
+│   │   │   │   │   │   ├── slab v0.4.9
+│   │   │   │   │   │   ├── tokio v1.36.0
+│   │   │   │   │   │   │   ├── bytes v1.6.0 (*)
+│   │   │   │   │   │   │   ├── libc v0.2.153
+│   │   │   │   │   │   │   ├── mio v0.8.11
+│   │   │   │   │   │   │   │   └── libc v0.2.153
+│   │   │   │   │   │   │   ├── num_cpus v1.16.0 (*)
+│   │   │   │   │   │   │   ├── parking_lot v0.12.1
+│   │   │   │   │   │   │   │   ├── lock_api v0.4.11
+│   │   │   │   │   │   │   │   │   └── scopeguard v1.2.0
+│   │   │   │   │   │   │   │   └── parking_lot_core v0.9.9
+│   │   │   │   │   │   │   │       ├── cfg-if v1.0.0
+│   │   │   │   │   │   │   │       ├── libc v0.2.153
+│   │   │   │   │   │   │   │       └── smallvec v1.13.2 (*)
+│   │   │   │   │   │   │   ├── pin-project-lite v0.2.13
+│   │   │   │   │   │   │   ├── signal-hook-registry v1.4.1
+│   │   │   │   │   │   │   │   └── libc v0.2.153
+│   │   │   │   │   │   │   ├── socket2 v0.5.6
+│   │   │   │   │   │   │   │   └── libc v0.2.153
+│   │   │   │   │   │   │   └── tokio-macros v2.2.0 (proc-macro)
+│   │   │   │   │   │   │       ├── proc-macro2 v1.0.79 (*)
+│   │   │   │   │   │   │       ├── quote v1.0.35 (*)
+│   │   │   │   │   │   │       └── syn v2.0.55 (*)
+│   │   │   │   │   │   ├── tokio-util v0.7.10
+│   │   │   │   │   │   │   ├── bytes v1.6.0 (*)
+│   │   │   │   │   │   │   ├── futures-core v0.3.30
+│   │   │   │   │   │   │   ├── futures-io v0.3.30
+│   │   │   │   │   │   │   ├── futures-sink v0.3.30
+│   │   │   │   │   │   │   ├── pin-project-lite v0.2.13
+│   │   │   │   │   │   │   ├── tokio v1.36.0 (*)
+│   │   │   │   │   │   │   └── tracing v0.1.40 (*)
+│   │   │   │   │   │   └── tracing v0.1.40 (*)
+│   │   │   │   │   ├── http v0.2.12 (*)
+│   │   │   │   │   ├── http-body v0.4.6
+│   │   │   │   │   │   ├── bytes v1.6.0 (*)
+│   │   │   │   │   │   ├── http v0.2.12 (*)
+│   │   │   │   │   │   └── pin-project-lite v0.2.13
+│   │   │   │   │   ├── httparse v1.8.0
+│   │   │   │   │   ├── httpdate v1.0.3
+│   │   │   │   │   ├── itoa v1.0.11
+│   │   │   │   │   ├── pin-project-lite v0.2.13
+│   │   │   │   │   ├── socket2 v0.5.6 (*)
+│   │   │   │   │   ├── tokio v1.36.0 (*)
+│   │   │   │   │   ├── tower-service v0.3.2
+│   │   │   │   │   ├── tracing v0.1.40 (*)
+│   │   │   │   │   └── want v0.3.1
+│   │   │   │   │       └── try-lock v0.2.5
+│   │   │   │   ├── jsonrpsee-types v0.20.3 (*)
+│   │   │   │   ├── parking_lot v0.12.1 (*)
+│   │   │   │   ├── rand v0.8.5 (*)
+│   │   │   │   ├── rustc-hash v1.1.0
+│   │   │   │   ├── serde v1.0.197 (*)
+│   │   │   │   ├── serde_json v1.0.115 (*)
+│   │   │   │   ├── soketto v0.7.1
+│   │   │   │   │   ├── base64 v0.13.1
+│   │   │   │   │   ├── bytes v1.6.0 (*)
+│   │   │   │   │   ├── futures v0.3.30
+│   │   │   │   │   │   ├── futures-channel v0.3.30 (*)
+│   │   │   │   │   │   ├── futures-core v0.3.30
+│   │   │   │   │   │   ├── futures-executor v0.3.30
+│   │   │   │   │   │   │   ├── futures-core v0.3.30
+│   │   │   │   │   │   │   ├── futures-task v0.3.30
+│   │   │   │   │   │   │   └── futures-util v0.3.30 (*)
+│   │   │   │   │   │   ├── futures-io v0.3.30
+│   │   │   │   │   │   ├── futures-sink v0.3.30
+│   │   │   │   │   │   ├── futures-task v0.3.30
+│   │   │   │   │   │   └── futures-util v0.3.30 (*)
+│   │   │   │   │   ├── http v0.2.12 (*)
+│   │   │   │   │   ├── httparse v1.8.0
+│   │   │   │   │   ├── log v0.4.21
+│   │   │   │   │   ├── rand v0.8.5 (*)
+│   │   │   │   │   └── sha-1 v0.9.8
+│   │   │   │   │       ├── block-buffer v0.9.0
+│   │   │   │   │       │   └── generic-array v0.14.7 (*)
+│   │   │   │   │       ├── cfg-if v1.0.0
+│   │   │   │   │       ├── cpufeatures v0.2.12 (*)
+│   │   │   │   │       ├── digest v0.9.0
+│   │   │   │   │       │   └── generic-array v0.14.7 (*)
+│   │   │   │   │       └── opaque-debug v0.3.1
+│   │   │   │   ├── thiserror v1.0.58 (*)
+│   │   │   │   ├── tokio v1.36.0 (*)
+│   │   │   │   └── tracing v0.1.40 (*)
+│   │   │   ├── jsonrpsee-http-client v0.20.3
+│   │   │   │   ├── async-trait v0.1.79 (proc-macro) (*)
+│   │   │   │   ├── hyper v0.14.28 (*)
+│   │   │   │   ├── hyper-rustls v0.24.2
+│   │   │   │   │   ├── futures-util v0.3.30 (*)
+│   │   │   │   │   ├── http v0.2.12 (*)
+│   │   │   │   │   ├── hyper v0.14.28 (*)
+│   │   │   │   │   ├── log v0.4.21
+│   │   │   │   │   ├── rustls v0.21.10
+│   │   │   │   │   │   ├── log v0.4.21
+│   │   │   │   │   │   ├── ring v0.17.8
+│   │   │   │   │   │   │   ├── cfg-if v1.0.0
+│   │   │   │   │   │   │   ├── getrandom v0.2.12 (*)
+│   │   │   │   │   │   │   ├── spin v0.9.8
+│   │   │   │   │   │   │   └── untrusted v0.9.0
+│   │   │   │   │   │   ├── rustls-webpki v0.101.7
+│   │   │   │   │   │   │   ├── ring v0.17.8 (*)
+│   │   │   │   │   │   │   └── untrusted v0.9.0
+│   │   │   │   │   │   └── sct v0.7.1
+│   │   │   │   │   │       ├── ring v0.17.8 (*)
+│   │   │   │   │   │       └── untrusted v0.9.0
+│   │   │   │   │   ├── rustls-native-certs v0.6.3
+│   │   │   │   │   │   ├── rustls-pemfile v1.0.4
+│   │   │   │   │   │   │   └── base64 v0.21.7
+│   │   │   │   │   │   └── security-framework v2.9.2
+│   │   │   │   │   │       ├── bitflags v1.3.2
+│   │   │   │   │   │       ├── core-foundation v0.9.4
+│   │   │   │   │   │       │   ├── core-foundation-sys v0.8.6
+│   │   │   │   │   │       │   └── libc v0.2.153
+│   │   │   │   │   │       ├── core-foundation-sys v0.8.6
+│   │   │   │   │   │       ├── libc v0.2.153
+│   │   │   │   │   │       └── security-framework-sys v2.9.1
+│   │   │   │   │   │           ├── core-foundation-sys v0.8.6
+│   │   │   │   │   │           └── libc v0.2.153
+│   │   │   │   │   ├── tokio v1.36.0 (*)
+│   │   │   │   │   └── tokio-rustls v0.24.1
+│   │   │   │   │       ├── rustls v0.21.10 (*)
+│   │   │   │   │       └── tokio v1.36.0 (*)
+│   │   │   │   ├── jsonrpsee-core v0.20.3 (*)
+│   │   │   │   ├── jsonrpsee-types v0.20.3 (*)
+│   │   │   │   ├── serde v1.0.197 (*)
+│   │   │   │   ├── serde_json v1.0.115 (*)
+│   │   │   │   ├── thiserror v1.0.58 (*)
+│   │   │   │   ├── tokio v1.36.0 (*)
+│   │   │   │   ├── tower v0.4.13
+│   │   │   │   │   ├── futures-core v0.3.30
+│   │   │   │   │   ├── futures-util v0.3.30 (*)
+│   │   │   │   │   ├── pin-project v1.1.5
+│   │   │   │   │   │   └── pin-project-internal v1.1.5 (proc-macro)
+│   │   │   │   │   │       ├── proc-macro2 v1.0.79 (*)
+│   │   │   │   │   │       ├── quote v1.0.35 (*)
+│   │   │   │   │   │       └── syn v2.0.55 (*)
+│   │   │   │   │   ├── pin-project-lite v0.2.13
+│   │   │   │   │   ├── tower-layer v0.3.2
+│   │   │   │   │   ├── tower-service v0.3.2
+│   │   │   │   │   └── tracing v0.1.40 (*)
+│   │   │   │   ├── tracing v0.1.40 (*)
+│   │   │   │   └── url v2.5.0 (*)
+│   │   │   ├── jsonrpsee-proc-macros v0.20.3 (proc-macro)
+│   │   │   │   ├── heck v0.4.1
+│   │   │   │   ├── proc-macro-crate v1.1.3
+│   │   │   │   │   ├── thiserror v1.0.58 (*)
+│   │   │   │   │   └── toml v0.5.11 (*)
+│   │   │   │   ├── proc-macro2 v1.0.79 (*)
+│   │   │   │   ├── quote v1.0.35 (*)
+│   │   │   │   └── syn v1.0.109 (*)
+│   │   │   ├── jsonrpsee-server v0.20.3
+│   │   │   │   ├── futures-util v0.3.30 (*)
+│   │   │   │   ├── http v0.2.12 (*)
+│   │   │   │   ├── hyper v0.14.28 (*)
+│   │   │   │   ├── jsonrpsee-core v0.20.3 (*)
+│   │   │   │   ├── jsonrpsee-types v0.20.3 (*)
+│   │   │   │   ├── route-recognizer v0.3.1
+│   │   │   │   ├── serde v1.0.197 (*)
+│   │   │   │   ├── serde_json v1.0.115 (*)
+│   │   │   │   ├── soketto v0.7.1 (*)
+│   │   │   │   ├── thiserror v1.0.58 (*)
+│   │   │   │   ├── tokio v1.36.0 (*)
+│   │   │   │   ├── tokio-stream v0.1.15
+│   │   │   │   │   ├── futures-core v0.3.30
+│   │   │   │   │   ├── pin-project-lite v0.2.13
+│   │   │   │   │   └── tokio v1.36.0 (*)
+│   │   │   │   ├── tokio-util v0.7.10 (*)
+│   │   │   │   ├── tower v0.4.13 (*)
+│   │   │   │   └── tracing v0.1.40 (*)
+│   │   │   ├── jsonrpsee-types v0.20.3 (*)
+│   │   │   ├── tokio v1.36.0 (*)
+│   │   │   └── tracing v0.1.40 (*)
+│   │   ├── rand v0.8.5 (*)
+│   │   ├── schemars v0.8.16
+│   │   │   ├── dyn-clone v1.0.17
+│   │   │   ├── schemars_derive v0.8.16 (proc-macro)
+│   │   │   │   ├── proc-macro2 v1.0.79 (*)
+│   │   │   │   ├── quote v1.0.35 (*)
+│   │   │   │   ├── serde_derive_internals v0.26.0
+│   │   │   │   │   ├── proc-macro2 v1.0.79 (*)
+│   │   │   │   │   ├── quote v1.0.35 (*)
+│   │   │   │   │   └── syn v1.0.109 (*)
+│   │   │   │   └── syn v1.0.109 (*)
+│   │   │   ├── serde v1.0.197 (*)
+│   │   │   └── serde_json v1.0.115 (*)
+│   │   ├── serde v1.0.197 (*)
+│   │   ├── serde_json v1.0.115 (*)
+│   │   ├── sha2 v0.10.8 (*)
+│   │   ├── sov-modules-core v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/module-system/sov-modules-core)
+│   │   │   ├── anyhow v1.0.81
+│   │   │   ├── bech32 v0.9.1
+│   │   │   ├── borsh v0.10.3 (*)
+│   │   │   ├── derive_more v0.99.17 (proc-macro) (*)
+│   │   │   ├── digest v0.10.7 (*)
+│   │   │   ├── hex v0.4.3 (*)
+│   │   │   ├── jmt v0.9.0 (https://github.com/penumbra-zone/jmt.git?rev=1d007e11cb68aa5ca13e9a5af4a12e6439d5f7b6#1d007e11) (*)
+│   │   │   ├── schemars v0.8.16 (*)
+│   │   │   ├── serde v1.0.197 (*)
+│   │   │   ├── sha2 v0.10.8 (*)
+│   │   │   ├── sov-rollup-interface v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/rollup-interface)
+│   │   │   │   ├── anyhow v1.0.81
+│   │   │   │   ├── async-trait v0.1.79 (proc-macro) (*)
+│   │   │   │   ├── borsh v0.10.3 (*)
+│   │   │   │   ├── bytes v1.6.0 (*)
+│   │   │   │   ├── digest v0.10.7 (*)
+│   │   │   │   ├── futures v0.3.30 (*)
+│   │   │   │   ├── hex v0.4.3 (*)
+│   │   │   │   ├── serde v1.0.197 (*)
+│   │   │   │   ├── thiserror v1.0.58 (*)
+│   │   │   │   └── tokio v1.36.0 (*)
+│   │   │   └── thiserror v1.0.58 (*)
+│   │   ├── sov-modules-macros v0.3.0 (proc-macro) (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/module-system/sov-modules-macros)
+│   │   │   ├── anyhow v1.0.81
+│   │   │   ├── borsh v0.10.3 (*)
+│   │   │   ├── jsonrpsee v0.20.3
+│   │   │   │   ├── jsonrpsee-core v0.20.3 (*)
+│   │   │   │   ├── jsonrpsee-http-client v0.20.3 (*)
+│   │   │   │   ├── jsonrpsee-server v0.20.3 (*)
+│   │   │   │   ├── jsonrpsee-types v0.20.3 (*)
+│   │   │   │   └── tokio v1.36.0
+│   │   │   │       ├── bytes v1.6.0 (*)
+│   │   │   │       ├── libc v0.2.153
+│   │   │   │       ├── mio v0.8.11 (*)
+│   │   │   │       ├── num_cpus v1.16.0 (*)
+│   │   │   │       ├── pin-project-lite v0.2.13
+│   │   │   │       ├── socket2 v0.5.6 (*)
+│   │   │   │       └── tokio-macros v2.2.0 (proc-macro) (*)
+│   │   │   ├── proc-macro2 v1.0.79 (*)
+│   │   │   ├── quote v1.0.35 (*)
+│   │   │   ├── schemars v0.8.16 (*)
+│   │   │   ├── serde_json v1.0.115 (*)
+│   │   │   ├── sov-modules-core v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/module-system/sov-modules-core)
+│   │   │   │   ├── anyhow v1.0.81
+│   │   │   │   ├── bech32 v0.9.1
+│   │   │   │   ├── borsh v0.10.3 (*)
+│   │   │   │   ├── derive_more v0.99.17 (proc-macro) (*)
+│   │   │   │   ├── digest v0.10.7 (*)
+│   │   │   │   ├── hex v0.4.3 (*)
+│   │   │   │   ├── jmt v0.9.0 (https://github.com/penumbra-zone/jmt.git?rev=1d007e11cb68aa5ca13e9a5af4a12e6439d5f7b6#1d007e11) (*)
+│   │   │   │   ├── schemars v0.8.16 (*)
+│   │   │   │   ├── serde v1.0.197 (*)
+│   │   │   │   ├── sha2 v0.10.8 (*)
+│   │   │   │   ├── sov-rollup-interface v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/rollup-interface)
+│   │   │   │   │   ├── anyhow v1.0.81
+│   │   │   │   │   ├── async-trait v0.1.79 (proc-macro) (*)
+│   │   │   │   │   ├── borsh v0.10.3 (*)
+│   │   │   │   │   ├── bytes v1.6.0 (*)
+│   │   │   │   │   ├── digest v0.10.7 (*)
+│   │   │   │   │   ├── hex v0.4.3 (*)
+│   │   │   │   │   ├── serde v1.0.197 (*)
+│   │   │   │   │   └── thiserror v1.0.58 (*)
+│   │   │   │   └── thiserror v1.0.58 (*)
+│   │   │   └── syn v1.0.109 (*)
+│   │   ├── sov-prover-storage-manager v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/full-node/sov-prover-storage-manager)
+│   │   │   ├── anyhow v1.0.81
+│   │   │   ├── sov-db v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/full-node/db/sov-db)
+│   │   │   │   ├── anyhow v1.0.81
+│   │   │   │   ├── bincode v1.3.3
+│   │   │   │   │   └── serde v1.0.197 (*)
+│   │   │   │   ├── borsh v0.10.3 (*)
+│   │   │   │   ├── byteorder v1.5.0
+│   │   │   │   ├── jmt v0.9.0 (https://github.com/penumbra-zone/jmt.git?rev=1d007e11cb68aa5ca13e9a5af4a12e6439d5f7b6#1d007e11) (*)
+│   │   │   │   ├── rocksdb v0.21.0
+│   │   │   │   │   ├── libc v0.2.153
+│   │   │   │   │   └── librocksdb-sys v0.11.0+8.1.1
+│   │   │   │   │       ├── bzip2-sys v0.1.11+1.0.8
+│   │   │   │   │       │   └── libc v0.2.153
+│   │   │   │   │       ├── libc v0.2.153
+│   │   │   │   │       ├── libz-sys v1.1.16
+│   │   │   │   │       ├── lz4-sys v1.9.4
+│   │   │   │   │       │   └── libc v0.2.153
+│   │   │   │   │       └── zstd-sys v2.0.9+zstd.1.5.5
+│   │   │   │   ├── serde v1.0.197 (*)
+│   │   │   │   ├── sov-rollup-interface v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/rollup-interface) (*)
+│   │   │   │   ├── sov-schema-db v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/full-node/db/sov-schema-db)
+│   │   │   │   │   ├── anyhow v1.0.81
+│   │   │   │   │   ├── once_cell v1.19.0
+│   │   │   │   │   ├── prometheus v0.13.3
+│   │   │   │   │   │   ├── cfg-if v1.0.0
+│   │   │   │   │   │   ├── fnv v1.0.7
+│   │   │   │   │   │   ├── lazy_static v1.4.0 (*)
+│   │   │   │   │   │   ├── memchr v2.7.1
+│   │   │   │   │   │   ├── parking_lot v0.12.1 (*)
+│   │   │   │   │   │   └── thiserror v1.0.58 (*)
+│   │   │   │   │   ├── rocksdb v0.21.0 (*)
+│   │   │   │   │   ├── thiserror v1.0.58 (*)
+│   │   │   │   │   └── tracing v0.1.40 (*)
+│   │   │   │   └── tokio v1.36.0 (*)
+│   │   │   ├── sov-rollup-interface v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/rollup-interface) (*)
+│   │   │   ├── sov-schema-db v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/full-node/db/sov-schema-db) (*)
+│   │   │   ├── sov-state v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/module-system/sov-state)
+│   │   │   │   ├── anyhow v1.0.81
+│   │   │   │   ├── bcs v0.1.6
+│   │   │   │   │   ├── serde v1.0.197 (*)
+│   │   │   │   │   └── thiserror v1.0.58 (*)
+│   │   │   │   ├── borsh v0.10.3 (*)
+│   │   │   │   ├── hex v0.4.3 (*)
+│   │   │   │   ├── jmt v0.9.0 (https://github.com/penumbra-zone/jmt.git?rev=1d007e11cb68aa5ca13e9a5af4a12e6439d5f7b6#1d007e11) (*)
+│   │   │   │   ├── serde v1.0.197 (*)
+│   │   │   │   ├── serde_json v1.0.115 (*)
+│   │   │   │   ├── sha2 v0.10.8 (*)
+│   │   │   │   ├── sov-db v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/full-node/db/sov-db) (*)
+│   │   │   │   ├── sov-modules-core v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/module-system/sov-modules-core) (*)
+│   │   │   │   ├── sov-rollup-interface v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/rollup-interface) (*)
+│   │   │   │   └── thiserror v1.0.58 (*)
+│   │   │   └── tracing v0.1.40 (*)
+│   │   ├── sov-rollup-interface v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/rollup-interface) (*)
+│   │   ├── sov-state v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/module-system/sov-state) (*)
+│   │   └── thiserror v1.0.58 (*)
+│   ├── sov-state v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/module-system/sov-state) (*)
+│   ├── thiserror v1.0.58 (*)
+│   └── tracing v0.1.40 (*)
+├── soft-confirmation-rule-enforcer v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/soft-confirmation-rule-enforcer)
+│   ├── anyhow v1.0.81
+│   ├── borsh v0.10.3 (*)
+│   ├── jsonrpsee v0.20.3 (*)
+│   ├── serde v1.0.197 (*)
+│   ├── sov-modules-api v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/module-system/sov-modules-api) (*)
+│   ├── sov-rollup-interface v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/rollup-interface) (*)
+│   └── sov-state v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/module-system/sov-state) (*)
+├── sov-accounts v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/module-system/module-implementations/sov-accounts)
+│   ├── anyhow v1.0.81
+│   ├── borsh v0.10.3 (*)
+│   ├── serde v1.0.197 (*)
+│   ├── sov-modules-api v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/module-system/sov-modules-api) (*)
+│   ├── sov-state v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/module-system/sov-state) (*)
+│   └── thiserror v1.0.58 (*)
+├── sov-bank v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/module-system/module-implementations/sov-bank)
+│   ├── anyhow v1.0.81
+│   ├── borsh v0.10.3 (*)
+│   ├── clap v4.5.4 (*)
+│   ├── jsonrpsee v0.20.3 (*)
+│   ├── schemars v0.8.16 (*)
+│   ├── serde v1.0.197 (*)
+│   ├── serde_json v1.0.115 (*)
+│   ├── sov-modules-api v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/module-system/sov-modules-api) (*)
+│   ├── sov-state v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/module-system/sov-state) (*)
+│   └── thiserror v1.0.58 (*)
+├── sov-blob-storage v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/module-system/module-implementations/sov-blob-storage)
+│   ├── anyhow v1.0.81
+│   ├── bincode v1.3.3 (*)
+│   ├── borsh v0.10.3 (*)
+│   ├── clap v4.5.4 (*)
+│   ├── hex v0.4.3 (*)
+│   ├── jsonrpsee v0.20.3 (*)
+│   ├── schemars v0.8.16 (*)
+│   ├── serde v1.0.197 (*)
+│   ├── serde_json v1.0.115 (*)
+│   ├── sov-chain-state v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/module-system/module-implementations/sov-chain-state)
+│   │   ├── anyhow v1.0.81
+│   │   ├── borsh v0.10.3 (*)
+│   │   ├── jsonrpsee v0.20.3 (*)
+│   │   ├── serde v1.0.197 (*)
+│   │   ├── serde_json v1.0.115 (*)
+│   │   ├── sov-modules-api v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/module-system/sov-modules-api) (*)
+│   │   └── sov-state v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/module-system/sov-state) (*)
+│   ├── sov-modules-api v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/module-system/sov-modules-api) (*)
+│   ├── sov-sequencer-registry v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/module-system/module-implementations/sov-sequencer-registry)
+│   │   ├── anyhow v1.0.81
+│   │   ├── borsh v0.10.3 (*)
+│   │   ├── clap v4.5.4 (*)
+│   │   ├── jsonrpsee v0.20.3 (*)
+│   │   ├── schemars v0.8.16 (*)
+│   │   ├── serde v1.0.197 (*)
+│   │   ├── serde_json v1.0.115 (*)
+│   │   ├── sov-bank v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/module-system/module-implementations/sov-bank) (*)
+│   │   ├── sov-modules-api v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/module-system/sov-modules-api) (*)
+│   │   └── sov-state v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/module-system/sov-state) (*)
+│   ├── sov-state v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/module-system/sov-state) (*)
+│   └── tracing v0.1.40 (*)
+├── sov-chain-state v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/module-system/module-implementations/sov-chain-state) (*)
+├── sov-mock-da v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/adapters/mock-da)
+│   ├── anyhow v1.0.81
+│   ├── async-trait v0.1.79 (proc-macro) (*)
+│   ├── borsh v0.10.3 (*)
+│   ├── bytes v1.6.0 (*)
+│   ├── hex v0.4.3 (*)
+│   ├── serde v1.0.197 (*)
+│   ├── sha2 v0.10.8 (*)
+│   ├── sov-rollup-interface v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/rollup-interface) (*)
+│   └── tracing v0.1.40 (*)
+├── sov-modules-api v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/module-system/sov-modules-api) (*)
+├── sov-modules-stf-blueprint v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/module-system/sov-modules-stf-blueprint)
+│   ├── anyhow v1.0.81
+│   ├── borsh v0.10.3 (*)
+│   ├── hex v0.4.3 (*)
+│   ├── jmt v0.9.0 (https://github.com/penumbra-zone/jmt.git?rev=1d007e11cb68aa5ca13e9a5af4a12e6439d5f7b6#1d007e11) (*)
+│   ├── jsonrpsee v0.20.3 (*)
+│   ├── serde v1.0.197 (*)
+│   ├── sov-blob-storage v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/module-system/module-implementations/sov-blob-storage) (*)
+│   ├── sov-chain-state v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/module-system/module-implementations/sov-chain-state) (*)
+│   ├── sov-modules-api v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/module-system/sov-modules-api) (*)
+│   ├── sov-rollup-interface v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/rollup-interface) (*)
+│   ├── sov-state v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/module-system/sov-state) (*)
+│   ├── thiserror v1.0.58 (*)
+│   └── tracing v0.1.40 (*)
+├── sov-nft-module v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/module-system/module-implementations/sov-nft-module)
+│   ├── anyhow v1.0.81
+│   ├── borsh v0.10.3 (*)
+│   ├── serde v1.0.197 (*)
+│   ├── sov-modules-api v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/module-system/sov-modules-api) (*)
+│   ├── sov-modules-macros v0.3.0 (proc-macro) (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/module-system/sov-modules-macros) (*)
+│   └── sov-state v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/module-system/sov-state) (*)
+├── sov-rollup-interface v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/rollup-interface) (*)
+├── sov-sequencer-registry v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/module-system/module-implementations/sov-sequencer-registry) (*)
+├── sov-soft-confirmations-kernel v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/module-system/sov-soft-confirmations-kernel)
+│   ├── anyhow v1.0.81
+│   ├── sov-blob-storage v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/module-system/module-implementations/sov-blob-storage) (*)
+│   ├── sov-chain-state v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/module-system/module-implementations/sov-chain-state) (*)
+│   ├── sov-modules-api v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/module-system/sov-modules-api) (*)
+│   └── sov-state v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/module-system/sov-state) (*)
+├── sov-state v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/module-system/sov-state) (*)
+├── sov-stf-runner v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/full-node/sov-stf-runner)
+│   ├── anyhow v1.0.81
+│   ├── borsh v0.10.3 (*)
+│   ├── hex v0.4.3 (*)
+│   ├── num_cpus v1.16.0 (*)
+│   ├── rs_merkle v1.4.2
+│   │   └── sha2 v0.10.8 (*)
+│   ├── sequencer-client v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sequencer-client)
+│   │   ├── anyhow v1.0.81
+│   │   ├── ethers v2.0.14
+│   │   │   ├── ethers-addressbook v2.0.14
+│   │   │   │   ├── ethers-core v2.0.14
+│   │   │   │   │   ├── arrayvec v0.7.4
+│   │   │   │   │   ├── bytes v1.6.0 (*)
+│   │   │   │   │   ├── cargo_metadata v0.18.1
+│   │   │   │   │   │   ├── camino v1.1.6
+│   │   │   │   │   │   │   └── serde v1.0.197 (*)
+│   │   │   │   │   │   ├── cargo-platform v0.1.5
+│   │   │   │   │   │   │   └── serde v1.0.197 (*)
+│   │   │   │   │   │   ├── semver v1.0.22
+│   │   │   │   │   │   │   └── serde v1.0.197 (*)
+│   │   │   │   │   │   ├── serde v1.0.197 (*)
+│   │   │   │   │   │   ├── serde_json v1.0.115 (*)
+│   │   │   │   │   │   └── thiserror v1.0.58 (*)
+│   │   │   │   │   ├── chrono v0.4.35
+│   │   │   │   │   │   └── num-traits v0.2.18
+│   │   │   │   │   ├── const-hex v1.11.3 (*)
+│   │   │   │   │   ├── elliptic-curve v0.13.8 (*)
+│   │   │   │   │   ├── ethabi v18.0.0
+│   │   │   │   │   │   ├── ethereum-types v0.14.1
+│   │   │   │   │   │   │   ├── ethbloom v0.13.0
+│   │   │   │   │   │   │   │   ├── crunchy v0.2.2
+│   │   │   │   │   │   │   │   ├── fixed-hash v0.8.0
+│   │   │   │   │   │   │   │   │   ├── byteorder v1.5.0
+│   │   │   │   │   │   │   │   │   ├── rand v0.8.5 (*)
+│   │   │   │   │   │   │   │   │   ├── rustc-hex v2.1.0
+│   │   │   │   │   │   │   │   │   └── static_assertions v1.1.0
+│   │   │   │   │   │   │   │   ├── impl-codec v0.6.0
+│   │   │   │   │   │   │   │   │   └── parity-scale-codec v3.6.9
+│   │   │   │   │   │   │   │   │       ├── arrayvec v0.7.4
+│   │   │   │   │   │   │   │   │       ├── byte-slice-cast v1.2.2
+│   │   │   │   │   │   │   │   │       ├── impl-trait-for-tuples v0.2.2 (proc-macro)
+│   │   │   │   │   │   │   │   │       │   ├── proc-macro2 v1.0.79 (*)
+│   │   │   │   │   │   │   │   │       │   ├── quote v1.0.35 (*)
+│   │   │   │   │   │   │   │   │       │   └── syn v1.0.109 (*)
+│   │   │   │   │   │   │   │   │       ├── parity-scale-codec-derive v3.6.9 (proc-macro)
+│   │   │   │   │   │   │   │   │       │   ├── proc-macro-crate v2.0.2 (*)
+│   │   │   │   │   │   │   │   │       │   ├── proc-macro2 v1.0.79 (*)
+│   │   │   │   │   │   │   │   │       │   ├── quote v1.0.35 (*)
+│   │   │   │   │   │   │   │   │       │   └── syn v1.0.109 (*)
+│   │   │   │   │   │   │   │   │       └── serde v1.0.197 (*)
+│   │   │   │   │   │   │   │   ├── impl-rlp v0.3.0
+│   │   │   │   │   │   │   │   │   └── rlp v0.5.2 (*)
+│   │   │   │   │   │   │   │   ├── impl-serde v0.4.0
+│   │   │   │   │   │   │   │   │   └── serde v1.0.197 (*)
+│   │   │   │   │   │   │   │   ├── scale-info v2.11.1
+│   │   │   │   │   │   │   │   │   ├── cfg-if v1.0.0
+│   │   │   │   │   │   │   │   │   ├── derive_more v0.99.17 (proc-macro) (*)
+│   │   │   │   │   │   │   │   │   ├── parity-scale-codec v3.6.9 (*)
+│   │   │   │   │   │   │   │   │   └── scale-info-derive v2.11.1 (proc-macro)
+│   │   │   │   │   │   │   │   │       ├── proc-macro-crate v1.1.3 (*)
+│   │   │   │   │   │   │   │   │       ├── proc-macro2 v1.0.79 (*)
+│   │   │   │   │   │   │   │   │       ├── quote v1.0.35 (*)
+│   │   │   │   │   │   │   │   │       └── syn v1.0.109 (*)
+│   │   │   │   │   │   │   │   └── tiny-keccak v2.0.2 (*)
+│   │   │   │   │   │   │   ├── fixed-hash v0.8.0 (*)
+│   │   │   │   │   │   │   ├── impl-codec v0.6.0 (*)
+│   │   │   │   │   │   │   ├── impl-rlp v0.3.0 (*)
+│   │   │   │   │   │   │   ├── impl-serde v0.4.0 (*)
+│   │   │   │   │   │   │   ├── primitive-types v0.12.2
+│   │   │   │   │   │   │   │   ├── fixed-hash v0.8.0 (*)
+│   │   │   │   │   │   │   │   ├── impl-codec v0.6.0 (*)
+│   │   │   │   │   │   │   │   ├── impl-rlp v0.3.0 (*)
+│   │   │   │   │   │   │   │   ├── impl-serde v0.4.0 (*)
+│   │   │   │   │   │   │   │   ├── scale-info v2.11.1 (*)
+│   │   │   │   │   │   │   │   └── uint v0.9.5
+│   │   │   │   │   │   │   │       ├── byteorder v1.5.0
+│   │   │   │   │   │   │   │       ├── crunchy v0.2.2
+│   │   │   │   │   │   │   │       ├── hex v0.4.3 (*)
+│   │   │   │   │   │   │   │       └── static_assertions v1.1.0
+│   │   │   │   │   │   │   ├── scale-info v2.11.1 (*)
+│   │   │   │   │   │   │   └── uint v0.9.5 (*)
+│   │   │   │   │   │   ├── hex v0.4.3 (*)
+│   │   │   │   │   │   ├── once_cell v1.19.0
+│   │   │   │   │   │   ├── regex v1.10.4
+│   │   │   │   │   │   │   ├── aho-corasick v1.1.3
+│   │   │   │   │   │   │   │   └── memchr v2.7.1
+│   │   │   │   │   │   │   ├── memchr v2.7.1
+│   │   │   │   │   │   │   ├── regex-automata v0.4.6
+│   │   │   │   │   │   │   │   ├── aho-corasick v1.1.3 (*)
+│   │   │   │   │   │   │   │   ├── memchr v2.7.1
+│   │   │   │   │   │   │   │   └── regex-syntax v0.8.2
+│   │   │   │   │   │   │   └── regex-syntax v0.8.2
+│   │   │   │   │   │   ├── serde v1.0.197 (*)
+│   │   │   │   │   │   ├── serde_json v1.0.115 (*)
+│   │   │   │   │   │   ├── sha3 v0.10.8 (*)
+│   │   │   │   │   │   ├── thiserror v1.0.58 (*)
+│   │   │   │   │   │   └── uint v0.9.5 (*)
+│   │   │   │   │   ├── generic-array v0.14.7 (*)
+│   │   │   │   │   ├── k256 v0.13.3 (*)
+│   │   │   │   │   ├── num_enum v0.7.2 (*)
+│   │   │   │   │   ├── once_cell v1.19.0
+│   │   │   │   │   ├── open-fastrlp v0.1.4
+│   │   │   │   │   │   ├── arrayvec v0.7.4
+│   │   │   │   │   │   ├── auto_impl v1.2.0 (proc-macro) (*)
+│   │   │   │   │   │   ├── bytes v1.6.0 (*)
+│   │   │   │   │   │   ├── ethereum-types v0.14.1 (*)
+│   │   │   │   │   │   └── open-fastrlp-derive v0.1.1 (proc-macro)
+│   │   │   │   │   │       ├── bytes v1.6.0 (*)
+│   │   │   │   │   │       ├── proc-macro2 v1.0.79 (*)
+│   │   │   │   │   │       ├── quote v1.0.35 (*)
+│   │   │   │   │   │       └── syn v1.0.109 (*)
+│   │   │   │   │   ├── rand v0.8.5 (*)
+│   │   │   │   │   ├── rlp v0.5.2 (*)
+│   │   │   │   │   ├── serde v1.0.197 (*)
+│   │   │   │   │   ├── serde_json v1.0.115 (*)
+│   │   │   │   │   ├── strum v0.26.2 (*)
+│   │   │   │   │   ├── syn v2.0.55
+│   │   │   │   │   │   ├── proc-macro2 v1.0.79 (*)
+│   │   │   │   │   │   ├── quote v1.0.35 (*)
+│   │   │   │   │   │   └── unicode-ident v1.0.12
+│   │   │   │   │   ├── tempfile v3.10.1 (*)
+│   │   │   │   │   ├── thiserror v1.0.58 (*)
+│   │   │   │   │   ├── tiny-keccak v2.0.2 (*)
+│   │   │   │   │   └── unicode-xid v0.2.4
+│   │   │   │   ├── once_cell v1.19.0
+│   │   │   │   ├── serde v1.0.197 (*)
+│   │   │   │   └── serde_json v1.0.115 (*)
+│   │   │   ├── ethers-contract v2.0.14
+│   │   │   │   ├── const-hex v1.11.3 (*)
+│   │   │   │   ├── ethers-contract-abigen v2.0.14
+│   │   │   │   │   ├── Inflector v0.11.4
+│   │   │   │   │   │   ├── lazy_static v1.4.0 (*)
+│   │   │   │   │   │   └── regex v1.10.4 (*)
+│   │   │   │   │   ├── const-hex v1.11.3 (*)
+│   │   │   │   │   ├── dunce v1.0.4
+│   │   │   │   │   ├── ethers-core v2.0.14 (*)
+│   │   │   │   │   ├── eyre v0.6.12
+│   │   │   │   │   │   ├── indenter v0.3.3
+│   │   │   │   │   │   └── once_cell v1.19.0
+│   │   │   │   │   ├── prettyplease v0.2.17
+│   │   │   │   │   │   ├── proc-macro2 v1.0.79 (*)
+│   │   │   │   │   │   └── syn v2.0.55 (*)
+│   │   │   │   │   ├── proc-macro2 v1.0.79 (*)
+│   │   │   │   │   ├── quote v1.0.35 (*)
+│   │   │   │   │   ├── regex v1.10.4 (*)
+│   │   │   │   │   ├── serde v1.0.197 (*)
+│   │   │   │   │   ├── serde_json v1.0.115 (*)
+│   │   │   │   │   ├── syn v2.0.55 (*)
+│   │   │   │   │   ├── toml v0.8.2
+│   │   │   │   │   │   ├── serde v1.0.197 (*)
+│   │   │   │   │   │   ├── serde_spanned v0.6.5 (*)
+│   │   │   │   │   │   ├── toml_datetime v0.6.3 (*)
+│   │   │   │   │   │   └── toml_edit v0.20.2 (*)
+│   │   │   │   │   └── walkdir v2.5.0
+│   │   │   │   │       └── same-file v1.0.6
+│   │   │   │   ├── ethers-contract-derive v2.0.14 (proc-macro)
+│   │   │   │   │   ├── Inflector v0.11.4 (*)
+│   │   │   │   │   ├── const-hex v1.11.3 (*)
+│   │   │   │   │   ├── ethers-contract-abigen v2.0.14
+│   │   │   │   │   │   ├── Inflector v0.11.4 (*)
+│   │   │   │   │   │   ├── const-hex v1.11.3 (*)
+│   │   │   │   │   │   ├── dunce v1.0.4
+│   │   │   │   │   │   ├── ethers-core v2.0.14 (*)
+│   │   │   │   │   │   ├── eyre v0.6.12 (*)
+│   │   │   │   │   │   ├── prettyplease v0.2.17 (*)
+│   │   │   │   │   │   ├── proc-macro2 v1.0.79 (*)
+│   │   │   │   │   │   ├── quote v1.0.35 (*)
+│   │   │   │   │   │   ├── regex v1.10.4 (*)
+│   │   │   │   │   │   ├── serde v1.0.197 (*)
+│   │   │   │   │   │   ├── serde_json v1.0.115 (*)
+│   │   │   │   │   │   ├── syn v2.0.55 (*)
+│   │   │   │   │   │   ├── toml v0.8.2 (*)
+│   │   │   │   │   │   └── walkdir v2.5.0 (*)
+│   │   │   │   │   ├── ethers-core v2.0.14 (*)
+│   │   │   │   │   ├── proc-macro2 v1.0.79 (*)
+│   │   │   │   │   ├── quote v1.0.35 (*)
+│   │   │   │   │   ├── serde_json v1.0.115 (*)
+│   │   │   │   │   └── syn v2.0.55 (*)
+│   │   │   │   ├── ethers-core v2.0.14 (*)
+│   │   │   │   ├── ethers-providers v2.0.14
+│   │   │   │   │   ├── async-trait v0.1.79 (proc-macro) (*)
+│   │   │   │   │   ├── auto_impl v1.2.0 (proc-macro) (*)
+│   │   │   │   │   ├── base64 v0.21.7
+│   │   │   │   │   ├── bytes v1.6.0 (*)
+│   │   │   │   │   ├── const-hex v1.11.3 (*)
+│   │   │   │   │   ├── enr v0.10.0 (*)
+│   │   │   │   │   ├── ethers-core v2.0.14 (*)
+│   │   │   │   │   ├── futures-core v0.3.30
+│   │   │   │   │   ├── futures-timer v3.0.3
+│   │   │   │   │   │   ├── gloo-timers v0.2.6
+│   │   │   │   │   │   │   ├── futures-channel v0.3.30 (*)
+│   │   │   │   │   │   │   ├── futures-core v0.3.30
+│   │   │   │   │   │   │   ├── js-sys v0.3.69
+│   │   │   │   │   │   │   │   └── wasm-bindgen v0.2.92
+│   │   │   │   │   │   │   │       ├── cfg-if v1.0.0
+│   │   │   │   │   │   │   │       └── wasm-bindgen-macro v0.2.92 (proc-macro)
+│   │   │   │   │   │   │   │           ├── quote v1.0.35 (*)
+│   │   │   │   │   │   │   │           └── wasm-bindgen-macro-support v0.2.92
+│   │   │   │   │   │   │   │               ├── proc-macro2 v1.0.79 (*)
+│   │   │   │   │   │   │   │               ├── quote v1.0.35 (*)
+│   │   │   │   │   │   │   │               ├── syn v2.0.55 (*)
+│   │   │   │   │   │   │   │               ├── wasm-bindgen-backend v0.2.92
+│   │   │   │   │   │   │   │               │   ├── bumpalo v3.15.4
+│   │   │   │   │   │   │   │               │   ├── log v0.4.21
+│   │   │   │   │   │   │   │               │   ├── once_cell v1.19.0
+│   │   │   │   │   │   │   │               │   ├── proc-macro2 v1.0.79 (*)
+│   │   │   │   │   │   │   │               │   ├── quote v1.0.35 (*)
+│   │   │   │   │   │   │   │               │   ├── syn v2.0.55 (*)
+│   │   │   │   │   │   │   │               │   └── wasm-bindgen-shared v0.2.92
+│   │   │   │   │   │   │   │               └── wasm-bindgen-shared v0.2.92
+│   │   │   │   │   │   │   └── wasm-bindgen v0.2.92 (*)
+│   │   │   │   │   │   └── send_wrapper v0.4.0
+│   │   │   │   │   ├── futures-util v0.3.30 (*)
+│   │   │   │   │   ├── hashers v1.0.1
+│   │   │   │   │   │   └── fxhash v0.2.1
+│   │   │   │   │   │       └── byteorder v1.5.0
+│   │   │   │   │   ├── http v0.2.12 (*)
+│   │   │   │   │   ├── instant v0.1.12
+│   │   │   │   │   │   └── cfg-if v1.0.0
+│   │   │   │   │   ├── jsonwebtoken v8.3.0
+│   │   │   │   │   │   ├── base64 v0.21.7
+│   │   │   │   │   │   ├── pem v1.1.1
+│   │   │   │   │   │   │   └── base64 v0.13.1
+│   │   │   │   │   │   ├── ring v0.16.20
+│   │   │   │   │   │   │   └── untrusted v0.7.1
+│   │   │   │   │   │   ├── serde v1.0.197 (*)
+│   │   │   │   │   │   ├── serde_json v1.0.115 (*)
+│   │   │   │   │   │   └── simple_asn1 v0.6.2
+│   │   │   │   │   │       ├── num-bigint v0.4.4 (*)
+│   │   │   │   │   │       ├── num-traits v0.2.18
+│   │   │   │   │   │       ├── thiserror v1.0.58 (*)
+│   │   │   │   │   │       └── time v0.3.34
+│   │   │   │   │   │           ├── deranged v0.3.11
+│   │   │   │   │   │           │   └── powerfmt v0.2.0
+│   │   │   │   │   │           ├── itoa v1.0.11
+│   │   │   │   │   │           ├── num-conv v0.1.0
+│   │   │   │   │   │           ├── powerfmt v0.2.0
+│   │   │   │   │   │           ├── time-core v0.1.2
+│   │   │   │   │   │           └── time-macros v0.2.17 (proc-macro)
+│   │   │   │   │   │               ├── num-conv v0.1.0
+│   │   │   │   │   │               └── time-core v0.1.2
+│   │   │   │   │   ├── once_cell v1.19.0
+│   │   │   │   │   ├── pin-project v1.1.5 (*)
+│   │   │   │   │   ├── reqwest v0.11.27
+│   │   │   │   │   │   ├── base64 v0.21.7
+│   │   │   │   │   │   ├── bytes v1.6.0 (*)
+│   │   │   │   │   │   ├── encoding_rs v0.8.33
+│   │   │   │   │   │   │   └── cfg-if v1.0.0
+│   │   │   │   │   │   ├── futures-core v0.3.30
+│   │   │   │   │   │   ├── futures-util v0.3.30 (*)
+│   │   │   │   │   │   ├── h2 v0.3.25 (*)
+│   │   │   │   │   │   ├── http v0.2.12 (*)
+│   │   │   │   │   │   ├── http-body v0.4.6 (*)
+│   │   │   │   │   │   ├── hyper v0.14.28 (*)
+│   │   │   │   │   │   ├── hyper-rustls v0.24.2 (*)
+│   │   │   │   │   │   ├── ipnet v2.9.0
+│   │   │   │   │   │   ├── log v0.4.21
+│   │   │   │   │   │   ├── mime v0.3.17
+│   │   │   │   │   │   ├── once_cell v1.19.0
+│   │   │   │   │   │   ├── percent-encoding v2.3.1
+│   │   │   │   │   │   ├── pin-project-lite v0.2.13
+│   │   │   │   │   │   ├── rustls v0.21.10 (*)
+│   │   │   │   │   │   ├── rustls-pemfile v1.0.4 (*)
+│   │   │   │   │   │   ├── serde v1.0.197 (*)
+│   │   │   │   │   │   ├── serde_json v1.0.115 (*)
+│   │   │   │   │   │   ├── serde_urlencoded v0.7.1
+│   │   │   │   │   │   │   ├── form_urlencoded v1.2.1 (*)
+│   │   │   │   │   │   │   ├── itoa v1.0.11
+│   │   │   │   │   │   │   ├── ryu v1.0.17
+│   │   │   │   │   │   │   └── serde v1.0.197 (*)
+│   │   │   │   │   │   ├── sync_wrapper v0.1.2
+│   │   │   │   │   │   ├── system-configuration v0.5.1
+│   │   │   │   │   │   │   ├── bitflags v1.3.2
+│   │   │   │   │   │   │   ├── core-foundation v0.9.4 (*)
+│   │   │   │   │   │   │   └── system-configuration-sys v0.5.0
+│   │   │   │   │   │   │       ├── core-foundation-sys v0.8.6
+│   │   │   │   │   │   │       └── libc v0.2.153
+│   │   │   │   │   │   ├── tokio v1.36.0 (*)
+│   │   │   │   │   │   ├── tokio-rustls v0.24.1 (*)
+│   │   │   │   │   │   ├── tower-service v0.3.2
+│   │   │   │   │   │   ├── url v2.5.0 (*)
+│   │   │   │   │   │   └── webpki-roots v0.25.4
+│   │   │   │   │   ├── serde v1.0.197 (*)
+│   │   │   │   │   ├── serde_json v1.0.115 (*)
+│   │   │   │   │   ├── thiserror v1.0.58 (*)
+│   │   │   │   │   ├── tokio v1.36.0 (*)
+│   │   │   │   │   ├── tokio-tungstenite v0.20.1
+│   │   │   │   │   │   ├── futures-util v0.3.30 (*)
+│   │   │   │   │   │   ├── log v0.4.21
+│   │   │   │   │   │   ├── rustls v0.21.10 (*)
+│   │   │   │   │   │   ├── tokio v1.36.0 (*)
+│   │   │   │   │   │   ├── tokio-rustls v0.24.1 (*)
+│   │   │   │   │   │   ├── tungstenite v0.20.1
+│   │   │   │   │   │   │   ├── byteorder v1.5.0
+│   │   │   │   │   │   │   ├── bytes v1.6.0 (*)
+│   │   │   │   │   │   │   ├── data-encoding v2.5.0
+│   │   │   │   │   │   │   ├── http v0.2.12 (*)
+│   │   │   │   │   │   │   ├── httparse v1.8.0
+│   │   │   │   │   │   │   ├── log v0.4.21
+│   │   │   │   │   │   │   ├── rand v0.8.5 (*)
+│   │   │   │   │   │   │   ├── rustls v0.21.10 (*)
+│   │   │   │   │   │   │   ├── sha1 v0.10.6
+│   │   │   │   │   │   │   │   ├── cfg-if v1.0.0
+│   │   │   │   │   │   │   │   ├── cpufeatures v0.2.12 (*)
+│   │   │   │   │   │   │   │   └── digest v0.10.7 (*)
+│   │   │   │   │   │   │   ├── thiserror v1.0.58 (*)
+│   │   │   │   │   │   │   ├── url v2.5.0 (*)
+│   │   │   │   │   │   │   └── utf-8 v0.7.6
+│   │   │   │   │   │   └── webpki-roots v0.25.4
+│   │   │   │   │   ├── tracing v0.1.40 (*)
+│   │   │   │   │   ├── tracing-futures v0.2.5
+│   │   │   │   │   │   ├── pin-project v1.1.5 (*)
+│   │   │   │   │   │   └── tracing v0.1.40 (*)
+│   │   │   │   │   └── url v2.5.0 (*)
+│   │   │   │   ├── futures-util v0.3.30 (*)
+│   │   │   │   ├── once_cell v1.19.0
+│   │   │   │   ├── pin-project v1.1.5 (*)
+│   │   │   │   ├── serde v1.0.197 (*)
+│   │   │   │   ├── serde_json v1.0.115 (*)
+│   │   │   │   └── thiserror v1.0.58 (*)
+│   │   │   ├── ethers-core v2.0.14 (*)
+│   │   │   ├── ethers-etherscan v2.0.14
+│   │   │   │   ├── chrono v0.4.35 (*)
+│   │   │   │   ├── ethers-core v2.0.14 (*)
+│   │   │   │   ├── reqwest v0.11.27 (*)
+│   │   │   │   ├── semver v1.0.22 (*)
+│   │   │   │   ├── serde v1.0.197 (*)
+│   │   │   │   ├── serde_json v1.0.115 (*)
+│   │   │   │   ├── thiserror v1.0.58 (*)
+│   │   │   │   └── tracing v0.1.40 (*)
+│   │   │   ├── ethers-middleware v2.0.14
+│   │   │   │   ├── async-trait v0.1.79 (proc-macro) (*)
+│   │   │   │   ├── auto_impl v1.2.0 (proc-macro) (*)
+│   │   │   │   ├── ethers-contract v2.0.14 (*)
+│   │   │   │   ├── ethers-core v2.0.14 (*)
+│   │   │   │   ├── ethers-etherscan v2.0.14 (*)
+│   │   │   │   ├── ethers-providers v2.0.14 (*)
+│   │   │   │   ├── ethers-signers v2.0.14
+│   │   │   │   │   ├── async-trait v0.1.79 (proc-macro) (*)
+│   │   │   │   │   ├── coins-bip32 v0.8.7
+│   │   │   │   │   │   ├── bs58 v0.5.1
+│   │   │   │   │   │   │   └── sha2 v0.10.8 (*)
+│   │   │   │   │   │   ├── coins-core v0.8.7
+│   │   │   │   │   │   │   ├── base64 v0.21.7
+│   │   │   │   │   │   │   ├── bech32 v0.9.1
+│   │   │   │   │   │   │   ├── bs58 v0.5.1 (*)
+│   │   │   │   │   │   │   ├── digest v0.10.7 (*)
+│   │   │   │   │   │   │   ├── generic-array v0.14.7 (*)
+│   │   │   │   │   │   │   ├── hex v0.4.3 (*)
+│   │   │   │   │   │   │   ├── ripemd v0.1.3 (*)
+│   │   │   │   │   │   │   ├── serde v1.0.197 (*)
+│   │   │   │   │   │   │   ├── serde_derive v1.0.197 (proc-macro) (*)
+│   │   │   │   │   │   │   ├── sha2 v0.10.8 (*)
+│   │   │   │   │   │   │   ├── sha3 v0.10.8 (*)
+│   │   │   │   │   │   │   └── thiserror v1.0.58 (*)
+│   │   │   │   │   │   ├── digest v0.10.7 (*)
+│   │   │   │   │   │   ├── hmac v0.12.1 (*)
+│   │   │   │   │   │   ├── k256 v0.13.3 (*)
+│   │   │   │   │   │   ├── serde v1.0.197 (*)
+│   │   │   │   │   │   ├── sha2 v0.10.8 (*)
+│   │   │   │   │   │   └── thiserror v1.0.58 (*)
+│   │   │   │   │   ├── coins-bip39 v0.8.7
+│   │   │   │   │   │   ├── bitvec v1.0.1 (*)
+│   │   │   │   │   │   ├── coins-bip32 v0.8.7 (*)
+│   │   │   │   │   │   ├── hmac v0.12.1 (*)
+│   │   │   │   │   │   ├── once_cell v1.19.0
+│   │   │   │   │   │   ├── pbkdf2 v0.12.2
+│   │   │   │   │   │   │   ├── digest v0.10.7 (*)
+│   │   │   │   │   │   │   └── hmac v0.12.1 (*)
+│   │   │   │   │   │   ├── rand v0.8.5 (*)
+│   │   │   │   │   │   ├── sha2 v0.10.8 (*)
+│   │   │   │   │   │   └── thiserror v1.0.58 (*)
+│   │   │   │   │   ├── const-hex v1.11.3 (*)
+│   │   │   │   │   ├── elliptic-curve v0.13.8 (*)
+│   │   │   │   │   ├── eth-keystore v0.5.0
+│   │   │   │   │   │   ├── aes v0.8.4
+│   │   │   │   │   │   │   ├── cfg-if v1.0.0
+│   │   │   │   │   │   │   ├── cipher v0.4.4
+│   │   │   │   │   │   │   │   ├── crypto-common v0.1.6 (*)
+│   │   │   │   │   │   │   │   └── inout v0.1.3
+│   │   │   │   │   │   │   │       └── generic-array v0.14.7 (*)
+│   │   │   │   │   │   │   └── cpufeatures v0.2.12 (*)
+│   │   │   │   │   │   ├── ctr v0.9.2
+│   │   │   │   │   │   │   └── cipher v0.4.4 (*)
+│   │   │   │   │   │   ├── digest v0.10.7 (*)
+│   │   │   │   │   │   ├── hex v0.4.3 (*)
+│   │   │   │   │   │   ├── hmac v0.12.1 (*)
+│   │   │   │   │   │   ├── pbkdf2 v0.11.0
+│   │   │   │   │   │   │   └── digest v0.10.7 (*)
+│   │   │   │   │   │   ├── rand v0.8.5 (*)
+│   │   │   │   │   │   ├── scrypt v0.10.0
+│   │   │   │   │   │   │   ├── hmac v0.12.1 (*)
+│   │   │   │   │   │   │   ├── pbkdf2 v0.11.0 (*)
+│   │   │   │   │   │   │   ├── salsa20 v0.10.2
+│   │   │   │   │   │   │   │   └── cipher v0.4.4 (*)
+│   │   │   │   │   │   │   └── sha2 v0.10.8 (*)
+│   │   │   │   │   │   ├── serde v1.0.197 (*)
+│   │   │   │   │   │   ├── serde_json v1.0.115 (*)
+│   │   │   │   │   │   ├── sha2 v0.10.8 (*)
+│   │   │   │   │   │   ├── sha3 v0.10.8 (*)
+│   │   │   │   │   │   ├── thiserror v1.0.58 (*)
+│   │   │   │   │   │   └── uuid v0.8.2
+│   │   │   │   │   │       ├── getrandom v0.2.12 (*)
+│   │   │   │   │   │       └── serde v1.0.197 (*)
+│   │   │   │   │   ├── ethers-core v2.0.14 (*)
+│   │   │   │   │   ├── rand v0.8.5 (*)
+│   │   │   │   │   ├── sha2 v0.10.8 (*)
+│   │   │   │   │   ├── thiserror v1.0.58 (*)
+│   │   │   │   │   └── tracing v0.1.40 (*)
+│   │   │   │   ├── futures-channel v0.3.30 (*)
+│   │   │   │   ├── futures-locks v0.7.1
+│   │   │   │   │   ├── futures-channel v0.3.30 (*)
+│   │   │   │   │   └── futures-task v0.3.30
+│   │   │   │   ├── futures-util v0.3.30 (*)
+│   │   │   │   ├── instant v0.1.12 (*)
+│   │   │   │   ├── reqwest v0.11.27 (*)
+│   │   │   │   ├── serde v1.0.197 (*)
+│   │   │   │   ├── serde_json v1.0.115 (*)
+│   │   │   │   ├── thiserror v1.0.58 (*)
+│   │   │   │   ├── tokio v1.36.0 (*)
+│   │   │   │   ├── tracing v0.1.40 (*)
+│   │   │   │   ├── tracing-futures v0.2.5 (*)
+│   │   │   │   └── url v2.5.0 (*)
+│   │   │   ├── ethers-providers v2.0.14 (*)
+│   │   │   └── ethers-signers v2.0.14 (*)
+│   │   ├── hex v0.4.3 (*)
+│   │   ├── jsonrpsee v0.20.3 (*)
+│   │   ├── reth-primitives v0.2.0-beta.4 (https://github.com/Sovereign-Labs/reth?rev=bd2945a988ad2bb93dccf3967f4349e99e25da90#bd2945a9) (*)
+│   │   ├── reth-rpc-types v0.2.0-beta.4 (https://github.com/Sovereign-Labs/reth?rev=bd2945a988ad2bb93dccf3967f4349e99e25da90#bd2945a9) (*)
+│   │   ├── serde v1.0.197 (*)
+│   │   ├── serde_json v1.0.115 (*)
+│   │   ├── sov-rollup-interface v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/rollup-interface) (*)
+│   │   ├── tokio v1.36.0 (*)
+│   │   └── tracing v0.1.40 (*)
+│   ├── serde v1.0.197 (*)
+│   ├── serde_json v1.0.115 (*)
+│   ├── sov-modules-api v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/module-system/sov-modules-api) (*)
+│   ├── sov-modules-stf-blueprint v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/module-system/sov-modules-stf-blueprint) (*)
+│   └── sov-rollup-interface v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/rollup-interface) (*)
+└── sov-value-setter v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/module-system/module-implementations/examples/sov-value-setter)
+    ├── anyhow v1.0.81
+    ├── borsh v0.10.3 (*)
+    ├── serde v1.0.197 (*)
+    ├── sov-modules-api v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/module-system/sov-modules-api) (*)
+    ├── sov-state v0.3.0 (/Users/erce/Desktop/Chainway/secret-sovereign-sdk/crates/sovereign-sdk/module-system/sov-state) (*)
+    └── thiserror v1.0.58 (*)
