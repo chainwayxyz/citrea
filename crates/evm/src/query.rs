@@ -1494,7 +1494,7 @@ pub(crate) fn build_rpc_receipt(
     let transaction: TransactionSignedEcRecovered = tx.into();
     let transaction_kind = transaction.kind();
 
-    let transaction_hash = Some(transaction.hash);
+    let transaction_hash = transaction.hash;
     let transaction_index = tx_number - block.transactions.start;
     let block_hash = Some(block.header.hash());
     let block_number = Some(U256::from(block.header.number));
@@ -1555,7 +1555,7 @@ pub(crate) fn build_rpc_receipt(
                 data: log.data,
                 block_hash,
                 block_number,
-                transaction_hash,
+                transaction_hash: Some(transaction_hash),
                 transaction_index: Some(U256::from(transaction_index)),
                 log_index: Some(U256::from(receipt.log_index_start + idx as u64)),
                 removed: false,
