@@ -59,7 +59,7 @@ pub async fn start_rollup(
             rpc_config: RpcConfig {
                 bind_host: "127.0.0.1".into(),
                 bind_port: 0,
-                max_concurrent_requests: 100,
+                max_connections: 100,
             },
         },
         da: MockDaConfig {

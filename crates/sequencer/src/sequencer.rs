@@ -158,11 +158,11 @@ where
             self.rpc_config.bind_port,
         );
 
-        let max_concurrent_requests = self.rpc_config.max_concurrent_requests;
+        let max_connections = self.rpc_config.max_connections;
 
         let _handle = tokio::spawn(async move {
             let server = jsonrpsee::server::ServerBuilder::default()
-                .max_connections(max_concurrent_requests)
+                .max_connections(max_connections)
                 .build([listen_address].as_ref())
                 .await
                 .unwrap();
