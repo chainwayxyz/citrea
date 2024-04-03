@@ -91,7 +91,8 @@ where
         Ok(())
     }
 
-    /// Checks that the current block's timestamp is greater than the last block's timestamp.
+    /// Checks that the current block's timestamp.
+    /// This is to make sure that the set timestamp is greater than the last block's timestamp.
     fn apply_timestamp_rule(
         &self,
         soft_batch: &mut HookSoftConfirmationInfo,
