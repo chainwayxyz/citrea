@@ -60,10 +60,10 @@ lazy_static! {
     };
 
     pub(crate) static ref GENESIS_HASH: B256 = B256::from(hex!(
-        "4e9bf2c5ace397aee0e37c4614566b947773f7023cdb05010349419cacbd2b44"
+        "5aa8e649f234ae2128a8eb8536f557fafd7b6a46f12cba8d89a73eb74ee0f0e3"
     ));
     pub(crate) static ref GENESIS_STATE_ROOT: B256 = B256::from(hex!(
-        "bd86fd85964d4aac6a0bdd77011a791522ca71e23895bd1b3f7f2a1803cb4902"
+        "62dcfcbbc789410f13b8ec77a27fa8fc1c804c5cedbf2c2498b886b7c5a2f35b"
     ));
     pub(crate) static ref GENESIS_DA_TXS_COMMITMENT: B256 = B256::from(hex!(
         "4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b"

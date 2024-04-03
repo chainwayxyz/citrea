@@ -37,7 +37,7 @@ fn begin_soft_confirmation_hook_creates_pending_block() {
         BlockEnv {
             number: 2,
             coinbase: *BENEFICIARY,
-            timestamp: 50,
+            timestamp: 54,
             prevrandao: *DA_ROOT_HASH,
             basefee: 765625000,
             gas_limit: TEST_CONFIG.block_gas_limit,
@@ -85,7 +85,7 @@ fn end_soft_confirmation_hook_sets_head() {
         Block {
             header: Header {
                 parent_hash: B256::from(hex!(
-                    "e027fa45a5142bca92c6861cec6da54a0ce6c615fd8b4c488a9a8a7523bd4b81"
+                    "fc47267bb1f23e28564d539ad13370a335660149b44ca2b76c1787563781f69a"
                 )),
 
                 ommers_hash: EMPTY_OMMER_ROOT_HASH,
@@ -103,7 +103,7 @@ fn end_soft_confirmation_hook_sets_head() {
                 number: 2,
                 gas_limit: TEST_CONFIG.block_gas_limit,
                 gas_used: 200u64,
-                timestamp: 50,
+                timestamp: 54,
                 mix_hash: *DA_ROOT_HASH,
                 nonce: 0,
                 base_fee_per_gas: Some(765625000),
@@ -296,7 +296,7 @@ fn finalize_hook_creates_final_block() {
                     parent_beacon_block_root: None,
                 },
                 B256::from(hex!(
-                    "a0a49c63fcbf3f89f4a54d7f34ce0212135d0a655db76bf7d9e95be512ba02de"
+                    "58ba97552f2687271aeb249b540f35f50b176df8087a930340fff7a9be2c34b5"
                 ))
             ),
             l1_fee_rate: 0,
