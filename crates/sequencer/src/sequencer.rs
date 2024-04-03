@@ -178,7 +178,6 @@ where
         da_block: <Da as DaService>::FilteredBlock,
         l1_fee_rate: u64,
         rlp_txs: Vec<RlpEvmTransaction>,
-        block_timestamp_delta: u64,
     ) -> Result<(), anyhow::Error> {
         debug!(
             "Sequencer: publishing block with {} transactions",
@@ -203,8 +202,7 @@ where
             .latest_header()
             .expect("Failed to get latest header")
             .map(|header| header.timestamp)
-            .expect("Failed to get next block timestamp")
-            + block_timestamp_delta;
+            .expect("Failed to get next block timestamp");
 
         let batch_info = HookSoftConfirmationInfo {
             da_slot_height: da_block.header().height(),
@@ -423,13 +421,7 @@ where
                                 );
                                 let da_block =
                                     self.da_service.get_block_at(skipped_height).await.unwrap();
-                                self.produce_l2_block(
-                                    da_block,
-                                    l1_fee_rate,
-                                    vec![],
-                                    cfg.block_timestamp_delta,
-                                )
-                                .await?;
+                                self.produce_l2_block(da_block, l1_fee_rate, vec![]).await?;
                             }
                         }
                         let prev_l1_height = last_finalized_height - 1;
@@ -508,13 +500,8 @@ where
                     .await
                     .unwrap();
 
-                self.produce_l2_block(
-                    last_finalized_block,
-                    l1_fee_rate,
-                    rlp_txs,
-                    cfg.block_timestamp_delta,
-                )
-                .await?;
+                self.produce_l2_block(last_finalized_block, l1_fee_rate, rlp_txs)
+                    .await?;
             }
         }
     }

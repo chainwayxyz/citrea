@@ -37,7 +37,7 @@ fn begin_soft_confirmation_hook_creates_pending_block() {
         BlockEnv {
             number: 2,
             coinbase: *BENEFICIARY,
-            timestamp: 50 + TEST_CONFIG.block_timestamp_delta * 2,
+            timestamp: 50,
             prevrandao: *DA_ROOT_HASH,
             basefee: 765625000,
             gas_limit: TEST_CONFIG.block_gas_limit,
@@ -103,7 +103,7 @@ fn end_soft_confirmation_hook_sets_head() {
                 number: 2,
                 gas_limit: TEST_CONFIG.block_gas_limit,
                 gas_used: 200u64,
-                timestamp: 50 + TEST_CONFIG.block_timestamp_delta * 2,
+                timestamp: 50,
                 mix_hash: *DA_ROOT_HASH,
                 nonce: 0,
                 base_fee_per_gas: Some(765625000),

@@ -64,8 +64,6 @@ pub struct EvmConfig {
     pub starting_base_fee: u64,
     /// Gas limit for single block
     pub block_gas_limit: u64,
-    /// Delta to add to parent block timestamp,
-    pub block_timestamp_delta: u64,
     /// Base fee params.
     pub base_fee_params: reth_primitives::BaseFeeParams,
 }
@@ -81,7 +79,6 @@ impl Default for EvmConfig {
             coinbase: Address::ZERO,
             starting_base_fee: reth_primitives::constants::EIP1559_INITIAL_BASE_FEE,
             block_gas_limit: reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT,
-            block_timestamp_delta: reth_primitives::constants::SLOT_DURATION.as_secs(),
             base_fee_params: reth_primitives::BaseFeeParams::ethereum(),
         }
     }
@@ -141,7 +138,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
             spec,
             coinbase: config.coinbase,
             block_gas_limit: config.block_gas_limit,
-            block_timestamp_delta: config.block_timestamp_delta,
             base_fee_params: config.base_fee_params,
         };
 
@@ -216,7 +212,6 @@ mod tests {
             chain_id: 1,
             limit_contract_code_size: None,
             spec: vec![(0, SpecId::SHANGHAI)].into_iter().collect(),
-            block_timestamp_delta: 1u64,
             ..Default::default()
         };
 
@@ -238,7 +233,6 @@ mod tests {
                 "coinbase":"0x0000000000000000000000000000000000000000",
                 "starting_base_fee":1000000000,
                 "block_gas_limit":30000000,
-                "block_timestamp_delta":1,
                 "base_fee_params":{
                     "max_change_denominator":8,
                     "elasticity_multiplier":2
@@ -271,7 +265,6 @@ mod tests {
             chain_id: 1,
             limit_contract_code_size: None,
             spec: vec![(0, SpecId::SHANGHAI)].into_iter().collect(),
-            block_timestamp_delta: 1u64,
             ..Default::default()
         };
 
@@ -299,7 +292,6 @@ mod tests {
                 "coinbase":"0x0000000000000000000000000000000000000000",
                 "starting_base_fee":1000000000,
                 "block_gas_limit":30000000,
-                "block_timestamp_delta": 1,
                 "base_fee_params":{
                     "max_change_denominator":8,
                     "elasticity_multiplier":2
