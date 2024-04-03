@@ -386,9 +386,7 @@ impl LedgerDB {
         batch_id: &SoftBatchIdentifier,
     ) -> Result<Option<BatchNumber>, anyhow::Error> {
         match batch_id {
-            SoftBatchIdentifier::Hash(hash) => {
-                self.db.get::<SoftBatchByHash>(hash)
-            }
+            SoftBatchIdentifier::Hash(hash) => self.db.get::<SoftBatchByHash>(hash),
             SoftBatchIdentifier::Number(num) => Ok(Some(BatchNumber(*num))),
         }
     }
