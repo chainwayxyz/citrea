@@ -63,7 +63,7 @@ pub async fn start_rollup(
             },
         },
         da: MockDaConfig {
-            sender_address: MockAddress::from([0; 32]),
+            sender_address: MockAddress::from([5; 32]),
         },
         prover_service: ProverServiceConfig {
             aggregated_proof_block_jump: 1,
@@ -76,6 +76,8 @@ pub async fn start_rollup(
             }
             NodeMode::SequencerNode => None,
         },
+        sequencer_da_pub_key: vec![5; 32],
+        prover_da_pub_key: vec![],
         include_tx_body,
     };
 

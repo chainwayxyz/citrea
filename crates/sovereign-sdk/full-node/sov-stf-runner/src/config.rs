@@ -68,6 +68,14 @@ pub struct RollupConfig<DaServiceConfig> {
     /// serialized as hex
     #[serde(with = "hex::serde")]
     pub sequencer_public_key: Vec<u8>,
+    /// DA Signing Public Key of the Sequencer
+    /// serialized as hex
+    #[serde(with = "hex::serde")]
+    pub sequencer_da_pub_key: Vec<u8>,
+    /// DA Signing Public Key of the Prover
+    /// serialized as hex
+    #[serde(with = "hex::serde")]
+    pub prover_da_pub_key: Vec<u8>,
     /// Prover service configuration.
     pub prover_service: ProverServiceConfig,
     /// Saves sequencer soft batches if set to true
@@ -109,6 +117,8 @@ mod tests {
         let config = r#"
             sequencer_public_key = "0000000000000000000000000000000000000000000000000000000000000000"
             include_tx_body = true
+            sequencer_da_pub_key = "7777777777777777777777777777777777777777777777777777777777777777"
+            prover_da_pub_key = ""
             [da]
             celestia_rpc_auth_token = "SECRET_RPC_TOKEN"
             celestia_rpc_address = "http://localhost:11111/"
@@ -157,6 +167,8 @@ mod tests {
             prover_service: ProverServiceConfig {
                 aggregated_proof_block_jump: 22,
             },
+            sequencer_da_pub_key: vec![119; 32],
+            prover_da_pub_key: vec![],
             include_tx_body: true,
         };
         assert_eq!(config, expected);

@@ -140,6 +140,8 @@ async fn runner_execution(
             aggregated_proof_block_jump: 1,
         },
         sequencer_client: None,
+        sequencer_da_pub_key: vec![],
+        prover_da_pub_key: vec![],
         include_tx_body: true,
     };
 
@@ -177,6 +179,8 @@ async fn runner_execution(
             init_variant,
             Some(prover_service),
             None,
+            vec![0u8; 32],
+            vec![0u8; 32],
             vec![0u8; 32],
             true,
         )
