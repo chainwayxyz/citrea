@@ -202,6 +202,9 @@ where
             l1_height == da_height || l1_height + 1 == da_height,
             "Sequencer: L1 height mismatch, expected {da_height} (or {da_height}-1), got {l1_height}",
         );
+
+        let timestamp = chrono::Local::now().timestamp() as u64;
+
         let batch_info = HookSoftConfirmationInfo {
             da_slot_height: da_block.header().height(),
             da_slot_hash: da_block.header().hash().into(),
@@ -209,6 +212,7 @@ where
             pre_state_root: self.state_root.clone().as_ref().to_vec(),
             pub_key: self.sov_tx_signer_priv_key.pub_key().try_to_vec().unwrap(),
             l1_fee_rate,
+            timestamp,
         };
         let mut signed_batch: SignedSoftConfirmationBatch = batch_info.clone().into();
         // initially create sc info and call begin soft confirmation hook with it
@@ -250,6 +254,7 @@ where
                     self.state_root.clone().as_ref().to_vec(),
                     txs,
                     l1_fee_rate,
+                    timestamp,
                 );
 
                 let mut signed_soft_batch = self.sign_soft_confirmation_batch(unsigned_batch);
@@ -307,6 +312,7 @@ where
                     soft_confirmation_signature: signed_soft_batch.signature().to_vec(),
                     pub_key: signed_soft_batch.pub_key().to_vec(),
                     l1_fee_rate: signed_soft_batch.l1_fee_rate(),
+                    timestamp: signed_soft_batch.timestamp(),
                 };
 
                 // TODO: this will only work for mock da
@@ -537,6 +543,7 @@ where
             soft_confirmation.txs(),
             signature.try_to_vec().unwrap(),
             self.sov_tx_signer_priv_key.pub_key().try_to_vec().unwrap(),
+            soft_confirmation.timestamp(),
         )
     }
 

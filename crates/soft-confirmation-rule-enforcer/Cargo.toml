@@ -30,6 +30,7 @@ lazy_static = "1.4.0"
 sov-mock-da = { path = "../sovereign-sdk/adapters/mock-da", features = [
     "native",
 ] }
+chrono = { workspace = true, default-features = true }
 
 
 [features]

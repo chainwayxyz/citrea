@@ -28,6 +28,7 @@ fn begin_soft_confirmation_hook_creates_pending_block() {
         [42u8; 32],
         &[10u8; 32],
         l1_fee_rate,
+        54,
         &mut working_set,
     );
     let pending_block = evm.block_env.get(&mut working_set).unwrap();
@@ -36,7 +37,7 @@ fn begin_soft_confirmation_hook_creates_pending_block() {
         BlockEnv {
             number: 2,
             coinbase: *BENEFICIARY,
-            timestamp: TEST_CONFIG.genesis_timestamp + TEST_CONFIG.block_timestamp_delta * 2,
+            timestamp: 54,
             prevrandao: *DA_ROOT_HASH,
             basefee: 765625000,
             gas_limit: TEST_CONFIG.block_gas_limit,
@@ -57,6 +58,7 @@ fn end_soft_confirmation_hook_sets_head() {
         txs_commitment.into(),
         &pre_state_root,
         l1_fee_rate,
+        54,
         &mut working_set,
     );
 
@@ -83,7 +85,7 @@ fn end_soft_confirmation_hook_sets_head() {
         Block {
             header: Header {
                 parent_hash: B256::from(hex!(
-                    "21e219024dad4f384408f43f1d179b32b1bd91f91bc0b3b8574d3e9839f6c2cc"
+                    "fc47267bb1f23e28564d539ad13370a335660149b44ca2b76c1787563781f69a"
                 )),
 
                 ommers_hash: EMPTY_OMMER_ROOT_HASH,
@@ -101,7 +103,7 @@ fn end_soft_confirmation_hook_sets_head() {
                 number: 2,
                 gas_limit: TEST_CONFIG.block_gas_limit,
                 gas_used: 200u64,
-                timestamp: TEST_CONFIG.genesis_timestamp + TEST_CONFIG.block_timestamp_delta * 2,
+                timestamp: 54,
                 mix_hash: *DA_ROOT_HASH,
                 nonce: 0,
                 base_fee_per_gas: Some(765625000),
@@ -125,6 +127,7 @@ fn end_soft_confirmation_hook_moves_transactions_and_receipts() {
         [42u8; 32],
         &[10u8; 32],
         l1_fee_rate,
+        0,
         &mut working_set,
     );
 
@@ -225,6 +228,7 @@ fn finalize_hook_creates_final_block() {
         txs_commitment.into(),
         root,
         l1_fee_rate,
+        54,
         &mut working_set,
     );
 
@@ -249,6 +253,7 @@ fn finalize_hook_creates_final_block() {
         txs_commitment.into(),
         &root_hash,
         l1_fee_rate,
+        54,
         &mut working_set,
     );
 
@@ -291,7 +296,7 @@ fn finalize_hook_creates_final_block() {
                     parent_beacon_block_root: None,
                 },
                 B256::from(hex!(
-                    "2bedf6277f41df20a79af6e9c77ae349dc8ad18c8eae5ed9bac45db2a492825e"
+                    "58ba97552f2687271aeb249b540f35f50b176df8087a930340fff7a9be2c34b5"
                 ))
             ),
             l1_fee_rate: 0,
@@ -328,6 +333,7 @@ fn begin_soft_confirmation_hook_appends_last_block_hashes() {
         txs_commitment.into(),
         root,
         l1_fee_rate,
+        0,
         &mut working_set,
     );
 
@@ -363,6 +369,7 @@ fn begin_soft_confirmation_hook_appends_last_block_hashes() {
             random_32_bytes,
             &random_32_bytes,
             l1_fee_rate,
+            0,
             &mut working_set,
         );
 
@@ -379,6 +386,7 @@ fn begin_soft_confirmation_hook_appends_last_block_hashes() {
         random_32_bytes,
         &random_32_bytes,
         l1_fee_rate,
+        0,
         &mut working_set,
     );
 
