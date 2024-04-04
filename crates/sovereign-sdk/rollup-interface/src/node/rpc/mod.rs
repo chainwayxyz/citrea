@@ -178,10 +178,7 @@ pub struct SoftBatchResponse {
     #[serde(with = "hex::serde")]
     pub hash: [u8; 32],
     /// The transactions in this batch.
-    #[serde(
-        skip_serializing_if = "Option::is_none",
-        serialize_with = "utils::tx_hex::serialize"
-    )]
+    #[serde(skip_serializing_if = "Option::is_none", with = "utils::tx_hex")]
     pub txs: Option<Vec<Vec<u8>>>,
     /// Pre-state root of the soft batch.
     #[serde(with = "hex::serde")]
@@ -486,9 +483,13 @@ pub mod utils {
     /// the actual vector of bytes by returning the hexidecimal representation of those bytes
     /// for each item.
     pub mod tx_hex {
-        use hex::ToHex;
+        use core::fmt;
+        use core::marker::PhantomData;
+
+        use hex::{FromHex, ToHex};
+        use serde::de::{self, Error, SeqAccess, Visitor};
         use serde::ser::SerializeSeq;
-        use serde::Serializer;
+        use serde::{Deserializer, Serializer};
 
         use crate::maybestd::format;
         use crate::maybestd::string::String;
@@ -510,6 +511,50 @@ pub mod utils {
                 return seq.end();
             }
             serializer.serialize_none()
+        }
+
+        /// Deserializes a vector of hex string into raw bytes.
+        pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<Vec<Vec<u8>>>, D::Error>
+        where
+            D: Deserializer<'de>,
+        {
+            struct HexStrVisitor(PhantomData<Option<Vec<Vec<u8>>>>);
+
+            impl<'de> Visitor<'de> for HexStrVisitor {
+                type Value = Option<Vec<Vec<u8>>>;
+
+                fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                    write!(f, "a hex encoded string")
+                }
+
+                fn visit_str<E>(self, data: &str) -> Result<Self::Value, E>
+                where
+                    E: Error,
+                {
+                    let data = data.trim_start_matches("0x");
+                    FromHex::from_hex(data)
+                        .map_err(Error::custom)
+                        .map(|res| Some(vec![res]))
+                }
+
+                fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+                where
+                    A: SeqAccess<'de>,
+                {
+                    let mut result = vec![];
+                    while let Some(item) = seq.next_element::<String>()? {
+                        let item = item.trim_start_matches("0x");
+                        result.push(
+                            FromHex::from_hex(&item)
+                                .map_err(|_| de::Error::custom("Could not convert from hex"))?,
+                        );
+                    }
+
+                    Ok(Some(result))
+                }
+            }
+
+            deserializer.deserialize_seq(HexStrVisitor(PhantomData))
         }
     }
 }
