@@ -41,7 +41,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             return;
         }
 
-        let mut block_env = self
+        let block_env = self
             .block_env
             .get(working_set)
             .expect("Pending block must be set");
@@ -73,9 +73,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let system_txs = create_system_transactions(system_events, system_nonce, cfg_env.chain_id);
 
         let mut citrea_handler_ext = CitreaExternal::new(l1_fee_rate);
+        let block_number = block_env.number;
         let tx_results = executor::execute_system_txs(
             db,
-            block_env.clone(),
+            block_env,
             &system_txs,
             cfg_env,
             &mut citrea_handler_ext,
@@ -116,7 +117,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 transaction: TransactionSignedAndRecovered {
                     signer: tx.signer(),
                     signed_transaction: tx.into(),
-                    block_number: block_env.number,
+                    block_number,
                 },
                 receipt,
             };
@@ -159,6 +160,13 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let mut citrea_handler_ext = CitreaExternal::new(l1_fee_rate);
 
         let block_number = block_env.number;
+        let mut cumulative_gas_used = 0;
+        let mut log_index_start = 0;
+        if let Some(tx) = self.pending_transactions.last(working_set) {
+            cumulative_gas_used = tx.receipt.receipt.cumulative_gas_used;
+            log_index_start = tx.receipt.log_index_start + tx.receipt.receipt.logs.len() as u64;
+        }
+
         let evm_db: EvmDb<'_, C> = self.get_db(working_set);
 
         let results = executor::execute_multiple_tx(
@@ -167,26 +175,21 @@ impl<C: sov_modules_api::Context> Evm<C> {
             &users_txs,
             cfg_env,
             &mut citrea_handler_ext,
+            cumulative_gas_used,
         );
 
         // Iterate each evm_txs_recovered and results pair
         // Create a PendingTransaction for each pair
         // Push each PendingTransaction to pending_transactions
         for (evm_tx_recovered, result) in users_txs.into_iter().zip(results.into_iter()) {
-            let previous_transaction = self.pending_transactions.last(working_set);
-            let previous_transaction_cumulative_gas_used = previous_transaction
-                .as_ref()
-                .map_or(0u64, |tx| tx.receipt.receipt.cumulative_gas_used);
-            let log_index_start = previous_transaction.as_ref().map_or(0u64, |tx| {
-                tx.receipt.log_index_start + tx.receipt.receipt.logs.len() as u64
-            });
-
             match result {
                 Ok(result) => {
                     // take ownership of result.log() and use into()
                     let logs: Vec<_> = result.logs().iter().cloned().map(Into::into).collect();
+                    let logs_len = logs.len() as u64;
 
                     let gas_used = result.gas_used();
+                    cumulative_gas_used += gas_used;
                     let tx_hash = evm_tx_recovered.hash();
                     let tx_info = citrea_handler_ext.get_tx_info(tx_hash).unwrap_or_else(|| {
                         panic!("evm: Could not get associated info for tx: {tx_hash}")
@@ -196,8 +199,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                         receipt: reth_primitives::Receipt {
                             tx_type: evm_tx_recovered.tx_type(),
                             success: result.is_success(),
-                            cumulative_gas_used: previous_transaction_cumulative_gas_used
-                                + gas_used,
+                            cumulative_gas_used,
                             logs,
                         },
                         gas_used,
@@ -205,6 +207,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                         diff_size: tx_info.diff_size,
                         error: None,
                     };
+                    log_index_start += logs_len;
 
                     let pending_transaction = PendingTransaction {
                         transaction: TransactionSignedAndRecovered {

@@ -62,13 +62,14 @@ pub(crate) fn execute_multiple_tx<
     txs: &[TransactionSignedEcRecovered],
     config_env: CfgEnvWithHandlerCfg,
     ext: &mut EXT,
+    prev_gas_used: u64,
 ) -> Vec<Result<ExecutionResult, EVMError<Infallible>>> {
     if txs.is_empty() {
         return vec![];
     }
 
     let block_gas_limit = block_env.gas_limit;
-    let mut cumulative_gas_used = 0u64;
+    let mut cumulative_gas_used = prev_gas_used;
 
     let mut evm = CitreaEvm::new(db, block_env, config_env, ext);
 
