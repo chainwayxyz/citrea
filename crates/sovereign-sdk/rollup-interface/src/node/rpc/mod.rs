@@ -545,7 +545,7 @@ pub mod utils {
                     while let Some(item) = seq.next_element::<String>()? {
                         let item = item.trim_start_matches("0x");
                         result.push(
-                            FromHex::from_hex(&item)
+                            FromHex::from_hex(item)
                                 .map_err(|_| de::Error::custom("Could not convert from hex"))?,
                         );
                     }
