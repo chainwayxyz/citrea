@@ -90,6 +90,7 @@ where
             self.latest_block_hashes
                 .remove(&U256::from(new_pending_env.number - 257), working_set);
         }
+        self.last_l1_hash.set(&da_slot_hash.into(), working_set);
     }
 
     /// Logic executed at the end of the slot. Here, we generate an authenticated block and set it as the new head of the chain.
@@ -122,8 +123,6 @@ where
             "Pending head must be set to block {}, but found block {}",
             expected_block_number, block_env.number
         );
-
-        self.last_l1_hash.set(&block_env.prevrandao, working_set);
 
         let pending_transactions: Vec<PendingTransaction> =
             self.pending_transactions.iter(working_set).collect();

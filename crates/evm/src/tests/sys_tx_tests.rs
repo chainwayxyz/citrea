@@ -76,9 +76,6 @@ fn test_sys_l1blockhashlist() {
 
     let l1_fee_rate = 1;
 
-    let deploy_message =
-        create_contract_message_with_fee(&dev_signer, 0, BlockHashContract::default(), 1);
-
     let system_account = evm.accounts.get(&SYSTEM_SIGNER, &mut working_set).unwrap();
     // The system caller balance is unchanged(if exists)/or should be 0
     assert_eq!(system_account.info.balance, U256::from(0));
@@ -97,6 +94,9 @@ fn test_sys_l1blockhashlist() {
         let sender_address = generate_address::<C>("sender");
         let sequencer_address = generate_address::<C>("sequencer");
         let context = C::new(sender_address, sequencer_address, 1);
+
+        let deploy_message =
+            create_contract_message_with_fee(&dev_signer, 0, BlockHashContract::default(), 1);
 
         evm.call(
             CallMessage {

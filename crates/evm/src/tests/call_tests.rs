@@ -600,7 +600,7 @@ pub fn create_contract_message<T: TestContract>(
         .unwrap()
 }
 
-pub fn create_contract_message_with_fee<T: TestContract>(
+pub(crate) fn create_contract_message_with_fee<T: TestContract>(
     dev_signer: &TestSigner,
     nonce: u64,
     contract: T,
