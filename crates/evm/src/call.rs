@@ -30,8 +30,6 @@ pub struct CallMessage {
 
 impl<C: sov_modules_api::Context> Evm<C> {
     /// Executes system events for the current block and push tx to pending_transactions.
-    ///
-    /// Returns cumulative used gas.
     pub(crate) fn execute_system_events(
         &self,
         system_events: Vec<SystemEvent>,
@@ -89,7 +87,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
             log_index_start = tx.receipt.log_index_start + tx.receipt.receipt.logs.len() as u64;
         }
 
-        let mut pending_txs = vec![];
         for (tx, result) in system_txs.into_iter().zip(tx_results.into_iter()) {
             let logs: Vec<_> = result.logs().iter().cloned().map(Into::into).collect();
             let logs_len = logs.len() as u64;
@@ -121,13 +118,9 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 },
                 receipt,
             };
-            pending_txs.push(pending_transaction);
+            self.pending_transactions
+                .push(&pending_transaction, working_set);
         }
-        for pending_tx in pending_txs {
-            self.pending_transactions.push(&pending_tx, working_set);
-        }
-
-        // block_env.gas_used += cumulative_gas_used;
     }
 
     /// Executes a call message.

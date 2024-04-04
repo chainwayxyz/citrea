@@ -37,7 +37,7 @@ pub(crate) fn create_rpc_module<C: sov_modules_api::Context>(
 
         let pool_transaction = EthPooledTransaction::from_recovered_pooled_transaction(recovered);
 
-        // submit the transaction to the pool with a `Local` origin
+        // submit the transaction to the pool with an `External` origin
         let hash: B256 = ctx
             .mempool
             .add_external_transaction(pool_transaction)
