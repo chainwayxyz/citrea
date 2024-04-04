@@ -79,7 +79,7 @@ fn test_sys_l1blockhashlist() {
     let system_account = evm.accounts.get(&SYSTEM_SIGNER, &mut working_set).unwrap();
     // The system caller balance is unchanged(if exists)/or should be 0
     assert_eq!(system_account.info.balance, U256::from(0));
-    assert_eq!(system_account.info.nonce, 0);
+    assert_eq!(system_account.info.nonce, 2);
 
     // New L1 block №2
     evm.begin_soft_confirmation_hook(
@@ -113,7 +113,7 @@ fn test_sys_l1blockhashlist() {
     let system_account = evm.accounts.get(&SYSTEM_SIGNER, &mut working_set).unwrap();
     // The system caller balance is unchanged(if exists)/or should be 0
     assert_eq!(system_account.info.balance, U256::from(0));
-    assert_eq!(system_account.info.nonce, 0);
+    assert_eq!(system_account.info.nonce, 3);
 
     let receipts: Vec<_> = evm
         .receipts

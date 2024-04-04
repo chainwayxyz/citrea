@@ -182,6 +182,18 @@ impl<SPEC: Spec, EXT: CitreaExternalExt, DB: Database> CitreaHandler<SPEC, EXT, 
     fn deduct_caller(context: &mut Context<EXT, DB>) -> Result<(), EVMError<DB::Error>> {
         if context.is_system_caller() {
             // System caller doesn't spend gas.
+            // bump the nonce for calls.
+            // TODO check: Nonce for CREATE will be bumped in `handle_create`.
+            if context.evm.env.tx.transact_to.is_call() {
+                // Nonce is already checked
+                let tx_caller = context.evm.env.tx.caller;
+                let (caller_account, _) = context
+                    .evm
+                    .inner
+                    .journaled_state
+                    .load_account(tx_caller, &mut context.evm.inner.db)?;
+                caller_account.info.nonce = caller_account.info.nonce.saturating_add(1);
+            }
             return Ok(());
         }
         revm::handler::mainnet::deduct_caller::<SPEC, EXT, DB>(context)

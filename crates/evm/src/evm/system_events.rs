@@ -70,11 +70,15 @@ fn signed_system_transaction(
 
 pub(crate) fn create_system_transactions<I: IntoIterator<Item = SystemEvent>>(
     events: I,
-    nonce: u64,
+    mut nonce: u64,
     chain_id: u64,
 ) -> Vec<TransactionSignedEcRecovered> {
     events
         .into_iter()
-        .map(|event| signed_system_transaction(event, nonce, chain_id))
+        .map(|event| {
+            let tx = signed_system_transaction(event, nonce, chain_id);
+            nonce += 1;
+            tx
+        })
         .collect()
 }
