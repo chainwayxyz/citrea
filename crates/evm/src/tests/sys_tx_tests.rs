@@ -88,6 +88,7 @@ fn test_sys_l1blockhashlist() {
         [3u8; 32],
         &[10u8; 32],
         l1_fee_rate,
+        42,
         &mut working_set,
     );
     {

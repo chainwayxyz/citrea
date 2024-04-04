@@ -42,7 +42,7 @@ fn logs_for_filter_test() {
         Filter {
             block_option: FilterBlockOption::AtBlockHash(
                 FixedBytes::from_hex(
-                    "0x463f932c9ef1c01a59f2495ddcb7ae16d1a4afc2b5f38998486c4bf16cc94a76",
+                    "0x2d7962c316685635252886d6801a553139e94e3b7d2b678f8c9d974a54e24ab9",
                 )
                 .unwrap(),
             ),
@@ -68,7 +68,15 @@ fn log_filter_test_at_block_hash() {
 
     let (evm, mut working_set) = get_evm(&config);
 
-    evm.begin_soft_confirmation_hook([5u8; 32], 1, [42u8; 32], &[10u8; 32], 1, &mut working_set);
+    evm.begin_soft_confirmation_hook(
+        [5u8; 32],
+        1,
+        [42u8; 32],
+        &[10u8; 32],
+        1,
+        0,
+        &mut working_set,
+    );
     {
         let sender_address = generate_address::<C>("sender");
         let sequencer_address = generate_address::<C>("sequencer");
@@ -262,7 +270,15 @@ fn log_filter_test_with_range() {
 
     let (evm, mut working_set) = get_evm(&config);
 
-    evm.begin_soft_confirmation_hook([5u8; 32], 1, [42u8; 32], &[10u8; 32], 1, &mut working_set);
+    evm.begin_soft_confirmation_hook(
+        [5u8; 32],
+        1,
+        [42u8; 32],
+        &[10u8; 32],
+        1,
+        0,
+        &mut working_set,
+    );
     {
         let sender_address = generate_address::<C>("sender");
         let sequencer_address = generate_address::<C>("sequencer");
@@ -311,7 +327,15 @@ fn log_filter_test_with_range() {
 
     assert_eq!(rpc_logs.len(), 4);
 
-    evm.begin_soft_confirmation_hook([5u8; 32], 1, [42u8; 32], &[99u8; 32], 1, &mut working_set);
+    evm.begin_soft_confirmation_hook(
+        [5u8; 32],
+        1,
+        [42u8; 32],
+        &[99u8; 32],
+        1,
+        0,
+        &mut working_set,
+    );
     {
         let sender_address = generate_address::<C>("sender");
         let sequencer_address = generate_address::<C>("sequencer");
@@ -360,7 +384,15 @@ fn test_log_limits() {
 
     let (evm, mut working_set) = get_evm(&config);
 
-    evm.begin_soft_confirmation_hook([5u8; 32], 1, [42u8; 32], &[10u8; 32], 1, &mut working_set);
+    evm.begin_soft_confirmation_hook(
+        [5u8; 32],
+        1,
+        [42u8; 32],
+        &[10u8; 32],
+        1,
+        0,
+        &mut working_set,
+    );
     {
         let sender_address = generate_address::<C>("sender");
         let sequencer_address = generate_address::<C>("sequencer");
@@ -454,6 +486,7 @@ fn test_log_limits() {
             [42u8; 32],
             &[99u8; 32],
             1,
+            0,
             &mut working_set,
         );
         evm.end_soft_confirmation_hook(&mut working_set);

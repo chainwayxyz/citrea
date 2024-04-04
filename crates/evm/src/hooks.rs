@@ -13,6 +13,7 @@ where
     <C::Storage as Storage>::Root: Into<[u8; 32]>,
 {
     /// Logic executed at the beginning of the slot. Here we set the state root of the previous head.
+    #[allow(clippy::too_many_arguments)]
     pub fn begin_soft_confirmation_hook(
         &self,
         da_slot_hash: [u8; 32],
@@ -20,6 +21,7 @@ where
         da_slot_txs_commitment: [u8; 32],
         pre_state_root: &[u8],
         l1_fee_rate: u64,
+        timestamp: u64,
         working_set: &mut WorkingSet<C>,
     ) {
         let mut parent_block = self
@@ -66,7 +68,7 @@ where
         let new_pending_env = BlockEnv {
             number: parent_block.header.number + 1,
             coinbase: cfg.coinbase,
-            timestamp: parent_block.header.timestamp + cfg.block_timestamp_delta,
+            timestamp,
             prevrandao: da_slot_hash.into(),
             basefee: parent_block
                 .header

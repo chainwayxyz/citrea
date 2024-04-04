@@ -43,6 +43,7 @@ fn begin_soft_confirmation_hook_checks_limiting_number() {
         vec![],
         vec![],
         vec![],
+        10,
     );
 
     // call begin_slot_hook 11 times
@@ -75,6 +76,7 @@ fn begin_soft_confirmation_hook_checks_l1_fee_rate() {
         vec![],
         vec![],
         vec![],
+        1,
     );
 
     // call first with 100 fee rate to set last_l1_fee_rate
@@ -195,6 +197,94 @@ fn begin_soft_confirmation_hook_checks_l1_fee_rate() {
     // since 90 passed now e.g. 89 should pass
 
     signed_soft_confirmation_batch.set_l1_fee_rate(89);
+
+    let res = soft_confirmation_rule_enforcer.begin_soft_confirmation_hook(
+        &mut signed_soft_confirmation_batch.clone().into(),
+        &mut working_set,
+    );
+
+    assert!(res.is_ok());
+}
+
+#[test]
+fn begin_soft_confirmation_hook_checks_timestamp() {
+    let (soft_confirmation_rule_enforcer, mut working_set) =
+        get_soft_confirmation_rule_enforcer::<MockDaSpec>(&TEST_CONFIG);
+
+    let original_timestamp = chrono::Local::now().timestamp() as u64;
+
+    let signed_soft_confirmation_batch = SignedSoftConfirmationBatch::new(
+        [0; 32],
+        0,
+        [0; 32],
+        [0; 32],
+        vec![],
+        100,
+        vec![],
+        vec![],
+        vec![],
+        original_timestamp,
+    );
+
+    // call first with `original_timestamp`
+    let res = soft_confirmation_rule_enforcer.begin_soft_confirmation_hook(
+        &mut signed_soft_confirmation_batch.clone().into(),
+        &mut working_set,
+    );
+
+    assert!(res.is_ok());
+
+    // now call with a timestamp before the original one.
+    // should fail
+    let signed_soft_confirmation_batch = SignedSoftConfirmationBatch::new(
+        [0; 32],
+        0,
+        [0; 32],
+        [0; 32],
+        vec![],
+        100,
+        vec![],
+        vec![],
+        vec![],
+        original_timestamp - 1000,
+    );
+
+    let res = soft_confirmation_rule_enforcer.begin_soft_confirmation_hook(
+        &mut signed_soft_confirmation_batch.clone().into(),
+        &mut working_set,
+    );
+
+    assert!(res.is_err());
+
+    assert_eq!(
+        format!(
+            "{}",
+            anyhow!(
+                "Current block's timestamp {} is not greater than the previous block's one {}",
+                signed_soft_confirmation_batch.timestamp(),
+                soft_confirmation_rule_enforcer
+                    .last_timestamp
+                    .get(&mut working_set)
+                    .unwrap()
+            )
+        ),
+        format!("{}", res.unwrap_err())
+    );
+
+    // now call with a timestamp after the original one.
+    // should fail
+    let signed_soft_confirmation_batch = SignedSoftConfirmationBatch::new(
+        [0; 32],
+        0,
+        [0; 32],
+        [0; 32],
+        vec![],
+        100,
+        vec![],
+        vec![],
+        vec![],
+        original_timestamp + 1000,
+    );
 
     let res = soft_confirmation_rule_enforcer.begin_soft_confirmation_hook(
         &mut signed_soft_confirmation_batch.clone().into(),

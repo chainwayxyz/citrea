@@ -294,12 +294,15 @@ pub trait RollupBlueprint: Sized + Send + Sync {
             prover_service,
             sequencer_client,
             rollup_config.sequencer_public_key,
+            rollup_config.sequencer_da_pub_key,
+            rollup_config.prover_da_pub_key,
             rollup_config.include_tx_body,
         )?;
 
         Ok(Rollup {
             runner,
             rpc_methods,
+            is_prover,
         })
     }
 }
@@ -353,6 +356,8 @@ pub struct Rollup<S: RollupBlueprint> {
     >,
     /// Rpc methods for the rollup.
     pub rpc_methods: jsonrpsee::RpcModule<()>,
+    /// True for prover node, false for full node.
+    pub is_prover: bool,
 }
 
 impl<S: RollupBlueprint> Rollup<S> {
@@ -374,7 +379,11 @@ impl<S: RollupBlueprint> Rollup<S> {
     ) -> Result<(), anyhow::Error> {
         let mut runner = self.runner;
         runner.start_rpc_server(self.rpc_methods, channel).await;
-        runner.run_in_process().await?;
+        if self.is_prover {
+            runner.run_prover_process().await?;
+        } else {
+            runner.run_in_process().await?;
+        }
         Ok(())
     }
 }

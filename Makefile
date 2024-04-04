@@ -29,7 +29,11 @@ install-dev-tools:  ## Installs all necessary cargo helpers
 	cargo install cargo-nextest --locked
 	cargo install cargo-binstall
 	cargo binstall cargo-risczero
+ifeq ($(shell uname -ms), Darwin x86_64)
+	cargo risczero build-toolchain
+else
 	cargo risczero install
+endif
 	rustup target add thumbv6m-none-eabi
 
 lint:  ## cargo check and clippy. Skip clippy on guest code since it's not supported by risc0

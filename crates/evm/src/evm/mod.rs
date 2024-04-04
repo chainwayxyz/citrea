@@ -101,9 +101,6 @@ pub struct EvmChainConfig {
     /// Gas limit for single block
     pub block_gas_limit: u64,
 
-    /// Delta to add to parent block timestamp
-    pub block_timestamp_delta: u64,
-
     /// Base fee params.
     pub base_fee_params: BaseFeeParams,
 }
@@ -117,7 +114,6 @@ impl Default for EvmChainConfig {
             spec: vec![(0, SpecId::SHANGHAI)],
             coinbase: Address::ZERO,
             block_gas_limit: reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT,
-            block_timestamp_delta: 2,
             base_fee_params: BaseFeeParams::ethereum(),
         }
     }

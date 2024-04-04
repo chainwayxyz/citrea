@@ -55,6 +55,7 @@ fn call_multiple_test() {
         [42u8; 32],
         &[10u8; 32],
         l1_fee_rate,
+        0,
         &mut working_set,
     );
 
@@ -162,6 +163,7 @@ fn call_test() {
         [42u8; 32],
         &[10u8; 32],
         l1_fee_rate,
+        0,
         &mut working_set,
     );
 
@@ -238,6 +240,7 @@ fn failed_transaction_test() {
         [42u8; 32],
         &[10u8; 32],
         l1_fee_rate,
+        0,
         working_set,
     );
     {
@@ -294,6 +297,7 @@ fn self_destruct_test() {
         [42u8; 32],
         &[10u8; 32],
         l1_fee_rate,
+        0,
         &mut working_set,
     );
     {
@@ -349,6 +353,7 @@ fn self_destruct_test() {
         [42u8; 32],
         &[99u8; 32],
         l1_fee_rate,
+        0,
         &mut working_set,
     );
     {
@@ -425,6 +430,7 @@ fn test_block_hash_in_evm() {
         [42u8; 32],
         &[10u8; 32],
         l1_fee_rate,
+        0,
         &mut working_set,
     );
     {
@@ -455,6 +461,7 @@ fn test_block_hash_in_evm() {
             [42u8; 32],
             &[99u8; 32],
             l1_fee_rate,
+            0,
             &mut working_set,
         );
         evm.end_soft_confirmation_hook(&mut working_set);
@@ -537,6 +544,7 @@ fn test_block_gas_limit() {
         [42u8; 32],
         &[10u8; 32],
         l1_fee_rate,
+        0,
         &mut working_set,
     );
     {
@@ -803,6 +811,7 @@ fn test_l1_fee_success() {
             [42u8; 32],
             &[10u8; 32],
             l1_fee_rate,
+            0,
             &mut working_set,
         );
         {
@@ -877,6 +886,7 @@ fn test_l1_fee_not_enough_funds() {
         [42u8; 32],
         &[10u8; 32],
         l1_fee_rate,
+        0,
         &mut working_set,
     );
     {

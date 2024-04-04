@@ -34,6 +34,9 @@ pub struct SoftConfirmationRuleEnforcer<C: Context, Da: DaSpec> {
     /// 0 at genesis
     #[state]
     pub(crate) last_l1_fee_rate: StateValue<u64, BcsCodec>,
+    /// Sequencer's block timestamp
+    #[state]
+    pub(crate) last_timestamp: StateValue<u64, BcsCodec>,
     /// Phantom state using the da type.
     /// This is used to make sure that the state is generic over the DA type.
     #[allow(dead_code)]

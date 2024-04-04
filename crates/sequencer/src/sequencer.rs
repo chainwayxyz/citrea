@@ -30,7 +30,7 @@ use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::stf::{SoftBatchReceipt, StateTransitionFunction};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::ZkvmHost;
-use sov_stf_runner::{InitVariant, RunnerConfig};
+use sov_stf_runner::{InitVariant, RpcConfig, RunnerConfig};
 use tracing::{debug, info, warn};
 
 use crate::commitment_controller;
@@ -63,7 +63,7 @@ where
     storage_manager: Sm,
     state_root: StateRoot<Stf, Vm, Da::Spec>,
     sequencer_pub_key: Vec<u8>,
-    listen_address: SocketAddr,
+    rpc_config: RpcConfig,
 }
 
 impl<C, Da, Sm, Vm, Stf> CitreaSequencer<C, Da, Sm, Vm, Stf>
@@ -125,10 +125,6 @@ where
 
         let pool = CitreaMempool::new(db_provider.clone());
 
-        let rpc_config = runner_config.rpc_config;
-
-        let listen_address = SocketAddr::new(rpc_config.bind_host.parse()?, rpc_config.bind_port);
-
         Ok(Self {
             da_service,
             mempool: Arc::new(pool),
@@ -143,7 +139,7 @@ where
             storage_manager,
             state_root: prev_state_root,
             sequencer_pub_key,
-            listen_address,
+            rpc_config: runner_config.rpc_config,
         })
     }
 
@@ -154,9 +150,19 @@ where
     ) -> Result<(), anyhow::Error> {
         let methods = self.register_rpc_methods(methods)?;
 
-        let listen_address = self.listen_address;
+        let listen_address = SocketAddr::new(
+            self.rpc_config
+                .bind_host
+                .parse()
+                .expect("Failed to parse bind host"),
+            self.rpc_config.bind_port,
+        );
+
+        let max_connections = self.rpc_config.max_connections;
+
         let _handle = tokio::spawn(async move {
             let server = jsonrpsee::server::ServerBuilder::default()
+                .max_connections(max_connections)
                 .build([listen_address].as_ref())
                 .await
                 .unwrap();
@@ -196,6 +202,9 @@ where
             l1_height == da_height || l1_height + 1 == da_height,
             "Sequencer: L1 height mismatch, expected {da_height} (or {da_height}-1), got {l1_height}",
         );
+
+        let timestamp = chrono::Local::now().timestamp() as u64;
+
         let batch_info = HookSoftConfirmationInfo {
             da_slot_height: da_block.header().height(),
             da_slot_hash: da_block.header().hash().into(),
@@ -203,6 +212,7 @@ where
             pre_state_root: self.state_root.clone().as_ref().to_vec(),
             pub_key: self.sov_tx_signer_priv_key.pub_key().try_to_vec().unwrap(),
             l1_fee_rate,
+            timestamp,
         };
         let mut signed_batch: SignedSoftConfirmationBatch = batch_info.clone().into();
         // initially create sc info and call begin soft confirmation hook with it
@@ -244,6 +254,7 @@ where
                     self.state_root.clone().as_ref().to_vec(),
                     txs,
                     l1_fee_rate,
+                    timestamp,
                 );
 
                 let mut signed_soft_batch = self.sign_soft_confirmation_batch(unsigned_batch);
@@ -301,6 +312,7 @@ where
                     soft_confirmation_signature: signed_soft_batch.signature().to_vec(),
                     pub_key: signed_soft_batch.pub_key().to_vec(),
                     l1_fee_rate: signed_soft_batch.l1_fee_rate(),
+                    timestamp: signed_soft_batch.timestamp(),
                 };
 
                 // TODO: this will only work for mock da
@@ -531,6 +543,7 @@ where
             soft_confirmation.txs(),
             signature.try_to_vec().unwrap(),
             self.sov_tx_signer_priv_key.pub_key().try_to_vec().unwrap(),
+            soft_confirmation.timestamp(),
         )
     }
 

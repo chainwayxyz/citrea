@@ -17,6 +17,7 @@ pub struct UnsignedSoftConfirmationBatch {
     pre_state_root: Vec<u8>,
     txs: Vec<Vec<u8>>,
     l1_fee_rate: u64,
+    timestamp: u64,
 }
 
 impl UnsignedSoftConfirmationBatch {
@@ -28,6 +29,7 @@ impl UnsignedSoftConfirmationBatch {
         pre_state_root: Vec<u8>,
         txs: Vec<Vec<u8>>,
         l1_fee_rate: u64,
+        timestamp: u64,
     ) -> Self {
         Self {
             da_slot_height,
@@ -36,6 +38,7 @@ impl UnsignedSoftConfirmationBatch {
             pre_state_root,
             txs,
             l1_fee_rate,
+            timestamp,
         }
     }
     /// DA block to build on
@@ -62,6 +65,10 @@ impl UnsignedSoftConfirmationBatch {
     pub fn l1_fee_rate(&self) -> u64 {
         self.l1_fee_rate
     }
+    /// Sequencer block timestamp
+    pub fn timestamp(&self) -> u64 {
+        self.timestamp
+    }
 }
 
 /// Signed version of the `UnsignedSoftConfirmationBatch`
@@ -77,6 +84,7 @@ pub struct SignedSoftConfirmationBatch {
     txs: Vec<Vec<u8>>,
     signature: Vec<u8>,
     pub_key: Vec<u8>,
+    timestamp: u64,
 }
 
 impl SignedSoftConfirmationBatch {
@@ -92,6 +100,7 @@ impl SignedSoftConfirmationBatch {
         txs: Vec<Vec<u8>>,
         signature: Vec<u8>,
         pub_key: Vec<u8>,
+        timestamp: u64,
     ) -> SignedSoftConfirmationBatch {
         Self {
             hash,
@@ -103,6 +112,7 @@ impl SignedSoftConfirmationBatch {
             txs,
             signature,
             pub_key,
+            timestamp,
         }
     }
 
@@ -169,5 +179,10 @@ impl SignedSoftConfirmationBatch {
     /// Sets da slot hash
     pub fn set_da_slot_hash(&mut self, da_slot_hash: [u8; 32]) {
         self.da_slot_hash = da_slot_hash;
+    }
+
+    /// Sequencer block timestamp
+    pub fn timestamp(&self) -> u64 {
+        self.timestamp
     }
 }
