@@ -891,17 +891,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "async-recursion"
-version = "1.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "30c5ef0ede93efbf733c1a727f3b6b5a1060bbedd5600183e66f6e4be4af0ec5"
-dependencies = [
- "proc-macro2 1.0.79",
- "quote 1.0.35",
- "syn 2.0.55",
-]
-
-[[package]]
 name = "async-trait"
 version = "0.1.79"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1196,7 +1185,6 @@ name = "bitcoin-da"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "async-recursion",
  "async-trait",
  "base64 0.13.1",
  "bitcoin",
