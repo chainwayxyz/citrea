@@ -68,7 +68,15 @@ fn log_filter_test_at_block_hash() {
 
     let (evm, mut working_set) = get_evm(&config);
 
-    evm.begin_soft_confirmation_hook([5u8; 32], [42u8; 32], &[10u8; 32], 1, 0, &mut working_set);
+    evm.begin_soft_confirmation_hook(
+        [5u8; 32],
+        1,
+        [42u8; 32],
+        &[10u8; 32],
+        1,
+        0,
+        &mut working_set,
+    );
     {
         let sender_address = generate_address::<C>("sender");
         let sequencer_address = generate_address::<C>("sequencer");
@@ -262,7 +270,15 @@ fn log_filter_test_with_range() {
 
     let (evm, mut working_set) = get_evm(&config);
 
-    evm.begin_soft_confirmation_hook([5u8; 32], [42u8; 32], &[10u8; 32], 1, 0, &mut working_set);
+    evm.begin_soft_confirmation_hook(
+        [5u8; 32],
+        1,
+        [42u8; 32],
+        &[10u8; 32],
+        1,
+        0,
+        &mut working_set,
+    );
     {
         let sender_address = generate_address::<C>("sender");
         let sequencer_address = generate_address::<C>("sequencer");
@@ -311,7 +327,15 @@ fn log_filter_test_with_range() {
 
     assert_eq!(rpc_logs.len(), 4);
 
-    evm.begin_soft_confirmation_hook([5u8; 32], [42u8; 32], &[99u8; 32], 1, 0, &mut working_set);
+    evm.begin_soft_confirmation_hook(
+        [5u8; 32],
+        1,
+        [42u8; 32],
+        &[99u8; 32],
+        1,
+        0,
+        &mut working_set,
+    );
     {
         let sender_address = generate_address::<C>("sender");
         let sequencer_address = generate_address::<C>("sequencer");
@@ -360,7 +384,15 @@ fn test_log_limits() {
 
     let (evm, mut working_set) = get_evm(&config);
 
-    evm.begin_soft_confirmation_hook([5u8; 32], [42u8; 32], &[10u8; 32], 1, 0, &mut working_set);
+    evm.begin_soft_confirmation_hook(
+        [5u8; 32],
+        1,
+        [42u8; 32],
+        &[10u8; 32],
+        1,
+        0,
+        &mut working_set,
+    );
     {
         let sender_address = generate_address::<C>("sender");
         let sequencer_address = generate_address::<C>("sequencer");
@@ -450,6 +482,7 @@ fn test_log_limits() {
         // generate 100_000 blocks to test the max block range limit
         evm.begin_soft_confirmation_hook(
             [5u8; 32],
+            1,
             [42u8; 32],
             &[99u8; 32],
             1,
