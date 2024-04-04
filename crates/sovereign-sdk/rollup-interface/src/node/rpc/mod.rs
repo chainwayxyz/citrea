@@ -491,9 +491,9 @@ pub mod utils {
         use serde::ser::SerializeSeq;
         use serde::{Deserializer, Serializer};
 
-        use crate::maybestd::format;
         use crate::maybestd::string::String;
         use crate::maybestd::vec::Vec;
+        use crate::maybestd::{format, vec};
 
         /// Serializes `data` as hex string using lowercase characters and prefixing with '0x'.
         pub fn serialize<S>(data: &Option<Vec<Vec<u8>>>, serializer: S) -> Result<S::Ok, S::Error>
