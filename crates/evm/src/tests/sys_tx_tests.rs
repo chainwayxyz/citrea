@@ -1,6 +1,7 @@
 use std::str::FromStr;
 
-use reth_primitives::{address, b256, hex, Log};
+use reth_primitives::{b256, hex, Log};
+use reth_rpc_types::{TransactionInput, TransactionRequest};
 use revm::primitives::{Bytes, U256};
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::utils::generate_address;
@@ -23,8 +24,10 @@ fn test_sys_l1blockhashlist() {
     let (mut config, dev_signer, _) =
         get_evm_config_starting_base_fee(U256::from_str("1000000").unwrap(), None, 1);
 
+    let l1_block_hash_list = L1BlockHashList::default();
+
     config.data.push(AccountData {
-        address: address!("3100000000000000000000000000000000000001"),
+        address: L1BlockHashList::address(),
         balance: U256::ZERO,
         code_hash: b256!("3910ced36f7b080ceb008e6ec62b2af85c83c215fc26c1d6c084bfce0d20e5fd"),
         code: Bytes::from_static(&hex!("608060405234801561001057600080fd5b50600436106100cf5760003560e01c806379ba50971161008c578063e30c397811610066578063e30c3978146101c0578063ee82ac5e146101d3578063f2fde38b146101f3578063fe5a53771461020657600080fd5b806379ba50971461016d5780638da5cb5b14610175578063be7d4fb1146101a057600080fd5b80630e27bc11146100d45780631f578333146100e957806334cdf78d146100fc5780633dc090b31461012f57806357e871e71461015c578063715018a614610165575b600080fd5b6100e76100e2366004610550565b610226565b005b6100e76100f7366004610572565b610319565b61011c61010a366004610572565b60026020526000908152604090205481565b6040519081526020015b60405180910390f35b61011c61013d366004610572565b6000908152600260209081526040808320548352600390915290205490565b61011c60045481565b6100e761038e565b6100e7610404565b600054610188906001600160a01b031681565b6040516001600160a01b039091168152602001610126565b61011c6101ae366004610572565b60009081526003602052604090205490565b600154610188906001600160a01b031681565b61011c6101e1366004610572565b60009081526002602052604090205490565b6100e761020136600461058b565b6104ca565b61011c610214366004610572565b60036020526000908152604090205481565b6000546001600160a01b031633146102595760405162461bcd60e51b8152600401610250906105bb565b60405180910390fd5b600454600081900361029f5760405162461bcd60e51b815260206004820152600f60248201526e139bdd081a5b9a5d1a585b1a5e9959608a1b6044820152606401610250565b60008181526002602052604090208390556102bb8160016105e8565b60049081556000848152600360209081526040918290208590559154815190815291820185905281018390527f32eff959e2e8d1609edc4b39ccf75900aa6c1da5719f8432752963fdf008234f9060600160405180910390a1505050565b6000546001600160a01b031633146103435760405162461bcd60e51b8152600401610250906105bb565b600454156103895760405162461bcd60e51b8152602060048201526013602482015272105b1c9958591e481a5b9a5d1a585b1a5e9959606a1b6044820152606401610250565b600455565b6000546001600160a01b031633146103b85760405162461bcd60e51b8152600401610250906105bb565b600080546001600160a01b03191681556040805182815260208101929092527f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0910160405180910390a1565b6001546001600160a01b0316331461045e5760405162461bcd60e51b815260206004820152601b60248201527f43616c6c6572206973206e6f742070656e64696e67206f776e657200000000006044820152606401610250565b60008054600180546001600160a01b03198084166001600160a01b038084169190911786559116909155604080519190921680825260208201939093527f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e091015b60405180910390a150565b6000546001600160a01b031633146104f45760405162461bcd60e51b8152600401610250906105bb565b600180546001600160a01b0319166001600160a01b038381169182179092556000546040805191909316815260208101919091527fed8889f560326eb138920d842192f0eb3dd22b4f139c87a2c57538e05bae127891016104bf565b6000806040838503121561056357600080fd5b50508035926020909101359150565b60006020828403121561058457600080fd5b5035919050565b60006020828403121561059d57600080fd5b81356001600160a01b03811681146105b457600080fd5b9392505050565b60208082526013908201527221b0b63632b91034b9903737ba1037bbb732b960691b604082015260600190565b8082018082111561060957634e487b7160e01b600052601160045260246000fd5b9291505056fea26469706673582212205dfa4db05d69b0ec5242ffb4b3b1827ebae2a2d822480dd81d73892aca15054264736f6c63430008190033")),
@@ -80,6 +83,42 @@ fn test_sys_l1blockhashlist() {
     // The system caller balance is unchanged(if exists)/or should be 0
     assert_eq!(system_account.info.balance, U256::from(0));
     assert_eq!(system_account.info.nonce, 2);
+
+    let hash = evm
+        .get_call(
+            TransactionRequest {
+                to: Some(L1BlockHashList::address()),
+                input: TransactionInput::new(l1_block_hash_list.get_block_hash(1).to_vec().into()),
+                ..Default::default()
+            },
+            None,
+            None,
+            None,
+            &mut working_set,
+        )
+        .unwrap();
+
+    let merkle_root = evm
+        .get_call(
+            TransactionRequest {
+                to: Some(L1BlockHashList::address()),
+                input: TransactionInput::new(
+                    l1_block_hash_list
+                        .get_merkle_root_by_number(1)
+                        .to_vec()
+                        .into(),
+                ),
+                ..Default::default()
+            },
+            None,
+            None,
+            None,
+            &mut working_set,
+        )
+        .unwrap();
+
+    assert_eq!(hash.as_ref(), &[1u8; 32]);
+    assert_eq!(merkle_root.as_ref(), &[2u8; 32]);
 
     // New L1 block №2
     evm.begin_soft_confirmation_hook(
@@ -163,4 +202,40 @@ fn test_sys_l1blockhashlist() {
         .get(&config.coinbase, &mut working_set)
         .unwrap();
     assert_eq!(coinbase_account.info.balance, U256::from(114235 + 477));
+
+    let hash = evm
+        .get_call(
+            TransactionRequest {
+                to: Some(L1BlockHashList::address()),
+                input: TransactionInput::new(l1_block_hash_list.get_block_hash(2).to_vec().into()),
+                ..Default::default()
+            },
+            None,
+            None,
+            None,
+            &mut working_set,
+        )
+        .unwrap();
+
+    let merkle_root = evm
+        .get_call(
+            TransactionRequest {
+                to: Some(L1BlockHashList::address()),
+                input: TransactionInput::new(
+                    l1_block_hash_list
+                        .get_merkle_root_by_number(2)
+                        .to_vec()
+                        .into(),
+                ),
+                ..Default::default()
+            },
+            None,
+            None,
+            None,
+            &mut working_set,
+        )
+        .unwrap();
+
+    assert_eq!(hash.as_ref(), &[2u8; 32]);
+    assert_eq!(merkle_root.as_ref(), &[3u8; 32]);
 }
