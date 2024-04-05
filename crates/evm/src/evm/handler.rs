@@ -4,12 +4,14 @@ use std::mem::size_of;
 use std::sync::Arc;
 
 use revm::handler::register::{EvmHandler, HandleRegisters};
-use revm::interpreter::{Gas, InstructionResult};
-use revm::primitives::{
-    spec_to_generic, Address, EVMError, Env, HandlerCfg, InvalidTransaction, ResultAndState, Spec,
-    SpecId, B256, U256,
+use revm::interpreter::{
+    CallInputs, CallOutcome, CreateInputs, CreateOutcome, Gas, InstructionResult, Interpreter,
 };
-use revm::{Context, Database, FrameResult, InnerEvmContext, JournalEntry};
+use revm::primitives::{
+    spec_to_generic, Address, EVMError, Env, HandlerCfg, InvalidTransaction, Log, ResultAndState,
+    Spec, SpecId, B256, U256,
+};
+use revm::{Context, Database, EvmContext, FrameResult, InnerEvmContext, Inspector, JournalEntry};
 
 use crate::system_events::SYSTEM_SIGNER;
 
@@ -85,6 +87,96 @@ impl CitreaExternalExt for CitreaExternal {
     }
 }
 
+/// This is both a `CitreaExternal` and a `TracingInspector`.
+pub(crate) struct TracingCitreaExternal<I, DB> {
+    ext: CitreaExternal,
+    inspector: I,
+    _ph: core::marker::PhantomData<DB>,
+}
+
+impl<I, DB> TracingCitreaExternal<I, DB>
+where
+    DB: Database,
+    I: Inspector<DB>,
+{
+    pub(crate) fn new(inspector: I, l1_fee_rate: u64) -> Self {
+        Self {
+            ext: CitreaExternal::new(l1_fee_rate),
+            inspector,
+            _ph: Default::default(),
+        }
+    }
+}
+
+// Pass all methods to self.ext
+impl<I, DB> CitreaExternalExt for TracingCitreaExternal<I, DB> {
+    fn l1_fee_rate(&self) -> u64 {
+        self.ext.l1_fee_rate()
+    }
+    fn set_current_tx_hash(&mut self, hash: B256) {
+        self.ext.set_current_tx_hash(hash);
+    }
+    fn set_tx_info(&mut self, info: TxInfo) {
+        self.ext.set_tx_info(info);
+    }
+    fn get_tx_info(&self, tx_hash: B256) -> Option<TxInfo> {
+        self.ext.get_tx_info(tx_hash)
+    }
+}
+
+// Pass all methods to self.inspector
+impl<I, DB> Inspector<DB> for TracingCitreaExternal<I, DB>
+where
+    DB: Database,
+    I: Inspector<DB>,
+{
+    fn initialize_interp(&mut self, interp: &mut Interpreter, context: &mut EvmContext<DB>) {
+        self.inspector.initialize_interp(interp, context)
+    }
+    fn step(&mut self, interp: &mut Interpreter, context: &mut EvmContext<DB>) {
+        self.inspector.step(interp, context)
+    }
+    fn step_end(&mut self, interp: &mut Interpreter, context: &mut EvmContext<DB>) {
+        self.inspector.step_end(interp, context)
+    }
+    fn log(&mut self, context: &mut EvmContext<DB>, log: &Log) {
+        self.inspector.log(context, log)
+    }
+    fn call(
+        &mut self,
+        context: &mut EvmContext<DB>,
+        inputs: &mut CallInputs,
+    ) -> Option<CallOutcome> {
+        self.inspector.call(context, inputs)
+    }
+    fn call_end(
+        &mut self,
+        context: &mut EvmContext<DB>,
+        inputs: &CallInputs,
+        outcome: CallOutcome,
+    ) -> CallOutcome {
+        self.inspector.call_end(context, inputs, outcome)
+    }
+    fn create(
+        &mut self,
+        context: &mut EvmContext<DB>,
+        inputs: &mut CreateInputs,
+    ) -> Option<CreateOutcome> {
+        self.inspector.create(context, inputs)
+    }
+    fn create_end(
+        &mut self,
+        context: &mut EvmContext<DB>,
+        inputs: &CreateInputs,
+        outcome: CreateOutcome,
+    ) -> CreateOutcome {
+        self.inspector.create_end(context, inputs, outcome)
+    }
+    fn selfdestruct(&mut self, contract: Address, target: Address, value: U256) {
+        (&mut self.inspector as &mut dyn Inspector<DB>).selfdestruct(contract, target, value)
+    }
+}
+
 /// Additional methods applied to the EVM environment.
 trait CitreaEnv {
     /// Whether the call is made by `SYSTEM_SIGNER`.
@@ -113,7 +205,7 @@ where
     handler
 }
 
-fn citrea_handle_register<DB, EXT>(handler: &mut EvmHandler<'_, EXT, DB>)
+pub(crate) fn citrea_handle_register<DB, EXT>(handler: &mut EvmHandler<'_, EXT, DB>)
 where
     DB: Database,
     EXT: CitreaExternalExt,
