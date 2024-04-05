@@ -376,7 +376,7 @@ fn call_test() {
 
 fn check_against_third_block(block: &Rich<Block>) {
     // details = false
-    let inner_block = serde_json::from_value::<Block>(json!({
+    let mut inner_block = serde_json::from_value::<Block>(json!({
         "hash": "0x2d7962c316685635252886d6801a553139e94e3b7d2b678f8c9d974a54e24ab9",
         "parentHash": "0x97dcd6347f726d864f7b4e2f279f535f0e050bdba9da89e9b2cc744897565432",
         "sha3Uncles": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
@@ -402,8 +402,20 @@ fn check_against_third_block(block: &Rich<Block>) {
             "0x17fa953338b32b30795ccb62f050f1c9bcdd48f4793fb2d6d34290b444841271",
             "0xd7e5b2bce65678b5e1a4430b1320b18a258fd5412e20bd5734f446124a9894e6"
         ],
-        "size": "0x54b"
+        "size": "0x54b",
     })).unwrap();
+
+    inner_block.other.insert(
+        "l1_fee_rate".to_string(),
+        serde_json::Value::Number(serde_json::Number::from(1)),
+    );
+
+    inner_block.other.insert(
+        "last_l1_hash".to_string(),
+        serde_json::Value::String(
+            "0x0808080808080808080808080808080808080808080808080808080808080808".to_string(),
+        ),
+    );
 
     let rich_block: Rich<Block> = Rich {
         inner: inner_block,
