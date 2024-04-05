@@ -54,7 +54,7 @@ contract BridgeTest is Test {
         l1BlockHashList.setBlockInfo(expected_blockhash, randomMerkleRoot);
     }
 
-    function testZeros() public {
+    function testZeros() public view {
         bytes32 zero = bridge.ZERO_VALUE();
         assertEq(zero, bridge.zeros(0));
         assertEq(zero, keccak256("CITREA"));
