@@ -161,6 +161,21 @@ pub struct SlotResponse<B, Tx> {
     pub batches: Option<Vec<ItemOrHash<BatchResponse<B, Tx>>>>,
 }
 
+/// A type that represents a transaction hash bytes.
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct HexTx {
+    /// Transaction hash bytes
+    #[serde(with = "hex::serde")]
+    pub tx: Vec<u8>,
+}
+
+impl From<Vec<u8>> for HexTx {
+    fn from(tx: Vec<u8>) -> Self {
+        Self { tx }
+    }
+}
+
 /// The response to a JSON-RPC request for a particular soft batch.
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct SoftBatchResponse {
@@ -178,8 +193,8 @@ pub struct SoftBatchResponse {
     #[serde(with = "hex::serde")]
     pub hash: [u8; 32],
     /// The transactions in this batch.
-    #[serde(skip_serializing_if = "Option::is_none", with = "utils::tx_hex")]
-    pub txs: Option<Vec<Vec<u8>>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub txs: Option<Vec<HexTx>>,
     /// Pre-state root of the soft batch.
     #[serde(with = "hex::serde")]
     pub pre_state_root: Vec<u8>,
@@ -474,87 +489,6 @@ pub mod utils {
             }
 
             deserializer.deserialize_str(HexStrVisitor(PhantomData))
-        }
-    }
-
-    /// Serialize an optional vector of transactions, each into a hex format.
-    ///
-    /// This would override the existing way of serializing the transactions by emitting
-    /// the actual vector of bytes by returning the hexidecimal representation of those bytes
-    /// for each item.
-    pub mod tx_hex {
-        use core::fmt;
-        use core::marker::PhantomData;
-
-        use hex::{FromHex, ToHex};
-        use serde::de::{self, Error, SeqAccess, Visitor};
-        use serde::ser::SerializeSeq;
-        use serde::{Deserializer, Serializer};
-
-        use crate::maybestd::string::String;
-        use crate::maybestd::vec::Vec;
-        use crate::maybestd::{format, vec};
-
-        /// Serializes `data` as hex string using lowercase characters and prefixing with '0x'.
-        pub fn serialize<S>(data: &Option<Vec<Vec<u8>>>, serializer: S) -> Result<S::Ok, S::Error>
-        where
-            S: Serializer,
-        {
-            if let Some(data) = data {
-                let data = data
-                    .iter()
-                    .map(|item| format!("0x{}", item.encode_hex::<String>()));
-                let mut seq = serializer.serialize_seq(Some(data.len()))?;
-                for e in data {
-                    seq.serialize_element(&e)?;
-                }
-                return seq.end();
-            }
-            serializer.serialize_none()
-        }
-
-        /// Deserializes a vector of hex string into raw bytes.
-        pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<Vec<Vec<u8>>>, D::Error>
-        where
-            D: Deserializer<'de>,
-        {
-            struct HexStrVisitor(PhantomData<Option<Vec<Vec<u8>>>>);
-
-            impl<'de> Visitor<'de> for HexStrVisitor {
-                type Value = Option<Vec<Vec<u8>>>;
-
-                fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                    write!(f, "a hex encoded string")
-                }
-
-                fn visit_str<E>(self, data: &str) -> Result<Self::Value, E>
-                where
-                    E: Error,
-                {
-                    let data = data.trim_start_matches("0x");
-                    FromHex::from_hex(data)
-                        .map_err(Error::custom)
-                        .map(|res| Some(vec![res]))
-                }
-
-                fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
-                where
-                    A: SeqAccess<'de>,
-                {
-                    let mut result = vec![];
-                    while let Some(item) = seq.next_element::<String>()? {
-                        let item = item.trim_start_matches("0x");
-                        result.push(
-                            FromHex::from_hex(item)
-                                .map_err(|_| de::Error::custom("Could not convert from hex"))?,
-                        );
-                    }
-
-                    Ok(Some(result))
-                }
-            }
-
-            deserializer.deserialize_seq(HexStrVisitor(PhantomData))
         }
     }
 }

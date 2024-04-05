@@ -108,7 +108,13 @@ impl TryFrom<StoredSoftBatch> for SoftBatchResponse {
             da_slot_height: value.da_slot_height,
             da_slot_txs_commitment: value.da_slot_txs_commitment,
             hash: value.hash,
-            txs: Some(value.txs.into_iter().filter_map(|tx| tx.body).collect()), // Rollup full nodes don't store tx bodies
+            txs: Some(
+                value
+                    .txs
+                    .into_iter()
+                    .filter_map(|tx| tx.body.map(Into::into))
+                    .collect(),
+            ), // Rollup full nodes don't store tx bodies
             pre_state_root: value.pre_state_root,
             post_state_root: value.post_state_root,
             soft_confirmation_signature: value.soft_confirmation_signature,
