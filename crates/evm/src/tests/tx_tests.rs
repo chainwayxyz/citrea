@@ -130,6 +130,7 @@ fn prepare_call_block_env() {
     let block = Block {
         header: Default::default(),
         l1_fee_rate: Default::default(),
+        last_l1_hash: Default::default(),
         transactions: Default::default(),
     };
 

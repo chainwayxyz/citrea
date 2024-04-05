@@ -113,6 +113,11 @@ where
             .get(working_set)
             .expect("L1 fee rate must be set");
 
+        let last_l1_hash = self
+            .last_l1_hash
+            .get(working_set)
+            .expect("Last L1 hash must be set");
+
         let parent_block = self
             .head
             .get(working_set)
@@ -182,6 +187,7 @@ where
         let block = Block {
             header,
             l1_fee_rate,
+            last_l1_hash,
             transactions: start_tx_index..start_tx_index + pending_transactions.len() as u64,
         };
 
