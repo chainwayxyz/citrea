@@ -26,10 +26,7 @@ type StorageManager = ProverStorageManager<MockDaSpec, S>;
 async fn init_and_restart() {
     let tmpdir = tempfile::tempdir().unwrap();
     let genesis_params = vec![1, 2, 3, 4, 5];
-    let init_variant: MockInitVariant = InitVariant::Genesis {
-        block_header: MockBlockHeader::from_height(0),
-        genesis_params,
-    };
+    let init_variant: MockInitVariant = InitVariant::Genesis(genesis_params);
 
     let state_root_after_genesis = {
         let runner = initialize_runner(tmpdir.path(), init_variant);

@@ -63,10 +63,7 @@ async fn test_simple_reorg_case() {
     let (_expected_committed_state_root, expected_committed_root_hash) =
         get_expected_execution_hash_from(&genesis_params, vec![vec![1, 1, 1, 1]]);
 
-    let init_variant: MockInitVariant = InitVariant::Genesis {
-        block_header: genesis_header,
-        genesis_params,
-    };
+    let init_variant: MockInitVariant = InitVariant::Genesis(genesis_params);
 
     let (before, after) = runner_execution(tmpdir.path(), init_variant, da_service).await;
     assert_ne!(before, after);
@@ -101,10 +98,7 @@ async fn test_instant_finality_data_stored() {
         vec![vec![1, 1, 1, 1], vec![2, 2, 2, 2], vec![3, 3, 3, 3]],
     );
 
-    let init_variant: MockInitVariant = InitVariant::Genesis {
-        block_header: genesis_header,
-        genesis_params,
-    };
+    let init_variant: MockInitVariant = InitVariant::Genesis(genesis_params);
 
     let (before, after) = runner_execution(tmpdir.path(), init_variant, da_service).await;
     assert_ne!(before, after);

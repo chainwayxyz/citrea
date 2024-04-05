@@ -100,14 +100,8 @@ where
                 debug!("Chain is already initialized. Skipping initialization.");
                 state_root
             }
-            InitVariant::Genesis {
-                block_header,
-                genesis_params: params,
-            } => {
-                info!(
-                    "No history detected. Initializing chain on block_header={:?}...",
-                    block_header
-                );
+            InitVariant::Genesis(params) => {
+                info!("No history detected. Initializing chain...",);
                 let storage = storage_manager.create_storage_on_l2_height(0)?;
                 let (genesis_root, initialized_storage) = stf.init_chain(storage, params);
                 storage_manager.save_change_set_l2(0, initialized_storage)?;
