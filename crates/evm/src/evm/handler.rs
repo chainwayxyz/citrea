@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 use std::mem::size_of;
 use std::sync::Arc;
@@ -5,16 +6,21 @@ use std::sync::Arc;
 use revm::handler::register::{EvmHandler, HandleRegisters};
 use revm::interpreter::{Gas, InstructionResult};
 use revm::primitives::{
-    spec_to_generic, Address, EVMError, HandlerCfg, ResultAndState, Spec, SpecId, B256, U256,
+    spec_to_generic, Address, EVMError, Env, HandlerCfg, InvalidTransaction, ResultAndState, Spec,
+    SpecId, B256, U256,
 };
 use revm::{Context, Database, FrameResult, InnerEvmContext, JournalEntry};
+
+use crate::system_events::SYSTEM_SIGNER;
 
 #[derive(Copy, Clone)]
 pub struct TxInfo {
     pub diff_size: u64,
 }
 
-pub(crate) trait CitreaHandlerContext {
+/// An external context appended to the EVM.
+/// In terms of Revm this is the trait for EXT for `Evm<'a, EXT, DB>`.
+pub(crate) trait CitreaExternalExt {
     /// Get current l1 fee rate.
     fn l1_fee_rate(&self) -> u64;
     /// Set tx hash for the current execution context.
@@ -25,8 +31,8 @@ pub(crate) trait CitreaHandlerContext {
     fn get_tx_info(&self, tx_hash: B256) -> Option<TxInfo>;
 }
 
-// Blanked impl for &mut T: CitreaExternal
-impl<T: CitreaHandlerContext> CitreaHandlerContext for &mut T {
+// Blanked impl for &mut T: CitreaExternalExt
+impl<T: CitreaExternalExt> CitreaExternalExt for &mut T {
     fn l1_fee_rate(&self) -> u64 {
         (**self).l1_fee_rate()
     }
@@ -41,14 +47,16 @@ impl<T: CitreaHandlerContext> CitreaHandlerContext for &mut T {
     }
 }
 
+/// This is an external context to be passed to the EVM.
+/// In terms of Revm this type replaces EXT in `Evm<'a, EXT, DB>`.
 #[derive(Default)]
-pub(crate) struct CitreaHandlerExt {
+pub(crate) struct CitreaExternal {
     l1_fee_rate: u64,
     current_tx_hash: Option<B256>,
     tx_infos: HashMap<B256, TxInfo>,
 }
 
-impl CitreaHandlerExt {
+impl CitreaExternal {
     pub(crate) fn new(l1_fee_rate: u64) -> Self {
         Self {
             l1_fee_rate,
@@ -57,7 +65,7 @@ impl CitreaHandlerExt {
     }
 }
 
-impl CitreaHandlerContext for CitreaHandlerExt {
+impl CitreaExternalExt for CitreaExternal {
     fn l1_fee_rate(&self) -> u64 {
         self.l1_fee_rate
     }
@@ -77,10 +85,28 @@ impl CitreaHandlerContext for CitreaHandlerExt {
     }
 }
 
+/// Additional methods applied to the EVM environment.
+trait CitreaEnv {
+    /// Whether the call is made by `SYSTEM_SIGNER`.
+    fn is_system_caller(&self) -> bool;
+}
+
+impl CitreaEnv for &'_ Env {
+    fn is_system_caller(&self) -> bool {
+        SYSTEM_SIGNER == self.tx.caller
+    }
+}
+
+impl<EXT, DB: Database> CitreaEnv for &'_ mut Context<EXT, DB> {
+    fn is_system_caller(&self) -> bool {
+        (&*self.evm.env).is_system_caller()
+    }
+}
+
 pub(crate) fn citrea_handler<'a, DB, EXT>(cfg: HandlerCfg) -> EvmHandler<'a, EXT, DB>
 where
     DB: Database,
-    EXT: CitreaHandlerContext,
+    EXT: CitreaExternalExt,
 {
     let mut handler = EvmHandler::mainnet_with_spec(cfg.spec_id);
     handler.append_handler_register(HandleRegisters::Plain(citrea_handle_register));
@@ -90,25 +116,107 @@ where
 fn citrea_handle_register<DB, EXT>(handler: &mut EvmHandler<'_, EXT, DB>)
 where
     DB: Database,
-    EXT: CitreaHandlerContext,
+    EXT: CitreaExternalExt,
 {
     spec_to_generic!(handler.cfg.spec_id, {
+        let validation = &mut handler.validation;
+        let pre_execution = &mut handler.pre_execution;
+        // let execution = &mut handler.execution;
         let post_execution = &mut handler.post_execution;
+        // validation.initial_tx_gas = can be overloaded too
+        // validation.env =
+        validation.tx_against_state =
+            Arc::new(CitreaHandler::<SPEC, EXT, DB>::validate_tx_against_state);
+        // pre_execution.load_accounts =
+        // pre_execution.load_accounts =
+        pre_execution.deduct_caller = Arc::new(CitreaHandler::<SPEC, EXT, DB>::deduct_caller);
+        // execution.last_frame_return =
+        // execution.call =
+        // execution.call_return =
+        // execution.insert_call_outcome =
+        // execution.create =
+        // execution.create_return =
+        // execution.insert_create_outcome =
+        post_execution.reimburse_caller =
+            Arc::new(CitreaHandler::<SPEC, EXT, DB>::reimburse_caller);
         post_execution.reward_beneficiary =
             Arc::new(CitreaHandler::<SPEC, EXT, DB>::reward_beneficiary);
         post_execution.output = Arc::new(CitreaHandler::<SPEC, EXT, DB>::post_execution_output);
-    })
+        // post_execution.end =
+    });
 }
 
 struct CitreaHandler<SPEC, EXT, DB> {
     _phantom: std::marker::PhantomData<(SPEC, EXT, DB)>,
 }
 
-impl<SPEC: Spec, EXT: CitreaHandlerContext, DB: Database> CitreaHandler<SPEC, EXT, DB> {
+impl<SPEC: Spec, EXT: CitreaExternalExt, DB: Database> CitreaHandler<SPEC, EXT, DB> {
+    fn validate_tx_against_state(
+        context: &mut Context<EXT, DB>,
+    ) -> Result<(), EVMError<DB::Error>> {
+        if context.is_system_caller() {
+            // Don't verify balance but nonce only.
+            let tx_caller = context.evm.env.tx.caller;
+            let (caller_account, _) = context
+                .evm
+                .inner
+                .journaled_state
+                .load_account(tx_caller, &mut context.evm.inner.db)?;
+            // Check that the transaction's nonce is correct
+            if let Some(tx) = context.evm.inner.env.tx.nonce {
+                let state = caller_account.info.nonce;
+                match tx.cmp(&state) {
+                    Ordering::Greater => {
+                        return Err(InvalidTransaction::NonceTooHigh { tx, state })?;
+                    }
+                    Ordering::Less => {
+                        return Err(InvalidTransaction::NonceTooLow { tx, state })?;
+                    }
+                    _ => {}
+                }
+            }
+            return Ok(());
+        }
+        revm::handler::mainnet::validate_tx_against_state::<SPEC, EXT, DB>(context)
+    }
+    fn deduct_caller(context: &mut Context<EXT, DB>) -> Result<(), EVMError<DB::Error>> {
+        if context.is_system_caller() {
+            // System caller doesn't spend gas.
+            // bump the nonce for calls.
+            // TODO check: Nonce for CREATE will be bumped in `handle_create`.
+            if context.evm.env.tx.transact_to.is_call() {
+                // Nonce is already checked
+                let tx_caller = context.evm.env.tx.caller;
+                let (caller_account, _) = context
+                    .evm
+                    .inner
+                    .journaled_state
+                    .load_account(tx_caller, &mut context.evm.inner.db)?;
+                caller_account.info.nonce = caller_account.info.nonce.saturating_add(1);
+            }
+            return Ok(());
+        }
+        revm::handler::mainnet::deduct_caller::<SPEC, EXT, DB>(context)
+    }
+    fn reimburse_caller(
+        context: &mut Context<EXT, DB>,
+        gas: &Gas,
+    ) -> Result<(), EVMError<DB::Error>> {
+        if context.is_system_caller() {
+            // System caller doesn't spend gas.
+            return Ok(());
+        }
+        revm::handler::mainnet::reimburse_caller::<SPEC, EXT, DB>(context, gas)
+    }
     fn reward_beneficiary(
         context: &mut Context<EXT, DB>,
         gas: &Gas,
     ) -> Result<(), EVMError<DB::Error>> {
+        if context.is_system_caller() {
+            // System caller doesn't spend gas.
+            return Ok(());
+        }
+
         let beneficiary = context.evm.env.block.coinbase;
         let effective_gas_price = context.evm.env.effective_gas_price();
 
@@ -141,13 +249,17 @@ impl<SPEC: Spec, EXT: CitreaHandlerContext, DB: Database> CitreaHandler<SPEC, EX
         context.external.set_tx_info(TxInfo { diff_size });
         if result.interpreter_result().is_ok() {
             // Deduct L1 fee only if tx is successful.
-            if let Some(_out_of_funds) = decrease_caller_balance(context, l1_fee)? {
-                return Err(EVMError::Custom(format!(
-                    "Not enought funds for L1 fee: {}",
-                    l1_fee
-                )));
+            if context.is_system_caller() {
+                // System caller doesn't pay L1 fee.
+            } else {
+                if let Some(_out_of_funds) = decrease_caller_balance(context, l1_fee)? {
+                    return Err(EVMError::Custom(format!(
+                        "Not enought funds for L1 fee: {}",
+                        l1_fee
+                    )));
+                }
+                increase_coinbase_balance(context, l1_fee)?;
             }
-            increase_coinbase_balance(context, l1_fee)?;
         }
 
         revm::handler::mainnet::output(context, result)
@@ -300,26 +412,30 @@ fn calc_diff_size<EXT, DB: Database>(
     Ok(diff_size)
 }
 
-/// Decreases the balance of the caller by the given amount.
-/// Returns Ok(Some) if the caller's balance is not enough.
-fn decrease_caller_balance<EXT, DB: Database>(
+fn change_balance<EXT, DB: Database>(
     context: &mut Context<EXT, DB>,
     amount: U256,
+    positive: bool,
+    address: Address,
 ) -> Result<Option<InstructionResult>, EVMError<DB::Error>> {
-    let caller = context.evm.env.tx.caller;
-
     let InnerEvmContext {
         journaled_state,
         db,
         ..
     } = &mut context.evm.inner;
 
-    let (caller_account, _) = journaled_state.load_account(caller, db)?;
+    let (account, _) = journaled_state.load_account(address, db)?;
+    account.mark_touch();
 
-    let balance = &mut caller_account.info.balance;
+    let balance = &mut account.info.balance;
 
-    let Some(new_balance) = balance.checked_sub(amount) else {
-        return Ok(Some(InstructionResult::OutOfFunds));
+    let new_balance = if positive {
+        balance.saturating_add(amount)
+    } else {
+        let Some(new_balance) = balance.checked_sub(amount) else {
+            return Ok(Some(InstructionResult::OutOfFunds));
+        };
+        new_balance
     };
 
     *balance = new_balance;
@@ -327,26 +443,21 @@ fn decrease_caller_balance<EXT, DB: Database>(
     Ok(None)
 }
 
+/// Decreases the balance of the caller by the given amount.
+/// Returns Ok(Some) if the caller's balance is not enough.
+fn decrease_caller_balance<EXT, DB: Database>(
+    context: &mut Context<EXT, DB>,
+    amount: U256,
+) -> Result<Option<InstructionResult>, EVMError<DB::Error>> {
+    let address = context.evm.env.tx.caller;
+    change_balance(context, amount, false, address)
+}
+
 fn increase_coinbase_balance<EXT, DB: Database>(
     context: &mut Context<EXT, DB>,
     amount: U256,
 ) -> Result<(), EVMError<DB::Error>> {
-    let coinbase = context.evm.env.block.coinbase;
-
-    let InnerEvmContext {
-        journaled_state,
-        db,
-        ..
-    } = &mut context.evm.inner;
-
-    let (coinbase_account, _) = journaled_state.load_account(coinbase, db)?;
-    coinbase_account.mark_touch();
-
-    let balance = &mut coinbase_account.info.balance;
-
-    let new_balance = balance.saturating_add(amount);
-
-    *balance = new_balance;
-
+    let address = context.evm.env.block.coinbase;
+    change_balance(context, amount, true, address)?;
     Ok(())
 }

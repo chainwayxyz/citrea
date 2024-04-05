@@ -10,7 +10,7 @@ use sov_prover_storage_manager::new_orphan_storage;
 use super::db::EvmDb;
 use super::db_init::InitEvmDb;
 use super::executor;
-use crate::evm::handler::CitreaHandlerExt;
+use crate::evm::handler::CitreaExternal;
 use crate::evm::primitive_types::BlockEnv;
 use crate::evm::AccountInfo;
 use crate::smart_contracts::SimpleStorageContract;
@@ -54,7 +54,7 @@ fn simple_contract_execution<DB: Database<Error = Infallible> + DatabaseCommit +
     let mut cfg_env = CfgEnvWithHandlerCfg::new_with_spec_id(Default::default(), SpecId::SHANGHAI);
     cfg_env.chain_id = DEFAULT_CHAIN_ID;
 
-    let mut citrea_ext = CitreaHandlerExt::new(0);
+    let mut citrea_ext = CitreaExternal::new(0);
 
     let contract_address: Address = {
         let tx = dev_signer

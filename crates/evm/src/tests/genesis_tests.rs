@@ -288,7 +288,7 @@ pub(crate) fn get_evm(config: &EvmConfig) -> (Evm<C>, WorkingSet<DefaultContext>
     let mut working_set: WorkingSet<DefaultContext> = WorkingSet::new(storage.clone());
     evm.finalize_hook(&root.into(), &mut working_set.accessory_state());
 
-    evm.begin_soft_confirmation_hook([1u8; 32], [2u8; 32], &root, 0, 0, &mut working_set);
+    evm.begin_soft_confirmation_hook([1u8; 32], 1, [2u8; 32], &root, 0, 0, &mut working_set);
     evm.end_soft_confirmation_hook(&mut working_set);
 
     let root = commit(working_set, storage.clone());
