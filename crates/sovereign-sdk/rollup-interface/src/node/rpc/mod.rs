@@ -250,7 +250,7 @@ pub struct TxResponse<Tx> {
 #[serde(untagged)]
 pub enum ItemOrHash<T> {
     /// The hex encoded hash of the requested item.
-    Hash(#[serde(with = "utils::rpc_hex")] [u8; 32]),
+    Hash(#[serde(with = "hex::serde")] [u8; 32]),
     /// The full item body.
     Full(T),
 }
