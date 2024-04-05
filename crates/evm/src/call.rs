@@ -35,10 +35,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
         system_events: Vec<SystemEvent>,
         working_set: &mut WorkingSet<C>,
     ) {
-        if system_events.is_empty() {
-            return;
-        }
-
         let block_env = self
             .block_env
             .get(working_set)
@@ -217,12 +213,12 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 // Adopted from https://github.com/paradigmxyz/reth/blob/main/crates/payload/basic/src/lib.rs#L884
                 Err(err) => match err {
                     EVMError::Transaction(_) => {
-                        tracing::debug!("evm: Transaction error: {:?}", err);
+                        tracing::error!("evm: Transaction error: {:?}", err);
                         // This is a transactional error, so we can skip it without doing anything.
                         continue;
                     }
                     err => {
-                        tracing::debug!("evm: Transaction error: {:?}", err);
+                        tracing::error!("evm: Transaction error: {:?}", err);
                         // This is a fatal error, so we need to return it.
                         return Err(err.into());
                     }
