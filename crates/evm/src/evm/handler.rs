@@ -87,10 +87,10 @@ impl CitreaExternalExt for CitreaExternal {
     }
 }
 
-/// This is both a `CitreaExternal` and a `TracingInspector`.
+/// This is both a `CitreaExternal` and an `Inspector`.
 pub(crate) struct TracingCitreaExternal<I, DB> {
     ext: CitreaExternal,
-    inspector: I,
+    pub(crate) inspector: I,
     _ph: core::marker::PhantomData<DB>,
 }
 

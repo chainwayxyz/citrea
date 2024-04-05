@@ -566,11 +566,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<reth_primitives::Bytes> {
         info!("evm module: eth_call");
-        let (block_env, l1_fee_rate) = match block_number {
+        let block_env = match block_number {
             None | Some(BlockNumberOrTag::Pending | BlockNumberOrTag::Latest) => {
-                let block_env = self.block_env.get(working_set).unwrap_or_default().clone();
-                let l1_fee_rate = self.l1_fee_rate.get(working_set).unwrap_or_default();
-                (block_env, l1_fee_rate)
+                // so we don't unnecessarily set archival version
+                self.block_env.get(working_set).unwrap_or_default().clone()
             }
             _ => {
                 let block = match self.get_sealed_block_by_number(block_number, working_set) {
@@ -579,8 +578,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 };
 
                 working_set.set_archival_version(block.header.number);
-                let block_env = BlockEnv::from(&block);
-                (block_env, block.l1_fee_rate)
+                BlockEnv::from(&block)
             }
         };
 
@@ -603,7 +601,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
             block_env.into(),
             tx_env,
             TracingInspector::new(TracingInspectorConfig::all()),
-            l1_fee_rate,
         ) {
             Ok(result) => result.result,
             Err(err) => {
@@ -642,11 +639,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         let mut request = request.clone();
 
-        let (block_env, l1_fee_rate) = match block_number {
+        let block_env = match block_number {
             None | Some(BlockNumberOrTag::Pending | BlockNumberOrTag::Latest) => {
-                let block_env = self.block_env.get(working_set).unwrap_or_default().clone();
-                let l1_fee_rate = self.l1_fee_rate.get(working_set).unwrap_or_default();
-                (block_env, l1_fee_rate)
+                // so we don't unnecessarily set archival version
+                self.block_env.get(working_set).unwrap_or_default().clone()
             }
             _ => {
                 let block = match self.get_sealed_block_by_number(block_number, working_set) {
@@ -655,8 +651,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 };
 
                 working_set.set_archival_version(block.header.number);
-                let block_env = BlockEnv::from(&block);
-                (block_env, block.l1_fee_rate)
+                BlockEnv::from(&block)
             }
         };
 
@@ -699,7 +694,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
             block_env.clone().into(),
             tx_env.clone(),
             &mut inspector,
-            l1_fee_rate,
         )
         .map_err(EthApiError::from)?;
 
@@ -724,7 +718,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
             cfg_env,
             &mut tx_env,
             working_set,
-            l1_fee_rate,
         )?;
 
         Ok(AccessListWithGasUsed {
@@ -743,11 +736,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<reth_primitives::U64> {
         info!("evm module: eth_estimateGas");
-        let (block_env, l1_fee_rate) = match block_number {
+        let block_env = match block_number {
             None | Some(BlockNumberOrTag::Pending | BlockNumberOrTag::Latest) => {
-                let block_env = self.block_env.get(working_set).unwrap_or_default().clone();
-                let l1_fee_rate = self.l1_fee_rate.get(working_set).unwrap_or_default();
-                (block_env, l1_fee_rate)
+                // so we don't unnecessarily set archival version
+                self.block_env.get(working_set).unwrap_or_default().clone()
             }
             _ => {
                 let block = match self.get_sealed_block_by_number(block_number, working_set) {
@@ -756,8 +748,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 };
 
                 working_set.set_archival_version(block.header.number);
-                let block_env = BlockEnv::from(&block);
-                (block_env, block.l1_fee_rate)
+                BlockEnv::from(&block)
             }
         };
 
@@ -769,14 +760,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .expect("EVM chain config should be set");
         let cfg_env = get_cfg_env(&block_env, cfg, Some(get_cfg_env_template()));
 
-        self.estimate_gas_with_env(
-            request,
-            block_env,
-            cfg_env,
-            &mut tx_env,
-            working_set,
-            l1_fee_rate,
-        )
+        self.estimate_gas_with_env(request, block_env, cfg_env, &mut tx_env, working_set)
     }
 
     /// Handler for: `eth_getBlockTransactionCountByHash`
@@ -804,7 +788,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
         cfg_env: CfgEnvWithHandlerCfg,
         tx_env: &mut TxEnv,
         working_set: &mut WorkingSet<C>,
-        l1_fee_rate: u64,
     ) -> RpcResult<reth_primitives::U64> {
         let request_gas = request.gas;
         let request_gas_price = request.gas_price;
@@ -864,7 +847,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
             block_env.clone().into(),
             tx_env.clone(),
             TracingInspector::new(TracingInspectorConfig::all()),
-            l1_fee_rate,
         );
 
         // Exceptional case: init used too much gas, we need to increase the gas limit and try
@@ -875,14 +857,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             // again with the block's gas limit to check if revert is gas related or not
             if request_gas.is_some() || request_gas_price.is_some() {
                 let evm_db = self.get_db(working_set);
-                return Err(map_out_of_gas_err(
-                    block_env,
-                    tx_env.clone(),
-                    cfg_env,
-                    evm_db,
-                    l1_fee_rate,
-                )
-                .into());
+                return Err(map_out_of_gas_err(block_env, tx_env.clone(), cfg_env, evm_db).into());
             }
         }
 
@@ -897,14 +872,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     // again with the block's gas limit to check if revert is gas related or not
                     return if request_gas.is_some() || request_gas_price.is_some() {
                         let evm_db = self.get_db(working_set);
-                        Err(map_out_of_gas_err(
-                            block_env,
-                            tx_env.clone(),
-                            cfg_env,
-                            evm_db,
-                            l1_fee_rate,
-                        )
-                        .into())
+                        Err(map_out_of_gas_err(block_env, tx_env.clone(), cfg_env, evm_db).into())
                     } else {
                         // the transaction did revert
                         Err(RpcInvalidTransactionError::Revert(RevertError::new(output)).into())
@@ -942,7 +910,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 block_env.clone().into(),
                 tx_env.clone(),
                 TracingInspector::new(TracingInspectorConfig::all()),
-                l1_fee_rate,
             );
             let curr_result = match curr_result {
                 Ok(result) => result,
@@ -982,7 +949,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 block_env.clone().into(),
                 tx_env.clone(),
                 TracingInspector::new(TracingInspectorConfig::all()),
-                l1_fee_rate,
             );
 
             // Exceptional case: init used too much gas, we need to increase the gas limit and try
@@ -1608,7 +1574,6 @@ fn map_out_of_gas_err<C: sov_modules_api::Context>(
     mut tx_env: revm::primitives::TxEnv,
     cfg_env: revm::primitives::CfgEnvWithHandlerCfg,
     db: EvmDb<'_, C>,
-    l1_fee_rate: u64,
 ) -> EthApiError {
     let req_gas_limit = tx_env.gas_limit;
     tx_env.gas_limit = block_env.gas_limit;
@@ -1619,7 +1584,6 @@ fn map_out_of_gas_err<C: sov_modules_api::Context>(
         block_env.into(),
         tx_env,
         TracingInspector::new(TracingInspectorConfig::all()),
-        l1_fee_rate,
     ) {
         Ok(res) => match res.result {
             ExecutionResult::Success { .. } => {
