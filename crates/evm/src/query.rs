@@ -1077,6 +1077,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 cfg_env.clone(),
                 block_env.clone().into(),
                 tx_env_with_recovered(&tx),
+                tx.hash(),
                 &mut evm_db,
                 l1_fee_rate,
             )?;

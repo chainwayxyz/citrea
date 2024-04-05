@@ -21,6 +21,7 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
     config_env: CfgEnvWithHandlerCfg,
     block_env: BlockEnv,
     tx_env: TxEnv,
+    tx_hash: TxHash,
     db: &mut EvmDb<'_, C>,
     l1_fee_rate: u64,
 ) -> EthResult<(GethTrace, revm::primitives::State)> {
@@ -37,8 +38,14 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
                 GethDebugBuiltInTracerType::FourByteTracer => {
                     let inspector = FourByteInspector::default();
                     let mut citrea_inspector = TracingCitreaExternal::new(inspector, l1_fee_rate);
-                    let res =
-                        inspect_citrea(db, config_env, block_env, tx_env, &mut citrea_inspector)?;
+                    let res = inspect_citrea(
+                        db,
+                        config_env,
+                        block_env,
+                        tx_env,
+                        tx_hash,
+                        &mut citrea_inspector,
+                    )?;
                     return Ok((
                         FourByteFrame::from(citrea_inspector.inspector).into(),
                         res.state,
@@ -53,8 +60,14 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
                             .set_record_logs(call_config.with_log.unwrap_or_default()),
                     );
                     let mut citrea_inspector = TracingCitreaExternal::new(inspector, l1_fee_rate);
-                    let res =
-                        inspect_citrea(db, config_env, block_env, tx_env, &mut citrea_inspector)?;
+                    let res = inspect_citrea(
+                        db,
+                        config_env,
+                        block_env,
+                        tx_env,
+                        tx_hash,
+                        &mut citrea_inspector,
+                    )?;
                     let frame = citrea_inspector
                         .inspector
                         .into_geth_builder()
@@ -86,7 +99,14 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
     let inspector = TracingInspector::new(inspector_config);
     let mut citrea_inspector = TracingCitreaExternal::new(inspector, l1_fee_rate);
 
-    let res = inspect_citrea(db, config_env, block_env, tx_env, &mut citrea_inspector)?;
+    let res = inspect_citrea(
+        db,
+        config_env,
+        block_env,
+        tx_env,
+        tx_hash,
+        &mut citrea_inspector,
+    )?;
     let gas_used = res.result.gas_used();
     let return_value = res.result.into_output().unwrap_or_default();
     let frame =
@@ -104,6 +124,7 @@ fn inspect_citrea<DB, I>(
     config_env: CfgEnvWithHandlerCfg,
     block_env: BlockEnv,
     tx_env: TxEnv,
+    tx_hash: TxHash,
     inspector: I,
 ) -> Result<ResultAndState, EVMError<DB::Error>>
 where
@@ -121,6 +142,7 @@ where
         .append_handler_register(citrea_handle_register)
         .append_handler_register(inspector_handle_register)
         .build();
+    evm.context.external.set_current_tx_hash(tx_hash);
 
     evm.transact()
 }
