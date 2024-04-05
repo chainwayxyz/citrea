@@ -132,22 +132,22 @@ ethers-providers = { version = "2.0", default-features = false }
 ethers-signers = { version = "2.0", default-features = false }
 ethers-middleware = { version = "2.0", default-features = false }
 
-reth-primitives = { git = "https://github.com/Sovereign-Labs/reth", rev = "bd2945a988ad2bb93dccf3967f4349e99e25da90" }
-reth-interfaces = { git = "https://github.com/Sovereign-Labs/reth", rev = "bd2945a988ad2bb93dccf3967f4349e99e25da90" }
-reth-rpc-types = { git = "https://github.com/Sovereign-Labs/reth", rev = "bd2945a988ad2bb93dccf3967f4349e99e25da90" }
-reth-rpc-types-compat = { git = "https://github.com/Sovereign-Labs/reth", rev = "bd2945a988ad2bb93dccf3967f4349e99e25da90" }
-reth-revm = { git = "https://github.com/Sovereign-Labs/reth", rev = "bd2945a988ad2bb93dccf3967f4349e99e25da90" }
-reth-transaction-pool = { git = "https://github.com/Sovereign-Labs/reth", rev = "bd2945a988ad2bb93dccf3967f4349e99e25da90" }
-reth-provider = { git = "https://github.com/Sovereign-Labs/reth", rev = "bd2945a988ad2bb93dccf3967f4349e99e25da90" }
-reth-tasks = { git = "https://github.com/Sovereign-Labs/reth", rev = "bd2945a988ad2bb93dccf3967f4349e99e25da90" }
-reth-db = { git = "https://github.com/Sovereign-Labs/reth", rev = "bd2945a988ad2bb93dccf3967f4349e99e25da90" }
-reth-trie = { git = "https://github.com/Sovereign-Labs/reth", rev = "bd2945a988ad2bb93dccf3967f4349e99e25da90" }
-reth-rpc = { git = "https://github.com/Sovereign-Labs/reth", rev = "bd2945a988ad2bb93dccf3967f4349e99e25da90" }
-revm-inspectors = { git = "https://github.com/paradigmxyz/evm-inspectors", rev = "0ad0338" }
+reth-primitives = { git = "https://github.com/Sovereign-Labs/reth", rev = "fb971d14f4ed08699f1b627fb6ea2e8522399f4d", default-features = false }
+reth-interfaces = { git = "https://github.com/Sovereign-Labs/reth", rev = "fb971d14f4ed08699f1b627fb6ea2e8522399f4d" }
+reth-rpc-types = { git = "https://github.com/Sovereign-Labs/reth", rev = "fb971d14f4ed08699f1b627fb6ea2e8522399f4d" }
+reth-rpc-types-compat = { git = "https://github.com/Sovereign-Labs/reth", rev = "fb971d14f4ed08699f1b627fb6ea2e8522399f4d" }
+reth-revm = { git = "https://github.com/Sovereign-Labs/reth", rev = "fb971d14f4ed08699f1b627fb6ea2e8522399f4d" }
+reth-transaction-pool = { git = "https://github.com/Sovereign-Labs/reth", rev = "fb971d14f4ed08699f1b627fb6ea2e8522399f4d" }
+reth-provider = { git = "https://github.com/Sovereign-Labs/reth", rev = "fb971d14f4ed08699f1b627fb6ea2e8522399f4d" }
+reth-tasks = { git = "https://github.com/Sovereign-Labs/reth", rev = "fb971d14f4ed08699f1b627fb6ea2e8522399f4d" }
+reth-db = { git = "https://github.com/Sovereign-Labs/reth", rev = "fb971d14f4ed08699f1b627fb6ea2e8522399f4d" }
+reth-trie = { git = "https://github.com/Sovereign-Labs/reth", rev = "fb971d14f4ed08699f1b627fb6ea2e8522399f4d" }
+reth-rpc = { git = "https://github.com/Sovereign-Labs/reth", rev = "fb971d14f4ed08699f1b627fb6ea2e8522399f4d" }
 
-revm = { version = "7.2.0", features = [
-    "std",
-    "secp256k1",
+
+revm = { version = "7.1.0", features = [
+    # "secp256k1",
+    "serde",
 ], default-features = false }
 alloy-primitives = "0.6"
 alloy-sol-types = "0.6"
