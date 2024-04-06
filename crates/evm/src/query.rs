@@ -567,10 +567,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     ) -> RpcResult<reth_primitives::Bytes> {
         info!("evm module: eth_call");
         let block_env = match block_number {
-            Some(BlockNumberOrTag::Pending) => {
-                self.block_env.get(working_set).unwrap_or_default().clone()
-            }
-            None | Some(BlockNumberOrTag::Latest) => {
+            None | Some(BlockNumberOrTag::Pending | BlockNumberOrTag::Latest) => {
                 // so we don't unnecessarily set archival version
                 self.block_env.get(working_set).unwrap_or_default().clone()
             }
@@ -643,10 +640,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let mut request = request.clone();
 
         let block_env = match block_number {
-            Some(BlockNumberOrTag::Pending) => {
-                self.block_env.get(working_set).unwrap_or_default().clone()
-            }
-            None | Some(BlockNumberOrTag::Latest) => {
+            None | Some(BlockNumberOrTag::Pending | BlockNumberOrTag::Latest) => {
                 // so we don't unnecessarily set archival version
                 self.block_env.get(working_set).unwrap_or_default().clone()
             }
@@ -743,10 +737,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     ) -> RpcResult<reth_primitives::U64> {
         info!("evm module: eth_estimateGas");
         let block_env = match block_number {
-            Some(BlockNumberOrTag::Pending) => {
-                self.block_env.get(working_set).unwrap_or_default().clone()
-            }
-            None | Some(BlockNumberOrTag::Latest) => {
+            None | Some(BlockNumberOrTag::Pending | BlockNumberOrTag::Latest) => {
                 // so we don't unnecessarily set archival version
                 self.block_env.get(working_set).unwrap_or_default().clone()
             }
@@ -1070,6 +1061,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let block_env = BlockEnv::from(&sealed_block);
         let cfg = self.cfg.get(working_set).unwrap();
         let cfg_env = get_cfg_env(&block_env, cfg, Some(get_cfg_env_template()));
+        let l1_fee_rate = sealed_block.l1_fee_rate;
 
         // EvmDB is the replacement of revm::CacheDB because cachedb requires immutable state
         // TODO: Move to CacheDB once immutable state is implemented
@@ -1085,7 +1077,9 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 cfg_env.clone(),
                 block_env.clone().into(),
                 tx_env_with_recovered(&tx),
+                tx.hash(),
                 &mut evm_db,
+                l1_fee_rate,
             )?;
             traces.push(trace);
 

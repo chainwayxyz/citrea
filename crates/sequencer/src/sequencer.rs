@@ -13,7 +13,7 @@ use futures::StreamExt;
 use jsonrpsee::RpcModule;
 use reth_primitives::IntoRecoveredTransaction;
 use reth_provider::BlockReaderIdExt;
-use reth_transaction_pool::{BestTransactionsAttributes, TransactionPool};
+use reth_transaction_pool::BestTransactionsAttributes;
 use sov_accounts::Accounts;
 use sov_accounts::Response::{AccountEmpty, AccountExists};
 use sov_db::ledger_db::{LedgerDB, SlotCommit};
@@ -36,7 +36,7 @@ use tracing::{debug, info, warn};
 use crate::commitment_controller;
 use crate::config::SequencerConfig;
 use crate::db_provider::DbProvider;
-use crate::mempool::{create_mempool, CitreaMempool};
+use crate::mempool::CitreaMempool;
 use crate::rpc::{create_rpc_module, RpcContext};
 
 type StateRoot<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::StateRoot;
@@ -123,7 +123,7 @@ where
         // used as client of reth's mempool
         let db_provider = DbProvider::new(storage.clone());
 
-        let pool = create_mempool(db_provider.clone());
+        let pool = CitreaMempool::new(db_provider.clone());
 
         Ok(Self {
             da_service,
@@ -202,6 +202,9 @@ where
             l1_height == da_height || l1_height + 1 == da_height,
             "Sequencer: L1 height mismatch, expected {da_height} (or {da_height}-1), got {l1_height}",
         );
+
+        let timestamp = chrono::Local::now().timestamp() as u64;
+
         let batch_info = HookSoftConfirmationInfo {
             da_slot_height: da_block.header().height(),
             da_slot_hash: da_block.header().hash().into(),
@@ -209,6 +212,7 @@ where
             pre_state_root: self.state_root.clone().as_ref().to_vec(),
             pub_key: self.sov_tx_signer_priv_key.pub_key().try_to_vec().unwrap(),
             l1_fee_rate,
+            timestamp,
         };
         let mut signed_batch: SignedSoftConfirmationBatch = batch_info.clone().into();
         // initially create sc info and call begin soft confirmation hook with it
@@ -250,6 +254,7 @@ where
                     self.state_root.clone().as_ref().to_vec(),
                     txs,
                     l1_fee_rate,
+                    timestamp,
                 );
 
                 let mut signed_soft_batch = self.sign_soft_confirmation_batch(unsigned_batch);
@@ -307,6 +312,7 @@ where
                     soft_confirmation_signature: signed_soft_batch.signature().to_vec(),
                     pub_key: signed_soft_batch.pub_key().to_vec(),
                     l1_fee_rate: signed_soft_batch.l1_fee_rate(),
+                    timestamp: signed_soft_batch.timestamp(),
                 };
 
                 // TODO: this will only work for mock da
@@ -537,6 +543,7 @@ where
             soft_confirmation.txs(),
             signature.try_to_vec().unwrap(),
             self.sov_tx_signer_priv_key.pub_key().try_to_vec().unwrap(),
+            soft_confirmation.timestamp(),
         )
     }
 

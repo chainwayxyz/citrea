@@ -51,9 +51,11 @@ fn call_multiple_test() {
 
     evm.begin_soft_confirmation_hook(
         [5u8; 32],
+        1,
         [42u8; 32],
         &[10u8; 32],
         l1_fee_rate,
+        0,
         &mut working_set,
     );
 
@@ -157,9 +159,11 @@ fn call_test() {
 
     evm.begin_soft_confirmation_hook(
         [5u8; 32],
+        1,
         [42u8; 32],
         &[10u8; 32],
         l1_fee_rate,
+        0,
         &mut working_set,
     );
 
@@ -230,7 +234,15 @@ fn failed_transaction_test() {
     let working_set = &mut working_set;
     let l1_fee_rate = 0;
 
-    evm.begin_soft_confirmation_hook([5u8; 32], [42u8; 32], &[10u8; 32], l1_fee_rate, working_set);
+    evm.begin_soft_confirmation_hook(
+        [5u8; 32],
+        1,
+        [42u8; 32],
+        &[10u8; 32],
+        l1_fee_rate,
+        0,
+        working_set,
+    );
     {
         let sender_address = generate_address::<C>("sender");
         let sequencer_address = generate_address::<C>("sequencer");
@@ -281,9 +293,11 @@ fn self_destruct_test() {
 
     evm.begin_soft_confirmation_hook(
         [5u8; 32],
+        1,
         [42u8; 32],
         &[10u8; 32],
         l1_fee_rate,
+        0,
         &mut working_set,
     );
     {
@@ -335,9 +349,11 @@ fn self_destruct_test() {
 
     evm.begin_soft_confirmation_hook(
         [5u8; 32],
+        2,
         [42u8; 32],
         &[99u8; 32],
         l1_fee_rate,
+        0,
         &mut working_set,
     );
     {
@@ -410,9 +426,11 @@ fn test_block_hash_in_evm() {
 
     evm.begin_soft_confirmation_hook(
         [5u8; 32],
+        1,
         [42u8; 32],
         &[10u8; 32],
         l1_fee_rate,
+        0,
         &mut working_set,
     );
     {
@@ -439,9 +457,11 @@ fn test_block_hash_in_evm() {
         let l1_fee_rate = 0;
         evm.begin_soft_confirmation_hook(
             [5u8; 32],
+            1,
             [42u8; 32],
             &[99u8; 32],
             l1_fee_rate,
+            0,
             &mut working_set,
         );
         evm.end_soft_confirmation_hook(&mut working_set);
@@ -520,9 +540,11 @@ fn test_block_gas_limit() {
 
     evm.begin_soft_confirmation_hook(
         [5u8; 32],
+        1,
         [42u8; 32],
         &[10u8; 32],
         l1_fee_rate,
+        0,
         &mut working_set,
     );
     {
@@ -586,7 +608,7 @@ pub fn create_contract_message<T: TestContract>(
         .unwrap()
 }
 
-fn create_contract_message_with_fee<T: TestContract>(
+pub(crate) fn create_contract_message_with_fee<T: TestContract>(
     dev_signer: &TestSigner,
     nonce: u64,
     contract: T,
@@ -746,7 +768,7 @@ pub(crate) fn get_evm_config(
     (config, dev_signer, contract_addr)
 }
 
-fn get_evm_config_starting_base_fee(
+pub(crate) fn get_evm_config_starting_base_fee(
     signer_balance: U256,
     block_gas_limit: Option<u64>,
     starting_base_fee: u64,
@@ -785,9 +807,11 @@ fn test_l1_fee_success() {
 
         evm.begin_soft_confirmation_hook(
             [5u8; 32],
+            1,
             [42u8; 32],
             &[10u8; 32],
             l1_fee_rate,
+            0,
             &mut working_set,
         );
         {
@@ -858,9 +882,11 @@ fn test_l1_fee_not_enough_funds() {
 
     evm.begin_soft_confirmation_hook(
         [5u8; 32],
+        1,
         [42u8; 32],
         &[10u8; 32],
         l1_fee_rate,
+        0,
         &mut working_set,
     );
     {

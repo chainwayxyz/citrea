@@ -5,6 +5,7 @@ use sov_modules_api::{AccessoryWorkingSet, Spec, WorkingSet};
 use sov_state::Storage;
 
 use crate::evm::primitive_types::{Block, BlockEnv};
+use crate::evm::system_events::SystemEvent;
 use crate::{Evm, PendingTransaction};
 
 impl<C: sov_modules_api::Context> Evm<C>
@@ -12,12 +13,15 @@ where
     <C::Storage as Storage>::Root: Into<[u8; 32]>,
 {
     /// Logic executed at the beginning of the slot. Here we set the state root of the previous head.
+    #[allow(clippy::too_many_arguments)]
     pub fn begin_soft_confirmation_hook(
         &self,
         da_slot_hash: [u8; 32],
-        _da_slot_txs_commitment: [u8; 32],
+        da_slot_height: u64,
+        da_slot_txs_commitment: [u8; 32],
         pre_state_root: &[u8],
         l1_fee_rate: u64,
+        timestamp: u64,
         working_set: &mut WorkingSet<C>,
     ) {
         let mut parent_block = self
@@ -38,6 +42,25 @@ where
             working_set,
         );
 
+        // populate system events
+        let mut system_events = vec![];
+        if let Some(last_l1_hash) = self.last_l1_hash.get(working_set) {
+            if last_l1_hash != da_slot_hash {
+                // That's a new L1 block
+                system_events.push(SystemEvent::L1BlockHashSetBlockInfo(
+                    da_slot_hash,
+                    da_slot_txs_commitment,
+                ));
+            }
+        } else {
+            // That's the first L2 block in the first seen L1 block.
+            system_events.push(SystemEvent::L1BlockHashInitialize(da_slot_height));
+            system_events.push(SystemEvent::L1BlockHashSetBlockInfo(
+                da_slot_hash,
+                da_slot_txs_commitment,
+            ));
+        }
+
         let cfg = self
             .cfg
             .get(working_set)
@@ -45,7 +68,7 @@ where
         let new_pending_env = BlockEnv {
             number: parent_block.header.number + 1,
             coinbase: cfg.coinbase,
-            timestamp: parent_block.header.timestamp + cfg.block_timestamp_delta,
+            timestamp,
             prevrandao: da_slot_hash.into(),
             basefee: parent_block
                 .header
@@ -53,8 +76,11 @@ where
                 .unwrap(),
             gas_limit: cfg.block_gas_limit,
         };
+
         self.block_env.set(&new_pending_env, working_set);
         self.l1_fee_rate.set(&l1_fee_rate, working_set);
+
+        self.execute_system_events(system_events, working_set);
 
         // if height > 256, start removing the oldest block
         // keeping only 256 most recent blocks
@@ -66,6 +92,7 @@ where
             self.latest_block_hashes
                 .remove(&U256::from(new_pending_env.number - 257), working_set);
         }
+        self.last_l1_hash.set(&da_slot_hash.into(), working_set);
     }
 
     /// Logic executed at the end of the slot. Here, we generate an authenticated block and set it as the new head of the chain.

@@ -94,6 +94,8 @@ pub struct StoredSoftBatch {
     pub pub_key: Vec<u8>,
     /// L1 fee rate
     pub l1_fee_rate: u64,
+    /// Sequencer's block timestamp
+    pub timestamp: u64,
 }
 
 /// The range of L2 heights (soft confirmations) for a given L1 block
@@ -120,6 +122,7 @@ impl TryFrom<StoredSoftBatch> for SoftBatchResponse {
             soft_confirmation_signature: value.soft_confirmation_signature,
             pub_key: value.pub_key,
             l1_fee_rate: value.l1_fee_rate,
+            timestamp: value.timestamp,
         })
     }
 }

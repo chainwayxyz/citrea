@@ -6,7 +6,7 @@ use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::RpcModule;
 use reth_primitives::{Bytes, FromRecoveredPooledTransaction, IntoRecoveredTransaction, B256};
 use reth_rpc_types_compat::transaction::from_recovered;
-use reth_transaction_pool::{EthPooledTransaction, TransactionOrigin, TransactionPool};
+use reth_transaction_pool::EthPooledTransaction;
 use sov_mock_da::{MockAddress, MockDaService};
 use sov_modules_api::utils::to_jsonrpsee_error_object;
 use sov_modules_api::WorkingSet;
@@ -37,10 +37,10 @@ pub(crate) fn create_rpc_module<C: sov_modules_api::Context>(
 
         let pool_transaction = EthPooledTransaction::from_recovered_pooled_transaction(recovered);
 
-        // submit the transaction to the pool with a `Local` origin
+        // submit the transaction to the pool with an `External` origin
         let hash: B256 = ctx
             .mempool
-            .add_transaction(TransactionOrigin::External, pool_transaction)
+            .add_external_transaction(pool_transaction)
             .await
             .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
         Ok::<B256, ErrorObjectOwned>(hash)
