@@ -82,8 +82,8 @@ pub(crate) struct Block {
     /// L1 fee rate.
     pub(crate) l1_fee_rate: u64,
 
-    /// Last L1 hash.
-    pub(crate) last_l1_hash: B256,
+    /// The hash of L1 block this L2 block is bound to.
+    pub(crate) l1_hash: B256,
 
     /// Transactions in this block.
     pub(crate) transactions: Range<u64>,
