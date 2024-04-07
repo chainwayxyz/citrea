@@ -15,6 +15,7 @@ use sov_modules_api::runtime::capabilities::{Kernel, KernelSlotHooks};
 use sov_modules_api::{Context, DaSpec, Spec};
 use sov_modules_stf_blueprint::{GenesisParams, Runtime as RuntimeTrait, StfBlueprint};
 use sov_rollup_interface::services::da::DaService;
+use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::ZkvmHost;
 use sov_state::storage::NativeStorage;
@@ -161,31 +162,44 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         )?;
 
         let mut storage_manager = self.create_storage_manager(&rollup_config)?;
-        let prover_storage = storage_manager.create_finalized_storage()?;
+        // let prover_storage = storage_manager.create_finalized_storage()?;
 
-        let prev_root = ledger_db
-            .get_head_soft_batch()?
-            .map(|(number, _)| prover_storage.get_root_hash(number.0 + 1))
-            .transpose()?;
+        let prev_root = ledger_db.get_head_soft_batch()?;
+        // .map(|(number, _)| prover_storage.get_root_hash(number.0 + 1))
+        // .transpose()?;
+
+        let native_stf = StfBlueprint::new();
+
+        println!("Prevroot {:?}", prev_root);
+        let (prover_storage, last_known_root_hash) = match prev_root {
+            Some((batch_number, _)) => {
+                let prover_storage = storage_manager.create_finalized_storage()?;
+                let root_hash = prover_storage.get_root_hash(batch_number.0 + 1)?;
+                println!("Initialized from blocks: {:?}", root_hash);
+                (prover_storage, root_hash)
+            }
+            None => {
+                // PANICS WHEN TRYING TO CREATE STATE FROM GENESIS AGAIN
+                // let storage = storage_manager.create_storage_on_l2_height(0)?;
+                // let (genesis_root, initialized_storage) =
+                //     native_stf.init_chain(storage, genesis_config);
+                // storage_manager.save_change_set_l2(0, initialized_storage)?;
+                // storage_manager.finalize_l2(0)?;
+                // info!(
+                //     "Chain initialization is done. Genesis root: 0x{}",
+                //     hex::encode(genesis_root.as_ref()),
+                // );
+                let prover_storage = storage_manager.create_finalized_storage()?;
+
+                let genesis_root = prover_storage.get_root_hash(0)?;
+                println!("Initialized by creating genesis: {:?}", genesis_root);
+                (prover_storage, genesis_root)
+            }
+        };
 
         // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1218)
         let rpc_methods =
             self.create_rpc_methods(&prover_storage, &ledger_db, &da_service, None)?;
-
-        let native_stf = StfBlueprint::new();
-
-        let genesis_root = prover_storage.get_root_hash(0);
-
-        let init_variant = match prev_root {
-            Some(root_hash) => InitVariant::Initialized(root_hash),
-            None => match genesis_root {
-                Ok(root_hash) => InitVariant::Initialized(root_hash),
-                _ => InitVariant::Genesis {
-                    block_header: last_finalized_block_header.clone(),
-                    genesis_params: genesis_config,
-                },
-            },
-        };
 
         let seq =
             CitreaSequencer::new(
@@ -198,7 +212,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
                 sequencer_config,
                 native_stf,
                 storage_manager,
-                init_variant,
+                last_known_root_hash,
                 rollup_config.sequencer_public_key,
                 ledger_db,
                 rollup_config.runner,

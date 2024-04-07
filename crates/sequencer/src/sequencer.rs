@@ -30,7 +30,7 @@ use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::stf::{SoftBatchReceipt, StateTransitionFunction};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::ZkvmHost;
-use sov_stf_runner::{InitVariant, RpcConfig, RunnerConfig};
+use sov_stf_runner::{RpcConfig, RunnerConfig};
 use tracing::{debug, info, warn};
 
 use crate::commitment_controller;
@@ -71,6 +71,7 @@ where
     C: Context,
     Da: DaService,
     Sm: HierarchicalStorageManager<Da::Spec>,
+    C::Storage: From<Sm::NativeStorage>,
     Vm: ZkvmHost,
     Stf: StateTransitionFunction<
             Vm,
@@ -87,38 +88,13 @@ where
         storage: C::Storage,
         config: SequencerConfig,
         stf: Stf,
-        mut storage_manager: Sm,
-        init_variant: InitVariant<Stf, Vm, Da::Spec>,
+        storage_manager: Sm,
+        prev_state_root: Stf::StateRoot,
         sequencer_pub_key: Vec<u8>,
         ledger_db: LedgerDB,
         runner_config: RunnerConfig,
     ) -> Result<Self, anyhow::Error> {
         let (l2_force_block_tx, l2_force_block_rx) = unbounded();
-
-        let prev_state_root = match init_variant {
-            InitVariant::Initialized(state_root) => {
-                debug!("Chain is already initialized. Skipping initialization.");
-                state_root
-            }
-            InitVariant::Genesis {
-                block_header,
-                genesis_params: params,
-            } => {
-                info!(
-                    "No history detected. Initializing chain on block_header={:?}...",
-                    block_header
-                );
-                let storage = storage_manager.create_storage_on_l2_height(0)?;
-                let (genesis_root, initialized_storage) = stf.init_chain(storage, params);
-                storage_manager.save_change_set_l2(0, initialized_storage)?;
-                storage_manager.finalize_l2(0)?;
-                info!(
-                    "Chain initialization is done. Genesis root: 0x{}",
-                    hex::encode(genesis_root.as_ref()),
-                );
-                genesis_root
-            }
-        };
 
         // used as client of reth's mempool
         let db_provider = DbProvider::new(storage.clone());
