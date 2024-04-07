@@ -110,19 +110,15 @@ impl MockDaService {
         self.wait_attempts = wait_attempts;
     }
 
-    fn wait_for_height<'a>(
-        &self,
-        blocks: &AsyncMutexGuard<'a, DbConnector>,
-        height: u64,
-    ) -> anyhow::Result<()> {
+    async fn wait_for_height<'a>(&self, height: u64) -> anyhow::Result<()> {
         // Waits self.wait_attempts * 10ms to get block at height
         for _ in 0..self.wait_attempts {
             {
-                if blocks.get(height - 1).is_some() {
+                if self.blocks.lock().await.get(height - 1).is_some() {
                     return Ok(());
                 }
             }
-            std::thread::sleep(Duration::from_millis(10));
+            tokio::time::sleep(Duration::from_millis(10)).await;
         }
         anyhow::bail!(
             "No block at height={height} has been sent in {:?}",
@@ -318,9 +314,13 @@ impl DaService for MockDaService {
             let _ = self.add_blob(&blocks, &[] as &[u8], Default::default())?;
         }
 
+        // if wait for height doesn't lock its own blocks, can't make it async
+        // DbConnector is not Send
+        std::mem::drop(blocks);
         // Block until there's something
-        self.wait_for_height(&blocks, height)?;
+        self.wait_for_height(height).await?;
         // Locking blocks here, so submissions has to wait
+        let blocks = self.blocks.lock().await;
         let oldest_available_height = blocks.get(0).unwrap().header.height;
         let index = height
             .checked_sub(oldest_available_height)
