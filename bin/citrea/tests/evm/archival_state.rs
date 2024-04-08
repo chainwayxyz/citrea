@@ -152,7 +152,7 @@ async fn run_archival_valid_tests(addr: Address, seq_test_client: &TestClient) {
                 .eth_get_balance(addr, Some(BlockNumberOrTag::Number(i)))
                 .await
                 .unwrap(),
-            (i - 1).into()
+            i.into()
         );
 
         assert_eq!(
@@ -163,7 +163,7 @@ async fn run_archival_valid_tests(addr: Address, seq_test_client: &TestClient) {
                 )
                 .await
                 .unwrap(),
-            i - 1
+            i
         );
     }
 
@@ -227,14 +227,14 @@ async fn run_archival_valid_tests(addr: Address, seq_test_client: &TestClient) {
     seq_test_client.send_publish_batch_request().await;
 
     let code = seq_test_client
-        .eth_get_code(contract_address, Some(BlockNumberOrTag::Number(10)))
+        .eth_get_code(contract_address, Some(BlockNumberOrTag::Number(9)))
         .await
         .unwrap();
 
     assert_eq!(code.to_vec()[..runtime_code.len()], runtime_code.to_vec());
 
     let non_existent_code = seq_test_client
-        .eth_get_code(contract_address, Some(BlockNumberOrTag::Number(9)))
+        .eth_get_code(contract_address, Some(BlockNumberOrTag::Number(8)))
         .await
         .unwrap();
     assert_eq!(non_existent_code, Bytes::from(vec![]));
@@ -262,7 +262,7 @@ async fn run_archival_valid_tests(addr: Address, seq_test_client: &TestClient) {
         .eth_get_storage_at(
             contract_address,
             storage_slot.into(),
-            Some(BlockNumberOrTag::Number(12)),
+            Some(BlockNumberOrTag::Number(11)),
         )
         .await
         .unwrap();
