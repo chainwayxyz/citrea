@@ -60,10 +60,10 @@ lazy_static! {
     };
 
     pub(crate) static ref GENESIS_HASH: B256 = B256::from(hex!(
-        "5aa8e649f234ae2128a8eb8536f557fafd7b6a46f12cba8d89a73eb74ee0f0e3"
+        "21d33ac980d24d19397167ce9b4e9fb072d7942f22c2451e8d49c9b1c3bc1ff1"
     ));
     pub(crate) static ref GENESIS_STATE_ROOT: B256 = B256::from(hex!(
-        "62dcfcbbc789410f13b8ec77a27fa8fc1c804c5cedbf2c2498b886b7c5a2f35b"
+        "cf60bd2197418b787dc8a3e1befea15f15546bc60a12075fe06da5ee9a284e95"
     ));
     pub(crate) static ref GENESIS_DA_TXS_COMMITMENT: B256 = B256::from(hex!(
         "4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b"
@@ -229,6 +229,7 @@ fn genesis_block() {
                 *GENESIS_HASH
             ),
             l1_fee_rate: 0,
+            l1_hash: B256::default(),
             transactions: (0u64..0u64),
         }
     );
