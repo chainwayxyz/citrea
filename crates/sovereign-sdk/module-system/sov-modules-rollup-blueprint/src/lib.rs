@@ -154,11 +154,13 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         let last_finalized_block_header = da_service.get_last_finalized_block_header().await?;
 
         let ledger_db = self.create_ledger_db(&rollup_config);
+        println!("ledger_db: {:?}", ledger_db);
         let genesis_config = self.create_genesis_config(
             runtime_genesis_paths,
             kernel_genesis_config,
             &rollup_config,
         )?;
+        println!("AAAAA");
 
         let mut storage_manager = self.create_storage_manager(&rollup_config)?;
         let prover_storage = storage_manager.create_finalized_storage()?;
