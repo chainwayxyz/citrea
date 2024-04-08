@@ -80,7 +80,9 @@ where
         self.block_env.set(&new_pending_env, working_set);
         self.l1_fee_rate.set(&l1_fee_rate, working_set);
 
-        self.execute_system_events(system_events, working_set);
+        if !system_events.is_empty() {
+            self.execute_system_events(system_events, working_set);
+        }
 
         // if height > 256, start removing the oldest block
         // keeping only 256 most recent blocks
