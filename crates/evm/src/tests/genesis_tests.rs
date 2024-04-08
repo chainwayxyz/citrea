@@ -229,7 +229,7 @@ fn genesis_block() {
                 *GENESIS_HASH
             ),
             l1_fee_rate: 0,
-            last_l1_hash: B256::default(),
+            l1_hash: B256::default(),
             transactions: (0u64..0u64),
         }
     );

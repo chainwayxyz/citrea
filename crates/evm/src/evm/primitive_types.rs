@@ -94,7 +94,7 @@ impl Block {
         SealedBlock {
             header: self.header.seal_slow(),
             l1_fee_rate: self.l1_fee_rate,
-            last_l1_hash: self.last_l1_hash,
+            l1_hash: self.l1_hash,
             transactions: self.transactions,
         }
     }
@@ -113,8 +113,8 @@ pub(crate) struct SealedBlock {
     /// L1 fee rate.
     pub(crate) l1_fee_rate: u64,
 
-    /// Last L1 hash.
-    pub(crate) last_l1_hash: B256,
+    /// The hash of L1 block that the L2 block corresponds to.  
+    pub(crate) l1_hash: B256,
 
     /// Transactions in this block.
     pub(crate) transactions: Range<u64>,

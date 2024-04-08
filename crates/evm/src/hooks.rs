@@ -44,8 +44,8 @@ where
 
         // populate system events
         let mut system_events = vec![];
-        if let Some(last_l1_hash) = self.last_l1_hash.get(working_set) {
-            if last_l1_hash != da_slot_hash {
+        if let Some(l1_hash) = self.last_l1_hash.get(working_set) {
+            if l1_hash != da_slot_hash {
                 // That's a new L1 block
                 system_events.push(SystemEvent::L1BlockHashSetBlockInfo(
                     da_slot_hash,
@@ -113,7 +113,7 @@ where
             .get(working_set)
             .expect("L1 fee rate must be set");
 
-        let last_l1_hash = self
+        let l1_hash = self
             .last_l1_hash
             .get(working_set)
             .expect("Last L1 hash must be set");
@@ -187,7 +187,7 @@ where
         let block = Block {
             header,
             l1_fee_rate,
-            last_l1_hash,
+            l1_hash,
             transactions: start_tx_index..start_tx_index + pending_transactions.len() as u64,
         };
 

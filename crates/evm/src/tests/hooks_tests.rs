@@ -115,7 +115,7 @@ fn end_soft_confirmation_hook_sets_head() {
                 parent_beacon_block_root: None,
             },
             l1_fee_rate: 0,
-            last_l1_hash: B256::from(DA_ROOT_HASH.0),
+            l1_hash: B256::from(DA_ROOT_HASH.0),
             transactions: 0..2
         }
     );
@@ -306,7 +306,7 @@ fn finalize_hook_creates_final_block() {
                 ))
             ),
             l1_fee_rate: 0,
-            last_l1_hash: B256::from(DA_ROOT_HASH.0),
+            l1_hash: B256::from(DA_ROOT_HASH.0),
             transactions: 0..2
         }
     );

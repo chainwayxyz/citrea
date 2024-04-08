@@ -411,7 +411,7 @@ fn check_against_third_block(block: &Rich<Block>) {
     );
 
     inner_block.other.insert(
-        "last_l1_hash".to_string(),
+        "l1_hash".to_string(),
         serde_json::Value::String(
             "0x0808080808080808080808080808080808080808080808080808080808080808".to_string(),
         ),

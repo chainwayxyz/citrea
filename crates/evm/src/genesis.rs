@@ -175,7 +175,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             header,
             l1_fee_rate: 0,
             // TODO: Check this for genesis hash - is it completely fine?
-            last_l1_hash: B256::default(),
+            l1_hash: B256::default(),
             transactions: 0u64..0u64,
         };
 

@@ -179,8 +179,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     serde_json::json!(sealed_block.l1_fee_rate),
                 ),
                 (
-                    "last_l1_hash".to_string(),
-                    serde_json::json!(sealed_block.last_l1_hash),
+                    "l1_hash".to_string(),
+                    serde_json::json!(sealed_block.l1_hash),
                 ),
             ])),
         };
