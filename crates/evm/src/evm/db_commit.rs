@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use reth_primitives::{KECCAK_EMPTY, U256};
 use revm::primitives::{Account, Address, HashMap};
 use revm::DatabaseCommit;
@@ -52,10 +54,8 @@ impl<'a, C: sov_modules_api::Context> DatabaseCommit for EvmDb<'a, C> {
 
             db_account.info = account_info.into();
 
-            let mut storage_slots = account.storage.into_iter().collect::<Vec<_>>();
-            storage_slots.sort_by(|a, b| a.0.cmp(&b.0));
-
-            // insert to StateVec sorted -- or else nodes will have different state roots
+            let storage_slots = account.storage.into_iter().collect::<BTreeMap<_, _>>();
+            // insert to StateVec keys must sorted -- or else nodes will have different state roots
             for (key, value) in storage_slots.into_iter() {
                 let value = value.present_value();
                 if db_account.storage.get(&key, self.working_set).is_none() {
