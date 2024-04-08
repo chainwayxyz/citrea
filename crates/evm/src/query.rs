@@ -254,12 +254,12 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 if num > curr_block_number {
                     return Err(EthApiError::UnknownBlockNumber.into());
                 }
-                working_set.set_archival_version(num);
+                set_state_to_end_of_evm_block(num, working_set);
             }
             // Working state here is already at the latest state, so no need to anything
             Some(BlockNumberOrTag::Latest) | Some(BlockNumberOrTag::Pending) | None => {}
             Some(BlockNumberOrTag::Earliest) => {
-                working_set.set_archival_version(0);
+                set_state_to_end_of_evm_block(0, working_set);
             }
             _ => {
                 return Err(EthApiError::InvalidParams(
@@ -302,12 +302,12 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 if num > curr_block_number {
                     return Err(EthApiError::UnknownBlockNumber.into());
                 }
-                working_set.set_archival_version(num);
+                set_state_to_end_of_evm_block(num, working_set);
             }
             // Working state here is already at the latest state, so no need to anything
             Some(BlockNumberOrTag::Latest) | Some(BlockNumberOrTag::Pending) | None => {}
             Some(BlockNumberOrTag::Earliest) => {
-                working_set.set_archival_version(0);
+                set_state_to_end_of_evm_block(0, working_set);
             }
             _ => {
                 return Err(EthApiError::InvalidParams(
@@ -349,12 +349,12 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 if num > curr_block_number {
                     return Err(EthApiError::UnknownBlockNumber.into());
                 }
-                working_set.set_archival_version(num);
+                set_state_to_end_of_evm_block(num, working_set);
             }
             // Working state here is already at the latest state, so no need to anything
             Some(BlockNumberOrTag::Latest) | Some(BlockNumberOrTag::Pending) | None => {}
             Some(BlockNumberOrTag::Earliest) => {
-                working_set.set_archival_version(0);
+                set_state_to_end_of_evm_block(0, working_set);
             }
             _ => {
                 return Err(EthApiError::InvalidParams(
@@ -395,12 +395,12 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 if num > curr_block_number {
                     return Err(EthApiError::UnknownBlockNumber.into());
                 }
-                working_set.set_archival_version(num);
+                set_state_to_end_of_evm_block(num, working_set);
             }
             // Working state here is already at the latest state, so no need to anything
             Some(BlockNumberOrTag::Latest) | Some(BlockNumberOrTag::Pending) | None => {}
             Some(BlockNumberOrTag::Earliest) => {
-                working_set.set_archival_version(0);
+                set_state_to_end_of_evm_block(0, working_set);
             }
             // Is this the way?
             // Note that reth works for all types of BlockNumberOrTag
@@ -577,7 +577,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     None => return Err(EthApiError::UnknownBlockNumber.into()),
                 };
 
-                working_set.set_archival_version(block.header.number);
+                set_state_to_end_of_evm_block(block.header.number, working_set);
+
                 BlockEnv::from(&block)
             }
         };
@@ -650,7 +651,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     None => return Err(EthApiError::UnknownBlockNumber.into()),
                 };
 
-                working_set.set_archival_version(block.header.number);
+                set_state_to_end_of_evm_block(block.header.number, working_set);
                 BlockEnv::from(&block)
             }
         };
@@ -747,7 +748,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     None => return Err(EthApiError::UnknownBlockNumber.into()),
                 };
 
-                working_set.set_archival_version(block.header.number);
+                set_state_to_end_of_evm_block(block.header.number, working_set);
                 BlockEnv::from(&block)
             }
         };
@@ -1057,7 +1058,9 @@ impl<C: sov_modules_api::Context> Evm<C> {
             })
             .collect();
 
-        working_set.set_archival_version(sealed_block.header.number);
+        // set state to end of the previous block
+        set_state_to_end_of_evm_block(block_number - 1, working_set);
+
         let block_env = BlockEnv::from(&sealed_block);
         let cfg = self.cfg.get(working_set).unwrap();
         let cfg_env = get_cfg_env(&block_env, cfg, Some(get_cfg_env_template()));
@@ -1647,4 +1650,14 @@ fn update_estimated_gas_range(
         }
     };
     Ok(())
+}
+
+#[inline]
+fn set_state_to_end_of_evm_block<C: sov_modules_api::Context>(
+    block_number: u64,
+    working_set: &mut WorkingSet<C>,
+) {
+    // genesis is committed at db version 1
+    // so every block is offset by 1
+    working_set.set_archival_version(block_number + 1);
 }
