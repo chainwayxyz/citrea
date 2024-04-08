@@ -174,7 +174,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
 
         let native_stf = StfBlueprint::new();
 
-        let genesis_root = prover_storage.get_root_hash(0);
+        let genesis_root = prover_storage.get_root_hash(1);
 
         let init_variant = match prev_root {
             Some(root_hash) => InitVariant::Initialized(root_hash),
@@ -271,7 +271,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
 
         let native_stf = StfBlueprint::new();
 
-        let genesis_root = prover_storage.get_root_hash(0);
+        let genesis_root = prover_storage.get_root_hash(1);
 
         let init_variant = match prev_root {
             Some(root_hash) => InitVariant::Initialized(root_hash),
