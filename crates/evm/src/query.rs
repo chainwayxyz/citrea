@@ -175,11 +175,11 @@ impl<C: sov_modules_api::Context> Evm<C> {
             withdrawals: Default::default(),
             other: OtherFields::new(BTreeMap::<String, _>::from([
                 (
-                    "l1_fee_rate".to_string(),
+                    "l1FeeRate".to_string(),
                     serde_json::json!(sealed_block.l1_fee_rate),
                 ),
                 (
-                    "l1_hash".to_string(),
+                    "l1Hash".to_string(),
                     serde_json::json!(sealed_block.l1_hash),
                 ),
             ])),

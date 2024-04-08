@@ -44,8 +44,8 @@ where
 
         // populate system events
         let mut system_events = vec![];
-        if let Some(l1_hash) = self.last_l1_hash.get(working_set) {
-            if l1_hash != da_slot_hash {
+        if let Some(last_l1_hash) = self.last_l1_hash.get(working_set) {
+            if last_l1_hash != da_slot_hash {
                 // That's a new L1 block
                 system_events.push(SystemEvent::L1BlockHashSetBlockInfo(
                     da_slot_hash,
