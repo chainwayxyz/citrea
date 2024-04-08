@@ -34,7 +34,6 @@ thiserror = { workspace = true }
 
 bitcoin = { version = "0.31.1", features = ["serde", "rand"] }
 brotli = "3.3.4"
-async-recursion = "1.0.5"
 futures.workspace = true
 
 

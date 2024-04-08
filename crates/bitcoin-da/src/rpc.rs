@@ -2,7 +2,6 @@ use core::fmt::Display;
 use core::str::FromStr;
 
 use anyhow::anyhow;
-use async_recursion::async_recursion;
 use bitcoin::block::{Header, Version};
 use bitcoin::hash_types::{TxMerkleNode, WitnessMerkleNode};
 use bitcoin::hashes::Hash;
@@ -76,13 +75,11 @@ impl BitcoinNode {
         }
     }
 
-    // TODO: add max retries
-    #[async_recursion]
-    async fn call<T: serde::de::DeserializeOwned>(
+    async fn call_inner<T: serde::de::DeserializeOwned>(
         &self,
         method: &str,
-        params: Vec<serde_json::Value>,
-    ) -> Result<T, anyhow::Error> {
+        params: &[serde_json::Value],
+    ) -> Result<Result<T, RPCError>, reqwest::Error> {
         let response = self
             .client
             .post(&self.url)
@@ -93,27 +90,44 @@ impl BitcoinNode {
                 "params": params
             }))
             .send()
-            .await;
+            .await?;
 
-        // sometimes requests to bitcoind are dropped without a reason
-        // so impl. recursive retry
-        // TODO: add max retries
-        if let Err(error) = response {
-            // TODO: maybe remove is_request() check?
-            if error.is_connect() || error.is_timeout() || error.is_request() {
-                tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
-                return self.call(method, params).await;
-            }
-            return Err(anyhow!(error));
-        }
-
-        let response = response.unwrap().json::<Response<T>>().await?;
+        let response = response.json::<Response<T>>().await?;
 
         if let Some(error) = response.error {
-            return Err(anyhow!(error));
+            return Ok(Err(error));
         }
 
-        Ok(response.result.unwrap())
+        Ok(Ok(response.result.unwrap()))
+    }
+
+    // TODO: add max retries
+    async fn call<T: serde::de::DeserializeOwned>(
+        &self,
+        method: &str,
+        params: Vec<serde_json::Value>,
+    ) -> Result<T, anyhow::Error> {
+        let mut attempt = 1;
+        loop {
+            match self.call_inner(method, &params).await {
+                Ok(Ok(result)) => return Ok(result),
+                Ok(Err(error)) => {
+                    anyhow::bail!(error)
+                }
+                Err(error) => {
+                    // sometimes requests to bitcoind are dropped without a reason
+                    // TODO: maybe remove is_request() check?
+                    if error.is_connect() || error.is_timeout() || error.is_request() {
+                        tracing::warn!(error=?error, attempt=attempt, "Failed to send a call to bitcoind");
+                        attempt += 1;
+                        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+                        continue; // retry
+                    } else {
+                        anyhow::bail!(error)
+                    }
+                }
+            }
+        }
     }
 
     // get_block_count returns the current block height
