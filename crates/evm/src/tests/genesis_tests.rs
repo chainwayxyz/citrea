@@ -35,7 +35,7 @@ lazy_static! {
             balance: U256::checked_mul(U256::from(1000),
             U256::pow(U256::from(10), U256::from(18))).unwrap(), // 1000 ETH,
             code_hash: B256::from_hex("0x4e8ee9adb469b245e3a5a8e58e9b733aaa857a9dce1982257531db8a2700aabf").unwrap(),
-            code: Bytes::from_hex("60606040526000357c0100000000000000000000000000000000000000000000000000000000900463ffffffff168063a223e05d1461006a578063").unwrap(),
+            code: Bytes::from_hex("0x60606040526000357c0100000000000000000000000000000000000000000000000000000000900463ffffffff168063a223e05d1461006a578063").unwrap(),
             storage: {
                 let mut storage = HashMap::new();
                 storage.insert(U256::from(0), U256::from(0x4321));
@@ -202,14 +202,6 @@ fn genesis_block() {
 
     assert_eq!(block_number, 0);
 
-    // println!("block: {:?}", block);
-    // let q = block.l1_hash;
-    // println!("q: {:?}", q);
-    // let x: FixedBytes<32> = block.l1_hash.into();
-    // println!("l1_hash: {:?}", x);
-    // let y: FixedBytes<32> = [0; 32].into();
-    // println!("y: {:?}", y);
-
     assert_eq!(
         block,
         SealedBlock {
@@ -248,9 +240,6 @@ fn genesis_block() {
 #[test]
 fn genesis_head() {
     let (evm, mut working_set) = get_evm(&TEST_CONFIG);
-    // let code = Bytes::from_hex("60606040526000357c0100000000000000000000000000000000000000000000000000000000900463ffffffff168063a223e05d1461006a578063").unwrap();
-    // let hash = keccak256(code);
-    // println!("hash: {:?}", hash);
     let head = evm.head.get(&mut working_set).unwrap();
 
     assert_eq!(head.header.parent_hash, *GENESIS_HASH);

@@ -95,9 +95,6 @@ pub async fn start_rollup(
         .expect("Failed to parse chain_state genesis config"),
     };
 
-    // println!("rt_genesis_paths: {:?}", rt_genesis_paths.evm_genesis_path);
-    // println!("kernel_genesis: {:?}", kernel_genesis.chain_state);
-
     match node_mode {
         NodeMode::FullNode(_) => {
             let rollup = mock_demo_rollup
@@ -139,7 +136,6 @@ pub async fn start_rollup(
                     .pub_key()
             );
 
-            // println!("rollup_config: {:?}", rollup_config);
             let sequencer_rollup = mock_demo_rollup
                 .create_new_sequencer(
                     &rt_genesis_paths,

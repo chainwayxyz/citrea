@@ -153,13 +153,11 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         // Getting block here, so prover_service doesn't have to be `Send`
 
         let ledger_db = self.create_ledger_db(&rollup_config);
-        println!("ledger_db: {:?}", ledger_db);
         let genesis_config = self.create_genesis_config(
             runtime_genesis_paths,
             kernel_genesis_config,
             &rollup_config,
         )?;
-        println!("AAAAA");
 
         let mut storage_manager = self.create_storage_manager(&rollup_config)?;
         let prover_storage = storage_manager.create_finalized_storage()?;
