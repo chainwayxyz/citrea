@@ -80,7 +80,9 @@ where
         self.block_env.set(&new_pending_env, working_set);
         self.l1_fee_rate.set(&l1_fee_rate, working_set);
 
-        self.execute_system_events(system_events, working_set);
+        if !system_events.is_empty() {
+            self.execute_system_events(system_events, working_set);
+        }
 
         // if height > 256, start removing the oldest block
         // keeping only 256 most recent blocks
@@ -112,6 +114,11 @@ where
             .l1_fee_rate
             .get(working_set)
             .expect("L1 fee rate must be set");
+
+        let l1_hash = self
+            .last_l1_hash
+            .get(working_set)
+            .expect("Last L1 hash must be set");
 
         let parent_block = self
             .head
@@ -182,6 +189,7 @@ where
         let block = Block {
             header,
             l1_fee_rate,
+            l1_hash,
             transactions: start_tx_index..start_tx_index + pending_transactions.len() as u64,
         };
 

@@ -151,7 +151,6 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         // TODO: Double check what kind of storage needed here.
         // Maybe whole "prev_root" can be initialized inside runner
         // Getting block here, so prover_service doesn't have to be `Send`
-        let last_finalized_block_header = da_service.get_last_finalized_block_header().await?;
 
         let ledger_db = self.create_ledger_db(&rollup_config);
         println!("ledger_db: {:?}", ledger_db);
@@ -182,10 +181,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
             Some(root_hash) => InitVariant::Initialized(root_hash),
             None => match genesis_root {
                 Ok(root_hash) => InitVariant::Initialized(root_hash),
-                _ => InitVariant::Genesis {
-                    block_header: last_finalized_block_header.clone(),
-                    genesis_params: genesis_config,
-                },
+                _ => InitVariant::Genesis(genesis_config),
             },
         };
 
@@ -233,7 +229,6 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         // TODO: Double check what kind of storage needed here.
         // Maybe whole "prev_root" can be initialized inside runner
         // Getting block here, so prover_service doesn't have to be `Send`
-        let last_finalized_block_header = da_service.get_last_finalized_block_header().await?;
 
         let prover_service = match is_prover {
             true => Some(
@@ -279,10 +274,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
             Some(root_hash) => InitVariant::Initialized(root_hash),
             None => match genesis_root {
                 Ok(root_hash) => InitVariant::Initialized(root_hash),
-                _ => InitVariant::Genesis {
-                    block_header: last_finalized_block_header.clone(),
-                    genesis_params: genesis_config,
-                },
+                _ => InitVariant::Genesis(genesis_config),
             },
         };
 
