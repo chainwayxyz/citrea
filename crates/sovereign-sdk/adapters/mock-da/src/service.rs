@@ -110,7 +110,7 @@ impl MockDaService {
         self.wait_attempts = wait_attempts;
     }
 
-    async fn wait_for_height<'a>(&self, height: u64) -> anyhow::Result<()> {
+    async fn wait_for_height(&self, height: u64) -> anyhow::Result<()> {
         // Waits self.wait_attempts * 10ms to get block at height
         for _ in 0..self.wait_attempts {
             {
