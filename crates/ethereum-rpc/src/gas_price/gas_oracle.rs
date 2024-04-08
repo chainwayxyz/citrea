@@ -9,7 +9,7 @@ use std::sync::Arc;
 use citrea_evm::{EthApiError, EthResult, Evm, RpcInvalidTransactionError};
 use reth_primitives::basefee::calculate_next_block_base_fee;
 use reth_primitives::constants::GWEI_TO_WEI;
-use reth_primitives::{BlockNumberOrTag, B256, U256, U8};
+use reth_primitives::{BlockNumberOrTag, B256, U256, U64};
 use reth_rpc_types::{BlockTransactions, FeeHistory};
 use serde::{Deserialize, Serialize};
 use sov_modules_api::WorkingSet;
@@ -424,7 +424,7 @@ pub(crate) fn effective_gas_tip(
 ) -> Option<U256> {
     let priority_fee_or_price = U256::from(match transaction.transaction_type {
         Some(tx_type) => {
-            if tx_type == U8::from(2) {
+            if tx_type == U64::from(2) {
                 transaction.max_priority_fee_per_gas.unwrap()
             } else {
                 transaction.gas_price.unwrap()
@@ -436,7 +436,7 @@ pub(crate) fn effective_gas_tip(
     if let Some(base_fee) = base_fee {
         let max_fee_per_gas = U256::from(match transaction.transaction_type {
             Some(tx_type) => {
-                if tx_type == U8::from(2) {
+                if tx_type == U64::from(2) {
                     transaction.max_priority_fee_per_gas.unwrap()
                 } else {
                     transaction.gas_price.unwrap()

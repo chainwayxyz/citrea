@@ -35,8 +35,8 @@ fn payable_contract_value_test() {
             input: None,
             data: None,
         },
-        nonce: Some(1u64),
-        chain_id: Some(1u64),
+        nonce: Some(U64::from(1u64)),
+        chain_id: Some(U64::from(1u64)),
         access_list: None,
         max_fee_per_blob_gas: None,
         blob_versioned_hashes: None,
@@ -65,8 +65,8 @@ fn test_tx_request_fields_gas() {
             input: None,
             data: None,
         },
-        nonce: Some(1u64),
-        chain_id: Some(1u64),
+        nonce: Some(U64::from(1u64)),
+        chain_id: Some(U64::from(1u64)),
         access_list: None,
         max_fee_per_blob_gas: None,
         blob_versioned_hashes: None,
@@ -161,7 +161,7 @@ fn test_tx_request_fields_gas() {
     working_set.unset_archival_version();
 
     let tx_req_invalid_chain_id = TransactionRequest {
-        chain_id: Some(3u64),
+        chain_id: Some(U64::from(3u64)),
         ..tx_req_contract_call.clone()
     };
 
@@ -296,8 +296,8 @@ fn test_access_list() {
         max_priority_fee_per_gas: None,
         value: None,
         input: TransactionInput::new(input_data),
-        nonce: Some(3u64),
-        chain_id: Some(1u64),
+        nonce: Some(U64::from(3u64)),
+        chain_id: Some(U64::from(1u64)),
         access_list: None,
         max_fee_per_blob_gas: None,
         blob_versioned_hashes: None,

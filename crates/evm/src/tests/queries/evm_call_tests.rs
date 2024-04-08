@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use hex::FromHex;
 use jsonrpsee::core::RpcResult;
-use reth_primitives::{Address, BlockNumberOrTag, Bytes};
+use reth_primitives::{Address, BlockNumberOrTag, Bytes, U64};
 use reth_rpc::eth::error::RpcInvalidTransactionError;
 use reth_rpc_types::request::{TransactionInput, TransactionRequest};
 use revm::primitives::U256;
@@ -143,7 +143,7 @@ fn call_contract_with_invalid_nonce() {
             to: Some(contract_address),
             gas: Some(U256::from(100000)),
             gas_price: Some(U256::from(100000000)),
-            nonce: Some(invalid_nonce),
+            nonce: Some(U64::from(invalid_nonce)),
             input: TransactionInput::new(contract_call_data.clone()),
             ..Default::default()
         },
@@ -163,7 +163,7 @@ fn call_contract_with_invalid_nonce() {
             to: Some(contract_address),
             gas: Some(U256::from(100000)),
             gas_price: Some(U256::from(100000000)),
-            nonce: Some(low_nonce),
+            nonce: Some(U64::from(low_nonce)),
             input: TransactionInput::new(contract_call_data),
             ..Default::default()
         },
@@ -332,8 +332,8 @@ fn eth_call_eip1559(
         max_priority_fee_per_gas,
         value: None,
         input: TransactionInput::new(contract.get_call_data().to_vec().into()),
-        nonce: Some(9u64),
-        chain_id: Some(1u64),
+        nonce: Some(U64::from(9u64)),
+        chain_id: Some(U64::from(1u64)),
         ..Default::default()
     };
 
@@ -356,8 +356,8 @@ fn gas_price_call_test() {
         to: Some(Address::from_str("0x819c5497b157177315e1204f52e588b393771719").unwrap()),
         value: Some(U256::from(1000)),
         input: None.into(),
-        nonce: Some(1u64),
-        chain_id: Some(1u64),
+        nonce: Some(U64::from(1u64)),
+        chain_id: Some(U64::from(1u64)),
         access_list: None,
         max_fee_per_blob_gas: None,
         blob_versioned_hashes: None,

@@ -1514,7 +1514,7 @@ pub(crate) fn build_rpc_receipt(
     );
 
     reth_rpc_types::TransactionReceipt {
-        transaction_hash,
+        transaction_hash: Some(transaction_hash),
         transaction_index: U64::from(transaction_index),
         block_hash,
         block_number,

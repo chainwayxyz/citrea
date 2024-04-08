@@ -199,6 +199,10 @@ pub(crate) fn prepare_call_env(
     )?;
 
     let gas_limit = gas.unwrap_or(U256::from(block_env.gas_limit.min(u64::MAX)));
+    let chain_id: Option<u64> = match chain_id {
+        Some(c) => Some(c.to()),
+        None => None,
+    };
 
     let env = TxEnv {
         gas_limit: gas_limit

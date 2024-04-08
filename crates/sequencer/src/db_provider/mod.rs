@@ -7,12 +7,12 @@ use reth_primitives::{
 };
 use reth_provider::{
     AccountReader, BlockHashReader, BlockIdReader, BlockNumReader, BlockReader, BlockReaderIdExt,
-    ChainSpecProvider, HeaderProvider, ReceiptProvider, ReceiptProviderIdExt, StateProvider,
-    StateProviderFactory, StateRootProvider, TransactionsProvider, WithdrawalsProvider,
+    BundleStateWithReceipts, ChainSpecProvider, HeaderProvider, ReceiptProvider,
+    ReceiptProviderIdExt, StateProvider, StateProviderFactory, StateRootProvider,
+    TransactionsProvider, WithdrawalsProvider,
 };
 use reth_rpc_types::{Block, BlockTransactions};
 use reth_trie::updates::TrieUpdates;
-use revm::db::states::bundle_state::BundleState;
 use sov_modules_api::WorkingSet;
 
 #[derive(Clone)]
@@ -525,12 +525,15 @@ impl<C: sov_modules_api::Context> StateProviderFactory for DbProvider<C> {
 
 impl<C: sov_modules_api::Context> StateRootProvider for DbProvider<C> {
     #[doc = r" Returns the state root of the BundleState on top of the current state."]
-    fn state_root(&self, _bundle_state: &BundleState) -> ProviderResult<reth_primitives::B256> {
+    fn state_root(
+        &self,
+        _bundle_state: &BundleStateWithReceipts,
+    ) -> ProviderResult<reth_primitives::B256> {
         unimplemented!("state_root")
     }
     fn state_root_with_updates(
         &self,
-        _bundle_state: &BundleState,
+        _bundle_state: &BundleStateWithReceipts,
     ) -> reth_interfaces::provider::ProviderResult<(reth_primitives::B256, TrieUpdates)> {
         unimplemented!("state_root_with_updates")
     }

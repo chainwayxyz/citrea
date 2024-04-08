@@ -4,7 +4,7 @@ use ethers_core::types::transaction::eip2718::TypedTransaction;
 use ethers_core::types::{Bytes, Eip1559TransactionRequest};
 use ethers_core::utils::rlp::Rlp;
 use ethers_signers::{LocalWallet, Signer};
-use reth_primitives::{Address, TransactionSignedEcRecovered, U256, U8};
+use reth_primitives::{Address, TransactionSignedEcRecovered, U256, U64, U8};
 use reth_rpc_types::request::{TransactionInput, TransactionRequest};
 use revm::primitives::{TransactTo, TxEnv};
 
@@ -82,8 +82,8 @@ fn prepare_call_env_conversion() {
         gas: Some(U256::from(200u64)),
         value: Some(U256::from(300u64)),
         input: TransactionInput::default(),
-        nonce: Some(1u64),
-        chain_id: Some(1u64),
+        nonce: Some(U64::from(1u64)),
+        chain_id: Some(U64::from(1u64)),
         access_list: None,
         transaction_type: Some(U8::from(2u8)),
         blob_versioned_hashes: None,
