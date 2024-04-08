@@ -49,7 +49,7 @@ async fn test_simple_reorg_case() {
     let mut da_service = MockDaService::with_finality(sequencer_address, 4);
     da_service.set_wait_attempts(2);
 
-    let genesis_header = da_service.get_last_finalized_block_header().await.unwrap();
+    let _genesis_header = da_service.get_last_finalized_block_header().await.unwrap();
 
     let planned_fork = PlannedFork::new(5, 2, fork_blobs.clone());
     da_service.set_planned_fork(planned_fork).await.unwrap();
@@ -87,7 +87,7 @@ async fn test_instant_finality_data_stored() {
     let mut da_service = MockDaService::new(sequencer_address);
     da_service.set_wait_attempts(2);
 
-    let genesis_header = da_service.get_last_finalized_block_header().await.unwrap();
+    let _genesis_header = da_service.get_last_finalized_block_header().await.unwrap();
 
     da_service.send_transaction(&[1, 1, 1, 1]).await.unwrap();
     da_service.send_transaction(&[2, 2, 2, 2]).await.unwrap();

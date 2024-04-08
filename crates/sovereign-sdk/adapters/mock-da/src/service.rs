@@ -118,7 +118,7 @@ impl MockDaService {
                     return Ok(());
                 }
             }
-            tokio::time::sleep(Duration::from_millis(10)).await;
+            time::sleep(Duration::from_millis(10)).await;
         }
         anyhow::bail!(
             "No block at height={height} has been sent in {:?}",
@@ -182,9 +182,9 @@ impl MockDaService {
         Ok(())
     }
 
-    fn add_blob<'a>(
+    fn add_blob(
         &self,
-        blocks: &AsyncMutexGuard<'a, DbConnector>,
+        blocks: &AsyncMutexGuard<'_, DbConnector>,
         blob: &[u8],
         zkp_proof: Vec<u8>,
     ) -> anyhow::Result<u64> {

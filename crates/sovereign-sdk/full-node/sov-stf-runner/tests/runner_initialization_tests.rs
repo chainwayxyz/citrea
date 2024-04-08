@@ -1,7 +1,6 @@
 use sov_db::ledger_db::LedgerDB;
 use sov_mock_da::{
-    MockAddress, MockBlockHeader, MockDaConfig, MockDaService, MockDaSpec, MockDaVerifier,
-    MockValidityCond,
+    MockAddress, MockDaConfig, MockDaService, MockDaSpec, MockDaVerifier, MockValidityCond,
 };
 use sov_mock_zkvm::MockZkvm;
 use sov_prover_storage_manager::ProverStorageManager;
