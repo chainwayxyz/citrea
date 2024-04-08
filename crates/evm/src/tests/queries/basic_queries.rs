@@ -406,12 +406,12 @@ fn check_against_third_block(block: &Rich<Block>) {
     })).unwrap();
 
     inner_block.other.insert(
-        "l1_fee_rate".to_string(),
+        "l1FeeRate".to_string(),
         serde_json::Value::Number(serde_json::Number::from(1)),
     );
 
     inner_block.other.insert(
-        "l1_hash".to_string(),
+        "l1Hash".to_string(),
         serde_json::Value::String(
             "0x0808080808080808080808080808080808080808080808080808080808080808".to_string(),
         ),
