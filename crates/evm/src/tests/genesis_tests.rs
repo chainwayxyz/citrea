@@ -34,7 +34,7 @@ lazy_static! {
             address:Address::from([2u8; 20]),
             balance: U256::checked_mul(U256::from(1000),
             U256::pow(U256::from(10), U256::from(18))).unwrap(), // 1000 ETH,
-            code_hash: B256::from_hex("4e8ee9adb469b245e3a5a8e58e9b733aaa857a9dce1982257531db8a2700aabf").unwrap(),
+            code_hash: B256::from_hex("0x4e8ee9adb469b245e3a5a8e58e9b733aaa857a9dce1982257531db8a2700aabf").unwrap(),
             code: Bytes::from_hex("60606040526000357c0100000000000000000000000000000000000000000000000000000000900463ffffffff168063a223e05d1461006a578063").unwrap(),
             storage: {
                 let mut storage = HashMap::new();
