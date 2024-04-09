@@ -458,14 +458,12 @@ where
 
                         // submit commitment
                         self.da_service
-                            .send_transaction(
+                            .send_tx_no_wait(
                                 DaData::SequencerCommitment(commitment)
                                     .try_to_vec()
-                                    .unwrap()
-                                    .as_slice(),
+                                    .unwrap(),
                             )
-                            .await
-                            .expect("Sequencer: Failed to send commitment");
+                            .await;
 
                         self.ledger_db
                             .set_last_sequencer_commitment_l1_height(SlotNumber(
