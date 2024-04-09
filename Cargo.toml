@@ -11,9 +11,7 @@ members = [
     "crates/ethereum-rpc",
     # Sovereign sdk
     "crates/sovereign-sdk/rollup-interface",
-    "crates/sovereign-sdk/adapters/avail",
     "crates/sovereign-sdk/adapters/risc0",
-    "crates/sovereign-sdk/adapters/celestia",
     "crates/sovereign-sdk/adapters/mock-da",
     "crates/sovereign-sdk/adapters/mock-zkvm",
     # Examples
