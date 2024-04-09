@@ -298,7 +298,7 @@ mod tests {
                 address,
                 balance: AccountData::balance(u64::MAX),
                 code_hash: keccak256(&code),
-                code: code,
+                code,
                 nonce: 0,
                 storage,
             }],
