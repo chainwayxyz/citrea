@@ -282,7 +282,7 @@ mod tests {
     use core::str::FromStr;
 
     use bitcoin::block::{Header, Version};
-    use bitcoin::hash_types::TxMerkleNode;
+    use bitcoin::hash_types::{TxMerkleNode, WitnessMerkleNode};
     use bitcoin::hashes::Hash;
     use bitcoin::string::FromHexStr;
     use bitcoin::{BlockHash, CompactTarget, ScriptBuf, Witness};
@@ -341,6 +341,10 @@ mod tests {
             },
             6,
             2,
+            WitnessMerkleNode::from_str(
+                "a8b25755ed6e2f1df665b07e751f6acc1ff4e1ec765caa93084176e34fa5ad71",
+            )
+            .unwrap(),
         );
 
         let block_txs = get_non_segwit_mock_txs();
@@ -411,6 +415,10 @@ mod tests {
             },
             13,
             2,
+            WitnessMerkleNode::from_str(
+                "a8b25755ed6e2f1df665b07e751f6acc1ff4e1ec765caa93084176e34fa5ad71",
+            )
+            .unwrap(),
         );
 
         let mut block_txs = get_mock_txs();
@@ -482,6 +490,10 @@ mod tests {
             },
             13,
             2,
+            WitnessMerkleNode::from_str(
+                "a8b25755ed6e2f1df665b07e751f6acc1ff4e1ec765caa93084176e34fa5ad71",
+            )
+            .unwrap(),
         );
 
         let mut block_txs = get_mock_txs();
@@ -569,6 +581,10 @@ mod tests {
             },
             13,
             2,
+            WitnessMerkleNode::from_str(
+                "a8b25755ed6e2f1df665b07e751f6acc1ff4e1ec765caa93084176e34fa5ad71",
+            )
+            .unwrap(),
         );
 
         let mut block_txs = get_mock_txs();

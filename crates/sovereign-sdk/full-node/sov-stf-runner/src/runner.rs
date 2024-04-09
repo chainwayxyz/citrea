@@ -27,7 +27,7 @@ use tokio::time::{sleep, Duration, Instant};
 use tracing::{debug, error, info};
 
 use crate::verifier::StateTransitionVerifier;
-use crate::{ProverService, RunnerConfig};
+use crate::{ProverService, RpcConfig, RunnerConfig};
 
 type StateRoot<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::StateRoot;
 type GenesisParams<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::GenesisParams;
@@ -54,7 +54,7 @@ where
     /// made pub so that sequencer can clone it
     pub ledger_db: LedgerDB,
     state_root: StateRoot<Stf, Vm, Da::Spec>,
-    listen_address: SocketAddr,
+    rpc_config: RpcConfig,
     #[allow(dead_code)]
     prover_service: Option<Ps>,
     sequencer_client: Option<SequencerClient>,
@@ -152,8 +152,6 @@ where
             }
         };
 
-        let listen_address = SocketAddr::new(rpc_config.bind_host.parse()?, rpc_config.bind_port);
-
         // Start the main rollup loop
         let item_numbers = ledger_db.get_next_items_numbers();
         let last_soft_batch_processed_before_shutdown = item_numbers.soft_batch_number;
@@ -167,7 +165,7 @@ where
             storage_manager,
             ledger_db,
             state_root: prev_state_root,
-            listen_address,
+            rpc_config,
             prover_service,
             sequencer_client,
             sequencer_pub_key,
@@ -182,9 +180,19 @@ where
         methods: RpcModule<()>,
         channel: Option<oneshot::Sender<SocketAddr>>,
     ) {
-        let listen_address = self.listen_address;
+        let listen_address = SocketAddr::new(
+            self.rpc_config
+                .bind_host
+                .parse()
+                .expect("Failed to parse bind host"),
+            self.rpc_config.bind_port,
+        );
+
+        let max_connections = self.rpc_config.max_connections;
+
         let _handle = tokio::spawn(async move {
             let server = jsonrpsee::server::ServerBuilder::default()
+                .max_connections(max_connections)
                 .build([listen_address].as_ref())
                 .await
                 .unwrap();

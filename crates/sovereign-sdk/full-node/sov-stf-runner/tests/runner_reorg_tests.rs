@@ -130,6 +130,7 @@ async fn runner_execution(
             rpc_config: RpcConfig {
                 bind_host: "127.0.0.1".to_string(),
                 bind_port: 0,
+                max_connections: 1024,
             },
         },
         da: MockDaConfig {

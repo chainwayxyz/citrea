@@ -25,6 +25,12 @@ pub struct AccountData {
     pub code_hash: B256,
     /// Smart contract code.
     pub code: Bytes,
+    #[serde(
+        default = "Default::default",
+        skip_serializing_if = "HashMap::is_empty"
+    )]
+    /// Smart contract storage
+    pub storage: HashMap<U256, U256>,
     /// Account nonce.
     pub nonce: u64,
 }
@@ -104,6 +110,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
             if acc.code.len() > 0 {
                 evm_db.insert_code(acc.code_hash, acc.code.clone());
+
+                for (k, v) in acc.storage.iter() {
+                    evm_db.insert_storage(acc.address, *k, *v);
+                }
             }
         }
 
@@ -184,15 +194,18 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
     use std::str::FromStr;
 
+    use hex::FromHex;
     use reth_primitives::Bytes;
     use revm::primitives::{Address, SpecId};
 
+    use super::U256;
     use crate::{AccountData, EvmConfig};
 
     #[test]
-    fn test_config_serialization() {
+    fn test_config_deserialization() {
         let address = Address::from_str("0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266").unwrap();
         let config = EvmConfig {
             data: vec![AccountData {
@@ -201,6 +214,7 @@ mod tests {
                 code_hash: AccountData::empty_code(),
                 code: Bytes::default(),
                 nonce: 0,
+                storage: Default::default(),
             }],
             chain_id: 1,
             limit_contract_code_size: None,
@@ -217,6 +231,68 @@ mod tests {
                     "balance":"0xffffffffffffffff",
                     "code_hash":"0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
                     "code":"0x",
+                    "nonce":0
+                }],
+                "chain_id":1,
+                "limit_contract_code_size":null,
+                "spec":{
+                    "0":"SHANGHAI"
+                },
+                "coinbase":"0x0000000000000000000000000000000000000000",
+                "starting_base_fee":1000000000,
+                "block_gas_limit":30000000,
+                "genesis_timestamp":0,
+                "block_timestamp_delta":1,
+                "base_fee_params":{
+                    "max_change_denominator":8,
+                    "elasticity_multiplier":2
+                }
+        }"#;
+
+        let parsed_config: EvmConfig = serde_json::from_str(data).unwrap();
+        assert_eq!(config, parsed_config);
+
+        let mut storage = HashMap::new();
+        storage.insert(U256::from(0), U256::from(0x1234));
+        storage.insert(
+            U256::from_be_slice(
+                &hex::decode("6661e9d6d8b923d5bbaab1b96e1dd51ff6ea2a93520fdc9eb75d059238b8c5e9")
+                    .unwrap(),
+            ),
+            U256::from(1),
+        );
+
+        let address = Address::from_str("0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266").unwrap();
+        let config = EvmConfig {
+            data: vec![AccountData {
+                address,
+                balance: AccountData::balance(u64::MAX),
+                code_hash: AccountData::empty_code(),
+                code: Bytes::from_hex("0x60606040526000357c0100000000000000000000000000000000000000000000000000000000900463ffffffff168063a223e05d1461006a578063").unwrap(),
+                nonce: 0,
+                storage,
+            }],
+            chain_id: 1,
+            limit_contract_code_size: None,
+            spec: vec![(0, SpecId::SHANGHAI)].into_iter().collect(),
+            block_timestamp_delta: 1u64,
+            ..Default::default()
+        };
+
+        // code and hash are invalid
+        // just to test that serialization works
+        let data = r#"
+        {
+            "data":[
+                {
+                    "address":"0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+                    "balance":"0xffffffffffffffff",
+                    "code_hash":"0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
+                    "code":"0x60606040526000357c0100000000000000000000000000000000000000000000000000000000900463ffffffff168063a223e05d1461006a578063",
+                    "storage": {
+                        "0x0000000000000000000000000000000000000000000000000000000000000000": "0x1234",
+                        "0x6661e9d6d8b923d5bbaab1b96e1dd51ff6ea2a93520fdc9eb75d059238b8c5e9": "0x01"
+                    },
                     "nonce":0
                 }],
                 "chain_id":1,

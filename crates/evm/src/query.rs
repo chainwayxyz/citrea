@@ -10,6 +10,7 @@ use reth_primitives::TransactionKind::{Call, Create};
 use reth_primitives::{
     Block, BlockId, BlockNumberOrTag, SealedHeader, TransactionSignedEcRecovered, U128, U256, U64,
 };
+use reth_revm::access_list::AccessListInspector;
 use reth_revm::tracing::{TracingInspector, TracingInspectorConfig};
 use reth_rpc_types::other::OtherFields;
 use reth_rpc_types::trace::geth::{GethDebugTracingOptions, GethTrace};
@@ -20,7 +21,6 @@ use revm::primitives::{
     TxEnv, KECCAK_EMPTY,
 };
 use revm::{Database, DatabaseCommit};
-use revm_inspectors::access_list::AccessListInspector;
 use sov_modules_api::macros::rpc_gen;
 use sov_modules_api::prelude::*;
 use sov_modules_api::WorkingSet;
@@ -770,6 +770,23 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let cfg_env = get_cfg_env(&block_env, cfg, Some(get_cfg_env_template()));
 
         self.estimate_gas_with_env(request, block_env, cfg_env, &mut tx_env, working_set)
+    }
+
+    /// Handler for: `eth_getBlockTransactionCountByHash`
+    // https://github.com/paradigmxyz/reth/blob/main/crates/rpc/rpc/src/eth/api/call.rs#L172
+    #[rpc_method(name = "eth_getBlockTransactionCountByHash")]
+    pub fn eth_get_block_transaction_count_by_hash(
+        &self,
+        block_hash: reth_primitives::B256,
+        working_set: &mut WorkingSet<C>,
+    ) -> RpcResult<Option<reth_primitives::U256>> {
+        info!("evm module: eth_getBlockTransactionCountByHash");
+        // Get the number of transactions in a block given blockhash
+        let block = self.get_block_by_hash(block_hash, None, working_set)?;
+        match block {
+            Some(block) => Ok(Some(U256::from(block.transactions.len()))),
+            None => Ok(None),
+        }
     }
 
     /// Inner gas estimator
