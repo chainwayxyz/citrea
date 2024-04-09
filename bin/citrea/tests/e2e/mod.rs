@@ -1387,7 +1387,7 @@ async fn test_system_transactons() -> Result<(), anyhow::Error> {
             assert_eq!(block.transactions.len(), 1);
 
             let tx = &block.transactions[0];
-            // maybe use SYSTEM_SIGNER and L1BlockHashList::address() here?
+
             assert_eq!(tx.from, system_signer_address);
             assert_eq!(tx.to.unwrap(), system_contract_address);
             assert_eq!(tx.input[0..4], *hex::decode("0e27bc11").unwrap().as_slice());
