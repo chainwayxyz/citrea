@@ -1323,6 +1323,12 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
 async fn test_system_transactons() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging();
     let l1_blockhash_contract = L1BlockHashList::default();
+
+    let system_contract_address =
+        Address::from_str("0x3100000000000000000000000000000000000001").unwrap();
+    let system_signer_address =
+        Address::from_str("0xdeaddeaddeaddeaddeaddeaddeaddeaddeaddead").unwrap();
+
     let da_service = MockDaService::new(MockAddress::default());
 
     // start rollup on da block 3
@@ -1360,14 +1366,8 @@ async fn test_system_transactons() -> Result<(), anyhow::Error> {
             let init_tx = &block.transactions[0];
             let set_tx = &block.transactions[1];
 
-            assert_eq!(
-                init_tx.from,
-                Address::from_str("0xdeaddeaddeaddeaddeaddeaddeaddeaddeaddead").unwrap()
-            );
-            assert_eq!(
-                init_tx.to.unwrap(),
-                Address::from_str("0x3100000000000000000000000000000000000001").unwrap()
-            );
+            assert_eq!(init_tx.from, system_signer_address);
+            assert_eq!(init_tx.to.unwrap(), system_contract_address);
             assert_eq!(
                 init_tx.input[..],
                 *hex::decode(
@@ -1377,14 +1377,8 @@ async fn test_system_transactons() -> Result<(), anyhow::Error> {
                 .as_slice()
             );
 
-            assert_eq!(
-                set_tx.from,
-                Address::from_str("0xdeaddeaddeaddeaddeaddeaddeaddeaddeaddead").unwrap()
-            );
-            assert_eq!(
-                set_tx.to.unwrap(),
-                Address::from_str("0x3100000000000000000000000000000000000001").unwrap()
-            );
+            assert_eq!(set_tx.from, system_signer_address);
+            assert_eq!(set_tx.to.unwrap(), system_contract_address);
             assert_eq!(
                 set_tx.input[0..4],
                 *hex::decode("0e27bc11").unwrap().as_slice()
@@ -1394,14 +1388,8 @@ async fn test_system_transactons() -> Result<(), anyhow::Error> {
 
             let tx = &block.transactions[0];
             // maybe use SYSTEM_SIGNER and L1BlockHashList::address() here?
-            assert_eq!(
-                tx.from,
-                Address::from_str("0xdeaddeaddeaddeaddeaddeaddeaddeaddeaddead").unwrap()
-            );
-            assert_eq!(
-                tx.to.unwrap(),
-                Address::from_str("0x3100000000000000000000000000000000000001").unwrap()
-            );
+            assert_eq!(tx.from, system_signer_address);
+            assert_eq!(tx.to.unwrap(), system_contract_address);
             assert_eq!(tx.input[0..4], *hex::decode("0e27bc11").unwrap().as_slice());
         }
     }
@@ -1425,7 +1413,7 @@ async fn test_system_transactons() -> Result<(), anyhow::Error> {
 
         let hash_on_chain: String = full_node_test_client
             .contract_call(
-                Address::from_str("0x3100000000000000000000000000000000000001").unwrap(),
+                system_contract_address,
                 l1_blockhash_contract.get_block_hash(i),
                 None,
             )
