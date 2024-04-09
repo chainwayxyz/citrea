@@ -30,8 +30,7 @@ contract Bridge is MerkleTree, Ownable {
         uint256 index;
     }
 
-    // TODO: Update this to be the actual address of the L1BlockHashList contract
-    L1BlockHashList public constant BLOCK_HASH_LIST = L1BlockHashList(address(0xdeaDDeADDEaDdeaDdEAddEADDEAdDeadDEADDEaD)); 
+    L1BlockHashList public constant BLOCK_HASH_LIST = L1BlockHashList(address(0x3100000000000000000000000000000000000001)); 
 
     bytes public depositScript;
     bytes public scriptSuffix;
