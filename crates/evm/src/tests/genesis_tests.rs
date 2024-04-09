@@ -34,7 +34,9 @@ lazy_static! {
             address:Address::from([2u8; 20]),
             balance: U256::checked_mul(U256::from(1000),
             U256::pow(U256::from(10), U256::from(18))).unwrap(), // 1000 ETH,
-            code_hash: B256::from_slice(&[2u8; 32]), code: Bytes::from_hex("60606040526000357c0100000000000000000000000000000000000000000000000000000000900463ffffffff168063a223e05d1461006a578063").unwrap(), storage: {
+            code_hash: B256::from_hex("0x4e8ee9adb469b245e3a5a8e58e9b733aaa857a9dce1982257531db8a2700aabf").unwrap(),
+            code: Bytes::from_hex("0x60606040526000357c0100000000000000000000000000000000000000000000000000000000900463ffffffff168063a223e05d1461006a578063").unwrap(),
+            storage: {
                 let mut storage = HashMap::new();
                 storage.insert(U256::from(0), U256::from(0x4321));
                 storage.insert(
@@ -60,10 +62,10 @@ lazy_static! {
     };
 
     pub(crate) static ref GENESIS_HASH: B256 = B256::from(hex!(
-        "21d33ac980d24d19397167ce9b4e9fb072d7942f22c2451e8d49c9b1c3bc1ff1"
+        "d3d0598f798aeac0eb991a29a1ec2e79e6d3caf76393c787a564d89233342df8"
     ));
     pub(crate) static ref GENESIS_STATE_ROOT: B256 = B256::from(hex!(
-        "cf60bd2197418b787dc8a3e1befea15f15546bc60a12075fe06da5ee9a284e95"
+        "050d41ea04851c5800ba402d42d7a3777ca025feda7c1bd6a272ff9710a4501a"
     ));
     pub(crate) static ref GENESIS_DA_TXS_COMMITMENT: B256 = B256::from(hex!(
         "4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b"
@@ -229,7 +231,7 @@ fn genesis_block() {
                 *GENESIS_HASH
             ),
             l1_fee_rate: 0,
-            l1_hash: B256::default(),
+            l1_hash: [0; 32].into(),
             transactions: (0u64..0u64),
         }
     );

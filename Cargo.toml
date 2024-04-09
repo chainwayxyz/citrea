@@ -100,6 +100,7 @@ proptest = { version = "1.3.1", default-features = false, features = ["alloc"] }
 proptest-derive = "0.3.0"
 rand = "0.8"
 rayon = "1.8.0"
+reqwest = { version = "0.12", features = ["rustls-tls", "json", "http2"], default-features = false }
 rocksdb = { version = "0.21.0", features = ["lz4"] }
 serde = { version = "1.0.192", default-features = false, features = [
     "alloc",
@@ -144,7 +145,6 @@ reth-tasks = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.4
 reth-db = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.4" }
 reth-trie = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.4" }
 reth-rpc = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.4" }
-revm-inspectors = { git = "https://github.com/paradigmxyz/evm-inspectors", rev = "0ad0338" }
 
 revm = { version = "7.2.0", features = [
     "std",

@@ -2,8 +2,9 @@ use std::collections::HashMap;
 
 use anyhow::Result;
 use reth_primitives::constants::{EMPTY_OMMER_ROOT_HASH, EMPTY_RECEIPTS, EMPTY_TRANSACTIONS};
-use reth_primitives::{Address, Bloom, Bytes, B256, KECCAK_EMPTY, U256};
+use reth_primitives::{keccak256, Address, Bloom, Bytes, B256, KECCAK_EMPTY, U256};
 use revm::primitives::SpecId;
+use serde::{Deserialize, Deserializer};
 use sov_modules_api::prelude::*;
 use sov_modules_api::WorkingSet;
 
@@ -15,7 +16,7 @@ use crate::tests::DEFAULT_CHAIN_ID;
 use crate::Evm;
 
 /// Evm account.
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, Eq, PartialEq)]
+#[derive(Clone, Debug, serde::Serialize, Eq, PartialEq)]
 pub struct AccountData {
     /// Account address.
     pub address: Address,
@@ -44,6 +45,41 @@ impl AccountData {
     /// Account balance.
     pub fn balance(balance: u64) -> U256 {
         U256::from(balance)
+    }
+}
+
+impl<'de> Deserialize<'de> for AccountData {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        struct AccountDataHelper {
+            address: Address,
+            balance: U256,
+            code: Bytes,
+            #[serde(
+                default = "Default::default",
+                skip_serializing_if = "HashMap::is_empty"
+            )]
+            storage: HashMap<U256, U256>,
+        }
+
+        let helper = AccountDataHelper::deserialize(deserializer)?;
+        let (code_hash, nonce) = if helper.code.is_empty() {
+            (KECCAK_EMPTY, 0)
+        } else {
+            (keccak256(&helper.code), 1)
+        };
+
+        Ok(AccountData {
+            address: helper.address,
+            balance: helper.balance,
+            code_hash,
+            code: helper.code,
+            nonce,
+            storage: helper.storage,
+        })
     }
 }
 
@@ -97,7 +133,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 acc.address,
                 AccountInfo {
                     balance: acc.balance,
-                    code_hash: acc.code_hash,
+                    code_hash: keccak256(&acc.code),
                     nonce: acc.nonce,
                 },
             );
@@ -193,7 +229,7 @@ mod tests {
     use std::str::FromStr;
 
     use hex::FromHex;
-    use reth_primitives::Bytes;
+    use reth_primitives::{keccak256, Bytes};
     use revm::primitives::{Address, SpecId};
 
     use super::U256;
@@ -223,9 +259,7 @@ mod tests {
                 {
                     "address":"0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
                     "balance":"0xffffffffffffffff",
-                    "code_hash":"0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
-                    "code":"0x",
-                    "nonce":0
+                    "code":"0x"
                 }],
                 "chain_id":1,
                 "limit_contract_code_size":null,
@@ -255,13 +289,14 @@ mod tests {
         );
 
         let address = Address::from_str("0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266").unwrap();
+        let code = Bytes::from_hex("0x60606040526000357c0100000000000000000000000000000000000000000000000000000000900463ffffffff168063a223e05d1461006a578063").unwrap();
         let config = EvmConfig {
             data: vec![AccountData {
                 address,
                 balance: AccountData::balance(u64::MAX),
-                code_hash: AccountData::empty_code(),
-                code: Bytes::from_hex("0x60606040526000357c0100000000000000000000000000000000000000000000000000000000900463ffffffff168063a223e05d1461006a578063").unwrap(),
-                nonce: 0,
+                code_hash: keccak256(&code),
+                code,
+                nonce: 1,
                 storage,
             }],
             chain_id: 1,
@@ -278,13 +313,11 @@ mod tests {
                 {
                     "address":"0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
                     "balance":"0xffffffffffffffff",
-                    "code_hash":"0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
                     "code":"0x60606040526000357c0100000000000000000000000000000000000000000000000000000000900463ffffffff168063a223e05d1461006a578063",
                     "storage": {
                         "0x0000000000000000000000000000000000000000000000000000000000000000": "0x1234",
                         "0x6661e9d6d8b923d5bbaab1b96e1dd51ff6ea2a93520fdc9eb75d059238b8c5e9": "0x01"
-                    },
-                    "nonce":0
+                    }
                 }],
                 "chain_id":1,
                 "limit_contract_code_size":null,
