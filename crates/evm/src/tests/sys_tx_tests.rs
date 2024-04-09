@@ -48,10 +48,10 @@ fn test_sys_l1blockhashlist() {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
-                    cumulative_gas_used: 45711,
+                    cumulative_gas_used: 45756,
                     logs: vec![]
                 },
-                gas_used: 45711,
+                gas_used: 45756,
                 log_index_start: 0,
                 diff_size: 284,
                 error: None
@@ -60,7 +60,7 @@ fn test_sys_l1blockhashlist() {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
-                    cumulative_gas_used: 121376,
+                    cumulative_gas_used: 121466,
                     logs: vec![
                         Log {
                             address: L1BlockHashList::address(),
@@ -69,7 +69,7 @@ fn test_sys_l1blockhashlist() {
                         }
                     ]
                 },
-                gas_used: 75665,
+                gas_used: 75710,
                 log_index_start: 0,
                 diff_size: 412,
                 error: None
@@ -104,7 +104,7 @@ fn test_sys_l1blockhashlist() {
                 to: Some(L1BlockHashList::address()),
                 input: TransactionInput::new(
                     l1_block_hash_list
-                        .get_merkle_root_by_number(1)
+                        .get_witness_root_by_number(1)
                         .to_vec()
                         .into(),
                 ),
@@ -168,7 +168,7 @@ fn test_sys_l1blockhashlist() {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
-                    cumulative_gas_used: 75665,
+                    cumulative_gas_used: 75710,
                     logs: vec![
                         Log {
                             address: L1BlockHashList::address(),
@@ -177,7 +177,7 @@ fn test_sys_l1blockhashlist() {
                         }
                     ]
                 },
-                gas_used: 75665,
+                gas_used: 75710,
                 log_index_start: 0,
                 diff_size: 412,
                 error: None
@@ -186,7 +186,7 @@ fn test_sys_l1blockhashlist() {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
-                    cumulative_gas_used: 189900,
+                    cumulative_gas_used: 189945,
                     logs: vec![]
                 },
                 gas_used: 114235,
@@ -223,7 +223,7 @@ fn test_sys_l1blockhashlist() {
                 to: Some(L1BlockHashList::address()),
                 input: TransactionInput::new(
                     l1_block_hash_list
-                        .get_merkle_root_by_number(2)
+                        .get_witness_root_by_number(2)
                         .to_vec()
                         .into(),
                 ),
