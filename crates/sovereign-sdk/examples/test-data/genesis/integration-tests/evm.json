@@ -3,8 +3,7 @@
     {
       "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
       "balance": "0xffffffffffffffffffffff",
-      "code": "0x",
-      "nonce": 0
+      "code": "0x"
     }
   ],
   "chain_id": 5655,

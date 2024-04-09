@@ -63,14 +63,13 @@ impl<'de> Deserialize<'de> for AccountData {
                 skip_serializing_if = "HashMap::is_empty"
             )]
             storage: HashMap<U256, U256>,
-            nonce: u64,
         }
 
         let helper = AccountDataHelper::deserialize(deserializer)?;
-        let code_hash = if helper.code.is_empty() {
-            KECCAK_EMPTY
+        let (code_hash, nonce) = if helper.code.is_empty() {
+            (KECCAK_EMPTY, 0)
         } else {
-            keccak256(&helper.code)
+            (keccak256(&helper.code), 1)
         };
 
         Ok(AccountData {
@@ -78,7 +77,7 @@ impl<'de> Deserialize<'de> for AccountData {
             balance: helper.balance,
             code_hash,
             code: helper.code,
-            nonce: helper.nonce,
+            nonce,
             storage: helper.storage,
         })
     }
@@ -260,9 +259,7 @@ mod tests {
                 {
                     "address":"0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
                     "balance":"0xffffffffffffffff",
-                    "code_hash":"0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
-                    "code":"0x",
-                    "nonce":0
+                    "code":"0x"
                 }],
                 "chain_id":1,
                 "limit_contract_code_size":null,
@@ -299,7 +296,7 @@ mod tests {
                 balance: AccountData::balance(u64::MAX),
                 code_hash: keccak256(&code),
                 code,
-                nonce: 0,
+                nonce: 1,
                 storage,
             }],
             chain_id: 1,
@@ -316,13 +313,11 @@ mod tests {
                 {
                     "address":"0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
                     "balance":"0xffffffffffffffff",
-                    "code_hash":"0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
                     "code":"0x60606040526000357c0100000000000000000000000000000000000000000000000000000000900463ffffffff168063a223e05d1461006a578063",
                     "storage": {
                         "0x0000000000000000000000000000000000000000000000000000000000000000": "0x1234",
                         "0x6661e9d6d8b923d5bbaab1b96e1dd51ff6ea2a93520fdc9eb75d059238b8c5e9": "0x01"
-                    },
-                    "nonce":0
+                    }
                 }],
                 "chain_id":1,
                 "limit_contract_code_size":null,
