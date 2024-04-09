@@ -87,6 +87,7 @@ hex = { workspace = true }
 serde_json = { workspace = true }
 tempfile = { workspace = true }
 proptest = { workspace = true }
+reqwest = { workspace = true }
 tokio = { workspace = true }
 
 ethereum-types = { workspace = true }
@@ -98,7 +99,6 @@ ethers-signers = { workspace = true }
 ethers = { workspace = true }
 revm = { workspace = true }
 
-reqwest = "0.11"
 tendermint = "0.32"
 prometheus = "0.11.0"
 prettytable-rs = "^0.10"
