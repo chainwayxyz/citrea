@@ -353,7 +353,7 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
         .eth_get_block_by_number(Some(BlockNumberOrTag::Number(1)))
         .await;
     assert_eq!(first_block.number.unwrap().as_u64(), 1);
-    assert_eq!(first_block.transactions.len(), 1);
+    assert_eq!(first_block.transactions.len(), 3);
 
     let set_arg = 923;
     let tx_hash = {

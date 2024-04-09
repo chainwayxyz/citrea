@@ -1,4 +1,5 @@
 use std::array::TryFromSliceError;
+use std::collections::BTreeMap;
 use std::ops::{Range, RangeInclusive};
 
 use alloy_primitives::Uint;
@@ -106,16 +107,16 @@ impl<C: sov_modules_api::Context> Evm<C> {
     ) -> RpcResult<Option<reth_rpc_types::RichBlock>> {
         info!("evm module: eth_getBlockByNumber");
 
-        let block = match self.get_sealed_block_by_number(block_number, working_set) {
-            Some(block) => block,
+        let sealed_block = match self.get_sealed_block_by_number(block_number, working_set) {
+            Some(sealed_block) => sealed_block,
             None => return Ok(None), // if block doesn't exist return null
         };
 
         // Build rpc header response
-        let mut header = from_primitive_with_hash(block.header.clone());
+        let mut header = from_primitive_with_hash(sealed_block.header.clone());
         header.total_difficulty = Some(header.difficulty);
         // Collect transactions with ids from db
-        let transactions: Vec<TransactionSignedAndRecovered> = block
+        let transactions: Vec<TransactionSignedAndRecovered> = sealed_block
             .transactions
             .clone()
             .map(|id| {
@@ -126,7 +127,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .collect();
 
         let block = Block {
-            header: block.header.header().clone(),
+            header: sealed_block.header.header().clone(),
             body: transactions
                 .iter()
                 .map(|tx| tx.signed_transaction.clone())
@@ -172,7 +173,16 @@ impl<C: sov_modules_api::Context> Evm<C> {
             uncles: Default::default(),
             transactions,
             withdrawals: Default::default(),
-            other: Default::default(),
+            other: OtherFields::new(BTreeMap::<String, _>::from([
+                (
+                    "l1FeeRate".to_string(),
+                    serde_json::json!(sealed_block.l1_fee_rate),
+                ),
+                (
+                    "l1Hash".to_string(),
+                    serde_json::json!(sealed_block.l1_hash),
+                ),
+            ])),
         };
 
         Ok(Some(block.into()))
@@ -254,12 +264,12 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 if num > curr_block_number {
                     return Err(EthApiError::UnknownBlockNumber.into());
                 }
-                working_set.set_archival_version(num);
+                set_state_to_end_of_evm_block(num, working_set);
             }
             // Working state here is already at the latest state, so no need to anything
             Some(BlockNumberOrTag::Latest) | Some(BlockNumberOrTag::Pending) | None => {}
             Some(BlockNumberOrTag::Earliest) => {
-                working_set.set_archival_version(0);
+                set_state_to_end_of_evm_block(0, working_set);
             }
             _ => {
                 return Err(EthApiError::InvalidParams(
@@ -302,12 +312,12 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 if num > curr_block_number {
                     return Err(EthApiError::UnknownBlockNumber.into());
                 }
-                working_set.set_archival_version(num);
+                set_state_to_end_of_evm_block(num, working_set);
             }
             // Working state here is already at the latest state, so no need to anything
             Some(BlockNumberOrTag::Latest) | Some(BlockNumberOrTag::Pending) | None => {}
             Some(BlockNumberOrTag::Earliest) => {
-                working_set.set_archival_version(0);
+                set_state_to_end_of_evm_block(0, working_set);
             }
             _ => {
                 return Err(EthApiError::InvalidParams(
@@ -349,12 +359,12 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 if num > curr_block_number {
                     return Err(EthApiError::UnknownBlockNumber.into());
                 }
-                working_set.set_archival_version(num);
+                set_state_to_end_of_evm_block(num, working_set);
             }
             // Working state here is already at the latest state, so no need to anything
             Some(BlockNumberOrTag::Latest) | Some(BlockNumberOrTag::Pending) | None => {}
             Some(BlockNumberOrTag::Earliest) => {
-                working_set.set_archival_version(0);
+                set_state_to_end_of_evm_block(0, working_set);
             }
             _ => {
                 return Err(EthApiError::InvalidParams(
@@ -395,12 +405,12 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 if num > curr_block_number {
                     return Err(EthApiError::UnknownBlockNumber.into());
                 }
-                working_set.set_archival_version(num);
+                set_state_to_end_of_evm_block(num, working_set);
             }
             // Working state here is already at the latest state, so no need to anything
             Some(BlockNumberOrTag::Latest) | Some(BlockNumberOrTag::Pending) | None => {}
             Some(BlockNumberOrTag::Earliest) => {
-                working_set.set_archival_version(0);
+                set_state_to_end_of_evm_block(0, working_set);
             }
             // Is this the way?
             // Note that reth works for all types of BlockNumberOrTag
@@ -567,10 +577,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     ) -> RpcResult<reth_primitives::Bytes> {
         info!("evm module: eth_call");
         let block_env = match block_number {
-            Some(BlockNumberOrTag::Pending) => {
-                self.block_env.get(working_set).unwrap_or_default().clone()
-            }
-            None | Some(BlockNumberOrTag::Latest) => {
+            None | Some(BlockNumberOrTag::Pending | BlockNumberOrTag::Latest) => {
                 // so we don't unnecessarily set archival version
                 self.block_env.get(working_set).unwrap_or_default().clone()
             }
@@ -580,7 +587,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     None => return Err(EthApiError::UnknownBlockNumber.into()),
                 };
 
-                working_set.set_archival_version(block.header.number);
+                set_state_to_end_of_evm_block(block.header.number, working_set);
+
                 BlockEnv::from(&block)
             }
         };
@@ -643,10 +651,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let mut request = request.clone();
 
         let block_env = match block_number {
-            Some(BlockNumberOrTag::Pending) => {
-                self.block_env.get(working_set).unwrap_or_default().clone()
-            }
-            None | Some(BlockNumberOrTag::Latest) => {
+            None | Some(BlockNumberOrTag::Pending | BlockNumberOrTag::Latest) => {
                 // so we don't unnecessarily set archival version
                 self.block_env.get(working_set).unwrap_or_default().clone()
             }
@@ -656,7 +661,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     None => return Err(EthApiError::UnknownBlockNumber.into()),
                 };
 
-                working_set.set_archival_version(block.header.number);
+                set_state_to_end_of_evm_block(block.header.number, working_set);
                 BlockEnv::from(&block)
             }
         };
@@ -743,10 +748,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     ) -> RpcResult<reth_primitives::U64> {
         info!("evm module: eth_estimateGas");
         let block_env = match block_number {
-            Some(BlockNumberOrTag::Pending) => {
-                self.block_env.get(working_set).unwrap_or_default().clone()
-            }
-            None | Some(BlockNumberOrTag::Latest) => {
+            None | Some(BlockNumberOrTag::Pending | BlockNumberOrTag::Latest) => {
                 // so we don't unnecessarily set archival version
                 self.block_env.get(working_set).unwrap_or_default().clone()
             }
@@ -756,7 +758,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     None => return Err(EthApiError::UnknownBlockNumber.into()),
                 };
 
-                working_set.set_archival_version(block.header.number);
+                set_state_to_end_of_evm_block(block.header.number, working_set);
                 BlockEnv::from(&block)
             }
         };
@@ -1066,10 +1068,13 @@ impl<C: sov_modules_api::Context> Evm<C> {
             })
             .collect();
 
-        working_set.set_archival_version(sealed_block.header.number);
+        // set state to end of the previous block
+        set_state_to_end_of_evm_block(block_number - 1, working_set);
+
         let block_env = BlockEnv::from(&sealed_block);
         let cfg = self.cfg.get(working_set).unwrap();
         let cfg_env = get_cfg_env(&block_env, cfg, Some(get_cfg_env_template()));
+        let l1_fee_rate = sealed_block.l1_fee_rate;
 
         // EvmDB is the replacement of revm::CacheDB because cachedb requires immutable state
         // TODO: Move to CacheDB once immutable state is implemented
@@ -1085,7 +1090,9 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 cfg_env.clone(),
                 block_env.clone().into(),
                 tx_env_with_recovered(&tx),
+                tx.hash(),
                 &mut evm_db,
+                l1_fee_rate,
             )?;
             traces.push(trace);
 
@@ -1653,4 +1660,14 @@ fn update_estimated_gas_range(
         }
     };
     Ok(())
+}
+
+#[inline]
+fn set_state_to_end_of_evm_block<C: sov_modules_api::Context>(
+    block_number: u64,
+    working_set: &mut WorkingSet<C>,
+) {
+    // genesis is committed at db version 1
+    // so every block is offset by 1
+    working_set.set_archival_version(block_number + 1);
 }

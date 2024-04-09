@@ -87,6 +87,7 @@ pub struct GetSoftBatchResponse {
     #[serde(with = "hex::serde")]
     pub pub_key: Vec<u8>,
     pub l1_fee_rate: u64,
+    pub timestamp: u64,
 }
 
 impl From<GetSoftBatchResponse> for SignedSoftConfirmationBatch {
@@ -101,6 +102,7 @@ impl From<GetSoftBatchResponse> for SignedSoftConfirmationBatch {
             val.txs.unwrap_or_default(),
             val.soft_confirmation_signature,
             val.pub_key,
+            val.timestamp,
         )
     }
 }

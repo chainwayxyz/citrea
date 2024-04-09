@@ -75,9 +75,11 @@ impl<C: Context, Da: DaSpec> ApplySoftConfirmationHooks<Da> for Runtime<C, Da> {
 
         self.evm.begin_soft_confirmation_hook(
             soft_batch.da_slot_hash(),
+            soft_batch.da_slot_height,
             soft_batch.da_slot_txs_commitment(),
             &soft_batch.pre_state_root(),
             soft_batch.l1_fee_rate(),
+            soft_batch.timestamp(),
             working_set,
         );
 

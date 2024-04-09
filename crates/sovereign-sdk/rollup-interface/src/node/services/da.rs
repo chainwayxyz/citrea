@@ -2,6 +2,8 @@
 
 use serde::de::DeserializeOwned;
 use serde::Serialize;
+#[cfg(feature = "native")]
+use tokio::sync::oneshot::{channel as oneshot_channel, Receiver as OneshotReceiver};
 
 use crate::da::BlockHeaderTrait;
 #[cfg(feature = "native")]
@@ -36,7 +38,7 @@ pub trait DaService: Send + Sync + 'static {
     >;
 
     /// A transaction ID, used to identify the transaction in the DA layer.
-    type TransactionId: PartialEq + Eq + PartialOrd + Ord + core::hash::Hash;
+    type TransactionId: Send + PartialEq + Eq + PartialOrd + Ord + core::hash::Hash;
 
     /// The error type for fallible methods.
     type Error: core::fmt::Debug + Send + Sync + core::fmt::Display;
@@ -112,6 +114,19 @@ pub trait DaService: Send + Sync + 'static {
     /// blob is the serialized and signed transaction.
     /// Returns nothing if the transaction was successfully sent.
     async fn send_transaction(&self, blob: &[u8]) -> Result<Self::TransactionId, Self::Error>;
+
+    /// Send a transaction directly to the DA layer.
+    /// The default impl of this method actually blocks on `self.send_transaction`.
+    /// But the implementors can redefine it to be non-blocking.
+    async fn send_tx_no_wait(
+        &self,
+        blob: Vec<u8>,
+    ) -> OneshotReceiver<Result<Self::TransactionId, Self::Error>> {
+        let (tx, rx) = oneshot_channel();
+        let res = self.send_transaction(&blob).await;
+        let _ignore = tx.send(res);
+        rx
+    }
 
     /// Sends am aggregated ZK proofs to the DA layer.
     async fn send_aggregated_zk_proof(

@@ -9,7 +9,7 @@ use sha2::Digest;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec, Time};
 use sov_rollup_interface::maybestd::sync::Arc;
 use sov_rollup_interface::services::da::{DaService, SlotData};
-use tokio::sync::{broadcast, Mutex as AsyncMutex};
+use tokio::sync::{broadcast, Mutex as AsyncMutex, MutexGuard as AsyncMutexGuard};
 use tokio::time;
 
 use crate::db_connector::DbConnector;
@@ -138,10 +138,11 @@ impl MockDaService {
                 last_finalized_height
             );
         }
-        self.blocks.lock().await.prune_above(height);
+        let blocks = self.blocks.lock().await;
+        blocks.prune_above(height);
 
         for blob in blobs {
-            let _ = self.add_blob(&blob, Default::default()).await?;
+            let _ = self.add_blob(&blocks, &blob, Default::default())?;
         }
 
         Ok(())
@@ -175,14 +176,18 @@ impl MockDaService {
 
     /// Adds a mock blob to the mock da layer for tests
     pub async fn publish_test_block(&self) -> anyhow::Result<()> {
+        let blocks = self.blocks.lock().await;
         let blob = vec![];
-        let _ = self.add_blob(&blob, Default::default()).await?;
+        let _ = self.add_blob(&blocks, &blob, Default::default())?;
         Ok(())
     }
 
-    async fn add_blob(&self, blob: &[u8], zkp_proof: Vec<u8>) -> anyhow::Result<u64> {
-        let blocks = self.blocks.lock().await;
-
+    fn add_blob(
+        &self,
+        blocks: &AsyncMutexGuard<'_, DbConnector>,
+        blob: &[u8],
+        zkp_proof: Vec<u8>,
+    ) -> anyhow::Result<u64> {
         let (previous_block_hash, height) = match blocks.last().map(|b| b.header().clone()) {
             None => (GENESIS_HEADER.hash(), GENESIS_HEADER.height() + 1),
             Some(block_header) => (block_header.hash(), block_header.height + 1),
@@ -302,11 +307,16 @@ impl DaService for MockDaService {
         // In tests and demos only height 0 exists
         // we don't want to wait 5 seconds until block 1 is created
         // so if get block at 1 is called, we create it
-        let len = self.blocks.lock().await.len() as u64;
+        let blocks = self.blocks.lock().await;
+
+        let len = blocks.len() as u64;
         if len == 0 && height == 1 {
-            self.send_transaction(&[] as &[u8]).await?;
+            let _ = self.add_blob(&blocks, &[] as &[u8], Default::default())?;
         }
 
+        // if wait for height doesn't lock its own blocks, can't make it async
+        // DbConnector is not Send
+        std::mem::drop(blocks);
         // Block until there's something
         self.wait_for_height(height).await?;
         // Locking blocks here, so submissions has to wait
@@ -371,12 +381,15 @@ impl DaService for MockDaService {
     }
 
     async fn send_transaction(&self, blob: &[u8]) -> Result<(), Self::Error> {
-        let _ = self.add_blob(blob, Default::default()).await?;
+        let blocks = self.blocks.lock().await;
+        let _ = self.add_blob(&blocks, blob, Default::default())?;
         Ok(())
     }
 
     async fn send_aggregated_zk_proof(&self, proof: &[u8]) -> Result<u64, Self::Error> {
-        self.add_blob(Default::default(), proof.to_vec()).await
+        let blocks = self.blocks.lock().await;
+
+        self.add_blob(&blocks, Default::default(), proof.to_vec())
     }
 
     async fn get_aggregated_proofs_at(&self, height: u64) -> Result<Vec<Vec<u8>>, Self::Error> {

@@ -12,18 +12,17 @@ publish = false
 resolver = "2"
 
 [dependencies]
-bitcoin-da = { path = "../bitcoin-da" }
 anyhow = { workspace = true }
-tracing = { workspace = true }
-jsonrpsee = { workspace = true, features = ["http-client", "server"] }
-
-futures = { workspace = true }
-
+bitcoin-da = { path = "../bitcoin-da" }
 borsh = { workspace = true }
+chrono = { workspace = true }
 digest = { workspace = true }
+futures = { workspace = true }
+jsonrpsee = { workspace = true, features = ["http-client", "server"] }
+rs_merkle = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-rs_merkle = { workspace = true }
+tracing = { workspace = true }
 
 reth-primitives = { workspace = true }
 reth-rpc-types = { workspace = true }

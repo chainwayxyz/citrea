@@ -151,7 +151,6 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         // TODO: Double check what kind of storage needed here.
         // Maybe whole "prev_root" can be initialized inside runner
         // Getting block here, so prover_service doesn't have to be `Send`
-        let last_finalized_block_header = da_service.get_last_finalized_block_header().await?;
 
         let ledger_db = self.create_ledger_db(&rollup_config);
         let genesis_config = self.create_genesis_config(
@@ -174,16 +173,13 @@ pub trait RollupBlueprint: Sized + Send + Sync {
 
         let native_stf = StfBlueprint::new();
 
-        let genesis_root = prover_storage.get_root_hash(0);
+        let genesis_root = prover_storage.get_root_hash(1);
 
         let init_variant = match prev_root {
             Some(root_hash) => InitVariant::Initialized(root_hash),
             None => match genesis_root {
                 Ok(root_hash) => InitVariant::Initialized(root_hash),
-                _ => InitVariant::Genesis {
-                    block_header: last_finalized_block_header.clone(),
-                    genesis_params: genesis_config,
-                },
+                _ => InitVariant::Genesis(genesis_config),
             },
         };
 
@@ -231,7 +227,6 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         // TODO: Double check what kind of storage needed here.
         // Maybe whole "prev_root" can be initialized inside runner
         // Getting block here, so prover_service doesn't have to be `Send`
-        let last_finalized_block_header = da_service.get_last_finalized_block_header().await?;
 
         let prover_service = match is_prover {
             true => Some(
@@ -271,16 +266,13 @@ pub trait RollupBlueprint: Sized + Send + Sync {
 
         let native_stf = StfBlueprint::new();
 
-        let genesis_root = prover_storage.get_root_hash(0);
+        let genesis_root = prover_storage.get_root_hash(1);
 
         let init_variant = match prev_root {
             Some(root_hash) => InitVariant::Initialized(root_hash),
             None => match genesis_root {
                 Ok(root_hash) => InitVariant::Initialized(root_hash),
-                _ => InitVariant::Genesis {
-                    block_header: last_finalized_block_header.clone(),
-                    genesis_params: genesis_config,
-                },
+                _ => InitVariant::Genesis(genesis_config),
             },
         };
 
@@ -294,12 +286,15 @@ pub trait RollupBlueprint: Sized + Send + Sync {
             prover_service,
             sequencer_client,
             rollup_config.sequencer_public_key,
+            rollup_config.sequencer_da_pub_key,
+            rollup_config.prover_da_pub_key,
             rollup_config.include_tx_body,
         )?;
 
         Ok(Rollup {
             runner,
             rpc_methods,
+            is_prover,
         })
     }
 }
@@ -353,6 +348,8 @@ pub struct Rollup<S: RollupBlueprint> {
     >,
     /// Rpc methods for the rollup.
     pub rpc_methods: jsonrpsee::RpcModule<()>,
+    /// True for prover node, false for full node.
+    pub is_prover: bool,
 }
 
 impl<S: RollupBlueprint> Rollup<S> {
@@ -374,7 +371,11 @@ impl<S: RollupBlueprint> Rollup<S> {
     ) -> Result<(), anyhow::Error> {
         let mut runner = self.runner;
         runner.start_rpc_server(self.rpc_methods, channel).await;
-        runner.run_in_process().await?;
+        if self.is_prover {
+            runner.run_prover_process().await?;
+        } else {
+            runner.run_in_process().await?;
+        }
         Ok(())
     }
 }

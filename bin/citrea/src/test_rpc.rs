@@ -7,12 +7,14 @@ use proptest::{prop_compose, proptest};
 use reqwest::header::CONTENT_TYPE;
 use serde_json::json;
 use sov_db::ledger_db::{LedgerDB, SlotCommit};
+use sov_mock_da::MockDaSpec;
 #[cfg(test)]
 use sov_mock_da::{MockBlock, MockBlockHeader, MockHash};
+use sov_modules_api::DaSpec;
 use sov_rollup_interface::da::Time;
 use sov_rollup_interface::services::da::SlotData;
 use sov_rollup_interface::stf::fuzzing::BatchReceiptStrategyArgs;
-use sov_rollup_interface::stf::{BatchReceipt, Event, TransactionReceipt};
+use sov_rollup_interface::stf::{BatchReceipt, Event, SoftBatchReceipt, TransactionReceipt};
 #[cfg(test)]
 use sov_stf_runner::RpcConfig;
 use tendermint::crypto::Sha256;
@@ -46,13 +48,28 @@ async fn queries_test_runner(test_queries: Vec<TestExpect>, rpc_config: RpcConfi
     }
 }
 
-fn populate_ledger(ledger_db: &mut LedgerDB, slots: Vec<SlotCommit<MockBlock, u32, u32>>) {
+fn populate_ledger(
+    ledger_db: &mut LedgerDB,
+    slots: Vec<SlotCommit<MockBlock, u32, u32>>,
+    soft_batch_receipts: Option<Vec<SoftBatchReceipt<u64, u32, MockDaSpec>>>,
+) {
     for slot in slots {
         ledger_db.commit_slot(slot).unwrap();
     }
+    if let Some(soft_batch_receipts) = soft_batch_receipts {
+        for soft_batch_receipt in soft_batch_receipts {
+            ledger_db
+                .commit_soft_batch(soft_batch_receipt, true)
+                .unwrap();
+        }
+    }
 }
 
-fn test_helper(test_queries: Vec<TestExpect>, slots: Vec<SlotCommit<MockBlock, u32, u32>>) {
+fn test_helper(
+    test_queries: Vec<TestExpect>,
+    slots: Vec<SlotCommit<MockBlock, u32, u32>>,
+    soft_batch_receipts: Option<Vec<SoftBatchReceipt<u64, u32, MockDaSpec>>>,
+) {
     let rt = tokio::runtime::Builder::new_multi_thread()
         .enable_io()
         .enable_time()
@@ -63,7 +80,7 @@ fn test_helper(test_queries: Vec<TestExpect>, slots: Vec<SlotCommit<MockBlock, u
         // Initialize the ledger database, which stores blocks, transactions, events, etc.
         let tmpdir = tempfile::tempdir().unwrap();
         let mut ledger_db = LedgerDB::with_path(tmpdir.path()).unwrap();
-        populate_ledger(&mut ledger_db, slots);
+        populate_ledger(&mut ledger_db, slots, soft_batch_receipts);
         let server = jsonrpsee::server::ServerBuilder::default()
             .build("127.0.0.1:0")
             .await
@@ -107,6 +124,53 @@ fn regular_test_helper(payload: serde_json::Value, expected: &serde_json::Value)
         blobs: Default::default(),
     })];
 
+    let soft_batch_receipts = vec![
+        SoftBatchReceipt {
+            da_slot_height: 0,
+            da_slot_hash: <MockDaSpec as DaSpec>::SlotHash::from([0u8; 32]),
+            da_slot_txs_commitment: <MockDaSpec as DaSpec>::SlotHash::from([1u8; 32]),
+            pre_state_root: vec![],
+            post_state_root: vec![],
+            soft_confirmation_signature: vec![],
+            batch_hash: ::sha2::Sha256::digest(b"batch_receipt"),
+            tx_receipts: vec![
+                TransactionReceipt::<u32> {
+                    tx_hash: ::sha2::Sha256::digest(b"tx1"),
+                    body_to_save: Some(b"tx1 body".to_vec()),
+                    events: vec![],
+                    receipt: 0,
+                },
+                TransactionReceipt::<u32> {
+                    tx_hash: ::sha2::Sha256::digest(b"tx2"),
+                    body_to_save: Some(b"tx2 body".to_vec()),
+                    events: vec![
+                        Event::new("event1_key", "event1_value"),
+                        Event::new("event2_key", "event2_value"),
+                    ],
+                    receipt: 1,
+                },
+            ],
+            phantom_data: PhantomData,
+            pub_key: vec![],
+            l1_fee_rate: 0,
+            timestamp: 0,
+        },
+        SoftBatchReceipt {
+            da_slot_height: 1,
+            da_slot_hash: <MockDaSpec as DaSpec>::SlotHash::from([2; 32]),
+            da_slot_txs_commitment: <MockDaSpec as DaSpec>::SlotHash::from([3; 32]),
+            pre_state_root: vec![],
+            post_state_root: vec![],
+            soft_confirmation_signature: vec![],
+            batch_hash: ::sha2::Sha256::digest(b"batch_receipt2"),
+            tx_receipts: batch2_tx_receipts(),
+            phantom_data: PhantomData,
+            pub_key: vec![],
+            l1_fee_rate: 0,
+            timestamp: 0,
+        },
+    ];
+
     let batches = vec![
         BatchReceipt {
             batch_hash: ::sha2::Sha256::digest(b"batch_receipt"),
@@ -146,6 +210,7 @@ fn regular_test_helper(payload: serde_json::Value, expected: &serde_json::Value)
             expected: expected.clone(),
         }],
         slots,
+        Some(soft_batch_receipts),
     )
 }
 
@@ -249,6 +314,55 @@ fn test_get_batches() {
 }
 
 #[test]
+fn test_get_soft_batch() {
+    // Get the first soft batch by number
+    let payload = jsonrpc_req!("ledger_getSoftBatchByNumber", [1]);
+    let expected = jsonrpc_result!({"da_slot_height":0,"da_slot_hash":"0000000000000000000000000000000000000000000000000000000000000000","da_slot_txs_commitment":"0101010101010101010101010101010101010101010101010101010101010101","hash":"b5515a80204963f7db40e98af11aedb49a394b1c7e3d8b5b7a33346b8627444f","txs":[[116,120,49,32,98,111,100,121],[116,120,50,32,98,111,100,121]],"pre_state_root":"","post_state_root":"","soft_confirmation_signature":"","pub_key":"","l1_fee_rate":0, "timestamp": 0});
+    regular_test_helper(payload, &expected);
+
+    // Get the first soft batch by hash
+    let payload = jsonrpc_req!(
+        "ledger_getSoftBatchByHash",
+        ["b5515a80204963f7db40e98af11aedb49a394b1c7e3d8b5b7a33346b8627444f"]
+    );
+    regular_test_helper(payload, &expected);
+
+    // Get the second soft batch by number
+    let payload = jsonrpc_req!("ledger_getSoftBatchByNumber", [2]);
+    let expected = jsonrpc_result!(
+        {"da_slot_height":1,"da_slot_hash":"0202020202020202020202020202020202020202020202020202020202020202","da_slot_txs_commitment":"0303030303030303030303030303030303030303030303030303030303030303","hash":"f85fe0cb36fdaeca571c896ed476b49bb3c8eff00d935293a8967e1e9a62071e","txs": batch2_tx_receipts().into_iter().map(|tx_receipt| tx_receipt.body_to_save.unwrap()).collect::<Vec<_>>(), "pre_state_root":"","post_state_root":"","soft_confirmation_signature":"","pub_key":"","l1_fee_rate":0, "timestamp": 0}
+    );
+    regular_test_helper(payload, &expected);
+
+    //  Get the second soft batch by hash
+    let payload = jsonrpc_req!(
+        "ledger_getSoftBatchByHash",
+        ["f85fe0cb36fdaeca571c896ed476b49bb3c8eff00d935293a8967e1e9a62071e"]
+    );
+    regular_test_helper(payload, &expected);
+
+    // Get range of soft batches
+    let payload = jsonrpc_req!("ledger_getSoftBatchRange", [1, 2]);
+    let expected = jsonrpc_result!(
+        [
+            {"da_slot_height":0,"da_slot_hash":"0000000000000000000000000000000000000000000000000000000000000000","da_slot_txs_commitment":"0101010101010101010101010101010101010101010101010101010101010101","hash":"b5515a80204963f7db40e98af11aedb49a394b1c7e3d8b5b7a33346b8627444f","txs":[[116,120,49,32,98,111,100,121],[116,120,50,32,98,111,100,121]],"pre_state_root":"","post_state_root":"","soft_confirmation_signature":"","pub_key":"","l1_fee_rate":0, "timestamp": 0},
+            {"da_slot_height":1,"da_slot_hash":"0202020202020202020202020202020202020202020202020202020202020202","da_slot_txs_commitment":"0303030303030303030303030303030303030303030303030303030303030303","hash":"f85fe0cb36fdaeca571c896ed476b49bb3c8eff00d935293a8967e1e9a62071e","txs": batch2_tx_receipts().into_iter().map(|tx_receipt| tx_receipt.body_to_save.unwrap()).collect::<Vec<_>>(), "pre_state_root":"","post_state_root":"","soft_confirmation_signature":"","pub_key":"","l1_fee_rate":0, "timestamp": 0}
+        ]
+    );
+    regular_test_helper(payload, &expected);
+}
+
+#[test]
+fn test_get_soft_batch_status() {
+    let payload = jsonrpc_req!("ledger_getSoftConfirmationStatus", [1]);
+    let expected = jsonrpc_result!("Trusted");
+    regular_test_helper(payload, &expected);
+    let payload = jsonrpc_req!("ledger_getSoftConfirmationStatus", [1]);
+    let expected = jsonrpc_result!("Trusted");
+    regular_test_helper(payload, &expected);
+}
+
+#[test]
 fn test_get_events() {
     let payload = jsonrpc_req!("ledger_getEvents", [1]);
     let expected = jsonrpc_result!([{
@@ -263,8 +377,20 @@ fn test_get_events() {
         "value":[101,118,101,110,116,50,95,118,97,108,117,101]
     }]);
     regular_test_helper(payload, &expected);
-
     let payload = jsonrpc_req!("ledger_getEvents", [3]);
+    let expected = jsonrpc_result!([{
+        "key":[101,118,101,110,116,49,95,107,101,121],
+        "value":[101,118,101,110,116,49,95,118,97,108,117,101]
+    }]);
+    regular_test_helper(payload, &expected);
+    let payload = jsonrpc_req!("ledger_getEvents", [4]);
+    let expected = jsonrpc_result!([{
+        "key":[101,118,101,110,116,50,95,107,101,121],
+        "value":[101,118,101,110,116,50,95,118,97,108,117,101]
+    }]);
+    regular_test_helper(payload, &expected);
+
+    let payload = jsonrpc_req!("ledger_getEvents", [5]);
     let expected = jsonrpc_result!([null]);
     regular_test_helper(payload, &expected);
 }
@@ -385,7 +511,7 @@ proptest!(
                 "end": last_slot_end_batch
             }
         });
-        test_helper(vec![TestExpect{ payload, expected }], slots);
+        test_helper(vec![TestExpect{ payload, expected }], slots, None);
     }
 
 
@@ -443,7 +569,7 @@ proptest!(
                         expected:
                         jsonrpc_result!([{"hash":format!("0x{batch_hash}"),"tx_range":{"start":first_tx_num,"end":last_tx_num},"txs":full_txs}])},
                     ],
-                    slots);
+                    slots, None);
                 return Ok(());
             }
 
@@ -455,7 +581,7 @@ proptest!(
 
         let payload = jsonrpc_req!("ledger_getBatches", [[random_batch_num], "Compact"]);
         let expected = jsonrpc_result!([null]);
-        test_helper(vec![TestExpect{payload, expected}], slots);
+        test_helper(vec![TestExpect{payload, expected}], slots, None);
     }
 
     #[test]
@@ -502,7 +628,7 @@ proptest!(
                         expected:
                         jsonrpc_result!([tx_formatted])},
                         ]
-                        , slots);
+                        , slots, None);
 
                     return Ok(());
                 }
@@ -513,7 +639,7 @@ proptest!(
 
         let payload = jsonrpc_req!("ledger_getTransactions", [[random_tx_num]]);
         let expected = jsonrpc_result!([null]);
-        test_helper(vec![TestExpect{payload, expected}], slots);
+        test_helper(vec![TestExpect{payload, expected}], slots, None);
 
     }
 
@@ -544,7 +670,7 @@ proptest!(
                             jsonrpc_req!("ledger_getEvents", [random_event_num_usize]),
                             expected:
                             jsonrpc_result!([event_json])}]
-                            , slots);
+                            , slots, None);
 
                         return Ok(());
                     }
@@ -555,6 +681,6 @@ proptest!(
 
         let payload = jsonrpc_req!("ledger_getEvents", [random_event_num]);
         let expected = jsonrpc_result!([null]);
-        test_helper(vec![TestExpect{payload, expected}], slots);
+        test_helper(vec![TestExpect{payload, expected}], slots, None);
     }
 );
