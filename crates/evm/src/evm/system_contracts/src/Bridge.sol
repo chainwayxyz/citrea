@@ -17,6 +17,19 @@ contract Bridge is MerkleTree, Ownable {
     using BTCUtils for bytes;
     using BytesLib for bytes;
 
+    struct DepositParams {
+        bytes4 version;
+        bytes2 flag;
+        bytes vin;
+        bytes vout;
+        bytes witness;
+        bytes4 locktime;
+        bytes intermediate_nodes;
+        bytes block_header;
+        uint256 block_height;
+        uint256 index;
+    }
+
     // TODO: Update this to be the actual address of the L1BlockHashList contract
     L1BlockHashList public constant BLOCK_HASH_LIST = L1BlockHashList(address(0xdeaDDeADDEaDdeaDdEAddEADDEAdDeadDEADDEaD)); 
 
@@ -58,45 +71,30 @@ contract Bridge is MerkleTree, Ownable {
     }
 
     /// @notice Checks if funds 1 BTC is sent to the bridge multisig on Bitcoin, and if so, sends 1 cBTC to the receiver
-    /// @param version The version of the Bitcoin transaction
-    /// @param vin The transaction inputs
-    /// @param vout The transaction outputs
-    /// @param locktime Locktime of the Bitcoin transaction
-    /// @param intermediate_nodes -
-    /// @param block_header Block header of the Bitcoin block that the deposit transaction is in
-    /// @param index Index of the transaction in the block
+    /// @param p The deposit parameters that contains the info of the deposit transaction on Bitcoin
     function deposit(
-        bytes4 version,
-        bytes2 flag,
-        bytes calldata vin,
-        bytes calldata vout,
-        bytes calldata witness,
-        bytes4 locktime,
-        bytes calldata intermediate_nodes,
-        bytes calldata block_header,
-        uint256 block_height,
-        uint index
+        DepositParams calldata p
     ) external onlyOperator {
         require(verifierCount != 0, "Contract is not initialized");
 
-        bytes32 block_hash = BTCUtils.hash256(block_header);
-        require(BLOCK_HASH_LIST.getBlockHash(block_height) == block_hash, "Incorrect block hash");
+        bytes32 block_hash = BTCUtils.hash256(p.block_header);
+        require(BLOCK_HASH_LIST.getBlockHash(p.block_height) == block_hash, "Incorrect block hash");
         
-        bytes32 wtxId = WitnessUtils.calculateWtxId(version, flag, vin, vout, witness, locktime);
+        bytes32 wtxId = WitnessUtils.calculateWtxId(p.version, p.flag, p.vin, p.vout, p.witness, p.locktime);
         require(!spentWtxIds[wtxId], "wtxId already spent");
         spentWtxIds[wtxId] = true;
 
-        require(BTCUtils.validateVin(vin), "Vin is not properly formatted");
-        require(BTCUtils.validateVout(vout), "Vout is not properly formatted");
+        require(BTCUtils.validateVin(p.vin), "Vin is not properly formatted");
+        require(BTCUtils.validateVout(p.vout), "Vout is not properly formatted");
         
-        (, uint256 _nIns) = BTCUtils.parseVarInt(vin);
+        (, uint256 _nIns) = BTCUtils.parseVarInt(p.vin);
         require(_nIns == 1, "Only one input allowed");
         // Number of inputs == number of witnesses
-        require(WitnessUtils.validateWitness(witness, _nIns), "Witness is not properly formatted");
+        require(WitnessUtils.validateWitness(p.witness, _nIns), "Witness is not properly formatted");
 
         // require(BLOCK_HASH_LIST.verifyInclusion(block_hash, wtxId, intermediate_nodes, index), "Transaction is not in block");
 
-        bytes memory witness0 = WitnessUtils.extractWitnessAtIndex(witness, 0);
+        bytes memory witness0 = WitnessUtils.extractWitnessAtIndex(p.witness, 0);
         (, uint256 _nItems) = BTCUtils.parseVarInt(witness0);
         require(_nItems == verifierCount + 2, "Invalid witness items"); // verifier sigs + deposit script + witness script
 

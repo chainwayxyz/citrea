@@ -78,7 +78,7 @@ contract BridgeTest is Test {
         // Operator makes a deposit for the `receiver` address specified in the second output of above Bitcoin txn
         bridge.setOperator(operator);
         vm.startPrank(operator);
-        bridge.deposit(version, flag, vin, vout, witness, locktime, intermediate_nodes, block_header, INITIAL_BLOCK_NUMBER, index);
+        doDeposit();
 
         bytes memory output2 = BTCUtils.extractOutputAtIndex(vout, 1);
         bytes memory output2_ext = BTCUtils.extractOpReturnData(output2);
@@ -94,7 +94,7 @@ contract BridgeTest is Test {
         // Operator makes a deposit for the `receiver` address specified in the second output of above Bitcoin txn
         bridge.setOperator(operator);
         vm.startPrank(operator);
-        bridge.deposit(version, flag, vin, vout, witness, locktime, intermediate_nodes, block_header, INITIAL_BLOCK_NUMBER, index);
+        doDeposit();
 
         bytes memory output2 = BTCUtils.extractOutputAtIndex(vout, 1);
         bytes memory output2_ext = BTCUtils.extractOpReturnData(output2);
@@ -150,9 +150,9 @@ contract BridgeTest is Test {
     function testCannotDoubleDepositWithSameTx() public {
         bridge.setOperator(operator);
         vm.startPrank(operator);
-        bridge.deposit(version, flag, vin, vout, witness, locktime, intermediate_nodes, block_header, INITIAL_BLOCK_NUMBER, index);
+        doDeposit();
         vm.expectRevert("txId already spent");
-        bridge.deposit(version, flag, vin, vout, witness, locktime, intermediate_nodes, block_header, INITIAL_BLOCK_NUMBER, index);
+        doDeposit();
     }
 
     function testCannotDepositWithFalseProof() public {
@@ -160,7 +160,7 @@ contract BridgeTest is Test {
         bridge.setOperator(operator);
         vm.startPrank(operator);
         vm.expectRevert("SPV Verification failed.");
-        bridge.deposit(version, flag, vin, vout, witness, locktime, intermediate_nodes, block_header, INITIAL_BLOCK_NUMBER, index);
+        doDeposit();
     }
 
     function testCannotDepositWithFalseBlockHash() public {
@@ -168,14 +168,14 @@ contract BridgeTest is Test {
         bridge.setOperator(operator);
         vm.startPrank(operator);
         vm.expectRevert("Incorrect block hash");
-        bridge.deposit(version, flag, vin, vout, witness, locktime, intermediate_nodes, block_header, INITIAL_BLOCK_NUMBER, index);
+        doDeposit();
     }
 
     function testCannotWithdrawWithInvalidAmount() public {
         // Operator makes a deposit for the `receiver` address specified in the second output of above Bitcoin txn
         bridge.setOperator(operator);
         vm.startPrank(operator);
-        bridge.deposit(version, flag, vin, vout, witness, locktime, intermediate_nodes, block_header, INITIAL_BLOCK_NUMBER, index);
+        doDeposit();
 
         bytes memory output2 = BTCUtils.extractOutputAtIndex(vout, 1);
         bytes memory output2_ext = BTCUtils.extractOpReturnData(output2);
@@ -194,7 +194,7 @@ contract BridgeTest is Test {
 
     function testNonOperatorCannotDeposit() public {
         vm.expectRevert("caller is not the operator");
-        bridge.deposit(version, flag, vin, vout, witness, locktime, intermediate_nodes, block_header, INITIAL_BLOCK_NUMBER, index);
+        doDeposit();
     }
 
     function testCannotSetOperatorIfNotOwner() public {
@@ -243,4 +243,8 @@ contract BridgeTest is Test {
         result = keccak256(abi.encodePacked(a)) == keccak256(abi.encodePacked(b));
     }
 
+    function doDeposit() public {
+        Bridge.DepositParams memory depositParams = Bridge.DepositParams(version, flag, vin, vout, witness, locktime, intermediate_nodes, block_header, INITIAL_BLOCK_NUMBER, index);
+        bridge.deposit(depositParams);
+    }
 }
