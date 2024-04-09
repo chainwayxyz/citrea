@@ -22,6 +22,8 @@ pub struct AccountData {
     pub address: Address,
     /// Account balance.
     pub balance: U256,
+    /// Code hash.
+    pub code_hash: B256,
     /// Smart contract code.
     pub code: Bytes,
     #[serde(
@@ -30,6 +32,8 @@ pub struct AccountData {
     )]
     /// Smart contract storage
     pub storage: HashMap<U256, U256>,
+    /// Account nonce.
+    pub nonce: u64,
 }
 
 impl AccountData {
