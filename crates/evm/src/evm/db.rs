@@ -1,6 +1,6 @@
 use std::convert::Infallible;
 
-use reth_primitives::{Address, Bytes, B256};
+use reth_primitives::{Address, B256};
 use revm::primitives::{AccountInfo as ReVmAccountInfo, Bytecode, U256};
 use revm::Database;
 use sov_modules_api::{StateMapAccessor, WorkingSet};
@@ -10,7 +10,7 @@ use super::DbAccount;
 
 pub(crate) struct EvmDb<'a, C: sov_modules_api::Context> {
     pub(crate) accounts: sov_modules_api::StateMap<Address, DbAccount, BcsCodec>,
-    pub(crate) code: sov_modules_api::StateMap<B256, Bytes, BcsCodec>,
+    pub(crate) code: sov_modules_api::StateMap<B256, Bytecode, BcsCodec>,
     pub(crate) last_block_hashes: sov_modules_api::StateMap<U256, B256, BcsCodec>,
     pub(crate) working_set: &'a mut WorkingSet<C>,
 }
@@ -18,7 +18,7 @@ pub(crate) struct EvmDb<'a, C: sov_modules_api::Context> {
 impl<'a, C: sov_modules_api::Context> EvmDb<'a, C> {
     pub(crate) fn new(
         accounts: sov_modules_api::StateMap<Address, DbAccount, BcsCodec>,
-        code: sov_modules_api::StateMap<B256, Bytes, BcsCodec>,
+        code: sov_modules_api::StateMap<B256, Bytecode, BcsCodec>,
         last_block_hashes: sov_modules_api::StateMap<U256, B256, BcsCodec>,
         working_set: &'a mut WorkingSet<C>,
     ) -> Self {
@@ -44,7 +44,8 @@ impl<'a, C: sov_modules_api::Context> Database for EvmDb<'a, C> {
         let bytecode = Bytecode::new_raw(
             self.code
                 .get(&code_hash, self.working_set)
-                .unwrap_or_default(),
+                .unwrap_or_default()
+                .original_bytes(),
         );
 
         Ok(bytecode)

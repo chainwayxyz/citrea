@@ -286,7 +286,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         index: reth_primitives::U256,
         block_number: Option<BlockNumberOrTag>,
         working_set: &mut WorkingSet<C>,
-    ) -> RpcResult<reth_primitives::U256> {
+    ) -> RpcResult<reth_primitives::B256> {
         info!("evm module: eth_getStorageAt");
 
         let curr_block_number = self
@@ -323,7 +323,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .and_then(|account| account.storage.get(&index, working_set))
             .unwrap_or_default();
 
-        Ok(storage_slot)
+        Ok(storage_slot.into())
     }
 
     /// Handler for: `eth_getTransactionCount`
@@ -418,7 +418,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .and_then(|account| self.code.get(&account.info.code_hash, working_set))
             .unwrap_or_default();
 
-        Ok(code)
+        Ok(code.original_bytes())
     }
 
     /// Handler for: `eth_getTransactionByBlockHashAndIndex`
