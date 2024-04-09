@@ -96,6 +96,10 @@ jobs:
             echo "Linting or formatting errors detected, please run 'make lint-fix' to fix it";
             exit 1
           fi
+      - name: Run cargo-deny
+        uses: EmbarkStudios/cargo-deny-action@v1
+        with:
+          command: check
 
   check_no_std:
     runs-on: ubicloud-standard-4
