@@ -25,3 +25,9 @@ name = "ring"
 # but we can effectively treat is as OpenSSL-like licensing.
 expression = "OpenSSL"
 license-files = [{ path = "LICENSE", hash = 0xbd0eed23 }]
+
+[bans]
+multiple-versions = "allow"
+# We'd prefer to use Rustls instead of OpenSSL; this helps up from accidentally
+# using OpenSSL. See <https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/352>.
+deny = [{ name = "native-tls" }, { name = "openssl" }]
