@@ -23,18 +23,25 @@ contract BridgeTest is Test {
     uint256 constant DEPOSIT_AMOUNT = 1 ether;
     BridgeHarness public bridge;
     bytes4 version = hex"02000000";
-    bytes vin = hex"01335d4a3454d976220232738ca03a7f3456f2e31625b31ae484696d2669083b720000000000fdffffff";
-    bytes vout = hex"03c2ddf50500000000225120fc6eb6fa4fd4ed1e8519a7edfa171eddcedfbd0e0be49b5e531ef36e7e66eb050000000000000000166a14d5463b64bb3ecd7501283145600b763c3137b4d04a010000000000002200204ae81572f06e1b88fd5ced7a1a000945432e83e1551e6f721ee9c00b8cc33260";
+    bytes2 flag = hex"0001";
+    bytes vin = hex"0197d91aeca70ec28f98b58510a22d93f0184549301f050b2a7841076a320693a10000000000fdffffff";
+    bytes vout = hex"0378dcf505000000002251209602168495f14a8c1919654fac3070a1e4332c341d10a9c760d76ee9d4eb32844a01000000000000220020d664b02f11a411580603be300ec7a7e8e08bf24a5ace393e3290c54858e939bd4a010000000000002200204ae81572f06e1b88fd5ced7a1a000945432e83e1551e6f721ee9c00b8cc33260";
+    bytes depositScript = hex"074037090b5908403c219b6bb006afc47fcd170ad97deb1c5e1559bca290f3a2e25ef4debdb76dcdbe3e6a7a2199c975dc60021af24a93b269cf88c195df04ea68744044582d33a8140905df010c8e28c5174019d215763d4498e26f5e55ddc3a85693cd9669f2ca81f03c6f296e54d6b734796e432e0c04b3761d0c26eea892842b9e40911ac3079b5d1bef5d5042346bba271332484566b6904727f90faa6c5be622e085744904f055cda49d6d2147e382e1642454aa8c6e0191e25cd5a167e8a795a640cc5b20dcb483fcb937f77d727a3ffd73f372cf935f8e4c1455708803939dd37fb9e34714673bcc3500b8dc9d453efc4feda33de1fb71ee5827d0ca0b2920af80405ea037703cc77370e2c826bc6923d17820923bb305e2b59f6bb030edce0e33abf789ea32cb955b9acf8ac56790798ca319b8cf45392b48ac42878fb24cb81e1fc3208fe8f6f24f0fceb83025dd76ca4637acbbbce43f3c317ae7c879cc32057ea614ad20317c6914342dfeae1298628887d09ca80ec8179e77e934c6186a6c6ed7911b3aad20d3383121537e1f2ee45f82d96fd39d5424bd1b9202b2f86887de3500d09407bead205f34640f59e113fc9ca86d32c42d760faef29706fd313a0c0281bfc7d4ebc24bad20a2ea14069c084ef6f2ea114ae5e717479f75ca4bb3f53be2e4f0bbf7225f51d0ad51006314";
+    bytes scriptSuffix = hex"68";
+    bytes witness = hex"074037090b5908403c219b6bb006afc47fcd170ad97deb1c5e1559bca290f3a2e25ef4debdb76dcdbe3e6a7a2199c975dc60021af24a93b269cf88c195df04ea68744044582d33a8140905df010c8e28c5174019d215763d4498e26f5e55ddc3a85693cd9669f2ca81f03c6f296e54d6b734796e432e0c04b3761d0c26eea892842b9e40911ac3079b5d1bef5d5042346bba271332484566b6904727f90faa6c5be622e085744904f055cda49d6d2147e382e1642454aa8c6e0191e25cd5a167e8a795a640cc5b20dcb483fcb937f77d727a3ffd73f372cf935f8e4c1455708803939dd37fb9e34714673bcc3500b8dc9d453efc4feda33de1fb71ee5827d0ca0b2920af80405ea037703cc77370e2c826bc6923d17820923bb305e2b59f6bb030edce0e33abf789ea32cb955b9acf8ac56790798ca319b8cf45392b48ac42878fb24cb81e1fc3208fe8f6f24f0fceb83025dd76ca4637acbbbce43f3c317ae7c879cc32057ea614ad20317c6914342dfeae1298628887d09ca80ec8179e77e934c6186a6c6ed7911b3aad20d3383121537e1f2ee45f82d96fd39d5424bd1b9202b2f86887de3500d09407bead205f34640f59e113fc9ca86d32c42d760faef29706fd313a0c0281bfc7d4ebc24bad20a2ea14069c084ef6f2ea114ae5e717479f75ca4bb3f53be2e4f0bbf7225f51d0ad5100631400000000000000000000000000000000000000006841c193c7378d96518a75448821c4f7c8f4bae7ce60f804d03d1f0628dd5dd0f5de51a9b42aabe8e3f300e73ca8991cb4213762eec2a66536149da8b00eca98b5daeb";
     bytes4 locktime = hex"00000000";
+
+    // TODO: CHANGE THESE
     bytes intermediate_nodes = hex"b2fd785590896305ab9c3dd8453acfdb6d3d0538ce72f10e9e720e5c39ba1aa61918d0dd24910a182354cbf2f9e1c85e56e176afdc0763f04186f367d0d1434e936800c1e088f80a692cc8af3c6d3afa7f3d6fcead06b53739de44e67fce59533dffa19f80d5a8a0c9698bb096ae937d4a9a31640cf40da4c923e8833448de33";    
     bytes block_header = hex"00000020bc9079764fe41a13327a9f1b99931b18b34d60d3947f956949eec5c1af5cb80d0a76a7d6a942436f382e259c20d0c5fee06b12799b491683f9c418311e83e224fe28d765ffff7f2001000000";
-    uint index = 11;
+    uint index = 1;
 
     address operator = makeAddr("citrea_operator");
     address user = makeAddr("citrea_user");
 
     uint256 constant INITIAL_BLOCK_NUMBER = 505050;
-    bytes32 randomMerkleRoot = bytes32(keccak256("CITREA"));
+    // TODO: Change this
+    bytes32 witnessRoot = bytes32(keccak256("CITREA"));
 
     function setUp() public {
         bridge = new BridgeHarness(31);
@@ -50,8 +57,11 @@ contract BridgeTest is Test {
         l1BlockHashList.acceptOwnership();
 
         l1BlockHashList.initializeBlockNumber(INITIAL_BLOCK_NUMBER);
+        // TODO: Change this 
         bytes32 expected_blockhash = hex"b25d57f9acbf22e533b0963b47d91b11bdef9da9591002b1ef4e3ef856aec80e";
-        l1BlockHashList.setBlockInfo(expected_blockhash, randomMerkleRoot);
+        l1BlockHashList.setBlockInfo(expected_blockhash, witnessRoot);
+
+        bridge.setDepositScript(depositScript, scriptSuffix, 5);
     }
 
     function testZeros() public view {
@@ -68,7 +78,7 @@ contract BridgeTest is Test {
         // Operator makes a deposit for the `receiver` address specified in the second output of above Bitcoin txn
         bridge.setOperator(operator);
         vm.startPrank(operator);
-        bridge.deposit(version, vin, vout, locktime, intermediate_nodes, block_header, INITIAL_BLOCK_NUMBER, index);
+        bridge.deposit(version, flag, vin, vout, witness, locktime, intermediate_nodes, block_header, INITIAL_BLOCK_NUMBER, index);
 
         bytes memory output2 = BTCUtils.extractOutputAtIndex(vout, 1);
         bytes memory output2_ext = BTCUtils.extractOpReturnData(output2);
@@ -84,7 +94,7 @@ contract BridgeTest is Test {
         // Operator makes a deposit for the `receiver` address specified in the second output of above Bitcoin txn
         bridge.setOperator(operator);
         vm.startPrank(operator);
-        bridge.deposit(version, vin, vout, locktime, intermediate_nodes, block_header, INITIAL_BLOCK_NUMBER, index);
+        bridge.deposit(version, flag, vin, vout, witness, locktime, intermediate_nodes, block_header, INITIAL_BLOCK_NUMBER, index);
 
         bytes memory output2 = BTCUtils.extractOutputAtIndex(vout, 1);
         bytes memory output2_ext = BTCUtils.extractOpReturnData(output2);
@@ -140,9 +150,9 @@ contract BridgeTest is Test {
     function testCannotDoubleDepositWithSameTx() public {
         bridge.setOperator(operator);
         vm.startPrank(operator);
-        bridge.deposit(version, vin, vout, locktime, intermediate_nodes, block_header, INITIAL_BLOCK_NUMBER, index);
+        bridge.deposit(version, flag, vin, vout, witness, locktime, intermediate_nodes, block_header, INITIAL_BLOCK_NUMBER, index);
         vm.expectRevert("txId already spent");
-        bridge.deposit(version, vin, vout, locktime, intermediate_nodes, block_header, INITIAL_BLOCK_NUMBER, index);
+        bridge.deposit(version, flag, vin, vout, witness, locktime, intermediate_nodes, block_header, INITIAL_BLOCK_NUMBER, index);
     }
 
     function testCannotDepositWithFalseProof() public {
@@ -150,7 +160,7 @@ contract BridgeTest is Test {
         bridge.setOperator(operator);
         vm.startPrank(operator);
         vm.expectRevert("SPV Verification failed.");
-        bridge.deposit(version, vin, vout, locktime, intermediate_nodes, block_header, INITIAL_BLOCK_NUMBER, index);
+        bridge.deposit(version, flag, vin, vout, witness, locktime, intermediate_nodes, block_header, INITIAL_BLOCK_NUMBER, index);
     }
 
     function testCannotDepositWithFalseBlockHash() public {
@@ -158,14 +168,14 @@ contract BridgeTest is Test {
         bridge.setOperator(operator);
         vm.startPrank(operator);
         vm.expectRevert("Incorrect block hash");
-        bridge.deposit(version, vin, vout, locktime, intermediate_nodes, block_header, INITIAL_BLOCK_NUMBER, index);
+        bridge.deposit(version, flag, vin, vout, witness, locktime, intermediate_nodes, block_header, INITIAL_BLOCK_NUMBER, index);
     }
 
     function testCannotWithdrawWithInvalidAmount() public {
         // Operator makes a deposit for the `receiver` address specified in the second output of above Bitcoin txn
         bridge.setOperator(operator);
         vm.startPrank(operator);
-        bridge.deposit(version, vin, vout, locktime, intermediate_nodes, block_header, INITIAL_BLOCK_NUMBER, index);
+        bridge.deposit(version, flag, vin, vout, witness, locktime, intermediate_nodes, block_header, INITIAL_BLOCK_NUMBER, index);
 
         bytes memory output2 = BTCUtils.extractOutputAtIndex(vout, 1);
         bytes memory output2_ext = BTCUtils.extractOpReturnData(output2);
@@ -184,7 +194,7 @@ contract BridgeTest is Test {
 
     function testNonOperatorCannotDeposit() public {
         vm.expectRevert("caller is not the operator");
-        bridge.deposit(version, vin, vout, locktime, intermediate_nodes, block_header, INITIAL_BLOCK_NUMBER, index);
+        bridge.deposit(version, flag, vin, vout, witness, locktime, intermediate_nodes, block_header, INITIAL_BLOCK_NUMBER, index);
     }
 
     function testCannotSetOperatorIfNotOwner() public {
@@ -213,19 +223,20 @@ contract BridgeTest is Test {
         bridge.isBytesEqual_(a, hex"");
     }
 
-    function testBytesEqualFuzz(bytes memory a, bytes memory b) public {
+    function testBytesEqualFuzz(bytes memory a, bytes memory b) public view {
         vm.assume(a.length == b.length);
         assertEq(isKeccakEqual(a, b), bridge.isBytesEqual_(a, b));
     }
 
-    function testBytesEqualForEqualInputsFuzz(bytes memory a) public {
+    function testBytesEqualForEqualInputsFuzz(bytes memory a) public view {
         assertEq(isKeccakEqual(a, a), bridge.isBytesEqual_(a, a));
     }
 
-    function testSetDepositTxOut0() public {
-        bytes memory depositTxOut0 = hex"1234";
-        bridge.setDepositTxOut0(depositTxOut0);
-        assert(bridge.isBytesEqual_(depositTxOut0, bridge.DEPOSIT_TXOUT_0()));
+    function testSetDepositScript() public {
+        bridge.setDepositScript(depositScript, scriptSuffix, 5);
+        assert(bridge.isBytesEqual_(depositScript, bridge.depositScript()));
+        assert(bridge.isBytesEqual_(scriptSuffix, bridge.scriptSuffix()));
+        assertEq(5, bridge.verifierCount());
     }
 
     function isKeccakEqual(bytes memory a, bytes memory b) public pure returns (bool result) {
