@@ -2,8 +2,6 @@
 
 # TODO: figure this out after refactoring 
 
-# Deny crates that do not have a license.
-unlicensed = "deny"
 allow = [
   "Apache-2.0",
   "Apache-2.0 WITH LLVM-exception",
@@ -30,8 +28,21 @@ name = "ring"
 expression = "OpenSSL"
 license-files = [{ path = "LICENSE", hash = 0xbd0eed23 }]
 
+[sources.allow-org]
+github = [
+  "paradigmxyz",
+  "alloy-rs",
+  "penumbra-zone",
+]
+
 [bans]
 multiple-versions = "allow"
 # We'd prefer to use Rustls instead of OpenSSL; this helps up from accidentally
 # using OpenSSL. See <https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/352>.
 deny = [{ name = "native-tls" }, { name = "openssl" }]
+
+[advisories]
+ignore = [
+  "RUSTSEC-2023-0033", # borsh 0.10.3
+  "RUSTSEC-2024-0332", # h2 0.3.25
+]
