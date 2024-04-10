@@ -3,54 +3,86 @@ pragma solidity ^0.8.13;
 
 import "../lib/Ownable.sol";
 import "./interfaces/IL1BlockHashList.sol";
+import "bitcoin-spv/solidity/contracts/ValidateSPV.sol";
 
-/// @title A system contract that stores block hashes and merkle roots of L1 blocks
+/// @title A system contract that stores block hashes and witness root hashes of L1 blocks
 /// @author Citrea
+
+//  WARNING: Integrators must be aware of the following points:
+// - Block hash getters returning 0 value means no such block is recorded
+// - Witness root getters returning 0 value doesn't necessarily mean no such block is recorded, as 0 is also a valid witness root hash in the case of a 1 transaction block
 
 contract L1BlockHashList is Ownable, IL1BlockHashList {
     mapping(uint256 => bytes32) public blockHashes;
-    mapping(bytes32 => bytes32) public merkleRoots;
+    mapping(bytes32 => bytes32) public witnessRoots;
     uint256 public blockNumber;
 
     event BlockInfoAdded(uint256 blockNumber, bytes32 blockHash, bytes32 merkleRoot);
     constructor() Ownable(){ }
 
     /// @notice Sets the initial value for the block number, can only be called once
-    /// @param _blockNumber The L1 block number that is associated with the genesis block of Citrea
-    function initializeBlockNumber(uint256 _blockNumber) public onlyOwner {
+    /// @param _blockNumber L1 block number that is associated with the genesis block of Citrea
+    function initializeBlockNumber(uint256 _blockNumber) external onlyOwner {
         require(blockNumber == 0, "Already initialized");
         blockNumber = _blockNumber;
     }
 
-    /// @notice Sets the block hash and merkle root for a given block
+    /// @notice Sets the block hash and witness root for a given block
     /// @notice Can only be called after the initial block number is set
-    /// @dev The block number is incremented by the contract as no block info should be overwritten or skipped
-    /// @param _blockHash The hash of the current L1 block
-    /// @param _merkleRoot The merkle root of the current L1 block 
-    function setBlockInfo(bytes32 _blockHash, bytes32 _merkleRoot) public onlyOwner {
+    /// @dev Block number is incremented by the contract as no block info should be overwritten or skipped
+    /// @param _blockHash Hash of the current L1 block
+    /// @param _witnessRoot Witness root of the current L1 block, must be in little endian 
+    function setBlockInfo(bytes32 _blockHash, bytes32 _witnessRoot) external onlyOwner {
         uint256 _blockNumber = blockNumber;
         require(_blockNumber != 0, "Not initialized");
         blockHashes[_blockNumber] = _blockHash;
         blockNumber = _blockNumber + 1;
-        merkleRoots[_blockHash] = _merkleRoot;
-        emit BlockInfoAdded(blockNumber, _blockHash, _merkleRoot);
+        witnessRoots[_blockHash] = _witnessRoot;
+        emit BlockInfoAdded(blockNumber, _blockHash, _witnessRoot);
     }
 
-    /// @param _blockNumber The number of the block to get the hash for
-    /// @return The block hash for the given block
-    function getBlockHash(uint256 _blockNumber) public view returns (bytes32) {
+    /// @param _blockNumber Number of the block to get the hash for
+    /// @return Block hash for the given block
+    function getBlockHash(uint256 _blockNumber) external view returns (bytes32) {
         return blockHashes[_blockNumber];
     }
 
-    /// @param _blockHash The block hash of the block to get the merkle root for
-    /// @return The merkle root for the given block
-    function getMerkleRootByHash(bytes32 _blockHash) public view returns (bytes32) {
-        return merkleRoots[_blockHash];
+    /// @param _blockHash Block hash of the block to get the witness root for
+    /// @return Witness root for the given block
+    function getWitnessRootByHash(bytes32 _blockHash) external view returns (bytes32) {
+        return witnessRoots[_blockHash];
     }
 
-    /// @param _blockNumber The block number of the block to get the merkle root for
-    /// @return The merkle root for the given block
-    function getMerkleRootByNumber(uint256 _blockNumber) public view returns (bytes32) {
-        return merkleRoots[blockHashes[_blockNumber]];
+    /// @param _blockNumber Block number of the block to get the witness root for
+    /// @return Merkle root for the given block
+    function getWitnessRootByNumber(uint256 _blockNumber) external view returns (bytes32) {
+        return witnessRoots[blockHashes[_blockNumber]];
+    }
+
+    /// @notice Verifies the inclusion of a witness transaction ID in the witness root hash of a block
+    /// @dev Witness transaction ID and proof elements must be in little endian
+    /// @param _blockHash Block hash of the block
+    /// @param _wtxId Witness transaction ID
+    /// @param _proof Merkle proof
+    /// @param _index Index of the transaction
+    /// @return If the witness transaction ID is included in the witness root hash of the block
+    function verifyInclusion(bytes32 _blockHash, bytes32 _wtxId, bytes calldata _proof, uint256 _index) external view returns (bool) {
+        return _verifyInclusion(_blockHash, _wtxId, _proof, _index);
+    }
+
+    /// @notice Verifies the inclusion of a witness transaction ID in the witness root hash of a block
+    /// @dev Witness transaction ID and proof elements must be in little endian
+    /// @param _blockNumber Block number of the block
+    /// @param _wtxId Witness transaction ID
+    /// @param _proof Merkle proof
+    /// @param _index Index of the transaction
+    /// @return If the witness transaction ID is included in the witness root hash of the block
+    function verifyInclusion(uint256 _blockNumber, bytes32 _wtxId, bytes calldata _proof, uint256 _index) external view returns (bool) {
+        return _verifyInclusion(blockHashes[_blockNumber], _wtxId, _proof, _index);
+    }
+
+    function _verifyInclusion(bytes32 _blockHash, bytes32 _wtxId, bytes calldata _proof, uint256 _index) internal view returns (bool) {
+        bytes32 _witnessRoot = witnessRoots[_blockHash];
+        return ValidateSPV.prove(_wtxId, _witnessRoot, _proof, _index);
     }
 }
