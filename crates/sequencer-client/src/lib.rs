@@ -5,6 +5,7 @@ use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use jsonrpsee::rpc_params;
 use reth_primitives::B256;
 use serde::Deserialize;
+use sov_rollup_interface::rpc::HexTx;
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
 
 /// Configuration for SequencerClient.
@@ -77,7 +78,7 @@ pub struct GetSoftBatchResponse {
     #[serde(with = "hex::serde")]
     pub da_slot_txs_commitment: [u8; 32],
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub txs: Option<Vec<Vec<u8>>>,
+    pub txs: Option<Vec<HexTx>>,
     #[serde(with = "hex::serde")]
     pub pre_state_root: Vec<u8>,
     #[serde(with = "hex::serde")]
@@ -99,7 +100,11 @@ impl From<GetSoftBatchResponse> for SignedSoftConfirmationBatch {
             val.da_slot_txs_commitment,
             val.pre_state_root,
             val.l1_fee_rate,
-            val.txs.unwrap_or_default(),
+            val.txs
+                .unwrap_or_default()
+                .into_iter()
+                .map(|tx| tx.tx)
+                .collect(),
             val.soft_confirmation_signature,
             val.pub_key,
             val.timestamp,

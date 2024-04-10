@@ -161,6 +161,21 @@ pub struct SlotResponse<B, Tx> {
     pub batches: Option<Vec<ItemOrHash<BatchResponse<B, Tx>>>>,
 }
 
+/// A type that represents a transaction hash bytes.
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct HexTx {
+    /// Transaction hash bytes
+    #[serde(with = "hex::serde")]
+    pub tx: Vec<u8>,
+}
+
+impl From<Vec<u8>> for HexTx {
+    fn from(tx: Vec<u8>) -> Self {
+        Self { tx }
+    }
+}
+
 /// The response to a JSON-RPC request for a particular soft batch.
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct SoftBatchResponse {
@@ -179,7 +194,7 @@ pub struct SoftBatchResponse {
     pub hash: [u8; 32],
     /// The transactions in this batch.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub txs: Option<Vec<Vec<u8>>>,
+    pub txs: Option<Vec<HexTx>>,
     /// Pre-state root of the soft batch.
     #[serde(with = "hex::serde")]
     pub pre_state_root: Vec<u8>,
@@ -237,7 +252,7 @@ pub struct TxResponse<Tx> {
 #[serde(untagged)]
 pub enum ItemOrHash<T> {
     /// The hex encoded hash of the requested item.
-    Hash(#[serde(with = "utils::rpc_hex")] [u8; 32]),
+    Hash(#[serde(with = "hex::serde")] [u8; 32]),
     /// The full item body.
     Full(T),
 }
