@@ -1,5 +1,8 @@
 //! The da module defines traits used by the full node to interact with the DA layer.
 
+#[cfg(feature = "native")]
+use alloc::vec::Vec;
+
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 #[cfg(feature = "native")]
@@ -8,8 +11,6 @@ use tokio::sync::oneshot::{channel as oneshot_channel, Receiver as OneshotReceiv
 use crate::da::BlockHeaderTrait;
 #[cfg(feature = "native")]
 use crate::da::{DaSpec, DaVerifier};
-#[cfg(feature = "native")]
-use crate::maybestd::vec::Vec;
 use crate::zk::ValidityCondition;
 
 /// A DaService is the local side of an RPC connection talking to a node of the DA layer

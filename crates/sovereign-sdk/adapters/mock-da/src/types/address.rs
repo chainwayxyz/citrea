@@ -1,4 +1,4 @@
-use std::str::FromStr;
+use core::str::FromStr;
 
 use sov_rollup_interface::{BasicAddress, RollupAddress};
 
@@ -100,7 +100,7 @@ impl RollupAddress for MockAddress {}
 
 #[cfg(test)]
 mod tests {
-    use sov_rollup_interface::maybestd::string::ToString;
+    use std::string::ToString;
 
     use super::*;
 

@@ -3,8 +3,8 @@
 use alloc::vec::Vec;
 use core::{fmt, mem};
 
+use hashbrown::HashMap;
 pub use kernel_state::{KernelWorkingSet, VersionedWorkingSet};
-use sov_rollup_interface::maybestd::collections::HashMap;
 use sov_rollup_interface::stf::Event;
 
 use crate::archival_state::{ArchivalAccessoryWorkingSet, ArchivalJmtWorkingSet};

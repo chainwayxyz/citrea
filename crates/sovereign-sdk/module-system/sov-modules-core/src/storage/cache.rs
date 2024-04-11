@@ -3,8 +3,7 @@
 use alloc::vec::Vec;
 use core::fmt;
 
-use sov_rollup_interface::maybestd::collections::hash_map::Entry;
-use sov_rollup_interface::maybestd::collections::HashMap;
+use hashbrown::hash_map::{Entry, HashMap};
 use sov_rollup_interface::maybestd::RefCount;
 
 use crate::common::{MergeError, ReadError};

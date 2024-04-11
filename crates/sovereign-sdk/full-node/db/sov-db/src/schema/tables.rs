@@ -25,7 +25,7 @@
 //! Module Accessory State Table:
 //! - `(ModuleAddress, Key) -> Value`
 
-use borsh::{maybestd, BorshDeserialize, BorshSerialize};
+use borsh::{BorshDeserialize, BorshSerialize};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use jmt::storage::{NibblePath, Node, NodeKey};
 use jmt::Version;
@@ -122,10 +122,7 @@ macro_rules! impl_borsh_value_codec {
         impl ::sov_schema_db::schema::ValueCodec<$table_name> for $value {
             fn encode_value(
                 &self,
-            ) -> ::std::result::Result<
-                ::sov_rollup_interface::maybestd::vec::Vec<u8>,
-                ::sov_schema_db::CodecError,
-            > {
+            ) -> ::std::result::Result<::std::vec::Vec<u8>, ::sov_schema_db::CodecError> {
                 ::borsh::BorshSerialize::try_to_vec(self).map_err(Into::into)
             }
 
@@ -153,7 +150,7 @@ macro_rules! define_table_with_default_codec {
         define_table_without_codec!($(#[$docs])+ ( $table_name ) $key => $value);
 
         impl ::sov_schema_db::schema::KeyEncoder<$table_name> for $key {
-            fn encode_key(&self) -> ::std::result::Result<::sov_rollup_interface::maybestd::vec::Vec<u8>, ::sov_schema_db::CodecError> {
+            fn encode_key(&self) -> ::std::result::Result<::std::vec::Vec<u8>, ::sov_schema_db::CodecError> {
                 ::borsh::BorshSerialize::try_to_vec(self).map_err(Into::into)
             }
         }
@@ -178,7 +175,7 @@ macro_rules! define_table_with_seek_key_codec {
         define_table_without_codec!($(#[$docs])+ ( $table_name ) $key => $value);
 
         impl ::sov_schema_db::schema::KeyEncoder<$table_name> for $key {
-            fn encode_key(&self) -> ::std::result::Result<::sov_rollup_interface::maybestd::vec::Vec<u8>, ::sov_schema_db::CodecError> {
+            fn encode_key(&self) -> ::std::result::Result<::std::vec::Vec<u8>, ::sov_schema_db::CodecError> {
                 use ::anyhow::Context as _;
                 use ::bincode::Options as _;
 
@@ -204,7 +201,7 @@ macro_rules! define_table_with_seek_key_codec {
         }
 
         impl ::sov_schema_db::SeekKeyEncoder<$table_name> for $key {
-            fn encode_seek_key(&self) -> ::std::result::Result<::sov_rollup_interface::maybestd::vec::Vec<u8>, ::sov_schema_db::CodecError> {
+            fn encode_seek_key(&self) -> ::std::result::Result<::std::vec::Vec<u8>, ::sov_schema_db::CodecError> {
                 <Self as ::sov_schema_db::schema::KeyEncoder<$table_name>>::encode_key(self)
             }
         }
@@ -348,7 +345,7 @@ impl<T: AsRef<[u8]> + PartialEq + core::fmt::Debug> SeekKeyEncoder<JmtValues> fo
 
 impl KeyDecoder<JmtValues> for (StateKey, Version) {
     fn decode_key(data: &[u8]) -> sov_schema_db::schema::Result<Self> {
-        let mut cursor = maybestd::io::Cursor::new(data);
+        let mut cursor = std::io::Cursor::new(data);
         let key = Vec::<u8>::deserialize_reader(&mut cursor)?;
         let version = cursor.read_u64::<BigEndian>()?;
         Ok((key, version))
@@ -400,7 +397,7 @@ impl SeekKeyEncoder<ModuleAccessoryState> for (AccessoryKey, Version) {
 
 impl KeyDecoder<ModuleAccessoryState> for (AccessoryKey, Version) {
     fn decode_key(data: &[u8]) -> sov_schema_db::schema::Result<Self> {
-        let mut cursor = maybestd::io::Cursor::new(data);
+        let mut cursor = std::io::Cursor::new(data);
         let key = Vec::<u8>::deserialize_reader(&mut cursor)?;
         let version = cursor.read_u64::<BigEndian>()?;
         Ok((key, version))

@@ -3,6 +3,7 @@
 //!
 //! The most important trait in this module is the [`StateTransitionFunction`], which defines the
 //! main event loop of the rollup.
+use alloc::vec::Vec;
 use core::fmt::Debug;
 use core::marker::PhantomData;
 
@@ -11,7 +12,6 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 use crate::da::DaSpec;
-use crate::maybestd::vec::Vec;
 use crate::soft_confirmation::SignedSoftConfirmationBatch;
 use crate::zk::{ValidityCondition, Zkvm};
 
