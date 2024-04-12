@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use anyhow::Result;
+use reth_node_api::{ConfigureEvm, ConfigureEvmEnv};
 use reth_primitives::constants::{EMPTY_OMMER_ROOT_HASH, EMPTY_RECEIPTS, EMPTY_TRANSACTIONS};
 use reth_primitives::{keccak256, Address, Bloom, Bytes, B256, KECCAK_EMPTY, U256};
 use revm::primitives::SpecId;
@@ -134,6 +135,47 @@ impl Default for EvmConfig {
             block_gas_limit: reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT,
             base_fee_params: reth_primitives::BaseFeeParams::ethereum(),
         }
+    }
+}
+
+impl ConfigureEvmEnv for EvmConfig {
+    type TxMeta = ();
+
+    fn fill_tx_env<T>(
+        tx_env: &mut revm::primitives::TxEnv,
+        transaction: T,
+        sender: Address,
+        meta: Self::TxMeta,
+    ) where
+        T: AsRef<reth_primitives::Transaction>,
+    {
+        todo!()
+    }
+
+    fn fill_cfg_env(
+        cfg_env: &mut revm::primitives::CfgEnvWithHandlerCfg,
+        chain_spec: &reth_primitives::ChainSpec,
+        header: &reth_primitives::Header,
+        total_difficulty: U256,
+    ) {
+        todo!()
+    }
+}
+
+impl ConfigureEvm for EvmConfig {
+    fn evm<'a, DB: revm::Database + 'a>(&self, db: DB) -> revm::Evm<'a, (), DB> {
+        revm::EvmBuilder::default().with_db(db).build()
+    }
+
+    fn evm_with_inspector<'a, DB: revm::Database + 'a, I>(
+        &self,
+        db: DB,
+        inspector: I,
+    ) -> revm::Evm<'a, I, DB> {
+        revm::EvmBuilder::default()
+            .with_db(db)
+            .with_external_context(inspector)
+            .build()
     }
 }
 

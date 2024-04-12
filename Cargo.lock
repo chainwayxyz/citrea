@@ -1634,6 +1634,7 @@ dependencies = [
  "lazy_static",
  "rand 0.8.5",
  "reth-interfaces",
+ "reth-node-api",
  "reth-primitives",
  "reth-revm",
  "reth-rpc",
