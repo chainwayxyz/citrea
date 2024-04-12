@@ -1,8 +1,7 @@
 use reth_primitives::U256;
 #[cfg(test)]
 use revm::db::{CacheDB, EmptyDB};
-use revm::primitives::Bytecode;
-use revm::primitives::{Address, B256};
+use revm::primitives::{Address, Bytecode, B256};
 use sov_modules_api::StateMapAccessor;
 
 use super::db::EvmDb;

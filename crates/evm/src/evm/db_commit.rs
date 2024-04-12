@@ -45,7 +45,7 @@ impl<'a, C: sov_modules_api::Context> DatabaseCommit for EvmDb<'a, C> {
                 if !code.is_empty() {
                     // TODO: would be good to have a contains_key method on the StateMap that would be optimized, so we can check the hash before storing the code
                     self.code
-                        .set(&account_info.code_hash, &code, self.working_set);
+                        .set(&account_info.code_hash, code, self.working_set);
                 }
             }
 
