@@ -21,7 +21,7 @@ reth-interfaces.workspace = true
 reth-revm.workspace = true
 
 # Local dependencies
-citrea-evm = { path = "../evm" }
+citrea-evm = { path = "../evm", features = ["ef-tests"] }
 
 # 3rd-party
 alloy-rlp.workspace = true

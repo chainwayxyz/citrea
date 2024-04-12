@@ -38,6 +38,11 @@ use crate::evm::primitive_types::{
 use crate::evm::system_events::SystemEvent;
 pub use crate::EvmConfig;
 
+/// Chain ID used inside tests and default implementations.
+/// Different chain ids can be given in the genesis config.
+#[cfg(any(test, feature = "ef-tests"))]
+pub const DEFAULT_CHAIN_ID: u64 = 1;
+
 // Gas per transaction not creating a contract.
 pub(crate) const MIN_TRANSACTION_GAS: u64 = 21_000u64;
 

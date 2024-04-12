@@ -80,3 +80,4 @@ native = [
 ]
 serde = []
 smart_contracts = ["native"]
+ef-tests = ["native", "reth-node-api"]

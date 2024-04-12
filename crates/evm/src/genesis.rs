@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use anyhow::Result;
+#[cfg(feature = "ef-tests")]
 use reth_node_api::{ConfigureEvm, ConfigureEvmEnv};
 use reth_primitives::constants::{EMPTY_OMMER_ROOT_HASH, EMPTY_RECEIPTS, EMPTY_TRANSACTIONS};
 use reth_primitives::{keccak256, Address, Bloom, Bytes, B256, KECCAK_EMPTY, U256};
@@ -12,9 +13,9 @@ use sov_modules_api::WorkingSet;
 use crate::evm::db_init::InitEvmDb;
 use crate::evm::primitive_types::Block;
 use crate::evm::{AccountInfo, EvmChainConfig};
-#[cfg(test)]
-use crate::tests::DEFAULT_CHAIN_ID;
 use crate::Evm;
+#[cfg(any(test, feature = "ef-tests"))]
+use crate::DEFAULT_CHAIN_ID;
 
 /// Evm account.
 #[derive(Clone, Debug, serde::Serialize, Eq, PartialEq)]
@@ -122,7 +123,7 @@ pub struct EvmConfig {
     pub base_fee_params: reth_primitives::BaseFeeParams,
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "ef-tests"))]
 impl Default for EvmConfig {
     fn default() -> Self {
         Self {
@@ -138,6 +139,7 @@ impl Default for EvmConfig {
     }
 }
 
+#[cfg(feature = "ef-tests")]
 impl ConfigureEvmEnv for EvmConfig {
     type TxMeta = ();
 
@@ -162,6 +164,7 @@ impl ConfigureEvmEnv for EvmConfig {
     }
 }
 
+#[cfg(feature = "ef-tests")]
 impl ConfigureEvm for EvmConfig {
     fn evm<'a, DB: revm::Database + 'a>(&self, db: DB) -> revm::Evm<'a, (), DB> {
         revm::EvmBuilder::default().with_db(db).build()
