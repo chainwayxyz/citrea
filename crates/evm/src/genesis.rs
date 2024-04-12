@@ -162,7 +162,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 acc.address,
                 AccountInfo {
                     balance: acc.balance,
-                    code_hash: keccak256(&acc.code),
+                    code_hash: Bytecode::hash_slow(&Bytecode::new_raw(acc.code.clone())),
                     nonce: acc.nonce,
                 },
             );
