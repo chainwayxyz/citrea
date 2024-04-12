@@ -59,6 +59,10 @@ lazy_static! {
         limit_contract_code_size: Some(5000),
         starting_base_fee: 1000000000,
         base_fee_params: BaseFeeParams::ethereum(),
+        timestamp: 0,
+        difficulty: U256::ZERO,
+        extra_data: Bytes::default(),
+        nonce: 0,
     };
 
     pub(crate) static ref GENESIS_HASH: B256 = B256::from(hex!(
