@@ -1,3 +1,8 @@
+# The release tag of https://github.com/ethereum/tests to use for EF tests
+EF_TESTS_TAG := v12.2
+EF_TESTS_URL := https://github.com/ethereum/tests/archive/refs/tags/$(EF_TESTS_TAG).tar.gz
+EF_TESTS_DIR := crates/ef-tests/ethereum-tests
+
 .PHONY: help
 
 help: ## Display this help message
@@ -75,3 +80,16 @@ docs:  ## Generates documentation locally
 
 set-git-hook: 
 	git config core.hooksPath .githooks
+
+# Downloads and unpacks Ethereum Foundation tests in the `$(EF_TESTS_DIR)` directory.
+#
+# Requires `wget` and `tar`
+$(EF_TESTS_DIR):
+	mkdir $(EF_TESTS_DIR)
+	wget $(EF_TESTS_URL) -O ethereum-tests.tar.gz
+	tar -xzf ethereum-tests.tar.gz --strip-components=1 -C $(EF_TESTS_DIR)
+	rm ethereum-tests.tar.gz
+
+.PHONY: ef-tests
+ef-tests: $(EF_TESTS_DIR) ## Runs Ethereum Foundation tests.
+	cargo nextest run -p ef-tests --features ef-tests

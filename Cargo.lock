@@ -2636,6 +2636,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "ef-tests"
+version = "0.3.0"
+dependencies = [
+ "alloy-rlp",
+ "citrea-evm",
+ "rayon",
+ "reth-db",
+ "reth-interfaces",
+ "reth-primitives",
+ "reth-provider",
+ "reth-revm",
+ "reth-stages",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "walkdir",
+]
+
+[[package]]
 name = "either"
 version = "1.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
