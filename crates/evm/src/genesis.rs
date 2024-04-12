@@ -2,8 +2,9 @@ use std::collections::HashMap;
 
 use anyhow::Result;
 use reth_primitives::constants::{EMPTY_OMMER_ROOT_HASH, EMPTY_RECEIPTS, EMPTY_TRANSACTIONS};
-use reth_primitives::{Address, Bloom, Bytes, B256, KECCAK_EMPTY, U256};
+use reth_primitives::{keccak256, Address, Bloom, Bytes, B256, KECCAK_EMPTY, U256};
 use revm::primitives::{Bytecode, SpecId};
+use serde::{Deserialize, Deserializer};
 use sov_modules_api::prelude::*;
 use sov_modules_api::WorkingSet;
 
@@ -15,7 +16,7 @@ use crate::tests::DEFAULT_CHAIN_ID;
 use crate::Evm;
 
 /// Evm account.
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, Eq, PartialEq)]
+#[derive(Clone, Debug, serde::Serialize, Eq, PartialEq)]
 pub struct AccountData {
     /// Account address.
     pub address: Address,
@@ -36,6 +37,23 @@ pub struct AccountData {
 }
 
 impl AccountData {
+    /// Create new account.
+    pub fn new(address: Address, balance: U256, code: Bytes, storage: HashMap<U256, U256>) -> Self {
+        let (code_hash, nonce) = if code.is_empty() {
+            (KECCAK_EMPTY, 0)
+        } else {
+            (keccak256(&code), 1)
+        };
+        AccountData {
+            address,
+            balance,
+            code_hash,
+            code,
+            nonce,
+            storage,
+        }
+    }
+
     /// Empty code hash.
     pub fn empty_code() -> B256 {
         KECCAK_EMPTY
@@ -44,6 +62,41 @@ impl AccountData {
     /// Account balance.
     pub fn balance(balance: u64) -> U256 {
         U256::from(balance)
+    }
+}
+
+impl<'de> Deserialize<'de> for AccountData {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        struct AccountDataHelper {
+            address: Address,
+            balance: U256,
+            code: Bytes,
+            #[serde(
+                default = "Default::default",
+                skip_serializing_if = "HashMap::is_empty"
+            )]
+            storage: HashMap<U256, U256>,
+        }
+
+        let helper = AccountDataHelper::deserialize(deserializer)?;
+        let (code_hash, nonce) = if helper.code.is_empty() {
+            (KECCAK_EMPTY, 0)
+        } else {
+            (keccak256(&helper.code), 1)
+        };
+
+        Ok(AccountData {
+            address: helper.address,
+            balance: helper.balance,
+            code_hash,
+            code: helper.code,
+            nonce,
+            storage: helper.storage,
+        })
     }
 }
 
@@ -66,6 +119,14 @@ pub struct EvmConfig {
     pub block_gas_limit: u64,
     /// Base fee params.
     pub base_fee_params: reth_primitives::BaseFeeParams,
+    /// Timestamp of the genesis block.
+    pub timestamp: u64,
+    /// Extra data for the genesis block.
+    pub extra_data: Bytes,
+    /// Nonce of the genesis block.
+    pub nonce: u64,
+    /// Difficulty of the genesis block.
+    pub difficulty: U256,
 }
 
 #[cfg(test)]
@@ -80,6 +141,10 @@ impl Default for EvmConfig {
             starting_base_fee: reth_primitives::constants::EIP1559_INITIAL_BASE_FEE,
             block_gas_limit: reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT,
             base_fee_params: reth_primitives::BaseFeeParams::ethereum(),
+            timestamp: 0,
+            extra_data: Bytes::default(),
+            nonce: 0,
+            difficulty: U256::ZERO,
         }
     }
 }
@@ -97,7 +162,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 acc.address,
                 AccountInfo {
                     balance: acc.balance,
-                    code_hash: acc.code_hash,
+                    code_hash: keccak256(&acc.code),
                     nonce: acc.nonce,
                 },
             );
@@ -174,6 +239,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let block = Block {
             header,
             l1_fee_rate: 0,
+            // TODO: Check this for genesis hash - is it completely fine?
+            l1_hash: B256::default(),
             transactions: 0u64..0u64,
         };
 
@@ -191,7 +258,7 @@ mod tests {
     use std::str::FromStr;
 
     use hex::FromHex;
-    use reth_primitives::Bytes;
+    use reth_primitives::{keccak256, Bytes};
     use revm::primitives::{Address, SpecId};
 
     use super::U256;
@@ -212,6 +279,10 @@ mod tests {
             chain_id: 1,
             limit_contract_code_size: None,
             spec: vec![(0, SpecId::SHANGHAI)].into_iter().collect(),
+            timestamp: 0,
+            nonce: 0,
+            difficulty: U256::ZERO,
+            extra_data: Bytes::default(),
             ..Default::default()
         };
 
@@ -221,9 +292,7 @@ mod tests {
                 {
                     "address":"0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
                     "balance":"0xffffffffffffffff",
-                    "code_hash":"0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
-                    "code":"0x",
-                    "nonce":0
+                    "code":"0x"
                 }],
                 "chain_id":1,
                 "limit_contract_code_size":null,
@@ -236,7 +305,11 @@ mod tests {
                 "base_fee_params":{
                     "max_change_denominator":8,
                     "elasticity_multiplier":2
-                }
+                },
+                "difficulty": 0,
+                "extra_data": "0x",
+                "timestamp": 0,
+                "nonce": 0
         }"#;
 
         let parsed_config: EvmConfig = serde_json::from_str(data).unwrap();
@@ -253,13 +326,14 @@ mod tests {
         );
 
         let address = Address::from_str("0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266").unwrap();
+        let code = Bytes::from_hex("0x60606040526000357c0100000000000000000000000000000000000000000000000000000000900463ffffffff168063a223e05d1461006a578063").unwrap();
         let config = EvmConfig {
             data: vec![AccountData {
                 address,
                 balance: AccountData::balance(u64::MAX),
-                code_hash: AccountData::empty_code(),
-                code: Bytes::from_hex("0x60606040526000357c0100000000000000000000000000000000000000000000000000000000900463ffffffff168063a223e05d1461006a578063").unwrap(),
-                nonce: 0,
+                code_hash: keccak256(&code),
+                code,
+                nonce: 1,
                 storage,
             }],
             chain_id: 1,
@@ -276,13 +350,11 @@ mod tests {
                 {
                     "address":"0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
                     "balance":"0xffffffffffffffff",
-                    "code_hash":"0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
                     "code":"0x60606040526000357c0100000000000000000000000000000000000000000000000000000000900463ffffffff168063a223e05d1461006a578063",
                     "storage": {
                         "0x0000000000000000000000000000000000000000000000000000000000000000": "0x1234",
                         "0x6661e9d6d8b923d5bbaab1b96e1dd51ff6ea2a93520fdc9eb75d059238b8c5e9": "0x01"
-                    },
-                    "nonce":0
+                    }
                 }],
                 "chain_id":1,
                 "limit_contract_code_size":null,
@@ -295,7 +367,11 @@ mod tests {
                 "base_fee_params":{
                     "max_change_denominator":8,
                     "elasticity_multiplier":2
-                }
+                },
+                "difficulty": 0,
+                "extra_data": "0x",
+                "timestamp": 0,
+                "nonce": 0
         }"#;
 
         let parsed_config: EvmConfig = serde_json::from_str(data).unwrap();

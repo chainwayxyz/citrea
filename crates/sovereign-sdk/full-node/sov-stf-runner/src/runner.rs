@@ -86,12 +86,8 @@ pub enum InitVariant<Stf: StateTransitionFunction<Vm, Da>, Vm: Zkvm, Da: DaSpec>
     /// From give state root
     Initialized(Stf::StateRoot),
     /// From empty state root
-    Genesis {
-        /// Genesis block header should be finalized at init moment
-        block_header: Da::BlockHeader,
-        /// Genesis params for Stf::init
-        genesis_params: GenesisParams<Stf, Vm, Da>,
-    },
+    /// Genesis params for Stf::init
+    Genesis(GenesisParams<Stf, Vm, Da>),
 }
 
 impl<Stf, Sm, Da, Vm, Ps, C> StateTransitionRunner<Stf, Sm, Da, Vm, Ps, C>
@@ -136,14 +132,8 @@ where
                 debug!("Chain is already initialized. Skipping initialization.");
                 state_root
             }
-            InitVariant::Genesis {
-                block_header,
-                genesis_params: params,
-            } => {
-                info!(
-                    "No history detected. Initializing chain on block_header={:?}...",
-                    block_header
-                );
+            InitVariant::Genesis(params) => {
+                info!("No history detected. Initializing chain...");
                 let storage = storage_manager.create_storage_on_l2_height(0)?;
                 let (genesis_root, initialized_storage) = stf.init_chain(storage, params);
                 storage_manager.save_change_set_l2(0, initialized_storage)?;
@@ -837,7 +827,7 @@ where
 
             // Check if post state root is the same as the one in the soft batch
             if next_state_root.as_ref().to_vec() != soft_batch.post_state_root {
-                bail!("Post state root mismatch")
+                bail!("Post state root mismatch at height: {}", height,)
             }
 
             let soft_batch_receipt = SoftBatchReceipt::<_, _, Da::Spec> {

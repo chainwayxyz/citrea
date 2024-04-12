@@ -1,4 +1,5 @@
 use std::array::TryFromSliceError;
+use std::collections::BTreeMap;
 use std::ops::{Range, RangeInclusive};
 
 use alloy_primitives::Uint;
@@ -106,16 +107,16 @@ impl<C: sov_modules_api::Context> Evm<C> {
     ) -> RpcResult<Option<reth_rpc_types::RichBlock>> {
         info!("evm module: eth_getBlockByNumber");
 
-        let block = match self.get_sealed_block_by_number(block_number, working_set) {
-            Some(block) => block,
+        let sealed_block = match self.get_sealed_block_by_number(block_number, working_set) {
+            Some(sealed_block) => sealed_block,
             None => return Ok(None), // if block doesn't exist return null
         };
 
         // Build rpc header response
-        let mut header = from_primitive_with_hash(block.header.clone());
+        let mut header = from_primitive_with_hash(sealed_block.header.clone());
         header.total_difficulty = Some(header.difficulty);
         // Collect transactions with ids from db
-        let transactions: Vec<TransactionSignedAndRecovered> = block
+        let transactions: Vec<TransactionSignedAndRecovered> = sealed_block
             .transactions
             .clone()
             .map(|id| {
@@ -126,7 +127,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .collect();
 
         let block = Block {
-            header: block.header.header().clone(),
+            header: sealed_block.header.header().clone(),
             body: transactions
                 .iter()
                 .map(|tx| tx.signed_transaction.clone())
@@ -172,7 +173,16 @@ impl<C: sov_modules_api::Context> Evm<C> {
             uncles: Default::default(),
             transactions,
             withdrawals: Default::default(),
-            other: Default::default(),
+            other: OtherFields::new(BTreeMap::<String, _>::from([
+                (
+                    "l1FeeRate".to_string(),
+                    serde_json::json!(sealed_block.l1_fee_rate),
+                ),
+                (
+                    "l1Hash".to_string(),
+                    serde_json::json!(sealed_block.l1_hash),
+                ),
+            ])),
         };
 
         Ok(Some(block.into()))

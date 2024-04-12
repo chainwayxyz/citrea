@@ -13,7 +13,8 @@ use hex::ToHex;
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::services::da::DaService;
-use tracing::info;
+use tokio::sync::oneshot::{channel as oneshot_channel, Receiver as OneshotReceiver};
+use tracing::{error, info};
 
 use crate::helpers::builders::{
     compress_blob, create_inscription_transactions, decompress_blob, sign_blob_with_private_key,
@@ -434,6 +435,22 @@ impl DaService for BitcoinService {
         let fee_sat_per_vbyte = self.get_fee_rate().await?;
         self.send_transaction_with_fee_rate(blob, fee_sat_per_vbyte)
             .await
+    }
+
+    async fn send_tx_no_wait(
+        &self,
+        blob: Vec<u8>,
+    ) -> OneshotReceiver<Result<Self::TransactionId, Self::Error>> {
+        let (tx, rx) = oneshot_channel();
+        let this = self.clone(); // Cheap to clone
+        tokio::spawn(async move {
+            let txid = this.send_transaction(blob.as_slice()).await;
+            if let Err(e) = txid.as_ref() {
+                error!("Error sending tx: {:?}", e);
+            }
+            let _ignore = tx.send(txid);
+        });
+        rx
     }
 
     async fn send_aggregated_zk_proof(

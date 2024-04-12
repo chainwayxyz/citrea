@@ -43,8 +43,8 @@ impl L1BlockHashList {
             .expect("ABI for system contract should be correct")
     }
 
-    #[allow(dead_code)]
-    pub(crate) fn get_block_hash(&self, block_number: u64) -> Bytes {
+    /// Return input data to query the block hash by block number mapping
+    pub fn get_block_hash(&self, block_number: u64) -> Bytes {
         let args = ethereum_types::U256::from(block_number);
         self.base_contract
             .encode("getBlockHash", args)
@@ -52,10 +52,10 @@ impl L1BlockHashList {
     }
 
     #[allow(dead_code)]
-    pub(crate) fn get_merkle_root_by_number(&self, block_number: u64) -> Bytes {
+    pub(crate) fn get_witness_root_by_number(&self, block_number: u64) -> Bytes {
         let args = ethereum_types::U256::from(block_number);
         self.base_contract
-            .encode("getMerkleRootByNumber", args)
+            .encode("getWitnessRootByNumber", args)
             .expect("ABI for system contract should be correct")
     }
 }
