@@ -119,6 +119,14 @@ pub struct EvmConfig {
     pub block_gas_limit: u64,
     /// Base fee params.
     pub base_fee_params: reth_primitives::BaseFeeParams,
+    /// Timestamp of the genesis block.
+    pub timestamp: u64,
+    /// Extra data for the genesis block.
+    pub extra_data: Bytes,
+    /// Nonce of the genesis block.
+    pub nonce: u64,
+    /// Difficulty of the genesis block.
+    pub difficulty: U256,
 }
 
 #[cfg(test)]
@@ -133,6 +141,10 @@ impl Default for EvmConfig {
             starting_base_fee: reth_primitives::constants::EIP1559_INITIAL_BASE_FEE,
             block_gas_limit: reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT,
             base_fee_params: reth_primitives::BaseFeeParams::ethereum(),
+            timestamp: 0,
+            extra_data: Bytes::default(),
+            nonce: 0,
+            difficulty: U256::ZERO,
         }
     }
 }
@@ -267,6 +279,10 @@ mod tests {
             chain_id: 1,
             limit_contract_code_size: None,
             spec: vec![(0, SpecId::SHANGHAI)].into_iter().collect(),
+            timestamp: 0,
+            nonce: 0,
+            difficulty: U256::ZERO,
+            extra_data: Bytes::default(),
             ..Default::default()
         };
 
@@ -289,7 +305,11 @@ mod tests {
                 "base_fee_params":{
                     "max_change_denominator":8,
                     "elasticity_multiplier":2
-                }
+                },
+                "difficulty": 0,
+                "extra_data": "0x",
+                "timestamp": 0,
+                "nonce": 0
         }"#;
 
         let parsed_config: EvmConfig = serde_json::from_str(data).unwrap();
@@ -347,7 +367,11 @@ mod tests {
                 "base_fee_params":{
                     "max_change_denominator":8,
                     "elasticity_multiplier":2
-                }
+                },
+                "difficulty": 0,
+                "extra_data": "0x",
+                "timestamp": 0,
+                "nonce": 0
         }"#;
 
         let parsed_config: EvmConfig = serde_json::from_str(data).unwrap();
