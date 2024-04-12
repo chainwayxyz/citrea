@@ -1,3 +1,4 @@
+use borsh::{BorshDeserialize, BorshSerialize};
 use sov_rollup_interface::da::{BlobReaderTrait, DaSpec, DaVerifier};
 
 use crate::{MockAddress, MockBlob, MockBlockHeader, MockDaVerifier, MockHash, MockValidityCond};
@@ -29,7 +30,16 @@ impl BlobReaderTrait for MockBlob {
 }
 
 /// A [`sov_rollup_interface::da::DaSpec`] suitable for testing.
-#[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, Eq, Clone)]
+#[derive(
+    serde::Serialize,
+    serde::Deserialize,
+    Debug,
+    PartialEq,
+    Eq,
+    Clone,
+    BorshDeserialize,
+    BorshSerialize,
+)]
 pub struct MockDaSpec;
 
 impl DaSpec for MockDaSpec {

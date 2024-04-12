@@ -1,4 +1,3 @@
-use borsh::BorshSerialize;
 use sov_mock_da::{MockDaSpec, MockValidityCond, MockValidityCondChecker};
 use sov_mock_zkvm::{MockCodeCommitment, MockProof, MockZkvm};
 use sov_modules_api::default_context::DefaultContext;
@@ -69,7 +68,7 @@ fn test_valid_challenge() {
             validity_condition: MockValidityCond { is_valid: true },
         };
 
-        let serialized_transition = transition.try_to_vec().unwrap();
+        let serialized_transition = borsh::to_vec(&transition).unwrap();
 
         let commitment = module
             .commitment_to_allowed_challenge_method
@@ -79,7 +78,7 @@ fn test_valid_challenge() {
         let proof = &MockProof {
             program_id: commitment,
             is_valid: true,
-            log: serialized_transition.as_slice(),
+            log: serialized_transition,
         }
         .encode_to_vec();
 
@@ -197,7 +196,7 @@ fn test_invalid_challenge() {
         validity_condition: MockValidityCond { is_valid: true },
     };
 
-    let serialized_transition = transition.try_to_vec().unwrap();
+    let serialized_transition = borsh::to_vec(&transition).unwrap();
 
     let commitment = module
         .commitment_to_allowed_challenge_method
@@ -209,7 +208,7 @@ fn test_invalid_challenge() {
         let proof = &MockProof {
             program_id: commitment.clone(),
             is_valid: true,
-            log: serialized_transition.as_slice(),
+            log: serialized_transition.clone(),
         }
         .encode_to_vec();
 
@@ -236,7 +235,7 @@ fn test_invalid_challenge() {
         let proof = &MockProof {
             program_id: commitment.clone(),
             is_valid: false,
-            log: serialized_transition.as_slice(),
+            log: serialized_transition,
         }
         .encode_to_vec();
 
@@ -255,15 +254,14 @@ fn test_invalid_challenge() {
             slot_hash: [2; 32].into(),
             final_state_root: transition_1.state_root,
             validity_condition: MockValidityCond { is_valid: true },
-        }
-        .try_to_vec()
-        .unwrap();
+        };
+        let bad_transition = borsh::to_vec(&bad_transition).unwrap();
 
         // An invalid proof
         let proof = &MockProof {
             program_id: commitment,
             is_valid: true,
-            log: bad_transition.as_slice(),
+            log: bad_transition,
         }
         .encode_to_vec();
 
@@ -282,15 +280,14 @@ fn test_invalid_challenge() {
             slot_hash: [1; 32].into(),
             final_state_root: transition_1.state_root,
             validity_condition: MockValidityCond { is_valid: false },
-        }
-        .try_to_vec()
-        .unwrap();
+        };
+        let bad_transition = borsh::to_vec(&bad_transition).unwrap();
 
         // An invalid proof
         let proof = &MockProof {
             program_id: MockCodeCommitment([0; 32]),
             is_valid: true,
-            log: bad_transition.as_slice(),
+            log: bad_transition,
         }
         .encode_to_vec();
 
@@ -309,15 +306,14 @@ fn test_invalid_challenge() {
             slot_hash: [1; 32].into(),
             final_state_root: transition_1.state_root,
             validity_condition: MockValidityCond { is_valid: true },
-        }
-        .try_to_vec()
-        .unwrap();
+        };
+        let bad_transition = borsh::to_vec(&bad_transition).unwrap();
 
         // An invalid proof
         let proof = &MockProof {
             program_id: MockCodeCommitment([0; 32]),
             is_valid: true,
-            log: bad_transition.as_slice(),
+            log: bad_transition,
         }
         .encode_to_vec();
 

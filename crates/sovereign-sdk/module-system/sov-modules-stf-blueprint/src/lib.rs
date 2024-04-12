@@ -9,7 +9,6 @@ mod tx_verifier;
 use std::marker::PhantomData;
 
 pub use batch::Batch;
-use borsh::BorshSerialize;
 use sov_modules_api::da::BlockHeaderTrait;
 use sov_modules_api::hooks::{
     ApplyBlobHooks, ApplySoftConfirmationError, ApplySoftConfirmationHooks, FinalizeHook,
@@ -590,7 +589,7 @@ fn verify_soft_batch_signature<C: Context>(
         soft_batch.timestamp(),
     );
 
-    let message = unsigned.try_to_vec().unwrap();
+    let message = borsh::to_vec(&unsigned).unwrap();
 
     let signature = C::Signature::try_from(soft_batch.signature().as_slice())?;
     signature.verify(

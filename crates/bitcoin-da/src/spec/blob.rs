@@ -1,3 +1,4 @@
+use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::{BlobReaderTrait, CountedBufReader};
 use sov_rollup_interface::Buf;
@@ -5,7 +6,7 @@ use sov_rollup_interface::Buf;
 use super::address::AddressWrapper;
 
 // BlobBuf is a wrapper around Vec<u8> to implement Buf
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
 pub struct BlobBuf {
     pub data: Vec<u8>,
 
@@ -40,7 +41,7 @@ impl Buf for BlobBuf {
 }
 
 // BlobWithSender is a wrapper around BlobBuf to implement BlobReaderTrait
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
 pub struct BlobWithSender {
     pub hash: [u8; 32],
 

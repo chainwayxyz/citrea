@@ -253,9 +253,7 @@ mod pubkey_hex {
     where
         S: Serializer,
     {
-        let bytes = data
-            .try_to_vec()
-            .expect("serialization to vec is infallible");
+        let bytes = borsh::to_vec(data).expect("serialization to vec is infallible");
         let formatted_string = format!("0x{}", bytes.encode_hex::<String>());
         serializer.serialize_str(&formatted_string)
     }

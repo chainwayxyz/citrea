@@ -153,14 +153,13 @@ impl<C: sov_modules_api::Context + Serialize + DeserializeOwned + Send + Sync> R
                     .into_iter()
                     .enumerate()
                     .map(|(offset, tx)| {
-                        Transaction::<C>::new_signed_tx(
+                        let tx = Transaction::<C>::new_signed_tx(
                             &private_key,
-                            tx.try_to_vec().unwrap(),
+                            borsh::to_vec(&tx).unwrap(),
                             tx.chain_id,
                             nonce + offset as u64,
-                        )
-                        .try_to_vec()
-                        .unwrap()
+                        );
+                        borsh::to_vec(&tx).unwrap()
                     })
                     .collect::<Vec<_>>();
 

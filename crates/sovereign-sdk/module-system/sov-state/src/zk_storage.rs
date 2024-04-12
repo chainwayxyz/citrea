@@ -8,7 +8,7 @@ use sov_modules_core::{
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 use sov_zk_cycle_macros::cycle_tracker;
 
-use crate::MerkleProofSpec;
+use crate::{HasherWrapper, MerkleProofSpec};
 
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 extern crate risc0_zkvm;
@@ -88,7 +88,8 @@ impl<S: MerkleProofSpec> Storage for ZkStorage<S> {
             })
             .collect::<Vec<_>>();
 
-        let update_proof: jmt::proof::UpdateMerkleProof<S::Hasher> = witness.get_hint();
+        let update_proof: jmt::proof::UpdateMerkleProof<HasherWrapper<S::Hasher>> =
+            witness.get_hint();
         let new_root: [u8; 32] = witness.get_hint();
         update_proof
             .verify_update(

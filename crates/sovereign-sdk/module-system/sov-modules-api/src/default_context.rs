@@ -1,5 +1,6 @@
 use std::fmt::Debug;
 
+use borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use sha2::Digest;
@@ -15,7 +16,7 @@ use crate::default_signature::{DefaultPublicKey, DefaultSignature};
 
 #[cfg(feature = "native")]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, BorshDeserialize, BorshSerialize)]
 pub struct DefaultContext {
     pub sender: Address,
     pub sequencer: Address,
@@ -59,6 +60,7 @@ impl Context for DefaultContext {
 
 #[derive(Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(BorshDeserialize, BorshSerialize)]
 pub struct ZkDefaultContext {
     pub sender: Address,
     pub sequencer: Address,

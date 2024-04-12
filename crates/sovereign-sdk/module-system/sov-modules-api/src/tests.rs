@@ -1,4 +1,4 @@
-use borsh::{BorshDeserialize, BorshSerialize};
+use borsh::BorshDeserialize;
 use sov_modules_core::{Address, PrivateKey, Signature};
 
 use crate::default_context::DefaultContext;
@@ -19,7 +19,7 @@ fn test_account_bech32m_display() {
 #[test]
 fn test_pub_key_serialization() {
     let pub_key = DefaultPrivateKey::generate().pub_key();
-    let serialized_pub_key = pub_key.try_to_vec().unwrap();
+    let serialized_pub_key = borsh::to_vec(&pub_key).unwrap();
 
     let deserialized_pub_key = DefaultPublicKey::try_from_slice(&serialized_pub_key).unwrap();
     assert_eq!(pub_key, deserialized_pub_key)
@@ -31,7 +31,7 @@ fn test_signature_serialization() {
     let priv_key = DefaultPrivateKey::generate();
 
     let sig = priv_key.sign(&msg);
-    let serialized_sig = sig.try_to_vec().unwrap();
+    let serialized_sig = borsh::to_vec(&sig).unwrap();
     let deserialized_sig = DefaultSignature::try_from_slice(&serialized_sig).unwrap();
     assert_eq!(sig, deserialized_sig);
 

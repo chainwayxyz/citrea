@@ -67,14 +67,14 @@ repository = "https://github.com/chainwayxyz/citrea"
 
 [workspace.dependencies]
 # Dependencies maintained by Sovereign
-jmt = { git = "https://github.com/penumbra-zone/jmt.git", rev = "1d007e11cb68aa5ca13e9a5af4a12e6439d5f7b6" }
+jmt = "0.10" #{ git = "https://github.com/penumbra-zone/jmt.git", rev = "1d007e11cb68aa5ca13e9a5af4a12e6439d5f7b6" }
 
 # External dependencies
 async-trait = "0.1.71"
 anyhow = { version = "1.0.68", default-features = false }
 arbitrary = { version = "1.3.1", features = ["derive"] }
 alloy-rlp = "0.3"
-borsh = { version = "0.10.3", default-features = false }
+borsh = { version = "1", default-features = false, features = ["derive"] }
 # TODO: Consider replacing this serialization format
 #     https://github.com/Sovereign-Labs/sovereign-sdk/issues/283
 bincode = "1.3.3"

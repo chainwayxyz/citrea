@@ -12,7 +12,7 @@ use sov_modules_core::{
 };
 
 use crate::config::Config;
-use crate::MerkleProofSpec;
+use crate::{HasherWrapper, MerkleProofSpec};
 
 /// A [`Storage`] implementation to be used by the prover in a native execution
 /// environment (outside of the zkVM).
@@ -105,7 +105,7 @@ impl<S: MerkleProofSpec, Q: QueryManager> Storage for ProverStorage<S, Q> {
         witness: &Self::Witness,
     ) -> Result<(Self::Root, Self::StateUpdate), anyhow::Error> {
         let latest_version = self.db.get_next_version() - 1;
-        let jmt = JellyfishMerkleTree::<_, S::Hasher>::new(&self.db);
+        let jmt = JellyfishMerkleTree::<_, HasherWrapper<S::Hasher>>::new(&self.db);
 
         // Handle empty jmt
         // TODO: Fix this before introducing snapshots!

@@ -7,11 +7,11 @@ use sov_modules_api::{
 };
 use sov_state::ZkStorage;
 
-pub trait Message: 'static {
+pub trait Message: 'static + borsh::BorshSerialize + borsh::BorshDeserialize {
     type Caller: std::fmt::Display;
     type Data: Data;
 }
-pub trait TestSpec: 'static {
+pub trait TestSpec: 'static + borsh::BorshSerialize + borsh::BorshDeserialize {
     type Message: Message;
 }
 
@@ -106,6 +106,7 @@ struct Runtime<C: Context, S: TestSpec> {
     pub first: my_module::QueryModule<C, <<S as TestSpec>::Message as Message>::Data>,
 }
 
+#[derive(borsh::BorshDeserialize, borsh::BorshSerialize)]
 struct ActualMessage;
 
 impl Message for ActualMessage {
@@ -113,6 +114,7 @@ impl Message for ActualMessage {
     type Data = u32;
 }
 
+#[derive(borsh::BorshDeserialize, borsh::BorshSerialize)]
 struct ActualSpec;
 
 impl TestSpec for ActualSpec {

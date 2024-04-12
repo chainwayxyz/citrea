@@ -1,6 +1,5 @@
 use std::rc::Rc;
 
-use borsh::ser::BorshSerialize;
 use sov_mock_da::verifier::MockDaSpec;
 use sov_mock_da::{MockAddress, MockBlob};
 use sov_modules_api::transaction::Transaction;
@@ -17,7 +16,7 @@ pub fn new_test_blob_from_batch(
     hash: [u8; 32],
 ) -> <MockDaSpec as DaSpec>::BlobTransaction {
     let address = MockAddress::try_from(address).unwrap();
-    let data = batch.try_to_vec().unwrap();
+    let data = borsh::to_vec(&batch).unwrap();
     MockBlob::new(data, address, hash)
 }
 
@@ -104,7 +103,7 @@ pub trait MessageGenerator {
             );
 
             serialized_messages.push(RawTx {
-                data: tx.try_to_vec().unwrap(),
+                data: borsh::to_vec(&tx).unwrap(),
             })
         }
         serialized_messages

@@ -1,7 +1,7 @@
 use std::env;
 
 use async_trait::async_trait;
-use borsh::ser::BorshSerialize;
+use borsh::{BorshDeserialize, BorshSerialize};
 use demo_stf::runtime::Runtime;
 use sov_bank::{Bank, Coins};
 use sov_mock_da::{
@@ -43,7 +43,17 @@ impl RngDaService {
 }
 
 /// A simple DaSpec for a random number generator.
-#[derive(serde::Serialize, serde::Deserialize, PartialEq, Eq, Debug, Clone, Default)]
+#[derive(
+    serde::Serialize,
+    serde::Deserialize,
+    BorshDeserialize,
+    BorshSerialize,
+    PartialEq,
+    Eq,
+    Debug,
+    Clone,
+    Default,
+)]
 pub struct RngDaSpec;
 
 impl DaSpec for RngDaSpec {
@@ -220,10 +230,10 @@ pub fn generate_transfers(n: usize, start_nonce: u64) -> Vec<u8> {
             DEFAULT_CHAIN_ID,
             start_nonce + (i as u64),
         );
-        let ser_tx = tx.try_to_vec().unwrap();
+        let ser_tx = borsh::to_vec(&tx).unwrap();
         message_vec.push(ser_tx)
     }
-    message_vec.try_to_vec().unwrap()
+    borsh::to_vec(&message_vec).unwrap()
 }
 
 pub fn generate_create_token_payload(start_nonce: u64) -> Vec<u8> {
@@ -242,9 +252,9 @@ pub fn generate_create_token_payload(start_nonce: u64) -> Vec<u8> {
         <Runtime<DefaultContext, RngDaSpec> as EncodeCall<Bank<DefaultContext>>>::encode_call(msg);
     let tx =
         Transaction::<DefaultContext>::new_signed_tx(&pk, enc_msg, DEFAULT_CHAIN_ID, start_nonce);
-    let ser_tx = tx.try_to_vec().unwrap();
+    let ser_tx = borsh::to_vec(&tx).unwrap();
     message_vec.push(ser_tx);
-    message_vec.try_to_vec().unwrap()
+    borsh::to_vec(&message_vec).unwrap()
 }
 
 #[cfg(test)]

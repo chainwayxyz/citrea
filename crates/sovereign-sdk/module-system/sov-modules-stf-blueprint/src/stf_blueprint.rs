@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use borsh::{BorshDeserialize, BorshSerialize};
+use borsh::BorshDeserialize;
 use sov_modules_api::hooks::{ApplySoftConfirmationError, HookSoftConfirmationInfo};
 use sov_modules_api::runtime::capabilities::KernelSlotHooks;
 use sov_modules_api::{
@@ -173,7 +173,7 @@ where
 
             let receipt = TransactionReceipt {
                 tx_hash: raw_tx_hash,
-                body_to_save: Some(tx.clone().try_to_vec().unwrap()),
+                body_to_save: Some(borsh::to_vec(&tx).unwrap()),
                 events,
                 receipt: tx_effect,
             };
@@ -407,7 +407,7 @@ where
 
             let receipt = TransactionReceipt {
                 tx_hash: raw_tx_hash,
-                body_to_save: Some(tx.clone().try_to_vec().unwrap()),
+                body_to_save: Some(borsh::to_vec(&tx).unwrap()),
                 events,
                 receipt: tx_effect,
             };

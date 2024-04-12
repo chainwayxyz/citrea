@@ -178,7 +178,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use borsh::BorshSerialize;
+
     use rand::Rng;
     use sov_modules_api::default_context::DefaultContext;
     use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
@@ -218,9 +218,9 @@ mod tests {
         let chain_id = 0;
         let nonce = 1;
 
-        Transaction::<DefaultContext>::new_signed_tx(private_key, msg, chain_id, nonce)
-            .try_to_vec()
-            .unwrap()
+        let signed =
+            Transaction::<DefaultContext>::new_signed_tx(private_key, msg, chain_id, nonce);
+        borsh::to_vec(&signed).unwrap()
     }
 
     fn generate_random_bytes() -> Vec<u8> {
@@ -236,9 +236,9 @@ mod tests {
         let chain_id = 0;
         let nonce = 1;
 
-        Transaction::<DefaultContext>::new_signed_tx(private_key, msg, chain_id, nonce)
-            .try_to_vec()
-            .unwrap()
+        let signed =
+            Transaction::<DefaultContext>::new_signed_tx(private_key, msg, chain_id, nonce);
+        borsh::to_vec(&signed).unwrap()
     }
 
     fn create_batch_builder(

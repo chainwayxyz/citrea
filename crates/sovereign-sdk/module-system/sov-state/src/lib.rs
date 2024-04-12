@@ -4,6 +4,8 @@
 
 pub mod codec;
 
+use borsh::{BorshDeserialize, BorshSerialize};
+
 #[cfg(feature = "native")]
 mod prover_storage;
 
@@ -30,7 +32,7 @@ pub trait MerkleProofSpec {
     /// The structure that accumulates the witness data
     type Witness: Witness + Send + Sync;
     /// The hash function used to compute the merkle root
-    type Hasher: Digest<OutputSize = sha2::digest::typenum::U32>;
+    type Hasher: Digest<OutputSize = sha2::digest::typenum::U32> + Default + jmt::SimpleHasher;
 }
 
 use sha2::Sha256;
@@ -45,4 +47,20 @@ impl MerkleProofSpec for DefaultStorageSpec {
     type Witness = ArrayWitness;
 
     type Hasher = Sha256;
+}
+
+// This is a hack around https://github.com/penumbra-zone/jmt/issues/113
+#[derive(BorshDeserialize, BorshSerialize)]
+struct HasherWrapper<H>(#[borsh(skip)] H);
+
+impl<H: jmt::SimpleHasher> jmt::SimpleHasher for HasherWrapper<H> {
+    fn new() -> Self {
+        Self(H::new())
+    }
+    fn update(&mut self, data: &[u8]) {
+        self.0.update(data);
+    }
+    fn finalize(self) -> [u8; 32] {
+        self.0.finalize()
+    }
 }

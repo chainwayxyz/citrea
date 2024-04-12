@@ -97,7 +97,9 @@ pub trait Spec {
 /// Context objects also implement the [`Spec`] trait, which specifies the types to be used in this
 /// instance of the state transition function. By making modules generic over a `Context`, developers
 /// can easily update their cryptography to conform to the needs of different zk-proof systems.
-pub trait Context: Spec + Clone + Debug + PartialEq + 'static {
+pub trait Context:
+    BorshDeserialize + BorshSerialize + Spec + Clone + Debug + PartialEq + 'static
+{
     /// Sender of the transaction.
     fn sender(&self) -> &Self::Address;
 

@@ -38,7 +38,9 @@ pub enum DaData {
 }
 
 /// A specification for the types used by a DA layer.
-pub trait DaSpec: 'static + Debug + PartialEq + Eq + Clone {
+pub trait DaSpec:
+    'static + BorshDeserialize + BorshSerialize + Debug + PartialEq + Eq + Clone
+{
     /// The hash of a DA layer block
     type SlotHash: BlockHashTrait;
 
@@ -163,7 +165,9 @@ impl<B: bytes::Buf> CountedBufReader<B> {
 /// will slash the sequencer and exit early - so it only cares about the content of the blob up to that point.
 ///
 /// This trait allows the DaVerifier to track which data was read by the rollup, and only verify the relevant data.
-pub trait BlobReaderTrait: Serialize + DeserializeOwned + Send + Sync + 'static {
+pub trait BlobReaderTrait:
+    BorshDeserialize + BorshSerialize + Serialize + DeserializeOwned + Send + Sync + 'static
+{
     /// The type used to represent addresses on the DA layer.
     type Address: BasicAddress;
 
@@ -208,7 +212,7 @@ pub trait BlobReaderTrait: Serialize + DeserializeOwned + Send + Sync + 'static 
 /// Trait with collection of trait bounds for a block hash.
 pub trait BlockHashTrait:
     // so it is compatible with StorageManager implementation?
-    Serialize + DeserializeOwned + PartialEq + Debug + Send + Sync + Clone + Eq + Into<[u8; 32]> + core::hash::Hash
+    BorshDeserialize + BorshSerialize + Serialize + DeserializeOwned + PartialEq + Debug + Send + Sync + Clone + Eq + Into<[u8; 32]> + core::hash::Hash
 {
 }
 

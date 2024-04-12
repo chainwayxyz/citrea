@@ -123,13 +123,13 @@ macro_rules! impl_borsh_value_codec {
             fn encode_value(
                 &self,
             ) -> ::std::result::Result<::std::vec::Vec<u8>, ::sov_schema_db::CodecError> {
-                ::borsh::BorshSerialize::try_to_vec(self).map_err(Into::into)
+                ::borsh::to_vec(self).map_err(Into::into)
             }
 
             fn decode_value(
                 data: &[u8],
             ) -> ::std::result::Result<Self, ::sov_schema_db::CodecError> {
-                ::borsh::BorshDeserialize::deserialize_reader(&mut &data[..]).map_err(Into::into)
+                ::borsh::from_slice(data).map_err(Into::into)
             }
         }
     };
@@ -151,13 +151,13 @@ macro_rules! define_table_with_default_codec {
 
         impl ::sov_schema_db::schema::KeyEncoder<$table_name> for $key {
             fn encode_key(&self) -> ::std::result::Result<::std::vec::Vec<u8>, ::sov_schema_db::CodecError> {
-                ::borsh::BorshSerialize::try_to_vec(self).map_err(Into::into)
+                ::borsh::to_vec(self).map_err(Into::into)
             }
         }
 
         impl ::sov_schema_db::schema::KeyDecoder<$table_name> for $key {
             fn decode_key(data: &[u8]) -> ::std::result::Result<Self, ::sov_schema_db::CodecError> {
-                ::borsh::BorshDeserialize::deserialize_reader(&mut &data[..]).map_err(Into::into)
+                ::borsh::from_slice(data).map_err(Into::into)
             }
         }
 
@@ -309,11 +309,11 @@ impl KeyDecoder<JmtNodes> for NodeKey {
 
 impl ValueCodec<JmtNodes> for Node {
     fn encode_value(&self) -> sov_schema_db::schema::Result<Vec<u8>> {
-        self.try_to_vec().map_err(CodecError::from)
+        borsh::to_vec(self).map_err(CodecError::from)
     }
 
     fn decode_value(data: &[u8]) -> sov_schema_db::schema::Result<Self> {
-        Ok(Self::deserialize_reader(&mut &data[..])?)
+        Ok(borsh::from_slice(data)?)
     }
 }
 
@@ -354,11 +354,11 @@ impl KeyDecoder<JmtValues> for (StateKey, Version) {
 
 impl ValueCodec<JmtValues> for JmtValue {
     fn encode_value(&self) -> sov_schema_db::schema::Result<Vec<u8>> {
-        self.try_to_vec().map_err(CodecError::from)
+        borsh::to_vec(self).map_err(CodecError::from)
     }
 
     fn decode_value(data: &[u8]) -> sov_schema_db::schema::Result<Self> {
-        Ok(Self::deserialize_reader(&mut &data[..])?)
+        Ok(borsh::from_slice(data)?)
     }
 }
 
@@ -406,10 +406,10 @@ impl KeyDecoder<ModuleAccessoryState> for (AccessoryKey, Version) {
 
 impl ValueCodec<ModuleAccessoryState> for AccessoryStateValue {
     fn encode_value(&self) -> sov_schema_db::schema::Result<Vec<u8>> {
-        self.try_to_vec().map_err(CodecError::from)
+        borsh::to_vec(self).map_err(CodecError::from)
     }
 
     fn decode_value(data: &[u8]) -> sov_schema_db::schema::Result<Self> {
-        Ok(Self::deserialize_reader(&mut &data[..])?)
+        Ok(borsh::from_slice(data)?)
     }
 }

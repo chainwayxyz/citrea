@@ -32,7 +32,6 @@ license-files = [{ path = "LICENSE", hash = 0xbd0eed23 }]
 github = [
   "paradigmxyz",
   "alloy-rs",
-  "penumbra-zone",
 ]
 
 [bans]
@@ -43,6 +42,6 @@ deny = [{ name = "native-tls" }, { name = "openssl" }]
 
 [advisories]
 ignore = [
-  "RUSTSEC-2023-0033", # borsh 0.10.3
+  #"RUSTSEC-2023-0033", # borsh 0.10.3
   "RUSTSEC-2024-0332", # h2 0.3.25
 ]

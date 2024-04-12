@@ -4,7 +4,6 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::vec;
 
-use borsh::ser::BorshSerialize;
 use citrea_evm::{CallMessage, RlpEvmTransaction};
 use citrea_stf::runtime::Runtime;
 use digest::Digest;
@@ -204,7 +203,7 @@ where
             da_slot_hash: da_block.header().hash().into(),
             da_slot_txs_commitment: da_block.header().txs_commitment().into(),
             pre_state_root: self.state_root.clone().as_ref().to_vec(),
-            pub_key: self.sov_tx_signer_priv_key.pub_key().try_to_vec().unwrap(),
+            pub_key: borsh::to_vec(&self.sov_tx_signer_priv_key.pub_key()).unwrap(),
             l1_fee_rate,
             timestamp,
         };
@@ -459,9 +458,7 @@ where
                         // submit commitment
                         self.da_service
                             .send_tx_no_wait(
-                                DaData::SequencerCommitment(commitment)
-                                    .try_to_vec()
-                                    .unwrap(),
+                                borsh::to_vec(&DaData::SequencerCommitment(commitment)).unwrap(),
                             )
                             .await;
 
@@ -509,9 +506,9 @@ where
         // TODO: figure out what to do with sov-tx fields
         // chain id gas tip and gas limit
 
-        Transaction::<C>::new_signed_tx(&self.sov_tx_signer_priv_key, raw_message, 0, nonce)
-            .try_to_vec()
-            .unwrap()
+        let transaction =
+            Transaction::<C>::new_signed_tx(&self.sov_tx_signer_priv_key, raw_message, 0, nonce);
+        borsh::to_vec(&transaction).unwrap()
     }
 
     /// Signs necessary info and returns a BlockTemplate
@@ -519,7 +516,7 @@ where
         &mut self,
         soft_confirmation: UnsignedSoftConfirmationBatch,
     ) -> SignedSoftConfirmationBatch {
-        let raw = soft_confirmation.try_to_vec().unwrap();
+        let raw = borsh::to_vec(&soft_confirmation).unwrap();
 
         let hash = <C as sov_modules_api::Spec>::Hasher::digest(raw.as_slice()).into();
 
@@ -533,8 +530,8 @@ where
             soft_confirmation.pre_state_root(),
             soft_confirmation.l1_fee_rate(),
             soft_confirmation.txs(),
-            signature.try_to_vec().unwrap(),
-            self.sov_tx_signer_priv_key.pub_key().try_to_vec().unwrap(),
+            borsh::to_vec(&signature).unwrap(),
+            borsh::to_vec(&self.sov_tx_signer_priv_key.pub_key()).unwrap(),
             soft_confirmation.timestamp(),
         )
     }

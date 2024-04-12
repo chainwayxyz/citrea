@@ -1,4 +1,6 @@
 use bitcoin::Transaction;
+use borsh::{BorshDeserialize, BorshSerialize};
+use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::DaSpec;
 
 use self::address::AddressWrapper;
@@ -18,7 +20,7 @@ pub mod proof;
 pub mod transaction;
 pub mod utxo;
 
-#[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, Eq, Clone)]
+#[derive(Serialize, Deserialize, BorshDeserialize, BorshSerialize, Debug, PartialEq, Eq, Clone)]
 pub struct BitcoinSpec;
 
 pub struct RollupParams {

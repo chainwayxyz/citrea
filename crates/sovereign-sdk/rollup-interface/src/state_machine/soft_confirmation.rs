@@ -156,8 +156,8 @@ impl SignedSoftConfirmationBatch {
     }
 
     /// Borsh serialized data
-    pub fn full_data(&mut self) -> Vec<u8> {
-        self.try_to_vec().unwrap()
+    pub fn full_data(&self) -> Vec<u8> {
+        borsh::to_vec(self).unwrap()
     }
 
     /// L1 fee rate
