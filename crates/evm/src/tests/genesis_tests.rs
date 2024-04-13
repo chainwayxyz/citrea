@@ -66,10 +66,10 @@ lazy_static! {
     };
 
     pub(crate) static ref GENESIS_HASH: B256 = B256::from(hex!(
-        "d3d0598f798aeac0eb991a29a1ec2e79e6d3caf76393c787a564d89233342df8"
+        "f02ef9e64296322b3bd217661431be41544f64750632daa02a07bd2c52b28656"
     ));
     pub(crate) static ref GENESIS_STATE_ROOT: B256 = B256::from(hex!(
-        "050d41ea04851c5800ba402d42d7a3777ca025feda7c1bd6a272ff9710a4501a"
+        "1b49889efcbe36e1140122803727c5f6f5d12065461e3a6e2a4515f1d5ced9d5"
     ));
     pub(crate) static ref GENESIS_DA_TXS_COMMITMENT: B256 = B256::from(hex!(
         "4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b"
@@ -139,8 +139,22 @@ fn genesis_data() {
         ),
     );
 
-    assert_eq!(contract_storage1, U256::from(0x4321));
-    assert_eq!(contract_storage2, U256::from(8));
+    assert_eq!(
+        contract_storage1,
+        B256::from_slice(
+            hex::decode("0000000000000000000000000000000000000000000000000000000000004321")
+                .unwrap()
+                .as_slice()
+        )
+    );
+    assert_eq!(
+        contract_storage2,
+        B256::from_slice(
+            hex::decode("0000000000000000000000000000000000000000000000000000000000000008")
+                .unwrap()
+                .as_slice()
+        )
+    );
 }
 
 #[test]

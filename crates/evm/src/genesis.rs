@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use anyhow::Result;
 use reth_primitives::constants::{EMPTY_OMMER_ROOT_HASH, EMPTY_RECEIPTS, EMPTY_TRANSACTIONS};
 use reth_primitives::{keccak256, Address, Bloom, Bytes, B256, KECCAK_EMPTY, U256};
-use revm::primitives::SpecId;
+use revm::primitives::{Bytecode, SpecId};
 use serde::{Deserialize, Deserializer};
 use sov_modules_api::prelude::*;
 use sov_modules_api::WorkingSet;
@@ -158,17 +158,19 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let mut evm_db = self.get_db(working_set);
 
         for acc in &config.data {
+            let code = Bytecode::new_raw(acc.code.clone());
             evm_db.insert_account_info(
                 acc.address,
                 AccountInfo {
                     balance: acc.balance,
-                    code_hash: keccak256(&acc.code),
+                    // hash_slow returns EMPTY_KECCAK if code is empty
+                    code_hash: code.hash_slow(),
                     nonce: acc.nonce,
                 },
             );
 
             if acc.code.len() > 0 {
-                evm_db.insert_code(acc.code_hash, acc.code.clone());
+                evm_db.insert_code(acc.code_hash, code);
 
                 for (k, v) in acc.storage.iter() {
                     evm_db.insert_storage(acc.address, *k, *v);
