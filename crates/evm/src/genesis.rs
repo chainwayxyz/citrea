@@ -158,17 +158,19 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let mut evm_db = self.get_db(working_set);
 
         for acc in &config.data {
+            let code = Bytecode::new_raw(acc.code.clone());
             evm_db.insert_account_info(
                 acc.address,
                 AccountInfo {
                     balance: acc.balance,
-                    code_hash: Bytecode::hash_slow(&Bytecode::new_raw(acc.code.clone())),
+                    // hash_slow returns EMPTY_KECCAK if code is empty
+                    code_hash: code.hash_slow(),
                     nonce: acc.nonce,
                 },
             );
 
             if acc.code.len() > 0 {
-                evm_db.insert_code(acc.code_hash, Bytecode::new_raw(acc.code.clone()));
+                evm_db.insert_code(acc.code_hash, code);
 
                 for (k, v) in acc.storage.iter() {
                     evm_db.insert_storage(acc.address, *k, *v);
