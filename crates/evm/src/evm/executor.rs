@@ -1,6 +1,8 @@
 use std::convert::Infallible;
 
+use reth_interfaces::executor::BlockExecutionError;
 use reth_primitives::TransactionSignedEcRecovered;
+use reth_provider::{BlockExecutor, PrunableBlockExecutor};
 use revm::primitives::{CfgEnvWithHandlerCfg, EVMError, Env, ExecutionResult, InvalidTransaction};
 use revm::{self, Context, Database, DatabaseCommit, EvmContext};
 
@@ -109,4 +111,60 @@ pub(crate) fn execute_system_txs<
         tx_results.push(result);
     }
     tx_results
+}
+
+#[cfg(feature = "ef-tests")]
+impl<'a, EXT, DB> BlockExecutor for CitreaEvm<'a, EXT, DB>
+where
+    DB: Database<Error = Infallible> + DatabaseCommit,
+    EXT: CitreaExternalExt,
+{
+    type Error = BlockExecutionError;
+
+    fn execute(
+        &mut self,
+        block: &reth_primitives::BlockWithSenders,
+        total_difficulty: reth_primitives::U256,
+    ) -> Result<(), Self::Error> {
+        todo!()
+    }
+
+    fn execute_and_verify_receipt(
+        &mut self,
+        block: &reth_primitives::BlockWithSenders,
+        total_difficulty: reth_primitives::U256,
+    ) -> Result<(), Self::Error> {
+        todo!()
+    }
+
+    fn execute_transactions(
+        &mut self,
+        block: &reth_primitives::BlockWithSenders,
+        total_difficulty: reth_primitives::U256,
+    ) -> Result<(Vec<reth_primitives::Receipt>, u64), Self::Error> {
+        todo!()
+    }
+
+    fn take_output_state(&mut self) -> reth_provider::BundleStateWithReceipts {
+        todo!()
+    }
+
+    fn size_hint(&self) -> Option<usize> {
+        todo!()
+    }
+}
+
+#[cfg(feature = "ef-tests")]
+impl<'a, EXT, DB> PrunableBlockExecutor for CitreaEvm<'a, EXT, DB>
+where
+    DB: Database<Error = Infallible> + DatabaseCommit,
+    EXT: CitreaExternalExt,
+{
+    fn set_tip(&mut self, tip: reth_primitives::BlockNumber) {
+        todo!()
+    }
+
+    fn set_prune_modes(&mut self, prune_modes: reth_primitives::PruneModes) {
+        todo!()
+    }
 }

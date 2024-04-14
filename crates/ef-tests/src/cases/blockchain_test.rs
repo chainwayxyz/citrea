@@ -6,6 +6,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use alloy_rlp::Decodable;
+use citrea_evm::factory::EvmProcessorFactory;
 use citrea_evm::EvmConfig;
 use rayon::iter::{ParallelBridge, ParallelIterator};
 use reth_db::test_utils::{create_test_rw_db, create_test_static_files_dir};
@@ -147,7 +148,7 @@ impl Case for BlockchainTestCase {
 
                 // Execute the execution stage using the EVM processor factory for the test case
                 // network.
-                let _ = ExecutionStage::new_with_factory(reth_revm::EvmProcessorFactory::new(
+                let _ = ExecutionStage::new_with_factory(EvmProcessorFactory::new(
                     Arc::new(case.network.clone().into()),
                     EvmConfig::default(),
                 ))

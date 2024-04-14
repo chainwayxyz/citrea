@@ -11,6 +11,9 @@ mod db_commit;
 pub(crate) mod db_init;
 pub(crate) mod error;
 pub(crate) mod executor;
+///! Implements functionality for ef-tests support.
+#[cfg(feature = "ef-tests")]
+pub mod factory;
 pub(crate) mod handler;
 pub(crate) mod primitive_types;
 /// System contracts used for system transactions

@@ -49,11 +49,11 @@ revm = { workspace = true, features = [
     "optional_eip3607",
     "optional_no_base_fee",
 ] }
-reth-node-api = { workspace = true, optional = true }
 reth-primitives = { workspace = true }
 reth-interfaces = { workspace = true }
 reth-rpc-types = { workspace = true }
 reth-rpc-types-compat = { workspace = true }
+reth-provider = { workspace = true, optional = true }
 reth-revm = { workspace = true }
 reth-rpc = { workspace = true }
 secp256k1 = { workspace = true }
@@ -80,4 +80,4 @@ native = [
 ]
 serde = []
 smart_contracts = ["native"]
-ef-tests = ["native", "reth-node-api"]
+ef-tests = ["native", "reth-provider"]
