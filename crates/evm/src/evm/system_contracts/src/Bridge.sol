@@ -86,7 +86,7 @@ contract Bridge is MerkleTree, Ownable {
         // Number of inputs == number of witnesses
         require(WitnessUtils.validateWitness(p.witness, _nIns), "Witness is not properly formatted");
 
-        // require(BLOCK_HASH_LIST.verifyInclusion(block_hash, wtxId, intermediate_nodes, index), "Transaction is not in block");
+        require(BLOCK_HASH_LIST.verifyInclusion(p.block_height, wtxId, p.intermediate_nodes, p.index), "Transaction is not in block");
 
         bytes memory witness0 = WitnessUtils.extractWitnessAtIndex(p.witness, 0);
         (, uint256 _nItems) = BTCUtils.parseVarInt(witness0);
