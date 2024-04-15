@@ -33,7 +33,6 @@ contract BridgeTest is Test {
 
     // TODO: CHANGE THESE
     bytes intermediate_nodes = hex"b2fd785590896305ab9c3dd8453acfdb6d3d0538ce72f10e9e720e5c39ba1aa61918d0dd24910a182354cbf2f9e1c85e56e176afdc0763f04186f367d0d1434e936800c1e088f80a692cc8af3c6d3afa7f3d6fcead06b53739de44e67fce59533dffa19f80d5a8a0c9698bb096ae937d4a9a31640cf40da4c923e8833448de33";    
-    bytes block_header = hex"00000020bc9079764fe41a13327a9f1b99931b18b34d60d3947f956949eec5c1af5cb80d0a76a7d6a942436f382e259c20d0c5fee06b12799b491683f9c418311e83e224fe28d765ffff7f2001000000";
     uint index = 1;
 
     address operator = makeAddr("citrea_operator");
@@ -163,14 +162,6 @@ contract BridgeTest is Test {
         doDeposit();
     }
 
-    function testCannotDepositWithFalseBlockHash() public {
-        block_header = hex"1234";
-        bridge.setOperator(operator);
-        vm.startPrank(operator);
-        vm.expectRevert("Incorrect block hash");
-        doDeposit();
-    }
-
     function testCannotWithdrawWithInvalidAmount() public {
         // Operator makes a deposit for the `receiver` address specified in the second output of above Bitcoin txn
         bridge.setOperator(operator);
@@ -244,7 +235,7 @@ contract BridgeTest is Test {
     }
 
     function doDeposit() public {
-        Bridge.DepositParams memory depositParams = Bridge.DepositParams(version, flag, vin, vout, witness, locktime, intermediate_nodes, block_header, INITIAL_BLOCK_NUMBER, index);
+        Bridge.DepositParams memory depositParams = Bridge.DepositParams(version, flag, vin, vout, witness, locktime, intermediate_nodes, INITIAL_BLOCK_NUMBER, index);
         bridge.deposit(depositParams);
     }
 }

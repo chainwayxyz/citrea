@@ -25,7 +25,6 @@ contract Bridge is MerkleTree, Ownable {
         bytes witness;
         bytes4 locktime;
         bytes intermediate_nodes;
-        bytes block_header;
         uint256 block_height;
         uint256 index;
     }
@@ -43,7 +42,6 @@ contract Bridge is MerkleTree, Ownable {
     event Deposit(bytes32 wtxId, uint256 timestamp);
     event Withdrawal(bytes32  bitcoin_address, uint32 indexed leafIndex, uint256 timestamp);
     event DepositScriptUpdate(bytes depositScript, bytes scriptSuffix, uint256 verifierCount);
-    event BlockHashAdded(bytes32 block_hash);
     event OperatorUpdated(address oldOperator, address newOperator);
 
     modifier onlyOperator() {
@@ -75,9 +73,6 @@ contract Bridge is MerkleTree, Ownable {
         DepositParams calldata p
     ) external onlyOperator {
         require(verifierCount != 0, "Contract is not initialized");
-
-        bytes32 block_hash = BTCUtils.hash256(p.block_header);
-        require(BLOCK_HASH_LIST.getBlockHash(p.block_height) == block_hash, "Incorrect block hash");
         
         bytes32 wtxId = WitnessUtils.calculateWtxId(p.version, p.flag, p.vin, p.vout, p.witness, p.locktime);
         require(!spentWtxIds[wtxId], "wtxId already spent");
