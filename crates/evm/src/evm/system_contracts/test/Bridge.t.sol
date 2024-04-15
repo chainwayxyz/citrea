@@ -40,6 +40,7 @@ contract BridgeTest is Test {
 
     uint256 constant INITIAL_BLOCK_NUMBER = 505050;
     bytes32 witnessRoot = hex"46b8e96a9798742f3d555ad1d1b0c31a29fac5e0d133a44126a8b3ca02077ece";
+    bytes32 mockBlockhash = keccak256("CITREA_TEST");
 
     function setUp() public {
         bridge = new BridgeHarness(31);
@@ -57,8 +58,7 @@ contract BridgeTest is Test {
         l1BlockHashList.initializeBlockNumber(INITIAL_BLOCK_NUMBER);
         
         // Arbitrary blockhash as this is mock 
-        bytes32 expected_blockhash = keccak256("CITREA_TEST");
-        l1BlockHashList.setBlockInfo(expected_blockhash, witnessRoot);
+        l1BlockHashList.setBlockInfo(mockBlockhash, witnessRoot);
 
         bridge.setDepositScript(depositScript, scriptSuffix, 5);
     }
@@ -147,12 +147,37 @@ contract BridgeTest is Test {
     }
 
     function testCannotDepositWithFalseDepositScript() public {
-        // One byte different
-        witness = hex"0740c7b01838a1f40585926c23293d05a7fb094a8515c517bf65b6d88037cb44616b7baf1049017c12c2dbca7508fc42c2355b9224e31412e0d1adc2a24563503226408342e65256c8eb6b74fa274bb0c953f05a106a5743f04a3ce658c94d6b7ec1255058bb9990ffbdba763383deab2ca4d003f6ded8e512349c0408e26b60235f77409d243f90d875d261a909c4303a8e83bec1230620034570da298038b7acf9bfc00a5d1e094426b092f243276181d0e674a60ac74972e1893e2970a537018df284402ec76c955ee4ffd27fe897b38c547346e13b4e3efffd08be392ca39560671141e1606f7353a2f9e9a27cd897ff783365d2bdbd4a8a61a5e5c22fdebb7a19d1bb40251ff30263cfcd1acd0e036ebfb136ec828d11b5cb604cf79dd3b90fd583b3ebdbc5e86f7487d0a8fe1c8d9219181d582fd90940e83dccc4f889e38436fbecebc320a204782be8112b0b650e275123d68c21fd41e93fca2ac6a6c84ebdbce9dc4434ad20ca567297dceae237eff0f924d9debc852f298f0c895cc88c47f8d494137c98fcad20c393c1f704c9994788ab92351b0bc9be7f953b33d40df352769c5cd2e2b050f5ad209ab5ba3ec29598206e2af5d7f56edba94bba1a0c25a4dd8319a13265c138aa67ad200c7f7bfcb9b847cfb27d809e394c4f26fdb844efc7ba8a4825663eeae08d9201ad5100631400000000000000000000000000000000000000006841c093c7378d96518a75448821c4f7c8f4bae7ce60f804d03d1f0628dd5dd0f5de51846f56a7983baf5a8aa4be108d12c6d06a40d1374aed6849682a4c0e2d23241d"; 
+        // False witness
+        version = hex"02000000";
+        vin = hex"01c12c5ac7555c4af5c170ab2bd2d3c7bf22157cd93b7f4a728aa8632d63b3f6cd0100000000fdffffff";
+        vout = hex"0378dcf505000000002251205a7dc72cac5b5f3fc1ea4d0f0d7859b1936ee884901016fc4b749eb5b9742c2e4a01000000000000220020340a847f2a890d208f6c7a21811116134bd2b01cc1d46a999e61da195f6b8a3b4a010000000000002200204ae81572f06e1b88fd5ced7a1a000945432e83e1551e6f721ee9c00b8cc33260";
+        locktime = hex"00000000";
+        witness = hex"0740b0e44fc2baaa22d26b78f74b64fe5e04ceb9726422a471be287b5aa9b81644f4e15519da0a887acb708c6bec13cfa2f45fc958fcb7ee0c11b7b653ad0dbc518f40324f831d9e2b8563ec6a5ac14ccf1c24494410493c5373b31dcabbf84542a6b233ba5ae8f24f87f08384fd9d988a117b4ce6839b466c4c65834a9195d3104d4640c5edb978f11668ea364cfacfa560e78adb81040b1cb105e33e946a0f07a6a3b04feb2dcd9211a6526d7f1177a7e4b2e00e9eb237381577b9ca51ddd7392b1050404170092d53d0126dd6a01a6490aa48f45cb6a8b946441411386309b2d25fc3158ee5029c6c34c845a053a796319aa3028e9862f6ee96aab9b5b7e1c61197d7964047c115932f42fa0395a62e2b3d969bc2e331b1a8e800b36cf622dbd1d5d9058874457647abfe88be2be21899d7f0cb20b3f521edc5cadffe0d4da70c8adf6cc8c720c47951a0d42f19b0e38708532747a57a2a6df2928fb9e8e62e9f2455e2272900ad208e819403de9c93ae10ab06c21307d607e9ca2c9647c29f5b3d5ce9e287e26056ad20e7911890b498cb1d01366fe632ca2405e10cec3330fa0d12287cfccf05a93f2ead201c07930bde76bfee7b919c6f32c2fd2c4613bbc4eb64a06d2e5c0abe7d0184b5ad2097f65ac6f8c7c4bbd153631019edaaa293d1045fbe9bb5f64ac7744dd0c8abddad510063030102031401010101010101010101010101010101010101016841c193c7378d96518a75448821c4f7c8f4bae7ce60f804d03d1f0628dd5dd0f5de51e610773dd968e4d63d83379dacabf35c82a7e438bf691b3b03df6f502136b25f";
+        depositScript = hex"20c47951a0d42f19b0e38708532747a57a2a6df2928fb9e8e62e9f2455e2272900ad208e819403de9c93ae10ab06c21307d607e9ca2c9647c29f5b3d5ce9e287e26056ad20e7911890b498cb1d01366fe632ca2405e10cec3330fa0d12287cfccf05a93f2ead201c07930bde76bfee7b919c6f32c2fd2c4613bbc4eb64a06d2e5c0abe7d0184b5ad2097f65ac6f8c7c4bbd153631019edaaa293d1045fbe9bb5f64ac7744dd0c8abddad5100630301020314";
+        intermediate_nodes = hex"0000000000000000000000000000000000000000000000000000000000000000e1a597d064a290f1f05e6ed9cdff56da7f75381748ca0a3b61c1ddb5d599b40ee5d186d6db369c1da7f39254ae8194add508758582edb82e054eb9f9e686392c8f2dbfe4702b6b29547006c140765a109f5d9027b6583c859a2224c4322c58080d351c7e59dedd8e2ec4b07bb253a59c8589d1755668895652283c19a30285f1";
+        witnessRoot = hex"b615b861dae528f99e15f37cb755f9ee8a02be8bd870088e3f329cde8609730b";
+
+        L1BlockHashList l1BlockHashList = bridge.BLOCK_HASH_LIST();
+        l1BlockHashList.setBlockInfo(keccak256("CITREA_TEST_2"), witnessRoot);
+
         bridge.setOperator(operator);
         vm.startPrank(operator);
         vm.expectRevert("Invalid deposit script");
-        doDeposit();
+        Bridge.DepositParams memory depositParams = Bridge.DepositParams(version, flag, vin, vout, witness, locktime, intermediate_nodes, INITIAL_BLOCK_NUMBER + 1, index);
+        bridge.deposit(depositParams);
+    }
+
+    function testCannotDepositWithATxNotInBlock() public {
+        // Tries the hard coded txn on another block with a different witness root
+        witnessRoot = hex"b615b861dae528f99e15f37cb755f9ee8a02be8bd870088e3f329cde8609730b";
+        L1BlockHashList l1BlockHashList = bridge.BLOCK_HASH_LIST();
+        l1BlockHashList.setBlockInfo(keccak256("CITREA_TEST_2"), witnessRoot);
+
+        bridge.setOperator(operator);
+        vm.startPrank(operator);
+        vm.expectRevert("Transaction is not in block");
+        Bridge.DepositParams memory depositParams = Bridge.DepositParams(version, flag, vin, vout, witness, locktime, intermediate_nodes, INITIAL_BLOCK_NUMBER + 1, index);
+        bridge.deposit(depositParams);
     }
 
     function testCannotWithdrawWithInvalidAmount() public {
