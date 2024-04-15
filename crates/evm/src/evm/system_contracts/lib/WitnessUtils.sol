@@ -74,7 +74,7 @@ library WitnessUtils {
         uint256 _offset = 1 + _varIntDataLen;
 
         for (uint256 i = 0; i < _nWits; i++) {
-            (_varIntDataLen, _itemLen) = BTCUtils.parseVarIntAt(_witness, _at);
+            (_varIntDataLen, _itemLen) = BTCUtils.parseVarIntAt(_witness, _offset);
             if (_itemLen == BTCUtils.ERR_BAD_ARG) {
                 return BTCUtils.ERR_BAD_ARG;
             }
@@ -127,8 +127,8 @@ library WitnessUtils {
             _offset += 1 + _varIntDataLen + _itemLen;
         }
 
-        _itemLen = determineWitnessLengthAt(_witness, _offset);
+        (_varIntDataLen, _itemLen) = BTCUtils.parseVarIntAt(_witness, _offset);
         require(_itemLen != BTCUtils.ERR_BAD_ARG, "Bad VarInt in item");
-        return _witness.slice(_offset, _itemLen);
+        return _witness.slice(_offset, _itemLen + _varIntDataLen + 1);
     }
 }

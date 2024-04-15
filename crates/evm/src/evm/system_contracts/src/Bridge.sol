@@ -152,8 +152,8 @@ contract Bridge is MerkleTree, Ownable {
     }
 
     function extractRecipientAddress(bytes memory _script) internal view returns (address) {
-        uint offset = depositScript.length + 1;
-        bytes20 _addr = bytes20(_script.slice(offset, 20)); 
+        uint256 offset = depositScript.length;
+        bytes20 _addr = bytes20(_script.slice(offset, 20));
         return address(uint160(_addr));
     }
 }

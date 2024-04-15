@@ -22,25 +22,24 @@ contract BridgeHarness is Bridge {
 contract BridgeTest is Test {
     uint256 constant DEPOSIT_AMOUNT = 1 ether;
     BridgeHarness public bridge;
-    bytes4 version = hex"02000000";
     bytes2 flag = hex"0001";
-    bytes vin = hex"0197d91aeca70ec28f98b58510a22d93f0184549301f050b2a7841076a320693a10000000000fdffffff";
-    bytes vout = hex"0378dcf505000000002251209602168495f14a8c1919654fac3070a1e4332c341d10a9c760d76ee9d4eb32844a01000000000000220020d664b02f11a411580603be300ec7a7e8e08bf24a5ace393e3290c54858e939bd4a010000000000002200204ae81572f06e1b88fd5ced7a1a000945432e83e1551e6f721ee9c00b8cc33260";
-    bytes depositScript = hex"074037090b5908403c219b6bb006afc47fcd170ad97deb1c5e1559bca290f3a2e25ef4debdb76dcdbe3e6a7a2199c975dc60021af24a93b269cf88c195df04ea68744044582d33a8140905df010c8e28c5174019d215763d4498e26f5e55ddc3a85693cd9669f2ca81f03c6f296e54d6b734796e432e0c04b3761d0c26eea892842b9e40911ac3079b5d1bef5d5042346bba271332484566b6904727f90faa6c5be622e085744904f055cda49d6d2147e382e1642454aa8c6e0191e25cd5a167e8a795a640cc5b20dcb483fcb937f77d727a3ffd73f372cf935f8e4c1455708803939dd37fb9e34714673bcc3500b8dc9d453efc4feda33de1fb71ee5827d0ca0b2920af80405ea037703cc77370e2c826bc6923d17820923bb305e2b59f6bb030edce0e33abf789ea32cb955b9acf8ac56790798ca319b8cf45392b48ac42878fb24cb81e1fc3208fe8f6f24f0fceb83025dd76ca4637acbbbce43f3c317ae7c879cc32057ea614ad20317c6914342dfeae1298628887d09ca80ec8179e77e934c6186a6c6ed7911b3aad20d3383121537e1f2ee45f82d96fd39d5424bd1b9202b2f86887de3500d09407bead205f34640f59e113fc9ca86d32c42d760faef29706fd313a0c0281bfc7d4ebc24bad20a2ea14069c084ef6f2ea114ae5e717479f75ca4bb3f53be2e4f0bbf7225f51d0ad51006314";
-    bytes scriptSuffix = hex"68";
-    bytes witness = hex"074037090b5908403c219b6bb006afc47fcd170ad97deb1c5e1559bca290f3a2e25ef4debdb76dcdbe3e6a7a2199c975dc60021af24a93b269cf88c195df04ea68744044582d33a8140905df010c8e28c5174019d215763d4498e26f5e55ddc3a85693cd9669f2ca81f03c6f296e54d6b734796e432e0c04b3761d0c26eea892842b9e40911ac3079b5d1bef5d5042346bba271332484566b6904727f90faa6c5be622e085744904f055cda49d6d2147e382e1642454aa8c6e0191e25cd5a167e8a795a640cc5b20dcb483fcb937f77d727a3ffd73f372cf935f8e4c1455708803939dd37fb9e34714673bcc3500b8dc9d453efc4feda33de1fb71ee5827d0ca0b2920af80405ea037703cc77370e2c826bc6923d17820923bb305e2b59f6bb030edce0e33abf789ea32cb955b9acf8ac56790798ca319b8cf45392b48ac42878fb24cb81e1fc3208fe8f6f24f0fceb83025dd76ca4637acbbbce43f3c317ae7c879cc32057ea614ad20317c6914342dfeae1298628887d09ca80ec8179e77e934c6186a6c6ed7911b3aad20d3383121537e1f2ee45f82d96fd39d5424bd1b9202b2f86887de3500d09407bead205f34640f59e113fc9ca86d32c42d760faef29706fd313a0c0281bfc7d4ebc24bad20a2ea14069c084ef6f2ea114ae5e717479f75ca4bb3f53be2e4f0bbf7225f51d0ad5100631400000000000000000000000000000000000000006841c193c7378d96518a75448821c4f7c8f4bae7ce60f804d03d1f0628dd5dd0f5de51a9b42aabe8e3f300e73ca8991cb4213762eec2a66536149da8b00eca98b5daeb";
+
+    bytes4 version = hex"02000000";
+    bytes vin = hex"01d4d6c5c94583a0505dd0c1eb64760ba2a6a391f6da3164094ed8bcac190b7d6c0000000000fdffffff";
+    bytes vout = hex"0378dcf50500000000225120081bb55c845b1b14b8580a0246764d53d4aa579645c67568d8375c71f687a2ce4a01000000000000220020340a847f2a890d208f6c7a21811116134bd2b01cc1d46a999e61da195f6b8a3b4a010000000000002200204ae81572f06e1b88fd5ced7a1a000945432e83e1551e6f721ee9c00b8cc33260";
     bytes4 locktime = hex"00000000";
+    bytes witness = hex"0740b500164ed14931558b6f101350bd896d8ef7b5215268aec6fa97624f97d4e921f954c362dacb706875ba86280798f4a141745d09444d8f6a62483046bc1e87624025b756b973a6f96a60fde1e745765ffb5d4bfafbd3380e0044dfb0c4c59bba973d0806942a718458696f2c09f7c1a4f672479d7b8f678dff07badf546ab3d2004045d7ea88c30d6da0f4c08c808b2b72c02833a0bc1f44d901954e671e531a33e2b5919ebad1655c3df651b22591777649e60aab07b8507112df2b3da1c3ec65fd401f83b69afc860240e486af437c09949f7a9ab7a795090d3ce8a88ef3a460de56c0ed3bca888cae22e31495e1bcd22148d5185cbf05302b1d910096d18414368f400b6e7417ca7a5f3fefd221087288abbef35aa93db502bc9b32b4ce48edb666c6ea36d6a1d5fc2a78aaab61f71355b7816f7fe15bb3355c56720f7eb27d6ca8a3c3203402ede68395331e2797e1d8fd2ba951386baab32d1440252c3214e0708fe479ad20c18c593480f4f55a3fd7617c9df6e3dabc80fca5927f66d20050c82a2012be7aad2089c310c07b3c3901562a3f000c4a477fcb5ebfd362de3d07a0bff927f2911301ad2067de68f8eb816c86396802b389dedec01703d79e9910e0c846f48920a3e33dd7ad2040f1506702e400b8d1aed2de05bf776e6d7602378ab0834a7d771039454af56ead5100631401010101010101010101010101010101010101016841c093c7378d96518a75448821c4f7c8f4bae7ce60f804d03d1f0628dd5dd0f5de51e8bbb8cb70da9374d24ddfec9bfd8d90b89563c2a55de80fbeba57c0a2de1bce";
+    bytes depositScript = hex"c3203402ede68395331e2797e1d8fd2ba951386baab32d1440252c3214e0708fe479ad20c18c593480f4f55a3fd7617c9df6e3dabc80fca5927f66d20050c82a2012be7aad2089c310c07b3c3901562a3f000c4a477fcb5ebfd362de3d07a0bff927f2911301ad2067de68f8eb816c86396802b389dedec01703d79e9910e0c846f48920a3e33dd7ad2040f1506702e400b8d1aed2de05bf776e6d7602378ab0834a7d771039454af56ead51006314";
+    bytes scriptSuffix = hex"68";
+    bytes intermediate_nodes = hex"0000000000000000000000000000000000000000000000000000000000000000d867753e5c6294897137132af54a90ad05cc9590f372f4ac8aae50096c7de081cfbfc52d11aa289adf40426b589cf9739b030a8b61c0ec22347ce3af642b9f52783f00e738b6e46376ca7756b4230c80c9b4b68701b81f690e00d1df24744e5d872a65c80bfd54acc25e622708cf18000b6815d000729aa880b974f2187137ea";
+    uint256 index = 1;
 
-    // TODO: CHANGE THESE
-    bytes intermediate_nodes = hex"b2fd785590896305ab9c3dd8453acfdb6d3d0538ce72f10e9e720e5c39ba1aa61918d0dd24910a182354cbf2f9e1c85e56e176afdc0763f04186f367d0d1434e936800c1e088f80a692cc8af3c6d3afa7f3d6fcead06b53739de44e67fce59533dffa19f80d5a8a0c9698bb096ae937d4a9a31640cf40da4c923e8833448de33";    
-    uint index = 1;
-
+    address receiver = address(0x0101010101010101010101010101010101010101);
     address operator = makeAddr("citrea_operator");
     address user = makeAddr("citrea_user");
 
     uint256 constant INITIAL_BLOCK_NUMBER = 505050;
-    // TODO: Change this
-    bytes32 witnessRoot = bytes32(keccak256("CITREA"));
+    bytes32 witnessRoot = hex"46b8e96a9798742f3d555ad1d1b0c31a29fac5e0d133a44126a8b3ca02077ece";
 
     function setUp() public {
         bridge = new BridgeHarness(31);
@@ -56,8 +55,9 @@ contract BridgeTest is Test {
         l1BlockHashList.acceptOwnership();
 
         l1BlockHashList.initializeBlockNumber(INITIAL_BLOCK_NUMBER);
-        // TODO: Change this 
-        bytes32 expected_blockhash = hex"b25d57f9acbf22e533b0963b47d91b11bdef9da9591002b1ef4e3ef856aec80e";
+        
+        // Arbitrary blockhash as this is mock 
+        bytes32 expected_blockhash = keccak256("CITREA_TEST");
         l1BlockHashList.setBlockInfo(expected_blockhash, witnessRoot);
 
         bridge.setDepositScript(depositScript, scriptSuffix, 5);
@@ -79,10 +79,6 @@ contract BridgeTest is Test {
         vm.startPrank(operator);
         doDeposit();
 
-        bytes memory output2 = BTCUtils.extractOutputAtIndex(vout, 1);
-        bytes memory output2_ext = BTCUtils.extractOpReturnData(output2);
-        address receiver = address(bytes20(output2_ext));
-
         // Assert if asset transferred
         assertEq(receiver.balance, DEPOSIT_AMOUNT);
         vm.stopPrank();
@@ -94,10 +90,6 @@ contract BridgeTest is Test {
         bridge.setOperator(operator);
         vm.startPrank(operator);
         doDeposit();
-
-        bytes memory output2 = BTCUtils.extractOutputAtIndex(vout, 1);
-        bytes memory output2_ext = BTCUtils.extractOpReturnData(output2);
-        address receiver = address(bytes20(output2_ext));
 
         // Assert if transferred
         assertEq(receiver.balance, DEPOSIT_AMOUNT);
@@ -150,15 +142,16 @@ contract BridgeTest is Test {
         bridge.setOperator(operator);
         vm.startPrank(operator);
         doDeposit();
-        vm.expectRevert("txId already spent");
+        vm.expectRevert("wtxId already spent");
         doDeposit();
     }
 
-    function testCannotDepositWithFalseProof() public {
-        vin = hex"1234";
+    function testCannotDepositWithFalseDepositScript() public {
+        // One byte different
+        witness = hex"0740c7b01838a1f40585926c23293d05a7fb094a8515c517bf65b6d88037cb44616b7baf1049017c12c2dbca7508fc42c2355b9224e31412e0d1adc2a24563503226408342e65256c8eb6b74fa274bb0c953f05a106a5743f04a3ce658c94d6b7ec1255058bb9990ffbdba763383deab2ca4d003f6ded8e512349c0408e26b60235f77409d243f90d875d261a909c4303a8e83bec1230620034570da298038b7acf9bfc00a5d1e094426b092f243276181d0e674a60ac74972e1893e2970a537018df284402ec76c955ee4ffd27fe897b38c547346e13b4e3efffd08be392ca39560671141e1606f7353a2f9e9a27cd897ff783365d2bdbd4a8a61a5e5c22fdebb7a19d1bb40251ff30263cfcd1acd0e036ebfb136ec828d11b5cb604cf79dd3b90fd583b3ebdbc5e86f7487d0a8fe1c8d9219181d582fd90940e83dccc4f889e38436fbecebc320a204782be8112b0b650e275123d68c21fd41e93fca2ac6a6c84ebdbce9dc4434ad20ca567297dceae237eff0f924d9debc852f298f0c895cc88c47f8d494137c98fcad20c393c1f704c9994788ab92351b0bc9be7f953b33d40df352769c5cd2e2b050f5ad209ab5ba3ec29598206e2af5d7f56edba94bba1a0c25a4dd8319a13265c138aa67ad200c7f7bfcb9b847cfb27d809e394c4f26fdb844efc7ba8a4825663eeae08d9201ad5100631400000000000000000000000000000000000000006841c093c7378d96518a75448821c4f7c8f4bae7ce60f804d03d1f0628dd5dd0f5de51846f56a7983baf5a8aa4be108d12c6d06a40d1374aed6849682a4c0e2d23241d"; 
         bridge.setOperator(operator);
         vm.startPrank(operator);
-        vm.expectRevert("SPV Verification failed.");
+        vm.expectRevert("Invalid deposit script");
         doDeposit();
     }
 
@@ -167,10 +160,6 @@ contract BridgeTest is Test {
         bridge.setOperator(operator);
         vm.startPrank(operator);
         doDeposit();
-
-        bytes memory output2 = BTCUtils.extractOutputAtIndex(vout, 1);
-        bytes memory output2_ext = BTCUtils.extractOpReturnData(output2);
-        address receiver = address(bytes20(output2_ext));
 
         // Assert if transferred
         assertEq(receiver.balance, DEPOSIT_AMOUNT);
