@@ -241,7 +241,7 @@ contract BridgeTest is Test {
         bridge.setDepositScript(depositScript, scriptSuffix, 5);
         assert(bridge.isBytesEqual_(depositScript, bridge.depositScript()));
         assert(bridge.isBytesEqual_(scriptSuffix, bridge.scriptSuffix()));
-        assertEq(5, bridge.verifierCount());
+        assertEq(5, bridge.requiredSigsCount());
     }
 
     function isKeccakEqual(bytes memory a, bytes memory b) public pure returns (bool result) {

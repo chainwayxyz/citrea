@@ -37,11 +37,11 @@ contract Bridge is MerkleTree, Ownable {
     address public operator;
     mapping(bytes32 => bool) public blockHashes;
     mapping(bytes32 => bool) public spentWtxIds;
-    uint256 public verifierCount;
+    uint256 public requiredSigsCount;
 
     event Deposit(bytes32 wtxId, uint256 timestamp);
     event Withdrawal(bytes32  bitcoin_address, uint32 indexed leafIndex, uint256 timestamp);
-    event DepositScriptUpdate(bytes depositScript, bytes scriptSuffix, uint256 verifierCount);
+    event DepositScriptUpdate(bytes depositScript, bytes scriptSuffix, uint256 requiredSigsCount);
     event OperatorUpdated(address oldOperator, address newOperator);
 
     modifier onlyOperator() {
@@ -55,16 +55,16 @@ contract Bridge is MerkleTree, Ownable {
     /// @dev Deposit script contains a fixed script that checks signatures of verifiers and pushes EVM address of the receiver
     /// @param _depositScript The new deposit script
     /// @param _scriptSuffix The part of the deposit script that succeeds the receiver address
-    /// @param _verifierCount The number of verifiers that need to sign the deposit transaction
-    function setDepositScript(bytes calldata _depositScript, bytes calldata _scriptSuffix, uint256 _verifierCount) external onlyOwner {
-        require(_verifierCount != 0, "Verifier count cannot be 0");
+    /// @param _requiredSigsCount The number of signatures that are needed for deposit transaction
+    function setDepositScript(bytes calldata _depositScript, bytes calldata _scriptSuffix, uint256 _requiredSigsCount) external onlyOwner {
+        require(_requiredSigsCount != 0, "Verifier count cannot be 0");
         require(_depositScript.length != 0, "Deposit script cannot be empty");
 
         depositScript = _depositScript;
         scriptSuffix = _scriptSuffix;
-        verifierCount = _verifierCount;
+        requiredSigsCount = _requiredSigsCount;
 
-        emit DepositScriptUpdate(_depositScript, _scriptSuffix, _verifierCount);
+        emit DepositScriptUpdate(_depositScript, _scriptSuffix, _requiredSigsCount);
     }
 
     /// @notice Checks if funds 1 BTC is sent to the bridge multisig on Bitcoin, and if so, sends 1 cBTC to the receiver
@@ -72,7 +72,7 @@ contract Bridge is MerkleTree, Ownable {
     function deposit(
         DepositParams calldata p
     ) external onlyOperator {
-        require(verifierCount != 0, "Contract is not initialized");
+        require(requiredSigsCount != 0, "Contract is not initialized");
         
         bytes32 wtxId = WitnessUtils.calculateWtxId(p.version, p.flag, p.vin, p.vout, p.witness, p.locktime);
         require(!spentWtxIds[wtxId], "wtxId already spent");
@@ -90,9 +90,9 @@ contract Bridge is MerkleTree, Ownable {
 
         bytes memory witness0 = WitnessUtils.extractWitnessAtIndex(p.witness, 0);
         (, uint256 _nItems) = BTCUtils.parseVarInt(witness0);
-        require(_nItems == verifierCount + 2, "Invalid witness items"); // verifier sigs + deposit script + witness script
+        require(_nItems == requiredSigsCount + 2, "Invalid witness items"); // verifier sigs + deposit script + witness script
 
-        bytes memory script = WitnessUtils.extractItemFromWitness(witness0, verifierCount);
+        bytes memory script = WitnessUtils.extractItemFromWitness(witness0, requiredSigsCount);
         uint256 _len = depositScript.length;
         bytes memory _depositScript = script.slice(0, _len);
         require(isBytesEqual(_depositScript, depositScript), "Invalid deposit script");
