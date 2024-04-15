@@ -23,26 +23,26 @@ async function main() {
 
   console.log("Deploying USDT...");
   const Usdt = await ethers.getContractFactory("contracts/Tether.sol:Tether", owner);
-  const usdt = await Usdt.deploy();
+  const usdt = await Usdt.deploy({nonce: 0});
   console.log("USDT deployed at:", usdt.address);
   console.log("Deploying USDC...");
   const Usdc = await ethers.getContractFactory("contracts/UsdCoin.sol:UsdCoin", owner);
-  const usdc = await Usdc.deploy();
+  const usdc = await Usdc.deploy({nonce: 1});
   console.log("USDC deployed at:", usdc.address);
   console.log("Deploying WETH...");
   const Weth = new ContractFactory(WETH9.abi, WETH9.bytecode, owner);
-  const weth = await Weth.deploy();
+  const weth = await Weth.deploy({nonce: 2});
   console.log("WETH deployed at:", weth.address);
 
   console.log("Minting some tokens...");
   const mintAmount = utils.parseEther("100000");
-  await usdt.connect(owner).mint(owner.address, mintAmount);
+  await usdt.connect(owner).mint(owner.address, mintAmount, {nonce: 3});
   console.log("Minted USDT for owner");
-  await usdc.connect(owner).mint(owner.address, mintAmount);
+  await usdc.connect(owner).mint(owner.address, mintAmount, {nonce: 4});
   console.log("Minted USDC for owner");
-  await usdt.connect(owner).mint(trader.address, mintAmount);
+  await usdt.connect(owner).mint(trader.address, mintAmount, {nonce: 5});
   console.log("Minted USDT for trader");
-  await usdc.connect(owner).mint(trader.address, mintAmount);
+  await usdc.connect(owner).mint(trader.address, mintAmount, {nonce: 6});
   console.log("Minted USDC for trader");
   console.log("All tokens have been minted");
 
@@ -52,7 +52,7 @@ async function main() {
     factoryArtifact.bytecode,
     owner,
   );
-  const factory = await Factory.deploy(owner.address);
+  const factory = await Factory.deploy(owner.address, { nonce: 7 });
   console.log("Factory deployed at:", factory.address);
 
   console.log("Creating USDT/USDC pair...");
@@ -71,20 +71,24 @@ async function main() {
 
   const approvalUsdtOwnerA = await usdt
     .connect(owner)
-    .approve(router.address, constants.MaxUint256);
+    .approve(router.address, constants.MaxUint256, { nonce: 10 });
   await approvalUsdtOwnerA.wait();
+  console.log("Usdt approved for owner");
   const approvalUsdcOwnerA = await usdc
     .connect(owner)
     .approve(router.address, constants.MaxUint256);
   await approvalUsdcOwnerA.wait();
+  console.log("Usdc approved for owner");
   const approvalUsdtTraderA = await usdt
     .connect(trader)
     .approve(router.address, constants.MaxUint256);
   await approvalUsdtTraderA.wait();
+  console.log("Usdt approved for trader");
   const approvalUsdcTraderA = await usdc
     .connect(trader)
     .approve(router.address, constants.MaxUint256);
   await approvalUsdcTraderA.wait();
+  console.log("Usdc approved for trader");
 
   console.log("Adding liquidity...");
   const addLiquidityTx = await router
