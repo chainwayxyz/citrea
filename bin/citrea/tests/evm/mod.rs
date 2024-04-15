@@ -53,7 +53,7 @@ async fn web3_rpc_tests() -> Result<(), anyhow::Error> {
 
     assert_eq!(
         test_client.web3_client_version().await,
-        format!("citrea/{}/{}/rust-1.77.1", tag, arch)
+        format!("citrea/{}/{}/rust-1.77.2", tag, arch)
     );
     assert_eq!(
         test_client
@@ -353,7 +353,7 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
         .eth_get_block_by_number(Some(BlockNumberOrTag::Number(1)))
         .await;
     assert_eq!(first_block.number.unwrap().as_u64(), 1);
-    assert_eq!(first_block.transactions.len(), 1);
+    assert_eq!(first_block.transactions.len(), 3);
 
     let set_arg = 923;
     let tx_hash = {

@@ -34,7 +34,9 @@ lazy_static! {
             address:Address::from([2u8; 20]),
             balance: U256::checked_mul(U256::from(1000),
             U256::pow(U256::from(10), U256::from(18))).unwrap(), // 1000 ETH,
-            code_hash: B256::from_slice(&[2u8; 32]), code: Bytes::from_hex("60606040526000357c0100000000000000000000000000000000000000000000000000000000900463ffffffff168063a223e05d1461006a578063").unwrap(), storage: {
+            code_hash: B256::from_hex("0x4e8ee9adb469b245e3a5a8e58e9b733aaa857a9dce1982257531db8a2700aabf").unwrap(),
+            code: Bytes::from_hex("0x60606040526000357c0100000000000000000000000000000000000000000000000000000000900463ffffffff168063a223e05d1461006a578063").unwrap(),
+            storage: {
                 let mut storage = HashMap::new();
                 storage.insert(U256::from(0), U256::from(0x4321));
                 storage.insert(
@@ -53,19 +55,21 @@ lazy_static! {
             .collect(),
         chain_id: 1000,
         block_gas_limit: reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT,
-        block_timestamp_delta: 2,
-        genesis_timestamp: 50,
         coinbase: Address::from([3u8; 20]),
         limit_contract_code_size: Some(5000),
         starting_base_fee: 1000000000,
         base_fee_params: BaseFeeParams::ethereum(),
+        timestamp: 0,
+        difficulty: U256::ZERO,
+        extra_data: Bytes::default(),
+        nonce: 0,
     };
 
     pub(crate) static ref GENESIS_HASH: B256 = B256::from(hex!(
-        "5c3afd4e90c378a3807947cfbaab0485031a4a2f647e1c5323777997338775a0"
+        "f02ef9e64296322b3bd217661431be41544f64750632daa02a07bd2c52b28656"
     ));
     pub(crate) static ref GENESIS_STATE_ROOT: B256 = B256::from(hex!(
-        "aad642e56d49fbdb0a7b7ad7da81490fde7cb22b3860c77ae92c4c1d37af98b4"
+        "1b49889efcbe36e1140122803727c5f6f5d12065461e3a6e2a4515f1d5ced9d5"
     ));
     pub(crate) static ref GENESIS_DA_TXS_COMMITMENT: B256 = B256::from(hex!(
         "4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b"
@@ -135,8 +139,22 @@ fn genesis_data() {
         ),
     );
 
-    assert_eq!(contract_storage1, U256::from(0x4321));
-    assert_eq!(contract_storage2, U256::from(8));
+    assert_eq!(
+        contract_storage1,
+        B256::from_slice(
+            hex::decode("0000000000000000000000000000000000000000000000000000000000004321")
+                .unwrap()
+                .as_slice()
+        )
+    );
+    assert_eq!(
+        contract_storage2,
+        B256::from_slice(
+            hex::decode("0000000000000000000000000000000000000000000000000000000000000008")
+                .unwrap()
+                .as_slice()
+        )
+    );
 }
 
 #[test]
@@ -150,7 +168,6 @@ fn genesis_cfg() {
             spec: vec![(0, SpecId::BERLIN), (1, SpecId::SHANGHAI)],
             chain_id: 1000,
             block_gas_limit: reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT,
-            block_timestamp_delta: 2,
             coinbase: Address::from([3u8; 20]),
             limit_contract_code_size: Some(5000),
             base_fee_params: BaseFeeParams::ethereum(),
@@ -217,7 +234,7 @@ fn genesis_block() {
                     number: 0,
                     gas_limit: ETHEREUM_BLOCK_GAS_LIMIT,
                     gas_used: 0,
-                    timestamp: 50,
+                    timestamp: 0,
                     extra_data: Bytes::default(),
                     mix_hash: B256::default(),
                     nonce: 0,
@@ -232,6 +249,7 @@ fn genesis_block() {
                 *GENESIS_HASH
             ),
             l1_fee_rate: 0,
+            l1_hash: [0; 32].into(),
             transactions: (0u64..0u64),
         }
     );
@@ -260,7 +278,7 @@ fn genesis_head() {
             number: 0,
             gas_limit: ETHEREUM_BLOCK_GAS_LIMIT,
             gas_used: 0,
-            timestamp: 50,
+            timestamp: 0,
             extra_data: Bytes::default(),
             mix_hash: B256::default(),
             nonce: 0,
@@ -291,7 +309,7 @@ pub(crate) fn get_evm(config: &EvmConfig) -> (Evm<C>, WorkingSet<DefaultContext>
     let mut working_set: WorkingSet<DefaultContext> = WorkingSet::new(storage.clone());
     evm.finalize_hook(&root.into(), &mut working_set.accessory_state());
 
-    evm.begin_soft_confirmation_hook([1u8; 32], [2u8; 32], &root, 0, &mut working_set);
+    evm.begin_soft_confirmation_hook([1u8; 32], 1, [2u8; 32], &root, 0, 0, &mut working_set);
     evm.end_soft_confirmation_hook(&mut working_set);
 
     let root = commit(working_set, storage.clone());

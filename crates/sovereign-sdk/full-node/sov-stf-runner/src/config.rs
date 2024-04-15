@@ -68,6 +68,14 @@ pub struct RollupConfig<DaServiceConfig> {
     /// serialized as hex
     #[serde(with = "hex::serde")]
     pub sequencer_public_key: Vec<u8>,
+    /// DA Signing Public Key of the Sequencer
+    /// serialized as hex
+    #[serde(with = "hex::serde")]
+    pub sequencer_da_pub_key: Vec<u8>,
+    /// DA Signing Public Key of the Prover
+    /// serialized as hex
+    #[serde(with = "hex::serde")]
+    pub prover_da_pub_key: Vec<u8>,
     /// Prover service configuration.
     pub prover_service: ProverServiceConfig,
     /// Saves sequencer soft batches if set to true
@@ -109,10 +117,10 @@ mod tests {
         let config = r#"
             sequencer_public_key = "0000000000000000000000000000000000000000000000000000000000000000"
             include_tx_body = true
+            sequencer_da_pub_key = "7777777777777777777777777777777777777777777777777777777777777777"
+            prover_da_pub_key = ""
             [da]
-            celestia_rpc_auth_token = "SECRET_RPC_TOKEN"
-            celestia_rpc_address = "http://localhost:11111/"
-            max_celestia_response_body_size = 980
+            sender_address = "0000000000000000000000000000000000000000000000000000000000000000"
             [storage]
             path = "/tmp"
             [runner]
@@ -129,7 +137,7 @@ mod tests {
 
         let config_file = create_config_from(config);
 
-        let config: RollupConfig<sov_celestia_adapter::CelestiaConfig> =
+        let config: RollupConfig<sov_mock_da::MockDaConfig> =
             from_toml_path(config_file.path()).unwrap();
         let expected = RollupConfig {
             sequencer_public_key: vec![0; 32],
@@ -142,11 +150,8 @@ mod tests {
                 },
             },
 
-            da: sov_celestia_adapter::CelestiaConfig {
-                celestia_rpc_auth_token: "SECRET_RPC_TOKEN".to_string(),
-                celestia_rpc_address: "http://localhost:11111/".into(),
-                max_celestia_response_body_size: 980,
-                celestia_rpc_timeout_seconds: 60,
+            da: sov_mock_da::MockDaConfig {
+                sender_address: [0; 32].into(),
             },
             storage: StorageConfig {
                 path: PathBuf::from("/tmp"),
@@ -157,6 +162,8 @@ mod tests {
             prover_service: ProverServiceConfig {
                 aggregated_proof_block_jump: 22,
             },
+            sequencer_da_pub_key: vec![119; 32],
+            prover_da_pub_key: vec![],
             include_tx_body: true,
         };
         assert_eq!(config, expected);

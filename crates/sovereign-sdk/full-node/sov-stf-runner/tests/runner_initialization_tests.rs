@@ -1,7 +1,6 @@
 use sov_db::ledger_db::LedgerDB;
 use sov_mock_da::{
-    MockAddress, MockBlockHeader, MockDaConfig, MockDaService, MockDaSpec, MockDaVerifier,
-    MockValidityCond,
+    MockAddress, MockDaConfig, MockDaService, MockDaSpec, MockDaVerifier, MockValidityCond,
 };
 use sov_mock_zkvm::MockZkvm;
 use sov_prover_storage_manager::ProverStorageManager;
@@ -26,10 +25,7 @@ type StorageManager = ProverStorageManager<MockDaSpec, S>;
 async fn init_and_restart() {
     let tmpdir = tempfile::tempdir().unwrap();
     let genesis_params = vec![1, 2, 3, 4, 5];
-    let init_variant: MockInitVariant = InitVariant::Genesis {
-        block_header: MockBlockHeader::from_height(0),
-        genesis_params,
-    };
+    let init_variant: MockInitVariant = InitVariant::Genesis(genesis_params);
 
     let state_root_after_genesis = {
         let runner = initialize_runner(tmpdir.path(), init_variant);
@@ -84,6 +80,8 @@ fn initialize_runner(
             aggregated_proof_block_jump: 1,
         },
         sequencer_client: None,
+        sequencer_da_pub_key: vec![],
+        prover_da_pub_key: vec![],
         include_tx_body: true,
     };
 
@@ -123,6 +121,8 @@ fn initialize_runner(
         init_variant,
         Some(prover_service),
         None,
+        vec![0u8; 32],
+        vec![0u8; 32],
         vec![0u8; 32],
         true,
     )

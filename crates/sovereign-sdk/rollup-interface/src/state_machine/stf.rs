@@ -101,6 +101,8 @@ pub struct SoftBatchReceipt<BatchReceiptContents, TxReceiptContents, DS: DaSpec>
     pub pub_key: Vec<u8>,
     /// Base layer fee rate sats/wei etc. per byte.
     pub l1_fee_rate: u64,
+    /// Sequencer's block timestamp
+    pub timestamp: u64,
 }
 
 /// Result of applying a slot to current state

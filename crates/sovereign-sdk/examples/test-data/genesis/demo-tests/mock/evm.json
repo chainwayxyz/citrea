@@ -3,65 +3,47 @@
     {
       "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
       "balance": "0xffffffffffffffffffffffffffffff",
-      "code_hash": "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
-      "code": "0x",
-      "nonce": 0
+      "code": "0x"
     },
     {
       "address": "0x66f68692c03eB9C0656D676f2F4bD13eba40D1B7",
       "balance": "0xffffffffffffffffffffffffffffff",
-      "code_hash": "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
-      "code": "0x",
-      "nonce": 0
+      "code": "0x"
     },
     {
       "address": "0xaafB7442f7F00B64057C2e9EaE2815bb63Ee0EcE",
       "balance": "0xffffffffffffffffffffffffffffff",
-      "code_hash": "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
-      "code": "0x",
-      "nonce": 0
+      "code": "0x"
     },
     {
       "address": "0x9fCDf8f60d3009656E50Bf805Cd53C7335b284Fb",
       "balance": "0xffffffffffffffffffffffffffffff",
-      "code_hash": "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
-      "code": "0x",
-      "nonce": 0
+      "code": "0x"
     },
     {
       "address": "0xe756fdf89367EF428b48BCa2d272Ec8EcEC053fD",
       "balance": "0xffffffffffffffffffffffffffffff",
-      "code_hash": "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
-      "code": "0x",
-      "nonce": 0
+      "code": "0x"
     },
     {
       "address": "0x3AEEb871F83C85E68fFD1868bef3425eD6649D39",
       "balance": "0xffffffffffffffffffffffffffffff",
-      "code_hash": "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
-      "code": "0x",
-      "nonce": 0
+      "code": "0x"
     },
     {
       "address": "0xd44821f906E3909b8AE944F7060551c33b922cc9",
       "balance": "0xffffffffffffffffffffffffffffff",
-      "code_hash": "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
-      "code": "0x",
-      "nonce": 0
+      "code": "0x"
     },
     {
       "address": "0x0f820f428AE436C1000b27577bF5bbf09BfeC8f2",
       "balance": "0xffffffffffffffffffffffffffffff",
-      "code_hash": "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
-      "code": "0x",
-      "nonce": 0
+      "code": "0x"
     },
     {
       "address": "0xC2F8Eed77da1583f7bae0a3125Dc7BC426002dDE",
       "balance": "0xffffffffffffffffffffffffffffff",
-      "code_hash": "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
-      "code": "0x",
-      "nonce": 0
+      "code": "0x"
     }
   ],
   "chain_id": 5655,
@@ -72,10 +54,12 @@
   "coinbase": "0x0000000000000000000000000000000000000000",
   "starting_base_fee": 1000000000,
   "block_gas_limit": 30000000,
-  "genesis_timestamp": 1705957200,
-  "block_timestamp_delta": 2,
   "base_fee_params": {
     "max_change_denominator": 8,
     "elasticity_multiplier": 2
-  }
+  },
+  "timestamp": 0,
+  "difficulty": 0,
+  "extra_data": "0x",
+  "nonce": 0
 }

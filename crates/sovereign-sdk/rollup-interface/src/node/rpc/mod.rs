@@ -161,6 +161,21 @@ pub struct SlotResponse<B, Tx> {
     pub batches: Option<Vec<ItemOrHash<BatchResponse<B, Tx>>>>,
 }
 
+/// A type that represents a transaction hash bytes.
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct HexTx {
+    /// Transaction hash bytes
+    #[serde(with = "hex::serde")]
+    pub tx: Vec<u8>,
+}
+
+impl From<Vec<u8>> for HexTx {
+    fn from(tx: Vec<u8>) -> Self {
+        Self { tx }
+    }
+}
+
 /// The response to a JSON-RPC request for a particular soft batch.
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct SoftBatchResponse {
@@ -179,7 +194,7 @@ pub struct SoftBatchResponse {
     pub hash: [u8; 32],
     /// The transactions in this batch.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub txs: Option<Vec<Vec<u8>>>,
+    pub txs: Option<Vec<HexTx>>,
     /// Pre-state root of the soft batch.
     #[serde(with = "hex::serde")]
     pub pre_state_root: Vec<u8>,
@@ -194,6 +209,8 @@ pub struct SoftBatchResponse {
     pub pub_key: Vec<u8>,
     /// Base layer fee rate sats/wei etc. per byte.
     pub l1_fee_rate: u64,
+    /// Sequencer's block timestamp.
+    pub timestamp: u64,
 }
 
 /// The response to a JSON-RPC request for a particular batch.
@@ -235,7 +252,7 @@ pub struct TxResponse<Tx> {
 #[serde(untagged)]
 pub enum ItemOrHash<T> {
     /// The hex encoded hash of the requested item.
-    Hash(#[serde(with = "utils::rpc_hex")] [u8; 32]),
+    Hash(#[serde(with = "hex::serde")] [u8; 32]),
     /// The full item body.
     Full(T),
 }
@@ -274,10 +291,16 @@ pub trait LedgerRpcProvider {
         query_mode: QueryMode,
     ) -> Result<Vec<Option<BatchResponse<B, T>>>, anyhow::Error>;
 
+    /// Get a list of soft batches by id. The IDs need not be ordered.
+    fn get_soft_batches(
+        &self,
+        batch_ids: &[SoftBatchIdentifier],
+    ) -> Result<Vec<Option<SoftBatchResponse>>, anyhow::Error>;
+
     /// Get soft batch
     fn get_soft_batch(
         &self,
-        batch_id: SoftBatchIdentifier,
+        batch_id: &SoftBatchIdentifier,
     ) -> Result<Option<SoftBatchResponse>, anyhow::Error>;
 
     /// Get a list of transactions by id. The IDs need not be ordered.
@@ -369,6 +392,13 @@ pub trait LedgerRpcProvider {
         end: u64,
         query_mode: QueryMode,
     ) -> Result<Vec<Option<BatchResponse<B, T>>>, anyhow::Error>;
+
+    /// Get a range of soft batches.
+    fn get_soft_batches_range(
+        &self,
+        start: u64,
+        end: u64,
+    ) -> Result<Vec<Option<SoftBatchResponse>>, anyhow::Error>;
 
     /// Get a range of batches. This query is the most efficient way to
     /// fetch large numbers of transactions, since it allows for easy batching of

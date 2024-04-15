@@ -10,7 +10,7 @@ use sov_schema_db::{Schema, SchemaBatch, SeekKeyEncoder, DB};
 use crate::rocks_db_config::gen_rocksdb_options;
 use crate::schema::tables::{
     BatchByHash, BatchByNumber, EventByKey, EventByNumber, L2RangeByL1Height,
-    LastSequencerCommitmentSent, SlotByHash, SlotByNumber, SoftBatchByNumber,
+    LastSequencerCommitmentSent, SlotByHash, SlotByNumber, SoftBatchByHash, SoftBatchByNumber,
     SoftConfirmationStatus, TxByHash, TxByNumber, LEDGER_TABLES,
 };
 use crate::schema::types::{
@@ -207,7 +207,7 @@ impl LedgerDB {
         schema_batch: &mut SchemaBatch,
     ) -> Result<(), anyhow::Error> {
         schema_batch.put::<SoftBatchByNumber>(batch_number, batch)?;
-        schema_batch.put::<BatchByHash>(&batch.hash, batch_number)
+        schema_batch.put::<SoftBatchByHash>(&batch.hash, batch_number)
     }
 
     fn put_batch(
@@ -310,6 +310,7 @@ impl LedgerDB {
             soft_confirmation_signature: batch_receipt.soft_confirmation_signature,
             pub_key: batch_receipt.pub_key,
             l1_fee_rate: batch_receipt.l1_fee_rate,
+            timestamp: batch_receipt.timestamp,
         };
         self.put_soft_batch(
             &batch_to_store,

@@ -147,6 +147,12 @@ where
             .get_batches_range::<B, Tx>(args.0, args.1, args.2)
             .map_err(|e| to_jsonrpsee_error_object(e, LEDGER_RPC_ERROR))
     })?;
+    rpc.register_method("ledger_getSoftBatchRange", move |params, ledger| {
+        let args: (u64, u64) = params.parse()?;
+        ledger
+            .get_soft_batches_range(args.0, args.1)
+            .map_err(|e| to_jsonrpsee_error_object(e, LEDGER_RPC_ERROR))
+    })?;
     rpc.register_method("ledger_getTransactionsRange", move |params, ledger| {
         let args: RangeArgs = params.parse()?;
         ledger

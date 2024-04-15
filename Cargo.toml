@@ -11,9 +11,7 @@ members = [
     "crates/ethereum-rpc",
     # Sovereign sdk
     "crates/sovereign-sdk/rollup-interface",
-    "crates/sovereign-sdk/adapters/avail",
     "crates/sovereign-sdk/adapters/risc0",
-    "crates/sovereign-sdk/adapters/celestia",
     "crates/sovereign-sdk/adapters/mock-da",
     "crates/sovereign-sdk/adapters/mock-zkvm",
     # Examples
@@ -61,7 +59,7 @@ members = [
 [workspace.package]
 version = "0.3.0"
 edition = "2021"
-license = "GPLv3"
+license = "GPL-3.0"
 authors = ["Chainway Labs <info@chainway.xyz>"]
 homepage = "https://chainway.xyz"
 publish = false
@@ -83,6 +81,7 @@ bincode = "1.3.3"
 bcs = "0.1.6"
 byteorder = { version = "1.5.0", default-features = false }
 bytes = { version = "1.2.1", default-features = false }
+chrono = { version = "0.4.37", default-features = false }
 digest = { version = "0.10.6", default-features = false, features = ["alloc"] }
 rs_merkle = "1.4.2"
 futures = "0.3"
@@ -99,6 +98,7 @@ proptest = { version = "1.3.1", default-features = false, features = ["alloc"] }
 proptest-derive = "0.3.0"
 rand = "0.8"
 rayon = "1.8.0"
+reqwest = { version = "0.12", features = ["rustls-tls", "json", "http2"], default-features = false }
 rocksdb = { version = "0.21.0", features = ["lz4"] }
 serde = { version = "1.0.192", default-features = false, features = [
     "alloc",
@@ -143,7 +143,6 @@ reth-tasks = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.4
 reth-db = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.4" }
 reth-trie = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.4" }
 reth-rpc = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.4" }
-revm-inspectors = { git = "https://github.com/paradigmxyz/evm-inspectors", rev = "0ad0338" }
 
 revm = { version = "7.2.0", features = [
     "std",

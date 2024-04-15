@@ -2,6 +2,9 @@ sequencer_public_key = "204040e364c10f2bec9c1fe500a1cd4c247c89d650a01ed7e82caba8
 min_soft_confirmations_per_commitment = 1000
 include_tx_body = false
 
+sequencer_da_pub_key = "0000000000000000000000000000000000000000000000000000000000000000"
+prover_da_pub_key = ""
+
 [da]
 sender_address = "0000000000000000000000000000000000000000000000000000000000000000"
 

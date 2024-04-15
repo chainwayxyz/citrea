@@ -33,7 +33,7 @@ COPY --from=builder /app /app
 # Copy the binary from the builder stage
 COPY --from=builder /app/target/release/citrea /app/bin/citrea
 
-RUN rm -rf /app/target && cargo
+RUN cargo
 
 EXPOSE 8545
 

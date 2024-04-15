@@ -76,6 +76,8 @@ pub async fn start_rollup(
             }
             NodeMode::SequencerNode => None,
         },
+        sequencer_da_pub_key: vec![0; 32],
+        prover_da_pub_key: vec![],
         include_tx_body,
     };
 

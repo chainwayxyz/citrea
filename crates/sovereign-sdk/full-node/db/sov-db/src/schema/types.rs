@@ -94,6 +94,8 @@ pub struct StoredSoftBatch {
     pub pub_key: Vec<u8>,
     /// L1 fee rate
     pub l1_fee_rate: u64,
+    /// Sequencer's block timestamp
+    pub timestamp: u64,
 }
 
 /// The range of L2 heights (soft confirmations) for a given L1 block
@@ -108,12 +110,19 @@ impl TryFrom<StoredSoftBatch> for SoftBatchResponse {
             da_slot_height: value.da_slot_height,
             da_slot_txs_commitment: value.da_slot_txs_commitment,
             hash: value.hash,
-            txs: Some(value.txs.into_iter().filter_map(|tx| tx.body).collect()), // Rollup full nodes don't store tx bodies
+            txs: Some(
+                value
+                    .txs
+                    .into_iter()
+                    .filter_map(|tx| tx.body.map(Into::into))
+                    .collect(),
+            ), // Rollup full nodes don't store tx bodies
             pre_state_root: value.pre_state_root,
             post_state_root: value.post_state_root,
             soft_confirmation_signature: value.soft_confirmation_signature,
             pub_key: value.pub_key,
             l1_fee_rate: value.l1_fee_rate,
+            timestamp: value.timestamp,
         })
     }
 }

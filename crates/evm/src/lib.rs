@@ -19,6 +19,7 @@ mod signer;
 pub use signer::DevSigner;
 #[cfg(feature = "smart_contracts")]
 pub mod smart_contracts;
+pub use system_events::SYSTEM_SIGNER;
 
 #[cfg(test)]
 mod tests;
@@ -34,6 +35,7 @@ use sov_state::codec::BcsCodec;
 use crate::evm::primitive_types::{
     Block, BlockEnv, Receipt, SealedBlock, TransactionSignedAndRecovered,
 };
+use crate::evm::system_events::SystemEvent;
 pub use crate::EvmConfig;
 
 // Gas per transaction not creating a contract.
@@ -67,7 +69,7 @@ pub struct Evm<C: sov_modules_api::Context> {
     /// Mapping from code hash to code. Used for lazy-loading code into a contract account.
     #[state]
     pub(crate) code:
-        sov_modules_api::StateMap<reth_primitives::B256, reth_primitives::Bytes, BcsCodec>,
+        sov_modules_api::StateMap<reth_primitives::B256, revm::primitives::Bytecode, BcsCodec>,
 
     /// Chain configuration. This field is set in genesis.
     #[state]
@@ -86,6 +88,10 @@ pub struct Evm<C: sov_modules_api::Context> {
     /// The `state_root` is added in `begin_slot_hook` of the next block because its calculation occurs after the `end_slot_hook`.
     #[state]
     pub(crate) head: sov_modules_api::StateValue<Block, BcsCodec>,
+
+    /// Last seen L1 block hash.
+    #[state]
+    pub(crate) last_l1_hash: sov_modules_api::StateValue<B256, BcsCodec>,
 
     /// Last 256 block hashes. Latest blockhash is populated in `begin_slot_hook`.
     /// Removes the oldest blockhash in `finalize_hook`
