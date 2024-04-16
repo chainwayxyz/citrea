@@ -111,6 +111,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 18
       - name: Install cargo-risczero
         uses: taiki-e/install-action@v2
         with:
@@ -119,8 +122,19 @@ jobs:
         with:
           key: ${{ runner.os }}-${{ github.job }}-${{ github.head_ref }}
           path: ./target
-      - name: Build
+      - name: Build citrea
         run: SKIP_GUEST_BUILD=1 make build
+      - name: Install node dependencies
+        working-directory: ./bin/citrea/tests/evm/uniswap
+        run: npm install
+      - name: Run uniswap tests
+        run: |
+          RUST_LOG=off ./target/debug/citrea --da-layer mock --rollup-config-path bin/citrea/configs/mock/sequencer_rollup_config.toml --sequencer-config-path bin/citrea/configs/mock/sequencer_config.toml --genesis-paths bin/test-data/genesis/demo-tests/mock &
+          ./bin/citrea/publish_block.sh &
+          sleep 2
+          cd ./bin/citrea/tests/evm/uniswap
+          npx hardhat run --network citrea scripts/01_deploy.js
+          npx hardhat run --network citrea scripts/02_swap.js
 
   check_no_std:
     runs-on: ubicloud-standard-4
