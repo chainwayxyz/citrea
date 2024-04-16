@@ -14,13 +14,15 @@ use reth_provider::{BlockReader, HashingWriter, ProviderFactory};
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{Context, WorkingSet};
+use sov_prover_storage_manager::SnapshotManager;
+use sov_state::{DefaultStorageSpec, ProverStorage};
 
 // use reth_stages::stages::ExecutionStage;
 // use reth_stages::{ExecInput, Stage};
 use crate::ef_tests::models::{BlockchainTest, ForkSpec};
 use crate::ef_tests::{Case, Error, Suite};
 use crate::test_utils::{commit, get_evm_with_storage};
-use crate::{EvmConfig, RlpEvmTransaction};
+use crate::{Evm, EvmConfig, RlpEvmTransaction};
 
 /// A handler for the blockchain test suite.
 #[derive(Debug)]
@@ -48,6 +50,36 @@ impl Suite for BlockchainTests {
 pub struct BlockchainTestCase {
     tests: BTreeMap<String, BlockchainTest>,
     skip: bool,
+}
+
+impl BlockchainTestCase {
+    fn execute_transactions(
+        &self,
+        evm: &mut Evm<DefaultContext>,
+        txs: Vec<RlpEvmTransaction>,
+        mut working_set: WorkingSet<DefaultContext>,
+        storage: ProverStorage<DefaultStorageSpec, SnapshotManager>,
+        root: &[u8; 32],
+    ) -> (
+        WorkingSet<DefaultContext>,
+        ProverStorage<DefaultStorageSpec, SnapshotManager>,
+    ) {
+        // Call begin_soft_confirmation_hook
+        evm.begin_soft_confirmation_hook([0u8; 32], 0, [0u8; 32], root, 0, 0, &mut working_set);
+
+        let dummy_address = generate_address::<DefaultContext>("dummy");
+        let sequencer_address = generate_address::<DefaultContext>("sequencer");
+        let context = DefaultContext::new(dummy_address, sequencer_address, 1);
+        let results = evm.execute_call(txs, &context, &mut working_set);
+        println!("Results: {:?}", results);
+
+        evm.end_soft_confirmation_hook(&mut working_set);
+        let root = commit(working_set, storage.clone());
+        let mut working_set: WorkingSet<DefaultContext> = WorkingSet::new(storage.clone());
+        evm.finalize_hook(&root.into(), &mut working_set.accessory_state());
+
+        (working_set, storage)
+    }
 }
 
 impl Case for BlockchainTestCase {
@@ -105,6 +137,11 @@ impl Case for BlockchainTestCase {
                 .provider_rw()
                 .unwrap();
 
+                let (mut evm, working_set, mut storage) =
+                    get_evm_with_storage(&EvmConfig::default());
+                let root = commit(working_set, storage.clone());
+                let mut working_set: WorkingSet<DefaultContext> = WorkingSet::new(storage.clone());
+
                 // Insert initial test state into the provider.
                 provider
                     .insert_historical_block(
@@ -132,26 +169,42 @@ impl Case for BlockchainTestCase {
                 }
 
                 // Decode and insert blocks, creating a chain of blocks for the test case.
-                let last_block = case.blocks.iter().try_fold(None, |_, block| {
+                let mut it = case.blocks.iter().peekable();
+                let last_block = loop {
+                    let Some(block) = it.next() else {
+                        break Ok::<Option<SealedBlock>, Error>(None);
+                    };
                     let decoded = SealedBlock::decode(&mut block.rlp.as_ref())?;
+                    let txs: Vec<RlpEvmTransaction> = decoded
+                        .body
+                        .iter()
+                        .map(|t| {
+                            let mut buffer = Vec::<u8>::new();
+                            t.encode(&mut buffer);
+                            RlpEvmTransaction { rlp: buffer }
+                        })
+                        .collect();
+
+                    (working_set, storage) =
+                        self.execute_transactions(&mut evm, txs, working_set, storage, &root);
+
                     provider
                         .insert_historical_block(
                             decoded.clone().try_seal_with_senders().unwrap(),
                             None,
                         )
                         .map_err(|err| Error::RethError(err.into()))?;
-                    Ok::<Option<SealedBlock>, Error>(Some(decoded))
-                })?;
+
+                    if it.peek().is_none() {
+                        break Ok::<Option<SealedBlock>, Error>(Some(decoded));
+                    }
+                }?;
                 provider
                     .static_file_provider()
                     .latest_writer(StaticFileSegment::Headers)
                     .unwrap()
                     .commit_without_sync_all()
                     .unwrap();
-
-                let (evm, working_set, storage) = get_evm_with_storage(&EvmConfig::default());
-                let root = commit(working_set, storage.clone());
-                let mut working_set: WorkingSet<DefaultContext> = WorkingSet::new(storage.clone());
 
                 let block = provider
                     .block_with_senders(
@@ -174,26 +227,7 @@ impl Case for BlockchainTestCase {
                     })
                     .collect();
 
-                // Call begin_soft_confirmation_hook
-                evm.begin_soft_confirmation_hook(
-                    [0u8; 32],
-                    0,
-                    [0u8; 32],
-                    &root,
-                    0,
-                    0,
-                    &mut working_set,
-                );
-
-                let dummy_address = generate_address::<DefaultContext>("dummy");
-                let sequencer_address = generate_address::<DefaultContext>("sequencer");
-                let _ = evm.execute_call(txs, &context, &mut working_set);
-                let context = DefaultContext::new(dummy_address, sequencer_address, 1);
-
-                evm.end_soft_confirmation_hook(&mut working_set);
-                let root = commit(working_set, storage.clone());
-                let mut working_set: WorkingSet<DefaultContext> = WorkingSet::new(storage.clone());
-                evm.finalize_hook(&root.into(), &mut working_set.accessory_state());
+                self.execute_transactions(&mut evm, txs, working_set, storage, &root);
 
                 // Validate the post-state for the test case.
                 match (&case.post_state, &case.post_state_hash) {
