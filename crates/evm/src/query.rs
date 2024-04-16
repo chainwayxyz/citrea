@@ -722,6 +722,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let access_list = inspector.into_access_list();
 
         request.access_list = Some(access_list.clone());
+        tx_env.access_list = access_list.clone().into_flattened();
 
         let gas_used = self.estimate_gas_with_env(
             request,
@@ -823,13 +824,30 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     .map(|account| account.info)
                     .unwrap_or_default();
                 if KECCAK_EMPTY == to_account.code_hash {
-                    // simple transfer, check if caller has sufficient funds
-                    let available_funds = account.balance;
+                    // If the tx is a simple transfer (call to an account with no code) we can
+                    // shortcircuit But simply returning
 
-                    if tx_env.value > available_funds {
-                        return Err(RpcInvalidTransactionError::InsufficientFundsForTransfer.into());
+                    // `MIN_TRANSACTION_GAS` is dangerous because there might be additional
+                    // field combos that bump the price up, so we try executing the function
+                    // with the minimum gas limit to make sure.
+
+                    let mut tx_env = tx_env.clone();
+                    tx_env.gas_limit = MIN_TRANSACTION_GAS;
+
+                    let res = inspect(
+                        self.get_db(working_set),
+                        cfg_env.clone(),
+                        block_env.clone().into(),
+                        tx_env.clone(),
+                        TracingInspector::new(TracingInspectorConfig::all()),
+                    );
+
+                    if res.is_ok() {
+                        let res = res.unwrap();
+                        if res.result.is_success() {
+                            return Ok(U64::from(MIN_TRANSACTION_GAS));
+                        }
                     }
-                    return Ok(U64::from(MIN_TRANSACTION_GAS));
                 }
             }
         }
@@ -969,18 +987,19 @@ impl<C: sov_modules_api::Context> Evm<C> {
             {
                 // increase the lowest gas limit
                 lowest_gas_limit = mid_gas_limit;
+            } else {
+                let result = match result {
+                    Ok(result) => result.result,
+                    Err(err) => return Err(EthApiError::from(err).into()),
+                };
 
-                // new midpoint
-                mid_gas_limit = ((highest_gas_limit as u128 + lowest_gas_limit as u128) / 2) as u64;
-                continue;
+                update_estimated_gas_range(
+                    result,
+                    mid_gas_limit,
+                    &mut highest_gas_limit,
+                    &mut lowest_gas_limit,
+                )?;
             }
-
-            update_estimated_gas_range(
-                result.expect("Result must be set").result,
-                mid_gas_limit,
-                &mut highest_gas_limit,
-                &mut lowest_gas_limit,
-            )?;
 
             // new midpoint
             mid_gas_limit = ((highest_gas_limit as u128 + lowest_gas_limit as u128) / 2) as u64;
@@ -1624,7 +1643,7 @@ fn convert_u256_to_u64(u256: reth_primitives::U256) -> Result<u64, TryFromSliceE
 }
 
 /// Updates the highest and lowest gas limits for binary search
-///  based on the result of the execution
+/// based on the result of the execution
 #[inline]
 fn update_estimated_gas_range(
     result: ExecutionResult,

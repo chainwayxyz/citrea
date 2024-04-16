@@ -218,7 +218,7 @@ fn test_tx_request_fields_gas() {
             .into(),
             // This should actually be 0x6e66
             // See: https://github.com/chainwayxyz/citrea/issues/272
-            gas_used: Uint::from_str("0x6601").unwrap()
+            gas_used: Uint::from_str("0x6e66").unwrap()
         }
     );
 
@@ -323,7 +323,7 @@ fn test_access_list() {
                 .unwrap()]
             }])
             .into(),
-            gas_used: Uint::from_str("0x788b").unwrap()
+            gas_used: Uint::from_str("0x775d").unwrap()
         }
     );
 
