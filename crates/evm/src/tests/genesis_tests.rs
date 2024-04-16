@@ -54,6 +54,10 @@ lazy_static! {
         limit_contract_code_size: Some(5000),
         starting_base_fee: 1000000000,
         base_fee_params: BaseFeeParams::ethereum(),
+        timestamp: 0,
+        difficulty: U256::ZERO,
+        extra_data: Bytes::default(),
+        nonce: 0,
     };
 
     pub(crate) static ref GENESIS_DA_TXS_COMMITMENT: B256 = B256::from(hex!(
@@ -124,8 +128,22 @@ fn genesis_data() {
         ),
     );
 
-    assert_eq!(contract_storage1, U256::from(0x4321));
-    assert_eq!(contract_storage2, U256::from(8));
+    assert_eq!(
+        contract_storage1,
+        B256::from_slice(
+            hex::decode("0000000000000000000000000000000000000000000000000000000000004321")
+                .unwrap()
+                .as_slice()
+        )
+    );
+    assert_eq!(
+        contract_storage2,
+        B256::from_slice(
+            hex::decode("0000000000000000000000000000000000000000000000000000000000000008")
+                .unwrap()
+                .as_slice()
+        )
+    );
 }
 
 #[test]

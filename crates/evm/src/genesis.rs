@@ -4,7 +4,7 @@ use anyhow::Result;
 #[cfg(feature = "ef-tests")]
 use reth_primitives::constants::{EMPTY_OMMER_ROOT_HASH, EMPTY_RECEIPTS, EMPTY_TRANSACTIONS};
 use reth_primitives::{keccak256, Address, Bloom, Bytes, B256, KECCAK_EMPTY, U256};
-use revm::primitives::SpecId;
+use revm::primitives::{Bytecode, SpecId};
 use serde::{Deserialize, Deserializer};
 use sov_modules_api::prelude::*;
 use sov_modules_api::WorkingSet;
@@ -120,6 +120,14 @@ pub struct EvmConfig {
     pub block_gas_limit: u64,
     /// Base fee params.
     pub base_fee_params: reth_primitives::BaseFeeParams,
+    /// Timestamp of the genesis block.
+    pub timestamp: u64,
+    /// Extra data for the genesis block.
+    pub extra_data: Bytes,
+    /// Nonce of the genesis block.
+    pub nonce: u64,
+    /// Difficulty of the genesis block.
+    pub difficulty: U256,
 }
 
 #[cfg(any(test, feature = "ef-tests"))]
@@ -134,6 +142,10 @@ impl Default for EvmConfig {
             starting_base_fee: reth_primitives::constants::EIP1559_INITIAL_BASE_FEE,
             block_gas_limit: reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT,
             base_fee_params: reth_primitives::BaseFeeParams::ethereum(),
+            timestamp: 0,
+            extra_data: Bytes::default(),
+            nonce: 0,
+            difficulty: U256::ZERO,
         }
     }
 }
@@ -147,17 +159,19 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let mut evm_db = self.get_db(working_set);
 
         for acc in &config.data {
+            let code = Bytecode::new_raw(acc.code.clone());
             evm_db.insert_account_info(
                 acc.address,
                 AccountInfo {
                     balance: acc.balance,
-                    code_hash: keccak256(&acc.code),
+                    // hash_slow returns EMPTY_KECCAK if code is empty
+                    code_hash: code.hash_slow(),
                     nonce: acc.nonce,
                 },
             );
 
             if acc.code.len() > 0 {
-                evm_db.insert_code(acc.code_hash, acc.code.clone());
+                evm_db.insert_code(acc.code_hash, code);
 
                 for (k, v) in acc.storage.iter() {
                     evm_db.insert_storage(acc.address, *k, *v);
@@ -207,15 +221,15 @@ impl<C: sov_modules_api::Context> Evm<C> {
             receipts_root: EMPTY_RECEIPTS,
             withdrawals_root: None,
             logs_bloom: Bloom::default(),
-            difficulty: U256::ZERO,
+            difficulty: config.difficulty,
             number: 0,
             gas_limit: config.block_gas_limit,
             gas_used: 0,
-            timestamp: 0,
+            timestamp: config.timestamp,
             mix_hash: B256::default(),
-            nonce: 0,
+            nonce: config.nonce,
             base_fee_per_gas: Some(config.starting_base_fee),
-            extra_data: Bytes::default(),
+            extra_data: config.extra_data.clone(),
             // EIP-4844 related fields
             // https://github.com/Sovereign-Labs/sovereign-sdk/issues/912
             blob_gas_used: None,
@@ -268,6 +282,10 @@ mod tests {
             chain_id: 1,
             limit_contract_code_size: None,
             spec: vec![(0, SpecId::SHANGHAI)].into_iter().collect(),
+            timestamp: 0,
+            nonce: 0,
+            difficulty: U256::ZERO,
+            extra_data: Bytes::default(),
             ..Default::default()
         };
 
@@ -290,7 +308,11 @@ mod tests {
                 "base_fee_params":{
                     "max_change_denominator":8,
                     "elasticity_multiplier":2
-                }
+                },
+                "difficulty": 0,
+                "extra_data": "0x",
+                "timestamp": 0,
+                "nonce": 0
         }"#;
 
         let parsed_config: EvmConfig = serde_json::from_str(data).unwrap();
@@ -348,7 +370,11 @@ mod tests {
                 "base_fee_params":{
                     "max_change_denominator":8,
                     "elasticity_multiplier":2
-                }
+                },
+                "difficulty": 0,
+                "extra_data": "0x",
+                "timestamp": 0,
+                "nonce": 0
         }"#;
 
         let parsed_config: EvmConfig = serde_json::from_str(data).unwrap();

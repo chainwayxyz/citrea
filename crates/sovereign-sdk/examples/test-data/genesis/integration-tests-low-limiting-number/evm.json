@@ -17,5 +17,9 @@
   "base_fee_params": {
     "max_change_denominator": 8,
     "elasticity_multiplier": 2
-  }
+  },
+  "timestamp": 0,
+  "difficulty": 0,
+  "extra_data": "0x",
+  "nonce": 0
 }
