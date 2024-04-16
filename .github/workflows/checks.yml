@@ -134,6 +134,8 @@ jobs:
           sleep 2
           RUST_LOG=off ./target/debug/citrea --rollup-config-path bin/citrea/configs/mock/rollup_config.toml --genesis-paths bin/test-data/genesis/demo-tests/mock &
           ./bin/citrea/publish_block.sh &
+          sleep 2
+          ./bin/citrea/publish_da_block.sh &
           cd ./bin/citrea/tests/evm/uniswap
           npx hardhat run --network citrea scripts/01_deploy.js
           npx hardhat run --network citrea scripts/02_swap.js
