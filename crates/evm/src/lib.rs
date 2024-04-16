@@ -6,6 +6,8 @@ mod genesis;
 mod hooks;
 mod provider_functions;
 mod rpc_helpers;
+#[cfg(any(test, feature = "ef-tests"))]
+mod test_utils;
 pub use call::*;
 pub use error::rpc::*;
 pub use evm::*;
@@ -20,7 +22,7 @@ pub use signer::DevSigner;
 #[cfg(feature = "smart_contracts")]
 pub mod smart_contracts;
 pub use system_events::SYSTEM_SIGNER;
-#[cfg(feature = "ef-tests")]
+// #[cfg(feature = "ef-tests")]
 pub mod ef_tests;
 
 #[cfg(test)]

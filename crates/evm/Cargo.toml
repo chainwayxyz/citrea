@@ -63,11 +63,11 @@ reth-revm = { workspace = true }
 reth-rpc = { workspace = true }
 secp256k1 = { workspace = true }
 itertools = "0.11.0"
+tempfile = { workspace = true, optional = true }
 
 [dev-dependencies]
 citrea-evm = { path = ".", features = ["smart_contracts"] }
 tokio = { workspace = true }
-tempfile = { workspace = true }
 bytes = { workspace = true }
 rand = { workspace = true }
 sov-prover-storage-manager = { path = "../sovereign-sdk/full-node/sov-prover-storage-manager", features = [
@@ -93,4 +93,5 @@ ef-tests = [
   "sov-prover-storage-manager/test-utils",
   "rayon",
   "walkdir",
+  "tempfile",
 ]
