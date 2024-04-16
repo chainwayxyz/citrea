@@ -5,18 +5,14 @@ use revm::primitives::EVMError;
 
 #[derive(serde::Deserialize, serde::Serialize, Debug, PartialEq, Clone)]
 pub(crate) struct BlockEnv {
-    /// a
-    pub number: u64,
-    /// b
-    pub coinbase: Address,
-    /// c
-    pub timestamp: u64,
+    pub(crate) number: u64,
+    pub(crate) coinbase: Address,
+    pub(crate) timestamp: u64,
     /// Prevrandao is used after Paris (aka TheMerge) instead of the difficulty value.
-    pub prevrandao: B256,
+    pub(crate) prevrandao: B256,
     /// basefee is added in EIP1559 London upgrade
-    pub basefee: u64,
-    /// d
-    pub gas_limit: u64,
+    pub(crate) basefee: u64,
+    pub(crate) gas_limit: u64,
 }
 
 impl Default for BlockEnv {

@@ -16,8 +16,8 @@ use revm::{Context, Database, EvmContext, FrameResult, InnerEvmContext, Inspecto
 use crate::system_events::SYSTEM_SIGNER;
 
 #[derive(Copy, Clone)]
-pub(crate) struct TxInfo {
-    pub(crate) diff_size: u64,
+pub struct TxInfo {
+    pub diff_size: u64,
 }
 
 /// An external context appended to the EVM.
@@ -52,7 +52,7 @@ impl<T: CitreaExternalExt> CitreaExternalExt for &mut T {
 /// This is an external context to be passed to the EVM.
 /// In terms of Revm this type replaces EXT in `Evm<'a, EXT, DB>`.
 #[derive(Default)]
-pub struct CitreaExternal {
+pub(crate) struct CitreaExternal {
     l1_fee_rate: u64,
     current_tx_hash: Option<B256>,
     tx_infos: HashMap<B256, TxInfo>,
