@@ -114,6 +114,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 18
+      - uses: dcarbone/install-jq-action@v2
       - name: Install cargo-risczero
         uses: taiki-e/install-action@v2
         with:
@@ -130,11 +131,21 @@ jobs:
       - name: Run uniswap tests
         run: |
           RUST_LOG=off ./target/debug/citrea --da-layer mock --rollup-config-path bin/citrea/configs/mock/sequencer_rollup_config.toml --sequencer-config-path bin/citrea/configs/mock/sequencer_config.toml --genesis-paths bin/test-data/genesis/demo-tests/mock &
-          ./bin/citrea/publish_block.sh &
           sleep 2
+          RUST_LOG=off ./target/debug/citrea --rollup-config-path bin/citrea/configs/mock/rollup_config.toml --genesis-paths bin/test-data/genesis/demo-tests/mock &
+          ./bin/citrea/publish_block.sh &
           cd ./bin/citrea/tests/evm/uniswap
           npx hardhat run --network citrea scripts/01_deploy.js
           npx hardhat run --network citrea scripts/02_swap.js
+          seqnRoot=$(curl 0.0.0.0:12345/ -H "Content-Type: application/json" --data '{"method":"eth_getBlockByNumber","params":["latest"],"id":1,"jsonrpc":"2.0"}' | jq .result.stateRoot)
+          nodeRoot=$(curl 0.0.0.0:12346/ -H "Content-Type: application/json" --data '{"method":"eth_getBlockByNumber","params":["latest"],"id":1,"jsonrpc":"2.0"}' | jq .result.stateRoot)
+          echo seqnRoot: $seqnRoot
+          echo nodeRoot: $nodeRoot
+          if [ "$seqnRoot" != "$nodeRoot" ]; then
+            echo "State root mismatch";
+            exit 1
+          fi
+
 
   check_no_std:
     runs-on: ubicloud-standard-4
