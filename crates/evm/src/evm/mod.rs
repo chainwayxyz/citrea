@@ -12,8 +12,6 @@ pub(crate) mod db_init;
 pub(crate) mod error;
 pub(crate) mod executor;
 ///! Implements functionality for ef-tests support.
-#[cfg(feature = "ef-tests")]
-pub mod factory;
 pub(crate) mod handler;
 pub(crate) mod primitive_types;
 /// System contracts used for system transactions
@@ -26,8 +24,8 @@ pub(crate) use call::prepare_call_env;
 pub use primitive_types::RlpEvmTransaction;
 use sov_state::codec::BcsCodec;
 
-#[cfg(test)]
-use crate::tests::DEFAULT_CHAIN_ID;
+#[cfg(any(test, feature = "ef-tests"))]
+use crate::DEFAULT_CHAIN_ID;
 
 // Stores information about an EVM account
 #[derive(Deserialize, Serialize, Debug, PartialEq, Clone)]
@@ -109,7 +107,7 @@ pub struct EvmChainConfig {
     pub base_fee_params: BaseFeeParams,
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "ef-tests"))]
 impl Default for EvmChainConfig {
     fn default() -> EvmChainConfig {
         EvmChainConfig {

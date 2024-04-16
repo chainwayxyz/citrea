@@ -20,6 +20,8 @@ pub use signer::DevSigner;
 #[cfg(feature = "smart_contracts")]
 pub mod smart_contracts;
 pub use system_events::SYSTEM_SIGNER;
+#[cfg(feature = "ef-tests")]
+pub mod ef_tests;
 
 #[cfg(test)]
 mod tests;

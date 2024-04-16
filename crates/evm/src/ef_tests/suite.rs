@@ -4,8 +4,8 @@ use std::path::{Path, PathBuf};
 
 use walkdir::{DirEntry, WalkDir};
 
-use crate::case::{Case, Cases};
-use crate::result::assert_tests_pass;
+use super::case::{Case, Cases};
+use super::result::assert_tests_pass;
 
 /// A collection of tests.
 pub trait Suite {

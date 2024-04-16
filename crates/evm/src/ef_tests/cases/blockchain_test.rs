@@ -6,18 +6,24 @@ use std::path::Path;
 use std::sync::Arc;
 
 use alloy_rlp::Decodable;
-use citrea_evm::factory::EvmProcessorFactory;
-use citrea_evm::EvmConfig;
 use rayon::iter::{ParallelBridge, ParallelIterator};
 use reth_db::test_utils::{create_test_rw_db, create_test_static_files_dir};
-use reth_primitives::{BlockBody, SealedBlock, StaticFileSegment};
+use reth_primitives::{BlockBody, SealedBlock, StaticFileSegment, TransactionSignedEcRecovered};
 use reth_provider::providers::StaticFileWriter;
-use reth_provider::{HashingWriter, ProviderFactory};
-use reth_stages::stages::ExecutionStage;
-use reth_stages::{ExecInput, Stage};
+use reth_provider::{BlockReader, HashingWriter, ProviderFactory};
+use reth_revm::primitives::CfgEnvWithHandlerCfg;
+// use reth_stages::stages::ExecutionStage;
+// use reth_stages::{ExecInput, Stage};
+use sov_modules_api::WorkingSet;
+use sov_prover_storage_manager::new_orphan_storage;
 
-use crate::models::{BlockchainTest, ForkSpec};
-use crate::{Case, Error, Suite};
+use crate::ef_tests::models::{BlockchainTest, ForkSpec};
+use crate::ef_tests::{Case, Error, Suite};
+use crate::evm::db::EvmDb;
+use crate::evm::executor::execute_multiple_tx;
+use crate::evm::handler::CitreaExternal;
+use crate::evm::primitive_types::BlockEnv;
+use crate::{get_cfg_env, EvmChainConfig};
 
 /// A handler for the blockchain test suite.
 #[derive(Debug)]
@@ -148,17 +154,58 @@ impl Case for BlockchainTestCase {
 
                 // Execute the execution stage using the EVM processor factory for the test case
                 // network.
-                let _ = ExecutionStage::new_with_factory(EvmProcessorFactory::new(
-                    Arc::new(case.network.clone().into()),
-                    EvmConfig::default(),
-                ))
-                .execute(
-                    &provider,
-                    ExecInput {
-                        target: last_block.as_ref().map(|b| b.number),
-                        checkpoint: None,
-                    },
+                // let _ = ExecutionStage::new_with_factory(EvmProcessorFactory::new(
+                //     Arc::new(case.network.clone().into()),
+                //     EvmConfig::default(),
+                // ))
+                // .execute(
+                //     &provider,
+                //     ExecInput {
+                //         target: last_block.as_ref().map(|b| b.number),
+                //         checkpoint: None,
+                //     },
+                // );
+
+                let mut working_set = WorkingSet::new(new_orphan_storage(db.path()).unwrap());
+                let block_env = BlockEnv {
+                    gas_limit: reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT.into(),
+                    ..Default::default()
+                };
+                let cfg = EvmChainConfig::default();
+                let cfg_env: CfgEnvWithHandlerCfg = get_cfg_env(&block_env, cfg, None);
+                let mut citrea_handler_ext = CitreaExternal::new(0);
+
+                type C = sov_modules_api::default_context::DefaultContext;
+                let evm = crate::Evm::<C>::default();
+                let evm_db: EvmDb<'_, C> = evm.get_db(&mut working_set);
+                let mut cumulative_gas_used = 0;
+                let block = provider
+                    .block_with_senders(
+                        reth_primitives::BlockHashOrNumber::Number(
+                            last_block.as_ref().unwrap().number,
+                        ),
+                        reth_provider::TransactionVariant::NoHash,
+                    )
+                    .unwrap()
+                    .unwrap();
+
+                let txs: Vec<TransactionSignedEcRecovered> =
+                    block.into_transactions_ecrecovered().collect();
+
+                // Call begin_soft_confirmation_hook
+                // evm.execute_call or something similar
+                let _ = execute_multiple_tx(
+                    evm_db,
+                    block_env,
+                    &txs,
+                    cfg_env,
+                    &mut citrea_handler_ext,
+                    cumulative_gas_used,
                 );
+
+                // end_soft_confirmation_hook
+                // commit
+                // finalize_hook
 
                 // Validate the post-state for the test case.
                 match (&case.post_state, &case.post_state_hash) {

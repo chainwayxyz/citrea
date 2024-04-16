@@ -15,8 +15,7 @@ use crate::smart_contracts::{
 };
 use crate::tests::genesis_tests::get_evm;
 use crate::tests::test_signer::TestSigner;
-use crate::tests::DEFAULT_CHAIN_ID;
-use crate::{AccountData, EvmConfig, RlpEvmTransaction};
+use crate::{AccountData, EvmConfig, RlpEvmTransaction, DEFAULT_CHAIN_ID};
 
 type C = DefaultContext;
 

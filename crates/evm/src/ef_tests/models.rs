@@ -13,8 +13,8 @@ use reth_primitives::{
 };
 use serde::Deserialize;
 
-use crate::assert::assert_equal;
-use crate::Error;
+use super::assert::assert_equal;
+use super::Error;
 
 /// The definition of a blockchain test.
 #[derive(Debug, PartialEq, Eq, Deserialize)]

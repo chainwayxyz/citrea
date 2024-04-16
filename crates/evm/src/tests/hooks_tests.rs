@@ -12,8 +12,7 @@ use crate::evm::primitive_types::{
     Block, BlockEnv, Receipt, SealedBlock, TransactionSignedAndRecovered,
 };
 use crate::tests::genesis_tests::{BENEFICIARY, GENESIS_STATE_ROOT};
-use crate::tests::DEFAULT_CHAIN_ID;
-use crate::PendingTransaction;
+use crate::{PendingTransaction, DEFAULT_CHAIN_ID};
 
 lazy_static! {
     pub(crate) static ref DA_ROOT_HASH: B256 = B256::from([5u8; 32]);

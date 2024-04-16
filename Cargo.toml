@@ -54,8 +54,6 @@ members = [
     "crates/sovereign-sdk/module-system/module-implementations/examples/sov-vec-setter",
     "crates/sovereign-sdk/module-system/module-implementations/examples/sov-accessory-state",
     "crates/sovereign-sdk/module-system/module-implementations/integration-tests",
-    # Ethereum Tests
-    "crates/ef-tests"
 ]
 
 [workspace.package]

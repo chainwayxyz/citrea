@@ -8,8 +8,7 @@ use secp256k1::{PublicKey, SecretKey};
 
 use crate::evm::RlpEvmTransaction;
 use crate::signer::DevSigner;
-use crate::tests::DEFAULT_CHAIN_ID;
-use crate::SignError;
+use crate::{SignError, DEFAULT_CHAIN_ID};
 
 /// ETH transactions signer used in tests.
 pub(crate) struct TestSigner {

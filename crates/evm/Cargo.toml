@@ -14,6 +14,7 @@ publish = false
 [dependencies]
 sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api", version = "0.3" }
 sov-state = { path = "../sovereign-sdk/module-system/sov-state", version = "0.3" }
+sov-prover-storage-manager = { path = "../sovereign-sdk/full-node/sov-prover-storage-manager", optional = true }
 
 anyhow = { workspace = true }
 thiserror = { workspace = true }
@@ -29,8 +30,10 @@ jsonrpsee = { workspace = true, features = [
     "client-core",
     "server",
 ], optional = true }
+rayon = { workspace = true, optional = true }
 tracing = { workspace = true }
 derive_more = { workspace = true }
+walkdir = { version = "2.3.3", optional = true }
 lazy_static = "1.4.0"
 
 
@@ -53,7 +56,9 @@ reth-primitives = { workspace = true }
 reth-interfaces = { workspace = true }
 reth-rpc-types = { workspace = true }
 reth-rpc-types-compat = { workspace = true }
+reth-db = { workspace = true, optional = true }
 reth-provider = { workspace = true, optional = true }
+reth-stages = { workspace = true, optional = true }
 reth-revm = { workspace = true }
 reth-rpc = { workspace = true }
 secp256k1 = { workspace = true }
@@ -80,4 +85,12 @@ native = [
 ]
 serde = []
 smart_contracts = ["native"]
-ef-tests = ["native", "reth-provider"]
+ef-tests = [
+  "native",
+  "reth-db",
+  "reth-provider",
+  "reth-stages",
+  "sov-prover-storage-manager/test-utils",
+  "rayon",
+  "walkdir",
+]

@@ -19,7 +19,7 @@ use crate::Evm;
 
 type C = sov_modules_api::default_context::DefaultContext;
 
-use crate::tests::DEFAULT_CHAIN_ID;
+use crate::DEFAULT_CHAIN_ID;
 
 #[test]
 fn simple_contract_execution_sov_state() {

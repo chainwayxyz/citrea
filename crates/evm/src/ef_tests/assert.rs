@@ -2,7 +2,7 @@
 
 use std::fmt::Debug;
 
-use crate::Error;
+use super::Error;
 
 /// A helper like `assert_eq!` that instead returns `Err(Error::Assertion)` on failure.
 pub fn assert_equal<T>(left: T, right: T, msg: &str) -> Result<(), Error>

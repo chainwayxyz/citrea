@@ -6,7 +6,7 @@ use reth_db::DatabaseError;
 use reth_interfaces::RethError;
 use thiserror::Error;
 
-use crate::Case;
+use super::Case;
 
 /// Test errors
 ///

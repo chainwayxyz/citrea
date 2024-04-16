@@ -1,7 +1,7 @@
 # The release tag of https://github.com/ethereum/tests to use for EF tests
 EF_TESTS_TAG := v12.2
 EF_TESTS_URL := https://github.com/ethereum/tests/archive/refs/tags/$(EF_TESTS_TAG).tar.gz
-EF_TESTS_DIR := crates/ef-tests/ethereum-tests
+EF_TESTS_DIR := crates/evm/ethereum-tests
 
 .PHONY: help
 
@@ -92,4 +92,4 @@ $(EF_TESTS_DIR):
 
 .PHONY: ef-tests
 ef-tests: $(EF_TESTS_DIR) ## Runs Ethereum Foundation tests.
-	cargo nextest run -p ef-tests --features ef-tests
+	cargo nextest run -p citrea-evm --features ef-tests general_state_tests::st

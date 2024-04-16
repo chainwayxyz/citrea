@@ -1,7 +1,7 @@
 #![cfg(feature = "ef-tests")]
 
-use ef_tests::cases::blockchain_test::BlockchainTests;
-use ef_tests::suite::Suite;
+use citrea_evm::ef_tests::cases::blockchain_test::BlockchainTests;
+use citrea_evm::ef_tests::suite::Suite;
 
 macro_rules! general_state_test {
     ($test_name:ident, $dir:ident) => {
@@ -15,7 +15,7 @@ macro_rules! general_state_test {
 mod general_state_tests {
     use super::*;
 
-    general_state_test!(shanghai, Shanghai);
+    general_state_test!(stshanghai, Shanghai);
     general_state_test!(st_args_zero_one_balance, stArgsZeroOneBalance);
     general_state_test!(st_attack, stAttackTest);
     general_state_test!(st_bad_opcode, stBadOpcode);

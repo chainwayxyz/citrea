@@ -3,7 +3,7 @@
 use std::fmt::Debug;
 use std::path::{Path, PathBuf};
 
-use crate::result::{CaseResult, Error};
+use super::result::{CaseResult, Error};
 
 /// A single test case, capable of loading a JSON description of itself and running it.
 ///
