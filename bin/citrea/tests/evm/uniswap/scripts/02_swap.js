@@ -1,11 +1,11 @@
 require("dotenv").config();
-const fs = require("fs");
-const { promisify } = require("util");
 
-const { providers, Contract, utils, constants } = require("ethers");
+const { utils } = require("ethers");
 const routerArtifact = require("@uniswap/v2-periphery/build/UniswapV2Router02.json");
 const usdtArtifact = require("../artifacts/contracts/Tether.sol/Tether.json");
 const usdcArtifact = require("../artifacts/contracts/UsdCoin.sol/UsdCoin.json");
+const { ethers } = require("hardhat");
+const assert = require("assert");
 
 USDT_ADDRESS = process.env.USDT_ADDRESS;
 USDC_ADDRESS = process.env.USDC_ADDRESS;
@@ -14,42 +14,38 @@ FACTORY_ADDRESS = process.env.FACTORY_ADDRESS;
 PAIR_ADDRESS = process.env.PAIR_ADDRESS;
 ROUTER_ADDRESS = process.env.ROUTER_ADDRESS;
 
-const provider = new providers.JsonRpcProvider("http://127.0.0.1:12345");
-
-const router = new Contract(ROUTER_ADDRESS, routerArtifact.abi, provider);
-
-const usdt = new Contract(USDT_ADDRESS, usdtArtifact.abi, provider);
-
-const usdc = new Contract(USDC_ADDRESS, usdcArtifact.abi, provider);
-
-const logBalance = async (signerObj) => {
-  let ethBalance;
-  let usdtBalance;
-  let usdcBalance;
-  let balances;
-  ethBalance = await signerObj.getBalance();
-  usdtBalance = await usdt.balanceOf(signerObj.address);
-  usdcBalance = await usdc.balanceOf(signerObj.address);
-  balances = {
-    ethBalance: ethBalance,
-    usdtBalance: usdtBalance,
-    usdcBalance: usdcBalance,
-  };
-  console.log(`balances of ${signerObj.address}`, balances);
-};
-
 const main = async () => {
   const [owner, trader] = await ethers.getSigners();
   if (!owner || !owner.address || !trader || !trader.address) {
     throw new Error("Could not get owner and trader addresses");
   }
+  const router = await ethers.getContractAt(routerArtifact.abi, ROUTER_ADDRESS);
+  const usdt = await ethers.getContractAt(usdtArtifact.abi, USDT_ADDRESS);
+  const usdc = await ethers.getContractAt(usdcArtifact.abi, USDC_ADDRESS);
+
+  const getBalance = async (signerObj) => {
+    let ethBalance;
+    let usdtBalance;
+    let usdcBalance;
+    let balances;
+    ethBalance = await signerObj.getBalance();
+    usdtBalance = await usdt.balanceOf(signerObj.address);
+    usdcBalance = await usdc.balanceOf(signerObj.address);
+    balances = {
+      ethBalance: ethBalance,
+      usdtBalance: usdtBalance,
+      usdcBalance: usdcBalance,
+    };
+    console.log(`balances of ${signerObj.address}`, balances);
+    return balances;
+  };
 
   console.log(
     `Starting with owner=${owner.address} and trader=${trader.address}`,
   );
 
-  await logBalance(owner);
-  await logBalance(trader);
+  const ownerBalanceBefore = await getBalance(owner);
+  const traderBalanceBefore = await getBalance(trader);
 
   const tx = await router
     .connect(trader)
@@ -65,7 +61,18 @@ const main = async () => {
     );
 
   await tx.wait();
-  await logBalance(trader);
+  const ownerBalanceAfter = await getBalance(owner);
+  const traderBalanceAfter = await getBalance(trader);
+
+  // owner wallet is not touched
+  assert.deepEqual(ownerBalanceBefore.ethBalance, ownerBalanceAfter.ethBalance);
+  assert.deepEqual(ownerBalanceBefore.usdtBalance, ownerBalanceAfter.usdtBalance);
+  assert.deepEqual(ownerBalanceBefore.usdcBalance, ownerBalanceAfter.usdcBalance);
+
+  // trader wallet is changed
+  assert(traderBalanceBefore.ethBalance > traderBalanceAfter.ethBalance);
+  assert(traderBalanceBefore.usdtBalance > traderBalanceAfter.usdtBalance);
+  assert(traderBalanceBefore.usdcBalance < traderBalanceAfter.usdcBalance);
 };
 
 main()

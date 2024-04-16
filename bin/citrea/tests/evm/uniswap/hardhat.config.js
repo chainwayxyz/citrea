@@ -13,7 +13,7 @@ module.exports = {
     },
   },
   networks: {
-    sov: {
+    citrea: {
       url: "http://127.0.0.1:12345",
       chainId: 5655,
       accounts: [
