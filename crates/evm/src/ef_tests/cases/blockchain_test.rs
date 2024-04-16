@@ -185,10 +185,10 @@ impl Case for BlockchainTestCase {
                     &mut working_set,
                 );
 
-                let sender_address = generate_address::<DefaultContext>("sender");
+                let dummy_address = generate_address::<DefaultContext>("dummy");
                 let sequencer_address = generate_address::<DefaultContext>("sequencer");
-                let context = DefaultContext::new(sender_address, sequencer_address, 1);
                 let _ = evm.execute_call(txs, &context, &mut working_set);
+                let context = DefaultContext::new(dummy_address, sequencer_address, 1);
 
                 evm.end_soft_confirmation_hook(&mut working_set);
                 let root = commit(working_set, storage.clone());
