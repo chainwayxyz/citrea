@@ -21,7 +21,7 @@ use sov_state::{DefaultStorageSpec, ProverStorage};
 // use reth_stages::{ExecInput, Stage};
 use crate::ef_tests::models::{BlockchainTest, ForkSpec};
 use crate::ef_tests::{Case, Error, Suite};
-use crate::test_utils::{commit, get_evm_with_storage};
+use crate::test_utils::{commit, get_evm_with_storage, GENESIS_STATE_ROOT};
 use crate::{Evm, EvmConfig, RlpEvmTransaction};
 
 /// A handler for the blockchain test suite.
@@ -137,10 +137,9 @@ impl Case for BlockchainTestCase {
                 .provider_rw()
                 .unwrap();
 
-                let (mut evm, working_set, mut storage) =
+                let (mut evm, mut working_set, mut storage) =
                     get_evm_with_storage(&EvmConfig::default());
-                let root = commit(working_set, storage.clone());
-                let mut working_set: WorkingSet<DefaultContext> = WorkingSet::new(storage.clone());
+                let root = &GENESIS_STATE_ROOT;
 
                 // Insert initial test state into the provider.
                 provider
