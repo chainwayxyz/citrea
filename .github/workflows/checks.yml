@@ -106,6 +106,22 @@ jobs:
         with:
           command: check
 
+  uniswap:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install cargo-risczero
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-risczero@0.19
+      - uses: actions/cache@v3
+        with:
+          key: ${{ runner.os }}-${{ github.job }}-${{ github.head_ref }}
+          path: ./target
+      - name: Build
+        run: SKIP_GUEST_BUILD=1 make build
+
   check_no_std:
     runs-on: ubicloud-standard-4
     if: github.event.pull_request.draft == false
