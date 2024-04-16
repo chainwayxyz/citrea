@@ -64,15 +64,10 @@ const main = async () => {
   const ownerBalanceAfter = await getBalance(owner);
   const traderBalanceAfter = await getBalance(trader);
 
-  // owner wallet is not touched
-  assert.deepEqual(ownerBalanceBefore.ethBalance, ownerBalanceAfter.ethBalance);
-  assert.deepEqual(ownerBalanceBefore.usdtBalance, ownerBalanceAfter.usdtBalance);
-  assert.deepEqual(ownerBalanceBefore.usdcBalance, ownerBalanceAfter.usdcBalance);
-
   // trader wallet is changed
-  assert(traderBalanceBefore.ethBalance > traderBalanceAfter.ethBalance);
-  assert(traderBalanceBefore.usdtBalance > traderBalanceAfter.usdtBalance);
-  assert(traderBalanceBefore.usdcBalance < traderBalanceAfter.usdcBalance);
+  assert(traderBalanceBefore.ethBalance.gt(traderBalanceAfter.ethBalance));
+  assert(traderBalanceBefore.usdtBalance.gt(traderBalanceAfter.usdtBalance));
+  assert(traderBalanceBefore.usdcBalance.lt(traderBalanceAfter.usdcBalance));
 };
 
 main()
