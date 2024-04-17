@@ -24,26 +24,26 @@ async function main() {
 
   console.log("Deploying USDT...");
   const Usdt = await ethers.getContractFactory("contracts/Tether.sol:Tether", owner);
-  const usdt = await Usdt.deploy({nonce: 0});
+  const usdt = await Usdt.deploy({ nonce: 0 });
   console.log("USDT deployed at:", usdt.address);
   console.log("Deploying USDC...");
   const Usdc = await ethers.getContractFactory("contracts/UsdCoin.sol:UsdCoin", owner);
-  const usdc = await Usdc.deploy({nonce: 1});
+  const usdc = await Usdc.deploy({ nonce: 1 });
   console.log("USDC deployed at:", usdc.address);
   console.log("Deploying WETH...");
   const Weth = new ContractFactory(WETH9.abi, WETH9.bytecode, owner);
-  const weth = await Weth.deploy({nonce: 2});
+  const weth = await Weth.deploy({ nonce: 2 });
   console.log("WETH deployed at:", weth.address);
 
   console.log("Minting some tokens...");
   const mintAmount = utils.parseEther("100000");
-  await usdt.connect(owner).mint(owner.address, mintAmount, {nonce: 3});
+  await usdt.connect(owner).mint(owner.address, mintAmount, { nonce: 3 });
   console.log("Minted USDT for owner");
-  await usdc.connect(owner).mint(owner.address, mintAmount, {nonce: 4});
+  await usdc.connect(owner).mint(owner.address, mintAmount, { nonce: 4 });
   console.log("Minted USDC for owner");
-  await usdt.connect(owner).mint(trader.address, mintAmount, {nonce: 5});
+  await usdt.connect(owner).mint(trader.address, mintAmount, { nonce: 5 });
   console.log("Minted USDT for trader");
-  const mintTraderUsdcA = await usdc.connect(owner).mint(trader.address, mintAmount, {nonce: 6});
+  const mintTraderUsdcA = await usdc.connect(owner).mint(trader.address, mintAmount, { nonce: 6 });
   await mintTraderUsdcA.wait();
   console.log("Minted USDC for trader");
   console.log("All tokens have been minted");
