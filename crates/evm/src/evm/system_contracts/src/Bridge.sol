@@ -13,7 +13,7 @@ import "./L1BlockHashList.sol";
 /// @title Bridge contract of Clementine
 /// @author Citrea
 
-contract Bridge is MerkleTree, Ownable {
+contract Bridge is Ownable, MerkleTree {
     using BTCUtils for bytes;
     using BytesLib for bytes;
 
