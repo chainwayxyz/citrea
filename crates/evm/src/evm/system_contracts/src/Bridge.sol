@@ -31,13 +31,15 @@ contract Bridge is Ownable, MerkleTree {
 
     L1BlockHashList public constant BLOCK_HASH_LIST = L1BlockHashList(address(0x3100000000000000000000000000000000000001)); 
 
-    bytes public depositScript;
-    bytes public scriptSuffix;
     uint256 public constant DEPOSIT_AMOUNT = 1 ether;
     address public operator;
+    uint256 public requiredSigsCount;
+    bytes public depositScript;
+    bytes public scriptSuffix;
+    
     mapping(bytes32 => bool) public blockHashes;
     mapping(bytes32 => bool) public spentWtxIds;
-    uint256 public requiredSigsCount;
+    
 
     event Deposit(bytes32 wtxId, uint256 timestamp);
     event Withdrawal(bytes32  bitcoin_address, uint32 indexed leafIndex, uint256 timestamp);
