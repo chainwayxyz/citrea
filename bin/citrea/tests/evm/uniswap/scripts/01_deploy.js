@@ -1,5 +1,6 @@
 const { Contract, ContractFactory, utils, constants } = require("ethers");
 
+const assert = require("assert");
 const fs = require("fs");
 const { promisify } = require("util");
 
@@ -42,9 +43,21 @@ async function main() {
   console.log("Minted USDC for owner");
   await usdt.connect(owner).mint(trader.address, mintAmount, {nonce: 5});
   console.log("Minted USDT for trader");
-  await usdc.connect(owner).mint(trader.address, mintAmount, {nonce: 6});
+  const mintTraderUsdcA = await usdc.connect(owner).mint(trader.address, mintAmount, {nonce: 6});
+  await mintTraderUsdcA.wait();
   console.log("Minted USDC for trader");
   console.log("All tokens have been minted");
+
+  const ownerUsdt = await usdt.balanceOf(owner.address);
+  const ownerUsdc = await usdc.balanceOf(owner.address);
+  console.log("Owner's USDT, USDC:", ownerUsdt, ownerUsdc);
+  const traderUsdt = await usdt.balanceOf(trader.address);
+  const traderUsdc = await usdc.balanceOf(trader.address);
+  console.log("Trader's USDT, USDC:", traderUsdt, traderUsdc);
+  assert.deepEqual(ownerUsdt, mintAmount);
+  assert.deepEqual(ownerUsdc, mintAmount);
+  assert.deepEqual(traderUsdt, mintAmount);
+  assert.deepEqual(traderUsdc, mintAmount);
 
   console.log("Deploying Uniswap factory...");
   const Factory = new ContractFactory(
@@ -91,13 +104,14 @@ async function main() {
   console.log("Usdc approved for trader");
 
   console.log("Adding liquidity...");
+  const liquidityAmount = utils.parseEther("100");
   const addLiquidityTx = await router
     .connect(owner)
     .addLiquidity(
       usdt.address,
       usdc.address,
-      utils.parseEther("100"),
-      utils.parseEther("100"),
+      liquidityAmount,
+      liquidityAmount,
       0,
       0,
       owner.address,
@@ -115,6 +129,8 @@ async function main() {
   );
   let reserves = await usdtUsdcPair.getReserves();
   console.log("reserves USDT/USDC", reserves);
+  assert.deepEqual(reserves.reserve0, liquidityAmount);
+  assert.deepEqual(reserves.reserve1, liquidityAmount);
 
   let addresses = [
     `USDT_ADDRESS=${usdt.address}`,
