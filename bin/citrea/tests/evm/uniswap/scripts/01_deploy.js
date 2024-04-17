@@ -118,7 +118,7 @@ async function main() {
       Math.floor(Date.now() / 1000 + 10 * 60),
       { gasLimit: utils.hexlify(1_000_000) },
     );
-  addLiquidityTx.wait();
+  await addLiquidityTx.wait();
   console.log("Liquidity added");
 
   const usdtUsdcPairAddress = await factory.getPair(usdt.address, usdc.address);
