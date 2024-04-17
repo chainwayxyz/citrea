@@ -490,7 +490,7 @@ where
                 .map(|rlp| RlpEvmTransaction { rlp })
                 .collect();
 
-            if total_gas < 100_000_000 {
+            if total_gas < 10_000_000_000 {
                 continue;
             }
             tracing::error!("Total gas: {:?}", total_gas);
