@@ -11,7 +11,7 @@ use digest::Digest;
 use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
 use futures::StreamExt;
 use jsonrpsee::RpcModule;
-use reth_primitives::IntoRecoveredTransaction;
+use reth_primitives::{IntoRecoveredTransaction, TransactionSignedEcRecovered};
 use reth_provider::BlockReaderIdExt;
 use reth_transaction_pool::BestTransactionsAttributes;
 use sov_accounts::Accounts;
@@ -350,152 +350,165 @@ where
         self.da_service.get_block_at(1).await.unwrap();
 
         loop {
-            if (self.l2_force_block_rx.next().await).is_some() {
-                // best txs with base fee
-                // get base fee from last blocks => header => next base fee() function
-                let cfg: citrea_evm::EvmChainConfig = self.db_provider.cfg();
+            // best txs with base fee
+            // get base fee from last blocks => header => next base fee() function
+            let cfg: citrea_evm::EvmChainConfig = self.db_provider.cfg();
 
-                let base_fee = self
-                    .db_provider
-                    .latest_header()
-                    .expect("Failed to get latest header")
-                    .map(|header| header.unseal().next_block_base_fee(cfg.base_fee_params))
-                    .expect("Failed to get next block base fee")
-                    .unwrap();
+            let base_fee = self
+                .db_provider
+                .latest_header()
+                .expect("Failed to get latest header")
+                .map(|header| header.unseal().next_block_base_fee(cfg.base_fee_params))
+                .expect("Failed to get next block base fee")
+                .unwrap();
 
-                let best_txs_with_base_fee = self.mempool.best_transactions_with_attributes(
-                    BestTransactionsAttributes::base_fee(base_fee),
+            let best_txs_with_base_fee = self
+                .mempool
+                .best_transactions_with_attributes(BestTransactionsAttributes::base_fee(base_fee));
+
+            let mut prev_l1_height = self
+                .ledger_db
+                .get_head_soft_batch()?
+                .map(|(_, sb)| sb.da_slot_height);
+
+            if prev_l1_height.is_none() {
+                prev_l1_height = Some(
+                    self.da_service
+                        .get_last_finalized_block_header()
+                        .await
+                        .unwrap()
+                        .height(),
                 );
-
-                let mut prev_l1_height = self
-                    .ledger_db
-                    .get_head_soft_batch()?
-                    .map(|(_, sb)| sb.da_slot_height);
-
-                if prev_l1_height.is_none() {
-                    prev_l1_height = Some(
-                        self.da_service
-                            .get_last_finalized_block_header()
-                            .await
-                            .unwrap()
-                            .height(),
-                    );
-                }
-
-                let prev_l1_height = prev_l1_height.unwrap();
-
-                debug!("Sequencer: prev L1 height: {:?}", prev_l1_height);
-
-                let last_finalized_height = self
-                    .da_service
-                    .get_last_finalized_block_header()
-                    .await
-                    .unwrap()
-                    .height();
-
-                debug!(
-                    "Sequencer: last finalized height: {:?}",
-                    last_finalized_height
-                );
-
-                let l1_fee_rate = self.da_service.get_fee_rate().await.unwrap();
-
-                let new_da_block = match last_finalized_height.cmp(&prev_l1_height) {
-                    Ordering::Less => {
-                        panic!("DA L1 height is less than Ledger finalized height");
-                    }
-                    Ordering::Equal => None,
-                    Ordering::Greater => {
-                        // Compare if there is no skip
-                        if last_finalized_height - prev_l1_height > 1 {
-                            // This shouldn't happen. If it does, then we should produce at least 1 block for the blocks in between
-                            for skipped_height in (prev_l1_height + 1)..last_finalized_height {
-                                debug!(
-                                    "Sequencer: publishing empty L2 for skipped L1 block: {:?}",
-                                    skipped_height
-                                );
-                                let da_block =
-                                    self.da_service.get_block_at(skipped_height).await.unwrap();
-                                self.produce_l2_block(da_block, l1_fee_rate, vec![]).await?;
-                            }
-                        }
-                        let prev_l1_height = last_finalized_height - 1;
-                        Some(prev_l1_height)
-                    }
-                };
-
-                if let Some(prev_l1_height) = new_da_block {
-                    debug!("Sequencer: new L1 block, checking if commitment should be submitted");
-
-                    let commitment_info = commitment_controller::get_commitment_info(
-                        &self.ledger_db,
-                        self.config.min_soft_confirmations_per_commitment,
-                        prev_l1_height,
-                    );
-
-                    if commitment_info.is_some() {
-                        debug!("Sequencer: enough soft confirmations to submit commitment");
-                        let commitment_info = commitment_info.unwrap();
-                        let l2_range_to_submit = commitment_info.l2_height_range.clone();
-
-                        // calculate exclusive range end
-                        let range_end = BatchNumber(l2_range_to_submit.end().0 + 1); // cannnot add u64 to BatchNumber directly
-
-                        let soft_confirmation_hashes = self
-                            .ledger_db
-                            .get_soft_batch_range(&(*l2_range_to_submit.start()..range_end))
-                            .expect("Sequencer: Failed to get soft batch range")
-                            .iter()
-                            .map(|sb| sb.hash)
-                            .collect::<Vec<[u8; 32]>>();
-
-                        let commitment = commitment_controller::get_commitment(
-                            commitment_info.clone(),
-                            soft_confirmation_hashes,
-                        );
-
-                        info!("Sequencer: submitting commitment: {:?}", commitment);
-
-                        // submit commitment
-                        self.da_service
-                            .send_tx_no_wait(
-                                DaData::SequencerCommitment(commitment)
-                                    .try_to_vec()
-                                    .unwrap(),
-                            )
-                            .await;
-
-                        self.ledger_db
-                            .set_last_sequencer_commitment_l1_height(SlotNumber(
-                                commitment_info.l1_height_range.end().0,
-                            ))
-                            .expect("Sequencer: Failed to set last sequencer commitment L1 height");
-                    }
-
-                    // TODO: this is where we would include forced transactions from the new L1 block
-                }
-
-                // TODO: implement block builder instead of just including every transaction in order
-                let rlp_txs: Vec<RlpEvmTransaction> = best_txs_with_base_fee
-                    .into_iter()
-                    .map(|tx| {
-                        tx.to_recovered_transaction()
-                            .into_signed()
-                            .envelope_encoded()
-                            .to_vec()
-                    })
-                    .map(|rlp| RlpEvmTransaction { rlp })
-                    .collect();
-
-                let last_finalized_block = self
-                    .da_service
-                    .get_block_at(last_finalized_height)
-                    .await
-                    .unwrap();
-
-                self.produce_l2_block(last_finalized_block, l1_fee_rate, rlp_txs)
-                    .await?;
             }
+
+            let prev_l1_height = prev_l1_height.unwrap();
+
+            debug!("Sequencer: prev L1 height: {:?}", prev_l1_height);
+
+            let last_finalized_height = self
+                .da_service
+                .get_last_finalized_block_header()
+                .await
+                .unwrap()
+                .height();
+
+            debug!(
+                "Sequencer: last finalized height: {:?}",
+                last_finalized_height
+            );
+
+            let l1_fee_rate = self.da_service.get_fee_rate().await.unwrap();
+
+            let new_da_block = match last_finalized_height.cmp(&prev_l1_height) {
+                Ordering::Less => {
+                    panic!("DA L1 height is less than Ledger finalized height");
+                }
+                Ordering::Equal => None,
+                Ordering::Greater => {
+                    // Compare if there is no skip
+                    if last_finalized_height - prev_l1_height > 1 {
+                        // This shouldn't happen. If it does, then we should produce at least 1 block for the blocks in between
+                        for skipped_height in (prev_l1_height + 1)..last_finalized_height {
+                            debug!(
+                                "Sequencer: publishing empty L2 for skipped L1 block: {:?}",
+                                skipped_height
+                            );
+                            let da_block =
+                                self.da_service.get_block_at(skipped_height).await.unwrap();
+                            self.produce_l2_block(da_block, l1_fee_rate, vec![]).await?;
+                        }
+                    }
+                    let prev_l1_height = last_finalized_height - 1;
+                    Some(prev_l1_height)
+                }
+            };
+
+            if let Some(prev_l1_height) = new_da_block {
+                debug!("Sequencer: new L1 block, checking if commitment should be submitted");
+
+                let commitment_info = commitment_controller::get_commitment_info(
+                    &self.ledger_db,
+                    self.config.min_soft_confirmations_per_commitment,
+                    prev_l1_height,
+                );
+
+                if commitment_info.is_some() {
+                    debug!("Sequencer: enough soft confirmations to submit commitment");
+                    let commitment_info = commitment_info.unwrap();
+                    let l2_range_to_submit = commitment_info.l2_height_range.clone();
+
+                    // calculate exclusive range end
+                    let range_end = BatchNumber(l2_range_to_submit.end().0 + 1); // cannnot add u64 to BatchNumber directly
+
+                    let soft_confirmation_hashes = self
+                        .ledger_db
+                        .get_soft_batch_range(&(*l2_range_to_submit.start()..range_end))
+                        .expect("Sequencer: Failed to get soft batch range")
+                        .iter()
+                        .map(|sb| sb.hash)
+                        .collect::<Vec<[u8; 32]>>();
+
+                    let commitment = commitment_controller::get_commitment(
+                        commitment_info.clone(),
+                        soft_confirmation_hashes,
+                    );
+
+                    info!("Sequencer: submitting commitment: {:?}", commitment);
+
+                    // submit commitment
+                    self.da_service
+                        .send_tx_no_wait(
+                            DaData::SequencerCommitment(commitment)
+                                .try_to_vec()
+                                .unwrap(),
+                        )
+                        .await;
+
+                    self.ledger_db
+                        .set_last_sequencer_commitment_l1_height(SlotNumber(
+                            commitment_info.l1_height_range.end().0,
+                        ))
+                        .expect("Sequencer: Failed to set last sequencer commitment L1 height");
+                }
+
+                // TODO: this is where we would include forced transactions from the new L1 block
+            }
+
+            let start_nano = std::time::Instant::now();
+            let mut total_gas = 0u64;
+
+            // TODO: implement block builder instead of just including every transaction in order
+            let rlp_txs: Vec<RlpEvmTransaction> = best_txs_with_base_fee
+                .into_iter()
+                .map(|tx| {
+                    total_gas += tx.gas_limit();
+                    tx.to_recovered_transaction()
+                        .into_signed()
+                        .envelope_encoded()
+                        .to_vec()
+                })
+                .map(|rlp| RlpEvmTransaction { rlp })
+                .collect();
+
+            if total_gas < 100_000_000 {
+                continue;
+            }
+            tracing::error!("Total gas: {:?}", total_gas);
+
+            let last_finalized_block = self
+                .da_service
+                .get_block_at(last_finalized_height)
+                .await
+                .unwrap();
+
+            self.produce_l2_block(last_finalized_block, l1_fee_rate, rlp_txs)
+                .await?;
+
+            let end_nano = std::time::Instant::now();
+
+            let duration = end_nano - start_nano;
+
+            tracing::error!("Producing L2 block took: {:?}", duration);
         }
     }
 
