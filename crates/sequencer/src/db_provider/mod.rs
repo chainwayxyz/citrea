@@ -10,7 +10,7 @@ use reth_provider::{
     ChainSpecProvider, HeaderProvider, ReceiptProvider, ReceiptProviderIdExt, StateProvider,
     StateProviderFactory, StateRootProvider, TransactionsProvider, WithdrawalsProvider,
 };
-use reth_rpc_types::{Block, BlockTransactions};
+use reth_rpc_types::{Block, BlockId, BlockTransactions, TransactionReceipt};
 use reth_trie::updates::TrieUpdates;
 use revm::db::states::bundle_state::BundleState;
 use sov_modules_api::WorkingSet;
@@ -53,6 +53,17 @@ impl<C: sov_modules_api::Context> DbProvider<C> {
             .unwrap()
             .unwrap();
         Ok(Some(rich_block.inner))
+    }
+
+    pub fn last_block_receipts(&self) -> ProviderResult<Option<Vec<TransactionReceipt>>> {
+        let mut working_set = WorkingSet::<C>::new(self.storage.clone());
+        let receipts = self
+            .evm
+            .get_block_receipts(BlockId::Number(BlockNumberOrTag::Latest), &mut working_set)
+            .unwrap()
+            .unwrap();
+
+        Ok(Some(receipts))
     }
 }
 

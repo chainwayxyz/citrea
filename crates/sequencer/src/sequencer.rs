@@ -383,7 +383,7 @@ where
 
             let prev_l1_height = prev_l1_height.unwrap();
 
-            debug!("Sequencer: prev L1 height: {:?}", prev_l1_height);
+            // debug!("Sequencer: prev L1 height: {:?}", prev_l1_height);
 
             let last_finalized_height = self
                 .da_service
@@ -392,10 +392,10 @@ where
                 .unwrap()
                 .height();
 
-            debug!(
-                "Sequencer: last finalized height: {:?}",
-                last_finalized_height
-            );
+            // debug!(
+            //     "Sequencer: last finalized height: {:?}",
+            //     last_finalized_height
+            // );
 
             let l1_fee_rate = self.da_service.get_fee_rate().await.unwrap();
 
@@ -493,7 +493,6 @@ where
             if total_gas < 10_000_000_000 {
                 continue;
             }
-            tracing::error!("Total gas: {:?}", total_gas);
 
             let last_finalized_block = self
                 .da_service
@@ -508,7 +507,22 @@ where
 
             let duration = end_nano - start_nano;
 
-            tracing::error!("Producing L2 block took: {:?}", duration);
+            let block_gas_usage = self
+                .db_provider
+                .last_block_receipts()
+                .unwrap()
+                .unwrap()
+                .iter()
+                .last()
+                .unwrap()
+                .cumulative_gas_used
+                .to_string();
+
+            tracing::error!(
+                "Producing L2 block took: {:?}, gas spent: {:?}",
+                duration,
+                block_gas_usage
+            );
         }
     }
 
