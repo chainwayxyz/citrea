@@ -106,6 +106,22 @@ jobs:
         with:
           command: check
 
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+      - name: Install cargo-risczero
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-risczero@0.19
+      - name: Install risc0-zkvm toolchain
+        run: cargo risczero install
+      - name: Run coverage
+        run: SKIP_GUEST_BUILD=1 make coverage
+
   check_no_std:
     runs-on: ubicloud-standard-4
     if: github.event.pull_request.draft == false
