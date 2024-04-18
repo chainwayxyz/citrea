@@ -288,8 +288,6 @@ async fn test_same_nonce_tx_replacement() {
         .await
         .unwrap_err();
 
-    println!("{}", err.to_string());
-
     assert!(err
         .to_string()
         .contains("replacement transaction underpriced"));
