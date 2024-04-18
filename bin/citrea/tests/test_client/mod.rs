@@ -20,7 +20,6 @@ use sequencer_client::GetSoftBatchResponse;
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
 
 pub const MAX_FEE_PER_GAS: u64 = 1000000001;
-const GAS: u64 = 900000u64;
 
 pub struct TestClient {
     pub(crate) chain_id: u64,
@@ -227,27 +226,13 @@ impl TestClient {
         &self,
         contract_address: H160,
         data: Bytes,
-        nonce: Option<u64>,
+        _nonce: Option<u64>,
     ) -> Result<T, Box<dyn std::error::Error>> {
-        let nonce = match nonce {
-            Some(nonce) => nonce,
-            None => self.current_nonce.load(Ordering::Relaxed),
-        };
         let req = Eip1559TransactionRequest::new()
             .from(self.from_addr)
             .to(contract_address)
             .chain_id(self.chain_id)
             .data(data);
-
-        // let gas = self
-        //     .eth_estimate_gas(TypedTransaction::Eip1559(req.clone()), None)
-        //     .await;
-
-        // req = req
-        //     .gas(gas)
-        //     .nonce(nonce)
-        //     .max_priority_fee_per_gas(10u64)
-        //     .max_fee_per_gas(MAX_FEE_PER_GAS);
 
         let typed_transaction = TypedTransaction::Eip1559(req);
 

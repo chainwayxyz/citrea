@@ -2,7 +2,6 @@ use std::net::SocketAddr;
 
 use citrea_evm::smart_contracts::SimpleStorageContract;
 use citrea_stf::genesis_config::GenesisPaths;
-use ethers::types::{BlockId, BlockNumber};
 use ethers_core::rand::thread_rng;
 use ethers_core::types::U256;
 use ethers_core::utils::Units::Ether;
@@ -78,8 +77,6 @@ async fn execute(
         .await;
     assert_eq!(initial_fee_history.oldest_block, U256::zero());
 
-    dbg!(client.eth_gas_price().await);
-
     // Create 100 wallets and send them some eth
     let wallets_count = 100u32;
     let tx_count_from_single_address = 15u32;
@@ -97,12 +94,9 @@ async fn execute(
 
         if i % tx_count_from_single_address == 0 {
             client.send_publish_batch_request().await;
-            dbg!(client.eth_gas_price().await);
         }
     }
-    dbg!(client.eth_gas_price().await);
     client.send_publish_batch_request().await;
-    dbg!(client.eth_gas_price().await);
 
     // send 15 transactions from each wallet
     for wallet in wallets {
@@ -114,9 +108,7 @@ async fn execute(
                 .await;
         }
     }
-    dbg!(client.eth_gas_price().await);
     client.send_publish_batch_request().await;
-    dbg!(client.eth_gas_price().await);
     let block = client.eth_get_block_by_number(None).await;
     assert!(
         block.gas_used.as_u64() <= reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT,
@@ -130,22 +122,10 @@ async fn execute(
     // get initial gas price from the last committed block. I.e. the price before the transactions
     let initial_gas_price = client.eth_gas_price().await;
 
-    dbg!(client.eth_gas_price().await);
     client.send_publish_batch_request().await;
-    dbg!(client.eth_gas_price().await);
+
     // get new gas price after the transactions that was adjusted in the last block
     let latest_gas_price = client.eth_gas_price().await;
-
-    // get fee history
-    let latest_fee_history = client
-        .eth_fee_history(
-            // block count hex
-            "0x100".to_string(),
-            BlockNumberOrTag::Latest,
-            None,
-        )
-        .await;
-    dbg!(latest_fee_history);
 
     assert!(
         latest_gas_price > initial_gas_price,

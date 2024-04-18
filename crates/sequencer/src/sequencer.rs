@@ -366,11 +366,6 @@ where
                     .next_block_base_fee(cfg.base_fee_params)
                     .expect("Failed to get next block base fee");
 
-                let last_gas_limit = latest_header.gas_limit;
-                let last_gas_used = latest_header.gas_used;
-                // let x = latest_header.gas_target;
-                dbg!(last_gas_limit, last_gas_used);
-
                 let best_txs_with_base_fee = self.mempool.best_transactions_with_attributes(
                     BestTransactionsAttributes::base_fee(base_fee),
                 );
@@ -484,7 +479,7 @@ where
                 }
 
                 // TODO: implement block builder instead of just including every transaction in order
-                let mut cumulative_gas_used = 0;
+                let mut cumulative_gas_used = 0; // This may be bigger than block_gas_limit
                 let rlp_txs: Vec<RlpEvmTransaction> = best_txs_with_base_fee
                     .into_iter()
                     .take_while(|tx| {
@@ -492,11 +487,7 @@ where
                         let tx_gas_limit = tx.transaction.gas_limit();
                         let fits_into_block =
                             cumulative_gas_used + tx_gas_limit <= cfg.block_gas_limit;
-
-                        if fits_into_block {
-                            cumulative_gas_used += tx_gas_limit;
-                        }
-                        // dbg!(fits_into_block, tx_gas_limit, cumulative_gas_used);
+                        cumulative_gas_used += tx_gas_limit;
                         fits_into_block
                     })
                     .map(|tx| {
@@ -507,7 +498,6 @@ where
                     })
                     .map(|rlp| RlpEvmTransaction { rlp })
                     .collect();
-                dbg!(last_finalized_height, cumulative_gas_used);
 
                 let last_finalized_block = self
                     .da_service
