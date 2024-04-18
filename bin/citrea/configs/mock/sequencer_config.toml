@@ -1,6 +1,6 @@
 min_soft_confirmations_per_commitment = 10
 [mempool_conf]
-pending_tx_limit = 10000000
+pending_tx_limit = 100000
 queue_tx_limit = 100000
 base_fee_limit = 100000
 max_account_slots = 16

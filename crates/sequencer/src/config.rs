@@ -10,6 +10,7 @@ pub struct SequencerConfig {
 }
 
 /// Mempool Config for the sequencer
+/// Read: https://github.com/ledgerwatch/erigon/wiki/Transaction-Pool-Design
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct SequencerMempoolConfig {
     /// Max number of transactions in the pending sub-pool
