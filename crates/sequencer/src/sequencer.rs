@@ -492,7 +492,10 @@ where
                         let tx_gas_limit = tx.transaction.gas_limit();
                         let fits_into_block =
                             cumulative_gas_used + tx_gas_limit <= cfg.block_gas_limit;
-                        cumulative_gas_used += tx_gas_limit;
+
+                        if fits_into_block {
+                            cumulative_gas_used += tx_gas_limit;
+                        }
                         // dbg!(fits_into_block, tx_gas_limit, cumulative_gas_used);
                         fits_into_block
                     })

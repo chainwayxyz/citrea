@@ -95,14 +95,20 @@ impl TestClient {
             Some(nonce) => nonce,
             None => self.current_nonce.fetch_add(1, Ordering::Relaxed),
         };
-        let req = Eip1559TransactionRequest::new()
+        let mut req = Eip1559TransactionRequest::new()
             .from(self.from_addr)
             .chain_id(self.chain_id)
+            .data(byte_code);
+
+        let gas = self
+            .eth_estimate_gas(TypedTransaction::Eip1559(req.clone()), None)
+            .await;
+
+        req = req
+            .gas(gas)
             .nonce(nonce)
             .max_priority_fee_per_gas(10u64)
-            .max_fee_per_gas(MAX_FEE_PER_GAS)
-            .gas(GAS)
-            .data(byte_code);
+            .max_fee_per_gas(MAX_FEE_PER_GAS);
 
         let typed_transaction = TypedTransaction::Eip1559(req);
 
@@ -122,14 +128,20 @@ impl TestClient {
             Some(nonce) => nonce,
             None => self.current_nonce.load(Ordering::Relaxed),
         };
-        let req = Eip1559TransactionRequest::new()
+        let mut req = Eip1559TransactionRequest::new()
             .from(self.from_addr)
             .chain_id(self.chain_id)
             .nonce(nonce)
-            .max_priority_fee_per_gas(10u64)
-            .max_fee_per_gas(MAX_FEE_PER_GAS)
-            .gas(GAS)
             .data(byte_code);
+
+        let gas = self
+            .eth_estimate_gas(TypedTransaction::Eip1559(req.clone()), None)
+            .await;
+
+        req = req
+            .gas(gas)
+            .max_priority_fee_per_gas(10u64)
+            .max_fee_per_gas(MAX_FEE_PER_GAS);
 
         let typed_transaction = TypedTransaction::Eip1559(req);
 
@@ -148,15 +160,21 @@ impl TestClient {
             Some(nonce) => nonce,
             None => self.current_nonce.fetch_add(1, Ordering::Relaxed),
         };
-        let req = Eip1559TransactionRequest::new()
+        let mut req = Eip1559TransactionRequest::new()
             .from(self.from_addr)
             .to(contract_address)
             .chain_id(self.chain_id)
+            .data(data);
+
+        let gas = self
+            .eth_estimate_gas(TypedTransaction::Eip1559(req.clone()), None)
+            .await;
+
+        req = req
+            .gas(gas)
             .nonce(nonce)
             .max_priority_fee_per_gas(10u64)
-            .max_fee_per_gas(MAX_FEE_PER_GAS)
-            .gas(GAS)
-            .data(data);
+            .max_fee_per_gas(MAX_FEE_PER_GAS);
 
         let typed_transaction = TypedTransaction::Eip1559(req);
 
@@ -180,16 +198,22 @@ impl TestClient {
             Some(nonce) => nonce,
             None => self.current_nonce.fetch_add(1, Ordering::Relaxed),
         };
-        let req = Eip1559TransactionRequest::new()
+        let mut req = Eip1559TransactionRequest::new()
             .from(self.from_addr)
             .to(contract_address)
             .chain_id(self.chain_id)
-            .nonce(nonce)
-            .max_priority_fee_per_gas(max_priority_fee_per_gas)
-            .max_fee_per_gas(max_fee_per_gas)
-            .gas(GAS)
             .data(data)
             .value(value.unwrap_or(0u64));
+
+        let gas = self
+            .eth_estimate_gas(TypedTransaction::Eip1559(req.clone()), None)
+            .await;
+
+        req = req
+            .gas(gas)
+            .nonce(nonce)
+            .max_priority_fee_per_gas(max_priority_fee_per_gas)
+            .max_fee_per_gas(max_fee_per_gas);
 
         let typed_transaction = TypedTransaction::Eip1559(req);
 
@@ -213,11 +237,17 @@ impl TestClient {
             .from(self.from_addr)
             .to(contract_address)
             .chain_id(self.chain_id)
-            .nonce(nonce)
-            .max_priority_fee_per_gas(10u64)
-            .max_fee_per_gas(MAX_FEE_PER_GAS)
-            .gas(GAS)
             .data(data);
+
+        // let gas = self
+        //     .eth_estimate_gas(TypedTransaction::Eip1559(req.clone()), None)
+        //     .await;
+
+        // req = req
+        //     .gas(gas)
+        //     .nonce(nonce)
+        //     .max_priority_fee_per_gas(10u64)
+        //     .max_fee_per_gas(MAX_FEE_PER_GAS);
 
         let typed_transaction = TypedTransaction::Eip1559(req);
 
@@ -239,15 +269,21 @@ impl TestClient {
             None => self.current_nonce.fetch_add(1, Ordering::Relaxed),
         };
 
-        let req = Eip1559TransactionRequest::new()
+        let mut req = Eip1559TransactionRequest::new()
             .from(self.from_addr)
             .to(to_addr)
             .chain_id(self.chain_id)
+            .value(value);
+
+        let gas = self
+            .eth_estimate_gas(TypedTransaction::Eip1559(req.clone()), None)
+            .await;
+
+        req = req
+            .gas(gas)
             .nonce(nonce)
             .max_priority_fee_per_gas(max_priority_fee_per_gas.unwrap_or(10u64))
-            .max_fee_per_gas(max_fee_per_gas.unwrap_or(MAX_FEE_PER_GAS))
-            .gas(GAS)
-            .value(value);
+            .max_fee_per_gas(max_fee_per_gas.unwrap_or(MAX_FEE_PER_GAS));
 
         let typed_transaction = TypedTransaction::Eip1559(req);
 

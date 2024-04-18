@@ -2,6 +2,7 @@ use std::net::SocketAddr;
 
 use citrea_evm::smart_contracts::SimpleStorageContract;
 use citrea_stf::genesis_config::GenesisPaths;
+use ethers::types::{BlockId, BlockNumber};
 use ethers_core::rand::thread_rng;
 use ethers_core::types::U256;
 use ethers_core::utils::Units::Ether;
