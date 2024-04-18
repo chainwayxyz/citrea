@@ -11,8 +11,6 @@ use sov_rollup_interface::rpc::{
 
 use crate::HexHash;
 
-const LEDGER_RPC_ERROR: &str = "LEDGER_RPC_ERROR";
-
 /// Creates a new [`jsonrpsee::RpcModule`] that exposes all JSON-RPC methods
 /// necessary to interface with the [`LedgerRpcProvider`].
 ///

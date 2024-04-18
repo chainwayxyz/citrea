@@ -14,8 +14,6 @@ use sov_modules_api::utils::to_jsonrpsee_error_object;
 use sov_rollup_interface::services::batch_builder::BatchBuilder;
 use sov_rollup_interface::services::da::DaService;
 
-const SEQUENCER_RPC_ERROR: &str = "SEQUENCER_RPC_ERROR";
-
 /// Single data structure that manages mempool and batch producing.
 pub struct Sequencer<B: BatchBuilder, T: DaService> {
     batch_builder: Mutex<B>,
