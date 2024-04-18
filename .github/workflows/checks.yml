@@ -140,9 +140,13 @@ jobs:
           cd ./bin/citrea/tests/evm/uniswap
           npx hardhat run --network citrea scripts/01_deploy.js
           npx hardhat run --network citrea scripts/02_swap.js
+          seqnHeight=$(curl 0.0.0.0:12345/ -H "Content-Type: application/json" --data '{"method":"eth_getBlockByNumber","params":["latest"],"id":1,"jsonrpc":"2.0"}' | jq .result.number)
+          nodeHeight=$(curl 0.0.0.0:12346/ -H "Content-Type: application/json" --data '{"method":"eth_getBlockByNumber","params":["latest"],"id":1,"jsonrpc":"2.0"}' | jq .result.number)
+          echo seqnHeight: $seqnHeight
+          echo nodeHeight: $nodeHeight
           sleep 10
-          seqnRoot=$(curl 0.0.0.0:12345/ -H "Content-Type: application/json" --data '{"method":"eth_getBlockByNumber","params":["latest"],"id":1,"jsonrpc":"2.0"}' | jq .result.stateRoot)
-          nodeRoot=$(curl 0.0.0.0:12346/ -H "Content-Type: application/json" --data '{"method":"eth_getBlockByNumber","params":["latest"],"id":1,"jsonrpc":"2.0"}' | jq .result.stateRoot)
+          seqnRoot=$(curl 0.0.0.0:12345/ -H "Content-Type: application/json" --data '{"method":"eth_getBlockByNumber","params":['${seqnHeight}'],"id":1,"jsonrpc":"2.0"}' | jq .result.stateRoot)
+          nodeRoot=$(curl 0.0.0.0:12346/ -H "Content-Type: application/json" --data '{"method":"eth_getBlockByNumber","params":['${seqnHeight}'],"id":1,"jsonrpc":"2.0"}' | jq .result.stateRoot)
           echo seqnRoot: $seqnRoot
           echo nodeRoot: $nodeRoot
           if [ "$seqnRoot" != "$nodeRoot" ]; then
