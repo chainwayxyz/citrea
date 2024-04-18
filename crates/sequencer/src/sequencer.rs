@@ -117,7 +117,7 @@ where
         // used as client of reth's mempool
         let db_provider = DbProvider::new(storage.clone());
 
-        let pool = CitreaMempool::new(db_provider.clone());
+        let pool = CitreaMempool::new(db_provider.clone(), config.mempool_conf.clone());
 
         Ok(Self {
             da_service,
