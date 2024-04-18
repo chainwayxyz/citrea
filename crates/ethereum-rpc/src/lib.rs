@@ -214,7 +214,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
 
         // convert block count to u64 from hex
         let block_count = u64::from_str_radix(&block_count[2..], 16)
-            .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
+            .map_err(|e| to_jsonrpsee_error_object(&e.to_string(), e))?;
 
         let fee_history = {
             let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
@@ -482,8 +482,8 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                     Some(block_number) => block_number,
                     None => {
                         return Err(to_jsonrpsee_error_object(
+                            &EthApiError::UnknownBlockNumber.to_string(),
                             EthApiError::UnknownBlockNumber,
-                            ETH_RPC_ERROR,
                         ));
                     }
                 };
@@ -497,7 +497,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                         None,
                         &mut working_set,
                     )
-                    .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR));
+                    .map_err(|e| to_jsonrpsee_error_object(&e.to_string(), e));
             }
 
             if let Some(traces) = ethereum.trace_cache.lock().unwrap().get(&block_number) {
@@ -518,7 +518,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                     None,
                     &mut working_set,
                 )
-                .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
+                .map_err(|e| to_jsonrpsee_error_object(&e.to_string(), e))?;
             ethereum
                 .trace_cache
                 .lock()
@@ -554,8 +554,8 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                 BlockNumberOrTag::Latest => convert_u256_to_u64(evm.block_number(&mut working_set)?),
                 _ => {
                     return Err(to_jsonrpsee_error_object(
+                        "Earliest, pending, safe and finalized are not supported for debug_traceBlockByNumber",
                         EthApiError::Unsupported("Earliest, pending, safe and finalized are not supported for debug_traceBlockByNumber"),
-                        ETH_RPC_ERROR,
                     ));
                 }
             };
@@ -563,7 +563,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
             // If opts is None or if opts.tracer is None, then do not check cache or insert cache, just perform the operation
             if opts.as_ref().map_or(true, |o| o.tracer.is_none()) {
                 return evm.trace_block_transactions_by_number(block_number, opts.clone(), None, &mut working_set)
-                        .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR));
+                        .map_err(|e| to_jsonrpsee_error_object(&e.to_string(), e));
             }
 
             if let Some(traces) = ethereum.trace_cache.lock().unwrap().get(&block_number) {
@@ -582,7 +582,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                     None,
                     &mut working_set,
                 )
-                .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
+                .map_err(|e| to_jsonrpsee_error_object(&e.to_string(), e))?;
                 ethereum
                     .trace_cache
                     .lock()
@@ -642,7 +642,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                         Some(trace_index as usize),
                         &mut working_set,
                     )
-                    .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?
+                    .map_err(|e| to_jsonrpsee_error_object(&e.to_string(), e))?
                         [trace_index as usize]
                         .clone(),
                 );
@@ -668,7 +668,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                     None,
                     &mut working_set,
                 )
-                .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
+                .map_err(|e| to_jsonrpsee_error_object(&e.to_string(), e))?;
             ethereum
                 .trace_cache
                 .lock()
@@ -730,7 +730,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                     .send_raw_tx(data)
                     .await;
 
-                tx_hash.map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))
+                tx_hash.map_err(|e| to_jsonrpsee_error_object(&e.to_string(), e))
             },
         )?;
 
@@ -755,7 +755,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                             .unwrap()
                             .get_tx_by_hash(hash, Some(true))
                             .await
-                            .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
+                            .map_err(|e| to_jsonrpsee_error_object(&e.to_string(), e))?;
 
                         Ok::<Option<reth_rpc_types::Transaction>, ErrorObjectOwned>(tx)
                     }
@@ -776,13 +776,13 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                                     .unwrap()
                                     .get_tx_by_hash(hash, Some(true))
                                     .await
-                                    .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
+                                    .map_err(|e| to_jsonrpsee_error_object(&e.to_string(), e))?;
 
                                 Ok::<Option<reth_rpc_types::Transaction>, ErrorObjectOwned>(tx)
                             }
                             Err(e) => {
                                 // return error
-                                Err(to_jsonrpsee_error_object(e, ETH_RPC_ERROR))
+                                Err(to_jsonrpsee_error_object(&e.to_string(), e))
                             }
                         }
                     }
@@ -832,7 +832,7 @@ pub fn get_latest_git_tag() -> Result<String, ErrorObjectOwned> {
     let latest_tag_commit = Command::new("git")
         .args(["rev-list", "--tags", "--max-count=1"])
         .output()
-        .map_err(|e| to_jsonrpsee_error_object(e, "Failed to get version"))?;
+        .map_err(|e| to_jsonrpsee_error_object("Failed to get version", e))?;
 
     if !latest_tag_commit.status.success() {
         return Err(to_jsonrpsee_error_object(
@@ -848,7 +848,7 @@ pub fn get_latest_git_tag() -> Result<String, ErrorObjectOwned> {
     let latest_tag = Command::new("git")
         .args(["describe", "--tags", &latest_tag_commit])
         .output()
-        .map_err(|e| to_jsonrpsee_error_object(e, "Failed to get version"))?;
+        .map_err(|e| to_jsonrpsee_error_object("Failed to get version", e))?;
 
     if !latest_tag.status.success() {
         return Err(to_jsonrpsee_error_object(
