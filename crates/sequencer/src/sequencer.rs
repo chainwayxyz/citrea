@@ -479,15 +479,17 @@ where
                 }
 
                 // TODO: implement block builder instead of just including every transaction in order
-                let mut cumulative_gas_used = 0; // This may be bigger than block_gas_limit
+                let mut cumulative_gas_used = 0;
                 let rlp_txs: Vec<RlpEvmTransaction> = best_txs_with_base_fee
                     .into_iter()
-                    .take_while(|tx| {
+                    .filter(|tx| {
                         // Don't include transactions that exceed the block gas limit
                         let tx_gas_limit = tx.transaction.gas_limit();
                         let fits_into_block =
                             cumulative_gas_used + tx_gas_limit <= cfg.block_gas_limit;
-                        cumulative_gas_used += tx_gas_limit;
+                        if fits_into_block {
+                            cumulative_gas_used += tx_gas_limit
+                        }
                         fits_into_block
                     })
                     .map(|tx| {
