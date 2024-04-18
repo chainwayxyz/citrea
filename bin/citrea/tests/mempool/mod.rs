@@ -60,7 +60,7 @@ async fn test_same_nonce_tx_should_panic() {
     // send tx with nonce 1 again and expect it to be rejected
     let res = test_client.send_eth(addr, None, None, Some(1), 0u128).await;
 
-    assert!(res.unwrap_err().to_string().contains("already imported"));
+    assert!(res.unwrap_err().to_string().contains("already known"));
 
     seq_task.abort();
 }
@@ -86,8 +86,7 @@ async fn test_nonce_too_low() {
         .unwrap();
 
     let res = test_client.send_eth(addr, None, None, Some(0), 0u128).await;
-
-    assert!(res.unwrap_err().to_string().contains("already imported"));
+    assert!(res.unwrap_err().to_string().contains("already known"));
 
     seq_task.abort();
 }
@@ -289,9 +288,11 @@ async fn test_same_nonce_tx_replacement() {
         .await
         .unwrap_err();
 
+    println!("{}", err.to_string());
+
     assert!(err
         .to_string()
-        .contains("insufficient gas price to replace existing transaction"));
+        .contains("replacement transaction underpriced"));
 
     // Replacement error with equal fee
     let err = test_client
@@ -299,7 +300,7 @@ async fn test_same_nonce_tx_replacement() {
         .await
         .unwrap_err();
 
-    assert!(err.to_string().contains("already imported"));
+    assert!(err.to_string().contains("already known"));
 
     // Replacement error with enough base fee but low priority fee
     let err = test_client
@@ -315,7 +316,7 @@ async fn test_same_nonce_tx_replacement() {
 
     assert!(err
         .to_string()
-        .contains("insufficient gas price to replace existing transaction"));
+        .contains("replacement transaction underpriced"));
 
     // Replacement error with enough base fee but low priority fee
     let err = test_client
@@ -331,7 +332,7 @@ async fn test_same_nonce_tx_replacement() {
 
     assert!(err
         .to_string()
-        .contains("insufficient gas price to replace existing transaction"));
+        .contains("replacement transaction underpriced"));
 
     // Replacement error with not enough fee increase (like 5% or sth.)
     let err = test_client
@@ -347,7 +348,7 @@ async fn test_same_nonce_tx_replacement() {
 
     assert!(err
         .to_string()
-        .contains("insufficient gas price to replace existing transaction"));
+        .contains("replacement transaction underpriced"));
 
     // Replacement success with 10% fee bump - does not work
     let err = test_client
@@ -363,7 +364,7 @@ async fn test_same_nonce_tx_replacement() {
 
     assert!(err
         .to_string()
-        .contains("insufficient gas price to replace existing transaction"));
+        .contains("replacement transaction underpriced"));
 
     let err = test_client
         .send_eth(
@@ -378,7 +379,7 @@ async fn test_same_nonce_tx_replacement() {
 
     assert!(err
         .to_string()
-        .contains("insufficient gas price to replace existing transaction"));
+        .contains("replacement transaction underpriced"));
 
     // Replacement success with more than 10% bump
     let tx_hash_11_bump = test_client

@@ -185,7 +185,7 @@ mod tests {
         assert!(result.is_err());
         let error = result.err().unwrap();
         assert_eq!(
-            "ErrorObject { code: ServerError(-32001), message: \"SEQUENCER_RPC_ERROR\", data: Some(RawValue(\"Mock mempool is empty\")) }",
+            "ErrorObject { code: ServerError(-32001), message: \"Mock mempool is empty\", data: Some(RawValue(\"Mock mempool is empty\")) }",
             error.to_string()
         );
     }

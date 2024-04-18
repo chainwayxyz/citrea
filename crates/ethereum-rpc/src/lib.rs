@@ -30,8 +30,6 @@ use tracing::info;
 
 use crate::gas_price::gas_oracle::convert_u256_to_u64;
 
-const ETH_RPC_ERROR: &str = "ETH_RPC_ERROR";
-
 const MAX_TRACE_BLOCK: u32 = 1000;
 
 #[derive(Clone)]
