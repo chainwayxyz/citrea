@@ -108,6 +108,7 @@ jobs:
 
   uniswap:
     runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
