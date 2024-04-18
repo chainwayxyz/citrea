@@ -164,6 +164,7 @@ jobs:
           cd ./bin/citrea/tests/evm/uniswap
           npx hardhat run --network citrea scripts/01_deploy.js
           npx hardhat run --network citrea scripts/02_swap.js
+          sleep 3
           seqnRoot=$(curl 0.0.0.0:12345/ -H "Content-Type: application/json" --data '{"method":"eth_getBlockByNumber","params":["latest"],"id":1,"jsonrpc":"2.0"}' | jq .result.stateRoot)
           nodeRoot=$(curl 0.0.0.0:12346/ -H "Content-Type: application/json" --data '{"method":"eth_getBlockByNumber","params":["latest"],"id":1,"jsonrpc":"2.0"}' | jq .result.stateRoot)
           echo seqnRoot: $seqnRoot
