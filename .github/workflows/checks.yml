@@ -107,7 +107,7 @@ jobs:
           command: check
 
   coverage:
-    runs-on: ubicloud-standard-4
+    runs-on: ubicloud-standard-16
     if: github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v4
