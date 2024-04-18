@@ -106,6 +106,7 @@ criterion = "0.5.1"
 log = "0.4"
 log4rs = "1.0"
 regex = "1.10"
+rustc_version_runtime = "0.3.0"
 
 [features]
 default = [
