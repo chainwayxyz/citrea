@@ -31,6 +31,7 @@ contract Bridge is Ownable, MerkleTree {
 
     L1BlockHashList public constant BLOCK_HASH_LIST = L1BlockHashList(address(0x3100000000000000000000000000000000000001)); 
 
+    bool public initialized;
     uint256 public constant DEPOSIT_AMOUNT = 1 ether;
     address public operator;
     uint256 public requiredSigsCount;
@@ -51,7 +52,21 @@ contract Bridge is Ownable, MerkleTree {
         _;
     }
 
-    constructor(uint32 _levels) MerkleTree(_levels) {}
+    constructor() {}
+
+    function initialize(uint32 _levels, bytes calldata _depositScript, bytes calldata _scriptSuffix, uint256 _requiredSigsCount) external onlyOwner {
+        require(!initialized, "Contract is already initialized");
+        require(_requiredSigsCount != 0, "Verifier count cannot be 0");
+        require(_depositScript.length != 0, "Deposit script cannot be empty");
+
+        initialized = true;
+        initializeTree(_levels);
+        depositScript = _depositScript;
+        scriptSuffix = _scriptSuffix;
+        requiredSigsCount = _requiredSigsCount;
+
+        emit DepositScriptUpdate(_depositScript, _scriptSuffix, _requiredSigsCount);
+    }
 
     /// @notice Sets the expected deposit script of the deposit transaction on Bitcoin, contained in the witness
     /// @dev Deposit script contains a fixed script that checks signatures of verifiers and pushes EVM address of the receiver
@@ -74,7 +89,7 @@ contract Bridge is Ownable, MerkleTree {
     function deposit(
         DepositParams calldata p
     ) external onlyOperator {
-        require(requiredSigsCount != 0, "Contract is not initialized");
+        require(initialized, "Contract is not initialized");
         
         bytes32 wtxId = WitnessUtils.calculateWtxId(p.version, p.flag, p.vin, p.vout, p.witness, p.locktime);
         require(!spentWtxIds[wtxId], "wtxId already spent");

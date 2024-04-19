@@ -12,7 +12,7 @@ import "bitcoin-spv/solidity/contracts/BTCUtils.sol";
 // !!! - Write fuzz tests for deposit and withdraw actions with random Bitcoin txns if this goes to production
 
 contract BridgeHarness is Bridge {
-    constructor(uint32 _levels) Bridge(_levels) {}
+    constructor() {}
     // Overriding in harness is needed as internal functions are not accessible in the test
     function isBytesEqual_(bytes memory a, bytes memory b) public pure returns (bool result) {
         result = super.isBytesEqual(a, b);
@@ -43,7 +43,8 @@ contract BridgeTest is Test {
     bytes32 mockBlockhash = keccak256("CITREA_TEST");
 
     function setUp() public {
-        bridge = new BridgeHarness(31);
+        bridge = new BridgeHarness();
+        bridge.initialize(31, depositScript, scriptSuffix, 5);
         vm.deal(address(bridge), 21_000_000 ether);
         address block_hash_list_impl = address(new L1BlockHashList());
         L1BlockHashList l1BlockHashList = bridge.BLOCK_HASH_LIST();
@@ -59,8 +60,6 @@ contract BridgeTest is Test {
         
         // Arbitrary blockhash as this is mock 
         l1BlockHashList.setBlockInfo(mockBlockhash, witnessRoot);
-
-        bridge.setDepositScript(depositScript, scriptSuffix, 5);
     }
 
     function testZeros() public view {
