@@ -59,3 +59,39 @@ impl L1BlockHashList {
             .expect("ABI for system contract should be correct")
     }
 }
+
+/// Bridge wrapper.
+pub struct Bridge {
+    base_contract: BaseContract,
+}
+
+impl Default for Bridge {
+    fn default() -> Self {
+        let base_contract = make_contract_from_abi(include_str!(
+            "./out/Bridge.sol/Bridge.json"
+        ));
+        Self { base_contract }
+    }
+}
+
+impl Bridge {
+    pub(crate) fn address() -> Address {
+        address!("3100000000000000000000000000000000000002")
+    }
+
+    pub(crate) fn set_deposit_script(&self, deposit_script: Bytes, script_suffix: Bytes, required_sigs_count: u64) -> Bytes {
+        let args = (deposit_script, script_suffix, ethereum_types::U256::from(required_sigs_count));
+        self.base_contract
+            .encode("setDepositScript", args)
+            .expect("ABI for system contract should be correct")
+    }
+
+    pub(crate) fn deposit(&self, version: [u8; 4], flag: [u8; 2], vin: Bytes, vout: Bytes, witness: Bytes, locktime: [u8; 4], intermediate_nodes: Bytes, block_height: u64, index: u64) -> Bytes {
+        let args = (version, flag, vin, vout, witness, locktime, intermediate_nodes, ethereum_types::U256::from(block_height), ethereum_types::U256::from(index));
+        self.base_contract
+            .encode("deposit", args)
+            .expect("ABI for system contract should be correct")
+    }
+}
+
+

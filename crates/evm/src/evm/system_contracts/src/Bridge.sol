@@ -92,11 +92,12 @@ contract Bridge is Ownable, MerkleTree {
 
     /// @notice Checks if funds 1 BTC is sent to the bridge multisig on Bitcoin, and if so, sends 1 cBTC to the receiver
     /// @param p The deposit parameters that contains the info of the deposit transaction on Bitcoin
-    /// @param p The deposit parameters that contains the info of the deposit transaction on Bitcoin
     function deposit(
         DepositParams calldata p
     ) external onlyOperator {
-        require(initialized, "Contract is not initialized");
+        // We don't need to check if the contract is initialized, as without a `initialize` call, only the `owner` address can
+        // execute any transaction on Citrea as it is the only EOA that has any balance before any call to `deposit` is made. 
+        // So it is not possible to call `deposit` maliciously before `initialize` is called.
         
         bytes32 wtxId = WitnessUtils.calculateWtxId(p.version, p.flag, p.vin, p.vout, p.witness, p.locktime);
         require(!spentWtxIds[wtxId], "wtxId already spent");
