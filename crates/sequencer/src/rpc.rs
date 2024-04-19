@@ -43,8 +43,7 @@ pub(crate) fn create_rpc_module<C: sov_modules_api::Context>(
             .await
             .map_err(|e| {
                 let err = RpcPoolError::from(e);
-                let error_string = err.to_string();
-                to_jsonrpsee_error_object(&error_string, err)
+                to_jsonrpsee_error_object(&err.to_string(), err)
             })?;
 
         Ok::<B256, ErrorObjectOwned>(hash)
