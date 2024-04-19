@@ -57,6 +57,11 @@ contract Bridge is Ownable, MerkleTree {
 
     constructor() {}
 
+    /// @notice Initializes the bridge contract, caches the sublevels of the withdrawal tree and sets the deposit script
+    /// @param _levels The depth of the Merkle tree
+    /// @param _depositScript The deposit script expected in the witness field for all L1 deposits
+    /// @param _scriptSuffix The suffix of the deposit script that follows the receiver address
+    /// @param _requiredSigsCount The number of signatures that is contained in the deposit script
     function initialize(uint32 _levels, bytes calldata _depositScript, bytes calldata _scriptSuffix, uint256 _requiredSigsCount) external onlyOwner {
         require(!initialized, "Contract is already initialized");
         require(_requiredSigsCount != 0, "Verifier count cannot be 0");
