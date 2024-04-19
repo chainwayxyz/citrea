@@ -5,11 +5,6 @@ import "bitcoin-spv/solidity/contracts/ValidateSPV.sol";
 import "bitcoin-spv/solidity/contracts/BTCUtils.sol";
 import "../lib/WitnessUtils.sol";
 import "../lib/Ownable.sol";
-
-import "../lib/WitnessUtils.sol";
-import "../lib/Ownable.sol";
-
-
 import "./MerkleTree.sol";
 import "./L1BlockHashList.sol";
 
