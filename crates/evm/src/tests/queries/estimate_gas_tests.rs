@@ -198,7 +198,6 @@ fn test_tx_request_fields_gas() {
         ..tx_req_contract_call.clone()
     };
 
-    // TODO: Fix create_access_list returning wrong gas (i.e. returns as if access list is none, rather than the provided argument).
     let create_no_access_list_test = evm.create_access_list(
         no_access_list_req,
         Some(BlockNumberOrTag::Latest),
@@ -216,9 +215,7 @@ fn test_tx_request_fields_gas() {
                 .unwrap()]
             }])
             .into(),
-            // This should actually be 0x6e66
-            // See: https://github.com/chainwayxyz/citrea/issues/272
-            gas_used: Uint::from_str("0x6601").unwrap()
+            gas_used: Uint::from_str("0x6e66").unwrap()
         }
     );
 
@@ -323,7 +320,7 @@ fn test_access_list() {
                 .unwrap()]
             }])
             .into(),
-            gas_used: Uint::from_str("0x788b").unwrap()
+            gas_used: Uint::from_str("0x775d").unwrap()
         }
     );
 

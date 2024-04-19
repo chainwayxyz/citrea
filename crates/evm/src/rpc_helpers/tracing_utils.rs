@@ -172,6 +172,26 @@ where
     evm.transact()
 }
 
+pub(crate) fn inspect_no_tracing<DB>(
+    db: DB,
+    config_env: CfgEnvWithHandlerCfg,
+    block_env: BlockEnv,
+    tx_env: TxEnv,
+) -> Result<ResultAndState, EVMError<DB::Error>>
+where
+    DB: Database,
+    <DB as Database>::Error: Into<EthApiError>,
+{
+    let mut evm = revm::Evm::builder()
+        .with_db(db)
+        .with_cfg_env_with_handler_cfg(config_env)
+        .with_block_env(block_env)
+        .with_tx_env(tx_env)
+        .build();
+
+    evm.transact()
+}
+
 /// Taken from reth
 /// https://github.com/paradigmxyz/reth/blob/606640285e763b64519213bad34c76fe4d24652f/crates/rpc/rpc/src/eth/revm_utils.rs#L69
 /// Helper type to work with different transaction types when configuring the EVM env.

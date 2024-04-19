@@ -13,7 +13,7 @@ use futures::StreamExt;
 use jsonrpsee::RpcModule;
 use reth_primitives::IntoRecoveredTransaction;
 use reth_provider::BlockReaderIdExt;
-use reth_transaction_pool::BestTransactionsAttributes;
+use reth_transaction_pool::{BestTransactionsAttributes, PoolTransaction};
 use sov_accounts::Accounts;
 use sov_accounts::Response::{AccountEmpty, AccountExists};
 use sov_db::ledger_db::{LedgerDB, SlotCommit};
@@ -355,13 +355,16 @@ where
                 // get base fee from last blocks => header => next base fee() function
                 let cfg: citrea_evm::EvmChainConfig = self.db_provider.cfg();
 
-                let base_fee = self
+                let latest_header = self
                     .db_provider
                     .latest_header()
                     .expect("Failed to get latest header")
-                    .map(|header| header.unseal().next_block_base_fee(cfg.base_fee_params))
-                    .expect("Failed to get next block base fee")
-                    .unwrap();
+                    .expect("Latest header must always exist")
+                    .unseal();
+
+                let base_fee = latest_header
+                    .next_block_base_fee(cfg.base_fee_params)
+                    .expect("Failed to get next block base fee");
 
                 let best_txs_with_base_fee = self.mempool.best_transactions_with_attributes(
                     BestTransactionsAttributes::base_fee(base_fee),
@@ -476,8 +479,19 @@ where
                 }
 
                 // TODO: implement block builder instead of just including every transaction in order
+                let mut cumulative_gas_used = 0;
                 let rlp_txs: Vec<RlpEvmTransaction> = best_txs_with_base_fee
                     .into_iter()
+                    .filter(|tx| {
+                        // Don't include transactions that exceed the block gas limit
+                        let tx_gas_limit = tx.transaction.gas_limit();
+                        let fits_into_block =
+                            cumulative_gas_used + tx_gas_limit <= cfg.block_gas_limit;
+                        if fits_into_block {
+                            cumulative_gas_used += tx_gas_limit
+                        }
+                        fits_into_block
+                    })
                     .map(|tx| {
                         tx.to_recovered_transaction()
                             .into_signed()
