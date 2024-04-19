@@ -61,7 +61,7 @@ pub(crate) fn create_rpc_module<C: sov_modules_api::Context>(
     rpc.register_async_method("eth_getTransactionByHash", |parameters, ctx| async move {
         let mut params = parameters.sequence();
         let hash: B256 = params.next().unwrap();
-        let mempool_only: Result<Option<bool>, ErrorObjectOwned> = params.next();
+        let mempool_only: Result<Option<bool>, ErrorObjectOwned> = params.optional_next();
         info!(
             "Sequencer: eth_getTransactionByHash({}, {:?})",
             hash, mempool_only

@@ -6,6 +6,9 @@ import "bitcoin-spv/solidity/contracts/BTCUtils.sol";
 import "../lib/WitnessUtils.sol";
 import "../lib/Ownable.sol";
 
+import "../lib/WitnessUtils.sol";
+import "../lib/Ownable.sol";
+
 
 import "./MerkleTree.sol";
 import "./L1BlockHashList.sol";
@@ -44,6 +47,7 @@ contract Bridge is Ownable, MerkleTree {
 
     event Deposit(bytes32 wtxId, uint256 timestamp);
     event Withdrawal(bytes32  bitcoin_address, uint32 indexed leafIndex, uint256 timestamp);
+    event DepositScriptUpdate(bytes depositScript, bytes scriptSuffix, uint256 requiredSigsCount);
     event DepositScriptUpdate(bytes depositScript, bytes scriptSuffix, uint256 requiredSigsCount);
     event OperatorUpdated(address oldOperator, address newOperator);
 
@@ -86,7 +90,9 @@ contract Bridge is Ownable, MerkleTree {
 
     /// @notice Checks if funds 1 BTC is sent to the bridge multisig on Bitcoin, and if so, sends 1 cBTC to the receiver
     /// @param p The deposit parameters that contains the info of the deposit transaction on Bitcoin
+    /// @param p The deposit parameters that contains the info of the deposit transaction on Bitcoin
     function deposit(
+        DepositParams calldata p
         DepositParams calldata p
     ) external onlyOperator {
         require(initialized, "Contract is not initialized");

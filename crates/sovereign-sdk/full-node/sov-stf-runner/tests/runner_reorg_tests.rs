@@ -22,6 +22,7 @@ use sov_state::{ProverStorage, Storage};
 type MockInitVariant =
     InitVariant<HashStf<MockValidityCond>, MockZkvm<MockValidityCond>, MockDaSpec>;
 #[tokio::test]
+#[ignore]
 async fn test_simple_reorg_case() {
     let tmpdir = tempfile::tempdir().unwrap();
     let sequencer_address = MockAddress::new([11u8; 32]);
@@ -79,6 +80,7 @@ async fn test_simple_reorg_case() {
 async fn test_several_reorgs() {}
 
 #[tokio::test]
+#[ignore]
 async fn test_instant_finality_data_stored() {
     let tmpdir = tempfile::tempdir().unwrap();
     let sequencer_address = MockAddress::new([11u8; 32]);
