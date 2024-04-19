@@ -7,6 +7,7 @@ use revm::{self, Context, Database, DatabaseCommit, EvmContext};
 use super::conversions::create_tx_env;
 use super::handler::{citrea_handler, CitreaExternalExt};
 use super::primitive_types::BlockEnv;
+use crate::SYSTEM_SIGNER;
 
 struct CitreaEvm<'a, EXT, DB: Database> {
     evm: revm::Evm<'a, EXT, DB>,
@@ -80,6 +81,11 @@ pub(crate) fn execute_multiple_tx<
             Err(EVMError::Transaction(
                 InvalidTransaction::CallerGasLimitMoreThanBlock,
             ))
+        } else if tx.signer() == SYSTEM_SIGNER {
+            Err(EVMError::Custom(format!(
+                "Ignored system transaction: {:?}",
+                hex::encode(tx.hash())
+            )))
         } else {
             evm.transact_commit(tx)
         };
