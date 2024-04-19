@@ -25,6 +25,7 @@ pub(crate) struct RpcContext<C: sov_modules_api::Context> {
 
 pub(crate) fn create_rpc_module<C: sov_modules_api::Context>(
     rpc_context: RpcContext<C>,
+    test_mode: bool,
 ) -> Result<RpcModule<RpcContext<C>>, jsonrpsee::core::Error> {
     let mut rpc = RpcModule::new(rpc_context);
     rpc.register_async_method("eth_sendRawTransaction", |parameters, ctx| async move {
@@ -45,11 +46,15 @@ pub(crate) fn create_rpc_module<C: sov_modules_api::Context>(
             .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
         Ok::<B256, ErrorObjectOwned>(hash)
     })?;
-    rpc.register_async_method("eth_publishBatch", |_, ctx| async move {
-        info!("Sequencer: eth_publishBatch");
-        ctx.l2_force_block_tx.unbounded_send(()).unwrap();
-        Ok::<(), ErrorObjectOwned>(())
-    })?;
+
+    if test_mode {
+        rpc.register_async_method("eth_publishBatch", |_, ctx| async move {
+            info!("Sequencer: eth_publishBatch");
+            ctx.l2_force_block_tx.unbounded_send(()).unwrap();
+            Ok::<(), ErrorObjectOwned>(())
+        })?;
+    }
+
     rpc.register_async_method("da_publishBlock", |_, _ctx| async move {
         info!("Sequencer: da_publishBlock");
         let da = MockDaService::new(MockAddress::from([0; 32]));

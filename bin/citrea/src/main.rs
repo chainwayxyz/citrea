@@ -150,7 +150,7 @@ where
 
     if let Some(sequencer_config) = sequencer_config {
         rollup_config.sequencer_client = None;
-
+        let test_mode = sequencer_config.test_mode;
         let sequencer_rollup = rollup_blueprint
             .create_new_sequencer(
                 rt_genesis_paths,
@@ -160,7 +160,7 @@ where
             )
             .await
             .unwrap();
-        sequencer_rollup.run().await?;
+        sequencer_rollup.run(test_mode).await?;
     } else {
         if rollup_config.sequencer_client.is_none() {
             return Err(anyhow!("Must have sequencer client for full nodes!"));
