@@ -5,7 +5,7 @@ use futures::channel::mpsc::UnboundedSender;
 use jsonrpsee::types::{ErrorObject, ErrorObjectOwned};
 use jsonrpsee::RpcModule;
 use reth_primitives::{Bytes, FromRecoveredPooledTransaction, IntoRecoveredTransaction, B256};
-use reth_rpc::eth::error::RpcPoolError;
+use reth_rpc::eth::error::{EthApiError, RpcPoolError};
 use reth_rpc_types_compat::transaction::from_recovered;
 use reth_transaction_pool::EthPooledTransaction;
 use sov_mock_da::{MockAddress, MockDaService};
@@ -40,7 +40,7 @@ pub(crate) fn create_rpc_module<C: sov_modules_api::Context>(
             .mempool
             .add_external_transaction(pool_transaction)
             .await
-            .map_err(|e| ErrorObject::from(RpcPoolError::from(e)))?;
+            .map_err(|e| EthApiError::from(e))?;
 
         Ok::<B256, ErrorObjectOwned>(hash)
     })?;
