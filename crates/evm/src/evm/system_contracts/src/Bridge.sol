@@ -55,8 +55,6 @@ contract Bridge is Ownable, MerkleTree {
         _;
     }
 
-    constructor() {}
-
     /// @notice Initializes the bridge contract, caches the sublevels of the withdrawal tree and sets the deposit script
     /// @param _levels The depth of the Merkle tree
     /// @param _depositScript The deposit script expected in the witness field for all L1 deposits
