@@ -485,14 +485,12 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
 
             // If opts is None or if opts.tracer is None, then do not check cache or insert cache, just perform the operation
             if opts.as_ref().map_or(true, |o| o.tracer.is_none()) {
-                return evm
-                    .trace_block_transactions_by_number(
-                        block_number,
-                        opts.clone(),
-                        None,
-                        &mut working_set,
-                    )
-                    .map_err(|e| e.into());
+                return evm.trace_block_transactions_by_number(
+                    block_number,
+                    opts.clone(),
+                    None,
+                    &mut working_set,
+                );
             }
 
             if let Some(traces) = ethereum.trace_cache.lock().unwrap().get(&block_number) {
