@@ -124,11 +124,14 @@ jobs:
         run: cargo risczero install
       - name: Run coverage
         run: SKIP_GUEST_BUILD=1 make coverage
+      - name: Check everything
+        run: stat ./lcov.info
       - name: Upload coverage
         uses: codecov/codecov-action@v4
         with:
           fail_ci_if_error: true # optional (default = false)
           files: ./lcov.info
+          verbose: true
           token: ${{ secrets.CODECOV_TOKEN }}
 
   uniswap:
