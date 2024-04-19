@@ -123,6 +123,7 @@ async fn execute(
     let initial_gas_price = client.eth_gas_price().await;
 
     client.send_publish_batch_request().await;
+
     // get new gas price after the transactions that was adjusted in the last block
     let latest_gas_price = client.eth_gas_price().await;
 
