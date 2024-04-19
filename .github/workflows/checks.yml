@@ -106,6 +106,31 @@ jobs:
         with:
           command: check
 
+  coverage:
+    runs-on: ubicloud-standard-16
+    if: github.event.pull_request.draft == false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+      - uses: taiki-e/install-action@nextest
+      - uses: taiki-e/install-action@cargo-llvm-cov
+      - name: Install cargo-risczero
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-risczero@0.19
+      - name: Install risc0-zkvm toolchain
+        run: cargo risczero install
+      - name: Run coverage
+        run: SKIP_GUEST_BUILD=1 make coverage
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          fail_ci_if_error: true # optional (default = false)
+          files: ./lcov.info
+          token: ${{ secrets.CODECOV_TOKEN }}
+
   uniswap:
     runs-on: ubicloud-standard-16
     if: github.event.pull_request.draft == false
@@ -153,7 +178,6 @@ jobs:
             echo "State root mismatch";
             exit 1
           fi
-
 
   check_no_std:
     runs-on: ubicloud-standard-4
