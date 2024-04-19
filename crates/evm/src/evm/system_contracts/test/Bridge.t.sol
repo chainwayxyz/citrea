@@ -12,6 +12,7 @@ import "bitcoin-spv/solidity/contracts/BTCUtils.sol";
 // !!! - Write fuzz tests for deposit and withdraw actions with random Bitcoin txns if this goes to production
 
 contract BridgeHarness is Bridge {
+    constructor() {}
     // Overriding in harness is needed as internal functions are not accessible in the test
     function isBytesEqual_(bytes memory a, bytes memory b) public pure returns (bool result) {
         result = super.isBytesEqual(a, b);
