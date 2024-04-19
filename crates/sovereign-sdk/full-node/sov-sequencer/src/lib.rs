@@ -14,6 +14,8 @@ use sov_modules_api::utils::to_jsonrpsee_error_object;
 use sov_rollup_interface::services::batch_builder::BatchBuilder;
 use sov_rollup_interface::services::da::DaService;
 
+const SEQUENCER_RPC_ERROR: &str = "SEQUENCER_RPC_ERROR";
+
 /// Single data structure that manages mempool and batch producing.
 pub struct Sequencer<B: BatchBuilder, T: DaService> {
     batch_builder: Mutex<B>,
@@ -76,12 +78,12 @@ where
             while let Some(tx) = params_iter.optional_next::<Vec<u8>>()? {
                 batch_builder
                     .accept_tx(tx)
-                    .map_err(|e| to_jsonrpsee_error_object(&e.to_string(), e))?;
+                    .map_err(|e| to_jsonrpsee_error_object(SEQUENCER_RPC_ERROR, e))?;
             }
             let num_txs = batch_builder
                 .submit_batch()
                 .await
-                .map_err(|e| to_jsonrpsee_error_object(&e.to_string(), e))?;
+                .map_err(|e| to_jsonrpsee_error_object(SEQUENCER_RPC_ERROR, e))?;
 
             Ok::<String, ErrorObjectOwned>(format!("Submitted {} transactions", num_txs))
         },
@@ -185,7 +187,7 @@ mod tests {
         assert!(result.is_err());
         let error = result.err().unwrap();
         assert_eq!(
-            "ErrorObject { code: ServerError(-32001), message: \"Mock mempool is empty\", data: Some(RawValue(\"Mock mempool is empty\")) }",
+            "ErrorObject { code: ServerError(-32001), message: \"SEQUENCER_RPC_ERROR\", data: Some(RawValue(\"Mock mempool is empty\")) }",
             error.to_string()
         );
     }
