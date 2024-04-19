@@ -237,14 +237,3 @@ fn test_sys_l1blockhashlist() {
     assert_eq!(hash.as_ref(), &[2u8; 32]);
     assert_eq!(merkle_root.as_ref(), &[3u8; 32]);
 }
-
-fn test_bridge_can_use_l1blockhashlist() {
-    let (mut config, dev_signer, _) =
-        get_evm_config_starting_base_fee(U256::from_str("1000000").unwrap(), None, 1);
-
-    let l1_block_hash_list = L1BlockHashList::default();
-    let bridge = Bridge
-
-
-
-}
