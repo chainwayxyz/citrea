@@ -1582,6 +1582,7 @@ dependencies = [
  "revm",
  "risc0",
  "rs_merkle",
+ "rustc_version_runtime",
  "secp256k1 0.27.0",
  "sequencer-client",
  "serde",
