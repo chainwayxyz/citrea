@@ -2,14 +2,13 @@ use std::sync::Arc;
 
 use citrea_evm::Evm;
 use futures::channel::mpsc::UnboundedSender;
-use jsonrpsee::types::ErrorObjectOwned;
+use jsonrpsee::types::{ErrorObject, ErrorObjectOwned};
 use jsonrpsee::RpcModule;
 use reth_primitives::{Bytes, FromRecoveredPooledTransaction, IntoRecoveredTransaction, B256};
 use reth_rpc::eth::error::RpcPoolError;
 use reth_rpc_types_compat::transaction::from_recovered;
 use reth_transaction_pool::EthPooledTransaction;
 use sov_mock_da::{MockAddress, MockDaService};
-use sov_modules_api::utils::to_jsonrpsee_error_object;
 use sov_modules_api::WorkingSet;
 use tracing::info;
 
@@ -41,10 +40,7 @@ pub(crate) fn create_rpc_module<C: sov_modules_api::Context>(
             .mempool
             .add_external_transaction(pool_transaction)
             .await
-            .map_err(|e| {
-                let err = RpcPoolError::from(e);
-                to_jsonrpsee_error_object(&err.to_string(), err)
-            })?;
+            .map_err(|e| ErrorObject::from(RpcPoolError::from(e)))?;
 
         Ok::<B256, ErrorObjectOwned>(hash)
     })?;
@@ -84,7 +80,7 @@ pub(crate) fn create_rpc_module<C: sov_modules_api::Context>(
 
                     match evm.get_transaction_by_hash(hash, &mut working_set) {
                         Ok(tx) => Ok::<Option<reth_rpc_types::Transaction>, ErrorObjectOwned>(tx),
-                        Err(e) => Err(to_jsonrpsee_error_object(&e.to_string(), e)),
+                        Err(e) => Err(e),
                     }
                 }
             },

@@ -479,10 +479,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                 match evm.get_block_number_by_block_hash(block_hash, &mut working_set) {
                     Some(block_number) => block_number,
                     None => {
-                        return Err(to_jsonrpsee_error_object(
-                            &EthApiError::UnknownBlockNumber.to_string(),
-                            EthApiError::UnknownBlockNumber,
-                        ));
+                        return Err(EthApiError::UnknownBlockNumber.into());
                     }
                 };
 
@@ -495,7 +492,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                         None,
                         &mut working_set,
                     )
-                    .map_err(|e| to_jsonrpsee_error_object(&e.to_string(), e));
+                    .map_err(|e| e.into());
             }
 
             if let Some(traces) = ethereum.trace_cache.lock().unwrap().get(&block_number) {
@@ -509,14 +506,12 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                 return Ok::<Vec<GethTrace>, ErrorObjectOwned>(traces);
             }
             let cache_options = create_trace_cache_opts();
-            let traces = evm
-                .trace_block_transactions_by_number(
-                    block_number,
-                    Some(cache_options),
-                    None,
-                    &mut working_set,
-                )
-                .map_err(|e| to_jsonrpsee_error_object(&e.to_string(), e))?;
+            let traces = evm.trace_block_transactions_by_number(
+                block_number,
+                Some(cache_options),
+                None,
+                &mut working_set,
+            )?;
             ethereum
                 .trace_cache
                 .lock()
@@ -560,8 +555,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
 
             // If opts is None or if opts.tracer is None, then do not check cache or insert cache, just perform the operation
             if opts.as_ref().map_or(true, |o| o.tracer.is_none()) {
-                return evm.trace_block_transactions_by_number(block_number, opts.clone(), None, &mut working_set)
-                        .map_err(|e| to_jsonrpsee_error_object(&e.to_string(), e));
+                return evm.trace_block_transactions_by_number(block_number, opts.clone(), None, &mut working_set);
             }
 
             if let Some(traces) = ethereum.trace_cache.lock().unwrap().get(&block_number) {
@@ -579,8 +573,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                     Some(cache_options),
                     None,
                     &mut working_set,
-                )
-                .map_err(|e| to_jsonrpsee_error_object(&e.to_string(), e))?;
+                )?;
                 ethereum
                     .trace_cache
                     .lock()
@@ -639,9 +632,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                         opts.clone(),
                         Some(trace_index as usize),
                         &mut working_set,
-                    )
-                    .map_err(|e| to_jsonrpsee_error_object(&e.to_string(), e))?
-                        [trace_index as usize]
+                    )?[trace_index as usize]
                         .clone(),
                 );
             }
@@ -659,14 +650,12 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
             }
 
             let cache_options = create_trace_cache_opts();
-            let traces = evm
-                .trace_block_transactions_by_number(
-                    block_number,
-                    Some(cache_options),
-                    None,
-                    &mut working_set,
-                )
-                .map_err(|e| to_jsonrpsee_error_object(&e.to_string(), e))?;
+            let traces = evm.trace_block_transactions_by_number(
+                block_number,
+                Some(cache_options),
+                None,
+                &mut working_set,
+            )?;
             ethereum
                 .trace_cache
                 .lock()
