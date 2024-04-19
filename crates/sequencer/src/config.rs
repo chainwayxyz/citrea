@@ -15,10 +15,16 @@ pub struct SequencerConfig {
 pub struct SequencerMempoolConfig {
     /// Max number of transactions in the pending sub-pool
     pub pending_tx_limit: u64,
+    /// Max megabytes of transactions in the pending sub-pool
+    pub pending_tx_size: u64,
     /// Max number of transactions in the queued sub-pool
     pub queue_tx_limit: u64,
+    /// Max megabytes of transactions in the queued sub-pool
+    pub queue_tx_size: u64,
     /// Max number of transactions in the base-fee sub-pool
-    pub base_fee_limit: u64,
+    pub base_fee_tx_limit: u64,
+    /// Max megabytes of transactions in the base-fee sub-pool
+    pub base_fee_tx_size: u64,
     /// Max number of executable transaction slots guaranteed per account
     pub max_account_slots: u64,
 }
@@ -27,8 +33,11 @@ impl Default for SequencerMempoolConfig {
     fn default() -> Self {
         Self {
             pending_tx_limit: 100000,
+            pending_tx_size: 200,
             queue_tx_limit: 100000,
-            base_fee_limit: 100000,
+            queue_tx_size: 200,
+            base_fee_tx_limit: 100000,
+            base_fee_tx_size: 200,
             max_account_slots: 16,
         }
     }
@@ -55,8 +64,11 @@ mod tests {
             min_soft_confirmations_per_commitment = 123
             [mempool_conf]
             pending_tx_limit = 100000
+            pending_tx_size = 200
             queue_tx_limit = 100000
-            base_fee_limit = 100000
+            queue_tx_size = 200
+            base_fee_tx_limit = 100000
+            base_fee_tx_size = 200
             max_account_slots = 16
         "#;
 
@@ -68,8 +80,11 @@ mod tests {
             min_soft_confirmations_per_commitment: 123,
             mempool_conf: SequencerMempoolConfig {
                 pending_tx_limit: 100000,
+                pending_tx_size: 200,
                 queue_tx_limit: 100000,
-                base_fee_limit: 100000,
+                queue_tx_size: 200,
+                base_fee_tx_limit: 100000,
+                base_fee_tx_size: 200,
                 max_account_slots: 16,
             },
         };

@@ -8,7 +8,7 @@ use reth_transaction_pool::error::PoolError;
 use reth_transaction_pool::{
     BestTransactions, BestTransactionsAttributes, CoinbaseTipOrdering, EthPooledTransaction,
     EthTransactionValidator, Pool, PoolConfig, PoolResult, SubPoolLimit, TransactionPool,
-    TransactionValidationTaskExecutor, ValidPoolTransaction, TXPOOL_SUBPOOL_MAX_SIZE_MB_DEFAULT,
+    TransactionValidationTaskExecutor, ValidPoolTransaction,
 };
 
 use crate::config::SequencerMempoolConfig;
@@ -57,15 +57,15 @@ impl<C: sov_modules_api::Context> CitreaMempool<C> {
         let pool_config = PoolConfig {
             pending_limit: SubPoolLimit {
                 max_txs: mempool_conf.pending_tx_limit as usize,
-                max_size: TXPOOL_SUBPOOL_MAX_SIZE_MB_DEFAULT * 10 * 1024 * 1024,
+                max_size: (mempool_conf.pending_tx_size * 1024 * 1024) as usize,
             },
             basefee_limit: SubPoolLimit {
-                max_txs: mempool_conf.base_fee_limit as usize,
-                max_size: TXPOOL_SUBPOOL_MAX_SIZE_MB_DEFAULT * 10 * 1024 * 1024,
+                max_txs: mempool_conf.base_fee_tx_limit as usize,
+                max_size: (mempool_conf.base_fee_tx_size * 1024 * 1024) as usize,
             },
             queued_limit: SubPoolLimit {
                 max_txs: mempool_conf.queue_tx_limit as usize,
-                max_size: TXPOOL_SUBPOOL_MAX_SIZE_MB_DEFAULT * 10 * 1024 * 1024,
+                max_size: (mempool_conf.queue_tx_size * 1024 * 1024) as usize,
             },
             blob_limit: SubPoolLimit {
                 max_txs: 0,

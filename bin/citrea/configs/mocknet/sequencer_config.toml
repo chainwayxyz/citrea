@@ -1,6 +1,9 @@
 min_soft_confirmations_per_commitment = 1000
-[mempool_conf]
+[mempool_conf] # Mempool Configuration - https://github.com/ledgerwatch/erigon/wiki/Transaction-Pool-Design
 pending_tx_limit = 100000
+pending_tx_size = 200
 queue_tx_limit = 100000
-base_fee_limit = 100000
+queue_tx_size = 200
+base_fee_tx_limit = 100000
+base_fee_tx_size = 200
 max_account_slots = 16
