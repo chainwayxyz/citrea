@@ -206,6 +206,11 @@ contract BridgeTest is Test {
         bridge.setOperator(operator);
     }
 
+    function testCannotReinitialize() public {
+        vm.expectRevert("Contract is already initialized");
+        bridge.initialize(31, depositScript, scriptSuffix, 5);
+    }
+
     function testBytesEqual() public {
         bytes memory a = hex"1234";
         bytes memory b = hex"1234";
