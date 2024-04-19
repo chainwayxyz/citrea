@@ -1,16 +1,17 @@
 use std::sync::Arc;
 
 use citrea_evm::SYSTEM_SIGNER;
-use reth_primitives::{BaseFeeParamsKind, Chain, ChainSpec, TxHash};
+use reth_primitives::{Chain, ChainSpecBuilder, Genesis, TxHash};
 use reth_tasks::TokioTaskExecutor;
 use reth_transaction_pool::blobstore::NoopBlobStore;
 use reth_transaction_pool::error::PoolError;
 use reth_transaction_pool::{
     BestTransactions, BestTransactionsAttributes, CoinbaseTipOrdering, EthPooledTransaction,
-    EthTransactionValidator, Pool, PoolResult, TransactionPool, TransactionValidationTaskExecutor,
-    ValidPoolTransaction,
+    EthTransactionValidator, Pool, PoolConfig, PoolResult, SubPoolLimit, TransactionPool,
+    TransactionValidationTaskExecutor, ValidPoolTransaction,
 };
 
+use crate::config::SequencerMempoolConfig;
 pub use crate::db_provider::DbProvider;
 
 type CitreaMempoolImpl<C> = Pool<
@@ -24,16 +25,56 @@ type Transaction<C> = <CitreaMempoolImpl<C> as TransactionPool>::Transaction;
 pub(crate) struct CitreaMempool<C: sov_modules_api::Context>(CitreaMempoolImpl<C>);
 
 impl<C: sov_modules_api::Context> CitreaMempool<C> {
-    pub(crate) fn new(client: DbProvider<C>) -> Self {
+    pub(crate) fn new(client: DbProvider<C>, mempool_conf: SequencerMempoolConfig) -> Self {
         let blob_store = NoopBlobStore::default();
-        let genesis_hash = client.genesis_block().unwrap().unwrap().header.hash;
+        let genesis_block = client.genesis_block().unwrap().unwrap();
         let evm_config = client.cfg();
-        let chain_spec = ChainSpec {
-            chain: Chain::from_id(evm_config.chain_id),
-            genesis_hash,
-            base_fee_params: BaseFeeParamsKind::Constant(evm_config.base_fee_params),
-            ..Default::default()
+
+        let chain_spec = ChainSpecBuilder::default()
+            .chain(Chain::from_id(evm_config.chain_id))
+            .shanghai_activated()
+            .genesis(
+                Genesis::default()
+                    .with_nonce(genesis_block.header.nonce.unwrap().into())
+                    .with_timestamp(genesis_block.header.timestamp.saturating_to())
+                    .with_extra_data(genesis_block.header.extra_data)
+                    .with_gas_limit(genesis_block.header.gas_limit.saturating_to())
+                    .with_difficulty(genesis_block.header.difficulty)
+                    .with_mix_hash(genesis_block.header.mix_hash.unwrap())
+                    .with_coinbase(genesis_block.header.miner)
+                    .with_base_fee(Some(
+                        genesis_block
+                            .header
+                            .base_fee_per_gas
+                            .unwrap()
+                            .saturating_to(),
+                    )),
+            )
+            .build();
+
+        // Default 10x'ed from standard limits
+        let pool_config = Default::default();
+        let pool_config = PoolConfig {
+            pending_limit: SubPoolLimit {
+                max_txs: mempool_conf.pending_tx_limit as usize,
+                max_size: (mempool_conf.pending_tx_size * 1024 * 1024) as usize,
+            },
+            basefee_limit: SubPoolLimit {
+                max_txs: mempool_conf.base_fee_tx_limit as usize,
+                max_size: (mempool_conf.base_fee_tx_size * 1024 * 1024) as usize,
+            },
+            queued_limit: SubPoolLimit {
+                max_txs: mempool_conf.queue_tx_limit as usize,
+                max_size: (mempool_conf.queue_tx_size * 1024 * 1024) as usize,
+            },
+            blob_limit: SubPoolLimit {
+                max_txs: 0,
+                max_size: 0,
+            },
+            max_account_slots: mempool_conf.max_account_slots as usize,
+            ..pool_config
         };
+
         Self(Pool::eth_pool(
             TransactionValidationTaskExecutor::eth(
                 client,
@@ -42,7 +83,7 @@ impl<C: sov_modules_api::Context> CitreaMempool<C> {
                 TokioTaskExecutor::default(),
             ),
             blob_store,
-            Default::default(),
+            pool_config,
         ))
     }
 
