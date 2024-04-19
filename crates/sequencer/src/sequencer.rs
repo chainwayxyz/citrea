@@ -14,7 +14,7 @@ use futures::StreamExt;
 use jsonrpsee::RpcModule;
 use reth_primitives::IntoRecoveredTransaction;
 use reth_provider::BlockReaderIdExt;
-use reth_transaction_pool::BestTransactionsAttributes;
+use reth_transaction_pool::{BestTransactionsAttributes, PoolTransaction};
 use sov_accounts::Accounts;
 use sov_accounts::Response::{AccountEmpty, AccountExists};
 use sov_db::ledger_db::{LedgerDB, SlotCommit};
@@ -119,7 +119,7 @@ where
         // used as client of reth's mempool
         let db_provider = DbProvider::new(storage.clone());
 
-        let pool = CitreaMempool::new(db_provider.clone());
+        let pool = CitreaMempool::new(db_provider.clone(), config.mempool_conf.clone());
 
         Ok(Self {
             da_service,

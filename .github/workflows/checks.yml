@@ -106,8 +106,34 @@ jobs:
         with:
           command: check
 
+  coverage:
+    runs-on: ubicloud-standard-16
+    if: github.event.pull_request.draft == false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+      - uses: taiki-e/install-action@nextest
+      - uses: taiki-e/install-action@cargo-llvm-cov
+      - name: Install cargo-risczero
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-risczero@0.19
+      - name: Install risc0-zkvm toolchain
+        run: cargo risczero install
+      - name: Run coverage
+        run: SKIP_GUEST_BUILD=1 make coverage
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          fail_ci_if_error: true # optional (default = false)
+          files: ./lcov.info
+          token: ${{ secrets.CODECOV_TOKEN }}
+
   uniswap:
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-16
+    if: github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -139,15 +165,19 @@ jobs:
           cd ./bin/citrea/tests/evm/uniswap
           npx hardhat run --network citrea scripts/01_deploy.js
           npx hardhat run --network citrea scripts/02_swap.js
-          seqnRoot=$(curl 0.0.0.0:12345/ -H "Content-Type: application/json" --data '{"method":"eth_getBlockByNumber","params":["latest"],"id":1,"jsonrpc":"2.0"}' | jq .result.stateRoot)
-          nodeRoot=$(curl 0.0.0.0:12346/ -H "Content-Type: application/json" --data '{"method":"eth_getBlockByNumber","params":["latest"],"id":1,"jsonrpc":"2.0"}' | jq .result.stateRoot)
+          seqnHeight=$(curl -s 0.0.0.0:12345/ -H "Content-Type: application/json" --data '{"method":"eth_getBlockByNumber","params":["latest"],"id":1,"jsonrpc":"2.0"}' | jq -e .result.number) || (echo "Couldn't get sequencer block"; exit 1)
+          nodeHeight=$(curl -s 0.0.0.0:12346/ -H "Content-Type: application/json" --data '{"method":"eth_getBlockByNumber","params":["latest"],"id":1,"jsonrpc":"2.0"}' | jq -e .result.number) || (echo "Couldn't get full node block"; exit 1)
+          echo seqnHeight: $seqnHeight
+          echo nodeHeight: $nodeHeight
+          sleep 10
+          seqnRoot=$(curl -s 0.0.0.0:12345/ -H "Content-Type: application/json" --data '{"method":"eth_getBlockByNumber","params":['${seqnHeight}'],"id":1,"jsonrpc":"2.0"}' | jq -e .result.stateRoot) || (echo "Couldn't get sequencer state root"; exit 1)
+          nodeRoot=$(curl -s 0.0.0.0:12346/ -H "Content-Type: application/json" --data '{"method":"eth_getBlockByNumber","params":['${seqnHeight}'],"id":1,"jsonrpc":"2.0"}' | jq -e .result.stateRoot) || (echo "Couldn't get full node state root"; exit 1)
           echo seqnRoot: $seqnRoot
           echo nodeRoot: $nodeRoot
           if [ "$seqnRoot" != "$nodeRoot" ]; then
             echo "State root mismatch";
             exit 1
           fi
-
 
   check_no_std:
     runs-on: ubicloud-standard-4

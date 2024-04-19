@@ -54,7 +54,12 @@ async fn web3_rpc_tests() -> Result<(), anyhow::Error> {
 
     assert_eq!(
         test_client.web3_client_version().await,
-        format!("citrea/{}/{}/rust-1.77.2", tag, arch)
+        format!(
+            "citrea/{}/{}/rust-{}",
+            tag,
+            arch,
+            rustc_version_runtime::version()
+        )
     );
     assert_eq!(
         test_client

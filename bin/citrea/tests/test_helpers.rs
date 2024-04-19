@@ -85,6 +85,7 @@ pub async fn start_rollup(
     let sequencer_config = SequencerConfig {
         min_soft_confirmations_per_commitment,
         test_mode: test_mode.unwrap_or(false),
+        mempool_conf: Default::default(),
     };
 
     let mock_demo_rollup = MockDemoRollup {};
