@@ -212,7 +212,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
 
         // convert block count to u64 from hex
         let block_count = u64::from_str_radix(&block_count[2..], 16)
-            .map_err(|e| to_jsonrpsee_error_object(&e.to_string(), e))?;
+            .map_err(|e| EthApiError::InvalidParams(e.to_string()))?;
 
         let fee_history = {
             let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
@@ -543,12 +543,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
             let block_number = match block_number {
                 BlockNumberOrTag::Number(block_number) => block_number,
                 BlockNumberOrTag::Latest => convert_u256_to_u64(evm.block_number(&mut working_set)?),
-                _ => {
-                    return Err(to_jsonrpsee_error_object(
-                        "Earliest, pending, safe and finalized are not supported for debug_traceBlockByNumber",
-                        EthApiError::Unsupported("Earliest, pending, safe and finalized are not supported for debug_traceBlockByNumber"),
-                    ));
-                }
+                _ => return Err(EthApiError::Unsupported("Earliest, pending, safe and finalized are not supported for debug_traceBlockByNumber").into()),
             };
 
             // If opts is None or if opts.tracer is None, then do not check cache or insert cache, just perform the operation
@@ -767,7 +762,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                             }
                             Err(e) => {
                                 // return error
-                                Err(to_jsonrpsee_error_object(&e.to_string(), e))
+                                Err(e)
                             }
                         }
                     }
