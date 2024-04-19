@@ -2,10 +2,10 @@ use std::sync::Arc;
 
 use citrea_evm::Evm;
 use futures::channel::mpsc::UnboundedSender;
-use jsonrpsee::types::{ErrorObject, ErrorObjectOwned};
+use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::RpcModule;
 use reth_primitives::{Bytes, FromRecoveredPooledTransaction, IntoRecoveredTransaction, B256};
-use reth_rpc::eth::error::{EthApiError, RpcPoolError};
+use reth_rpc::eth::error::EthApiError;
 use reth_rpc_types_compat::transaction::from_recovered;
 use reth_transaction_pool::EthPooledTransaction;
 use sov_mock_da::{MockAddress, MockDaService};
