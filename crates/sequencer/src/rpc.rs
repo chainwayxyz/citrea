@@ -40,7 +40,7 @@ pub(crate) fn create_rpc_module<C: sov_modules_api::Context>(
             .mempool
             .add_external_transaction(pool_transaction)
             .await
-            .map_err(|e| EthApiError::from(e))?;
+            .map_err(EthApiError::from)?;
 
         Ok::<B256, ErrorObjectOwned>(hash)
     })?;
