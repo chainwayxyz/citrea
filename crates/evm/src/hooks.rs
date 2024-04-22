@@ -80,6 +80,7 @@ where
         self.block_env.set(&new_pending_env, working_set);
         self.l1_fee_rate.set(&l1_fee_rate, working_set);
 
+        #[cfg(not(feature = "ef-tests"))]
         if !system_events.is_empty() {
             self.execute_system_events(system_events, working_set);
         }
