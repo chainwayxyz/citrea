@@ -83,7 +83,7 @@ pub(crate) fn execute_multiple_tx<
             ))
         } else if tx.signer() == SYSTEM_SIGNER {
             Err(EVMError::Custom(format!(
-                "Ignored system transaction: {:?}",
+                "Invalid system transaction: {:?}",
                 hex::encode(tx.hash())
             )))
         } else {
