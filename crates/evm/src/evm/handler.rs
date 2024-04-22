@@ -346,7 +346,7 @@ impl<SPEC: Spec, EXT: CitreaExternalExt, DB: Database> CitreaHandler<SPEC, EXT, 
             } else {
                 if let Some(_out_of_funds) = decrease_caller_balance(context, l1_fee)? {
                     return Err(EVMError::Custom(format!(
-                        "Not enought funds for L1 fee: {}",
+                        "Not enough funds for L1 fee: {}",
                         l1_fee
                     )));
                 }
