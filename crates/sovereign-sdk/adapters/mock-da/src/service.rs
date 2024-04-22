@@ -9,6 +9,7 @@ use sha2::Digest;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec, Time};
 use sov_rollup_interface::maybestd::sync::Arc;
 use sov_rollup_interface::services::da::{DaService, SlotData};
+use sov_rollup_interface::stf::DepositTransaction;
 use tokio::sync::{broadcast, Mutex as AsyncMutex, MutexGuard as AsyncMutexGuard};
 use tokio::time;
 
@@ -413,7 +414,7 @@ impl DaService for MockDaService {
     async fn get_deposit_tx(
         &self,
         _transaction_id: &Self::TransactionId,
-    ) -> Result<(Vec<u8>, u64, Vec<u8>), Self::Error> {
+    ) -> Result<DepositTransaction, Self::Error> {
         todo!()
     }
 }

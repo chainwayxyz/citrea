@@ -10,6 +10,7 @@ use crate::da::BlockHeaderTrait;
 use crate::da::{DaSpec, DaVerifier};
 #[cfg(feature = "native")]
 use crate::maybestd::vec::Vec;
+use crate::state_machine::stf::DepositTransaction;
 use crate::zk::ValidityCondition;
 
 /// A DaService is the local side of an RPC connection talking to a node of the DA layer
@@ -144,7 +145,7 @@ pub trait DaService: Send + Sync + 'static {
     async fn get_deposit_tx(
         &self,
         transaction_id: &Self::TransactionId,
-    ) -> Result<(Vec<u8>, u64, Vec<u8>), Self::Error>;
+    ) -> Result<DepositTransaction, Self::Error>;
 }
 
 /// `SlotData` is the subset of a DA layer block which is stored in the rollup's database.

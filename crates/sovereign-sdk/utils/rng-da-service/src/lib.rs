@@ -14,6 +14,7 @@ use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{Address, AddressBech32, EncodeCall, PrivateKey, PublicKey, Spec};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec, DaVerifier, Time};
 use sov_rollup_interface::services::da::{DaService, SlotData};
+use sov_rollup_interface::stf::DepositTransaction;
 
 const DEFAULT_CHAIN_ID: u64 = 0;
 
@@ -175,7 +176,7 @@ impl DaService for RngDaService {
     async fn get_deposit_tx(
         &self,
         _transaction_id: &Self::TransactionId,
-    ) -> Result<(Vec<u8>, u64, Vec<u8>), Self::Error> {
+    ) -> Result<DepositTransaction, Self::Error> {
         unimplemented!()
     }
 }

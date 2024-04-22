@@ -13,6 +13,7 @@ use hex::ToHex;
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::services::da::DaService;
+use sov_rollup_interface::stf::DepositTransaction;
 use tokio::sync::oneshot::{channel as oneshot_channel, Receiver as OneshotReceiver};
 use tracing::{error, info};
 
@@ -482,7 +483,7 @@ impl DaService for BitcoinService {
     async fn get_deposit_tx(
         &self,
         _transaction_id: &Self::TransactionId,
-    ) -> Result<(Vec<u8>, u64, Vec<u8>), Self::Error> {
+    ) -> Result<DepositTransaction, Self::Error> {
         todo!()
     }
 }

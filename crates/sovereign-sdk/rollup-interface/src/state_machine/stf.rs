@@ -61,6 +61,19 @@ pub struct TransactionReceipt<R> {
     pub receipt: R,
 }
 
+/// A struct to that represents deposit transactions
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DepositTransaction {
+    /// ID of the transaction
+    pub id: [u8; 32],
+    /// Block Height
+    pub block_height: u64,
+    /// Inclusion proof
+    pub inclusion_proof: Vec<u8>,
+    /// Tx data
+    pub tx_data: Vec<u8>,
+}
+
 /// A receipt for a batch of transactions. These receipts are stored in the rollup's database
 /// and may be queried via RPC. Batch receipts are generic over a type `BatchReceiptContents` which the rollup
 /// can use to store arbitrary typed data, like the gas used by the batch. They are also generic over a type `TxReceiptContents`,
