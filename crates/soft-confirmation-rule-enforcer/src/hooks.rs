@@ -29,13 +29,11 @@ where
         // Adding one more l2 block will exceed the limiting number
         if l2_block_count + 1 > limiting_number {
             // block count per l1 block should not be more than limiting number
-            return Err(
-                ApplySoftConfirmationError::TooManySoftConfirmationsOnDaSlot {
-                    hash: da_root_hash,
-                    sequencer_pub_key: soft_batch_info.sequencer_pub_key().to_vec(),
-                    limiting_number,
-                },
-            );
+            return Err(ApplySoftConfirmationError::TooManySoftConfirmationsOnDaSlot {
+                hash: da_root_hash,
+                sequencer_pub_key: soft_batch_info.sequencer_pub_key().to_vec(),
+                limiting_number,
+            });
         }
 
         // increment the block count
@@ -77,12 +75,10 @@ where
         if l1_fee_rate * 100 < last_l1_fee_rate * (100 - l1_fee_rate_change_percentage)
             || l1_fee_rate * 100 > last_l1_fee_rate * (100 + l1_fee_rate_change_percentage)
         {
-            return Err(
-                ApplySoftConfirmationError::L1FeeRateChangeMoreThanAllowedPercentage {
-                    l1_fee_rate,
-                    l1_fee_rate_change_percentage,
-                },
-            );
+            return Err(ApplySoftConfirmationError::L1FeeRateChangeMoreThanAllowedPercentage {
+                l1_fee_rate,
+                l1_fee_rate_change_percentage,
+            });
         }
 
         self.last_l1_fee_rate
@@ -102,12 +98,10 @@ where
         let last_timestamp = self.last_timestamp.get(working_set).unwrap_or(0);
 
         if current_timestamp < last_timestamp {
-            return Err(
-                ApplySoftConfirmationError::CurrentTimestampIsNotGreaterThanPrev {
-                    current: current_timestamp,
-                    prev: last_timestamp,
-                },
-            );
+            return Err(ApplySoftConfirmationError::CurrentTimestampIsNotGreaterThanPrev {
+                current: current_timestamp,
+                prev: last_timestamp,
+            });
         }
 
         self.last_timestamp.set(&current_timestamp, working_set);
@@ -115,19 +109,45 @@ where
         Ok(())
     }
 
+    /// Checks the DA height and hash rule.
+    /// The DA height must be the same or sequential, and the DA hash must differ only if the DA height differs.
+    fn apply_da_height_and_hash_rule(
+        &self,
+        soft_batch: &HookSoftConfirmationInfo,
+        working_set: &mut WorkingSet<C>,
+    ) -> Result<(), ApplySoftConfirmationError> {
+        let da_slot_height = soft_batch.da_slot_height();
+        let da_slot_hash = soft_batch.da_slot_hash();
+
+        let last_da_info = self.last_da_info.get(working_set);
+
+        if let Some((last_height, last_hash)) = last_da_info {
+            if da_slot_height != *last_height + 1 {
+                return Err(ApplySoftConfirmationError::InvalidDAHeight {
+                    current_height: da_slot_height,
+                    expected_height: last_height + 1,
+                });
+            }
+
+            if da_slot_height > 0 && da_slot_hash == *last_hash && da_slot_height == *last_height {
+                return Err(ApplySoftConfirmationError::InvalidDAHash {
+                    current_hash: da_slot_hash.clone(),
+                    expected_hash: last_hash.clone(),
+                });
+            }
+        }
+
+        self.last_da_info.set(&(da_slot_height, da_slot_hash), working_set);
+
+        Ok(())
+    }
+
     /// Logic executed at the beginning of the soft confirmation.
-    /// Checks two rules: block count rule and fee rate rule.
+    /// Checks three rules: block count rule, fee rate rule, and DA height and hash rule.
     pub fn begin_soft_confirmation_hook(
         &self,
         soft_batch: &mut HookSoftConfirmationInfo,
         working_set: &mut WorkingSet<C>,
     ) -> Result<(), ApplySoftConfirmationError> {
         self.apply_block_count_rule(soft_batch, working_set)?;
-
-        self.apply_fee_rate_rule(soft_batch, working_set)?;
-
-        self.apply_timestamp_rule(soft_batch, working_set)?;
-
-        Ok(())
-    }
-}
+        self.apply_fee_rate
