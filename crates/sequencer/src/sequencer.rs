@@ -14,8 +14,7 @@ use futures::StreamExt;
 use jsonrpsee::RpcModule;
 use reth_primitives::IntoRecoveredTransaction;
 use reth_provider::BlockReaderIdExt;
-use reth_transaction_pool::BestTransactionsAttributes;
-use reth_transaction_pool::PoolTransaction;
+use reth_transaction_pool::{BestTransactionsAttributes, PoolTransaction};
 use sov_accounts::Accounts;
 use sov_accounts::Response::{AccountEmpty, AccountExists};
 use sov_db::ledger_db::{LedgerDB, SlotCommit};
@@ -144,9 +143,8 @@ where
         &self,
         channel: Option<tokio::sync::oneshot::Sender<SocketAddr>>,
         methods: RpcModule<()>,
-        test_mode: bool,
     ) -> Result<(), anyhow::Error> {
-        let methods = self.register_rpc_methods(methods, test_mode)?;
+        let methods = self.register_rpc_methods(methods)?;
 
         let listen_address = SocketAddr::new(
             self.rpc_config
@@ -509,24 +507,24 @@ where
         Ok(())
     }
 
-    pub async fn run_test_mode(&mut self) -> Result<(), anyhow::Error> {
-        // TODO: hotfix for mock da
-        self.da_service.get_block_at(1).await.unwrap();
-
-        loop {
-            if (self.l2_force_block_rx.next().await).is_some() {
-                self.build_block().await?;
-            }
-        }
-    }
-
     pub async fn run(&mut self) -> Result<(), anyhow::Error> {
         // TODO: hotfix for mock da
         self.da_service.get_block_at(1).await.unwrap();
 
-        loop {
-            sleep(Duration::from_secs(2)).await;
-            self.build_block().await?;
+        // If sequencer is in test mode, it will build a block every time it receives a message
+        if self.config.test_mode {
+            loop {
+                if (self.l2_force_block_rx.next().await).is_some() {
+                    self.build_block().await?;
+                }
+            }
+        }
+        // If sequencer is in production mode, it will build a block every 2 seconds
+        else {
+            loop {
+                sleep(Duration::from_secs(2)).await;
+                self.build_block().await?;
+            }
         }
     }
 
@@ -591,6 +589,7 @@ where
             mempool: self.mempool.clone(),
             l2_force_block_tx,
             storage: self.storage.clone(),
+            test_mode: self.config.test_mode,
         }
     }
 
@@ -598,10 +597,9 @@ where
     pub fn register_rpc_methods(
         &self,
         mut rpc_methods: jsonrpsee::RpcModule<()>,
-        test_mode: bool,
     ) -> Result<jsonrpsee::RpcModule<()>, jsonrpsee::core::Error> {
         let rpc_context = self.create_rpc_context();
-        let rpc = create_rpc_module(rpc_context, test_mode)?;
+        let rpc = create_rpc_module(rpc_context)?;
         rpc_methods.merge(rpc).unwrap();
         Ok(rpc_methods)
     }

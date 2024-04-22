@@ -21,12 +21,13 @@ pub(crate) struct RpcContext<C: sov_modules_api::Context> {
     pub mempool: Arc<CitreaMempool<C>>,
     pub l2_force_block_tx: UnboundedSender<()>,
     pub storage: C::Storage,
+    pub test_mode: bool,
 }
 
 pub(crate) fn create_rpc_module<C: sov_modules_api::Context>(
     rpc_context: RpcContext<C>,
-    test_mode: bool,
 ) -> Result<RpcModule<RpcContext<C>>, jsonrpsee::core::Error> {
+    let test_mode = rpc_context.test_mode;
     let mut rpc = RpcModule::new(rpc_context);
     rpc.register_async_method("eth_sendRawTransaction", |parameters, ctx| async move {
         info!("Sequencer: eth_sendRawTransaction");

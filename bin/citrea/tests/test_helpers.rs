@@ -149,7 +149,7 @@ pub async fn start_rollup(
                 .await
                 .unwrap();
             sequencer_rollup
-                .run_and_report_rpc_port(Some(rpc_reporting_channel), true)
+                .run_and_report_rpc_port(Some(rpc_reporting_channel))
                 .await
                 .unwrap();
         }

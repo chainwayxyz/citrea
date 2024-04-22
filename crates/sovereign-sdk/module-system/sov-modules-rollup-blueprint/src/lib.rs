@@ -316,25 +316,20 @@ pub struct Sequencer<S: RollupBlueprint> {
 
 impl<S: RollupBlueprint> Sequencer<S> {
     /// Runs the sequencer.
-    pub async fn run(self, test_mode: bool) -> Result<(), anyhow::Error> {
-        self.run_and_report_rpc_port(None, test_mode).await
+    pub async fn run(self) -> Result<(), anyhow::Error> {
+        self.run_and_report_rpc_port(None).await
     }
 
     /// Runs the sequencer.
     pub async fn run_and_report_rpc_port(
         self,
         channel: Option<oneshot::Sender<SocketAddr>>,
-        test_mode: bool,
     ) -> Result<(), anyhow::Error> {
         let mut seq = self.runner;
-        seq.start_rpc_server(channel, self.rpc_methods, test_mode)
+        seq.start_rpc_server(channel, self.rpc_methods)
             .await
             .unwrap();
-        if test_mode {
-            seq.run_test_mode().await?;
-        } else {
-            seq.run().await?;
-        }
+        seq.run().await?;
         Ok(())
     }
 }
