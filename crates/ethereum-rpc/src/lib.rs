@@ -128,6 +128,27 @@ impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
     }
 }
 
+impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
+    async fn max_fee_per_gas(&self, working_set: &mut WorkingSet<C>) -> (U256, U256) {
+        let suggested_tip = self
+            .gas_price_oracle
+            .suggest_tip_cap(working_set)
+            .await
+            .unwrap();
+
+        let evm = Evm::<C>::default();
+        let base_fee = evm
+            .get_block_by_number(None, None, working_set)
+            .unwrap()
+            .unwrap()
+            .header
+            .base_fee_per_gas
+            .unwrap_or_default();
+
+        (base_fee, suggested_tip)
+    }
+}
+
 // impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
 //     fn make_raw_tx(
 //         &self,
@@ -169,20 +190,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
         let price = {
             let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
 
-            let suggested_tip = ethereum
-                .gas_price_oracle
-                .suggest_tip_cap(&mut working_set)
-                .await
-                .unwrap();
-
-            let evm = Evm::<C>::default();
-            let base_fee = evm
-                .get_block_by_number(None, None, &mut working_set)
-                .unwrap()
-                .unwrap()
-                .header
-                .base_fee_per_gas
-                .unwrap_or_default();
+            let (base_fee, suggested_tip) = ethereum.max_fee_per_gas(&mut working_set).await;
 
             suggested_tip + base_fee
         };
@@ -191,17 +199,29 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
     })?;
 
     rpc.register_async_method("eth_maxFeePerGas", |_, ethereum| async move {
+        info!("eth module: eth_maxFeePerGas");
         let max_fee_per_gas = {
             let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
 
-            ethereum
-                .gas_price_oracle
-                .suggest_tip_cap(&mut working_set)
-                .await
-                .unwrap()
+            let (base_fee, suggested_tip) = ethereum.max_fee_per_gas(&mut working_set).await;
+
+            suggested_tip + base_fee
         };
 
         Ok::<U256, ErrorObjectOwned>(max_fee_per_gas)
+    })?;
+
+    rpc.register_async_method("eth_maxPriorityFeePerGas", |_, ethereum| async move {
+        info!("eth module: eth_maxPriorityFeePerGas");
+        let max_priority_fee = {
+            let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
+
+            let (_base_fee, suggested_tip) = ethereum.max_fee_per_gas(&mut working_set).await;
+
+            suggested_tip
+        };
+
+        Ok::<U256, ErrorObjectOwned>(max_priority_fee)
     })?;
 
     rpc.register_async_method("eth_feeHistory", |params, ethereum| async move {
