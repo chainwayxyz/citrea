@@ -12,7 +12,6 @@ import "bitcoin-spv/solidity/contracts/BTCUtils.sol";
 // !!! - Write fuzz tests for deposit and withdraw actions with random Bitcoin txns if this goes to production
 
 contract BridgeHarness is Bridge {
-    constructor(uint32 _levels) Bridge(_levels) {}
     // Overriding in harness is needed as internal functions are not accessible in the test
     function isBytesEqual_(bytes memory a, bytes memory b) public pure returns (bool result) {
         result = super.isBytesEqual(a, b);
@@ -23,7 +22,6 @@ contract BridgeTest is Test {
     uint256 constant DEPOSIT_AMOUNT = 1 ether;
     BridgeHarness public bridge;
     bytes2 flag = hex"0001";
-
     bytes4 version = hex"02000000";
     bytes vin = hex"01d4d6c5c94583a0505dd0c1eb64760ba2a6a391f6da3164094ed8bcac190b7d6c0000000000fdffffff";
     bytes vout = hex"0378dcf50500000000225120081bb55c845b1b14b8580a0246764d53d4aa579645c67568d8375c71f687a2ce4a01000000000000220020340a847f2a890d208f6c7a21811116134bd2b01cc1d46a999e61da195f6b8a3b4a010000000000002200204ae81572f06e1b88fd5ced7a1a000945432e83e1551e6f721ee9c00b8cc33260";
@@ -43,7 +41,8 @@ contract BridgeTest is Test {
     bytes32 mockBlockhash = keccak256("CITREA_TEST");
 
     function setUp() public {
-        bridge = new BridgeHarness(31);
+        bridge = new BridgeHarness();
+        bridge.initialize(31, depositScript, scriptSuffix, 5);
         vm.deal(address(bridge), 21_000_000 ether);
         address block_hash_list_impl = address(new L1BlockHashList());
         L1BlockHashList l1BlockHashList = bridge.BLOCK_HASH_LIST();
@@ -59,8 +58,6 @@ contract BridgeTest is Test {
         
         // Arbitrary blockhash as this is mock 
         l1BlockHashList.setBlockInfo(mockBlockhash, witnessRoot);
-
-        bridge.setDepositScript(depositScript, scriptSuffix, 5);
     }
 
     function testZeros() public view {
@@ -206,6 +203,11 @@ contract BridgeTest is Test {
         vm.startPrank(user);
         vm.expectRevert();
         bridge.setOperator(operator);
+    }
+
+    function testCannotReinitialize() public {
+        vm.expectRevert("Contract is already initialized");
+        bridge.initialize(31, depositScript, scriptSuffix, 5);
     }
 
     function testBytesEqual() public {

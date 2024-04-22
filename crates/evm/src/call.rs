@@ -217,6 +217,11 @@ impl<C: sov_modules_api::Context> Evm<C> {
                         // This is a transactional error, so we can skip it without doing anything.
                         continue;
                     }
+                    EVMError::Custom(msg) => {
+                        // This is a custom error - we need to log it but no need to shutdown the system as of now.
+                        tracing::error!("evm: Custom error: {:?}", msg);
+                        continue;
+                    }
                     err => {
                         tracing::error!("evm: Transaction error: {:?}", err);
                         // This is a fatal error, so we need to return it.

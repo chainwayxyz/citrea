@@ -5,15 +5,13 @@ import "bitcoin-spv/solidity/contracts/ValidateSPV.sol";
 import "bitcoin-spv/solidity/contracts/BTCUtils.sol";
 import "../lib/WitnessUtils.sol";
 import "../lib/Ownable.sol";
-
-
 import "./MerkleTree.sol";
 import "./L1BlockHashList.sol";
 
 /// @title Bridge contract of Clementine
 /// @author Citrea
 
-contract Bridge is MerkleTree, Ownable {
+contract Bridge is Ownable, MerkleTree {
     using BTCUtils for bytes;
     using BytesLib for bytes;
 
@@ -31,13 +29,16 @@ contract Bridge is MerkleTree, Ownable {
 
     L1BlockHashList public constant BLOCK_HASH_LIST = L1BlockHashList(address(0x3100000000000000000000000000000000000001)); 
 
-    bytes public depositScript;
-    bytes public scriptSuffix;
+    bool public initialized;
     uint256 public constant DEPOSIT_AMOUNT = 1 ether;
     address public operator;
+    uint256 public requiredSigsCount;
+    bytes public depositScript;
+    bytes public scriptSuffix;
+    
     mapping(bytes32 => bool) public blockHashes;
     mapping(bytes32 => bool) public spentWtxIds;
-    uint256 public requiredSigsCount;
+    
 
     event Deposit(bytes32 wtxId, uint256 timestamp);
     event Withdrawal(bytes32  bitcoin_address, uint32 indexed leafIndex, uint256 timestamp);
@@ -49,7 +50,24 @@ contract Bridge is MerkleTree, Ownable {
         _;
     }
 
-    constructor(uint32 _levels) MerkleTree(_levels) {}
+    /// @notice Initializes the bridge contract, caches the sublevels of the withdrawal tree and sets the deposit script
+    /// @param _levels The depth of the Merkle tree
+    /// @param _depositScript The deposit script expected in the witness field for all L1 deposits
+    /// @param _scriptSuffix The suffix of the deposit script that follows the receiver address
+    /// @param _requiredSigsCount The number of signatures that is contained in the deposit script
+    function initialize(uint32 _levels, bytes calldata _depositScript, bytes calldata _scriptSuffix, uint256 _requiredSigsCount) external onlyOwner {
+        require(!initialized, "Contract is already initialized");
+        require(_requiredSigsCount != 0, "Verifier count cannot be 0");
+        require(_depositScript.length != 0, "Deposit script cannot be empty");
+
+        initialized = true;
+        initializeTree(_levels);
+        depositScript = _depositScript;
+        scriptSuffix = _scriptSuffix;
+        requiredSigsCount = _requiredSigsCount;
+
+        emit DepositScriptUpdate(_depositScript, _scriptSuffix, _requiredSigsCount);
+    }
 
     /// @notice Sets the expected deposit script of the deposit transaction on Bitcoin, contained in the witness
     /// @dev Deposit script contains a fixed script that checks signatures of verifiers and pushes EVM address of the receiver
@@ -72,7 +90,9 @@ contract Bridge is MerkleTree, Ownable {
     function deposit(
         DepositParams calldata p
     ) external onlyOperator {
-        require(requiredSigsCount != 0, "Contract is not initialized");
+        // We don't need to check if the contract is initialized, as without an `initialize` call and `deposit` calls afterwards,
+        // only the system caller can execute a transaction on Citrea, as no addresses have any balance. Thus there's no risk of 
+        // `deposit` being called before `initialize` maliciously.
         
         bytes32 wtxId = WitnessUtils.calculateWtxId(p.version, p.flag, p.vin, p.vout, p.witness, p.locktime);
         require(!spentWtxIds[wtxId], "wtxId already spent");
