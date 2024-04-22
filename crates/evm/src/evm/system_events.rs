@@ -21,6 +21,17 @@ pub const SYSTEM_SIGNER: Address = address!("deaddeaddeaddeaddeaddeaddeaddeaddea
 pub(crate) enum SystemEvent {
     L1BlockHashInitialize(/*block number*/ u64),
     L1BlockHashSetBlockInfo(/*hash*/ [u8; 32], /*merkle root*/ [u8; 32]),
+    BridgeInitialize(
+        /*levels*/ u32,
+        /*deposit script*/ Vec<u8>,
+        /*script suffix*/ Vec<u8>,
+        /*required sig count*/ U256,
+    ),
+    BridgeDeposit(
+        /*deposit script*/ Vec<u8>,
+        /*script suffix*/ Vec<u8>,
+        /*required sig count*/ U256,
+    ),
 }
 
 fn system_event_to_transaction(event: SystemEvent, nonce: u64, chain_id: u64) -> Transaction {
@@ -50,6 +61,33 @@ fn system_event_to_transaction(event: SystemEvent, nonce: u64, chain_id: u64) ->
             max_fee_per_gas: u64::MAX as u128,
             ..Default::default()
         },
+        SystemEvent::BridgeInitialize(
+            levels,
+            deposit_script,
+            script_suffix,
+            required_sig_count,
+        ) => TxEip1559 {
+            to: TransactionKind::Call(L1BlockHashList::address()),
+            input: RethBytes::from(sys_block_hash.init(block_number).to_vec()),
+            nonce,
+            chain_id,
+            value: U256::ZERO,
+            gas_limit: 1_000_000u64,
+            max_fee_per_gas: u64::MAX as u128,
+            ..Default::default()
+        },
+        SystemEvent::BridgeDeposit(deposit_script, script_suffix, required_sig_count) => {
+            TxEip1559 {
+                to: TransactionKind::Call(L1BlockHashList::address()),
+                input: RethBytes::from(sys_block_hash.init(block_number).to_vec()),
+                nonce,
+                chain_id,
+                value: U256::ZERO,
+                gas_limit: 1_000_000u64,
+                max_fee_per_gas: u64::MAX as u128,
+                ..Default::default()
+            }
+        }
     };
     Transaction::Eip1559(body)
 }
