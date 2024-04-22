@@ -7,7 +7,7 @@ use std::sync::Mutex;
 #[cfg(feature = "local")]
 pub use citrea_evm::DevSigner;
 use citrea_evm::{EthApiError, Evm};
-use ethers::types::Bytes;
+use ethers::types::{Bytes, H256};
 pub use gas_price::fee_history::FeeHistoryCacheConfig;
 use gas_price::gas_oracle::GasPriceOracle;
 pub use gas_price::gas_oracle::GasPriceOracleConfig;
@@ -710,7 +710,13 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                     .send_raw_tx(data)
                     .await;
 
-                tx_hash.map_err(|e| to_jsonrpsee_error_object(&e.to_string(), e))
+                match tx_hash {
+                    Ok(tx_hash) => Ok::<H256, ErrorObjectOwned>(tx_hash),
+                    Err(e) => match e {
+                        jsonrpsee::core::Error::Call(e_owned) => Err(e_owned),
+                        _ => Err(to_jsonrpsee_error_object("SEQUENCER_CLIENT_ERROR", e)),
+                    },
+                }
             },
         )?;
 
@@ -729,15 +735,21 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                 match mempool_only {
                     // only ask sequencer
                     Ok(Some(true)) => {
-                        let tx = ethereum
+                        match ethereum
                             .sequencer_client
                             .as_ref()
                             .unwrap()
                             .get_tx_by_hash(hash, Some(true))
                             .await
-                            .map_err(|e| to_jsonrpsee_error_object(&e.to_string(), e))?;
-
-                        Ok::<Option<reth_rpc_types::Transaction>, ErrorObjectOwned>(tx)
+                        {
+                            Ok(tx) => {
+                                Ok::<Option<reth_rpc_types::Transaction>, ErrorObjectOwned>(tx)
+                            }
+                            Err(e) => match e {
+                                jsonrpsee::core::Error::Call(e_owned) => Err(e_owned),
+                                _ => Err(to_jsonrpsee_error_object("SEQUENCER_CLIENT_ERROR", e)),
+                            },
+                        }
                     }
                     _ => {
                         // if mempool_only is not true ask evm first then sequencer
@@ -750,15 +762,25 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                             >(Some(tx)),
                             Ok(None) => {
                                 // if not found in evm then ask to sequencer mempool
-                                let tx = ethereum
+                                match ethereum
                                     .sequencer_client
                                     .as_ref()
                                     .unwrap()
                                     .get_tx_by_hash(hash, Some(true))
                                     .await
-                                    .map_err(|e| to_jsonrpsee_error_object(&e.to_string(), e))?;
-
-                                Ok::<Option<reth_rpc_types::Transaction>, ErrorObjectOwned>(tx)
+                                {
+                                    Ok(tx) => Ok::<
+                                        Option<reth_rpc_types::Transaction>,
+                                        ErrorObjectOwned,
+                                    >(tx),
+                                    Err(e) => match e {
+                                        jsonrpsee::core::Error::Call(e_owned) => Err(e_owned),
+                                        _ => Err(to_jsonrpsee_error_object(
+                                            "SEQUENCER_CLIENT_ERROR",
+                                            e,
+                                        )),
+                                    },
+                                }
                             }
                             Err(e) => {
                                 // return error

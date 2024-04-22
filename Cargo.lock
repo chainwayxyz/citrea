@@ -8154,6 +8154,7 @@ name = "sequencer-client"
 version = "0.3.0"
 dependencies = [
  "anyhow",
+ "citrea-evm",
  "ethers",
  "hex",
  "jsonrpsee",

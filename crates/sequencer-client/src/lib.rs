@@ -44,27 +44,28 @@ impl SequencerClient {
     }
 
     /// Sends raw tx to sequencer
-    pub async fn send_raw_tx(&self, tx: Bytes) -> anyhow::Result<H256> {
-        let tx_hash: H256 = self
+    pub async fn send_raw_tx(&self, tx: Bytes) -> Result<H256, Error> {
+        let tx_hash: Result<H256, Error> = self
             .client
             .request("eth_sendRawTransaction", rpc_params![tx])
-            .await?;
-        Ok(tx_hash)
+            .await;
+
+        tx_hash
     }
 
     pub async fn get_tx_by_hash(
         &self,
         tx_hash: B256,
         mempool_only: Option<bool>,
-    ) -> anyhow::Result<Option<reth_rpc_types::Transaction>> {
-        let tx: Option<reth_rpc_types::Transaction> = self
+    ) -> Result<Option<reth_rpc_types::Transaction>, Error> {
+        let tx: Result<Option<reth_rpc_types::Transaction>, Error> = self
             .client
             .request(
                 "eth_getTransactionByHash",
                 rpc_params![tx_hash, mempool_only],
             )
-            .await?;
-        Ok(tx)
+            .await;
+        tx
     }
 }
 
