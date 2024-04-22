@@ -217,8 +217,8 @@ pub fn should_skip(path: &Path) -> bool {
         | "ValueOverflowParis.json"
 
         // | "addNonConst.json"
-        | "addmodNonConst.json"
-        | "andNonConst.json"
+        // | "addmodNonConst.json"
+        // | "andNonConst.json"
         | "balanceNonConst.json"
         | "byteNonConst.json"
         | "callNonConst.json"
