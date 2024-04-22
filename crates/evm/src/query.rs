@@ -1487,6 +1487,15 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .get(&block_hash, &mut working_set.accessory_state());
         block_number
     }
+
+    /// Returns the cumulative gas used in pending transactions
+    /// Used to calculate how much gas system transactions use at the beginning of the block
+    pub fn get_pending_txs_cumulative_gas_used(&self, working_set: &mut WorkingSet<C>) -> u64 {
+        self.pending_transactions
+            .iter(working_set)
+            .map(|tx| tx.receipt.gas_used)
+            .sum::<u64>()
+    }
 }
 
 fn get_cfg_env_template() -> revm::primitives::CfgEnvWithHandlerCfg {

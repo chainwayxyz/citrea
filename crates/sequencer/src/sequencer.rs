@@ -177,12 +177,8 @@ where
         &mut self,
         da_block: <Da as DaService>::FilteredBlock,
         l1_fee_rate: u64,
-        rlp_txs: Vec<RlpEvmTransaction>,
+        empty: bool,
     ) -> Result<(), anyhow::Error> {
-        debug!(
-            "Sequencer: publishing block with {} transactions",
-            rlp_txs.len()
-        );
         let da_height = da_block.header().height();
         let (l2_height, l1_height) = match self
             .ledger_db
@@ -210,11 +206,6 @@ where
         };
         let mut signed_batch: SignedSoftConfirmationBatch = batch_info.clone().into();
         // initially create sc info and call begin soft confirmation hook with it
-        let call_txs = CallMessage { txs: rlp_txs };
-        let raw_message =
-            <Runtime<C, Da::Spec> as EncodeCall<citrea_evm::Evm<C>>>::encode_call(call_txs);
-        let signed_blob = self.make_blob(raw_message);
-        let txs = vec![signed_blob.clone()];
 
         let prestate = self
             .storage_manager
@@ -237,6 +228,17 @@ where
             &mut signed_batch,
         ) {
             (Ok(()), batch_workspace) => {
+                let rlp_txs = self.get_rlp_transactions(empty);
+                debug!(
+                    "Sequencer: publishing block with {} transactions",
+                    rlp_txs.len()
+                );
+                let call_txs = CallMessage { txs: rlp_txs };
+                let raw_message =
+                    <Runtime<C, Da::Spec> as EncodeCall<citrea_evm::Evm<C>>>::encode_call(call_txs);
+                let signed_blob = self.make_blob(raw_message);
+                let txs = vec![signed_blob.clone()];
+
                 let (batch_workspace, tx_receipts) =
                     self.stf.apply_soft_batch_txs(txs.clone(), batch_workspace);
 
@@ -353,22 +355,6 @@ where
             if (self.l2_force_block_rx.next().await).is_some() {
                 // best txs with base fee
                 // get base fee from last blocks => header => next base fee() function
-                let cfg: citrea_evm::EvmChainConfig = self.db_provider.cfg();
-
-                let latest_header = self
-                    .db_provider
-                    .latest_header()
-                    .expect("Failed to get latest header")
-                    .expect("Latest header must always exist")
-                    .unseal();
-
-                let base_fee = latest_header
-                    .next_block_base_fee(cfg.base_fee_params)
-                    .expect("Failed to get next block base fee");
-
-                let best_txs_with_base_fee = self.mempool.best_transactions_with_attributes(
-                    BestTransactionsAttributes::base_fee(base_fee),
-                );
 
                 let mut prev_l1_height = self
                     .ledger_db
@@ -419,7 +405,7 @@ where
                                 );
                                 let da_block =
                                     self.da_service.get_block_at(skipped_height).await.unwrap();
-                                self.produce_l2_block(da_block, l1_fee_rate, vec![]).await?;
+                                self.produce_l2_block(da_block, l1_fee_rate, true).await?;
                             }
                         }
                         let prev_l1_height = last_finalized_height - 1;
@@ -478,39 +464,62 @@ where
                     // TODO: this is where we would include forced transactions from the new L1 block
                 }
 
-                // TODO: implement block builder instead of just including every transaction in order
-                let mut cumulative_gas_used = 0;
-                let rlp_txs: Vec<RlpEvmTransaction> = best_txs_with_base_fee
-                    .into_iter()
-                    .filter(|tx| {
-                        // Don't include transactions that exceed the block gas limit
-                        let tx_gas_limit = tx.transaction.gas_limit();
-                        let fits_into_block =
-                            cumulative_gas_used + tx_gas_limit <= cfg.block_gas_limit;
-                        if fits_into_block {
-                            cumulative_gas_used += tx_gas_limit
-                        }
-                        fits_into_block
-                    })
-                    .map(|tx| {
-                        tx.to_recovered_transaction()
-                            .into_signed()
-                            .envelope_encoded()
-                            .to_vec()
-                    })
-                    .map(|rlp| RlpEvmTransaction { rlp })
-                    .collect();
-
                 let last_finalized_block = self
                     .da_service
                     .get_block_at(last_finalized_height)
                     .await
                     .unwrap();
 
-                self.produce_l2_block(last_finalized_block, l1_fee_rate, rlp_txs)
+                self.produce_l2_block(last_finalized_block, l1_fee_rate, false)
                     .await?;
             }
         }
+    }
+
+    fn get_rlp_transactions(&self, empty: bool) -> Vec<RlpEvmTransaction> {
+        if empty {
+            return vec![];
+        }
+        let cfg = self.db_provider.cfg();
+        let latest_header = self
+            .db_provider
+            .latest_header()
+            .expect("Failed to get latest header")
+            .expect("Latest header must always exist")
+            .unseal();
+
+        let base_fee = latest_header
+            .next_block_base_fee(cfg.base_fee_params)
+            .expect("Failed to get next block base fee");
+
+        let best_txs_with_base_fee = self
+            .mempool
+            .best_transactions_with_attributes(BestTransactionsAttributes::base_fee(base_fee));
+        // TODO: implement block builder instead of just including every transaction in order
+        let mut cumulative_gas_used = 0;
+        let system_tx_gas_usage = self.db_provider.pending_txs_cumulative_gas_used();
+        // Add the system tx gas usage to the cumulative gas used
+        cumulative_gas_used += system_tx_gas_usage;
+
+        best_txs_with_base_fee
+            .into_iter()
+            .filter(|tx| {
+                // Don't include transactions that exceed the block gas limit
+                let tx_gas_limit = tx.transaction.gas_limit();
+                let fits_into_block = cumulative_gas_used + tx_gas_limit <= cfg.block_gas_limit;
+                if fits_into_block {
+                    cumulative_gas_used += tx_gas_limit
+                }
+                fits_into_block
+            })
+            .map(|tx| {
+                tx.to_recovered_transaction()
+                    .into_signed()
+                    .envelope_encoded()
+                    .to_vec()
+            })
+            .map(|rlp| RlpEvmTransaction { rlp })
+            .collect::<Vec<RlpEvmTransaction>>()
     }
 
     /// Signs batch of messages with sovereign priv key turns them into a sov blob
