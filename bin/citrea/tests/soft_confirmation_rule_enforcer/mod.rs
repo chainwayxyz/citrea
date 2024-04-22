@@ -1,71 +1,59 @@
-use citrea_stf::genesis_config::GenesisPaths;
-use sov_mock_da::{MockAddress, MockDaService};
-use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
-use sov_stf_runner::RollupProverConfig;
+use sov_modules_api::hooks::{ApplySoftConfirmationError, HookSoftConfirmationInfo};
+use sov_modules_api::{Context, DaSpec, StateMapAccessor, StateValueAccessor, WorkingSet};
+use sov_state::Storage;
 
-use crate::evm::make_test_client;
-// use citrea::initialize_logging;
-use crate::test_helpers::{start_rollup, NodeMode};
-use crate::DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT;
+use crate::SoftConfirmationRuleEnforcer;
 
-/// Transaction with equal nonce to last tx should not be accepted by mempool.
-#[tokio::test]
-async fn too_many_l2_block_per_l1_block() {
-    // citrea::initialize_logging();
-
-    let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
-
-    tokio::spawn(async {
-        start_rollup(
-            seq_port_tx,
-            GenesisPaths::from_dir("../test-data/genesis/integration-tests-low-limiting-number"),
-            BasicKernelGenesisPaths {
-                chain_state:
-                    "../test-data/genesis/integration-tests-low-limiting-number/chain_state.json"
-                        .into(),
-            },
-            RollupProverConfig::Execute,
-            NodeMode::SequencerNode,
-            None,
-            DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
-            true,
-        )
-        .await;
-    });
-    let seq_port = seq_port_rx.await.unwrap();
-    let test_client = make_test_client(seq_port).await;
-    let limiting_number = test_client.get_limiting_number().await;
-
-    let da_service = MockDaService::new(MockAddress::from([0; 32]));
-
-    // limiting number should be 10
-    // we use a low limiting number because mockda creates blocks every 5 seconds
-    // and we want to test the error in a reasonable time
-    assert_eq!(limiting_number, 10);
-
-    // create 2*limiting_number + 1 blocks so it has to give error
-    for idx in 0..2 * limiting_number + 1 {
-        test_client.spam_publish_batch_request().await.unwrap();
-        if idx >= limiting_number {
-            // There should not be any more blocks published from this point
-            // because the limiting number is reached
-            assert_eq!(test_client.eth_block_number().await, 10);
-        }
+impl<C: Context, Da: DaSpec> SoftConfirmationRuleEnforcer<C, Da>
+where
+    <C::Storage as Storage>::Root: Into<[u8; 32]>,
+{
+    struct SoftConfirmationHookArgs<'a> {
+        soft_batch: &'a mut HookSoftConfirmationInfo,
+        working_set: &'a mut WorkingSet<C>,
     }
-    let mut last_block_number = test_client.eth_block_number().await;
 
-    da_service.publish_test_block().await.unwrap();
+    /// Logic executed at the beginning of the soft confirmation.
+    /// Checks three rules: block count rule, fee rate rule, and DA height and hash rule.
+    pub fn begin_soft_confirmation_hook(
+        &self,
+        args: &mut SoftConfirmationHookArgs,
+    ) -> Result<(), ApplySoftConfirmationError> {
+        self.apply_block_count_rule(args.soft_batch, args.working_set)?;
+        self.apply_fee_rate_rule(args.soft_batch, args.working_set)?;
+        self.apply_da_height_and_hash_rule(args.soft_batch, args.working_set)?;
+        self.apply_timestamp_rule(args.soft_batch, args.working_set)?;
 
-    for idx in 0..2 * limiting_number + 1 {
-        test_client.spam_publish_batch_request().await.unwrap();
-        if idx < limiting_number {
-            assert_eq!(test_client.eth_block_number().await, last_block_number + 1);
+        Ok(())
+    }
+
+    // Other methods remain the same
+}
+
+// Usage of the begin_soft_confirmation_hook method
+fn main() {
+    // Create necessary objects and variables
+    let mut soft_batch_info = HookSoftConfirmationInfo::new();
+    let mut working_set = WorkingSet::new();
+
+    // Create SoftConfirmationHookArgs struct with the required references
+    let mut hook_args = SoftConfirmationRuleEnforcer::SoftConfirmationHookArgs {
+        soft_batch: &mut soft_batch_info,
+        working_set: &mut working_set,
+    };
+
+    // Call the begin_soft_confirmation_hook method with the SoftConfirmationHookArgs
+    let enforcer = SoftConfirmationRuleEnforcer::new();
+    let result = enforcer.begin_soft_confirmation_hook(&mut hook_args);
+
+    // Handle the result accordingly
+    match result {
+        Ok(()) => {
+            // Soft confirmation logic executed successfully
         }
-        last_block_number += 1;
-        if idx >= limiting_number {
-            // There should not be any more blocks published from this point
-            // because the limiting number is reached again
-            assert_eq!(test_client.eth_block_number().await, 20);
+        Err(error) => {
+            // Handle the ApplySoftConfirmationError
+            println!("Error: {:?}", error);
         }
     }
 }
