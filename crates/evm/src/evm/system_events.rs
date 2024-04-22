@@ -28,9 +28,15 @@ pub(crate) enum SystemEvent {
         /*required sig count*/ U256,
     ),
     BridgeDeposit(
-        /*deposit script*/ Vec<u8>,
-        /*script suffix*/ Vec<u8>,
-        /*required sig count*/ U256,
+        /*version*/ [u8; 4],
+        /*flag*/ [u8; 2],
+        /*vin*/ Vec<u8>,
+        /*vout*/ Vec<u8>,
+        /*witness*/ Vec<u8>,
+        /*locktime*/ [u8; 4],
+        /*intermediate nodes*/ Vec<u8>,
+        /*block height*/ ethereum_types::U256,
+        /*index*/ ethereum_types::U256,
     ),
 }
 
@@ -76,18 +82,30 @@ fn system_event_to_transaction(event: SystemEvent, nonce: u64, chain_id: u64) ->
             max_fee_per_gas: u64::MAX as u128,
             ..Default::default()
         },
-        SystemEvent::BridgeDeposit(deposit_script, script_suffix, required_sig_count) => {
-            TxEip1559 {
-                to: TransactionKind::Call(L1BlockHashList::address()),
-                input: RethBytes::from(sys_block_hash.init(block_number).to_vec()),
-                nonce,
-                chain_id,
-                value: U256::ZERO,
-                gas_limit: 1_000_000u64,
-                max_fee_per_gas: u64::MAX as u128,
-                ..Default::default()
-            }
-        }
+        SystemEvent::BridgeDeposit(
+            version,
+            flag,
+            vin,
+            vout,
+            witness,
+            locktime,
+            intermediate_nodes,
+            block_height,
+            index,
+        ) => TxEip1559 {
+            to: TransactionKind::Call(L1BlockHashList::address()),
+            input: RethBytes::from(
+                sys_block_hash
+                    .set_block_info(block_hash, txs_commitments)
+                    .to_vec(),
+            ),
+            nonce,
+            chain_id,
+            value: U256::ZERO,
+            gas_limit: 1_000_000u64,
+            max_fee_per_gas: u64::MAX as u128,
+            ..Default::default()
+        },
     };
     Transaction::Eip1559(body)
 }
