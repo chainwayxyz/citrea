@@ -171,6 +171,13 @@ impl DaService for RngDaService {
     async fn get_fee_rate(&self) -> Result<u64, Self::Error> {
         unimplemented!()
     }
+
+    async fn get_deposit_tx(
+        &self,
+        _transaction_id: &Self::TransactionId,
+    ) -> Result<(Vec<u8>, u64, Vec<u8>), Self::Error> {
+        unimplemented!()
+    }
 }
 
 pub struct RngDaVerifier;

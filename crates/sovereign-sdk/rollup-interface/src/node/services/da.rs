@@ -139,6 +139,12 @@ pub trait DaService: Send + Sync + 'static {
 
     /// Returns fee rate per byte on DA layer.
     async fn get_fee_rate(&self) -> Result<u64, Self::Error>;
+
+    /// Returns deposit transaction along with the inclusion proof
+    async fn get_deposit_tx(
+        &self,
+        transaction_id: &Self::TransactionId,
+    ) -> Result<(Vec<u8>, u64, Vec<u8>), Self::Error>;
 }
 
 /// `SlotData` is the subset of a DA layer block which is stored in the rollup's database.

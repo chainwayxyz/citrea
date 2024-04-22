@@ -409,6 +409,13 @@ impl DaService for MockDaService {
             .get_by_hash(hash)
             .ok_or_else(|| anyhow::anyhow!("Block with hash {:?} not found", hash))
     }
+
+    async fn get_deposit_tx(
+        &self,
+        _transaction_id: &Self::TransactionId,
+    ) -> Result<(Vec<u8>, u64, Vec<u8>), Self::Error> {
+        todo!()
+    }
 }
 
 fn hash_to_array(bytes: &[u8]) -> [u8; 32] {

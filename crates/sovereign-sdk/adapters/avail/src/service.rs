@@ -322,4 +322,11 @@ impl DaService for DaProvider {
     async fn get_block_by_hash(&self, _hash: [u8; 32]) -> Result<Self::FilteredBlock, Self::Error> {
         unimplemented!()
     }
+
+    async fn get_deposit_tx(
+        &self,
+        _transaction_id: &Self::TransactionId,
+    ) -> Result<(Vec<u8>, u64, Vec<u8>), Self::Error> {
+        unimplemented!()
+    }
 }

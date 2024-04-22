@@ -478,6 +478,13 @@ impl DaService for BitcoinService {
         let block = self.client.get_block(hex_hash).await?;
         Ok(block)
     }
+
+    async fn get_deposit_tx(
+        &self,
+        _transaction_id: &Self::TransactionId,
+    ) -> Result<(Vec<u8>, u64, Vec<u8>), Self::Error> {
+        todo!()
+    }
 }
 
 #[cfg(test)]
