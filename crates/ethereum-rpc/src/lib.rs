@@ -463,7 +463,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
     //     Ok::<_, ErrorObjectOwned>(tx_hash)
     // })?;
 
-    rpc.register_async_method(
+    rpc.register_async_method::<Result<Vec<GethTrace>, ErrorObjectOwned>, _, _>(
         "debug_traceBlockByHash",
         |parmaeters, ethereum| async move {
             info!("eth module: debug_traceBlockByHash");
@@ -501,7 +501,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                     requested_opts.tracer.unwrap(),
                     requested_opts.tracer_config,
                 )?;
-                return Ok::<Vec<GethTrace>, ErrorObjectOwned>(traces);
+                return Ok(traces);
             }
             let cache_options = create_trace_cache_opts();
             let traces = evm.trace_block_transactions_by_number(
@@ -524,11 +524,11 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                 tracer_config,
             )?;
 
-            Ok::<Vec<GethTrace>, ErrorObjectOwned>(traces)
+            Ok(traces)
         },
     )?;
 
-    rpc.register_async_method(
+    rpc.register_async_method::<Result<Vec<GethTrace>, ErrorObjectOwned>, _, _>(
         "debug_traceBlockByNumber",
         |parameters, ethereum| async move {
             info!("eth module: debug_traceBlockByNumber");
@@ -578,11 +578,11 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
             let tracer_config = requested_opts.tracer_config;
             let traces = get_traces_with_reuqested_tracer_and_config(traces.clone(), requested_opts.tracer.unwrap(), tracer_config)?;
 
-            Ok::<Vec<GethTrace>, ErrorObjectOwned>(traces)
+            Ok(traces)
         },
     )?;
 
-    rpc.register_async_method(
+    rpc.register_async_method::<Result<GethTrace, ErrorObjectOwned>, _, _>(
         "debug_traceTransaction",
         |parameters, ethereum| async move {
             // the main rpc handler for debug_traceTransaction
@@ -625,7 +625,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                     Some(trace_index as usize),
                     &mut working_set,
                 )?;
-                return Ok::<GethTrace, ErrorObjectOwned>(traces[trace_index as usize].clone());
+                return Ok(traces[trace_index as usize].clone());
             }
 
             // check cache if found convert to requested tracer and config and return
@@ -637,7 +637,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                     requested_opts.tracer.unwrap(),
                     tracer_config,
                 )?;
-                return Ok::<GethTrace, ErrorObjectOwned>(traces.into_iter().next().unwrap());
+                return Ok(traces.into_iter().next().unwrap());
             }
 
             let cache_options = create_trace_cache_opts();
@@ -661,7 +661,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                 tracer_config,
             )?;
 
-            Ok::<GethTrace, ErrorObjectOwned>(traces.into_iter().next().unwrap())
+            Ok(traces.into_iter().next().unwrap())
         },
     )?;
 
@@ -694,7 +694,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
     )?;
 
     if !is_sequencer {
-        rpc.register_async_method(
+        rpc.register_async_method::<Result<H256, ErrorObjectOwned>, _, _>(
             "eth_sendRawTransaction",
             |parameters, ethereum| async move {
                 info!("Full Node: eth_sendRawTransaction");
@@ -709,7 +709,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                     .await;
 
                 match tx_hash {
-                    Ok(tx_hash) => Ok::<H256, ErrorObjectOwned>(tx_hash),
+                    Ok(tx_hash) => Ok(tx_hash),
                     Err(e) => match e {
                         jsonrpsee::core::Error::Call(e_owned) => Err(e_owned),
                         _ => Err(to_jsonrpsee_error_object("SEQUENCER_CLIENT_ERROR", e)),
@@ -718,7 +718,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
             },
         )?;
 
-        rpc.register_async_method(
+        rpc.register_async_method::<Result<Option<reth_rpc_types::Transaction>, ErrorObjectOwned>, _, _>(
             "eth_getTransactionByHash",
             |parameters, ethereum| async move {
                 let mut params = parameters.sequence();
@@ -752,10 +752,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                         let evm = Evm::<C>::default();
                         let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
                         match evm.get_transaction_by_hash(hash, &mut working_set) {
-                            Ok(Some(tx)) => Ok::<
-                                Option<reth_rpc_types::Transaction>,
-                                ErrorObjectOwned,
-                            >(Some(tx)),
+                            Ok(Some(tx)) => Ok(Some(tx)),
                             Ok(None) => {
                                 // if not found in evm then ask to sequencer mempool
                                 match ethereum
@@ -765,10 +762,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                                     .get_tx_by_hash(hash, Some(true))
                                     .await
                                 {
-                                    Ok(tx) => Ok::<
-                                        Option<reth_rpc_types::Transaction>,
-                                        ErrorObjectOwned,
-                                    >(tx),
+                                    Ok(tx) => Ok(tx),
                                     Err(e) => match e {
                                         jsonrpsee::core::Error::Call(e_owned) => Err(e_owned),
                                         _ => Err(to_jsonrpsee_error_object(
