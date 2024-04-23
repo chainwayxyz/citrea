@@ -70,6 +70,8 @@ pub(crate) fn execute_multiple_tx<
     }
 
     let block_gas_limit = block_env.gas_limit;
+
+    println!("block_gas_limit: {:?}", block_gas_limit);
     let mut cumulative_gas_used = prev_gas_used;
 
     let mut evm = CitreaEvm::new(db, block_env, config_env, ext);

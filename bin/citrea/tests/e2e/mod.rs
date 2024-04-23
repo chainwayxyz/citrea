@@ -5,6 +5,7 @@ use std::time::Duration;
 
 use citrea_evm::smart_contracts::SimpleStorageContract;
 use citrea_evm::system_contracts::L1BlockHashList;
+use citrea_sequencer::{SequencerConfig, SequencerMempoolConfig};
 use citrea_stf::genesis_config::GenesisPaths;
 use ethereum_types::H256;
 use ethers::abi::Address;
@@ -58,6 +59,8 @@ async fn initialize_test(
             None,
             config.seq_min_soft_confirmations,
             true,
+            None,
+            None,
         )
         .await;
     });
@@ -79,6 +82,8 @@ async fn initialize_test(
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             true,
+            None,
+            None,
         )
         .await;
     });
@@ -113,6 +118,8 @@ async fn test_soft_batch_save() -> Result<(), anyhow::Error> {
             None,
             config.seq_min_soft_confirmations,
             true,
+            None,
+            None,
         )
         .await;
     });
@@ -134,6 +141,8 @@ async fn test_soft_batch_save() -> Result<(), anyhow::Error> {
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             true,
+            None,
+            None,
         )
         .await;
     });
@@ -155,6 +164,8 @@ async fn test_soft_batch_save() -> Result<(), anyhow::Error> {
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             false,
+            None,
+            None,
         )
         .await;
     });
@@ -240,6 +251,8 @@ async fn test_delayed_sync_ten_blocks() -> Result<(), anyhow::Error> {
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             true,
+            None,
+            None,
         )
         .await;
     });
@@ -271,6 +284,8 @@ async fn test_delayed_sync_ten_blocks() -> Result<(), anyhow::Error> {
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             true,
+            None,
+            None,
         )
         .await;
     });
@@ -333,6 +348,8 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             true,
+            None,
+            None,
         )
         .await;
     });
@@ -354,6 +371,8 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
             Some("demo_data_test_close_and_reopen_full_node"),
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             true,
+            None,
+            None,
         )
         .await;
     });
@@ -434,6 +453,8 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
             Some("demo_data_test_close_and_reopen_full_node_copy"),
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             true,
+            None,
+            None,
         )
         .await;
     });
@@ -487,6 +508,8 @@ async fn test_get_transaction_by_hash() -> Result<(), anyhow::Error> {
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             true,
+            None,
+            None,
         )
         .await;
     });
@@ -507,6 +530,8 @@ async fn test_get_transaction_by_hash() -> Result<(), anyhow::Error> {
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             true,
+            None,
+            None,
         )
         .await;
     });
@@ -741,6 +766,8 @@ async fn test_reopen_sequencer() -> Result<(), anyhow::Error> {
             Some("demo_data_test_reopen_sequencer"),
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             true,
+            None,
+            None,
         )
         .await;
     });
@@ -785,6 +812,8 @@ async fn test_reopen_sequencer() -> Result<(), anyhow::Error> {
             Some("demo_data_test_reopen_sequencer_copy"),
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             true,
+            None,
+            None,
         )
         .await;
     });
@@ -1069,6 +1098,8 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
             None,
             4,
             true,
+            None,
+            None,
         )
         .await;
     });
@@ -1090,6 +1121,8 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
             None,
             4,
             true,
+            None,
+            None,
         )
         .await;
     });
@@ -1172,6 +1205,8 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
             None,
             4,
             true,
+            None,
+            None,
         )
         .await;
     });
@@ -1193,6 +1228,8 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
             Some("demo_data_test_reopen_prover"),
             4,
             true,
+            None,
+            None,
         )
         .await;
     });
@@ -1246,6 +1283,8 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
             Some("demo_data_test_reopen_prover_copy"),
             4,
             true,
+            None,
+            None,
         )
         .await;
     });
@@ -1289,6 +1328,8 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
             Some("demo_data_test_reopen_prover_copy2"),
             4,
             true,
+            None,
+            None,
         )
         .await;
     });
@@ -1449,3 +1490,147 @@ async fn test_system_transactons() -> Result<(), anyhow::Error> {
 
     Ok(())
 }
+
+#[tokio::test]
+async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error> {
+    // citrea::initialize_logging();
+    let l1_blockhash_contract = L1BlockHashList::default();
+
+    let system_contract_address =
+        Address::from_str("0x3100000000000000000000000000000000000001").unwrap();
+    let system_signer_address =
+        Address::from_str("0xdeaddeaddeaddeaddeaddeaddeaddeaddeaddead").unwrap();
+
+    let da_service = MockDaService::new(MockAddress::default());
+
+    // start rollup on da block 3
+    for _ in 0..3 {
+        da_service.publish_test_block().await.unwrap();
+    }
+
+    let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
+
+    let seq_task =
+        tokio::spawn(async move {
+            start_rollup(
+            seq_port_tx,
+            GenesisPaths::from_dir("../test-data/genesis/integration-tests-low-block-gas-limit"),
+            BasicKernelGenesisPaths {
+                chain_state:
+                    "../test-data/genesis/integration-tests-low-block-gas-limit/chain_state.json"
+                        .into(),
+            },
+            RollupProverConfig::Execute,
+            NodeMode::SequencerNode,
+            None,
+            4,
+            true,
+            None,
+            // Increase max account slots to not stuck as spammer
+            Some(SequencerConfig {
+                min_soft_confirmations_per_commitment: 1000,
+                mempool_conf: SequencerMempoolConfig {max_account_slots: 100, ..Default::default() }
+            })
+        )
+        .await;
+        });
+
+    let seq_port = seq_port_rx.await.unwrap();
+    let seq_test_client = make_test_client(seq_port).await;
+    // sys tx use 45756 + 75710 = 121466gas
+    // the block gas limit is 1_000_000 because the system txs gas limit is 1_000_000
+
+    // 1000000 - 121466 = 878534 gas is left in block
+    // 878534 / 21000 = 41,8 so 41 ether transfer transactions can be included in the block
+
+    // send 41 ether transfer transactions
+    let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
+
+    for _ in 0..40 {
+        seq_test_client
+            .send_eth(addr, None, None, None, 0u128)
+            .await
+            .unwrap();
+    }
+
+    // 41st tx should be the last tx in the soft batch
+    let last_in_tx = seq_test_client
+        .send_eth(addr, None, None, None, 0u128)
+        .await;
+
+    // this tx should not be in soft batch
+    let not_in_tx = seq_test_client
+        .send_eth(addr, None, None, None, 0u128)
+        .await;
+
+    seq_test_client.send_publish_batch_request().await;
+
+    da_service.publish_test_block().await.unwrap();
+
+    let last_in_receipt = last_in_tx.unwrap().await.unwrap().unwrap();
+
+    sleep(Duration::from_secs(2)).await;
+
+    let initial_soft_batch = seq_test_client
+        .ledger_get_soft_batch_by_number::<MockDaSpec>(1)
+        .await
+        .unwrap();
+
+    let las_tx_hash = last_in_receipt.transaction_hash;
+    let last_tx_raw = seq_test_client
+        .eth_get_transaction_by_hash(las_tx_hash, Some(false))
+        .await
+        .unwrap()
+        .rlp();
+
+    assert!(last_in_receipt.block_number.is_some());
+
+    // last in tx byte array should be a sub array of txs[0]
+    assert!(find_subarray(
+        initial_soft_batch.clone().txs.unwrap()[0].tx.as_slice(),
+        &last_tx_raw
+    )
+    .is_some());
+
+    seq_test_client.send_publish_batch_request().await;
+
+    da_service.publish_test_block().await.unwrap();
+
+    let not_in_receipt = not_in_tx.unwrap().await.unwrap().unwrap();
+
+    let not_in_hash = not_in_receipt.transaction_hash;
+
+    let not_in_raw = seq_test_client
+        .eth_get_transaction_by_hash(not_in_hash, Some(false))
+        .await
+        .unwrap()
+        .rlp();
+
+    // not in tx byte array should not be a sub array of txs[0]
+    assert!(find_subarray(
+        initial_soft_batch.txs.unwrap()[0].tx.as_slice(),
+        &not_in_raw
+    )
+    .is_none());
+
+    // assert!(not_in_receipt.block_number.is_none());
+
+    // now on another block with system txs call ether transfers 42 times and see that the softbatch txs are the same
+
+    seq_test_client.send_publish_batch_request().await;
+
+    Ok(())
+}
+
+fn find_subarray(haystack: &[u8], needle: &[u8]) -> Option<usize> {
+    haystack
+        .windows(needle.len())
+        .position(|window| window == needle)
+}
+
+/*
+
+Some([HexTx { tx: [184, 94, 89, 158, 176, 202, 24, 181, 222, 56, 113, 151, 91, 81, 175, 218, 41, 152, 1, 103, 65, 54, 139, 168, 88, 189, 136, 138, 37, 91, 255, 96, 219, 197, 222, 209, 63, 128, 60, 62, 84, 197, 9, 76, 77, 2, 190, 195, 105, 45, 195, 114, 245, 252, 144, 118, 80, 70, 136, 73, 232, 179, 9, 13, 32, 64, 64, 227, 100, 193, 15, 43, 236, 156, 31, 229, 0, 161, 205, 76, 36, 124, 137, 214, 80, 160, 30, 215, 232, 44, 171, 168, 103, 135, 124, 33, 116, 0, 0, 0, 1, 1, 0, 0, 0, 107, 0, 0, 0, 2, 248, 104, 130, 22, 23, 128, 10, 132, 59, 154, 202, 1, 130, 82, 8, 148, 243, 159, 214, 229, 26, 173, 136, 246, 244, 206, 106, 184, 130, 114, 121, 207, 255, 185, 34, 102, 128, 128, 192, 1, 160, 81, 84, 144, 153, 250, 6, 243, 39, 253, 40, 20, 176, 99, 99, 173, 150, 64, 149, 164, 199, 121, 178, 164, 165, 144, 27, 219, 231, 195, 14, 217, 218, 160, 117, 218, 12, 116, 0, 64, 187, 61, 73, 109, 77, 231, 176, 120, 169, 184, 12, 27, 183, 126, 32, 44, 21, 6, 224, 93, 250, 244, 107, 196, 232, 165, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }])
+Some([HexTx { tx: [93, 215, 208, 75, 5, 17, 113, 90, 133, 245, 180, 203, 97, 148, 104, 155, 5, 123, 154, 123, 240, 239, 223, 11, 52, 250, 105, 201, 255, 229, 30, 118, 50, 49, 182, 219, 192, 203, 119, 228, 107, 25, 31, 235, 67, 125, 33, 76, 27, 239, 14, 80, 200, 37, 166, 42, 15, 87, 34, 145, 210, 194, 99, 0, 32, 64, 64, 227, 100, 193, 15, 43, 236, 156, 31, 229, 0, 161, 205, 76, 36, 124, 137, 214, 80, 160, 30, 215, 232, 44, 171, 168, 103, 135, 124, 33, 91, 4, 0, 0, 1, 10, 0, 0, 0, 107, 0, 0, 0, 2, 248, 104, 130, 22, 23, 128, 10, 132, 59, 154, 202, 1, 130, 82, 8, 148, 243, 159, 214, 229, 26, 173, 136, 246, 244, 206, 106, 184, 130, 114, 121, 207, 255, 185, 34, 102, 128, 128, 192, 1, 160, 81, 84, 144, 153, 250, 6, 243, 39, 253, 40, 20, 176, 99, 99, 173, 150, 64, 149, 164, 199, 121, 178, 164, 165, 144, 27, 219, 231, 195, 14, 217, 218, 160, 117, 218, 12, 116, 0, 64, 187, 61, 73, 109, 77, 231, 176, 120, 169, 184, 12, 27, 183, 126, 32, 44, 21, 6, 224, 93, 250, 244, 107, 196, 232, 165, 107, 0, 0, 0, 2, 248, 104, 130, 22, 23, 1, 10, 132, 59, 154, 202, 1, 130, 82, 8, 148, 243, 159, 214, 229, 26, 173, 136, 246, 244, 206, 106, 184, 130, 114, 121, 207, 255, 185, 34, 102, 128, 128, 192, 1, 160, 190, 203, 136, 28, 95, 179, 230, 159, 170, 86, 7, 180, 32, 17, 188, 216, 170, 188, 81, 156, 106, 254, 131, 170, 246, 62, 154, 48, 225, 76, 113, 9, 160, 62, 37, 59, 72, 24, 135, 228, 150, 121, 124, 184, 129, 215, 142, 137, 198, 231, 135, 53, 123, 207, 74, 44, 24, 144, 94, 233, 221, 90, 14, 55, 55, 107, 0, 0, 0, 2, 248, 104, 130, 22, 23, 2, 10, 132, 59, 154, 202, 1, 130, 82, 8, 148, 243, 159, 214, 229, 26, 173, 136, 246, 244, 206, 106, 184, 130, 114, 121, 207, 255, 185, 34, 102, 128, 128, 192, 1, 160, 208, 183, 182, 8, 85, 182, 70, 11, 210, 143, 95, 70, 48, 85, 154, 44, 81, 158, 69, 191, 183, 235, 229, 214, 150, 131, 37, 20, 97, 92, 91, 119, 160, 105, 90, 91, 41, 148, 218, 13, 101, 213, 36, 107, 136, 232, 180, 62, 191, 43, 239, 123, 62, 112, 175, 196, 112, 14, 210, 179, 42, 161, 217, 215, 17, 107, 0, 0, 0, 2, 248, 104, 130, 22, 23, 3, 10, 132, 59, 154, 202, 1, 130, 82, 8, 148, 243, 159, 214, 229, 26, 173, 136, 246, 244, 206, 106, 184, 130, 114, 121, 207, 255, 185, 34, 102, 128, 128, 192, 1, 160, 190, 204, 251, 0, 51, 173, 175, 225, 32, 251, 139, 64, 252, 76, 217, 198, 131, 105, 101, 231, 73, 170, 79, 250, 200, 73, 187, 174, 15, 125, 82, 79, 160, 78, 16, 236, 65, 13, 145, 91, 158, 5, 228, 11, 134, 53, 6, 195, 40, 77, 111, 200, 184, 53, 32, 194, 243, 125, 188, 185, 167, 181, 89, 196, 247, 107, 0, 0, 0, 2, 248, 104, 130, 22, 23, 4, 10, 132, 59, 154, 202, 1, 130, 82, 8, 148, 243, 159, 214, 229, 26, 173, 136, 246, 244, 206, 106, 184, 130, 114, 121, 207, 255, 185, 34, 102, 128, 128, 192, 128, 160, 171, 178, 56, 63, 169, 49, 159, 199, 48, 68, 14, 28, 244, 47, 234, 69, 88, 33, 235, 126, 239, 133, 190, 119, 30, 114, 59, 157, 63, 92, 27, 200, 160, 100, 219, 67, 109, 251, 142, 20, 63, 187, 14, 117, 40, 190, 185, 238, 198, 73, 107, 167, 209, 124, 156, 216, 97, 231, 228, 45, 195, 55, 104, 84, 57, 107, 0, 0, 0, 2, 248, 104, 130, 22, 23, 5, 10, 132, 59, 154, 202, 1, 130, 82, 8, 148, 243, 159, 214, 229, 26, 173, 136, 246, 244, 206, 106, 184, 130, 114, 121, 207, 255, 185, 34, 102, 128, 128, 192, 1, 160, 116, 174, 163, 209, 93, 68, 66, 150, 216, 181, 9, 16, 226, 199, 120, 204, 240, 216, 201, 173, 142, 171, 20, 39, 234, 199, 211, 224, 199, 236, 203, 76, 160, 2, 216, 220, 73, 139, 197, 96, 108, 17, 168, 214, 229, 49, 28, 28, 201, 140, 96, 142, 98, 68, 230, 90, 7, 178, 244, 146, 185, 246, 15, 37, 117, 107, 0, 0, 0, 2, 248, 104, 130, 22, 23, 6, 10, 132, 59, 154, 202, 1, 130, 82, 8, 148, 243, 159, 214, 229, 26, 173, 136, 246, 244, 206, 106, 184, 130, 114, 121, 207, 255, 185, 34, 102, 128, 128, 192, 128, 160, 189, 89, 90, 152, 221, 228, 25, 227, 193, 159, 9, 48, 70, 177, 121, 79, 219, 227, 158, 33, 244, 154, 126, 226, 21, 67, 248, 149, 232, 226, 196, 79, 160, 76, 214, 227, 51, 149, 79, 65, 73, 193, 37, 117, 22, 150, 211, 169, 249, 100, 80, 247, 77, 51, 58, 87, 223, 139, 76, 185, 113, 174, 228, 126, 105, 107, 0, 0, 0, 2, 248, 104, 130, 22, 23, 7, 10, 132, 59, 154, 202, 1, 130, 82, 8, 148, 243, 159, 214, 229, 26, 173, 136, 246, 244, 206, 106, 184, 130, 114, 121, 207, 255, 185, 34, 102, 128, 128, 192, 1, 160, 72, 3, 213, 228, 99, 94, 239, 51, 106, 134, 25, 22, 42, 46, 44, 232, 146, 239, 163, 216, 245, 94, 142, 79, 51, 14, 102, 66, 150, 39, 248, 246, 160, 84, 188, 86, 142, 3, 40, 108, 20, 162, 201, 69, 89, 46, 12, 106, 147, 101, 105, 88, 23, 255, 21, 150, 39, 150, 126, 163, 58, 97, 95, 149, 236, 107, 0, 0, 0, 2, 248, 104, 130, 22, 23, 8, 10, 132, 59, 154, 202, 1, 130, 82, 8, 148, 243, 159, 214, 229, 26, 173, 136, 246, 244, 206, 106, 184, 130, 114, 121, 207, 255, 185, 34, 102, 128, 128, 192, 1, 160, 13, 63, 42, 63, 162, 242, 41, 59, 254, 208, 240, 69, 144, 77, 78, 76, 234, 4, 179, 4, 7, 144, 0, 88, 149, 253, 112, 25, 31, 199, 118, 5, 160, 117, 107, 137, 46, 124, 220, 241, 121, 155, 243, 184, 247, 232, 63, 1, 97, 240, 221, 246, 219, 35, 202, 109, 212, 154, 189, 102, 72, 175, 47, 10, 43, 107, 0, 0, 0, 2, 248, 104, 130, 22, 23, 9, 10, 132, 59, 154, 202, 1, 130, 82, 8, 148, 243, 159, 214, 229, 26, 173, 136, 246, 244, 206, 106, 184, 130, 114, 121, 207, 255, 185, 34, 102, 128, 128, 192, 128, 160, 208, 34, 126, 219, 20, 65, 55, 58, 178, 56, 238, 176, 127, 229, 49, 229, 134, 234, 125, 77, 137, 189, 131, 96, 218, 99, 252, 78, 128, 239, 197, 22, 160, 26, 119, 127, 155, 66, 64, 118, 126, 7, 99, 131, 143, 32, 83, 173, 2, 130, 139, 80, 239, 98, 78, 169, 109, 206, 79, 74, 157, 151, 104, 129, 108, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }]
+
+*/

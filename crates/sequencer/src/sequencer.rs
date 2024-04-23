@@ -227,8 +227,13 @@ where
             da_block.header(),
             &mut signed_batch,
         ) {
-            (Ok(()), batch_workspace) => {
-                let rlp_txs = self.get_rlp_transactions(empty);
+            (Ok(()), mut batch_workspace) => {
+                let system_tx_gas_usage = self
+                    .db_provider
+                    .evm
+                    .get_pending_txs_cumulative_gas_used(&mut batch_workspace);
+
+                let rlp_txs = self.get_rlp_transactions(empty, system_tx_gas_usage);
                 debug!(
                     "Sequencer: publishing block with {} transactions",
                     rlp_txs.len()
@@ -476,7 +481,11 @@ where
         }
     }
 
-    fn get_rlp_transactions(&self, empty: bool) -> Vec<RlpEvmTransaction> {
+    fn get_rlp_transactions(
+        &self,
+        empty: bool,
+        system_tx_gas_usage: u64,
+    ) -> Vec<RlpEvmTransaction> {
         if empty {
             return vec![];
         }
@@ -497,7 +506,7 @@ where
             .best_transactions_with_attributes(BestTransactionsAttributes::base_fee(base_fee));
         // TODO: implement block builder instead of just including every transaction in order
         let mut cumulative_gas_used = 0;
-        let system_tx_gas_usage = self.db_provider.pending_txs_cumulative_gas_used();
+
         // Add the system tx gas usage to the cumulative gas used
         cumulative_gas_used += system_tx_gas_usage;
 

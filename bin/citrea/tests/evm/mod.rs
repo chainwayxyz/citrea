@@ -39,6 +39,8 @@ async fn web3_rpc_tests() -> Result<(), anyhow::Error> {
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             true,
+            None,
+            None,
         )
         .await;
     });
@@ -90,6 +92,8 @@ async fn evm_tx_tests() -> Result<(), anyhow::Error> {
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             true,
+            None,
+            None,
         )
         .await;
     });
@@ -125,6 +129,8 @@ async fn test_eth_get_logs() -> Result<(), anyhow::Error> {
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             true,
+            None,
+            None,
         )
         .await;
     });
@@ -156,6 +162,8 @@ async fn test_genesis_contract_call() -> Result<(), Box<dyn std::error::Error>> 
             None,
             123456,
             true,
+            None,
+            None,
         )
         .await;
     });

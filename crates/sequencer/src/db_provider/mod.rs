@@ -54,12 +54,6 @@ impl<C: sov_modules_api::Context> DbProvider<C> {
             .unwrap();
         Ok(Some(rich_block.inner))
     }
-
-    pub fn pending_txs_cumulative_gas_used(&self) -> u64 {
-        let mut working_set = WorkingSet::<C>::new(self.storage.clone());
-        self.evm
-            .get_pending_txs_cumulative_gas_used(&mut working_set)
-    }
 }
 
 impl<C: sov_modules_api::Context> AccountReader for DbProvider<C> {
