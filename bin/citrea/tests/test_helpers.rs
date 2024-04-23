@@ -37,6 +37,7 @@ pub async fn start_rollup(
     db_path: Option<&str>,
     min_soft_confirmations_per_commitment: u64,
     include_tx_body: bool,
+    test_mode: Option<bool>,
 ) {
     let mut path = db_path.map(Path::new);
     let mut temp_dir: Option<tempfile::TempDir> = None;
@@ -83,6 +84,7 @@ pub async fn start_rollup(
 
     let sequencer_config = SequencerConfig {
         min_soft_confirmations_per_commitment,
+        test_mode: test_mode.unwrap_or(false),
         mempool_conf: Default::default(),
     };
 

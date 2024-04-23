@@ -34,6 +34,7 @@ async fn tracing_tests() -> Result<(), Box<dyn std::error::Error>> {
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             true,
+            Some(true),
         )
         .await;
     });

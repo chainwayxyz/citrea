@@ -34,6 +34,7 @@ async fn test_gas_price_increase() -> Result<(), anyhow::Error> {
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             true,
+            Some(true),
         )
         .await;
     });

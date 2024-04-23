@@ -5,6 +5,8 @@ use serde::Deserialize;
 pub struct SequencerConfig {
     /// Min. soft confirmaitons for sequencer to commit
     pub min_soft_confirmations_per_commitment: u64,
+    /// Whether or not the sequencer is running in test mode
+    pub test_mode: bool,
     /// Sequencer specific mempool config
     pub mempool_conf: SequencerMempoolConfig,
 }
@@ -62,6 +64,7 @@ mod tests {
     fn test_correct_config_sequencer() {
         let config = r#"
             min_soft_confirmations_per_commitment = 123
+            test_mode = false
             [mempool_conf]
             pending_tx_limit = 100000
             pending_tx_size = 200
@@ -78,6 +81,7 @@ mod tests {
 
         let expected = SequencerConfig {
             min_soft_confirmations_per_commitment: 123,
+            test_mode: false,
             mempool_conf: SequencerMempoolConfig {
                 pending_tx_limit: 100000,
                 pending_tx_size: 200,

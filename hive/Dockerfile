@@ -38,4 +38,4 @@ RUN cargo
 EXPOSE 8545
 
 WORKDIR /app/bin/citrea
-ENTRYPOINT ["sh", "-c", "chmod +x ../../hive/hive_publish_block.sh ; ../../hive/hive_publish_block.sh &  ./publish_da_block.sh & ./citrea --genesis-paths ../../hive/genesis --rollup-config-path configs/mock-dockerized/rollup_config.toml --sequencer-config-path configs/mock-dockerized/sequencer_config.toml"]
+ENTRYPOINT ["sh", "-c", "./publish_da_block.sh & ./citrea --genesis-paths ../../hive/genesis --rollup-config-path configs/mock-dockerized/rollup_config.toml --sequencer-config-path configs/mock-dockerized/sequencer_config.toml"]

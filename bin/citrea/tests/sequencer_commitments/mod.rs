@@ -36,6 +36,7 @@ async fn sequencer_sends_commitments_to_da_layer() {
             None,
             4,
             true,
+            Some(true),
         )
         .await;
     });

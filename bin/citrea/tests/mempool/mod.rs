@@ -28,6 +28,7 @@ async fn initialize_test() -> (JoinHandle<()>, Box<TestClient>) {
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             true,
+            Some(true),
         )
         .await;
     });

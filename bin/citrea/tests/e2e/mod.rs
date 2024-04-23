@@ -58,6 +58,7 @@ async fn initialize_test(
             None,
             config.seq_min_soft_confirmations,
             true,
+            Some(true),
         )
         .await;
     });
@@ -79,6 +80,7 @@ async fn initialize_test(
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             true,
+            Some(true),
         )
         .await;
     });
@@ -113,6 +115,7 @@ async fn test_soft_batch_save() -> Result<(), anyhow::Error> {
             None,
             config.seq_min_soft_confirmations,
             true,
+            Some(true),
         )
         .await;
     });
@@ -134,6 +137,7 @@ async fn test_soft_batch_save() -> Result<(), anyhow::Error> {
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             true,
+            Some(true),
         )
         .await;
     });
@@ -155,6 +159,7 @@ async fn test_soft_batch_save() -> Result<(), anyhow::Error> {
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             false,
+            Some(true),
         )
         .await;
     });
@@ -240,6 +245,7 @@ async fn test_delayed_sync_ten_blocks() -> Result<(), anyhow::Error> {
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             true,
+            Some(true),
         )
         .await;
     });
@@ -271,6 +277,7 @@ async fn test_delayed_sync_ten_blocks() -> Result<(), anyhow::Error> {
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             true,
+            Some(true),
         )
         .await;
     });
@@ -333,6 +340,7 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             true,
+            Some(true),
         )
         .await;
     });
@@ -354,6 +362,7 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
             Some("demo_data_test_close_and_reopen_full_node"),
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             true,
+            Some(true),
         )
         .await;
     });
@@ -434,6 +443,7 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
             Some("demo_data_test_close_and_reopen_full_node_copy"),
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             true,
+            Some(true),
         )
         .await;
     });
@@ -487,6 +497,7 @@ async fn test_get_transaction_by_hash() -> Result<(), anyhow::Error> {
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             true,
+            Some(true),
         )
         .await;
     });
@@ -507,6 +518,7 @@ async fn test_get_transaction_by_hash() -> Result<(), anyhow::Error> {
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             true,
+            Some(true),
         )
         .await;
     });
@@ -741,6 +753,7 @@ async fn test_reopen_sequencer() -> Result<(), anyhow::Error> {
             Some("demo_data_test_reopen_sequencer"),
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             true,
+            Some(true),
         )
         .await;
     });
@@ -785,6 +798,7 @@ async fn test_reopen_sequencer() -> Result<(), anyhow::Error> {
             Some("demo_data_test_reopen_sequencer_copy"),
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             true,
+            Some(true),
         )
         .await;
     });
@@ -1069,6 +1083,7 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
             None,
             4,
             true,
+            Some(true),
         )
         .await;
     });
@@ -1090,6 +1105,7 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
             None,
             4,
             true,
+            Some(true),
         )
         .await;
     });
@@ -1172,6 +1188,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
             None,
             4,
             true,
+            Some(true),
         )
         .await;
     });
@@ -1193,6 +1210,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
             Some("demo_data_test_reopen_prover"),
             4,
             true,
+            Some(true),
         )
         .await;
     });
@@ -1246,6 +1264,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
             Some("demo_data_test_reopen_prover_copy"),
             4,
             true,
+            Some(true),
         )
         .await;
     });
@@ -1289,6 +1308,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
             Some("demo_data_test_reopen_prover_copy2"),
             4,
             true,
+            Some(true),
         )
         .await;
     });
