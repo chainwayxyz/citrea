@@ -14,5 +14,5 @@ autotests = false
 [dependencies]
 clap = { workspace = true }
 indoc = "2"
-markdown = "1.0.0-alpha.16"
+markdown = "1.0.0-alpha.17"
 shell-escape = "0.1.5"
