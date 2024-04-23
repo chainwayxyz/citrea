@@ -619,15 +619,13 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
             // If opts is None or if opts.tracer is None, then do not check cache or insert cache, just perform the operation
             // also since this is not cached we need to stop at somewhere, so we add param stop_at
             if opts.as_ref().map_or(true, |o| o.tracer.is_none()) {
-                return Ok::<GethTrace, ErrorObjectOwned>(
-                    evm.trace_block_transactions_by_number(
-                        block_number,
-                        opts.clone(),
-                        Some(trace_index as usize),
-                        &mut working_set,
-                    )?[trace_index as usize]
-                        .clone(),
-                );
+                let traces = evm.trace_block_transactions_by_number(
+                    block_number,
+                    opts.clone(),
+                    Some(trace_index as usize),
+                    &mut working_set,
+                )?;
+                return Ok::<GethTrace, ErrorObjectOwned>(traces[trace_index as usize].clone());
             }
 
             // check cache if found convert to requested tracer and config and return
@@ -742,9 +740,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                             .get_tx_by_hash(hash, Some(true))
                             .await
                         {
-                            Ok(tx) => {
-                                Ok::<Option<reth_rpc_types::Transaction>, ErrorObjectOwned>(tx)
-                            }
+                            Ok(tx) => Ok(tx),
                             Err(e) => match e {
                                 jsonrpsee::core::Error::Call(e_owned) => Err(e_owned),
                                 _ => Err(to_jsonrpsee_error_object("SEQUENCER_CLIENT_ERROR", e)),
