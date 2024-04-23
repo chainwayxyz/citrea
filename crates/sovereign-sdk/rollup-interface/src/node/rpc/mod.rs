@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use crate::maybestd::vec::Vec;
 #[cfg(feature = "native")]
 use crate::stf::Event;
-use crate::stf::EventKey;
+use crate::stf::{DepositId, EventKey};
 
 /// A struct containing enough information to uniquely specify single batch.
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
@@ -195,6 +195,8 @@ pub struct SoftBatchResponse {
     /// The transactions in this batch.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub txs: Option<Vec<HexTx>>,
+    /// Deposit transaction ids - Serde?
+    pub deposit_tx_ids: Vec<DepositId>,
     /// Pre-state root of the soft batch.
     #[serde(with = "hex::serde")]
     pub pre_state_root: Vec<u8>,

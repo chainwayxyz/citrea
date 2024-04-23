@@ -65,13 +65,46 @@ pub struct TransactionReceipt<R> {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DepositTransaction {
     /// ID of the transaction
-    pub id: [u8; 32],
+    pub id: DepositId,
     /// Block Height
     pub block_height: u64,
     /// Inclusion proof
     pub inclusion_proof: Vec<u8>,
     /// Tx data
     pub tx_data: Vec<u8>,
+}
+
+/// A struct to that represents deposit transaction ID
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, BorshDeserialize, BorshSerialize)]
+pub struct DepositId {
+    /// ID of the transaction
+    pub id: [u8; 32],
+}
+
+impl TryFrom<&[u8]> for DepositId {
+    type Error = &'static str;
+
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        if value.len() != 32 {
+            Err("Tx ID must be exactly 32 bytes long")
+        } else {
+            let mut array = [0u8; 32];
+            array.copy_from_slice(value);
+            Ok(DepositId { id: array })
+        }
+    }
+}
+
+impl TryFrom<Vec<u8>> for DepositId {
+    type Error = &'static str;
+
+    fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
+        if value.len() != 32 {
+            Err("Tx ID must be exactly 32 bytes long")
+        } else {
+            Self::try_from(value.as_slice())
+        }
+    }
 }
 
 /// A receipt for a batch of transactions. These receipts are stored in the rollup's database
@@ -102,6 +135,8 @@ pub struct SoftBatchReceipt<BatchReceiptContents, TxReceiptContents, DS: DaSpec>
     pub batch_hash: [u8; 32],
     /// The receipts of all the transactions in this batch.
     pub tx_receipts: Vec<TransactionReceipt<TxReceiptContents>>,
+    /// Deposit transaction ids
+    pub deposit_tx_ids: Vec<DepositId>,
     /// Any additional structured data to be saved in the database and served over RPC
     pub phantom_data: PhantomData<BatchReceiptContents>,
     /// Pre state root

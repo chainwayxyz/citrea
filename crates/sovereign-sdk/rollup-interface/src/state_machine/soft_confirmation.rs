@@ -7,6 +7,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 
 use crate::maybestd::vec::Vec;
+use crate::stf::DepositId;
 
 /// Contains raw transactions and information about the soft confirmation block
 #[derive(Debug, PartialEq, Clone, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
@@ -16,6 +17,7 @@ pub struct UnsignedSoftConfirmationBatch {
     da_slot_txs_commitment: [u8; 32],
     pre_state_root: Vec<u8>,
     txs: Vec<Vec<u8>>,
+    deposit_tx_ids: Vec<DepositId>,
     l1_fee_rate: u64,
     timestamp: u64,
 }
@@ -28,6 +30,7 @@ impl UnsignedSoftConfirmationBatch {
         da_slot_txs_commitment: [u8; 32],
         pre_state_root: Vec<u8>,
         txs: Vec<Vec<u8>>,
+        deposit_tx_ids: Vec<DepositId>,
         l1_fee_rate: u64,
         timestamp: u64,
     ) -> Self {
@@ -37,6 +40,7 @@ impl UnsignedSoftConfirmationBatch {
             da_slot_txs_commitment,
             pre_state_root,
             txs,
+            deposit_tx_ids,
             l1_fee_rate,
             timestamp,
         }
@@ -61,6 +65,12 @@ impl UnsignedSoftConfirmationBatch {
     pub fn txs(&self) -> Vec<Vec<u8>> {
         self.txs.clone()
     }
+
+    /// Deposit transaction ids
+    pub fn deposit_tx_ids(&self) -> Vec<DepositId> {
+        self.deposit_tx_ids.clone()
+    }
+
     /// Base layer fee rate sats/wei etc. per byte.
     pub fn l1_fee_rate(&self) -> u64 {
         self.l1_fee_rate
@@ -82,6 +92,7 @@ pub struct SignedSoftConfirmationBatch {
     pre_state_root: Vec<u8>,
     l1_fee_rate: u64,
     txs: Vec<Vec<u8>>,
+    deposit_tx_ids: Vec<DepositId>,
     signature: Vec<u8>,
     pub_key: Vec<u8>,
     timestamp: u64,
@@ -98,6 +109,7 @@ impl SignedSoftConfirmationBatch {
         pre_state_root: Vec<u8>,
         l1_fee_rate: u64,
         txs: Vec<Vec<u8>>,
+        deposit_tx_ids: Vec<DepositId>,
         signature: Vec<u8>,
         pub_key: Vec<u8>,
         timestamp: u64,
@@ -110,6 +122,7 @@ impl SignedSoftConfirmationBatch {
             pre_state_root,
             l1_fee_rate,
             txs,
+            deposit_tx_ids,
             signature,
             pub_key,
             timestamp,
@@ -149,6 +162,11 @@ impl SignedSoftConfirmationBatch {
     /// Txs of signed batch
     pub fn txs(&self) -> Vec<Vec<u8>> {
         self.txs.clone()
+    }
+
+    /// Deposit transaction ids
+    pub fn deposit_tx_ids(&self) -> Vec<DepositId> {
+        self.deposit_tx_ids.clone()
     }
 
     /// Signature of the sequencer
