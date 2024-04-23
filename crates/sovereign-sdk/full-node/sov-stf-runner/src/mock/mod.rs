@@ -70,6 +70,7 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
         _slot_header: &<Da as DaSpec>::BlockHeader,
         _validity_condition: &<Da as DaSpec>::ValidityCondition,
         _soft_batch: &mut sov_modules_api::SignedSoftConfirmationBatch,
+        _deposit_txs: Vec<sov_rollup_interface::da::DepositTransaction>,
     ) -> SlotResult<
         Self::StateRoot,
         Self::ChangeSet,

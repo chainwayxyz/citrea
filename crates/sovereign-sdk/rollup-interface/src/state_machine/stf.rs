@@ -62,14 +62,14 @@ pub struct TransactionReceipt<R> {
 }
 
 /// A struct to that represents deposit transactions
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, BorshDeserialize, BorshSerialize)]
 pub struct DepositTransaction {
     /// ID of the transaction
     pub id: DepositId,
     /// Block Height
     pub block_height: u64,
     /// Inclusion proof
-    pub inclusion_proof: Vec<u8>,
+    pub inclusion_proof: Vec<[u8; 32]>,
     /// Tx data
     pub tx_data: Vec<u8>,
 }
@@ -136,7 +136,7 @@ pub struct SoftBatchReceipt<BatchReceiptContents, TxReceiptContents, DS: DaSpec>
     /// The receipts of all the transactions in this batch.
     pub tx_receipts: Vec<TransactionReceipt<TxReceiptContents>>,
     /// Deposit transaction ids
-    pub deposit_tx_ids: Vec<DepositId>,
+    pub deposit_txs: Vec<DepositTransaction>,
     /// Any additional structured data to be saved in the database and served over RPC
     pub phantom_data: PhantomData<BatchReceiptContents>,
     /// Pre state root
@@ -266,6 +266,7 @@ pub trait StateTransitionFunction<Vm: Zkvm, Da: DaSpec> {
         slot_header: &Da::BlockHeader,
         validity_condition: &Da::ValidityCondition,
         soft_batch: &mut SignedSoftConfirmationBatch,
+        deposit_txs: Vec<DepositTransaction>,
     ) -> SlotResult<
         Self::StateRoot,
         Self::ChangeSet,

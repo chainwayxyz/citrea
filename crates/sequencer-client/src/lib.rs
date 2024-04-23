@@ -26,6 +26,7 @@ impl SequencerClient {
     }
 
     /// Gets l2 block given l2 height
+    /// Check: Should we change the name of this?
     pub async fn get_soft_batch<DaSpec: sov_rollup_interface::da::DaSpec>(
         &self,
         num: u64,
@@ -108,7 +109,7 @@ impl From<GetSoftBatchResponse> for SignedSoftConfirmationBatch {
                 .into_iter()
                 .map(|tx| tx.tx)
                 .collect(),
-            val.deposit_tx_ids,
+            val.deposit_txs,
             val.soft_confirmation_signature,
             val.pub_key,
             val.timestamp,

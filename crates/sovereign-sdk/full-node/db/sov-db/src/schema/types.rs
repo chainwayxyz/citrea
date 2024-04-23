@@ -5,7 +5,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::rpc::{BatchResponse, SoftBatchResponse, TxIdentifier, TxResponse};
-use sov_rollup_interface::stf::{DepositId, Event, EventKey, TransactionReceipt};
+use sov_rollup_interface::stf::{DepositTransaction, Event, EventKey, TransactionReceipt};
 
 /// A cheaply cloneable bytes abstraction for use within the trust boundary of the node
 /// (i.e. when interfacing with the database). Serializes and deserializes more efficiently,
@@ -85,7 +85,7 @@ pub struct StoredSoftBatch {
     /// The transactions which occurred in this batch.
     pub txs: Vec<StoredTransaction>,
     /// Deposit transaction IDs
-    pub deposit_tx_ids: Vec<DepositId>,
+    pub deposit_txs: Vec<DepositTransaction>,
     /// Pre state root
     pub pre_state_root: Vec<u8>,
     /// Post state root
@@ -119,7 +119,7 @@ impl TryFrom<StoredSoftBatch> for SoftBatchResponse {
                     .filter_map(|tx| tx.body.map(Into::into))
                     .collect(),
             ), // Rollup full nodes don't store tx bodies
-            deposit_tx_ids: value.deposit_tx_ids,
+            deposit_tx_ids: value.deposit_txs.into_iter().map(|tx| tx.id).collect(),
             pre_state_root: value.pre_state_root,
             post_state_root: value.post_state_root,
             soft_confirmation_signature: value.soft_confirmation_signature,

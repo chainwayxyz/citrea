@@ -531,6 +531,7 @@ where
         slot_header: &<Da as DaSpec>::BlockHeader,
         _validity_condition: &<Da as DaSpec>::ValidityCondition,
         soft_batch: &mut SignedSoftConfirmationBatch,
+        deposit_txs: Vec<sov_rollup_interface::da::DepositTransaction>,
     ) -> SlotResult<
         Self::StateRoot,
         Self::ChangeSet,

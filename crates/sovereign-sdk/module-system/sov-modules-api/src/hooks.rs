@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use sov_modules_core::{AccessoryWorkingSet, Context, Spec, Storage, WorkingSet};
 use sov_rollup_interface::da::{BlobReaderTrait, DaSpec};
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
-use sov_rollup_interface::stf::DepositId;
+use sov_rollup_interface::stf::DepositTransaction;
 use thiserror::Error;
 
 use crate::transaction::Transaction;
@@ -125,7 +125,7 @@ pub struct HookSoftConfirmationInfo {
     /// Previous batch's pre state root
     pub pre_state_root: Vec<u8>,
     /// Deposit transaction ids
-    pub deposit_tx_ids: Vec<DepositId>,
+    pub deposit_txs: Vec<DepositTransaction>,
     /// Public key of signer
     pub pub_key: Vec<u8>,
     /// L1 fee rate
@@ -141,7 +141,7 @@ impl From<SignedSoftConfirmationBatch> for HookSoftConfirmationInfo {
             da_slot_hash: signed_soft_confirmation_batch.da_slot_hash(),
             da_slot_txs_commitment: signed_soft_confirmation_batch.da_slot_txs_commitment(),
             pre_state_root: signed_soft_confirmation_batch.pre_state_root(),
-            deposit_tx_ids: signed_soft_confirmation_batch.deposit_tx_ids(),
+            deposit_tx_ids: signed_soft_confirmation_batch.deposit_tx_ids(), // ????
             pub_key: signed_soft_confirmation_batch.sequencer_pub_key().to_vec(),
             l1_fee_rate: signed_soft_confirmation_batch.l1_fee_rate(),
             timestamp: signed_soft_confirmation_batch.timestamp(),
@@ -159,7 +159,7 @@ impl From<HookSoftConfirmationInfo> for SignedSoftConfirmationBatch {
             val.pre_state_root(),
             val.l1_fee_rate,
             vec![],
-            val.deposit_tx_ids,
+            val.deposit_txs.into_iter().map(|tx| tx.id).collect(),
             vec![],
             val.pub_key.clone(),
             val.timestamp,
@@ -197,8 +197,8 @@ impl HookSoftConfirmationInfo {
         self.l1_fee_rate
     }
 
-    pub fn deposit_tx_ids(&self) -> Vec<DepositId> {
-        self.deposit_tx_ids.clone()
+    pub fn deposit_txs(&self) -> Vec<DepositTransaction> {
+        self.deposit_txs.clone()
     }
 
     pub fn timestamp(&self) -> u64 {

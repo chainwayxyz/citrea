@@ -19,7 +19,9 @@ use sov_rollup_interface::da::{
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
 use sov_rollup_interface::services::da::{DaService, SlotData};
 pub use sov_rollup_interface::stf::BatchReceipt;
-use sov_rollup_interface::stf::{SoftBatchReceipt, StateTransitionFunction};
+use sov_rollup_interface::stf::{
+    DepositId, DepositTransaction, SoftBatchReceipt, StateTransitionFunction,
+};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::{Zkvm, ZkvmHost};
 use tokio::sync::oneshot;
@@ -231,7 +233,7 @@ where
 
         info!("Prover trying to sync from height {}", height);
 
-        let soft_batch = loop {
+        let soft_batch_response = loop {
             let soft_batch = client.get_soft_batch::<Da::Spec>(height).await;
 
             if soft_batch.is_err() {
@@ -379,6 +381,14 @@ where
 
                         let pre_state = self.storage_manager.create_storage_on_l2_height(height)?;
 
+                        let deposits = soft_batch_response
+                            .deposit_tx_ids
+                            .map(|tx_id| {
+                                tx = self.da_service.get_deposit_tx(tx_id).await.unwrap();
+                                tx
+                            })
+                            .collect::<Vec<DepositTransaction>>();
+
                         let slot_result = self.stf.apply_soft_batch(
                             self.sequencer_pub_key.as_slice(),
                             // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1247): incorrect pre-state root in case of re-org
@@ -388,6 +398,7 @@ where
                             filtered_block.header(),
                             &filtered_block.validity_condition(),
                             &mut soft_batch.clone().into(),
+                            deposits,
                         );
 
                         for receipt in slot_result.batch_receipts {
@@ -464,6 +475,7 @@ where
                             da_slot_height: filtered_block.header().height(),
                             da_slot_txs_commitment: filtered_block.header().txs_commitment(),
                             tx_receipts: batch_receipt.tx_receipts,
+                            deposit_txs: deposits,
                             soft_confirmation_signature: soft_batch.soft_confirmation_signature,
                             pub_key: soft_batch.pub_key,
                             l1_fee_rate: soft_batch.l1_fee_rate,
@@ -754,6 +766,14 @@ where
 
             let pre_state = self.storage_manager.create_storage_on_l2_height(height)?;
 
+            let deposits = soft_batch
+                .deposit_tx_ids
+                .map(|tx_id| {
+                    tx = self.da_service.get_deposit_tx(tx_id).await.unwrap();
+                    tx
+                })
+                .collect::<Vec<DepositTransaction>>();
+
             let slot_result = self.stf.apply_soft_batch(
                 self.sequencer_pub_key.as_slice(),
                 // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1247): incorrect pre-state root in case of re-org
@@ -763,6 +783,7 @@ where
                 filtered_block.header(),
                 &filtered_block.validity_condition(),
                 &mut soft_batch.clone().into(),
+                deposits,
             );
 
             for receipt in slot_result.batch_receipts {
@@ -839,6 +860,7 @@ where
                 da_slot_height: filtered_block.header().height(),
                 da_slot_txs_commitment: filtered_block.header().txs_commitment(),
                 tx_receipts: batch_receipt.tx_receipts,
+                deposit_txs: deposits,
                 soft_confirmation_signature: soft_batch.soft_confirmation_signature,
                 pub_key: soft_batch.pub_key,
                 l1_fee_rate: soft_batch.l1_fee_rate,

@@ -5,7 +5,9 @@ use std::marker::PhantomData;
 use sha2::Digest;
 use sov_rollup_interface::da::{BlobReaderTrait, DaSpec};
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
-use sov_rollup_interface::stf::{BatchReceipt, SlotResult, StateTransitionFunction};
+use sov_rollup_interface::stf::{
+    BatchReceipt, DepositTransaction, SlotResult, StateTransitionFunction,
+};
 use sov_rollup_interface::zk::{ValidityCondition, Zkvm};
 
 /// An implementation of the [`StateTransitionFunction`]
@@ -116,6 +118,7 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
         _slot_header: &<Da as DaSpec>::BlockHeader,
         _validity_condition: &<Da as DaSpec>::ValidityCondition,
         _soft_batch: &mut SignedSoftConfirmationBatch,
+        _deposit_txs: Vec<DepositTransaction>,
     ) -> SlotResult<
         Self::StateRoot,
         Self::ChangeSet,

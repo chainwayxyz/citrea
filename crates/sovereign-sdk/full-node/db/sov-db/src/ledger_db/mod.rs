@@ -305,7 +305,7 @@ impl LedgerDB {
             hash: batch_receipt.batch_hash,
             tx_range: TxNumber(first_tx_number)..TxNumber(last_tx_number),
             txs,
-            deposit_tx_ids: batch_receipt.deposit_tx_ids,
+            deposit_txs: batch_receipt.deposit_txs,
             pre_state_root: batch_receipt.pre_state_root,
             post_state_root: batch_receipt.post_state_root,
             soft_confirmation_signature: batch_receipt.soft_confirmation_signature,
