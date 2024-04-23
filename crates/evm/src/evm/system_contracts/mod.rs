@@ -1,4 +1,5 @@
-use alloy_primitives::{address, Address};
+use alloy_primitives::{address, Address, U256 as Alloy256};
+use alloy_sol_types::{sol, SolValue};
 use ethers_contract::BaseContract;
 use ethers_core::abi::Abi;
 use ethers_core::types::Bytes;
@@ -57,5 +58,82 @@ impl L1BlockHashList {
         self.base_contract
             .encode("getWitnessRootByNumber", args)
             .expect("ABI for system contract should be correct")
+    }
+}
+
+/// Bridge wrapper.
+pub struct Bridge {
+    base_contract: BaseContract,
+}
+
+impl Default for Bridge {
+    fn default() -> Self {
+        let base_contract = make_contract_from_abi(include_str!("./out/Bridge.sol/Bridge.json"));
+        Self { base_contract }
+    }
+}
+
+impl Bridge {
+    pub(crate) fn address() -> Address {
+        address!("3100000000000000000000000000000000000002")
+    }
+
+    pub(crate) fn initialize(
+        &self,
+        levels: u32,
+        deposit_script: Bytes,
+        script_suffix: Bytes,
+        required_sigs_count: u64,
+    ) -> Bytes {
+        let args = (
+            levels,
+            deposit_script,
+            script_suffix,
+            ethereum_types::U256::from(required_sigs_count),
+        );
+        self.base_contract
+            .encode("initialize", args)
+            .expect("ABI for system contract should be correct")
+    }
+
+    pub(crate) fn deposit(
+        &self,
+        version: [u8; 4],
+        flag: [u8; 2],
+        vin: Bytes,
+        vout: Bytes,
+        witness: Bytes,
+        locktime: [u8; 4],
+        intermediate_nodes: Bytes,
+        block_height: u64,
+        index: u64,
+    ) -> Bytes {
+        sol! {
+            struct DepositParams {
+                bytes4 version;
+                bytes2 flag;
+                bytes vin;
+                bytes vout;
+                bytes witness;
+                bytes4 locktime;
+                bytes intermediate_nodes;
+                uint256 block_height;
+                uint256 index;
+            }
+        }
+
+        let args = DepositParams {
+            version: alloy_primitives::FixedBytes(version),
+            flag: alloy_primitives::FixedBytes(flag),
+            vin: vin.to_vec(),
+            vout: vout.to_vec(),
+            witness: witness.to_vec(),
+            locktime: alloy_primitives::FixedBytes(locktime),
+            intermediate_nodes: intermediate_nodes.to_vec(),
+            block_height: Alloy256::from(block_height),
+            index: Alloy256::from(index),
+        };
+
+        DepositParams::abi_encode_sequence(&args).into()
     }
 }

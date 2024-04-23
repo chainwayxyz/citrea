@@ -32,6 +32,7 @@ contract BridgeTest is Test {
     bytes intermediate_nodes = hex"0000000000000000000000000000000000000000000000000000000000000000d867753e5c6294897137132af54a90ad05cc9590f372f4ac8aae50096c7de081cfbfc52d11aa289adf40426b589cf9739b030a8b61c0ec22347ce3af642b9f52783f00e738b6e46376ca7756b4230c80c9b4b68701b81f690e00d1df24744e5d872a65c80bfd54acc25e622708cf18000b6815d000729aa880b974f2187137ea";
     uint256 index = 1;
 
+    address constant SYSTEM_CALLER = address(0xdeaDDeADDEaDdeaDdEAddEADDEAdDeadDEADDEaD);
     address receiver = address(0x0101010101010101010101010101010101010101);
     address operator = makeAddr("citrea_operator");
     address user = makeAddr("citrea_user");
@@ -42,6 +43,7 @@ contract BridgeTest is Test {
 
     function setUp() public {
         bridge = new BridgeHarness();
+        vm.prank(SYSTEM_CALLER);
         bridge.initialize(31, depositScript, scriptSuffix, 5);
         vm.deal(address(bridge), 21_000_000 ether);
         address block_hash_list_impl = address(new L1BlockHashList());
@@ -207,6 +209,7 @@ contract BridgeTest is Test {
 
     function testCannotReinitialize() public {
         vm.expectRevert("Contract is already initialized");
+        vm.prank(SYSTEM_CALLER);
         bridge.initialize(31, depositScript, scriptSuffix, 5);
     }
 

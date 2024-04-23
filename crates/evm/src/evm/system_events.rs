@@ -1,9 +1,11 @@
+use ethers_core::types::Bytes;
 use reth_primitives::{
     address, Address, Bytes as RethBytes, Signature, Transaction, TransactionKind,
     TransactionSigned, TransactionSignedEcRecovered, TransactionSignedNoHash, TxEip1559, U256,
 };
 
 use super::system_contracts::L1BlockHashList;
+use crate::system_contracts::Bridge;
 
 /// This is a special signature to force tx.signer to be set to SYSTEM_SIGNER
 pub const SYSTEM_SIGNATURE: Signature = Signature {
@@ -21,91 +23,119 @@ pub const SYSTEM_SIGNER: Address = address!("deaddeaddeaddeaddeaddeaddeaddeaddea
 pub(crate) enum SystemEvent {
     L1BlockHashInitialize(/*block number*/ u64),
     L1BlockHashSetBlockInfo(/*hash*/ [u8; 32], /*merkle root*/ [u8; 32]),
-    // BridgeInitialize(
-    //     /*levels*/ u32,
-    //     /*deposit script*/ Vec<u8>,
-    //     /*script suffix*/ Vec<u8>,
-    //     /*required sig count*/ U256,
-    // ),
-    // BridgeDeposit(
-    //     /*version*/ [u8; 4],
-    //     /*flag*/ [u8; 2],
-    //     /*vin*/ Vec<u8>,
-    //     /*vout*/ Vec<u8>,
-    //     /*witness*/ Vec<u8>,
-    //     /*locktime*/ [u8; 4],
-    //     /*intermediate nodes*/ Vec<u8>,
-    //     /*block height*/ ethereum_types::U256,
-    //     /*index*/ ethereum_types::U256,
-    // ),
+    BridgeInitialize(
+        /*levels*/ u32,
+        /*deposit script*/ Bytes,
+        /*script suffix*/ Bytes,
+        /*required sigs count*/ u64,
+    ),
+    BridgeDeposit(
+        /*version*/ [u8; 4],
+        /*flag*/ [u8; 2],
+        /*vin*/ Bytes,
+        /*vout*/ Bytes,
+        /*witness*/ Bytes,
+        /*locktime*/ [u8; 4],
+        /*intermediate nodes*/ Bytes,
+        /*block height*/ u64,
+        /*index*/ u64,
+    ),
 }
 
 fn system_event_to_transaction(event: SystemEvent, nonce: u64, chain_id: u64) -> Transaction {
-    let sys_block_hash = L1BlockHashList::default();
     let body: TxEip1559 = match event {
-        SystemEvent::L1BlockHashInitialize(block_number) => TxEip1559 {
-            to: TransactionKind::Call(L1BlockHashList::address()),
-            input: RethBytes::from(sys_block_hash.init(block_number).to_vec()),
-            nonce,
-            chain_id,
-            value: U256::ZERO,
-            gas_limit: 1_000_000u64,
-            max_fee_per_gas: u64::MAX as u128,
-            ..Default::default()
-        },
-        SystemEvent::L1BlockHashSetBlockInfo(block_hash, txs_commitments) => TxEip1559 {
-            to: TransactionKind::Call(L1BlockHashList::address()),
-            input: RethBytes::from(
-                sys_block_hash
-                    .set_block_info(block_hash, txs_commitments)
-                    .to_vec(),
-            ),
-            nonce,
-            chain_id,
-            value: U256::ZERO,
-            gas_limit: 1_000_000u64,
-            max_fee_per_gas: u64::MAX as u128,
-            ..Default::default()
-        },
-        // SystemEvent::BridgeInitialize(
-        //     levels,
-        //     deposit_script,
-        //     script_suffix,
-        //     required_sig_count,
-        // ) => TxEip1559 {
-        //     to: TransactionKind::Call(L1BlockHashList::address()),
-        //     input: RethBytes::from(sys_block_hash.init(block_number).to_vec()),
-        //     nonce,
-        //     chain_id,
-        //     value: U256::ZERO,
-        //     gas_limit: 1_000_000u64,
-        //     max_fee_per_gas: u64::MAX as u128,
-        //     ..Default::default()
-        // },
-        // SystemEvent::BridgeDeposit(
-        //     version,
-        //     flag,
-        //     vin,
-        //     vout,
-        //     witness,
-        //     locktime,
-        //     intermediate_nodes,
-        //     block_height,
-        //     index,
-        // ) => TxEip1559 {
-        //     to: TransactionKind::Call(L1BlockHashList::address()),
-        //     input: RethBytes::from(
-        //         sys_block_hash
-        //             .set_block_info(block_hash, txs_commitments)
-        //             .to_vec(),
-        //     ),
-        //     nonce,
-        //     chain_id,
-        //     value: U256::ZERO,
-        //     gas_limit: 1_000_000u64,
-        //     max_fee_per_gas: u64::MAX as u128,
-        //     ..Default::default()
-        // },
+        SystemEvent::L1BlockHashInitialize(block_number) => {
+            let sys_block_hash = L1BlockHashList::default();
+
+            TxEip1559 {
+                to: TransactionKind::Call(L1BlockHashList::address()),
+                input: RethBytes::from(sys_block_hash.init(block_number).to_vec()),
+                nonce,
+                chain_id,
+                value: U256::ZERO,
+                gas_limit: 1_000_000u64,
+                max_fee_per_gas: u64::MAX as u128,
+                ..Default::default()
+            }
+        }
+        SystemEvent::L1BlockHashSetBlockInfo(block_hash, txs_commitments) => {
+            let sys_block_hash = L1BlockHashList::default();
+            TxEip1559 {
+                to: TransactionKind::Call(L1BlockHashList::address()),
+                input: RethBytes::from(
+                    sys_block_hash
+                        .set_block_info(block_hash, txs_commitments)
+                        .to_vec(),
+                ),
+                nonce,
+                chain_id,
+                value: U256::ZERO,
+                gas_limit: 1_000_000u64,
+                max_fee_per_gas: u64::MAX as u128,
+                ..Default::default()
+            }
+        }
+        SystemEvent::BridgeInitialize(
+            levels,
+            deposit_script,
+            script_suffix,
+            required_sigs_count,
+        ) => {
+            let bridge = Bridge::default();
+
+            TxEip1559 {
+                to: TransactionKind::Call(Bridge::address()),
+                input: RethBytes::from(
+                    bridge
+                        .initialize(levels, deposit_script, script_suffix, required_sigs_count)
+                        .to_vec(),
+                ),
+                nonce,
+                chain_id,
+                value: U256::ZERO,
+                gas_limit: 1_000_000u64,
+                max_fee_per_gas: u64::MAX as u128,
+                ..Default::default()
+            }
+        }
+        SystemEvent::BridgeDeposit(
+            version,
+            flag,
+            vin,
+            vout,
+            witness,
+            locktime,
+            intermediate_nodes,
+            block_height,
+            index,
+        ) => {
+            let bridge = Bridge::default();
+
+            TxEip1559 {
+                to: TransactionKind::Call(Bridge::address()),
+                input: RethBytes::from(
+                    bridge
+                        .deposit(
+                            version,
+                            flag,
+                            vin,
+                            vout,
+                            witness,
+                            locktime,
+                            intermediate_nodes,
+                            block_height,
+                            index,
+                        )
+                        .to_vec(),
+                ),
+                nonce,
+                chain_id,
+                value: U256::ZERO,
+                gas_limit: 1_000_000u64,
+                max_fee_per_gas: u64::MAX as u128,
+                ..Default::default()
+            }
+        }
     };
     Transaction::Eip1559(body)
 }
