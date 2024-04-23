@@ -5,17 +5,15 @@ use futures::channel::mpsc::UnboundedSender;
 use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::RpcModule;
 use reth_primitives::{Bytes, FromRecoveredPooledTransaction, IntoRecoveredTransaction, B256};
+use reth_rpc::eth::error::EthApiError;
 use reth_rpc_types_compat::transaction::from_recovered;
 use reth_transaction_pool::EthPooledTransaction;
 use sov_mock_da::{MockAddress, MockDaService};
-use sov_modules_api::utils::to_jsonrpsee_error_object;
 use sov_modules_api::WorkingSet;
 use tracing::info;
 
 use crate::mempool::CitreaMempool;
 use crate::utils::recover_raw_transaction;
-
-const ETH_RPC_ERROR: &str = "ETH_RPC_ERROR";
 
 pub(crate) struct RpcContext<C: sov_modules_api::Context> {
     pub mempool: Arc<CitreaMempool<C>>,
@@ -44,7 +42,8 @@ pub(crate) fn create_rpc_module<C: sov_modules_api::Context>(
             .mempool
             .add_external_transaction(pool_transaction)
             .await
-            .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
+            .map_err(EthApiError::from)?;
+
         Ok::<B256, ErrorObjectOwned>(hash)
     })?;
 
@@ -87,7 +86,7 @@ pub(crate) fn create_rpc_module<C: sov_modules_api::Context>(
 
                     match evm.get_transaction_by_hash(hash, &mut working_set) {
                         Ok(tx) => Ok::<Option<reth_rpc_types::Transaction>, ErrorObjectOwned>(tx),
-                        Err(e) => Err(to_jsonrpsee_error_object(e, ETH_RPC_ERROR)),
+                        Err(e) => Err(e),
                     }
                 }
             },
