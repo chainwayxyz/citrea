@@ -100,7 +100,7 @@ ethers = { workspace = true }
 revm = { workspace = true }
 
 rustc_version_runtime = { workspace = true }
-tendermint = "0.32"
+tendermint = "0.35"
 prometheus = "0.11.0"
 prettytable-rs = "^0.10"
 criterion = "0.5.1"
