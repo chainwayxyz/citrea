@@ -834,7 +834,7 @@ pub fn get_latest_git_tag() -> Result<String, ErrorObjectOwned> {
     let latest_tag_commit = Command::new("git")
         .args(["rev-list", "--tags", "--max-count=1"])
         .output()
-        .map_err(|e| to_jsonrpsee_error_object("Failed to get version", e))?;
+        .map_err(|e| to_jsonrpsee_error_object("FULL_NODE_ERROR", e))?;
 
     if !latest_tag_commit.status.success() {
         return Err(to_jsonrpsee_error_object(
@@ -850,7 +850,7 @@ pub fn get_latest_git_tag() -> Result<String, ErrorObjectOwned> {
     let latest_tag = Command::new("git")
         .args(["describe", "--tags", &latest_tag_commit])
         .output()
-        .map_err(|e| to_jsonrpsee_error_object("Failed to get version", e))?;
+        .map_err(|e| to_jsonrpsee_error_object("FULL_NODE_ERROR", e))?;
 
     if !latest_tag.status.success() {
         return Err(to_jsonrpsee_error_object(
