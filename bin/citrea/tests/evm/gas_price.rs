@@ -36,6 +36,7 @@ async fn test_gas_price_increase() -> Result<(), anyhow::Error> {
             true,
             None,
             None,
+            Some(true),
         )
         .await;
     });

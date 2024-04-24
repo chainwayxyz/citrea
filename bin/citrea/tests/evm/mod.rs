@@ -41,6 +41,7 @@ async fn web3_rpc_tests() -> Result<(), anyhow::Error> {
             true,
             None,
             None,
+            Some(true),
         )
         .await;
     });
@@ -94,6 +95,7 @@ async fn evm_tx_tests() -> Result<(), anyhow::Error> {
             true,
             None,
             None,
+            Some(true),
         )
         .await;
     });
@@ -131,6 +133,7 @@ async fn test_eth_get_logs() -> Result<(), anyhow::Error> {
             true,
             None,
             None,
+            Some(true),
         )
         .await;
     });
@@ -164,6 +167,7 @@ async fn test_genesis_contract_call() -> Result<(), Box<dyn std::error::Error>> 
             true,
             None,
             None,
+            Some(true),
         )
         .await;
     });

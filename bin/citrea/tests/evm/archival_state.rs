@@ -33,6 +33,7 @@ async fn test_archival_state() -> Result<(), anyhow::Error> {
             true,
             None,
             None,
+            Some(true),
         )
         .await;
     });

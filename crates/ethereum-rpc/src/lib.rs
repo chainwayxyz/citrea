@@ -7,7 +7,7 @@ use std::sync::Mutex;
 #[cfg(feature = "local")]
 pub use citrea_evm::DevSigner;
 use citrea_evm::{EthApiError, Evm};
-use ethers::types::Bytes;
+use ethers::types::{Bytes, H256};
 pub use gas_price::fee_history::FeeHistoryCacheConfig;
 use gas_price::gas_oracle::GasPriceOracle;
 pub use gas_price::gas_oracle::GasPriceOracleConfig;
@@ -29,8 +29,6 @@ use sov_rollup_interface::services::da::DaService;
 use tracing::info;
 
 use crate::gas_price::gas_oracle::convert_u256_to_u64;
-
-const ETH_RPC_ERROR: &str = "ETH_RPC_ERROR";
 
 const MAX_TRACE_BLOCK: u32 = 1000;
 
@@ -128,6 +126,27 @@ impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
     }
 }
 
+impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
+    async fn max_fee_per_gas(&self, working_set: &mut WorkingSet<C>) -> (U256, U256) {
+        let suggested_tip = self
+            .gas_price_oracle
+            .suggest_tip_cap(working_set)
+            .await
+            .unwrap();
+
+        let evm = Evm::<C>::default();
+        let base_fee = evm
+            .get_block_by_number(None, None, working_set)
+            .unwrap()
+            .unwrap()
+            .header
+            .base_fee_per_gas
+            .unwrap_or_default();
+
+        (base_fee, suggested_tip)
+    }
+}
+
 // impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
 //     fn make_raw_tx(
 //         &self,
@@ -169,20 +188,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
         let price = {
             let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
 
-            let suggested_tip = ethereum
-                .gas_price_oracle
-                .suggest_tip_cap(&mut working_set)
-                .await
-                .unwrap();
-
-            let evm = Evm::<C>::default();
-            let base_fee = evm
-                .get_block_by_number(None, None, &mut working_set)
-                .unwrap()
-                .unwrap()
-                .header
-                .base_fee_per_gas
-                .unwrap_or_default();
+            let (base_fee, suggested_tip) = ethereum.max_fee_per_gas(&mut working_set).await;
 
             suggested_tip + base_fee
         };
@@ -191,17 +197,29 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
     })?;
 
     rpc.register_async_method("eth_maxFeePerGas", |_, ethereum| async move {
+        info!("eth module: eth_maxFeePerGas");
         let max_fee_per_gas = {
             let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
 
-            ethereum
-                .gas_price_oracle
-                .suggest_tip_cap(&mut working_set)
-                .await
-                .unwrap()
+            let (base_fee, suggested_tip) = ethereum.max_fee_per_gas(&mut working_set).await;
+
+            suggested_tip + base_fee
         };
 
         Ok::<U256, ErrorObjectOwned>(max_fee_per_gas)
+    })?;
+
+    rpc.register_async_method("eth_maxPriorityFeePerGas", |_, ethereum| async move {
+        info!("eth module: eth_maxPriorityFeePerGas");
+        let max_priority_fee = {
+            let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
+
+            let (_base_fee, suggested_tip) = ethereum.max_fee_per_gas(&mut working_set).await;
+
+            suggested_tip
+        };
+
+        Ok::<U256, ErrorObjectOwned>(max_priority_fee)
     })?;
 
     rpc.register_async_method("eth_feeHistory", |params, ethereum| async move {
@@ -214,7 +232,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
 
         // convert block count to u64 from hex
         let block_count = u64::from_str_radix(&block_count[2..], 16)
-            .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
+            .map_err(|e| EthApiError::InvalidParams(e.to_string()))?;
 
         let fee_history = {
             let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
@@ -465,7 +483,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
     //     Ok::<_, ErrorObjectOwned>(tx_hash)
     // })?;
 
-    rpc.register_async_method(
+    rpc.register_async_method::<Result<Vec<GethTrace>, ErrorObjectOwned>, _, _>(
         "debug_traceBlockByHash",
         |parmaeters, ethereum| async move {
             info!("eth module: debug_traceBlockByHash");
@@ -481,23 +499,18 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                 match evm.get_block_number_by_block_hash(block_hash, &mut working_set) {
                     Some(block_number) => block_number,
                     None => {
-                        return Err(to_jsonrpsee_error_object(
-                            EthApiError::UnknownBlockNumber,
-                            ETH_RPC_ERROR,
-                        ));
+                        return Err(EthApiError::UnknownBlockNumber.into());
                     }
                 };
 
             // If opts is None or if opts.tracer is None, then do not check cache or insert cache, just perform the operation
             if opts.as_ref().map_or(true, |o| o.tracer.is_none()) {
-                return evm
-                    .trace_block_transactions_by_number(
-                        block_number,
-                        opts.clone(),
-                        None,
-                        &mut working_set,
-                    )
-                    .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR));
+                return evm.trace_block_transactions_by_number(
+                    block_number,
+                    opts.clone(),
+                    None,
+                    &mut working_set,
+                );
             }
 
             if let Some(traces) = ethereum.trace_cache.lock().unwrap().get(&block_number) {
@@ -508,17 +521,15 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                     requested_opts.tracer.unwrap(),
                     requested_opts.tracer_config,
                 )?;
-                return Ok::<Vec<GethTrace>, ErrorObjectOwned>(traces);
+                return Ok(traces);
             }
             let cache_options = create_trace_cache_opts();
-            let traces = evm
-                .trace_block_transactions_by_number(
-                    block_number,
-                    Some(cache_options),
-                    None,
-                    &mut working_set,
-                )
-                .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
+            let traces = evm.trace_block_transactions_by_number(
+                block_number,
+                Some(cache_options),
+                None,
+                &mut working_set,
+            )?;
             ethereum
                 .trace_cache
                 .lock()
@@ -533,11 +544,11 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                 tracer_config,
             )?;
 
-            Ok::<Vec<GethTrace>, ErrorObjectOwned>(traces)
+            Ok(traces)
         },
     )?;
 
-    rpc.register_async_method(
+    rpc.register_async_method::<Result<Vec<GethTrace>, ErrorObjectOwned>, _, _>(
         "debug_traceBlockByNumber",
         |parameters, ethereum| async move {
             info!("eth module: debug_traceBlockByNumber");
@@ -552,18 +563,12 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
             let block_number = match block_number {
                 BlockNumberOrTag::Number(block_number) => block_number,
                 BlockNumberOrTag::Latest => convert_u256_to_u64(evm.block_number(&mut working_set)?),
-                _ => {
-                    return Err(to_jsonrpsee_error_object(
-                        EthApiError::Unsupported("Earliest, pending, safe and finalized are not supported for debug_traceBlockByNumber"),
-                        ETH_RPC_ERROR,
-                    ));
-                }
+                _ => return Err(EthApiError::Unsupported("Earliest, pending, safe and finalized are not supported for debug_traceBlockByNumber").into()),
             };
 
             // If opts is None or if opts.tracer is None, then do not check cache or insert cache, just perform the operation
             if opts.as_ref().map_or(true, |o| o.tracer.is_none()) {
-                return evm.trace_block_transactions_by_number(block_number, opts.clone(), None, &mut working_set)
-                        .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR));
+                return evm.trace_block_transactions_by_number(block_number, opts.clone(), None, &mut working_set);
             }
 
             if let Some(traces) = ethereum.trace_cache.lock().unwrap().get(&block_number) {
@@ -581,8 +586,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                     Some(cache_options),
                     None,
                     &mut working_set,
-                )
-                .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
+                )?;
                 ethereum
                     .trace_cache
                     .lock()
@@ -594,11 +598,11 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
             let tracer_config = requested_opts.tracer_config;
             let traces = get_traces_with_reuqested_tracer_and_config(traces.clone(), requested_opts.tracer.unwrap(), tracer_config)?;
 
-            Ok::<Vec<GethTrace>, ErrorObjectOwned>(traces)
+            Ok(traces)
         },
     )?;
 
-    rpc.register_async_method(
+    rpc.register_async_method::<Result<GethTrace, ErrorObjectOwned>, _, _>(
         "debug_traceTransaction",
         |parameters, ethereum| async move {
             // the main rpc handler for debug_traceTransaction
@@ -635,17 +639,13 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
             // If opts is None or if opts.tracer is None, then do not check cache or insert cache, just perform the operation
             // also since this is not cached we need to stop at somewhere, so we add param stop_at
             if opts.as_ref().map_or(true, |o| o.tracer.is_none()) {
-                return Ok::<GethTrace, ErrorObjectOwned>(
-                    evm.trace_block_transactions_by_number(
-                        block_number,
-                        opts.clone(),
-                        Some(trace_index as usize),
-                        &mut working_set,
-                    )
-                    .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?
-                        [trace_index as usize]
-                        .clone(),
-                );
+                let traces = evm.trace_block_transactions_by_number(
+                    block_number,
+                    opts.clone(),
+                    Some(trace_index as usize),
+                    &mut working_set,
+                )?;
+                return Ok(traces[trace_index as usize].clone());
             }
 
             // check cache if found convert to requested tracer and config and return
@@ -657,18 +657,16 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                     requested_opts.tracer.unwrap(),
                     tracer_config,
                 )?;
-                return Ok::<GethTrace, ErrorObjectOwned>(traces.into_iter().next().unwrap());
+                return Ok(traces.into_iter().next().unwrap());
             }
 
             let cache_options = create_trace_cache_opts();
-            let traces = evm
-                .trace_block_transactions_by_number(
-                    block_number,
-                    Some(cache_options),
-                    None,
-                    &mut working_set,
-                )
-                .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
+            let traces = evm.trace_block_transactions_by_number(
+                block_number,
+                Some(cache_options),
+                None,
+                &mut working_set,
+            )?;
             ethereum
                 .trace_cache
                 .lock()
@@ -683,7 +681,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                 tracer_config,
             )?;
 
-            Ok::<GethTrace, ErrorObjectOwned>(traces.into_iter().next().unwrap())
+            Ok(traces.into_iter().next().unwrap())
         },
     )?;
 
@@ -716,7 +714,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
     )?;
 
     if !is_sequencer {
-        rpc.register_async_method(
+        rpc.register_async_method::<Result<H256, ErrorObjectOwned>, _, _>(
             "eth_sendRawTransaction",
             |parameters, ethereum| async move {
                 info!("Full Node: eth_sendRawTransaction");
@@ -730,11 +728,17 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                     .send_raw_tx(data)
                     .await;
 
-                tx_hash.map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))
+                match tx_hash {
+                    Ok(tx_hash) => Ok(tx_hash),
+                    Err(e) => match e {
+                        jsonrpsee::core::Error::Call(e_owned) => Err(e_owned),
+                        _ => Err(to_jsonrpsee_error_object("SEQUENCER_CLIENT_ERROR", e)),
+                    },
+                }
             },
         )?;
 
-        rpc.register_async_method(
+        rpc.register_async_method::<Result<Option<reth_rpc_types::Transaction>, ErrorObjectOwned>, _, _>(
             "eth_getTransactionByHash",
             |parameters, ethereum| async move {
                 let mut params = parameters.sequence();
@@ -749,40 +753,48 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                 match mempool_only {
                     // only ask sequencer
                     Ok(Some(true)) => {
-                        let tx = ethereum
+                        match ethereum
                             .sequencer_client
                             .as_ref()
                             .unwrap()
                             .get_tx_by_hash(hash, Some(true))
                             .await
-                            .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
-
-                        Ok::<Option<reth_rpc_types::Transaction>, ErrorObjectOwned>(tx)
+                        {
+                            Ok(tx) => Ok(tx),
+                            Err(e) => match e {
+                                jsonrpsee::core::Error::Call(e_owned) => Err(e_owned),
+                                _ => Err(to_jsonrpsee_error_object("SEQUENCER_CLIENT_ERROR", e)),
+                            },
+                        }
                     }
                     _ => {
                         // if mempool_only is not true ask evm first then sequencer
                         let evm = Evm::<C>::default();
                         let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
                         match evm.get_transaction_by_hash(hash, &mut working_set) {
-                            Ok(Some(tx)) => Ok::<
-                                Option<reth_rpc_types::Transaction>,
-                                ErrorObjectOwned,
-                            >(Some(tx)),
+                            Ok(Some(tx)) => Ok(Some(tx)),
                             Ok(None) => {
                                 // if not found in evm then ask to sequencer mempool
-                                let tx = ethereum
+                                match ethereum
                                     .sequencer_client
                                     .as_ref()
                                     .unwrap()
                                     .get_tx_by_hash(hash, Some(true))
                                     .await
-                                    .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
-
-                                Ok::<Option<reth_rpc_types::Transaction>, ErrorObjectOwned>(tx)
+                                {
+                                    Ok(tx) => Ok(tx),
+                                    Err(e) => match e {
+                                        jsonrpsee::core::Error::Call(e_owned) => Err(e_owned),
+                                        _ => Err(to_jsonrpsee_error_object(
+                                            "SEQUENCER_CLIENT_ERROR",
+                                            e,
+                                        )),
+                                    },
+                                }
                             }
                             Err(e) => {
                                 // return error
-                                Err(to_jsonrpsee_error_object(e, ETH_RPC_ERROR))
+                                Err(e)
                             }
                         }
                     }
@@ -832,7 +844,7 @@ pub fn get_latest_git_tag() -> Result<String, ErrorObjectOwned> {
     let latest_tag_commit = Command::new("git")
         .args(["rev-list", "--tags", "--max-count=1"])
         .output()
-        .map_err(|e| to_jsonrpsee_error_object(e, "Failed to get version"))?;
+        .map_err(|e| to_jsonrpsee_error_object("FULL_NODE_ERROR", e))?;
 
     if !latest_tag_commit.status.success() {
         return Err(to_jsonrpsee_error_object(
@@ -848,7 +860,7 @@ pub fn get_latest_git_tag() -> Result<String, ErrorObjectOwned> {
     let latest_tag = Command::new("git")
         .args(["describe", "--tags", &latest_tag_commit])
         .output()
-        .map_err(|e| to_jsonrpsee_error_object(e, "Failed to get version"))?;
+        .map_err(|e| to_jsonrpsee_error_object("FULL_NODE_ERROR", e))?;
 
     if !latest_tag.status.success() {
         return Err(to_jsonrpsee_error_object(

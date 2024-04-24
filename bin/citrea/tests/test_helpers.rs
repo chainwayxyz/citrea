@@ -39,6 +39,7 @@ pub async fn start_rollup(
     include_tx_body: bool,
     rollup_config: Option<RollupConfig<MockDaConfig>>,
     sequencer_config: Option<SequencerConfig>,
+    test_mode: Option<bool>,
 ) {
     let mut path = db_path.map(Path::new);
     let mut temp_dir: Option<tempfile::TempDir> = None;
@@ -52,8 +53,9 @@ pub async fn start_rollup(
     let rollup_config = rollup_config
         .unwrap_or_else(|| create_default_rollup_config(include_tx_body, path, node_mode));
 
-    let sequencer_config = sequencer_config
-        .unwrap_or_else(|| create_default_sequencer_config(min_soft_confirmations_per_commitment));
+    let sequencer_config = sequencer_config.unwrap_or_else(|| {
+        create_default_sequencer_config(min_soft_confirmations_per_commitment, test_mode)
+    });
 
     let mock_demo_rollup = MockDemoRollup {};
 
@@ -171,9 +173,11 @@ pub fn create_default_rollup_config(
 
 pub fn create_default_sequencer_config(
     min_soft_confirmations_per_commitment: u64,
+    test_mode: Option<bool>,
 ) -> SequencerConfig {
     SequencerConfig {
         min_soft_confirmations_per_commitment,
+        test_mode: test_mode.unwrap_or(false),
         mempool_conf: Default::default(),
     }
 }

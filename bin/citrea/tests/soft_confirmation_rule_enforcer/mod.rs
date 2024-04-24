@@ -31,6 +31,7 @@ async fn too_many_l2_block_per_l1_block() {
             true,
             None,
             None,
+            Some(true),
         )
         .await;
     });

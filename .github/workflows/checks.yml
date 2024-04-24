@@ -159,7 +159,6 @@ jobs:
           RUST_LOG=off ./target/debug/citrea --da-layer mock --rollup-config-path bin/citrea/configs/mock/sequencer_rollup_config.toml --sequencer-config-path bin/citrea/configs/mock/sequencer_config.toml --genesis-paths bin/test-data/genesis/demo-tests/mock &
           sleep 2
           RUST_LOG=off ./target/debug/citrea --rollup-config-path bin/citrea/configs/mock/rollup_config.toml --genesis-paths bin/test-data/genesis/demo-tests/mock &
-          ./bin/citrea/publish_block.sh &
           sleep 2
           ./bin/citrea/publish_da_block.sh &
           cd ./bin/citrea/tests/evm/uniswap

@@ -61,6 +61,7 @@ async fn initialize_test(
             true,
             None,
             None,
+            Some(true),
         )
         .await;
     });
@@ -84,6 +85,7 @@ async fn initialize_test(
             true,
             None,
             None,
+            Some(true),
         )
         .await;
     });
@@ -120,6 +122,7 @@ async fn test_soft_batch_save() -> Result<(), anyhow::Error> {
             true,
             None,
             None,
+            Some(true),
         )
         .await;
     });
@@ -143,6 +146,7 @@ async fn test_soft_batch_save() -> Result<(), anyhow::Error> {
             true,
             None,
             None,
+            Some(true),
         )
         .await;
     });
@@ -166,6 +170,7 @@ async fn test_soft_batch_save() -> Result<(), anyhow::Error> {
             false,
             None,
             None,
+            Some(true),
         )
         .await;
     });
@@ -253,6 +258,7 @@ async fn test_delayed_sync_ten_blocks() -> Result<(), anyhow::Error> {
             true,
             None,
             None,
+            Some(true),
         )
         .await;
     });
@@ -286,6 +292,7 @@ async fn test_delayed_sync_ten_blocks() -> Result<(), anyhow::Error> {
             true,
             None,
             None,
+            Some(true),
         )
         .await;
     });
@@ -350,6 +357,7 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
             true,
             None,
             None,
+            Some(true),
         )
         .await;
     });
@@ -373,6 +381,7 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
             true,
             None,
             None,
+            Some(true),
         )
         .await;
     });
@@ -455,6 +464,7 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
             true,
             None,
             None,
+            Some(true),
         )
         .await;
     });
@@ -510,6 +520,7 @@ async fn test_get_transaction_by_hash() -> Result<(), anyhow::Error> {
             true,
             None,
             None,
+            Some(true),
         )
         .await;
     });
@@ -532,6 +543,7 @@ async fn test_get_transaction_by_hash() -> Result<(), anyhow::Error> {
             true,
             None,
             None,
+            Some(true),
         )
         .await;
     });
@@ -768,6 +780,7 @@ async fn test_reopen_sequencer() -> Result<(), anyhow::Error> {
             true,
             None,
             None,
+            Some(true),
         )
         .await;
     });
@@ -814,6 +827,7 @@ async fn test_reopen_sequencer() -> Result<(), anyhow::Error> {
             true,
             None,
             None,
+            Some(true),
         )
         .await;
     });
@@ -1100,6 +1114,7 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
             true,
             None,
             None,
+            Some(true),
         )
         .await;
     });
@@ -1123,6 +1138,7 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
             true,
             None,
             None,
+            Some(true),
         )
         .await;
     });
@@ -1207,6 +1223,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
             true,
             None,
             None,
+            Some(true),
         )
         .await;
     });
@@ -1230,6 +1247,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
             true,
             None,
             None,
+            Some(true),
         )
         .await;
     });
@@ -1285,6 +1303,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
             true,
             None,
             None,
+            Some(true),
         )
         .await;
     });
@@ -1330,6 +1349,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
             true,
             None,
             None,
+            Some(true),
         )
         .await;
     });
@@ -1522,8 +1542,10 @@ async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error>
             // Increase max account slots to not stuck as spammer
             Some(SequencerConfig {
                 min_soft_confirmations_per_commitment: 1000,
+                test_mode: true,
                 mempool_conf: SequencerMempoolConfig {max_account_slots: 100, ..Default::default() }
-            })
+            }),
+            Some(true),
         )
         .await;
         });

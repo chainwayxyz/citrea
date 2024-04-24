@@ -36,6 +36,7 @@ async fn tracing_tests() -> Result<(), Box<dyn std::error::Error>> {
             true,
             None,
             None,
+            Some(true),
         )
         .await;
     });
