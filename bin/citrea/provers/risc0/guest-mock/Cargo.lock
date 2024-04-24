@@ -6947,14 +6947,10 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "borsh",
- "jsonrpsee",
- "lazy_static",
  "serde",
  "sov-modules-api",
- "sov-prover-storage-manager",
  "sov-rollup-interface",
  "sov-state",
- "tempfile",
 ]
 
 [[package]]

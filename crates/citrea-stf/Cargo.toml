@@ -76,6 +76,7 @@ native = [
     "sov-mock-da/native",
     "sov-modules-stf-blueprint/native",
     "sov-soft-confirmations-kernel/native",
+    "soft-confirmation-rule-enforcer/native",
     "clap",
     "serde",
     "serde_json",
