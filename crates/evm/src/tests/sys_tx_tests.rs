@@ -24,8 +24,6 @@ fn test_sys_l1blockhashlist() {
     let (mut config, dev_signer, _) =
         get_evm_config_starting_base_fee(U256::from_str("1000000").unwrap(), None, 1);
 
-    let l1_block_hash_list = L1BlockHashList::default();
-
     config.data.push(AccountData::new(
         L1BlockHashList::address(),
         U256::ZERO,
@@ -86,7 +84,7 @@ fn test_sys_l1blockhashlist() {
         .get_call(
             TransactionRequest {
                 to: Some(L1BlockHashList::address()),
-                input: TransactionInput::new(l1_block_hash_list.get_block_hash(1).to_vec().into()),
+                input: TransactionInput::new(L1BlockHashList::get_block_hash(1)),
                 ..Default::default()
             },
             None,
@@ -100,12 +98,7 @@ fn test_sys_l1blockhashlist() {
         .get_call(
             TransactionRequest {
                 to: Some(L1BlockHashList::address()),
-                input: TransactionInput::new(
-                    l1_block_hash_list
-                        .get_witness_root_by_number(1)
-                        .to_vec()
-                        .into(),
-                ),
+                input: TransactionInput::new(L1BlockHashList::get_witness_root_by_number(1)),
                 ..Default::default()
             },
             None,
@@ -205,7 +198,7 @@ fn test_sys_l1blockhashlist() {
         .get_call(
             TransactionRequest {
                 to: Some(L1BlockHashList::address()),
-                input: TransactionInput::new(l1_block_hash_list.get_block_hash(2).to_vec().into()),
+                input: TransactionInput::new(L1BlockHashList::get_block_hash(2)),
                 ..Default::default()
             },
             None,
@@ -219,12 +212,7 @@ fn test_sys_l1blockhashlist() {
         .get_call(
             TransactionRequest {
                 to: Some(L1BlockHashList::address()),
-                input: TransactionInput::new(
-                    l1_block_hash_list
-                        .get_witness_root_by_number(2)
-                        .to_vec()
-                        .into(),
-                ),
+                input: TransactionInput::new(L1BlockHashList::get_witness_root_by_number(2)),
                 ..Default::default()
             },
             None,
