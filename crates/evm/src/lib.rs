@@ -61,7 +61,6 @@ pub(crate) struct PendingTransaction {
 }
 
 /// The citrea-evm module provides compatibility with the EVM.
-#[allow(dead_code)]
 // #[cfg_attr(feature = "native", derive(sov_modules_api::ModuleCallJsonSchema))]
 #[derive(ModuleInfo, Clone)]
 pub struct Evm<C: sov_modules_api::Context> {

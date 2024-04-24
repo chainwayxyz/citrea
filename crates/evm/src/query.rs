@@ -29,8 +29,8 @@ use tracing::info;
 
 use crate::call::get_cfg_env;
 use crate::error::rpc::{ensure_success, EthApiError, RevertError, RpcInvalidTransactionError};
+use crate::evm::call::prepare_call_env;
 use crate::evm::db::EvmDb;
-use crate::evm::prepare_call_env;
 use crate::evm::primitive_types::{BlockEnv, Receipt, SealedBlock, TransactionSignedAndRecovered};
 use crate::rpc_helpers::*;
 use crate::{

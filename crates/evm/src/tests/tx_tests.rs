@@ -8,7 +8,7 @@ use reth_primitives::{Address, TransactionSignedEcRecovered, U256, U64, U8};
 use reth_rpc_types::request::{TransactionInput, TransactionRequest};
 use revm::primitives::{TransactTo, TxEnv};
 
-use crate::evm::prepare_call_env;
+use crate::evm::call::prepare_call_env;
 use crate::evm::primitive_types::TransactionSignedAndRecovered;
 use crate::primitive_types::{Block, BlockEnv};
 use crate::tests::DEFAULT_CHAIN_ID;

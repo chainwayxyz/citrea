@@ -60,6 +60,7 @@ native = [
     "sov-mock-da/native",
     "sov-modules-stf-blueprint/native",
     "soft-confirmation-rule-enforcer/native",
+    "citrea-evm/native",
     "clap",
     "serde",
     "serde_json",
