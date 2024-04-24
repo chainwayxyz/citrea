@@ -4,14 +4,18 @@ use std::mem::size_of;
 use std::sync::Arc;
 
 use revm::handler::register::{EvmHandler, HandleRegisters};
-use revm::interpreter::{
-    CallInputs, CallOutcome, CreateInputs, CreateOutcome, Gas, InstructionResult, Interpreter,
-};
+#[cfg(feature = "native")]
+use revm::interpreter::{CallInputs, CallOutcome, CreateInputs, CreateOutcome, Interpreter};
+use revm::interpreter::{Gas, InstructionResult};
+#[cfg(feature = "native")]
+use revm::primitives::Log;
 use revm::primitives::{
-    spec_to_generic, Address, EVMError, Env, HandlerCfg, InvalidTransaction, Log, ResultAndState,
-    Spec, SpecId, B256, U256,
+    spec_to_generic, Address, EVMError, Env, HandlerCfg, InvalidTransaction, ResultAndState, Spec,
+    SpecId, B256, U256,
 };
-use revm::{Context, Database, EvmContext, FrameResult, InnerEvmContext, Inspector, JournalEntry};
+use revm::{Context, Database, FrameResult, InnerEvmContext, JournalEntry};
+#[cfg(feature = "native")]
+use revm::{EvmContext, Inspector};
 
 use crate::system_events::SYSTEM_SIGNER;
 
