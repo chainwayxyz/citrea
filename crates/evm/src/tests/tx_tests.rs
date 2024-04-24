@@ -94,7 +94,7 @@ fn prepare_call_env_conversion() {
 
     let block_env = BlockEnv::default();
 
-    let tx_env = prepare_call_env(&block_env, request).unwrap();
+    let tx_env = prepare_call_env(&block_env, request, None).unwrap();
     let expected = TxEnv {
         caller: from,
         gas_price: U256::from(100u64),

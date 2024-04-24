@@ -468,6 +468,26 @@ fn gas_price_call_test() {
     working_set.unset_archival_version();
 
     // Test with extremely high gas price
+    // Should pass bc gas is sensible
+    let tx_req_high_gas_price = base_tx_req();
+    let result_high_gas_price = evm.get_call(
+        TransactionRequest {
+            gas_price: Some(U256::from(1e12 as u64)),
+            gas: Some(U256::from(250000)),
+            ..tx_req_high_gas_price
+        },
+        Some(BlockNumberOrTag::Latest),
+        None,
+        None,
+        &mut working_set,
+    );
+
+    assert!(result_high_gas_price.is_ok());
+    working_set.unset_archival_version();
+
+    // Test with extremely high gas price
+    // Will pass gas is not given
+    // Which will be capped to max gas the wallet can afford
     let tx_req_high_gas_price = base_tx_req();
     let result_high_gas_price = evm.get_call(
         TransactionRequest {
