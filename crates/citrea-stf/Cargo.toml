@@ -40,14 +40,14 @@ soft-confirmation-rule-enforcer = { path = "../soft-confirmation-rule-enforcer" 
 
 
 [dev-dependencies]
-citrea-stf = { path = ".", features = ["native"] }
-tempfile = { workspace = true }
-rand = { workspace = true }
-sov-data-generators = { path = "../sovereign-sdk/module-system/utils/sov-data-generators" }
-sov-mock-zkvm = { path = "../sovereign-sdk/adapters/mock-zkvm" }
-sov-prover-storage-manager = { path = "../sovereign-sdk/full-node/sov-prover-storage-manager", features = [
-    "test-utils",
-] }
+# citrea-stf = { path = ".", features = ["native"] }
+# tempfile = { workspace = true }
+# rand = { workspace = true }
+# sov-data-generators = { path = "../sovereign-sdk/module-system/utils/sov-data-generators" }
+# sov-mock-zkvm = { path = "../sovereign-sdk/adapters/mock-zkvm" }
+# sov-prover-storage-manager = { path = "../sovereign-sdk/full-node/sov-prover-storage-manager", features = [
+#     "test-utils",
+# ] }
 
 
 [features]
