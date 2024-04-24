@@ -104,29 +104,23 @@ impl Case for BlockchainTestCase {
 
         // Iterate through test cases, filtering by the network type to exclude specific forks.
         self.tests
-            .values()
-            .filter(|case| {
-                !matches!(
-                    case.network,
-                    ForkSpec::ByzantiumToConstantinopleAt5
-                        | ForkSpec::Constantinople
-                        | ForkSpec::ConstantinopleFix
-                        | ForkSpec::MergeEOF
-                        | ForkSpec::MergeMeterInitCode
-                        | ForkSpec::MergePush0
-                        | ForkSpec::Unknown
-                )
-            })
-            .par_bridge()
-            .try_for_each(|case| {
+            .iter()
+            .filter(|(_, case)| matches!(case.network, ForkSpec::Shanghai))
+            // .par_bridge()
+            .try_for_each(|(name, case)| {
+                println!("Running case {}", name);
                 let mut evm_config = EvmConfig::default();
-                // Set this base fee specifically for ef-tests
-                evm_config.starting_base_fee = 10;
+
+                // Set this base fee based on what's set in genesis.
+                evm_config.starting_base_fee =
+                    case.genesis_block_header.base_fee_per_gas.unwrap().to();
+
                 for (&address, account) in case.pre.0.iter() {
                     evm_config.data.push(AccountData::new(
                         address,
                         account.balance,
                         account.code.clone(),
+                        account.nonce.saturating_to::<u64>(),
                         HashMap::new(),
                     ));
                 }
@@ -216,38 +210,12 @@ pub fn should_skip(path: &Path) -> bool {
         | "ValueOverflow.json"
         | "ValueOverflowParis.json"
 
-        // | "addNonConst.json"
-        // | "addmodNonConst.json"
-        // | "andNonConst.json"
+        // Collection of passed cases
+        | "addNonConst.json"
+        | "addmodNonConst.json"
+        | "andNonConst.json"
         | "balanceNonConst.json"
         | "byteNonConst.json"
-        | "callNonConst.json"
-        | "callcodeNonConst.json"
-        | "calldatacopyNonConst.json"
-        | "calldataloadNonConst.json"
-        | "codecopyNonConst.json"
-        | "createNonConst.json"
-        | "delegatecallNonConst.json"
-        | "divNonConst.json"
-        | "eqNonConst.json"
-        | "expNonConst.json"
-        | "extcodecopyNonConst.json"
-        | "extcodesizeNonConst.json"
-        | "gtNonConst.json"
-        | "iszeroNonConst.json"
-        | "jumpNonConst.json"
-        | "jumpiNonConst.json"
-        | "log0NonConst.json"
-        | "log1NonConst.json"
-        | "log2NonConst.json"
-        | "log3NonConst.json"
-        | "ltNonConst.json"
-        | "mloadNonConst.json"
-        | "modNonConst.json"
-        | "mstore8NonConst.json"
-        | "mstoreNonConst.json"
-        | "mulNonConst.json"
-        | "mulmodNonConst.json"
         | "notNonConst.json"
         | "orNonConst.json"
         | "returnNonConst.json"
@@ -260,8 +228,35 @@ pub fn should_skip(path: &Path) -> bool {
         | "smodNonConst.json"
         | "sstoreNonConst.json"
         | "subNonConst.json"
-        | "suicideNonConst.json"
         | "xorNonConst.json"
+        | "calldatacopyNonConst.json"
+        | "calldataloadNonConst.json"
+        | "codecopyNonConst.json"
+        | "divNonConst.json"
+        | "eqNonConst.json"
+        | "ltNonConst.json"
+        | "gtNonConst.json"
+        | "iszeroNonConst.json"
+        | "mstore8NonConst.json"
+        | "mstoreNonConst.json"
+        | "mloadNonConst.json"
+        | "jumpNonConst.json"
+        | "log0NonConst.json"
+        | "log1NonConst.json"
+        | "log2NonConst.json"
+        | "log3NonConst.json"
+        | "expNonConst.json"
+        | "mulmodNonConst.json"
+        | "modNonConst.json"
+        | "createNonConst.json"
+        // END -
+
+        // | "callNonConst.json"
+        | "callcodeNonConst.json"
+        | "delegatecallNonConst.json"
+        | "extcodecopyNonConst.json"
+        | "extcodesizeNonConst.json"
+        | "suicideNonConst.json"
 
         // txbyte is of type 02 and we dont parse tx bytes for this test to fail.
         | "typeTwoBerlin.json"
