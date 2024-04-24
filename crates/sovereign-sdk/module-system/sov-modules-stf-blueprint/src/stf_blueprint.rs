@@ -1,8 +1,10 @@
+use std::io::Cursor;
 use std::marker::PhantomData;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use sov_modules_api::hooks::{ApplySoftConfirmationError, HookSoftConfirmationInfo};
 use sov_modules_api::runtime::capabilities::KernelSlotHooks;
+use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{
     BasicAddress, BlobReaderTrait, Context, DaSpec, DispatchCall, StateCheckpoint, WorkingSet,
 };
@@ -106,7 +108,7 @@ where
         txs: Vec<Vec<u8>>,
         mut batch_workspace: WorkingSet<C>,
     ) -> (WorkingSet<C>, Vec<TransactionReceipt<TxEffect>>) {
-        let txs = self.verify_txs_stateless_soft(&txs);
+        let txs = self.raw_tx_vec_to_tx_and_raw_hash_vec(&txs);
 
         let messages = self
             .decode_txs(&txs)
@@ -492,6 +494,24 @@ where
                 Err(SlashingReason::StatelessVerificationFailed)
             }
         }
+    }
+
+    pub(crate) fn raw_tx_vec_to_tx_and_raw_hash_vec(
+        &self,
+        rlp_txs: &[Vec<u8>],
+    ) -> Vec<TransactionAndRawHash<C>> {
+        let mut txs = Vec::with_capacity(rlp_txs.len());
+        rlp_txs.iter().for_each(|rlp_tx| {
+            let raw_tx = RawTx {
+                data: rlp_tx.clone(),
+            };
+            let raw_tx_hash = raw_tx.hash::<C>();
+            let mut data = Cursor::new(&raw_tx.data);
+            let tx = Transaction::<C>::deserialize_reader(&mut data)
+                .expect("Sequencer must not include non-deserializable transaction.");
+            txs.push(TransactionAndRawHash { tx, raw_tx_hash });
+        });
+        txs
     }
 
     // Stateless verification of transaction, such as signature check

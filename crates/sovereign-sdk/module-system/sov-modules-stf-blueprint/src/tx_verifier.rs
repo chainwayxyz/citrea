@@ -22,7 +22,7 @@ pub struct RawTx {
 }
 
 impl RawTx {
-    fn hash<C: Context>(&self) -> [u8; 32] {
+    pub(crate) fn hash<C: Context>(&self) -> [u8; 32] {
         <C as Spec>::Hasher::digest(&self.data).into()
     }
 }
