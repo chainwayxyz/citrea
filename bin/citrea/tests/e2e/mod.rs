@@ -1342,7 +1342,6 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
 #[tokio::test]
 async fn test_system_transactons() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging();
-    let l1_blockhash_contract = L1BlockHashList::default();
 
     let system_contract_address =
         Address::from_str("0x3100000000000000000000000000000000000001").unwrap();
@@ -1434,7 +1433,7 @@ async fn test_system_transactons() -> Result<(), anyhow::Error> {
         let hash_on_chain: String = full_node_test_client
             .contract_call(
                 system_contract_address,
-                l1_blockhash_contract.get_block_hash(i),
+                ethers::types::Bytes::from(L1BlockHashList::get_block_hash(i).to_vec()),
                 None,
             )
             .await
