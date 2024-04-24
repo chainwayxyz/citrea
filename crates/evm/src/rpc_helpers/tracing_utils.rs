@@ -14,7 +14,9 @@ use revm::{inspector_handle_register, Inspector};
 use crate::error::rpc::{EthApiError, EthResult};
 use crate::evm::db::EvmDb;
 use crate::evm::primitive_types::BlockEnv;
-use crate::handler::{citrea_handle_register, CitreaExternalExt, TracingCitreaExternal};
+use crate::handler::{
+    citrea_handle_register, CitreaExternal, CitreaExternalExt, TracingCitreaExternal, TxInfo,
+};
 use crate::RpcInvalidTransactionError;
 
 pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
@@ -178,18 +180,30 @@ pub(crate) fn inspect_no_tracing<DB>(
     config_env: CfgEnvWithHandlerCfg,
     block_env: BlockEnv,
     tx_env: TxEnv,
-) -> Result<ResultAndState, EVMError<DB::Error>>
+    l1_fee_rate: u64,
+) -> Result<(ResultAndState, TxInfo), EVMError<DB::Error>>
 where
     DB: Database,
 {
+    let tmp_hash: TxHash = b"hash_of_an_ephemeral_transaction".into();
+    let mut ext = CitreaExternal::new(l1_fee_rate);
+    ext.set_current_tx_hash(tmp_hash);
+
     let mut evm = revm::Evm::builder()
         .with_db(db)
+        .with_external_context(&mut ext)
         .with_cfg_env_with_handler_cfg(config_env)
         .with_block_env(block_env.into())
         .with_tx_env(tx_env)
         .build();
 
-    evm.transact()
+    let result_and_state = evm.transact()?;
+    let tx_info = evm
+        .context
+        .external
+        .get_tx_info(tmp_hash)
+        .unwrap_or_default();
+    Ok((result_and_state, tx_info))
 }
 
 /// Taken from reth
