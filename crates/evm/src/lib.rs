@@ -5,21 +5,28 @@ mod evm;
 mod genesis;
 mod hooks;
 mod provider_functions;
-mod rpc_helpers;
+
 pub use call::*;
-pub use error::rpc::*;
 pub use evm::*;
 pub use genesis::*;
+pub use system_events::SYSTEM_SIGNER;
+
+#[cfg(feature = "native")]
+mod rpc_helpers;
+#[cfg(feature = "native")]
+pub use error::rpc::*;
+#[cfg(feature = "native")]
 pub use rpc_helpers::*;
 #[cfg(feature = "native")]
 mod query;
 #[cfg(feature = "native")]
 pub use query::*;
+#[cfg(feature = "native")]
 mod signer;
+#[cfg(feature = "native")]
 pub use signer::DevSigner;
 #[cfg(feature = "smart_contracts")]
 pub mod smart_contracts;
-pub use system_events::SYSTEM_SIGNER;
 
 #[cfg(test)]
 mod tests;
