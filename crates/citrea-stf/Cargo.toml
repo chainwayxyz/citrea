@@ -16,12 +16,12 @@ borsh = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true, optional = true }
 clap = { workspace = true, optional = true }
-toml = { workspace = true, optional = true }
 jsonrpsee = { workspace = true, features = [
     "http-client",
     "server",
 ], optional = true }
-tokio = { workspace = true, optional = true }
+# will be needed after we update the storage system
+# tokio = { workspace = true, features = ["sync"], optional = true }
 hex = { workspace = true }
 tracing = { workspace = true }
 reth-primitives = { workspace = true }
@@ -65,8 +65,7 @@ native = [
     "serde",
     "serde_json",
     "jsonrpsee",
-    "tokio",
-    "toml",
+    # "tokio",
 ]
 serde = [
     "sov-accounts/serde",

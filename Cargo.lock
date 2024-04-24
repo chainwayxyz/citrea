@@ -1649,7 +1649,6 @@ dependencies = [
  "sov-state",
  "tempfile",
  "thiserror",
- "tokio",
  "tracing",
 ]
 
@@ -1724,8 +1723,6 @@ dependencies = [
  "sov-state",
  "sov-stf-runner",
  "tempfile",
- "tokio",
- "toml 0.8.2",
  "tracing",
 ]
 

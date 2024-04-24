@@ -4464,8 +4464,7 @@ dependencies = [
 [[package]]
 name = "secp256k1"
 version = "0.27.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "25996b82292a7a57ed3508f052cfff8640d38d32018784acd714758b43da9c8f"
+source = "git+https://github.com/Sovereign-Labs/rust-secp256k1.git?branch=risc0-compatible-0-27-0#af351efadb995d56f500be031995fb1e2cbc0444"
 dependencies = [
  "rand",
  "secp256k1-sys 0.8.1",
@@ -4474,8 +4473,7 @@ dependencies = [
 [[package]]
 name = "secp256k1"
 version = "0.28.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d24b59d129cdadea20aea4fb2352fa053712e5d713eee47d700cd4b2bc002f10"
+source = "git+https://github.com/Sovereign-Labs/rust-secp256k1.git?branch=risc0-compatible-0-28-2#c921ac680bc998c738d83adac4c916eb4b191094"
 dependencies = [
  "rand",
  "secp256k1-sys 0.9.2",
@@ -4484,8 +4482,7 @@ dependencies = [
 [[package]]
 name = "secp256k1-sys"
 version = "0.8.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "70a129b9e9efbfb223753b9163c4ab3b13cff7fd9c7f010fbac25ab4099fa07e"
+source = "git+https://github.com/Sovereign-Labs/rust-secp256k1.git?branch=risc0-compatible-0-27-0#af351efadb995d56f500be031995fb1e2cbc0444"
 dependencies = [
  "cc",
 ]
@@ -4493,8 +4490,7 @@ dependencies = [
 [[package]]
 name = "secp256k1-sys"
 version = "0.9.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e5d1746aae42c19d583c3c1a8c646bfad910498e2051c551a7f2e3c0c9fbb7eb"
+source = "git+https://github.com/Sovereign-Labs/rust-secp256k1.git?branch=risc0-compatible-0-28-2#c921ac680bc998c738d83adac4c916eb4b191094"
 dependencies = [
  "cc",
 ]

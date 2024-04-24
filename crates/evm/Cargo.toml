@@ -58,7 +58,6 @@ revm = { workspace = true, features = [
     "optional_eip3607",
     "optional_no_base_fee",
 ] }
-tokio = { workspace = true }
 tempfile = { workspace = true }
 bytes = { workspace = true }
 rand = { workspace = true }
