@@ -1,6 +1,6 @@
 use reth_primitives::{
-    address, Address, Bytes as RethBytes, Signature, Transaction, TransactionKind,
-    TransactionSigned, TransactionSignedEcRecovered, TransactionSignedNoHash, TxEip1559, U256,
+    address, Address, Signature, Transaction, TransactionKind, TransactionSigned,
+    TransactionSignedEcRecovered, TransactionSignedNoHash, TxEip1559, U256,
 };
 
 use super::system_contracts::L1BlockHashList;
@@ -24,11 +24,10 @@ pub(crate) enum SystemEvent {
 }
 
 fn system_event_to_transaction(event: SystemEvent, nonce: u64, chain_id: u64) -> Transaction {
-    let sys_block_hash = L1BlockHashList::default();
     let body: TxEip1559 = match event {
         SystemEvent::L1BlockHashInitialize(block_number) => TxEip1559 {
             to: TransactionKind::Call(L1BlockHashList::address()),
-            input: RethBytes::from(sys_block_hash.init(block_number).to_vec()),
+            input: L1BlockHashList::init(block_number),
             nonce,
             chain_id,
             value: U256::ZERO,
@@ -38,11 +37,7 @@ fn system_event_to_transaction(event: SystemEvent, nonce: u64, chain_id: u64) ->
         },
         SystemEvent::L1BlockHashSetBlockInfo(block_hash, txs_commitments) => TxEip1559 {
             to: TransactionKind::Call(L1BlockHashList::address()),
-            input: RethBytes::from(
-                sys_block_hash
-                    .set_block_info(block_hash, txs_commitments)
-                    .to_vec(),
-            ),
+            input: L1BlockHashList::set_block_info(block_hash, txs_commitments),
             nonce,
             chain_id,
             value: U256::ZERO,
