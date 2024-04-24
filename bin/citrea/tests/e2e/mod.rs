@@ -1494,13 +1494,6 @@ async fn test_system_transactons() -> Result<(), anyhow::Error> {
 #[tokio::test]
 async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging();
-    let l1_blockhash_contract = L1BlockHashList::default();
-
-    let system_contract_address =
-        Address::from_str("0x3100000000000000000000000000000000000001").unwrap();
-    let system_signer_address =
-        Address::from_str("0xdeaddeaddeaddeaddeaddeaddeaddeaddeaddead").unwrap();
-
     let da_service = MockDaService::new(MockAddress::default());
 
     // start rollup on da block 3
@@ -1619,6 +1612,7 @@ async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error>
 
     seq_test_client.send_publish_batch_request().await;
 
+    seq_task.abort();
     Ok(())
 }
 
