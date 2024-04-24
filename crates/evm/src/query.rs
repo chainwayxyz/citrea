@@ -579,7 +579,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let mut block_env = match block_number {
             None | Some(BlockNumberOrTag::Pending | BlockNumberOrTag::Latest) => {
                 // so we don't unnecessarily set archival version
-                self.block_env.get(working_set).unwrap_or_default().clone()
+                self.block_env.get(working_set).unwrap_or_default()
             }
             _ => {
                 let block = match self.get_sealed_block_by_number(block_number, working_set) {
@@ -625,7 +625,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let result = match inspect(
             evm_db,
             cfg_env,
-            block_env.into(),
+            block_env,
             tx_env,
             TracingInspector::new(TracingInspectorConfig::all()),
         ) {
@@ -669,7 +669,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let mut block_env = match block_number {
             None | Some(BlockNumberOrTag::Pending | BlockNumberOrTag::Latest) => {
                 // so we don't unnecessarily set archival version
-                self.block_env.get(working_set).unwrap_or_default().clone()
+                self.block_env.get(working_set).unwrap_or_default()
             }
             _ => {
                 let block = match self.get_sealed_block_by_number(block_number, working_set) {
@@ -728,7 +728,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let result = inspect(
             &mut evm_db,
             cfg_env.clone(),
-            block_env.clone().into(),
+            block_env,
             tx_env.clone(),
             &mut inspector,
         )
@@ -750,13 +750,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
         request.access_list = Some(access_list.clone());
         tx_env.access_list = access_list.clone().into_flattened();
 
-        let gas_used = self.estimate_gas_with_env(
-            request,
-            block_env.clone(),
-            cfg_env,
-            &mut tx_env,
-            working_set,
-        )?;
+        let gas_used =
+            self.estimate_gas_with_env(request, block_env, cfg_env, &mut tx_env, working_set)?;
 
         Ok(AccessListWithGasUsed {
             access_list,
@@ -777,7 +772,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let block_env = match block_number {
             None | Some(BlockNumberOrTag::Pending | BlockNumberOrTag::Latest) => {
                 // so we don't unnecessarily set archival version
-                self.block_env.get(working_set).unwrap_or_default().clone()
+                self.block_env.get(working_set).unwrap_or_default()
             }
             _ => {
                 let block = match self.get_sealed_block_by_number(block_number, working_set) {
@@ -867,7 +862,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     let res = inspect_no_tracing(
                         self.get_db(working_set),
                         cfg_env.clone(),
-                        block_env.clone().into(),
+                        block_env,
                         tx_env.clone(),
                     );
 
@@ -899,12 +894,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let evm_db = self.get_db(working_set);
 
         // execute the call without writing to db
-        let result = inspect_no_tracing(
-            evm_db,
-            cfg_env.clone(),
-            block_env.clone().into(),
-            tx_env.clone(),
-        );
+        let result = inspect_no_tracing(evm_db, cfg_env.clone(), block_env, tx_env.clone());
 
         // Exceptional case: init used too much gas, we need to increase the gas limit and try
         // again
@@ -964,7 +954,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             let curr_result = inspect_no_tracing(
                 self.get_db(working_set),
                 cfg_env.clone(),
-                block_env.clone().into(),
+                block_env,
                 tx_env.clone(),
             );
             let curr_result = match curr_result {
@@ -999,12 +989,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             tx_env.gas_limit = mid_gas_limit;
 
             let evm_db = self.get_db(working_set);
-            let result = inspect_no_tracing(
-                evm_db,
-                cfg_env.clone(),
-                block_env.clone().into(),
-                tx_env.clone(),
-            );
+            let result = inspect_no_tracing(evm_db, cfg_env.clone(), block_env, tx_env.clone());
 
             // Exceptional case: init used too much gas, we need to increase the gas limit and try
             // again
@@ -1133,7 +1118,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             let (trace, state_changes) = trace_transaction(
                 opts.clone().unwrap_or_default(),
                 cfg_env.clone(),
-                block_env.clone().into(),
+                block_env,
                 tx_env_with_recovered(&tx),
                 tx.hash(),
                 &mut evm_db,
@@ -1620,7 +1605,7 @@ fn map_out_of_gas_err<C: sov_modules_api::Context>(
     let req_gas_limit = tx_env.gas_limit;
     tx_env.gas_limit = block_env.gas_limit;
 
-    match inspect_no_tracing(db, cfg_env, block_env.into(), tx_env) {
+    match inspect_no_tracing(db, cfg_env, block_env, tx_env) {
         Ok(res) => match res.result {
             ExecutionResult::Success { .. } => {
                 // transaction succeeded by manually increasing the gas limit to

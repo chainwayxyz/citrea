@@ -8,11 +8,12 @@ use reth_rpc_types::trace::geth::{
 };
 use revm::precompile::{PrecompileSpecId, Precompiles};
 use revm::primitives::db::Database;
-use revm::primitives::{Address, BlockEnv, CfgEnvWithHandlerCfg, EVMError, ResultAndState, SpecId};
+use revm::primitives::{Address, CfgEnvWithHandlerCfg, EVMError, ResultAndState, SpecId};
 use revm::{inspector_handle_register, Inspector};
 
 use crate::error::rpc::{EthApiError, EthResult};
 use crate::evm::db::EvmDb;
+use crate::evm::primitive_types::BlockEnv;
 use crate::handler::{citrea_handle_register, CitreaExternalExt, TracingCitreaExternal};
 use crate::RpcInvalidTransactionError;
 
@@ -137,7 +138,7 @@ where
         .with_db(db)
         .with_external_context(inspector)
         .with_cfg_env_with_handler_cfg(config_env)
-        .with_block_env(block_env)
+        .with_block_env(block_env.into())
         .with_tx_env(tx_env)
         .append_handler_register(citrea_handle_register)
         .append_handler_register(inspector_handle_register)
@@ -164,7 +165,7 @@ where
         .with_db(db)
         .with_external_context(inspector)
         .with_cfg_env_with_handler_cfg(config_env)
-        .with_block_env(block_env)
+        .with_block_env(block_env.into())
         .with_tx_env(tx_env)
         .append_handler_register(inspector_handle_register)
         .build();
@@ -180,12 +181,11 @@ pub(crate) fn inspect_no_tracing<DB>(
 ) -> Result<ResultAndState, EVMError<DB::Error>>
 where
     DB: Database,
-    <DB as Database>::Error: Into<EthApiError>,
 {
     let mut evm = revm::Evm::builder()
         .with_db(db)
         .with_cfg_env_with_handler_cfg(config_env)
-        .with_block_env(block_env)
+        .with_block_env(block_env.into())
         .with_tx_env(tx_env)
         .build();
 
