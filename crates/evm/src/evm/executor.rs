@@ -1,7 +1,9 @@
 use std::convert::Infallible;
 
 use reth_primitives::TransactionSignedEcRecovered;
-use revm::primitives::{CfgEnvWithHandlerCfg, EVMError, Env, ExecutionResult, InvalidTransaction};
+use revm::primitives::{
+    CfgEnvWithHandlerCfg, EVMError, Env, ExecutionResult, InvalidTransaction, ResultAndState, State,
+};
 use revm::{self, Context, Database, DatabaseCommit, EvmContext};
 
 use super::conversions::create_tx_env;
@@ -37,6 +39,21 @@ where
         *self.evm.tx_mut() = create_tx_env(tx);
         self.evm.transact_commit()
     }
+
+    /// Runs a single transaction in the configured environment and proceeds
+    /// to return the result and state diff (without applying it).
+    fn transact(
+        &mut self,
+        tx: &TransactionSignedEcRecovered,
+    ) -> Result<ResultAndState, EVMError<Infallible>> {
+        self.evm.context.external.set_current_tx_hash(tx.hash());
+        *self.evm.tx_mut() = create_tx_env(tx);
+        self.evm.transact()
+    }
+
+    fn commit(&mut self, state: State) {
+        self.evm.context.evm.db.commit(state)
+    }
 }
 
 #[allow(dead_code)]
@@ -71,7 +88,6 @@ pub(crate) fn execute_multiple_tx<
 
     let block_gas_limit = block_env.gas_limit;
 
-    println!("block_gas_limit: {:?}", block_gas_limit);
     let mut cumulative_gas_used = prev_gas_used;
 
     let mut evm = CitreaEvm::new(db, block_env, config_env, ext);
@@ -79,7 +95,19 @@ pub(crate) fn execute_multiple_tx<
     let mut tx_results = Vec::with_capacity(txs.len());
     for tx in txs {
         let block_available_gas = block_gas_limit - cumulative_gas_used;
-        let result = if tx.transaction.gas_limit() > block_available_gas {
+        let result_and_state = match evm.transact(tx) {
+            Ok(result_and_state) => {
+                // get used gas for tx
+                result_and_state
+            }
+            Err(e) => {
+                tx_results.push(Err(e));
+                continue;
+            }
+        };
+
+        // Check if the transaction used more gas than the available block gas limit
+        let result = if result_and_state.result.gas_used() > block_available_gas {
             Err(EVMError::Transaction(
                 InvalidTransaction::CallerGasLimitMoreThanBlock,
             ))
@@ -89,7 +117,8 @@ pub(crate) fn execute_multiple_tx<
                 hex::encode(tx.hash())
             )))
         } else {
-            evm.transact_commit(tx)
+            evm.commit(result_and_state.state);
+            Ok(result_and_state.result)
         };
         cumulative_gas_used += result.as_ref().map(|r| r.gas_used()).unwrap_or(0);
         tx_results.push(result);

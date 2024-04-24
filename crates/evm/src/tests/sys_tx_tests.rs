@@ -240,9 +240,10 @@ fn test_sys_l1blockhashlist() {
     assert_eq!(merkle_root.as_ref(), &[3u8; 32]);
 }
 
-// TODO: Do we need this test?
 #[test]
 fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
+    // This test also tests evm checking gas usage and not just the tx gas limit when including txs in block after checking available block limit
+    // For example txs below have 1_000_000 gas limit, the block used to stuck at 29_030_000 gas usage but now can utilize the whole block gas limit
     let (mut config, dev_signer, contract_addr) = get_evm_config_starting_base_fee(
         U256::from_str("100000000000000000000").unwrap(),
         Some(ETHEREUM_BLOCK_GAS_LIMIT),
@@ -293,9 +294,9 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
     evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
 
     evm.begin_soft_confirmation_hook(
-        [5u8; 32],
-        1,
-        [42u8; 32],
+        [10u8; 32],
+        2,
+        [43u8; 32],
         &[10u8; 32],
         l1_fee_rate,
         0,
@@ -307,19 +308,14 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
         let sys_tx_gas_usage = evm.get_pending_txs_cumulative_gas_used(&mut working_set);
         assert_eq!(sys_tx_gas_usage, 75710);
 
-        // deploy logs contract
-        let mut rlp_transactions = vec![create_contract_message(
-            &dev_signer,
-            0,
-            LogsContract::default(),
-        )];
+        let mut rlp_transactions = Vec::new();
 
         // the amount of gas left is 30_000_000 - 75710 = 29_924_290
         // send barely enough gas to reach the limit
         // one publish event message is 26388 gas
         // 29_924_290 / 26388 = 1134.01
         // so there cannot be more than 1134 messages
-        for i in 0..1135 {
+        for i in 0..11350 {
             rlp_transactions.push(publish_event_message(
                 contract_addr,
                 &dev_signer,
@@ -327,6 +323,15 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
                 "hello".to_string(),
             ));
         }
+
+        evm.call(
+            CallMessage {
+                txs: rlp_transactions,
+            },
+            &context,
+            &mut working_set,
+        )
+        .unwrap();
     }
     evm.end_soft_confirmation_hook(&mut working_set);
     evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
@@ -336,10 +341,14 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
         .unwrap()
         .unwrap();
 
+    println!("{:?}", block.transactions.hashes().len());
+
     assert_eq!(block.header.gas_limit, U256::from(ETHEREUM_BLOCK_GAS_LIMIT));
     assert!(block.header.gas_used <= block.header.gas_limit);
+
+    // In total there should only be 1135 transactions 1 is system tx others are contract calls
     assert!(
-        block.transactions.hashes().len() < 10_000,
+        block.transactions.hashes().len() == 1135,
         "Some transactions should be dropped because of gas limit"
     );
 }
