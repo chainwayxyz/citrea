@@ -87,6 +87,7 @@ impl CitreaExternalExt for CitreaExternal {
     }
 }
 
+#[cfg(feature = "native")]
 /// This is both a `CitreaExternal` and an `Inspector`.
 pub(crate) struct TracingCitreaExternal<I, DB> {
     ext: CitreaExternal,
@@ -94,6 +95,7 @@ pub(crate) struct TracingCitreaExternal<I, DB> {
     _ph: core::marker::PhantomData<DB>,
 }
 
+#[cfg(feature = "native")]
 impl<I, DB> TracingCitreaExternal<I, DB>
 where
     DB: Database,
@@ -108,6 +110,7 @@ where
     }
 }
 
+#[cfg(feature = "native")]
 // Pass all methods to self.ext
 impl<I, DB> CitreaExternalExt for TracingCitreaExternal<I, DB> {
     fn l1_fee_rate(&self) -> u64 {
@@ -124,6 +127,7 @@ impl<I, DB> CitreaExternalExt for TracingCitreaExternal<I, DB> {
     }
 }
 
+#[cfg(feature = "native")]
 // Pass all methods to self.inspector
 impl<I, DB> Inspector<DB> for TracingCitreaExternal<I, DB>
 where
