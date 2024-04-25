@@ -20,10 +20,12 @@ where
     ) -> Result<(), ApplySoftConfirmationError> {
         let da_root_hash = soft_batch_info.da_slot_hash();
         let l2_block_count = self
-            .get_block_count_by_da_root_hash(da_root_hash, working_set)
-            .expect("Block count must be set by da root hash must be set");
+            .da_root_hash_to_number
+            .get(&da_root_hash, working_set)
+            .unwrap_or(0);
         let limiting_number = self
-            .get_limiting_number(working_set)
+            .limiting_number
+            .get(working_set)
             .expect("Limiting number must be set");
 
         // Adding one more l2 block will exceed the limiting number

@@ -29,14 +29,20 @@ use tracing::info;
 
 use crate::call::get_cfg_env;
 use crate::error::rpc::{ensure_success, EthApiError, RevertError, RpcInvalidTransactionError};
+use crate::evm::call::prepare_call_env;
 use crate::evm::db::EvmDb;
-use crate::evm::prepare_call_env;
 use crate::evm::primitive_types::{BlockEnv, Receipt, SealedBlock, TransactionSignedAndRecovered};
 use crate::rpc_helpers::*;
-use crate::{
-    BloomFilter, EthResult, Evm, EvmChainConfig, FilterBlockOption, FilterError,
-    ESTIMATE_GAS_ERROR_RATIO, MIN_TRANSACTION_GAS,
-};
+use crate::{BloomFilter, EthResult, Evm, EvmChainConfig, FilterBlockOption, FilterError};
+
+// Gas per transaction not creating a contract.
+const MIN_TRANSACTION_GAS: u64 = 21_000u64;
+
+/// https://github.com/paradigmxyz/reth/pull/7133/files
+/// Allowed error ratio for gas estimation
+/// Taken from Geth's implementation in order to pass the hive tests
+/// <https://github.com/ethereum/go-ethereum/blob/a5a4fa7032bb248f5a7c40f4e8df2b131c4186a4/internal/ethapi/api.go#L56>
+const ESTIMATE_GAS_ERROR_RATIO: f64 = 0.015;
 
 #[rpc_gen(client, server)]
 impl<C: sov_modules_api::Context> Evm<C> {
