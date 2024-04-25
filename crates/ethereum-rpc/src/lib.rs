@@ -26,6 +26,7 @@ use serde_json::json;
 use sov_modules_api::utils::to_jsonrpsee_error_object;
 use sov_modules_api::WorkingSet;
 use sov_rollup_interface::services::da::DaService;
+use tokio::sync::watch;
 use tracing::info;
 
 use crate::gas_price::gas_oracle::convert_u256_to_u64;
@@ -43,7 +44,7 @@ pub struct EthRpcConfig {
 pub fn get_ethereum_rpc<C: sov_modules_api::Context, Da: DaService>(
     da_service: Da,
     eth_rpc_config: EthRpcConfig,
-    storage: C::Storage,
+    storage: watch::Receiver<C::Storage>,
     sequencer_client: Option<SequencerClient>,
 ) -> RpcModule<Ethereum<C, Da>> {
     // Unpack config
@@ -78,7 +79,7 @@ pub struct Ethereum<C: sov_modules_api::Context, Da: DaService> {
     gas_price_oracle: GasPriceOracle<C>,
     #[cfg(feature = "local")]
     eth_signer: DevSigner,
-    storage: C::Storage,
+    storage: watch::Receiver<C::Storage>,
     sequencer_client: Option<SequencerClient>,
     web3_client_version: String,
     trace_cache: Mutex<LruMap<u64, Vec<GethTrace>, ByLength>>,
@@ -90,7 +91,7 @@ impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
         gas_price_oracle_config: GasPriceOracleConfig,
         fee_history_cache_config: FeeHistoryCacheConfig,
         #[cfg(feature = "local")] eth_signer: DevSigner,
-        storage: C::Storage,
+        storage: watch::Receiver<C::Storage>,
         sequencer_client: Option<SequencerClient>,
     ) -> Self {
         let evm = Evm::<C>::default();
@@ -123,6 +124,11 @@ impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
             web3_client_version: current_version,
             trace_cache,
         }
+    }
+
+    fn working_set(&self) -> WorkingSet<C> {
+        let storage = self.storage.borrow().clone();
+        WorkingSet::<C>::new(storage)
     }
 }
 
@@ -186,7 +192,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
     rpc.register_async_method("eth_gasPrice", |_, ethereum| async move {
         info!("eth module: eth_gasPrice");
         let price = {
-            let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
+            let mut working_set = ethereum.working_set();
 
             let (base_fee, suggested_tip) = ethereum.max_fee_per_gas(&mut working_set).await;
 
@@ -199,7 +205,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
     rpc.register_async_method("eth_maxFeePerGas", |_, ethereum| async move {
         info!("eth module: eth_maxFeePerGas");
         let max_fee_per_gas = {
-            let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
+            let mut working_set = ethereum.working_set();
 
             let (base_fee, suggested_tip) = ethereum.max_fee_per_gas(&mut working_set).await;
 
@@ -212,7 +218,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
     rpc.register_async_method("eth_maxPriorityFeePerGas", |_, ethereum| async move {
         info!("eth module: eth_maxPriorityFeePerGas");
         let max_priority_fee = {
-            let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
+            let mut working_set = ethereum.working_set();
 
             let (_base_fee, suggested_tip) = ethereum.max_fee_per_gas(&mut working_set).await;
 
@@ -235,7 +241,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
             .map_err(|e| EthApiError::InvalidParams(e.to_string()))?;
 
         let fee_history = {
-            let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
+            let mut working_set = ethereum.working_set();
 
             ethereum
                 .gas_price_oracle
@@ -492,7 +498,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
 
             let block_hash: B256 = params.next().unwrap();
             let evm = Evm::<C>::default();
-            let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
+            let mut working_set = ethereum.working_set();
             let opts: Option<GethDebugTracingOptions> = params.optional_next().unwrap();
 
             let block_number =
@@ -558,7 +564,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
             let block_number: BlockNumberOrTag = params.next().unwrap();
             let opts: Option<GethDebugTracingOptions> = params.optional_next().unwrap();
 
-            let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
+            let mut working_set = ethereum.working_set();
             let evm = Evm::<C>::default();
             let block_number = match block_number {
                 BlockNumberOrTag::Number(block_number) => block_number,
@@ -618,7 +624,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
             let tx_hash: B256 = params.next()?;
 
             let evm = Evm::<C>::default();
-            let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
+            let mut working_set = ethereum.working_set();
 
             let tx = evm
                 .get_transaction_by_hash(tx_hash, &mut working_set)
@@ -770,7 +776,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                     _ => {
                         // if mempool_only is not true ask evm first then sequencer
                         let evm = Evm::<C>::default();
-                        let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
+                        let mut working_set = ethereum.working_set();
                         match evm.get_transaction_by_hash(hash, &mut working_set) {
                             Ok(Some(tx)) => Ok(Some(tx)),
                             Ok(None) => {

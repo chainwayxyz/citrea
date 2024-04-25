@@ -3,15 +3,14 @@ use std::str::FromStr;
 use anyhow::Context as _;
 use ethereum_rpc::{EthRpcConfig, FeeHistoryCacheConfig, GasPriceOracleConfig};
 use sequencer_client::SequencerClient;
-use sov_modules_api::default_context::DefaultContext;
-use sov_prover_storage_manager::SnapshotManager;
+use sov_modules_api::{Context, Spec};
 use sov_rollup_interface::services::da::DaService;
-use sov_state::ProverStorage;
+use tokio::sync::watch;
 
 // register ethereum methods.
-pub(crate) fn register_ethereum<Da: DaService>(
+pub(crate) fn register_ethereum<C: Context, Da: DaService>(
     da_service: Da,
-    storage: ProverStorage<sov_state::DefaultStorageSpec, SnapshotManager>,
+    storage: watch::Receiver<<C as Spec>::Storage>,
     methods: &mut jsonrpsee::RpcModule<()>,
     sequencer_client: Option<SequencerClient>,
 ) -> Result<(), anyhow::Error> {
@@ -24,7 +23,7 @@ pub(crate) fn register_ethereum<Da: DaService>(
         }
     };
 
-    let ethereum_rpc = ethereum_rpc::get_ethereum_rpc::<DefaultContext, Da>(
+    let ethereum_rpc = ethereum_rpc::get_ethereum_rpc::<C, Da>(
         da_service,
         eth_rpc_config,
         storage,

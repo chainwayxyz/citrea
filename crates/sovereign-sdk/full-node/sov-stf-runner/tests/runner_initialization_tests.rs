@@ -1,3 +1,4 @@
+use sequencer_client::SequencerClient;
 use sov_db::ledger_db::LedgerDB;
 use sov_mock_da::{
     MockAddress, MockDaConfig, MockDaService, MockDaSpec, MockDaVerifier, MockValidityCond,
@@ -8,8 +9,9 @@ use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_state::{ArrayWitness, DefaultStorageSpec};
 use sov_stf_runner::{
     InitVariant, ParallelProverService, ProverServiceConfig, RollupConfig, RollupProverConfig,
-    RpcConfig, RunnerConfig, StateTransitionRunner, StorageConfig,
+    RpcConfig, RunnerConfig, SequencerClientRpcConfig, StateTransitionRunner, StorageConfig,
 };
+use tokio::sync::watch;
 
 mod hash_stf;
 
@@ -79,7 +81,9 @@ fn initialize_runner(
         prover_service: ProverServiceConfig {
             aggregated_proof_block_jump: 1,
         },
-        sequencer_client: None,
+        sequencer_client: Some(SequencerClientRpcConfig {
+            url: "http://0.0.0.0:13346".to_owned(), // dummy
+        }),
         sequencer_da_pub_key: vec![],
         prover_da_pub_key: vec![],
         include_tx_body: true,
@@ -95,6 +99,8 @@ fn initialize_runner(
         path: path.to_path_buf(),
     };
     let mut storage_manager = ProverStorageManager::new(storage_config).unwrap();
+    let genesis_storage = storage_manager.create_finalized_storage().unwrap();
+    let rpc_storage_sender = watch::Sender::new(genesis_storage.clone());
 
     let vm = MockZkvm::new(MockValidityCond::default());
     let verifier = MockDaVerifier::default();
@@ -112,15 +118,18 @@ fn initialize_runner(
         rollup_config.prover_service,
     );
 
+    let sequencer_client = SequencerClient::new(rollup_config.sequencer_client.unwrap().url);
+
     StateTransitionRunner::new(
         rollup_config.runner,
         da_service,
         ledger_db,
         stf,
         storage_manager,
+        rpc_storage_sender,
         init_variant,
         Some(prover_service),
-        None,
+        Some(sequencer_client),
         vec![0u8; 32],
         vec![0u8; 32],
         vec![0u8; 32],

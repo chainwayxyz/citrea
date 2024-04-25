@@ -123,7 +123,9 @@ impl<C: Context, Da: sov_modules_api::DaSpec> FinalizeHook<Da> for TestRuntime<C
 impl<C: Context, Da: DaSpec> Runtime<C, Da> for TestRuntime<C> {
     type GenesisConfig = GenesisConfig<C>;
 
-    fn rpc_methods(_storage: <C as Spec>::Storage) -> jsonrpsee::RpcModule<()> {
+    fn rpc_methods(
+        _storage: tokio::sync::watch::Receiver<<C as Spec>::Storage>,
+    ) -> jsonrpsee::RpcModule<()> {
         todo!()
     }
 

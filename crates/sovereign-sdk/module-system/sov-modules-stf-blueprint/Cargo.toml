@@ -16,6 +16,7 @@ anyhow = { workspace = true }
 thiserror = { workspace = true }
 borsh = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
+tokio = { workspace = true, features = ["sync"], optional = true }
 tracing = { workspace = true }
 jmt = { workspace = true }
 hex = { workspace = true }
@@ -34,4 +35,11 @@ sov-blob-storage = { path = "../module-implementations/sov-blob-storage" }
 [features]
 bench = ["sov-zk-cycle-macros", "risc0-zkvm", "risc0-zkvm-platform"]
 default = []
-native = ["sov-state/native", "sov-modules-api/native", "jsonrpsee", "sov-chain-state/native", "sov-blob-storage/native"]
+native = [
+    "jsonrpsee",
+    "sov-modules-api/native",
+    "sov-state/native",
+    "sov-chain-state/native",
+    "sov-blob-storage/native",
+    "tokio",
+]

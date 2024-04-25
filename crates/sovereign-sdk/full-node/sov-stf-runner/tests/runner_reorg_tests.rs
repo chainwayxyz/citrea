@@ -18,6 +18,7 @@ use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_state::storage::NativeStorage;
 use sov_state::{ProverStorage, Storage};
+use tokio::sync::watch;
 
 type MockInitVariant =
     InitVariant<HashStf<MockValidityCond>, MockZkvm<MockValidityCond>, MockDaSpec>;
@@ -149,6 +150,8 @@ async fn runner_execution(
         path: rollup_config.storage.path.clone(),
     };
     let mut storage_manager = ProverStorageManager::new(storage_config).unwrap();
+    let genesis_storage = storage_manager.create_finalized_storage().unwrap();
+    let rpc_storage_sender = watch::Sender::new(genesis_storage.clone());
 
     let vm = MockZkvm::new(MockValidityCond::default());
     let verifier = MockDaVerifier::default();
@@ -172,6 +175,7 @@ async fn runner_execution(
             ledger_db,
             stf,
             storage_manager,
+            rpc_storage_sender,
             init_variant,
             Some(prover_service),
             None,

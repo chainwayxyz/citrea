@@ -22,7 +22,7 @@ use sov_state::Storage;
 use sov_stf_runner::{
     InitVariant, ProverService, RollupConfig, RollupProverConfig, StateTransitionRunner,
 };
-use tokio::sync::oneshot;
+use tokio::sync::{oneshot, watch};
 pub use wallet::*;
 
 /// This trait defines how to crate all the necessary dependencies required by a rollup.
@@ -73,7 +73,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
     /// Creates RPC methods for the rollup.
     fn create_rpc_methods(
         &self,
-        storage: &<Self::NativeContext as Spec>::Storage,
+        storage: watch::Receiver<<Self::NativeContext as Spec>::Storage>,
         ledger_db: &LedgerDB,
         da_service: &Self::DaService,
         sequencer_client: Option<SequencerClient>,
@@ -167,12 +167,6 @@ pub trait RollupBlueprint: Sized + Send + Sync {
             .map(|(number, _)| prover_storage.get_root_hash(number.0 + 1))
             .transpose()?;
 
-        // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1218)
-        let rpc_methods =
-            self.create_rpc_methods(&prover_storage, &ledger_db, &da_service, None)?;
-
-        let native_stf = StfBlueprint::new();
-
         let genesis_root = prover_storage.get_root_hash(1);
 
         let init_variant = match prev_root {
@@ -183,6 +177,17 @@ pub trait RollupBlueprint: Sized + Send + Sync {
             },
         };
 
+        // TODO: Decide what to do with this.
+        let prover_storage_c = prover_storage.clone();
+
+        let rpc_storage = watch::channel(prover_storage);
+        // We pass "bootstrap" storage here,
+        // as it will be replaced with the latest on after first processed block.
+        let rpc_methods =
+            self.create_rpc_methods(rpc_storage.1.clone(), &ledger_db, &da_service, None)?;
+
+        let native_stf = StfBlueprint::new();
+
         let seq =
             CitreaSequencer::new(
                 da_service,
@@ -190,7 +195,8 @@ pub trait RollupBlueprint: Sized + Send + Sync {
                     &[u8],
                 >>::try_from(hex::decode(TEST_PRIVATE_KEY).unwrap().as_slice())
                 .unwrap(),
-                prover_storage,
+                prover_storage_c,
+                rpc_storage.0,
                 sequencer_config,
                 native_stf,
                 storage_manager,
@@ -204,6 +210,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         Ok(Sequencer {
             runner: seq,
             rpc_methods,
+            storage: rpc_storage.1,
         })
     }
 
@@ -236,7 +243,6 @@ pub trait RollupBlueprint: Sized + Send + Sync {
             false => None,
         };
 
-        let ledger_db = self.create_ledger_db(&rollup_config);
         let genesis_config = self.create_genesis_config(
             runtime_genesis_paths,
             kernel_genesis_config,
@@ -245,6 +251,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
 
         let mut storage_manager = self.create_storage_manager(&rollup_config)?;
         let prover_storage = storage_manager.create_finalized_storage()?;
+        let ledger_db = self.create_ledger_db(&rollup_config);
 
         let prev_root = ledger_db
             .get_head_soft_batch()?
@@ -256,16 +263,6 @@ pub trait RollupBlueprint: Sized + Send + Sync {
             .sequencer_client
             .map(|s| SequencerClient::new(s.url));
 
-        // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1218)
-        let rpc_methods = self.create_rpc_methods(
-            &prover_storage,
-            &ledger_db,
-            &da_service,
-            sequencer_client.clone(),
-        )?;
-
-        let native_stf = StfBlueprint::new();
-
         let genesis_root = prover_storage.get_root_hash(1);
 
         let init_variant = match prev_root {
@@ -276,12 +273,25 @@ pub trait RollupBlueprint: Sized + Send + Sync {
             },
         };
 
+        let rpc_storage = watch::channel(prover_storage);
+        // We pass "bootstrap" storage here,
+        // as it will be replaced with the latest on after first processed block.
+        let rpc_methods = self.create_rpc_methods(
+            rpc_storage.1,
+            &ledger_db,
+            &da_service,
+            sequencer_client.clone(),
+        )?;
+
+        let native_stf = StfBlueprint::new();
+
         let runner = StateTransitionRunner::new(
             rollup_config.runner,
             da_service,
             ledger_db,
             native_stf,
             storage_manager,
+            rpc_storage.0,
             init_variant,
             prover_service,
             sequencer_client,
@@ -312,6 +322,7 @@ pub struct Sequencer<S: RollupBlueprint> {
     >,
     /// Rpc methods for the rollup.
     pub rpc_methods: jsonrpsee::RpcModule<()>,
+    storage: watch::Receiver<<S::NativeContext as Spec>::Storage>,
 }
 
 impl<S: RollupBlueprint> Sequencer<S> {
@@ -326,7 +337,7 @@ impl<S: RollupBlueprint> Sequencer<S> {
         channel: Option<oneshot::Sender<SocketAddr>>,
     ) -> Result<(), anyhow::Error> {
         let mut seq = self.runner;
-        seq.start_rpc_server(channel, self.rpc_methods)
+        seq.start_rpc_server(channel, self.rpc_methods, self.storage)
             .await
             .unwrap();
         seq.run().await?;

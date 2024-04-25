@@ -22,7 +22,7 @@ pub use sov_rollup_interface::stf::BatchReceipt;
 use sov_rollup_interface::stf::{SoftBatchReceipt, StateTransitionFunction};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::{Zkvm, ZkvmHost};
-use tokio::sync::oneshot;
+use tokio::sync::{oneshot, watch};
 use tokio::time::{sleep, Duration, Instant};
 use tracing::{debug, error, info};
 
@@ -51,13 +51,14 @@ where
     da_service: Da,
     stf: Stf,
     storage_manager: Sm,
+    rpc_storage_sender: watch::Sender<Sm::NativeStorage>,
     /// made pub so that sequencer can clone it
     pub ledger_db: LedgerDB,
     state_root: StateRoot<Stf, Vm, Da::Spec>,
     rpc_config: RpcConfig,
     #[allow(dead_code)]
     prover_service: Option<Ps>,
-    sequencer_client: Option<SequencerClient>,
+    sequencer_client: SequencerClient,
     sequencer_pub_key: Vec<u8>,
     sequencer_da_pub_key: Vec<u8>,
     prover_da_pub_key: Vec<u8>,
@@ -117,6 +118,7 @@ where
         ledger_db: LedgerDB,
         stf: Stf,
         mut storage_manager: Sm,
+        rpc_storage_sender: watch::Sender<Sm::NativeStorage>,
         init_variant: InitVariant<Stf, Vm, Da::Spec>,
         prover_service: Option<Ps>,
         sequencer_client: Option<SequencerClient>,
@@ -125,6 +127,10 @@ where
         prover_da_pub_key: Vec<u8>,
         include_tx_body: bool,
     ) -> Result<Self, anyhow::Error> {
+        let Some(sequencer_client) = sequencer_client else {
+            anyhow::bail!("Sequencer Client is not initialized");
+        };
+
         let rpc_config = runner_config.rpc_config;
 
         let prev_state_root = match init_variant {
@@ -157,6 +163,7 @@ where
             da_service,
             stf,
             storage_manager,
+            rpc_storage_sender,
             ledger_db,
             state_root: prev_state_root,
             rpc_config,
@@ -213,10 +220,6 @@ where
     pub async fn run_prover_process(&mut self) -> Result<(), anyhow::Error> {
         // Prover node should sync when a new sequencer commitment arrives
         // Check da block get and sync up to the latest block in the latest commitment
-        let Some(client) = &self.sequencer_client else {
-            return Err(anyhow::anyhow!("Sequencer Client is not initialized"));
-        };
-
         let mut seen_receipts: VecDeque<_> = VecDeque::new();
 
         let mut last_connection_error = Instant::now();
@@ -232,7 +235,10 @@ where
         info!("Prover trying to sync from height {}", height);
 
         let soft_batch = loop {
-            let soft_batch = client.get_soft_batch::<Da::Spec>(height).await;
+            let soft_batch = self
+                .sequencer_client
+                .get_soft_batch::<Da::Spec>(height)
+                .await;
 
             if soft_batch.is_err() {
                 let x = soft_batch.unwrap_err();
@@ -338,7 +344,8 @@ where
                     // change the itemnumbers only after the sync is done so not for every da block
 
                     loop {
-                        let soft_batch = client
+                        let soft_batch = self
+                            .sequencer_client
                             .get_soft_batch::<Da::Spec>(height)
                             .await
                             .unwrap()
@@ -486,6 +493,7 @@ where
                         self.state_root = next_state_root;
                         seen_receipts.push_back(data_to_commit);
                         seen_block_headers.push_back(filtered_block.header().clone());
+                        self.update_rpc_storage(height)?;
 
                         info!(
                             "New State Root after soft confirmation #{} is: {:?}",
@@ -547,10 +555,6 @@ where
 
     /// Runs the rollup.
     pub async fn run_in_process(&mut self) -> Result<(), anyhow::Error> {
-        let Some(client) = &self.sequencer_client else {
-            return Err(anyhow::anyhow!("Sequencer Client is not initialized"));
-        };
-
         let mut seen_block_headers: VecDeque<<Da::Spec as DaSpec>::BlockHeader> = VecDeque::new();
         let mut seen_receipts: VecDeque<_> = VecDeque::new();
         let mut height = self.start_height;
@@ -563,7 +567,10 @@ where
         let mut retry_index = 0;
 
         loop {
-            let soft_batch = client.get_soft_batch::<Da::Spec>(height).await;
+            let soft_batch = self
+                .sequencer_client
+                .get_soft_batch::<Da::Spec>(height)
+                .await;
 
             if soft_batch.is_err() {
                 let x = soft_batch.unwrap_err();
@@ -858,6 +865,7 @@ where
             self.state_root = next_state_root;
             seen_receipts.push_back(data_to_commit);
             seen_block_headers.push_back(filtered_block.header().clone());
+            self.update_rpc_storage(height)?;
 
             info!(
                 "New State Root after soft confirmation #{} is: {:?}",
@@ -898,6 +906,20 @@ where
 
             height += 1;
         }
+    }
+
+    fn update_rpc_storage(&mut self, l2_height: u64) -> Result<(), anyhow::Error> {
+        let new_rpc_storage = self
+            .storage_manager
+            .create_storage_on_l2_height(l2_height)?;
+        // `send_replace` is superior to `send` for our use case. It never fails
+        // because it doesn't need to notify all receivers, unlike `send`, which
+        // we don't need. It will also keep working even if there are no
+        // receivers currently alive, which makes it easier to reason about the
+        // code.
+        self.rpc_storage_sender.send_replace(new_rpc_storage);
+
+        Ok(())
     }
 
     /// Allows to read current state root

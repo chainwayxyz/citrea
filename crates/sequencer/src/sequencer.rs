@@ -32,6 +32,7 @@ use sov_rollup_interface::stf::{SoftBatchReceipt, StateTransitionFunction};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::ZkvmHost;
 use sov_stf_runner::{InitVariant, RpcConfig, RunnerConfig};
+use tokio::sync::watch;
 use tokio::time::sleep;
 use tracing::{debug, info, warn};
 
@@ -58,11 +59,11 @@ where
     l2_force_block_tx: UnboundedSender<()>,
     l2_force_block_rx: UnboundedReceiver<()>,
     db_provider: DbProvider<C>,
-    storage: C::Storage,
     ledger_db: LedgerDB,
     config: SequencerConfig,
     stf: Stf,
     storage_manager: Sm,
+    rpc_storage_sender: watch::Sender<Sm::NativeStorage>,
     state_root: StateRoot<Stf, Vm, Da::Spec>,
     sequencer_pub_key: Vec<u8>,
     rpc_config: RpcConfig,
@@ -77,7 +78,7 @@ impl<C, Da, Sm, Vm, Stf> CitreaSequencer<C, Da, Sm, Vm, Stf>
 where
     C: Context,
     Da: DaService,
-    Sm: HierarchicalStorageManager<Da::Spec>,
+    Sm: HierarchicalStorageManager<Da::Spec, NativeStorage = C::Storage>,
     Vm: ZkvmHost,
     Stf: StateTransitionFunction<
             Vm,
@@ -91,7 +92,8 @@ where
     pub fn new(
         da_service: Da,
         sov_tx_signer_priv_key: C::PrivateKey,
-        storage: C::Storage,
+        prover_storage: C::Storage,
+        rpc_storage_sender: watch::Sender<Sm::NativeStorage>,
         config: SequencerConfig,
         stf: Stf,
         mut storage_manager: Sm,
@@ -122,7 +124,7 @@ where
         };
 
         // used as client of reth's mempool
-        let db_provider = DbProvider::new(storage.clone());
+        let db_provider = DbProvider::new(prover_storage.clone());
 
         let pool = CitreaMempool::new(db_provider.clone(), config.mempool_conf.clone());
 
@@ -133,11 +135,11 @@ where
             l2_force_block_tx,
             l2_force_block_rx,
             db_provider,
-            storage,
             ledger_db,
             config,
             stf,
             storage_manager,
+            rpc_storage_sender,
             state_root: prev_state_root,
             sequencer_pub_key,
             rpc_config: runner_config.rpc_config,
@@ -148,8 +150,9 @@ where
         &self,
         channel: Option<tokio::sync::oneshot::Sender<SocketAddr>>,
         methods: RpcModule<()>,
+        storage: watch::Receiver<C::Storage>,
     ) -> Result<(), anyhow::Error> {
-        let methods = self.register_rpc_methods(methods)?;
+        let methods = self.register_rpc_methods(methods, storage)?;
 
         let listen_address = SocketAddr::new(
             self.rpc_config
@@ -254,7 +257,7 @@ where
                 let call_txs = CallMessage { txs: rlp_txs };
                 let raw_message =
                     <Runtime<C, Da::Spec> as EncodeCall<citrea_evm::Evm<C>>>::encode_call(call_txs);
-                let signed_blob = self.make_blob(raw_message);
+                let signed_blob = self.make_blob(raw_message, &prestate);
                 let txs = vec![signed_blob.clone()];
 
                 let (batch_workspace, tx_receipts) =
@@ -294,6 +297,7 @@ where
                     // TODO: Check if below is legit
                     self.storage_manager
                         .save_change_set_l2(l2_height, slot_result.change_set)?;
+                    self.update_rpc_storage(l2_height)?;
 
                     tracing::debug!("Finalizing l2 height: {:?}", l2_height);
                     self.storage_manager.finalize_l2(l2_height)?;
@@ -337,6 +341,7 @@ where
                 // however we need much better DA + finalization logic here
                 self.storage_manager
                     .save_change_set_l2(l2_height, slot_result.change_set)?;
+                self.update_rpc_storage(l2_height)?;
 
                 tracing::debug!("Finalizing l2 height: {:?}", l2_height);
                 self.storage_manager.finalize_l2(l2_height)?;
@@ -556,10 +561,10 @@ where
 
     /// Signs batch of messages with sovereign priv key turns them into a sov blob
     /// Returns a single sovereign transaction made up of multiple ethereum transactions
-    fn make_blob(&mut self, raw_message: Vec<u8>) -> Vec<u8> {
+    fn make_blob(&mut self, raw_message: Vec<u8>, storage: &Sm::NativeStorage) -> Vec<u8> {
         // if a batch failed need to refetch nonce
         // so sticking to fetching from state makes sense
-        let nonce = self.get_nonce();
+        let nonce = self.get_nonce(storage);
 
         // TODO: figure out what to do with sov-tx fields
         // chain id gas tip and gas limit
@@ -595,10 +600,24 @@ where
         )
     }
 
+    fn update_rpc_storage(&mut self, l2_height: u64) -> Result<(), anyhow::Error> {
+        let new_rpc_storage = self
+            .storage_manager
+            .create_storage_on_l2_height(l2_height)?;
+        // `send_replace` is superior to `send` for our use case. It never fails
+        // because it doesn't need to notify all receivers, unlike `send`, which
+        // we don't need. It will also keep working even if there are no
+        // receivers currently alive, which makes it easier to reason about the
+        // code.
+        self.rpc_storage_sender.send_replace(new_rpc_storage);
+
+        Ok(())
+    }
+
     /// Fetches nonce from state
-    fn get_nonce(&self) -> u64 {
+    fn get_nonce(&self, storage: &Sm::NativeStorage) -> u64 {
         let accounts = Accounts::<C>::default();
-        let mut working_set = WorkingSet::<C>::new(self.storage.clone());
+        let mut working_set = WorkingSet::new(storage.clone());
 
         match accounts
             .get_account(self.sov_tx_signer_priv_key.pub_key(), &mut working_set)
@@ -610,12 +629,12 @@ where
     }
 
     /// Creates a shared RpcContext with all required data.
-    fn create_rpc_context(&self) -> RpcContext<C> {
+    fn create_rpc_context(&self, storage: watch::Receiver<C::Storage>) -> RpcContext<C> {
         let l2_force_block_tx = self.l2_force_block_tx.clone();
         RpcContext {
             mempool: self.mempool.clone(),
             l2_force_block_tx,
-            storage: self.storage.clone(),
+            storage,
             test_mode: self.config.test_mode,
         }
     }
@@ -624,8 +643,9 @@ where
     pub fn register_rpc_methods(
         &self,
         mut rpc_methods: jsonrpsee::RpcModule<()>,
+        storage: watch::Receiver<C::Storage>,
     ) -> Result<jsonrpsee::RpcModule<()>, jsonrpsee::core::Error> {
-        let rpc_context = self.create_rpc_context();
+        let rpc_context = self.create_rpc_context(storage);
         let rpc = create_rpc_module(rpc_context)?;
         rpc_methods.merge(rpc).unwrap();
         Ok(rpc_methods)

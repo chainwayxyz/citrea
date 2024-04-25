@@ -14,6 +14,7 @@ use sov_risc0_adapter::host::Risc0Host;
 use sov_rollup_interface::zk::ZkvmHost;
 use sov_state::{DefaultStorageSpec, Storage, ZkStorage};
 use sov_stf_runner::{ParallelProverService, RollupConfig, RollupProverConfig};
+use tokio::sync::watch;
 
 /// Rollup with MockDa
 pub struct MockDemoRollup {}
@@ -56,7 +57,7 @@ impl RollupBlueprint for MockDemoRollup {
 
     fn create_rpc_methods(
         &self,
-        storage: &<Self::NativeContext as Spec>::Storage,
+        storage: watch::Receiver<<Self::NativeContext as Spec>::Storage>,
         ledger_db: &LedgerDB,
         da_service: &Self::DaService,
         sequencer_client: Option<SequencerClient>,
@@ -64,16 +65,15 @@ impl RollupBlueprint for MockDemoRollup {
         // TODO set the sequencer address
         let sequencer = Address::new([0; 32]);
 
-        #[allow(unused_mut)]
         let mut rpc_methods = sov_modules_rollup_blueprint::register_rpc::<
             Self::NativeRuntime,
             Self::NativeContext,
             Self::DaService,
-        >(storage, ledger_db, da_service, sequencer)?;
+        >(storage.clone(), ledger_db, da_service, sequencer)?;
 
-        crate::eth::register_ethereum::<Self::DaService>(
+        crate::eth::register_ethereum::<Self::NativeContext, Self::DaService>(
             da_service.clone(),
-            storage.clone(),
+            storage,
             &mut rpc_methods,
             sequencer_client,
         )?;

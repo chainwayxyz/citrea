@@ -10,6 +10,7 @@ use reth_rpc_types_compat::transaction::from_recovered;
 use reth_transaction_pool::EthPooledTransaction;
 use sov_mock_da::{MockAddress, MockDaService};
 use sov_modules_api::WorkingSet;
+use tokio::sync::watch;
 use tracing::info;
 
 use crate::mempool::CitreaMempool;
@@ -18,8 +19,15 @@ use crate::utils::recover_raw_transaction;
 pub(crate) struct RpcContext<C: sov_modules_api::Context> {
     pub mempool: Arc<CitreaMempool<C>>,
     pub l2_force_block_tx: UnboundedSender<()>,
-    pub storage: C::Storage,
+    pub storage: watch::Receiver<C::Storage>,
     pub test_mode: bool,
+}
+
+impl<C: sov_modules_api::Context> RpcContext<C> {
+    fn working_set(&self) -> WorkingSet<C> {
+        let storage = self.storage.borrow().clone();
+        WorkingSet::<C>::new(storage)
+    }
 }
 
 pub(crate) fn create_rpc_module<C: sov_modules_api::Context>(
@@ -82,7 +90,7 @@ pub(crate) fn create_rpc_module<C: sov_modules_api::Context>(
                 Ok(Some(true)) => Ok::<Option<reth_rpc_types::Transaction>, ErrorObjectOwned>(None),
                 _ => {
                     let evm = Evm::<C>::default();
-                    let mut working_set = WorkingSet::<C>::new(ctx.storage.clone());
+                    let mut working_set = ctx.working_set();
 
                     match evm.get_transaction_by_hash(hash, &mut working_set) {
                         Ok(tx) => Ok::<Option<reth_rpc_types::Transaction>, ErrorObjectOwned>(tx),

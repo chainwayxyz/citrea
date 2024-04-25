@@ -1721,6 +1721,7 @@ dependencies = [
  "sov-rollup-interface",
  "sov-state",
  "sov-stf-runner",
+ "tokio",
  "tracing",
 ]
 
@@ -4293,6 +4294,7 @@ dependencies = [
  "sov-state",
  "sov-value-setter",
  "tempfile",
+ "tokio",
 ]
 
 [[package]]
@@ -8908,6 +8910,7 @@ dependencies = [
  "sov-zk-cycle-macros",
  "sov-zk-cycle-utils",
  "thiserror",
+ "tokio",
  "tracing",
 ]
 
