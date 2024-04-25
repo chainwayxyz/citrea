@@ -182,6 +182,14 @@ jobs:
             exit 1
           fi
 
+  sys_tx_keccak:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
+      - name: Check system tx against artifacts ABI
+        run: python crates/evm/src/evm/system_contracts/test/check_sys_hashes.py
+
   check_no_std:
     runs-on: ubicloud-standard-4
     if: github.event.pull_request.draft == false
