@@ -6,5 +6,5 @@ mod rpc;
 mod sequencer;
 mod utils;
 
-pub use config::SequencerConfig;
+pub use config::{SequencerConfig, SequencerMempoolConfig};
 pub use sequencer::CitreaSequencer;
