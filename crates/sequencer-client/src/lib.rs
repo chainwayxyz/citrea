@@ -81,6 +81,7 @@ pub struct GetSoftBatchResponse {
     pub post_state_root: Vec<u8>,
     #[serde(with = "hex::serde")]
     pub soft_confirmation_signature: Vec<u8>,
+    pub deposit_data: Vec<Vec<u8>>,
     #[serde(with = "hex::serde")]
     pub pub_key: Vec<u8>,
     pub l1_fee_rate: u64,
@@ -101,6 +102,7 @@ impl From<GetSoftBatchResponse> for SignedSoftConfirmationBatch {
                 .into_iter()
                 .map(|tx| tx.tx)
                 .collect(),
+            val.deposit_data,
             val.soft_confirmation_signature,
             val.pub_key,
             val.timestamp,

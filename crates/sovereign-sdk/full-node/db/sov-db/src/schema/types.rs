@@ -84,6 +84,8 @@ pub struct StoredSoftBatch {
     pub tx_range: std::ops::Range<TxNumber>,
     /// The transactions which occurred in this batch.
     pub txs: Vec<StoredTransaction>,
+    /// Deposit data coming from the L1 chain
+    pub deposit_data: Vec<Vec<u8>>,
     /// Pre state root
     pub pre_state_root: Vec<u8>,
     /// Post state root
@@ -121,6 +123,7 @@ impl TryFrom<StoredSoftBatch> for SoftBatchResponse {
             post_state_root: value.post_state_root,
             soft_confirmation_signature: value.soft_confirmation_signature,
             pub_key: value.pub_key,
+            deposit_data: value.deposit_data,
             l1_fee_rate: value.l1_fee_rate,
             timestamp: value.timestamp,
         })

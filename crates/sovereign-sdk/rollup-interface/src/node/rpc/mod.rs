@@ -207,6 +207,8 @@ pub struct SoftBatchResponse {
     /// Public key of the signer
     #[serde(with = "hex::serde")]
     pub pub_key: Vec<u8>,
+    /// Deposit data from the L1 chain
+    pub deposit_data: Vec<Vec<u8>>,
     /// Base layer fee rate sats/wei etc. per byte.
     pub l1_fee_rate: u64,
     /// Sequencer's block timestamp.

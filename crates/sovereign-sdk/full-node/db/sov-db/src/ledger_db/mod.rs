@@ -309,6 +309,7 @@ impl LedgerDB {
             post_state_root: batch_receipt.post_state_root,
             soft_confirmation_signature: batch_receipt.soft_confirmation_signature,
             pub_key: batch_receipt.pub_key,
+            deposit_data: batch_receipt.deposit_data,
             l1_fee_rate: batch_receipt.l1_fee_rate,
             timestamp: batch_receipt.timestamp,
         };

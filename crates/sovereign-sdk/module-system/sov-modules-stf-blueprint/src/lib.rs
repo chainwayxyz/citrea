@@ -586,6 +586,7 @@ fn verify_soft_batch_signature<C: Context>(
         soft_batch.da_slot_txs_commitment(),
         soft_batch.pre_state_root(),
         soft_batch.txs(),
+        soft_batch.deposit_data(),
         soft_batch.l1_fee_rate(),
         soft_batch.timestamp(),
     );

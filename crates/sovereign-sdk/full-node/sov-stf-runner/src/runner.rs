@@ -466,6 +466,7 @@ where
                             tx_receipts: batch_receipt.tx_receipts,
                             soft_confirmation_signature: soft_batch.soft_confirmation_signature,
                             pub_key: soft_batch.pub_key,
+                            deposit_data: soft_batch.deposit_data,
                             l1_fee_rate: soft_batch.l1_fee_rate,
                             timestamp: soft_batch.timestamp,
                         };
@@ -841,6 +842,7 @@ where
                 tx_receipts: batch_receipt.tx_receipts,
                 soft_confirmation_signature: soft_batch.soft_confirmation_signature,
                 pub_key: soft_batch.pub_key,
+                deposit_data: soft_batch.deposit_data,
                 l1_fee_rate: soft_batch.l1_fee_rate,
                 timestamp: soft_batch.timestamp,
             };
