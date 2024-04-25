@@ -114,6 +114,12 @@ impl Case for BlockchainTestCase {
                 // Set this base fee based on what's set in genesis.
                 evm_config.starting_base_fee =
                     case.genesis_block_header.base_fee_per_gas.unwrap().to();
+                evm_config.difficulty = case.genesis_block_header.difficulty;
+                evm_config.block_gas_limit =
+                    case.genesis_block_header.gas_limit.saturating_to::<u64>();
+                evm_config.timestamp = case.genesis_block_header.timestamp.saturating_to::<u64>();
+                evm_config.nonce = case.genesis_block_header.nonce.into();
+                evm_config.coinbase = case.genesis_block_header.coinbase;
 
                 for (&address, account) in case.pre.0.iter() {
                     evm_config.data.push(AccountData::new(
@@ -126,6 +132,11 @@ impl Case for BlockchainTestCase {
                 }
 
                 let (mut evm, mut working_set, mut storage) = get_evm_with_storage(&evm_config);
+                evm.latest_block_hashes.set(
+                    &U256::from(0),
+                    &case.genesis_block_header.hash,
+                    &mut working_set,
+                );
                 let root = &GENESIS_STATE_ROOT;
 
                 // Decode and insert blocks, creating a chain of blocks for the test case.
@@ -209,54 +220,6 @@ pub fn should_skip(path: &Path) -> bool {
         // custom json parser. https://github.com/ethereum/tests/issues/971
         | "ValueOverflow.json"
         | "ValueOverflowParis.json"
-
-        // Collection of passed cases
-        | "addNonConst.json"
-        | "addmodNonConst.json"
-        | "andNonConst.json"
-        | "balanceNonConst.json"
-        | "byteNonConst.json"
-        | "notNonConst.json"
-        | "orNonConst.json"
-        | "returnNonConst.json"
-        | "sdivNonConst.json"
-        | "sgtNonConst.json"
-        | "sha3NonConst.json"
-        | "signextNonConst.json"
-        | "sloadNonConst.json"
-        | "sltNonConst.json"
-        | "smodNonConst.json"
-        | "sstoreNonConst.json"
-        | "subNonConst.json"
-        | "xorNonConst.json"
-        | "calldatacopyNonConst.json"
-        | "calldataloadNonConst.json"
-        | "codecopyNonConst.json"
-        | "divNonConst.json"
-        | "eqNonConst.json"
-        | "ltNonConst.json"
-        | "gtNonConst.json"
-        | "iszeroNonConst.json"
-        | "mstore8NonConst.json"
-        | "mstoreNonConst.json"
-        | "mloadNonConst.json"
-        | "jumpNonConst.json"
-        | "log0NonConst.json"
-        | "log1NonConst.json"
-        | "log2NonConst.json"
-        | "log3NonConst.json"
-        | "expNonConst.json"
-        | "mulmodNonConst.json"
-        | "modNonConst.json"
-        | "createNonConst.json"
-        // END -
-
-        // | "callNonConst.json"
-        | "callcodeNonConst.json"
-        | "delegatecallNonConst.json"
-        | "extcodecopyNonConst.json"
-        | "extcodesizeNonConst.json"
-        | "suicideNonConst.json"
 
         // txbyte is of type 02 and we dont parse tx bytes for this test to fail.
         | "typeTwoBerlin.json"
