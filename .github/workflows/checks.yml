@@ -87,7 +87,7 @@ jobs:
         with:
           tool: cargo-risczero@0.19
       - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-        run: cargo risczero install
+        run: cargo risczero install --version v2024-04-22.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Run lint
@@ -121,7 +121,7 @@ jobs:
         with:
           tool: cargo-risczero@0.19
       - name: Install risc0-zkvm toolchain
-        run: cargo risczero install
+        run: cargo risczero install --version v2024-04-22.0
       - name: Run coverage
         run: make coverage
       - name: Upload coverage
@@ -229,7 +229,7 @@ jobs:
         with:
           tool: cargo-risczero@0.19
       - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-        run: cargo risczero install
+        run: cargo risczero install --version v2024-04-22.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         # `cargo-nextest` is much faster than standard `cargo test`.
