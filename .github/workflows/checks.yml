@@ -123,7 +123,7 @@ jobs:
       - name: Install risc0-zkvm toolchain
         run: cargo risczero install
       - name: Run coverage
-        run: SKIP_GUEST_BUILD=1 make coverage
+        run: make coverage
       - name: Upload coverage
         uses: codecov/codecov-action@v4
         with:
@@ -150,7 +150,7 @@ jobs:
           key: ${{ runner.os }}-${{ github.job }}-${{ github.head_ref }}
           path: ./target
       - name: Build citrea
-        run: SKIP_GUEST_BUILD=1 make build
+        run: make build
       - name: Install node dependencies
         working-directory: ./bin/citrea/tests/evm/uniswap
         run: npm install
@@ -237,7 +237,7 @@ jobs:
       - name: Install Rust
         run: rustup show
       - name: Run nextest
-        run: SKIP_GUEST_BUILD=1 make test
+        run: make test
 
   system-contracts:
     strategy:
