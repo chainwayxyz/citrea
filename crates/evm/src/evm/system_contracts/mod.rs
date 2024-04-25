@@ -47,3 +47,34 @@ impl L1BlockHashList {
         Bytes::from(func_selector)
     }
 }
+
+/// Bridge wrapper.
+pub struct Bridge {}
+
+impl Bridge {
+    pub(crate) fn address() -> Address {
+        address!("3100000000000000000000000000000000000002")
+    }
+
+    pub(crate) fn initialize(&self, data: Vec<Vec<u8>>) -> Bytes {
+        let mut func_selector: Vec<u8> = vec![0xc1, 0x24, 0x28, 0x9c]; // initialize(uint32,bytes,bytes,uint256,address)":"c124289c"
+
+        let binding = data.into_iter().flatten().collect::<Vec<u8>>();
+        let data = binding.as_slice();
+
+        func_selector.extend_from_slice(&data);
+
+        Bytes::from(func_selector)
+    }
+
+    pub(crate) fn deposit(&self, data: Vec<Vec<u8>>) -> Bytes {
+        let mut func_selector: Vec<u8> = vec![0xdd, 0x95, 0xc7, 0xc6]; // "deposit((bytes4,bytes2,bytes,bytes,bytes,bytes4,bytes,uint256,uint256))":"dd95c7c6"
+
+        let binding = data.into_iter().flatten().collect::<Vec<u8>>();
+        let data = binding.as_slice();
+
+        func_selector.extend_from_slice(&data);
+
+        Bytes::from(func_selector)
+    }
+}
