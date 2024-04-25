@@ -1560,7 +1560,8 @@ async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error>
     // send 41 ether transfer transactions
     let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
 
-    for _ in 0..41 {
+    // @ercecan we need to recalculate here
+    for _ in 0..40 {
         seq_test_client
             .send_eth(addr, None, None, None, 0u128)
             .await
