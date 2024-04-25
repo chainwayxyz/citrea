@@ -78,6 +78,7 @@ impl<C: Context, Da: DaSpec> ApplySoftConfirmationHooks<Da> for Runtime<C, Da> {
             soft_batch.da_slot_height,
             soft_batch.da_slot_txs_commitment(),
             &soft_batch.pre_state_root(),
+            soft_batch.deposit_data(),
             soft_batch.l1_fee_rate(),
             soft_batch.timestamp(),
             working_set,

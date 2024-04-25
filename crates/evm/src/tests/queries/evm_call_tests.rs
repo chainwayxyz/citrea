@@ -77,6 +77,7 @@ fn test_state_change() {
         1,
         [42u8; 32],
         &[10u8; 32],
+        vec![],
         1,
         0,
         &mut working_set,
