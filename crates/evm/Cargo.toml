@@ -42,7 +42,7 @@ alloy-primitives = { workspace = true, features = ["rand", "rlp", "serde"] }
 alloy-sol-types = { workspace = true, optional = true }
 alloy-rlp = { workspace = true, optional = true }
 revm = { workspace = true }
-reth-primitives = { workspace = true }
+reth-primitives = { workspace = true, default-features = false }
 reth-interfaces = { workspace = true, optional = true }
 reth-rpc-types = { workspace = true, optional = true }
 reth-rpc-types-compat = { workspace = true, optional = true }

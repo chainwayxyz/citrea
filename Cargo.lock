@@ -1705,7 +1705,6 @@ dependencies = [
  "clap",
  "hex",
  "jsonrpsee",
- "reth-primitives",
  "secp256k1 0.27.0",
  "serde",
  "serde_json",
