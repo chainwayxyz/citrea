@@ -9,9 +9,11 @@ contract L1BlockHashListTest is Test {
     bytes32 mockBlockHash = bytes32(keccak256("CITREA_TEST"));
     bytes32 mockWitnessRoot = bytes32(keccak256("CITREA"));
     uint256 constant INITIAL_BLOCK_NUMBER = 505050;
+    address constant SYSTEM_CALLER = address(0xdeaDDeADDEaDdeaDdEAddEADDEAdDeadDEADDEaD);
 
     function setUp() public {
         l1BlockHashList = new L1BlockHashList();
+        vm.startPrank(SYSTEM_CALLER);
     }
 
     function testSetBlockInfo() public {
@@ -28,16 +30,17 @@ contract L1BlockHashListTest is Test {
         l1BlockHashList.initializeBlockNumber(INITIAL_BLOCK_NUMBER - 10);
     }
 
-    function testNonOwnerCannotSetBlockInfo() public {
+    function testNonSystemCannotSetBlockInfo() public {
         l1BlockHashList.initializeBlockNumber(INITIAL_BLOCK_NUMBER);
         vm.startPrank(address(0x1));
-        vm.expectRevert("Caller is not owner");
+        vm.expectRevert("caller is not the system caller");
         l1BlockHashList.setBlockInfo(mockBlockHash, mockWitnessRoot);
     }
 
-    function testNonOwnerCannotInitializeBlockNumber() public {
-        vm.startPrank(address(0x1));
-        vm.expectRevert("Caller is not owner");
+    function testNonSystemCannotInitializeBlockNumber() public {
+        vm.stopPrank();
+        vm.prank(address(0x1));
+        vm.expectRevert("caller is not the system caller");
         l1BlockHashList.initializeBlockNumber(INITIAL_BLOCK_NUMBER);
     }
 

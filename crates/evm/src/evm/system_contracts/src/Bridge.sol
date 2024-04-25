@@ -27,7 +27,8 @@ contract Bridge is Ownable, MerkleTree {
         uint256 index;
     }
 
-    L1BlockHashList public constant BLOCK_HASH_LIST = L1BlockHashList(address(0x3100000000000000000000000000000000000001)); 
+    L1BlockHashList public constant BLOCK_HASH_LIST = L1BlockHashList(address(0x3100000000000000000000000000000000000001));
+    address public constant SYSTEM_CALLER = address(0xdeaDDeADDEaDdeaDdEAddEADDEAdDeadDEADDEaD);
 
     bool public initialized;
     uint256 public constant DEPOSIT_AMOUNT = 1 ether;
@@ -45,6 +46,11 @@ contract Bridge is Ownable, MerkleTree {
     event DepositScriptUpdate(bytes depositScript, bytes scriptSuffix, uint256 requiredSigsCount);
     event OperatorUpdated(address oldOperator, address newOperator);
 
+    modifier onlySystem() {
+        require(msg.sender == SYSTEM_CALLER, "caller is not the system caller");
+        _;
+    }
+
     modifier onlyOperator() {
         require(msg.sender == operator, "caller is not the operator");
         _;
@@ -55,7 +61,7 @@ contract Bridge is Ownable, MerkleTree {
     /// @param _depositScript The deposit script expected in the witness field for all L1 deposits
     /// @param _scriptSuffix The suffix of the deposit script that follows the receiver address
     /// @param _requiredSigsCount The number of signatures that is contained in the deposit script
-    function initialize(uint32 _levels, bytes calldata _depositScript, bytes calldata _scriptSuffix, uint256 _requiredSigsCount) external onlyOwner {
+    function initialize(uint32 _levels, bytes calldata _depositScript, bytes calldata _scriptSuffix, uint256 _requiredSigsCount, address _owner) external onlySystem {
         require(!initialized, "Contract is already initialized");
         require(_requiredSigsCount != 0, "Verifier count cannot be 0");
         require(_depositScript.length != 0, "Deposit script cannot be empty");
@@ -65,7 +71,12 @@ contract Bridge is Ownable, MerkleTree {
         depositScript = _depositScript;
         scriptSuffix = _scriptSuffix;
         requiredSigsCount = _requiredSigsCount;
+        
+        // Set initial operator to SYSTEM_CALLER so that Citrea can get operational by starting to process deposits
+        operator = SYSTEM_CALLER;
+        owner = _owner;
 
+        emit OperatorUpdated(address(0), SYSTEM_CALLER);
         emit DepositScriptUpdate(_depositScript, _scriptSuffix, _requiredSigsCount);
     }
 
