@@ -311,7 +311,7 @@ where
                 // TODO: Implement this
             }
 
-            // TODO here we can support multiple commitments but for now let's take the last one.
+            // TODO for each commitment prover should verify them and move accordingly
             let sequencer_commitment = sequencer_commitments.iter().last();
 
             match sequencer_commitment {
@@ -670,12 +670,7 @@ where
                 // TODO: Implement this
             }
 
-            // TODO here we can support multiple commitments but for now let's take the last one.
-            let sequencer_commitment = sequencer_commitments.iter().last();
-
-            if sequencer_commitment.is_some() {
-                let sequencer_commitment = sequencer_commitment.unwrap();
-
+            for sequencer_commitment in sequencer_commitments.iter() {
                 let start_l1_height = self
                     .da_service
                     .get_block_by_hash(sequencer_commitment.l1_start_block_hash)
