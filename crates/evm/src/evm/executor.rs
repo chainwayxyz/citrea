@@ -2,7 +2,7 @@ use std::convert::Infallible;
 
 use reth_primitives::TransactionSignedEcRecovered;
 use revm::primitives::{
-    CfgEnvWithHandlerCfg, EVMError, Env, ExecutionResult, InvalidTransaction, ResultAndState, State,
+    CfgEnvWithHandlerCfg, EVMError, Env, ExecutionResult, ResultAndState, State,
 };
 use revm::{self, Context, Database, DatabaseCommit, EvmContext};
 
@@ -105,9 +105,10 @@ pub(crate) fn execute_multiple_tx<
 
         // Check if the transaction used more gas than the available block gas limit
         let result = if cumulative_gas_used + result_and_state.result.gas_used() > block_gas_limit {
-            Err(EVMError::Transaction(
-                InvalidTransaction::CallGasCostMoreThanGasLimit,
-            ))
+            Err(EVMError::Custom(format!(
+                "Gas used exceeds block gas limit {:?}",
+                block_gas_limit
+            )))
         } else if tx.signer() == SYSTEM_SIGNER {
             Err(EVMError::Custom(format!(
                 "Invalid system transaction: {:?}",
@@ -115,9 +116,9 @@ pub(crate) fn execute_multiple_tx<
             )))
         } else {
             evm.commit(result_and_state.state);
+            cumulative_gas_used += result_and_state.result.gas_used();
             Ok(result_and_state.result)
         };
-        cumulative_gas_used += result.as_ref().map(|r| r.gas_used()).unwrap_or(0);
         tx_results.push(result);
     }
     tx_results

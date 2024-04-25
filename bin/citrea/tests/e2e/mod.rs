@@ -1551,23 +1551,23 @@ async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error>
 
     let seq_port = seq_port_rx.await.unwrap();
     let seq_test_client = make_test_client(seq_port).await;
-    // sys tx use 45756 + 75710 = 121466gas
+    // sys tx use 43615 + 43615 = 117196gas
     // the block gas limit is 1_000_000 because the system txs gas limit is 1_000_000
 
-    // 1000000 - 121466 = 878534 gas is left in block
-    // 878534 / 21000 = 41,8 so 41 ether transfer transactions can be included in the block
+    // 1000000 - 117196 = 882804 gas left in block
+    // 882804 / 21000 = 42.038 so 42 ether transfer transactions can be included in the block
 
     // send 41 ether transfer transactions
     let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
 
-    for _ in 0..40 {
+    for _ in 0..41 {
         seq_test_client
             .send_eth(addr, None, None, None, 0u128)
             .await
             .unwrap();
     }
 
-    // 41st tx should be the last tx in the soft batch
+    // 42nd tx should be the last tx in the soft batch
     let last_in_tx = seq_test_client
         .send_eth(addr, None, None, None, 0u128)
         .await;
