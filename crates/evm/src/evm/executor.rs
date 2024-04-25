@@ -51,6 +51,7 @@ where
         self.evm.transact()
     }
 
+    /// Commits the given state diff to the database.
     fn commit(&mut self, state: State) {
         self.evm.context.evm.db.commit(state)
     }
@@ -96,10 +97,7 @@ pub(crate) fn execute_multiple_tx<
     for tx in txs {
         let block_available_gas = block_gas_limit - cumulative_gas_used;
         let result_and_state = match evm.transact(tx) {
-            Ok(result_and_state) => {
-                // get used gas for tx
-                result_and_state
-            }
+            Ok(result_and_state) => result_and_state,
             Err(e) => {
                 tx_results.push(Err(e));
                 continue;

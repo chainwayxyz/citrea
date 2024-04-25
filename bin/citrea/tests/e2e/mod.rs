@@ -1600,7 +1600,7 @@ async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error>
 
     assert!(last_in_receipt.block_number.is_some());
 
-    // last in tx byte array should be a sub array of txs[0]
+    // last in tx byte array should be a subarray of txs[0]
     assert!(find_subarray(
         initial_soft_batch.clone().txs.unwrap()[0].tx.as_slice(),
         &last_tx_raw
@@ -1621,18 +1621,22 @@ async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error>
         .unwrap()
         .rlp();
 
-    // not in tx byte array should not be a sub array of txs[0]
+    // not in tx byte array should not be a subarray of txs[0]
     assert!(find_subarray(
         initial_soft_batch.txs.unwrap()[0].tx.as_slice(),
         &not_in_raw
     )
     .is_none());
 
-    // assert!(not_in_receipt.block_number.is_none());
-
-    // now on another block with system txs call ether transfers 42 times and see that the softbatch txs are the same
-
     seq_test_client.send_publish_batch_request().await;
+
+    let second_soft_batch = seq_test_client
+        .ledger_get_soft_batch_by_number::<MockDaSpec>(2)
+        .await
+        .unwrap();
+
+    // should be in tx byte array of the soft batch after
+    assert!(find_subarray(second_soft_batch.txs.unwrap()[0].tx.as_slice(), &not_in_raw).is_some());
 
     seq_task.abort();
     Ok(())

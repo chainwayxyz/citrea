@@ -332,7 +332,7 @@ where
                         .header()
                         .height();
 
-                    // start fetching blocks from sequencer, when you see a softbatch with l1 height more than end_l1_height, stop
+                    // start fetching blocks from sequencer, when you see a soft batch with l1 height more than end_l1_height, stop
                     // while getting the blocks to all the same ops as full node
                     // after stopping call continue  and look for a new seq_commitment
                     // change the itemnumbers only after the sync is done so not for every da block
