@@ -68,6 +68,11 @@ where
     rpc_config: RpcConfig,
 }
 
+enum L2BlockMode {
+    Producing,
+    Skipping,
+}
+
 impl<C, Da, Sm, Vm, Stf> CitreaSequencer<C, Da, Sm, Vm, Stf>
 where
     C: Context,
@@ -179,7 +184,7 @@ where
         &mut self,
         da_block: <Da as DaService>::FilteredBlock,
         l1_fee_rate: u64,
-        empty: bool,
+        l2_block_mode: L2BlockMode,
     ) -> Result<(), anyhow::Error> {
         let da_height = da_block.header().height();
         let (l2_height, l1_height) = match self
@@ -235,7 +240,7 @@ where
                     .evm
                     .get_pending_txs_cumulative_gas_used(&mut batch_workspace);
 
-                let rlp_txs = self.get_rlp_transactions(empty, system_tx_gas_usage);
+                let rlp_txs = self.get_best_transactions(l2_block_mode, system_tx_gas_usage);
                 debug!(
                     "Sequencer: publishing block with {} transactions",
                     rlp_txs.len()
@@ -406,7 +411,8 @@ where
                             skipped_height
                         );
                         let da_block = self.da_service.get_block_at(skipped_height).await.unwrap();
-                        self.produce_l2_block(da_block, l1_fee_rate, true).await?;
+                        self.produce_l2_block(da_block, l1_fee_rate, L2BlockMode::Skipping)
+                            .await?;
                     }
                 }
                 let prev_l1_height = last_finalized_height - 1;
@@ -471,7 +477,7 @@ where
             .await
             .unwrap();
 
-        self.produce_l2_block(last_finalized_block, l1_fee_rate, false)
+        self.produce_l2_block(last_finalized_block, l1_fee_rate, L2BlockMode::Producing)
             .await?;
         Ok(())
     }
@@ -497,54 +503,59 @@ where
         }
     }
 
-    fn get_rlp_transactions(
+    fn get_best_transactions(
         &self,
-        empty: bool,
+        l2_block_mode: L2BlockMode,
         system_tx_gas_usage: u64,
     ) -> Vec<RlpEvmTransaction> {
-        if empty {
-            return vec![];
+        match l2_block_mode {
+            L2BlockMode::Skipping => {
+                return vec![];
+            }
+            L2BlockMode::Producing => {
+                let cfg = self.db_provider.cfg();
+                let latest_header = self
+                    .db_provider
+                    .latest_header()
+                    .expect("Failed to get latest header")
+                    .expect("Latest header must always exist")
+                    .unseal();
+
+                let base_fee = latest_header
+                    .next_block_base_fee(cfg.base_fee_params)
+                    .expect("Failed to get next block base fee");
+
+                let best_txs_with_base_fee = self.mempool.best_transactions_with_attributes(
+                    BestTransactionsAttributes::base_fee(base_fee),
+                );
+                // TODO: implement block builder instead of just including every transaction in order
+                let mut cumulative_gas_used = 0;
+
+                // Add the system tx gas usage to the cumulative gas used
+                cumulative_gas_used += system_tx_gas_usage;
+
+                best_txs_with_base_fee
+                    .into_iter()
+                    .filter(|tx| {
+                        // Don't include transactions that exceed the block gas limit
+                        let tx_gas_limit = tx.transaction.gas_limit();
+                        let fits_into_block =
+                            cumulative_gas_used + tx_gas_limit <= cfg.block_gas_limit;
+                        if fits_into_block {
+                            cumulative_gas_used += tx_gas_limit
+                        }
+                        fits_into_block
+                    })
+                    .map(|tx| {
+                        tx.to_recovered_transaction()
+                            .into_signed()
+                            .envelope_encoded()
+                            .to_vec()
+                    })
+                    .map(|rlp| RlpEvmTransaction { rlp })
+                    .collect::<Vec<RlpEvmTransaction>>()
+            }
         }
-        let cfg = self.db_provider.cfg();
-        let latest_header = self
-            .db_provider
-            .latest_header()
-            .expect("Failed to get latest header")
-            .expect("Latest header must always exist")
-            .unseal();
-
-        let base_fee = latest_header
-            .next_block_base_fee(cfg.base_fee_params)
-            .expect("Failed to get next block base fee");
-
-        let best_txs_with_base_fee = self
-            .mempool
-            .best_transactions_with_attributes(BestTransactionsAttributes::base_fee(base_fee));
-        // TODO: implement block builder instead of just including every transaction in order
-        let mut cumulative_gas_used = 0;
-
-        // Add the system tx gas usage to the cumulative gas used
-        cumulative_gas_used += system_tx_gas_usage;
-
-        best_txs_with_base_fee
-            .into_iter()
-            .filter(|tx| {
-                // Don't include transactions that exceed the block gas limit
-                let tx_gas_limit = tx.transaction.gas_limit();
-                let fits_into_block = cumulative_gas_used + tx_gas_limit <= cfg.block_gas_limit;
-                if fits_into_block {
-                    cumulative_gas_used += tx_gas_limit
-                }
-                fits_into_block
-            })
-            .map(|tx| {
-                tx.to_recovered_transaction()
-                    .into_signed()
-                    .envelope_encoded()
-                    .to_vec()
-            })
-            .map(|rlp| RlpEvmTransaction { rlp })
-            .collect::<Vec<RlpEvmTransaction>>()
     }
 
     /// Signs batch of messages with sovereign priv key turns them into a sov blob
