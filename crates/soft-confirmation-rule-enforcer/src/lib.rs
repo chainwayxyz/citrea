@@ -1,11 +1,17 @@
 mod call;
 mod genesis;
 mod hooks;
-mod query;
-mod tests;
 pub use call::*;
 pub use genesis::*;
+
+#[cfg(feature = "native")]
+mod query;
+#[cfg(feature = "native")]
 pub use query::*;
+
+#[cfg(test)]
+mod tests;
+
 // "Given DA slot hasn't been used for more than N soft confirmation blocks."
 use sov_modules_api::{Context, DaSpec, ModuleInfo, StateMap, StateValue, WorkingSet};
 use sov_state::codec::BcsCodec;

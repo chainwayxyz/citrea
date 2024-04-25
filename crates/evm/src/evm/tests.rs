@@ -122,7 +122,7 @@ fn simple_contract_execution<DB: Database<Error = Infallible> + DatabaseCommit +
         .unwrap();
 
         let out = output(result);
-        ethereum_types::U256::from(out.as_ref())
+        ethereum_types::U256::from(out.to_vec().as_slice())
     };
 
     assert_eq!(set_arg, get_res.as_u32());
@@ -163,11 +163,11 @@ fn contract_address(result: &ExecutionResult) -> Option<Address> {
     }
 }
 
-fn output(result: ExecutionResult) -> bytes::Bytes {
+fn output(result: ExecutionResult) -> alloy_primitives::Bytes {
     match result {
         ExecutionResult::Success { output, .. } => match output {
-            Output::Call(out) => out.into(),
-            Output::Create(out, _) => out.into(),
+            Output::Call(out) => out,
+            Output::Create(out, _) => out,
         },
         _ => panic!("Expected successful ExecutionResult"),
     }
