@@ -341,8 +341,6 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
         .unwrap()
         .unwrap();
 
-    println!("{:?}", block.transactions.hashes().len());
-
     assert_eq!(block.header.gas_limit, U256::from(ETHEREUM_BLOCK_GAS_LIMIT));
     assert!(block.header.gas_used <= block.header.gas_limit);
 
