@@ -1421,7 +1421,7 @@ async fn test_system_transactons() -> Result<(), anyhow::Error> {
             .await;
 
         if block_num == 1 {
-            assert_eq!(block.transactions.len(), 2);
+            assert_eq!(block.transactions.len(), 3);
 
             let init_tx = &block.transactions[0];
             let set_tx = &block.transactions[1];

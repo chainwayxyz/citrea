@@ -71,6 +71,18 @@ fn test_sys_l1blockhashlist() {
                 diff_size: 348,
                 error: None
             },
+            Receipt {
+                receipt: reth_primitives::Receipt {
+                    tx_type: reth_primitives::TxType::Eip1559,
+                    success: true,
+                    cumulative_gas_used: 138260,
+                    logs: vec![]
+                },
+                gas_used: 21064,
+                log_index_start: 1,
+                diff_size: 156,
+                error: None
+            }
         ]
     );
 
@@ -79,7 +91,7 @@ fn test_sys_l1blockhashlist() {
     let system_account = evm.accounts.get(&SYSTEM_SIGNER, &mut working_set).unwrap();
     // The system caller balance is unchanged(if exists)/or should be 0
     assert_eq!(system_account.info.balance, U256::from(0));
-    assert_eq!(system_account.info.nonce, 2);
+    assert_eq!(system_account.info.nonce, 3);
 
     let hash = evm
         .get_call(
@@ -146,14 +158,14 @@ fn test_sys_l1blockhashlist() {
     let system_account = evm.accounts.get(&SYSTEM_SIGNER, &mut working_set).unwrap();
     // The system caller balance is unchanged(if exists)/or should be 0
     assert_eq!(system_account.info.balance, U256::from(0));
-    assert_eq!(system_account.info.nonce, 3);
+    assert_eq!(system_account.info.nonce, 4);
 
     let receipts: Vec<_> = evm
         .receipts
         .iter(&mut working_set.accessory_state())
         .collect();
-    assert_eq!(receipts.len(), 4); // 2 from #1 L1 block and 2 from #2 block
-    let receipts = receipts[2..].to_vec();
+    assert_eq!(receipts.len(), 5); // 2 from #1 L1 block and 2 from #2 block + (1 )
+    let receipts = receipts[3..].to_vec();
 
     assert_eq!(receipts,
         [
@@ -186,7 +198,7 @@ fn test_sys_l1blockhashlist() {
                 log_index_start: 1,
                 diff_size: 477,
                 error: None
-            }
+            },
         ]
     );
 

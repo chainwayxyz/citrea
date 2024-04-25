@@ -320,7 +320,7 @@ fn test_get_batches() {
 fn test_get_soft_batch() {
     // Get the first soft batch by number
     let payload = jsonrpc_req!("ledger_getSoftBatchByNumber", [1]);
-    let expected = jsonrpc_result!({"da_slot_height":0,"da_slot_hash":"0000000000000000000000000000000000000000000000000000000000000000","da_slot_txs_commitment":"0101010101010101010101010101010101010101010101010101010101010101","hash":"b5515a80204963f7db40e98af11aedb49a394b1c7e3d8b5b7a33346b8627444f","txs":["74783120626f6479", "74783220626f6479"],"pre_state_root":"","post_state_root":"","soft_confirmation_signature":"","pub_key":"","l1_fee_rate":0, "timestamp": 0});
+    let expected = jsonrpc_result!({"da_slot_height":0,"da_slot_hash":"0000000000000000000000000000000000000000000000000000000000000000","da_slot_txs_commitment":"0101010101010101010101010101010101010101010101010101010101010101","deposit_data": [],"hash":"b5515a80204963f7db40e98af11aedb49a394b1c7e3d8b5b7a33346b8627444f","txs":["74783120626f6479", "74783220626f6479"],"pre_state_root":"","post_state_root":"","soft_confirmation_signature":"","pub_key":"", "l1_fee_rate":0, "timestamp": 0});
     regular_test_helper(payload, &expected);
 
     // Get the first soft batch by hash
@@ -337,7 +337,7 @@ fn test_get_soft_batch() {
         .map(|tx_receipt| tx_receipt.body_to_save.unwrap().encode_hex::<String>())
         .collect::<Vec<String>>();
     let expected = jsonrpc_result!(
-        {"da_slot_height":1,"da_slot_hash":"0202020202020202020202020202020202020202020202020202020202020202","da_slot_txs_commitment":"0303030303030303030303030303030303030303030303030303030303030303","hash":"f85fe0cb36fdaeca571c896ed476b49bb3c8eff00d935293a8967e1e9a62071e","txs": txs, "pre_state_root":"","post_state_root":"","soft_confirmation_signature":"","pub_key":"","l1_fee_rate":0, "timestamp": 0}
+        {"da_slot_height":1,"da_slot_hash":"0202020202020202020202020202020202020202020202020202020202020202","da_slot_txs_commitment":"0303030303030303030303030303030303030303030303030303030303030303","deposit_data": [],"hash":"f85fe0cb36fdaeca571c896ed476b49bb3c8eff00d935293a8967e1e9a62071e","txs": txs, "pre_state_root":"","post_state_root":"","soft_confirmation_signature":"","pub_key":"","l1_fee_rate":0, "timestamp": 0}
     );
     regular_test_helper(payload, &expected);
 
@@ -357,8 +357,8 @@ fn test_get_soft_batch() {
         .collect::<Vec<String>>();
     let expected = jsonrpc_result!(
         [
-            {"da_slot_height":0,"da_slot_hash":"0000000000000000000000000000000000000000000000000000000000000000","da_slot_txs_commitment":"0101010101010101010101010101010101010101010101010101010101010101","hash":"b5515a80204963f7db40e98af11aedb49a394b1c7e3d8b5b7a33346b8627444f","txs":["74783120626f6479", "74783220626f6479"],"pre_state_root":"","post_state_root":"","soft_confirmation_signature":"","pub_key":"","l1_fee_rate":0, "timestamp": 0},
-            {"da_slot_height":1,"da_slot_hash":"0202020202020202020202020202020202020202020202020202020202020202","da_slot_txs_commitment":"0303030303030303030303030303030303030303030303030303030303030303","hash":"f85fe0cb36fdaeca571c896ed476b49bb3c8eff00d935293a8967e1e9a62071e","txs": txs, "pre_state_root":"","post_state_root":"","soft_confirmation_signature":"","pub_key":"","l1_fee_rate":0, "timestamp": 0}
+            {"da_slot_height":0,"da_slot_hash":"0000000000000000000000000000000000000000000000000000000000000000","da_slot_txs_commitment":"0101010101010101010101010101010101010101010101010101010101010101","deposit_data": [],"hash":"b5515a80204963f7db40e98af11aedb49a394b1c7e3d8b5b7a33346b8627444f","txs":["74783120626f6479", "74783220626f6479"],"pre_state_root":"","post_state_root":"","soft_confirmation_signature":"","pub_key":"","l1_fee_rate":0, "timestamp": 0},
+            {"da_slot_height":1,"da_slot_hash":"0202020202020202020202020202020202020202020202020202020202020202","da_slot_txs_commitment":"0303030303030303030303030303030303030303030303030303030303030303","deposit_data": [],"hash":"f85fe0cb36fdaeca571c896ed476b49bb3c8eff00d935293a8967e1e9a62071e","txs": txs, "pre_state_root":"","post_state_root":"","soft_confirmation_signature":"","pub_key":"","l1_fee_rate":0, "timestamp": 0}
         ]
     );
     regular_test_helper(payload, &expected);

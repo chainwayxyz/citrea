@@ -52,6 +52,9 @@ where
                     da_slot_hash,
                     da_slot_txs_commitment,
                 ));
+                deposit_data.iter().for_each(|deposit_data| {
+                    system_events.push(SystemEvent::BridgeDeposit(deposit_data.clone()));
+                });
             }
         } else {
             // That's the first L2 block in the first seen L1 block.
@@ -60,17 +63,9 @@ where
                 da_slot_hash,
                 da_slot_txs_commitment,
             ));
-        }
-
-        let block_env = self.block_env.get(working_set);
-        if block_env.is_some() && block_env.unwrap().number == 0 {
             system_events.push(SystemEvent::BridgeInitialize(
                 deposit_data.into_iter().flatten().collect(),
             ));
-        } else {
-            deposit_data.iter().for_each(|deposit_data| {
-                system_events.push(SystemEvent::BridgeDeposit(deposit_data.clone()));
-            });
         }
 
         let cfg = self
