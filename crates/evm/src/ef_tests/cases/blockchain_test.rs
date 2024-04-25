@@ -104,11 +104,10 @@ impl Case for BlockchainTestCase {
 
         // Iterate through test cases, filtering by the network type to exclude specific forks.
         self.tests
-            .iter()
-            .filter(|(_, case)| matches!(case.network, ForkSpec::Shanghai))
-            // .par_bridge()
-            .try_for_each(|(name, case)| {
-                println!("Running case {}", name);
+            .values()
+            .filter(|case| matches!(case.network, ForkSpec::Shanghai))
+            .par_bridge()
+            .try_for_each(|case| {
                 let mut evm_config = EvmConfig::default();
 
                 // Set this base fee based on what's set in genesis.
