@@ -102,7 +102,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 gas_used,
                 log_index_start,
                 diff_size: tx_info.diff_size,
-                error: None,
             };
             log_index_start += logs_len;
 
@@ -194,7 +193,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
                         gas_used,
                         log_index_start,
                         diff_size: tx_info.diff_size,
-                        error: None,
                     };
                     log_index_start += logs_len;
 
