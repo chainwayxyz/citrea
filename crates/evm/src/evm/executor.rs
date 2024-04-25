@@ -95,7 +95,6 @@ pub(crate) fn execute_multiple_tx<
 
     let mut tx_results = Vec::with_capacity(txs.len());
     for tx in txs {
-        let block_available_gas = block_gas_limit - cumulative_gas_used;
         let result_and_state = match evm.transact(tx) {
             Ok(result_and_state) => result_and_state,
             Err(e) => {
@@ -105,9 +104,9 @@ pub(crate) fn execute_multiple_tx<
         };
 
         // Check if the transaction used more gas than the available block gas limit
-        let result = if result_and_state.result.gas_used() > block_available_gas {
+        let result = if cumulative_gas_used + result_and_state.result.gas_used() > block_gas_limit {
             Err(EVMError::Transaction(
-                InvalidTransaction::CallerGasLimitMoreThanBlock,
+                InvalidTransaction::CallGasCostMoreThanGasLimit,
             ))
         } else if tx.signer() == SYSTEM_SIGNER {
             Err(EVMError::Custom(format!(

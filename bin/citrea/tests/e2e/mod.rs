@@ -1591,9 +1591,9 @@ async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error>
         .await
         .unwrap();
 
-    let las_tx_hash = last_in_receipt.transaction_hash;
+    let last_tx_hash = last_in_receipt.transaction_hash;
     let last_tx_raw = seq_test_client
-        .eth_get_transaction_by_hash(las_tx_hash, Some(false))
+        .eth_get_transaction_by_hash(last_tx_hash, Some(false))
         .await
         .unwrap()
         .rlp();
@@ -1637,6 +1637,21 @@ async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error>
 
     // should be in tx byte array of the soft batch after
     assert!(find_subarray(second_soft_batch.txs.unwrap()[0].tx.as_slice(), &not_in_raw).is_some());
+
+    let block1 = seq_test_client
+        .eth_get_block_by_number(Some(BlockNumberOrTag::Number(1)))
+        .await;
+
+    // the last in tx should be in the block
+    assert!(block1.transactions.iter().any(|tx| tx == &last_tx_hash));
+    // and the other tx should not be in
+    assert!(!block1.transactions.iter().any(|tx| tx == &not_in_hash));
+
+    let block2 = seq_test_client
+        .eth_get_block_by_number(Some(BlockNumberOrTag::Number(2)))
+        .await;
+    // the other tx should be in second block
+    assert!(block2.transactions.iter().any(|tx| tx == &not_in_hash));
 
     seq_task.abort();
     Ok(())
