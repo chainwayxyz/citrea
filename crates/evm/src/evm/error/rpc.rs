@@ -4,7 +4,6 @@ use std::convert::Infallible;
 use std::time::Duration;
 
 use alloy_sol_types::decode_revert_reason;
-use jsonrpsee::core::Error as RpcError;
 use jsonrpsee::types::error::CALL_EXECUTION_FAILED_CODE;
 use jsonrpsee::types::ErrorObject;
 use reth_interfaces::RethError;
@@ -182,11 +181,11 @@ impl From<EthApiError> for ErrorObject<'static> {
     }
 }
 
-impl From<EthApiError> for RpcError {
-    fn from(error: EthApiError) -> Self {
-        RpcError::Call(error.into())
-    }
-}
+// impl From<EthApiError> for RpcError {
+//     fn from(error: EthApiError) -> Self {
+//         RpcError::Call(error.into())
+//     }
+// }
 // impl From<JsInspectorError> for EthApiError {
 //     fn from(error: JsInspectorError) -> Self {
 //         match error {

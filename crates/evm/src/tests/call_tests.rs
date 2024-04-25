@@ -494,14 +494,13 @@ fn test_block_hash_in_evm() {
                     .into(),
             ),
         },
-        nonce: Some(U64::from(0u64)),
+        nonce: Some(0u64),
         chain_id: Some(DEFAULT_CHAIN_ID),
         access_list: None,
         max_fee_per_blob_gas: None,
         blob_versioned_hashes: None,
         transaction_type: None,
         sidecar: None,
-        other: Default::default(),
     };
 
     for i in 0..=1000 {
@@ -585,7 +584,7 @@ fn test_block_gas_limit() {
         .unwrap()
         .unwrap();
 
-    assert_eq!(block.header.gas_limit, U256::from(ETHEREUM_BLOCK_GAS_LIMIT));
+    assert_eq!(block.header.gas_limit, ETHEREUM_BLOCK_GAS_LIMIT as u128);
     assert!(block.header.gas_used <= block.header.gas_limit);
     assert!(
         block.transactions.hashes().len() < 10_000,

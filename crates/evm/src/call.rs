@@ -99,7 +99,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     cumulative_gas_used,
                     logs,
                 },
-                gas_used,
+                gas_used: gas_used as u128,
                 log_index_start,
                 diff_size: tx_info.diff_size,
                 error: None,
@@ -191,7 +191,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                             cumulative_gas_used,
                             logs,
                         },
-                        gas_used,
+                        gas_used: gas_used as u128,
                         log_index_start,
                         diff_size: tx_info.diff_size,
                         error: None,
@@ -206,6 +206,11 @@ impl<C: sov_modules_api::Context> Evm<C> {
                         },
                         receipt,
                     };
+
+                    println!(
+                        "deneme: {:?} ",
+                        hex::encode(serde_json::to_vec(&pending_transaction).unwrap())
+                    );
 
                     self.pending_transactions
                         .push(&pending_transaction, working_set);

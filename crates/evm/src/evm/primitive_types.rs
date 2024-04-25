@@ -111,7 +111,7 @@ pub(crate) struct SealedBlock {
 #[derive(Debug, PartialEq, Clone, serde::Serialize, serde::Deserialize)]
 pub(crate) struct Receipt {
     pub(crate) receipt: reth_primitives::Receipt,
-    pub(crate) gas_used: u64,
+    pub(crate) gas_used: u128,
     pub(crate) log_index_start: u64,
     pub(crate) diff_size: u64,
     pub(crate) error: Option<EVMError<u8>>,

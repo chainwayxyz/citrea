@@ -66,7 +66,7 @@ impl<B: BatchBuilder + Send + Sync, T: DaService + Send + Sync> Sequencer<B, T> 
 
 fn register_txs_rpc_methods<B, D>(
     rpc: &mut RpcModule<Sequencer<B, D>>,
-) -> Result<(), jsonrpsee::core::Error>
+) -> Result<(), jsonrpsee::core::RegisterMethodError>
 where
     B: BatchBuilder + Send + Sync + 'static,
     D: DaService,
@@ -181,7 +181,7 @@ mod tests {
         let rpc = get_sequencer_rpc(batch_builder, da_service.clone());
 
         let arg: &[u8] = &[];
-        let result: Result<String, jsonrpsee::core::Error> =
+        let result: Result<String, jsonrpsee::MethodsError> =
             rpc.call("sequencer_publishBatch", arg).await;
 
         assert!(result.is_err());

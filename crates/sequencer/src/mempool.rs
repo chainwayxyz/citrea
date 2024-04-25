@@ -36,19 +36,13 @@ impl<C: sov_modules_api::Context> CitreaMempool<C> {
             .genesis(
                 Genesis::default()
                     .with_nonce(genesis_block.header.nonce.unwrap().into())
-                    .with_timestamp(genesis_block.header.timestamp.saturating_to())
+                    .with_timestamp(genesis_block.header.timestamp)
                     .with_extra_data(genesis_block.header.extra_data)
-                    .with_gas_limit(genesis_block.header.gas_limit.saturating_to())
+                    .with_gas_limit(genesis_block.header.gas_limit)
                     .with_difficulty(genesis_block.header.difficulty)
                     .with_mix_hash(genesis_block.header.mix_hash.unwrap())
                     .with_coinbase(genesis_block.header.miner)
-                    .with_base_fee(Some(
-                        genesis_block
-                            .header
-                            .base_fee_per_gas
-                            .unwrap()
-                            .saturating_to(),
-                    )),
+                    .with_base_fee(Some(genesis_block.header.base_fee_per_gas.unwrap())),
             )
             .build();
 

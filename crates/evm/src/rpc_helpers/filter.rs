@@ -312,7 +312,7 @@ impl Filter {
 
     /// Filters the topics of the log against the filter topics
     pub fn filter_topics(&self, log: &reth_primitives::Log, topics: &[Topic]) -> bool {
-        for topic_tuple in topics.iter().zip_longest(log.topics.iter()) {
+        for topic_tuple in topics.iter().zip_longest(log.topics().iter()) {
             match topic_tuple {
                 // We exhausted the `log.topics`, so if there's a filter set for
                 // this topic index, there is no match. Otherwise (empty filter), continue.

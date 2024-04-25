@@ -80,20 +80,19 @@ fn prepare_call_env_conversion() {
     let request = TransactionRequest {
         from: Some(from),
         to: Some(to),
-        gas_price: Some(U256::from(100u64)),
+        gas_price: Some(100u128),
         max_fee_per_gas: None,
         max_priority_fee_per_gas: None,
-        gas: Some(U256::from(200u64)),
+        gas: Some(200u128),
         value: Some(U256::from(300u64)),
         input: TransactionInput::default(),
-        nonce: Some(U64::from(1u64)),
+        nonce: Some(1u64),
         chain_id: Some(1u64),
         access_list: None,
-        transaction_type: Some(U8::from(2u8)),
+        transaction_type: Some(2u8),
         blob_versioned_hashes: None,
         max_fee_per_blob_gas: None,
         sidecar: None,
-        other: Default::default(),
     };
 
     let block_env = BlockEnv::default();

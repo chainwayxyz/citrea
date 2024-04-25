@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::str::FromStr;
 
+use alloy_primitives::LogData;
 use reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT;
 use reth_primitives::{b256, hex, BlockNumberOrTag, Log};
 use reth_rpc_types::{TransactionInput, TransactionRequest};
@@ -41,7 +42,8 @@ fn test_sys_l1blockhashlist() {
             .iter(&mut working_set.accessory_state())
             .collect::<Vec<_>>(),
         [
-            Receipt { // L1BlockHashList::initializeBlockNumber(U256)
+            Receipt {
+                // L1BlockHashList::initializeBlockNumber(U256)
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
@@ -53,7 +55,8 @@ fn test_sys_l1blockhashlist() {
                 diff_size: 220,
                 error: None
             },
-            Receipt { // L1BlockHashList::setBlockInfo(U256, U256)
+            Receipt {
+                // L1BlockHashList::setBlockInfo(U256, U256)
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
@@ -61,8 +64,7 @@ fn test_sys_l1blockhashlist() {
                     logs: vec![
                         Log {
                             address: L1BlockHashList::address(),
-                            topics: vec![b256!("32eff959e2e8d1609edc4b39ccf75900aa6c1da5719f8432752963fdf008234f")],
-                            data: Bytes::from_static(&hex!("000000000000000000000000000000000000000000000000000000000000000201010101010101010101010101010101010101010101010101010101010101010202020202020202020202020202020202020202020202020202020202020202")),
+                            data: LogData::new(vec![b256!("32eff959e2e8d1609edc4b39ccf75900aa6c1da5719f8432752963fdf008234f")], Bytes::from_static(&hex!("000000000000000000000000000000000000000000000000000000000000000201010101010101010101010101010101010101010101010101010101010101010202020202020202020202020202020202020202020202020202020202020202"))).unwrap() 
                         }
                     ]
                 },
@@ -154,9 +156,11 @@ fn test_sys_l1blockhashlist() {
     assert_eq!(receipts.len(), 4); // 2 from #1 L1 block and 2 from #2 block
     let receipts = receipts[2..].to_vec();
 
-    assert_eq!(receipts,
+    assert_eq!(
+        receipts,
         [
-            Receipt { // L1BlockHashList::setBlockInfo(U256, U256)
+            Receipt {
+                // L1BlockHashList::setBlockInfo(U256, U256)
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
@@ -164,8 +168,7 @@ fn test_sys_l1blockhashlist() {
                     logs: vec![
                         Log {
                             address: L1BlockHashList::address(),
-                            topics: vec![b256!("32eff959e2e8d1609edc4b39ccf75900aa6c1da5719f8432752963fdf008234f")],
-                            data: Bytes::from_static(&hex!("000000000000000000000000000000000000000000000000000000000000000302020202020202020202020202020202020202020202020202020202020202020303030303030303030303030303030303030303030303030303030303030303")),
+                            data: LogData::new(vec![b256!("32eff959e2e8d1609edc4b39ccf75900aa6c1da5719f8432752963fdf008234f")], Bytes::from_static(&hex!("000000000000000000000000000000000000000000000000000000000000000302020202020202020202020202020202020202020202020202020202020202020303030303030303030303030303030303030303030303030303030303030303"))).unwrap(),
                         }
                     ]
                 },
@@ -326,7 +329,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
         .unwrap()
         .unwrap();
 
-    assert_eq!(block.header.gas_limit, U256::from(ETHEREUM_BLOCK_GAS_LIMIT));
+    assert_eq!(block.header.gas_limit, ETHEREUM_BLOCK_GAS_LIMIT as u128);
     assert!(block.header.gas_used <= block.header.gas_limit);
 
     // In total there should only be 1135 transactions 1 is system tx others are contract calls

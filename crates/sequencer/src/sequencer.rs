@@ -508,7 +508,7 @@ where
         }
     }
 
-    fn get_best_transactions(&self, system_tx_gas_usage: u64) -> Vec<RlpEvmTransaction> {
+    fn get_best_transactions(&self, system_tx_gas_usage: u128) -> Vec<RlpEvmTransaction> {
         let cfg = self.db_provider.cfg();
         let latest_header = self
             .db_provider
@@ -534,8 +534,9 @@ where
             .into_iter()
             .filter(|tx| {
                 // Don't include transactions that exceed the block gas limit
-                let tx_gas_limit = tx.transaction.gas_limit();
-                let fits_into_block = cumulative_gas_used + tx_gas_limit <= cfg.block_gas_limit;
+                let tx_gas_limit = tx.transaction.gas_limit() as u128;
+                let fits_into_block =
+                    cumulative_gas_used + tx_gas_limit <= cfg.block_gas_limit as u128;
                 if fits_into_block {
                     cumulative_gas_used += tx_gas_limit
                 }
@@ -620,7 +621,7 @@ where
     pub fn register_rpc_methods(
         &self,
         mut rpc_methods: jsonrpsee::RpcModule<()>,
-    ) -> Result<jsonrpsee::RpcModule<()>, jsonrpsee::core::Error> {
+    ) -> Result<jsonrpsee::RpcModule<()>, jsonrpsee::core::RegisterMethodError> {
         let rpc_context = self.create_rpc_context();
         let rpc = create_rpc_module(rpc_context)?;
         rpc_methods.merge(rpc).unwrap();

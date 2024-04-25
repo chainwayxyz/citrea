@@ -174,13 +174,13 @@ pub(crate) fn prepare_call_env(
     } = request;
 
     // TODO: write hardhat and unit tests for this
-    if max_fee_per_gas == Some(U256::ZERO) {
+    if max_fee_per_gas == Some(0u128) {
         max_fee_per_gas = None;
     }
-    if gas_price == Some(U256::ZERO) {
+    if gas_price == Some(0u128) {
         gas_price = None;
     }
-    if max_priority_fee_per_gas == Some(U256::ZERO) {
+    if max_priority_fee_per_gas == Some(0u128) {
         max_priority_fee_per_gas = None;
     }
 
@@ -190,9 +190,9 @@ pub(crate) fn prepare_call_env(
         // https://github.com/Sovereign-Labs/sovereign-sdk/issues/912
         max_fee_per_blob_gas: _,
     } = CallFees::ensure_fees(
-        gas_price,
-        max_fee_per_gas,
-        max_priority_fee_per_gas,
+        gas_price.map(U256::from),
+        max_fee_per_gas.map(U256::from),
+        max_priority_fee_per_gas.map(U256::from),
         U256::from(block_env.basefee),
         // EIP-4844 related fields
         // https://github.com/Sovereign-Labs/sovereign-sdk/issues/912
@@ -201,7 +201,7 @@ pub(crate) fn prepare_call_env(
         None,
     )?;
 
-    let mut gas_limit = U256::from(block_env.gas_limit);
+    let mut gas_limit: u128 = block_env.gas_limit.into();
 
     if let Some(request_gas_limit) = gas {
         // gas limit is set by user in the request
@@ -220,7 +220,7 @@ pub(crate) fn prepare_call_env(
             value.unwrap_or_default(),
             gas_price,
         )?;
-        gas_limit = min(gas_limit, max_gas_limit);
+        gas_limit = min(gas_limit, max_gas_limit.saturating_to()); // saturating to is fine, we take min
     }
 
     let env = TxEnv {

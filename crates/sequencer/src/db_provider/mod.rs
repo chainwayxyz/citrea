@@ -1,9 +1,11 @@
+use std::ops::RangeInclusive;
+
 use citrea_evm::{Evm, EvmChainConfig};
 use reth_db::models::StoredBlockBodyIndices;
 use reth_interfaces::provider::ProviderResult;
 use reth_primitives::{
-    Account, Address, BlockNumberOrTag, Bytecode, SealedHeader, StorageKey, StorageValue, B256,
-    U256,
+    Account, Address, BlockNumber, BlockNumberOrTag, BlockWithSenders, Bytecode, SealedHeader,
+    StorageKey, StorageValue, B256, U256,
 };
 use reth_provider::{
     AccountReader, BlockHashReader, BlockIdReader, BlockNumReader, BlockReader, BlockReaderIdExt,
@@ -334,6 +336,12 @@ impl<C: sov_modules_api::Context> BlockReader for DbProvider<C> {
     ) -> reth_interfaces::provider::ProviderResult<Option<reth_primitives::SealedBlockWithSenders>>
     {
         unimplemented!("pending_block_with_senders")
+    }
+    fn block_with_senders_range(
+        &self,
+        range: RangeInclusive<BlockNumber>,
+    ) -> ProviderResult<Vec<BlockWithSenders>> {
+        unimplemented!("block_with_senders_range")
     }
 }
 

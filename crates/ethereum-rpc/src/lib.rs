@@ -143,7 +143,7 @@ impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
             .base_fee_per_gas
             .unwrap_or_default();
 
-        (base_fee, suggested_tip)
+        (U256::from(base_fee), U256::from(suggested_tip))
     }
 }
 
@@ -151,7 +151,7 @@ impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
 //     fn make_raw_tx(
 //         &self,
 //         raw_tx: RlpEvmTransaction,
-//     ) -> Result<(B256, Vec<u8>), jsonrpsee::core::Error> {
+//     ) -> Result<(B256, Vec<u8>), jsonrpsee::core::RegisterMethodError> {
 //         let signed_transaction: RethTransactionSignedNoHash = raw_tx.clone().try_into()?;
 
 //         let tx_hash = signed_transaction.hash();
@@ -167,7 +167,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
     rpc: &mut RpcModule<Ethereum<C, Da>>,
     // Checks wether the running node is a sequencer or not, if it is not a sequencer it should also have methods like eth_sendRawTransaction here.
     is_sequencer: bool,
-) -> Result<(), jsonrpsee::core::Error> {
+) -> Result<(), jsonrpsee::core::RegisterMethodError> {
     rpc.register_async_method("web3_clientVersion", |_, ethereum| async move {
         info!("eth module: web3_clientVersion");
 
@@ -624,15 +624,13 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                 .get_transaction_by_hash(tx_hash, &mut working_set)
                 .unwrap()
                 .ok_or_else(|| EthApiError::UnknownBlockOrTxIndex)?;
-            let trace_index = convert_u256_to_u64(
-                tx.transaction_index
-                    .expect("Tx index must be set for tx inside block"),
-            );
+            let trace_index = tx
+                .transaction_index
+                .expect("Tx index must be set for tx inside block");
 
-            let block_number = convert_u256_to_u64(
-                tx.block_number
-                    .expect("Block number must be set for tx inside block"),
-            );
+            let block_number = tx
+                .block_number
+                .expect("Block number must be set for tx inside block");
 
             let opts: Option<GethDebugTracingOptions> = params.optional_next().unwrap();
 
@@ -731,7 +729,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                 match tx_hash {
                     Ok(tx_hash) => Ok(tx_hash),
                     Err(e) => match e {
-                        jsonrpsee::core::Error::Call(e_owned) => Err(e_owned),
+                        jsonrpsee::core::client::Error::Call(e_owned) => Err(e_owned),
                         _ => Err(to_jsonrpsee_error_object("SEQUENCER_CLIENT_ERROR", e)),
                     },
                 }
@@ -762,7 +760,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                         {
                             Ok(tx) => Ok(tx),
                             Err(e) => match e {
-                                jsonrpsee::core::Error::Call(e_owned) => Err(e_owned),
+                                jsonrpsee::core::client::Error::Call(e_owned) => Err(e_owned),
                                 _ => Err(to_jsonrpsee_error_object("SEQUENCER_CLIENT_ERROR", e)),
                             },
                         }
@@ -784,7 +782,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                                 {
                                     Ok(tx) => Ok(tx),
                                     Err(e) => match e {
-                                        jsonrpsee::core::Error::Call(e_owned) => Err(e_owned),
+                                        jsonrpsee::core::client::Error::Call(e_owned) => Err(e_owned),
                                         _ => Err(to_jsonrpsee_error_object(
                                             "SEQUENCER_CLIENT_ERROR",
                                             e,

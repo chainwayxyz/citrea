@@ -5,7 +5,7 @@ use alloy_primitives::FixedBytes;
 use hex::FromHex;
 use reth_primitives::{Address, BlockId, BlockNumberOrTag, U64};
 use reth_rpc_types::request::{TransactionInput, TransactionRequest};
-use reth_rpc_types::{Block, Rich, TransactionReceipt};
+use reth_rpc_types::{AnyTransactionReceipt, Block, Rich, TransactionReceipt};
 use revm::primitives::{B256, U256};
 use serde_json::json;
 
@@ -73,11 +73,16 @@ fn get_block_receipts_test() {
         &mut working_set,
     );
 
-    assert_eq!(result, Ok(None));
+    // AnyTransactionReceipt doesn't impl Eq or PartialEq
+    // assert_eq!(result, Ok(None));
+    // doesn't work
+    assert!(result.is_ok());
+    assert!(result.unwrap().is_none());
 
     let result = evm.get_block_receipts(BlockId::from(B256::from([5u8; 32])), &mut working_set);
 
-    assert_eq!(result, Ok(None));
+    assert!(result.is_ok());
+    assert!(result.unwrap().is_none());
 
     let third_block_receipts = evm
         .get_block_receipts(
@@ -243,20 +248,19 @@ fn call_test() {
         TransactionRequest {
             from: Some(signer.address()),
             to: Some(Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap()),
-            gas: Some(U256::from(100000)),
-            gas_price: Some(U256::from(100000000)),
+            gas: Some(100000u128),
+            gas_price: Some(100000000u128),
             max_fee_per_gas: None,
             max_priority_fee_per_gas: None,
             value: Some(U256::from(100000000)),
             input: None.into(),
-            nonce: Some(U64::from(7)),
+            nonce: Some(7u64),
             chain_id: Some(1u64),
             access_list: None,
             max_fee_per_blob_gas: None,
             blob_versioned_hashes: None,
             transaction_type: None,
             sidecar: None,
-            other: Default::default(),
         },
         Some(BlockNumberOrTag::Number(100)),
         None,
@@ -274,20 +278,19 @@ fn call_test() {
         TransactionRequest {
             from: Some(signer.address()),
             to: Some(Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap()),
-            gas: Some(U256::from(100000)),
-            gas_price: Some(U256::from(100000000)),
+            gas: Some(100000u128),
+            gas_price: Some(100000000u128),
             max_fee_per_gas: None,
             max_priority_fee_per_gas: None,
             value: Some(U256::from(100000000)),
             input: TransactionInput::new(alloy_primitives::Bytes::from_str(&call_data).unwrap()),
-            nonce: Some(U64::from(7)),
+            nonce: Some(7u64),
             chain_id: Some(1u64),
             access_list: None,
             max_fee_per_blob_gas: None,
             blob_versioned_hashes: None,
             transaction_type: None,
             sidecar: None,
-            other: Default::default(),
         },
         Some(BlockNumberOrTag::Number(3)),
         None,
@@ -303,8 +306,8 @@ fn call_test() {
             TransactionRequest {
                 from: Some(signer.address()),
                 to: Some(Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap()),
-                gas: Some(U256::from(100000)),
-                gas_price: Some(U256::from(10000)),
+                gas: Some(100000u128),
+                gas_price: Some(10000u128),
                 max_fee_per_gas: None,
                 max_priority_fee_per_gas: None,
                 value: None,
@@ -318,7 +321,6 @@ fn call_test() {
                 blob_versioned_hashes: None,
                 transaction_type: None,
                 sidecar: None,
-                other: Default::default(),
             },
             // How does this work precisely? In the first block, the contract was not there?
             Some(BlockNumberOrTag::Latest),
@@ -354,7 +356,6 @@ fn call_test() {
                 blob_versioned_hashes: None,
                 transaction_type: None,
                 sidecar: None,
-                other: Default::default(),
             },
             // How does this work precisely? In the first block, the contract was not there?
             Some(BlockNumberOrTag::Latest),
@@ -425,8 +426,9 @@ fn check_against_third_block(block: &Rich<Block>) {
     assert_eq!(block, &rich_block);
 }
 
-fn check_against_third_block_receipts(receipts: Vec<TransactionReceipt>) {
-    let test_receipts = serde_json::from_value::<Vec<TransactionReceipt>>(json!([
+fn check_against_third_block_receipts(receipts: Vec<AnyTransactionReceipt>) {
+    let receipts = serde_json::to_string(&receipts).unwrap();
+    let expected = r#"
     {
         "transactionHash": "0x2ff3a833e99d5a97e26f912c2e855f95e2dda542c89131fea0d189889d384d99",
         "transactionIndex": "0x0",
@@ -622,7 +624,7 @@ fn check_against_third_block_receipts(receipts: Vec<TransactionReceipt>) {
         "logsBloom": "0x00000000000000000000000000004000000000000000000000000000000000000000801000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000400000000000000000000008000000000000000000000000000400000000000000000000000000000000000000000000000000000000000800000000001000800000000000000000000000000000044000000000004000000000000000001000000000020001000000000000000000000000000000000000000000000000000000000000010000000000000000000000400000000000000000000000800000000000000000000000000000",
         "status": "0x1",
         "type": "0x2"
-    }])).unwrap();
+    }"#;
 
-    assert_eq!(receipts, test_receipts)
+    assert_eq!(receipts, expected)
 }

@@ -24,7 +24,7 @@ pub(crate) struct RpcContext<C: sov_modules_api::Context> {
 
 pub(crate) fn create_rpc_module<C: sov_modules_api::Context>(
     rpc_context: RpcContext<C>,
-) -> Result<RpcModule<RpcContext<C>>, jsonrpsee::core::Error> {
+) -> Result<RpcModule<RpcContext<C>>, jsonrpsee::core::RegisterMethodError> {
     let test_mode = rpc_context.test_mode;
     let mut rpc = RpcModule::new(rpc_context);
     rpc.register_async_method("eth_sendRawTransaction", |parameters, ctx| async move {

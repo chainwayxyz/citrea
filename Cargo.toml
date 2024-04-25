@@ -99,13 +99,19 @@ proptest-derive = "0.3.0"
 rand = "0.8"
 rayon = "1.8.0"
 rustc_version_runtime = { version = "0.3.0", default-features = false }
-reqwest = { version = "0.12", features = ["rustls-tls", "json", "http2"], default-features = false }
+reqwest = { version = "0.12", features = [
+    "rustls-tls",
+    "json",
+    "http2",
+], default-features = false }
 rocksdb = { version = "0.21.0", features = ["lz4"] }
-serde = { version = "1.0.192", default-features = false, features = [
+serde = { version = "1.0", default-features = false, features = [
     "alloc",
     "derive",
 ] }
-serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
+serde_json = { version = "1.0.94", default-features = false, features = [
+    "alloc",
+] }
 sha2 = { version = "0.10.6", default-features = false }
 thiserror = "1.0.50"
 tracing = { version = "0.1.40", default-features = false }
@@ -113,7 +119,7 @@ bech32 = { version = "0.9.1", default-features = false }
 derive_more = { version = "0.99.11", default-features = false }
 clap = { version = "4.4.10", features = ["derive"] }
 toml = "0.8.0"
-jsonrpsee = { version = "0.20.1", features = ["jsonrpsee-types"] }
+jsonrpsee = { version = "0.22.4", features = ["jsonrpsee-types"] }
 schemars = { version = "0.8.16", features = ["derive"] }
 tempfile = "3.8"
 tokio = { version = "1", features = ["full"] }
@@ -133,24 +139,24 @@ ethers-providers = { version = "2.0", default-features = false }
 ethers-signers = { version = "2.0", default-features = false }
 ethers-middleware = { version = "2.0", default-features = false }
 
-reth-primitives = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.4" }
-reth-interfaces = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.4" }
-reth-rpc-types = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.4" }
-reth-rpc-types-compat = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.4" }
-reth-revm = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.4" }
-reth-transaction-pool = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.4" }
-reth-provider = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.4" }
-reth-tasks = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.4" }
-reth-db = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.4" }
-reth-trie = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.4" }
-reth-rpc = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.4" }
+reth-primitives = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.6" }
+reth-interfaces = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.6" }
+reth-rpc-types = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.6" }
+reth-rpc-types-compat = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.6" }
+reth-revm = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.6" }
+reth-transaction-pool = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.6" }
+reth-provider = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.6" }
+reth-tasks = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.6" }
+reth-db = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.6" }
+reth-trie = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.6" }
+reth-rpc = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.6" }
 
-revm = { version = "7.2.0", features = [
+revm = { version = "8.0.0", features = [
     "std",
     "secp256k1",
 ], default-features = false }
-alloy-primitives = "0.6"
-alloy-sol-types = "0.6"
+alloy-primitives = "0.7.0"
+alloy-sol-types = "0.7.0"
 secp256k1 = { version = "0.27.0", default-features = false, features = [
     "global-context",
     "rand-std",

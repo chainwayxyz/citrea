@@ -26,8 +26,8 @@ fn payable_contract_value_test() {
     let tx_req = TransactionRequest {
         from: Some(signer.address()),
         to: Some(Address::from_str("0x819c5497b157177315e1204f52e588b393771719").unwrap()), // Address of the payable contract.
-        gas: Some(U256::from(100000)),
-        gas_price: Some(U256::from(100000000)),
+        gas: Some(100000u128),
+        gas_price: Some(100000000u128),
         max_fee_per_gas: None,
         max_priority_fee_per_gas: None,
         value: Some(U256::from(3100000)),
@@ -35,14 +35,13 @@ fn payable_contract_value_test() {
             input: None,
             data: None,
         },
-        nonce: Some(U64::from(1)),
+        nonce: Some(1u64),
         chain_id: Some(1u64),
         access_list: None,
         max_fee_per_blob_gas: None,
         blob_versioned_hashes: None,
         transaction_type: None,
         sidecar: None,
-        other: Default::default(),
     };
 
     let result = evm.eth_estimate_gas(tx_req, Some(BlockNumberOrTag::Latest), &mut working_set);
@@ -56,8 +55,8 @@ fn test_tx_request_fields_gas() {
     let tx_req_contract_call = TransactionRequest {
         from: Some(signer.address()),
         to: Some(Address::from_str("0x819c5497b157177315e1204f52e588b393771719").unwrap()),
-        gas: Some(U256::from(10000000)),
-        gas_price: Some(U256::from(100)),
+        gas: Some(10000000u128),
+        gas_price: Some(100u128),
         max_fee_per_gas: None,
         max_priority_fee_per_gas: None,
         value: None,
@@ -65,14 +64,13 @@ fn test_tx_request_fields_gas() {
             input: None,
             data: None,
         },
-        nonce: Some(U64::from(1)),
+        nonce: Some(1u64),
         chain_id: Some(1u64),
         access_list: None,
         max_fee_per_blob_gas: None,
         blob_versioned_hashes: None,
         transaction_type: None,
         sidecar: None,
-        other: Default::default(),
     };
 
     let result_contract_call = evm.eth_estimate_gas(
@@ -287,20 +285,19 @@ fn test_access_list() {
     let tx_req_contract_call = TransactionRequest {
         from: Some(signer.address()),
         to: Some(Address::from_str("0x5ccda3e6d071a059f00d4f3f25a1adc244eb5c93").unwrap()),
-        gas: Some(U256::from(10000000)),
-        gas_price: Some(U256::from(100)),
+        gas: Some(10000000u128),
+        gas_price: Some(100u128),
         max_fee_per_gas: None,
         max_priority_fee_per_gas: None,
         value: None,
         input: TransactionInput::new(input_data),
-        nonce: Some(U64::from(3)),
+        nonce: Some(3u64),
         chain_id: Some(1u64),
         access_list: None,
         max_fee_per_blob_gas: None,
         blob_versioned_hashes: None,
         transaction_type: None,
         sidecar: None,
-        other: Default::default(),
     };
 
     let no_access_list = evm.eth_estimate_gas(tx_req_contract_call.clone(), None, &mut working_set);
@@ -380,7 +377,7 @@ fn test_estimate_gas_with_input(
     let tx_req = TransactionRequest {
         from: Some(signer.address()),
         to: Some(Address::from_str("eeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap()),
-        gas: Some(U256::from(100_000)),
+        gas: Some(100_000u128),
         input: TransactionInput::new(Bytes::from_hex(input_data).unwrap()),
         ..Default::default()
     };

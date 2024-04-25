@@ -4,7 +4,6 @@ use std::net::SocketAddr;
 
 use anyhow::bail;
 use borsh::de::BorshDeserialize;
-use jsonrpsee::core::Error;
 use jsonrpsee::RpcModule;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
@@ -236,8 +235,8 @@ where
 
             if soft_batch.is_err() {
                 let x = soft_batch.unwrap_err();
-                match x.downcast_ref::<jsonrpsee::core::Error>() {
-                    Some(Error::Transport(e)) => {
+                match x.downcast_ref::<jsonrpsee::core::client::Error>() {
+                    Some(jsonrpsee::core::client::Error::Transport(e)) => {
                         debug!("Soft Batch: connection error during RPC call: {:?}", e);
                         Self::log_error(
                             &mut last_connection_error,
@@ -562,8 +561,8 @@ where
 
             if soft_batch.is_err() {
                 let x = soft_batch.unwrap_err();
-                match x.downcast_ref::<jsonrpsee::core::Error>() {
-                    Some(Error::Transport(e)) => {
+                match x.downcast_ref::<jsonrpsee::core::client::Error>() {
+                    Some(jsonrpsee::core::client::Error::Transport(e)) => {
                         debug!("Soft Batch: connection error during RPC call: {:?}", e);
                         Self::log_error(
                             &mut last_connection_error,

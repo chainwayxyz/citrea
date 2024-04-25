@@ -335,7 +335,7 @@ impl<SPEC: Spec, EXT: CitreaExternalExt, DB: Database> CitreaHandler<SPEC, EXT, 
         coinbase_account.info.balance = coinbase_account
             .info
             .balance
-            .saturating_add(coinbase_gas_price * U256::from(gas.spend() - gas.refunded() as u64));
+            .saturating_add(coinbase_gas_price * U256::from(gas.spent() - gas.refunded() as u64));
 
         Ok(())
     }
