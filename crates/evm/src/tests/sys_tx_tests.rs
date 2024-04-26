@@ -11,10 +11,10 @@ use crate::call::CallMessage;
 use crate::evm::primitive_types::Receipt;
 use crate::evm::system_contracts::L1BlockHashList;
 use crate::smart_contracts::BlockHashContract;
-use crate::test_utils::get_evm;
 use crate::tests::call_tests::{
     create_contract_message_with_fee, get_evm_config_starting_base_fee,
 };
+use crate::tests::utils::get_evm;
 use crate::{AccountData, SYSTEM_SIGNER};
 
 type C = DefaultContext;

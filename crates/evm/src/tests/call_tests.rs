@@ -13,8 +13,8 @@ use crate::evm::primitive_types::Receipt;
 use crate::smart_contracts::{
     BlockHashContract, LogsContract, SelfDestructorContract, SimpleStorageContract, TestContract,
 };
-use crate::test_utils::get_evm;
 use crate::tests::test_signer::TestSigner;
+use crate::tests::utils::get_evm;
 use crate::{AccountData, EvmConfig, RlpEvmTransaction, DEFAULT_CHAIN_ID};
 
 type C = DefaultContext;

@@ -12,7 +12,7 @@ use sov_modules_api::prelude::*;
 
 use crate::evm::primitive_types::SealedBlock;
 use crate::evm::{AccountInfo, DbAccount, EvmChainConfig};
-use crate::test_utils::{get_evm, GENESIS_HASH, GENESIS_STATE_ROOT};
+use crate::tests::utils::{get_evm, GENESIS_HASH, GENESIS_STATE_ROOT};
 use crate::{AccountData, EvmConfig};
 
 lazy_static! {

@@ -15,10 +15,10 @@ use sov_modules_api::{Context, StateMapAccessor, StateValueAccessor, WorkingSet}
 use sov_prover_storage_manager::SnapshotManager;
 use sov_state::{DefaultStorageSpec, ProverStorage};
 
-use crate::ef_tests::models::{BlockchainTest, ForkSpec};
-use crate::ef_tests::{Case, Error, Suite};
 use crate::primitive_types::Block;
-use crate::test_utils::{commit, get_evm_with_storage};
+use crate::tests::ef_tests::models::{BlockchainTest, ForkSpec};
+use crate::tests::ef_tests::{Case, Error, Suite};
+use crate::tests::utils::{commit, get_evm_with_storage};
 use crate::{AccountData, Evm, EvmChainConfig, EvmConfig, RlpEvmTransaction, U256};
 
 /// A handler for the blockchain test suite.
@@ -216,7 +216,6 @@ impl Case for BlockchainTestCase {
                             {
                                 assert_eq!(U256::from(account_state.info.nonce), account.nonce);
                                 assert_eq!(account_state.info.balance, account.balance);
-                                // account.assert_db(address, provider.tx_ref())?;
                             }
                         }
                     }

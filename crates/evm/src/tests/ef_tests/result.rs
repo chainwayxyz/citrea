@@ -43,9 +43,6 @@ pub enum Error {
     /// A database error occurred.
     #[error(transparent)]
     Database(#[from] DatabaseError),
-    /// A test assertion failed.
-    #[error("test failed: {0}")]
-    Assertion(String),
     /// An error internally in reth occurred.
     #[error("test failed: {0}")]
     RethError(#[from] RethError),

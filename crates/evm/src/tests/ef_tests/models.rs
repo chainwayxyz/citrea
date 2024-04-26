@@ -3,18 +3,11 @@
 use std::collections::BTreeMap;
 use std::ops::Deref;
 
-use reth_db::cursor::DbDupCursorRO;
-use reth_db::tables;
-use reth_db::transaction::{DbTx, DbTxMut};
 use reth_primitives::{
-    keccak256, Account as RethAccount, Address, Bloom, Bytecode, Bytes, ChainSpec,
-    ChainSpecBuilder, Header as RethHeader, SealedHeader, StorageEntry, Withdrawals, B256, B64,
-    U256,
+    Address, Bloom, Bytes, ChainSpec, ChainSpecBuilder, Header as RethHeader, SealedHeader,
+    Withdrawals, B256, B64, U256,
 };
 use serde::Deserialize;
-
-use super::assert::assert_equal;
-use super::Error;
 
 /// The definition of a blockchain test.
 #[derive(Debug, PartialEq, Eq, Deserialize)]
@@ -150,50 +143,6 @@ pub struct TransactionSequence {
 #[derive(Clone, Debug, Eq, PartialEq, Deserialize)]
 pub struct State(pub(crate) BTreeMap<Address, Account>);
 
-impl State {
-    /// Write the state to the database.
-    pub fn write_to_db(&self, tx: &impl DbTxMut) -> Result<(), Error> {
-        for (&address, account) in self.0.iter() {
-            let hashed_address = keccak256(address);
-            let has_code = !account.code.is_empty();
-            let code_hash = has_code.then(|| keccak256(&account.code));
-            let reth_account = RethAccount {
-                balance: account.balance,
-                nonce: account.nonce.to::<u64>(),
-                bytecode_hash: code_hash,
-            };
-            tx.put::<tables::PlainAccountState>(address, reth_account)?;
-            tx.put::<tables::HashedAccounts>(hashed_address, reth_account)?;
-            if let Some(code_hash) = code_hash {
-                tx.put::<tables::Bytecodes>(code_hash, Bytecode::new_raw(account.code.clone()))?;
-            }
-            account
-                .storage
-                .iter()
-                .filter(|(_, v)| !v.is_zero())
-                .try_for_each(|(k, v)| {
-                    let storage_key = B256::from_slice(&k.to_be_bytes::<32>());
-                    tx.put::<tables::PlainStorageState>(
-                        address,
-                        StorageEntry {
-                            key: storage_key,
-                            value: *v,
-                        },
-                    )?;
-                    tx.put::<tables::HashedStorages>(
-                        hashed_address,
-                        StorageEntry {
-                            key: keccak256(storage_key),
-                            value: *v,
-                        },
-                    )
-                })?;
-        }
-
-        Ok(())
-    }
-}
-
 impl Deref for State {
     type Target = BTreeMap<Address, Account>;
 
@@ -214,63 +163,6 @@ pub struct Account {
     pub nonce: U256,
     /// Storage.
     pub storage: BTreeMap<U256, U256>,
-}
-
-impl Account {
-    /// Check that the account matches what is in the database.
-    ///
-    /// In case of a mismatch, `Err(Error::Assertion)` is returned.
-    pub fn assert_db(&self, address: Address, tx: &impl DbTx) -> Result<(), Error> {
-        let account = tx
-            .get::<tables::PlainAccountState>(address)?
-            .ok_or_else(|| {
-                Error::Assertion(format!(
-                    "Expected account ({address}) is missing from DB: {self:?}"
-                ))
-            })?;
-
-        assert_equal(self.balance, account.balance, "Balance does not match")?;
-        assert_equal(self.nonce.to(), account.nonce, "Nonce does not match")?;
-
-        if let Some(bytecode_hash) = account.bytecode_hash {
-            assert_equal(
-                keccak256(&self.code),
-                bytecode_hash,
-                "Bytecode does not match",
-            )?;
-        } else {
-            assert_equal(
-                self.code.is_empty(),
-                true,
-                "Expected empty bytecode, got bytecode in db.",
-            )?;
-        }
-
-        let mut storage_cursor = tx.cursor_dup_read::<tables::PlainStorageState>()?;
-        for (slot, value) in self.storage.iter() {
-            if let Some(entry) =
-                storage_cursor.seek_by_key_subkey(address, B256::new(slot.to_be_bytes()))?
-            {
-                if U256::from_be_bytes(entry.key.0) == *slot {
-                    assert_equal(
-                        *value,
-                        entry.value,
-                        &format!("Storage for slot {slot:?} does not match"),
-                    )?;
-                } else {
-                    return Err(Error::Assertion(format!(
-                        "Slot {slot:?} is missing from the database. Expected {value:?}"
-                    )));
-                }
-            } else {
-                return Err(Error::Assertion(format!(
-                    "Slot {slot:?} is missing from the database. Expected {value:?}"
-                )));
-            }
-        }
-
-        Ok(())
-    }
 }
 
 /// Fork specification.

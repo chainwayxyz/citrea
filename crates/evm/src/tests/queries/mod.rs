@@ -15,11 +15,11 @@ use crate::call::CallMessage;
 use crate::smart_contracts::{
     CallerContract, LogsContract, SimplePayableContract, SimpleStorageContract,
 };
-use crate::test_utils::{commit, get_evm_with_storage};
 use crate::tests::call_tests::{
     create_contract_transaction, publish_event_message, set_arg_message,
 };
 use crate::tests::test_signer::TestSigner;
+use crate::tests::utils::{commit, get_evm_with_storage};
 use crate::{AccountData, Evm, EvmConfig, RlpEvmTransaction};
 
 type C = DefaultContext;

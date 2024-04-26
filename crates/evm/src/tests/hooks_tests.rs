@@ -11,8 +11,8 @@ use super::genesis_tests::{GENESIS_DA_TXS_COMMITMENT, TEST_CONFIG};
 use crate::evm::primitive_types::{
     Block, BlockEnv, Receipt, SealedBlock, TransactionSignedAndRecovered,
 };
-use crate::test_utils::{get_evm, GENESIS_STATE_ROOT};
 use crate::tests::genesis_tests::BENEFICIARY;
+use crate::tests::utils::{get_evm, GENESIS_STATE_ROOT};
 use crate::{PendingTransaction, DEFAULT_CHAIN_ID};
 
 lazy_static! {
