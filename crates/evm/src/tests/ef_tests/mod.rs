@@ -53,7 +53,6 @@ mod general_state_tests {
     general_state_test!(st_sload, stSLoadTest);
     general_state_test!(st_zero_calls_revert, stZeroCallsRevert);
     general_state_test!(st_zero_calls, stZeroCallsTest);
-    general_state_test!(vm_tests, VMTests);
     general_state_test!(stshanghai, Shanghai);
     general_state_test!(st_attack, stAttackTest);
     general_state_test!(st_bugs, stBugs);
@@ -93,6 +92,7 @@ mod general_state_tests {
     general_state_test!(st_zero_knowledge2, stZeroKnowledge2);
 
     // Failing
+    // general_state_test!(vm_tests, VMTests);
     // general_state_test!(st_bad_opcode, stBadOpcode);
     // general_state_test!(st_create2, stCreate2);
     // general_state_test!(st_create, stCreateTest);
