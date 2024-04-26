@@ -6,6 +6,7 @@ use reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT;
 use reth_primitives::BlockNumberOrTag;
 use revm::primitives::{B256, U256};
 use sov_modules_api::default_context::DefaultContext;
+use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{Context, Module, StateVecAccessor};
 
@@ -69,13 +70,16 @@ fn log_filter_test_at_block_hash() {
     let (evm, mut working_set) = get_evm(&config);
 
     evm.begin_soft_confirmation_hook(
-        [5u8; 32],
-        1,
-        [42u8; 32],
-        &[10u8; 32],
-        vec![],
-        1,
-        0,
+        &HookSoftConfirmationInfo {
+            da_slot_hash: [5u8; 32],
+            da_slot_height: 1,
+            da_slot_txs_commitment: [42u8; 32],
+            pre_state_root: [10u8; 32].to_vec(),
+            pub_key: vec![],
+            deposit_data: vec![],
+            l1_fee_rate: 1,
+            timestamp: 0,
+        },
         &mut working_set,
     );
     {
@@ -272,13 +276,16 @@ fn log_filter_test_with_range() {
     let (evm, mut working_set) = get_evm(&config);
 
     evm.begin_soft_confirmation_hook(
-        [5u8; 32],
-        1,
-        [42u8; 32],
-        &[10u8; 32],
-        vec![],
-        1,
-        0,
+        &HookSoftConfirmationInfo {
+            da_slot_hash: [5u8; 32],
+            da_slot_height: 1,
+            da_slot_txs_commitment: [42u8; 32],
+            pre_state_root: [10u8; 32].to_vec(),
+            pub_key: vec![],
+            deposit_data: vec![],
+            l1_fee_rate: 1,
+            timestamp: 0,
+        },
         &mut working_set,
     );
     {
@@ -330,13 +337,16 @@ fn log_filter_test_with_range() {
     assert_eq!(rpc_logs.len(), 4);
 
     evm.begin_soft_confirmation_hook(
-        [5u8; 32],
-        1,
-        [42u8; 32],
-        &[99u8; 32],
-        vec![],
-        1,
-        0,
+        &HookSoftConfirmationInfo {
+            da_slot_hash: [5u8; 32],
+            da_slot_height: 1,
+            da_slot_txs_commitment: [42u8; 32],
+            pre_state_root: [99u8; 32].to_vec(),
+            pub_key: vec![],
+            deposit_data: vec![],
+            l1_fee_rate: 1,
+            timestamp: 0,
+        },
         &mut working_set,
     );
     {
@@ -388,13 +398,16 @@ fn test_log_limits() {
     let (evm, mut working_set) = get_evm(&config);
 
     evm.begin_soft_confirmation_hook(
-        [5u8; 32],
-        1,
-        [42u8; 32],
-        &[10u8; 32],
-        vec![],
-        1,
-        0,
+        &HookSoftConfirmationInfo {
+            da_slot_hash: [5u8; 32],
+            da_slot_height: 1,
+            da_slot_txs_commitment: [42u8; 32],
+            pre_state_root: [10u8; 32].to_vec(),
+            pub_key: vec![],
+            deposit_data: vec![],
+            l1_fee_rate: 1,
+            timestamp: 0,
+        },
         &mut working_set,
     );
     {
@@ -485,13 +498,16 @@ fn test_log_limits() {
     for _ in 1..100_001 {
         // generate 100_000 blocks to test the max block range limit
         evm.begin_soft_confirmation_hook(
-            [5u8; 32],
-            1,
-            [42u8; 32],
-            &[99u8; 32],
-            vec![],
-            1,
-            0,
+            &HookSoftConfirmationInfo {
+                da_slot_hash: [5u8; 32],
+                da_slot_height: 1,
+                da_slot_txs_commitment: [42u8; 32],
+                pre_state_root: [99u8; 32].to_vec(),
+                pub_key: vec![],
+                deposit_data: vec![],
+                l1_fee_rate: 1,
+                timestamp: 0,
+            },
             &mut working_set,
         );
         evm.end_soft_confirmation_hook(&mut working_set);

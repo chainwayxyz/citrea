@@ -6,6 +6,7 @@ use reth_primitives::{b256, hex, BlockNumberOrTag, Log};
 use reth_rpc_types::{TransactionInput, TransactionRequest};
 use revm::primitives::{Bytes, U256};
 use sov_modules_api::default_context::DefaultContext;
+use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{Context, Module, StateMapAccessor, StateVecAccessor};
 
@@ -126,13 +127,16 @@ fn test_sys_l1blockhashlist() {
 
     // New L1 block №2
     evm.begin_soft_confirmation_hook(
-        [2u8; 32],
-        2,
-        [3u8; 32],
-        &[10u8; 32],
-        vec![],
-        l1_fee_rate,
-        42,
+        &HookSoftConfirmationInfo {
+            da_slot_hash: [2u8; 32],
+            da_slot_height: 2,
+            da_slot_txs_commitment: [3u8; 32],
+            pre_state_root: [10u8; 32].to_vec(),
+            pub_key: vec![],
+            deposit_data: vec![],
+            l1_fee_rate: l1_fee_rate,
+            timestamp: 42,
+        },
         &mut working_set,
     );
     {
@@ -265,13 +269,16 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
     let context = C::new(sender_address, sequencer_address, 1);
 
     evm.begin_soft_confirmation_hook(
-        [5u8; 32],
-        1,
-        [42u8; 32],
-        &[10u8; 32],
-        vec![],
-        l1_fee_rate,
-        0,
+        &HookSoftConfirmationInfo {
+            da_slot_hash: [5u8; 32],
+            da_slot_height: 1,
+            da_slot_txs_commitment: [42u8; 32],
+            pre_state_root: [10u8; 32].to_vec(),
+            pub_key: vec![],
+            deposit_data: vec![],
+            l1_fee_rate: 1,
+            timestamp: 0,
+        },
         &mut working_set,
     );
     {
@@ -293,13 +300,16 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
     evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
 
     evm.begin_soft_confirmation_hook(
-        [10u8; 32],
-        2,
-        [43u8; 32],
-        &[10u8; 32],
-        vec![],
-        l1_fee_rate,
-        0,
+        &HookSoftConfirmationInfo {
+            da_slot_hash: [10u8; 32],
+            da_slot_height: 2,
+            da_slot_txs_commitment: [43u8; 32],
+            pre_state_root: [10u8; 32].to_vec(),
+            pub_key: vec![],
+            deposit_data: vec![],
+            l1_fee_rate: l1_fee_rate,
+            timestamp: 0,
+        },
         &mut working_set,
     );
     {

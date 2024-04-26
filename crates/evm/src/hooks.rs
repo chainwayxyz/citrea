@@ -1,5 +1,6 @@
 use alloy_primitives::B256;
 use reth_primitives::{Bloom, Bytes, U256};
+use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::prelude::*;
 use sov_modules_api::{AccessoryWorkingSet, Spec, WorkingSet};
 use sov_state::Storage;
@@ -16,13 +17,7 @@ where
     #[allow(clippy::too_many_arguments)]
     pub fn begin_soft_confirmation_hook(
         &self,
-        da_slot_hash: [u8; 32],
-        da_slot_height: u64,
-        da_slot_txs_commitment: [u8; 32],
-        pre_state_root: &[u8],
-        deposit_data: Vec<Vec<u8>>,
-        l1_fee_rate: u64,
-        timestamp: u64,
+        soft_confirmation_info: &HookSoftConfirmationInfo,
         working_set: &mut WorkingSet<C>,
     ) {
         let mut parent_block = self
@@ -30,7 +25,7 @@ where
             .get(working_set)
             .expect("Head block should always be set");
 
-        parent_block.header.state_root = B256::from_slice(pre_state_root);
+        parent_block.header.state_root = B256::from_slice(&soft_confirmation_info.pre_state_root);
         self.head.set(&parent_block, working_set);
 
         let sealed_parent_block = parent_block.clone().seal();
@@ -46,19 +41,21 @@ where
         // populate system events
         let mut system_events = vec![];
         if let Some(last_l1_hash) = self.last_l1_hash.get(working_set) {
-            if last_l1_hash != da_slot_hash {
+            if last_l1_hash != soft_confirmation_info.da_slot_hash {
                 // That's a new L1 block
                 system_events.push(SystemEvent::L1BlockHashSetBlockInfo(
-                    da_slot_hash,
-                    da_slot_txs_commitment,
+                    soft_confirmation_info.da_slot_hash,
+                    soft_confirmation_info.da_slot_txs_commitment,
                 ));
             }
         } else {
             // That's the first L2 block in the first seen L1 block.
-            system_events.push(SystemEvent::L1BlockHashInitialize(da_slot_height));
+            system_events.push(SystemEvent::L1BlockHashInitialize(
+                soft_confirmation_info.da_slot_height,
+            ));
             system_events.push(SystemEvent::L1BlockHashSetBlockInfo(
-                da_slot_hash,
-                da_slot_txs_commitment,
+                soft_confirmation_info.da_slot_hash,
+                soft_confirmation_info.da_slot_txs_commitment,
             ));
             system_events.push(SystemEvent::BridgeInitialize(
                 // deposit_data.into_iter().flatten().collect(),
@@ -66,9 +63,12 @@ where
             ));
         }
 
-        deposit_data.iter().for_each(|deposit_data| {
-            system_events.push(SystemEvent::BridgeDeposit(deposit_data.clone()));
-        });
+        soft_confirmation_info
+            .deposit_data
+            .iter()
+            .for_each(|deposit_data| {
+                system_events.push(SystemEvent::BridgeDeposit(deposit_data.clone()));
+            });
 
         let cfg = self
             .cfg
@@ -77,8 +77,8 @@ where
         let new_pending_env = BlockEnv {
             number: parent_block.header.number + 1,
             coinbase: cfg.coinbase,
-            timestamp,
-            prevrandao: da_slot_hash.into(),
+            timestamp: soft_confirmation_info.timestamp,
+            prevrandao: soft_confirmation_info.da_slot_hash.into(),
             basefee: parent_block
                 .header
                 .next_block_base_fee(cfg.base_fee_params)
@@ -87,7 +87,8 @@ where
         };
 
         self.block_env.set(&new_pending_env, working_set);
-        self.l1_fee_rate.set(&l1_fee_rate, working_set);
+        self.l1_fee_rate
+            .set(&soft_confirmation_info.l1_fee_rate, working_set);
 
         if !system_events.is_empty() {
             self.execute_system_events(system_events, working_set);
@@ -103,7 +104,8 @@ where
             self.latest_block_hashes
                 .remove(&U256::from(new_pending_env.number - 257), working_set);
         }
-        self.last_l1_hash.set(&da_slot_hash.into(), working_set);
+        self.last_l1_hash
+            .set(&soft_confirmation_info.da_slot_hash.into(), working_set);
     }
 
     /// Logic executed at the end of the slot. Here, we generate an authenticated block and set it as the new head of the chain.

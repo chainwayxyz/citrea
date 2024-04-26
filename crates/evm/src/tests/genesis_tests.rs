@@ -9,6 +9,7 @@ use reth_primitives::{
 };
 use revm::primitives::{SpecId, KECCAK_EMPTY, U256};
 use sov_modules_api::default_context::DefaultContext;
+use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::prelude::*;
 use sov_modules_api::{Module, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
@@ -310,13 +311,16 @@ pub(crate) fn get_evm(config: &EvmConfig) -> (Evm<C>, WorkingSet<DefaultContext>
     evm.finalize_hook(&root.into(), &mut working_set.accessory_state());
 
     evm.begin_soft_confirmation_hook(
-        [1u8; 32],
-        1,
-        [2u8; 32],
-        &root,
-        vec![],
-        0,
-        0,
+        &HookSoftConfirmationInfo {
+            da_slot_hash: [1u8; 32],
+            da_slot_height: 1,
+            da_slot_txs_commitment: [2u8; 32],
+            pre_state_root: root.to_vec(),
+            pub_key: vec![],
+            deposit_data: vec![],
+            l1_fee_rate: 0,
+            timestamp: 0,
+        },
         &mut working_set,
     );
     evm.end_soft_confirmation_hook(&mut working_set);

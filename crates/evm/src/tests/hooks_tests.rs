@@ -5,6 +5,7 @@ use reth_primitives::{
     Address, Bloom, Bytes, Header, SealedHeader, Signature, TransactionSigned, B256,
     EMPTY_OMMER_ROOT_HASH, KECCAK_EMPTY, U256,
 };
+use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::{StateMapAccessor, StateValueAccessor, StateVecAccessor};
 
 use super::genesis_tests::{get_evm, GENESIS_DA_TXS_COMMITMENT, TEST_CONFIG};
@@ -24,13 +25,16 @@ fn begin_soft_confirmation_hook_creates_pending_block() {
     let (evm, mut working_set) = get_evm(&TEST_CONFIG);
     let l1_fee_rate = 0;
     evm.begin_soft_confirmation_hook(
-        DA_ROOT_HASH.0,
-        1,
-        [42u8; 32],
-        &[10u8; 32],
-        vec![],
-        l1_fee_rate,
-        54,
+        &HookSoftConfirmationInfo {
+            da_slot_hash: DA_ROOT_HASH.0,
+            da_slot_height: 1,
+            da_slot_txs_commitment: [42u8; 32],
+            pre_state_root: [10u8; 32].to_vec(),
+            pub_key: vec![],
+            deposit_data: vec![],
+            l1_fee_rate: l1_fee_rate,
+            timestamp: 54,
+        },
         &mut working_set,
     );
     let pending_block = evm.block_env.get(&mut working_set).unwrap();
@@ -56,13 +60,16 @@ fn end_soft_confirmation_hook_sets_head() {
     let l1_fee_rate = 0;
 
     evm.begin_soft_confirmation_hook(
-        DA_ROOT_HASH.0,
-        1,
-        txs_commitment.into(),
-        &pre_state_root,
-        vec![],
-        l1_fee_rate,
-        54,
+        &HookSoftConfirmationInfo {
+            da_slot_hash: DA_ROOT_HASH.0,
+            da_slot_height: 1,
+            da_slot_txs_commitment: txs_commitment.into(),
+            pre_state_root: pre_state_root.to_vec(),
+            pub_key: vec![],
+            deposit_data: vec![],
+            l1_fee_rate: l1_fee_rate,
+            timestamp: 54,
+        },
         &mut working_set,
     );
 
@@ -128,13 +135,16 @@ fn end_soft_confirmation_hook_moves_transactions_and_receipts() {
     let (evm, mut working_set) = get_evm(&TEST_CONFIG);
     let l1_fee_rate = 0;
     evm.begin_soft_confirmation_hook(
-        DA_ROOT_HASH.0,
-        1,
-        [42u8; 32],
-        &[10u8; 32],
-        vec![],
-        l1_fee_rate,
-        0,
+        &HookSoftConfirmationInfo {
+            da_slot_hash: DA_ROOT_HASH.0,
+            da_slot_height: 1,
+            da_slot_txs_commitment: [42u8; 32],
+            pre_state_root: [10u8; 32].to_vec(),
+            pub_key: vec![],
+            deposit_data: vec![],
+            l1_fee_rate: l1_fee_rate,
+            timestamp: 0,
+        },
         &mut working_set,
     );
 
@@ -231,13 +241,16 @@ fn finalize_hook_creates_final_block() {
     let l1_fee_rate = 0;
 
     evm.begin_soft_confirmation_hook(
-        [5u8; 32],
-        1,
-        txs_commitment.into(),
-        root,
-        vec![],
-        l1_fee_rate,
-        54,
+        &HookSoftConfirmationInfo {
+            da_slot_hash: [5u8; 32],
+            da_slot_height: 1,
+            da_slot_txs_commitment: txs_commitment.into(),
+            pre_state_root: root.to_vec(),
+            pub_key: vec![],
+            deposit_data: vec![],
+            l1_fee_rate: l1_fee_rate,
+            timestamp: 54,
+        },
         &mut working_set,
     );
 
@@ -258,13 +271,16 @@ fn finalize_hook_creates_final_block() {
     assert_eq!(evm.blocks.len(&mut accessory_state), 3);
 
     evm.begin_soft_confirmation_hook(
-        DA_ROOT_HASH.0,
-        1,
-        txs_commitment.into(),
-        &root_hash,
-        vec![],
-        l1_fee_rate,
-        54,
+        &HookSoftConfirmationInfo {
+            da_slot_hash: DA_ROOT_HASH.0,
+            da_slot_height: 1,
+            da_slot_txs_commitment: txs_commitment.into(),
+            pre_state_root: root_hash.to_vec(),
+            pub_key: vec![],
+            deposit_data: vec![],
+            l1_fee_rate: l1_fee_rate,
+            timestamp: 54,
+        },
         &mut working_set,
     );
 
@@ -341,13 +357,16 @@ fn begin_soft_confirmation_hook_appends_last_block_hashes() {
     let l1_fee_rate = 0;
 
     evm.begin_soft_confirmation_hook(
-        DA_ROOT_HASH.0,
-        1,
-        txs_commitment.into(),
-        root,
-        vec![],
-        l1_fee_rate,
-        0,
+        &HookSoftConfirmationInfo {
+            da_slot_hash: DA_ROOT_HASH.0,
+            da_slot_height: 1,
+            da_slot_txs_commitment: txs_commitment.into(),
+            pre_state_root: root.to_vec(),
+            pub_key: vec![],
+            deposit_data: vec![],
+            l1_fee_rate: l1_fee_rate,
+            timestamp: 0,
+        },
         &mut working_set,
     );
 
@@ -379,13 +398,16 @@ fn begin_soft_confirmation_hook_appends_last_block_hashes() {
     for _ in 2..257 {
         let l1_fee_rate = 0;
         evm.begin_soft_confirmation_hook(
-            DA_ROOT_HASH.0,
-            1,
-            random_32_bytes,
-            &random_32_bytes,
-            vec![],
-            l1_fee_rate,
-            0,
+            &HookSoftConfirmationInfo {
+                da_slot_hash: DA_ROOT_HASH.0,
+                da_slot_height: 1,
+                da_slot_txs_commitment: random_32_bytes.into(),
+                pre_state_root: random_32_bytes.to_vec(),
+                pub_key: vec![],
+                deposit_data: vec![],
+                l1_fee_rate: l1_fee_rate,
+                timestamp: 0,
+            },
             &mut working_set,
         );
 
@@ -398,13 +420,16 @@ fn begin_soft_confirmation_hook_appends_last_block_hashes() {
     // start environment for block 258
     let l1_fee_rate = 0;
     evm.begin_soft_confirmation_hook(
-        DA_ROOT_HASH.0,
-        1,
-        random_32_bytes,
-        &random_32_bytes,
-        vec![],
-        l1_fee_rate,
-        0,
+        &HookSoftConfirmationInfo {
+            da_slot_hash: DA_ROOT_HASH.0,
+            da_slot_height: 1,
+            da_slot_txs_commitment: random_32_bytes.into(),
+            pre_state_root: random_32_bytes.to_vec(),
+            pub_key: vec![],
+            deposit_data: vec![],
+            l1_fee_rate: l1_fee_rate,
+            timestamp: 0,
+        },
         &mut working_set,
     );
 
