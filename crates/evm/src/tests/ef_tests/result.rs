@@ -45,10 +45,10 @@ pub enum Error {
     Database(#[from] DatabaseError),
     /// An error internally in reth occurred.
     #[error("test failed: {0}")]
-    RethError(#[from] RethError),
+    Reth(#[from] RethError),
     /// An error occurred while decoding RLP.
     #[error("an error occurred deserializing RLP: {0}")]
-    RlpDecodeError(#[from] alloy_rlp::Error),
+    RlpDecode(#[from] alloy_rlp::Error),
 }
 
 /// The result of running a test.

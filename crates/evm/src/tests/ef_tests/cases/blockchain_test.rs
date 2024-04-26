@@ -189,8 +189,7 @@ impl Case for BlockchainTestCase {
                 let root = case.genesis_block_header.state_root;
 
                 // Decode and insert blocks, creating a chain of blocks for the test case.
-                let mut blocks_iter = case.blocks.iter();
-                while let Some(block) = blocks_iter.next() {
+                for block in case.blocks.iter() {
                     let decoded = SealedBlock::decode(&mut block.rlp.as_ref())?;
                     let txs: Vec<RlpEvmTransaction> = decoded
                         .body
