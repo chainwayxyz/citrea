@@ -24,14 +24,18 @@ sys_contracts = {
     }
 }
 
+# for every contract
 for contract, exp in sys_contracts.items():
+    # open the ABI/artifact file
     with open(artifact_dir + f"{contract}.sol/{contract}.json") as f:
         abi = json.load(f)
         ids = abi["methodIdentifiers"]
 
+        # check that every expected method is present in the ABI
         for id in exp:
             assert id in ids, f"'{id}' not found in {contract} ABI"
 
+        # check that every method in the ABI has the expected keccak hash
         for id, hash in ids.items():
             for exp_id, exp_hash in exp.items():
                 if id.startswith(exp_id):
