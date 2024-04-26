@@ -41,19 +41,21 @@ contract BridgeTest is Test {
     bytes32 witnessRoot = hex"46b8e96a9798742f3d555ad1d1b0c31a29fac5e0d133a44126a8b3ca02077ece";
     bytes32 mockBlockhash = keccak256("CITREA_TEST");
 
+    BitcoinLightClient bitcoinLightClient;
+
     function setUp() public {
         bridge = new BridgeHarness();
         vm.prank(SYSTEM_CALLER);
         bridge.initialize(31, depositScript, scriptSuffix, 5, owner);
         vm.deal(address(bridge), 21_000_000 ether);
-        address block_hash_list_impl = address(new L1BlockHashList());
-        L1BlockHashList l1BlockHashList = bridge.BLOCK_HASH_LIST();
-        vm.etch(address(l1BlockHashList), block_hash_list_impl.code);
+        address lightClient_impl = address(new BitcoinLightClient());
+        bitcoinLightClient = bridge.LIGHT_CLIENT();
+        vm.etch(address(bitcoinLightClient), lightClient_impl.code);
 
         vm.startPrank(SYSTEM_CALLER);
-        l1BlockHashList.initializeBlockNumber(INITIAL_BLOCK_NUMBER);
+        bitcoinLightClient.initializeBlockNumber(INITIAL_BLOCK_NUMBER);
         // Arbitrary blockhash as this is mock 
-        l1BlockHashList.setBlockInfo(mockBlockhash, witnessRoot);
+        bitcoinLightClient.setBlockInfo(mockBlockhash, witnessRoot);
         vm.stopPrank();
 
         operator = bridge.operator();
@@ -142,8 +144,7 @@ contract BridgeTest is Test {
         witnessRoot = hex"b615b861dae528f99e15f37cb755f9ee8a02be8bd870088e3f329cde8609730b";
 
         vm.startPrank(SYSTEM_CALLER);
-        L1BlockHashList l1BlockHashList = bridge.BLOCK_HASH_LIST();
-        l1BlockHashList.setBlockInfo(keccak256("CITREA_TEST_2"), witnessRoot);
+        bitcoinLightClient.setBlockInfo(keccak256("CITREA_TEST_2"), witnessRoot);
         
         vm.expectRevert("Invalid deposit script");
         // Incremented 1 block, that's why `doDeposit` is not used
@@ -156,8 +157,7 @@ contract BridgeTest is Test {
         // Tries the hard coded txn on another block with a different witness root
         witnessRoot = hex"b615b861dae528f99e15f37cb755f9ee8a02be8bd870088e3f329cde8609730b";
         vm.startPrank(SYSTEM_CALLER);
-        L1BlockHashList l1BlockHashList = bridge.BLOCK_HASH_LIST();
-        l1BlockHashList.setBlockInfo(keccak256("CITREA_TEST_2"), witnessRoot);
+        bitcoinLightClient.setBlockInfo(keccak256("CITREA_TEST_2"), witnessRoot);
 
         vm.expectRevert("Transaction is not in block");
         Bridge.DepositParams memory depositParams = Bridge.DepositParams(version, flag, vin, vout, witness, locktime, intermediate_nodes, INITIAL_BLOCK_NUMBER + 1, index);

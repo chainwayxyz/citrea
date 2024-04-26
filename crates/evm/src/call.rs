@@ -11,7 +11,7 @@ use crate::evm::executor::{self};
 use crate::evm::handler::{CitreaExternal, CitreaExternalExt};
 use crate::evm::primitive_types::{BlockEnv, Receipt, TransactionSignedAndRecovered};
 use crate::evm::{EvmChainConfig, RlpEvmTransaction};
-use crate::system_contracts::L1BlockHashList;
+use crate::system_contracts::BitcoinLightClient;
 use crate::system_events::{create_system_transactions, SYSTEM_SIGNER};
 use crate::{Evm, PendingTransaction, SystemEvent};
 
@@ -50,10 +50,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         let l1_block_hash_exists = self
             .accounts
-            .get(&L1BlockHashList::address(), working_set)
+            .get(&BitcoinLightClient::address(), working_set)
             .is_some();
         if !l1_block_hash_exists {
-            tracing::error!("System contract not found: L1BlockHashList");
+            tracing::error!("System contract not found: BitcoinLightClient");
             return;
         }
 
