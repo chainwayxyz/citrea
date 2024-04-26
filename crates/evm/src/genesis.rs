@@ -12,7 +12,7 @@ use crate::evm::db_init::InitEvmDb;
 use crate::evm::primitive_types::Block;
 use crate::evm::{AccountInfo, EvmChainConfig};
 use crate::Evm;
-#[cfg(any(test, feature = "ef-tests"))]
+#[cfg(test)]
 use crate::DEFAULT_CHAIN_ID;
 
 /// Evm account.
@@ -135,7 +135,7 @@ pub struct EvmConfig {
     pub difficulty: U256,
 }
 
-#[cfg(any(test, feature = "ef-tests"))]
+#[cfg(test)]
 impl Default for EvmConfig {
     fn default() -> Self {
         Self {

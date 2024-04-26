@@ -29,7 +29,6 @@ jsonrpsee = { workspace = true, features = [
     "client-core",
     "server",
 ], optional = true }
-rayon = { workspace = true, optional = true }
 tracing = { workspace = true }
 
 
@@ -45,10 +44,7 @@ alloy-sol-types = { workspace = true, optional = true }
 alloy-rlp = { workspace = true, optional = true }
 revm = { workspace = true }
 reth-primitives = { workspace = true }
-reth-provider = { workspace = true, optional = true }
-reth-stages = { workspace = true, optional = true }
 reth-interfaces = { workspace = true, optional = true }
-reth-db = { workspace = true, optional = true }
 reth-rpc-types = { workspace = true, optional = true }
 reth-rpc-types-compat = { workspace = true, optional = true }
 reth-revm = { workspace = true, optional = true }
@@ -71,6 +67,10 @@ sov-prover-storage-manager = { path = "../sovereign-sdk/full-node/sov-prover-sto
 ] }
 lazy_static = "1.4.0"
 walkdir = "2.3.3"
+reth-db = { workspace = true }
+reth-provider = { workspace = true }
+reth-stages = { workspace = true }
+rayon = { workspace = true }
 
 
 [features]
@@ -96,14 +96,6 @@ native = [
     "secp256k1",
 ]
 serde = []
-ef-tests = [
-  "native",
-  "reth-db",
-  "reth-provider",
-  "reth-stages",
-  "sov-prover-storage-manager/test-utils",
-  "rayon",
-]
 smart_contracts = [
     "native",
 

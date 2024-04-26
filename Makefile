@@ -92,4 +92,4 @@ $(EF_TESTS_DIR):
 
 .PHONY: ef-tests
 ef-tests: $(EF_TESTS_DIR) ## Runs Ethereum Foundation tests.
-	cargo nextest run -p citrea-evm --features ef-tests general_state_tests
+	cargo nextest run -p citrea-evm general_state_tests

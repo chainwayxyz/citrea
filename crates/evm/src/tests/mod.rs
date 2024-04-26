@@ -1,6 +1,5 @@
 mod call_tests;
 mod cfg_tests;
-#[cfg(feature = "ef-tests")]
 mod ef_tests;
 mod genesis_tests;
 mod hooks_tests;

@@ -26,7 +26,7 @@ mod tests;
 pub use primitive_types::RlpEvmTransaction;
 use sov_state::codec::BcsCodec;
 
-#[cfg(any(test, feature = "ef-tests"))]
+#[cfg(test)]
 use crate::DEFAULT_CHAIN_ID;
 
 // Stores information about an EVM account
@@ -109,7 +109,7 @@ pub struct EvmChainConfig {
     pub base_fee_params: BaseFeeParams,
 }
 
-#[cfg(any(test, feature = "ef-tests"))]
+#[cfg(test)]
 impl Default for EvmChainConfig {
     fn default() -> EvmChainConfig {
         EvmChainConfig {

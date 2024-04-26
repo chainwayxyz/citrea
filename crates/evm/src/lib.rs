@@ -47,7 +47,7 @@ pub use crate::EvmConfig;
 
 /// Chain ID used inside tests and default implementations.
 /// Different chain ids can be given in the genesis config.
-#[cfg(any(test, feature = "ef-tests"))]
+#[cfg(test)]
 pub const DEFAULT_CHAIN_ID: u64 = 1;
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]

@@ -7,7 +7,6 @@
     issue_tracker_base_url = "https://github.com/paradigmxyz/reth/issues/"
 )]
 #![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
-#![cfg(feature = "ef-tests")]
 
 pub mod case;
 pub mod result;
