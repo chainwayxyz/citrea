@@ -4,19 +4,22 @@ use std::collections::{BTreeMap, HashMap};
 use std::fs;
 use std::path::Path;
 
+use alloy_primitives::B256;
 use alloy_rlp::{Decodable, Encodable};
 use rayon::iter::{ParallelBridge, ParallelIterator};
-use reth_primitives::SealedBlock;
+use reth_primitives::{SealedBlock, EMPTY_OMMER_ROOT_HASH};
+use revm::primitives::SpecId;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::utils::generate_address;
-use sov_modules_api::{Context, StateMapAccessor, WorkingSet};
+use sov_modules_api::{Context, StateMapAccessor, StateValueAccessor, WorkingSet};
 use sov_prover_storage_manager::SnapshotManager;
 use sov_state::{DefaultStorageSpec, ProverStorage};
 
 use crate::ef_tests::models::{BlockchainTest, ForkSpec};
 use crate::ef_tests::{Case, Error, Suite};
-use crate::test_utils::{commit, get_evm_with_storage, GENESIS_STATE_ROOT};
-use crate::{AccountData, Evm, EvmConfig, RlpEvmTransaction, U256};
+use crate::primitive_types::Block;
+use crate::test_utils::{commit, get_evm_with_storage};
+use crate::{AccountData, Evm, EvmChainConfig, EvmConfig, RlpEvmTransaction, U256};
 
 /// A handler for the blockchain test suite.
 #[derive(Debug)]
@@ -111,14 +114,40 @@ impl Case for BlockchainTestCase {
                 let mut evm_config = EvmConfig::default();
 
                 // Set this base fee based on what's set in genesis.
-                evm_config.starting_base_fee =
-                    case.genesis_block_header.base_fee_per_gas.unwrap().to();
-                evm_config.difficulty = case.genesis_block_header.difficulty;
-                evm_config.block_gas_limit =
-                    case.genesis_block_header.gas_limit.saturating_to::<u64>();
-                evm_config.timestamp = case.genesis_block_header.timestamp.saturating_to::<u64>();
-                evm_config.nonce = case.genesis_block_header.nonce.into();
-                evm_config.coinbase = case.genesis_block_header.coinbase;
+                let header = reth_primitives::Header {
+                    parent_hash: case.genesis_block_header.parent_hash,
+                    ommers_hash: EMPTY_OMMER_ROOT_HASH,
+                    beneficiary: evm_config.coinbase,
+                    // This will be set in finalize_hook or in the next begin_slot_hook
+                    state_root: case.genesis_block_header.state_root,
+                    transactions_root: case.genesis_block_header.transactions_trie,
+                    receipts_root: case.genesis_block_header.receipt_trie,
+                    withdrawals_root: case.genesis_block_header.withdrawals_root,
+                    logs_bloom: case.genesis_block_header.bloom,
+                    difficulty: case.genesis_block_header.difficulty,
+                    number: case.genesis_block_header.number.to(),
+                    gas_limit: case.genesis_block_header.gas_limit.to(),
+                    gas_used: case.genesis_block_header.gas_used.to(),
+                    timestamp: case.genesis_block_header.timestamp.to(),
+                    mix_hash: case.genesis_block_header.mix_hash,
+                    nonce: case.genesis_block_header.nonce.into(),
+                    base_fee_per_gas: case.genesis_block_header.base_fee_per_gas.map(|b| b.to()),
+                    extra_data: case.genesis_block_header.extra_data.clone(),
+                    // EIP-4844 related fields
+                    // https://github.com/Sovereign-Labs/sovereign-sdk/issues/912
+                    blob_gas_used: case.genesis_block_header.blob_gas_used.map(|b| b.to()),
+                    excess_blob_gas: case.genesis_block_header.excess_blob_gas.map(|b| b.to()),
+                    // EIP-4788 related field
+                    // unrelated for rollups
+                    parent_beacon_block_root: None,
+                };
+
+                let block = Block {
+                    header,
+                    l1_fee_rate: 0,
+                    l1_hash: B256::default(),
+                    transactions: 0u64..0u64,
+                };
 
                 for (&address, account) in case.pre.0.iter() {
                     evm_config.data.push(AccountData::new(
@@ -130,20 +159,38 @@ impl Case for BlockchainTestCase {
                     ));
                 }
 
-                let (mut evm, mut working_set, mut storage) = get_evm_with_storage(&evm_config);
+                let (mut evm, _, mut storage) = get_evm_with_storage(&evm_config);
+
+                let mut working_set = WorkingSet::new(storage.clone());
+                evm.cfg.set(
+                    &EvmChainConfig {
+                        chain_id: evm_config.chain_id,
+                        limit_contract_code_size: evm_config.limit_contract_code_size,
+                        spec: vec![(0, SpecId::SHANGHAI)].into_iter().collect(),
+                        coinbase: case.genesis_block_header.coinbase,
+                        block_gas_limit: case.genesis_block_header.gas_limit.to(),
+                        base_fee_params: evm_config.base_fee_params,
+                    },
+                    &mut working_set,
+                );
                 evm.latest_block_hashes.set(
                     &U256::from(0),
                     &case.genesis_block_header.hash,
                     &mut working_set,
                 );
-                let root = &GENESIS_STATE_ROOT;
+                evm.head.set(&block, &mut working_set);
+                evm.pending_head
+                    .set(&block, &mut working_set.accessory_state());
+                evm.finalize_hook(
+                    &case.genesis_block_header.state_root.0.into(),
+                    &mut working_set.accessory_state(),
+                );
+
+                let root = case.genesis_block_header.state_root;
 
                 // Decode and insert blocks, creating a chain of blocks for the test case.
-                let mut it = case.blocks.iter().peekable();
-                let last_block = loop {
-                    let Some(block) = it.next() else {
-                        break Ok::<Option<SealedBlock>, Error>(None);
-                    };
+                let mut blocks_iter = case.blocks.iter();
+                while let Some(block) = blocks_iter.next() {
                     let decoded = SealedBlock::decode(&mut block.rlp.as_ref())?;
                     let txs: Vec<RlpEvmTransaction> = decoded
                         .body
@@ -157,11 +204,7 @@ impl Case for BlockchainTestCase {
 
                     (working_set, storage) =
                         self.execute_transactions(&mut evm, txs, working_set, storage, &root);
-
-                    if it.peek().is_none() {
-                        break Ok::<Option<SealedBlock>, Error>(Some(decoded));
-                    }
-                }?;
+                }
 
                 // Validate the post-state for the test case.
                 match (&case.post_state, &case.post_state_hash) {
@@ -179,19 +222,9 @@ impl Case for BlockchainTestCase {
                     }
                     (None, Some(expected_state_root)) => {
                         // Insert state hashes into the provider based on the expected state root.
-                        let last_block = last_block.unwrap_or_default();
-                        // provider
-                        //     .insert_hashes(
-                        //         0..=last_block.number,
-                        //         last_block.hash(),
-                        //         *expected_state_root,
-                        //     )
-                        //     .map_err(|err| Error::RethError(err.into()))?;
-                        // TODO(@rakanalh) Add code for comparing state roots
-                        unimplemented!(
-                            "Last block {}, expected state root {}",
-                            last_block.number,
-                            expected_state_root
+                        assert_eq!(
+                            *evm.head.get(&mut working_set).unwrap().header.state_root,
+                            **expected_state_root
                         );
                     }
                     _ => return Err(Error::MissingPostState),
