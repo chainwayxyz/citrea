@@ -8,7 +8,7 @@ Follow the instructions in [this document.](./dev-setup.md)
 ## Building and running
 Build citrea:
 ```sh
-SKIP_GUEST_BUILD=1 make build
+make build
 ```
 
 ### Run on Mock DA
@@ -94,6 +94,6 @@ make clean-node
 
 To run tests:
 ```sh
-SKIP_GUEST_BUILD=1 make test
+make test
 ```
 This will run [`cargo nextest`](https://nexte.st).
