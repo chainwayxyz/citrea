@@ -4,7 +4,7 @@ use std::str::FromStr;
 use std::time::Duration;
 
 use citrea_evm::smart_contracts::SimpleStorageContract;
-use citrea_evm::system_contracts::L1BlockHashList;
+use citrea_evm::system_contracts::BitcoinLightClient;
 use citrea_sequencer::{SequencerConfig, SequencerMempoolConfig};
 use citrea_stf::genesis_config::GenesisPaths;
 use ethereum_types::H256;
@@ -1474,7 +1474,7 @@ async fn test_system_transactons() -> Result<(), anyhow::Error> {
         let hash_on_chain: String = full_node_test_client
             .contract_call(
                 system_contract_address,
-                ethers::types::Bytes::from(L1BlockHashList::get_block_hash(i).to_vec()),
+                ethers::types::Bytes::from(BitcoinLightClient::get_block_hash(i).to_vec()),
                 None,
             )
             .await
