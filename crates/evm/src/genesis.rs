@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
 use anyhow::Result;
-#[cfg(feature = "ef-tests")]
 use reth_primitives::constants::{EMPTY_OMMER_ROOT_HASH, EMPTY_RECEIPTS, EMPTY_TRANSACTIONS};
 use reth_primitives::{keccak256, Address, Bloom, Bytes, B256, KECCAK_EMPTY, U256};
 use revm::primitives::{Bytecode, SpecId};
