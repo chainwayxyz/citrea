@@ -443,12 +443,14 @@ impl DaService for BitcoinService {
     ) -> OneshotReceiver<Result<Self::TransactionId, Self::Error>> {
         let (tx, rx) = oneshot_channel();
         let this = self.clone(); // Cheap to clone
-        tokio::spawn(async move {
-            let txid = this.send_transaction(blob.as_slice()).await;
-            if let Err(e) = txid.as_ref() {
-                error!("Error sending tx: {:?}", e);
-            }
-            let _ignore = tx.send(txid);
+        tokio::task::spawn_blocking(|| {
+            tokio::runtime::Handle::current().block_on(async move {
+                let txid = this.send_transaction(blob.as_slice()).await;
+                if let Err(e) = txid.as_ref() {
+                    error!("Error sending tx: {:?}", e);
+                }
+                let _ignore = tx.send(txid);
+            });
         });
         rx
     }

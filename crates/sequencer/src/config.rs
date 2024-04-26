@@ -5,6 +5,44 @@ use serde::Deserialize;
 pub struct SequencerConfig {
     /// Min. soft confirmaitons for sequencer to commit
     pub min_soft_confirmations_per_commitment: u64,
+    /// Whether or not the sequencer is running in test mode
+    pub test_mode: bool,
+    /// Sequencer specific mempool config
+    pub mempool_conf: SequencerMempoolConfig,
+}
+
+/// Mempool Config for the sequencer
+/// Read: https://github.com/ledgerwatch/erigon/wiki/Transaction-Pool-Design
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+pub struct SequencerMempoolConfig {
+    /// Max number of transactions in the pending sub-pool
+    pub pending_tx_limit: u64,
+    /// Max megabytes of transactions in the pending sub-pool
+    pub pending_tx_size: u64,
+    /// Max number of transactions in the queued sub-pool
+    pub queue_tx_limit: u64,
+    /// Max megabytes of transactions in the queued sub-pool
+    pub queue_tx_size: u64,
+    /// Max number of transactions in the base-fee sub-pool
+    pub base_fee_tx_limit: u64,
+    /// Max megabytes of transactions in the base-fee sub-pool
+    pub base_fee_tx_size: u64,
+    /// Max number of executable transaction slots guaranteed per account
+    pub max_account_slots: u64,
+}
+
+impl Default for SequencerMempoolConfig {
+    fn default() -> Self {
+        Self {
+            pending_tx_limit: 100000,
+            pending_tx_size: 200,
+            queue_tx_limit: 100000,
+            queue_tx_size: 200,
+            base_fee_tx_limit: 100000,
+            base_fee_tx_size: 200,
+            max_account_slots: 16,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -26,6 +64,15 @@ mod tests {
     fn test_correct_config_sequencer() {
         let config = r#"
             min_soft_confirmations_per_commitment = 123
+            test_mode = false
+            [mempool_conf]
+            pending_tx_limit = 100000
+            pending_tx_size = 200
+            queue_tx_limit = 100000
+            queue_tx_size = 200
+            base_fee_tx_limit = 100000
+            base_fee_tx_size = 200
+            max_account_slots = 16
         "#;
 
         let config_file = create_config_from(config);
@@ -34,6 +81,16 @@ mod tests {
 
         let expected = SequencerConfig {
             min_soft_confirmations_per_commitment: 123,
+            test_mode: false,
+            mempool_conf: SequencerMempoolConfig {
+                pending_tx_limit: 100000,
+                pending_tx_size: 200,
+                queue_tx_limit: 100000,
+                queue_tx_size: 200,
+                base_fee_tx_limit: 100000,
+                base_fee_tx_size: 200,
+                max_account_slots: 16,
+            },
         };
         assert_eq!(config, expected);
     }

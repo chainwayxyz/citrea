@@ -28,10 +28,8 @@ _Optional_: Run full node on Mock DA:
 
 Full node RPC is accessible at `127.0.0.1:12346`
 
-To publish blocks on Mock DA, run these two on seperate terminals:
+If test_mode is set to false in the sequencer config, the sequencer will publish blocks every 2 seconds. To also publish mock DA blocks, run this script:
 ```sh
-./bin/citrea/publish_block.sh
-
 ./bin/citrea/publish_da_block.sh
 ```
 
@@ -84,10 +82,8 @@ Run full node:
 
 Full node RPC is accessible at `127.0.0.1:12346`
 
-To publish blocks on Bitcoin Regtest, run this and keep the terminal open:
-```sh
-./bin/citrea/publish_block.sh
-```
+To publish blocks on Bitcoin Regtest, run the sequencer with `test_mode` in sequencer config set to false and blocks will be published every two seconds.
+
 
 To delete sequencer or full nodes databases run:
 ```sh

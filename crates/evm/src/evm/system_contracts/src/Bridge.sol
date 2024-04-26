@@ -3,85 +3,137 @@ pragma solidity ^0.8.13;
 
 import "bitcoin-spv/solidity/contracts/ValidateSPV.sol";
 import "bitcoin-spv/solidity/contracts/BTCUtils.sol";
-
+import "../lib/WitnessUtils.sol";
+import "../lib/Ownable.sol";
 import "./MerkleTree.sol";
 import "./L1BlockHashList.sol";
 
 /// @title Bridge contract of Clementine
 /// @author Citrea
 
-contract Bridge is MerkleTree, Ownable {
-    // TODO: Update this to be the actual address of the L1BlockHashList contract
-    L1BlockHashList public constant BLOCK_HASH_LIST = L1BlockHashList(address(0xdeaDDeADDEaDdeaDdEAddEADDEAdDeadDEADDEaD)); 
+contract Bridge is Ownable, MerkleTree {
+    using BTCUtils for bytes;
+    using BytesLib for bytes;
 
-    bytes public DEPOSIT_TXOUT_0 = hex"c2ddf50500000000225120fc6eb6fa4fd4ed1e8519a7edfa171eddcedfbd0e0be49b5e531ef36e7e66eb05"; 
+    struct DepositParams {
+        bytes4 version;
+        bytes2 flag;
+        bytes vin;
+        bytes vout;
+        bytes witness;
+        bytes4 locktime;
+        bytes intermediate_nodes;
+        uint256 block_height;
+        uint256 index;
+    }
+
+    L1BlockHashList public constant BLOCK_HASH_LIST = L1BlockHashList(address(0x3100000000000000000000000000000000000001));
+    address public constant SYSTEM_CALLER = address(0xdeaDDeADDEaDdeaDdEAddEADDEAdDeadDEADDEaD);
+
+    bool public initialized;
     uint256 public constant DEPOSIT_AMOUNT = 1 ether;
     address public operator;
+    uint256 public requiredSigsCount;
+    bytes public depositScript;
+    bytes public scriptSuffix;
+    
     mapping(bytes32 => bool) public blockHashes;
-    mapping(bytes32 => bool) public spentTxIds;
+    mapping(bytes32 => bool) public spentWtxIds;
+    
 
-    event Deposit(bytes32  txId, uint256 timestamp);
+    event Deposit(bytes32 wtxId, uint256 timestamp);
     event Withdrawal(bytes32  bitcoin_address, uint32 indexed leafIndex, uint256 timestamp);
-    event DepositTxOutUpdate(bytes oldExpectedVout0, bytes newExpectedVout0);
-    event BlockHashAdded(bytes32 block_hash);
+    event DepositScriptUpdate(bytes depositScript, bytes scriptSuffix, uint256 requiredSigsCount);
     event OperatorUpdated(address oldOperator, address newOperator);
+
+    modifier onlySystem() {
+        require(msg.sender == SYSTEM_CALLER, "caller is not the system caller");
+        _;
+    }
 
     modifier onlyOperator() {
         require(msg.sender == operator, "caller is not the operator");
         _;
     }
 
-    constructor(uint32 _levels) MerkleTree(_levels) {}
+    /// @notice Initializes the bridge contract, caches the sublevels of the withdrawal tree and sets the deposit script
+    /// @param _levels The depth of the Merkle tree
+    /// @param _depositScript The deposit script expected in the witness field for all L1 deposits
+    /// @param _scriptSuffix The suffix of the deposit script that follows the receiver address
+    /// @param _requiredSigsCount The number of signatures that is contained in the deposit script
+    function initialize(uint32 _levels, bytes calldata _depositScript, bytes calldata _scriptSuffix, uint256 _requiredSigsCount, address _owner) external onlySystem {
+        require(!initialized, "Contract is already initialized");
+        require(_requiredSigsCount != 0, "Verifier count cannot be 0");
+        require(_depositScript.length != 0, "Deposit script cannot be empty");
 
-    /// @notice Sets the expected first transaction output of a deposit transaction on Bitcoin, which signifies the multisig address on Bitcoin
-    /// @dev TxOut0 is derived from the multisig on Bitcoin so it stays constant as long as the multisig doesn't change
-    /// @param _depositTxOut0 The new expected first transaction output of a deposit transaction on Bitcoin
-    function setDepositTxOut0(bytes calldata _depositTxOut0) external onlyOwner {
-        bytes memory oldDepositTxOut0 = DEPOSIT_TXOUT_0;
-        DEPOSIT_TXOUT_0 = _depositTxOut0;
-        emit DepositTxOutUpdate(oldDepositTxOut0, DEPOSIT_TXOUT_0);
+        initialized = true;
+        initializeTree(_levels);
+        depositScript = _depositScript;
+        scriptSuffix = _scriptSuffix;
+        requiredSigsCount = _requiredSigsCount;
+        
+        // Set initial operator to SYSTEM_CALLER so that Citrea can get operational by starting to process deposits
+        operator = SYSTEM_CALLER;
+        owner = _owner;
+
+        emit OperatorUpdated(address(0), SYSTEM_CALLER);
+        emit DepositScriptUpdate(_depositScript, _scriptSuffix, _requiredSigsCount);
+    }
+
+    /// @notice Sets the expected deposit script of the deposit transaction on Bitcoin, contained in the witness
+    /// @dev Deposit script contains a fixed script that checks signatures of verifiers and pushes EVM address of the receiver
+    /// @param _depositScript The new deposit script
+    /// @param _scriptSuffix The part of the deposit script that succeeds the receiver address
+    /// @param _requiredSigsCount The number of signatures that are needed for deposit transaction
+    function setDepositScript(bytes calldata _depositScript, bytes calldata _scriptSuffix, uint256 _requiredSigsCount) external onlyOwner {
+        require(_requiredSigsCount != 0, "Verifier count cannot be 0");
+        require(_depositScript.length != 0, "Deposit script cannot be empty");
+
+        depositScript = _depositScript;
+        scriptSuffix = _scriptSuffix;
+        requiredSigsCount = _requiredSigsCount;
+
+        emit DepositScriptUpdate(_depositScript, _scriptSuffix, _requiredSigsCount);
     }
 
     /// @notice Checks if funds 1 BTC is sent to the bridge multisig on Bitcoin, and if so, sends 1 cBTC to the receiver
-    /// @param version The version of the Bitcoin transaction
-    /// @param vin The transaction inputs
-    /// @param vout The transaction outputs
-    /// @param locktime Locktime of the Bitcoin transaction
-    /// @param intermediate_nodes -
-    /// @param block_header Block header of the Bitcoin block that the deposit transaction is in
-    /// @param index Index of the transaction in the block
+    /// @param p The deposit parameters that contains the info of the deposit transaction on Bitcoin
     function deposit(
-        bytes4 version,
-        bytes calldata vin,
-        bytes calldata vout,
-        bytes4 locktime,
-        bytes calldata intermediate_nodes,
-        bytes calldata block_header,
-        uint256 block_height,
-        uint index
+        DepositParams calldata p
     ) external onlyOperator {
-        bytes32 block_hash = BTCUtils.hash256(block_header);
-        require(BLOCK_HASH_LIST.getBlockHash(block_height) == block_hash, "Incorrect block hash");
+        // We don't need to check if the contract is initialized, as without an `initialize` call and `deposit` calls afterwards,
+        // only the system caller can execute a transaction on Citrea, as no addresses have any balance. Thus there's no risk of 
+        // `deposit` being called before `initialize` maliciously.
+        
+        bytes32 wtxId = WitnessUtils.calculateWtxId(p.version, p.flag, p.vin, p.vout, p.witness, p.locktime);
+        require(!spentWtxIds[wtxId], "wtxId already spent");
+        spentWtxIds[wtxId] = true;
 
-        bytes32 extracted_merkle_root = BTCUtils.extractMerkleRootLE(block_header);
-        bytes32 txId = ValidateSPV.calculateTxId(version, vin, vout, locktime);
-        require(!spentTxIds[txId], "txId already spent");
-        spentTxIds[txId] = true;
+        require(BTCUtils.validateVin(p.vin), "Vin is not properly formatted");
+        require(BTCUtils.validateVout(p.vout), "Vout is not properly formatted");
+        
+        (, uint256 _nIns) = BTCUtils.parseVarInt(p.vin);
+        require(_nIns == 1, "Only one input allowed");
+        // Number of inputs == number of witnesses
+        require(WitnessUtils.validateWitness(p.witness, _nIns), "Witness is not properly formatted");
 
-        bool result = ValidateSPV.prove(txId, extracted_merkle_root, intermediate_nodes, index);
-        require(result, "SPV Verification failed.");
+        require(BLOCK_HASH_LIST.verifyInclusion(p.block_height, wtxId, p.intermediate_nodes, p.index), "Transaction is not in block");
 
-        // First output is always the bridge utxo, so it should be constant
-        bytes memory output1 = BTCUtils.extractOutputAtIndex(vout, 0);
-        require(isBytesEqual(output1, DEPOSIT_TXOUT_0), "Incorrect Deposit TxOut");
+        bytes memory witness0 = WitnessUtils.extractWitnessAtIndex(p.witness, 0);
+        (, uint256 _nItems) = BTCUtils.parseVarInt(witness0);
+        require(_nItems == requiredSigsCount + 2, "Invalid witness items"); // verifier sigs + deposit script + witness script
 
-        // Second output is the receiver of tokens
-        bytes memory output2 = BTCUtils.extractOutputAtIndex(vout, 1);
-        bytes memory output2_ext = BTCUtils.extractOpReturnData(output2);
-        address receiver = address(bytes20(output2_ext));
-        require(receiver != address(0), "Invalid receiver address");
+        bytes memory script = WitnessUtils.extractItemFromWitness(witness0, requiredSigsCount);
+        uint256 _len = depositScript.length;
+        bytes memory _depositScript = script.slice(0, _len);
+        require(isBytesEqual(_depositScript, depositScript), "Invalid deposit script");
+        bytes memory _suffix = script.slice(_len + 20, script.length - (_len + 20)); // 20 bytes for address
+        require(isBytesEqual(_suffix, scriptSuffix), "Invalid script suffix");
 
-        emit Deposit(txId, block.timestamp);
+        address receiver = extractRecipientAddress(script);
+
+        emit Deposit(wtxId, block.timestamp);
+
         (bool success, ) = receiver.call{value: DEPOSIT_AMOUNT}("");
         require(success, "Transfer failed");
     }
@@ -103,13 +155,6 @@ contract Bridge is MerkleTree, Ownable {
             insertWithdrawalTree(bitcoin_addresses[i]);
             emit Withdrawal(bitcoin_addresses[i], nextIndex, block.timestamp);
         }
-    }
-
-    /// @notice Adds a block hash to the list of block hashes
-    /// @param block_hash The block hash to be added
-    function addBlockHash(bytes32 block_hash) external onlyOwner {
-        blockHashes[block_hash] = true;
-        emit BlockHashAdded(block_hash);
     }
     
     /// @notice Sets the operator address that can process user deposits
@@ -135,5 +180,11 @@ contract Bridge is MerkleTree, Ownable {
             }
         }
         result = true;
+    }
+
+    function extractRecipientAddress(bytes memory _script) internal view returns (address) {
+        uint256 offset = depositScript.length;
+        bytes20 _addr = bytes20(_script.slice(offset, 20));
+        return address(uint160(_addr));
     }
 }

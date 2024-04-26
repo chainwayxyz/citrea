@@ -8,21 +8,24 @@ use reth_primitives::{Address, TransactionSignedEcRecovered, U256, U64, U8};
 use reth_rpc_types::request::{TransactionInput, TransactionRequest};
 use revm::primitives::{TransactTo, TxEnv};
 
-use crate::evm::prepare_call_env;
+use crate::evm::call::prepare_call_env;
 use crate::evm::primitive_types::TransactionSignedAndRecovered;
 use crate::primitive_types::{Block, BlockEnv};
 use crate::DEFAULT_CHAIN_ID;
 
-#[tokio::test]
-async fn tx_rlp_encoding_test() -> Result<(), Box<dyn std::error::Error>> {
+#[test]
+fn tx_rlp_encoding_test() {
     let wallet = "dcf2cbdd171a21c480aa7f53d77f31bb102282b3ff099c78e3118b37348c72f7"
-        .parse::<LocalWallet>()?;
+        .parse::<LocalWallet>()
+        .unwrap();
     let from_addr = wallet.address();
     let to_addr =
-        ethers_core::types::Address::from_str("0x0aa7420c43b8c1a7b165d216948870c8ecfe1ee1")?;
+        ethers_core::types::Address::from_str("0x0aa7420c43b8c1a7b165d216948870c8ecfe1ee1")
+            .unwrap();
     let data: Bytes = Bytes::from_str(
         "0x6ecd23060000000000000000000000000000000000000000000000000000000000000002",
-    )?;
+    )
+    .unwrap();
 
     let tx_request = Eip1559TransactionRequest::new()
         .from(from_addr)
@@ -37,17 +40,18 @@ async fn tx_rlp_encoding_test() -> Result<(), Box<dyn std::error::Error>> {
 
     let tx = TypedTransaction::Eip1559(tx_request);
 
-    let sig = wallet.sign_transaction(&tx).await?;
-    sig.verify(tx.sighash(), wallet.address())?;
+    let sig = wallet.sign_transaction_sync(&tx).unwrap();
+    sig.verify(tx.sighash(), wallet.address()).unwrap();
 
     let rlp_bytes = tx.rlp_signed(&sig);
     let rlp_encoded = Rlp::new(&rlp_bytes);
 
-    let (decoded_tx, decoded_sig) = TypedTransaction::decode_signed(&rlp_encoded)?;
-    decoded_sig.verify(decoded_tx.sighash(), wallet.address())?;
+    let (decoded_tx, decoded_sig) = TypedTransaction::decode_signed(&rlp_encoded).unwrap();
+    decoded_sig
+        .verify(decoded_tx.sighash(), wallet.address())
+        .unwrap();
 
     assert_eq!(tx, decoded_tx);
-    Ok(())
 }
 
 #[test]
@@ -94,7 +98,7 @@ fn prepare_call_env_conversion() {
 
     let block_env = BlockEnv::default();
 
-    let tx_env = prepare_call_env(&block_env, request).unwrap();
+    let tx_env = prepare_call_env(&block_env, request, None).unwrap();
     let expected = TxEnv {
         caller: from,
         gas_price: U256::from(100u64),

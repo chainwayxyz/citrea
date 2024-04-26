@@ -311,7 +311,7 @@ where
                 // TODO: Implement this
             }
 
-            // TODO here we can support multiple commitments but for now let's take the last one.
+            // TODO for each commitment prover should verify them and move accordingly
             let sequencer_commitment = sequencer_commitments.iter().last();
 
             match sequencer_commitment {
@@ -332,7 +332,7 @@ where
                         .header()
                         .height();
 
-                    // start fetching blocks from sequencer, when you see a softbatch with l1 height more than end_l1_height, stop
+                    // start fetching blocks from sequencer, when you see a soft batch with l1 height more than end_l1_height, stop
                     // while getting the blocks to all the same ops as full node
                     // after stopping call continue  and look for a new seq_commitment
                     // change the itemnumbers only after the sync is done so not for every da block
@@ -670,12 +670,7 @@ where
                 // TODO: Implement this
             }
 
-            // TODO here we can support multiple commitments but for now let's take the last one.
-            let sequencer_commitment = sequencer_commitments.iter().last();
-
-            if sequencer_commitment.is_some() {
-                let sequencer_commitment = sequencer_commitment.unwrap();
-
+            for sequencer_commitment in sequencer_commitments.iter() {
                 let start_l1_height = self
                     .da_service
                     .get_block_by_hash(sequencer_commitment.l1_start_block_hash)

@@ -2,7 +2,7 @@ use core::panic;
 
 use anyhow::Result;
 use reth_primitives::TransactionSignedEcRecovered;
-use revm::primitives::{CfgEnvWithHandlerCfg, EVMError, SpecId};
+use revm::primitives::{CfgEnv, CfgEnvWithHandlerCfg, EVMError, SpecId};
 use sov_modules_api::prelude::*;
 use sov_modules_api::{CallResponse, WorkingSet};
 
@@ -41,7 +41,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .expect("Pending block must be set");
 
         let cfg = self.cfg.get(working_set).expect("Evm config must be set");
-        let cfg_env: CfgEnvWithHandlerCfg = get_cfg_env(&block_env, cfg, None);
+        let cfg_env: CfgEnvWithHandlerCfg = get_cfg_env(&block_env, cfg);
 
         let l1_fee_rate = self
             .l1_fee_rate
@@ -140,7 +140,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .expect("Pending block must be set");
 
         let cfg = self.cfg.get(working_set).expect("Evm config must be set");
-        let cfg_env: CfgEnvWithHandlerCfg = get_cfg_env(&block_env, cfg, None);
+        let cfg_env: CfgEnvWithHandlerCfg = get_cfg_env(&block_env, cfg);
 
         let l1_fee_rate = self
             .l1_fee_rate
@@ -217,6 +217,11 @@ impl<C: sov_modules_api::Context> Evm<C> {
                         // This is a transactional error, so we can skip it without doing anything.
                         continue;
                     }
+                    EVMError::Custom(msg) => {
+                        // This is a custom error - we need to log it but no need to shutdown the system as of now.
+                        tracing::error!("evm: Custom error: {:?}", msg);
+                        continue;
+                    }
                     err => {
                         tracing::error!("evm: Transaction error: {:?}", err);
                         // This is a fatal error, so we need to return it.
@@ -231,16 +236,11 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
 /// Get cfg env for a given block number
 /// Returns correct config depending on spec for given block number
-/// Copies context dependent values from template_cfg or default if not provided
-pub(crate) fn get_cfg_env(
-    block_env: &BlockEnv,
-    cfg: EvmChainConfig,
-    template_cfg: Option<CfgEnvWithHandlerCfg>,
-) -> CfgEnvWithHandlerCfg {
-    let mut cfg_env = template_cfg.unwrap_or(CfgEnvWithHandlerCfg::new_with_spec_id(
-        Default::default(),
+pub(crate) fn get_cfg_env(block_env: &BlockEnv, cfg: EvmChainConfig) -> CfgEnvWithHandlerCfg {
+    let mut cfg_env = CfgEnvWithHandlerCfg::new_with_spec_id(
+        CfgEnv::default(),
         get_spec_id(cfg.spec, block_env.number),
-    ));
+    );
     cfg_env.chain_id = cfg.chain_id;
     cfg_env.limit_contract_code_size = cfg.limit_contract_code_size;
     cfg_env

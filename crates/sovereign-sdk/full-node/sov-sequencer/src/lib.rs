@@ -78,12 +78,12 @@ where
             while let Some(tx) = params_iter.optional_next::<Vec<u8>>()? {
                 batch_builder
                     .accept_tx(tx)
-                    .map_err(|e| to_jsonrpsee_error_object(e, SEQUENCER_RPC_ERROR))?;
+                    .map_err(|e| to_jsonrpsee_error_object(SEQUENCER_RPC_ERROR, e))?;
             }
             let num_txs = batch_builder
                 .submit_batch()
                 .await
-                .map_err(|e| to_jsonrpsee_error_object(e, SEQUENCER_RPC_ERROR))?;
+                .map_err(|e| to_jsonrpsee_error_object(SEQUENCER_RPC_ERROR, e))?;
 
             Ok::<String, ErrorObjectOwned>(format!("Submitted {} transactions", num_txs))
         },

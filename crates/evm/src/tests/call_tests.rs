@@ -903,9 +903,11 @@ fn test_l1_fee_not_enough_funds() {
             &context,
             &mut working_set,
         );
-        assert!(call_result.is_err());
-        let err = call_result.unwrap_err();
-        assert!(err.to_string().contains("Not enought funds for L1 fee"));
+
+        assert!(call_result.is_ok());
+
+        let block = evm.blocks.last(&mut working_set.accessory_state()).unwrap();
+        assert!(block.transactions.is_empty());
     }
 
     evm.end_soft_confirmation_hook(&mut working_set);

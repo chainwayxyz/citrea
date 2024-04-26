@@ -5,6 +5,7 @@ use std::time::Duration;
 
 use citrea_evm::smart_contracts::SimpleStorageContract;
 use citrea_evm::system_contracts::L1BlockHashList;
+use citrea_sequencer::{SequencerConfig, SequencerMempoolConfig};
 use citrea_stf::genesis_config::GenesisPaths;
 use ethereum_types::H256;
 use ethers::abi::Address;
@@ -58,6 +59,9 @@ async fn initialize_test(
             None,
             config.seq_min_soft_confirmations,
             true,
+            None,
+            None,
+            Some(true),
         )
         .await;
     });
@@ -79,6 +83,9 @@ async fn initialize_test(
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             true,
+            None,
+            None,
+            Some(true),
         )
         .await;
     });
@@ -113,6 +120,9 @@ async fn test_soft_batch_save() -> Result<(), anyhow::Error> {
             None,
             config.seq_min_soft_confirmations,
             true,
+            None,
+            None,
+            Some(true),
         )
         .await;
     });
@@ -134,6 +144,9 @@ async fn test_soft_batch_save() -> Result<(), anyhow::Error> {
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             true,
+            None,
+            None,
+            Some(true),
         )
         .await;
     });
@@ -155,6 +168,9 @@ async fn test_soft_batch_save() -> Result<(), anyhow::Error> {
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             false,
+            None,
+            None,
+            Some(true),
         )
         .await;
     });
@@ -240,6 +256,9 @@ async fn test_delayed_sync_ten_blocks() -> Result<(), anyhow::Error> {
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             true,
+            None,
+            None,
+            Some(true),
         )
         .await;
     });
@@ -271,6 +290,9 @@ async fn test_delayed_sync_ten_blocks() -> Result<(), anyhow::Error> {
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             true,
+            None,
+            None,
+            Some(true),
         )
         .await;
     });
@@ -333,6 +355,9 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             true,
+            None,
+            None,
+            Some(true),
         )
         .await;
     });
@@ -354,6 +379,9 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
             Some("demo_data_test_close_and_reopen_full_node"),
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             true,
+            None,
+            None,
+            Some(true),
         )
         .await;
     });
@@ -434,6 +462,9 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
             Some("demo_data_test_close_and_reopen_full_node_copy"),
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             true,
+            None,
+            None,
+            Some(true),
         )
         .await;
     });
@@ -487,6 +518,9 @@ async fn test_get_transaction_by_hash() -> Result<(), anyhow::Error> {
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             true,
+            None,
+            None,
+            Some(true),
         )
         .await;
     });
@@ -507,6 +541,9 @@ async fn test_get_transaction_by_hash() -> Result<(), anyhow::Error> {
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             true,
+            None,
+            None,
+            Some(true),
         )
         .await;
     });
@@ -741,6 +778,9 @@ async fn test_reopen_sequencer() -> Result<(), anyhow::Error> {
             Some("demo_data_test_reopen_sequencer"),
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             true,
+            None,
+            None,
+            Some(true),
         )
         .await;
     });
@@ -785,6 +825,9 @@ async fn test_reopen_sequencer() -> Result<(), anyhow::Error> {
             Some("demo_data_test_reopen_sequencer_copy"),
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             true,
+            None,
+            None,
+            Some(true),
         )
         .await;
     });
@@ -1069,6 +1112,9 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
             None,
             4,
             true,
+            None,
+            None,
+            Some(true),
         )
         .await;
     });
@@ -1090,6 +1136,9 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
             None,
             4,
             true,
+            None,
+            None,
+            Some(true),
         )
         .await;
     });
@@ -1172,6 +1221,9 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
             None,
             4,
             true,
+            None,
+            None,
+            Some(true),
         )
         .await;
     });
@@ -1193,6 +1245,9 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
             Some("demo_data_test_reopen_prover"),
             4,
             true,
+            None,
+            None,
+            Some(true),
         )
         .await;
     });
@@ -1246,6 +1301,9 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
             Some("demo_data_test_reopen_prover_copy"),
             4,
             true,
+            None,
+            None,
+            Some(true),
         )
         .await;
     });
@@ -1289,6 +1347,9 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
             Some("demo_data_test_reopen_prover_copy2"),
             4,
             true,
+            None,
+            None,
+            Some(true),
         )
         .await;
     });
@@ -1322,7 +1383,6 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
 #[tokio::test]
 async fn test_system_transactons() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging();
-    let l1_blockhash_contract = L1BlockHashList::default();
 
     let system_contract_address =
         Address::from_str("0x3100000000000000000000000000000000000001").unwrap();
@@ -1414,7 +1474,7 @@ async fn test_system_transactons() -> Result<(), anyhow::Error> {
         let hash_on_chain: String = full_node_test_client
             .contract_call(
                 system_contract_address,
-                l1_blockhash_contract.get_block_hash(i),
+                ethers::types::Bytes::from(L1BlockHashList::get_block_hash(i).to_vec()),
                 None,
             )
             .await
@@ -1448,4 +1508,156 @@ async fn test_system_transactons() -> Result<(), anyhow::Error> {
     full_node_task.abort();
 
     Ok(())
+}
+
+#[tokio::test]
+async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error> {
+    // citrea::initialize_logging();
+    let da_service = MockDaService::new(MockAddress::default());
+
+    // start rollup on da block 3
+    for _ in 0..3 {
+        da_service.publish_test_block().await.unwrap();
+    }
+
+    let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
+
+    let seq_task =
+        tokio::spawn(async move {
+            start_rollup(
+            seq_port_tx,
+            GenesisPaths::from_dir("../test-data/genesis/integration-tests-low-block-gas-limit"),
+            BasicKernelGenesisPaths {
+                chain_state:
+                    "../test-data/genesis/integration-tests-low-block-gas-limit/chain_state.json"
+                        .into(),
+            },
+            RollupProverConfig::Execute,
+            NodeMode::SequencerNode,
+            None,
+            4,
+            true,
+            None,
+            // Increase max account slots to not stuck as spammer
+            Some(SequencerConfig {
+                min_soft_confirmations_per_commitment: 1000,
+                test_mode: true,
+                mempool_conf: SequencerMempoolConfig {max_account_slots: 100, ..Default::default() }
+            }),
+            Some(true),
+        )
+        .await;
+        });
+
+    let seq_port = seq_port_rx.await.unwrap();
+    let seq_test_client = make_test_client(seq_port).await;
+    // sys tx use 43615 + 43615 = 117196gas
+    // the block gas limit is 1_000_000 because the system txs gas limit is 1_000_000
+
+    // 1000000 - 117196 = 882804 gas left in block
+    // 882804 / 21000 = 42.038 so 42 ether transfer transactions can be included in the block
+
+    // send 41 ether transfer transactions
+    let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
+
+    for _ in 0..41 {
+        seq_test_client
+            .send_eth(addr, None, None, None, 0u128)
+            .await
+            .unwrap();
+    }
+
+    // 42nd tx should be the last tx in the soft batch
+    let last_in_tx = seq_test_client
+        .send_eth(addr, None, None, None, 0u128)
+        .await;
+
+    // this tx should not be in soft batch
+    let not_in_tx = seq_test_client
+        .send_eth(addr, None, None, None, 0u128)
+        .await;
+
+    seq_test_client.send_publish_batch_request().await;
+
+    da_service.publish_test_block().await.unwrap();
+
+    let last_in_receipt = last_in_tx.unwrap().await.unwrap().unwrap();
+
+    sleep(Duration::from_secs(2)).await;
+
+    let initial_soft_batch = seq_test_client
+        .ledger_get_soft_batch_by_number::<MockDaSpec>(1)
+        .await
+        .unwrap();
+
+    let last_tx_hash = last_in_receipt.transaction_hash;
+    let last_tx_raw = seq_test_client
+        .eth_get_transaction_by_hash(last_tx_hash, Some(false))
+        .await
+        .unwrap()
+        .rlp();
+
+    assert!(last_in_receipt.block_number.is_some());
+
+    // last in tx byte array should be a subarray of txs[0]
+    assert!(find_subarray(
+        initial_soft_batch.clone().txs.unwrap()[0].tx.as_slice(),
+        &last_tx_raw
+    )
+    .is_some());
+
+    seq_test_client.send_publish_batch_request().await;
+
+    da_service.publish_test_block().await.unwrap();
+
+    let not_in_receipt = not_in_tx.unwrap().await.unwrap().unwrap();
+
+    let not_in_hash = not_in_receipt.transaction_hash;
+
+    let not_in_raw = seq_test_client
+        .eth_get_transaction_by_hash(not_in_hash, Some(false))
+        .await
+        .unwrap()
+        .rlp();
+
+    // not in tx byte array should not be a subarray of txs[0]
+    assert!(find_subarray(
+        initial_soft_batch.txs.unwrap()[0].tx.as_slice(),
+        &not_in_raw
+    )
+    .is_none());
+
+    seq_test_client.send_publish_batch_request().await;
+
+    let second_soft_batch = seq_test_client
+        .ledger_get_soft_batch_by_number::<MockDaSpec>(2)
+        .await
+        .unwrap();
+
+    // should be in tx byte array of the soft batch after
+    assert!(find_subarray(second_soft_batch.txs.unwrap()[0].tx.as_slice(), &not_in_raw).is_some());
+
+    let block1 = seq_test_client
+        .eth_get_block_by_number(Some(BlockNumberOrTag::Number(1)))
+        .await;
+
+    // the last in tx should be in the block
+    assert!(block1.transactions.iter().any(|tx| tx == &last_tx_hash));
+    // and the other tx should not be in
+    assert!(!block1.transactions.iter().any(|tx| tx == &not_in_hash));
+
+    let block2 = seq_test_client
+        .eth_get_block_by_number(Some(BlockNumberOrTag::Number(2)))
+        .await;
+    // the other tx should be in second block
+    assert!(block2.transactions.iter().any(|tx| tx == &not_in_hash));
+
+    seq_task.abort();
+    Ok(())
+}
+
+fn find_subarray(haystack: &[u8], needle: &[u8]) -> Option<usize> {
+    haystack
+        .windows(needle.len())
+        .position(|window| window == needle)
 }

@@ -1,6 +1,5 @@
 # The release tag of https://github.com/ethereum/tests to use for EF tests
-EF_TESTS_TAG := v12.2
-EF_TESTS_URL := https://github.com/ethereum/tests/archive/refs/tags/$(EF_TESTS_TAG).tar.gz
+EF_TESTS_URL := https://github.com/chainwayxyz/ef-tests/archive/develop.tar.gz
 EF_TESTS_DIR := crates/evm/ethereum-tests
 
 .PHONY: help
@@ -23,8 +22,7 @@ test-legacy: ## Runs test suite with output from tests printed
 	@cargo test -- --nocapture -Zunstable-options --report-time
 
 test:  ## Runs test suite using next test
-	@cargo nextest run --workspace --all-features --no-fail-fast -E 'not test(test_instant_finality_data_stored) & not test(test_simple_reorg_case)'
-
+	@cargo nextest run --workspace --all-features --no-fail-fast
 
 install-dev-tools:  ## Installs all necessary cargo helpers
 	cargo install cargo-llvm-cov
@@ -40,6 +38,8 @@ else
 	cargo risczero install
 endif
 	rustup target add thumbv6m-none-eabi
+	rustup component add llvm-tools-preview
+	cargo install cargo-llvm-cov
 
 lint:  ## cargo check and clippy. Skip clippy on guest code since it's not supported by risc0
 	## fmt first, because it's the cheapest
@@ -70,10 +70,10 @@ find-flaky-tests:  ## Runs tests over and over to find if there's flaky tests
 	flaky-finder -j16 -r320 --continue "cargo test -- --nocapture"
 
 coverage: ## Coverage in lcov format
-	cargo llvm-cov --locked --lcov --output-path lcov.info
+	cargo llvm-cov --locked --lcov --output-path lcov.info nextest --workspace --all-features
 
 coverage-html: ## Coverage in HTML format
-	cargo llvm-cov --locked --all-features --html
+	cargo llvm-cov --locked --all-features --html nextest --workspace --all-features
 
 docs:  ## Generates documentation locally
 	cargo doc --open

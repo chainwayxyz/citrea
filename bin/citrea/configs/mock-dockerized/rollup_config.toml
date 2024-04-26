@@ -9,7 +9,7 @@ sender_address = "00000000000000000000000000000000000000000000000000000000000000
 
 [storage]
 # The path to the rollup's data directory. Paths that do not begin with `/` are interpreted as relative paths.
-path = "demo_data"
+path = "full-node-db"
 
 # We define the rollup's genesis to occur at block number `start_height`. The rollup will ignore
 # any blocks before this height

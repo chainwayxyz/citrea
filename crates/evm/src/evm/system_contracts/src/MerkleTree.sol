@@ -4,17 +4,13 @@ pragma solidity ^0.8.13;
 contract MerkleTree {
     bytes32 public constant ZERO_VALUE = 0xcb0c9f4264546b15be9801ecb11df7e43bfc6841609fc1e4e9de5b3a5973af38; // keccak256("CITREA")
 
-    uint32 public immutable levels;
+    uint32 public levels;
     mapping(uint256 => bytes32) filledSubtrees;
     bytes32 root;
     uint32 nextIndex;
 
-    constructor(uint32 _levels) {
+    function initializeTree(uint32 _levels) internal {
         levels = _levels;
-        initializeTree();
-    }
-
-    function initializeTree() internal {
         for (uint32 i = 0; i < levels; i++) {
             filledSubtrees[i] = zeros(i);
         }

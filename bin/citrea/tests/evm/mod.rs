@@ -39,6 +39,9 @@ async fn web3_rpc_tests() -> Result<(), anyhow::Error> {
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             true,
+            None,
+            None,
+            Some(true),
         )
         .await;
     });
@@ -53,7 +56,12 @@ async fn web3_rpc_tests() -> Result<(), anyhow::Error> {
 
     assert_eq!(
         test_client.web3_client_version().await,
-        format!("citrea/{}/{}/rust-1.77.2", tag, arch)
+        format!(
+            "citrea/{}/{}/rust-{}",
+            tag,
+            arch,
+            rustc_version_runtime::version()
+        )
     );
     assert_eq!(
         test_client
@@ -85,6 +93,9 @@ async fn evm_tx_tests() -> Result<(), anyhow::Error> {
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             true,
+            None,
+            None,
+            Some(true),
         )
         .await;
     });
@@ -120,6 +131,9 @@ async fn test_eth_get_logs() -> Result<(), anyhow::Error> {
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             true,
+            None,
+            None,
+            Some(true),
         )
         .await;
     });
@@ -151,6 +165,9 @@ async fn test_genesis_contract_call() -> Result<(), Box<dyn std::error::Error>> 
             None,
             123456,
             true,
+            None,
+            None,
+            Some(true),
         )
         .await;
     });

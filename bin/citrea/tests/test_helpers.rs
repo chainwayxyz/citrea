@@ -37,6 +37,9 @@ pub async fn start_rollup(
     db_path: Option<&str>,
     min_soft_confirmations_per_commitment: u64,
     include_tx_body: bool,
+    rollup_config: Option<RollupConfig<MockDaConfig>>,
+    sequencer_config: Option<SequencerConfig>,
+    test_mode: Option<bool>,
 ) {
     let mut path = db_path.map(Path::new);
     let mut temp_dir: Option<tempfile::TempDir> = None;
@@ -46,44 +49,13 @@ pub async fn start_rollup(
         path = Some(temp_dir.as_ref().unwrap().path());
     }
 
-    let rollup_config = RollupConfig {
-        sequencer_public_key: vec![
-            32, 64, 64, 227, 100, 193, 15, 43, 236, 156, 31, 229, 0, 161, 205, 76, 36, 124, 137,
-            214, 80, 160, 30, 215, 232, 44, 171, 168, 103, 135, 124, 33,
-        ],
-        storage: StorageConfig {
-            path: path.unwrap().to_path_buf(),
-        },
-        runner: RunnerConfig {
-            start_height: 1,
-            rpc_config: RpcConfig {
-                bind_host: "127.0.0.1".into(),
-                bind_port: 0,
-                max_connections: 100,
-            },
-        },
-        da: MockDaConfig {
-            sender_address: MockAddress::from([0; 32]),
-        },
-        prover_service: ProverServiceConfig {
-            aggregated_proof_block_jump: 1,
-        },
-        sequencer_client: match node_mode {
-            NodeMode::FullNode(socket_addr) | NodeMode::Prover(socket_addr) => {
-                Some(SequencerClientRpcConfig {
-                    url: format!("http://localhost:{}", socket_addr.port()),
-                })
-            }
-            NodeMode::SequencerNode => None,
-        },
-        sequencer_da_pub_key: vec![0; 32],
-        prover_da_pub_key: vec![],
-        include_tx_body,
-    };
+    // create rollup config default creator function and use them here for the configs
+    let rollup_config = rollup_config
+        .unwrap_or_else(|| create_default_rollup_config(include_tx_body, path, node_mode));
 
-    let sequencer_config = SequencerConfig {
-        min_soft_confirmations_per_commitment,
-    };
+    let sequencer_config = sequencer_config.unwrap_or_else(|| {
+        create_default_sequencer_config(min_soft_confirmations_per_commitment, test_mode)
+    });
 
     let mock_demo_rollup = MockDemoRollup {};
 
@@ -155,5 +127,57 @@ pub async fn start_rollup(
     if db_path.is_none() {
         // Close the tempdir explicitly to ensure that rustc doesn't see that it's unused and drop it unexpectedly
         temp_dir.unwrap().close().unwrap();
+    }
+}
+
+pub fn create_default_rollup_config(
+    include_tx_body: bool,
+    path: Option<&Path>,
+    node_mode: NodeMode,
+) -> RollupConfig<MockDaConfig> {
+    RollupConfig {
+        sequencer_public_key: vec![
+            32, 64, 64, 227, 100, 193, 15, 43, 236, 156, 31, 229, 0, 161, 205, 76, 36, 124, 137,
+            214, 80, 160, 30, 215, 232, 44, 171, 168, 103, 135, 124, 33,
+        ],
+        storage: StorageConfig {
+            path: path.unwrap().to_path_buf(),
+        },
+        runner: RunnerConfig {
+            start_height: 1,
+            rpc_config: RpcConfig {
+                bind_host: "127.0.0.1".into(),
+                bind_port: 0,
+                max_connections: 100,
+            },
+        },
+        da: MockDaConfig {
+            sender_address: MockAddress::from([0; 32]),
+        },
+        prover_service: ProverServiceConfig {
+            aggregated_proof_block_jump: 1,
+        },
+        sequencer_client: match node_mode {
+            NodeMode::FullNode(socket_addr) | NodeMode::Prover(socket_addr) => {
+                Some(SequencerClientRpcConfig {
+                    url: format!("http://localhost:{}", socket_addr.port()),
+                })
+            }
+            NodeMode::SequencerNode => None,
+        },
+        sequencer_da_pub_key: vec![0; 32],
+        prover_da_pub_key: vec![],
+        include_tx_body,
+    }
+}
+
+pub fn create_default_sequencer_config(
+    min_soft_confirmations_per_commitment: u64,
+    test_mode: Option<bool>,
+) -> SequencerConfig {
+    SequencerConfig {
+        min_soft_confirmations_per_commitment,
+        test_mode: test_mode.unwrap_or(false),
+        mempool_conf: Default::default(),
     }
 }

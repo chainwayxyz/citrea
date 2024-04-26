@@ -2,6 +2,7 @@ use std::cmp::Ordering;
 use std::marker::PhantomData;
 use std::net::SocketAddr;
 use std::sync::Arc;
+use std::time::Duration;
 use std::vec;
 
 use borsh::ser::BorshSerialize;
@@ -13,7 +14,7 @@ use futures::StreamExt;
 use jsonrpsee::RpcModule;
 use reth_primitives::IntoRecoveredTransaction;
 use reth_provider::BlockReaderIdExt;
-use reth_transaction_pool::BestTransactionsAttributes;
+use reth_transaction_pool::{BestTransactionsAttributes, PoolTransaction};
 use sov_accounts::Accounts;
 use sov_accounts::Response::{AccountEmpty, AccountExists};
 use sov_db::ledger_db::{LedgerDB, SlotCommit};
@@ -31,6 +32,7 @@ use sov_rollup_interface::stf::{SoftBatchReceipt, StateTransitionFunction};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::ZkvmHost;
 use sov_stf_runner::{InitVariant, RpcConfig, RunnerConfig};
+use tokio::time::sleep;
 use tracing::{debug, info, warn};
 
 use crate::commitment_controller;
@@ -64,6 +66,11 @@ where
     state_root: StateRoot<Stf, Vm, Da::Spec>,
     sequencer_pub_key: Vec<u8>,
     rpc_config: RpcConfig,
+}
+
+enum L2BlockMode {
+    Empty,
+    NotEmpty,
 }
 
 impl<C, Da, Sm, Vm, Stf> CitreaSequencer<C, Da, Sm, Vm, Stf>
@@ -117,7 +124,7 @@ where
         // used as client of reth's mempool
         let db_provider = DbProvider::new(storage.clone());
 
-        let pool = CitreaMempool::new(db_provider.clone());
+        let pool = CitreaMempool::new(db_provider.clone(), config.mempool_conf.clone());
 
         Ok(Self {
             da_service,
@@ -177,12 +184,8 @@ where
         &mut self,
         da_block: <Da as DaService>::FilteredBlock,
         l1_fee_rate: u64,
-        rlp_txs: Vec<RlpEvmTransaction>,
+        l2_block_mode: L2BlockMode,
     ) -> Result<(), anyhow::Error> {
-        debug!(
-            "Sequencer: publishing block with {} transactions",
-            rlp_txs.len()
-        );
         let da_height = da_block.header().height();
         let (l2_height, l1_height) = match self
             .ledger_db
@@ -210,11 +213,6 @@ where
         };
         let mut signed_batch: SignedSoftConfirmationBatch = batch_info.clone().into();
         // initially create sc info and call begin soft confirmation hook with it
-        let call_txs = CallMessage { txs: rlp_txs };
-        let raw_message =
-            <Runtime<C, Da::Spec> as EncodeCall<citrea_evm::Evm<C>>>::encode_call(call_txs);
-        let signed_blob = self.make_blob(raw_message);
-        let txs = vec![signed_blob.clone()];
 
         let prestate = self
             .storage_manager
@@ -236,7 +234,28 @@ where
             da_block.header(),
             &mut signed_batch,
         ) {
-            (Ok(()), batch_workspace) => {
+            (Ok(()), mut batch_workspace) => {
+                // if there's going to be system txs somewhere other than the beginning of the block
+                // TODO: Handle system txs gas usage in the middle and end of the block
+                let system_tx_gas_usage = self
+                    .db_provider
+                    .evm
+                    .get_pending_txs_cumulative_gas_used(&mut batch_workspace);
+
+                let rlp_txs = match l2_block_mode {
+                    L2BlockMode::Empty => vec![],
+                    L2BlockMode::NotEmpty => self.get_best_transactions(system_tx_gas_usage),
+                };
+                debug!(
+                    "Sequencer: publishing block with {} transactions",
+                    rlp_txs.len()
+                );
+                let call_txs = CallMessage { txs: rlp_txs };
+                let raw_message =
+                    <Runtime<C, Da::Spec> as EncodeCall<citrea_evm::Evm<C>>>::encode_call(call_txs);
+                let signed_blob = self.make_blob(raw_message);
+                let txs = vec![signed_blob.clone()];
+
                 let (batch_workspace, tx_receipts) =
                     self.stf.apply_soft_batch_txs(txs.clone(), batch_workspace);
 
@@ -345,158 +364,191 @@ where
         Ok(())
     }
 
+    pub async fn build_block(&mut self) -> Result<(), anyhow::Error> {
+        // best txs with base fee
+        // get base fee from last blocks => header => next base fee() function
+
+        let mut prev_l1_height = self
+            .ledger_db
+            .get_head_soft_batch()?
+            .map(|(_, sb)| sb.da_slot_height);
+
+        if prev_l1_height.is_none() {
+            prev_l1_height = Some(
+                self.da_service
+                    .get_last_finalized_block_header()
+                    .await
+                    .unwrap()
+                    .height(),
+            );
+        }
+
+        let prev_l1_height = prev_l1_height.unwrap();
+
+        debug!("Sequencer: prev L1 height: {:?}", prev_l1_height);
+
+        let last_finalized_height = self
+            .da_service
+            .get_last_finalized_block_header()
+            .await
+            .unwrap()
+            .height();
+
+        debug!(
+            "Sequencer: last finalized height: {:?}",
+            last_finalized_height
+        );
+
+        let l1_fee_rate = self.da_service.get_fee_rate().await.unwrap();
+
+        let new_da_block = match last_finalized_height.cmp(&prev_l1_height) {
+            Ordering::Less => {
+                panic!("DA L1 height is less than Ledger finalized height");
+            }
+            Ordering::Equal => None,
+            Ordering::Greater => {
+                // Compare if there is no skip
+                if last_finalized_height - prev_l1_height > 1 {
+                    // This shouldn't happen. If it does, then we should produce at least 1 block for the blocks in between
+                    for skipped_height in (prev_l1_height + 1)..last_finalized_height {
+                        debug!(
+                            "Sequencer: publishing empty L2 for skipped L1 block: {:?}",
+                            skipped_height
+                        );
+                        let da_block = self.da_service.get_block_at(skipped_height).await.unwrap();
+                        self.produce_l2_block(da_block, l1_fee_rate, L2BlockMode::Empty)
+                            .await?;
+                    }
+                }
+                let prev_l1_height = last_finalized_height - 1;
+                Some(prev_l1_height)
+            }
+        };
+
+        if let Some(prev_l1_height) = new_da_block {
+            debug!("Sequencer: new L1 block, checking if commitment should be submitted");
+
+            let commitment_info = commitment_controller::get_commitment_info(
+                &self.ledger_db,
+                self.config.min_soft_confirmations_per_commitment,
+                prev_l1_height,
+            );
+
+            if commitment_info.is_some() {
+                debug!("Sequencer: enough soft confirmations to submit commitment");
+                let commitment_info = commitment_info.unwrap();
+                let l2_range_to_submit = commitment_info.l2_height_range.clone();
+
+                // calculate exclusive range end
+                let range_end = BatchNumber(l2_range_to_submit.end().0 + 1); // cannnot add u64 to BatchNumber directly
+
+                let soft_confirmation_hashes = self
+                    .ledger_db
+                    .get_soft_batch_range(&(*l2_range_to_submit.start()..range_end))
+                    .expect("Sequencer: Failed to get soft batch range")
+                    .iter()
+                    .map(|sb| sb.hash)
+                    .collect::<Vec<[u8; 32]>>();
+
+                let commitment = commitment_controller::get_commitment(
+                    commitment_info.clone(),
+                    soft_confirmation_hashes,
+                );
+
+                info!("Sequencer: submitting commitment: {:?}", commitment);
+
+                // submit commitment
+                self.da_service
+                    .send_tx_no_wait(
+                        DaData::SequencerCommitment(commitment)
+                            .try_to_vec()
+                            .unwrap(),
+                    )
+                    .await;
+
+                self.ledger_db
+                    .set_last_sequencer_commitment_l1_height(SlotNumber(
+                        commitment_info.l1_height_range.end().0,
+                    ))
+                    .expect("Sequencer: Failed to set last sequencer commitment L1 height");
+            }
+
+            // TODO: this is where we would include forced transactions from the new L1 block
+        }
+
+        let last_finalized_block = self
+            .da_service
+            .get_block_at(last_finalized_height)
+            .await
+            .unwrap();
+
+        self.produce_l2_block(last_finalized_block, l1_fee_rate, L2BlockMode::NotEmpty)
+            .await?;
+        Ok(())
+    }
+
     pub async fn run(&mut self) -> Result<(), anyhow::Error> {
         // TODO: hotfix for mock da
         self.da_service.get_block_at(1).await.unwrap();
 
-        loop {
-            if (self.l2_force_block_rx.next().await).is_some() {
-                // best txs with base fee
-                // get base fee from last blocks => header => next base fee() function
-                let cfg: citrea_evm::EvmChainConfig = self.db_provider.cfg();
-
-                let base_fee = self
-                    .db_provider
-                    .latest_header()
-                    .expect("Failed to get latest header")
-                    .map(|header| header.unseal().next_block_base_fee(cfg.base_fee_params))
-                    .expect("Failed to get next block base fee")
-                    .unwrap();
-
-                let best_txs_with_base_fee = self.mempool.best_transactions_with_attributes(
-                    BestTransactionsAttributes::base_fee(base_fee),
-                );
-
-                let mut prev_l1_height = self
-                    .ledger_db
-                    .get_head_soft_batch()?
-                    .map(|(_, sb)| sb.da_slot_height);
-
-                if prev_l1_height.is_none() {
-                    prev_l1_height = Some(
-                        self.da_service
-                            .get_last_finalized_block_header()
-                            .await
-                            .unwrap()
-                            .height(),
-                    );
+        // If sequencer is in test mode, it will build a block every time it receives a message
+        if self.config.test_mode {
+            loop {
+                if (self.l2_force_block_rx.next().await).is_some() {
+                    self.build_block().await?;
                 }
-
-                let prev_l1_height = prev_l1_height.unwrap();
-
-                debug!("Sequencer: prev L1 height: {:?}", prev_l1_height);
-
-                let last_finalized_height = self
-                    .da_service
-                    .get_last_finalized_block_header()
-                    .await
-                    .unwrap()
-                    .height();
-
-                debug!(
-                    "Sequencer: last finalized height: {:?}",
-                    last_finalized_height
-                );
-
-                let l1_fee_rate = self.da_service.get_fee_rate().await.unwrap();
-
-                let new_da_block = match last_finalized_height.cmp(&prev_l1_height) {
-                    Ordering::Less => {
-                        panic!("DA L1 height is less than Ledger finalized height");
-                    }
-                    Ordering::Equal => None,
-                    Ordering::Greater => {
-                        // Compare if there is no skip
-                        if last_finalized_height - prev_l1_height > 1 {
-                            // This shouldn't happen. If it does, then we should produce at least 1 block for the blocks in between
-                            for skipped_height in (prev_l1_height + 1)..last_finalized_height {
-                                debug!(
-                                    "Sequencer: publishing empty L2 for skipped L1 block: {:?}",
-                                    skipped_height
-                                );
-                                let da_block =
-                                    self.da_service.get_block_at(skipped_height).await.unwrap();
-                                self.produce_l2_block(da_block, l1_fee_rate, vec![]).await?;
-                            }
-                        }
-                        let prev_l1_height = last_finalized_height - 1;
-                        Some(prev_l1_height)
-                    }
-                };
-
-                if let Some(prev_l1_height) = new_da_block {
-                    debug!("Sequencer: new L1 block, checking if commitment should be submitted");
-
-                    let commitment_info = commitment_controller::get_commitment_info(
-                        &self.ledger_db,
-                        self.config.min_soft_confirmations_per_commitment,
-                        prev_l1_height,
-                    );
-
-                    if commitment_info.is_some() {
-                        debug!("Sequencer: enough soft confirmations to submit commitment");
-                        let commitment_info = commitment_info.unwrap();
-                        let l2_range_to_submit = commitment_info.l2_height_range.clone();
-
-                        // calculate exclusive range end
-                        let range_end = BatchNumber(l2_range_to_submit.end().0 + 1); // cannnot add u64 to BatchNumber directly
-
-                        let soft_confirmation_hashes = self
-                            .ledger_db
-                            .get_soft_batch_range(&(*l2_range_to_submit.start()..range_end))
-                            .expect("Sequencer: Failed to get soft batch range")
-                            .iter()
-                            .map(|sb| sb.hash)
-                            .collect::<Vec<[u8; 32]>>();
-
-                        let commitment = commitment_controller::get_commitment(
-                            commitment_info.clone(),
-                            soft_confirmation_hashes,
-                        );
-
-                        info!("Sequencer: submitting commitment: {:?}", commitment);
-
-                        // submit commitment
-                        self.da_service
-                            .send_tx_no_wait(
-                                DaData::SequencerCommitment(commitment)
-                                    .try_to_vec()
-                                    .unwrap(),
-                            )
-                            .await;
-
-                        self.ledger_db
-                            .set_last_sequencer_commitment_l1_height(SlotNumber(
-                                commitment_info.l1_height_range.end().0,
-                            ))
-                            .expect("Sequencer: Failed to set last sequencer commitment L1 height");
-                    }
-
-                    // TODO: this is where we would include forced transactions from the new L1 block
-                }
-
-                // TODO: implement block builder instead of just including every transaction in order
-                let rlp_txs: Vec<RlpEvmTransaction> = best_txs_with_base_fee
-                    .into_iter()
-                    .map(|tx| {
-                        tx.to_recovered_transaction()
-                            .into_signed()
-                            .envelope_encoded()
-                            .to_vec()
-                    })
-                    .map(|rlp| RlpEvmTransaction { rlp })
-                    .collect();
-
-                let last_finalized_block = self
-                    .da_service
-                    .get_block_at(last_finalized_height)
-                    .await
-                    .unwrap();
-
-                self.produce_l2_block(last_finalized_block, l1_fee_rate, rlp_txs)
-                    .await?;
             }
         }
+        // If sequencer is in production mode, it will build a block every 2 seconds
+        else {
+            loop {
+                sleep(Duration::from_secs(2)).await;
+                self.build_block().await?;
+            }
+        }
+    }
+
+    fn get_best_transactions(&self, system_tx_gas_usage: u64) -> Vec<RlpEvmTransaction> {
+        let cfg = self.db_provider.cfg();
+        let latest_header = self
+            .db_provider
+            .latest_header()
+            .expect("Failed to get latest header")
+            .expect("Latest header must always exist")
+            .unseal();
+
+        let base_fee = latest_header
+            .next_block_base_fee(cfg.base_fee_params)
+            .expect("Failed to get next block base fee");
+
+        let best_txs_with_base_fee = self
+            .mempool
+            .best_transactions_with_attributes(BestTransactionsAttributes::base_fee(base_fee));
+        // TODO: implement block builder instead of just including every transaction in order
+        let mut cumulative_gas_used = 0;
+
+        // Add the system tx gas usage to the cumulative gas used
+        cumulative_gas_used += system_tx_gas_usage;
+
+        best_txs_with_base_fee
+            .into_iter()
+            .filter(|tx| {
+                // Don't include transactions that exceed the block gas limit
+                let tx_gas_limit = tx.transaction.gas_limit();
+                let fits_into_block = cumulative_gas_used + tx_gas_limit <= cfg.block_gas_limit;
+                if fits_into_block {
+                    cumulative_gas_used += tx_gas_limit
+                }
+                fits_into_block
+            })
+            .map(|tx| {
+                tx.to_recovered_transaction()
+                    .into_signed()
+                    .envelope_encoded()
+                    .to_vec()
+            })
+            .map(|rlp| RlpEvmTransaction { rlp })
+            .collect::<Vec<RlpEvmTransaction>>()
     }
 
     /// Signs batch of messages with sovereign priv key turns them into a sov blob
@@ -560,6 +612,7 @@ where
             mempool: self.mempool.clone(),
             l2_force_block_tx,
             storage: self.storage.clone(),
+            test_mode: self.config.test_mode,
         }
     }
 
