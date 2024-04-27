@@ -218,7 +218,7 @@ impl Case for BlockchainTestCase {
                                 assert_eq!(*account_state.info.code_hash, **account.code);
                                 for (key, value) in account.storage.iter() {
                                     assert_eq!(
-                                        account_state.storage.get(&key, &mut working_set),
+                                        account_state.storage.get(key, &mut working_set),
                                         Some(value).copied()
                                     );
                                 }
