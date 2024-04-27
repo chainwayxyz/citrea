@@ -27,7 +27,7 @@ pub use primitive_types::RlpEvmTransaction;
 use sov_state::codec::BcsCodec;
 
 #[cfg(test)]
-use crate::DEFAULT_CHAIN_ID;
+use crate::tests::DEFAULT_CHAIN_ID;
 
 // Stores information about an EVM account
 #[derive(Deserialize, Serialize, Debug, PartialEq, Clone)]

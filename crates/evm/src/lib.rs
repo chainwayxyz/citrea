@@ -45,11 +45,6 @@ use crate::evm::primitive_types::{
 use crate::evm::system_events::SystemEvent;
 pub use crate::EvmConfig;
 
-/// Chain ID used inside tests and default implementations.
-/// Different chain ids can be given in the genesis config.
-#[cfg(test)]
-pub const DEFAULT_CHAIN_ID: u64 = 1;
-
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub(crate) struct PendingTransaction {
     pub(crate) transaction: TransactionSignedAndRecovered,

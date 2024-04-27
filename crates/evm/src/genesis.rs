@@ -11,9 +11,9 @@ use sov_modules_api::WorkingSet;
 use crate::evm::db_init::InitEvmDb;
 use crate::evm::primitive_types::Block;
 use crate::evm::{AccountInfo, EvmChainConfig};
-use crate::Evm;
 #[cfg(test)]
-use crate::DEFAULT_CHAIN_ID;
+use crate::tests::DEFAULT_CHAIN_ID;
+use crate::Evm;
 
 /// Evm account.
 #[derive(Clone, Debug, serde::Serialize, Eq, PartialEq)]

@@ -3,7 +3,7 @@ use revm::primitives::{CfgEnvWithHandlerCfg, SpecId};
 use crate::call::{get_cfg_env, get_spec_id};
 use crate::evm::primitive_types::BlockEnv;
 use crate::evm::EvmChainConfig;
-use crate::DEFAULT_CHAIN_ID;
+use crate::tests::DEFAULT_CHAIN_ID;
 
 #[test]
 fn cfg_test() {
