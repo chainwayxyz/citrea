@@ -99,7 +99,11 @@ proptest-derive = "0.3.0"
 rand = "0.8"
 rayon = "1.8.0"
 rustc_version_runtime = { version = "0.3.0", default-features = false }
-reqwest = { version = "0.12", features = ["rustls-tls", "json", "http2"], default-features = false }
+reqwest = { version = "0.12", features = [
+    "rustls-tls",
+    "json",
+    "http2",
+], default-features = false }
 rocksdb = { version = "0.21.0", features = ["lz4"] }
 serde = { version = "1.0.192", default-features = false, features = [
     "alloc",
@@ -133,7 +137,7 @@ ethers-providers = { version = "2.0", default-features = false }
 ethers-signers = { version = "2.0", default-features = false }
 ethers-middleware = { version = "2.0", default-features = false }
 
-reth-primitives = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.4" }
+reth-primitives = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.4", default-features = false }
 reth-interfaces = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.4" }
 reth-rpc-types = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.4" }
 reth-rpc-types-compat = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.4" }
@@ -147,15 +151,15 @@ reth-trie = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.4"
 reth-rpc = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.4" }
 reth-stages = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.4" }
 
-revm = { version = "7.2.0", features = [
-    "std",
-    "secp256k1",
-], default-features = false }
+revm = { version = "7.2.0", features = ["serde"], default-features = false }
+# forcing cargo for this version or else chooses 3.1.1 and there is some dependency conflicts
+revm-primitives = { version = "=3.1.0", default-features = false }
+# forcing cargo for this version or else chooses 0.3.1 and there is some dependency conflicts
+alloy-trie = { version = "=0.3.0", default-features = false }
 alloy-primitives = "0.6"
 alloy-sol-types = "0.6"
 secp256k1 = { version = "0.27.0", default-features = false, features = [
     "global-context",
-    "rand-std",
     "recovery",
 ] }
 

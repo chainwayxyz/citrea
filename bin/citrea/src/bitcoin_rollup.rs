@@ -115,7 +115,8 @@ impl RollupBlueprint for BitcoinRollup {
         rollup_config: &RollupConfig<Self::DaConfig>,
         _da_service: &Self::DaService,
     ) -> Self::ProverService {
-        let vm = Risc0Host::new(risc0::ROLLUP_ELF);
+        // TODO: will be BITCOIN_ELF
+        let vm = Risc0Host::new(risc0::MOCK_DA_ELF);
         let zk_stf = StfBlueprint::new();
         let zk_storage = ZkStorage::new();
 

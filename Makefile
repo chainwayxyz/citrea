@@ -35,7 +35,7 @@ install-dev-tools:  ## Installs all necessary cargo helpers
 ifeq ($(shell uname -ms), Darwin x86_64)
 	cargo risczero build-toolchain
 else
-	cargo risczero install
+	cargo risczero install --version v2024-04-22.0
 endif
 	rustup target add thumbv6m-none-eabi
 	rustup component add llvm-tools-preview
