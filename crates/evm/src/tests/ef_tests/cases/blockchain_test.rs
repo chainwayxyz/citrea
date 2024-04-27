@@ -215,6 +215,13 @@ impl Case for BlockchainTestCase {
                             {
                                 assert_eq!(U256::from(account_state.info.nonce), account.nonce);
                                 assert_eq!(account_state.info.balance, account.balance);
+                                assert_eq!(*account_state.info.code_hash, **account.code);
+                                for (key, value) in account.storage.iter() {
+                                    assert_eq!(
+                                        account_state.storage.get(&key, &mut working_set),
+                                        Some(value).copied()
+                                    );
+                                }
                             }
                         }
                     }
