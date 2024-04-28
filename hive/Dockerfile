@@ -16,6 +16,10 @@ RUN apt-get update && apt-get -y upgrade && apt-get install -y libclang-dev pkg-
 RUN cargo chef cook --release --recipe-path recipe.json
 
 COPY . .
+
+# Install risczero
+RUN cargo risczero install --version v2024-04-22.0
+
 # Build the project
 RUN cargo build --release --bin citrea
 
