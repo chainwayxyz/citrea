@@ -7,11 +7,12 @@ use reth_primitives::{
 };
 use sov_modules_api::{StateMapAccessor, StateValueAccessor, StateVecAccessor};
 
-use super::genesis_tests::{get_evm, GENESIS_DA_TXS_COMMITMENT, TEST_CONFIG};
+use super::genesis_tests::{GENESIS_DA_TXS_COMMITMENT, TEST_CONFIG};
 use crate::evm::primitive_types::{
     Block, BlockEnv, Receipt, SealedBlock, TransactionSignedAndRecovered,
 };
-use crate::tests::genesis_tests::{BENEFICIARY, GENESIS_STATE_ROOT};
+use crate::tests::genesis_tests::BENEFICIARY;
+use crate::tests::utils::{get_evm, GENESIS_STATE_ROOT};
 use crate::tests::DEFAULT_CHAIN_ID;
 use crate::PendingTransaction;
 

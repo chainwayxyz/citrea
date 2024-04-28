@@ -142,12 +142,14 @@ reth-interfaces = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-b
 reth-rpc-types = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.4" }
 reth-rpc-types-compat = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.4" }
 reth-revm = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.4" }
+reth-node-api = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.4" }
 reth-transaction-pool = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.4" }
 reth-provider = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.4" }
 reth-tasks = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.4" }
 reth-db = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.4" }
 reth-trie = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.4" }
 reth-rpc = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.4" }
+reth-stages = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.4" }
 
 revm = { version = "7.2.0", features = ["serde"], default-features = false }
 # forcing cargo for this version or else chooses 3.1.1 and there is some dependency conflicts

@@ -8,17 +8,12 @@ use reth_primitives::{
     Address, BaseFeeParams, Bloom, Bytes, Header, SealedHeader, B256, EMPTY_OMMER_ROOT_HASH,
 };
 use revm::primitives::{SpecId, KECCAK_EMPTY, U256};
-use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::prelude::*;
-use sov_modules_api::{Module, WorkingSet};
-use sov_prover_storage_manager::new_orphan_storage;
 
-use super::queries::commit;
 use crate::evm::primitive_types::SealedBlock;
 use crate::evm::{AccountInfo, DbAccount, EvmChainConfig};
-use crate::{AccountData, Evm, EvmConfig};
-
-type C = DefaultContext;
+use crate::tests::utils::{get_evm, GENESIS_HASH, GENESIS_STATE_ROOT};
+use crate::{AccountData, EvmConfig};
 
 lazy_static! {
     pub(crate) static ref TEST_CONFIG: EvmConfig = EvmConfig {
@@ -65,12 +60,6 @@ lazy_static! {
         nonce: 0,
     };
 
-    pub(crate) static ref GENESIS_HASH: B256 = B256::from(hex!(
-        "f02ef9e64296322b3bd217661431be41544f64750632daa02a07bd2c52b28656"
-    ));
-    pub(crate) static ref GENESIS_STATE_ROOT: B256 = B256::from(hex!(
-        "1b49889efcbe36e1140122803727c5f6f5d12065461e3a6e2a4515f1d5ced9d5"
-    ));
     pub(crate) static ref GENESIS_DA_TXS_COMMITMENT: B256 = B256::from(hex!(
         "4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b"
     ));
@@ -295,29 +284,4 @@ fn genesis_head() {
     assert_eq!(genesis_block.l1_fee_rate, 0);
 
     assert_eq!(genesis_block.transactions, (0u64..0u64));
-}
-
-pub(crate) fn get_evm(config: &EvmConfig) -> (Evm<C>, WorkingSet<DefaultContext>) {
-    let tmpdir = tempfile::tempdir().unwrap();
-    let storage = new_orphan_storage(tmpdir.path()).unwrap();
-    let mut working_set = WorkingSet::new(storage.clone());
-    let evm = Evm::<C>::default();
-    evm.genesis(config, &mut working_set).unwrap();
-
-    let root = commit(working_set, storage.clone());
-
-    let mut working_set: WorkingSet<DefaultContext> = WorkingSet::new(storage.clone());
-    evm.finalize_hook(&root.into(), &mut working_set.accessory_state());
-
-    evm.begin_soft_confirmation_hook([1u8; 32], 1, [2u8; 32], &root, 0, 0, &mut working_set);
-    evm.end_soft_confirmation_hook(&mut working_set);
-
-    let root = commit(working_set, storage.clone());
-    let mut working_set: WorkingSet<DefaultContext> = WorkingSet::new(storage.clone());
-    evm.finalize_hook(&root.into(), &mut working_set.accessory_state());
-
-    // let mut genesis_state_root = [0u8; 32];
-    // genesis_state_root.copy_from_slice(GENESIS_STATE_ROOT.as_ref());
-
-    (evm, working_set)
 }

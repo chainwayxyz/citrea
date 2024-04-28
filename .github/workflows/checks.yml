@@ -122,6 +122,8 @@ jobs:
           tool: cargo-risczero@0.19
       - name: Install risc0-zkvm toolchain
         run: cargo risczero install --version v2024-04-22.0
+      - name: Prepare EF-tests environment
+        run: make crates/evm/ethereum-tests
       - name: Run coverage
         run: make coverage
       - name: Upload coverage
@@ -248,6 +250,8 @@ jobs:
       - uses: taiki-e/install-action@nextest
       - name: Install Rust
         run: rustup show
+      - name: Prepare EF-tests environment
+        run: make crates/evm/ethereum-tests
       - name: Run nextest
         run: make test
 
