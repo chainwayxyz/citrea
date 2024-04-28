@@ -22,6 +22,7 @@ pub struct UnsignedSoftConfirmationBatch {
 }
 
 impl UnsignedSoftConfirmationBatch {
+    #[allow(clippy::too_many_arguments)]
     /// Creates a new unsigned soft confirmation batch
     pub fn new(
         da_slot_height: u64,
