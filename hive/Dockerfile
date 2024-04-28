@@ -18,7 +18,7 @@ RUN cargo chef cook --release --recipe-path recipe.json
 COPY . .
 
 # Install risczero
-RUN cargo risczero install --version v2024-04-22.0
+RUN cargo install cargo-binstall && cargo binstall cargo-risczero -y && cargo risczero install --version v2024-04-22.0
 
 # Build the project
 RUN cargo build --release --bin citrea
