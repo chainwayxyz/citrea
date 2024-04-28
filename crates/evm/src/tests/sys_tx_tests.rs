@@ -12,7 +12,7 @@ use sov_modules_api::{Context, Module, StateMapAccessor, StateVecAccessor};
 
 use crate::call::CallMessage;
 use crate::evm::primitive_types::Receipt;
-use crate::evm::system_contracts::{Bridge, L1BlockHashList};
+use crate::evm::system_contracts::L1BlockHashList;
 use crate::smart_contracts::{BlockHashContract, LogsContract};
 use crate::tests::call_tests::{
     create_contract_message, create_contract_message_with_fee, get_evm_config_starting_base_fee,
