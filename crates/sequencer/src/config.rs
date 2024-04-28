@@ -1,3 +1,4 @@
+use citrea_offchain_db::OffchainDbConfig;
 use serde::Deserialize;
 
 /// Rollup Configuration
@@ -9,6 +10,8 @@ pub struct SequencerConfig {
     pub test_mode: bool,
     /// Sequencer specific mempool config
     pub mempool_conf: SequencerMempoolConfig,
+    /// Offchain db config
+    pub db_config: Option<OffchainDbConfig>,
 }
 
 /// Mempool Config for the sequencer
@@ -73,6 +76,12 @@ mod tests {
             base_fee_tx_limit = 100000
             base_fee_tx_size = 200
             max_account_slots = 16
+            [db_config]
+            db_host = "localhost"
+            db_port = 5432
+            db_user = "postgres"
+            db_password = "postgres"
+            db_name = "postgres"
         "#;
 
         let config_file = create_config_from(config);
@@ -91,6 +100,7 @@ mod tests {
                 base_fee_tx_size: 200,
                 max_account_slots: 16,
             },
+            db_config: Some(OffchainDbConfig::default()),
         };
         assert_eq!(config, expected);
     }

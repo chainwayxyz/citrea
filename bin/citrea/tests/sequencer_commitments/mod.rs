@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use borsh::BorshDeserialize;
+use citrea_offchain_db::{OffchainDbConfig, PostgresConnector};
 use citrea_stf::genesis_config::GenesisPaths;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
@@ -14,7 +15,7 @@ use tokio::time::sleep;
 
 use crate::evm::make_test_client;
 use crate::test_client::TestClient;
-use crate::test_helpers::{start_rollup, NodeMode};
+use crate::test_helpers::{create_default_sequencer_config, start_rollup, NodeMode};
 
 #[tokio::test]
 async fn sequencer_sends_commitments_to_da_layer() {
@@ -190,4 +191,61 @@ async fn check_sequencer_commitment(
     assert_eq!(commitment.merkle_root, merkle_tree.root().unwrap());
 
     end_l1_block.header.height
+}
+
+#[tokio::test]
+async fn check_commitment_in_offchain_db() {
+    // citrea::initialize_logging();
+
+    let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
+    let mut sequencer_config = create_default_sequencer_config(4, Some(true));
+    sequencer_config.db_config = Some(OffchainDbConfig::default());
+
+    let seq_task = tokio::spawn(async {
+        start_rollup(
+            seq_port_tx,
+            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
+            BasicKernelGenesisPaths {
+                chain_state:
+                    "../test-data/genesis/integration-tests-low-limiting-number/chain_state.json"
+                        .into(),
+            },
+            RollupProverConfig::Execute,
+            NodeMode::SequencerNode,
+            None,
+            4,
+            true,
+            None,
+            Some(sequencer_config),
+            Some(true),
+        )
+        .await;
+    });
+
+    let seq_port = seq_port_rx.await.unwrap();
+    let test_client = make_test_client(seq_port).await;
+    let da_service = MockDaService::new(MockAddress::from([0; 32]));
+
+    // publish 3 soft confirmations, no commitment should be sent
+    for _ in 0..3 {
+        test_client.send_publish_batch_request().await;
+    }
+
+    da_service.publish_test_block().await.unwrap();
+
+    let mut height = 1;
+    let last_finalized = da_service
+        .get_last_finalized_block_header()
+        .await
+        .unwrap()
+        .height;
+
+    // publish 3 soft confirmations, no commitment should be sent
+    for _ in 0..3 {
+        test_client.send_publish_batch_request().await;
+    }
+
+    println!("sdfsdf");
+
+    // ls
 }

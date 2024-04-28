@@ -1522,9 +1522,8 @@ async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error>
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
-    let seq_task =
-        tokio::spawn(async move {
-            start_rollup(
+    let seq_task = tokio::spawn(async move {
+        start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests-low-block-gas-limit"),
             BasicKernelGenesisPaths {
@@ -1542,12 +1541,16 @@ async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error>
             Some(SequencerConfig {
                 min_soft_confirmations_per_commitment: 1000,
                 test_mode: true,
-                mempool_conf: SequencerMempoolConfig {max_account_slots: 100, ..Default::default() }
+                mempool_conf: SequencerMempoolConfig {
+                    max_account_slots: 100,
+                    ..Default::default()
+                },
+                db_config: Default::default(),
             }),
             Some(true),
         )
         .await;
-        });
+    });
 
     let seq_port = seq_port_rx.await.unwrap();
     let seq_test_client = make_test_client(seq_port).await;

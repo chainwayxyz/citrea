@@ -179,5 +179,7 @@ pub fn create_default_sequencer_config(
         min_soft_confirmations_per_commitment,
         test_mode: test_mode.unwrap_or(false),
         mempool_conf: Default::default(),
+        // Offchain db will be active only in some tests
+        db_config: None,
     }
 }

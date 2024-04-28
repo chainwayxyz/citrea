@@ -1553,6 +1553,7 @@ dependencies = [
  "bitcoin-da",
  "borsh",
  "citrea-evm",
+ "citrea-offchain-db",
  "citrea-sequencer",
  "citrea-stf",
  "clap",
@@ -1653,6 +1654,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "citrea-offchain-db"
+version = "0.3.0"
+dependencies = [
+ "hex",
+ "postgres",
+ "serde",
+]
+
+[[package]]
 name = "citrea-sequencer"
 version = "0.3.0"
 dependencies = [
@@ -1661,6 +1671,7 @@ dependencies = [
  "borsh",
  "chrono",
  "citrea-evm",
+ "citrea-offchain-db",
  "citrea-stf",
  "digest 0.10.7",
  "ethers",
@@ -8993,6 +9004,7 @@ dependencies = [
  "borsh",
  "demo-stf",
  "futures",
+ "hex",
  "serde",
  "sov-bank",
  "sov-mock-da",

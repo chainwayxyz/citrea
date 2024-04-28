@@ -1,0 +1,22 @@
+[package]
+name = "citrea-offchain-db"
+authors = { workspace = true }
+edition = { workspace = true }
+homepage = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+
+version = { workspace = true }
+readme = "README.md"
+publish = false
+resolver = "2"
+
+[dependencies]
+postgres = "0.19.7"
+serde = { workspace = true }
+hex = { workspace = true }
+
+[dev-dependencies]
+
+[features]
+default = []
