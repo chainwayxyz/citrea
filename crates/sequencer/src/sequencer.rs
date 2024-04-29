@@ -1,13 +1,14 @@
 use std::cmp::Ordering;
 use std::marker::PhantomData;
 use std::net::SocketAddr;
+use std::ops::RangeInclusive;
 use std::sync::Arc;
 use std::time::Duration;
 use std::vec;
 
 use borsh::ser::BorshSerialize;
 use citrea_evm::{CallMessage, RlpEvmTransaction};
-use citrea_offchain_db::PostgresConnector;
+use citrea_offchain_db::{OffchainDbConfig, PostgresConnector};
 use citrea_stf::runtime::Runtime;
 use digest::Digest;
 use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
@@ -27,12 +28,13 @@ use sov_modules_api::{
     UnsignedSoftConfirmationBatch, WorkingSet,
 };
 use sov_modules_stf_blueprint::StfBlueprintTrait;
-use sov_rollup_interface::da::{BlockHeaderTrait, DaData, DaSpec};
+use sov_rollup_interface::da::{BlockHeaderTrait, DaData, DaSpec, SequencerCommitment};
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::stf::{SoftBatchReceipt, StateTransitionFunction};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::ZkvmHost;
 use sov_stf_runner::{InitVariant, RpcConfig, RunnerConfig};
+use tokio::sync::oneshot::Receiver as OneshotReceiver;
 use tokio::time::sleep;
 use tracing::{debug, info, warn};
 
@@ -473,35 +475,15 @@ where
 
                 // Functionalize this
                 if let Some(db_config) = self.config.db_config.clone() {
-                    // spawn an async task in the background and await the tx_id then save to pg
-                    tokio::spawn(async move {
-                        match tx_id.await {
-                            Ok(Ok(tx_id)) => match PostgresConnector::new(db_config) {
-                                Ok(mut pg_connector) => {
-                                    info!("Sequencer: commitment tx_id: {:?}", tx_id.to_string());
-                                    pg_connector
-                                        .insert_sequencer_commitment(
-                                            tx_id.to_string(),
-                                            l1_start_height as u32,
-                                            l1_end_height as u32,
-                                            commitment.l1_start_block_hash.to_vec(),
-                                            commitment.l1_end_block_hash.to_vec(),
-                                            l2_range_to_submit.start().0 as u32,
-                                            range_end.0 as u32,
-                                            commitment.merkle_root.to_vec(),
-                                            "mempool".to_string(),
-                                        )
-                                        .expect("Sequencer: Failed to insert sequencer commitment");
-                                }
-                                Err(e) => {
-                                    warn!("Failed to connect to postgres: {:?}", e);
-                                }
-                            },
-                            _ => {
-                                warn!("Sequencer: Failed to submit commitment: ");
-                            }
-                        }
-                    });
+                    self.insert_commitment_info_to_db(
+                        tx_id,
+                        db_config,
+                        l1_start_height,
+                        l1_end_height,
+                        commitment,
+                        l2_range_to_submit.clone(),
+                    )
+                    .await;
                 }
 
                 // tx_id.await.u
@@ -532,45 +514,12 @@ where
         // TODO: hotfix for mock da
         self.da_service.get_block_at(1).await.unwrap();
 
-        // Functionalize this
+        // If connected to offchain db first check if the commitments are in sync
         if let Some(db_config) = self.config.db_config.clone() {
-            println!("\n\n\n\nHERE\n\n\n\n");
-
-            let ledger_commitment_l1_height = self
-                .ledger_db
-                .get_last_sequencer_commitment_l1_height()
-                .expect("Sequencer: Failed to get last sequencer commitment L1 height");
-            println!("asd");
-            // thread 'sequencer_commitments::check_commitment_in_offchain_db' panicked at /Users/erce/.cargo/registry/src/index.crates.io-6f17d22bba15001f/postgres-0.19.7/src/config.rs:449:44:
-            // Cannot start a runtime from within a runtime. This happens because a function (like `block_on`) attempted to block the current thread while the thread is being used to drive asynchronous tasks.
-            // spawn an async task in the background and await the tx_id then save to pg
-            match PostgresConnector::new(db_config) {
-                Ok(mut pg_connector) => {
-                    println!("in");
-                    let commitment = pg_connector
-                        .get_last_commitment()
-                        .expect("Sequencer: Failed to get all commitments");
-                    println!("commitment: {:?}", commitment);
-                    // check if last commitment in db matches sequencer's last commitment
-                    match commitment {
-                        Some(db_commitment) => {
-                            if db_commitment.l1_end_height as u64
-                                > ledger_commitment_l1_height.unwrap_or(SlotNumber(0)).0
-                            {
-                                self.ledger_db
-                                .set_last_sequencer_commitment_l1_height(SlotNumber(
-                                    db_commitment.l1_end_height as u64,
-                                ))
-                                .expect(
-                                    "Sequencer: Failed to set last sequencer commitment L1 height",
-                                );
-                            }
-                        }
-                        None => {}
-                    }
-                }
+            match self.compare_commitments_from_db(db_config).await {
+                Ok(()) => info!("Sequencer: Commitments are in sync"),
                 Err(e) => {
-                    warn!("Failed to connect to postgres: {:?}", e);
+                    warn!("Sequencer: Offchain db error: {:?}", e);
                 }
             }
         }
@@ -709,5 +658,81 @@ where
         let rpc = create_rpc_module(rpc_context)?;
         rpc_methods.merge(rpc).unwrap();
         Ok(rpc_methods)
+    }
+
+    pub async fn insert_commitment_info_to_db(
+        &self,
+        tx_id: OneshotReceiver<Result<<Da as DaService>::TransactionId, <Da as DaService>::Error>>,
+        db_config: OffchainDbConfig,
+        l1_start_height: u64,
+        l1_end_height: u64,
+        commitment: SequencerCommitment,
+        l2_range: RangeInclusive<BatchNumber>,
+    ) {
+        // spawn an async task in the background and await the tx_id then save to pg
+        tokio::spawn(async move {
+            match tx_id.await {
+                Ok(Ok(tx_id)) => match PostgresConnector::new(db_config).await {
+                    Ok(pg_connector) => {
+                        info!("Sequencer: commitment tx_id: {:?}", tx_id.to_string());
+                        pg_connector
+                            .insert_sequencer_commitment(
+                                l1_start_height as u32,
+                                l1_end_height as u32,
+                                tx_id.to_string(),
+                                commitment.l1_start_block_hash.to_vec(),
+                                commitment.l1_end_block_hash.to_vec(),
+                                l2_range.start().0 as u32,
+                                (l2_range.end().0 + 1) as u32,
+                                commitment.merkle_root.to_vec(),
+                                "mempool".to_string(),
+                            )
+                            .await
+                            .expect("Sequencer: Failed to insert sequencer commitment");
+                    }
+                    Err(e) => {
+                        warn!("Failed to connect to postgres: {:?}", e);
+                    }
+                },
+                _ => {
+                    warn!("Sequencer: Failed to submit commitment: ");
+                }
+            }
+        });
+    }
+
+    pub async fn compare_commitments_from_db(
+        &self,
+        db_config: OffchainDbConfig,
+    ) -> Result<(), anyhow::Error> {
+        let ledger_commitment_l1_height =
+            self.ledger_db.get_last_sequencer_commitment_l1_height()?;
+
+        match PostgresConnector::new(db_config).await {
+            Ok(pg_connector) => {
+                let commitment = pg_connector.get_last_commitment().await?;
+                println!("commitment: {:?}", commitment);
+                // check if last commitment in db matches sequencer's last commitment
+                match commitment {
+                    Some(db_commitment) => {
+                        // this means that the last commitment in the db is not the same as the sequencer's last commitment
+                        if db_commitment.l1_end_height as u64
+                            > ledger_commitment_l1_height.unwrap_or(SlotNumber(0)).0
+                        {
+                            self.ledger_db
+                                .set_last_sequencer_commitment_l1_height(SlotNumber(
+                                    db_commitment.l1_end_height as u64,
+                                ))?
+                        }
+                        Ok(())
+                    }
+                    None => Ok(()),
+                }
+            }
+            Err(e) => {
+                warn!("Failed to connect to postgres: {:?}", e);
+                return Err(anyhow::anyhow!("Failed to connect to postgres: {:?}", e));
+            }
+        }
     }
 }
