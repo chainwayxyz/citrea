@@ -6,7 +6,7 @@ import "bitcoin-spv/solidity/contracts/BTCUtils.sol";
 import "../lib/WitnessUtils.sol";
 import "../lib/Ownable.sol";
 import "./MerkleTree.sol";
-import "./L1BlockHashList.sol";
+import "./BitcoinLightClient.sol";
 
 /// @title Bridge contract of Clementine
 /// @author Citrea
@@ -27,7 +27,7 @@ contract Bridge is Ownable, MerkleTree {
         uint256 index;
     }
 
-    L1BlockHashList public constant BLOCK_HASH_LIST = L1BlockHashList(address(0x3100000000000000000000000000000000000001));
+    BitcoinLightClient public constant LIGHT_CLIENT = BitcoinLightClient(address(0x3100000000000000000000000000000000000001));
     address public constant SYSTEM_CALLER = address(0xdeaDDeADDEaDdeaDdEAddEADDEAdDeadDEADDEaD);
 
     bool public initialized;
@@ -117,7 +117,7 @@ contract Bridge is Ownable, MerkleTree {
         // Number of inputs == number of witnesses
         require(WitnessUtils.validateWitness(p.witness, _nIns), "Witness is not properly formatted");
 
-        require(BLOCK_HASH_LIST.verifyInclusion(p.block_height, wtxId, p.intermediate_nodes, p.index), "Transaction is not in block");
+        require(LIGHT_CLIENT.verifyInclusion(p.block_height, wtxId, p.intermediate_nodes, p.index), "Transaction is not in block");
 
         bytes memory witness0 = WitnessUtils.extractWitnessAtIndex(p.witness, 0);
         (, uint256 _nItems) = BTCUtils.parseVarInt(witness0);

@@ -1,9 +1,9 @@
 use alloy_primitives::{address, Address, Bytes, U256};
 
-/// L1BlockHashList wrapper.
-pub struct L1BlockHashList {}
+/// BitcoinLightClient wrapper.
+pub struct BitcoinLightClient {}
 
-impl L1BlockHashList {
+impl BitcoinLightClient {
     pub(crate) fn address() -> Address {
         address!("3100000000000000000000000000000000000001")
     }

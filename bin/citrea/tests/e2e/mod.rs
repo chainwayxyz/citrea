@@ -4,7 +4,7 @@ use std::str::FromStr;
 use std::time::Duration;
 
 use citrea_evm::smart_contracts::SimpleStorageContract;
-use citrea_evm::system_contracts::L1BlockHashList;
+use citrea_evm::system_contracts::BitcoinLightClient;
 use citrea_sequencer::{SequencerConfig, SequencerMempoolConfig};
 use citrea_stf::genesis_config::GenesisPaths;
 use ethereum_types::H256;
@@ -1474,7 +1474,7 @@ async fn test_system_transactons() -> Result<(), anyhow::Error> {
         let hash_on_chain: String = full_node_test_client
             .contract_call(
                 system_contract_address,
-                ethers::types::Bytes::from(L1BlockHashList::get_block_hash(i).to_vec()),
+                ethers::types::Bytes::from(BitcoinLightClient::get_block_hash(i).to_vec()),
                 None,
             )
             .await
@@ -1551,28 +1551,28 @@ async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error>
 
     let seq_port = seq_port_rx.await.unwrap();
     let seq_test_client = make_test_client(seq_port).await;
-    // sys tx use L1BlockHash(43615 + 73581) + Bridge(25308) = 142504 gas
-    // the block gas limit is 1_000_000 because the system txs gas limit is 1_000_000
+    // sys tx use L1BlockHash(43615 + 73581) + Bridge(1030769) = 142504 gas
+    // the block gas limit is 1_500_000 because the system txs gas limit is 1_500_000 (decided with @eyusufatik and @okkothejawa as bridge init takes 1M gas)
 
-    // 1000000 - 142504 = 857.496 gas left in block
-    // 857.496 / 21000 = 40,8... so 40 ether transfer transactions can be included in the block
+    // 1000000 - 1147965 = 352.035 gas left in block
+    // 352.035 / 21000 = 16,7... so 16 ether transfer transactions can be included in the block
 
-    // send 40 ether transfer transactions
+    // send 16 ether transfer transactions
     let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
 
-    for _ in 0..39 {
+    for _ in 0..15 {
         seq_test_client
             .send_eth(addr, None, None, None, 0u128)
             .await
             .unwrap();
     }
 
-    // 40th tx should be the last tx in the soft batch
+    // 16th tx should be the last tx in the soft batch
     let last_in_tx = seq_test_client
         .send_eth(addr, None, None, None, 0u128)
         .await;
 
-    // this tx should not be in soft batch
+    // 17th tx should not be in soft batch
     let not_in_tx = seq_test_client
         .send_eth(addr, None, None, None, 0u128)
         .await;
@@ -1653,6 +1653,7 @@ async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error>
     assert!(block2.transactions.iter().any(|tx| tx == &not_in_hash));
 
     seq_task.abort();
+
     Ok(())
 }
 

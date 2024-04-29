@@ -13,8 +13,8 @@ use sov_modules_api::{Context, Module, StateVecAccessor};
 use crate::call::CallMessage;
 use crate::smart_contracts::LogsContract;
 use crate::tests::call_tests::{create_contract_message, get_evm_config, publish_event_message};
-use crate::tests::genesis_tests::get_evm;
 use crate::tests::queries::init_evm;
+use crate::tests::utils::get_evm;
 use crate::{EthApiError, Filter, FilterBlockOption, FilterSet};
 
 type C = DefaultContext;

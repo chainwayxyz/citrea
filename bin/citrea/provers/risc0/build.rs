@@ -1,6 +1,9 @@
 use std::collections::HashMap;
 
 fn main() {
+    println!("cargo:rerun-if-env-changed=SKIP_GUEST_BUILD");
+    println!("cargo:rerun-if-env-changed=OUT_DIR");
+
     if std::env::var("SKIP_GUEST_BUILD").is_ok() {
         println!("Skipping guest build for CI run");
         let out_dir = std::env::var_os("OUT_DIR").unwrap();
@@ -8,7 +11,7 @@ fn main() {
         let methods_path = out_dir.join("methods.rs");
 
         let elf = r#"
-            pub const ROLLUP_ELF: &[u8] = &[];
+            pub const BITCOIN_ELF: &[u8] = &[];
             pub const MOCK_DA_ELF: &[u8] = &[];
         "#;
 
@@ -19,18 +22,17 @@ fn main() {
     }
 }
 
-#[cfg(not(feature = "bench"))]
-fn get_guest_options() -> HashMap<&'static str, risc0_build::GuestOptions> {
-    HashMap::new()
-}
-
-#[cfg(feature = "bench")]
 fn get_guest_options() -> HashMap<&'static str, risc0_build::GuestOptions> {
     let mut guest_pkg_to_options = HashMap::new();
+    let mut features = vec![];
+
+    if cfg!(feature = "bench") {
+        features.push("bench".to_string());
+    }
     guest_pkg_to_options.insert(
         "sov-demo-prover-guest-mock",
         risc0_build::GuestOptions {
-            features: vec!["bench".to_string()],
+            features,
             ..Default::default()
         },
     );

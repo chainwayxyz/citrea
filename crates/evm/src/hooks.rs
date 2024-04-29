@@ -43,17 +43,17 @@ where
         if let Some(last_l1_hash) = self.last_l1_hash.get(working_set) {
             if last_l1_hash != soft_confirmation_info.da_slot_hash {
                 // That's a new L1 block
-                system_events.push(SystemEvent::L1BlockHashSetBlockInfo(
+                system_events.push(SystemEvent::BitcoinLightClientSetBlockInfo(
                     soft_confirmation_info.da_slot_hash,
                     soft_confirmation_info.da_slot_txs_commitment,
                 ));
             }
         } else {
             // That's the first L2 block in the first seen L1 block.
-            system_events.push(SystemEvent::L1BlockHashInitialize(
+            system_events.push(SystemEvent::BitcoinLightClientInitialize(
                 soft_confirmation_info.da_slot_height,
             ));
-            system_events.push(SystemEvent::L1BlockHashSetBlockInfo(
+            system_events.push(SystemEvent::BitcoinLightClientSetBlockInfo(
                 soft_confirmation_info.da_slot_hash,
                 soft_confirmation_info.da_slot_txs_commitment,
             ));

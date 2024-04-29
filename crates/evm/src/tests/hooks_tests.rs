@@ -8,11 +8,12 @@ use reth_primitives::{
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::{StateMapAccessor, StateValueAccessor, StateVecAccessor};
 
-use super::genesis_tests::{get_evm, GENESIS_DA_TXS_COMMITMENT, TEST_CONFIG};
+use super::genesis_tests::{GENESIS_DA_TXS_COMMITMENT, TEST_CONFIG};
 use crate::evm::primitive_types::{
     Block, BlockEnv, Receipt, SealedBlock, TransactionSignedAndRecovered,
 };
-use crate::tests::genesis_tests::{BENEFICIARY, GENESIS_STATE_ROOT};
+use crate::tests::genesis_tests::BENEFICIARY;
+use crate::tests::utils::{get_evm, GENESIS_STATE_ROOT};
 use crate::tests::DEFAULT_CHAIN_ID;
 use crate::PendingTransaction;
 
@@ -221,7 +222,6 @@ fn create_pending_transaction(hash: B256, index: u64) -> PendingTransaction {
             gas_used: 100u64,
             log_index_start: 0,
             diff_size: 0,
-            error: None,
         },
     }
 }

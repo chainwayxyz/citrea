@@ -24,7 +24,6 @@ jsonrpsee = { workspace = true, features = [
 # tokio = { workspace = true, features = ["sync"], optional = true }
 hex = { workspace = true }
 tracing = { workspace = true }
-reth-primitives = { workspace = true }
 secp256k1 = { workspace = true }
 
 sov-stf-runner = { path = "../sovereign-sdk/full-node/sov-stf-runner" }
