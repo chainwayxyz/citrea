@@ -25,6 +25,4 @@ pub mod maybestd {
     pub use alloc::sync;
     #[cfg(target_has_atomic = "ptr")]
     pub use alloc::sync::Arc as RefCount;
-
-    pub use borsh::maybestd::{borrow, boxed, collections, format, io, string, vec};
 }

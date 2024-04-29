@@ -19,8 +19,10 @@ bech32 = { workspace = true }
 borsh = { workspace = true }
 derive_more = { workspace = true, features = ["display", "into"] }
 digest = { workspace = true }
+hashbrown = { workspace = true }
 hex = { workspace = true }
 jmt = { workspace = true, optional = true }
+no_std_io = { workspace = true }
 proptest = { workspace = true, optional = true }
 proptest-derive = { workspace = true, optional = true }
 schemars = { workspace = true, optional = true }
@@ -62,6 +64,7 @@ std = [
     "digest/default",
     "hex/default",
     "jmt",
+    "no_std_io/std",
     "schemars",
     "serde/default",
     "sha2/default",

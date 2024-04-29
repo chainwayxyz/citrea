@@ -1,12 +1,11 @@
 //! Defines traits and types used by the rollup to verify claims about the
 //! soft confirmation
 
+use alloc::vec::Vec;
 use core::fmt::Debug;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
-
-use crate::maybestd::vec::Vec;
 
 /// Contains raw transactions and information about the soft confirmation block
 #[derive(Debug, PartialEq, Clone, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]

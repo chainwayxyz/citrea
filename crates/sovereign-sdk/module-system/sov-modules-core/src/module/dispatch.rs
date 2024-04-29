@@ -1,6 +1,6 @@
 //! Runtime call message definitions.
 
-use sov_rollup_interface::maybestd::io;
+use no_std_io::io;
 
 use crate::common::ModuleError;
 use crate::module::{CallResponse, Context, Spec};
