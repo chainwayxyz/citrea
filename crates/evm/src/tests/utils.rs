@@ -2,6 +2,7 @@ use lazy_static::lazy_static;
 use reth_primitives::hex_literal::hex;
 use reth_primitives::B256;
 use sov_modules_api::default_context::DefaultContext;
+use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::{Module, WorkingSet};
 use sov_prover_storage_manager::{new_orphan_storage, SnapshotManager};
 use sov_state::{DefaultStorageSpec, ProverStorage, Storage};
@@ -54,7 +55,19 @@ pub(crate) fn get_evm(config: &EvmConfig) -> (Evm<C>, WorkingSet<C>) {
     let mut working_set: WorkingSet<C> = WorkingSet::new(storage.clone());
     evm.finalize_hook(&root.into(), &mut working_set.accessory_state());
 
-    evm.begin_soft_confirmation_hook([1u8; 32], 1, [2u8; 32], &root, 0, 0, &mut working_set);
+    evm.begin_soft_confirmation_hook(
+        &HookSoftConfirmationInfo {
+            da_slot_hash: [1u8; 32],
+            da_slot_height: 1,
+            da_slot_txs_commitment: [2u8; 32],
+            pre_state_root: root.to_vec(),
+            pub_key: vec![],
+            deposit_data: vec![],
+            l1_fee_rate: 0,
+            timestamp: 0,
+        },
+        &mut working_set,
+    );
     evm.end_soft_confirmation_hook(&mut working_set);
 
     let root = commit(working_set, storage.clone());

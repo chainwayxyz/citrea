@@ -1,5 +1,6 @@
 use alloy_primitives::B256;
 use reth_primitives::{Bloom, Bytes, U256};
+use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::prelude::*;
 use sov_modules_api::{AccessoryWorkingSet, Spec, WorkingSet};
 use sov_state::Storage;
@@ -16,12 +17,7 @@ where
     #[allow(clippy::too_many_arguments)]
     pub fn begin_soft_confirmation_hook(
         &self,
-        da_slot_hash: [u8; 32],
-        da_slot_height: u64,
-        da_slot_txs_commitment: [u8; 32],
-        pre_state_root: &[u8],
-        l1_fee_rate: u64,
-        timestamp: u64,
+        soft_confirmation_info: &HookSoftConfirmationInfo,
         working_set: &mut WorkingSet<C>,
     ) {
         let mut parent_block = self
@@ -29,7 +25,7 @@ where
             .get(working_set)
             .expect("Head block should always be set");
 
-        parent_block.header.state_root = B256::from_slice(pre_state_root);
+        parent_block.header.state_root = B256::from_slice(&soft_confirmation_info.pre_state_root);
         self.head.set(&parent_block, working_set);
 
         let sealed_parent_block = parent_block.clone().seal();
@@ -45,21 +41,57 @@ where
         // populate system events
         let mut system_events = vec![];
         if let Some(last_l1_hash) = self.last_l1_hash.get(working_set) {
-            if last_l1_hash != da_slot_hash {
+            if last_l1_hash != soft_confirmation_info.da_slot_hash {
                 // That's a new L1 block
                 system_events.push(SystemEvent::BitcoinLightClientSetBlockInfo(
-                    da_slot_hash,
-                    da_slot_txs_commitment,
+                    soft_confirmation_info.da_slot_hash,
+                    soft_confirmation_info.da_slot_txs_commitment,
                 ));
             }
         } else {
             // That's the first L2 block in the first seen L1 block.
-            system_events.push(SystemEvent::BitcoinLightClientInitialize(da_slot_height));
+            system_events.push(SystemEvent::BitcoinLightClientInitialize(
+                soft_confirmation_info.da_slot_height,
+            ));
             system_events.push(SystemEvent::BitcoinLightClientSetBlockInfo(
-                da_slot_hash,
-                da_slot_txs_commitment,
+                soft_confirmation_info.da_slot_hash,
+                soft_confirmation_info.da_slot_txs_commitment,
+            ));
+            system_events.push(SystemEvent::BridgeInitialize(
+                // couldn't figure out how encoding worked lol
+                vec![
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 31, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 160, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 128, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 102, 246, 134, 146, 192, 62, 185, 192, 101, 109,
+                    103, 111, 47, 75, 209, 62, 186, 64, 209, 183, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 175, 195, 32, 52,
+                    2, 237, 230, 131, 149, 51, 30, 39, 151, 225, 216, 253, 43, 169, 81, 56, 107,
+                    170, 179, 45, 20, 64, 37, 44, 50, 20, 224, 112, 143, 228, 121, 173, 32, 193,
+                    140, 89, 52, 128, 244, 245, 90, 63, 215, 97, 124, 157, 246, 227, 218, 188, 128,
+                    252, 165, 146, 127, 102, 210, 0, 80, 200, 42, 32, 18, 190, 122, 173, 32, 137,
+                    195, 16, 192, 123, 60, 57, 1, 86, 42, 63, 0, 12, 74, 71, 127, 203, 94, 191,
+                    211, 98, 222, 61, 7, 160, 191, 249, 39, 242, 145, 19, 1, 173, 32, 103, 222,
+                    104, 248, 235, 129, 108, 134, 57, 104, 2, 179, 137, 222, 222, 192, 23, 3, 215,
+                    158, 153, 16, 224, 200, 70, 244, 137, 32, 163, 227, 61, 215, 173, 32, 64, 241,
+                    80, 103, 2, 228, 0, 184, 209, 174, 210, 222, 5, 191, 119, 110, 109, 118, 2, 55,
+                    138, 176, 131, 74, 125, 119, 16, 57, 69, 74, 245, 110, 173, 81, 0, 99, 20, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 104, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0,
+                ],
             ));
         }
+
+        soft_confirmation_info
+            .deposit_data
+            .iter()
+            .for_each(|deposit_data| {
+                system_events.push(SystemEvent::BridgeDeposit(deposit_data.clone()));
+            });
 
         let cfg = self
             .cfg
@@ -68,8 +100,8 @@ where
         let new_pending_env = BlockEnv {
             number: parent_block.header.number + 1,
             coinbase: cfg.coinbase,
-            timestamp,
-            prevrandao: da_slot_hash.into(),
+            timestamp: soft_confirmation_info.timestamp,
+            prevrandao: soft_confirmation_info.da_slot_hash.into(),
             basefee: parent_block
                 .header
                 .next_block_base_fee(cfg.base_fee_params)
@@ -78,7 +110,8 @@ where
         };
 
         self.block_env.set(&new_pending_env, working_set);
-        self.l1_fee_rate.set(&l1_fee_rate, working_set);
+        self.l1_fee_rate
+            .set(&soft_confirmation_info.l1_fee_rate, working_set);
 
         if !system_events.is_empty() {
             self.execute_system_events(system_events, working_set);
@@ -94,7 +127,8 @@ where
             self.latest_block_hashes
                 .remove(&U256::from(new_pending_env.number - 257), working_set);
         }
-        self.last_l1_hash.set(&da_slot_hash.into(), working_set);
+        self.last_l1_hash
+            .set(&soft_confirmation_info.da_slot_hash.into(), working_set);
     }
 
     /// Logic executed at the end of the slot. Here, we generate an authenticated block and set it as the new head of the chain.

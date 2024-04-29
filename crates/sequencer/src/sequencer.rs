@@ -208,6 +208,7 @@ where
             da_slot_txs_commitment: da_block.header().txs_commitment().into(),
             pre_state_root: self.state_root.clone().as_ref().to_vec(),
             pub_key: self.sov_tx_signer_priv_key.pub_key().try_to_vec().unwrap(),
+            deposit_data: vec![],
             l1_fee_rate,
             timestamp,
         };
@@ -266,6 +267,7 @@ where
                     da_block.header().txs_commitment().into(),
                     self.state_root.clone().as_ref().to_vec(),
                     txs,
+                    vec![],
                     l1_fee_rate,
                     timestamp,
                 );
@@ -324,6 +326,7 @@ where
                     tx_receipts: batch_receipt.tx_receipts,
                     soft_confirmation_signature: signed_soft_batch.signature().to_vec(),
                     pub_key: signed_soft_batch.pub_key().to_vec(),
+                    deposit_data: vec![],
                     l1_fee_rate: signed_soft_batch.l1_fee_rate(),
                     timestamp: signed_soft_batch.timestamp(),
                 };
@@ -585,6 +588,7 @@ where
             soft_confirmation.pre_state_root(),
             soft_confirmation.l1_fee_rate(),
             soft_confirmation.txs(),
+            soft_confirmation.deposit_data(),
             signature.try_to_vec().unwrap(),
             self.sov_tx_signer_priv_key.pub_key().try_to_vec().unwrap(),
             soft_confirmation.timestamp(),

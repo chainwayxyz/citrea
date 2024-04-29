@@ -5,6 +5,7 @@ use reth_primitives::{Address, BlockNumberOrTag, Bytes, TransactionKind, U64};
 use reth_rpc_types::request::{TransactionInput, TransactionRequest};
 use revm::primitives::{SpecId, KECCAK_EMPTY, U256};
 use sov_modules_api::default_context::DefaultContext;
+use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{Context, Module, StateMapAccessor, StateVecAccessor};
 
@@ -50,12 +51,16 @@ fn call_multiple_test() {
     let l1_fee_rate = 0;
 
     evm.begin_soft_confirmation_hook(
-        [5u8; 32],
-        1,
-        [42u8; 32],
-        &[10u8; 32],
-        l1_fee_rate,
-        0,
+        &HookSoftConfirmationInfo {
+            da_slot_hash: [5u8; 32],
+            da_slot_height: 1,
+            da_slot_txs_commitment: [42u8; 32],
+            pre_state_root: [10u8; 32].to_vec(),
+            pub_key: vec![],
+            deposit_data: vec![],
+            l1_fee_rate,
+            timestamp: 0,
+        },
         &mut working_set,
     );
 
@@ -154,12 +159,16 @@ fn call_test() {
     let l1_fee_rate = 0;
 
     evm.begin_soft_confirmation_hook(
-        [5u8; 32],
-        1,
-        [42u8; 32],
-        &[10u8; 32],
-        l1_fee_rate,
-        0,
+        &HookSoftConfirmationInfo {
+            da_slot_hash: [5u8; 32],
+            da_slot_height: 1,
+            da_slot_txs_commitment: [42u8; 32],
+            pre_state_root: [10u8; 32].to_vec(),
+            pub_key: vec![],
+            deposit_data: vec![],
+            l1_fee_rate,
+            timestamp: 0,
+        },
         &mut working_set,
     );
 
@@ -229,12 +238,16 @@ fn failed_transaction_test() {
     let l1_fee_rate = 0;
 
     evm.begin_soft_confirmation_hook(
-        [5u8; 32],
-        1,
-        [42u8; 32],
-        &[10u8; 32],
-        l1_fee_rate,
-        0,
+        &HookSoftConfirmationInfo {
+            da_slot_hash: [5u8; 32],
+            da_slot_height: 1,
+            da_slot_txs_commitment: [42u8; 32],
+            pre_state_root: [10u8; 32].to_vec(),
+            pub_key: vec![],
+            deposit_data: vec![],
+            l1_fee_rate,
+            timestamp: 0,
+        },
         working_set,
     );
     {
@@ -286,12 +299,16 @@ fn self_destruct_test() {
     let l1_fee_rate = 0;
 
     evm.begin_soft_confirmation_hook(
-        [5u8; 32],
-        1,
-        [42u8; 32],
-        &[10u8; 32],
-        l1_fee_rate,
-        0,
+        &HookSoftConfirmationInfo {
+            da_slot_hash: [5u8; 32],
+            da_slot_height: 1,
+            da_slot_txs_commitment: [42u8; 32],
+            pre_state_root: [10u8; 32].to_vec(),
+            pub_key: vec![],
+            deposit_data: vec![],
+            l1_fee_rate,
+            timestamp: 0,
+        },
         &mut working_set,
     );
     {
@@ -342,12 +359,16 @@ fn self_destruct_test() {
     let l1_fee_rate = 0;
 
     evm.begin_soft_confirmation_hook(
-        [5u8; 32],
-        2,
-        [42u8; 32],
-        &[99u8; 32],
-        l1_fee_rate,
-        0,
+        &HookSoftConfirmationInfo {
+            da_slot_hash: [5u8; 32],
+            da_slot_height: 2,
+            da_slot_txs_commitment: [42u8; 32],
+            pre_state_root: [99u8; 32].to_vec(),
+            pub_key: vec![],
+            deposit_data: vec![],
+            l1_fee_rate,
+            timestamp: 0,
+        },
         &mut working_set,
     );
     {
@@ -419,12 +440,16 @@ fn test_block_hash_in_evm() {
     let l1_fee_rate = 0;
 
     evm.begin_soft_confirmation_hook(
-        [5u8; 32],
-        1,
-        [42u8; 32],
-        &[10u8; 32],
-        l1_fee_rate,
-        0,
+        &HookSoftConfirmationInfo {
+            da_slot_hash: [5u8; 32],
+            da_slot_height: 1,
+            da_slot_txs_commitment: [42u8; 32],
+            pre_state_root: [10u8; 32].to_vec(),
+            pub_key: vec![],
+            deposit_data: vec![],
+            l1_fee_rate,
+            timestamp: 0,
+        },
         &mut working_set,
     );
     {
@@ -450,12 +475,16 @@ fn test_block_hash_in_evm() {
         // generate 514 more blocks
         let l1_fee_rate = 0;
         evm.begin_soft_confirmation_hook(
-            [5u8; 32],
-            1,
-            [42u8; 32],
-            &[99u8; 32],
-            l1_fee_rate,
-            0,
+            &HookSoftConfirmationInfo {
+                da_slot_hash: [5u8; 32],
+                da_slot_height: 1,
+                da_slot_txs_commitment: [42u8; 32],
+                pre_state_root: [99u8; 32].to_vec(),
+                pub_key: vec![],
+                deposit_data: vec![],
+                l1_fee_rate,
+                timestamp: 0,
+            },
             &mut working_set,
         );
         evm.end_soft_confirmation_hook(&mut working_set);
@@ -533,12 +562,16 @@ fn test_block_gas_limit() {
     let l1_fee_rate = 0;
 
     evm.begin_soft_confirmation_hook(
-        [5u8; 32],
-        1,
-        [42u8; 32],
-        &[10u8; 32],
-        l1_fee_rate,
-        0,
+        &HookSoftConfirmationInfo {
+            da_slot_hash: [5u8; 32],
+            da_slot_height: 1,
+            da_slot_txs_commitment: [42u8; 32],
+            pre_state_root: [10u8; 32].to_vec(),
+            pub_key: vec![],
+            deposit_data: vec![],
+            l1_fee_rate,
+            timestamp: 0,
+        },
         &mut working_set,
     );
     {
@@ -800,12 +833,16 @@ fn test_l1_fee_success() {
         let (evm, mut working_set) = get_evm(&config);
 
         evm.begin_soft_confirmation_hook(
-            [5u8; 32],
-            1,
-            [42u8; 32],
-            &[10u8; 32],
-            l1_fee_rate,
-            0,
+            &HookSoftConfirmationInfo {
+                da_slot_hash: [5u8; 32],
+                da_slot_height: 1,
+                da_slot_txs_commitment: [42u8; 32],
+                pre_state_root: [10u8; 32].to_vec(),
+                pub_key: vec![],
+                deposit_data: vec![],
+                l1_fee_rate,
+                timestamp: 0,
+            },
             &mut working_set,
         );
         {
@@ -874,12 +911,16 @@ fn test_l1_fee_not_enough_funds() {
     let (evm, mut working_set) = get_evm(&config);
 
     evm.begin_soft_confirmation_hook(
-        [5u8; 32],
-        1,
-        [42u8; 32],
-        &[10u8; 32],
-        l1_fee_rate,
-        0,
+        &HookSoftConfirmationInfo {
+            da_slot_hash: [5u8; 32],
+            da_slot_height: 1,
+            da_slot_txs_commitment: [42u8; 32],
+            pre_state_root: [10u8; 32].to_vec(),
+            pub_key: vec![],
+            deposit_data: vec![],
+            l1_fee_rate,
+            timestamp: 0,
+        },
         &mut working_set,
     );
     {

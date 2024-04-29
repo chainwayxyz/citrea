@@ -247,6 +247,8 @@ impl LedgerDB {
         batch_receipt: SoftBatchReceipt<B, T, DS>,
         include_tx_body: bool,
     ) -> Result<(), anyhow::Error> {
+        let mut batch_receipt = batch_receipt;
+
         // Create a scope to ensure that the lock is released before we commit to the db
         let mut current_item_numbers = {
             let mut next_item_numbers = self.next_item_numbers.lock().unwrap();
@@ -286,6 +288,7 @@ impl LedgerDB {
             // Sequencer full nodes need to store the tx body as they are the only ones that have it
             if !include_tx_body {
                 tx_to_store.body = None;
+                batch_receipt.deposit_data = vec![];
             }
 
             self.put_transaction(
@@ -309,6 +312,7 @@ impl LedgerDB {
             post_state_root: batch_receipt.post_state_root,
             soft_confirmation_signature: batch_receipt.soft_confirmation_signature,
             pub_key: batch_receipt.pub_key,
+            deposit_data: batch_receipt.deposit_data,
             l1_fee_rate: batch_receipt.l1_fee_rate,
             timestamp: batch_receipt.timestamp,
         };
