@@ -1,26 +1,48 @@
 use postgres::Error;
-use postgres::{Client, NoTls, Row};
+use tokio_postgres::{Client, NoTls, Row};
 
 use crate::config::OffchainDbConfig;
-use crate::tables::{DbSequencerCommitment, Tables, SEQUENCER_COMMITMENT_TABLE};
+use crate::get_table_extension;
+use crate::tables::{sequencer_commitment_table, DbSequencerCommitment, Tables};
 
 pub struct PostgresConnector {
     client: Client,
 }
 
 impl PostgresConnector {
-    pub fn new(pg_config: OffchainDbConfig) -> Result<Self, Error> {
-        let mut client = Client::connect(pg_config.parse_to_connection_string().as_str(), NoTls)?;
+    pub async fn new(pg_config: OffchainDbConfig) -> Result<Self, Error> {
+        let (client, connection) =
+            tokio_postgres::connect(pg_config.parse_to_connection_string().as_str(), NoTls).await?;
+
+        // The connection object performs the actual communication with the database,
+        // so spawn it off to run on its own.
+        tokio::spawn(async move {
+            if let Err(e) = connection.await {
+                eprintln!("connection error: {}", e);
+            }
+        });
+
         // create tables
-        client.batch_execute(SEQUENCER_COMMITMENT_TABLE)?;
+        client.batch_execute(&sequencer_commitment_table()).await?;
         Ok(Self { client })
     }
 
-    pub fn insert_sequencer_commitment(
-        &mut self,
-        l1_tx_id: String,
+    pub async fn new_client(pg_config: OffchainDbConfig) -> Result<Self, Error> {
+        let (client, connection) =
+            tokio_postgres::connect(pg_config.parse_to_connection_string().as_str(), NoTls).await?;
+        tokio::spawn(async move {
+            if let Err(e) = connection.await {
+                eprintln!("connection error: {}", e);
+            }
+        });
+        Ok(Self { client })
+    }
+
+    pub async fn insert_sequencer_commitment(
+        &self,
         l1_start_height: u32,
         l1_end_height: u32,
+        l1_tx_id: String,
         l1_start_hash: Vec<u8>,
         l1_end_hash: Vec<u8>,
         l2_start_height: u32,
@@ -30,11 +52,11 @@ impl PostgresConnector {
     ) -> Result<u64, Error> {
         Ok(self.client
             .execute(
-                "INSERT INTO sequencer_commitment (l1_tx_id, l1_start_height, l1_end_height l1_start_hash, l1_end_hash, l2_start_height, l2_end_height, merkle_root, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+                format!("INSERT INTO sequencer_commitment{} (l1_start_height, l1_end_height, l1_tx_id, l1_start_hash, l1_end_hash, l2_start_height, l2_end_height, merkle_root, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)", get_table_extension()).as_str(),
                 &[
-                    &l1_tx_id,
                     &l1_start_height,
                     &l1_end_height,
+                    &l1_tx_id,
                     &hex::encode(l1_start_hash),
                     &hex::encode(l1_end_hash),
                     &l2_start_height,
@@ -42,23 +64,38 @@ impl PostgresConnector {
                     &hex::encode(merkle_root),
                     &status,
                 ],
-            )?)
+            ).await?)
     }
 
-    pub fn get_all_commitments(&mut self) -> Result<Vec<DbSequencerCommitment>, Error> {
+    pub async fn get_all_commitments(&self) -> Result<Vec<DbSequencerCommitment>, Error> {
         Ok(self
             .client
-            .query("SELECT * FROM sequencer_commitment", &[])?
+            .query(
+                format!(
+                    "SELECT * FROM sequencer_commitment{}",
+                    get_table_extension()
+                )
+                .as_str(),
+                &[],
+            )
+            .await?
             .iter()
             .map(|row| PostgresConnector::row_to_sequencer_commitment(row))
             .collect())
     }
 
-    pub fn get_last_commitment(&mut self) -> Result<Option<DbSequencerCommitment>, Error> {
-        let rows = self.client.query(
-            "SELECT * FROM sequencer_commitment ORDER BY id DESC LIMIT 1",
-            &[],
-        )?;
+    pub async fn get_last_commitment(&self) -> Result<Option<DbSequencerCommitment>, Error> {
+        let rows = self
+            .client
+            .query(
+                format!(
+                    "SELECT * FROM sequencer_commitment{} ORDER BY id DESC LIMIT 1",
+                    get_table_extension()
+                )
+                .as_str(),
+                &[],
+            )
+            .await?;
         if rows.is_empty() {
             return Ok(None);
         }
@@ -67,15 +104,21 @@ impl PostgresConnector {
         )))
     }
 
-    pub fn get_all_from(&mut self, table: Tables) -> Vec<Row> {
+    #[cfg(test)]
+    pub async fn drop_table(&self, table: Tables) -> Result<u64, Error> {
         self.client
-            .query(format!("SELECT * FROM {}", table.to_string()).as_str(), &[])
-            .unwrap_or(vec![])
+            .execute(
+                format!("DROP TABLE {}{};", table.to_string(), get_table_extension()).as_str(),
+                &[],
+            )
+            .await
     }
 
-    pub fn drop_table(&mut self, table: Tables) {
+    #[cfg(test)]
+    pub async fn create_sequencer_commitments_table(&self) {
         self.client
-            .execute(format!("DROP TABLE {};", table.to_string()).as_str(), &[])
+            .execute(sequencer_commitment_table().as_str(), &[])
+            .await
             .unwrap();
     }
 
@@ -83,7 +126,7 @@ impl PostgresConnector {
     fn row_to_sequencer_commitment(row: &Row) -> DbSequencerCommitment {
         DbSequencerCommitment {
             l1_tx_id: row.get("l1_tx_id"),
-            l1_start_heiht: row.get("l1_start_height"),
+            l1_start_height: row.get("l1_start_height"),
             l1_end_height: row.get("l1_end_height"),
             l1_start_hash: row.get("l1_start_hash"),
             l1_end_hash: row.get("l1_end_hash"),
@@ -96,59 +139,50 @@ impl PostgresConnector {
     }
 }
 
-// #[cfg(feature = "offchain_db")]
-// mod tests {
-//     use super::*;
+mod tests {
+    #[cfg(test)]
+    use super::*;
+    #[tokio::test]
+    async fn test_insert_sequencer_commitment() {
+        let cfg = OffchainDbConfig::new(
+            "localhost".to_string(),
+            5432,
+            "postgres".to_string(),
+            "postgres".to_string(),
+            "postgres".to_string(),
+        );
 
-//     fn drop_table() {
-//         let cfg = OffchainDbConfig::new(
-//             "localhost".to_string(),
-//             5432,
-//             "postgres".to_string(),
-//             "postgres".to_string(),
-//             "postgres".to_string(),
-//         );
-//         let mut connector = PostgresConnector::new(cfg).unwrap();
-//         connector.drop_table(Tables::SequencerCommitment);
-//     }
+        let client = PostgresConnector::new_client(cfg).await.unwrap();
 
-//     #[test]
-//     fn test_insert_sequencer_commitment() {
-//         drop_table();
-//         let cfg = OffchainDbConfig::new(
-//             "localhost".to_string(),
-//             5432,
-//             "postgres".to_string(),
-//             "postgres".to_string(),
-//             "postgres".to_string(),
-//         );
-//         let mut connector = PostgresConnector::new(cfg).unwrap();
+        let _ = client.drop_table(Tables::SequencerCommitment).await;
+        client.create_sequencer_commitments_table().await;
 
-//         let inserted = connector
-//             .insert_sequencer_commitment(
-//                 "0xaabab".to_string(),
-//                 vec![255; 32],
-//                 vec![0; 32],
-//                 10,
-//                 11,
-//                 vec![1; 32],
-//                 "Trusted".to_string(),
-//             )
-//             .unwrap();
+        let inserted = client
+            .insert_sequencer_commitment(
+                3,
+                4,
+                "0xaabab".to_string(),
+                vec![255; 32],
+                vec![0; 32],
+                10,
+                11,
+                vec![1; 32],
+                "Trusted".to_string(),
+            )
+            .await
+            .unwrap();
 
-//         assert_eq!(inserted, 1);
+        assert_eq!(inserted, 1);
 
-//         let rows = connector.get_all_commitments().unwrap();
-//         assert_eq!(rows.len(), 1);
-//         assert_eq!(rows[0].l1_tx_id, "0xaabab");
-//         assert_eq!(rows[0].l1_start_hash, hex::encode(vec![255; 32]));
-//         assert_eq!(rows[0].l1_start_hash, "ff".repeat(32));
-//         assert_eq!(rows[0].l1_end_hash, hex::encode(vec![0; 32]));
-//         assert_eq!(rows[0].l2_start_height, 10);
-//         assert_eq!(rows[0].l2_end_height, 11);
-//         for row in rows {
-//             println!("{:?}", row);
-//             println!("{:?}", hex::decode(row.l1_end_hash));
-//         }
-//     }
-// }
+        let rows = client.get_all_commitments().await.unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].l1_tx_id, "0xaabab");
+        assert_eq!(rows[0].l1_start_hash, hex::encode(vec![255; 32]));
+        assert_eq!(rows[0].l1_start_hash, "ff".repeat(32));
+        assert_eq!(rows[0].l1_end_hash, hex::encode(vec![0; 32]));
+        assert_eq!(rows[0].l2_start_height, 10);
+        assert_eq!(rows[0].l2_end_height, 11);
+
+        let _ = client.drop_table(Tables::SequencerCommitment).await;
+    }
+}

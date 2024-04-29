@@ -199,6 +199,7 @@ async fn check_commitment_in_offchain_db() {
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
     let mut sequencer_config = create_default_sequencer_config(4, Some(true));
+
     sequencer_config.db_config = Some(OffchainDbConfig::default());
 
     let seq_task = tokio::spawn(async {
@@ -226,6 +227,8 @@ async fn check_commitment_in_offchain_db() {
     let test_client = make_test_client(seq_port).await;
     let da_service = MockDaService::new(MockAddress::from([0; 32]));
 
+    da_service.publish_test_block().await.unwrap();
+
     // publish 3 soft confirmations, no commitment should be sent
     for _ in 0..3 {
         test_client.send_publish_batch_request().await;
@@ -233,19 +236,31 @@ async fn check_commitment_in_offchain_db() {
 
     da_service.publish_test_block().await.unwrap();
 
-    let mut height = 1;
+    let height = 1;
     let last_finalized = da_service
         .get_last_finalized_block_header()
         .await
         .unwrap()
         .height;
 
-    // publish 3 soft confirmations, no commitment should be sent
-    for _ in 0..3 {
-        test_client.send_publish_batch_request().await;
-    }
+    // publish 4th block
+    test_client.send_publish_batch_request().await;
+    // new da block
+    da_service.publish_test_block().await.unwrap();
 
-    println!("sdfsdf");
+    // commtiment should be published with this call
+    test_client.send_publish_batch_request().await;
+
+    let client = PostgresConnector::new(OffchainDbConfig::default())
+        .await
+        .unwrap();
+
+    let commitments = client.get_all_commitments().await.unwrap();
+    assert_eq!(commitments.len(), 1);
+    assert_eq!(commitments[0].l1_start_height, 2);
+    assert_eq!(commitments[0].l1_end_height, 3);
+
+    seq_task.abort();
 
     // ls
 }

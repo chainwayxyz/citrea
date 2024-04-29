@@ -1,7 +1,10 @@
 use std::fmt;
 
+use crate::get_table_extension;
+
 pub enum Tables {
     /// string version is sequencer_commitment
+    #[allow(dead_code)]
     SequencerCommitment,
 }
 
@@ -18,7 +21,7 @@ impl fmt::Display for Tables {
 pub struct DbSequencerCommitment {
     /// Hex encoded L1 transaction ID
     pub l1_tx_id: String,
-    pub l1_start_heiht: u32,
+    pub l1_start_height: u32,
     pub l1_end_height: u32,
     /// Hex encoded L1 start hash
     pub l1_start_hash: String,
@@ -31,11 +34,10 @@ pub struct DbSequencerCommitment {
     pub status: String,
 }
 
-///// Merkle root of soft confirmation hashes
-///pub merkle_root: [u8; 32],
-
-pub(crate) const SEQUENCER_COMMITMENT_TABLE: &str = "
-CREATE TABLE IF NOT EXISTS sequencer_commitment (
+pub fn sequencer_commitment_table() -> String {
+    format!(
+        "
+CREATE TABLE IF NOT EXISTS sequencer_commitment{} (
     id                  SERIAL PRIMARY KEY,
     l1_start_height     OID NOT NULL,
     l1_end_height       OID NOT NULL,
@@ -45,6 +47,9 @@ CREATE TABLE IF NOT EXISTS sequencer_commitment (
     l2_start_height     OID NOT NULL,
     l2_end_height       OID NOT NULL,
     merkle_root         VARCHAR(66) NOT NULL,
-    status              VARCHAR(15) NOT NULL              
+    status              VARCHAR(15) NOT NULL
     );
-";
+",
+        get_table_extension()
+    )
+}

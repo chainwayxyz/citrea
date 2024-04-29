@@ -1658,8 +1658,11 @@ name = "citrea-offchain-db"
 version = "0.3.0"
 dependencies = [
  "hex",
+ "lazy_static",
  "postgres",
  "serde",
+ "tokio",
+ "tokio-postgres",
 ]
 
 [[package]]
