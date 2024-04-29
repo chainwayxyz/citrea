@@ -5,7 +5,7 @@ pub(crate) fn get_db_extension() -> String {
         thread_name = "".to_string();
     }
     thread_name
-        .split(":")
+        .split(':')
         .collect::<Vec<&str>>()
         .last()
         .unwrap_or(&"unnamed")

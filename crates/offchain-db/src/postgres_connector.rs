@@ -87,6 +87,7 @@ impl PostgresConnector {
         })
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn insert_sequencer_commitment(
         &self,
         l1_start_height: u32,
@@ -99,7 +100,7 @@ impl PostgresConnector {
         merkle_root: Vec<u8>,
         status: String,
     ) -> Result<u64, Error> {
-        Ok(self.client
+        self.client
             .execute(
                 "INSERT INTO sequencer_commitment (l1_start_height, l1_end_height, l1_tx_id, l1_start_hash, l1_end_hash, l2_start_height, l2_end_height, merkle_root, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)", 
                 &[
@@ -113,7 +114,7 @@ impl PostgresConnector {
                     &hex::encode(merkle_root),
                     &status,
                 ],
-            ).await?)
+            ).await
     }
 
     pub async fn get_all_commitments(&self) -> Result<Vec<DbSequencerCommitment>, Error> {
@@ -122,7 +123,7 @@ impl PostgresConnector {
             .query("SELECT * FROM sequencer_commitment", &[])
             .await?
             .iter()
-            .map(|row| PostgresConnector::row_to_sequencer_commitment(row))
+            .map(PostgresConnector::row_to_sequencer_commitment)
             .collect())
     }
 
@@ -144,7 +145,7 @@ impl PostgresConnector {
 
     pub async fn drop_table(&self, table: Tables) -> Result<u64, Error> {
         self.client
-            .execute(format!("DROP TABLE {};", table.to_string()).as_str(), &[])
+            .execute(format!("DROP TABLE {};", table).as_str(), &[])
             .await
     }
 

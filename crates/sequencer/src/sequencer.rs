@@ -711,7 +711,6 @@ where
         match PostgresConnector::new(db_config).await {
             Ok(pg_connector) => {
                 let commitment = pg_connector.get_last_commitment().await?;
-                println!("commitment: {:?}", commitment);
                 // check if last commitment in db matches sequencer's last commitment
                 match commitment {
                     Some(db_commitment) => {
@@ -731,7 +730,7 @@ where
             }
             Err(e) => {
                 warn!("Failed to connect to postgres: {:?}", e);
-                return Err(anyhow::anyhow!("Failed to connect to postgres: {:?}", e));
+                Err(anyhow::anyhow!("Failed to connect to postgres: {:?}", e))
             }
         }
     }

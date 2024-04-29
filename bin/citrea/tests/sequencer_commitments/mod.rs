@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use borsh::BorshDeserialize;
-use citrea_offchain_db::{OffchainDbConfig, PostgresConnector, Tables};
+use citrea_offchain_db::{OffchainDbConfig, PostgresConnector};
 use citrea_stf::genesis_config::GenesisPaths;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
