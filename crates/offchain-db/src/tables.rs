@@ -1,6 +1,6 @@
 use std::fmt;
 
-use crate::get_table_extension;
+use crate::utils::get_db_extension;
 
 pub enum Tables {
     /// string version is sequencer_commitment
@@ -34,10 +34,12 @@ pub struct DbSequencerCommitment {
     pub status: String,
 }
 
-pub fn sequencer_commitment_table() -> String {
-    format!(
-        "
-CREATE TABLE IF NOT EXISTS sequencer_commitment{} (
+pub fn create_database() -> String {
+    format!("CREATE DATABASE citrea{};", get_db_extension())
+}
+
+pub const SEQUENCER_COMMITMENT_TABLE_CREATE_QUERY: &str = "
+CREATE TABLE IF NOT EXISTS sequencer_commitment (
     id                  SERIAL PRIMARY KEY,
     l1_start_height     OID NOT NULL,
     l1_end_height       OID NOT NULL,
@@ -49,7 +51,4 @@ CREATE TABLE IF NOT EXISTS sequencer_commitment{} (
     merkle_root         VARCHAR(66) NOT NULL,
     status              VARCHAR(15) NOT NULL
     );
-",
-        get_table_extension()
-    )
-}
+";

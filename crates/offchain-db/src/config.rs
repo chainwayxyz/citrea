@@ -26,10 +26,18 @@ impl OffchainDbConfig {
             db_name,
         }
     }
+
     pub fn parse_to_connection_string(&self) -> String {
         format!(
             "host={} port={} user={} password={} dbname={}",
             self.db_host, self.db_port, self.db_user, self.db_password, self.db_name
+        )
+    }
+
+    pub fn parse_to_connection_string_with_db(&self, db_name: String) -> String {
+        format!(
+            "host={} port={} user={} password={} dbname={}",
+            self.db_host, self.db_port, self.db_user, self.db_password, db_name
         )
     }
 }

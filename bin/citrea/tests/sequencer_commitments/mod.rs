@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use borsh::BorshDeserialize;
-use citrea_offchain_db::{OffchainDbConfig, PostgresConnector};
+use citrea_offchain_db::{OffchainDbConfig, PostgresConnector, Tables};
 use citrea_stf::genesis_config::GenesisPaths;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
@@ -202,6 +202,9 @@ async fn check_commitment_in_offchain_db() {
 
     sequencer_config.db_config = Some(OffchainDbConfig::default());
 
+    // drops db if exists from previous test runs, recreates the db
+    let db_test_client = PostgresConnector::new_test_client().await.unwrap();
+
     let seq_task = tokio::spawn(async {
         start_rollup(
             seq_port_tx,
@@ -236,13 +239,6 @@ async fn check_commitment_in_offchain_db() {
 
     da_service.publish_test_block().await.unwrap();
 
-    let height = 1;
-    let last_finalized = da_service
-        .get_last_finalized_block_header()
-        .await
-        .unwrap()
-        .height;
-
     // publish 4th block
     test_client.send_publish_batch_request().await;
     // new da block
@@ -251,16 +247,10 @@ async fn check_commitment_in_offchain_db() {
     // commtiment should be published with this call
     test_client.send_publish_batch_request().await;
 
-    let client = PostgresConnector::new(OffchainDbConfig::default())
-        .await
-        .unwrap();
-
-    let commitments = client.get_all_commitments().await.unwrap();
+    let commitments = db_test_client.get_all_commitments().await.unwrap();
     assert_eq!(commitments.len(), 1);
     assert_eq!(commitments[0].l1_start_height, 2);
     assert_eq!(commitments[0].l1_end_height, 3);
 
     seq_task.abort();
-
-    // ls
 }
