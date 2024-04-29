@@ -21,7 +21,7 @@ clean-node: ## Cleans local dbs needed for sequencer and nodes
 test-legacy: ## Runs test suite with output from tests printed
 	@cargo test -- --nocapture -Zunstable-options --report-time
 
-test:  ## Runs test suite using next test
+test: $(EF_TESTS_DIR) ## Runs test suite using next test
 	@cargo nextest run --workspace --all-features --no-fail-fast
 
 install-dev-tools:  ## Installs all necessary cargo helpers
@@ -69,7 +69,7 @@ find-unused-deps: ## Prints unused dependencies for project. Note: requires nigh
 find-flaky-tests:  ## Runs tests over and over to find if there's flaky tests
 	flaky-finder -j16 -r320 --continue "cargo test -- --nocapture"
 
-coverage: ## Coverage in lcov format
+coverage: $(EF_TESTS_DIR) ## Coverage in lcov format
 	cargo llvm-cov --locked --lcov --output-path lcov.info nextest --workspace --all-features
 
 coverage-html: ## Coverage in HTML format
