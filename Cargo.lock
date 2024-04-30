@@ -1669,6 +1669,7 @@ dependencies = [
  "citrea-stf",
  "digest 0.10.7",
  "ethers",
+ "ethers-core",
  "futures",
  "hex",
  "jsonrpsee",
