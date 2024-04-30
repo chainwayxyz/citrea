@@ -57,7 +57,6 @@ sov-accounts = { path = "../sovereign-sdk/module-system/module-implementations/s
 sov-state = { path = "../sovereign-sdk/module-system/sov-state" }
 sov-mock-da = { path = "../sovereign-sdk/adapters/mock-da" }
 hex = { workspace = true }
-ethers-core = "2.0.14"
 
 [dev-dependencies]
 tokio = { workspace = true }
