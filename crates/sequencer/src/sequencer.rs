@@ -604,11 +604,6 @@ where
         let new_rpc_storage = self
             .storage_manager
             .create_storage_on_l2_height(l2_height)?;
-        // `send_replace` is superior to `send` for our use case. It never fails
-        // because it doesn't need to notify all receivers, unlike `send`, which
-        // we don't need. It will also keep working even if there are no
-        // receivers currently alive, which makes it easier to reason about the
-        // code.
         self.rpc_storage_sender.send_replace(new_rpc_storage);
 
         Ok(())
