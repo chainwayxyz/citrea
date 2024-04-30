@@ -1,4 +1,5 @@
 use citrea_evm::{Evm, EvmChainConfig};
+use jsonrpsee::core::RpcResult;
 use reth_db::models::StoredBlockBodyIndices;
 use reth_interfaces::provider::ProviderResult;
 use reth_primitives::{
@@ -32,27 +33,23 @@ impl<C: sov_modules_api::Context> DbProvider<C> {
         self.evm.get_chain_config(&mut working_set)
     }
 
-    pub fn last_block_tx_hashes(&self) -> Vec<B256> {
+    pub fn last_block_tx_hashes(&self) -> RpcResult<Vec<B256>> {
         let mut working_set = WorkingSet::<C>::new(self.storage.clone());
-        let rich_block = self
-            .evm
-            .get_block_by_number(None, None, &mut working_set)
-            .unwrap()
-            .unwrap();
-        match rich_block.inner.transactions {
-            BlockTransactions::Hashes(hashes) => hashes,
-            _ => vec![],
+        let rich_block = self.evm.get_block_by_number(None, None, &mut working_set)?;
+        let hashes = rich_block.map(|b| b.inner.transactions);
+        match hashes {
+            Some(BlockTransactions::Hashes(hashes)) => Ok(hashes),
+            _ => Ok(vec![]),
         }
     }
 
-    pub fn genesis_block(&self) -> ProviderResult<Option<Block>> {
+    pub fn genesis_block(&self) -> RpcResult<Option<Block>> {
         let mut working_set = WorkingSet::<C>::new(self.storage.clone());
         let rich_block = self
             .evm
-            .get_block_by_number(Some(BlockNumberOrTag::Earliest), None, &mut working_set)
-            .unwrap()
-            .unwrap();
-        Ok(Some(rich_block.inner))
+            .get_block_by_number(Some(BlockNumberOrTag::Earliest), None, &mut working_set)?
+            .map(|b| b.inner);
+        Ok(rich_block)
     }
 }
 
