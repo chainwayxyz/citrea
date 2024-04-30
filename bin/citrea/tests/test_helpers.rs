@@ -184,7 +184,7 @@ pub fn create_default_sequencer_config(
     SequencerConfig {
         min_soft_confirmations_per_commitment,
         test_mode: test_mode.unwrap_or(false),
-        deposit_mempool_fetch_limit: deposit_mempool_fetch_limit,
+        deposit_mempool_fetch_limit,
         mempool_conf: Default::default(),
     }
 }

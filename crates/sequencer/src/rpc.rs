@@ -10,13 +10,17 @@ use reth_rpc_types_compat::transaction::from_recovered;
 use reth_transaction_pool::EthPooledTransaction;
 use sov_mock_da::{MockAddress, MockDaService};
 use sov_modules_api::WorkingSet;
+use sov_rollup_interface::rpc::HexTx;
+use tokio::sync::Mutex;
 use tracing::info;
 
+use crate::deposit_data_mempool::DepositDataMempool;
 use crate::mempool::CitreaMempool;
 use crate::utils::recover_raw_transaction;
 
 pub(crate) struct RpcContext<C: sov_modules_api::Context> {
     pub mempool: Arc<CitreaMempool<C>>,
+    pub deposit_mempool: Arc<Mutex<DepositDataMempool>>,
     pub l2_force_block_tx: UnboundedSender<()>,
     pub storage: C::Storage,
     pub test_mode: bool,
@@ -90,6 +94,39 @@ pub(crate) fn create_rpc_module<C: sov_modules_api::Context>(
                     }
                 }
             },
+        }
+    })?;
+
+    rpc.register_async_method("eth_depositTransaction", |parameters, ctx| async move {
+        let mut params = parameters.sequence();
+        let deposits: Vec<Vec<u8>> = params.next().unwrap();
+
+        info!("Sequencer: eth_depositTransaction");
+
+        let evm = Evm::<C>::default();
+        let mut working_set = WorkingSet::<C>::new(ctx.storage.clone());
+
+        for deposit in deposits {
+            let dep_tx = ctx
+                .deposit_mempool
+                .lock()
+                .await
+                .make_deposit_tx_from_data(deposit.clone().into());
+
+            let tx_res = evm.get_call(dep_tx, None, None, None, &mut working_set);
+
+            match tx_res {
+                Ok(hex_res) => {
+                    tracing::info!("Deposit tx processed successfully {}", hex_res);
+                    ctx.deposit_mempool
+                        .lock()
+                        .await
+                        .add_deposit_tx(HexTx { tx: deposit });
+                }
+                Err(e) => {
+                    tracing::error!("Error processing deposit tx: {:?}", e);
+                }
+            }
         }
     })?;
     Ok(rpc)

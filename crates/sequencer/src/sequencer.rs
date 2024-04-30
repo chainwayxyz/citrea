@@ -32,6 +32,7 @@ use sov_rollup_interface::stf::{SoftBatchReceipt, StateTransitionFunction};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::ZkvmHost;
 use sov_stf_runner::{InitVariant, RpcConfig, RunnerConfig};
+use tokio::sync::Mutex;
 use tokio::time::sleep;
 use tracing::{debug, info, warn};
 
@@ -207,7 +208,7 @@ where
 
         let timestamp = chrono::Local::now().timestamp() as u64;
 
-        let deposit_data = self.deposit_mempool.fetch_deposists();
+        let deposit_data = self.deposit_mempool.fetch_deposits();
 
         let batch_info = HookSoftConfirmationInfo {
             da_slot_height: da_block.header().height(),
@@ -215,7 +216,7 @@ where
             da_slot_txs_commitment: da_block.header().txs_commitment().into(),
             pre_state_root: self.state_root.clone().as_ref().to_vec(),
             pub_key: self.sov_tx_signer_priv_key.pub_key().try_to_vec().unwrap(),
-            deposit_data: deposit_data,
+            deposit_data,
             l1_fee_rate,
             timestamp,
         };
@@ -621,6 +622,7 @@ where
         let l2_force_block_tx = self.l2_force_block_tx.clone();
         RpcContext {
             mempool: self.mempool.clone(),
+            deposit_mempool: Arc::new(Mutex::new(self.deposit_mempool.clone())),
             l2_force_block_tx,
             storage: self.storage.clone(),
             test_mode: self.config.test_mode,
