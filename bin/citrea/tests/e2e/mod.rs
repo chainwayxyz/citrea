@@ -1672,8 +1672,6 @@ async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
     // open, close without publishing blokcs
     // then reopen, publish some blocks without error
     // Remove temp db directories if they exist
-    let _ = fs::remove_dir_all(Path::new("demo_data_test_reopen_sequencer_copy"));
-    let _ = fs::remove_dir_all(Path::new("demo_data_test_reopen_sequencer"));
     let _ = fs::remove_dir_all(Path::new("demo_data_sequencer_full_node"));
     let _ = fs::remove_dir_all(Path::new("demo_data_sequencer_full_node_copy"));
 
@@ -1698,7 +1696,7 @@ async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
             },
             RollupProverConfig::Execute,
             NodeMode::SequencerNode,
-            Some("demo_data_test_reopen_sequencer"),
+            None,
             4,
             true,
             None,
