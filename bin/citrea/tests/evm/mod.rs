@@ -39,6 +39,8 @@ async fn web3_rpc_tests() -> Result<(), anyhow::Error> {
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             true,
+            None,
+            None,
             Some(true),
         )
         .await;
@@ -91,6 +93,8 @@ async fn evm_tx_tests() -> Result<(), anyhow::Error> {
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             true,
+            None,
+            None,
             Some(true),
         )
         .await;
@@ -127,6 +131,8 @@ async fn test_eth_get_logs() -> Result<(), anyhow::Error> {
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             true,
+            None,
+            None,
             Some(true),
         )
         .await;
@@ -159,6 +165,8 @@ async fn test_genesis_contract_call() -> Result<(), Box<dyn std::error::Error>> 
             None,
             123456,
             true,
+            None,
+            None,
             Some(true),
         )
         .await;
@@ -362,7 +370,7 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
         .eth_get_block_by_number(Some(BlockNumberOrTag::Number(1)))
         .await;
     assert_eq!(first_block.number.unwrap().as_u64(), 1);
-    assert_eq!(first_block.transactions.len(), 3);
+    assert_eq!(first_block.transactions.len(), 4);
 
     let set_arg = 923;
     let tx_hash = {

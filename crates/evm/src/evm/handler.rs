@@ -4,14 +4,18 @@ use std::mem::size_of;
 use std::sync::Arc;
 
 use revm::handler::register::{EvmHandler, HandleRegisters};
-use revm::interpreter::{
-    CallInputs, CallOutcome, CreateInputs, CreateOutcome, Gas, InstructionResult, Interpreter,
-};
+#[cfg(feature = "native")]
+use revm::interpreter::{CallInputs, CallOutcome, CreateInputs, CreateOutcome, Interpreter};
+use revm::interpreter::{Gas, InstructionResult};
+#[cfg(feature = "native")]
+use revm::primitives::Log;
 use revm::primitives::{
-    spec_to_generic, Address, EVMError, Env, HandlerCfg, InvalidTransaction, Log, ResultAndState,
-    Spec, SpecId, B256, U256,
+    spec_to_generic, Address, EVMError, Env, HandlerCfg, InvalidTransaction, ResultAndState, Spec,
+    SpecId, B256, U256,
 };
-use revm::{Context, Database, EvmContext, FrameResult, InnerEvmContext, Inspector, JournalEntry};
+use revm::{Context, Database, FrameResult, InnerEvmContext, JournalEntry};
+#[cfg(feature = "native")]
+use revm::{EvmContext, Inspector};
 
 use crate::system_events::SYSTEM_SIGNER;
 
@@ -88,6 +92,7 @@ impl CitreaExternalExt for CitreaExternal {
     }
 }
 
+#[cfg(feature = "native")]
 /// This is both a `CitreaExternal` and an `Inspector`.
 pub(crate) struct TracingCitreaExternal<I, DB> {
     ext: CitreaExternal,
@@ -95,6 +100,7 @@ pub(crate) struct TracingCitreaExternal<I, DB> {
     _ph: core::marker::PhantomData<DB>,
 }
 
+#[cfg(feature = "native")]
 impl<I, DB> TracingCitreaExternal<I, DB>
 where
     DB: Database,
@@ -109,6 +115,7 @@ where
     }
 }
 
+#[cfg(feature = "native")]
 // Pass all methods to self.ext
 impl<I, DB> CitreaExternalExt for TracingCitreaExternal<I, DB> {
     fn l1_fee_rate(&self) -> u64 {
@@ -125,6 +132,7 @@ impl<I, DB> CitreaExternalExt for TracingCitreaExternal<I, DB> {
     }
 }
 
+#[cfg(feature = "native")]
 // Pass all methods to self.inspector
 impl<I, DB> Inspector<DB> for TracingCitreaExternal<I, DB>
 where

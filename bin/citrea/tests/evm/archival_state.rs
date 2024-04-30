@@ -31,6 +31,8 @@ async fn test_archival_state() -> Result<(), anyhow::Error> {
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             true,
+            None,
+            None,
             Some(true),
         )
         .await;

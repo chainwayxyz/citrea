@@ -4,7 +4,7 @@ WORKDIR /app
 # Builds a cargo-chef plan
 FROM chef AS planner
 COPY . .
-RUN SKIP_GUEST_BUILD=1 cargo chef prepare --recipe-path recipe.json
+RUN cargo chef prepare --recipe-path recipe.json
 
 FROM chef AS builder 
 COPY --from=planner /app/recipe.json recipe.json
@@ -13,11 +13,15 @@ COPY --from=planner /app/recipe.json recipe.json
 RUN apt-get update && apt-get -y upgrade && apt-get install -y libclang-dev pkg-config && apt-get install protobuf-compiler -y 
 
 # Build dependencies - this is the caching Docker layer!
-RUN SKIP_GUEST_BUILD=1 cargo chef cook --release --recipe-path recipe.json
+RUN cargo chef cook --release --recipe-path recipe.json
 
 COPY . .
+
+# Install risczero
+RUN cargo install cargo-binstall && cargo binstall cargo-risczero -y && cargo risczero install --version v2024-04-22.0
+
 # Build the project
-RUN SKIP_GUEST_BUILD=1 cargo build --release --bin citrea
+RUN cargo build --release --bin citrea
 
 # We need cargo to run the binary because of some path finding dependencies
 FROM rust:latest AS runtime

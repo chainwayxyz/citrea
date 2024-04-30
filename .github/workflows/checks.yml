@@ -87,7 +87,7 @@ jobs:
         with:
           tool: cargo-risczero@0.19
       - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-        run: cargo risczero install
+        run: cargo risczero install --version v2024-04-22.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Run lint
@@ -121,9 +121,9 @@ jobs:
         with:
           tool: cargo-risczero@0.19
       - name: Install risc0-zkvm toolchain
-        run: cargo risczero install
+        run: cargo risczero install --version v2024-04-22.0
       - name: Run coverage
-        run: SKIP_GUEST_BUILD=1 make coverage
+        run: make coverage
       - name: Upload coverage
         uses: codecov/codecov-action@v4
         with:
@@ -145,12 +145,16 @@ jobs:
         uses: taiki-e/install-action@v2
         with:
           tool: cargo-risczero@0.19
+      - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
+        run: cargo risczero install --version v2024-04-22.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: actions/cache@v3
         with:
           key: ${{ runner.os }}-${{ github.job }}-${{ github.head_ref }}
           path: ./target
       - name: Build citrea
-        run: SKIP_GUEST_BUILD=1 make build
+        run: make build
       - name: Install node dependencies
         working-directory: ./bin/citrea/tests/evm/uniswap
         run: npm install
@@ -177,6 +181,14 @@ jobs:
             echo "State root mismatch";
             exit 1
           fi
+
+  sys_tx_keccak:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
+      - name: Check system tx against artifacts ABI
+        run: python crates/evm/src/evm/system_contracts/test/check_sys_hashes.py
 
   check_no_std:
     runs-on: ubicloud-standard-4
@@ -229,7 +241,7 @@ jobs:
         with:
           tool: cargo-risczero@0.19
       - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-        run: cargo risczero install
+        run: cargo risczero install --version v2024-04-22.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         # `cargo-nextest` is much faster than standard `cargo test`.
@@ -237,7 +249,7 @@ jobs:
       - name: Install Rust
         run: rustup show
       - name: Run nextest
-        run: SKIP_GUEST_BUILD=1 make test
+        run: make test
 
   system-contracts:
     strategy:

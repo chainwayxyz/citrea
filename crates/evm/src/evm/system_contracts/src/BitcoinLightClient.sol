@@ -2,7 +2,7 @@
 pragma solidity ^0.8.13;
 
 import "../lib/Ownable.sol";
-import "./interfaces/IL1BlockHashList.sol";
+import "./interfaces/IBitcoinLightClient.sol";
 import "bitcoin-spv/solidity/contracts/ValidateSPV.sol";
 
 /// @title A system contract that stores block hashes and witness root hashes of L1 blocks
@@ -12,17 +12,22 @@ import "bitcoin-spv/solidity/contracts/ValidateSPV.sol";
 // - Block hash getters returning 0 value means no such block is recorded
 // - Witness root getters returning 0 value doesn't necessarily mean no such block is recorded, as 0 is also a valid witness root hash in the case of a 1 transaction block
 
-contract L1BlockHashList is Ownable, IL1BlockHashList {
+contract BitcoinLightClient is IBitcoinLightClient {
+    uint256 public blockNumber;
+    address public constant SYSTEM_CALLER = address(0xdeaDDeADDEaDdeaDdEAddEADDEAdDeadDEADDEaD);
     mapping(uint256 => bytes32) public blockHashes;
     mapping(bytes32 => bytes32) public witnessRoots;
-    uint256 public blockNumber;
-
+    
     event BlockInfoAdded(uint256 blockNumber, bytes32 blockHash, bytes32 merkleRoot);
-    constructor() Ownable(){ }
+
+    modifier onlySystem() {
+        require(msg.sender == SYSTEM_CALLER, "caller is not the system caller");
+        _;
+    }
 
     /// @notice Sets the initial value for the block number, can only be called once
     /// @param _blockNumber L1 block number that is associated with the genesis block of Citrea
-    function initializeBlockNumber(uint256 _blockNumber) external onlyOwner {
+    function initializeBlockNumber(uint256 _blockNumber) external onlySystem {
         require(blockNumber == 0, "Already initialized");
         blockNumber = _blockNumber;
     }
@@ -32,7 +37,7 @@ contract L1BlockHashList is Ownable, IL1BlockHashList {
     /// @dev Block number is incremented by the contract as no block info should be overwritten or skipped
     /// @param _blockHash Hash of the current L1 block
     /// @param _witnessRoot Witness root of the current L1 block, must be in little endian 
-    function setBlockInfo(bytes32 _blockHash, bytes32 _witnessRoot) external onlyOwner {
+    function setBlockInfo(bytes32 _blockHash, bytes32 _witnessRoot) external onlySystem {
         uint256 _blockNumber = blockNumber;
         require(_blockNumber != 0, "Not initialized");
         blockHashes[_blockNumber] = _blockHash;

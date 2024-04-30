@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
-interface IL1BlockHashList {
+interface IBitcoinLightClient {
     function initializeBlockNumber(uint256) external;
     function setBlockInfo(bytes32, bytes32) external;
     function getBlockHash(uint256) external view returns (bytes32);

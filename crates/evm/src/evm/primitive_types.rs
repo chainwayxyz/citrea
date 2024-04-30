@@ -1,7 +1,6 @@
 use std::ops::Range;
 
 use reth_primitives::{Address, Header, SealedHeader, TransactionSigned, B256};
-use revm::primitives::EVMError;
 
 #[derive(serde::Deserialize, serde::Serialize, Debug, PartialEq, Copy, Clone)]
 pub(crate) struct BlockEnv {
@@ -43,23 +42,21 @@ impl From<&SealedBlock> for BlockEnv {
 }
 
 /// Rlp encoded evm transaction.
-#[cfg_attr(
-    feature = "native",
-    derive(serde::Serialize),
-    derive(serde::Deserialize)
+#[derive(
+    borsh::BorshDeserialize,
+    borsh::BorshSerialize,
+    Debug,
+    PartialEq,
+    Clone,
+    serde::Serialize,
+    serde::Deserialize,
 )]
-#[derive(borsh::BorshDeserialize, borsh::BorshSerialize, Debug, PartialEq, Clone)]
 pub struct RlpEvmTransaction {
     /// Rlp data.
     pub rlp: Vec<u8>,
 }
 
-#[cfg_attr(
-    feature = "native",
-    derive(serde::Serialize),
-    derive(serde::Deserialize)
-)]
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, serde::Serialize, serde::Deserialize)]
 pub(crate) struct TransactionSignedAndRecovered {
     /// Signer of the transaction
     pub(crate) signer: Address,
@@ -69,12 +66,7 @@ pub(crate) struct TransactionSignedAndRecovered {
     pub(crate) block_number: u64,
 }
 
-#[cfg_attr(
-    feature = "native",
-    derive(serde::Serialize),
-    derive(serde::Deserialize)
-)]
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, serde::Serialize, serde::Deserialize)]
 pub(crate) struct Block {
     /// Block header.
     pub(crate) header: Header,
@@ -100,12 +92,7 @@ impl Block {
     }
 }
 
-#[cfg_attr(
-    feature = "native",
-    derive(serde::Serialize),
-    derive(serde::Deserialize)
-)]
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, serde::Serialize, serde::Deserialize)]
 pub(crate) struct SealedBlock {
     /// Block header.
     pub(crate) header: SealedHeader,
@@ -120,16 +107,10 @@ pub(crate) struct SealedBlock {
     pub(crate) transactions: Range<u64>,
 }
 
-#[cfg_attr(
-    feature = "native",
-    derive(serde::Serialize),
-    derive(serde::Deserialize)
-)]
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, serde::Serialize, serde::Deserialize)]
 pub(crate) struct Receipt {
     pub(crate) receipt: reth_primitives::Receipt,
     pub(crate) gas_used: u64,
     pub(crate) log_index_start: u64,
     pub(crate) diff_size: u64,
-    pub(crate) error: Option<EVMError<u8>>,
 }

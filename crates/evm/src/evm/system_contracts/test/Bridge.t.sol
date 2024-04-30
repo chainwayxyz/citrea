@@ -32,32 +32,33 @@ contract BridgeTest is Test {
     bytes intermediate_nodes = hex"0000000000000000000000000000000000000000000000000000000000000000d867753e5c6294897137132af54a90ad05cc9590f372f4ac8aae50096c7de081cfbfc52d11aa289adf40426b589cf9739b030a8b61c0ec22347ce3af642b9f52783f00e738b6e46376ca7756b4230c80c9b4b68701b81f690e00d1df24744e5d872a65c80bfd54acc25e622708cf18000b6815d000729aa880b974f2187137ea";
     uint256 index = 1;
 
+    address constant SYSTEM_CALLER = address(0xdeaDDeADDEaDdeaDdEAddEADDEAdDeadDEADDEaD);
     address receiver = address(0x0101010101010101010101010101010101010101);
-    address operator = makeAddr("citrea_operator");
     address user = makeAddr("citrea_user");
-
+    address owner = makeAddr("citrea_owner");
+    address operator;
     uint256 constant INITIAL_BLOCK_NUMBER = 505050;
     bytes32 witnessRoot = hex"46b8e96a9798742f3d555ad1d1b0c31a29fac5e0d133a44126a8b3ca02077ece";
     bytes32 mockBlockhash = keccak256("CITREA_TEST");
 
+    BitcoinLightClient bitcoinLightClient;
+
     function setUp() public {
         bridge = new BridgeHarness();
-        bridge.initialize(31, depositScript, scriptSuffix, 5);
+        vm.prank(SYSTEM_CALLER);
+        bridge.initialize(31, depositScript, scriptSuffix, 5, owner);
         vm.deal(address(bridge), 21_000_000 ether);
-        address block_hash_list_impl = address(new L1BlockHashList());
-        L1BlockHashList l1BlockHashList = bridge.BLOCK_HASH_LIST();
-        vm.etch(address(l1BlockHashList), block_hash_list_impl.code);
+        address lightClient_impl = address(new BitcoinLightClient());
+        bitcoinLightClient = bridge.LIGHT_CLIENT();
+        vm.etch(address(bitcoinLightClient), lightClient_impl.code);
 
-        address self = address(this);
-        vm.startPrank(address(0));
-        l1BlockHashList.transferOwnership(self);
-        vm.stopPrank();
-        l1BlockHashList.acceptOwnership();
-
-        l1BlockHashList.initializeBlockNumber(INITIAL_BLOCK_NUMBER);
-        
+        vm.startPrank(SYSTEM_CALLER);
+        bitcoinLightClient.initializeBlockNumber(INITIAL_BLOCK_NUMBER);
         // Arbitrary blockhash as this is mock 
-        l1BlockHashList.setBlockInfo(mockBlockhash, witnessRoot);
+        bitcoinLightClient.setBlockInfo(mockBlockhash, witnessRoot);
+        vm.stopPrank();
+
+        operator = bridge.operator();
     }
 
     function testZeros() public view {
@@ -71,26 +72,16 @@ contract BridgeTest is Test {
     }
 
     function testDeposit() public {
-        // Operator makes a deposit for the `receiver` address specified in the second output of above Bitcoin txn
-        bridge.setOperator(operator);
-        vm.startPrank(operator);
         doDeposit();
-
         // Assert if asset transferred
         assertEq(receiver.balance, DEPOSIT_AMOUNT);
-        vm.stopPrank();
     }
 
     // TODO: Replace the logic of testing the root of withdrawal tree in a more proper manner if this goes into production
     function testDepositThenWithdraw() public {
-        // Operator makes a deposit for the `receiver` address specified in the second output of above Bitcoin txn
-        bridge.setOperator(operator);
-        vm.startPrank(operator);
         doDeposit();
-
         // Assert if transferred
         assertEq(receiver.balance, DEPOSIT_AMOUNT);
-        vm.stopPrank();
 
         // Assert if receiver can withdraw
         vm.startPrank(receiver);
@@ -136,8 +127,6 @@ contract BridgeTest is Test {
     }
 
     function testCannotDoubleDepositWithSameTx() public {
-        bridge.setOperator(operator);
-        vm.startPrank(operator);
         doDeposit();
         vm.expectRevert("wtxId already spent");
         doDeposit();
@@ -154,33 +143,28 @@ contract BridgeTest is Test {
         intermediate_nodes = hex"0000000000000000000000000000000000000000000000000000000000000000e1a597d064a290f1f05e6ed9cdff56da7f75381748ca0a3b61c1ddb5d599b40ee5d186d6db369c1da7f39254ae8194add508758582edb82e054eb9f9e686392c8f2dbfe4702b6b29547006c140765a109f5d9027b6583c859a2224c4322c58080d351c7e59dedd8e2ec4b07bb253a59c8589d1755668895652283c19a30285f1";
         witnessRoot = hex"b615b861dae528f99e15f37cb755f9ee8a02be8bd870088e3f329cde8609730b";
 
-        L1BlockHashList l1BlockHashList = bridge.BLOCK_HASH_LIST();
-        l1BlockHashList.setBlockInfo(keccak256("CITREA_TEST_2"), witnessRoot);
-
-        bridge.setOperator(operator);
-        vm.startPrank(operator);
+        vm.startPrank(SYSTEM_CALLER);
+        bitcoinLightClient.setBlockInfo(keccak256("CITREA_TEST_2"), witnessRoot);
+        
         vm.expectRevert("Invalid deposit script");
+        // Incremented 1 block, that's why `doDeposit` is not used
         Bridge.DepositParams memory depositParams = Bridge.DepositParams(version, flag, vin, vout, witness, locktime, intermediate_nodes, INITIAL_BLOCK_NUMBER + 1, index);
         bridge.deposit(depositParams);
+        vm.stopPrank();
     }
 
     function testCannotDepositWithATxNotInBlock() public {
         // Tries the hard coded txn on another block with a different witness root
         witnessRoot = hex"b615b861dae528f99e15f37cb755f9ee8a02be8bd870088e3f329cde8609730b";
-        L1BlockHashList l1BlockHashList = bridge.BLOCK_HASH_LIST();
-        l1BlockHashList.setBlockInfo(keccak256("CITREA_TEST_2"), witnessRoot);
+        vm.startPrank(SYSTEM_CALLER);
+        bitcoinLightClient.setBlockInfo(keccak256("CITREA_TEST_2"), witnessRoot);
 
-        bridge.setOperator(operator);
-        vm.startPrank(operator);
         vm.expectRevert("Transaction is not in block");
         Bridge.DepositParams memory depositParams = Bridge.DepositParams(version, flag, vin, vout, witness, locktime, intermediate_nodes, INITIAL_BLOCK_NUMBER + 1, index);
         bridge.deposit(depositParams);
     }
 
     function testCannotWithdrawWithInvalidAmount() public {
-        // Operator makes a deposit for the `receiver` address specified in the second output of above Bitcoin txn
-        bridge.setOperator(operator);
-        vm.startPrank(operator);
         doDeposit();
 
         // Assert if transferred
@@ -196,18 +180,28 @@ contract BridgeTest is Test {
 
     function testNonOperatorCannotDeposit() public {
         vm.expectRevert("caller is not the operator");
-        doDeposit();
+        Bridge.DepositParams memory depositParams = Bridge.DepositParams(version, flag, vin, vout, witness, locktime, intermediate_nodes, INITIAL_BLOCK_NUMBER, index);
+        bridge.deposit(depositParams);
     }
 
     function testCannotSetOperatorIfNotOwner() public {
         vm.startPrank(user);
         vm.expectRevert();
-        bridge.setOperator(operator);
+        bridge.setOperator(user);
     }
 
     function testCannotReinitialize() public {
         vm.expectRevert("Contract is already initialized");
-        bridge.initialize(31, depositScript, scriptSuffix, 5);
+        vm.prank(SYSTEM_CALLER);
+        bridge.initialize(31, depositScript, scriptSuffix, 5, owner);
+    }
+
+    function testCanChangeOperatorAndDeposit() public {
+        vm.prank(owner);
+        bridge.setOperator(user);
+        operator = user;
+        vm.stopPrank();
+        doDeposit();
     }
 
     function testBytesEqual() public {
@@ -240,6 +234,7 @@ contract BridgeTest is Test {
     }
 
     function testSetDepositScript() public {
+        vm.prank(owner);
         bridge.setDepositScript(depositScript, scriptSuffix, 5);
         assert(bridge.isBytesEqual_(depositScript, bridge.depositScript()));
         assert(bridge.isBytesEqual_(scriptSuffix, bridge.scriptSuffix()));
@@ -251,7 +246,9 @@ contract BridgeTest is Test {
     }
 
     function doDeposit() public {
+        vm.startPrank(operator);
         Bridge.DepositParams memory depositParams = Bridge.DepositParams(version, flag, vin, vout, witness, locktime, intermediate_nodes, INITIAL_BLOCK_NUMBER, index);
         bridge.deposit(depositParams);
+        vm.stopPrank();
     }
 }
