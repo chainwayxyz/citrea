@@ -1756,6 +1756,7 @@ async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
 
     // assume sequencer craashed
     seq_task.abort();
+    sleep(Duration::from_secs(2)).await;
 
     let commitments = db_test_client.get_all_commitments().await.unwrap();
     assert_eq!(commitments.len(), 1);
@@ -1809,6 +1810,7 @@ async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
     // new commitment will be sent here, it should send between 2 and 3 should not include 1
     seq_test_client.send_publish_batch_request().await;
 
+    sleep(Duration::from_secs(5)).await;
     let commitments = db_test_client.get_all_commitments().await.unwrap();
     assert_eq!(commitments.len(), 2);
     assert_eq!(commitments[0].l1_start_height, 1);

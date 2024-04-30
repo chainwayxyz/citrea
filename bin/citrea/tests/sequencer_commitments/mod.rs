@@ -247,6 +247,8 @@ async fn check_commitment_in_offchain_db() {
     // commtiment should be published with this call
     test_client.send_publish_batch_request().await;
 
+    sleep(Duration::from_secs(5)).await;
+
     let commitments = db_test_client.get_all_commitments().await.unwrap();
     assert_eq!(commitments.len(), 1);
     assert_eq!(commitments[0].l1_start_height, 2);
