@@ -3,7 +3,6 @@ use std::env;
 use async_trait::async_trait;
 use borsh::ser::BorshSerialize;
 use demo_stf::runtime::Runtime;
-
 use sov_bank::{Bank, Coins};
 use sov_mock_da::{
     MockAddress, MockBlob, MockBlock, MockBlockHeader, MockHash, MockValidityCond,

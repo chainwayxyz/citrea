@@ -1710,7 +1710,7 @@ async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
 
     let seq_port = seq_port_rx.await.unwrap();
 
-    let seq_test_client = init_test_rollup(seq_port.clone()).await;
+    let seq_test_client = init_test_rollup(seq_port).await;
 
     let (full_node_port_tx, full_node_port_rx) = tokio::sync::oneshot::channel();
     let config1 = sequencer_config.clone();
