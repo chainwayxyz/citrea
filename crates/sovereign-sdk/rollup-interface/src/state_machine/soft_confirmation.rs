@@ -16,11 +16,13 @@ pub struct UnsignedSoftConfirmationBatch {
     da_slot_txs_commitment: [u8; 32],
     pre_state_root: Vec<u8>,
     txs: Vec<Vec<u8>>,
+    deposit_data: Vec<Vec<u8>>,
     l1_fee_rate: u64,
     timestamp: u64,
 }
 
 impl UnsignedSoftConfirmationBatch {
+    #[allow(clippy::too_many_arguments)]
     /// Creates a new unsigned soft confirmation batch
     pub fn new(
         da_slot_height: u64,
@@ -28,6 +30,7 @@ impl UnsignedSoftConfirmationBatch {
         da_slot_txs_commitment: [u8; 32],
         pre_state_root: Vec<u8>,
         txs: Vec<Vec<u8>>,
+        deposit_data: Vec<Vec<u8>>,
         l1_fee_rate: u64,
         timestamp: u64,
     ) -> Self {
@@ -37,6 +40,7 @@ impl UnsignedSoftConfirmationBatch {
             da_slot_txs_commitment,
             pre_state_root,
             txs,
+            deposit_data,
             l1_fee_rate,
             timestamp,
         }
@@ -61,6 +65,10 @@ impl UnsignedSoftConfirmationBatch {
     pub fn txs(&self) -> Vec<Vec<u8>> {
         self.txs.clone()
     }
+    /// Deposit data from L1 chain
+    pub fn deposit_data(&self) -> Vec<Vec<u8>> {
+        self.deposit_data.clone()
+    }
     /// Base layer fee rate sats/wei etc. per byte.
     pub fn l1_fee_rate(&self) -> u64 {
         self.l1_fee_rate
@@ -83,6 +91,7 @@ pub struct SignedSoftConfirmationBatch {
     l1_fee_rate: u64,
     txs: Vec<Vec<u8>>,
     signature: Vec<u8>,
+    deposit_data: Vec<Vec<u8>>,
     pub_key: Vec<u8>,
     timestamp: u64,
 }
@@ -98,6 +107,7 @@ impl SignedSoftConfirmationBatch {
         pre_state_root: Vec<u8>,
         l1_fee_rate: u64,
         txs: Vec<Vec<u8>>,
+        deposit_data: Vec<Vec<u8>>,
         signature: Vec<u8>,
         pub_key: Vec<u8>,
         timestamp: u64,
@@ -110,6 +120,7 @@ impl SignedSoftConfirmationBatch {
             pre_state_root,
             l1_fee_rate,
             txs,
+            deposit_data,
             signature,
             pub_key,
             timestamp,
@@ -149,6 +160,11 @@ impl SignedSoftConfirmationBatch {
     /// Txs of signed batch
     pub fn txs(&self) -> Vec<Vec<u8>> {
         self.txs.clone()
+    }
+
+    /// Deposit data
+    pub fn deposit_data(&self) -> Vec<Vec<u8>> {
+        self.deposit_data.clone()
     }
 
     /// Signature of the sequencer

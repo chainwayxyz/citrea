@@ -37,7 +37,7 @@ We have an integrated CI workflow in our repository, with Rust version set to st
 | Check   | Command for you to run in local |
 | ------- | ------------------------------- |
 | Lint    | `SKIP_GUEST_BUILD=1 make lint`  |
-| Tests   | `SKIP_GUEST_BUILD=1 make test`  |
+| Tests   | `make test`                     |
 | No-std  | `make check-no-std`             |
 | Foundry | `forge test -vvv`               |
 

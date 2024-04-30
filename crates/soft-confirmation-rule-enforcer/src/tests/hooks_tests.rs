@@ -43,6 +43,7 @@ fn begin_soft_confirmation_hook_checks_limiting_number() {
         vec![],
         vec![],
         vec![],
+        vec![],
         10,
     );
 
@@ -73,6 +74,7 @@ fn begin_soft_confirmation_hook_checks_l1_fee_rate() {
         [0; 32],
         vec![],
         100,
+        vec![],
         vec![],
         vec![],
         vec![],
@@ -223,6 +225,7 @@ fn begin_soft_confirmation_hook_checks_timestamp() {
         vec![],
         vec![],
         vec![],
+        vec![],
         original_timestamp,
     );
 
@@ -243,6 +246,7 @@ fn begin_soft_confirmation_hook_checks_timestamp() {
         [0; 32],
         vec![],
         100,
+        vec![],
         vec![],
         vec![],
         vec![],
@@ -280,6 +284,7 @@ fn begin_soft_confirmation_hook_checks_timestamp() {
         [0; 32],
         vec![],
         100,
+        vec![],
         vec![],
         vec![],
         vec![],

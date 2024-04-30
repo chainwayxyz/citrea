@@ -38,11 +38,17 @@ pub struct AccountData {
 
 impl AccountData {
     /// Create new account.
-    pub fn new(address: Address, balance: U256, code: Bytes, storage: HashMap<U256, U256>) -> Self {
-        let (code_hash, nonce) = if code.is_empty() {
-            (KECCAK_EMPTY, 0)
+    pub fn new(
+        address: Address,
+        balance: U256,
+        code: Bytes,
+        nonce: u64,
+        storage: HashMap<U256, U256>,
+    ) -> Self {
+        let code_hash = if code.is_empty() {
+            KECCAK_EMPTY
         } else {
-            (keccak256(&code), 1)
+            keccak256(&code)
         };
         AccountData {
             address,
