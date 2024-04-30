@@ -1,4 +1,4 @@
-# script to auto send 'eth_publishBatch' requests every 2 seconds
+# script to auto send 'citrea_testPublishBlock' requests every 2 seconds
 # TODO: read sequencer url from .toml files
 
 SLEEP_DURATION=60
