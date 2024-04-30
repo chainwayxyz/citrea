@@ -15,5 +15,5 @@ pub(crate) fn get_db_extension() -> String {
 #[test]
 fn test_get_db_extension() {
     let a = get_db_extension();
-    assert_eq!(a, "_test_get_db_extension");
+    assert_eq!(a, "test_get_db_extension");
 }

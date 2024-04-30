@@ -4,7 +4,7 @@ use std::str::FromStr;
 use std::time::Duration;
 
 use citrea_evm::smart_contracts::SimpleStorageContract;
-use citrea_evm::system_contracts::{BitcoinLightClient, L1BlockHashList};
+use citrea_evm::system_contracts::BitcoinLightClient;
 use citrea_offchain_db::{OffchainDbConfig, PostgresConnector};
 use citrea_sequencer::{SequencerConfig, SequencerMempoolConfig};
 use citrea_stf::genesis_config::GenesisPaths;
@@ -1818,9 +1818,9 @@ async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
     assert_eq!(commitments[1].l1_start_height, 2);
     assert_eq!(commitments[1].l1_end_height, 3);
 
-    fs::remove_dir_all(Path::new("demo_data_test_reopen_sequencer")).unwrap();
-    fs::remove_dir_all(Path::new("demo_data_sequencer_full_node")).unwrap();
-    fs::remove_dir_all(Path::new("demo_data_sequencer_full_node_copy")).unwrap();
+    let _ = fs::remove_dir_all(Path::new("demo_data_test_reopen_sequencer"));
+    let _ = fs::remove_dir_all(Path::new("demo_data_sequencer_full_node"));
+    let _ = fs::remove_dir_all(Path::new("demo_data_sequencer_full_node_copy"));
 
     seq_task.abort();
 
