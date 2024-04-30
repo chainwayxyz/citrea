@@ -5,6 +5,7 @@ use std::time::Duration;
 
 use citrea_evm::smart_contracts::SimpleStorageContract;
 use citrea_evm::system_contracts::L1BlockHashList;
+use citrea_offchain_db::{OffchainDbConfig, PostgresConnector};
 use citrea_sequencer::{SequencerConfig, SequencerMempoolConfig};
 use citrea_stf::genesis_config::GenesisPaths;
 use ethereum_types::H256;
@@ -21,7 +22,7 @@ use tokio::time::sleep;
 
 use crate::evm::{init_test_rollup, make_test_client};
 use crate::test_client::TestClient;
-use crate::test_helpers::{start_rollup, NodeMode};
+use crate::test_helpers::{create_default_sequencer_config, start_rollup, NodeMode};
 use crate::DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT;
 
 struct TestConfig {
@@ -1663,4 +1664,164 @@ fn find_subarray(haystack: &[u8], needle: &[u8]) -> Option<usize> {
     haystack
         .windows(needle.len())
         .position(|window| window == needle)
+}
+
+#[tokio::test]
+async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
+    // open, close without publishing blokcs
+    // then reopen, publish some blocks without error
+    // Remove temp db directories if they exist
+    let _ = fs::remove_dir_all(Path::new("demo_data_test_reopen_sequencer_copy"));
+    let _ = fs::remove_dir_all(Path::new("demo_data_test_reopen_sequencer"));
+    let _ = fs::remove_dir_all(Path::new("demo_data_sequencer_full_node"));
+    let _ = fs::remove_dir_all(Path::new("demo_data_sequencer_full_node_copy"));
+
+    let db_test_client = PostgresConnector::new_test_client().await.unwrap();
+
+    let mut sequencer_config = create_default_sequencer_config(4, Some(true));
+
+    sequencer_config.db_config = Some(OffchainDbConfig::default());
+
+    let da_service = MockDaService::with_finality(MockAddress::from([0; 32]), 2);
+    da_service.publish_test_block().await.unwrap();
+
+    let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
+
+    let config1 = sequencer_config.clone();
+    let seq_task = tokio::spawn(async move {
+        start_rollup(
+            seq_port_tx,
+            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
+            BasicKernelGenesisPaths {
+                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
+            },
+            RollupProverConfig::Execute,
+            NodeMode::SequencerNode,
+            Some("demo_data_test_reopen_sequencer"),
+            4,
+            true,
+            None,
+            Some(config1),
+            Some(true),
+        )
+        .await;
+    });
+
+    let seq_port = seq_port_rx.await.unwrap();
+
+    let seq_test_client = init_test_rollup(seq_port.clone()).await;
+
+    let (full_node_port_tx, full_node_port_rx) = tokio::sync::oneshot::channel();
+    let config1 = sequencer_config.clone();
+    let full_node_task = tokio::spawn(async move {
+        start_rollup(
+            full_node_port_tx,
+            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
+            BasicKernelGenesisPaths {
+                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
+            },
+            RollupProverConfig::Execute,
+            NodeMode::FullNode(seq_port),
+            Some("demo_data_sequencer_full_node"),
+            4,
+            true,
+            None,
+            Some(config1),
+            Some(true),
+        )
+        .await;
+    });
+
+    let full_node_port = full_node_port_rx.await.unwrap();
+
+    let full_node_test_client = init_test_rollup(full_node_port).await;
+
+    seq_test_client.send_publish_batch_request().await;
+    seq_test_client.send_publish_batch_request().await;
+    seq_test_client.send_publish_batch_request().await;
+    seq_test_client.send_publish_batch_request().await;
+
+    // second da block
+    da_service.publish_test_block().await.unwrap();
+
+    // before this the commitment will be sent
+    // the commitment will be only in the first block so it is still not finalized
+    // so the full node won't see the commitment
+    seq_test_client.send_publish_batch_request().await;
+
+    // wait for sync
+    sleep(Duration::from_secs(2)).await;
+
+    // should be synced
+    assert_eq!(full_node_test_client.eth_block_number().await, 5);
+
+    // assume sequencer craashed
+    seq_task.abort();
+
+    let commitments = db_test_client.get_all_commitments().await.unwrap();
+    assert_eq!(commitments.len(), 1);
+
+    full_node_task.abort();
+
+    sleep(Duration::from_secs(1)).await;
+
+    let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
+
+    // Copy the db to a new path with the same contents because
+    // the lock is not released on the db directory even though the task is aborted
+    let _ = copy_dir_recursive(
+        Path::new("demo_data_sequencer_full_node"),
+        Path::new("demo_data_sequencer_full_node_copy"),
+    );
+
+    sleep(Duration::from_secs(1)).await;
+    let config1 = sequencer_config.clone();
+    // Start the full node as sequencer
+    let seq_task = tokio::spawn(async move {
+        start_rollup(
+            seq_port_tx,
+            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
+            BasicKernelGenesisPaths {
+                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
+            },
+            RollupProverConfig::Execute,
+            NodeMode::SequencerNode,
+            Some("demo_data_sequencer_full_node_copy"),
+            4,
+            true,
+            None,
+            Some(config1),
+            Some(true),
+        )
+        .await;
+    });
+
+    let seq_port = seq_port_rx.await.unwrap();
+
+    let seq_test_client = make_test_client(seq_port).await;
+
+    assert_eq!(seq_test_client.eth_block_number().await as u64, 5);
+
+    seq_test_client.send_publish_batch_request().await;
+    seq_test_client.send_publish_batch_request().await;
+    seq_test_client.send_publish_batch_request().await;
+
+    da_service.publish_test_block().await.unwrap();
+    // new commitment will be sent here, it should send between 2 and 3 should not include 1
+    seq_test_client.send_publish_batch_request().await;
+
+    let commitments = db_test_client.get_all_commitments().await.unwrap();
+    assert_eq!(commitments.len(), 2);
+    assert_eq!(commitments[0].l1_start_height, 1);
+    assert_eq!(commitments[0].l1_end_height, 1);
+    assert_eq!(commitments[1].l1_start_height, 2);
+    assert_eq!(commitments[1].l1_end_height, 3);
+
+    fs::remove_dir_all(Path::new("demo_data_test_reopen_sequencer")).unwrap();
+    fs::remove_dir_all(Path::new("demo_data_sequencer_full_node")).unwrap();
+    fs::remove_dir_all(Path::new("demo_data_sequencer_full_node_copy")).unwrap();
+
+    seq_task.abort();
+
+    Ok(())
 }
