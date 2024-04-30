@@ -48,14 +48,17 @@ where
     fn transact(
         &mut self,
         tx: &TransactionSignedEcRecovered,
-    ) -> Result<ResultAndState, EVMError<Infallible>> {
+    ) -> Result<ResultAndState, EVMError<DB::Error>> {
         self.evm.context.external.set_current_tx_hash(tx.hash());
         *self.evm.tx_mut() = create_tx_env(tx);
         self.evm.transact()
     }
 
     /// Commits the given state diff to the database.
-    fn commit(&mut self, state: State) {
+    fn commit(&mut self, state: State)
+    where
+        DB: DatabaseCommit,
+    {
         self.evm.context.evm.db.commit(state)
     }
 }
