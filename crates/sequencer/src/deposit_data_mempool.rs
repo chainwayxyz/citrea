@@ -25,6 +25,11 @@ impl DepositDataMempool {
         }
     }
 
+    // Given the fact that sys txs are included in the block gas limit, we should be careful to not to block other transactions
+    // + a sys tx should not fail here, so we also want to limit it to not to fail any sys tx at the beginning of the block
+    // (i.e. if you have 500 dep tx, due to gas, they may not be included, so it panics - we don't want that)
+
+    // Considering the deposit amounts to be allowed, and the block count, a limit per block is convenient
     pub fn fetch_deposits(&mut self, limit_per_block: usize) -> Vec<Vec<u8>> {
         let mut deposits = Vec::new();
         for _ in 0..limit_per_block {
