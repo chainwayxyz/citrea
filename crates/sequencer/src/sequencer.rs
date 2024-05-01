@@ -129,7 +129,7 @@ where
 
         let pool = CitreaMempool::new(db_provider.clone(), config.mempool_conf.clone());
 
-        let deposit_mempool = DepositDataMempool::new(config.deposit_mempool_fetch_limit);
+        let deposit_mempool = DepositDataMempool::new();
 
         Ok(Self {
             da_service,
@@ -208,7 +208,9 @@ where
 
         let timestamp = chrono::Local::now().timestamp() as u64;
 
-        let deposit_data = self.deposit_mempool.fetch_deposits();
+        let deposit_data = self
+            .deposit_mempool
+            .fetch_deposits(self.config.deposit_mempool_fetch_limit);
 
         let batch_info = HookSoftConfirmationInfo {
             da_slot_height: da_block.header().height(),

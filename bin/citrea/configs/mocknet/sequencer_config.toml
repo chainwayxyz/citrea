@@ -10,4 +10,3 @@ queue_tx_size = 200
 base_fee_tx_limit = 100000
 base_fee_tx_size = 200
 max_account_slots = 16
-deposit_mempool_fetch_limit = 10

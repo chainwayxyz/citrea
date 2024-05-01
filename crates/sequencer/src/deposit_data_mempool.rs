@@ -7,14 +7,12 @@ use reth_rpc_types::{TransactionInput, TransactionRequest};
 #[derive(Clone, Debug)]
 pub struct DepositDataMempool {
     accepted_deposit_txs: VecDeque<Vec<u8>>,
-    limit_per_block: usize,
 }
 
 impl DepositDataMempool {
-    pub fn new(limit_per_block: usize) -> Self {
+    pub fn new() -> Self {
         Self {
             accepted_deposit_txs: VecDeque::new(),
-            limit_per_block,
         }
     }
 
@@ -27,9 +25,9 @@ impl DepositDataMempool {
         }
     }
 
-    pub fn fetch_deposits(&mut self) -> Vec<Vec<u8>> {
+    pub fn fetch_deposits(&mut self, limit_per_block: usize) -> Vec<Vec<u8>> {
         let mut deposits = Vec::new();
-        for _ in 0..self.limit_per_block {
+        for _ in 0..limit_per_block {
             if let Some(deposit) = self.accepted_deposit_txs.pop_front() {
                 deposits.push(deposit);
             } else {
