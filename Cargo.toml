@@ -155,7 +155,7 @@ revm = { version = "7.2.0", features = ["serde"], default-features = false }
 # forcing cargo for this version or else chooses 3.1.1 and there is some dependency conflicts
 revm-primitives = { version = "=3.1.0", default-features = false }
 # forcing cargo for this version or else chooses 0.3.1 and there is some dependency conflicts
-alloy-trie = { version = "=0.3.0", default-features = false }
+alloy-trie = { version = "=0.3.1", default-features = false }
 alloy-primitives = "0.6.4"
 alloy-sol-types = "0.6.4"
 
