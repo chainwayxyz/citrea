@@ -14,6 +14,7 @@ pub use gas_price::gas_oracle::GasPriceOracleConfig;
 use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::RpcModule;
 use reth_primitives::{keccak256, BlockNumberOrTag, B256, U256};
+use reth_rpc_types::serde_helpers::U64HexOrNumber;
 use reth_rpc_types::trace::geth::{
     CallConfig, CallFrame, FourByteFrame, GethDebugBuiltInTracerType, GethDebugTracerConfig,
     GethDebugTracerType, GethDebugTracingOptions, GethTrace, NoopFrame,
@@ -226,7 +227,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
         info!("eth module: eth_feeHistory");
         let mut params = params.sequence();
 
-        let block_count: String = params.next().unwrap();
+        let block_count: U64HexOrNumber = params.next().unwrap();
         let newest_block: BlockNumberOrTag = params.next().unwrap();
         let reward_percentiles: Option<Vec<f64>> = params.optional_next()?;
 
