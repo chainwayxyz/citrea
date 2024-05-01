@@ -5,12 +5,12 @@ use std::time::Duration;
 
 use citrea_evm::smart_contracts::SimpleStorageContract;
 use citrea_evm::system_contracts::BitcoinLightClient;
-use citrea_offchain_db::{OffchainDbConfig, PostgresConnector};
 use citrea_sequencer::{SequencerConfig, SequencerMempoolConfig};
 use citrea_stf::genesis_config::GenesisPaths;
 use ethereum_types::H256;
 use ethers::abi::Address;
 use reth_primitives::{BlockNumberOrTag, TxHash};
+use shared_backup_db::{OffchainDbConfig, PostgresConnector};
 use sov_mock_da::{MockAddress, MockDaService, MockDaSpec, MockHash};
 use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
 use sov_rollup_interface::da::DaSpec;

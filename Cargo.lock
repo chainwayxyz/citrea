@@ -1553,7 +1553,6 @@ dependencies = [
  "bitcoin-da",
  "borsh",
  "citrea-evm",
- "citrea-offchain-db",
  "citrea-sequencer",
  "citrea-stf",
  "clap",
@@ -1589,6 +1588,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.10.8",
+ "shared-backup-db",
  "soft-confirmation-rule-enforcer",
  "sov-db",
  "sov-ledger-rpc",
@@ -1659,18 +1659,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "citrea-offchain-db"
-version = "0.3.0"
-dependencies = [
- "hex",
- "lazy_static",
- "postgres",
- "serde",
- "tokio",
- "tokio-postgres",
-]
-
-[[package]]
 name = "citrea-sequencer"
 version = "0.3.0"
 dependencies = [
@@ -1679,7 +1667,6 @@ dependencies = [
  "borsh",
  "chrono",
  "citrea-evm",
- "citrea-offchain-db",
  "citrea-stf",
  "digest 0.10.7",
  "ethers",
@@ -1701,6 +1688,7 @@ dependencies = [
  "schnellru",
  "serde",
  "serde_json",
+ "shared-backup-db",
  "sov-accounts",
  "sov-db",
  "sov-mock-da",
@@ -8379,6 +8367,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f40ca3c46823713e0d4209592e8d6e826aa57e928f09752619fc696c499637f6"
 dependencies = [
  "lazy_static",
+]
+
+[[package]]
+name = "shared-backup-db"
+version = "0.3.0"
+dependencies = [
+ "hex",
+ "lazy_static",
+ "postgres",
+ "serde",
+ "tokio",
+ "tokio-postgres",
 ]
 
 [[package]]

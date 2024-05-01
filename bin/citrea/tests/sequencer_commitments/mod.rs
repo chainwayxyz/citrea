@@ -1,10 +1,10 @@
 use std::time::Duration;
 
 use borsh::BorshDeserialize;
-use citrea_offchain_db::{OffchainDbConfig, PostgresConnector};
 use citrea_stf::genesis_config::GenesisPaths;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
+use shared_backup_db::{OffchainDbConfig, PostgresConnector};
 use sov_mock_da::{MockAddress, MockDaService, MockDaSpec};
 use sov_modules_api::{BlobReaderTrait, SignedSoftConfirmationBatch};
 use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;

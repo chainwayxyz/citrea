@@ -58,7 +58,7 @@ sov-state = { path = "../sovereign-sdk/module-system/sov-state" }
 sov-mock-da = { path = "../sovereign-sdk/adapters/mock-da" }
 hex = { workspace = true }
 
-citrea-offchain-db = { path = "../offchain-db" }
+shared-backup-db = { path = "../shared-backup-db" }
 
 [dev-dependencies]
 tokio = { workspace = true }

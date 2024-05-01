@@ -55,7 +55,7 @@ members = [
     "crates/sovereign-sdk/module-system/module-implementations/examples/sov-accessory-state",
     "crates/sovereign-sdk/module-system/module-implementations/integration-tests",
     # Offchain
-    "crates/offchain-db",
+    "crates/shared-backup-db",
 ]
 
 [workspace.package]

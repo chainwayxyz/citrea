@@ -8,7 +8,6 @@ use std::vec;
 
 use borsh::ser::BorshSerialize;
 use citrea_evm::{CallMessage, RlpEvmTransaction};
-use citrea_offchain_db::{OffchainDbConfig, PostgresConnector};
 use citrea_stf::runtime::Runtime;
 use digest::Digest;
 use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
@@ -17,6 +16,7 @@ use jsonrpsee::RpcModule;
 use reth_primitives::IntoRecoveredTransaction;
 use reth_provider::BlockReaderIdExt;
 use reth_transaction_pool::{BestTransactionsAttributes, PoolTransaction};
+use shared_backup_db::{OffchainDbConfig, PostgresConnector};
 use sov_accounts::Accounts;
 use sov_accounts::Response::{AccountEmpty, AccountExists};
 use sov_db::ledger_db::{LedgerDB, SlotCommit};

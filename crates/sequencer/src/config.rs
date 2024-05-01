@@ -1,5 +1,5 @@
-use citrea_offchain_db::OffchainDbConfig;
 use serde::Deserialize;
+use shared_backup_db::OffchainDbConfig;
 
 /// Rollup Configuration
 #[derive(Debug, Clone, PartialEq, Deserialize)]

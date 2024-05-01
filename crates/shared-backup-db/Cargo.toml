@@ -1,5 +1,5 @@
 [package]
-name = "citrea-offchain-db"
+name = "shared-backup-db"
 authors = { workspace = true }
 edition = { workspace = true }
 homepage = { workspace = true }
