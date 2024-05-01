@@ -473,11 +473,10 @@ where
                     )
                     .await;
 
-                let l1_start_height = commitment_info.l1_height_range.start().0;
-                let l1_end_height = commitment_info.l1_height_range.end().0;
-
-                // Functionalize this
                 if let Some(db_config) = self.config.db_config.clone() {
+                    let l1_start_height = commitment_info.l1_height_range.start().0;
+                    let l1_end_height = commitment_info.l1_height_range.end().0;
+
                     self.insert_commitment_info_to_db(
                         tx_id,
                         db_config,
@@ -488,9 +487,6 @@ where
                     )
                     .await;
                 }
-
-                // tx_id.await.u
-                // save commitment to db
 
                 self.ledger_db
                     .set_last_sequencer_commitment_l1_height(SlotNumber(
@@ -678,12 +674,11 @@ where
             match tx_id.await {
                 Ok(Ok(tx_id)) => match PostgresConnector::new(db_config).await {
                     Ok(pg_connector) => {
-                        info!("Sequencer: commitment tx_id: {:?}", tx_id.to_string());
                         pg_connector
                             .insert_sequencer_commitment(
                                 l1_start_height as u32,
                                 l1_end_height as u32,
-                                tx_id.to_string(),
+                                tx_id.into().to_vec(),
                                 commitment.l1_start_block_hash.to_vec(),
                                 commitment.l1_end_block_hash.to_vec(),
                                 l2_range.start().0 as u32,

@@ -1669,6 +1669,8 @@ fn find_subarray(haystack: &[u8], needle: &[u8]) -> Option<usize> {
 
 #[tokio::test]
 async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
+    // citrea::initialize_logging();
+
     // open, close without publishing blokcs
     // then reopen, publish some blocks without error
     // Remove temp db directories if they exist

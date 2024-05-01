@@ -2,7 +2,10 @@ use postgres::Error;
 use tokio_postgres::{Client, NoTls, Row};
 
 use crate::config::OffchainDbConfig;
-use crate::tables::{DbSequencerCommitment, Tables, SEQUENCER_COMMITMENT_TABLE_CREATE_QUERY};
+use crate::tables::{
+    DbSequencerCommitment, Tables, INDEX_L1_END_HASH, INDEX_L1_END_HEIGHT, INDEX_L2_END_HEIGHT,
+    SEQUENCER_COMMITMENT_TABLE_CREATE_QUERY,
+};
 use crate::utils::get_db_extension;
 
 pub struct PostgresConnector {
@@ -45,7 +48,18 @@ impl PostgresConnector {
         client
             .batch_execute(SEQUENCER_COMMITMENT_TABLE_CREATE_QUERY)
             .await?;
-        Ok(Self { client })
+        let db_client = Self { client };
+
+        let _ = db_client.create_indexes().await;
+
+        Ok(db_client)
+    }
+
+    pub async fn create_indexes(&self) -> Result<(), Error> {
+        self.client.batch_execute(INDEX_L1_END_HEIGHT).await?;
+        self.client.batch_execute(INDEX_L1_END_HASH).await?;
+        self.client.batch_execute(INDEX_L2_END_HEIGHT).await?;
+        Ok(())
     }
 
     pub async fn new_test_client() -> Result<Self, Error> {
@@ -61,13 +75,16 @@ impl PostgresConnector {
 
         // create new db
         let db_name = format!("citrea{}", get_db_extension());
-        let _ = client
-            .batch_execute(&format!("DROP DATABASE {};", db_name.clone()))
-            .await;
+        client
+            .batch_execute(&format!("DROP DATABASE IF EXISTS {};", db_name.clone()))
+            .await
+            .unwrap();
 
-        let _ = client
+        client
             .batch_execute(&format!("CREATE DATABASE {};", db_name.clone()))
-            .await;
+            .await
+            .unwrap();
+
         drop(client);
         //connect to new db
         let (test_client, connection) = tokio_postgres::connect(
@@ -82,9 +99,16 @@ impl PostgresConnector {
                 eprintln!("connection error: {}", e);
             }
         });
-        Ok(Self {
+        test_client
+            .batch_execute(SEQUENCER_COMMITMENT_TABLE_CREATE_QUERY)
+            .await
+            .unwrap();
+        let test_client = Self {
             client: test_client,
-        })
+        };
+
+        test_client.create_indexes().await.unwrap();
+        Ok(test_client)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -92,7 +116,7 @@ impl PostgresConnector {
         &self,
         l1_start_height: u32,
         l1_end_height: u32,
-        l1_tx_id: String,
+        l1_tx_id: Vec<u8>,
         l1_start_hash: Vec<u8>,
         l1_end_hash: Vec<u8>,
         l2_start_height: u32,
@@ -102,16 +126,16 @@ impl PostgresConnector {
     ) -> Result<u64, Error> {
         self.client
             .execute(
-                "INSERT INTO sequencer_commitment (l1_start_height, l1_end_height, l1_tx_id, l1_start_hash, l1_end_hash, l2_start_height, l2_end_height, merkle_root, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)", 
+                "INSERT INTO sequencer_commitments (l1_start_height, l1_end_height, l1_tx_id, l1_start_hash, l1_end_hash, l2_start_height, l2_end_height, merkle_root, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)", 
                 &[
                     &l1_start_height,
                     &l1_end_height,
                     &l1_tx_id,
-                    &hex::encode(l1_start_hash),
-                    &hex::encode(l1_end_hash),
+                    &l1_start_hash,
+                    &l1_end_hash,
                     &l2_start_height,
                     &l2_end_height,
-                    &hex::encode(merkle_root),
+                    &merkle_root,
                     &status,
                 ],
             ).await
@@ -120,7 +144,7 @@ impl PostgresConnector {
     pub async fn get_all_commitments(&self) -> Result<Vec<DbSequencerCommitment>, Error> {
         Ok(self
             .client
-            .query("SELECT * FROM sequencer_commitment", &[])
+            .query("SELECT * FROM sequencer_commitments", &[])
             .await?
             .iter()
             .map(PostgresConnector::row_to_sequencer_commitment)
@@ -131,7 +155,7 @@ impl PostgresConnector {
         let rows = self
             .client
             .query(
-                "SELECT * FROM sequencer_commitment ORDER BY id DESC LIMIT 1",
+                "SELECT * FROM sequencer_commitments ORDER BY id DESC LIMIT 1",
                 &[],
             )
             .await?;
@@ -190,7 +214,7 @@ mod tests {
             .insert_sequencer_commitment(
                 3,
                 4,
-                "0xaabab".to_string(),
+                vec![0; 32],
                 vec![255; 32],
                 vec![0; 32],
                 10,
@@ -205,10 +229,9 @@ mod tests {
 
         let rows = client.get_all_commitments().await.unwrap();
         assert_eq!(rows.len(), 1);
-        assert_eq!(rows[0].l1_tx_id, "0xaabab");
-        assert_eq!(rows[0].l1_start_hash, hex::encode(vec![255; 32]));
-        assert_eq!(rows[0].l1_start_hash, "ff".repeat(32));
-        assert_eq!(rows[0].l1_end_hash, hex::encode(vec![0; 32]));
+        assert_eq!(rows[0].l1_tx_id, vec![0; 32]);
+        assert_eq!(rows[0].l1_start_hash, vec![255; 32]);
+        assert_eq!(rows[0].l1_end_hash, vec![0; 32]);
         assert_eq!(rows[0].l2_start_height, 10);
         assert_eq!(rows[0].l2_end_height, 11);
 

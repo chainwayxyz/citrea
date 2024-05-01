@@ -12,7 +12,7 @@ pub enum Tables {
 impl fmt::Display for Tables {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Tables::SequencerCommitment => write!(f, "sequencer_commitment"),
+            Tables::SequencerCommitment => write!(f, "sequencer_commitments"),
         }
     }
 }
@@ -20,17 +20,17 @@ impl fmt::Display for Tables {
 #[derive(Debug, Clone)]
 pub struct DbSequencerCommitment {
     /// Hex encoded L1 transaction ID
-    pub l1_tx_id: String,
+    pub l1_tx_id: Vec<u8>,
     pub l1_start_height: u32,
     pub l1_end_height: u32,
     /// Hex encoded L1 start hash
-    pub l1_start_hash: String,
+    pub l1_start_hash: Vec<u8>,
     /// Hex encoded L1 end hash
-    pub l1_end_hash: String,
+    pub l1_end_hash: Vec<u8>,
     pub l2_start_height: u64,
     pub l2_end_height: u64,
     /// Hex encoded merkle root of soft confirmation hashes
-    pub merkle_root: String,
+    pub merkle_root: Vec<u8>,
     pub status: String,
 }
 
@@ -39,16 +39,27 @@ pub fn create_database() -> String {
 }
 
 pub const SEQUENCER_COMMITMENT_TABLE_CREATE_QUERY: &str = "
-CREATE TABLE IF NOT EXISTS sequencer_commitment (
+CREATE TABLE IF NOT EXISTS sequencer_commitments (
     id                  SERIAL PRIMARY KEY,
     l1_start_height     OID NOT NULL,
     l1_end_height       OID NOT NULL,
-    l1_tx_id            VARCHAR(66) NOT NULL,
-    l1_start_hash       VARCHAR(66) NOT NULL,
-    l1_end_hash         VARCHAR(66) NOT NULL,
+    l1_tx_id            BYTEA NOT NULL,
+    l1_start_hash       BYTEA NOT NULL,
+    l1_end_hash         BYTEA NOT NULL,
     l2_start_height     OID NOT NULL,
     l2_end_height       OID NOT NULL,
-    merkle_root         VARCHAR(66) NOT NULL,
-    status              VARCHAR(15) NOT NULL
-    );
+    merkle_root         BYTEA NOT NULL,
+    status              VARCHAR(15) NOT NULL,
+
+    UNIQUE (l2_start_height, l2_end_height),
+    UNIQUE (l1_start_height, l1_end_height),
+    UNIQUE (l1_start_hash, l1_end_hash)
+);
 ";
+
+pub const INDEX_L2_END_HEIGHT: &str =
+    "CREATE INDEX idx_l2_end_height ON sequencer_commitments(l2_end_height);";
+pub const INDEX_L1_END_HEIGHT: &str =
+    "CREATE INDEX idx_l1_end_height ON sequencer_commitments(l1_end_height);";
+pub const INDEX_L1_END_HASH: &str =
+    "CREATE INDEX idx_l1_end_hash ON sequencer_commitments(l1_end_hash);";

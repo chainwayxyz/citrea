@@ -38,13 +38,7 @@ pub trait DaService: Send + Sync + 'static {
     >;
 
     /// A transaction ID, used to identify the transaction in the DA layer.
-    type TransactionId: Send
-        + PartialEq
-        + Eq
-        + PartialOrd
-        + Ord
-        + core::hash::Hash
-        + std::fmt::Display;
+    type TransactionId: Send + PartialEq + Eq + PartialOrd + Ord + core::hash::Hash + Into<[u8; 32]>;
 
     /// The error type for fallible methods.
     type Error: core::fmt::Debug + Send + Sync + core::fmt::Display;

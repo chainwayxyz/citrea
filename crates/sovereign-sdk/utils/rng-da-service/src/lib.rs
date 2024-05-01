@@ -75,6 +75,12 @@ impl futures::Stream for RngHeaderStream {
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, std::cmp::Ord, std::hash::Hash)]
 pub struct RngHash([u8; 32]);
 
+impl Into<[u8; 32]> for RngHash {
+    fn into(self) -> [u8; 32] {
+        self.0
+    }
+}
+
 impl core::fmt::Display for RngHash {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "0x{}", hex::encode(self.0))
