@@ -11,7 +11,7 @@ use tokio::task::JoinHandle;
 use crate::evm::make_test_client;
 use crate::test_client::{TestClient, MAX_FEE_PER_GAS};
 use crate::test_helpers::{start_rollup, NodeMode};
-use crate::DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT;
+use crate::{DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT};
 
 async fn initialize_test() -> (JoinHandle<()>, Box<TestClient>) {
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
@@ -31,6 +31,7 @@ async fn initialize_test() -> (JoinHandle<()>, Box<TestClient>) {
             None,
             None,
             Some(true),
+            DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
         )
         .await;
     });
