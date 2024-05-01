@@ -33,19 +33,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "alloy-consensus"
+version = "0.1.0"
+source = "git+https://github.com/alloy-rs/alloy?rev=7e39c85#7e39c85f9f51e6449a8b661f54df0ac213f18639"
+dependencies = [
+ "alloy-eips",
+ "alloy-primitives",
+ "alloy-rlp",
+ "sha2",
+]
+
+[[package]]
 name = "alloy-eips"
 version = "0.1.0"
-source = "git+https://github.com/alloy-rs/alloy?rev=410850b#410850b305a28297483d819b669b04ba31796359"
+source = "git+https://github.com/alloy-rs/alloy?rev=7e39c85#7e39c85f9f51e6449a8b661f54df0ac213f18639"
 dependencies = [
  "alloy-primitives",
  "alloy-rlp",
+ "alloy-serde",
+ "c-kzg",
+ "once_cell",
  "serde",
 ]
 
 [[package]]
 name = "alloy-genesis"
 version = "0.1.0"
-source = "git+https://github.com/alloy-rs/alloy?rev=410850b#410850b305a28297483d819b669b04ba31796359"
+source = "git+https://github.com/alloy-rs/alloy?rev=7e39c85#7e39c85f9f51e6449a8b661f54df0ac213f18639"
 dependencies = [
  "alloy-primitives",
  "alloy-serde",
@@ -100,7 +114,7 @@ dependencies = [
 [[package]]
 name = "alloy-rpc-engine-types"
 version = "0.1.0"
-source = "git+https://github.com/alloy-rs/alloy?rev=410850b#410850b305a28297483d819b669b04ba31796359"
+source = "git+https://github.com/alloy-rs/alloy?rev=7e39c85#7e39c85f9f51e6449a8b661f54df0ac213f18639"
 dependencies = [
  "alloy-primitives",
  "alloy-rlp",
@@ -114,7 +128,7 @@ dependencies = [
 [[package]]
 name = "alloy-rpc-trace-types"
 version = "0.1.0"
-source = "git+https://github.com/alloy-rs/alloy?rev=410850b#410850b305a28297483d819b669b04ba31796359"
+source = "git+https://github.com/alloy-rs/alloy?rev=7e39c85#7e39c85f9f51e6449a8b661f54df0ac213f18639"
 dependencies = [
  "alloy-primitives",
  "alloy-rpc-types",
@@ -126,8 +140,10 @@ dependencies = [
 [[package]]
 name = "alloy-rpc-types"
 version = "0.1.0"
-source = "git+https://github.com/alloy-rs/alloy?rev=410850b#410850b305a28297483d819b669b04ba31796359"
+source = "git+https://github.com/alloy-rs/alloy?rev=7e39c85#7e39c85f9f51e6449a8b661f54df0ac213f18639"
 dependencies = [
+ "alloy-consensus",
+ "alloy-eips",
  "alloy-primitives",
  "alloy-rlp",
  "alloy-serde",
@@ -141,7 +157,7 @@ dependencies = [
 [[package]]
 name = "alloy-serde"
 version = "0.1.0"
-source = "git+https://github.com/alloy-rs/alloy?rev=410850b#410850b305a28297483d819b669b04ba31796359"
+source = "git+https://github.com/alloy-rs/alloy?rev=7e39c85#7e39c85f9f51e6449a8b661f54df0ac213f18639"
 dependencies = [
  "alloy-primitives",
  "serde",
@@ -1120,6 +1136,7 @@ dependencies = [
  "rand",
  "rlp",
  "secp256k1 0.27.0",
+ "serde",
  "sha3",
  "zeroize",
 ]
@@ -2001,8 +2018,8 @@ checksum = "adad44e29e4c806119491a7f06f03de4d1af22c3a680dd47f1e6e179439d1f56"
 
 [[package]]
 name = "reth-codecs"
-version = "0.2.0-beta.4"
-source = "git+https://github.com/paradigmxyz/reth?tag=v0.2.0-beta.4#c04dbe6e9bd05be5da3a5d541adbf76166c14a08"
+version = "0.2.0-beta.5"
+source = "git+https://github.com/paradigmxyz/reth?tag=v0.2.0-beta.5#54f75cdcc82125a97ffd82952c2a8bc8ed324b48"
 dependencies = [
  "alloy-primitives",
  "bytes",
@@ -2011,8 +2028,8 @@ dependencies = [
 
 [[package]]
 name = "reth-codecs-derive"
-version = "0.2.0-beta.4"
-source = "git+https://github.com/paradigmxyz/reth?tag=v0.2.0-beta.4#c04dbe6e9bd05be5da3a5d541adbf76166c14a08"
+version = "0.2.0-beta.5"
+source = "git+https://github.com/paradigmxyz/reth?tag=v0.2.0-beta.5#54f75cdcc82125a97ffd82952c2a8bc8ed324b48"
 dependencies = [
  "convert_case 0.6.0",
  "proc-macro2",
@@ -2022,8 +2039,8 @@ dependencies = [
 
 [[package]]
 name = "reth-ethereum-forks"
-version = "0.2.0-beta.4"
-source = "git+https://github.com/paradigmxyz/reth?tag=v0.2.0-beta.4#c04dbe6e9bd05be5da3a5d541adbf76166c14a08"
+version = "0.2.0-beta.5"
+source = "git+https://github.com/paradigmxyz/reth?tag=v0.2.0-beta.5#54f75cdcc82125a97ffd82952c2a8bc8ed324b48"
 dependencies = [
  "alloy-chains",
  "alloy-primitives",
@@ -2035,8 +2052,8 @@ dependencies = [
 
 [[package]]
 name = "reth-primitives"
-version = "0.2.0-beta.4"
-source = "git+https://github.com/paradigmxyz/reth?tag=v0.2.0-beta.4#c04dbe6e9bd05be5da3a5d541adbf76166c14a08"
+version = "0.2.0-beta.5"
+source = "git+https://github.com/paradigmxyz/reth?tag=v0.2.0-beta.5#54f75cdcc82125a97ffd82952c2a8bc8ed324b48"
 dependencies = [
  "alloy-chains",
  "alloy-eips",
@@ -2070,8 +2087,8 @@ dependencies = [
 
 [[package]]
 name = "reth-rpc-types"
-version = "0.2.0-beta.4"
-source = "git+https://github.com/paradigmxyz/reth?tag=v0.2.0-beta.4#c04dbe6e9bd05be5da3a5d541adbf76166c14a08"
+version = "0.2.0-beta.5"
+source = "git+https://github.com/paradigmxyz/reth?tag=v0.2.0-beta.5#54f75cdcc82125a97ffd82952c2a8bc8ed324b48"
 dependencies = [
  "alloy-genesis",
  "alloy-primitives",
@@ -2079,6 +2096,7 @@ dependencies = [
  "alloy-rpc-engine-types",
  "alloy-rpc-trace-types",
  "alloy-rpc-types",
+ "enr",
  "jsonrpsee-types",
  "secp256k1 0.27.0",
  "serde",
@@ -2453,7 +2471,6 @@ name = "secp256k1"
 version = "0.27.0"
 source = "git+https://github.com/Sovereign-Labs/rust-secp256k1.git?branch=risc0-compatible-0-27-0#5f425f1223cfc7cd0cee61335268629659dc6007"
 dependencies = [
- "rand",
  "secp256k1-sys 0.8.1",
 ]
 

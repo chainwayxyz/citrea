@@ -149,6 +149,7 @@ reth-tasks = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.5
 reth-db = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.5" }
 reth-trie = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.5" }
 reth-rpc = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.5" }
+reth-stages = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.5" }
 
 revm = { version = "7.2.0", features = ["serde"], default-features = false }
 # forcing cargo for this version or else chooses 3.1.1 and there is some dependency conflicts
