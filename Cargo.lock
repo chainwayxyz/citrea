@@ -8377,6 +8377,7 @@ dependencies = [
  "lazy_static",
  "postgres",
  "serde",
+ "shared-backup-db",
  "tokio",
  "tokio-postgres",
 ]

@@ -62,6 +62,7 @@ impl PostgresConnector {
         Ok(())
     }
 
+    #[cfg(feature = "test-utils")]
     pub async fn new_test_client() -> Result<Self, Error> {
         let pg_config = OffchainDbConfig::default();
 
