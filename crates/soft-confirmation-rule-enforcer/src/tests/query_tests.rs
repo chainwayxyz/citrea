@@ -19,6 +19,7 @@ fn block_count_per_da_hash_must_be_correct() {
         vec![],
         vec![],
         vec![],
+        vec![],
         0,
     );
     // call begin_slot_hook a couple times for da hash 0
@@ -80,6 +81,7 @@ fn get_max_l1_fee_rate_change_percentage_must_be_correct() {
         vec![],
         vec![],
         vec![],
+        vec![],
         0,
     );
 
@@ -121,6 +123,7 @@ fn get_last_l1_fee_rate_must_be_correct() {
         vec![],
         vec![],
         vec![],
+        vec![],
         0,
     );
     soft_confirmation_rule_enforcer
@@ -159,6 +162,7 @@ fn get_last_timestamp_must_be_correct() {
         [0; 32],
         vec![],
         1,
+        vec![],
         vec![],
         vec![],
         vec![],

@@ -1,3 +1,7 @@
+# The release tag of https://github.com/ethereum/tests to use for EF tests
+EF_TESTS_URL := https://github.com/chainwayxyz/ef-tests/archive/develop.tar.gz
+EF_TESTS_DIR := crates/evm/ethereum-tests
+
 .PHONY: help
 
 help: ## Display this help message
@@ -17,9 +21,8 @@ clean-node: ## Cleans local dbs needed for sequencer and nodes
 test-legacy: ## Runs test suite with output from tests printed
 	@cargo test -- --nocapture -Zunstable-options --report-time
 
-test:  ## Runs test suite using next test
-	@cargo nextest run --workspace --all-features --no-fail-fast -E 'not test(test_instant_finality_data_stored) & not test(test_simple_reorg_case)'
-
+test: $(EF_TESTS_DIR) ## Runs test suite using next test
+	@cargo nextest run --workspace --all-features --no-fail-fast
 
 install-dev-tools:  ## Installs all necessary cargo helpers
 	cargo install cargo-llvm-cov
@@ -32,9 +35,11 @@ install-dev-tools:  ## Installs all necessary cargo helpers
 ifeq ($(shell uname -ms), Darwin x86_64)
 	cargo risczero build-toolchain
 else
-	cargo risczero install
+	cargo risczero install --version v2024-04-22.0
 endif
 	rustup target add thumbv6m-none-eabi
+	rustup component add llvm-tools-preview
+	cargo install cargo-llvm-cov
 
 lint:  ## cargo check and clippy. Skip clippy on guest code since it's not supported by risc0
 	## fmt first, because it's the cheapest
@@ -64,14 +69,27 @@ find-unused-deps: ## Prints unused dependencies for project. Note: requires nigh
 find-flaky-tests:  ## Runs tests over and over to find if there's flaky tests
 	flaky-finder -j16 -r320 --continue "cargo test -- --nocapture"
 
-coverage: ## Coverage in lcov format
-	cargo llvm-cov --locked --lcov --output-path lcov.info
+coverage: $(EF_TESTS_DIR) ## Coverage in lcov format
+	cargo llvm-cov --locked --lcov --output-path lcov.info nextest --workspace --all-features
 
 coverage-html: ## Coverage in HTML format
-	cargo llvm-cov --locked --all-features --html
+	cargo llvm-cov --locked --all-features --html nextest --workspace --all-features
 
 docs:  ## Generates documentation locally
 	cargo doc --open
 
 set-git-hook: 
 	git config core.hooksPath .githooks
+
+# Downloads and unpacks Ethereum Foundation tests in the `$(EF_TESTS_DIR)` directory.
+#
+# Requires `wget` and `tar`
+$(EF_TESTS_DIR):
+	mkdir $(EF_TESTS_DIR)
+	wget $(EF_TESTS_URL) -O ethereum-tests.tar.gz
+	tar -xzf ethereum-tests.tar.gz --strip-components=1 -C $(EF_TESTS_DIR)
+	rm ethereum-tests.tar.gz
+
+.PHONY: ef-tests
+ef-tests: $(EF_TESTS_DIR) ## Runs Ethereum Foundation tests.
+	cargo nextest run -p citrea-evm general_state_tests

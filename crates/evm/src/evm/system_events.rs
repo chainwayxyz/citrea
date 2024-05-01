@@ -1,9 +1,9 @@
 use reth_primitives::{
-    address, Address, Bytes as RethBytes, Signature, Transaction, TransactionKind,
-    TransactionSigned, TransactionSignedEcRecovered, TransactionSignedNoHash, TxEip1559, U256,
+    address, Address, Signature, Transaction, TransactionKind, TransactionSigned,
+    TransactionSignedEcRecovered, TransactionSignedNoHash, TxEip1559, U256,
 };
 
-use super::system_contracts::L1BlockHashList;
+use super::system_contracts::{BitcoinLightClient, Bridge};
 
 /// This is a special signature to force tx.signer to be set to SYSTEM_SIGNER
 pub const SYSTEM_SIGNATURE: Signature = Signature {
@@ -19,16 +19,17 @@ pub const SYSTEM_SIGNER: Address = address!("deaddeaddeaddeaddeaddeaddeaddeaddea
 /// There events will be transformed into Evm transactions and put in the begining of the block.
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, Eq, PartialEq)]
 pub(crate) enum SystemEvent {
-    L1BlockHashInitialize(/*block number*/ u64),
-    L1BlockHashSetBlockInfo(/*hash*/ [u8; 32], /*merkle root*/ [u8; 32]),
+    BitcoinLightClientInitialize(/*block number*/ u64),
+    BitcoinLightClientSetBlockInfo(/*hash*/ [u8; 32], /*merkle root*/ [u8; 32]),
+    BridgeInitialize(Vec<u8>), // levels, deposit script, script suffix, required sigs count
+    BridgeDeposit(Vec<u8>), // version, flag, vin, vout, witness, locktime, intermediate nodes, block height, index
 }
 
 fn system_event_to_transaction(event: SystemEvent, nonce: u64, chain_id: u64) -> Transaction {
-    let sys_block_hash = L1BlockHashList::default();
     let body: TxEip1559 = match event {
-        SystemEvent::L1BlockHashInitialize(block_number) => TxEip1559 {
-            to: TransactionKind::Call(L1BlockHashList::address()),
-            input: RethBytes::from(sys_block_hash.init(block_number).to_vec()),
+        SystemEvent::BitcoinLightClientInitialize(block_number) => TxEip1559 {
+            to: TransactionKind::Call(BitcoinLightClient::address()),
+            input: BitcoinLightClient::init(block_number),
             nonce,
             chain_id,
             value: U256::ZERO,
@@ -36,13 +37,29 @@ fn system_event_to_transaction(event: SystemEvent, nonce: u64, chain_id: u64) ->
             max_fee_per_gas: u64::MAX as u128,
             ..Default::default()
         },
-        SystemEvent::L1BlockHashSetBlockInfo(block_hash, txs_commitments) => TxEip1559 {
-            to: TransactionKind::Call(L1BlockHashList::address()),
-            input: RethBytes::from(
-                sys_block_hash
-                    .set_block_info(block_hash, txs_commitments)
-                    .to_vec(),
-            ),
+        SystemEvent::BitcoinLightClientSetBlockInfo(block_hash, txs_commitments) => TxEip1559 {
+            to: TransactionKind::Call(BitcoinLightClient::address()),
+            input: BitcoinLightClient::set_block_info(block_hash, txs_commitments),
+            nonce,
+            chain_id,
+            value: U256::ZERO,
+            gas_limit: 1_000_000u64,
+            max_fee_per_gas: u64::MAX as u128,
+            ..Default::default()
+        },
+        SystemEvent::BridgeInitialize(data) => TxEip1559 {
+            to: TransactionKind::Call(Bridge::address()),
+            input: Bridge::initialize(data),
+            nonce,
+            chain_id,
+            value: U256::ZERO,
+            gas_limit: 1_500_000u64,
+            max_fee_per_gas: u64::MAX as u128,
+            ..Default::default()
+        },
+        SystemEvent::BridgeDeposit(data) => TxEip1559 {
+            to: TransactionKind::Call(Bridge::address()),
+            input: Bridge::deposit(data),
             nonce,
             chain_id,
             value: U256::ZERO,

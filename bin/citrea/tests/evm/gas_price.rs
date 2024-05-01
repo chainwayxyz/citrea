@@ -13,7 +13,7 @@ use sov_stf_runner::RollupProverConfig;
 use crate::evm::init_test_rollup;
 use crate::test_client::TestClient;
 use crate::test_helpers::{start_rollup, NodeMode};
-use crate::DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT;
+use crate::{DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT};
 
 #[tokio::test]
 async fn test_gas_price_increase() -> Result<(), anyhow::Error> {
@@ -34,6 +34,10 @@ async fn test_gas_price_increase() -> Result<(), anyhow::Error> {
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             true,
+            None,
+            None,
+            Some(true),
+            DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
         )
         .await;
     });
@@ -123,6 +127,7 @@ async fn execute(
     let initial_gas_price = client.eth_gas_price().await;
 
     client.send_publish_batch_request().await;
+
     // get new gas price after the transactions that was adjusted in the last block
     let latest_gas_price = client.eth_gas_price().await;
 

@@ -6,6 +6,7 @@ use reth_primitives::{B256, U256};
 use reth_rpc_types::TransactionRequest;
 use revm::primitives::{TransactTo, TxEnv};
 
+use crate::caller_gas_allowance;
 use crate::error::rpc::{EthApiError, EthResult, RpcInvalidTransactionError};
 use crate::primitive_types::BlockEnv;
 
@@ -151,9 +152,11 @@ impl CallFees {
 }
 
 // https://github.com/paradigmxyz/reth/blob/d8677b4146f77c7c82d659c59b79b38caca78778/crates/rpc/rpc/src/eth/revm_utils.rs#L201
+// if from_balance is None, gas capping will not be applied
 pub(crate) fn prepare_call_env(
     block_env: &BlockEnv,
     request: TransactionRequest,
+    cap_to_balance: Option<U256>,
 ) -> EthResult<TxEnv> {
     let TransactionRequest {
         from,
@@ -198,7 +201,27 @@ pub(crate) fn prepare_call_env(
         None,
     )?;
 
-    let gas_limit = gas.unwrap_or(U256::from(block_env.gas_limit.min(u64::MAX)));
+    let mut gas_limit = U256::from(block_env.gas_limit);
+
+    if let Some(request_gas_limit) = gas {
+        // gas limit is set by user in the request
+        // we must make sure it does not exceed the block gas limit
+        // otherwise there is a DoS vector
+        gas_limit = min(request_gas_limit, gas_limit);
+    } else if cap_to_balance.is_some() && gas_price > U256::ZERO {
+        // cap_to_balance is Some only when called from eth_call and eth_createAccessList
+        // we fall in this branch when user set gas price but not gas limit
+        // before passing the transaction environment to evm, we must set a gas limit
+        // that is capped by the caller's balance
+        // but the from address might have a high balance
+        // we don't want the gas limit to be more then the block gas limit
+        let max_gas_limit = caller_gas_allowance(
+            cap_to_balance.unwrap(),
+            value.unwrap_or_default(),
+            gas_price,
+        )?;
+        gas_limit = min(gas_limit, max_gas_limit);
+    }
 
     let env = TxEnv {
         gas_limit: gas_limit

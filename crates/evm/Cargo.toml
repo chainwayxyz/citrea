@@ -14,14 +14,14 @@ publish = false
 [dependencies]
 sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api", version = "0.3" }
 sov-state = { path = "../sovereign-sdk/module-system/sov-state", version = "0.3" }
+sov-prover-storage-manager = { path = "../sovereign-sdk/full-node/sov-prover-storage-manager", optional = true }
 
 anyhow = { workspace = true }
 thiserror = { workspace = true }
-bytes = { workspace = true }
 schemars = { workspace = true, optional = true }
 clap = { workspace = true, optional = true }
 serde = { workspace = true }
-serde_json = { workspace = true }
+serde_json = { workspace = true, optional = true }
 borsh = { workspace = true, features = ["rc"] }
 hex = { workspace = true }
 jsonrpsee = { workspace = true, features = [
@@ -30,52 +30,80 @@ jsonrpsee = { workspace = true, features = [
     "server",
 ], optional = true }
 tracing = { workspace = true }
-derive_more = { workspace = true }
-lazy_static = "1.4.0"
 
 
-ethereum-types = { workspace = true }
-ethers-core = { workspace = true }
-ethers-contract = { workspace = true }
-ethers-middleware = { workspace = true }
-ethers-signers = { workspace = true }
-ethers = { workspace = true }
+ethereum-types = { workspace = true, optional = true }
+ethers-core = { workspace = true, optional = true }
+ethers-contract = { workspace = true, optional = true }
+ethers-middleware = { workspace = true, optional = true }
+ethers-signers = { workspace = true, optional = true }
+ethers = { workspace = true, optional = true }
 
 alloy-primitives = { workspace = true, features = ["rand", "rlp", "serde"] }
-alloy-sol-types = { workspace = true }
-alloy-rlp = { workspace = true }
+alloy-sol-types = { workspace = true, optional = true }
+alloy-rlp = { workspace = true, optional = true }
+revm = { workspace = true }
+reth-primitives = { workspace = true, default-features = false }
+reth-interfaces = { workspace = true, optional = true }
+reth-rpc-types = { workspace = true, optional = true }
+reth-rpc-types-compat = { workspace = true, optional = true }
+reth-revm = { workspace = true, optional = true }
+reth-rpc = { workspace = true, optional = true }
+secp256k1 = { workspace = true, optional = true }
+itertools = { version = "0.11.0", optional = true }
+
+[dev-dependencies]
+citrea-evm = { path = ".", features = ["native", "smart_contracts"] }
 revm = { workspace = true, features = [
     "optional_block_gas_limit",
     "optional_eip3607",
     "optional_no_base_fee",
 ] }
-reth-primitives = { workspace = true }
-reth-interfaces = { workspace = true }
-reth-rpc-types = { workspace = true }
-reth-rpc-types-compat = { workspace = true }
-reth-revm = { workspace = true }
-reth-rpc = { workspace = true }
-secp256k1 = { workspace = true }
-itertools = "0.11.0"
-
-[dev-dependencies]
-citrea-evm = { path = ".", features = ["smart_contracts"] }
-tokio = { workspace = true }
 tempfile = { workspace = true }
 bytes = { workspace = true }
 rand = { workspace = true }
 sov-prover-storage-manager = { path = "../sovereign-sdk/full-node/sov-prover-storage-manager", features = [
     "test-utils",
 ] }
+lazy_static = "1.4.0"
+walkdir = "2.3.3"
+reth-db = { workspace = true }
+reth-provider = { workspace = true }
+reth-stages = { workspace = true }
+rayon = { workspace = true }
+
 
 [features]
-default = ["native"]
+default = []
 native = [
+    "sov-state/native",
+    "sov-modules-api/native",
+
+    "reth-rpc",
+    "reth-interfaces",
+    "reth-rpc-types",
+    "reth-rpc-types-compat",
+    "reth-revm",
+
+    "alloy-sol-types",
+    "alloy-rlp",
+
     "jsonrpsee",
     "schemars",
     "clap",
-    "sov-state/native",
-    "sov-modules-api/native",
+    "itertools",
+    "serde_json",
+    "secp256k1",
 ]
 serde = []
-smart_contracts = ["native"]
+smart_contracts = [
+    "native",
+
+    "ethereum-types",
+    "ethers-core",
+    "ethers-contract",
+    "ethers-signers",
+    "ethers",
+
+    "serde_json",
+]

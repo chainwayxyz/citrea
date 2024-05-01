@@ -7,7 +7,7 @@ pub fn generate_address<C: Context>(key: &str) -> <C as Spec>::Address {
     C::Address::from(hash)
 }
 
-pub fn to_jsonrpsee_error_object(err: impl ToString, message: &str) -> ErrorObjectOwned {
+pub fn to_jsonrpsee_error_object(message: &str, err: impl ToString) -> ErrorObjectOwned {
     ErrorObjectOwned::owned(
         jsonrpsee::types::error::UNKNOWN_ERROR_CODE,
         message,

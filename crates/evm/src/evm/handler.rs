@@ -4,14 +4,18 @@ use std::mem::size_of;
 use std::sync::Arc;
 
 use revm::handler::register::{EvmHandler, HandleRegisters};
-use revm::interpreter::{
-    CallInputs, CallOutcome, CreateInputs, CreateOutcome, Gas, InstructionResult, Interpreter,
-};
+#[cfg(feature = "native")]
+use revm::interpreter::{CallInputs, CallOutcome, CreateInputs, CreateOutcome, Interpreter};
+use revm::interpreter::{Gas, InstructionResult};
+#[cfg(feature = "native")]
+use revm::primitives::Log;
 use revm::primitives::{
-    spec_to_generic, Address, EVMError, Env, HandlerCfg, InvalidTransaction, Log, ResultAndState,
-    Spec, SpecId, B256, U256,
+    spec_to_generic, Address, EVMError, Env, HandlerCfg, InvalidTransaction, ResultAndState, Spec,
+    SpecId, B256, U256,
 };
-use revm::{Context, Database, EvmContext, FrameResult, InnerEvmContext, Inspector, JournalEntry};
+use revm::{Context, Database, FrameResult, InnerEvmContext, JournalEntry};
+#[cfg(feature = "native")]
+use revm::{EvmContext, Inspector};
 
 use crate::system_events::SYSTEM_SIGNER;
 
@@ -87,6 +91,7 @@ impl CitreaExternalExt for CitreaExternal {
     }
 }
 
+#[cfg(feature = "native")]
 /// This is both a `CitreaExternal` and an `Inspector`.
 pub(crate) struct TracingCitreaExternal<I, DB> {
     ext: CitreaExternal,
@@ -94,6 +99,7 @@ pub(crate) struct TracingCitreaExternal<I, DB> {
     _ph: core::marker::PhantomData<DB>,
 }
 
+#[cfg(feature = "native")]
 impl<I, DB> TracingCitreaExternal<I, DB>
 where
     DB: Database,
@@ -108,6 +114,7 @@ where
     }
 }
 
+#[cfg(feature = "native")]
 // Pass all methods to self.ext
 impl<I, DB> CitreaExternalExt for TracingCitreaExternal<I, DB> {
     fn l1_fee_rate(&self) -> u64 {
@@ -124,6 +131,7 @@ impl<I, DB> CitreaExternalExt for TracingCitreaExternal<I, DB> {
     }
 }
 
+#[cfg(feature = "native")]
 // Pass all methods to self.inspector
 impl<I, DB> Inspector<DB> for TracingCitreaExternal<I, DB>
 where
@@ -346,7 +354,7 @@ impl<SPEC: Spec, EXT: CitreaExternalExt, DB: Database> CitreaHandler<SPEC, EXT, 
             } else {
                 if let Some(_out_of_funds) = decrease_caller_balance(context, l1_fee)? {
                     return Err(EVMError::Custom(format!(
-                        "Not enought funds for L1 fee: {}",
+                        "Not enough funds for L1 fee: {}",
                         l1_fee
                     )));
                 }

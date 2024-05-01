@@ -29,14 +29,20 @@ use tracing::info;
 
 use crate::call::get_cfg_env;
 use crate::error::rpc::{ensure_success, EthApiError, RevertError, RpcInvalidTransactionError};
+use crate::evm::call::prepare_call_env;
 use crate::evm::db::EvmDb;
-use crate::evm::prepare_call_env;
 use crate::evm::primitive_types::{BlockEnv, Receipt, SealedBlock, TransactionSignedAndRecovered};
 use crate::rpc_helpers::*;
-use crate::{
-    BloomFilter, EthResult, Evm, EvmChainConfig, FilterBlockOption, FilterError,
-    ESTIMATE_GAS_ERROR_RATIO, MIN_TRANSACTION_GAS,
-};
+use crate::{BloomFilter, EthResult, Evm, EvmChainConfig, FilterBlockOption, FilterError};
+
+// Gas per transaction not creating a contract.
+const MIN_TRANSACTION_GAS: u64 = 21_000u64;
+
+/// https://github.com/paradigmxyz/reth/pull/7133/files
+/// Allowed error ratio for gas estimation
+/// Taken from Geth's implementation in order to pass the hive tests
+/// <https://github.com/ethereum/go-ethereum/blob/a5a4fa7032bb248f5a7c40f4e8df2b131c4186a4/internal/ethapi/api.go#L56>
+const ESTIMATE_GAS_ERROR_RATIO: f64 = 0.015;
 
 #[rpc_gen(client, server)]
 impl<C: sov_modules_api::Context> Evm<C> {
@@ -576,7 +582,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<reth_primitives::Bytes> {
         info!("evm module: eth_call");
-        let block_env = match block_number {
+        let mut block_env = match block_number {
             None | Some(BlockNumberOrTag::Pending | BlockNumberOrTag::Latest) => {
                 // so we don't unnecessarily set archival version
                 self.block_env.get(working_set).unwrap_or_default().clone()
@@ -593,18 +599,34 @@ impl<C: sov_modules_api::Context> Evm<C> {
             }
         };
 
-        let mut tx_env = prepare_call_env(&block_env, request.clone())?;
-
-        // https://github.com/paradigmxyz/reth/issues/6574
-        tx_env.nonce = None;
-
         let cfg = self
             .cfg
             .get(working_set)
             .expect("EVM chain config should be set");
-        let cfg_env = get_cfg_env(&block_env, cfg, Some(get_cfg_env_template()));
+        let mut cfg_env = get_cfg_env(&block_env, cfg);
 
-        let evm_db: EvmDb<'_, C> = self.get_db(working_set);
+        // set endpoint specific params
+        cfg_env.disable_eip3607 = true;
+        cfg_env.disable_base_fee = true;
+        // set higher block gas limit than usual
+        // but still cap it to prevent DoS
+        block_env.gas_limit = 100_000_000;
+
+        let mut evm_db = self.get_db(working_set);
+        let mut tx_env = prepare_call_env(
+            &block_env,
+            request.clone(),
+            Some(
+                evm_db
+                    .basic(request.from.unwrap_or_default())
+                    .unwrap()
+                    .unwrap_or_default()
+                    .balance,
+            ),
+        )?;
+
+        // https://github.com/paradigmxyz/reth/issues/6574
+        tx_env.nonce = None;
 
         let result = match inspect(
             evm_db,
@@ -650,7 +672,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         let mut request = request.clone();
 
-        let block_env = match block_number {
+        let mut block_env = match block_number {
             None | Some(BlockNumberOrTag::Pending | BlockNumberOrTag::Latest) => {
                 // so we don't unnecessarily set archival version
                 self.block_env.get(working_set).unwrap_or_default().clone()
@@ -666,28 +688,38 @@ impl<C: sov_modules_api::Context> Evm<C> {
             }
         };
 
-        let mut tx_env = prepare_call_env(&block_env, request.clone())?;
-
         let cfg = self
             .cfg
             .get(working_set)
             .expect("EVM chain config should be set");
-        let mut cfg_env = get_cfg_env(&block_env, cfg, Some(get_cfg_env_template()));
-        cfg_env.disable_block_gas_limit = true;
+        let mut cfg_env = get_cfg_env(&block_env, cfg);
+
+        // set endpoint specific params
+        cfg_env.disable_eip3607 = true;
         cfg_env.disable_base_fee = true;
+        // set higher block gas limit than usual
+        // but still cap it to prevent DoS
+        block_env.gas_limit = 100_000_000;
 
         let mut evm_db = self.get_db(working_set);
 
-        if request.gas.is_none() && tx_env.gas_price > U256::ZERO {
-            // if gas price is set, we need to cap the gas limit
-            cap_tx_gas_limit_with_caller_allowance(&mut evm_db, &mut tx_env)?;
-        }
+        let mut tx_env = prepare_call_env(
+            &block_env,
+            request.clone(),
+            Some(
+                evm_db
+                    .basic(request.from.unwrap_or_default())
+                    .unwrap()
+                    .unwrap_or_default()
+                    .balance,
+            ),
+        )?;
 
         let from = request.from.unwrap_or_default();
         let to = if let Some(to) = request.to {
             to
         } else {
-            let account = evm_db.basic(from).unwrap_or_default();
+            let account = evm_db.basic(from).unwrap();
 
             let nonce = account.unwrap_or_default().nonce;
             from.create(nonce)
@@ -764,13 +796,17 @@ impl<C: sov_modules_api::Context> Evm<C> {
             }
         };
 
-        let mut tx_env = prepare_call_env(&block_env, request.clone())?;
+        let mut tx_env = prepare_call_env(&block_env, request.clone(), None)?;
 
         let cfg = self
             .cfg
             .get(working_set)
             .expect("EVM chain config should be set");
-        let cfg_env = get_cfg_env(&block_env, cfg, Some(get_cfg_env_template()));
+        let mut cfg_env = get_cfg_env(&block_env, cfg);
+
+        // set endpoint specific params
+        cfg_env.disable_eip3607 = true;
+        cfg_env.disable_base_fee = true;
 
         self.estimate_gas_with_env(request, block_env, cfg_env, &mut tx_env, working_set)
     }
@@ -1088,7 +1124,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         let block_env = BlockEnv::from(&sealed_block);
         let cfg = self.cfg.get(working_set).unwrap();
-        let cfg_env = get_cfg_env(&block_env, cfg, Some(get_cfg_env_template()));
+        let cfg_env = get_cfg_env(&block_env, cfg);
         let l1_fee_rate = sealed_block.l1_fee_rate;
 
         // EvmDB is the replacement of revm::CacheDB because cachedb requires immutable state
@@ -1487,23 +1523,15 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .get(&block_hash, &mut working_set.accessory_state());
         block_number
     }
-}
 
-fn get_cfg_env_template() -> revm::primitives::CfgEnvWithHandlerCfg {
-    // https://github.com/Sovereign-Labs/sovereign-sdk/issues/912
-    let mut cfg_env = revm::primitives::CfgEnvWithHandlerCfg::new_with_spec_id(
-        Default::default(),
-        revm::primitives::SpecId::SHANGHAI,
-    );
-    // Reth sets this to true and uses only timeout, but other clients use this as a part of DOS attacks protection, with 100mln gas limit
-    // https://github.com/paradigmxyz/reth/blob/62f39a5a151c5f4ddc9bf0851725923989df0412/crates/rpc/rpc/src/eth/revm_utils.rs#L215
-    cfg_env.disable_block_gas_limit = false;
-    cfg_env.disable_eip3607 = true;
-    cfg_env.disable_base_fee = true;
-    cfg_env.chain_id = 0;
-    cfg_env.perf_analyse_created_bytecodes = revm::primitives::AnalysisKind::Analyse;
-    cfg_env.limit_contract_code_size = None;
-    cfg_env
+    /// Returns the cumulative gas used in pending transactions
+    /// Used to calculate how much gas system transactions use at the beginning of the block
+    pub fn get_pending_txs_cumulative_gas_used(&self, working_set: &mut WorkingSet<C>) -> u64 {
+        self.pending_transactions
+            .iter(working_set)
+            .map(|tx| tx.receipt.gas_used)
+            .sum::<u64>()
+    }
 }
 
 // modified from: https://github.com/paradigmxyz/reth/blob/cc576bc8690a3e16e6e5bf1cbbbfdd029e85e3d4/crates/rpc/rpc/src/eth/api/transactions.rs#L849

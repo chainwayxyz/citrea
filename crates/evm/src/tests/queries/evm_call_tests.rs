@@ -6,6 +6,7 @@ use reth_primitives::{Address, BlockNumberOrTag, Bytes};
 use reth_rpc::eth::error::RpcInvalidTransactionError;
 use reth_rpc_types::request::{TransactionInput, TransactionRequest};
 use revm::primitives::U256;
+use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::WorkingSet;
 
 use super::C;
@@ -73,12 +74,16 @@ fn test_state_change() {
     let random_address = Address::from_str("0x000000000000000000000000000000000000dead").unwrap();
 
     evm.begin_soft_confirmation_hook(
-        [5u8; 32],
-        1,
-        [42u8; 32],
-        &[10u8; 32],
-        1,
-        0,
+        &HookSoftConfirmationInfo {
+            da_slot_hash: [5u8; 32],
+            da_slot_height: 1,
+            da_slot_txs_commitment: [42u8; 32],
+            pre_state_root: [10u8; 32].to_vec(),
+            pub_key: vec![],
+            deposit_data: vec![],
+            l1_fee_rate: 1,
+            timestamp: 0,
+        },
         &mut working_set,
     );
 
@@ -468,6 +473,26 @@ fn gas_price_call_test() {
     working_set.unset_archival_version();
 
     // Test with extremely high gas price
+    // Should pass bc gas is sensible
+    let tx_req_high_gas_price = base_tx_req();
+    let result_high_gas_price = evm.get_call(
+        TransactionRequest {
+            gas_price: Some(U256::from(1e12 as u64)),
+            gas: Some(U256::from(250000)),
+            ..tx_req_high_gas_price
+        },
+        Some(BlockNumberOrTag::Latest),
+        None,
+        None,
+        &mut working_set,
+    );
+
+    assert!(result_high_gas_price.is_ok());
+    working_set.unset_archival_version();
+
+    // Test with extremely high gas price
+    // Will pass gas is not given
+    // Which will be capped to max gas the wallet can afford
     let tx_req_high_gas_price = base_tx_req();
     let result_high_gas_price = evm.get_call(
         TransactionRequest {

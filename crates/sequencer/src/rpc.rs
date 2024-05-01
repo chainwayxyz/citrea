@@ -5,27 +5,30 @@ use futures::channel::mpsc::UnboundedSender;
 use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::RpcModule;
 use reth_primitives::{Bytes, FromRecoveredPooledTransaction, IntoRecoveredTransaction, B256};
+use reth_rpc::eth::error::EthApiError;
 use reth_rpc_types_compat::transaction::from_recovered;
 use reth_transaction_pool::EthPooledTransaction;
 use sov_mock_da::{MockAddress, MockDaService};
-use sov_modules_api::utils::to_jsonrpsee_error_object;
 use sov_modules_api::WorkingSet;
+use tokio::sync::Mutex;
 use tracing::info;
 
+use crate::deposit_data_mempool::DepositDataMempool;
 use crate::mempool::CitreaMempool;
 use crate::utils::recover_raw_transaction;
 
-const ETH_RPC_ERROR: &str = "ETH_RPC_ERROR";
-
 pub(crate) struct RpcContext<C: sov_modules_api::Context> {
     pub mempool: Arc<CitreaMempool<C>>,
+    pub deposit_mempool: Arc<Mutex<DepositDataMempool>>,
     pub l2_force_block_tx: UnboundedSender<()>,
     pub storage: C::Storage,
+    pub test_mode: bool,
 }
 
 pub(crate) fn create_rpc_module<C: sov_modules_api::Context>(
     rpc_context: RpcContext<C>,
 ) -> Result<RpcModule<RpcContext<C>>, jsonrpsee::core::Error> {
+    let test_mode = rpc_context.test_mode;
     let mut rpc = RpcModule::new(rpc_context);
     rpc.register_async_method("eth_sendRawTransaction", |parameters, ctx| async move {
         info!("Sequencer: eth_sendRawTransaction");
@@ -42,14 +45,19 @@ pub(crate) fn create_rpc_module<C: sov_modules_api::Context>(
             .mempool
             .add_external_transaction(pool_transaction)
             .await
-            .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
+            .map_err(EthApiError::from)?;
+
         Ok::<B256, ErrorObjectOwned>(hash)
     })?;
-    rpc.register_async_method("eth_publishBatch", |_, ctx| async move {
-        info!("Sequencer: eth_publishBatch");
-        ctx.l2_force_block_tx.unbounded_send(()).unwrap();
-        Ok::<(), ErrorObjectOwned>(())
-    })?;
+
+    if test_mode {
+        rpc.register_async_method("citrea_testPublishBlock", |_, ctx| async move {
+            info!("Sequencer: citrea_testPublishBlock");
+            ctx.l2_force_block_tx.unbounded_send(()).unwrap();
+            Ok::<(), ErrorObjectOwned>(())
+        })?;
+    }
+
     rpc.register_async_method("da_publishBlock", |_, _ctx| async move {
         info!("Sequencer: da_publishBlock");
         let da = MockDaService::new(MockAddress::from([0; 32]));
@@ -61,7 +69,7 @@ pub(crate) fn create_rpc_module<C: sov_modules_api::Context>(
     rpc.register_async_method("eth_getTransactionByHash", |parameters, ctx| async move {
         let mut params = parameters.sequence();
         let hash: B256 = params.next().unwrap();
-        let mempool_only: Result<Option<bool>, ErrorObjectOwned> = params.next();
+        let mempool_only: Result<Option<bool>, ErrorObjectOwned> = params.optional_next();
         info!(
             "Sequencer: eth_getTransactionByHash({}, {:?})",
             hash, mempool_only
@@ -81,11 +89,45 @@ pub(crate) fn create_rpc_module<C: sov_modules_api::Context>(
 
                     match evm.get_transaction_by_hash(hash, &mut working_set) {
                         Ok(tx) => Ok::<Option<reth_rpc_types::Transaction>, ErrorObjectOwned>(tx),
-                        Err(e) => Err(to_jsonrpsee_error_object(e, ETH_RPC_ERROR)),
+                        Err(e) => Err(e),
                     }
                 }
             },
         }
     })?;
+
+    rpc.register_async_method(
+        "citrea_sendRawDepositTransaction",
+        |parameters, ctx| async move {
+            let mut params = parameters.sequence();
+            let deposit: Bytes = params.next().unwrap();
+
+            info!("Sequencer: citrea_sendRawDepositTransaction");
+
+            let evm = Evm::<C>::default();
+            let mut working_set = WorkingSet::<C>::new(ctx.storage.clone());
+
+            let dep_tx = ctx
+                .deposit_mempool
+                .lock()
+                .await
+                .make_deposit_tx_from_data(deposit.clone().into());
+
+            let tx_res = evm.get_call(dep_tx, None, None, None, &mut working_set);
+
+            match tx_res {
+                Ok(hex_res) => {
+                    tracing::info!("Deposit tx processed successfully {}", hex_res);
+                    ctx.deposit_mempool
+                        .lock()
+                        .await
+                        .add_deposit_tx(deposit.to_vec());
+                }
+                Err(e) => {
+                    tracing::error!("Error processing deposit tx: {:?}", e);
+                }
+            }
+        },
+    )?;
     Ok(rpc)
 }

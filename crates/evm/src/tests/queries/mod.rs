@@ -8,10 +8,9 @@ use std::str::FromStr;
 use reth_primitives::{Address, Bytes};
 use revm::primitives::{SpecId, KECCAK_EMPTY, U256};
 use sov_modules_api::default_context::DefaultContext;
+use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{Context, Module, WorkingSet};
-use sov_prover_storage_manager::{new_orphan_storage, SnapshotManager};
-use sov_state::{DefaultStorageSpec, ProverStorage, Storage};
 
 use crate::call::CallMessage;
 use crate::smart_contracts::{
@@ -20,8 +19,8 @@ use crate::smart_contracts::{
 use crate::tests::call_tests::{
     create_contract_transaction, publish_event_message, set_arg_message,
 };
-use crate::tests::genesis_tests::GENESIS_STATE_ROOT;
 use crate::tests::test_signer::TestSigner;
+use crate::tests::utils::{commit, get_evm_with_storage};
 use crate::{AccountData, Evm, EvmConfig, RlpEvmTransaction};
 
 type C = DefaultContext;
@@ -63,12 +62,16 @@ fn init_evm() -> (Evm<C>, WorkingSet<C>, TestSigner) {
     );
 
     evm.begin_soft_confirmation_hook(
-        [5u8; 32],
-        1,
-        [42u8; 32],
-        &[10u8; 32],
-        1,
-        24,
+        &HookSoftConfirmationInfo {
+            da_slot_hash: [5u8; 32],
+            da_slot_height: 1,
+            da_slot_txs_commitment: [42u8; 32],
+            pre_state_root: [10u8; 32].to_vec(),
+            pub_key: vec![],
+            deposit_data: vec![],
+            l1_fee_rate: 1,
+            timestamp: 24,
+        },
         &mut working_set,
     );
 
@@ -99,12 +102,16 @@ fn init_evm() -> (Evm<C>, WorkingSet<C>, TestSigner) {
     let mut working_set: WorkingSet<DefaultContext> = WorkingSet::new(prover_storage.clone());
 
     evm.begin_soft_confirmation_hook(
-        [8u8; 32],
-        1,
-        [42u8; 32],
-        &[99u8; 32],
-        1,
-        24,
+        &HookSoftConfirmationInfo {
+            da_slot_hash: [8u8; 32],
+            da_slot_height: 1,
+            da_slot_txs_commitment: [42u8; 32],
+            pre_state_root: [99u8; 32].to_vec(),
+            pub_key: vec![],
+            deposit_data: vec![],
+            l1_fee_rate: 1,
+            timestamp: 24,
+        },
         &mut working_set,
     );
 
@@ -136,12 +143,16 @@ fn init_evm() -> (Evm<C>, WorkingSet<C>, TestSigner) {
     let mut working_set: WorkingSet<DefaultContext> = WorkingSet::new(prover_storage.clone());
 
     evm.begin_soft_confirmation_hook(
-        [10u8; 32],
-        1,
-        [42u8; 32],
-        &[100u8; 32],
-        1,
-        24,
+        &HookSoftConfirmationInfo {
+            da_slot_hash: [10u8; 32],
+            da_slot_height: 1,
+            da_slot_txs_commitment: [42u8; 32],
+            pre_state_root: [100u8; 32].to_vec(),
+            pub_key: vec![],
+            deposit_data: vec![],
+            l1_fee_rate: 1,
+            timestamp: 24,
+        },
         &mut working_set,
     );
 
@@ -197,7 +208,19 @@ pub fn init_evm_single_block() -> (Evm<C>, WorkingSet<C>, TestSigner) {
     //         .as_slice(),
     // );
 
-    evm.begin_soft_confirmation_hook([1u8; 32], 1, [42u8; 32], &[0u8; 32], 1, 0, &mut working_set);
+    evm.begin_soft_confirmation_hook(
+        &HookSoftConfirmationInfo {
+            da_slot_hash: [1u8; 32],
+            da_slot_height: 1,
+            da_slot_txs_commitment: [42u8; 32],
+            pre_state_root: [0u8; 32].to_vec(),
+            pub_key: vec![],
+            deposit_data: vec![],
+            l1_fee_rate: 1,
+            timestamp: 0,
+        },
+        &mut working_set,
+    );
 
     let simple_payable_contract_tx =
         create_contract_transaction(&dev_signer, 0, SimplePayableContract::default());
@@ -256,7 +279,19 @@ pub fn init_evm_with_caller_contract() -> (Evm<C>, WorkingSet<C>, TestSigner) {
     //         .as_slice(),
     // );
 
-    evm.begin_soft_confirmation_hook([1u8; 32], 1, [42u8; 32], &[0u8; 32], 1, 0, &mut working_set);
+    evm.begin_soft_confirmation_hook(
+        &HookSoftConfirmationInfo {
+            da_slot_hash: [1u8; 32],
+            da_slot_height: 1,
+            da_slot_txs_commitment: [42u8; 32],
+            pre_state_root: [0u8; 32].to_vec(),
+            pub_key: vec![],
+            deposit_data: vec![],
+            l1_fee_rate: 1,
+            timestamp: 0,
+        },
+        &mut working_set,
+    );
 
     {
         let sender_address = generate_address::<C>("sender");
@@ -283,7 +318,19 @@ pub fn init_evm_with_caller_contract() -> (Evm<C>, WorkingSet<C>, TestSigner) {
 
     let mut working_set: WorkingSet<DefaultContext> = WorkingSet::new(prover_storage.clone());
 
-    evm.begin_soft_confirmation_hook([2u8; 32], 1, [42u8; 32], &[2u8; 32], 1, 0, &mut working_set);
+    evm.begin_soft_confirmation_hook(
+        &HookSoftConfirmationInfo {
+            da_slot_hash: [2u8; 32],
+            da_slot_height: 1,
+            da_slot_txs_commitment: [42u8; 32],
+            pre_state_root: [2u8; 32].to_vec(),
+            pub_key: vec![],
+            deposit_data: vec![],
+            l1_fee_rate: 1,
+            timestamp: 0,
+        },
+        &mut working_set,
+    );
 
     {
         let sender_address = generate_address::<C>("sender");
@@ -312,49 +359,4 @@ pub fn init_evm_with_caller_contract() -> (Evm<C>, WorkingSet<C>, TestSigner) {
     let working_set: WorkingSet<DefaultContext> = WorkingSet::new(prover_storage);
 
     (evm, working_set, dev_signer)
-}
-
-fn get_evm_with_storage(
-    config: &EvmConfig,
-) -> (
-    Evm<C>,
-    WorkingSet<DefaultContext>,
-    ProverStorage<DefaultStorageSpec, SnapshotManager>,
-) {
-    let tmpdir = tempfile::tempdir().unwrap();
-    let prover_storage = new_orphan_storage(tmpdir.path()).unwrap();
-    let mut working_set = WorkingSet::new(prover_storage.clone());
-    let evm = Evm::<C>::default();
-    evm.genesis(config, &mut working_set).unwrap();
-
-    let mut genesis_state_root = [0u8; 32];
-    genesis_state_root.copy_from_slice(GENESIS_STATE_ROOT.as_ref());
-
-    evm.finalize_hook(
-        &genesis_state_root.into(),
-        &mut working_set.accessory_state(),
-    );
-    (evm, working_set, prover_storage)
-}
-
-pub(crate) fn commit(
-    working_set: WorkingSet<DefaultContext>,
-    storage: ProverStorage<DefaultStorageSpec, SnapshotManager>,
-) -> [u8; 32] {
-    // Save checkpoint
-    let mut checkpoint = working_set.checkpoint();
-
-    let (cache_log, witness) = checkpoint.freeze();
-
-    let (root, authenticated_node_batch) = storage
-        .compute_state_update(cache_log, &witness)
-        .expect("jellyfish merkle tree update must succeed");
-
-    let working_set = checkpoint.to_revertable();
-
-    let accessory_log = working_set.checkpoint().freeze_non_provable();
-
-    storage.commit(&authenticated_node_batch, &accessory_log);
-
-    root.0
 }

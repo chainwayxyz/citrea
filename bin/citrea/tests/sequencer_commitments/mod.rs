@@ -15,6 +15,7 @@ use tokio::time::sleep;
 use crate::evm::make_test_client;
 use crate::test_client::TestClient;
 use crate::test_helpers::{start_rollup, NodeMode};
+use crate::DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT;
 
 #[tokio::test]
 async fn sequencer_sends_commitments_to_da_layer() {
@@ -36,6 +37,10 @@ async fn sequencer_sends_commitments_to_da_layer() {
             None,
             4,
             true,
+            None,
+            None,
+            Some(true),
+            DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
         )
         .await;
     });

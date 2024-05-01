@@ -150,7 +150,6 @@ where
 
     if let Some(sequencer_config) = sequencer_config {
         rollup_config.sequencer_client = None;
-
         let sequencer_rollup = rollup_blueprint
             .create_new_sequencer(
                 rt_genesis_paths,

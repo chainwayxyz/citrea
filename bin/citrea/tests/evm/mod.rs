@@ -16,7 +16,7 @@ use sov_stf_runner::RollupProverConfig;
 
 use crate::test_client::TestClient;
 use crate::test_helpers::{start_rollup, NodeMode};
-use crate::DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT;
+use crate::{DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT};
 
 mod archival_state;
 mod gas_price;
@@ -39,6 +39,10 @@ async fn web3_rpc_tests() -> Result<(), anyhow::Error> {
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             true,
+            None,
+            None,
+            Some(true),
+            DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
         )
         .await;
     });
@@ -53,7 +57,12 @@ async fn web3_rpc_tests() -> Result<(), anyhow::Error> {
 
     assert_eq!(
         test_client.web3_client_version().await,
-        format!("citrea/{}/{}/rust-1.77.2", tag, arch)
+        format!(
+            "citrea/{}/{}/rust-{}",
+            tag,
+            arch,
+            rustc_version_runtime::version()
+        )
     );
     assert_eq!(
         test_client
@@ -85,6 +94,10 @@ async fn evm_tx_tests() -> Result<(), anyhow::Error> {
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             true,
+            None,
+            None,
+            Some(true),
+            DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
         )
         .await;
     });
@@ -120,6 +133,10 @@ async fn test_eth_get_logs() -> Result<(), anyhow::Error> {
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             true,
+            None,
+            None,
+            Some(true),
+            DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
         )
         .await;
     });
@@ -151,6 +168,10 @@ async fn test_genesis_contract_call() -> Result<(), Box<dyn std::error::Error>> 
             None,
             123456,
             true,
+            None,
+            None,
+            Some(true),
+            DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
         )
         .await;
     });
@@ -353,7 +374,7 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
         .eth_get_block_by_number(Some(BlockNumberOrTag::Number(1)))
         .await;
     assert_eq!(first_block.number.unwrap().as_u64(), 1);
-    assert_eq!(first_block.transactions.len(), 3);
+    assert_eq!(first_block.transactions.len(), 4);
 
     let set_arg = 923;
     let tx_hash = {

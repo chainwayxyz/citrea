@@ -5,21 +5,28 @@ mod evm;
 mod genesis;
 mod hooks;
 mod provider_functions;
-mod rpc_helpers;
+
 pub use call::*;
-pub use error::rpc::*;
 pub use evm::*;
 pub use genesis::*;
+pub use system_events::SYSTEM_SIGNER;
+
+#[cfg(feature = "native")]
+mod rpc_helpers;
+#[cfg(feature = "native")]
+pub use error::rpc::*;
+#[cfg(feature = "native")]
 pub use rpc_helpers::*;
 #[cfg(feature = "native")]
 mod query;
 #[cfg(feature = "native")]
 pub use query::*;
+#[cfg(feature = "native")]
 mod signer;
+#[cfg(feature = "native")]
 pub use signer::DevSigner;
 #[cfg(feature = "smart_contracts")]
 pub mod smart_contracts;
-pub use system_events::SYSTEM_SIGNER;
 
 #[cfg(test)]
 mod tests;
@@ -38,15 +45,6 @@ use crate::evm::primitive_types::{
 use crate::evm::system_events::SystemEvent;
 pub use crate::EvmConfig;
 
-// Gas per transaction not creating a contract.
-pub(crate) const MIN_TRANSACTION_GAS: u64 = 21_000u64;
-
-/// https://github.com/paradigmxyz/reth/pull/7133/files
-/// Allowed error ratio for gas estimation
-/// Taken from Geth's implementation in order to pass the hive tests
-/// <https://github.com/ethereum/go-ethereum/blob/a5a4fa7032bb248f5a7c40f4e8df2b131c4186a4/internal/ethapi/api.go#L56>
-const ESTIMATE_GAS_ERROR_RATIO: f64 = 0.015;
-
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub(crate) struct PendingTransaction {
     pub(crate) transaction: TransactionSignedAndRecovered,
@@ -54,7 +52,6 @@ pub(crate) struct PendingTransaction {
 }
 
 /// The citrea-evm module provides compatibility with the EVM.
-#[allow(dead_code)]
 // #[cfg_attr(feature = "native", derive(sov_modules_api::ModuleCallJsonSchema))]
 #[derive(ModuleInfo, Clone)]
 pub struct Evm<C: sov_modules_api::Context> {

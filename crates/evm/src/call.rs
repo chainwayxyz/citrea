@@ -2,7 +2,7 @@ use core::panic;
 
 use anyhow::Result;
 use reth_primitives::TransactionSignedEcRecovered;
-use revm::primitives::{CfgEnvWithHandlerCfg, EVMError, SpecId};
+use revm::primitives::{CfgEnv, CfgEnvWithHandlerCfg, EVMError, SpecId};
 use sov_modules_api::prelude::*;
 use sov_modules_api::{CallResponse, WorkingSet};
 
@@ -11,7 +11,7 @@ use crate::evm::executor::{self};
 use crate::evm::handler::{CitreaExternal, CitreaExternalExt};
 use crate::evm::primitive_types::{BlockEnv, Receipt, TransactionSignedAndRecovered};
 use crate::evm::{EvmChainConfig, RlpEvmTransaction};
-use crate::system_contracts::L1BlockHashList;
+use crate::system_contracts::{BitcoinLightClient, Bridge};
 use crate::system_events::{create_system_transactions, SYSTEM_SIGNER};
 use crate::{Evm, PendingTransaction, SystemEvent};
 
@@ -41,7 +41,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .expect("Pending block must be set");
 
         let cfg = self.cfg.get(working_set).expect("Evm config must be set");
-        let cfg_env: CfgEnvWithHandlerCfg = get_cfg_env(&block_env, cfg, None);
+        let cfg_env: CfgEnvWithHandlerCfg = get_cfg_env(&block_env, cfg);
 
         let l1_fee_rate = self
             .l1_fee_rate
@@ -50,10 +50,16 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         let l1_block_hash_exists = self
             .accounts
-            .get(&L1BlockHashList::address(), working_set)
+            .get(&BitcoinLightClient::address(), working_set)
             .is_some();
         if !l1_block_hash_exists {
-            tracing::error!("System contract not found: L1BlockHashList");
+            tracing::error!("System contract not found: BitcoinLightClient");
+            return;
+        }
+
+        let bridge_contract_exists = self.accounts.get(&Bridge::address(), working_set).is_some();
+        if !bridge_contract_exists {
+            tracing::error!("System contract not found: Bridge");
             return;
         }
 
@@ -102,7 +108,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 gas_used,
                 log_index_start,
                 diff_size: tx_info.diff_size,
-                error: None,
             };
             log_index_start += logs_len;
 
@@ -140,7 +145,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .expect("Pending block must be set");
 
         let cfg = self.cfg.get(working_set).expect("Evm config must be set");
-        let cfg_env: CfgEnvWithHandlerCfg = get_cfg_env(&block_env, cfg, None);
+        let cfg_env: CfgEnvWithHandlerCfg = get_cfg_env(&block_env, cfg);
 
         let l1_fee_rate = self
             .l1_fee_rate
@@ -194,7 +199,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
                         gas_used,
                         log_index_start,
                         diff_size: tx_info.diff_size,
-                        error: None,
                     };
                     log_index_start += logs_len;
 
@@ -217,6 +221,11 @@ impl<C: sov_modules_api::Context> Evm<C> {
                         // This is a transactional error, so we can skip it without doing anything.
                         continue;
                     }
+                    EVMError::Custom(msg) => {
+                        // This is a custom error - we need to log it but no need to shutdown the system as of now.
+                        tracing::error!("evm: Custom error: {:?}", msg);
+                        continue;
+                    }
                     err => {
                         tracing::error!("evm: Transaction error: {:?}", err);
                         // This is a fatal error, so we need to return it.
@@ -231,16 +240,11 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
 /// Get cfg env for a given block number
 /// Returns correct config depending on spec for given block number
-/// Copies context dependent values from template_cfg or default if not provided
-pub(crate) fn get_cfg_env(
-    block_env: &BlockEnv,
-    cfg: EvmChainConfig,
-    template_cfg: Option<CfgEnvWithHandlerCfg>,
-) -> CfgEnvWithHandlerCfg {
-    let mut cfg_env = template_cfg.unwrap_or(CfgEnvWithHandlerCfg::new_with_spec_id(
-        Default::default(),
+pub(crate) fn get_cfg_env(block_env: &BlockEnv, cfg: EvmChainConfig) -> CfgEnvWithHandlerCfg {
+    let mut cfg_env = CfgEnvWithHandlerCfg::new_with_spec_id(
+        CfgEnv::default(),
         get_spec_id(cfg.spec, block_env.number),
-    ));
+    );
     cfg_env.chain_id = cfg.chain_id;
     cfg_env.limit_contract_code_size = cfg.limit_contract_code_size;
     cfg_env

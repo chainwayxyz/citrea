@@ -1,4 +1,4 @@
-# script to auto send 'eth_publishBatch' requests every 2 seconds
+# script to auto send 'da_publishBlock' requests every 2 seconds
 # TODO: read sequencer url from .toml files
 
 SLEEP_DURATION=60
