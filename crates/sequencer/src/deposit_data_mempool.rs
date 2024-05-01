@@ -31,15 +31,10 @@ impl DepositDataMempool {
 
     // Considering the deposit amounts to be allowed, and the block count, a limit per block is convenient
     pub fn fetch_deposits(&mut self, limit_per_block: usize) -> Vec<Vec<u8>> {
-        let mut deposits = Vec::new();
-        for _ in 0..limit_per_block {
-            if let Some(deposit) = self.accepted_deposit_txs.pop_front() {
-                deposits.push(deposit);
-            } else {
-                break;
-            }
-        }
-        deposits
+        let number_of_deposits = self.accepted_deposit_txs.len().min(limit_per_block);
+        self.accepted_deposit_txs
+            .drain(..number_of_deposits)
+            .collect()
     }
 
     pub fn add_deposit_tx(&mut self, req: Vec<u8>) {
