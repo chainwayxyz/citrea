@@ -232,8 +232,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
         let reward_percentiles: Option<Vec<f64>> = params.optional_next()?;
 
         // convert block count to u64 from hex
-        let block_count = u64::from_str_radix(&block_count[2..], 16)
-            .map_err(|e| EthApiError::InvalidParams(e.to_string()))?;
+        let block_count = block_count.to();
 
         let fee_history = {
             let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
