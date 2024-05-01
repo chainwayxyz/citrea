@@ -38,7 +38,7 @@ use tokio::sync::oneshot::Receiver as OneshotReceiver;
 use tokio::time::sleep;
 use tracing::{debug, info, warn};
 
-use crate::commitment_controller;
+use crate::commitment_controller::{self, CommitmentInfo};
 use crate::config::SequencerConfig;
 use crate::db_provider::DbProvider;
 use crate::mempool::CitreaMempool;
@@ -477,22 +477,17 @@ where
                     let l1_start_height = commitment_info.l1_height_range.start().0;
                     let l1_end_height = commitment_info.l1_height_range.end().0;
 
-                    self.insert_commitment_info_to_db(
+                    self.insert_commitment_info_to_db_and_ledger_db(
                         tx_id,
                         db_config,
                         l1_start_height,
                         l1_end_height,
                         commitment,
                         l2_range_to_submit.clone(),
+                        commitment_info,
                     )
                     .await;
                 }
-
-                self.ledger_db
-                    .set_last_sequencer_commitment_l1_height(SlotNumber(
-                        commitment_info.l1_height_range.end().0,
-                    ))
-                    .expect("Sequencer: Failed to set last sequencer commitment L1 height");
             }
 
             // TODO: this is where we would include forced transactions from the new L1 block
@@ -660,7 +655,7 @@ where
         Ok(rpc_methods)
     }
 
-    pub async fn insert_commitment_info_to_db(
+    pub async fn insert_commitment_info_to_db_and_ledger_db(
         &self,
         tx_id: OneshotReceiver<Result<<Da as DaService>::TransactionId, <Da as DaService>::Error>>,
         db_config: OffchainDbConfig,
@@ -668,9 +663,16 @@ where
         l1_end_height: u64,
         commitment: SequencerCommitment,
         l2_range: RangeInclusive<BatchNumber>,
+        commitment_info: CommitmentInfo,
     ) {
         // spawn an async task in the background and await the tx_id then save to pg
+        let ledger_db = self.ledger_db.clone();
         tokio::spawn(async move {
+            ledger_db
+                .set_last_sequencer_commitment_l1_height(SlotNumber(
+                    commitment_info.l1_height_range.end().0,
+                ))
+                .expect("Sequencer: Failed to set last sequencer commitment L1 height");
             match tx_id.await {
                 Ok(Ok(tx_id)) => match PostgresConnector::new(db_config).await {
                     Ok(pg_connector) => {
@@ -691,6 +693,9 @@ where
                     }
                     Err(e) => {
                         warn!("Failed to connect to postgres: {:?}", e);
+                    }
+                    _ => {
+                        warn!("Sequencer: Failed to submit commitment: ");
                     }
                 },
                 _ => {
