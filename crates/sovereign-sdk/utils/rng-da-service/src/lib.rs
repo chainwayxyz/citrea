@@ -75,9 +75,9 @@ impl futures::Stream for RngHeaderStream {
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, std::cmp::Ord, std::hash::Hash)]
 pub struct RngHash([u8; 32]);
 
-impl Into<[u8; 32]> for RngHash {
-    fn into(self) -> [u8; 32] {
-        self.0
+impl From<RngHash> for [u8; 32] {
+    fn from(val: RngHash) -> Self {
+        val.0
     }
 }
 

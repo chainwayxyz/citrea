@@ -655,6 +655,7 @@ where
         Ok(rpc_methods)
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn store_commitment_info_offchain(
         &self,
         tx_id: OneshotReceiver<Result<<Da as DaService>::TransactionId, <Da as DaService>::Error>>,

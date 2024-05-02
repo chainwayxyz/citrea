@@ -243,9 +243,9 @@ impl BitcoinService {
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, core::hash::Hash)]
 pub struct TxidWrapper(Txid);
-impl Into<[u8; 32]> for TxidWrapper {
-    fn into(self) -> [u8; 32] {
-        self.0.to_byte_array()
+impl From<TxidWrapper> for [u8; 32] {
+    fn from(val: TxidWrapper) -> Self {
+        val.0.to_byte_array()
     }
 }
 
