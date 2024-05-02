@@ -10,13 +10,16 @@ use reth_rpc_types_compat::transaction::from_recovered;
 use reth_transaction_pool::EthPooledTransaction;
 use sov_mock_da::{MockAddress, MockDaService};
 use sov_modules_api::WorkingSet;
+use tokio::sync::Mutex;
 use tracing::info;
 
+use crate::deposit_data_mempool::DepositDataMempool;
 use crate::mempool::CitreaMempool;
 use crate::utils::recover_raw_transaction;
 
 pub(crate) struct RpcContext<C: sov_modules_api::Context> {
     pub mempool: Arc<CitreaMempool<C>>,
+    pub deposit_mempool: Arc<Mutex<DepositDataMempool>>,
     pub l2_force_block_tx: UnboundedSender<()>,
     pub storage: C::Storage,
     pub test_mode: bool,
@@ -48,8 +51,8 @@ pub(crate) fn create_rpc_module<C: sov_modules_api::Context>(
     })?;
 
     if test_mode {
-        rpc.register_async_method("eth_publishBatch", |_, ctx| async move {
-            info!("Sequencer: eth_publishBatch");
+        rpc.register_async_method("citrea_testPublishBlock", |_, ctx| async move {
+            info!("Sequencer: citrea_testPublishBlock");
             ctx.l2_force_block_tx.unbounded_send(()).unwrap();
             Ok::<(), ErrorObjectOwned>(())
         })?;
@@ -92,5 +95,39 @@ pub(crate) fn create_rpc_module<C: sov_modules_api::Context>(
             },
         }
     })?;
+
+    rpc.register_async_method(
+        "citrea_sendRawDepositTransaction",
+        |parameters, ctx| async move {
+            let mut params = parameters.sequence();
+            let deposit: Bytes = params.next().unwrap();
+
+            info!("Sequencer: citrea_sendRawDepositTransaction");
+
+            let evm = Evm::<C>::default();
+            let mut working_set = WorkingSet::<C>::new(ctx.storage.clone());
+
+            let dep_tx = ctx
+                .deposit_mempool
+                .lock()
+                .await
+                .make_deposit_tx_from_data(deposit.clone().into());
+
+            let tx_res = evm.get_call(dep_tx, None, None, None, &mut working_set);
+
+            match tx_res {
+                Ok(hex_res) => {
+                    tracing::info!("Deposit tx processed successfully {}", hex_res);
+                    ctx.deposit_mempool
+                        .lock()
+                        .await
+                        .add_deposit_tx(deposit.to_vec());
+                }
+                Err(e) => {
+                    tracing::error!("Error processing deposit tx: {:?}", e);
+                }
+            }
+        },
+    )?;
     Ok(rpc)
 }

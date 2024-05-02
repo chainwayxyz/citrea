@@ -6,7 +6,7 @@ use sov_stf_runner::RollupProverConfig;
 use crate::evm::make_test_client;
 // use citrea::initialize_logging;
 use crate::test_helpers::{start_rollup, NodeMode};
-use crate::DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT;
+use crate::{DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT};
 
 /// Transaction with equal nonce to last tx should not be accepted by mempool.
 #[tokio::test]
@@ -32,6 +32,7 @@ async fn too_many_l2_block_per_l1_block() {
             None,
             None,
             Some(true),
+            DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
         )
         .await;
     });

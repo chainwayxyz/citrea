@@ -7,6 +7,8 @@ pub struct SequencerConfig {
     pub min_soft_confirmations_per_commitment: u64,
     /// Whether or not the sequencer is running in test mode
     pub test_mode: bool,
+    /// Limit for the number of deposit transactions to be included in the block
+    pub deposit_mempool_fetch_limit: usize,
     /// Sequencer specific mempool config
     pub mempool_conf: SequencerMempoolConfig,
 }
@@ -65,6 +67,7 @@ mod tests {
         let config = r#"
             min_soft_confirmations_per_commitment = 123
             test_mode = false
+            deposit_mempool_fetch_limit = 10
             [mempool_conf]
             pending_tx_limit = 100000
             pending_tx_size = 200
@@ -82,6 +85,7 @@ mod tests {
         let expected = SequencerConfig {
             min_soft_confirmations_per_commitment: 123,
             test_mode: false,
+            deposit_mempool_fetch_limit: 10,
             mempool_conf: SequencerMempoolConfig {
                 pending_tx_limit: 100000,
                 pending_tx_size: 200,

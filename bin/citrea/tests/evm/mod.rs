@@ -16,7 +16,7 @@ use sov_stf_runner::RollupProverConfig;
 
 use crate::test_client::TestClient;
 use crate::test_helpers::{start_rollup, NodeMode};
-use crate::DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT;
+use crate::{DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT};
 
 mod archival_state;
 mod gas_price;
@@ -42,6 +42,7 @@ async fn web3_rpc_tests() -> Result<(), anyhow::Error> {
             None,
             None,
             Some(true),
+            DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
         )
         .await;
     });
@@ -96,6 +97,7 @@ async fn evm_tx_tests() -> Result<(), anyhow::Error> {
             None,
             None,
             Some(true),
+            DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
         )
         .await;
     });
@@ -134,6 +136,7 @@ async fn test_eth_get_logs() -> Result<(), anyhow::Error> {
             None,
             None,
             Some(true),
+            DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
         )
         .await;
     });
@@ -168,6 +171,7 @@ async fn test_genesis_contract_call() -> Result<(), Box<dyn std::error::Error>> 
             None,
             None,
             Some(true),
+            DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
         )
         .await;
     });

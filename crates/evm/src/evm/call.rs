@@ -224,22 +224,17 @@ pub(crate) fn prepare_call_env(
     }
 
     let env = TxEnv {
+        gas_price,
+        nonce,
+        chain_id,
         gas_limit: gas_limit
             .try_into()
             .map_err(|_| RpcInvalidTransactionError::GasUintOverflow)?,
-        nonce: nonce
-            .map(|n| {
-                n.try_into()
-                    .map_err(|_| RpcInvalidTransactionError::NonceTooHigh)
-            })
-            .transpose()?,
         caller: from.unwrap_or_default(),
-        gas_price,
         gas_priority_fee: max_priority_fee_per_gas,
         transact_to: to.map(TransactTo::Call).unwrap_or_else(TransactTo::create),
         value: value.unwrap_or_default(),
         data: input.try_into_unique_input()?.unwrap_or_default(),
-        chain_id,
         access_list: access_list
             .map(reth_rpc_types::AccessList::into_flattened)
             .unwrap_or_default(),
