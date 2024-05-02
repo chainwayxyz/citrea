@@ -195,6 +195,7 @@ where
         .with_cfg_env_with_handler_cfg(config_env)
         .with_block_env(block_env.into())
         .with_tx_env(tx_env)
+        .append_handler_register(citrea_handle_register)
         .build();
 
     let result_and_state = evm.transact()?;
@@ -202,7 +203,7 @@ where
         .context
         .external
         .get_tx_info(tmp_hash)
-        .unwrap_or_default();
+        .unwrap_or_default(); // default 0 in case tx was unsuccessful
     Ok((result_and_state, tx_info))
 }
 
