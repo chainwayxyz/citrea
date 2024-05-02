@@ -10,7 +10,7 @@ use citrea_stf::genesis_config::GenesisPaths;
 use ethereum_types::H256;
 use ethers::abi::Address;
 use reth_primitives::{BlockNumberOrTag, TxHash};
-use shared_backup_db::{OffchainDbConfig, PostgresConnector};
+use shared_backup_db::{SharedBackupDbConfig, PostgresConnector};
 use sov_mock_da::{MockAddress, MockDaService, MockDaSpec, MockHash};
 use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
 use sov_rollup_interface::da::DaSpec;
@@ -1704,7 +1704,7 @@ async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
 
     let mut sequencer_config = create_default_sequencer_config(4, Some(true), 10);
 
-    sequencer_config.db_config = Some(OffchainDbConfig::default());
+    sequencer_config.db_config = Some(SharedBackupDbConfig::default());
 
     let da_service = MockDaService::with_finality(MockAddress::from([0; 32]), 2);
     da_service.publish_test_block().await.unwrap();

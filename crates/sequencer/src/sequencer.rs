@@ -16,7 +16,7 @@ use jsonrpsee::RpcModule;
 use reth_primitives::IntoRecoveredTransaction;
 use reth_provider::BlockReaderIdExt;
 use reth_transaction_pool::{BestTransactionsAttributes, PoolTransaction};
-use shared_backup_db::{CommitmentStatus, OffchainDbConfig, PostgresConnector};
+use shared_backup_db::{CommitmentStatus, SharedBackupDbConfig, PostgresConnector};
 use sov_accounts::Accounts;
 use sov_accounts::Response::{AccountEmpty, AccountExists};
 use sov_db::ledger_db::{LedgerDB, SlotCommit};
@@ -488,7 +488,7 @@ where
 
                 // this function will save the commitment to the offchain db if db config is some
                 // and will also update the last sequencer commitment L1 height if the l1 tx is successful
-                self.store_commitment_info_offchain(
+                self.await_commitment_tx_and_store(
                     tx_id,
                     self.config.db_config.clone(),
                     l1_start_height,
@@ -667,10 +667,10 @@ where
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub async fn store_commitment_info_offchain(
+    pub async fn await_commitment_tx_and_store(
         &self,
         tx_id: OneshotReceiver<Result<<Da as DaService>::TransactionId, <Da as DaService>::Error>>,
-        db_config: Option<OffchainDbConfig>,
+        db_config: Option<SharedBackupDbConfig>,
         l1_start_height: u64,
         l1_end_height: u64,
         commitment: SequencerCommitment,
@@ -721,7 +721,7 @@ where
 
     pub async fn compare_commitments_from_db(
         &self,
-        db_config: OffchainDbConfig,
+        db_config: SharedBackupDbConfig,
     ) -> Result<(), anyhow::Error> {
         let ledger_commitment_l1_height =
             self.ledger_db.get_last_sequencer_commitment_l1_height()?;

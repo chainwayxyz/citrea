@@ -1,5 +1,5 @@
 use serde::Deserialize;
-use shared_backup_db::OffchainDbConfig;
+use shared_backup_db::SharedBackupDbConfig;
 
 /// Rollup Configuration
 #[derive(Debug, Clone, PartialEq, Deserialize)]
@@ -13,7 +13,7 @@ pub struct SequencerConfig {
     /// Sequencer specific mempool config
     pub mempool_conf: SequencerMempoolConfig,
     /// Offchain db config
-    pub db_config: Option<OffchainDbConfig>,
+    pub db_config: Option<SharedBackupDbConfig>,
 }
 
 /// Mempool Config for the sequencer
@@ -104,7 +104,7 @@ mod tests {
                 base_fee_tx_size: 200,
                 max_account_slots: 16,
             },
-            db_config: Some(OffchainDbConfig::default()),
+            db_config: Some(SharedBackupDbConfig::default()),
         };
         assert_eq!(config, expected);
     }

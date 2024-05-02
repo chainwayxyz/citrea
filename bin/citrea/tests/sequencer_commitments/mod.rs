@@ -4,7 +4,7 @@ use borsh::BorshDeserialize;
 use citrea_stf::genesis_config::GenesisPaths;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
-use shared_backup_db::{OffchainDbConfig, PostgresConnector};
+use shared_backup_db::{SharedBackupDbConfig, PostgresConnector};
 use sov_mock_da::{MockAddress, MockDaService, MockDaSpec};
 use sov_modules_api::{BlobReaderTrait, SignedSoftConfirmationBatch};
 use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
@@ -202,7 +202,7 @@ async fn check_commitment_in_offchain_db() {
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
     let mut sequencer_config = create_default_sequencer_config(4, Some(true), 10);
 
-    sequencer_config.db_config = Some(OffchainDbConfig::default());
+    sequencer_config.db_config = Some(SharedBackupDbConfig::default());
 
     // drops db if exists from previous test runs, recreates the db
     let db_test_client = PostgresConnector::new_test_client().await.unwrap();

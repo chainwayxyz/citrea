@@ -3,7 +3,7 @@ use std::str::FromStr;
 use postgres::Error;
 use tokio_postgres::{Client, NoTls, Row};
 
-use crate::config::OffchainDbConfig;
+use crate::config::SharedBackupDbConfig;
 use crate::tables::{
     CommitmentStatus, DbSequencerCommitment, Tables, INDEX_L1_END_HASH, INDEX_L1_END_HEIGHT,
     INDEX_L2_END_HEIGHT, SEQUENCER_COMMITMENT_TABLE_CREATE_QUERY,
@@ -15,7 +15,7 @@ pub struct PostgresConnector {
 }
 
 impl PostgresConnector {
-    pub async fn new(pg_config: OffchainDbConfig) -> Result<Self, Error> {
+    pub async fn new(pg_config: SharedBackupDbConfig) -> Result<Self, Error> {
         let (client, connection) =
             tokio_postgres::connect(pg_config.parse_to_connection_string().as_str(), NoTls).await?;
 
@@ -66,7 +66,7 @@ impl PostgresConnector {
 
     #[cfg(feature = "test-utils")]
     pub async fn new_test_client() -> Result<Self, Error> {
-        let pg_config = OffchainDbConfig::default();
+        let pg_config = SharedBackupDbConfig::default();
 
         let (client, connection) =
             tokio_postgres::connect(pg_config.parse_to_connection_string().as_str(), NoTls).await?;

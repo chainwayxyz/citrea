@@ -2,7 +2,7 @@ use serde::Deserialize;
 
 /// Offchain DB Config
 #[derive(Debug, Clone, PartialEq, Deserialize)]
-pub struct OffchainDbConfig {
+pub struct SharedBackupDbConfig {
     db_host: String,
     db_port: usize,
     db_user: String,
@@ -10,7 +10,7 @@ pub struct OffchainDbConfig {
     db_name: String,
 }
 
-impl OffchainDbConfig {
+impl SharedBackupDbConfig {
     pub fn new(
         db_host: String,
         db_port: usize,
@@ -42,7 +42,7 @@ impl OffchainDbConfig {
     }
 }
 
-impl Default for OffchainDbConfig {
+impl Default for SharedBackupDbConfig {
     fn default() -> Self {
         Self {
             db_host: "localhost".to_string(),
