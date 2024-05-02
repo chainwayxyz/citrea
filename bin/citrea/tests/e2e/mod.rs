@@ -10,7 +10,7 @@ use citrea_stf::genesis_config::GenesisPaths;
 use ethereum_types::H256;
 use ethers::abi::Address;
 use reth_primitives::{BlockNumberOrTag, TxHash};
-use shared_backup_db::{SharedBackupDbConfig, PostgresConnector};
+use shared_backup_db::{PostgresConnector, SharedBackupDbConfig};
 use sov_mock_da::{MockAddress, MockDaService, MockDaSpec, MockHash};
 use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
 use sov_rollup_interface::da::DaSpec;
@@ -1567,11 +1567,14 @@ async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error>
                 min_soft_confirmations_per_commitment: 1000,
                 test_mode: true,
                 deposit_mempool_fetch_limit: 10,
-                mempool_conf: SequencerMempoolConfig {max_account_slots: 100, ..Default::default() },
+                mempool_conf: SequencerMempoolConfig {
+                    max_account_slots: 100,
+                    ..Default::default()
+                },
                 db_config: Default::default(),
             }),
             Some(true),
-            DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT
+            DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
         )
         .await;
     });
@@ -1727,7 +1730,7 @@ async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
             None,
             Some(config1),
             Some(true),
-            10
+            10,
         )
         .await;
     });
@@ -1753,7 +1756,7 @@ async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
             None,
             Some(config1),
             Some(true),
-            10
+            10,
         )
         .await;
     });
@@ -1819,7 +1822,7 @@ async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
             None,
             Some(config1),
             Some(true),
-            10
+            10,
         )
         .await;
     });

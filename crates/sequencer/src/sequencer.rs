@@ -16,7 +16,7 @@ use jsonrpsee::RpcModule;
 use reth_primitives::IntoRecoveredTransaction;
 use reth_provider::BlockReaderIdExt;
 use reth_transaction_pool::{BestTransactionsAttributes, PoolTransaction};
-use shared_backup_db::{CommitmentStatus, SharedBackupDbConfig, PostgresConnector};
+use shared_backup_db::{CommitmentStatus, PostgresConnector, SharedBackupDbConfig};
 use sov_accounts::Accounts;
 use sov_accounts::Response::{AccountEmpty, AccountExists};
 use sov_db::ledger_db::{LedgerDB, SlotCommit};

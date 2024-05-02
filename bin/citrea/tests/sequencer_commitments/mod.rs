@@ -4,7 +4,7 @@ use borsh::BorshDeserialize;
 use citrea_stf::genesis_config::GenesisPaths;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
-use shared_backup_db::{SharedBackupDbConfig, PostgresConnector};
+use shared_backup_db::{PostgresConnector, SharedBackupDbConfig};
 use sov_mock_da::{MockAddress, MockDaService, MockDaSpec};
 use sov_modules_api::{BlobReaderTrait, SignedSoftConfirmationBatch};
 use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
@@ -15,7 +15,7 @@ use tokio::time::sleep;
 
 use crate::evm::make_test_client;
 use crate::test_client::TestClient;
-use crate::test_helpers::{start_rollup, NodeMode, create_default_sequencer_config};
+use crate::test_helpers::{create_default_sequencer_config, start_rollup, NodeMode};
 use crate::DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT;
 
 #[tokio::test]
