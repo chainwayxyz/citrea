@@ -227,8 +227,8 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
         info!("eth module: eth_feeHistory");
         let mut params = params.sequence();
 
-        let block_count: U64HexOrNumber = params.next().unwrap();
-        let newest_block: BlockNumberOrTag = params.next().unwrap();
+        let block_count: U64HexOrNumber = params.next()?;
+        let newest_block: BlockNumberOrTag = params.next()?;
         let reward_percentiles: Option<Vec<f64>> = params.optional_next()?;
 
         // convert block count to u64 from hex
@@ -490,10 +490,10 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
 
             let mut params = parmaeters.sequence();
 
-            let block_hash: B256 = params.next().unwrap();
+            let block_hash: B256 = params.next()?;
             let evm = Evm::<C>::default();
             let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
-            let opts: Option<GethDebugTracingOptions> = params.optional_next().unwrap();
+            let opts: Option<GethDebugTracingOptions> = params.optional_next()?;
 
             let block_number =
                 match evm.get_block_number_by_block_hash(block_hash, &mut working_set) {
@@ -555,8 +555,8 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
 
             let mut params = parameters.sequence();
 
-            let block_number: BlockNumberOrTag = params.next().unwrap();
-            let opts: Option<GethDebugTracingOptions> = params.optional_next().unwrap();
+            let block_number: BlockNumberOrTag = params.next()?;
+            let opts: Option<GethDebugTracingOptions> = params.optional_next()?;
 
             let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
             let evm = Evm::<C>::default();
@@ -634,7 +634,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                     .expect("Block number must be set for tx inside block"),
             );
 
-            let opts: Option<GethDebugTracingOptions> = params.optional_next().unwrap();
+            let opts: Option<GethDebugTracingOptions> = params.optional_next()?;
 
             // If opts is None or if opts.tracer is None, then do not check cache or insert cache, just perform the operation
             // also since this is not cached we need to stop at somewhere, so we add param stop_at
@@ -704,8 +704,8 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
 
             let mut params = parameters.sequence();
 
-            let _block_hash: String = params.next().unwrap();
-            let _uncle_index_position: String = params.next().unwrap();
+            let _block_hash: String = params.next()?;
+            let _uncle_index_position: String = params.next()?;
 
             let res = json!(null);
 
@@ -719,7 +719,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
             |parameters, ethereum| async move {
                 info!("Full Node: eth_sendRawTransaction");
                 // send this directly to the sequencer
-                let data: Bytes = parameters.one().unwrap();
+                let data: Bytes = parameters.one()?;
                 // sequencer client should send it
                 let tx_hash = ethereum
                     .sequencer_client
@@ -742,7 +742,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
             "eth_getTransactionByHash",
             |parameters, ethereum| async move {
                 let mut params = parameters.sequence();
-                let hash: B256 = params.next().unwrap();
+                let hash: B256 = params.next()?;
                 let mempool_only: Result<Option<bool>, ErrorObjectOwned> = params.optional_next();
                 info!(
                     "Full Node: eth_getTransactionByHash({}, {:?})",

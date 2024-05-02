@@ -68,7 +68,7 @@ pub(crate) fn create_rpc_module<C: sov_modules_api::Context>(
     })?;
     rpc.register_async_method("eth_getTransactionByHash", |parameters, ctx| async move {
         let mut params = parameters.sequence();
-        let hash: B256 = params.next().unwrap();
+        let hash: B256 = params.next()?;
         let mempool_only: Result<Option<bool>, ErrorObjectOwned> = params.optional_next();
         info!(
             "Sequencer: eth_getTransactionByHash({}, {:?})",
@@ -100,7 +100,7 @@ pub(crate) fn create_rpc_module<C: sov_modules_api::Context>(
         "citrea_sendRawDepositTransaction",
         |parameters, ctx| async move {
             let mut params = parameters.sequence();
-            let deposit: Bytes = params.next().unwrap();
+            let deposit: Bytes = params.next()?;
 
             info!("Sequencer: citrea_sendRawDepositTransaction");
 
@@ -125,8 +125,11 @@ pub(crate) fn create_rpc_module<C: sov_modules_api::Context>(
                 }
                 Err(e) => {
                     tracing::error!("Error processing deposit tx: {:?}", e);
+                    return Err(e);
                 }
             }
+
+            Ok(())
         },
     )?;
     Ok(rpc)
