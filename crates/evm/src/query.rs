@@ -36,7 +36,7 @@ use crate::rpc_helpers::*;
 use crate::{BloomFilter, EthResult, Evm, EvmChainConfig, FilterBlockOption, FilterError};
 
 // Gas per transaction not creating a contract.
-const MIN_TRANSACTION_GAS: u64 = 21_000u64;
+pub(crate) const MIN_TRANSACTION_GAS: u64 = 21_000u64;
 
 /// https://github.com/paradigmxyz/reth/pull/7133/files
 /// Allowed error ratio for gas estimation

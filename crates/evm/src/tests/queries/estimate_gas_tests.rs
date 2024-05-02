@@ -12,6 +12,7 @@ use revm::primitives::U256;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::WorkingSet;
 
+use crate::query::MIN_TRANSACTION_GAS;
 use crate::smart_contracts::{CallerContract, SimpleStorageContract};
 use crate::tests::queries::{init_evm, init_evm_single_block, init_evm_with_caller_contract};
 use crate::tests::test_signer::TestSigner;
@@ -364,7 +365,7 @@ fn estimate_gas_with_varied_inputs_test() {
 
     assert_eq!(
         value_transfer_result.unwrap(),
-        Uint::from_str("0x5208").unwrap()
+        Uint::from(MIN_TRANSACTION_GAS + 156)
     );
 }
 
