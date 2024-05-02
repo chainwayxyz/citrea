@@ -1,7 +1,5 @@
 //! Additional helpers for converting errors.
 
-
-
 /// Constructs an invalid params JSON-RPC error.
 pub(crate) fn invalid_params_rpc_err(
     msg: impl Into<String>,
