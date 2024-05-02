@@ -473,21 +473,21 @@ where
                     )
                     .await;
 
-                if let Some(db_config) = self.config.db_config.clone() {
-                    let l1_start_height = commitment_info.l1_height_range.start().0;
-                    let l1_end_height = commitment_info.l1_height_range.end().0;
+                let l1_start_height = commitment_info.l1_height_range.start().0;
+                let l1_end_height = commitment_info.l1_height_range.end().0;
 
-                    self.insert_commitment_info_to_db_and_ledger_db(
-                        tx_id,
-                        db_config,
-                        l1_start_height,
-                        l1_end_height,
-                        commitment,
-                        l2_range_to_submit.clone(),
-                        commitment_info,
-                    )
-                    .await;
-                }
+                // this function will save the commitment to the offchain db if db config is some
+                // and will also update the last sequencer commitment L1 height if the l1 tx is successful
+                self.store_commitment_info_offchain(
+                    tx_id,
+                    self.config.db_config.clone(),
+                    l1_start_height,
+                    l1_end_height,
+                    commitment,
+                    l2_range_to_submit.clone(),
+                    commitment_info.clone(),
+                )
+                .await;
             }
 
             // TODO: this is where we would include forced transactions from the new L1 block
@@ -655,10 +655,10 @@ where
         Ok(rpc_methods)
     }
 
-    pub async fn insert_commitment_info_to_db_and_ledger_db(
+    pub async fn store_commitment_info_offchain(
         &self,
         tx_id: OneshotReceiver<Result<<Da as DaService>::TransactionId, <Da as DaService>::Error>>,
-        db_config: OffchainDbConfig,
+        db_config: Option<OffchainDbConfig>,
         l1_start_height: u64,
         l1_end_height: u64,
         commitment: SequencerCommitment,
@@ -668,36 +668,37 @@ where
         // spawn an async task in the background and await the tx_id then save to pg
         let ledger_db = self.ledger_db.clone();
         tokio::spawn(async move {
-            ledger_db
-                .set_last_sequencer_commitment_l1_height(SlotNumber(
-                    commitment_info.l1_height_range.end().0,
-                ))
-                .expect("Sequencer: Failed to set last sequencer commitment L1 height");
             match tx_id.await {
-                Ok(Ok(tx_id)) => match PostgresConnector::new(db_config).await {
-                    Ok(pg_connector) => {
-                        pg_connector
-                            .insert_sequencer_commitment(
-                                l1_start_height as u32,
-                                l1_end_height as u32,
-                                tx_id.into().to_vec(),
-                                commitment.l1_start_block_hash.to_vec(),
-                                commitment.l1_end_block_hash.to_vec(),
-                                l2_range.start().0 as u32,
-                                (l2_range.end().0 + 1) as u32,
-                                commitment.merkle_root.to_vec(),
-                                "mempool".to_string(),
-                            )
-                            .await
-                            .expect("Sequencer: Failed to insert sequencer commitment");
+                Ok(Ok(tx_id)) => {
+                    ledger_db
+                        .set_last_sequencer_commitment_l1_height(SlotNumber(
+                            commitment_info.l1_height_range.end().0,
+                        ))
+                        .expect("Sequencer: Failed to set last sequencer commitment L1 height");
+                    if let Some(db_config) = db_config {
+                        match PostgresConnector::new(db_config).await {
+                            Ok(pg_connector) => {
+                                pg_connector
+                                    .insert_sequencer_commitment(
+                                        l1_start_height as u32,
+                                        l1_end_height as u32,
+                                        tx_id.into().to_vec(),
+                                        commitment.l1_start_block_hash.to_vec(),
+                                        commitment.l1_end_block_hash.to_vec(),
+                                        l2_range.start().0 as u32,
+                                        (l2_range.end().0 + 1) as u32,
+                                        commitment.merkle_root.to_vec(),
+                                        "mempool".to_string(),
+                                    )
+                                    .await
+                                    .expect("Sequencer: Failed to insert sequencer commitment");
+                            }
+                            Err(e) => {
+                                warn!("Failed to connect to postgres: {:?}", e);
+                            }
+                        }
                     }
-                    Err(e) => {
-                        warn!("Failed to connect to postgres: {:?}", e);
-                    }
-                    _ => {
-                        warn!("Sequencer: Failed to submit commitment: ");
-                    }
-                },
+                }
                 _ => {
                     warn!("Sequencer: Failed to submit commitment: ");
                 }
