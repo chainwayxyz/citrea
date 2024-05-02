@@ -62,7 +62,7 @@ impl TestClient {
         &self,
     ) -> Result<(), Box<dyn std::error::Error>> {
         self.http_client
-            .request("eth_publishBatch", rpc_params![])
+            .request("citrea_testPublishBlock", rpc_params![])
             .await
             .map_err(|e| e.into())
     }
@@ -70,7 +70,7 @@ impl TestClient {
     pub(crate) async fn send_publish_batch_request(&self) {
         let _: () = self
             .http_client
-            .request("eth_publishBatch", rpc_params![])
+            .request("citrea_testPublishBlock", rpc_params![])
             .await
             .unwrap();
         // Do not decrease the sleep time, otherwise the test will fail!

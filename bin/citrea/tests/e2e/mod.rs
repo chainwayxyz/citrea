@@ -22,16 +22,18 @@ use tokio::time::sleep;
 use crate::evm::{init_test_rollup, make_test_client};
 use crate::test_client::TestClient;
 use crate::test_helpers::{start_rollup, NodeMode};
-use crate::DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT;
+use crate::{DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT};
 
 struct TestConfig {
     seq_min_soft_confirmations: u64,
+    deposit_mempool_fetch_limit: usize,
 }
 
 impl Default for TestConfig {
     fn default() -> Self {
         Self {
             seq_min_soft_confirmations: DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
+            deposit_mempool_fetch_limit: 10,
         }
     }
 }
@@ -62,6 +64,7 @@ async fn initialize_test(
             None,
             None,
             Some(true),
+            config.deposit_mempool_fetch_limit,
         )
         .await;
     });
@@ -86,6 +89,7 @@ async fn initialize_test(
             None,
             None,
             Some(true),
+            config.deposit_mempool_fetch_limit,
         )
         .await;
     });
@@ -123,6 +127,7 @@ async fn test_soft_batch_save() -> Result<(), anyhow::Error> {
             None,
             None,
             Some(true),
+            config.deposit_mempool_fetch_limit,
         )
         .await;
     });
@@ -147,6 +152,7 @@ async fn test_soft_batch_save() -> Result<(), anyhow::Error> {
             None,
             None,
             Some(true),
+            config.deposit_mempool_fetch_limit,
         )
         .await;
     });
@@ -171,6 +177,7 @@ async fn test_soft_batch_save() -> Result<(), anyhow::Error> {
             None,
             None,
             Some(true),
+            config.deposit_mempool_fetch_limit,
         )
         .await;
     });
@@ -259,6 +266,7 @@ async fn test_delayed_sync_ten_blocks() -> Result<(), anyhow::Error> {
             None,
             None,
             Some(true),
+            DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
         )
         .await;
     });
@@ -293,6 +301,7 @@ async fn test_delayed_sync_ten_blocks() -> Result<(), anyhow::Error> {
             None,
             None,
             Some(true),
+            DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
         )
         .await;
     });
@@ -358,6 +367,7 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
             None,
             None,
             Some(true),
+            DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
         )
         .await;
     });
@@ -382,6 +392,7 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
             None,
             None,
             Some(true),
+            DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
         )
         .await;
     });
@@ -465,6 +476,7 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
             None,
             None,
             Some(true),
+            DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
         )
         .await;
     });
@@ -521,6 +533,7 @@ async fn test_get_transaction_by_hash() -> Result<(), anyhow::Error> {
             None,
             None,
             Some(true),
+            DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
         )
         .await;
     });
@@ -544,6 +557,7 @@ async fn test_get_transaction_by_hash() -> Result<(), anyhow::Error> {
             None,
             None,
             Some(true),
+            DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
         )
         .await;
     });
@@ -781,6 +795,7 @@ async fn test_reopen_sequencer() -> Result<(), anyhow::Error> {
             None,
             None,
             Some(true),
+            DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
         )
         .await;
     });
@@ -828,6 +843,7 @@ async fn test_reopen_sequencer() -> Result<(), anyhow::Error> {
             None,
             None,
             Some(true),
+            DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
         )
         .await;
     });
@@ -977,6 +993,7 @@ async fn test_soft_confirmations_status_one_l1() -> Result<(), anyhow::Error> {
     let (seq_test_client, full_node_test_client, seq_task, full_node_task, _) =
         initialize_test(TestConfig {
             seq_min_soft_confirmations: 3,
+            deposit_mempool_fetch_limit: 10,
         })
         .await;
 
@@ -1021,6 +1038,7 @@ async fn test_soft_confirmations_status_two_l1() -> Result<(), anyhow::Error> {
     let (seq_test_client, full_node_test_client, seq_task, full_node_task, _) =
         initialize_test(TestConfig {
             seq_min_soft_confirmations: 3,
+            deposit_mempool_fetch_limit: 10,
         })
         .await;
 
@@ -1115,6 +1133,7 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
             None,
             None,
             Some(true),
+            DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
         )
         .await;
     });
@@ -1139,6 +1158,7 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
             None,
             None,
             Some(true),
+            DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
         )
         .await;
     });
@@ -1224,6 +1244,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
             None,
             None,
             Some(true),
+            DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
         )
         .await;
     });
@@ -1248,6 +1269,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
             None,
             None,
             Some(true),
+            DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
         )
         .await;
     });
@@ -1304,6 +1326,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
             None,
             None,
             Some(true),
+            DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
         )
         .await;
     });
@@ -1350,6 +1373,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
             None,
             None,
             Some(true),
+            DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
         )
         .await;
     });
@@ -1542,9 +1566,11 @@ async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error>
             Some(SequencerConfig {
                 min_soft_confirmations_per_commitment: 1000,
                 test_mode: true,
+                deposit_mempool_fetch_limit: 10,
                 mempool_conf: SequencerMempoolConfig {max_account_slots: 100, ..Default::default() }
             }),
             Some(true),
+            DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT
         )
         .await;
         });
