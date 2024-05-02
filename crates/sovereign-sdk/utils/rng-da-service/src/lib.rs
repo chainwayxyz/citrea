@@ -71,13 +71,29 @@ impl futures::Stream for RngHeaderStream {
     }
 }
 
+/// A mock hash digest.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, std::cmp::Ord, std::hash::Hash)]
+pub struct RngHash([u8; 32]);
+
+impl From<RngHash> for [u8; 32] {
+    fn from(val: RngHash) -> Self {
+        val.0
+    }
+}
+
+impl core::fmt::Display for RngHash {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "0x{}", hex::encode(self.0))
+    }
+}
+
 #[async_trait]
 impl DaService for RngDaService {
     type Spec = RngDaSpec;
     type Verifier = RngDaVerifier;
     type FilteredBlock = MockBlock;
     type HeaderStream = RngHeaderStream;
-    type TransactionId = ();
+    type TransactionId = RngHash;
     type Error = anyhow::Error;
 
     async fn get_block_at(&self, height: u64) -> Result<Self::FilteredBlock, Self::Error> {
@@ -156,7 +172,7 @@ impl DaService for RngDaService {
         unimplemented!()
     }
 
-    async fn send_transaction(&self, _blob: &[u8]) -> Result<(), Self::Error> {
+    async fn send_transaction(&self, _blob: &[u8]) -> Result<Self::TransactionId, Self::Error> {
         unimplemented!()
     }
 

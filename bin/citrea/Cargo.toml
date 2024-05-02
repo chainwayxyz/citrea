@@ -78,6 +78,10 @@ sov-prover-storage-manager = { path = "../../crates/sovereign-sdk/full-node/sov-
 sov-mock-da = { path = "../../crates/sovereign-sdk/adapters/mock-da" }
 citrea-evm = { path = "../../crates/evm", features = ["smart_contracts"] }
 sov-zk-cycle-macros = { path = "../../crates/sovereign-sdk/utils/zk-cycle-macros" }
+shared-backup-db = { path = "../../crates/shared-backup-db", features = [
+    "test-utils",
+] }
+
 humantime = "2.1"
 rs_merkle = { workspace = true }
 borsh = { workspace = true }

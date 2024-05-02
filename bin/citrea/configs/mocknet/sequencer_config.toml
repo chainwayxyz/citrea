@@ -10,3 +10,10 @@ queue_tx_size = 200
 base_fee_tx_limit = 100000
 base_fee_tx_size = 200
 max_account_slots = 16
+
+[db_config]
+db_host = "localhost"
+db_port = 5432
+db_user = "postgres"
+db_password = "postgres"
+db_name = "postgres"

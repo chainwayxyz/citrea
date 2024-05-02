@@ -490,10 +490,9 @@ mod tests {
             // If there's reference to parent snapshot id, it should be consistent with block hash i
             match snapshot_id_to_parent.get(snapshot_id) {
                 None => {
-                    assert!(storage_manager
+                    assert!(!storage_manager
                         .block_hash_to_snapshot_id
-                        .get(parent_block_hash)
-                        .is_none());
+                        .contains_key(parent_block_hash));
                 }
                 Some(parent_snapshot_id) => {
                     let parent_snapshot_id_from_block_hash = storage_manager
