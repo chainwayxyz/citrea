@@ -44,6 +44,22 @@ pub(crate) const MIN_TRANSACTION_GAS: u64 = 21_000u64;
 /// <https://github.com/ethereum/go-ethereum/blob/a5a4fa7032bb248f5a7c40f4e8df2b131c4186a4/internal/ethapi/api.go#L56>
 const ESTIMATE_GAS_ERROR_RATIO: f64 = 0.015;
 
+/// The result of gas estimation.
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+pub(crate) struct EstimatedGas {
+    /// Evm gas used.
+    gas: U64,
+    /// L1 fee.
+    l1_fee: U256,
+}
+
+impl EstimatedGas {
+    /// Return total estimated gas including evm gas and L1 fee.
+    pub(crate) fn total(&self) -> U256 {
+        self.l1_fee + U256::from(self.gas)
+    }
+}
+
 #[rpc_gen(client, server)]
 impl<C: sov_modules_api::Context> Evm<C> {
     /// Handler for `net_version`
@@ -760,7 +776,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         request.access_list = Some(access_list.clone());
         tx_env.access_list = access_list.clone().into_flattened();
 
-        let gas_used = self.estimate_gas_with_env(
+        let estimated = self.estimate_gas_with_env(
             request,
             l1_fee_rate,
             block_env,
@@ -771,7 +787,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         Ok(AccessListWithGasUsed {
             access_list,
-            gas_used: U256::from(gas_used),
+            gas_used: estimated.total(),
         })
     }
 
@@ -783,7 +799,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         request: reth_rpc_types::TransactionRequest,
         block_number: Option<BlockNumberOrTag>,
         working_set: &mut WorkingSet<C>,
-    ) -> RpcResult<reth_primitives::U64> {
+    ) -> RpcResult<reth_primitives::U256> {
         info!("evm module: eth_estimateGas");
         let (l1_fee_rate, block_env) = match block_number {
             None | Some(BlockNumberOrTag::Pending | BlockNumberOrTag::Latest) => {
@@ -817,14 +833,15 @@ impl<C: sov_modules_api::Context> Evm<C> {
         cfg_env.disable_eip3607 = true;
         cfg_env.disable_base_fee = true;
 
-        self.estimate_gas_with_env(
+        let estimated = self.estimate_gas_with_env(
             request,
             l1_fee_rate,
             block_env,
             cfg_env,
             &mut tx_env,
             working_set,
-        )
+        )?;
+        Ok(estimated.total())
     }
 
     /// Handler for: `eth_getBlockTransactionCountByHash`
@@ -853,7 +870,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         cfg_env: CfgEnvWithHandlerCfg,
         tx_env: &mut TxEnv,
         working_set: &mut WorkingSet<C>,
-    ) -> RpcResult<reth_primitives::U64> {
+    ) -> RpcResult<EstimatedGas> {
         let request_gas = request.gas;
         let request_gas_price = request.gas_price;
         let env_gas_limit = block_env.gas_limit;
@@ -897,7 +914,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
                     if let Ok((res, tx_info)) = res {
                         if res.result.is_success() {
-                            return Ok(U64::from(MIN_TRANSACTION_GAS + tx_info.l1_fee));
+                            return Ok(EstimatedGas {
+                                gas: U64::from(MIN_TRANSACTION_GAS),
+                                l1_fee: tx_info.l1_fee,
+                            });
                         }
                     }
                 }
@@ -949,9 +969,9 @@ impl<C: sov_modules_api::Context> Evm<C> {
             }
         }
 
-        let result = match result {
-            Ok((result, _tx_info)) => match result.result {
-                ExecutionResult::Success { .. } => result.result,
+        let (result, l1_fee) = match result {
+            Ok((result, tx_info)) => match result.result {
+                ExecutionResult::Success { .. } => (result.result, tx_info.l1_fee),
                 ExecutionResult::Halt { reason, gas_used } => {
                     return Err(RpcInvalidTransactionError::halt(reason, gas_used).into())
                 }
@@ -1071,7 +1091,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
             mid_gas_limit = ((highest_gas_limit as u128 + lowest_gas_limit as u128) / 2) as u64;
         }
 
-        Ok(reth_primitives::U64::from(highest_gas_limit))
+        Ok(EstimatedGas {
+            gas: reth_primitives::U64::from(highest_gas_limit),
+            l1_fee,
+        })
     }
 
     /// Returns logs matching given filter object.
