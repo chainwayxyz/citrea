@@ -5,4 +5,4 @@ mod utils;
 
 pub use config::OffchainDbConfig;
 pub use postgres_connector::PostgresConnector;
-pub use tables::{DbSequencerCommitment, Tables};
+pub use tables::{CommitmentStatus, DbSequencerCommitment, Tables};

@@ -1,10 +1,12 @@
+use std::str::FromStr;
+
 use postgres::Error;
 use tokio_postgres::{Client, NoTls, Row};
 
 use crate::config::OffchainDbConfig;
 use crate::tables::{
-    DbSequencerCommitment, Tables, INDEX_L1_END_HASH, INDEX_L1_END_HEIGHT, INDEX_L2_END_HEIGHT,
-    SEQUENCER_COMMITMENT_TABLE_CREATE_QUERY,
+    CommitmentStatus, DbSequencerCommitment, Tables, INDEX_L1_END_HASH, INDEX_L1_END_HEIGHT,
+    INDEX_L2_END_HEIGHT, SEQUENCER_COMMITMENT_TABLE_CREATE_QUERY,
 };
 use crate::utils::get_db_extension;
 
@@ -123,7 +125,7 @@ impl PostgresConnector {
         l2_start_height: u32,
         l2_end_height: u32,
         merkle_root: Vec<u8>,
-        status: String,
+        status: CommitmentStatus,
     ) -> Result<u64, Error> {
         self.client
             .execute(
@@ -137,7 +139,7 @@ impl PostgresConnector {
                     &l2_start_height,
                     &l2_end_height,
                     &merkle_root,
-                    &status,
+                    &status.to_string(),
                 ],
             ).await
     }
@@ -194,7 +196,7 @@ impl PostgresConnector {
             l2_start_height: row.get::<&str, u32>("l2_start_height") as u64,
             l2_end_height: row.get::<&str, u32>("l2_end_height") as u64,
             merkle_root: row.get("merkle_root"),
-            status: row.get("status"),
+            status: CommitmentStatus::from_str(row.get("status")).unwrap(),
         }
     }
 }
@@ -221,7 +223,7 @@ mod tests {
                 10,
                 11,
                 vec![1; 32],
-                "Trusted".to_string(),
+                CommitmentStatus::Mempool,
             )
             .await
             .unwrap();
@@ -235,6 +237,7 @@ mod tests {
         assert_eq!(rows[0].l1_end_hash, vec![0; 32]);
         assert_eq!(rows[0].l2_start_height, 10);
         assert_eq!(rows[0].l2_end_height, 11);
+        assert!(matches!(rows[0].status, CommitmentStatus::Mempool));
 
         let _ = client.drop_table(Tables::SequencerCommitment).await;
     }

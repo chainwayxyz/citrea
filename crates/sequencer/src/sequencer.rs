@@ -16,7 +16,7 @@ use jsonrpsee::RpcModule;
 use reth_primitives::IntoRecoveredTransaction;
 use reth_provider::BlockReaderIdExt;
 use reth_transaction_pool::{BestTransactionsAttributes, PoolTransaction};
-use shared_backup_db::{OffchainDbConfig, PostgresConnector};
+use shared_backup_db::{CommitmentStatus, OffchainDbConfig, PostgresConnector};
 use sov_accounts::Accounts;
 use sov_accounts::Response::{AccountEmpty, AccountExists};
 use sov_db::ledger_db::{LedgerDB, SlotCommit};
@@ -688,7 +688,7 @@ where
                                         l2_range.start().0 as u32,
                                         (l2_range.end().0 + 1) as u32,
                                         commitment.merkle_root.to_vec(),
-                                        "mempool".to_string(),
+                                        CommitmentStatus::Mempool,
                                     )
                                     .await
                                     .expect("Sequencer: Failed to insert sequencer commitment");

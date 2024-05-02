@@ -18,6 +18,35 @@ impl fmt::Display for Tables {
 }
 
 #[derive(Debug, Clone)]
+pub enum CommitmentStatus {
+    Mempool,
+    Mined,
+    Finalized,
+}
+
+impl fmt::Display for CommitmentStatus {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            CommitmentStatus::Mempool => write!(f, "mempool"),
+            CommitmentStatus::Mined => write!(f, "mined"),
+            CommitmentStatus::Finalized => write!(f, "finalized"),
+        }
+    }
+}
+
+impl std::str::FromStr for CommitmentStatus {
+    type Err = ();
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "mempool" => Ok(CommitmentStatus::Mempool),
+            "mined" => Ok(CommitmentStatus::Mined),
+            "finalized" => Ok(CommitmentStatus::Finalized),
+            _ => Err(()),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct DbSequencerCommitment {
     /// Hex encoded L1 transaction ID
     pub l1_tx_id: Vec<u8>,
@@ -31,7 +60,7 @@ pub struct DbSequencerCommitment {
     pub l2_end_height: u64,
     /// Hex encoded merkle root of soft confirmation hashes
     pub merkle_root: Vec<u8>,
-    pub status: String,
+    pub status: CommitmentStatus,
 }
 
 pub fn create_database() -> String {
