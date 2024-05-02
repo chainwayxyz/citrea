@@ -189,7 +189,7 @@ impl DaService for DaProvider {
 
     type FilteredBlock = AvailBlock;
     type HeaderStream = AvailBlockHeaderStream;
-    type TransactionId = ();
+    type TransactionId = [u8; 32];
 
     type Error = anyhow::Error;
 
@@ -289,7 +289,7 @@ impl DaService for DaProvider {
         ((), ())
     }
 
-    async fn send_transaction(&self, blob: &[u8]) -> Result<(), Self::Error> {
+    async fn send_transaction(&self, blob: &[u8]) -> Result<Self::TransactionId, Self::Error> {
         let data_transfer = api::tx()
             .data_availability()
             .submit_data(BoundedVec(blob.to_vec()));
@@ -304,7 +304,7 @@ impl DaService for DaProvider {
 
         info!("Transaction submitted: {:#?}", h.extrinsic_hash());
 
-        Ok(())
+        Ok([0; 32])
     }
 
     async fn send_aggregated_zk_proof(&self, _proof: &[u8]) -> Result<u64, Self::Error> {

@@ -1,4 +1,3 @@
-use reth_primitives::revm::env::{fill_tx_env, fill_tx_env_with_recovered};
 use reth_primitives::revm_primitives::TxEnv;
 use reth_primitives::{TransactionSigned, TransactionSignedEcRecovered, TxHash, U256};
 use reth_revm::tracing::{FourByteInspector, TracingInspector, TracingInspectorConfig};
@@ -200,32 +199,17 @@ where
 pub(crate) trait FillableTransaction {
     /// Returns the hash of the transaction.
     fn hash(&self) -> TxHash;
-
-    /// Fill the transaction environment with the given transaction.
-    fn try_fill_tx_env(&self, tx_env: &mut TxEnv) -> EthResult<()>;
 }
 
 impl FillableTransaction for TransactionSignedEcRecovered {
     fn hash(&self) -> TxHash {
         self.hash
     }
-
-    fn try_fill_tx_env(&self, tx_env: &mut TxEnv) -> EthResult<()> {
-        fill_tx_env_with_recovered(tx_env, self);
-        Ok(())
-    }
 }
+
 impl FillableTransaction for TransactionSigned {
     fn hash(&self) -> TxHash {
         self.hash
-    }
-
-    fn try_fill_tx_env(&self, tx_env: &mut TxEnv) -> EthResult<()> {
-        let signer = self
-            .recover_signer()
-            .ok_or_else(|| EthApiError::InvalidTransactionSignature)?;
-        fill_tx_env(tx_env, self, signer);
-        Ok(())
     }
 }
 
