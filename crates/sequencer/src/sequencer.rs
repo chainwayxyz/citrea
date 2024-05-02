@@ -35,12 +35,14 @@ use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::ZkvmHost;
 use sov_stf_runner::{InitVariant, RpcConfig, RunnerConfig};
 use tokio::sync::oneshot::Receiver as OneshotReceiver;
+use tokio::sync::Mutex;
 use tokio::time::sleep;
 use tracing::{debug, info, warn};
 
 use crate::commitment_controller::{self, CommitmentInfo};
 use crate::config::SequencerConfig;
 use crate::db_provider::DbProvider;
+use crate::deposit_data_mempool::DepositDataMempool;
 use crate::mempool::CitreaMempool;
 use crate::rpc::{create_rpc_module, RpcContext};
 
@@ -65,6 +67,7 @@ where
     ledger_db: LedgerDB,
     config: SequencerConfig,
     stf: Stf,
+    deposit_mempool: DepositDataMempool,
     storage_manager: Sm,
     state_root: StateRoot<Stf, Vm, Da::Spec>,
     sequencer_pub_key: Vec<u8>,
@@ -129,6 +132,8 @@ where
 
         let pool = CitreaMempool::new(db_provider.clone(), config.mempool_conf.clone());
 
+        let deposit_mempool = DepositDataMempool::new();
+
         Ok(Self {
             da_service,
             mempool: Arc::new(pool),
@@ -140,6 +145,7 @@ where
             ledger_db,
             config,
             stf,
+            deposit_mempool,
             storage_manager,
             state_root: prev_state_root,
             sequencer_pub_key,
@@ -205,13 +211,17 @@ where
 
         let timestamp = chrono::Local::now().timestamp() as u64;
 
+        let deposit_data = self
+            .deposit_mempool
+            .fetch_deposits(self.config.deposit_mempool_fetch_limit);
+
         let batch_info = HookSoftConfirmationInfo {
             da_slot_height: da_block.header().height(),
             da_slot_hash: da_block.header().hash().into(),
             da_slot_txs_commitment: da_block.header().txs_commitment().into(),
             pre_state_root: self.state_root.clone().as_ref().to_vec(),
             pub_key: self.sov_tx_signer_priv_key.pub_key().try_to_vec().unwrap(),
-            deposit_data: vec![],
+            deposit_data,
             l1_fee_rate,
             timestamp,
         };
@@ -638,6 +648,7 @@ where
         let l2_force_block_tx = self.l2_force_block_tx.clone();
         RpcContext {
             mempool: self.mempool.clone(),
+            deposit_mempool: Arc::new(Mutex::new(self.deposit_mempool.clone())),
             l2_force_block_tx,
             storage: self.storage.clone(),
             test_mode: self.config.test_mode,

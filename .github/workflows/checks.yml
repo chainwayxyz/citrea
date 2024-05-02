@@ -99,6 +99,7 @@ jobs:
 
   deny:
     runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v4
       - name: Run cargo-deny
@@ -184,6 +185,7 @@ jobs:
 
   sys_tx_keccak:
     runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v4

@@ -1,5 +1,6 @@
 min_soft_confirmations_per_commitment = 10
 test_mode = false
+deposit_mempool_fetch_limit = 10
 
 [mempool_conf] # Mempool Configuration - https://github.com/ledgerwatch/erigon/wiki/Transaction-Pool-Design
 pending_tx_limit = 100000

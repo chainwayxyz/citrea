@@ -4,7 +4,8 @@ use alloy_primitives::{address, Address, Bytes, U256};
 pub struct BitcoinLightClient {}
 
 impl BitcoinLightClient {
-    pub(crate) fn address() -> Address {
+    /// Return the address of the BitcoinLightClient contract.
+    pub fn address() -> Address {
         address!("3100000000000000000000000000000000000001")
     }
 
@@ -52,7 +53,8 @@ impl BitcoinLightClient {
 pub struct Bridge {}
 
 impl Bridge {
-    pub(crate) fn address() -> Address {
+    /// Return the address of the Bridge contract.
+    pub fn address() -> Address {
         address!("3100000000000000000000000000000000000002")
     }
 
@@ -64,7 +66,8 @@ impl Bridge {
         Bytes::from(func_selector)
     }
 
-    pub(crate) fn deposit(data: Vec<u8>) -> Bytes {
+    /// Return data to deposit
+    pub fn deposit(data: Vec<u8>) -> Bytes {
         let mut func_selector: Vec<u8> = vec![0xdd, 0x95, 0xc7, 0xc6]; // deposit((bytes4,bytes2,bytes,bytes,bytes,bytes4,bytes,uint256,uint256)) dd95c7c6
 
         func_selector.extend_from_slice(data.as_slice());

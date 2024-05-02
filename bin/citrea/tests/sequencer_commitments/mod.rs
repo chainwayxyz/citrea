@@ -15,7 +15,8 @@ use tokio::time::sleep;
 
 use crate::evm::make_test_client;
 use crate::test_client::TestClient;
-use crate::test_helpers::{create_default_sequencer_config, start_rollup, NodeMode};
+use crate::test_helpers::{start_rollup, NodeMode, create_default_sequencer_config};
+use crate::DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT;
 
 #[tokio::test]
 async fn sequencer_sends_commitments_to_da_layer() {
@@ -40,6 +41,7 @@ async fn sequencer_sends_commitments_to_da_layer() {
             None,
             None,
             Some(true),
+            DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
         )
         .await;
     });
@@ -198,7 +200,7 @@ async fn check_commitment_in_offchain_db() {
     // citrea::initialize_logging();
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
-    let mut sequencer_config = create_default_sequencer_config(4, Some(true));
+    let mut sequencer_config = create_default_sequencer_config(4, Some(true), 10);
 
     sequencer_config.db_config = Some(OffchainDbConfig::default());
 
@@ -222,6 +224,7 @@ async fn check_commitment_in_offchain_db() {
             None,
             Some(sequencer_config),
             Some(true),
+            10,
         )
         .await;
     });

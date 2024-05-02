@@ -9,3 +9,4 @@ mod test_client;
 mod test_helpers;
 
 const DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT: u64 = 1000;
+const DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT: usize = 10;
