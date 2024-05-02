@@ -173,13 +173,14 @@ where
                     let bound_address = match server.local_addr() {
                         Ok(address) => address,
                         Err(e) => {
-                            error!("{e}");
+                            error!("{}", e);
                             return;
                         }
                     };
                     if let Some(channel) = channel {
                         if let Err(e) = channel.send(bound_address) {
                             error!("Could not send bound_address {}: {}", bound_address, e);
+                            return;
                         }
                     }
                     info!("Starting RPC server at {} ", &bound_address);
