@@ -32,9 +32,9 @@ app = FastAPI(lifespan=lifespan)
 
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=["*"])
 
-
+# should be settable by config
 origins = [
-    "*",
+    CONFIG.allowed_hosts
 ]
 
 app.add_middleware(

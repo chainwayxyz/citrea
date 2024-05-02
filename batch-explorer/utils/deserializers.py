@@ -27,11 +27,15 @@ def deserialize_to_commitment_response(rows):
         responses.append(
             CommitmentResponse(
                 l1_tx_id=f"{CONFIG.mempool_space_url}/tx/{row[3]}",
-                l1_start_hash_mempool_url=f"{CONFIG.mempool_space_url}/block/{row[4]}",
-                l1_end_hash_mempool_url=f"{CONFIG.mempool_space_url}/block/{row[5]}",
+                l1_start_hash=row[4].hex(),
+                l1_end_hash=row[5].hex(),
+                l1_start_hash_mempool_url=f"{CONFIG.mempool_space_url}/block/{row[4].hex()}",
+                l1_end_hash_mempool_url=f"{CONFIG.mempool_space_url}/block/{row[5].hex()}",
+                l2_start_height=row[6],
+                l2_end_height=row[7],
                 l2_start_height_block_exp_url=f"{CONFIG.blockscout_url}/block/{row[6]}",
                 l2_end_height_block_exp_url=f"{CONFIG.blockscout_url}/block/{row[7]}",
-                merkle_root=row[8],
+                merkle_root=row[8].hex(),
                 status=row[9],
             )
         )

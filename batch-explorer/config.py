@@ -25,6 +25,8 @@ class Settings(BaseSettings):
     db_password: str = config("DB_PASSWORD", default="postgres")
     db_name: str = config("DB_NAME", default="postgres")
 
+    allowed_hosts: list = ["*"]
+
     class Config:
         env_file = ".env"
         orm_mode = True
