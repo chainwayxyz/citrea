@@ -46,7 +46,7 @@ contract BridgeTest is Test {
     function setUp() public {
         bridge = new BridgeHarness();
         vm.prank(SYSTEM_CALLER);
-        bridge.initialize(31, depositScript, scriptSuffix, 5, owner);
+        bridge.initialize(depositScript, scriptSuffix, 5, owner);
         vm.deal(address(bridge), 21_000_000 ether);
         address lightClient_impl = address(new BitcoinLightClient());
         bitcoinLightClient = bridge.LIGHT_CLIENT();
@@ -59,16 +59,6 @@ contract BridgeTest is Test {
         vm.stopPrank();
 
         operator = bridge.operator();
-    }
-
-    function testZeros() public view {
-        bytes32 zero = bridge.ZERO_VALUE();
-        assertEq(zero, bridge.zeros(0));
-        assertEq(zero, keccak256("CITREA"));
-        for (uint32 i = 1; i < 33; i++) {
-            zero = bridge.hashLeftRight(zero, zero);
-            assertEq(zero, bridge.zeros(i));
-        }
     }
 
     function testDeposit() public {
@@ -86,17 +76,15 @@ contract BridgeTest is Test {
         // Assert if receiver can withdraw
         vm.startPrank(receiver);
         bytes32 bitcoin_address = hex"1234"; // Dummy Bitcoin address
-        bytes32 withdrawal_root = bridge.getRootWithdrawalTree();
+        uint256 withdrawalCount = bridge.getWithdrawalCount();
         bridge.withdraw{value: DEPOSIT_AMOUNT}(bitcoin_address);
-        bytes32 updated_withdrawal_root = bridge.getRootWithdrawalTree();
+
+        // Assert if withdrawal address is stored properly
+        assertEq(bridge.withdrawalAddrs(withdrawalCount), bitcoin_address);
         
         // Assert if tokens are burned from receiver
         assertEq(receiver.balance, 0);
 
-        // Assert if withdrawal root is updated
-        assert(withdrawal_root != updated_withdrawal_root);
-        bytes32 expected_root = 0x574330cc8e4db82e36b5daf43915ccb2bf785ac361c3882cc4cdd2a13183af99; // Calculate with another implementation of merkle tree
-        assertEq(updated_withdrawal_root, expected_root);
 
         vm.stopPrank();
     }
@@ -108,10 +96,14 @@ contract BridgeTest is Test {
         for (uint i = 0; i < 10; i++) {
             btc_addresses[i] = bytes32(abi.encodePacked(i));
         }
-        bytes32 withdrawal_root = bridge.getRootWithdrawalTree();
+        
         bridge.batchWithdraw{value: 10 ether}(btc_addresses);
-        bytes32 updated_withdrawal_root = bridge.getRootWithdrawalTree();
-        assert(withdrawal_root != updated_withdrawal_root);
+        
+
+        for (uint i = 0; i < 10; i++) {
+            assertEq(bridge.withdrawalAddrs(i), btc_addresses[i]);
+        }
+        
         assertEq(user.balance, 0);
     }
 
@@ -193,7 +185,7 @@ contract BridgeTest is Test {
     function testCannotReinitialize() public {
         vm.expectRevert("Contract is already initialized");
         vm.prank(SYSTEM_CALLER);
-        bridge.initialize(31, depositScript, scriptSuffix, 5, owner);
+        bridge.initialize(depositScript, scriptSuffix, 5, owner);
     }
 
     function testCanChangeOperatorAndDeposit() public {
