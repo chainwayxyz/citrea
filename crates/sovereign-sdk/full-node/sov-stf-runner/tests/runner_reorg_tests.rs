@@ -163,7 +163,8 @@ async fn runner_execution(
         storage_manager.create_finalized_storage().unwrap(),
         1,
         rollup_config.prover_service,
-    );
+    )
+    .expect("Should be able to instiate prover service");
 
     let mut runner: StateTransitionRunner<_, _, _, _, _, DefaultContext> =
         StateTransitionRunner::new(

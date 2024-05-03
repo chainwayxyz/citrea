@@ -110,7 +110,8 @@ fn initialize_runner(
         storage_manager.create_finalized_storage().unwrap(),
         1,
         rollup_config.prover_service,
-    );
+    )
+    .expect("Should be able to instiate prover service");
 
     StateTransitionRunner::new(
         rollup_config.runner,
