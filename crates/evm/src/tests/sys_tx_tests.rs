@@ -8,10 +8,8 @@ use revm::primitives::{Bytes, U256};
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::utils::generate_address;
-use sov_modules_api::{Context, Module, StateMapAccessor, StateVecAccessor, WorkingSet};
-use sov_prover_storage_manager::new_orphan_storage;
+use sov_modules_api::{Context, Module, StateMapAccessor, StateVecAccessor};
 
-use super::utils::commit;
 use crate::call::CallMessage;
 use crate::evm::primitive_types::Receipt;
 use crate::evm::system_contracts::BitcoinLightClient;
@@ -22,7 +20,7 @@ use crate::tests::call_tests::{
     publish_event_message,
 };
 use crate::tests::utils::get_evm;
-use crate::{AccountData, Evm, EvmConfig, SYSTEM_SIGNER};
+use crate::{AccountData, EvmConfig, SYSTEM_SIGNER};
 
 type C = DefaultContext;
 
@@ -369,42 +367,18 @@ fn test_bridge() {
 
     config_push_contracts(&mut config);
 
-    let (evm, mut working_set) = get_evm_with_deposit(&config);
-
-    let recipient_address = address!("0101010101010101010101010101010101010101");
-    let recipient_account = evm
-        .accounts
-        .get(&recipient_address, &mut working_set)
-        .unwrap();
-
-    assert_eq!(
-        recipient_account.info.balance,
-        U256::from_str("0xde0b6b3a7640000").unwrap(),
-    );
-}
-
-fn get_evm_with_deposit(config: &EvmConfig) -> (Evm<C>, WorkingSet<DefaultContext>) {
-    let tmpdir = tempfile::tempdir().unwrap();
-    let storage = new_orphan_storage(tmpdir.path()).unwrap();
-    let mut working_set = WorkingSet::new(storage.clone());
-    let evm = Evm::<C>::default();
-    evm.genesis(config, &mut working_set).unwrap();
-
-    let root = commit(working_set, storage.clone());
-
-    let mut working_set: WorkingSet<DefaultContext> = WorkingSet::new(storage.clone());
-    evm.finalize_hook(&root.into(), &mut working_set.accessory_state());
+    let (evm, mut working_set) = get_evm(&config);
 
     evm.begin_soft_confirmation_hook(
         &HookSoftConfirmationInfo {
-            da_slot_height: 1,
-            da_slot_hash: [1u8; 32],
+            da_slot_height: 2,
+            da_slot_hash: [2u8; 32],
             da_slot_txs_commitment: [
                 0x46, 0xb8, 0xe9, 0x6a, 0x97, 0x98, 0x74, 0x2f, 0x3d, 0x55, 0x5a, 0xd1, 0xd1, 0xb0,
                 0xc3, 0x1a, 0x29, 0xfa, 0xc5, 0xe0, 0xd1, 0x33, 0xa4, 0x41, 0x26, 0xa8, 0xb3, 0xca,
                 0x02, 0x07, 0x7e, 0xce,
             ],
-            pre_state_root: root.to_vec(),
+            pre_state_root: [1u8; 32].to_vec(),
             pub_key: vec![],
             deposit_data: vec![[
                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -417,7 +391,7 @@ fn get_evm_with_deposit(config: &EvmConfig) -> (Evm<C>, WorkingSet<DefaultContex
                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                 0, 0, 0, 0, 0, 0, 4, 192, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 42, 1, 212, 214, 197,
                 201, 69, 131, 160, 80, 93, 208, 193, 235, 100, 118, 11, 162, 166, 163, 145, 246,
@@ -484,15 +458,18 @@ fn get_evm_with_deposit(config: &EvmConfig) -> (Evm<C>, WorkingSet<DefaultContex
         &mut working_set,
     );
     evm.end_soft_confirmation_hook(&mut working_set);
+    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
 
-    let root = commit(working_set, storage.clone());
-    let mut working_set: WorkingSet<DefaultContext> = WorkingSet::new(storage.clone());
-    evm.finalize_hook(&root.into(), &mut working_set.accessory_state());
+    let recipient_address = address!("0101010101010101010101010101010101010101");
+    let recipient_account = evm
+        .accounts
+        .get(&recipient_address, &mut working_set)
+        .unwrap();
 
-    // let mut genesis_state_root = [0u8; 32];
-    // genesis_state_root.copy_from_slice(GENESIS_STATE_ROOT.as_ref());
-
-    (evm, working_set)
+    assert_eq!(
+        recipient_account.info.balance,
+        U256::from_str("0xde0b6b3a7640000").unwrap(),
+    );
 }
 
 fn config_push_contracts(config: &mut EvmConfig) {
