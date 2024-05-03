@@ -126,8 +126,11 @@ jobs:
         run: cargo risczero install --version v2024-04-22.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Run udeps
-        run: SKIP_GUEST_BUILD=1 cargo +nightly udeps --workspace --all-features
+      - name: Run cargo-udeps
+        uses: aig787/cargo-udeps-action@v1
+        with:
+          version: 'latest'
+          args: '--workspace --all-features'
 
   deny:
     runs-on: ubuntu-latest
