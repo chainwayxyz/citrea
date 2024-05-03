@@ -20,12 +20,17 @@ name = "tests"
 path = "tests/all_tests.rs"
 
 [dev-dependencies]
+clap = { workspace = true }
 jsonrpsee = { workspace = true, features = ["macros", "http-client", "server"] }
 serde = { workspace = true }
 trybuild = "1.0"
 
+sov-modules-api = { path = "../sov-modules-api", features = [ "native" ] }
+sov-modules-core = { path = "../sov-modules-core" }
+
 [dependencies]
 anyhow = { workspace = true }
+borsh = { workspace = true, optional = true }
 jsonrpsee = { workspace = true, features = ["http-client", "server"], optional = true }
 proc-macro2 = "1.0"
 quote = "1.0"
@@ -37,5 +42,9 @@ syn = { version = "1.0", features = ["full"] }
 anyhow = { workspace = true }
 
 [features]
-default = []
+default = ["borsh"]
 native = ["jsonrpsee"]
+
+[package.metadata.cargo-udeps.ignore]
+normal = ["borsh"]
+development = ["clap", "sov-modules-core", "sov-modules-api"]

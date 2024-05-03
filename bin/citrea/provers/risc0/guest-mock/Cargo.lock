@@ -2781,6 +2781,7 @@ name = "sov-modules-macros"
 version = "0.3.0"
 dependencies = [
  "anyhow",
+ "borsh",
  "proc-macro2",
  "quote",
  "serde_json",

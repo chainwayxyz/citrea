@@ -9064,11 +9064,15 @@ name = "sov-modules-macros"
 version = "0.3.0"
 dependencies = [
  "anyhow",
+ "borsh",
+ "clap",
  "jsonrpsee",
  "proc-macro2 1.0.79",
  "quote 1.0.35",
  "serde",
  "serde_json",
+ "sov-modules-api",
+ "sov-modules-core",
  "syn 1.0.109",
  "trybuild",
 ]
@@ -9415,6 +9419,9 @@ version = "0.3.0"
 dependencies = [
  "proc-macro2 1.0.79",
  "quote 1.0.35",
+ "risc0-zkvm",
+ "risc0-zkvm-platform",
+ "sov-zk-cycle-macros",
  "syn 1.0.109",
  "trybuild",
 ]
