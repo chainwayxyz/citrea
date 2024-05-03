@@ -3,7 +3,7 @@ use std::str::FromStr;
 
 use reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT;
 use reth_primitives::{address, b256, hex, BlockNumberOrTag, Log};
-use reth_rpc_types::{BlockId, TransactionInput, TransactionRequest};
+use reth_rpc_types::{TransactionInput, TransactionRequest};
 use revm::primitives::{Bytes, U256};
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
@@ -378,7 +378,7 @@ fn test_bridge() {
         .unwrap();
 
     println!("Recipient account: {:?}", recipient_account);
-    assert_eq!(recipient_account.info.balance, U256::ZERO);
+    assert_eq!(recipient_account.info.balance, U256::from_str("0xde0b6b3a7640000").unwrap(),);
 }
 
 fn get_evm_with_deposit(config: &EvmConfig) -> (Evm<C>, WorkingSet<DefaultContext>) {
