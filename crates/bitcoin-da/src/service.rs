@@ -225,8 +225,10 @@ impl BitcoinService {
 
         info!("Blob inscribe tx sent. Hash: {}", reveal_tx_hash);
 
-        Ok(Txid::from_str(reveal_tx_hash.as_str())
-            .expect("Failed to parse txid from reveal tx hash"))
+        Ok(TxidWrapper(
+            Txid::from_str(reveal_tx_hash.as_str())
+                .expect("Failed to parse txid from reveal tx hash"),
+        ))
     }
 
     pub async fn get_fee_rate(&self) -> Result<f64, anyhow::Error> {
@@ -236,6 +238,14 @@ impl BitcoinService {
         }
 
         self.client.estimate_smart_fee().await
+    }
+}
+
+#[derive(PartialEq, Eq, PartialOrd, Ord, core::hash::Hash)]
+pub struct TxidWrapper(Txid);
+impl From<TxidWrapper> for [u8; 32] {
+    fn from(val: TxidWrapper) -> Self {
+        val.0.to_byte_array()
     }
 }
 
@@ -249,7 +259,7 @@ impl DaService for BitcoinService {
 
     type HeaderStream = BitcoinHeaderStream;
 
-    type TransactionId = Txid;
+    type TransactionId = TxidWrapper;
 
     type Error = anyhow::Error;
 

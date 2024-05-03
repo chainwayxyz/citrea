@@ -112,7 +112,7 @@ pub(crate) fn create_rpc_module<C: sov_modules_api::Context>(
         "citrea_sendRawDepositTransaction",
         |parameters, ctx| async move {
             let mut params = parameters.sequence();
-            let deposit: Bytes = params.next().unwrap();
+            let deposit: Bytes = params.next()?;
 
             info!("Sequencer: citrea_sendRawDepositTransaction");
 
@@ -137,8 +137,11 @@ pub(crate) fn create_rpc_module<C: sov_modules_api::Context>(
                 }
                 Err(e) => {
                     tracing::error!("Error processing deposit tx: {:?}", e);
+                    return Err(e);
                 }
             }
+
+            Ok(())
         },
     )?;
     Ok(rpc)

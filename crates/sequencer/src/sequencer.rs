@@ -1,6 +1,7 @@
 use std::cmp::Ordering;
 use std::marker::PhantomData;
 use std::net::SocketAddr;
+use std::ops::RangeInclusive;
 use std::sync::Arc;
 use std::time::Duration;
 use std::vec;
@@ -16,6 +17,7 @@ use jsonrpsee::RpcModule;
 use reth_primitives::IntoRecoveredTransaction;
 use reth_provider::BlockReaderIdExt;
 use reth_transaction_pool::{BestTransactionsAttributes, PoolTransaction};
+use shared_backup_db::{CommitmentStatus, PostgresConnector, SharedBackupDbConfig};
 use sov_accounts::Accounts;
 use sov_accounts::Response::{AccountEmpty, AccountExists};
 use sov_db::ledger_db::{LedgerDB, SlotCommit};
@@ -27,17 +29,18 @@ use sov_modules_api::{
     UnsignedSoftConfirmationBatch, WorkingSet,
 };
 use sov_modules_stf_blueprint::StfBlueprintTrait;
-use sov_rollup_interface::da::{BlockHeaderTrait, DaData, DaSpec};
+use sov_rollup_interface::da::{BlockHeaderTrait, DaData, DaSpec, SequencerCommitment};
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::stf::{SoftBatchReceipt, StateTransitionFunction};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::ZkvmHost;
 use sov_stf_runner::{InitVariant, RpcConfig, RunnerConfig};
+use tokio::sync::oneshot::Receiver as OneshotReceiver;
 use tokio::sync::Mutex;
 use tokio::time::sleep;
 use tracing::{debug, error, info, warn};
 
-use crate::commitment_controller;
+use crate::commitment_controller::{self, CommitmentInfo};
 use crate::config::SequencerConfig;
 use crate::db_provider::DbProvider;
 use crate::deposit_data_mempool::DepositDataMempool;
@@ -495,18 +498,30 @@ where
                 info!("Sequencer: submitting commitment: {:?}", commitment);
 
                 // submit commitment
-                self.da_service
+                let tx_id = self
+                    .da_service
                     .send_tx_no_wait(
-                        DaData::SequencerCommitment(commitment)
+                        DaData::SequencerCommitment(commitment.clone())
                             .try_to_vec()
                             .map_err(|e| anyhow!(e))?,
                     )
                     .await;
 
-                self.ledger_db
-                    .set_last_sequencer_commitment_l1_height(SlotNumber(
-                        commitment_info.l1_height_range.end().0,
-                    ))?;
+                let l1_start_height = commitment_info.l1_height_range.start().0;
+                let l1_end_height = commitment_info.l1_height_range.end().0;
+
+                // this function will save the commitment to the offchain db if db config is some
+                // and will also update the last sequencer commitment L1 height if the l1 tx is successful
+                self.await_commitment_tx_and_store(
+                    tx_id,
+                    self.config.db_config.clone(),
+                    l1_start_height,
+                    l1_end_height,
+                    commitment,
+                    l2_range_to_submit.clone(),
+                    commitment_info.clone(),
+                )
+                .await;
             }
 
             // TODO: this is where we would include forced transactions from the new L1 block
@@ -529,6 +544,16 @@ where
             .get_block_at(1)
             .await
             .map_err(|e| anyhow!(e))?;
+
+        // If connected to offchain db first check if the commitments are in sync
+        if let Some(db_config) = self.config.db_config.clone() {
+            match self.compare_commitments_from_db(db_config).await {
+                Ok(()) => info!("Sequencer: Commitments are in sync"),
+                Err(e) => {
+                    warn!("Sequencer: Offchain db error: {:?}", e);
+                }
+            }
+        }
 
         // If sequencer is in test mode, it will build a block every time it receives a message
         if self.config.test_mode {
@@ -676,5 +701,92 @@ where
         let rpc = create_rpc_module(rpc_context)?;
         rpc_methods.merge(rpc)?;
         Ok(rpc_methods)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub async fn await_commitment_tx_and_store(
+        &self,
+        tx_id: OneshotReceiver<Result<<Da as DaService>::TransactionId, <Da as DaService>::Error>>,
+        db_config: Option<SharedBackupDbConfig>,
+        l1_start_height: u64,
+        l1_end_height: u64,
+        commitment: SequencerCommitment,
+        l2_range: RangeInclusive<BatchNumber>,
+        commitment_info: CommitmentInfo,
+    ) {
+        // spawn an async task in the background and await the tx_id then save to pg
+        let ledger_db = self.ledger_db.clone();
+        tokio::spawn(async move {
+            match tx_id.await {
+                Ok(Ok(tx_id)) => {
+                    ledger_db
+                        .set_last_sequencer_commitment_l1_height(SlotNumber(
+                            commitment_info.l1_height_range.end().0,
+                        ))
+                        .expect("Sequencer: Failed to set last sequencer commitment L1 height");
+                    warn!("Commitment info: {:?}", commitment_info);
+                    if let Some(db_config) = db_config {
+                        match PostgresConnector::new(db_config).await {
+                            Ok(pg_connector) => {
+                                pg_connector
+                                    .insert_sequencer_commitment(
+                                        l1_start_height as u32,
+                                        l1_end_height as u32,
+                                        tx_id.into().to_vec(),
+                                        commitment.l1_start_block_hash.to_vec(),
+                                        commitment.l1_end_block_hash.to_vec(),
+                                        l2_range.start().0 as u32,
+                                        (l2_range.end().0 + 1) as u32,
+                                        commitment.merkle_root.to_vec(),
+                                        CommitmentStatus::Mempool,
+                                    )
+                                    .await
+                                    .expect("Sequencer: Failed to insert sequencer commitment");
+                            }
+                            Err(e) => {
+                                warn!("Failed to connect to postgres: {:?}", e);
+                            }
+                        }
+                    }
+                }
+                _ => {
+                    warn!("Sequencer: Failed to submit commitment: ");
+                }
+            }
+        });
+    }
+
+    pub async fn compare_commitments_from_db(
+        &self,
+        db_config: SharedBackupDbConfig,
+    ) -> Result<(), anyhow::Error> {
+        let ledger_commitment_l1_height =
+            self.ledger_db.get_last_sequencer_commitment_l1_height()?;
+
+        match PostgresConnector::new(db_config).await {
+            Ok(pg_connector) => {
+                let commitment = pg_connector.get_last_commitment().await?;
+                // check if last commitment in db matches sequencer's last commitment
+                match commitment {
+                    Some(db_commitment) => {
+                        // this means that the last commitment in the db is not the same as the sequencer's last commitment
+                        if db_commitment.l1_end_height as u64
+                            > ledger_commitment_l1_height.unwrap_or(SlotNumber(0)).0
+                        {
+                            self.ledger_db
+                                .set_last_sequencer_commitment_l1_height(SlotNumber(
+                                    db_commitment.l1_end_height as u64,
+                                ))?
+                        }
+                        Ok(())
+                    }
+                    None => Ok(()),
+                }
+            }
+            Err(e) => {
+                warn!("Failed to connect to postgres: {:?}", e);
+                Err(anyhow::anyhow!("Failed to connect to postgres: {:?}", e))
+            }
+        }
     }
 }

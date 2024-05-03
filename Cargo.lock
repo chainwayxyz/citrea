@@ -1616,6 +1616,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.10.8",
+ "shared-backup-db",
  "soft-confirmation-rule-enforcer",
  "sov-db",
  "sov-ledger-rpc",
@@ -1715,6 +1716,7 @@ dependencies = [
  "schnellru",
  "serde",
  "serde_json",
+ "shared-backup-db",
  "sov-accounts",
  "sov-db",
  "sov-mock-da",
@@ -8749,6 +8751,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "shared-backup-db"
+version = "0.3.0"
+dependencies = [
+ "hex",
+ "lazy_static",
+ "postgres",
+ "serde",
+ "shared-backup-db",
+ "tokio",
+ "tokio-postgres",
+]
+
+[[package]]
 name = "shell-escape"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9378,6 +9393,7 @@ dependencies = [
  "borsh",
  "demo-stf",
  "futures",
+ "hex",
  "serde",
  "sov-bank",
  "sov-mock-da",

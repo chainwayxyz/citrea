@@ -289,7 +289,7 @@ impl DaService for MockDaService {
     type Verifier = MockDaVerifier;
     type FilteredBlock = MockBlock;
     type HeaderStream = MockDaBlockHeaderStream;
-    type TransactionId = ();
+    type TransactionId = MockHash;
     type Error = anyhow::Error;
 
     /// Gets block at given height
@@ -380,10 +380,10 @@ impl DaService for MockDaService {
         ([0u8; 32], ())
     }
 
-    async fn send_transaction(&self, blob: &[u8]) -> Result<(), Self::Error> {
+    async fn send_transaction(&self, blob: &[u8]) -> Result<Self::TransactionId, Self::Error> {
         let blocks = self.blocks.lock().await;
         let _ = self.add_blob(&blocks, blob, Default::default())?;
-        Ok(())
+        Ok(MockHash([0; 32]))
     }
 
     async fn send_aggregated_zk_proof(&self, proof: &[u8]) -> Result<u64, Self::Error> {
