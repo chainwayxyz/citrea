@@ -53,7 +53,7 @@ fn system_event_to_transaction(event: SystemEvent, nonce: u64, chain_id: u64) ->
             nonce,
             chain_id,
             value: U256::ZERO,
-            gas_limit: 1_500_000u64,
+            gas_limit: 1_000_000u64,
             max_fee_per_gas: u64::MAX as u128,
             ..Default::default()
         },
