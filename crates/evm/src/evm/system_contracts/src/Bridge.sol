@@ -5,13 +5,12 @@ import "bitcoin-spv/solidity/contracts/ValidateSPV.sol";
 import "bitcoin-spv/solidity/contracts/BTCUtils.sol";
 import "../lib/WitnessUtils.sol";
 import "../lib/Ownable.sol";
-import "./MerkleTree.sol";
 import "./BitcoinLightClient.sol";
 
 /// @title Bridge contract of Clementine
 /// @author Citrea
 
-contract Bridge is Ownable, MerkleTree {
+contract Bridge is Ownable {
     using BTCUtils for bytes;
     using BytesLib for bytes;
 
@@ -37,10 +36,9 @@ contract Bridge is Ownable, MerkleTree {
     bytes public depositScript;
     bytes public scriptSuffix;
     
-    mapping(bytes32 => bool) public blockHashes;
     mapping(bytes32 => bool) public spentWtxIds;
+    uint256[] public withdrawalAddrs;
     
-
     event Deposit(bytes32 wtxId, uint256 timestamp);
     event Withdrawal(bytes32  bitcoin_address, uint32 indexed leafIndex, uint256 timestamp);
     event DepositScriptUpdate(bytes depositScript, bytes scriptSuffix, uint256 requiredSigsCount);
@@ -67,7 +65,6 @@ contract Bridge is Ownable, MerkleTree {
         require(_depositScript.length != 0, "Deposit script cannot be empty");
 
         initialized = true;
-        initializeTree(_levels);
         depositScript = _depositScript;
         scriptSuffix = _scriptSuffix;
         requiredSigsCount = _requiredSigsCount;
@@ -142,7 +139,7 @@ contract Bridge is Ownable, MerkleTree {
     /// @param bitcoin_address The Bitcoin address of the receiver
     function withdraw(bytes32 bitcoin_address) external payable {
         require(msg.value == DEPOSIT_AMOUNT, "Invalid withdraw amount");
-        insertWithdrawalTree(bitcoin_address);
+        
         emit Withdrawal(bitcoin_address, nextIndex, block.timestamp);
     }
     
