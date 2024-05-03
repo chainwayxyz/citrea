@@ -21,7 +21,7 @@ pub const SYSTEM_SIGNER: Address = address!("deaddeaddeaddeaddeaddeaddeaddeaddea
 pub(crate) enum SystemEvent {
     BitcoinLightClientInitialize(/*block number*/ u64),
     BitcoinLightClientSetBlockInfo(/*hash*/ [u8; 32], /*merkle root*/ [u8; 32]),
-    BridgeInitialize(Vec<u8>), // levels, deposit script, script suffix, required sigs count
+    BridgeInitialize(Vec<u8>), // deposit script, script suffix, required sigs count
     BridgeDeposit(Vec<u8>), // version, flag, vin, vout, witness, locktime, intermediate nodes, block height, index
 }
 
