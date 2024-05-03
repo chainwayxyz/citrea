@@ -1,7 +1,7 @@
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-use jsonrpsee::core::client::{ClientT, SubscriptionClientT};
+use jsonrpsee::core::client::ClientT;
 use jsonrpsee::core::params::ArrayParams;
 use sov_db::ledger_db::LedgerDB;
 use sov_ledger_rpc::client::RpcClient;
@@ -29,10 +29,7 @@ async fn rpc_server() -> (jsonrpsee::server::ServerHandle, SocketAddr) {
 
 async fn rpc_client(
     addr: SocketAddr,
-) -> Arc<
-    impl RpcClient<SlotResponse<u32, u32>, BatchResponse<u32, u32>, TxResponse<u32>>
-        + SubscriptionClientT,
-> {
+) -> Arc<impl RpcClient<SlotResponse<u32, u32>, BatchResponse<u32, u32>, TxResponse<u32>>> {
     Arc::new(
         jsonrpsee::ws_client::WsClientBuilder::new()
             .build(format!("ws://{}", addr))

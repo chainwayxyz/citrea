@@ -4,6 +4,7 @@ use borsh::BorshDeserialize;
 use citrea_stf::genesis_config::GenesisPaths;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
+use shared_backup_db::{PostgresConnector, SharedBackupDbConfig};
 use sov_mock_da::{MockAddress, MockDaService, MockDaSpec};
 use sov_modules_api::{BlobReaderTrait, SignedSoftConfirmationBatch};
 use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
@@ -14,7 +15,7 @@ use tokio::time::sleep;
 
 use crate::evm::make_test_client;
 use crate::test_client::TestClient;
-use crate::test_helpers::{start_rollup, NodeMode};
+use crate::test_helpers::{create_default_sequencer_config, start_rollup, NodeMode};
 use crate::DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT;
 
 #[tokio::test]
@@ -192,4 +193,69 @@ async fn check_sequencer_commitment(
     assert_eq!(commitment.merkle_root, merkle_tree.root().unwrap());
 
     end_l1_block.header.height
+}
+
+#[tokio::test]
+async fn check_commitment_in_offchain_db() {
+    // citrea::initialize_logging();
+
+    let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
+    let mut sequencer_config = create_default_sequencer_config(4, Some(true), 10);
+
+    sequencer_config.db_config = Some(SharedBackupDbConfig::default());
+
+    // drops db if exists from previous test runs, recreates the db
+    let db_test_client = PostgresConnector::new_test_client().await.unwrap();
+
+    let seq_task = tokio::spawn(async {
+        start_rollup(
+            seq_port_tx,
+            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
+            BasicKernelGenesisPaths {
+                chain_state:
+                    "../test-data/genesis/integration-tests-low-limiting-number/chain_state.json"
+                        .into(),
+            },
+            RollupProverConfig::Execute,
+            NodeMode::SequencerNode,
+            None,
+            4,
+            true,
+            None,
+            Some(sequencer_config),
+            Some(true),
+            10,
+        )
+        .await;
+    });
+
+    let seq_port = seq_port_rx.await.unwrap();
+    let test_client = make_test_client(seq_port).await;
+    let da_service = MockDaService::new(MockAddress::from([0; 32]));
+
+    da_service.publish_test_block().await.unwrap();
+
+    // publish 3 soft confirmations, no commitment should be sent
+    for _ in 0..3 {
+        test_client.send_publish_batch_request().await;
+    }
+
+    da_service.publish_test_block().await.unwrap();
+
+    // publish 4th block
+    test_client.send_publish_batch_request().await;
+    // new da block
+    da_service.publish_test_block().await.unwrap();
+
+    // commtiment should be published with this call
+    test_client.send_publish_batch_request().await;
+
+    sleep(Duration::from_secs(5)).await;
+
+    let commitments = db_test_client.get_all_commitments().await.unwrap();
+    assert_eq!(commitments.len(), 1);
+    assert_eq!(commitments[0].l1_start_height, 2);
+    assert_eq!(commitments[0].l1_end_height, 3);
+
+    seq_task.abort();
 }

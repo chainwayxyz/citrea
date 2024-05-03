@@ -145,7 +145,7 @@ impl DaService for CelestiaService {
 
     type FilteredBlock = FilteredCelestiaBlock;
     type HeaderStream = CelestiaBlockHeaderSubscription;
-    type TransactionId = ();
+    type TransactionId = [u8; 32];
     type Error = BoxError;
 
     #[instrument(skip(self), err)]
@@ -244,7 +244,7 @@ impl DaService for CelestiaService {
 
     #[instrument(skip_all, err)]
     #[allow(clippy::blocks_in_conditions)]
-    async fn send_transaction(&self, blob: &[u8]) -> Result<(), Self::Error> {
+    async fn send_transaction(&self, blob: &[u8]) -> Result<Self::TransactionId, Self::Error> {
         debug!("Sending {} bytes of raw data to Celestia.", blob.len());
 
         let gas_limit = get_gas_limit_for_bytes(blob.len()) as u64;
@@ -267,7 +267,7 @@ impl DaService for CelestiaService {
             "Blob has been submitted to Celestia. block-height={}",
             height,
         );
-        Ok(())
+        Ok([0; 32])
     }
 
     async fn send_aggregated_zk_proof(&self, aggregated_proof: &[u8]) -> Result<u64, Self::Error> {

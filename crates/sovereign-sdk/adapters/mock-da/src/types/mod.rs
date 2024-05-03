@@ -22,6 +22,8 @@ use crate::validity_condition::MockValidityCond;
     serde::Deserialize,
     BorshDeserialize,
     BorshSerialize,
+    PartialOrd,
+    std::cmp::Ord,
 )]
 pub struct MockHash(pub [u8; 32]);
 

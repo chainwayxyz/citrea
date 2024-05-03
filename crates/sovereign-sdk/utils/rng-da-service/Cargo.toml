@@ -29,3 +29,5 @@ sov-rollup-interface = { path = "../../rollup-interface", features = [
     "native",
 ] }
 sov-mock-da = { path = "../../adapters/mock-da", features = ["native"] }
+
+hex = { workspace = true }
