@@ -27,10 +27,11 @@ trybuild = "1.0"
 
 sov-modules-api = { path = "../sov-modules-api", features = [ "native" ] }
 sov-modules-core = { path = "../sov-modules-core" }
+sov-state = { path = "../sov-state" }
 
 [dependencies]
 anyhow = { workspace = true }
-borsh = { workspace = true, optional = true }
+borsh = { workspace = true }
 jsonrpsee = { workspace = true, features = ["http-client", "server"], optional = true }
 proc-macro2 = "1.0"
 quote = "1.0"
@@ -42,9 +43,9 @@ syn = { version = "1.0", features = ["full"] }
 anyhow = { workspace = true }
 
 [features]
-default = ["borsh"]
+default = []
 native = ["jsonrpsee"]
 
 [package.metadata.cargo-udeps.ignore]
 normal = ["borsh"]
-development = ["clap", "sov-modules-core", "sov-modules-api"]
+development = ["clap", "sov-modules-core", "sov-modules-api", "sov-state"]

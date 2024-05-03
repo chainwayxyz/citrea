@@ -9073,6 +9073,7 @@ dependencies = [
  "serde_json",
  "sov-modules-api",
  "sov-modules-core",
+ "sov-state",
  "syn 1.0.109",
  "trybuild",
 ]
