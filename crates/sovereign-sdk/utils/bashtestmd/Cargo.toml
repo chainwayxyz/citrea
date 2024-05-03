@@ -7,9 +7,9 @@ license = { workspace = true }
 repository = { workspace = true }
 
 version = { workspace = true }
-resolver = "2"
-publish = false
 autotests = false
+publish = false
+resolver = "2"
 
 [dependencies]
 clap = { workspace = true }

@@ -1,11 +1,11 @@
 [package]
 name = "sov-accounts"
-description = "A Sovereign SDK module for managing rollup state using accounts"
 authors = { workspace = true }
 edition = { workspace = true }
 homepage = { workspace = true }
 license = { workspace = true }
 repository = { workspace = true }
+description = "A Sovereign SDK module for managing rollup state using accounts"
 
 version = { workspace = true }
 readme = "README.md"
@@ -15,33 +15,32 @@ resolver = "2"
 anyhow = { workspace = true }
 arbitrary = { workspace = true, optional = true }
 borsh = { workspace = true, features = ["rc"] }
+clap = { workspace = true, optional = true }
+jsonrpsee = { workspace = true, features = ["macros", "client-core", "server"], optional = true }
 proptest = { workspace = true, optional = true }
 proptest-derive = { workspace = true, optional = true }
 schemars = { workspace = true, optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true, optional = true }
 thiserror = { workspace = true }
-clap = { workspace = true, optional = true }
-jsonrpsee = { workspace = true, features = ["macros", "client-core", "server"], optional = true }
 
 sov-modules-api = { path = "../../sov-modules-api", version = "0.3" }
 sov-state = { path = "../../sov-state", version = "0.3" }
 
-
 [dev-dependencies]
 sov-accounts = { path = ".", features = ["native"] }
-tempfile = { workspace = true }
 sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
+tempfile = { workspace = true }
 
 [features]
 default = []
 arbitrary = [
-    "dep:arbitrary",
-    "dep:proptest",
-    "dep:proptest-derive",
-    "sov-state/arbitrary",
-    "sov-modules-api/arbitrary",
-    "sov-state/arbitrary"
+  "dep:arbitrary",
+  "dep:proptest",
+  "dep:proptest-derive",
+  "sov-state/arbitrary",
+  "sov-modules-api/arbitrary",
+  "sov-state/arbitrary",
 ]
 native = ["serde", "serde_json", "jsonrpsee", "schemars", "clap", "sov-state/native", "sov-modules-api/native"]
 serde = []

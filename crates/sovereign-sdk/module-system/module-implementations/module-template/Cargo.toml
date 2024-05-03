@@ -7,8 +7,8 @@ license = { workspace = true }
 repository = { workspace = true }
 
 version = { workspace = true }
-readme = "README.md"
 publish = false
+readme = "README.md"
 resolver = "2"
 
 [dependencies]
@@ -26,17 +26,16 @@ sov-bank = { path = "../sov-bank" }
 sov-modules-api = { path = "../../sov-modules-api" }
 sov-state = { path = "../../sov-state" }
 
-
 [dev-dependencies]
-tempfile = { workspace = true }
 module-template = { path = ".", version = "*", features = ["native"] }
 sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
+tempfile = { workspace = true }
 
 [features]
 default = []
 arbitrary = [
-    "dep:arbitrary",
-    "dep:proptest",
-    "dep:proptest-derive"
+  "dep:arbitrary",
+  "dep:proptest",
+  "dep:proptest-derive",
 ]
 native = ["serde_json", "schemars", "sov-modules-api/native"]

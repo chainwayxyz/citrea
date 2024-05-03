@@ -1,16 +1,16 @@
 [package]
 name = "sov-modules-macros"
-description = "Macros for use with the Sovereign SDK module system"
 authors = { workspace = true }
 edition = { workspace = true }
 homepage = { workspace = true }
 license = { workspace = true }
 repository = { workspace = true }
+description = "Macros for use with the Sovereign SDK module system"
 
 version = { workspace = true }
+autotests = false
 readme = "README.md"
 resolver = "2"
-autotests = false
 
 [lib]
 proc-macro = true
@@ -26,10 +26,10 @@ serde = { workspace = true }
 tempfile = { workspace = true }
 trybuild = "1.0"
 
-sov-modules-api = { path = "../sov-modules-api" }
-sov-state = { path = "../sov-state" }
 sov-bank = { path = "../module-implementations/sov-bank", features = ["native"] }
+sov-modules-api = { path = "../sov-modules-api" }
 sov-modules-macros = { path = ".", features = ["native"] }
+sov-state = { path = "../sov-state" }
 
 [dependencies]
 anyhow = { workspace = true }
@@ -39,9 +39,8 @@ proc-macro2 = "1.0"
 quote = "1.0"
 schemars = { workspace = true }
 serde_json = { workspace = true }
-syn = { version = "1.0", features = ["full"] }
 sov-modules-core = { path = "../sov-modules-core" }
-
+syn = { version = "1.0", features = ["full"] }
 
 [build-dependencies]
 anyhow = { workspace = true }

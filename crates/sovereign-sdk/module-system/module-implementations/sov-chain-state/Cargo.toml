@@ -1,11 +1,11 @@
 [package]
 name = "sov-chain-state"
 authors = { workspace = true }
-description = "A Sovereign SDK module for storing a rollup's historical state"
 edition = { workspace = true }
 homepage = { workspace = true }
 license = { workspace = true }
 repository = { workspace = true }
+description = "A Sovereign SDK module for storing a rollup's historical state"
 
 version = { workspace = true }
 readme = "README.md"
@@ -14,20 +14,19 @@ resolver = "2"
 [dependencies]
 anyhow = { workspace = true }
 borsh = { workspace = true, features = ["rc"] }
+jsonrpsee = { workspace = true, features = ["macros", "client-core", "server"], optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true, optional = true }
-jsonrpsee = { workspace = true, features = ["macros", "client-core", "server"], optional = true }
 
 sov-modules-api = { path = "../../sov-modules-api", version = "0.3" }
 sov-state = { path = "../../sov-state", version = "0.3" }
 
 [dev-dependencies]
-tempfile = { workspace = true }
-sov-data-generators = { path = "../../utils/sov-data-generators" }
 sov-chain-state = { path = ".", features = ["native"] }
+sov-data-generators = { path = "../../utils/sov-data-generators" }
 sov-mock-da = { path = "../../../adapters/mock-da" }
 sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
-
+tempfile = { workspace = true }
 
 [features]
 default = []

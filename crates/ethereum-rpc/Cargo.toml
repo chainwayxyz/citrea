@@ -7,18 +7,18 @@ license = { workspace = true }
 repository = { workspace = true }
 
 version = { workspace = true }
-readme = "README.md"
 publish = false
+readme = "README.md"
 resolver = "2"
 
 [dependencies]
-citrea-evm = { path = "../evm" }
-sov-stf-runner = { path = "../sovereign-sdk/full-node/sov-stf-runner" }
-sequencer-client = { path = "../sequencer-client" }
 anyhow = { workspace = true }
-tracing = { workspace = true }
+citrea-evm = { path = "../evm" }
 jsonrpsee = { workspace = true, features = ["http-client", "server"] }
 rustc_version_runtime = { workspace = true }
+sequencer-client = { path = "../sequencer-client" }
+sov-stf-runner = { path = "../sovereign-sdk/full-node/sov-stf-runner" }
+tracing = { workspace = true }
 
 borsh = { workspace = true }
 serde = { workspace = true }
@@ -29,21 +29,18 @@ reth-rpc-types = { workspace = true }
 reth-rpc-types-compat = { workspace = true }
 
 ethers = { workspace = true }
-tokio = { workspace = true }
 schnellru = "0.2.1"
+tokio = { workspace = true }
 
-sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface", features = [
-    "native",
-] }
+sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface", features = ["native"] }
 
 citrea-stf = { path = "../citrea-stf", features = ["native"] }
-sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api" }
 sov-accounts = { path = "../sovereign-sdk/module-system/module-implementations/sov-accounts" }
+sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api" }
 
 [dev-dependencies]
-tokio = { workspace = true }
 proptest = { workspace = true }
-
+tokio = { workspace = true }
 
 [features]
 default = ["local"]

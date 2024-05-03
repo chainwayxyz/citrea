@@ -1,25 +1,25 @@
 [package]
 name = "sovereign-sdk-fuzz"
 version = "0.3.0"
-publish = false
 edition = "2021"
+publish = false
 
 [package.metadata]
 cargo-fuzz = true
 
 [dependencies]
 libfuzzer-sys = "0.4"
+rand = "0.8"
 serde_json = "1"
 tempfile = "3"
-rand = "0.8"
 
 # Sovereign-maintained dependencies.
-sov-celestia-adapter = { path = "../adapters/celestia", features = ["native"] }
-sov-modules-api = { path = "../module-system/sov-modules-api", features = ["arbitrary", "native"] }
 sov-accounts = { path = "../module-system/module-implementations/sov-accounts", features = ["arbitrary", "native"] }
 sov-bank = { path = "../module-system/module-implementations/sov-bank", features = ["native"] }
-sov-state = { path = "../module-system/sov-state" }
+sov-celestia-adapter = { path = "../adapters/celestia", features = ["native"] }
+sov-modules-api = { path = "../module-system/sov-modules-api", features = ["arbitrary", "native"] }
 sov-prover-storage-manager = { path = "../full-node/sov-prover-storage-manager", features = ["test-utils"] }
+sov-state = { path = "../module-system/sov-state" }
 
 # Prevent this from interfering with workspaces.
 [workspace]

@@ -1,19 +1,18 @@
 [package]
 name = "sov-rollup-interface"
-description = "Defines interfaces for building rollups with the Sovereign SDK"
 authors = { workspace = true }
 edition = { workspace = true }
 homepage = { workspace = true }
 license = { workspace = true }
 repository = { workspace = true }
+description = "Defines interfaces for building rollups with the Sovereign SDK"
 
 version = { workspace = true }
+exclude = [
+  "specs/assets/*",
+]
 readme = "README.md"
 resolver = "2"
-exclude = [
-    "specs/assets/*",
-]
-
 
 [dependencies]
 anyhow = { workspace = true }
@@ -21,11 +20,11 @@ async-trait = { workspace = true }
 borsh = { workspace = true }
 bytes = { workspace = true, optional = true, default-features = true }
 digest = { workspace = true }
+futures = { workspace = true, optional = true }
 hex = { workspace = true }
 serde = { workspace = true }
 sha2 = { workspace = true, optional = true }
 thiserror = { workspace = true, optional = true }
-futures = { workspace = true, optional = true }
 # TODO: Remove tokio when https://github.com/Sovereign-Labs/sovereign-sdk/issues/1161 is resolved
 tokio = { workspace = true, optional = true }
 
@@ -33,25 +32,24 @@ tokio = { workspace = true, optional = true }
 proptest = { workspace = true, optional = true }
 proptest-derive = { workspace = true, optional = true }
 
-
 [dev-dependencies]
-serde_json = { workspace = true }
 proptest = { workspace = true }
 proptest-derive = { workspace = true }
+serde_json = { workspace = true }
 
 [features]
 default = ["std"]
 native = ["std", "tokio", "futures"]
 fuzzing = ["proptest", "proptest-derive", "sha2", "std"]
 std = [
-    "anyhow/default",
-    "borsh/default",
-    "borsh/bytes",
-    "bytes",
-    "digest/default",
-    "hex/default",
-    "proptest?/default",
-    "serde/default",
-    "sha2?/default",
-    "thiserror"
+  "anyhow/default",
+  "borsh/default",
+  "borsh/bytes",
+  "bytes",
+  "digest/default",
+  "hex/default",
+  "proptest?/default",
+  "serde/default",
+  "sha2?/default",
+  "thiserror",
 ]

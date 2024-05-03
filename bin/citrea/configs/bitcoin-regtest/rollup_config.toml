@@ -9,7 +9,7 @@ prover_da_pub_key = ""
 node_url = ""
 # fill here
 node_username = ""
-# fill here                                       
+# fill here
 node_password = ""
 network = "regtest"
 address = "bcrt1q02g8qhycr0v8cnflt86kksfe2sqhm486fdkx4l"

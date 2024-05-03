@@ -1,29 +1,28 @@
 [package]
 name = "sov-prover-incentives"
-description = "A Sovereign SDK module for incentivizing provers"
 authors = { workspace = true }
 edition = { workspace = true }
 homepage = { workspace = true }
 license = { workspace = true }
 repository = { workspace = true }
+description = "A Sovereign SDK module for incentivizing provers"
 
 version = { workspace = true }
 readme = "README.md"
 resolver = "2"
 
 [dev-dependencies]
-tempfile = { workspace = true }
-sov-prover-incentives = { features = ["native"], path = "." }
 sov-mock-da = { path = "../../../adapters/mock-da", features = ["native"] }
 sov-mock-zkvm = { path = "../../../adapters/mock-zkvm" }
 sov-modules-api = { path = "../../sov-modules-api", version = "0.3", features = ["native"] }
+sov-prover-incentives = { features = ["native"], path = "." }
 sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
-
+tempfile = { workspace = true }
 
 [dependencies]
 anyhow = { workspace = true }
-borsh = { workspace = true, features = ["rc"] }
 bincode = { workspace = true }
+borsh = { workspace = true, features = ["rc"] }
 schemars = { workspace = true, optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true, optional = true }
@@ -31,7 +30,6 @@ serde_json = { workspace = true, optional = true }
 sov-bank = { path = "../sov-bank", version = "0.3" }
 sov-modules-api = { path = "../../sov-modules-api", version = "0.3" }
 sov-state = { path = "../../sov-state", version = "0.3" }
-
 
 [features]
 default = []

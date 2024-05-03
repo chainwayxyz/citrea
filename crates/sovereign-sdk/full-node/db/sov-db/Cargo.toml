@@ -1,11 +1,11 @@
 [package]
 name = "sov-db"
-description = "A high-level DB interface for the Sovereign SDK"
-license = "Apache-2.0" # This license is inherited from Aptos 
-edition = { workspace = true }
 authors = { workspace = true }
+edition = { workspace = true }
 homepage = { workspace = true }
+license = "Apache-2.0" # This license is inherited from Aptos
 repository = { workspace = true }
+description = "A high-level DB interface for the Sovereign SDK"
 
 version = { workspace = true }
 readme = "README.md"
@@ -16,38 +16,36 @@ resolver = "2"
 [dependencies]
 # Maintained by sovereign labs
 jmt = { workspace = true }
-sov-schema-db = { path = "../sov-schema-db", version = "0.3" }
 sov-rollup-interface = { path = "../../../rollup-interface", version = "0.3", features = ["native"] }
+sov-schema-db = { path = "../sov-schema-db", version = "0.3" }
 
 # External
 anyhow = { workspace = true, default-features = true }
 arbitrary = { workspace = true, optional = true }
-byteorder = { workspace = true, default-features = true }
+bincode = { workspace = true }
 borsh = { workspace = true, default-features = true, features = ["bytes", "rc"] }
+byteorder = { workspace = true, default-features = true }
 proptest = { workspace = true, optional = true, default-features = true }
 proptest-derive = { workspace = true, optional = true }
+rocksdb = { workspace = true }
 serde = { workspace = true, default-features = true, features = ["rc"] }
 tempfile = { workspace = true, optional = true }
-rocksdb = { workspace = true }
-bincode = { workspace = true }
 tokio = { workspace = true }
 
-
 [dev-dependencies]
-sov-mock-da = { path = "../../../adapters/mock-da", features = ["native"] }
-tempfile = { workspace = true }
-sov-prover-storage-manager = { path = "../../sov-prover-storage-manager" }
 criterion = "0.5.1"
 rand = { workspace = true }
 sha2 = { workspace = true }
-
+sov-mock-da = { path = "../../../adapters/mock-da", features = ["native"] }
+sov-prover-storage-manager = { path = "../../sov-prover-storage-manager" }
+tempfile = { workspace = true }
 
 [features]
 arbitrary = [
-    "dep:arbitrary",
-    "dep:proptest",
-    "dep:proptest-derive",
-    "dep:tempfile",
+  "dep:arbitrary",
+  "dep:proptest",
+  "dep:proptest-derive",
+  "dep:tempfile",
 ]
 
 [[bench]]

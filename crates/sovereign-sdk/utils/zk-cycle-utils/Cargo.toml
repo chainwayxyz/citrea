@@ -1,21 +1,21 @@
 [package]
 name = "sov-zk-cycle-utils"
 authors = { workspace = true }
-description = "Utilities for counting risc0 cycles consumed by Sovereign SDK functions"
 edition = { workspace = true }
 homepage = { workspace = true }
 license = { workspace = true }
 repository = { workspace = true }
+description = "Utilities for counting risc0 cycles consumed by Sovereign SDK functions"
 
 version = { workspace = true }
+autotests = false
 readme = "README.md"
 resolver = "2"
-autotests = false
 
 [dependencies]
+bytes = "1.5.0"
 risc0-zkvm = { workspace = true, default-features = false, features = ['std'] }
 risc0-zkvm-platform = { workspace = true }
-bytes = "1.5.0"
 
 [features]
 default = []

@@ -1,10 +1,10 @@
 [package]
 name = "sov-soft-confirmations-kernel"
 version.workspace = true
-edition.workspace = true
-license.workspace = true
 authors.workspace = true
+edition.workspace = true
 homepage.workspace = true
+license.workspace = true
 publish.workspace = true
 repository.workspace = true
 
@@ -13,16 +13,16 @@ repository.workspace = true
 [dependencies]
 anyhow = { workspace = true }
 
-sov-state = { path = "../sov-state", version = "0.3" }
-sov-modules-api = { path = "../sov-modules-api", version = "0.3" }
 sov-blob-storage = { path = "../module-implementations/sov-blob-storage" }
 sov-chain-state = { path = "../module-implementations/sov-chain-state" }
+sov-modules-api = { path = "../sov-modules-api", version = "0.3" }
+sov-state = { path = "../sov-state", version = "0.3" }
 
 [features]
 default = []
 native = [
-	"sov-state/native",
-	"sov-modules-api/native",
-	"sov-chain-state/native",
-	"sov-blob-storage/native",
+  "sov-state/native",
+  "sov-modules-api/native",
+  "sov-chain-state/native",
+  "sov-blob-storage/native",
 ]

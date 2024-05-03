@@ -1,6 +1,5 @@
 [licenses]
-
-# TODO: figure this out after refactoring 
+# TODO: figure this out after refactoring
 
 allow = [
   "Apache-2.0",

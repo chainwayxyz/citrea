@@ -7,20 +7,20 @@ license = { workspace = true }
 repository = { workspace = true }
 
 version = { workspace = true }
-readme = "README.md"
 publish = false
+readme = "README.md"
 resolver = "2"
 
 [dependencies]
+borsh = { workspace = true, features = ["rc"] }
 jsonrpsee = { workspace = true, features = ["macros", "client-core", "server"], optional = true }
+serde = { workspace = true, optional = true }
 sov-modules-api = { path = "../../../sov-modules-api" }
 sov-state = { path = "../../../sov-state" }
-serde = { workspace = true, optional = true }
-borsh = { workspace = true, features = ["rc"] }
 
 [dev-dependencies]
-tempfile = { workspace = true }
 sov-prover-storage-manager = { path = "../../../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
+tempfile = { workspace = true }
 
 [features]
 default = []

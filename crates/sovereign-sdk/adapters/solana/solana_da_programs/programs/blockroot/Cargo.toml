@@ -1,8 +1,8 @@
 [package]
 name = "blockroot"
 version = "0.3.0"
-description = "Created with Anchor"
 edition = "2021"
+description = "Created with Anchor"
 
 [lib]
 crate-type = ["cdylib", "lib"]
@@ -16,4 +16,4 @@ cpi = ["no-entrypoint"]
 default = []
 
 [dependencies]
-anchor-lang = {version = "0.28.0", features = ["init-if-needed"]}
+anchor-lang = { version = "0.28.0", features = ["init-if-needed"] }

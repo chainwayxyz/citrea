@@ -1,10 +1,10 @@
 [package]
 name = "bitcoin-da"
 version = "0.1.0"
-edition = "2021"
-license = "MIT OR Apache-2.0"
 authors = ["Chainway <info@chainway.xyz>"]
+edition = "2021"
 homepage = "https://www.chainway.xyz"
+license = "MIT OR Apache-2.0"
 publish = false
 repository = "https://github.com/chainway/bitcoin-da"
 rust-version = "1.66"
@@ -16,29 +16,28 @@ sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
 
 tokio = { workspace = true, features = ["full"], optional = true }
 
-reqwest = { workspace = true, optional = true }
+anyhow = { workspace = true }
+async-trait = { workspace = true }
 base64 = "0.13.1"
+borsh = { workspace = true }
 hex = { workspace = true, features = ["serde"] }
 pin-project = { workspace = true, optional = true, features = [] }
-tracing = { workspace = true }
 rand = { workspace = true }
+reqwest = { workspace = true, optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true, features = ["raw_value"] }
-async-trait = { workspace = true }
-borsh = { workspace = true }
-anyhow = { workspace = true }
 thiserror = { workspace = true }
+tracing = { workspace = true }
 
 bitcoin = { version = "0.31.1", features = ["serde", "rand"] }
 brotli = "3.3.4"
 futures.workspace = true
 
-
 [features]
 default = []
 native = [
-    "dep:tokio",
-    "dep:reqwest",
-    "dep:pin-project",
-    "sov-rollup-interface/native",
+  "dep:tokio",
+  "dep:reqwest",
+  "dep:pin-project",
+  "sov-rollup-interface/native",
 ]
