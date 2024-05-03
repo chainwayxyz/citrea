@@ -127,7 +127,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Run udeps
-        run: SKIP_GUEST_BUILD=1 cargo +nightly udeps
+        run: SKIP_GUEST_BUILD=1 cargo +nightly udeps --workspace --all-features
 
   deny:
     runs-on: ubuntu-latest
