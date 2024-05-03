@@ -132,7 +132,7 @@ jobs:
         uses: aig787/cargo-udeps-action@v1
         with:
           version: 'latest'
-          args: '--workspace --all-features'
+          args: '--workspace --all-features --all-targets'
 
   deny:
     runs-on: ubuntu-latest
