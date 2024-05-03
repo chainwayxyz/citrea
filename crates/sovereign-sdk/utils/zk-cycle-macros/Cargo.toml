@@ -20,18 +20,12 @@ name = "tests"
 path = "tests/all_tests.rs"
 
 [dependencies]
-anyhow = { workspace = true }
 syn = { version = "1.0", features = ["full"] }
 quote = "1.0"
 proc-macro2 = "1.0"
-borsh = { workspace = true }
 
 [dev-dependencies]
 trybuild = "1.0"
-sov-zk-cycle-macros = { path = "../../utils/zk-cycle-macros" }
-sov-zk-cycle-utils = { path = "../../utils/zk-cycle-utils" }
-risc0-zkvm = { workspace = true, default-features = false, features = ["std"] }
-risc0-zkvm-platform = { workspace = true }
 
 [features]
 bench = []

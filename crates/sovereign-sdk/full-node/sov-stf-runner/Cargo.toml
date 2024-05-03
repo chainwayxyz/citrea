@@ -50,11 +50,6 @@ sov-modules-stf-blueprint = { path = "../../module-system/sov-modules-stf-bluepr
     "native",
 ] }
 
-sov-accounts = { path = "../../module-system/module-implementations/sov-accounts", features = [
-    "native",
-] }
-sov-sequencer = { path = "../sov-sequencer" }
-
 sov-state = { path = "../../module-system/sov-state", features = ["native"] }
 sov-modules-api = { path = "../../module-system/sov-modules-api", features = [
     "native",
@@ -67,7 +62,6 @@ sov-prover-storage-manager = { path = "../sov-prover-storage-manager", features 
     "test-utils",
 ] }
 
-tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
 
 
 [features]

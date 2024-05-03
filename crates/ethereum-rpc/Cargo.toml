@@ -13,7 +13,6 @@ resolver = "2"
 
 [dependencies]
 citrea-evm = { path = "../evm" }
-sov-stf-runner = { path = "../sovereign-sdk/full-node/sov-stf-runner" }
 sequencer-client = { path = "../sequencer-client" }
 anyhow = { workspace = true }
 tracing = { workspace = true }
@@ -36,9 +35,7 @@ sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface", features = 
     "native",
 ] }
 
-citrea-stf = { path = "../citrea-stf", features = ["native"] }
 sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api" }
-sov-accounts = { path = "../sovereign-sdk/module-system/module-implementations/sov-accounts" }
 
 [dev-dependencies]
 tokio = { workspace = true }
@@ -48,4 +45,4 @@ proptest = { workspace = true }
 [features]
 default = ["local"]
 local = []
-native = ["citrea-stf/native", "citrea-evm/native"]
+native = ["citrea-evm/native"]

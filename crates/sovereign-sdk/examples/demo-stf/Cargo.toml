@@ -29,14 +29,11 @@ secp256k1 = { workspace = true }
 
 sov-stf-runner = { path = "../../../sovereign-sdk/full-node/sov-stf-runner" }
 sov-rollup-interface = { path = "../../../sovereign-sdk/rollup-interface" }
-sov-cli = { path = "../../../sovereign-sdk/module-system/sov-cli", optional = true }
 sov-sequencer-registry = { path = "../../../sovereign-sdk/module-system/module-implementations/sov-sequencer-registry" }
 sov-blob-storage = { path = "../../../sovereign-sdk/module-system/module-implementations/sov-blob-storage" }
 sov-bank = { path = "../../../sovereign-sdk/module-system/module-implementations/sov-bank" }
 sov-nft-module = { path = "../../../sovereign-sdk/module-system/module-implementations/sov-nft-module" }
-sov-soft-confirmations-kernel = { path = "../../../sovereign-sdk/module-system/sov-soft-confirmations-kernel" }
 
-sov-mock-da = { path = "../../../sovereign-sdk/adapters/mock-da" }
 sov-chain-state = { path = "../../../sovereign-sdk/module-system/module-implementations/sov-chain-state" }
 sov-modules-stf-blueprint = { path = "../../../sovereign-sdk/module-system/sov-modules-stf-blueprint" }
 sov-value-setter = { path = "../../../sovereign-sdk/module-system/module-implementations/examples/sov-value-setter" }
@@ -48,10 +45,11 @@ soft-confirmation-rule-enforcer = { path = "../../../soft-confirmation-rule-enfo
 
 
 [dev-dependencies]
-demo-stf = { path = ".", features = ["native"] }
 tempfile = { workspace = true }
 rand = { workspace = true }
+sov-cli = { path = "../../../sovereign-sdk/module-system/sov-cli" }
 sov-data-generators = { path = "../../../sovereign-sdk/module-system/utils/sov-data-generators" }
+sov-mock-da = { path = "../../../sovereign-sdk/adapters/mock-da" }
 sov-mock-zkvm = { path = "../../../sovereign-sdk/adapters/mock-zkvm" }
 sov-prover-storage-manager = { path = "../../../sovereign-sdk/full-node/sov-prover-storage-manager", features = [
     "test-utils",
@@ -65,7 +63,6 @@ native = [
     "sov-stf-runner/native",
     "sov-bank/native",
     "sov-nft-module/native",
-    "sov-cli",
     "sov-accounts/native",
     "sov-sequencer-registry/native",
     "sov-blob-storage/native",
@@ -73,9 +70,7 @@ native = [
     "sov-value-setter/native",
     "sov-modules-api/native",
     "sov-rollup-interface/native",
-    "sov-mock-da/native",
     "sov-modules-stf-blueprint/native",
-    "sov-soft-confirmations-kernel/native",
     "clap",
     "serde",
     "serde_json",

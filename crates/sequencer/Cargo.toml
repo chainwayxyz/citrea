@@ -13,7 +13,6 @@ resolver = "2"
 
 [dependencies]
 anyhow = { workspace = true }
-bitcoin-da = { path = "../bitcoin-da" }
 borsh = { workspace = true }
 chrono = { workspace = true }
 digest = { workspace = true }

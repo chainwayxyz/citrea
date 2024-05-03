@@ -784,7 +784,6 @@ dependencies = [
  "serde",
  "soft-confirmation-rule-enforcer",
  "sov-accounts",
- "sov-mock-da",
  "sov-modules-api",
  "sov-modules-stf-blueprint",
  "sov-rollup-interface",
@@ -2750,8 +2749,6 @@ dependencies = [
  "ed25519-dalek",
  "hex",
  "jmt",
- "risc0-zkvm",
- "risc0-zkvm-platform",
  "serde",
  "sha2",
  "sov-modules-core",
@@ -2784,12 +2781,9 @@ name = "sov-modules-macros"
 version = "0.3.0"
 dependencies = [
  "anyhow",
- "borsh",
  "proc-macro2",
  "quote",
- "schemars",
  "serde_json",
- "sov-modules-core",
  "syn 1.0.109",
 ]
 
@@ -2896,8 +2890,6 @@ dependencies = [
 name = "sov-zk-cycle-macros"
 version = "0.3.0"
 dependencies = [
- "anyhow",
- "borsh",
  "proc-macro2",
  "quote",
  "syn 1.0.109",
