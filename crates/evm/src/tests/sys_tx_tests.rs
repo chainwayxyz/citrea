@@ -405,7 +405,7 @@ fn get_evm_with_deposit(config: &EvmConfig) -> (Evm<C>, WorkingSet<DefaultContex
                 0xc3, 0x1a, 0x29, 0xfa, 0xc5, 0xe0, 0xd1, 0x33, 0xa4, 0x41, 0x26, 0xa8, 0xb3, 0xca,
                 0x02, 0x07, 0x7e, 0xce,
             ],
-            pre_state_root: (&root).to_vec(),
+            pre_state_root: root.to_vec(),
             pub_key: vec![],
             deposit_data: vec![[
                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
