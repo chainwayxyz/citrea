@@ -378,7 +378,10 @@ fn test_bridge() {
         .unwrap();
 
     println!("Recipient account: {:?}", recipient_account);
-    assert_eq!(recipient_account.info.balance, U256::from_str("0xde0b6b3a7640000").unwrap(),);
+    assert_eq!(
+        recipient_account.info.balance,
+        U256::from_str("0xde0b6b3a7640000").unwrap(),
+    );
 }
 
 fn get_evm_with_deposit(config: &EvmConfig) -> (Evm<C>, WorkingSet<DefaultContext>) {
