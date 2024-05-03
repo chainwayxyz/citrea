@@ -377,7 +377,6 @@ fn test_bridge() {
         .get(&recipient_address, &mut working_set)
         .unwrap();
 
-    println!("Recipient account: {:?}", recipient_account);
     assert_eq!(
         recipient_account.info.balance,
         U256::from_str("0xde0b6b3a7640000").unwrap(),
