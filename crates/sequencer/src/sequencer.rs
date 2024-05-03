@@ -534,7 +534,9 @@ where
         if self.config.test_mode {
             loop {
                 if (self.l2_force_block_rx.next().await).is_some() {
-                    self.build_block().await?;
+                    if let Err(e) = self.build_block().await {
+                        error!("Sequencer error: {}", e);
+                    }
                 }
             }
         }
@@ -542,7 +544,9 @@ where
         else {
             loop {
                 sleep(Duration::from_secs(2)).await;
-                self.build_block().await?;
+                if let Err(e) = self.build_block().await {
+                    error!("Sequencer error: {}", e);
+                }
             }
         }
     }

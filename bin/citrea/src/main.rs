@@ -15,6 +15,7 @@ use sov_modules_stf_blueprint::kernels::basic::{
 };
 use sov_state::storage::NativeStorage;
 use sov_stf_runner::{from_toml_path, RollupConfig, RollupProverConfig};
+use tracing::error;
 
 #[cfg(test)]
 mod test_rpc;
@@ -159,7 +160,9 @@ where
             )
             .await
             .unwrap();
-        sequencer_rollup.run().await?;
+        if let Err(e) = sequencer_rollup.run().await {
+            error!("Error: {}", e);
+        }
     } else {
         if rollup_config.sequencer_client.is_none() {
             return Err(anyhow!("Must have sequencer client for full nodes!"));
@@ -174,7 +177,9 @@ where
             )
             .await
             .unwrap();
-        rollup.run().await?;
+        if let Err(e) = rollup.run().await {
+            error!("Error: {}", e);
+        }
     }
 
     Ok(())
