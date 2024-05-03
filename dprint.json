@@ -1,0 +1,5 @@
+{
+  "includes": ["**/*.{toml}"],
+  "excludes": ["**/target", "crates/evm/src/evm/system_contracts"],
+  "plugins": ["https://plugins.dprint.dev/toml-0.5.3.wasm"]
+}
