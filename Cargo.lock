@@ -1591,7 +1591,6 @@ dependencies = [
  "humantime",
  "jsonrpsee",
  "log",
- "prometheus 0.11.0",
  "proptest",
  "regex",
  "reqwest 0.12.3",
@@ -6105,21 +6104,6 @@ dependencies = [
 
 [[package]]
 name = "prometheus"
-version = "0.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c8425533e7122f0c3cc7a37e6244b16ad3a2cc32ae7ac6276e2a75da0d9c200d"
-dependencies = [
- "cfg-if",
- "fnv",
- "lazy_static",
- "parking_lot 0.11.2",
- "protobuf",
- "regex",
- "thiserror",
-]
-
-[[package]]
-name = "prometheus"
 version = "0.13.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "449811d15fbdf5ceb5c1144416066429cf82316e2ec8ce0c1f6f8a02e7bbcf8c"
@@ -6259,12 +6243,6 @@ checksum = "193898f59edcf43c26227dcd4c8427f00d99d61e95dcde58dabd49fa291d470e"
 dependencies = [
  "prost 0.12.3",
 ]
-
-[[package]]
-name = "protobuf"
-version = "2.28.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "106dd99e98437432fed6519dedecfade6a06a73bb7b2a1e019fdd2bee5778d94"
 
 [[package]]
 name = "protobuf-src"
@@ -9263,7 +9241,7 @@ dependencies = [
  "anyhow",
  "byteorder",
  "once_cell",
- "prometheus 0.13.3",
+ "prometheus",
  "proptest",
  "proptest-derive 0.3.0",
  "rocksdb",
