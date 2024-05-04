@@ -7,7 +7,7 @@ use std::time::Duration;
 use std::vec;
 
 use borsh::ser::BorshSerialize;
-use citrea_evm::{CallMessage, RlpEvmTransaction};
+use citrea_evm::{CallMessage, Evm, RlpEvmTransaction};
 use citrea_stf::runtime::Runtime;
 use digest::Digest;
 use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
@@ -294,6 +294,12 @@ where
                     batch_workspace,
                 );
 
+                // before finalize we can get tx hashes that failed due to L1 fees.
+                let evm = Evm::<C>::default();
+                let mut working_set = WorkingSet::<C>::new(self.storage.clone());
+                let l1_fee_failed_txs =
+                    evm.get_l1_fee_failed_txs(&mut working_set.accessory_state());
+
                 // Finalize soft confirmation
                 let slot_result = self.stf.finalize_soft_batch(
                     batch_receipt,
@@ -358,8 +364,10 @@ where
 
                 self.ledger_db.commit_soft_batch(soft_batch_receipt, true)?;
 
-                self.mempool
-                    .remove_transactions(self.db_provider.last_block_tx_hashes());
+                let mut txs_to_remove = self.db_provider.last_block_tx_hashes();
+                txs_to_remove.extend(l1_fee_failed_txs);
+
+                self.mempool.remove_transactions(txs_to_remove);
 
                 // connect L1 and L2 height
                 self.ledger_db

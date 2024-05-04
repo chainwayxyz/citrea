@@ -293,5 +293,7 @@ where
             accessory_working_set,
         );
         self.pending_head.delete(accessory_working_set);
+
+        self.l1_fee_failed_txs.clear(accessory_working_set);
     }
 }

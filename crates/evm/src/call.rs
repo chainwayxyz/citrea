@@ -222,6 +222,12 @@ impl<C: sov_modules_api::Context> Evm<C> {
                         continue;
                     }
                     EVMError::Custom(msg) => {
+                        #[cfg(feature = "native")]
+                        if !msg.starts_with("Gas used") {
+                            // only custom error not related to l1 fees is Gas used exceeds block gas limit
+                            self.l1_fee_failed_txs
+                                .push(&evm_tx_recovered.hash(), &mut working_set.accessory_state());
+                        }
                         // This is a custom error - we need to log it but no need to shutdown the system as of now.
                         tracing::error!("evm: Custom error: {:?}", msg);
                         continue;
