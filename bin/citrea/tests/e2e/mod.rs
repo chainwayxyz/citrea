@@ -1864,7 +1864,7 @@ async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
 async fn transaction_failing_on_l1_is_removed_from_mempool() -> Result<(), anyhow::Error> {
     citrea::initialize_logging();
 
-    let (seq_test_client, full_node_test_client, seq_task, full_node_task, addr) =
+    let (seq_test_client, full_node_test_client, seq_task, full_node_task, _) =
         initialize_test(Default::default()).await;
 
     let random_wallet = LocalWallet::new(&mut thread_rng()).with_chain_id(seq_test_client.chain_id);

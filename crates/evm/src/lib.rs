@@ -171,9 +171,9 @@ impl<C: sov_modules_api::Context> Evm<C> {
     }
 
     /// Returns transaction hashes that failed to pay the L1 fee.
-    pub fn get_l1_fee_failed_txs<'a>(
+    pub fn get_l1_fee_failed_txs(
         &self,
-        accessory_working_set: &'a mut AccessoryWorkingSet<C>,
+        accessory_working_set: &mut AccessoryWorkingSet<C>,
     ) -> Vec<TxHash> {
         self.l1_fee_failed_txs.iter(accessory_working_set).collect()
     }

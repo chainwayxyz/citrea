@@ -708,7 +708,7 @@ where
                                     .insert_sequencer_commitment(
                                         l1_start_height as u32,
                                         l1_end_height as u32,
-                                        tx_id.into().to_vec(),
+                                        Into::<[u8; 32]>::into(tx_id).to_vec(),
                                         commitment.l1_start_block_hash.to_vec(),
                                         commitment.l1_end_block_hash.to_vec(),
                                         l2_range.start().0 as u32,
