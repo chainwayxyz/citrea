@@ -296,9 +296,14 @@ where
 
                 // before finalize we can get tx hashes that failed due to L1 fees.
                 let evm = Evm::<C>::default();
-                let mut working_set = WorkingSet::<C>::new(self.storage.clone());
+
+                // nasty hack to access state
+                let mut intermediary_working_set = checkpoint.to_revertable();
+
                 let l1_fee_failed_txs =
-                    evm.get_l1_fee_failed_txs(&mut working_set.accessory_state());
+                    evm.get_l1_fee_failed_txs(&mut intermediary_working_set.accessory_state());
+
+                let checkpoint = intermediary_working_set.checkpoint();
 
                 // Finalize soft confirmation
                 let slot_result = self.stf.finalize_soft_batch(

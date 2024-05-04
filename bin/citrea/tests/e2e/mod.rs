@@ -7,9 +7,11 @@ use citrea_evm::smart_contracts::SimpleStorageContract;
 use citrea_evm::system_contracts::BitcoinLightClient;
 use citrea_sequencer::{SequencerConfig, SequencerMempoolConfig};
 use citrea_stf::genesis_config::GenesisPaths;
-use ethereum_types::H256;
+use ethereum_types::{H256, U256};
 use ethers::abi::Address;
+use ethers_signers::{LocalWallet, Signer};
 use reth_primitives::{BlockNumberOrTag, TxHash};
+use secp256k1::rand::thread_rng;
 use shared_backup_db::{PostgresConnector, SharedBackupDbConfig};
 use sov_mock_da::{MockAddress, MockDaService, MockDaSpec, MockHash};
 use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
@@ -1854,6 +1856,96 @@ async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
     let _ = fs::remove_dir_all(Path::new("demo_data_sequencer_full_node_copy"));
 
     seq_task.abort();
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn transaction_failing_on_l1_is_removed_from_mempool() -> Result<(), anyhow::Error> {
+    citrea::initialize_logging();
+
+    let (seq_test_client, full_node_test_client, seq_task, full_node_task, addr) =
+        initialize_test(Default::default()).await;
+
+    let random_wallet = LocalWallet::new(&mut thread_rng()).with_chain_id(seq_test_client.chain_id);
+
+    let random_wallet_address = random_wallet.address();
+
+    let second_block_base_fee: u64 = 774148704;
+
+    seq_test_client
+        .send_eth(
+            random_wallet_address,
+            None,
+            None,
+            None,
+            // gas needed for transaction + 500 (to send) but this won't be enough for L1 fees
+            (21000 * second_block_base_fee + 500) as u128,
+        )
+        .await
+        .unwrap();
+
+    seq_test_client.send_publish_batch_request().await;
+
+    let random_test_client = TestClient::new(
+        seq_test_client.chain_id,
+        random_wallet,
+        random_wallet_address,
+        seq_test_client.rpc_addr,
+    )
+    .await;
+
+    let tx = random_test_client
+        .send_eth(
+            Address::from_str("0x0000000000000000000000000000000000000000").unwrap(),
+            Some(0),
+            Some(second_block_base_fee),
+            None,
+            500,
+        )
+        .await
+        .unwrap();
+
+    let tx_from_mempool = seq_test_client
+        .eth_get_transaction_by_hash(tx.tx_hash(), Some(true))
+        .await;
+
+    assert!(tx_from_mempool.is_some());
+
+    seq_test_client.send_publish_batch_request().await;
+
+    let block = seq_test_client
+        .eth_get_block_by_number_with_detail(Some(BlockNumberOrTag::Latest))
+        .await;
+
+    assert_eq!(
+        block.base_fee_per_gas.unwrap(),
+        U256::from(second_block_base_fee)
+    );
+
+    let tx_from_mempool = seq_test_client
+        .eth_get_transaction_by_hash(tx.tx_hash(), Some(true))
+        .await;
+
+    let soft_confirmation = seq_test_client
+        .ledger_get_soft_batch_by_number::<MockDaSpec>(block.number.unwrap().as_u64())
+        .await
+        .unwrap();
+
+    assert_eq!(block.transactions.len(), 0);
+    assert!(tx_from_mempool.is_none());
+    assert_eq!(soft_confirmation.txs.unwrap().len(), 1); // TODO: if we can also remove the tx from soft confirmation, that'd be very efficient
+
+    sleep(Duration::from_secs(2)).await;
+
+    let block_from_full_node = full_node_test_client
+        .eth_get_block_by_number_with_detail(Some(BlockNumberOrTag::Latest))
+        .await;
+
+    assert_eq!(block_from_full_node, block);
+
+    seq_task.abort();
+    full_node_task.abort();
 
     Ok(())
 }
