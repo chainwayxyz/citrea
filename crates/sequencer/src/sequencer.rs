@@ -8,7 +8,7 @@ use std::vec;
 
 use anyhow::anyhow;
 use borsh::ser::BorshSerialize;
-use citrea_evm::{CallMessage, RlpEvmTransaction};
+use citrea_evm::{CallMessage, Evm, RlpEvmTransaction};
 use citrea_stf::runtime::Runtime;
 use digest::Digest;
 use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
@@ -314,6 +314,17 @@ where
                     batch_workspace,
                 );
 
+                // before finalize we can get tx hashes that failed due to L1 fees.
+                let evm = Evm::<C>::default();
+
+                // nasty hack to access state
+                let mut intermediary_working_set = checkpoint.to_revertable();
+
+                let l1_fee_failed_txs =
+                    evm.get_l1_fee_failed_txs(&mut intermediary_working_set.accessory_state());
+
+                let checkpoint = intermediary_working_set.checkpoint();
+
                 // Finalize soft confirmation
                 let slot_result = self.stf.finalize_soft_batch(
                     batch_receipt,
@@ -378,8 +389,10 @@ where
 
                 self.ledger_db.commit_soft_batch(soft_batch_receipt, true)?;
 
-                self.mempool
-                    .remove_transactions(self.db_provider.last_block_tx_hashes()?);
+                let mut txs_to_remove = self.db_provider.last_block_tx_hashes()?;
+                txs_to_remove.extend(l1_fee_failed_txs);
+
+                self.mempool.remove_transactions(txs_to_remove);
 
                 // connect L1 and L2 height
                 self.ledger_db.extend_l2_range_of_l1_slot(
@@ -732,7 +745,7 @@ where
                                     .insert_sequencer_commitment(
                                         l1_start_height as u32,
                                         l1_end_height as u32,
-                                        tx_id.into().to_vec(),
+                                        Into::<[u8; 32]>::into(tx_id).to_vec(),
                                         commitment.l1_start_block_hash.to_vec(),
                                         commitment.l1_end_block_hash.to_vec(),
                                         l2_range.start().0 as u32,
