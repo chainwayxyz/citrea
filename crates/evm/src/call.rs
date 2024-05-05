@@ -224,8 +224,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     EVMError::Custom(msg) => {
                         #[cfg(feature = "native")]
                         if !msg.starts_with("Gas used") {
-                            tracing::error!("native native");
-                            // only custom error not related to l1 fees is Gas used exceeds block gas limit
+                            // not really good way to seperate these transactions but it's the best we can do for now
+                            // TODO: replace this branching with a better one.
                             self.l1_fee_failed_txs
                                 .push(&evm_tx_recovered.hash(), &mut working_set.accessory_state());
                         }
