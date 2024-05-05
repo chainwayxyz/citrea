@@ -11,8 +11,6 @@ use reth_primitives::TransactionKind::{Call, Create};
 use reth_primitives::{
     Block, BlockId, BlockNumberOrTag, SealedHeader, TransactionSignedEcRecovered, U128, U256, U64,
 };
-use reth_revm::access_list::AccessListInspector;
-use reth_revm::tracing::{TracingInspector, TracingInspectorConfig};
 use reth_rpc_types::other::OtherFields;
 use reth_rpc_types::trace::geth::{GethDebugTracingOptions, GethTrace};
 use reth_rpc_types::AccessListWithGasUsed;
@@ -22,6 +20,8 @@ use revm::primitives::{
     TxEnv, KECCAK_EMPTY,
 };
 use revm::{Database, DatabaseCommit};
+use revm_inspectors::access_list::AccessListInspector;
+use revm_inspectors::tracing::{TracingInspector, TracingInspectorConfig};
 use sov_modules_api::macros::rpc_gen;
 use sov_modules_api::prelude::*;
 use sov_modules_api::WorkingSet;
