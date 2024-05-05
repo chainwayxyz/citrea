@@ -52,7 +52,7 @@ where
         zk_storage: V::PreState,
         num_threads: usize,
         prover_service_config: ProverServiceConfig,
-    ) -> Self {
+    ) -> anyhow::Result<Self> {
         let stf_verifier =
             StateTransitionVerifier::<V, Da::Verifier, Vm::Guest>::new(zk_stf, da_verifier);
 
@@ -65,15 +65,15 @@ where
 
         let prover_config = Arc::new(config);
 
-        Self {
+        Ok(Self {
             vm,
             prover_config,
             prover_state: Prover::new(
                 num_threads,
                 prover_service_config.aggregated_proof_block_jump,
-            ),
+            )?,
             zk_storage,
-        }
+        })
     }
 
     /// Creates a new prover.
@@ -84,7 +84,7 @@ where
         config: RollupProverConfig,
         zk_storage: V::PreState,
         prover_service_config: ProverServiceConfig,
-    ) -> Self {
+    ) -> anyhow::Result<Self> {
         let num_cpus = num_cpus::get();
         assert!(num_cpus > 1, "Unable to create parallel prover service");
 
