@@ -21,7 +21,6 @@ jsonrpsee = { workspace = true, features = ["http-client"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 hex = { workspace = true }
-citrea-evm = { path = "../evm" }
 
 ethers = { workspace = true }
 tokio = { workspace = true }
