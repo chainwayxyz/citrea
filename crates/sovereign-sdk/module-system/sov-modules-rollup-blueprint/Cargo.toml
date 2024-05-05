@@ -33,7 +33,6 @@ sov-modules-stf-blueprint = { path = "../../module-system/sov-modules-stf-bluepr
 ], version = "0.3" }
 sov-db = { path = "../../full-node/db/sov-db", version = "0.3" }
 
-sov-sequencer = { path = "../../full-node/sov-sequencer" }
 sov-ledger-rpc = { path = "../../full-node/sov-ledger-rpc", features = [
     "server",
 ] }

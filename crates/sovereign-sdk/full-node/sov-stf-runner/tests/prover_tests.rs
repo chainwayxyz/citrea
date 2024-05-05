@@ -211,7 +211,8 @@ fn make_new_prover() -> TestProver {
             ProverServiceConfig {
                 aggregated_proof_block_jump: 1,
             },
-        ),
+        )
+        .expect("Should be able to instantiate Prover service"),
         vm,
         num_worker_threads: num_threads,
     }

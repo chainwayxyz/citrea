@@ -107,6 +107,7 @@ impl RollupBlueprint for MockDemoRollup {
             zk_storage,
             rollup_config.prover_service,
         )
+        .expect("Should be able to instantiate prover service")
     }
 
     fn create_storage_manager(

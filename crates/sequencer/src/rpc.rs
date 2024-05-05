@@ -2,6 +2,8 @@ use std::sync::Arc;
 
 use citrea_evm::Evm;
 use futures::channel::mpsc::UnboundedSender;
+use jsonrpsee::core::Error as RpcError;
+use jsonrpsee::types::error::{INTERNAL_ERROR_CODE, INTERNAL_ERROR_MSG};
 use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::RpcModule;
 use reth_primitives::{Bytes, FromRecoveredPooledTransaction, IntoRecoveredTransaction, B256};
@@ -27,12 +29,12 @@ pub(crate) struct RpcContext<C: sov_modules_api::Context> {
 
 pub(crate) fn create_rpc_module<C: sov_modules_api::Context>(
     rpc_context: RpcContext<C>,
-) -> Result<RpcModule<RpcContext<C>>, jsonrpsee::core::Error> {
+) -> Result<RpcModule<RpcContext<C>>, RpcError> {
     let test_mode = rpc_context.test_mode;
     let mut rpc = RpcModule::new(rpc_context);
     rpc.register_async_method("eth_sendRawTransaction", |parameters, ctx| async move {
         info!("Sequencer: eth_sendRawTransaction");
-        let data: Bytes = parameters.one().unwrap();
+        let data: Bytes = parameters.one()?;
 
         // Only check if the signature is valid for now
         let recovered: reth_primitives::PooledTransactionsElementEcRecovered =
@@ -53,19 +55,30 @@ pub(crate) fn create_rpc_module<C: sov_modules_api::Context>(
     if test_mode {
         rpc.register_async_method("citrea_testPublishBlock", |_, ctx| async move {
             info!("Sequencer: citrea_testPublishBlock");
-            ctx.l2_force_block_tx.unbounded_send(()).unwrap();
+            ctx.l2_force_block_tx.unbounded_send(()).map_err(|e| {
+                ErrorObjectOwned::owned(
+                    INTERNAL_ERROR_CODE,
+                    INTERNAL_ERROR_MSG,
+                    Some(format!("Could not send L2 force block transaction: {e}")),
+                )
+            })?;
+            Ok::<(), ErrorObjectOwned>(())
+        })?;
+
+        rpc.register_async_method("da_publishBlock", |_, _ctx| async move {
+            info!("Sequencer: da_publishBlock");
+            let da = MockDaService::new(MockAddress::from([0; 32]));
+            da.publish_test_block().await.map_err(|e| {
+                ErrorObjectOwned::owned(
+                    INTERNAL_ERROR_CODE,
+                    INTERNAL_ERROR_MSG,
+                    Some(format!("Could not publish mock-da block: {e}")),
+                )
+            })?;
             Ok::<(), ErrorObjectOwned>(())
         })?;
     }
 
-    rpc.register_async_method("da_publishBlock", |_, _ctx| async move {
-        info!("Sequencer: da_publishBlock");
-        let da = MockDaService::new(MockAddress::from([0; 32]));
-        da.publish_test_block()
-            .await
-            .expect("Should publish mock-da block");
-        Ok::<(), ErrorObjectOwned>(())
-    })?;
     rpc.register_async_method("eth_getTransactionByHash", |parameters, ctx| async move {
         let mut params = parameters.sequence();
         let hash: B256 = params.next()?;

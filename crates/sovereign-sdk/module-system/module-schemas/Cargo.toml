@@ -30,7 +30,6 @@ sov-prover-incentives = { path = "../module-implementations/sov-prover-incentive
 sov-sequencer-registry = { path = "../module-implementations/sov-sequencer-registry", features = [
     "native",
 ] }
-citrea-evm = { path = "../../../evm" }
 sov-value-setter = { path = "../module-implementations/examples/sov-value-setter", features = [
     "native",
 ] }
