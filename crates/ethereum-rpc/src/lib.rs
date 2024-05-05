@@ -29,8 +29,6 @@ use sov_modules_api::WorkingSet;
 use sov_rollup_interface::services::da::DaService;
 use tracing::info;
 
-use crate::gas_price::gas_oracle::convert_u256_to_u64;
-
 const MAX_TRACE_BLOCK: u32 = 1000;
 
 #[derive(Clone)]
@@ -562,7 +560,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
             let evm = Evm::<C>::default();
             let block_number = match block_number {
                 BlockNumberOrTag::Number(block_number) => block_number,
-                BlockNumberOrTag::Latest => convert_u256_to_u64(evm.block_number(&mut working_set)?),
+                BlockNumberOrTag::Latest => evm.block_number(&mut working_set)?.saturating_to(),
                 _ => return Err(EthApiError::Unsupported("Earliest, pending, safe and finalized are not supported for debug_traceBlockByNumber").into()),
             };
 
@@ -624,15 +622,15 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                 .get_transaction_by_hash(tx_hash, &mut working_set)
                 .unwrap()
                 .ok_or_else(|| EthApiError::UnknownBlockOrTxIndex)?;
-            let trace_index = convert_u256_to_u64(
-                tx.transaction_index
-                    .expect("Tx index must be set for tx inside block"),
-            );
+            let trace_index: u64 = tx
+                .transaction_index
+                .expect("Tx index must be set for tx inside block")
+                .saturating_to();
 
-            let block_number = convert_u256_to_u64(
-                tx.block_number
-                    .expect("Block number must be set for tx inside block"),
-            );
+            let block_number: u64 = tx
+                .block_number
+                .expect("Block number must be set for tx inside block")
+                .saturating_to();
 
             let opts: Option<GethDebugTracingOptions> = params.optional_next()?;
 

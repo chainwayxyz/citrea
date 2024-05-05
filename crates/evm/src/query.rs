@@ -1,4 +1,3 @@
-use std::array::TryFromSliceError;
 use std::collections::BTreeMap;
 use std::ops::{Range, RangeInclusive};
 
@@ -900,7 +899,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         // if the provided gas limit is less than computed cap, use that
         let gas_limit = std::cmp::min(U256::from(tx_env.gas_limit), highest_gas_limit);
-        tx_env.gas_limit = convert_u256_to_u64(gas_limit).unwrap();
+        tx_env.gas_limit = gas_limit.saturating_to();
 
         let evm_db = self.get_db(working_set);
 
@@ -1652,12 +1651,6 @@ fn map_out_of_gas_err<C: sov_modules_api::Context>(
         },
         Err(err) => EthApiError::from(err),
     }
-}
-
-fn convert_u256_to_u64(u256: reth_primitives::U256) -> Result<u64, TryFromSliceError> {
-    let bytes: [u8; 32] = u256.to_be_bytes();
-    let bytes: [u8; 8] = bytes[24..].try_into()?;
-    Ok(u64::from_be_bytes(bytes))
 }
 
 /// Updates the highest and lowest gas limits for binary search

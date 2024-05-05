@@ -3014,9 +3014,7 @@ dependencies = [
  "jsonrpsee",
  "proc-macro2 1.0.79",
  "quote 1.0.35",
- "schemars",
  "serde_json",
- "sov-modules-core",
  "syn 1.0.109",
 ]
 
