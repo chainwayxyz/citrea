@@ -64,20 +64,21 @@ pub(crate) fn create_rpc_module<C: sov_modules_api::Context>(
             })?;
             Ok::<(), ErrorObjectOwned>(())
         })?;
+
+        rpc.register_async_method("da_publishBlock", |_, _ctx| async move {
+            info!("Sequencer: da_publishBlock");
+            let da = MockDaService::new(MockAddress::from([0; 32]));
+            da.publish_test_block().await.map_err(|e| {
+                ErrorObjectOwned::owned(
+                    INTERNAL_ERROR_CODE,
+                    INTERNAL_ERROR_MSG,
+                    Some(format!("Could not publish mock-da block: {e}")),
+                )
+            })?;
+            Ok::<(), ErrorObjectOwned>(())
+        })?;
     }
 
-    rpc.register_async_method("da_publishBlock", |_, _ctx| async move {
-        info!("Sequencer: da_publishBlock");
-        let da = MockDaService::new(MockAddress::from([0; 32]));
-        da.publish_test_block().await.map_err(|e| {
-            ErrorObjectOwned::owned(
-                INTERNAL_ERROR_CODE,
-                INTERNAL_ERROR_MSG,
-                Some(format!("Could not publish mock-da block: {e}")),
-            )
-        })?;
-        Ok::<(), ErrorObjectOwned>(())
-    })?;
     rpc.register_async_method("eth_getTransactionByHash", |parameters, ctx| async move {
         let mut params = parameters.sequence();
         let hash: B256 = params.next()?;
