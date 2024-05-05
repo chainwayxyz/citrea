@@ -1857,3 +1857,95 @@ async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
 
     Ok(())
 }
+
+#[tokio::test]
+async fn sequencer_crash_and_restore_mempool() -> Result<(), anyhow::Error> {
+    citrea::initialize_logging();
+    // open, close without publishing blokcs
+    // then reopen, publish some blocks without error
+    // Remove temp db directories if they exist
+    println!("0");
+    let _ = fs::remove_dir_all(Path::new("demo_data_sequencer"));
+    let _ = fs::remove_dir_all(Path::new("demo_data_sequencer_copy"));
+    println!("1");
+
+    let db_test_client = PostgresConnector::new_test_client().await.unwrap();
+    println!("2");
+    let mut sequencer_config = create_default_sequencer_config(4, Some(true), 10);
+    println!("3");
+    sequencer_config.db_config = Some(SharedBackupDbConfig::default());
+
+    let da_service = MockDaService::with_finality(MockAddress::from([0; 32]), 2);
+    println!("4");
+    da_service.publish_test_block().await.unwrap();
+    println!("5");
+    let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
+    println!("6");
+    let config1 = sequencer_config.clone();
+
+    let seq_task = tokio::spawn(async move {
+        start_rollup(
+            seq_port_tx,
+            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
+            BasicKernelGenesisPaths {
+                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
+            },
+            RollupProverConfig::Execute,
+            NodeMode::SequencerNode,
+            Some("demo_data_sequencer"),
+            4,
+            true,
+            None,
+            Some(config1),
+            Some(true),
+            10,
+        )
+        .await;
+    });
+    println!("7");
+    let seq_port = seq_port_rx.await.unwrap();
+    println!("8");
+    let seq_test_client = init_test_rollup(seq_port).await;
+    println!("9");
+    let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
+
+    let tx_hash = seq_test_client
+        .send_eth(addr.clone(), None, None, None, 0u128)
+        .await
+        .unwrap()
+        .tx_hash();
+    println!("10");
+    let tx_hash2 = seq_test_client
+        .send_eth(addr, None, None, None, 0u128)
+        .await
+        .unwrap()
+        .tx_hash();
+    println!("11");
+    // let tx1_pre_crash = seq_test_client
+    //     .eth_get_transaction_by_hash(tx_hash, Some(true))
+    //     .await
+    //     .unwrap();
+    // let tx2_pre_crash = seq_test_client
+    //     .eth_get_transaction_by_hash(tx_hash2, Some(true))
+    //     .await
+    //     .unwrap();
+
+    // println!("{:?}", tx1_pre_crash);
+    // println!("{:?}", tx2_pre_crash);
+    // sleep(Duration::from_millis(2000)).await;
+    seq_test_client.send_publish_batch_request().await;
+
+    // sleep(Duration::from_secs(2)).await;
+
+    // // get the txs from mempool
+    // // panic or ctrl-c the main thread
+    // // respawn the sequencer
+    // // check if the mempool is restored
+    // // check if the txs are the same from the first mempool
+
+    seq_task.abort();
+    let _ = fs::remove_dir_all(Path::new("demo_data_sequencer"));
+    let _ = fs::remove_dir_all(Path::new("demo_data_sequencer_copy"));
+    // sleep(Duration::from_secs(2)).await;
+    Ok(())
+}

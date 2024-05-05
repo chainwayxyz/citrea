@@ -6,6 +6,7 @@ pub enum Tables {
     /// string version is sequencer_commitment
     #[allow(dead_code)]
     SequencerCommitment,
+    MempoolTxs,
 }
 
 // impl to_string for tables
@@ -13,6 +14,7 @@ impl fmt::Display for Tables {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Tables::SequencerCommitment => write!(f, "sequencer_commitments"),
+            Tables::MempoolTxs => write!(f, "mempool_txs"),
         }
     }
 }
@@ -92,3 +94,10 @@ pub const INDEX_L1_END_HEIGHT: &str =
     "CREATE INDEX idx_l1_end_height ON sequencer_commitments(l1_end_height);";
 pub const INDEX_L1_END_HASH: &str =
     "CREATE INDEX idx_l1_end_hash ON sequencer_commitments(l1_end_hash);";
+
+// tx is rlp encoded
+pub const MEMPOOL_TXS_TABLE_CREATE_QUERY: &str = "
+CREATE TABLE IF NOT EXISTS mempool_txs (
+    id      SERIAL PRIMARY KEY,
+    tx      BYTEA NOT NULL
+);";

@@ -6,9 +6,9 @@ use reth_tasks::TokioTaskExecutor;
 use reth_transaction_pool::blobstore::NoopBlobStore;
 use reth_transaction_pool::error::PoolError;
 use reth_transaction_pool::{
-    BestTransactions, BestTransactionsAttributes, CoinbaseTipOrdering, EthPooledTransaction,
-    EthTransactionValidator, Pool, PoolConfig, PoolResult, SubPoolLimit, TransactionPool,
-    TransactionValidationTaskExecutor, ValidPoolTransaction,
+    AllPoolTransactions, BestTransactions, BestTransactionsAttributes, CoinbaseTipOrdering,
+    EthPooledTransaction, EthTransactionValidator, Pool, PoolConfig, PoolResult, SubPoolLimit,
+    TransactionPool, TransactionValidationTaskExecutor, ValidPoolTransaction,
 };
 
 use crate::config::SequencerMempoolConfig;
@@ -117,5 +117,15 @@ impl<C: sov_modules_api::Context> CitreaMempool<C> {
     ) -> Box<dyn BestTransactions<Item = Arc<ValidPoolTransaction<Transaction<C>>>>> {
         self.0
             .best_transactions_with_attributes(best_transactions_attributes)
+    }
+
+    pub(crate) fn all_transactions(&self) -> AllPoolTransactions<EthPooledTransaction> {
+        self.0.all_transactions()
+    }
+
+    pub(crate) fn pending_transactions(
+        &self,
+    ) -> Vec<Arc<ValidPoolTransaction<EthPooledTransaction>>> {
+        self.0.pending_transactions()
     }
 }

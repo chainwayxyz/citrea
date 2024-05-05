@@ -6,7 +6,7 @@ use tokio_postgres::{Client, NoTls, Row};
 use crate::config::SharedBackupDbConfig;
 use crate::tables::{
     CommitmentStatus, DbSequencerCommitment, Tables, INDEX_L1_END_HASH, INDEX_L1_END_HEIGHT,
-    INDEX_L2_END_HEIGHT, SEQUENCER_COMMITMENT_TABLE_CREATE_QUERY,
+    INDEX_L2_END_HEIGHT, MEMPOOL_TXS_TABLE_CREATE_QUERY, SEQUENCER_COMMITMENT_TABLE_CREATE_QUERY,
 };
 use crate::utils::get_db_extension;
 
@@ -50,6 +50,7 @@ impl PostgresConnector {
         client
             .batch_execute(SEQUENCER_COMMITMENT_TABLE_CREATE_QUERY)
             .await?;
+        client.batch_execute(MEMPOOL_TXS_TABLE_CREATE_QUERY).await?;
         let db_client = Self { client };
 
         let _ = db_client.create_indexes().await;
@@ -106,6 +107,10 @@ impl PostgresConnector {
             .batch_execute(SEQUENCER_COMMITMENT_TABLE_CREATE_QUERY)
             .await
             .unwrap();
+        test_client
+            .batch_execute(MEMPOOL_TXS_TABLE_CREATE_QUERY)
+            .await
+            .unwrap();
         let test_client = Self {
             client: test_client,
         };
@@ -144,6 +149,12 @@ impl PostgresConnector {
             ).await
     }
 
+    pub async fn insert_mempool_tx(&self, tx: Vec<u8>) -> Result<u64, Error> {
+        self.client
+            .execute("INSERT INTO mempool_txs (tx) VALUES ($1)", &[&tx])
+            .await
+    }
+
     pub async fn get_all_commitments(&self) -> Result<Vec<DbSequencerCommitment>, Error> {
         Ok(self
             .client
@@ -151,6 +162,16 @@ impl PostgresConnector {
             .await?
             .iter()
             .map(PostgresConnector::row_to_sequencer_commitment)
+            .collect())
+    }
+
+    pub async fn get_all_txs(&self) -> Result<Vec<Vec<u8>>, Error> {
+        Ok(self
+            .client
+            .query("SELECT * FROM mempool_txs", &[])
+            .await?
+            .iter()
+            .map(|row| row.get("tx"))
             .collect())
     }
 
@@ -177,11 +198,12 @@ impl PostgresConnector {
     }
 
     #[cfg(test)]
-    pub async fn create_sequencer_commitments_table(&self) {
-        self.client
-            .execute(SEQUENCER_COMMITMENT_TABLE_CREATE_QUERY, &[])
-            .await
-            .unwrap();
+    pub async fn create_table(&self, table: Tables) {
+        let query = match table {
+            Tables::SequencerCommitment => SEQUENCER_COMMITMENT_TABLE_CREATE_QUERY,
+            Tables::MempoolTxs => MEMPOOL_TXS_TABLE_CREATE_QUERY,
+        };
+        self.client.execute(query, &[]).await.unwrap();
     }
 
     // Helper function to convert a Row to DbSequencerCommitment
@@ -209,9 +231,7 @@ mod tests {
     #[tokio::test]
     async fn test_insert_sequencer_commitment() {
         let client = PostgresConnector::new_test_client().await.unwrap();
-
-        let _ = client.drop_table(Tables::SequencerCommitment).await;
-        client.create_sequencer_commitments_table().await;
+        client.create_table(Tables::SequencerCommitment).await;
 
         let inserted = client
             .insert_sequencer_commitment(
@@ -240,5 +260,19 @@ mod tests {
         assert!(matches!(rows[0].status, CommitmentStatus::Mempool));
 
         let _ = client.drop_table(Tables::SequencerCommitment).await;
+    }
+
+    #[tokio::test]
+    async fn test_insert_rlp_tx() {
+        let client = PostgresConnector::new_test_client().await.unwrap();
+        client.create_table(Tables::MempoolTxs).await;
+
+        client.insert_mempool_tx(vec![1, 2, 3]).await.unwrap();
+
+        let txs = client.get_all_txs().await.unwrap();
+
+        assert_eq!(txs.len(), 1);
+
+        assert_eq!(txs[0], vec![1, 2, 3]);
     }
 }

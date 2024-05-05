@@ -6,6 +6,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use std::vec;
 
+use alloy_rlp::{Decodable, Encodable};
 use borsh::ser::BorshSerialize;
 use citrea_evm::{CallMessage, RlpEvmTransaction};
 use citrea_stf::runtime::Runtime;
@@ -13,9 +14,11 @@ use digest::Digest;
 use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
 use futures::StreamExt;
 use jsonrpsee::RpcModule;
-use reth_primitives::IntoRecoveredTransaction;
+use reth_primitives::{IntoRecoveredTransaction, TransactionSigned};
 use reth_provider::BlockReaderIdExt;
-use reth_transaction_pool::{BestTransactionsAttributes, PoolTransaction};
+use reth_transaction_pool::{
+    AllPoolTransactions, BestTransactionsAttributes, EthPooledTransaction, PoolTransaction,
+};
 use shared_backup_db::{CommitmentStatus, PostgresConnector, SharedBackupDbConfig};
 use sov_accounts::Accounts;
 use sov_accounts::Response::{AccountEmpty, AccountExists};
@@ -34,6 +37,8 @@ use sov_rollup_interface::stf::{SoftBatchReceipt, StateTransitionFunction};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::ZkvmHost;
 use sov_stf_runner::{InitVariant, RpcConfig, RunnerConfig};
+use tokio::runtime::Runtime as TokioRuntime;
+use tokio::signal;
 use tokio::sync::oneshot::Receiver as OneshotReceiver;
 use tokio::sync::Mutex;
 use tokio::time::sleep;
@@ -351,16 +356,17 @@ where
                 self.storage_manager
                     .save_change_set_l2(l2_height, slot_result.change_set)?;
 
-                tracing::debug!("Finalizing l2 height: {:?}", l2_height);
+                tracing::debug!("AAFinalizing l2 height: {:?}", l2_height);
+                tracing::warn!("1");
                 self.storage_manager.finalize_l2(l2_height)?;
-
+                tracing::warn!("2");
                 self.state_root = next_state_root;
 
                 self.ledger_db.commit_soft_batch(soft_batch_receipt, true)?;
-
+                tracing::warn!("3");
                 self.mempool
                     .remove_transactions(self.db_provider.last_block_tx_hashes());
-
+                tracing::warn!("4");
                 // connect L1 and L2 height
                 self.ledger_db
                     .extend_l2_range_of_l1_slot(
@@ -368,6 +374,7 @@ where
                         BatchNumber(l2_height),
                     )
                     .expect("Sequencer: Failed to set L1 L2 connection");
+                tracing::warn!("5");
             }
             (Err(err), batch_workspace) => {
                 warn!(
@@ -383,6 +390,24 @@ where
     pub async fn build_block(&mut self) -> Result<(), anyhow::Error> {
         // best txs with base fee
         // get base fee from last blocks => header => next base fee() function
+
+        let all_txs = self.mempool.all_transactions();
+
+        for tx in all_txs.pending_recovered() {
+            let mut rlp_encoded_tx = Vec::new();
+            tx.to_recovered_transaction()
+                .into_signed()
+                .encode(&mut rlp_encoded_tx);
+            println!("\npending tx: {:?}\n", rlp_encoded_tx);
+        }
+
+        for tx in all_txs.queued_recovered() {
+            let mut rlp_encoded_tx = Vec::new();
+            tx.to_recovered_transaction()
+                .into_signed()
+                .encode(&mut rlp_encoded_tx);
+            println!("\nqueued tx: {:?}\n", rlp_encoded_tx);
+        }
 
         let mut prev_l1_height = self
             .ledger_db
@@ -432,8 +457,10 @@ where
                             skipped_height
                         );
                         let da_block = self.da_service.get_block_at(skipped_height).await.unwrap();
+                        warn!("here");
                         self.produce_l2_block(da_block, l1_fee_rate, L2BlockMode::Empty)
                             .await?;
+                        warn!("out");
                     }
                 }
                 let prev_l1_height = last_finalized_height - 1;
@@ -508,9 +535,10 @@ where
             .get_block_at(last_finalized_height)
             .await
             .unwrap();
-
+        warn!("done");
         self.produce_l2_block(last_finalized_block, l1_fee_rate, L2BlockMode::NotEmpty)
             .await?;
+        warn!("donezo");
         Ok(())
     }
 
@@ -520,19 +548,32 @@ where
 
         // If connected to offchain db first check if the commitments are in sync
         if let Some(db_config) = self.config.db_config.clone() {
-            match self.compare_commitments_from_db(db_config).await {
+            match self.compare_commitments_from_db(db_config.clone()).await {
                 Ok(()) => info!("Sequencer: Commitments are in sync"),
+                Err(e) => {
+                    warn!("Sequencer: Offchain db error: {:?}", e);
+                }
+            }
+            // Then restore mempool from db
+            match self.restore_mempool_from_db(db_config.clone()).await {
+                Ok(()) => info!("Sequencer: Mempool is in sync"),
                 Err(e) => {
                     warn!("Sequencer: Offchain db error: {:?}", e);
                 }
             }
         }
 
+        warn!("setting hook");
+        self.sequencer_set_panic_hook().await;
+        warn!("set hook");
+
         // If sequencer is in test mode, it will build a block every time it receives a message
         if self.config.test_mode {
             loop {
                 if (self.l2_force_block_rx.next().await).is_some() {
+                    warn!("building block");
                     self.build_block().await?;
+                    warn!("built block");
                 }
             }
         }
@@ -719,6 +760,74 @@ where
         });
     }
 
+    pub async fn restore_mempool_from_db(
+        &self,
+        db_config: SharedBackupDbConfig,
+    ) -> Result<(), anyhow::Error> {
+        match PostgresConnector::new(db_config).await {
+            Ok(pg_connector) => {
+                if let Ok(txs) = pg_connector.get_all_txs().await {
+                    for tx in txs {
+                        let decoded = TransactionSigned::decode(&mut tx.as_slice()).unwrap();
+                        let signed_ec_recovered = decoded.into_ecrecovered().unwrap();
+
+                        let length_without_header = signed_ec_recovered.length_without_header();
+                        let pooled_tx =
+                            EthPooledTransaction::new(signed_ec_recovered, length_without_header);
+
+                        let _ = self.mempool.add_external_transaction(pooled_tx).await;
+                    }
+                    return Ok(());
+                }
+                Err(anyhow::anyhow!("Failed to get mempool txs from postgres"))
+            }
+            Err(e) => {
+                warn!("Failed to connect to postgres: {:?}", e);
+                Err(anyhow::anyhow!("Failed to connect to postgres: {:?}", e))
+            }
+        }
+    }
+
+    pub async fn sequencer_set_panic_hook(&self) {
+        // take the original panick behaviour
+        let original_panic_hook = std::panic::take_hook();
+        // Clone mempool for custom panic hook
+        let mempool_clone = self.mempool.clone();
+        let db_config = self.config.db_config.clone();
+        // dump the mempool to db in case of a crash
+        std::panic::set_hook(Box::new(move |panic_info| {
+            warn!("\n\nCustom panic hook triggered\n\n");
+            println!("\n\nCustom panic hook triggered\n\n");
+            let pending_txs = mempool_clone.pending_transactions();
+            // let db_config = db_config.clone();
+            // let rt = TokioRuntime::new().unwrap();
+            // rt.spawn(async move {
+            //     sequencer_crash_handler(all_txs.clone(), db_config.clone()).await;
+            // });
+
+            // println!("\n\nOriginal panic hook triggered\n\n");
+            // warn!("\n\nOriginal panic hook triggered\n\n");
+            // // Continue with the original panic behaviour
+            original_panic_hook(panic_info);
+        }));
+    }
+
+    pub async fn sequencer_set_graceful_shutdown_behaviour(&self) {
+        let mempool_clone = self.mempool.clone();
+        let db_config = self.config.db_config.clone();
+        tokio::spawn(async move {
+            // Wait for the Ctrl+C signal
+            warn!("Waiting for Ctrl+C...");
+            signal::ctrl_c().await.expect("Failed to listen for ctrl_c");
+            warn!("Ctrl+C received");
+            // Perform your action upon receiving Ctrl+C
+            let all_txs = mempool_clone.all_transactions();
+            sequencer_crash_handler(all_txs, db_config).await;
+            // Signal the system to shut down
+            std::process::exit(0);
+        });
+    }
+
     pub async fn compare_commitments_from_db(
         &self,
         db_config: SharedBackupDbConfig,
@@ -753,3 +862,85 @@ where
         }
     }
 }
+
+pub async fn sequencer_crash_handler(
+    all_txs: AllPoolTransactions<EthPooledTransaction>,
+    db_config: Option<SharedBackupDbConfig>,
+) {
+    let mut pending_txs = vec![];
+
+    // write txs to a file in a way that can be read from the file and put back in to mempool when the node is opened back up
+    for tx in all_txs.pending_recovered() {
+        println!("\n\nencoding and storing pending txs\n\n");
+        // encode rlp
+        let mut rlp_encoded_tx = Vec::new();
+        tx.to_recovered_transaction()
+            .into_signed()
+            .encode(&mut rlp_encoded_tx);
+        pending_txs.push(rlp_encoded_tx.clone());
+
+        let decoded = TransactionSigned::decode(&mut rlp_encoded_tx.as_slice()).unwrap();
+        let signed_ec_recovered = decoded.into_ecrecovered().unwrap();
+
+        let length_without_header = signed_ec_recovered.length_without_header();
+        let pooled_tx = EthPooledTransaction::new(signed_ec_recovered, length_without_header);
+
+        println!("{:?}", pooled_tx);
+    }
+    let mut queued_txs = vec![];
+    // store queued txs
+    for tx in all_txs.queued_recovered() {
+        // encode rlp
+        let mut rlp_encoded_tx = Vec::new();
+        tx.to_recovered_transaction()
+            .into_signed()
+            .encode(&mut rlp_encoded_tx);
+        queued_txs.push(rlp_encoded_tx.clone());
+        println!("Queued tx: {:?}", tx);
+    }
+
+    let rt = TokioRuntime::new().unwrap();
+    // store the txs in the db
+    let db_config = db_config.clone().unwrap();
+    rt.spawn(async move {
+        let client = PostgresConnector::new(db_config).await.unwrap();
+        // TODO: Update insertion and handle insert in single request/transaction
+        for tx in pending_txs {
+            client.insert_mempool_tx(tx).await.unwrap();
+        }
+
+        for tx in queued_txs {
+            client.insert_mempool_tx(tx).await.unwrap();
+        }
+    });
+}
+
+// #[tokio::test]
+// async fn test_sequencer_crash_handler() {
+//     let sequencer = CitreaSequencer::<_, _, _, _, _>::new(
+//         Default::default(),
+//         PrivateKey::from_slice(&[1; 32]).unwrap(),
+//         Default::default(),
+//         Default::default(),
+//         Default::default(),
+//         Default::default(),
+//         InitVariant::Genesis(Default::default()),
+//         vec![],
+//         LedgerDB::new(),
+//         Default::default(),
+//     );
+//     // let tx = EthPooledTransaction::new(
+//     //     TransactionSigned::new(
+//     //         Transaction::new(vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10]),
+//     //         PrivateKey::from_slice(&[1; 32]).unwrap(),
+//     //     ),
+//     //     10,
+//     // );
+
+//     // let all_txs = AllPoolTransactions {
+//     //     pending: vec![tx.clone()],
+//     //     queued: vec![tx.clone()],
+//     // };
+
+//     // sequencer_crash_handler(all_txs, None).await;
+// }

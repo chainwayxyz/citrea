@@ -1690,6 +1690,7 @@ dependencies = [
 name = "citrea-sequencer"
 version = "0.3.0"
 dependencies = [
+ "alloy-rlp",
  "anyhow",
  "bitcoin-da",
  "borsh",
