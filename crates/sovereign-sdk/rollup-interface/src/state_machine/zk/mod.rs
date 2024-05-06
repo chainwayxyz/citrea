@@ -111,7 +111,6 @@ pub trait ValidityCondition:
     fn combine<H: Digest>(&self, rhs: Self) -> Result<Self, Self::Error>;
 }
 
-// TODO: add da slot hash that the sequencer commitments causing this state transition were found in
 /// The public output of a SNARK proof in Sovereign, this struct makes a claim that
 /// the state of the rollup has transitioned from `initial_state_root` to `final_state_root`
 /// if and only if the condition `validity_condition` is satisfied.

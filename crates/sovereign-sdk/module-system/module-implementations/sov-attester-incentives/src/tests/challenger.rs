@@ -1,4 +1,3 @@
-use borsh::BorshSerialize;
 use sov_mock_da::{MockDaSpec, MockValidityCond, MockValidityCondChecker};
 use sov_mock_zkvm::{MockCodeCommitment, MockProof, MockZkvm};
 use sov_modules_api::default_context::DefaultContext;
@@ -70,7 +69,7 @@ fn test_valid_challenge() {
             state_diff: vec![],
         };
 
-        let serialized_transition = transition.try_to_vec().unwrap();
+        let serialized_transition = bincode::serialize(&transition).unwrap();
 
         let commitment = module
             .commitment_to_allowed_challenge_method
@@ -199,7 +198,7 @@ fn test_invalid_challenge() {
         state_diff: vec![],
     };
 
-    let serialized_transition = transition.try_to_vec().unwrap();
+    let serialized_transition = bincode::serialize(&transition).unwrap();
 
     let commitment = module
         .commitment_to_allowed_challenge_method
@@ -252,14 +251,13 @@ fn test_invalid_challenge() {
         );
 
         // Bad slot hash
-        let bad_transition = StateTransition::<MockDaSpec, _> {
+        let bad_transition = bincode::serialize(&StateTransition::<MockDaSpec, _> {
             initial_state_root: initial_transition.state_root,
             da_slot_hash: [2; 32].into(),
             final_state_root: transition_1.state_root,
             validity_condition: MockValidityCond { is_valid: true },
             state_diff: vec![],
-        }
-        .try_to_vec()
+        })
         .unwrap();
 
         // An invalid proof
@@ -280,14 +278,13 @@ fn test_invalid_challenge() {
         );
 
         // Bad validity condition
-        let bad_transition = StateTransition::<MockDaSpec, _> {
+        let bad_transition = bincode::serialize(&StateTransition::<MockDaSpec, _> {
             initial_state_root: initial_transition.state_root,
             da_slot_hash: [1; 32].into(),
             final_state_root: transition_1.state_root,
             validity_condition: MockValidityCond { is_valid: false },
             state_diff: vec![],
-        }
-        .try_to_vec()
+        })
         .unwrap();
 
         // An invalid proof
@@ -308,14 +305,13 @@ fn test_invalid_challenge() {
         );
 
         // Bad initial root
-        let bad_transition = StateTransition::<MockDaSpec, _> {
+        let bad_transition = bincode::serialize(&StateTransition::<MockDaSpec, _> {
             initial_state_root: transition_1.state_root,
             da_slot_hash: [1; 32].into(),
             final_state_root: transition_1.state_root,
             validity_condition: MockValidityCond { is_valid: true },
             state_diff: vec![],
-        }
-        .try_to_vec()
+        })
         .unwrap();
 
         // An invalid proof
