@@ -8,7 +8,6 @@ use std::sync::{Arc, Condvar, Mutex};
 use anyhow::ensure;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
-use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::zk::{Matches, StateTransitionData, ValidityCondition};
 
 /// A mock commitment to a particular zkVM program.
