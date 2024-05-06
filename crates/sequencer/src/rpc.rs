@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use alloy_rlp::Encodable;
 use citrea_evm::Evm;
 use futures::channel::mpsc::UnboundedSender;
 use jsonrpsee::core::Error as RpcError;
@@ -10,6 +11,7 @@ use reth_primitives::{Bytes, FromRecoveredPooledTransaction, IntoRecoveredTransa
 use reth_rpc::eth::error::EthApiError;
 use reth_rpc_types_compat::transaction::from_recovered;
 use reth_transaction_pool::EthPooledTransaction;
+use shared_backup_db::PostgresConnector;
 use sov_mock_da::{MockAddress, MockDaService};
 use sov_modules_api::WorkingSet;
 use tokio::sync::Mutex;
@@ -25,6 +27,7 @@ pub(crate) struct RpcContext<C: sov_modules_api::Context> {
     pub l2_force_block_tx: UnboundedSender<()>,
     pub storage: C::Storage,
     pub test_mode: bool,
+    pub pg_pool: Option<Arc<PostgresConnector>>,
 }
 
 pub(crate) fn create_rpc_module<C: sov_modules_api::Context>(
@@ -45,9 +48,22 @@ pub(crate) fn create_rpc_module<C: sov_modules_api::Context>(
         // submit the transaction to the pool with an `External` origin
         let hash: B256 = ctx
             .mempool
-            .add_external_transaction(pool_transaction)
+            .add_external_transaction(pool_transaction.clone())
             .await
             .map_err(EthApiError::from)?;
+
+        if let Some(pool) = &ctx.pg_pool {
+            let mut rlp_encoded_tx = Vec::new();
+            pool_transaction
+                .to_recovered_transaction()
+                .into_signed()
+                .encode(&mut rlp_encoded_tx);
+            // Do not return error here just log
+            match pool.insert_mempool_tx(hash.to_vec(), rlp_encoded_tx).await {
+                Ok(_) => (),
+                Err(e) => tracing::warn!("Failed to insert mempool tx into db: {:?}", e),
+            };
+        }
 
         Ok::<B256, ErrorObjectOwned>(hash)
     })?;

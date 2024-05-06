@@ -12,6 +12,7 @@ publish = false
 resolver = "2"
 
 [dependencies]
+alloy-rlp = { workspace = true }
 anyhow = { workspace = true }
 borsh = { workspace = true }
 chrono = { workspace = true }

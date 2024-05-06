@@ -11,6 +11,7 @@ use crate::tables::{
 };
 use crate::utils::get_db_extension;
 
+#[derive(Clone)]
 pub struct PostgresConnector {
     client: Pool,
 }
@@ -199,6 +200,16 @@ impl PostgresConnector {
         )))
     }
 
+    pub async fn delete_txs_by_tx_hashes(&self, tx_hashes: Vec<Vec<u8>>) -> Result<u64, PoolError> {
+        let client = self.client().await.map_err(|e| e)?;
+        Ok(client
+            .execute(
+                "DELETE FROM mempool_txs WHERE tx_hash = ANY($1);",
+                &[&tx_hashes],
+            )
+            .await?)
+    }
+
     pub async fn drop_table(&self, table: Tables) -> Result<u64, PoolError> {
         let client = self.client().await.map_err(|e| e)?;
         Ok(client
@@ -297,6 +308,32 @@ mod tests {
             DbMempoolTx {
                 tx_hash: vec![1, 2, 3],
                 tx: vec![1, 2, 4]
+            }
+        );
+
+        client
+            .insert_mempool_tx(vec![3, 4, 5], vec![10, 20, 42])
+            .await
+            .unwrap();
+
+        client
+            .insert_mempool_tx(vec![5, 6, 7], vec![12, 22, 42])
+            .await
+            .unwrap();
+
+        client
+            .delete_txs_by_tx_hashes(vec![vec![1, 2, 3], vec![5, 6, 7]])
+            .await
+            .unwrap();
+
+        let txs = client.get_all_txs().await.unwrap();
+
+        assert_eq!(txs.len(), 1);
+        assert_eq!(
+            txs[0],
+            DbMempoolTx {
+                tx_hash: vec![3, 4, 5],
+                tx: vec![10, 20, 42]
             }
         );
     }

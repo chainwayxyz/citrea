@@ -14,6 +14,7 @@ resolver = "2"
 [dependencies]
 anyhow = { workspace = true }
 postgres = "0.19.7"
+deadpool = "0.12.0"
 deadpool-postgres = { workspace = true }
 serde = { workspace = true }
 tokio = { workspace = true }
