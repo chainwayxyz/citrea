@@ -695,6 +695,7 @@ where
             }
         }
     }
+
     async fn submit_commitment(
         &self,
         last_finalized_height: u64,
