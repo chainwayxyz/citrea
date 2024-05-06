@@ -796,7 +796,7 @@ where
             }
         };
 
-        let _ = sender.send(l1_data);
+        let _ = sender.send(l1_data).await;
 
         sleep(Duration::from_secs(2)).await;
     }
