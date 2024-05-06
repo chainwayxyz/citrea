@@ -1,6 +1,5 @@
 use reth_primitives::revm_primitives::TxEnv;
 use reth_primitives::{TransactionSigned, TransactionSignedEcRecovered, TxHash, U256};
-use reth_revm::tracing::{FourByteInspector, TracingInspector, TracingInspectorConfig};
 use reth_rpc_types::trace::geth::{
     FourByteFrame, GethDebugBuiltInTracerType, GethDebugTracerType, GethDebugTracingOptions,
     GethTrace, NoopFrame,
@@ -9,6 +8,7 @@ use revm::precompile::{PrecompileSpecId, Precompiles};
 use revm::primitives::db::Database;
 use revm::primitives::{Address, CfgEnvWithHandlerCfg, EVMError, ResultAndState, SpecId};
 use revm::{inspector_handle_register, Inspector};
+use revm_inspectors::tracing::{FourByteInspector, TracingInspector, TracingInspectorConfig};
 
 use crate::error::rpc::{EthApiError, EthResult};
 use crate::evm::db::EvmDb;

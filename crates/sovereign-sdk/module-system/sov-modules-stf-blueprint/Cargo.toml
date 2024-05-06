@@ -35,3 +35,6 @@ sov-blob-storage = { path = "../module-implementations/sov-blob-storage" }
 bench = ["sov-zk-cycle-macros", "risc0-zkvm", "risc0-zkvm-platform"]
 default = []
 native = ["sov-state/native", "sov-modules-api/native", "jsonrpsee", "sov-chain-state/native", "sov-blob-storage/native"]
+
+[package.metadata.cargo-udeps.ignore]
+normal = ["risc0-zkvm", "risc0-zkvm-platform", "sov-zk-cycle-macros", "sov-zk-cycle-utils"]

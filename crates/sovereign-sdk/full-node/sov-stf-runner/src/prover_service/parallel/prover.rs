@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use std::ops::Deref;
 use std::sync::{Arc, RwLock};
 
+use anyhow::anyhow;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
@@ -89,20 +90,23 @@ where
     StateRoot: Serialize + DeserializeOwned + Clone + AsRef<[u8]> + Send + Sync + 'static,
     Witness: Serialize + DeserializeOwned + Send + Sync + 'static,
 {
-    pub(crate) fn new(num_threads: usize, _aggregated_proof_block_jump: u64) -> Self {
-        Self {
+    pub(crate) fn new(
+        num_threads: usize,
+        _aggregated_proof_block_jump: u64,
+    ) -> anyhow::Result<Self> {
+        Ok(Self {
             num_threads,
             pool: rayon::ThreadPoolBuilder::new()
                 .num_threads(num_threads)
                 .build()
-                .unwrap(),
+                .map_err(|e| anyhow!(e))?,
 
             prover_state: Arc::new(RwLock::new(ProverState {
                 prover_status: Default::default(),
                 pending_tasks_count: Default::default(),
             })),
             _aggregated_proof_block_jump,
-        }
+        })
     }
 
     pub(crate) fn submit_witness(

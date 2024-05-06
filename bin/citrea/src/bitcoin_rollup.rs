@@ -133,5 +133,6 @@ impl RollupBlueprint for BitcoinRollup {
             zk_storage,
             rollup_config.prover_service,
         )
+        .expect("Should be able to instantiate prover service")
     }
 }

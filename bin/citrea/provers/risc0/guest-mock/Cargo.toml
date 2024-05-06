@@ -8,8 +8,8 @@ resolver = "2"
 
 [dependencies]
 anyhow = "1.0.68"
-risc0-zkvm = { version = "0.20", default-features = false, features = ["std"] }
-risc0-zkvm-platform = "0.20"
+risc0-zkvm = { version = "0.21", default-features = false, features = ["std"] }
+risc0-zkvm-platform = "0.21"
 sov-mock-da = { path = "../../../../../crates/sovereign-sdk/adapters/mock-da" }
 citrea-stf = { path = "../../../../../crates/citrea-stf" }
 sov-risc0-adapter = { path = "../../../../../crates/sovereign-sdk/adapters/risc0" }

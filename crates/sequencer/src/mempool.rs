@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use anyhow::{anyhow, bail};
 use citrea_evm::SYSTEM_SIGNER;
 use reth_primitives::{Chain, ChainSpecBuilder, Genesis, TxHash};
 use reth_tasks::TokioTaskExecutor;
@@ -25,30 +26,40 @@ type Transaction<C> = <CitreaMempoolImpl<C> as TransactionPool>::Transaction;
 pub(crate) struct CitreaMempool<C: sov_modules_api::Context>(CitreaMempoolImpl<C>);
 
 impl<C: sov_modules_api::Context> CitreaMempool<C> {
-    pub(crate) fn new(client: DbProvider<C>, mempool_conf: SequencerMempoolConfig) -> Self {
+    pub(crate) fn new(
+        client: DbProvider<C>,
+        mempool_conf: SequencerMempoolConfig,
+    ) -> anyhow::Result<Self> {
         let blob_store = NoopBlobStore::default();
-        let genesis_block = client.genesis_block().unwrap().unwrap();
+        let genesis_block = client
+            .genesis_block()
+            .map(|b| b.ok_or(anyhow!("Genesis block does not exist")))
+            .map_err(|e| anyhow!("{e}"))??;
         let evm_config = client.cfg();
-
+        let Some(nonce) = genesis_block.header.nonce else {
+            bail!("Genesis nonce is not set");
+        };
+        let Some(genesis_mix_hash) = genesis_block.header.mix_hash else {
+            bail!("Genesis mix_hash is not set");
+        };
         let chain_spec = ChainSpecBuilder::default()
             .chain(Chain::from_id(evm_config.chain_id))
             .shanghai_activated()
             .genesis(
                 Genesis::default()
-                    .with_nonce(genesis_block.header.nonce.unwrap().into())
+                    .with_nonce(nonce.into())
                     .with_timestamp(genesis_block.header.timestamp.saturating_to())
                     .with_extra_data(genesis_block.header.extra_data)
                     .with_gas_limit(genesis_block.header.gas_limit.saturating_to())
                     .with_difficulty(genesis_block.header.difficulty)
-                    .with_mix_hash(genesis_block.header.mix_hash.unwrap())
+                    .with_mix_hash(genesis_mix_hash)
                     .with_coinbase(genesis_block.header.miner)
-                    .with_base_fee(Some(
+                    .with_base_fee(
                         genesis_block
                             .header
                             .base_fee_per_gas
-                            .unwrap()
-                            .saturating_to(),
-                    )),
+                            .map(|f| f.saturating_to()),
+                    ),
             )
             .build();
 
@@ -75,7 +86,7 @@ impl<C: sov_modules_api::Context> CitreaMempool<C> {
             ..pool_config
         };
 
-        Self(Pool::eth_pool(
+        Ok(Self(Pool::eth_pool(
             TransactionValidationTaskExecutor::eth(
                 client,
                 Arc::new(chain_spec),
@@ -84,7 +95,7 @@ impl<C: sov_modules_api::Context> CitreaMempool<C> {
             ),
             blob_store,
             pool_config,
-        ))
+        )))
     }
 
     pub(crate) async fn add_external_transaction(

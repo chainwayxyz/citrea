@@ -264,7 +264,7 @@ impl<C: sov_modules_api::Context> GasPriceOracle<C> {
         let mut results = Vec::new();
         let mut populated_blocks = 0;
 
-        let header_number = convert_u256_to_u64(header.number.unwrap());
+        let header_number: u64 = header.number.unwrap().saturating_to();
 
         // we only check a maximum of 2 * max_block_history, or the number of blocks in the chain
         let max_blocks = if self.oracle_config.max_block_history * 2 > header_number {
@@ -456,15 +456,6 @@ pub(crate) fn effective_gas_tip(
     }
 }
 
-/// Takes only 8 least significant bytes
-pub fn convert_u256_to_u64(u256: U256) -> u64 {
-    let bytes: [u8; 32] = u256.to_be_bytes();
-    // 32 - 24 = 8, so it should always fit into destination array.
-    // Unless allocation or something weird
-    let bytes: [u8; 8] = bytes[24..].try_into().unwrap();
-    u64::from_be_bytes(bytes)
-}
-
 #[allow(dead_code)]
 pub(crate) fn convert_u64_to_u256(u64: u64) -> reth_primitives::U256 {
     let bytes: [u8; 8] = u64.to_be_bytes();
@@ -481,8 +472,6 @@ pub(crate) fn convert_u256_to_u128(u256: reth_primitives::U256) -> Result<u128, 
 
 #[cfg(test)]
 mod tests {
-    use proptest::arbitrary::any;
-    use proptest::proptest;
     use reth_primitives::constants::GWEI_TO_WEI;
 
     use super::*;
@@ -496,29 +485,5 @@ mod tests {
     #[test]
     fn ignore_price_sanity() {
         assert_eq!(DEFAULT_IGNORE_PRICE, U256::from(2u64));
-    }
-
-    proptest! {
-
-        #[test]
-        fn converts_back_and_forth(input in any::<u64>()) {
-            let mut bytes: [u8; 32] = [0; 32];
-            for (i, b) in input.to_be_bytes().into_iter().enumerate() {
-                let idx = 24 + i;
-                bytes[idx] = b;
-            }
-
-
-            let u256 = U256::from_be_slice(&bytes);
-            let output = convert_u256_to_u64(u256);
-
-            assert_eq!(input, output);
-        }
-
-        #[test]
-        fn convert_u256_to_u64_doesnt_panic(input in any::<[u8; 32]>()) {
-            let u256 = U256::from_be_slice(&input);
-            let _output = convert_u256_to_u64(u256);
-        }
     }
 }

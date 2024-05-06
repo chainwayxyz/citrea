@@ -19,7 +19,7 @@ sov-blob-storage = { path = "../module-implementations/sov-blob-storage" }
 sov-chain-state = { path = "../module-implementations/sov-chain-state" }
 
 [features]
-default = []
+default = ["native"]
 native = [
 	"sov-state/native",
 	"sov-modules-api/native",
