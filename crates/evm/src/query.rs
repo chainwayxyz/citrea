@@ -874,6 +874,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let request_gas = request.gas;
         let request_gas_price = request.gas_price;
         let env_gas_limit = block_env.gas_limit;
+        let env_base_fee = U256::from(block_env.basefee);
 
         // get the highest possible gas limit, either the request's set value or the currently
         // configured gas limit
@@ -916,7 +917,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                         if res.result.is_success() {
                             return Ok(EstimatedGas {
                                 gas: U64::from(MIN_TRANSACTION_GAS),
-                                l1_fee: tx_info.l1_fee,
+                                l1_fee: U256::from(1).max(tx_info.l1_fee / env_base_fee),
                             });
                         }
                     }
@@ -1093,7 +1094,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         Ok(EstimatedGas {
             gas: reth_primitives::U64::from(highest_gas_limit),
-            l1_fee,
+            l1_fee: U256::from(1).max(l1_fee / env_base_fee),
         })
     }
 
