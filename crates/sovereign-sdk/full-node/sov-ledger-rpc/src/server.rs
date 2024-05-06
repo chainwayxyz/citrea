@@ -43,7 +43,7 @@ where
 {
     let mut rpc = RpcModule::new(ledger);
 
-    rpc.register_method("ledger_getHead", move |params, ledger| {
+    rpc.register_async_method("ledger_getHead", |params, ledger| async move {
         let mut params = params.sequence();
         let query_mode = params.optional_next()?.unwrap_or(QueryMode::Compact);
         ledger
@@ -52,50 +52,51 @@ where
     })?;
 
     // Primary getters.
-    rpc.register_method("ledger_getSlots", move |params, ledger| {
+    rpc.register_async_method("ledger_getSlots", |params, ledger| async move {
         let args: QueryArgs<Vec<SlotIdentifier>> = extract_query_args(params)?;
         ledger
             .get_slots::<B, Tx>(&args.0, args.1)
             .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
     })?;
-    rpc.register_method("ledger_getBatches", move |params, ledger| {
+    rpc.register_async_method("ledger_getBatches", |params, ledger| async move {
         let args: QueryArgs<Vec<BatchIdentifier>> = extract_query_args(params)?;
         ledger
             .get_batches::<B, Tx>(&args.0, args.1)
             .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
     })?;
-    rpc.register_method("ledger_getTransactions", move |params, ledger| {
+    rpc.register_async_method("ledger_getTransactions", |params, ledger| async move {
         let args: QueryArgs<Vec<TxIdentifier>> = extract_query_args(params)?;
         ledger
             .get_transactions::<Tx>(&args.0, args.1)
             .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
     })?;
-    rpc.register_method("ledger_getEvents", move |params, db| {
+    rpc.register_async_method("ledger_getEvents", |params, ledger| async move {
         let ids: Vec<EventIdentifier> = params.parse().or_else(|_| params.one())?;
-        db.get_events(&ids)
+        ledger
+            .get_events(&ids)
             .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
     })?;
 
     // By-hash getters.
-    rpc.register_method("ledger_getSlotByHash", move |params, ledger| {
+    rpc.register_async_method("ledger_getSlotByHash", |params, ledger| async move {
         let args: QueryArgs<HexHash> = extract_query_args(params)?;
         ledger
             .get_slot_by_hash::<B, Tx>(&args.0 .0, args.1)
             .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
     })?;
-    rpc.register_method("ledger_getSoftBatchByHash", move |params, ledger| {
+    rpc.register_async_method("ledger_getSoftBatchByHash", |params, ledger| async move {
         let args: QueryArgs<HexHash> = extract_query_args(params)?;
         ledger
             .get_soft_batch_by_hash::<Tx>(&args.0 .0)
             .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
     })?;
-    rpc.register_method("ledger_getBatchByHash", move |params, ledger| {
+    rpc.register_async_method("ledger_getBatchByHash", |params, ledger| async move {
         let args: QueryArgs<HexHash> = extract_query_args(params)?;
         ledger
             .get_batch_by_hash::<B, Tx>(&args.0 .0, args.1)
             .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
     })?;
-    rpc.register_method("ledger_getTransactionByHash", move |params, ledger| {
+    rpc.register_async_method("ledger_getTransactionByHash", |params, ledger| async move {
         let args: QueryArgs<HexHash> = extract_query_args(params)?;
         ledger
             .get_tx_by_hash::<Tx>(&args.0 .0, args.1)
@@ -103,31 +104,34 @@ where
     })?;
 
     // By-number getters.
-    rpc.register_method("ledger_getSlotByNumber", move |params, ledger| {
+    rpc.register_async_method("ledger_getSlotByNumber", |params, ledger| async move {
         let args: QueryArgs<u64> = extract_query_args(params)?;
         ledger
             .get_slot_by_number::<B, Tx>(args.0, args.1)
             .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
     })?;
-    rpc.register_method("ledger_getSoftBatchByNumber", move |params, ledger| {
+    rpc.register_async_method("ledger_getSoftBatchByNumber", |params, ledger| async move {
         let args: QueryArgs<u64> = extract_query_args(params)?;
         ledger
             .get_soft_batch_by_number::<Tx>(args.0)
             .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
     })?;
-    rpc.register_method("ledger_getBatchByNumber", move |params, ledger| {
+    rpc.register_async_method("ledger_getBatchByNumber", |params, ledger| async move {
         let args: QueryArgs<u64> = extract_query_args(params)?;
         ledger
             .get_batch_by_number::<B, Tx>(args.0, args.1)
             .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
     })?;
-    rpc.register_method("ledger_getTransactionByNumber", move |params, ledger| {
-        let args: QueryArgs<u64> = extract_query_args(params)?;
-        ledger
-            .get_tx_by_number::<Tx>(args.0, args.1)
-            .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
-    })?;
-    rpc.register_method("ledger_getEventByNumber", move |params, ledger| {
+    rpc.register_async_method(
+        "ledger_getTransactionByNumber",
+        |params, ledger| async move {
+            let args: QueryArgs<u64> = extract_query_args(params)?;
+            ledger
+                .get_tx_by_number::<Tx>(args.0, args.1)
+                .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
+        },
+    )?;
+    rpc.register_async_method("ledger_getEventByNumber", |params, ledger| async move {
         let args: u64 = params.one()?;
         ledger
             .get_event_by_number(args)
@@ -135,36 +139,39 @@ where
     })?;
 
     // Range getters.
-    rpc.register_method("ledger_getSlotsRange", move |params, ledger| {
+    rpc.register_async_method("ledger_getSlotsRange", |params, ledger| async move {
         let args: RangeArgs = params.parse()?;
         ledger
             .get_slots_range::<B, Tx>(args.0, args.1, args.2)
             .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
     })?;
-    rpc.register_method("ledger_getBatchesRange", move |params, ledger| {
+    rpc.register_async_method("ledger_getBatchesRange", |params, ledger| async move {
         let args: RangeArgs = params.parse()?;
         ledger
             .get_batches_range::<B, Tx>(args.0, args.1, args.2)
             .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
     })?;
-    rpc.register_method("ledger_getSoftBatchRange", move |params, ledger| {
+    rpc.register_async_method("ledger_getSoftBatchRange", |params, ledger| async move {
         let args: (u64, u64) = params.parse()?;
         ledger
             .get_soft_batches_range(args.0, args.1)
             .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
     })?;
-    rpc.register_method("ledger_getTransactionsRange", move |params, ledger| {
+    rpc.register_async_method("ledger_getTransactionsRange", |params, ledger| async move {
         let args: RangeArgs = params.parse()?;
         ledger
             .get_transactions_range::<Tx>(args.0, args.1, args.2)
             .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
     })?;
-    rpc.register_method("ledger_getSoftConfirmationStatus", move |params, ledger| {
-        let args: QueryArgs<u64> = extract_query_args(params)?;
-        ledger
-            .get_soft_confirmation_status(args.0)
-            .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
-    })?;
+    rpc.register_async_method(
+        "ledger_getSoftConfirmationStatus",
+        |params, ledger| async move {
+            let args: QueryArgs<u64> = extract_query_args(params)?;
+            ledger
+                .get_soft_confirmation_status(args.0)
+                .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
+        },
+    )?;
 
     rpc.register_subscription(
         "ledger_subscribeSlots",

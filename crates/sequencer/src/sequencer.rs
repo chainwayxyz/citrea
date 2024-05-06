@@ -6,8 +6,9 @@ use std::sync::Arc;
 use std::time::Duration;
 use std::vec;
 
+use anyhow::anyhow;
 use borsh::ser::BorshSerialize;
-use citrea_evm::{CallMessage, RlpEvmTransaction};
+use citrea_evm::{CallMessage, Evm, RlpEvmTransaction};
 use citrea_stf::runtime::Runtime;
 use digest::Digest;
 use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
@@ -37,7 +38,7 @@ use sov_stf_runner::{InitVariant, RpcConfig, RunnerConfig};
 use tokio::sync::oneshot::Receiver as OneshotReceiver;
 use tokio::sync::Mutex;
 use tokio::time::sleep;
-use tracing::{debug, info, warn};
+use tracing::{debug, error, info, warn};
 
 use crate::commitment_controller::{self, CommitmentInfo};
 use crate::config::SequencerConfig;
@@ -105,7 +106,7 @@ where
         sequencer_pub_key: Vec<u8>,
         ledger_db: LedgerDB,
         runner_config: RunnerConfig,
-    ) -> Result<Self, anyhow::Error> {
+    ) -> anyhow::Result<Self> {
         let (l2_force_block_tx, l2_force_block_rx) = unbounded();
 
         let prev_state_root = match init_variant {
@@ -130,7 +131,7 @@ where
         // used as client of reth's mempool
         let db_provider = DbProvider::new(storage.clone());
 
-        let pool = CitreaMempool::new(db_provider.clone(), config.mempool_conf.clone());
+        let pool = CitreaMempool::new(db_provider.clone(), config.mempool_conf.clone())?;
 
         let deposit_mempool = DepositDataMempool::new();
 
@@ -157,14 +158,14 @@ where
         &self,
         channel: Option<tokio::sync::oneshot::Sender<SocketAddr>>,
         methods: RpcModule<()>,
-    ) -> Result<(), anyhow::Error> {
+    ) -> anyhow::Result<()> {
         let methods = self.register_rpc_methods(methods)?;
 
         let listen_address = SocketAddr::new(
             self.rpc_config
                 .bind_host
                 .parse()
-                .expect("Failed to parse bind host"),
+                .map_err(|e| anyhow!("Failed to parse bind host: {}", e))?,
             self.rpc_config.bind_port,
         );
 
@@ -174,17 +175,32 @@ where
             let server = jsonrpsee::server::ServerBuilder::default()
                 .max_connections(max_connections)
                 .build([listen_address].as_ref())
-                .await
-                .unwrap();
+                .await;
 
-            let bound_address = server.local_addr().unwrap();
-            if let Some(channel) = channel {
-                channel.send(bound_address).unwrap();
+            match server {
+                Ok(server) => {
+                    let bound_address = match server.local_addr() {
+                        Ok(address) => address,
+                        Err(e) => {
+                            error!("{}", e);
+                            return;
+                        }
+                    };
+                    if let Some(channel) = channel {
+                        if let Err(e) = channel.send(bound_address) {
+                            error!("Could not send bound_address {}: {}", bound_address, e);
+                            return;
+                        }
+                    }
+                    info!("Starting RPC server at {} ", &bound_address);
+
+                    let _server_handle = server.start(methods);
+                    futures::future::pending::<()>().await;
+                }
+                Err(e) => {
+                    error!("Could not start RPC server: {}", e);
+                }
             }
-            info!("Starting RPC server at {} ", &bound_address);
-
-            let _server_handle = server.start(methods);
-            futures::future::pending::<()>().await;
         });
         Ok(())
     }
@@ -194,12 +210,12 @@ where
         da_block: <Da as DaService>::FilteredBlock,
         l1_fee_rate: u64,
         l2_block_mode: L2BlockMode,
-    ) -> Result<(), anyhow::Error> {
+    ) -> anyhow::Result<()> {
         let da_height = da_block.header().height();
         let (l2_height, l1_height) = match self
             .ledger_db
             .get_head_soft_batch()
-            .expect("Sequencer: Failed to get head soft batch")
+            .map_err(|e| anyhow!("Failed to get head soft batch: {}", e))?
         {
             Some((l2_height, sb)) => (l2_height.0 + 1, sb.da_slot_height),
             None => (0, da_height),
@@ -210,6 +226,11 @@ where
         );
 
         let timestamp = chrono::Local::now().timestamp() as u64;
+        let pub_key = self
+            .sov_tx_signer_priv_key
+            .pub_key()
+            .try_to_vec()
+            .map_err(Into::<anyhow::Error>::into)?;
 
         let deposit_data = self
             .deposit_mempool
@@ -220,8 +241,8 @@ where
             da_slot_hash: da_block.header().hash().into(),
             da_slot_txs_commitment: da_block.header().txs_commitment().into(),
             pre_state_root: self.state_root.clone().as_ref().to_vec(),
-            pub_key: self.sov_tx_signer_priv_key.pub_key().try_to_vec().unwrap(),
             deposit_data,
+            pub_key,
             l1_fee_rate,
             timestamp,
         };
@@ -231,8 +252,7 @@ where
         let prestate = self
             .storage_manager
             .create_storage_on_l2_height(l2_height)
-            .unwrap();
-
+            .map_err(Into::<anyhow::Error>::into)?;
         info!(
             "Applying soft batch on DA block: {}",
             hex::encode(da_block.header().hash().into())
@@ -258,7 +278,7 @@ where
 
                 let rlp_txs = match l2_block_mode {
                     L2BlockMode::Empty => vec![],
-                    L2BlockMode::NotEmpty => self.get_best_transactions(system_tx_gas_usage),
+                    L2BlockMode::NotEmpty => self.get_best_transactions(system_tx_gas_usage)?,
                 };
                 debug!(
                     "Sequencer: publishing block with {} transactions",
@@ -267,7 +287,7 @@ where
                 let call_txs = CallMessage { txs: rlp_txs };
                 let raw_message =
                     <Runtime<C, Da::Spec> as EncodeCall<citrea_evm::Evm<C>>>::encode_call(call_txs);
-                let signed_blob = self.make_blob(raw_message);
+                let signed_blob = self.make_blob(raw_message)?;
                 let txs = vec![signed_blob.clone()];
 
                 let (batch_workspace, tx_receipts) =
@@ -285,7 +305,7 @@ where
                     timestamp,
                 );
 
-                let mut signed_soft_batch = self.sign_soft_confirmation_batch(unsigned_batch);
+                let mut signed_soft_batch = self.sign_soft_confirmation_batch(unsigned_batch)?;
 
                 let (batch_receipt, checkpoint) = self.stf.end_soft_batch(
                     self.sequencer_pub_key.as_ref(),
@@ -293,6 +313,17 @@ where
                     tx_receipts,
                     batch_workspace,
                 );
+
+                // before finalize we can get tx hashes that failed due to L1 fees.
+                let evm = Evm::<C>::default();
+
+                // nasty hack to access state
+                let mut intermediary_working_set = checkpoint.to_revertable();
+
+                let l1_fee_failed_txs =
+                    evm.get_l1_fee_failed_txs(&mut intermediary_working_set.accessory_state());
+
+                let checkpoint = intermediary_working_set.checkpoint();
 
                 // Finalize soft confirmation
                 let slot_result = self.stf.finalize_soft_batch(
@@ -358,16 +389,16 @@ where
 
                 self.ledger_db.commit_soft_batch(soft_batch_receipt, true)?;
 
-                self.mempool
-                    .remove_transactions(self.db_provider.last_block_tx_hashes());
+                let mut txs_to_remove = self.db_provider.last_block_tx_hashes()?;
+                txs_to_remove.extend(l1_fee_failed_txs);
+
+                self.mempool.remove_transactions(txs_to_remove);
 
                 // connect L1 and L2 height
-                self.ledger_db
-                    .extend_l2_range_of_l1_slot(
-                        SlotNumber(da_block.header().height()),
-                        BatchNumber(l2_height),
-                    )
-                    .expect("Sequencer: Failed to set L1 L2 connection");
+                self.ledger_db.extend_l2_range_of_l1_slot(
+                    SlotNumber(da_block.header().height()),
+                    BatchNumber(l2_height),
+                )?;
             }
             (Err(err), batch_workspace) => {
                 warn!(
@@ -380,7 +411,7 @@ where
         Ok(())
     }
 
-    pub async fn build_block(&mut self) -> Result<(), anyhow::Error> {
+    pub async fn build_block(&mut self) -> anyhow::Result<()> {
         // best txs with base fee
         // get base fee from last blocks => header => next base fee() function
 
@@ -394,12 +425,12 @@ where
                 self.da_service
                     .get_last_finalized_block_header()
                     .await
-                    .unwrap()
+                    .map_err(|e| anyhow!(e))?
                     .height(),
             );
         }
 
-        let prev_l1_height = prev_l1_height.unwrap();
+        let prev_l1_height = prev_l1_height.expect("Should be set at this point");
 
         debug!("Sequencer: prev L1 height: {:?}", prev_l1_height);
 
@@ -407,7 +438,7 @@ where
             .da_service
             .get_last_finalized_block_header()
             .await
-            .unwrap()
+            .map_err(|e| anyhow!(e))?
             .height();
 
         debug!(
@@ -415,7 +446,11 @@ where
             last_finalized_height
         );
 
-        let l1_fee_rate = self.da_service.get_fee_rate().await.unwrap();
+        let l1_fee_rate = self
+            .da_service
+            .get_fee_rate()
+            .await
+            .map_err(|e| anyhow!(e))?;
 
         let new_da_block = match last_finalized_height.cmp(&prev_l1_height) {
             Ordering::Less => {
@@ -431,7 +466,11 @@ where
                             "Sequencer: publishing empty L2 for skipped L1 block: {:?}",
                             skipped_height
                         );
-                        let da_block = self.da_service.get_block_at(skipped_height).await.unwrap();
+                        let da_block = self
+                            .da_service
+                            .get_block_at(skipped_height)
+                            .await
+                            .map_err(|e| anyhow!(e))?;
                         self.produce_l2_block(da_block, l1_fee_rate, L2BlockMode::Empty)
                             .await?;
                     }
@@ -448,11 +487,10 @@ where
                 &self.ledger_db,
                 self.config.min_soft_confirmations_per_commitment,
                 prev_l1_height,
-            );
+            )?;
 
-            if commitment_info.is_some() {
+            if let Some(commitment_info) = commitment_info {
                 debug!("Sequencer: enough soft confirmations to submit commitment");
-                let commitment_info = commitment_info.unwrap();
                 let l2_range_to_submit = commitment_info.l2_height_range.clone();
 
                 // calculate exclusive range end
@@ -460,8 +498,7 @@ where
 
                 let soft_confirmation_hashes = self
                     .ledger_db
-                    .get_soft_batch_range(&(*l2_range_to_submit.start()..range_end))
-                    .expect("Sequencer: Failed to get soft batch range")
+                    .get_soft_batch_range(&(*l2_range_to_submit.start()..range_end))?
                     .iter()
                     .map(|sb| sb.hash)
                     .collect::<Vec<[u8; 32]>>();
@@ -469,7 +506,7 @@ where
                 let commitment = commitment_controller::get_commitment(
                     commitment_info.clone(),
                     soft_confirmation_hashes,
-                );
+                )?;
 
                 info!("Sequencer: submitting commitment: {:?}", commitment);
 
@@ -479,7 +516,7 @@ where
                     .send_tx_no_wait(
                         DaData::SequencerCommitment(commitment.clone())
                             .try_to_vec()
-                            .unwrap(),
+                            .map_err(|e| anyhow!(e))?,
                     )
                     .await;
 
@@ -507,7 +544,7 @@ where
             .da_service
             .get_block_at(last_finalized_height)
             .await
-            .unwrap();
+            .map_err(|e| anyhow!(e))?;
 
         self.produce_l2_block(last_finalized_block, l1_fee_rate, L2BlockMode::NotEmpty)
             .await?;
@@ -516,7 +553,10 @@ where
 
     pub async fn run(&mut self) -> Result<(), anyhow::Error> {
         // TODO: hotfix for mock da
-        self.da_service.get_block_at(1).await.unwrap();
+        self.da_service
+            .get_block_at(1)
+            .await
+            .map_err(|e| anyhow!(e))?;
 
         // If connected to offchain db first check if the commitments are in sync
         if let Some(db_config) = self.config.db_config.clone() {
@@ -532,7 +572,9 @@ where
         if self.config.test_mode {
             loop {
                 if (self.l2_force_block_rx.next().await).is_some() {
-                    self.build_block().await?;
+                    if let Err(e) = self.build_block().await {
+                        error!("Sequencer error: {}", e);
+                    }
                 }
             }
         }
@@ -540,23 +582,28 @@ where
         else {
             loop {
                 sleep(Duration::from_secs(2)).await;
-                self.build_block().await?;
+                if let Err(e) = self.build_block().await {
+                    error!("Sequencer error: {}", e);
+                }
             }
         }
     }
 
-    fn get_best_transactions(&self, system_tx_gas_usage: u64) -> Vec<RlpEvmTransaction> {
+    fn get_best_transactions(
+        &self,
+        system_tx_gas_usage: u64,
+    ) -> anyhow::Result<Vec<RlpEvmTransaction>> {
         let cfg = self.db_provider.cfg();
         let latest_header = self
             .db_provider
             .latest_header()
-            .expect("Failed to get latest header")
-            .expect("Latest header must always exist")
+            .map_err(|e| anyhow!("Failed to get latest header: {}", e))?
+            .ok_or(anyhow!("Latest header must always exist"))?
             .unseal();
 
         let base_fee = latest_header
             .next_block_base_fee(cfg.base_fee_params)
-            .expect("Failed to get next block base fee");
+            .ok_or(anyhow!("Failed to get next block base fee"))?;
 
         let best_txs_with_base_fee = self
             .mempool
@@ -567,7 +614,7 @@ where
         // Add the system tx gas usage to the cumulative gas used
         cumulative_gas_used += system_tx_gas_usage;
 
-        best_txs_with_base_fee
+        Ok(best_txs_with_base_fee
             .into_iter()
             .filter(|tx| {
                 // Don't include transactions that exceed the block gas limit
@@ -585,36 +632,36 @@ where
                     .to_vec()
             })
             .map(|rlp| RlpEvmTransaction { rlp })
-            .collect::<Vec<RlpEvmTransaction>>()
+            .collect::<Vec<RlpEvmTransaction>>())
     }
 
     /// Signs batch of messages with sovereign priv key turns them into a sov blob
     /// Returns a single sovereign transaction made up of multiple ethereum transactions
-    fn make_blob(&mut self, raw_message: Vec<u8>) -> Vec<u8> {
+    fn make_blob(&mut self, raw_message: Vec<u8>) -> anyhow::Result<Vec<u8>> {
         // if a batch failed need to refetch nonce
         // so sticking to fetching from state makes sense
-        let nonce = self.get_nonce();
+        let nonce = self.get_nonce()?;
 
         // TODO: figure out what to do with sov-tx fields
         // chain id gas tip and gas limit
 
         Transaction::<C>::new_signed_tx(&self.sov_tx_signer_priv_key, raw_message, 0, nonce)
             .try_to_vec()
-            .unwrap()
+            .map_err(|e| anyhow!(e))
     }
 
     /// Signs necessary info and returns a BlockTemplate
     fn sign_soft_confirmation_batch(
         &mut self,
         soft_confirmation: UnsignedSoftConfirmationBatch,
-    ) -> SignedSoftConfirmationBatch {
-        let raw = soft_confirmation.try_to_vec().unwrap();
+    ) -> anyhow::Result<SignedSoftConfirmationBatch> {
+        let raw = soft_confirmation.try_to_vec().map_err(|e| anyhow!(e))?;
 
         let hash = <C as sov_modules_api::Spec>::Hasher::digest(raw.as_slice()).into();
 
         let signature = self.sov_tx_signer_priv_key.sign(&raw);
 
-        SignedSoftConfirmationBatch::new(
+        Ok(SignedSoftConfirmationBatch::new(
             hash,
             soft_confirmation.da_slot_height(),
             soft_confirmation.da_slot_hash(),
@@ -623,23 +670,26 @@ where
             soft_confirmation.l1_fee_rate(),
             soft_confirmation.txs(),
             soft_confirmation.deposit_data(),
-            signature.try_to_vec().unwrap(),
-            self.sov_tx_signer_priv_key.pub_key().try_to_vec().unwrap(),
+            signature.try_to_vec().map_err(|e| anyhow!(e))?,
+            self.sov_tx_signer_priv_key
+                .pub_key()
+                .try_to_vec()
+                .map_err(|e| anyhow!(e))?,
             soft_confirmation.timestamp(),
-        )
+        ))
     }
 
     /// Fetches nonce from state
-    fn get_nonce(&self) -> u64 {
+    fn get_nonce(&self) -> anyhow::Result<u64> {
         let accounts = Accounts::<C>::default();
         let mut working_set = WorkingSet::<C>::new(self.storage.clone());
 
         match accounts
             .get_account(self.sov_tx_signer_priv_key.pub_key(), &mut working_set)
-            .expect("Sequencer: Failed to get sov-account")
+            .map_err(|e| anyhow!("Sequencer: Failed to get sov-account: {}", e))?
         {
-            AccountExists { addr: _, nonce } => nonce,
-            AccountEmpty => 0,
+            AccountExists { addr: _, nonce } => Ok(nonce),
+            AccountEmpty => Ok(0),
         }
     }
 
@@ -662,7 +712,7 @@ where
     ) -> Result<jsonrpsee::RpcModule<()>, jsonrpsee::core::Error> {
         let rpc_context = self.create_rpc_context();
         let rpc = create_rpc_module(rpc_context)?;
-        rpc_methods.merge(rpc).unwrap();
+        rpc_methods.merge(rpc)?;
         Ok(rpc_methods)
     }
 
@@ -695,7 +745,7 @@ where
                                     .insert_sequencer_commitment(
                                         l1_start_height as u32,
                                         l1_end_height as u32,
-                                        tx_id.into().to_vec(),
+                                        Into::<[u8; 32]>::into(tx_id).to_vec(),
                                         commitment.l1_start_block_hash.to_vec(),
                                         commitment.l1_end_block_hash.to_vec(),
                                         l2_range.start().0 as u32,

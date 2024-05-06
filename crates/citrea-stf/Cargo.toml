@@ -28,7 +28,6 @@ secp256k1 = { workspace = true }
 
 sov-stf-runner = { path = "../sovereign-sdk/full-node/sov-stf-runner" }
 sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
-sov-mock-da = { path = "../sovereign-sdk/adapters/mock-da" }
 sov-modules-stf-blueprint = { path = "../sovereign-sdk/module-system/sov-modules-stf-blueprint" }
 sov-accounts = { path = "../sovereign-sdk/module-system/module-implementations/sov-accounts" }
 sov-state = { path = "../sovereign-sdk/module-system/sov-state" }
@@ -56,7 +55,6 @@ native = [
     "sov-accounts/native",
     "sov-modules-api/native",
     "sov-rollup-interface/native",
-    "sov-mock-da/native",
     "sov-modules-stf-blueprint/native",
     "soft-confirmation-rule-enforcer/native",
     "citrea-evm/native",

@@ -33,10 +33,10 @@ mod tests;
 
 use evm::db::EvmDb;
 use evm::DbAccount;
-use reth_primitives::{Address, B256};
+use reth_primitives::{Address, TxHash, B256};
 pub use revm::primitives::SpecId;
 use revm::primitives::U256;
-use sov_modules_api::{Error, ModuleInfo, WorkingSet};
+use sov_modules_api::{AccessoryWorkingSet, Error, ModuleInfo, StateVecAccessor, WorkingSet};
 use sov_state::codec::BcsCodec;
 
 use crate::evm::primitive_types::{
@@ -100,6 +100,12 @@ pub struct Evm<C: sov_modules_api::Context> {
     #[state]
     pub(crate) l1_fee_rate: sov_modules_api::StateValue<u64, BcsCodec>,
 
+    /// Transaction's hash that failed to pay the L1 fee.
+    /// Used to prevent DOS attacks.
+    /// The vector is cleared in `finalize_hook`.
+    #[state]
+    pub(crate) l1_fee_failed_txs: sov_modules_api::AccessoryStateVec<TxHash, BcsCodec>,
+
     /// Used only by the RPC: This represents the head of the chain and is set in two distinct stages:
     /// 1. `end_slot_hook`: the pending head is populated with data from pending_transactions.
     /// 2. `finalize_hook` the `root_hash` is populated.
@@ -162,5 +168,13 @@ impl<C: sov_modules_api::Context> Evm<C> {
             self.latest_block_hashes.clone(),
             working_set,
         )
+    }
+
+    /// Returns transaction hashes that failed to pay the L1 fee.
+    pub fn get_l1_fee_failed_txs(
+        &self,
+        accessory_working_set: &mut AccessoryWorkingSet<C>,
+    ) -> Vec<TxHash> {
+        self.l1_fee_failed_txs.iter(accessory_working_set).collect()
     }
 }

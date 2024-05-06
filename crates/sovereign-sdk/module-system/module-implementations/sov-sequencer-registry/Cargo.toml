@@ -53,3 +53,6 @@ native = [
     "sov-bank/native",
 ]
 serde = []
+
+[package.metadata.cargo-udeps.ignore]
+normal = ["risc0-zkvm", "risc0-zkvm-platform", "sov-zk-cycle-macros", "sov-zk-cycle-utils"]

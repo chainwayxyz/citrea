@@ -1,4 +1,3 @@
-use std::array::TryFromSliceError;
 use std::collections::BTreeMap;
 use std::ops::{Range, RangeInclusive};
 
@@ -11,8 +10,6 @@ use reth_primitives::TransactionKind::{Call, Create};
 use reth_primitives::{
     Block, BlockId, BlockNumberOrTag, SealedHeader, TransactionSignedEcRecovered, U128, U256, U64,
 };
-use reth_revm::access_list::AccessListInspector;
-use reth_revm::tracing::{TracingInspector, TracingInspectorConfig};
 use reth_rpc_types::other::OtherFields;
 use reth_rpc_types::trace::geth::{GethDebugTracingOptions, GethTrace};
 use reth_rpc_types::AccessListWithGasUsed;
@@ -22,6 +19,8 @@ use revm::primitives::{
     TxEnv, KECCAK_EMPTY,
 };
 use revm::{Database, DatabaseCommit};
+use revm_inspectors::access_list::AccessListInspector;
+use revm_inspectors::tracing::{TracingInspector, TracingInspectorConfig};
 use sov_modules_api::macros::rpc_gen;
 use sov_modules_api::prelude::*;
 use sov_modules_api::WorkingSet;
@@ -900,7 +899,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         // if the provided gas limit is less than computed cap, use that
         let gas_limit = std::cmp::min(U256::from(tx_env.gas_limit), highest_gas_limit);
-        tx_env.gas_limit = convert_u256_to_u64(gas_limit).unwrap();
+        tx_env.gas_limit = gas_limit.saturating_to();
 
         let evm_db = self.get_db(working_set);
 
@@ -1652,12 +1651,6 @@ fn map_out_of_gas_err<C: sov_modules_api::Context>(
         },
         Err(err) => EthApiError::from(err),
     }
-}
-
-fn convert_u256_to_u64(u256: reth_primitives::U256) -> Result<u64, TryFromSliceError> {
-    let bytes: [u8; 32] = u256.to_be_bytes();
-    let bytes: [u8; 8] = bytes[24..].try_into()?;
-    Ok(u64::from_be_bytes(bytes))
 }
 
 /// Updates the highest and lowest gas limits for binary search

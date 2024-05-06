@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 use std::marker::PhantomData;
 use std::net::SocketAddr;
 
-use anyhow::bail;
+use anyhow::{anyhow, bail};
 use borsh::de::BorshDeserialize;
 use jsonrpsee::core::Error;
 use jsonrpsee::RpcModule;
@@ -176,13 +176,14 @@ where
         methods: RpcModule<()>,
         channel: Option<oneshot::Sender<SocketAddr>>,
     ) {
-        let listen_address = SocketAddr::new(
-            self.rpc_config
-                .bind_host
-                .parse()
-                .expect("Failed to parse bind host"),
-            self.rpc_config.bind_port,
-        );
+        let bind_host = match self.rpc_config.bind_host.parse() {
+            Ok(bind_host) => bind_host,
+            Err(e) => {
+                error!("Failed to parse bind host: {}", e);
+                return;
+            }
+        };
+        let listen_address = SocketAddr::new(bind_host, self.rpc_config.bind_port);
 
         let max_connections = self.rpc_config.max_connections;
 
@@ -190,17 +191,32 @@ where
             let server = jsonrpsee::server::ServerBuilder::default()
                 .max_connections(max_connections)
                 .build([listen_address].as_ref())
-                .await
-                .unwrap();
+                .await;
 
-            let bound_address = server.local_addr().unwrap();
-            if let Some(channel) = channel {
-                channel.send(bound_address).unwrap();
+            match server {
+                Ok(server) => {
+                    let bound_address = match server.local_addr() {
+                        Ok(address) => address,
+                        Err(e) => {
+                            error!("{}", e);
+                            return;
+                        }
+                    };
+                    if let Some(channel) = channel {
+                        if let Err(e) = channel.send(bound_address) {
+                            error!("Could not send bound_address {}: {}", bound_address, e);
+                            return;
+                        }
+                    }
+                    info!("Starting RPC server at {} ", &bound_address);
+
+                    let _server_handle = server.start(methods);
+                    futures::future::pending::<()>().await;
+                }
+                Err(e) => {
+                    error!("Could not start RPC server: {}", e);
+                }
             }
-            info!("Starting RPC server at {} ", &bound_address);
-
-            let _server_handle = server.start(methods);
-            futures::future::pending::<()>().await;
         });
     }
 
@@ -232,11 +248,28 @@ where
         info!("Prover trying to sync from height {}", height);
 
         let soft_batch = loop {
-            let soft_batch = client.get_soft_batch::<Da::Spec>(height).await;
-
-            if soft_batch.is_err() {
-                let x = soft_batch.unwrap_err();
-                match x.downcast_ref::<jsonrpsee::core::Error>() {
+            match client.get_soft_batch::<Da::Spec>(height).await {
+                Ok(soft_batch) => {
+                    let soft_batch = match soft_batch {
+                        Some(soft_batch) => soft_batch,
+                        None => {
+                            debug!(
+                                "Soft Batch: no batch at height {}, retrying in {} seconds",
+                                height, RETRY_SLEEP
+                            );
+                            Self::log_error(
+                                &mut last_parse_error,
+                                RETRY_INTERVAL,
+                                &mut retry_index,
+                                "No soft batch published".to_string().as_str(),
+                            );
+                            sleep(Duration::from_secs(RETRY_SLEEP)).await;
+                            continue;
+                        }
+                    };
+                    break soft_batch;
+                }
+                Err(e) => match e.downcast_ref::<jsonrpsee::core::Error>() {
                     Some(Error::Transport(e)) => {
                         debug!("Soft Batch: connection error during RPC call: {:?}", e);
                         Self::log_error(
@@ -250,29 +283,10 @@ where
                         continue;
                     }
                     _ => {
-                        anyhow::bail!("Soft Batch: unknown error from RPC call: {:?}", x);
+                        anyhow::bail!("Soft Batch: unknown error from RPC call: {:?}", e);
                     }
-                }
+                },
             }
-
-            let soft_batch = match soft_batch.unwrap() {
-                Some(soft_batch) => soft_batch,
-                None => {
-                    debug!(
-                        "Soft Batch: no batch at height {}, retrying in {} seconds",
-                        height, RETRY_SLEEP
-                    );
-                    Self::log_error(
-                        &mut last_parse_error,
-                        RETRY_INTERVAL,
-                        &mut retry_index,
-                        "No soft batch published".to_string().as_str(),
-                    );
-                    sleep(Duration::from_secs(RETRY_SLEEP)).await;
-                    continue;
-                }
-            };
-            break soft_batch;
         };
 
         // the l1 height of the soft batch
@@ -319,16 +333,14 @@ where
                     let start_l1_height = self
                         .da_service
                         .get_block_by_hash(sequencer_commitment.l1_start_block_hash)
-                        .await
-                        .unwrap()
+                        .await?
                         .header()
                         .height();
 
                     let end_l1_height = self
                         .da_service
                         .get_block_by_hash(sequencer_commitment.l1_end_block_hash)
-                        .await
-                        .unwrap()
+                        .await?
                         .header()
                         .height();
 
@@ -338,11 +350,10 @@ where
                     // change the itemnumbers only after the sync is done so not for every da block
 
                     loop {
-                        let soft_batch = client
-                            .get_soft_batch::<Da::Spec>(height)
-                            .await
-                            .unwrap()
-                            .unwrap();
+                        let Some(soft_batch) = client.get_soft_batch::<Da::Spec>(height).await?
+                        else {
+                            bail!("Soft batch at {} does not exist", height);
+                        };
 
                         if soft_batch.da_slot_height > end_l1_height {
                             for i in start_l1_height..=end_l1_height {
@@ -476,12 +487,10 @@ where
                         };
 
                         self.ledger_db.commit_soft_batch(soft_batch_receipt, true)?;
-                        self.ledger_db
-                            .extend_l2_range_of_l1_slot(
-                                SlotNumber(filtered_block.header().height()),
-                                BatchNumber(height),
-                            )
-                            .expect("Sequencer: Failed to set L1 L2 connection");
+                        self.ledger_db.extend_l2_range_of_l1_slot(
+                            SlotNumber(filtered_block.header().height()),
+                            BatchNumber(height),
+                        )?;
 
                         self.state_root = next_state_root;
                         seen_receipts.push_back(data_to_commit);
@@ -521,7 +530,9 @@ where
                         // }
                         // self.storage_manager.finalize(earliest_seen_header)?;
                         seen_block_headers.pop_front();
-                        let receipts = seen_receipts.pop_front().unwrap();
+                        let receipts = seen_receipts
+                            .pop_front()
+                            .ok_or(anyhow!("Seen receipts is empty"))?;
                         self.ledger_db.commit_slot(receipts)?;
                         self.storage_manager.finalize_l2(height)?;
 
@@ -563,32 +574,9 @@ where
         let mut retry_index = 0;
 
         loop {
-            let soft_batch = client.get_soft_batch::<Da::Spec>(height).await;
-
-            if soft_batch.is_err() {
-                let x = soft_batch.unwrap_err();
-                match x.downcast_ref::<jsonrpsee::core::Error>() {
-                    Some(Error::Transport(e)) => {
-                        debug!("Soft Batch: connection error during RPC call: {:?}", e);
-                        Self::log_error(
-                            &mut last_connection_error,
-                            CONNECTION_INTERVALS,
-                            &mut connection_index,
-                            format!("Soft Batch: connection error during RPC call: {:?}", e)
-                                .as_str(),
-                        );
-                        sleep(Duration::from_secs(RETRY_SLEEP)).await;
-                        continue;
-                    }
-                    _ => {
-                        anyhow::bail!("Soft Batch: unknown error from RPC call: {:?}", x);
-                    }
-                }
-            }
-
-            let soft_batch = match soft_batch.unwrap() {
-                Some(soft_batch) => soft_batch,
-                None => {
+            let soft_batch = match client.get_soft_batch::<Da::Spec>(height).await {
+                Ok(Some(soft_batch)) => soft_batch,
+                Ok(None) => {
                     debug!(
                         "Soft Batch: no batch at height {}, retrying in {} seconds",
                         height, RETRY_SLEEP
@@ -602,6 +590,23 @@ where
                     sleep(Duration::from_secs(RETRY_SLEEP)).await;
                     continue;
                 }
+                Err(e) => match e.downcast_ref::<jsonrpsee::core::Error>() {
+                    Some(Error::Transport(e)) => {
+                        debug!("Soft Batch: connection error during RPC call: {:?}", e);
+                        Self::log_error(
+                            &mut last_connection_error,
+                            CONNECTION_INTERVALS,
+                            &mut connection_index,
+                            format!("Soft Batch: connection error during RPC call: {:?}", e)
+                                .as_str(),
+                        );
+                        sleep(Duration::from_secs(RETRY_SLEEP)).await;
+                        continue;
+                    }
+                    _ => {
+                        anyhow::bail!("Soft Batch: unknown error from RPC call: {:?}", e);
+                    }
+                },
             };
 
             // TODO: for a node, the da block at slot_height might not have been finalized yet
@@ -679,38 +684,47 @@ where
                 let start_l1_height = self
                     .da_service
                     .get_block_by_hash(sequencer_commitment.l1_start_block_hash)
-                    .await
-                    .unwrap()
+                    .await?
                     .header()
                     .height();
 
                 let end_l1_height = self
                     .da_service
                     .get_block_by_hash(sequencer_commitment.l1_end_block_hash)
-                    .await
-                    .unwrap()
+                    .await?
                     .header()
                     .height();
 
-                let (start_l2_height, _) = self
+                let start_l2_height = match self
                     .ledger_db
                     .get_l2_range_by_l1_height(SlotNumber(start_l1_height))
-                    .expect("Sequencer: Failed to get L1 L2 connection")
-                    .unwrap();
+                {
+                    Ok(Some((start_l2_height, _))) => start_l2_height,
+                    Ok(None) => bail!(
+                        "Sequencer: L1 L2 connection does not exist. L1 height = {}",
+                        start_l1_height
+                    ),
+                    Err(e) => bail!("Sequencer: Failed to get L1 L2 connection. Err: {}", e),
+                };
 
-                let (_, end_l2_height) = self
+                let end_l2_height = match self
                     .ledger_db
                     .get_l2_range_by_l1_height(SlotNumber(start_l1_height))
-                    .expect("Sequencer: Failed to get L1 L2 connection")
-                    .unwrap();
+                {
+                    Ok(Some((_, end_l2_height))) => end_l2_height,
+                    Ok(None) => bail!(
+                        "Sequencer: L1 L2 connection does not exist. L1 height = {}",
+                        start_l1_height
+                    ),
+                    Err(e) => bail!("Sequencer: Failed to get L1 L2 connection. Err: {}", e),
+                };
 
                 let range_end = BatchNumber(end_l2_height.0 + 1);
                 // Traverse each item's field of vector of transactions, put them in merkle tree
                 // and compare the root with the one from the ledger
                 let stored_soft_batches: Vec<StoredSoftBatch> = self
                     .ledger_db
-                    .get_soft_batch_range(&(start_l2_height..range_end))
-                    .unwrap();
+                    .get_soft_batch_range(&(start_l2_height..range_end))?;
 
                 let soft_batches_tree = MerkleTree::<Sha256>::from_leaves(
                     stored_soft_batches
@@ -723,7 +737,11 @@ where
                 if soft_batches_tree.root() != Some(sequencer_commitment.merkle_root) {
                     tracing::warn!(
                         "Merkle root mismatch - expected 0x{} but got 0x{}",
-                        hex::encode(soft_batches_tree.root().unwrap()),
+                        hex::encode(
+                            soft_batches_tree
+                                .root()
+                                .ok_or(anyhow!("Could not calculate soft batch tree root"))?
+                        ),
                         hex::encode(sequencer_commitment.merkle_root)
                     );
                 }
@@ -848,12 +866,10 @@ where
 
             self.ledger_db
                 .commit_soft_batch(soft_batch_receipt, self.include_tx_body)?;
-            self.ledger_db
-                .extend_l2_range_of_l1_slot(
-                    SlotNumber(filtered_block.header().height()),
-                    BatchNumber(height),
-                )
-                .expect("Sequencer: Failed to set L1 L2 connection");
+            self.ledger_db.extend_l2_range_of_l1_slot(
+                SlotNumber(filtered_block.header().height()),
+                BatchNumber(height),
+            )?;
 
             self.state_root = next_state_root;
             seen_receipts.push_back(data_to_commit);
@@ -892,7 +908,9 @@ where
             // }
             // self.storage_manager.finalize(earliest_seen_header)?;
             seen_block_headers.pop_front();
-            let receipts = seen_receipts.pop_front().unwrap();
+            let receipts = seen_receipts
+                .pop_front()
+                .ok_or(anyhow!("No seen receipts exist"))?;
             self.ledger_db.commit_slot(receipts)?;
             self.storage_manager.finalize_l2(height)?;
 

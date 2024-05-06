@@ -40,21 +40,12 @@ ed25519-dalek = { version = "=2.0.0", default-features = false, features = [
 ] }
 rand = { workspace = true, optional = true }
 
-# sov-zk-cycle-macros = { path = "../../utils/zk-cycle-macros", version = "0.3", optional = true }
-risc0-zkvm = { workspace = true, default-features = false, features = [
-    "std",
-], optional = true }
-risc0-zkvm-platform = { workspace = true, optional = true }
-
 [dev-dependencies]
 bincode = { workspace = true }
 tempfile = { workspace = true }
 sov-modules-api = { path = ".", features = ["native"] }
 sov-modules-core = { path = "../sov-modules-core", features = ["mocks"] }
 sov-mock-da = { path = "../../adapters/mock-da", features = ["native"] }
-sov-bank = { path = "../module-implementations/sov-bank", features = [
-    "native",
-] }
 sov-db = { path = "../../full-node/db/sov-db" }
 sov-prover-storage-manager = { path = "../../full-node/sov-prover-storage-manager", features = [
     "test-utils",
@@ -69,11 +60,7 @@ arbitrary = [
     "proptest/default",
     "sov-state/arbitrary",
 ]
-bench = [
-    # "sov-zk-cycle-macros", 
-    "risc0-zkvm",
-    "risc0-zkvm-platform",
-]
+bench = []
 default = ["macros"]
 native = [
     "serde_json",
