@@ -11,6 +11,16 @@ Build citrea:
 make build
 ```
 
+### Prequisites
+
+In order for the sequencer node to run, you need to have Postgres up and running.
+
+```sh
+docker compose up -d
+
+```
+will run postgres in a dockerized daemon mode.
+
 ### Run on Mock DA
 Run on a local da layer, sharable between nodes that run on your computer.
 
