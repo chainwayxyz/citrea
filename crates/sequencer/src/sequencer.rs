@@ -831,7 +831,7 @@ where
         match PostgresConnector::new(db_config).await {
             Ok(pg_connector) => {
                 let mempool_txs = pg_connector.get_all_txs().await?;
-                for mut tx in mempool_txs {
+                for tx in mempool_txs {
                     // TODO Handle error
                     let decoded = TransactionSigned::decode(&mut tx.tx.as_slice()).unwrap();
                     // TODO Handle error

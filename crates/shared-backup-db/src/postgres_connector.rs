@@ -1,6 +1,7 @@
 use std::str::FromStr;
 
-use deadpool_postgres::tokio_postgres::{config::Config as PgConfig, NoTls, Row};
+use deadpool_postgres::tokio_postgres::config::Config as PgConfig;
+use deadpool_postgres::tokio_postgres::{NoTls, Row};
 use deadpool_postgres::{Manager, ManagerConfig, Object, Pool, PoolError, RecyclingMethod};
 
 use crate::config::SharedBackupDbConfig;
