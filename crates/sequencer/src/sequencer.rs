@@ -712,6 +712,14 @@ where
             }
             Ordering::Equal => None,
             Ordering::Greater => {
+                let skipped_blocks = last_finalized_height - prev_l1_height;
+                if skipped_blocks > 1 {
+                    // This shouldn't happen. If it does, trigger a warning.
+                    warn!(
+                        "Sequencer is falling behind on L1 blocks by {:?} blocks",
+                        skipped_blocks
+                    );
+                }
                 let prev_l1_height = last_finalized_height - 1;
                 Some(prev_l1_height)
             }
