@@ -1690,7 +1690,7 @@ async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error>
 }
 
 fn find_subarray(haystack: &[u8], needle: &[u8]) -> Option<usize> {
-    haystack 
+    haystack
         .windows(needle.len())
         .position(|window| window == needle)
 }
