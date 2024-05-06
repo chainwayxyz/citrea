@@ -125,6 +125,8 @@ pub struct StateTransition<Da: DaSpec, Root> {
     pub final_state_root: Root,
     /// State diff of L2 blocks in the processed sequencer commitments.
     pub state_diff: Vec<u8>,
+    /// The DA slot hash that the sequencer commitments causing this state transition were found in.
+    pub da_slot_hash: Da::SlotHash,
 
     /// An additional validity condition for the state transition which needs
     /// to be checked outside of the zkVM circuit. This typically corresponds to

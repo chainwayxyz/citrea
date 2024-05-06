@@ -8,6 +8,7 @@ use std::sync::{Arc, Condvar, Mutex};
 use anyhow::ensure;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
+use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::zk::{Matches, StateTransitionData, ValidityCondition};
 
 /// A mock commitment to a particular zkVM program.
@@ -188,6 +189,7 @@ impl<ValidityCond: ValidityCondition> sov_rollup_interface::zk::ZkvmHost
                     final_state_root: st.final_state_root,
                     validity_condition: data.validity_condition,
                     state_diff: vec![],
+                    da_slot_hash: st.da_block_header_of_commitments.hash(),
                 })
             }
             sov_rollup_interface::zk::Proof::Full(_) => {

@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use sov_rollup_interface::da::DaVerifier;
+use sov_rollup_interface::da::{BlockHeaderTrait, DaVerifier};
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::zk::{StateTransition, StateTransitionData, Zkvm, ZkvmGuest};
 
@@ -68,6 +68,7 @@ where
             final_state_root,
             validity_condition, // TODO: not sure about how to do this yet
             state_diff,
+            da_slot_hash: data.da_block_header_of_commitments.hash(),
         };
 
         zkvm.commit(&out);
