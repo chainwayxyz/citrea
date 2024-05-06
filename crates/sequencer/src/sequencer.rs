@@ -415,41 +415,6 @@ where
         Ok(())
     }
 
-    pub async fn build_block(&mut self) -> anyhow::Result<()> {
-        // best txs with base fee
-        // get base fee from last blocks => header => next base fee() function
-
-        // let new_da_block = match last_finalized_height.cmp(&prev_l1_height) {
-        //     Ordering::Less => {
-        //         panic!("DA L1 height is less than Ledger finalized height");
-        //     }
-        //     Ordering::Equal => None,
-        //     Ordering::Greater => {
-        //         // Compare if there is no skip
-        //         if last_finalized_height - prev_l1_height > 1 {
-        //             // This shouldn't happen. If it does, then we should produce at least 1 block for the blocks in between
-        //             for skipped_height in (prev_l1_height + 1)..last_finalized_height {
-        //                 debug!(
-        //                     "Sequencer: publishing empty L2 for skipped L1 block: {:?}",
-        //                     skipped_height
-        //                 );
-        //                 let da_block = self
-        //                     .da_service
-        //                     .get_block_at(skipped_height)
-        //                     .await
-        //                     .map_err(|e| anyhow!(e))?;
-        //                 self.produce_l2_block(da_block, l1_fee_rate, L2BlockMode::Empty)
-        //                     .await?;
-        //             }
-        //         }
-        //         let prev_l1_height = last_finalized_height - 1;
-        //         Some(prev_l1_height)
-        //     }
-        // };
-
-        Ok(())
-    }
-
     pub async fn run(&mut self) -> Result<(), anyhow::Error> {
         // TODO: hotfix for mock da
         self.da_service
