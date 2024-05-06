@@ -79,11 +79,6 @@ where
     rpc_config: RpcConfig,
 }
 
-enum L2BlockMode {
-    Empty,
-    NotEmpty,
-}
-
 impl<C, Da, Sm, Vm, Stf> CitreaSequencer<C, Da, Sm, Vm, Stf>
 where
     C: Context,
@@ -213,7 +208,6 @@ where
         &mut self,
         da_block: <Da as DaService>::FilteredBlock,
         l1_fee_rate: u64,
-        l2_block_mode: L2BlockMode,
     ) -> anyhow::Result<()> {
         let da_height = da_block.header().height();
         let (l2_height, l1_height) = match self
@@ -280,10 +274,8 @@ where
                     .evm
                     .get_pending_txs_cumulative_gas_used(&mut batch_workspace);
 
-                let rlp_txs = match l2_block_mode {
-                    L2BlockMode::Empty => vec![],
-                    L2BlockMode::NotEmpty => self.get_best_transactions(system_tx_gas_usage)?,
-                };
+                let rlp_txs = self.get_best_transactions(system_tx_gas_usage)?;
+
                 debug!(
                     "Sequencer: publishing block with {} transactions",
                     rlp_txs.len()
@@ -471,16 +463,18 @@ where
                     }
                 },
                 // If sequencer is in test mode, it will build a block every time it receives a message
+                // The RPC from which the sender can be called is only registered for test mode. This means
+                // that evey though we check the receiver here, it'll never be "ready" to be consumed unless in test mode.
                 _ = self.l2_force_block_rx.next() => {
                     if self.config.test_mode {
-                        if let Err(e) = self.produce_l2_block(last_finalized_block.clone(), l1_fee_rate, L2BlockMode::NotEmpty).await {
+                        if let Err(e) = self.produce_l2_block(last_finalized_block.clone(), l1_fee_rate).await {
                             error!("Sequencer error: {}", e);
                         }
                     }
                 },
                 // If sequencer is in production mode, it will build a block every 2 seconds
                 _ = interval.tick() => {
-                    if let Err(e) = self.produce_l2_block(last_finalized_block.clone(), l1_fee_rate, L2BlockMode::NotEmpty).await {
+                    if let Err(e) = self.produce_l2_block(last_finalized_block.clone(), l1_fee_rate).await {
                         error!("Sequencer error: {}", e);
                     }
                 }
