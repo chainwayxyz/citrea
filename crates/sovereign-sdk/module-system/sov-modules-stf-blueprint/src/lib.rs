@@ -20,6 +20,7 @@ use sov_modules_api::{
     BasicAddress, BlobReaderTrait, Context, DaSpec, DispatchCall, Genesis, Signature, Spec,
     StateCheckpoint, UnsignedSoftConfirmationBatch, WorkingSet, Zkvm,
 };
+use sov_rollup_interface::digest::Digest;
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
 pub use sov_rollup_interface::stf::{BatchReceipt, TransactionReceipt};
 use sov_rollup_interface::stf::{SlotResult, StateTransitionFunction};
@@ -191,6 +192,26 @@ where
         soft_batch: &mut SignedSoftConfirmationBatch,
     ) -> (Result<(), ApplySoftConfirmationError>, WorkingSet<C>) {
         debug!("Applying soft batch in STF Blueprint");
+
+        let unsigned = UnsignedSoftConfirmationBatch::new(
+            soft_batch.da_slot_height(),
+            soft_batch.da_slot_hash(),
+            soft_batch.da_slot_txs_commitment(),
+            soft_batch.pre_state_root(),
+            soft_batch.txs(),
+            soft_batch.deposit_data(),
+            soft_batch.l1_fee_rate(),
+            soft_batch.timestamp(),
+        );
+
+        let unsigned_raw = unsigned.try_to_vec().unwrap();
+
+        // check the claimed hash
+        assert_eq!(
+            soft_batch.hash(),
+            Into::<[u8; 32]>::into(<C as Spec>::Hasher::digest(&unsigned_raw)),
+            "Soft confirmation hashes must match"
+        );
 
         // check if soft confirmation is coming from our sequencer
         assert_eq!(
@@ -594,6 +615,9 @@ fn verify_soft_batch_signature<C: Context>(
     let message = unsigned.try_to_vec().unwrap();
 
     let signature = C::Signature::try_from(soft_batch.signature().as_slice())?;
+
+    // TODO: if verify function is modified to take the claimed hash in signed soft confirmation
+    // we wouldn't need to hash the thing twice
     signature.verify(
         &C::PublicKey::try_from(sequencer_public_key)?,
         message.as_slice(),
