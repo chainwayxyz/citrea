@@ -599,8 +599,12 @@ impl<C: sov_modules_api::Context> Evm<C> {
         info!("evm module: eth_call");
         let mut block_env = match block_number {
             None | Some(BlockNumberOrTag::Pending | BlockNumberOrTag::Latest) => {
-                // so we don't unnecessarily set archival version
-                self.block_env.get(working_set).unwrap_or_default()
+                // if no block is produced yet, should default to genesis block env, else just return the lates
+                self.block_env.get(working_set).unwrap_or(BlockEnv::from(
+                    &self
+                        .get_sealed_block_by_number(Some(BlockNumberOrTag::Earliest), working_set)
+                        .expect("Genesis block must be set"),
+                ))
             }
             _ => {
                 let block = match self.get_sealed_block_by_number(block_number, working_set) {
@@ -690,8 +694,15 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let (l1_fee_rate, mut block_env) = match block_number {
             None | Some(BlockNumberOrTag::Pending | BlockNumberOrTag::Latest) => {
                 // so we don't unnecessarily set archival version
+                // so we don't unnecessarily set archival version
+                // if no block was produced yet, the l1 fee rate can unwrap to 0, we don't care, else just return the latest
                 let l1_fee_rate = self.l1_fee_rate.get(working_set).unwrap_or_default();
-                let block_env = self.block_env.get(working_set).unwrap_or_default();
+                // if no block is produced yet, should default to genesis block env, else just return the lates
+                let block_env = self.block_env.get(working_set).unwrap_or(BlockEnv::from(
+                    &self
+                        .get_sealed_block_by_number(Some(BlockNumberOrTag::Earliest), working_set)
+                        .expect("Genesis block must be set"),
+                ));
                 (l1_fee_rate, block_env)
             }
             _ => {
@@ -803,8 +814,14 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let (l1_fee_rate, block_env) = match block_number {
             None | Some(BlockNumberOrTag::Pending | BlockNumberOrTag::Latest) => {
                 // so we don't unnecessarily set archival version
+                // if no block was produced yet, the l1 fee rate can unwrap to 0, we don't care, else just return the latest
                 let l1_fee_rate = self.l1_fee_rate.get(working_set).unwrap_or_default();
-                let block_env = self.block_env.get(working_set).unwrap_or_default();
+                // if no block is produced yet, should default to genesis block env, else just return the lates
+                let block_env = self.block_env.get(working_set).unwrap_or(BlockEnv::from(
+                    &self
+                        .get_sealed_block_by_number(Some(BlockNumberOrTag::Earliest), working_set)
+                        .expect("Genesis block must be set"),
+                ));
                 (l1_fee_rate, block_env)
             }
             _ => {
