@@ -68,7 +68,7 @@ where
     ledger_db: LedgerDB,
     config: SequencerConfig,
     stf: Stf,
-    deposit_mempool: DepositDataMempool,
+    deposit_mempool: Arc<Mutex<DepositDataMempool>>,
     storage_manager: Sm,
     state_root: StateRoot<Stf, Vm, Da::Spec>,
     sequencer_pub_key: Vec<u8>,
@@ -133,7 +133,7 @@ where
 
         let pool = CitreaMempool::new(db_provider.clone(), config.mempool_conf.clone())?;
 
-        let deposit_mempool = DepositDataMempool::new();
+        let deposit_mempool = Arc::new(Mutex::new(DepositDataMempool::new()));
 
         Ok(Self {
             da_service,
@@ -234,6 +234,8 @@ where
 
         let deposit_data = self
             .deposit_mempool
+            .lock()
+            .await
             .fetch_deposits(self.config.deposit_mempool_fetch_limit);
 
         let batch_info = HookSoftConfirmationInfo {
@@ -698,7 +700,7 @@ where
         let l2_force_block_tx = self.l2_force_block_tx.clone();
         RpcContext {
             mempool: self.mempool.clone(),
-            deposit_mempool: Arc::new(Mutex::new(self.deposit_mempool.clone())),
+            deposit_mempool: self.deposit_mempool.clone(),
             l2_force_block_tx,
             storage: self.storage.clone(),
             test_mode: self.config.test_mode,
