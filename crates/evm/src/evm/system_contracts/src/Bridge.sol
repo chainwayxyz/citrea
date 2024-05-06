@@ -5,13 +5,12 @@ import "bitcoin-spv/solidity/contracts/ValidateSPV.sol";
 import "bitcoin-spv/solidity/contracts/BTCUtils.sol";
 import "../lib/WitnessUtils.sol";
 import "../lib/Ownable.sol";
-import "./MerkleTree.sol";
 import "./BitcoinLightClient.sol";
 
 /// @title Bridge contract of Clementine
 /// @author Citrea
 
-contract Bridge is Ownable, MerkleTree {
+contract Bridge is Ownable {
     using BTCUtils for bytes;
     using BytesLib for bytes;
 
@@ -37,12 +36,11 @@ contract Bridge is Ownable, MerkleTree {
     bytes public depositScript;
     bytes public scriptSuffix;
     
-    mapping(bytes32 => bool) public blockHashes;
     mapping(bytes32 => bool) public spentWtxIds;
+    bytes32[] public withdrawalAddrs;
     
-
     event Deposit(bytes32 wtxId, uint256 timestamp);
-    event Withdrawal(bytes32  bitcoin_address, uint32 indexed leafIndex, uint256 timestamp);
+    event Withdrawal(bytes32  bitcoin_address, uint256 index, uint256 timestamp);
     event DepositScriptUpdate(bytes depositScript, bytes scriptSuffix, uint256 requiredSigsCount);
     event OperatorUpdated(address oldOperator, address newOperator);
 
@@ -56,18 +54,16 @@ contract Bridge is Ownable, MerkleTree {
         _;
     }
 
-    /// @notice Initializes the bridge contract, caches the sublevels of the withdrawal tree and sets the deposit script
-    /// @param _levels The depth of the Merkle tree
+    /// @notice Initializes the bridge contract and sets the deposit script
     /// @param _depositScript The deposit script expected in the witness field for all L1 deposits
     /// @param _scriptSuffix The suffix of the deposit script that follows the receiver address
     /// @param _requiredSigsCount The number of signatures that is contained in the deposit script
-    function initialize(uint32 _levels, bytes calldata _depositScript, bytes calldata _scriptSuffix, uint256 _requiredSigsCount, address _owner) external onlySystem {
+    function initialize(bytes calldata _depositScript, bytes calldata _scriptSuffix, uint256 _requiredSigsCount, address _owner) external onlySystem {
         require(!initialized, "Contract is already initialized");
         require(_requiredSigsCount != 0, "Verifier count cannot be 0");
         require(_depositScript.length != 0, "Deposit script cannot be empty");
 
         initialized = true;
-        initializeTree(_levels);
         depositScript = _depositScript;
         scriptSuffix = _scriptSuffix;
         requiredSigsCount = _requiredSigsCount;
@@ -138,12 +134,13 @@ contract Bridge is Ownable, MerkleTree {
         require(success, "Transfer failed");
     }
 
-    /// @notice Accepts 1 cBTC from the sender and inserts this withdrawal request of 1 BTC on Bitcoin into the Merkle tree so that later on can be processed by the operator 
+    /// @notice Accepts 1 cBTC from the sender and inserts this withdrawal request of 1 BTC on Bitcoin into the withdrawals array so that later on can be processed by the operator 
     /// @param bitcoin_address The Bitcoin address of the receiver
     function withdraw(bytes32 bitcoin_address) external payable {
         require(msg.value == DEPOSIT_AMOUNT, "Invalid withdraw amount");
-        insertWithdrawalTree(bitcoin_address);
-        emit Withdrawal(bitcoin_address, nextIndex, block.timestamp);
+        uint256 index = withdrawalAddrs.length;
+        withdrawalAddrs.push(bitcoin_address);
+        emit Withdrawal(bitcoin_address, index, block.timestamp);
     }
     
     /// @notice Batch version of `withdraw` that can accept multiple cBTC
@@ -151,10 +148,16 @@ contract Bridge is Ownable, MerkleTree {
     /// @param bitcoin_addresses The Bitcoin addresses of the receivers
     function batchWithdraw(bytes32[] calldata bitcoin_addresses) external payable {
         require(msg.value == DEPOSIT_AMOUNT * bitcoin_addresses.length, "Invalid withdraw amount");
+        uint256 index = withdrawalAddrs.length;
         for (uint i = 0; i < bitcoin_addresses.length; i++) {
-            insertWithdrawalTree(bitcoin_addresses[i]);
-            emit Withdrawal(bitcoin_addresses[i], nextIndex, block.timestamp);
+            withdrawalAddrs.push(bitcoin_addresses[i]);
+            emit Withdrawal(bitcoin_addresses[i], index + i, block.timestamp);
         }
+    }
+
+    /// @return The count of withdrawals happened so far
+    function getWithdrawalCount() external view returns (uint256) {
+        return withdrawalAddrs.length;
     }
     
     /// @notice Sets the operator address that can process user deposits
