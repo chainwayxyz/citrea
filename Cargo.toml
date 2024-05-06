@@ -147,7 +147,7 @@ reth-rpc-types-compat = { git = "https://github.com/paradigmxyz/reth", tag = "v0
 reth-node-api = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.5" }
 reth-transaction-pool = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.5" }
 reth-provider = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.5" }
-reth-tasks = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.5" }
+reth-tasks = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.6" }
 reth-db = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.5" }
 reth-trie = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.5" }
 reth-rpc = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.5" }
