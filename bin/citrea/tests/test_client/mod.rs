@@ -103,11 +103,14 @@ impl TestClient {
             .eth_estimate_gas(TypedTransaction::Eip1559(req.clone()), None)
             .await;
 
+        let max_fee_per_gas = self.eth_max_fee_per_gas().await;
+        let max_priority = self.eth_max_priority_fee_per_gas().await;
+
         req = req
             .gas(gas)
             .nonce(nonce)
-            .max_priority_fee_per_gas(10u64)
-            .max_fee_per_gas(MAX_FEE_PER_GAS);
+            .max_priority_fee_per_gas(max_priority)
+            .max_fee_per_gas(max_fee_per_gas);
 
         let typed_transaction = TypedTransaction::Eip1559(req);
 
@@ -137,10 +140,13 @@ impl TestClient {
             .eth_estimate_gas(TypedTransaction::Eip1559(req.clone()), None)
             .await;
 
+        let max_fee_per_gas = self.eth_max_fee_per_gas().await;
+        let max_priority = self.eth_max_priority_fee_per_gas().await;
+
         req = req
             .gas(gas)
-            .max_priority_fee_per_gas(10u64)
-            .max_fee_per_gas(MAX_FEE_PER_GAS);
+            .max_priority_fee_per_gas(max_priority)
+            .max_fee_per_gas(max_fee_per_gas);
 
         let typed_transaction = TypedTransaction::Eip1559(req);
 
@@ -169,11 +175,14 @@ impl TestClient {
             .eth_estimate_gas(TypedTransaction::Eip1559(req.clone()), None)
             .await;
 
+        let max_fee_per_gas = self.eth_max_fee_per_gas().await;
+        let max_priority = self.eth_max_priority_fee_per_gas().await;
+
         req = req
             .gas(gas)
             .nonce(nonce)
-            .max_priority_fee_per_gas(10u64)
-            .max_fee_per_gas(MAX_FEE_PER_GAS);
+            .max_priority_fee_per_gas(max_priority)
+            .max_fee_per_gas(max_fee_per_gas);
 
         let typed_transaction = TypedTransaction::Eip1559(req);
 
@@ -511,6 +520,26 @@ impl TestClient {
             .unwrap();
 
         gas.as_u64()
+    }
+
+    pub(crate) async fn eth_max_fee_per_gas(&self) -> u64 {
+        let res: ethereum_types::U256 = self
+            .http_client
+            .request("eth_maxFeePerGas", rpc_params![])
+            .await
+            .unwrap();
+
+        res.as_u64()
+    }
+
+    pub(crate) async fn eth_max_priority_fee_per_gas(&self) -> u64 {
+        let res: ethereum_types::U256 = self
+            .http_client
+            .request("eth_maxPriorityFeePerGas", rpc_params![])
+            .await
+            .unwrap();
+
+        res.as_u64()
     }
 
     /// params is a tuple of (fromBlock, toBlock, address, topics, blockHash)
