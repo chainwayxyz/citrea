@@ -113,7 +113,7 @@ where
         &self,
         state_transition_data: StateTransitionData<StateRoot, Witness, Da::Spec>,
     ) -> WitnessSubmissionStatus {
-        let header_hash = state_transition_data.da_block_header.hash();
+        let header_hash = state_transition_data.da_block_header_of_commitments.hash();
         let data = ProverStatus::WitnessSubmitted(state_transition_data);
 
         let mut prover_state = self.prover_state.write().expect("Lock was poisoned");

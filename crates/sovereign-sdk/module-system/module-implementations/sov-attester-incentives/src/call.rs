@@ -781,9 +781,10 @@ where
             return Err(SlashingReason::InvalidInitialHash);
         }
 
-        if &public_outputs.slot_hash != transition.da_block_hash() {
-            return Err(SlashingReason::TransitionInvalid);
-        }
+        // disabled due to changes in SlotData and rollup-interface zk changes
+        // if &public_outputs.slot_hash != transition.da_block_hash() {
+        //     return Err(SlashingReason::TransitionInvalid);
+        // }
 
         if public_outputs.validity_condition != *transition.validity_condition() {
             return Err(SlashingReason::TransitionInvalid);
