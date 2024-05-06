@@ -89,21 +89,19 @@ CREATE TABLE IF NOT EXISTS sequencer_commitments (
 ";
 
 pub const INDEX_L2_END_HEIGHT: &str =
-    "CREATE INDEX idx_l2_end_height ON sequencer_commitments(l2_end_height);";
+    "CREATE INDEX IF NOT EXISTS idx_l2_end_height ON sequencer_commitments(l2_end_height);";
 pub const INDEX_L1_END_HEIGHT: &str =
-    "CREATE INDEX idx_l1_end_height ON sequencer_commitments(l1_end_height);";
+    "CREATE INDEX IF NOT EXISTS idx_l1_end_height ON sequencer_commitments(l1_end_height);";
 pub const INDEX_L1_END_HASH: &str =
-    "CREATE INDEX idx_l1_end_hash ON sequencer_commitments(l1_end_hash);";
+    "CREATE INDEX IF NOT EXISTS idx_l1_end_hash ON sequencer_commitments(l1_end_hash);";
 
 // tx is rlp encoded
 pub const MEMPOOL_TXS_TABLE_CREATE_QUERY: &str = "
 CREATE TABLE IF NOT EXISTS mempool_txs (
-    id      SERIAL PRIMARY KEY,
-    tx_hash BYTEA NOT NULL UNIQUE,
-    tx      BYTEA NOT NULL
+    id          SERIAL PRIMARY KEY,
+    tx_hash     BYTEA NOT NULL,
+    tx          BYTEA NOT NULL
 );";
-
-pub const INDEX_MEMPOOL_TXS: &str = "CREATE INDEX idx_tx_hash ON mempool_txs(tx_hash);";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DbMempoolTx {

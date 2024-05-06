@@ -1,85 +1,92 @@
 use std::str::FromStr;
 
-use postgres::Error;
-use tokio_postgres::{Client, NoTls, Row};
+use deadpool_postgres::tokio_postgres::{config::Config as PgConfig, NoTls, Row};
+use deadpool_postgres::{Manager, ManagerConfig, Object, Pool, PoolError, RecyclingMethod};
 
 use crate::config::SharedBackupDbConfig;
 use crate::tables::{
     CommitmentStatus, DbMempoolTx, DbSequencerCommitment, Tables, INDEX_L1_END_HASH,
-    INDEX_L1_END_HEIGHT, INDEX_L2_END_HEIGHT, INDEX_MEMPOOL_TXS, MEMPOOL_TXS_TABLE_CREATE_QUERY,
+    INDEX_L1_END_HEIGHT, INDEX_L2_END_HEIGHT, MEMPOOL_TXS_TABLE_CREATE_QUERY,
     SEQUENCER_COMMITMENT_TABLE_CREATE_QUERY,
 };
 use crate::utils::get_db_extension;
 
 pub struct PostgresConnector {
-    client: Client,
+    client: Pool,
 }
 
 impl PostgresConnector {
-    pub async fn new(pg_config: SharedBackupDbConfig) -> Result<Self, Error> {
-        let (client, connection) =
-            tokio_postgres::connect(pg_config.parse_to_connection_string().as_str(), NoTls).await?;
-
-        // The connection object performs the actual communication with the database,
-        // so spawn it off to run on its own.
-        tokio::spawn(async move {
-            if let Err(e) = connection.await {
-                eprintln!("connection error: {}", e);
-            }
-        });
+    pub async fn new(pg_config: SharedBackupDbConfig) -> Result<Self, PoolError> {
+        let mut cfg = PgConfig::new();
+        cfg.host(&pg_config.db_host())
+            .port(pg_config.db_port() as u16)
+            .user(&pg_config.db_user())
+            .password(pg_config.db_password())
+            .dbname(&pg_config.db_name());
+        let mgr_config = ManagerConfig {
+            recycling_method: RecyclingMethod::Fast,
+        };
+        let mgr = Manager::from_config(cfg.clone(), NoTls, mgr_config.clone());
+        let pool = Pool::builder(mgr)
+            .max_size(pg_config.max_pool_size().unwrap_or(16))
+            .build()
+            .unwrap();
+        let client = pool.get().await?;
         // create new db
         let db_name = format!("citrea{}", get_db_extension());
         let _ = client
             .batch_execute(&format!("CREATE DATABASE {};", db_name.clone()))
             .await;
-        drop(client);
+        drop(pool);
         //connect to new db
-        let (client, connection) = tokio_postgres::connect(
-            pg_config
-                .parse_to_connection_string_with_db(db_name)
-                .as_str(),
-            NoTls,
-        )
-        .await?;
-        tokio::spawn(async move {
-            if let Err(e) = connection.await {
-                eprintln!("connection error: {}", e);
-            }
-        });
+        cfg.dbname(&db_name);
+        let mgr = Manager::from_config(cfg, NoTls, mgr_config);
+        let pool = Pool::builder(mgr)
+            .max_size(pg_config.max_pool_size().unwrap_or(16))
+            .build()
+            .unwrap();
+        let client = pool.get().await?;
 
         // create tables
         client
             .batch_execute(SEQUENCER_COMMITMENT_TABLE_CREATE_QUERY)
             .await?;
         client.batch_execute(MEMPOOL_TXS_TABLE_CREATE_QUERY).await?;
-        let db_client = Self { client };
+        let db_client = Self { client: pool };
 
         let _ = db_client.create_indexes().await;
 
         Ok(db_client)
     }
 
-    pub async fn create_indexes(&self) -> Result<(), Error> {
-        self.client.batch_execute(INDEX_L1_END_HEIGHT).await?;
-        self.client.batch_execute(INDEX_L1_END_HASH).await?;
-        self.client.batch_execute(INDEX_L2_END_HEIGHT).await?;
-        self.client.batch_execute(INDEX_MEMPOOL_TXS).await?;
+    pub async fn client(&self) -> Result<Object, PoolError> {
+        Ok(self.client.get().await?)
+    }
+
+    pub async fn create_indexes(&self) -> Result<(), PoolError> {
+        let client = self.client().await.map_err(|e| e)?;
+        client.batch_execute(INDEX_L1_END_HEIGHT).await?;
+        client.batch_execute(INDEX_L1_END_HASH).await?;
+        client.batch_execute(INDEX_L2_END_HEIGHT).await?;
+        // client.batch_execute(INDEX_MEMPOOL_TXS).await?;
         Ok(())
     }
 
     #[cfg(feature = "test-utils")]
-    pub async fn new_test_client() -> Result<Self, Error> {
-        let pg_config = SharedBackupDbConfig::default();
+    pub async fn new_test_client() -> Result<Self, PoolError> {
+        let mut cfg = PgConfig::new();
+        cfg.host("localhost")
+            .port(5432)
+            .user("postgres")
+            .password("password")
+            .dbname("postgres");
+        let mgr_config = ManagerConfig {
+            recycling_method: RecyclingMethod::Fast,
+        };
+        let mgr = Manager::from_config(cfg.clone(), NoTls, mgr_config.clone());
+        let pool = Pool::builder(mgr).max_size(16).build().unwrap();
+        let client = pool.get().await.unwrap();
 
-        let (client, connection) =
-            tokio_postgres::connect(pg_config.parse_to_connection_string().as_str(), NoTls).await?;
-        tokio::spawn(async move {
-            if let Err(e) = connection.await {
-                eprintln!("connection error: {}", e);
-            }
-        });
-
-        // create new db
         let db_name = format!("citrea{}", get_db_extension());
         client
             .batch_execute(&format!("DROP DATABASE IF EXISTS {};", db_name.clone()))
@@ -91,31 +98,25 @@ impl PostgresConnector {
             .await
             .unwrap();
 
-        drop(client);
+        drop(pool);
         //connect to new db
-        let (test_client, connection) = tokio_postgres::connect(
-            pg_config
-                .parse_to_connection_string_with_db(db_name)
-                .as_str(),
-            NoTls,
-        )
-        .await?;
-        tokio::spawn(async move {
-            if let Err(e) = connection.await {
-                eprintln!("connection error: {}", e);
-            }
-        });
+
+        cfg.dbname(db_name.as_str());
+        let mgr = Manager::from_config(cfg, NoTls, mgr_config);
+        let test_pool = Pool::builder(mgr).max_size(16).build().unwrap();
+        let test_client = test_pool.get().await.unwrap();
+
         test_client
             .batch_execute(SEQUENCER_COMMITMENT_TABLE_CREATE_QUERY)
             .await
             .unwrap();
+
         test_client
             .batch_execute(MEMPOOL_TXS_TABLE_CREATE_QUERY)
             .await
             .unwrap();
-        let test_client = Self {
-            client: test_client,
-        };
+
+        let test_client = Self { client: test_pool };
 
         test_client.create_indexes().await.unwrap();
         Ok(test_client)
@@ -133,8 +134,9 @@ impl PostgresConnector {
         l2_end_height: u32,
         merkle_root: Vec<u8>,
         status: CommitmentStatus,
-    ) -> Result<u64, Error> {
-        self.client
+    ) -> Result<u64, PoolError> {
+        let client = self.client().await.map_err(|e| e)?;
+        Ok(client
             .execute(
                 "INSERT INTO sequencer_commitments (l1_start_height, l1_end_height, l1_tx_id, l1_start_hash, l1_end_hash, l2_start_height, l2_end_height, merkle_root, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)", 
                 &[
@@ -148,21 +150,22 @@ impl PostgresConnector {
                     &merkle_root,
                     &status.to_string(),
                 ],
-            ).await
+            ).await?)
     }
 
-    pub async fn insert_mempool_tx(&self, tx_hash: Vec<u8>, tx: Vec<u8>) -> Result<u64, Error> {
-        self.client
+    pub async fn insert_mempool_tx(&self, tx_hash: Vec<u8>, tx: Vec<u8>) -> Result<u64, PoolError> {
+        let client = self.client().await.map_err(|e| e)?;
+        Ok(client
             .execute(
-                "INSERT INTO mempool_txs (tx_hash, tx) VALUES ($1, $2)",
+                "INSERT INTO mempool_txs (tx_hash, tx) VALUES ($1, $2);",
                 &[&tx_hash, &tx],
             )
-            .await
+            .await?)
     }
 
-    pub async fn get_all_commitments(&self) -> Result<Vec<DbSequencerCommitment>, Error> {
-        Ok(self
-            .client
+    pub async fn get_all_commitments(&self) -> Result<Vec<DbSequencerCommitment>, PoolError> {
+        let client = self.client().await.map_err(|e| e)?;
+        Ok(client
             .query("SELECT * FROM sequencer_commitments", &[])
             .await?
             .iter()
@@ -170,9 +173,9 @@ impl PostgresConnector {
             .collect())
     }
 
-    pub async fn get_all_txs(&self) -> Result<Vec<DbMempoolTx>, Error> {
-        Ok(self
-            .client
+    pub async fn get_all_txs(&self) -> Result<Vec<DbMempoolTx>, PoolError> {
+        let client = self.client().await.map_err(|e| e)?;
+        Ok(client
             .query("SELECT * FROM mempool_txs", &[])
             .await?
             .iter()
@@ -180,9 +183,9 @@ impl PostgresConnector {
             .collect())
     }
 
-    pub async fn get_last_commitment(&self) -> Result<Option<DbSequencerCommitment>, Error> {
-        let rows = self
-            .client
+    pub async fn get_last_commitment(&self) -> Result<Option<DbSequencerCommitment>, PoolError> {
+        let client = self.client().await.map_err(|e| e)?;
+        let rows = client
             .query(
                 "SELECT * FROM sequencer_commitments ORDER BY id DESC LIMIT 1",
                 &[],
@@ -196,19 +199,21 @@ impl PostgresConnector {
         )))
     }
 
-    pub async fn drop_table(&self, table: Tables) -> Result<u64, Error> {
-        self.client
+    pub async fn drop_table(&self, table: Tables) -> Result<u64, PoolError> {
+        let client = self.client().await.map_err(|e| e)?;
+        Ok(client
             .execute(format!("DROP TABLE {};", table).as_str(), &[])
-            .await
+            .await?)
     }
 
     #[cfg(test)]
     pub async fn create_table(&self, table: Tables) {
+        let client = self.client().await.unwrap();
         let query = match table {
             Tables::SequencerCommitment => SEQUENCER_COMMITMENT_TABLE_CREATE_QUERY,
             Tables::MempoolTxs => MEMPOOL_TXS_TABLE_CREATE_QUERY,
         };
-        self.client.execute(query, &[]).await.unwrap();
+        client.execute(query, &[]).await.unwrap();
     }
 
     // Helper function to convert a Row to DbSequencerCommitment
