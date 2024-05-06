@@ -99,7 +99,7 @@ pub const INDEX_L1_END_HASH: &str =
 pub const MEMPOOL_TXS_TABLE_CREATE_QUERY: &str = "
 CREATE TABLE IF NOT EXISTS mempool_txs (
     id          SERIAL PRIMARY KEY,
-    tx_hash     BYTEA NOT NULL,
+    tx_hash     BYTEA NOT NULL UNIQUE,
     tx          BYTEA NOT NULL
 );";
 

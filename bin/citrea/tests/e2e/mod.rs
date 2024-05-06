@@ -1952,7 +1952,7 @@ async fn transaction_failing_on_l1_is_removed_from_mempool() -> Result<(), anyho
 
 #[tokio::test]
 async fn sequencer_crash_restore_mempool() -> Result<(), anyhow::Error> {
-    citrea::initialize_logging();
+    // citrea::initialize_logging();
     let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
 
     let _ = fs::remove_dir_all(Path::new("demo_data_sequencer_restore_mempool"));
@@ -2023,8 +2023,7 @@ async fn sequencer_crash_restore_mempool() -> Result<(), anyhow::Error> {
     assert_eq!(txs[0].tx_hash, tx_hash.as_bytes().to_vec());
     assert_eq!(txs[1].tx_hash, tx_hash2.as_bytes().to_vec());
 
-    // TODO: the first one has two more bytes in the beginning for some reason, probably lenght identifier or sth like that
-    assert_eq!(&txs[0].tx[2..], tx_1.rlp().to_vec().as_slice());
+    assert_eq!(txs[0].tx, tx_1.rlp().to_vec());
 
     // crash and reopen and check if the txs are in the mempool
     seq_task.abort();

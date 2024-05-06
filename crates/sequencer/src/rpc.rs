@@ -57,7 +57,7 @@ pub(crate) fn create_rpc_module<C: sov_modules_api::Context>(
             pool_transaction
                 .to_recovered_transaction()
                 .into_signed()
-                .encode(&mut rlp_encoded_tx);
+                .encode_enveloped(&mut rlp_encoded_tx);
             // Do not return error here just log
             match pool.insert_mempool_tx(hash.to_vec(), rlp_encoded_tx).await {
                 Ok(_) => (),

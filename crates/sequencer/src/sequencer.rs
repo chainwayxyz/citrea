@@ -6,7 +6,6 @@ use std::sync::Arc;
 use std::time::Duration;
 use std::vec;
 
-use alloy_rlp::Decodable;
 use anyhow::anyhow;
 use borsh::ser::BorshSerialize;
 use citrea_evm::{CallMessage, Evm, RlpEvmTransaction};
@@ -15,7 +14,8 @@ use digest::Digest;
 use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
 use futures::StreamExt;
 use jsonrpsee::RpcModule;
-use reth_primitives::{IntoRecoveredTransaction, TransactionSigned};
+use reth_primitives::FromRecoveredPooledTransaction;
+use reth_primitives::IntoRecoveredTransaction;
 use reth_provider::BlockReaderIdExt;
 use reth_transaction_pool::{BestTransactionsAttributes, EthPooledTransaction, PoolTransaction};
 use shared_backup_db::{CommitmentStatus, PostgresConnector, SharedBackupDbConfig};
@@ -47,6 +47,7 @@ use crate::db_provider::DbProvider;
 use crate::deposit_data_mempool::DepositDataMempool;
 use crate::mempool::CitreaMempool;
 use crate::rpc::{create_rpc_module, RpcContext};
+use crate::utils::recover_raw_transaction;
 
 type StateRoot<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::StateRoot;
 
@@ -832,14 +833,12 @@ where
             Ok(pg_connector) => {
                 let mempool_txs = pg_connector.get_all_txs().await?;
                 for tx in mempool_txs {
-                    // TODO Handle error
-                    let decoded = TransactionSigned::decode(&mut tx.tx.as_slice()).unwrap();
-                    // TODO Handle error
-                    let signed_ec_recovered = decoded.into_ecrecovered().unwrap();
-
-                    let length_without_header = signed_ec_recovered.length_without_header();
+                    let recovered = recover_raw_transaction(reth_primitives::Bytes::from(
+                        tx.tx.as_slice().to_vec(),
+                    ))
+                    .unwrap();
                     let pooled_tx =
-                        EthPooledTransaction::new(signed_ec_recovered, length_without_header);
+                        EthPooledTransaction::from_recovered_pooled_transaction(recovered);
 
                     // TODO Handle error
                     let _ = self
