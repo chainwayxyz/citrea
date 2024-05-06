@@ -791,7 +791,7 @@ where
         let l1_data = match get_da_block_data(da_service.clone(), ledger_db.clone()).await {
             Ok(l1_data) => l1_data,
             Err(e) => {
-                error!("Could not fetch L1 data: {}", e);
+                error!("Could not fetch L1 data, {}", e);
                 continue;
             }
         };
@@ -811,13 +811,11 @@ where
         Ok(None) => match da_service.get_last_finalized_block_header().await {
             Ok(block_header) => block_header.height(),
             Err(e) => {
-                error!("Could not fetch previous L1 height from DA service: {}", e);
-                return Err(anyhow!(e));
+                return Err(anyhow!("Previous L1 height: {}", e));
             }
         },
         Err(e) => {
-            error!("Could not fetch previous L1 height from ledger: {}", e);
-            return Err(anyhow!(e));
+            return Err(anyhow!("previous L1 height: {}", e));
         }
     };
 
@@ -826,22 +824,14 @@ where
     let last_finalized_height = match da_service.get_last_finalized_block_header().await {
         Ok(header) => header.height(),
         Err(e) => {
-            error!(
-                "Could not fetch previous L1 finalized height from DA service: {}",
-                e
-            );
-            return Err(anyhow!(e));
+            return Err(anyhow!("Finalized height: {}", e));
         }
     };
 
     let last_finalized_block = match da_service.get_block_at(last_finalized_height).await {
         Ok(block) => block,
         Err(e) => {
-            error!(
-                "Could not fetch previous L1 finalized block from DA service: {}",
-                e
-            );
-            return Err(anyhow!(e));
+            return Err(anyhow!("Finalized block: {}", e));
         }
     };
 
@@ -853,8 +843,7 @@ where
     let l1_fee_rate = match da_service.get_fee_rate().await {
         Ok(fee_rate) => fee_rate,
         Err(e) => {
-            error!("Could not fetch L1 fee rate from DA service: {}", e);
-            return Err(anyhow!(e));
+            return Err(anyhow!("L1 fee rate: {}", e));
         }
     };
 
