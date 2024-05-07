@@ -37,7 +37,7 @@ use sov_rollup_interface::zk::ZkvmHost;
 use sov_stf_runner::{InitVariant, RpcConfig, RunnerConfig};
 use tokio::sync::oneshot::Receiver as OneshotReceiver;
 use tokio::sync::{mpsc, Mutex};
-use tokio::time::sleep;
+use tokio::time::{sleep, Instant};
 use tracing::{debug, error, info, warn};
 
 use crate::commitment_controller::{self, CommitmentInfo};
@@ -447,9 +447,11 @@ where
         let (da_tx, mut da_rx) = mpsc::channel(1);
         let da_monitor = da_block_monitor(self.da_service.clone(), self.ledger_db.clone(), da_tx);
         tokio::pin!(da_monitor);
-        let mut interval = tokio::time::interval(Duration::from_secs(2));
+
+        let mut parent_block_exec_time = Duration::from_secs(2);
 
         loop {
+            let mut interval = tokio::time::interval(parent_block_exec_time);
             tokio::select! {
                 // Run the DA monitor worker
                 _ = &mut da_monitor => {},
@@ -474,8 +476,18 @@ where
                 },
                 // If sequencer is in production mode, it will build a block every 2 seconds
                 _ = interval.tick() => {
-                    if let Err(e) = self.produce_l2_block(last_finalized_block.clone(), l1_fee_rate).await {
-                        error!("Sequencer error: {}", e);
+                    let instant = Instant::now();
+                    match self.produce_l2_block(last_finalized_block.clone(), l1_fee_rate).await {
+                        Ok(_) => {
+                            // Set the next iteration's wait time to produce a block based on the
+                            // previous block's execution time.
+                            // This is mainly to make sure we account for the execution time to
+                            // achieve consistent 2-second block production.
+                            parent_block_exec_time = instant.elapsed();
+                        },
+                        Err(e) => {
+                            error!("Sequencer error: {}", e);
+                        }
                     }
                 }
             }
