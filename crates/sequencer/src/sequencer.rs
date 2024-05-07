@@ -515,6 +515,10 @@ where
                 },
                 // If sequencer is in production mode, it will build a block every 2 seconds
                 _ = interval.tick() => {
+                    // By default, we produce a non-empty block IFF we were caught up all the way to
+                    // last_finalized_block. If there are missed DA blocks, we start producing
+                    // empty blocks at ~2 second rate, 1 L2 block per respective missed DA block
+                    // until we know we caught up with L1.
                     let mut l2_block_mode = L2BlockMode::NotEmpty;
                     let mut da_block = last_finalized_block.clone();
 
