@@ -44,6 +44,9 @@ pub(crate) const MIN_TRANSACTION_GAS: u64 = 21_000u64;
 const ESTIMATE_GAS_ERROR_RATIO: f64 = 0.015;
 
 /// The result of gas estimation.
+/// This struct holds estimated gas and l1_fee_overhead.
+/// This is very useful for users to test their balance after calling to `eth_estimateGas`
+/// whether they can afford to execute a transaction.
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub(crate) struct EstimatedGas {
     /// Evm gas used.
