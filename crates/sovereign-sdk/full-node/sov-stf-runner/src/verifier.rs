@@ -32,7 +32,11 @@ where
     }
 
     /// Verify the next block
-    pub fn run_block(&self, zkvm: Zk, pre_state: Stf::PreState) -> Result<(), Da::Error> {
+    pub fn run_sequencer_commitments_in_da_slot(
+        &self,
+        zkvm: Zk,
+        pre_state: Stf::PreState,
+    ) -> Result<(), Da::Error> {
         let data: StateTransitionData<Stf::StateRoot, _, Da::Spec> = zkvm.read_from_host();
         let validity_condition = self.da_verifier.verify_relevant_tx_list(
             &data.da_block_header_of_commitments,
