@@ -66,7 +66,6 @@ impl PostgresConnector {
         client.batch_execute(INDEX_L1_END_HEIGHT).await?;
         client.batch_execute(INDEX_L1_END_HASH).await?;
         client.batch_execute(INDEX_L2_END_HEIGHT).await?;
-        // client.batch_execute(INDEX_MEMPOOL_TXS).await?;
         Ok(())
     }
 
