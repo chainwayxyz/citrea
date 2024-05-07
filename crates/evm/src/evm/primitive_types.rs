@@ -2,7 +2,7 @@ use std::ops::Range;
 
 use reth_primitives::{Address, Header, SealedHeader, TransactionSigned, B256};
 
-#[derive(serde::Deserialize, serde::Serialize, Debug, PartialEq, Clone)]
+#[derive(serde::Deserialize, serde::Serialize, Debug, PartialEq, Copy, Clone)]
 pub(crate) struct BlockEnv {
     pub(crate) number: u64,
     pub(crate) coinbase: Address,

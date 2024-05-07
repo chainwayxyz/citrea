@@ -11,17 +11,17 @@ use super::handler::{citrea_handler, CitreaExternalExt};
 use super::primitive_types::BlockEnv;
 use crate::SYSTEM_SIGNER;
 
-struct CitreaEvm<'a, EXT, DB: Database> {
+pub(crate) struct CitreaEvm<'a, EXT, DB: Database> {
     evm: revm::Evm<'a, EXT, DB>,
 }
 
 impl<'a, EXT, DB> CitreaEvm<'a, EXT, DB>
 where
-    DB: Database<Error = Infallible> + DatabaseCommit,
+    DB: Database,
     EXT: CitreaExternalExt,
 {
     /// Creates a new Citrea EVM with the given parameters.
-    fn new(db: DB, block_env: BlockEnv, config_env: CfgEnvWithHandlerCfg, ext: EXT) -> Self {
+    pub fn new(db: DB, block_env: BlockEnv, config_env: CfgEnvWithHandlerCfg, ext: EXT) -> Self {
         let evm_env = Env::boxed(config_env.cfg_env, block_env.into(), Default::default());
         let evm_context = EvmContext::new_with_env(db, evm_env);
         let context = Context::new(evm_context, ext);
@@ -34,7 +34,10 @@ where
     fn transact_commit(
         &mut self,
         tx: &TransactionSignedEcRecovered,
-    ) -> Result<ExecutionResult, EVMError<Infallible>> {
+    ) -> Result<ExecutionResult, EVMError<DB::Error>>
+    where
+        DB: DatabaseCommit,
+    {
         self.evm.context.external.set_current_tx_hash(tx.hash());
         *self.evm.tx_mut() = create_tx_env(tx);
         self.evm.transact_commit()
@@ -45,29 +48,29 @@ where
     fn transact(
         &mut self,
         tx: &TransactionSignedEcRecovered,
-    ) -> Result<ResultAndState, EVMError<Infallible>> {
+    ) -> Result<ResultAndState, EVMError<DB::Error>> {
         self.evm.context.external.set_current_tx_hash(tx.hash());
         *self.evm.tx_mut() = create_tx_env(tx);
         self.evm.transact()
     }
 
     /// Commits the given state diff to the database.
-    fn commit(&mut self, state: State) {
+    fn commit(&mut self, state: State)
+    where
+        DB: DatabaseCommit,
+    {
         self.evm.context.evm.db.commit(state)
     }
 }
 
 #[allow(dead_code)]
-pub(crate) fn execute_tx<
-    DB: Database<Error = Infallible> + DatabaseCommit,
-    EXT: CitreaExternalExt,
->(
+pub(crate) fn execute_tx<DB: Database + DatabaseCommit, EXT: CitreaExternalExt>(
     db: DB,
     block_env: BlockEnv,
     tx: &TransactionSignedEcRecovered,
     config_env: CfgEnvWithHandlerCfg,
     ext: &mut EXT,
-) -> Result<ExecutionResult, EVMError<Infallible>> {
+) -> Result<ExecutionResult, EVMError<DB::Error>> {
     let mut evm = CitreaEvm::new(db, block_env, config_env, ext);
     evm.transact_commit(tx)
 }

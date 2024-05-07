@@ -1896,11 +1896,11 @@ async fn transaction_failing_on_l1_is_removed_from_mempool() -> Result<(), anyho
     .await;
 
     let tx = random_test_client
-        .send_eth(
+        .send_eth_with_gas(
             Address::from_str("0x0000000000000000000000000000000000000000").unwrap(),
             Some(0),
             Some(second_block_base_fee),
-            None,
+            21000,
             500,
         )
         .await

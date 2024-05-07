@@ -19,9 +19,10 @@ use revm::{EvmContext, Inspector};
 
 use crate::system_events::SYSTEM_SIGNER;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Default)]
 pub struct TxInfo {
     pub diff_size: u64,
+    pub l1_fee: U256,
 }
 
 /// An external context appended to the EVM.
@@ -344,9 +345,9 @@ impl<SPEC: Spec, EXT: CitreaExternalExt, DB: Database> CitreaHandler<SPEC, EXT, 
         result: FrameResult,
     ) -> Result<ResultAndState, EVMError<<DB as Database>::Error>> {
         let diff_size = calc_diff_size(context).map_err(EVMError::Database)? as u64;
-        let l1_fee_rate = U256::from(context.external.l1_fee_rate());
-        let l1_fee = U256::from(diff_size) * l1_fee_rate;
-        context.external.set_tx_info(TxInfo { diff_size });
+        let l1_fee_rate = context.external.l1_fee_rate();
+        let l1_fee = U256::from(diff_size) * U256::from(l1_fee_rate);
+        context.external.set_tx_info(TxInfo { diff_size, l1_fee });
         if result.interpreter_result().is_ok() {
             // Deduct L1 fee only if tx is successful.
             if context.is_system_caller() {
