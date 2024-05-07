@@ -263,6 +263,37 @@ impl TestClient {
         let gas = self
             .eth_estimate_gas(TypedTransaction::Eip1559(req.clone()), None)
             .await;
+        dbg!(gas);
+
+        req = req
+            .gas(gas)
+            .nonce(nonce)
+            .max_priority_fee_per_gas(max_priority_fee_per_gas.unwrap_or(10u64))
+            .max_fee_per_gas(max_fee_per_gas.unwrap_or(MAX_FEE_PER_GAS));
+
+        let typed_transaction = TypedTransaction::Eip1559(req);
+
+        self.client
+            .send_transaction(typed_transaction, None)
+            .await
+            .map_err(|e| e.into())
+    }
+
+    pub(crate) async fn send_eth_with_gas(
+        &self,
+        to_addr: Address,
+        max_priority_fee_per_gas: Option<u64>,
+        max_fee_per_gas: Option<u64>,
+        gas: u64,
+        value: u128,
+    ) -> Result<PendingTransaction<'_, Http>, anyhow::Error> {
+        let nonce = self.current_nonce.fetch_add(1, Ordering::Relaxed);
+
+        let mut req = Eip1559TransactionRequest::new()
+            .from(self.from_addr)
+            .to(to_addr)
+            .chain_id(self.chain_id)
+            .value(value);
 
         req = req
             .gas(gas)
