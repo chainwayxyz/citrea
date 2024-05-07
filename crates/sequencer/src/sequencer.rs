@@ -14,8 +14,7 @@ use digest::Digest;
 use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
 use futures::StreamExt;
 use jsonrpsee::RpcModule;
-use reth_primitives::FromRecoveredPooledTransaction;
-use reth_primitives::IntoRecoveredTransaction;
+use reth_primitives::{FromRecoveredPooledTransaction, IntoRecoveredTransaction};
 use reth_provider::BlockReaderIdExt;
 use reth_transaction_pool::{BestTransactionsAttributes, EthPooledTransaction, PoolTransaction};
 use shared_backup_db::{CommitmentStatus, PostgresConnector, SharedBackupDbConfig};
@@ -397,22 +396,18 @@ where
 
                 self.mempool.remove_transactions(txs_to_remove.clone());
 
-                match pg_pool.clone() {
-                    Some(pg_pool) => {
-                        // TODO: Is this okay? I'm not sure because we have a loop in this and I can't do async in spawn_blocking
-                        tokio::spawn(async move {
-                            let txs = txs_to_remove
-                                .iter()
-                                .map(|tx_hash| tx_hash.to_vec())
-                                .collect::<Vec<Vec<u8>>>();
-                            if let Err(e) = pg_pool.delete_txs_by_tx_hashes(txs).await {
-                                warn!("Failed to remove txs from mempool: {:?}", e);
-                            }
-                        });
-                    }
-                    _ => {}
+                if let Some(pg_pool) = pg_pool.clone() {
+                    // TODO: Is this okay? I'm not sure because we have a loop in this and I can't do async in spawn_blocking
+                    tokio::spawn(async move {
+                        let txs = txs_to_remove
+                            .iter()
+                            .map(|tx_hash| tx_hash.to_vec())
+                            .collect::<Vec<Vec<u8>>>();
+                        if let Err(e) = pg_pool.delete_txs_by_tx_hashes(txs).await {
+                            warn!("Failed to remove txs from mempool: {:?}", e);
+                        }
+                    });
                 }
-
                 // connect L1 and L2 height
                 self.ledger_db.extend_l2_range_of_l1_slot(
                     SlotNumber(da_block.header().height()),
@@ -573,7 +568,7 @@ where
             last_finalized_block,
             l1_fee_rate,
             L2BlockMode::NotEmpty,
-            &pg_pool,
+            pg_pool,
         )
         .await?;
         Ok(())

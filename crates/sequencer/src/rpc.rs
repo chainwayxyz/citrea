@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use alloy_rlp::Encodable;
 use citrea_evm::Evm;
 use futures::channel::mpsc::UnboundedSender;
 use jsonrpsee::core::Error as RpcError;

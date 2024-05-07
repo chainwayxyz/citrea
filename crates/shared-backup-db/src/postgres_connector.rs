@@ -20,11 +20,11 @@ pub struct PostgresConnector {
 impl PostgresConnector {
     pub async fn new(pg_config: SharedBackupDbConfig) -> Result<Self, PoolError> {
         let mut cfg = PgConfig::new();
-        cfg.host(&pg_config.db_host())
+        cfg.host(pg_config.db_host())
             .port(pg_config.db_port() as u16)
-            .user(&pg_config.db_user())
+            .user(pg_config.db_user())
             .password(pg_config.db_password())
-            .dbname(&pg_config.db_name());
+            .dbname(pg_config.db_name());
         let mgr_config = ManagerConfig {
             recycling_method: RecyclingMethod::Fast,
         };
@@ -62,11 +62,11 @@ impl PostgresConnector {
     }
 
     pub async fn client(&self) -> Result<Object, PoolError> {
-        Ok(self.client.get().await?)
+        self.client.get().await
     }
 
     pub async fn create_indexes(&self) -> Result<(), PoolError> {
-        let client = self.client().await.map_err(|e| e)?;
+        let client = self.client().await?;
         client.batch_execute(INDEX_L1_END_HEIGHT).await?;
         client.batch_execute(INDEX_L1_END_HASH).await?;
         client.batch_execute(INDEX_L2_END_HEIGHT).await?;
@@ -137,7 +137,7 @@ impl PostgresConnector {
         merkle_root: Vec<u8>,
         status: CommitmentStatus,
     ) -> Result<u64, PoolError> {
-        let client = self.client().await.map_err(|e| e)?;
+        let client = self.client().await?;
         Ok(client
             .execute(
                 "INSERT INTO sequencer_commitments (l1_start_height, l1_end_height, l1_tx_id, l1_start_hash, l1_end_hash, l2_start_height, l2_end_height, merkle_root, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)", 
@@ -156,7 +156,7 @@ impl PostgresConnector {
     }
 
     pub async fn insert_mempool_tx(&self, tx_hash: Vec<u8>, tx: Vec<u8>) -> Result<u64, PoolError> {
-        let client = self.client().await.map_err(|e| e)?;
+        let client = self.client().await?;
         Ok(client
             .execute(
                 "INSERT INTO mempool_txs (tx_hash, tx) VALUES ($1, $2);",
@@ -166,7 +166,7 @@ impl PostgresConnector {
     }
 
     pub async fn get_all_commitments(&self) -> Result<Vec<DbSequencerCommitment>, PoolError> {
-        let client = self.client().await.map_err(|e| e)?;
+        let client = self.client().await?;
         Ok(client
             .query("SELECT * FROM sequencer_commitments", &[])
             .await?
@@ -176,17 +176,17 @@ impl PostgresConnector {
     }
 
     pub async fn get_all_txs(&self) -> Result<Vec<DbMempoolTx>, PoolError> {
-        let client = self.client().await.map_err(|e| e)?;
+        let client = self.client().await?;
         Ok(client
             .query("SELECT * FROM mempool_txs", &[])
             .await?
             .iter()
-            .map(|row| PostgresConnector::row_to_mempool_tx(row))
+            .map(PostgresConnector::row_to_mempool_tx)
             .collect())
     }
 
     pub async fn get_last_commitment(&self) -> Result<Option<DbSequencerCommitment>, PoolError> {
-        let client = self.client().await.map_err(|e| e)?;
+        let client = self.client().await?;
         let rows = client
             .query(
                 "SELECT * FROM sequencer_commitments ORDER BY id DESC LIMIT 1",
@@ -202,7 +202,7 @@ impl PostgresConnector {
     }
 
     pub async fn delete_txs_by_tx_hashes(&self, tx_hashes: Vec<Vec<u8>>) -> Result<u64, PoolError> {
-        let client = self.client().await.map_err(|e| e)?;
+        let client = self.client().await?;
         Ok(client
             .execute(
                 "DELETE FROM mempool_txs WHERE tx_hash = ANY($1);",
@@ -212,7 +212,7 @@ impl PostgresConnector {
     }
 
     pub async fn drop_table(&self, table: Tables) -> Result<u64, PoolError> {
-        let client = self.client().await.map_err(|e| e)?;
+        let client = self.client().await?;
         Ok(client
             .execute(format!("DROP TABLE {};", table).as_str(), &[])
             .await?)
