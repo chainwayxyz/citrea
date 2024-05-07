@@ -131,7 +131,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     ) -> RpcResult<Option<reth_rpc_types::RichBlock>> {
         info!("evm module: eth_getBlockByNumber");
 
-        let sealed_block = match self.get_sealed_block_by_number(block_number, working_set) {
+        let sealed_block = match self.get_sealed_block_by_number(block_number, working_set)? {
             Some(sealed_block) => sealed_block,
             None => return Ok(None), // if block doesn't exist return null
         };
@@ -237,7 +237,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     .expect("Block must be set")
             }
             BlockId::Number(block_number) => {
-                match self.get_sealed_block_by_number(Some(block_number), working_set) {
+                match self.get_sealed_block_by_number(Some(block_number), working_set)? {
                     Some(block) => block,
                     None => return Ok(None), // if block doesn't exist return null
                 }
@@ -554,7 +554,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
     }
 
     /// Handler for: `eth_getTransactionReceipt`
-    // TODO https://github.com/Sovereign-Labs/sovereign-sdk/issues/502
     #[rpc_method(name = "eth_getTransactionReceipt")]
     pub fn get_transaction_receipt(
         &self,
@@ -578,10 +577,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
             let receipt = self
                 .receipts
-                .get(tx_number.unwrap() as usize, &mut accessory_state)
+                .get(number as usize, &mut accessory_state)
                 .expect("Receipt for known transaction must be set");
 
-            build_rpc_receipt(&block, tx, tx_number.unwrap(), receipt)
+            build_rpc_receipt(&block, tx, number, receipt)
         });
 
         Ok(receipt)
@@ -610,12 +609,13 @@ impl<C: sov_modules_api::Context> Evm<C> {
                                 Some(BlockNumberOrTag::Earliest),
                                 working_set,
                             )
+                            .unwrap()
                             .expect("Genesis block must be set"),
                     )
                 })
             }
             _ => {
-                let block = match self.get_sealed_block_by_number(block_number, working_set) {
+                let block = match self.get_sealed_block_by_number(block_number, working_set)? {
                     Some(block) => block,
                     None => return Err(EthApiError::UnknownBlockNumber.into()),
                 };
@@ -712,13 +712,14 @@ impl<C: sov_modules_api::Context> Evm<C> {
                                 Some(BlockNumberOrTag::Earliest),
                                 working_set,
                             )
+                            .unwrap()
                             .expect("Genesis block must be set"),
                     )
                 });
                 (l1_fee_rate, block_env)
             }
             _ => {
-                let block = match self.get_sealed_block_by_number(block_number, working_set) {
+                let block = match self.get_sealed_block_by_number(block_number, working_set)? {
                     Some(block) => block,
                     None => return Err(EthApiError::UnknownBlockNumber.into()),
                 };
@@ -836,13 +837,14 @@ impl<C: sov_modules_api::Context> Evm<C> {
                                 Some(BlockNumberOrTag::Earliest),
                                 working_set,
                             )
+                            .unwrap()
                             .expect("Genesis block must be set"),
                     )
                 });
                 (l1_fee_rate, block_env)
             }
             _ => {
-                let block = match self.get_sealed_block_by_number(block_number, working_set) {
+                let block = match self.get_sealed_block_by_number(block_number, working_set)? {
                     Some(block) => block,
                     None => return Err(EthApiError::UnknownBlockNumber.into()),
                 };
@@ -1177,7 +1179,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 block.header.hash(),
                 block.header.number,
                 block.header.base_fee_per_gas,
-                U256::from(tx_number.unwrap() - block.transactions.start),
+                U256::from(number - block.transactions.start),
             )
         });
 
@@ -1193,7 +1195,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<Vec<GethTrace>> {
         let sealed_block = self
-            .get_sealed_block_by_number(Some(BlockNumberOrTag::Number(block_number)), working_set)
+            .get_sealed_block_by_number(Some(BlockNumberOrTag::Number(block_number)), working_set)?
             .ok_or_else(|| EthApiError::UnknownBlockNumber)?;
 
         let tx_range = sealed_block.transactions.clone();
@@ -1214,7 +1216,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
         set_state_to_end_of_evm_block(block_number - 1, working_set);
 
         let block_env = BlockEnv::from(&sealed_block);
-        let cfg = self.cfg.get(working_set).unwrap();
+        let cfg = self
+            .cfg
+            .get(working_set)
+            .expect("EVM chain config should be set");
         let cfg_env = get_cfg_env(&block_env, cfg);
         let l1_fee_rate = sealed_block.l1_fee_rate;
 
@@ -1577,28 +1582,30 @@ impl<C: sov_modules_api::Context> Evm<C> {
         &self,
         block_number: Option<BlockNumberOrTag>,
         working_set: &mut WorkingSet<C>,
-    ) -> Option<SealedBlock> {
+    ) -> Result<Option<SealedBlock>, EthApiError> {
         // safe, finalized, and pending are not supported
         match block_number {
-            Some(BlockNumberOrTag::Number(block_number)) => self
+            Some(BlockNumberOrTag::Number(block_number)) => Ok(self
                 .blocks
-                .get(block_number as usize, &mut working_set.accessory_state()),
-            Some(BlockNumberOrTag::Earliest) => Some(
+                .get(block_number as usize, &mut working_set.accessory_state())),
+            Some(BlockNumberOrTag::Earliest) => Ok(Some(
                 self.blocks
                     .get(0, &mut working_set.accessory_state())
                     .expect("Genesis block must be set"),
-            ),
-            Some(BlockNumberOrTag::Latest) => Some(
+            )),
+            Some(BlockNumberOrTag::Latest) => Ok(Some(
                 self.blocks
                     .last(&mut working_set.accessory_state())
                     .expect("Head block must be set"),
-            ),
-            None => Some(
+            )),
+            None => Ok(Some(
                 self.blocks
                     .last(&mut working_set.accessory_state())
                     .expect("Head block must be set"),
-            ),
-            _ => panic!("Unsupported block number type"),
+            )),
+            _ => Err(EthApiError::InvalidParams(
+                "pending block not supported".to_string(),
+            )),
         }
     }
 
