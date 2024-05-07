@@ -13,15 +13,15 @@ make build
 
 ### Prequisites
 
-In order for the sequencer node to run with the storage DB is needed.
+For production use cases, we leverage PostgreSQL for a few extra features in the sequencer. These features are optional, if you don't want to run them, make sure the `sequencer_config.toml` file does not contain the db_config altogether in order to skip using a storage DB backend such as postgres.
+
+If running Postgres is prefered, you can execute the following command:
 
 ```sh
 docker compose up -d
 
 ```
-will run postgres in a dockerized daemon mode.
-
-If no storage DB is required, make sure the `sequencer_config.toml` file does not contain the `db_config` altogether in order to skip using a storage DB backend such as postgres.
+this will run postgres in a dockerized daemon mode.
 
 ### Run on Mock DA
 Run on a local da layer, sharable between nodes that run on your computer.
