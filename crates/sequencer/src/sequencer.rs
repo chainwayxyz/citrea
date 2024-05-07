@@ -79,6 +79,11 @@ where
     rpc_config: RpcConfig,
 }
 
+enum L2BlockMode {
+    Empty,
+    NotEmpty,
+}
+
 impl<C, Da, Sm, Vm, Stf> CitreaSequencer<C, Da, Sm, Vm, Stf>
 where
     C: Context,
@@ -208,6 +213,7 @@ where
         &mut self,
         da_block: <Da as DaService>::FilteredBlock,
         l1_fee_rate: u64,
+        l2_block_mode: L2BlockMode,
     ) -> anyhow::Result<()> {
         let da_height = da_block.header().height();
         let (l2_height, l1_height) = match self
@@ -274,7 +280,10 @@ where
                     .evm
                     .get_pending_txs_cumulative_gas_used(&mut batch_workspace);
 
-                let rlp_txs = self.get_best_transactions(system_tx_gas_usage)?;
+                let rlp_txs = match l2_block_mode {
+                    L2BlockMode::Empty => vec![],
+                    L2BlockMode::NotEmpty => self.get_best_transactions(system_tx_gas_usage)?,
+                };
 
                 debug!(
                     "Sequencer: publishing block with {} transactions",
@@ -448,18 +457,48 @@ where
         let da_monitor = da_block_monitor(self.da_service.clone(), self.ledger_db.clone(), da_tx);
         tokio::pin!(da_monitor);
 
-        let mut parent_block_exec_time = Duration::from_secs(2);
+        let target_block_time = Duration::from_secs(2);
+        let mut parent_block_exec_time = Duration::from_secs(0);
+
+        // In case the sequencer falls behind on DA blocks, we need to produce at least 1
+        // empty block per DA block. Which means that we have to keep count of missed blocks
+        // and only resume normal operations once the sequencer has caught up.
+        let mut missed_da_blocks_count = 0;
 
         loop {
-            let mut interval = tokio::time::interval(parent_block_exec_time);
+            let mut interval = tokio::time::interval(target_block_time - parent_block_exec_time);
+            // The first ticket completes immediately.
+            // See: https://docs.rs/tokio/latest/tokio/time/struct.Interval.html#method.tick
+            interval.tick().await;
+
+            let last_finalized_height = last_finalized_block.header().height();
             tokio::select! {
                 // Run the DA monitor worker
                 _ = &mut da_monitor => {},
                 // Receive updates from DA layer worker.
                 l1_data = da_rx.recv() => {
+                    // Stop receiving updates from DA layer until we have caught up.
+                    if missed_da_blocks_count > 0 {
+                        continue;
+                    }
                     if let Some(l1_data) = l1_data {
                         (prev_l1_height, last_finalized_block, l1_fee_rate) = l1_data;
-                        if let Err(e) = self.submit_commitment(last_finalized_block.header().height(), prev_l1_height).await {
+
+                        if last_finalized_height > prev_l1_height {
+                            let skipped_blocks = last_finalized_height - prev_l1_height;
+                            if skipped_blocks > 1 {
+                                // This shouldn't happen. If it does, then we should produce at least 1 block for the blocks in between
+                                warn!(
+                                    "Sequencer is falling behind on L1 blocks by {:?} blocks",
+                                    skipped_blocks
+                                );
+
+                                // Missed DA blocks means that we produce n - 1 empty blocks, 1 per missed DA block.
+                                missed_da_blocks_count = skipped_blocks - 1;
+                            }
+                        }
+
+                        if let Err(e) = self.submit_commitment(last_finalized_height, prev_l1_height).await {
                             error!("Sequencer error: {}", e);
                         }
                     }
@@ -469,21 +508,35 @@ where
                 // that evey though we check the receiver here, it'll never be "ready" to be consumed unless in test mode.
                 _ = self.l2_force_block_rx.next() => {
                     if self.config.test_mode {
-                        if let Err(e) = self.produce_l2_block(last_finalized_block.clone(), l1_fee_rate).await {
+                        if let Err(e) = self.produce_l2_block(last_finalized_block.clone(), l1_fee_rate, L2BlockMode::NotEmpty).await {
                             error!("Sequencer error: {}", e);
                         }
                     }
                 },
                 // If sequencer is in production mode, it will build a block every 2 seconds
                 _ = interval.tick() => {
+                    let mut l2_block_mode = L2BlockMode::NotEmpty;
+                    let mut da_block = last_finalized_block.clone();
+
+                    if missed_da_blocks_count > 0 {
+                        l2_block_mode = L2BlockMode::Empty;
+                        let needed_da_block_height = prev_l1_height + (last_finalized_height - prev_l1_height - missed_da_blocks_count);
+                        da_block = self
+                            .da_service
+                            .get_block_at(needed_da_block_height)
+                            .await
+                            .map_err(|e| anyhow!(e))?;
+                    }
+
                     let instant = Instant::now();
-                    match self.produce_l2_block(last_finalized_block.clone(), l1_fee_rate).await {
+                    match self.produce_l2_block(da_block, l1_fee_rate, l2_block_mode).await {
                         Ok(_) => {
                             // Set the next iteration's wait time to produce a block based on the
                             // previous block's execution time.
                             // This is mainly to make sure we account for the execution time to
                             // achieve consistent 2-second block production.
                             parent_block_exec_time = instant.elapsed();
+                            missed_da_blocks_count = missed_da_blocks_count.saturating_sub(1);
                         },
                         Err(e) => {
                             error!("Sequencer error: {}", e);
@@ -719,14 +772,6 @@ where
             }
             Ordering::Equal => None,
             Ordering::Greater => {
-                let skipped_blocks = last_finalized_height - prev_l1_height;
-                if skipped_blocks > 1 {
-                    // This shouldn't happen. If it does, trigger a warning.
-                    warn!(
-                        "Sequencer is falling behind on L1 blocks by {:?} blocks",
-                        skipped_blocks
-                    );
-                }
                 let prev_l1_height = last_finalized_height - 1;
                 Some(prev_l1_height)
             }
