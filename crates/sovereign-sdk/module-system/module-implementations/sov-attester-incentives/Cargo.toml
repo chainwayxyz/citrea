@@ -20,6 +20,7 @@ sov-modules-api = { path = "../../sov-modules-api", version = "0.3" }
 sov-modules-core = { path = "../../sov-modules-core", version = "0.3", features = ["mocks"] }
 sov-rollup-interface = { path = "../../../rollup-interface", version = "0.3" }
 sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
+sov-attester-incentives = { path = ".", features = ["native"] }
 
 
 [dependencies]
