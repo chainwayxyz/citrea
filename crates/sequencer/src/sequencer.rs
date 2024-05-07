@@ -211,7 +211,7 @@ where
         da_block: <Da as DaService>::FilteredBlock,
         l1_fee_rate: u64,
         l2_block_mode: L2BlockMode,
-        pg_pool: &Option<Arc<PostgresConnector>>,
+        pg_pool: &Option<PostgresConnector>,
     ) -> anyhow::Result<()> {
         let da_height = da_block.header().height();
         let (l2_height, l1_height) = match self
@@ -427,10 +427,7 @@ where
         Ok(())
     }
 
-    pub async fn build_block(
-        &mut self,
-        pg_pool: &Option<Arc<PostgresConnector>>,
-    ) -> anyhow::Result<()> {
+    pub async fn build_block(&mut self, pg_pool: &Option<PostgresConnector>) -> anyhow::Result<()> {
         // best txs with base fee
         // get base fee from last blocks => header => next base fee() function
 
@@ -586,23 +583,22 @@ where
         // If connected to offchain db first check if the commitments are in sync
         let mut pg_pool = None;
         if let Some(db_config) = self.config.db_config.clone() {
-            // TODO: Give pool instead of config everywhere
-            match self.compare_commitments_from_db(db_config.clone()).await {
-                Ok(()) => info!("Sequencer: Commitments are in sync"),
-                Err(e) => {
-                    warn!("Sequencer: Offchain db error: {:?}", e);
-                }
-            }
-
-            match self.restore_mempool(db_config.clone()).await {
-                Ok(()) => info!("Sequencer: Mempool restored"),
-                Err(e) => {
-                    warn!("Sequencer: Mempool restore error: {:?}", e);
-                }
-            }
-
             pg_pool = match PostgresConnector::new(db_config).await {
-                Ok(pg_connector) => Some(Arc::new(pg_connector)),
+                Ok(pg_connector) => {
+                    match self.compare_commitments_from_db(pg_connector.clone()).await {
+                        Ok(()) => info!("Sequencer: Commitments are in sync"),
+                        Err(e) => {
+                            warn!("Sequencer: Offchain db error: {:?}", e);
+                        }
+                    }
+                    match self.restore_mempool(pg_connector.clone()).await {
+                        Ok(()) => info!("Sequencer: Mempool restored"),
+                        Err(e) => {
+                            warn!("Sequencer: Mempool restore error: {:?}", e);
+                        }
+                    }
+                    Some(pg_connector)
+                }
                 Err(e) => {
                     warn!("Failed to connect to postgres: {:?}", e);
                     None
@@ -824,66 +820,48 @@ where
 
     pub async fn restore_mempool(
         &self,
-        db_config: SharedBackupDbConfig,
+        pg_connector: PostgresConnector,
     ) -> Result<(), anyhow::Error> {
-        match PostgresConnector::new(db_config).await {
-            Ok(pg_connector) => {
-                let mempool_txs = pg_connector.get_all_txs().await?;
-                for tx in mempool_txs {
-                    let recovered = recover_raw_transaction(reth_primitives::Bytes::from(
-                        tx.tx.as_slice().to_vec(),
-                    ))
+        let mempool_txs = pg_connector.get_all_txs().await?;
+        for tx in mempool_txs {
+            let recovered =
+                recover_raw_transaction(reth_primitives::Bytes::from(tx.tx.as_slice().to_vec()))
                     .unwrap();
-                    let pooled_tx =
-                        EthPooledTransaction::from_recovered_pooled_transaction(recovered);
+            let pooled_tx = EthPooledTransaction::from_recovered_pooled_transaction(recovered);
 
-                    // TODO Handle error
-                    let _ = self
-                        .mempool
-                        .add_external_transaction(pooled_tx)
-                        .await
-                        .unwrap();
-                }
-                Ok(())
-            }
-            Err(e) => {
-                warn!("Failed to connect to postgres: {:?}", e);
-                Err(anyhow::anyhow!("Failed to connect to postgres: {:?}", e))
-            }
+            // TODO Handle error
+            let _ = self
+                .mempool
+                .add_external_transaction(pooled_tx)
+                .await
+                .unwrap();
         }
+        Ok(())
     }
 
     pub async fn compare_commitments_from_db(
         &self,
-        db_config: SharedBackupDbConfig,
+        pg_connector: PostgresConnector,
     ) -> Result<(), anyhow::Error> {
         let ledger_commitment_l1_height =
             self.ledger_db.get_last_sequencer_commitment_l1_height()?;
 
-        match PostgresConnector::new(db_config).await {
-            Ok(pg_connector) => {
-                let commitment = pg_connector.get_last_commitment().await?;
-                // check if last commitment in db matches sequencer's last commitment
-                match commitment {
-                    Some(db_commitment) => {
-                        // this means that the last commitment in the db is not the same as the sequencer's last commitment
-                        if db_commitment.l1_end_height as u64
-                            > ledger_commitment_l1_height.unwrap_or(SlotNumber(0)).0
-                        {
-                            self.ledger_db
-                                .set_last_sequencer_commitment_l1_height(SlotNumber(
-                                    db_commitment.l1_end_height as u64,
-                                ))?
-                        }
-                        Ok(())
-                    }
-                    None => Ok(()),
+        let commitment = pg_connector.get_last_commitment().await?;
+        // check if last commitment in db matches sequencer's last commitment
+        match commitment {
+            Some(db_commitment) => {
+                // this means that the last commitment in the db is not the same as the sequencer's last commitment
+                if db_commitment.l1_end_height as u64
+                    > ledger_commitment_l1_height.unwrap_or(SlotNumber(0)).0
+                {
+                    self.ledger_db
+                        .set_last_sequencer_commitment_l1_height(SlotNumber(
+                            db_commitment.l1_end_height as u64,
+                        ))?
                 }
+                Ok(())
             }
-            Err(e) => {
-                warn!("Failed to connect to postgres: {:?}", e);
-                Err(anyhow::anyhow!("Failed to connect to postgres: {:?}", e))
-            }
+            None => Ok(()),
         }
     }
 }
