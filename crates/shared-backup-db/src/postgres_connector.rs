@@ -80,7 +80,7 @@ impl PostgresConnector {
         cfg.host("localhost")
             .port(5432)
             .user("postgres")
-            .password("password")
+            .password("postgres")
             .dbname("postgres");
         let mgr_config = ManagerConfig {
             recycling_method: RecyclingMethod::Fast,
