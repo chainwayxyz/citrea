@@ -48,14 +48,14 @@ const ESTIMATE_GAS_ERROR_RATIO: f64 = 0.015;
 pub(crate) struct EstimatedGas {
     /// Evm gas used.
     gas: U64,
-    /// L1 fee.
-    l1_fee: U256,
+    /// Actually not an L1 fee but l1_fee / base_fee.
+    l1_fee_overhead: U256,
 }
 
 impl EstimatedGas {
     /// Return total estimated gas including evm gas and L1 fee.
     pub(crate) fn total(&self) -> U256 {
-        self.l1_fee + U256::from(self.gas)
+        self.l1_fee_overhead + U256::from(self.gas)
     }
 }
 
@@ -699,7 +699,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let (l1_fee_rate, mut block_env) = match block_number {
             None | Some(BlockNumberOrTag::Pending | BlockNumberOrTag::Latest) => {
                 // so we don't unnecessarily set archival version
-                // so we don't unnecessarily set archival version
                 // if no block was produced yet, the l1 fee rate can unwrap to 0, we don't care, else just return the latest
                 let l1_fee_rate = self.l1_fee_rate.get(working_set).unwrap_or_default();
                 // if no block is produced yet, should default to genesis block env, else just return the lates
@@ -948,7 +947,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                         if res.result.is_success() {
                             return Ok(EstimatedGas {
                                 gas: U64::from(MIN_TRANSACTION_GAS),
-                                l1_fee: U256::from(1).max(tx_info.l1_fee / env_base_fee),
+                                l1_fee_overhead: U256::from(1).max(tx_info.l1_fee / env_base_fee),
                             });
                         }
                     }
@@ -1125,7 +1124,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         Ok(EstimatedGas {
             gas: reth_primitives::U64::from(highest_gas_limit),
-            l1_fee: U256::from(1).max(l1_fee / env_base_fee),
+            l1_fee_overhead: U256::from(1).max(l1_fee / env_base_fee),
         })
     }
 

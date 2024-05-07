@@ -263,7 +263,6 @@ impl TestClient {
         let gas = self
             .eth_estimate_gas(TypedTransaction::Eip1559(req.clone()), None)
             .await;
-        dbg!(gas);
 
         req = req
             .gas(gas)
