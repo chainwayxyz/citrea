@@ -69,7 +69,7 @@ where
     ledger_db: LedgerDB,
     config: SequencerConfig,
     stf: Stf,
-    deposit_mempool: DepositDataMempool,
+    deposit_mempool: Arc<Mutex<DepositDataMempool>>,
     storage_manager: Sm,
     state_root: StateRoot<Stf, Vm, Da::Spec>,
     sequencer_pub_key: Vec<u8>,
@@ -134,7 +134,7 @@ where
 
         let pool = CitreaMempool::new(db_provider.clone(), config.mempool_conf.clone())?;
 
-        let deposit_mempool = DepositDataMempool::new();
+        let deposit_mempool = Arc::new(Mutex::new(DepositDataMempool::new()));
 
         Ok(Self {
             da_service,
@@ -236,6 +236,8 @@ where
 
         let deposit_data = self
             .deposit_mempool
+            .lock()
+            .await
             .fetch_deposits(self.config.deposit_mempool_fetch_limit);
 
         let batch_info = HookSoftConfirmationInfo {
@@ -243,7 +245,7 @@ where
             da_slot_hash: da_block.header().hash().into(),
             da_slot_txs_commitment: da_block.header().txs_commitment().into(),
             pre_state_root: self.state_root.clone().as_ref().to_vec(),
-            deposit_data,
+            deposit_data: deposit_data.clone(),
             pub_key,
             l1_fee_rate,
             timestamp,
@@ -302,7 +304,7 @@ where
                     da_block.header().txs_commitment().into(),
                     self.state_root.clone().as_ref().to_vec(),
                     txs,
-                    vec![],
+                    deposit_data.clone(),
                     l1_fee_rate,
                     timestamp,
                 );
@@ -372,7 +374,7 @@ where
                     tx_receipts: batch_receipt.tx_receipts,
                     soft_confirmation_signature: signed_soft_batch.signature().to_vec(),
                     pub_key: signed_soft_batch.pub_key().to_vec(),
-                    deposit_data: vec![],
+                    deposit_data,
                     l1_fee_rate: signed_soft_batch.l1_fee_rate(),
                     timestamp: signed_soft_batch.timestamp(),
                 };
@@ -748,7 +750,7 @@ where
         }
         RpcContext {
             mempool: self.mempool.clone(),
-            deposit_mempool: Arc::new(Mutex::new(self.deposit_mempool.clone())),
+            deposit_mempool: self.deposit_mempool.clone(),
             l2_force_block_tx,
             storage: self.storage.clone(),
             test_mode: self.config.test_mode,

@@ -1583,28 +1583,28 @@ async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error>
 
     let seq_port = seq_port_rx.await.unwrap();
     let seq_test_client = make_test_client(seq_port).await;
-    // sys tx use L1BlockHash(43615 + 73581) + Bridge(1030769) = 142504 gas
+    // sys tx use L1BlockHash(43615 + 73581) + Bridge(298471) = 415667 gas
     // the block gas limit is 1_500_000 because the system txs gas limit is 1_500_000 (decided with @eyusufatik and @okkothejawa as bridge init takes 1M gas)
 
-    // 1000000 - 1147965 = 352.035 gas left in block
-    // 352.035 / 21000 = 16,7... so 16 ether transfer transactions can be included in the block
+    // 1500000 - 415667 = 1084333 gas left in block
+    // 1084333 / 21000 = 51,6... so 51 ether transfer transactions can be included in the block
 
-    // send 16 ether transfer transactions
+    // send 51 ether transfer transactions
     let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
 
-    for _ in 0..15 {
+    for _ in 0..50 {
         seq_test_client
             .send_eth(addr, None, None, None, 0u128)
             .await
             .unwrap();
     }
 
-    // 16th tx should be the last tx in the soft batch
+    // 51th tx should be the last tx in the soft batch
     let last_in_tx = seq_test_client
         .send_eth(addr, None, None, None, 0u128)
         .await;
 
-    // 17th tx should not be in soft batch
+    // 52th tx should not be in soft batch
     let not_in_tx = seq_test_client
         .send_eth(addr, None, None, None, 0u128)
         .await;
@@ -1871,7 +1871,7 @@ async fn transaction_failing_on_l1_is_removed_from_mempool() -> Result<(), anyho
 
     let random_wallet_address = random_wallet.address();
 
-    let second_block_base_fee: u64 = 774148704;
+    let second_block_base_fee: u64 = 768809031;
 
     seq_test_client
         .send_eth(
