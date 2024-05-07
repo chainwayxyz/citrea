@@ -781,7 +781,7 @@ where
             return Err(SlashingReason::InvalidInitialHash);
         }
 
-        if &public_outputs.slot_hash != transition.da_block_hash() {
+        if &public_outputs.da_slot_hash != transition.da_block_hash() {
             return Err(SlashingReason::TransitionInvalid);
         }
 

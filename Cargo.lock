@@ -8853,6 +8853,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "bcs",
+ "bincode",
  "borsh",
  "jmt",
  "serde",
@@ -9168,6 +9169,7 @@ dependencies = [
  "jsonrpsee",
  "risc0-zkvm",
  "risc0-zkvm-platform",
+ "rs_merkle",
  "serde",
  "sov-blob-storage",
  "sov-chain-state",

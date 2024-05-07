@@ -113,7 +113,7 @@ where
         &self,
         state_transition_data: StateTransitionData<StateRoot, Witness, Da::Spec>,
     ) -> WitnessSubmissionStatus {
-        let header_hash = state_transition_data.da_block_header.hash();
+        let header_hash = state_transition_data.da_block_header_of_commitments.hash();
         let data = ProverStatus::WitnessSubmitted(state_transition_data);
 
         let mut prover_state = self.prover_state.write().expect("Lock was poisoned");
@@ -229,7 +229,7 @@ where
     match config.deref() {
         ProofGenConfig::Skip => Ok(Proof::PublicInput(Vec::default())),
         ProofGenConfig::Simulate(verifier) => verifier
-            .run_block(vm.simulate_with_hints(), zk_storage)
+            .run_sequencer_commitments_in_da_slot(vm.simulate_with_hints(), zk_storage)
             .map(|_| Proof::PublicInput(Vec::default()))
             .map_err(|e| anyhow::anyhow!("Guest execution must succeed but failed with {:?}", e)),
         ProofGenConfig::Execute => vm.run(false),

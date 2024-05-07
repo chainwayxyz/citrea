@@ -3,6 +3,7 @@
 //!
 //! The most important trait in this module is the [`StateTransitionFunction`], which defines the
 //! main event loop of the rollup.
+use alloc::collections::VecDeque;
 use core::fmt::Debug;
 use core::marker::PhantomData;
 
@@ -227,6 +228,26 @@ pub trait StateTransitionFunction<Vm: Zkvm, Da: DaSpec> {
         Self::TxReceiptContents,
         Self::Witness,
     >;
+
+    /// Runs a vector of Soft Confirmations
+    /// Used for proving the L2 block state transitions
+    // TODO: don't use tuple as return type.
+    #[allow(clippy::type_complexity)]
+    #[allow(clippy::too_many_arguments)]
+    fn apply_soft_confirmations_from_sequencer_commitments(
+        &self,
+        sequencer_public_key: &[u8],
+        initial_state_root: &Self::StateRoot,
+        pre_state: Self::PreState,
+        da_data: Vec<<Da as DaSpec>::BlobTransaction>,
+        witnesses: VecDeque<Vec<Self::Witness>>,
+        slot_headers: VecDeque<Vec<Da::BlockHeader>>,
+        validity_condition: &Da::ValidityCondition,
+        soft_confirmations: VecDeque<Vec<SignedSoftConfirmationBatch>>,
+    ) -> (
+        Self::StateRoot,
+        Vec<u8>, // state diff
+    );
 }
 
 /// A key-value pair representing a change to the rollup state

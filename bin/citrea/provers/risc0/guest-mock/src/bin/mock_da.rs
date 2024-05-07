@@ -42,7 +42,7 @@ pub fn main() {
     let stf_verifier = StfVerifier::new(stf, MockDaVerifier {});
 
     stf_verifier
-        .run_block(guest, storage)
+        .run_sequencer_commitments_in_da_slot(guest, storage)
         .expect("Prover must be honest");
 
     #[cfg(feature = "bench")]
