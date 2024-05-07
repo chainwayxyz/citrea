@@ -8647,10 +8647,8 @@ dependencies = [
 name = "shared-backup-db"
 version = "0.3.0"
 dependencies = [
- "anyhow",
  "deadpool",
  "deadpool-postgres",
- "postgres",
  "serde",
  "tokio",
 ]
