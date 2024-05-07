@@ -829,12 +829,7 @@ where
                     .unwrap();
             let pooled_tx = EthPooledTransaction::from_recovered_pooled_transaction(recovered);
 
-            // TODO Handle error
-            let _ = self
-                .mempool
-                .add_external_transaction(pooled_tx)
-                .await
-                .unwrap();
+            let _ = self.mempool.add_external_transaction(pooled_tx).await?;
         }
         Ok(())
     }

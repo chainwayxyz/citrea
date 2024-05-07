@@ -19,12 +19,8 @@ pub struct PostgresConnector {
 
 impl PostgresConnector {
     pub async fn new(pg_config: SharedBackupDbConfig) -> Result<Self, PoolError> {
-        let mut cfg = PgConfig::new();
-        cfg.host(pg_config.db_host())
-            .port(pg_config.db_port() as u16)
-            .user(pg_config.db_user())
-            .password(pg_config.db_password())
-            .dbname(pg_config.db_name());
+        let mut cfg: PgConfig = pg_config.clone().into();
+
         let mgr_config = ManagerConfig {
             recycling_method: RecyclingMethod::Fast,
         };
@@ -76,12 +72,8 @@ impl PostgresConnector {
 
     #[cfg(feature = "test-utils")]
     pub async fn new_test_client() -> Result<Self, PoolError> {
-        let mut cfg = PgConfig::new();
-        cfg.host("localhost")
-            .port(5432)
-            .user("postgres")
-            .password("postgres")
-            .dbname("postgres");
+        let mut cfg: PgConfig = SharedBackupDbConfig::default().into();
+
         let mgr_config = ManagerConfig {
             recycling_method: RecyclingMethod::Fast,
         };

@@ -1,3 +1,4 @@
+use deadpool_postgres::tokio_postgres::Config;
 use serde::Deserialize;
 
 /// Offchain DB Config
@@ -79,5 +80,17 @@ impl Default for SharedBackupDbConfig {
             db_name: "postgres".to_string(),
             max_pool_size: None,
         }
+    }
+}
+
+impl Into<Config> for SharedBackupDbConfig {
+    fn into(self) -> Config {
+        let mut cfg = Config::new();
+        cfg.host(self.db_host())
+            .port(self.db_port() as u16)
+            .user(self.db_user())
+            .password(self.db_password())
+            .dbname(self.db_name())
+            .clone()
     }
 }
