@@ -1949,3 +1949,151 @@ async fn transaction_failing_on_l1_is_removed_from_mempool() -> Result<(), anyho
 
     Ok(())
 }
+
+#[tokio::test]
+async fn sequencer_crash_restore_mempool() -> Result<(), anyhow::Error> {
+    // citrea::initialize_logging();
+    let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
+
+    let _ = fs::remove_dir_all(Path::new("demo_data_sequencer_restore_mempool"));
+    let _ = fs::remove_dir_all(Path::new("demo_data_sequencer_restore_mempool_copy"));
+
+    let db_test_client = PostgresConnector::new_test_client().await.unwrap();
+
+    let mut sequencer_config = create_default_sequencer_config(4, Some(true), 10);
+
+    sequencer_config.db_config = Some(SharedBackupDbConfig::default());
+
+    let da_service = MockDaService::with_finality(MockAddress::from([0; 32]), 2);
+    da_service.publish_test_block().await.unwrap();
+
+    let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
+
+    let config1 = sequencer_config.clone();
+    let seq_task = tokio::spawn(async move {
+        start_rollup(
+            seq_port_tx,
+            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
+            BasicKernelGenesisPaths {
+                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
+            },
+            RollupProverConfig::Execute,
+            NodeMode::SequencerNode,
+            Some("demo_data_sequencer_restore_mempool"),
+            4,
+            true,
+            None,
+            Some(config1),
+            Some(true),
+            10,
+        )
+        .await;
+    });
+
+    let seq_port = seq_port_rx.await.unwrap();
+
+    let seq_test_client = init_test_rollup(seq_port).await;
+
+    let tx_hash = seq_test_client
+        .send_eth(addr, None, None, None, 0u128)
+        .await
+        .unwrap()
+        .tx_hash();
+
+    let tx_hash2 = seq_test_client
+        .send_eth(addr, None, None, None, 0u128)
+        .await
+        .unwrap()
+        .tx_hash();
+
+    let tx_1 = seq_test_client
+        .eth_get_transaction_by_hash(tx_hash, Some(true))
+        .await
+        .unwrap();
+    let tx_2 = seq_test_client
+        .eth_get_transaction_by_hash(tx_hash2, Some(true))
+        .await
+        .unwrap();
+
+    assert_eq!(tx_1.hash, tx_hash);
+    assert_eq!(tx_2.hash, tx_hash2);
+
+    let txs = db_test_client.get_all_txs().await.unwrap();
+    assert_eq!(txs.len(), 2);
+    assert_eq!(txs[0].tx_hash, tx_hash.as_bytes().to_vec());
+    assert_eq!(txs[1].tx_hash, tx_hash2.as_bytes().to_vec());
+
+    assert_eq!(txs[0].tx, tx_1.rlp().to_vec());
+
+    // crash and reopen and check if the txs are in the mempool
+    seq_task.abort();
+
+    let _ = copy_dir_recursive(
+        Path::new("demo_data_sequencer_restore_mempool"),
+        Path::new("demo_data_sequencer_restore_mempool_copy"),
+    );
+
+    let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
+
+    let config1 = sequencer_config.clone();
+    let seq_task = tokio::spawn(async move {
+        start_rollup(
+            seq_port_tx,
+            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
+            BasicKernelGenesisPaths {
+                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
+            },
+            RollupProverConfig::Execute,
+            NodeMode::SequencerNode,
+            Some("demo_data_sequencer_restore_mempool_copy"),
+            4,
+            true,
+            None,
+            Some(config1),
+            Some(true),
+            10,
+        )
+        .await;
+    });
+
+    let seq_port = seq_port_rx.await.unwrap();
+
+    let seq_test_client = init_test_rollup(seq_port).await;
+
+    // wait for mempool to sync
+    sleep(Duration::from_secs(2)).await;
+
+    let tx_1_mempool = seq_test_client
+        .eth_get_transaction_by_hash(tx_hash, Some(true))
+        .await
+        .unwrap();
+    let tx_2_mempool = seq_test_client
+        .eth_get_transaction_by_hash(tx_hash2, Some(true))
+        .await
+        .unwrap();
+
+    assert_eq!(tx_1_mempool, tx_1);
+    assert_eq!(tx_2_mempool, tx_2);
+
+    // publish block and check if the txs are deleted from pg
+    seq_test_client.send_publish_batch_request().await;
+    // should be removed from mempool
+    assert!(seq_test_client
+        .eth_get_transaction_by_hash(tx_hash, Some(true))
+        .await
+        .is_none());
+    assert!(seq_test_client
+        .eth_get_transaction_by_hash(tx_hash2, Some(true))
+        .await
+        .is_none());
+
+    let txs = db_test_client.get_all_txs().await.unwrap();
+    // should be removed from db
+    assert_eq!(txs.len(), 0);
+
+    seq_task.abort();
+    let _ = fs::remove_dir_all(Path::new("demo_data_sequencer_restore_mempool"));
+    let _ = fs::remove_dir_all(Path::new("demo_data_sequencer_restore_mempool_copy"));
+
+    Ok(())
+}

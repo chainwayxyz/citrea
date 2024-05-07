@@ -12,8 +12,7 @@ publish = false
 resolver = "2"
 
 [dependencies]
-postgres = "0.19.7"
-tokio-postgres = "0.7.10"
+deadpool-postgres = { workspace = true }
 serde = { workspace = true }
 tokio = { workspace = true }
 

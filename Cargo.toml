@@ -85,6 +85,7 @@ byteorder = { version = "1.5.0", default-features = false }
 bytes = { version = "1.2.1", default-features = false }
 chrono = { version = "0.4.37", default-features = false }
 digest = { version = "0.10.6", default-features = false, features = ["alloc"] }
+deadpool-postgres = "0.13.1"
 rs_merkle = "1.4.2"
 futures = "0.3"
 pin-project = { version = "1.1.3" }

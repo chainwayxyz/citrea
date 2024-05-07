@@ -1677,11 +1677,13 @@ dependencies = [
 name = "citrea-sequencer"
 version = "0.3.0"
 dependencies = [
+ "alloy-rlp",
  "anyhow",
  "borsh",
  "chrono",
  "citrea-evm",
  "citrea-stf",
+ "deadpool-postgres",
  "digest 0.10.7",
  "ethers",
  "futures",
@@ -2271,6 +2273,38 @@ checksum = "0047d07f2c89b17dd631c80450d69841a6b5d7fb17278cbc43d7e4cfcf2576f3"
 dependencies = [
  "data-encoding",
  "syn 1.0.109",
+]
+
+[[package]]
+name = "deadpool"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "28d3c3845002cd8dec1e045bc3fc076d1e467a123794cf56326d804489df1896"
+dependencies = [
+ "deadpool-runtime",
+ "num_cpus",
+ "tokio",
+]
+
+[[package]]
+name = "deadpool-postgres"
+version = "0.13.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "10566d25f606cc5f2dee63311af0eb2dc861cba4a5a7dee2daa4c2b181a42862"
+dependencies = [
+ "deadpool",
+ "tokio",
+ "tokio-postgres",
+ "tracing",
+]
+
+[[package]]
+name = "deadpool-runtime"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "092966b41edc516079bdf31ec78a2e0588d1d0c08f78b91d8307215928642b2b"
+dependencies = [
+ "tokio",
 ]
 
 [[package]]
@@ -8613,10 +8647,9 @@ dependencies = [
 name = "shared-backup-db"
 version = "0.3.0"
 dependencies = [
- "postgres",
+ "deadpool-postgres",
  "serde",
  "tokio",
- "tokio-postgres",
 ]
 
 [[package]]
