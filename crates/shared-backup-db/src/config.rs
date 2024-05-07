@@ -83,14 +83,14 @@ impl Default for SharedBackupDbConfig {
     }
 }
 
-impl Into<Config> for SharedBackupDbConfig {
-    fn into(self) -> Config {
+impl From<SharedBackupDbConfig> for Config {
+    fn from(val: SharedBackupDbConfig) -> Self {
         let mut cfg = Config::new();
-        cfg.host(self.db_host())
-            .port(self.db_port() as u16)
-            .user(self.db_user())
-            .password(self.db_password())
-            .dbname(self.db_name())
+        cfg.host(val.db_host())
+            .port(val.db_port() as u16)
+            .user(val.db_user())
+            .password(val.db_password())
+            .dbname(val.db_name())
             .clone()
     }
 }
