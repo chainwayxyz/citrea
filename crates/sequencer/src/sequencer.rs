@@ -73,7 +73,7 @@ where
     ledger_db: LedgerDB,
     config: SequencerConfig,
     stf: Stf,
-    deposit_mempool: DepositDataMempool,
+    deposit_mempool: Arc<Mutex<DepositDataMempool>>,
     storage_manager: Sm,
     state_root: StateRoot<Stf, Vm, Da::Spec>,
     sequencer_pub_key: Vec<u8>,
@@ -138,7 +138,7 @@ where
 
         let pool = CitreaMempool::new(db_provider.clone(), config.mempool_conf.clone())?;
 
-        let deposit_mempool = DepositDataMempool::new();
+        let deposit_mempool = Arc::new(Mutex::new(DepositDataMempool::new()));
 
         Ok(Self {
             da_service,
@@ -240,6 +240,8 @@ where
 
         let deposit_data = self
             .deposit_mempool
+            .lock()
+            .await
             .fetch_deposits(self.config.deposit_mempool_fetch_limit);
 
         let batch_info = HookSoftConfirmationInfo {
@@ -247,7 +249,7 @@ where
             da_slot_hash: da_block.header().hash().into(),
             da_slot_txs_commitment: da_block.header().txs_commitment().into(),
             pre_state_root: self.state_root.clone().as_ref().to_vec(),
-            deposit_data,
+            deposit_data: deposit_data.clone(),
             pub_key,
             l1_fee_rate,
             timestamp,
@@ -307,7 +309,7 @@ where
                     da_block.header().txs_commitment().into(),
                     self.state_root.clone().as_ref().to_vec(),
                     txs,
-                    vec![],
+                    deposit_data.clone(),
                     l1_fee_rate,
                     timestamp,
                 );
@@ -377,7 +379,7 @@ where
                     tx_receipts: batch_receipt.tx_receipts,
                     soft_confirmation_signature: signed_soft_batch.signature().to_vec(),
                     pub_key: signed_soft_batch.pub_key().to_vec(),
-                    deposit_data: vec![],
+                    deposit_data: deposit_data,
                     l1_fee_rate: signed_soft_batch.l1_fee_rate(),
                     timestamp: signed_soft_batch.timestamp(),
                 };
@@ -537,12 +539,14 @@ where
                 // The RPC from which the sender can be called is only registered for test mode. This means
                 // that evey though we check the receiver here, it'll never be "ready" to be consumed unless in test mode.
                 _ = self.l2_force_block_rx.next(), if self.config.test_mode => {
+                    println!("Received block production signal");
                     if let Err(e) = self.produce_l2_block(last_finalized_block.clone(), l1_fee_rate, L2BlockMode::NotEmpty, &None).await {
                         error!("Sequencer error: {}", e);
                     }
                 },
                 // If sequencer is in production mode, it will build a block every 2 seconds
                 _ = interval.tick(), if !self.config.test_mode => {
+                    println!("Produce the normal way");
                     // By default, we produce a non-empty block IFF we were caught up all the way to
                     // last_finalized_block. If there are missed DA blocks, we start producing
                     // empty blocks at ~2 second rate, 1 L2 block per respective missed DA block
@@ -698,7 +702,7 @@ where
         }
         RpcContext {
             mempool: self.mempool.clone(),
-            deposit_mempool: Arc::new(Mutex::new(self.deposit_mempool.clone())),
+            deposit_mempool: self.deposit_mempool.clone(),
             l2_force_block_tx,
             storage: self.storage.clone(),
             test_mode: self.config.test_mode,
@@ -715,22 +719,6 @@ where
         let rpc = create_rpc_module(rpc_context)?;
         rpc_methods.merge(rpc)?;
         Ok(rpc_methods)
-    }
-
-    pub async fn restore_mempool(
-        &self,
-        pg_connector: PostgresConnector,
-    ) -> Result<(), anyhow::Error> {
-        let mempool_txs = pg_connector.get_all_txs().await?;
-        for tx in mempool_txs {
-            let recovered =
-                recover_raw_transaction(reth_primitives::Bytes::from(tx.tx.as_slice().to_vec()))
-                    .unwrap();
-            let pooled_tx = EthPooledTransaction::from_recovered_pooled_transaction(recovered);
-
-            let _ = self.mempool.add_external_transaction(pooled_tx).await?;
-        }
-        Ok(())
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -784,6 +772,22 @@ where
                 }
             }
         });
+    }
+
+    pub async fn restore_mempool(
+        &self,
+        pg_connector: PostgresConnector,
+    ) -> Result<(), anyhow::Error> {
+        let mempool_txs = pg_connector.get_all_txs().await?;
+        for tx in mempool_txs {
+            let recovered =
+                recover_raw_transaction(reth_primitives::Bytes::from(tx.tx.as_slice().to_vec()))
+                    .unwrap();
+            let pooled_tx = EthPooledTransaction::from_recovered_pooled_transaction(recovered);
+
+            let _ = self.mempool.add_external_transaction(pooled_tx).await?;
+        }
+        Ok(())
     }
 
     pub async fn compare_commitments_from_db(
