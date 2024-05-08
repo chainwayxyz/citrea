@@ -18,6 +18,7 @@ use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
 use sov_rollup_interface::services::da::DaService;
+use sov_stf_runner::{ProverConfig, ProverGuestRunConfig};
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
 
@@ -1118,6 +1119,7 @@ async fn test_soft_confirmations_status_two_l1() -> Result<(), anyhow::Error> {
 #[tokio::test]
 async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging();
+
     let da_service = MockDaService::new(MockAddress::default());
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
@@ -1154,7 +1156,7 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
             BasicKernelGenesisPaths {
                 chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
             },
-            None,
+            Some(create_default_prover_config()),
             NodeMode::Prover(seq_port),
             None,
             4,
@@ -1225,6 +1227,8 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
 
 #[tokio::test]
 async fn test_reopen_prover() -> Result<(), anyhow::Error> {
+    // citrea::initialize_logging();
+
     let _ = fs::remove_dir_all(Path::new("demo_data_test_reopen_prover_copy2"));
     let _ = fs::remove_dir_all(Path::new("demo_data_test_reopen_prover_copy"));
     let _ = fs::remove_dir_all(Path::new("demo_data_test_reopen_prover"));
@@ -1240,7 +1244,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
             BasicKernelGenesisPaths {
                 chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
             },
-            None,
+            Some(create_default_prover_config()),
             NodeMode::SequencerNode,
             None,
             4,

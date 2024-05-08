@@ -216,7 +216,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         kernel_genesis_config: <Self::NativeKernel as Kernel<Self::NativeContext, Self::DaSpec>>::GenesisConfig,
         rollup_config: RollupConfig<Self::DaConfig>,
         prover_config: ProverConfig,
-    ) -> Result<FullNode<Self>, anyhow::Error>
+    ) -> Result<Prover<Self>, anyhow::Error>
     where
         <Self::NativeContext as Spec>::Storage: NativeStorage,
     {
@@ -278,7 +278,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
             Some(prover_service),
         )?;
 
-        Ok(FullNode {
+        Ok(Prover {
             runner,
             rpc_methods,
         })
