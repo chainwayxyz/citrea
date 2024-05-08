@@ -9,9 +9,7 @@ use sov_mock_da::{MockAddress, MockDaConfig};
 use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
 use sov_modules_api::PrivateKey;
 use sov_modules_rollup_blueprint::RollupBlueprint;
-use sov_modules_stf_blueprint::kernels::basic::{
-    BasicKernelGenesisConfig, BasicKernelGenesisPaths,
-};
+use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisConfig;
 use sov_stf_runner::{
     ProverServiceConfig, RollupConfig, RollupProverConfig, RpcConfig, RunnerConfig,
     SequencerClientRpcConfig, StorageConfig,
@@ -31,7 +29,6 @@ pub enum NodeMode {
 pub async fn start_rollup(
     rpc_reporting_channel: oneshot::Sender<SocketAddr>,
     rt_genesis_paths: GenesisPaths,
-    kernel_genesis_paths: BasicKernelGenesisPaths,
     rollup_prover_config: RollupProverConfig,
     node_mode: NodeMode,
     db_path: Option<&str>,

@@ -7,7 +7,6 @@ use rs_merkle::MerkleTree;
 use shared_backup_db::{PostgresConnector, SharedBackupDbConfig};
 use sov_mock_da::{MockAddress, MockDaService, MockDaSpec};
 use sov_modules_api::{BlobReaderTrait, SignedSoftConfirmationBatch};
-use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
 use sov_rollup_interface::da::DaData;
 use sov_rollup_interface::services::da::DaService;
 use sov_stf_runner::RollupProverConfig;
@@ -28,11 +27,6 @@ async fn sequencer_sends_commitments_to_da_layer() {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
-            BasicKernelGenesisPaths {
-                chain_state:
-                    "../test-data/genesis/integration-tests-low-limiting-number/chain_state.json"
-                        .into(),
-            },
             RollupProverConfig::Execute,
             NodeMode::SequencerNode,
             None,
@@ -211,11 +205,6 @@ async fn check_commitment_in_offchain_db() {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
-            BasicKernelGenesisPaths {
-                chain_state:
-                    "../test-data/genesis/integration-tests-low-limiting-number/chain_state.json"
-                        .into(),
-            },
             RollupProverConfig::Execute,
             NodeMode::SequencerNode,
             None,

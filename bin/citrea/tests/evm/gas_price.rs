@@ -7,7 +7,6 @@ use ethers_core::types::U256;
 use ethers_core::utils::Units::Ether;
 use ethers_signers::{LocalWallet, Signer};
 use reth_primitives::BlockNumberOrTag;
-use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
 use sov_stf_runner::RollupProverConfig;
 
 use crate::evm::init_test_rollup;
@@ -26,9 +25,6 @@ async fn test_gas_price_increase() -> Result<(), anyhow::Error> {
         start_rollup(
             port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
-            BasicKernelGenesisPaths {
-                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
-            },
             RollupProverConfig::Skip,
             NodeMode::SequencerNode,
             None,

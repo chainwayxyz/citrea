@@ -1,6 +1,5 @@
 use citrea_stf::genesis_config::GenesisPaths;
 use sov_mock_da::{MockAddress, MockDaService};
-use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
 use sov_stf_runner::RollupProverConfig;
 
 use crate::evm::make_test_client;
@@ -19,11 +18,6 @@ async fn too_many_l2_block_per_l1_block() {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests-low-limiting-number"),
-            BasicKernelGenesisPaths {
-                chain_state:
-                    "../test-data/genesis/integration-tests-low-limiting-number/chain_state.json"
-                        .into(),
-            },
             RollupProverConfig::Execute,
             NodeMode::SequencerNode,
             None,
