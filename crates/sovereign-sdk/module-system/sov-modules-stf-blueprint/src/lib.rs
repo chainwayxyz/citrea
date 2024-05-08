@@ -463,7 +463,7 @@ where
         witness: Self::Witness,
         slot_header: &Da::BlockHeader,
         validity_condition: &Da::ValidityCondition,
-        blobs: I,
+        _blobs: I,
     ) -> SlotResult<
         Self::StateRoot,
         Self::ChangeSet,
