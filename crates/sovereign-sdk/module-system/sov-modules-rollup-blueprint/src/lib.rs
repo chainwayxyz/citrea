@@ -11,7 +11,6 @@ use const_rollup_config::TEST_PRIVATE_KEY;
 pub use runtime_rpc::*;
 use sequencer_client::SequencerClient;
 use sov_db::ledger_db::LedgerDB;
-use sov_modules_api::runtime::capabilities::KernelSlotHooks;
 use sov_modules_api::{Context, DaSpec, Spec};
 use sov_modules_stf_blueprint::{GenesisParams, Runtime as RuntimeTrait, StfBlueprint};
 use sov_rollup_interface::services::da::DaService;
@@ -54,11 +53,6 @@ pub trait RollupBlueprint: Sized + Send + Sync {
     type ZkRuntime: RuntimeTrait<Self::ZkContext, Self::DaSpec> + Default;
     /// Runtime for the Native environment.
     type NativeRuntime: RuntimeTrait<Self::NativeContext, Self::DaSpec> + Default + Send + Sync;
-
-    /// The kernel for the native environment.
-    type NativeKernel: KernelSlotHooks<Self::NativeContext, Self::DaSpec> + Default + Send + Sync;
-    /// The kernel for the Zero Knowledge environment.
-    type ZkKernel: KernelSlotHooks<Self::ZkContext, Self::DaSpec> + Default;
 
     /// Prover service.
     type ProverService: ProverService<
