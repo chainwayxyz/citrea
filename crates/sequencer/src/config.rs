@@ -4,6 +4,8 @@ use shared_backup_db::SharedBackupDbConfig;
 /// Rollup Configuration
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct SequencerConfig {
+    /// Private key of the sequencer
+    pub private_key: String,
     /// Min. soft confirmaitons for sequencer to commit
     pub min_soft_confirmations_per_commitment: u64,
     /// Whether or not the sequencer is running in test mode
@@ -68,6 +70,7 @@ mod tests {
     #[test]
     fn test_correct_config_sequencer() {
         let config = r#"
+            private_key = "1212121212121212121212121212121212121212121212121212121212121212"
             min_soft_confirmations_per_commitment = 123
             test_mode = false
             deposit_mempool_fetch_limit = 10
@@ -92,6 +95,8 @@ mod tests {
         let config: SequencerConfig = from_toml_path(config_file.path()).unwrap();
 
         let expected = SequencerConfig {
+            private_key: "1212121212121212121212121212121212121212121212121212121212121212"
+                .to_string(),
             min_soft_confirmations_per_commitment: 123,
             test_mode: false,
             deposit_mempool_fetch_limit: 10,
