@@ -28,7 +28,7 @@ use tracing::{debug, error, info};
 
 use crate::prover_helpers::get_initial_slot_height;
 use crate::verifier::StateTransitionVerifier;
-use crate::{ProofSubmissionStatus, ProverService, RpcConfig, RunnerConfig};
+use crate::{ProofSubmissionStatus, ProverService, RollupPublicKeys, RpcConfig, RunnerConfig};
 
 type StateRoot<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::StateRoot;
 type GenesisParams<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::GenesisParams;
@@ -58,7 +58,7 @@ where
     rpc_config: RpcConfig,
     #[allow(dead_code)]
     prover_service: Option<Ps>,
-    sequencer_client: Option<SequencerClient>,
+    sequencer_client: SequencerClient,
     sequencer_pub_key: Vec<u8>,
     sequencer_da_pub_key: Vec<u8>,
     prover_da_pub_key: Vec<u8>,
@@ -114,20 +114,15 @@ where
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         runner_config: RunnerConfig,
+        public_keys: RollupPublicKeys,
+        rpc_config: RpcConfig,
         da_service: Da,
         ledger_db: LedgerDB,
         stf: Stf,
         mut storage_manager: Sm,
         init_variant: InitVariant<Stf, Vm, Da::Spec>,
         prover_service: Option<Ps>,
-        sequencer_client: Option<SequencerClient>,
-        sequencer_pub_key: Vec<u8>,
-        sequencer_da_pub_key: Vec<u8>,
-        prover_da_pub_key: Vec<u8>,
-        include_tx_body: bool,
     ) -> Result<Self, anyhow::Error> {
-        let rpc_config = runner_config.rpc_config;
-
         let prev_state_root = match init_variant {
             InitVariant::Initialized(state_root) => {
                 debug!("Chain is already initialized. Skipping initialization.");
@@ -162,12 +157,12 @@ where
             state_root: prev_state_root,
             rpc_config,
             prover_service,
-            sequencer_client,
-            sequencer_pub_key,
-            sequencer_da_pub_key,
-            prover_da_pub_key,
+            sequencer_client: SequencerClient::new(runner_config.sequencer_client_url),
+            sequencer_pub_key: public_keys.sequencer_public_key,
+            sequencer_da_pub_key: public_keys.sequencer_da_pub_key,
+            prover_da_pub_key: public_keys.prover_da_pub_key,
             phantom: std::marker::PhantomData,
-            include_tx_body,
+            include_tx_body: runner_config.include_tx_body,
         })
     }
 
@@ -230,17 +225,13 @@ where
     pub async fn run_prover_process(&mut self) -> Result<(), anyhow::Error> {
         // Prover node should sync when a new sequencer commitment arrives
         // Check da block get and sync up to the latest block in the latest commitment
-        let Some(client) = &self.sequencer_client else {
-            return Err(anyhow::anyhow!("Sequencer Client is not initialized"));
-        };
-
         let last_scanned_l1_height = self
             .ledger_db
             .get_prover_last_scanned_l1_height()
             .unwrap_or_else(|_| panic!("Failed to get last scanned l1 height from the ledger db"));
 
         let mut l1_height = if last_scanned_l1_height.is_none() {
-            get_initial_slot_height::<Da::Spec>(&client).await
+            get_initial_slot_height::<Da::Spec>(&self.sequencer_client).await
         } else {
             last_scanned_l1_height.unwrap().0 + 1
         };
@@ -361,7 +352,11 @@ where
                 // after stopping call continue  and look for a new seq_commitment
                 // change the itemnumbers only after the sync is done so not for every da block
 
-                while let Some(soft_batch) = client.get_soft_batch::<Da::Spec>(l2_height).await? {
+                while let Some(soft_batch) = self
+                    .sequencer_client
+                    .get_soft_batch::<Da::Spec>(l2_height)
+                    .await?
+                {
                     if soft_batch.da_slot_height > end_l1_height {
                         for i in start_l1_height..=end_l1_height {
                             self.ledger_db
@@ -529,10 +524,6 @@ where
 
     /// Runs the rollup.
     pub async fn run_in_process(&mut self) -> Result<(), anyhow::Error> {
-        let Some(client) = &self.sequencer_client else {
-            return Err(anyhow::anyhow!("Sequencer Client is not initialized"));
-        };
-
         let mut seen_block_headers: VecDeque<<Da::Spec as DaSpec>::BlockHeader> = VecDeque::new();
         let mut seen_receipts: VecDeque<_> = VecDeque::new();
         let mut height = self.start_height;
@@ -545,7 +536,11 @@ where
         let mut retry_index = 0;
 
         loop {
-            let soft_batch = match client.get_soft_batch::<Da::Spec>(height).await {
+            let soft_batch = match self
+                .sequencer_client
+                .get_soft_batch::<Da::Spec>(height)
+                .await
+            {
                 Ok(Some(soft_batch)) => soft_batch,
                 Ok(None) => {
                     debug!(

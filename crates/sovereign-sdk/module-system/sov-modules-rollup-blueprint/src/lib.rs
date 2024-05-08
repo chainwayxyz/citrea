@@ -9,7 +9,6 @@ use async_trait::async_trait;
 use citrea_sequencer::{CitreaSequencer, SequencerConfig};
 use const_rollup_config::TEST_PRIVATE_KEY;
 pub use runtime_rpc::*;
-use sequencer_client::SequencerClient;
 use sov_db::ledger_db::LedgerDB;
 use sov_modules_api::runtime::capabilities::{Kernel, KernelSlotHooks};
 use sov_modules_api::{Context, DaSpec, Spec};
@@ -76,7 +75,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         storage: &<Self::NativeContext as Spec>::Storage,
         ledger_db: &LedgerDB,
         da_service: &Self::DaService,
-        sequencer_client: Option<SequencerClient>,
+        sequencer_client_url: Option<String>,
     ) -> Result<jsonrpsee::RpcModule<()>, anyhow::Error>;
 
     /// Creates GenesisConfig from genesis files.
@@ -195,9 +194,9 @@ pub trait RollupBlueprint: Sized + Send + Sync {
                 native_stf,
                 storage_manager,
                 init_variant,
-                rollup_config.sequencer_public_key,
+                rollup_config.public_keys.sequencer_public_key,
                 ledger_db,
-                rollup_config.runner,
+                rollup_config.rpc,
             )
             .unwrap();
 
@@ -251,17 +250,13 @@ pub trait RollupBlueprint: Sized + Send + Sync {
             .map(|(number, _)| prover_storage.get_root_hash(number.0 + 1))
             .transpose()?;
 
-        // if node does not have a sequencer client, then it is a sequencer
-        let sequencer_client = rollup_config
-            .sequencer_client
-            .map(|s| SequencerClient::new(s.url));
-
+        let runner_config = rollup_config.runner.expect("Runner config is missing");
         // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1218)
         let rpc_methods = self.create_rpc_methods(
             &prover_storage,
             &ledger_db,
             &da_service,
-            sequencer_client.clone(),
+            Some(runner_config.sequencer_client_url.clone()),
         )?;
 
         let native_stf = StfBlueprint::new();
@@ -277,18 +272,15 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         };
 
         let runner = StateTransitionRunner::new(
-            rollup_config.runner,
+            runner_config,
+            rollup_config.public_keys,
+            rollup_config.rpc,
             da_service,
             ledger_db,
             native_stf,
             storage_manager,
             init_variant,
             prover_service,
-            sequencer_client,
-            rollup_config.sequencer_public_key,
-            rollup_config.sequencer_da_pub_key,
-            rollup_config.prover_da_pub_key,
-            rollup_config.include_tx_body,
         )?;
 
         Ok(Rollup {

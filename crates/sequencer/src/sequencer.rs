@@ -34,7 +34,7 @@ use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::stf::{SoftBatchReceipt, StateTransitionFunction};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::ZkvmHost;
-use sov_stf_runner::{InitVariant, RpcConfig, RunnerConfig};
+use sov_stf_runner::{InitVariant, RpcConfig};
 use tokio::sync::oneshot::Receiver as OneshotReceiver;
 use tokio::sync::Mutex;
 use tokio::time::sleep;
@@ -106,7 +106,7 @@ where
         init_variant: InitVariant<Stf, Vm, Da::Spec>,
         sequencer_pub_key: Vec<u8>,
         ledger_db: LedgerDB,
-        runner_config: RunnerConfig,
+        rpc_config: RpcConfig,
     ) -> anyhow::Result<Self> {
         let (l2_force_block_tx, l2_force_block_rx) = unbounded();
 
@@ -151,7 +151,7 @@ where
             storage_manager,
             state_root: prev_state_root,
             sequencer_pub_key,
-            rpc_config: runner_config.rpc_config,
+            rpc_config,
         })
     }
 

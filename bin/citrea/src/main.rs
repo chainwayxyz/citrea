@@ -1,6 +1,6 @@
 use core::fmt::Debug as DebugTrait;
 
-use anyhow::{anyhow, Context as _};
+use anyhow::Context as _;
 use bitcoin_da::service::DaServiceConfig;
 use citrea::{initialize_logging, BitcoinRollup, MockDemoRollup};
 use citrea_sequencer::SequencerConfig;
@@ -144,13 +144,12 @@ where
     S: RollupBlueprint<DaConfig = DaC>,
     <<S as RollupBlueprint>::NativeContext as Spec>::Storage: NativeStorage,
 {
-    let mut rollup_config: RollupConfig<DaC> = from_toml_path(rollup_config_path)
+    let rollup_config: RollupConfig<DaC> = from_toml_path(rollup_config_path)
         .context("Failed to read rollup configuration")
         .unwrap();
     let rollup_blueprint = S::new();
 
     if let Some(sequencer_config) = sequencer_config {
-        rollup_config.sequencer_client = None;
         let sequencer_rollup = rollup_blueprint
             .create_new_sequencer(
                 rt_genesis_paths,
@@ -164,9 +163,6 @@ where
             error!("Error: {}", e);
         }
     } else {
-        if rollup_config.sequencer_client.is_none() {
-            return Err(anyhow!("Must have sequencer client for full nodes!"));
-        }
         let rollup = rollup_blueprint
             .create_new_rollup(
                 rt_genesis_paths,

@@ -5,7 +5,6 @@ use bitcoin_da::verifier::BitcoinVerifier;
 use citrea_stf::genesis_config::StorageConfig;
 use citrea_stf::runtime::Runtime;
 use const_rollup_config::{DA_TX_ID_LEADING_ZEROS, ROLLUP_NAME};
-use sequencer_client::SequencerClient;
 use sov_db::ledger_db::LedgerDB;
 use sov_modules_api::default_context::{DefaultContext, ZkDefaultContext};
 use sov_modules_api::{Address, Spec};
@@ -63,7 +62,7 @@ impl RollupBlueprint for BitcoinRollup {
         storage: &<Self::NativeContext as Spec>::Storage,
         ledger_db: &LedgerDB,
         da_service: &Self::DaService,
-        sequencer_client: Option<SequencerClient>,
+        sequencer_client_url: Option<String>,
     ) -> Result<jsonrpsee::RpcModule<()>, anyhow::Error> {
         // unused inside register RPC
         let sov_sequencer = Address::new([0; 32]);
@@ -79,7 +78,7 @@ impl RollupBlueprint for BitcoinRollup {
             da_service.clone(),
             storage.clone(),
             &mut rpc_methods,
-            sequencer_client,
+            sequencer_client_url,
         )?;
 
         Ok(rpc_methods)

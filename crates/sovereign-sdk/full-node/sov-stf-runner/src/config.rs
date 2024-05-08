@@ -8,8 +8,10 @@ use serde::Deserialize;
 /// Runner configuration.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct RunnerConfig {
-    /// RPC configuration.
-    pub rpc_config: RpcConfig,
+    /// Sequencer client configuration.
+    pub sequencer_client_url: String,
+    /// Saves sequencer soft batches if set to true
+    pub include_tx_body: bool,
 }
 
 /// RPC configuration.
@@ -37,26 +39,10 @@ pub struct StorageConfig {
     pub path: PathBuf,
 }
 
-/// Sequencer RPC configuration.
+/// Important public keys for the rollup
 #[derive(Debug, Clone, PartialEq, Deserialize)]
-pub struct SequencerClientRpcConfig {
-    /// RPC host url (with port, if applicable).
-    pub url: String,
-}
-
-/// Rollup Configuration
-#[derive(Debug, Clone, PartialEq, Deserialize)]
-pub struct RollupConfig<DaServiceConfig> {
-    /// Currently rollup config runner only supports storage path parameter
-    pub storage: StorageConfig,
-    /// Runner own configuration.
-    pub runner: RunnerConfig,
-    /// Data Availability service configuration.
-    pub da: DaServiceConfig,
-    /// Sequencer Client RPC Config for sequencer connection
-    pub sequencer_client: Option<SequencerClientRpcConfig>,
-    /// Sequencer public key
-    /// serialized as hex
+pub struct RollupPublicKeys {
+    /// Soft confirmation signing public key of the Sequencer
     #[serde(with = "hex::serde")]
     pub sequencer_public_key: Vec<u8>,
     /// DA Signing Public Key of the Sequencer
@@ -67,8 +53,20 @@ pub struct RollupConfig<DaServiceConfig> {
     /// serialized as hex
     #[serde(with = "hex::serde")]
     pub prover_da_pub_key: Vec<u8>,
-    /// Saves sequencer soft batches if set to true
-    pub include_tx_body: bool,
+}
+/// Rollup Configuration
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+pub struct RollupConfig<DaServiceConfig> {
+    /// RPC configuration
+    pub rpc: RpcConfig,
+    /// Currently rollup config runner only supports storage path parameter
+    pub storage: StorageConfig,
+    /// Runner own configuration.
+    pub runner: Option<RunnerConfig>, // optional bc sequencer doesn't need it
+    /// Data Availability service configuration.
+    pub da: DaServiceConfig,
+    /// Important pubkeys
+    pub public_keys: RollupPublicKeys,
 }
 
 /// Reads toml file as a specific type.
@@ -105,22 +103,23 @@ mod tests {
     fn test_correct_config() {
         let config = r#"
             sequencer_public_key = "0000000000000000000000000000000000000000000000000000000000000000"
-            include_tx_body = true
             sequencer_da_pub_key = "7777777777777777777777777777777777777777777777777777777777777777"
             prover_da_pub_key = ""
-            [da]
-            sender_address = "0000000000000000000000000000000000000000000000000000000000000000"
-            [storage]
-            path = "/tmp"
-            [runner]
-            [runner.rpc_config]
+            
+            [rpc]
             bind_host = "127.0.0.1"
             bind_port = 12345
             max_connections = 500
-            [sequencer_client]
-            url = "http://0.0.0.0:12346"
-            [prover_service]
-            aggregated_proof_block_jump = 22
+
+            [da]
+            sender_address = "0000000000000000000000000000000000000000000000000000000000000000"
+            
+            [storage]
+            path = "/tmp"
+            
+            [runner]
+            include_tx_body = true
+            sequencer_client_url = "http://0.0.0.0:12346"
         "#;
 
         let config_file = create_config_from(config);
@@ -128,27 +127,26 @@ mod tests {
         let config: RollupConfig<sov_mock_da::MockDaConfig> =
             from_toml_path(config_file.path()).unwrap();
         let expected = RollupConfig {
-            sequencer_public_key: vec![0; 32],
-            runner: RunnerConfig {
-                rpc_config: RpcConfig {
-                    bind_host: "127.0.0.1".to_string(),
-                    bind_port: 12345,
-                    max_connections: 500,
-                },
-            },
-
+            runner: Some(RunnerConfig {
+                sequencer_client_url: "http://0.0.0.0:12346".to_owned(),
+                include_tx_body: true,
+            }),
             da: sov_mock_da::MockDaConfig {
                 sender_address: [0; 32].into(),
             },
             storage: StorageConfig {
                 path: PathBuf::from("/tmp"),
             },
-            sequencer_client: Some(SequencerClientRpcConfig {
-                url: "http://0.0.0.0:12346".to_owned(),
-            }),
-            sequencer_da_pub_key: vec![119; 32],
-            prover_da_pub_key: vec![],
-            include_tx_body: true,
+            rpc: RpcConfig {
+                bind_host: "127.0.0.1".to_string(),
+                bind_port: 12345,
+                max_connections: 500,
+            },
+            public_keys: RollupPublicKeys {
+                sequencer_public_key: vec![0; 32],
+                sequencer_da_pub_key: vec![119; 32],
+                prover_da_pub_key: vec![],
+            },
         };
         assert_eq!(config, expected);
     }

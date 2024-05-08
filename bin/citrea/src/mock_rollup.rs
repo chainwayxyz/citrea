@@ -1,7 +1,6 @@
 use async_trait::async_trait;
 use citrea_stf::genesis_config::StorageConfig;
 use citrea_stf::runtime::Runtime;
-use sequencer_client::SequencerClient;
 use sov_db::ledger_db::LedgerDB;
 use sov_mock_da::{MockDaConfig, MockDaService, MockDaSpec};
 use sov_modules_api::default_context::{DefaultContext, ZkDefaultContext};
@@ -59,7 +58,7 @@ impl RollupBlueprint for MockDemoRollup {
         storage: &<Self::NativeContext as Spec>::Storage,
         ledger_db: &LedgerDB,
         da_service: &Self::DaService,
-        sequencer_client: Option<SequencerClient>,
+        sequencer_client_url: Option<String>,
     ) -> Result<jsonrpsee::RpcModule<()>, anyhow::Error> {
         // TODO set the sequencer address
         let sequencer = Address::new([0; 32]);
@@ -75,7 +74,7 @@ impl RollupBlueprint for MockDemoRollup {
             da_service.clone(),
             storage.clone(),
             &mut rpc_methods,
-            sequencer_client,
+            sequencer_client_url,
         )?;
 
         Ok(rpc_methods)

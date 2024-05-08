@@ -11,17 +11,8 @@ sender_address = "00000000000000000000000000000000000000000000000000000000000000
 # The path to the rollup's data directory. Paths that do not begin with `/` are interpreted as relative paths.
 path = "sequencer-db"
 
-# We define the rollup's genesis to occur at block number `start_height`. The rollup will ignore
-# any blocks before this height
-[runner]
-[runner.rpc_config]
+[rpc]
 # the host and port to bind the rpc server for
 bind_host = "127.0.0.1"
 bind_port = 12345
 max_connections = 10000
-
-[sequencer_client]
-url = "http://0.0.0.0:12345"
-
-[prover_service]
-aggregated_proof_block_jump = 1

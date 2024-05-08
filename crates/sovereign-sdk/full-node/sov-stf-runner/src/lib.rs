@@ -18,14 +18,12 @@ use std::path::Path;
 #[cfg(feature = "native")]
 use anyhow::Context;
 #[cfg(feature = "native")]
-pub use config::RpcConfig;
-#[cfg(feature = "native")]
 pub use prover_service::*;
 #[cfg(feature = "native")]
 mod runner;
 #[cfg(feature = "native")]
 pub use config::{
-    from_toml_path, RollupConfig, RunnerConfig, SequencerClientRpcConfig, StorageConfig,
+    from_toml_path, RollupConfig, RollupPublicKeys, RpcConfig, RunnerConfig, StorageConfig,
 };
 #[cfg(feature = "native")]
 pub use runner::*;
