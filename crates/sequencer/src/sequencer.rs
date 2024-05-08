@@ -537,10 +537,8 @@ where
                 // The RPC from which the sender can be called is only registered for test mode. This means
                 // that evey though we check the receiver here, it'll never be "ready" to be consumed unless in test mode.
                 _ = self.l2_force_block_rx.next(), if self.config.test_mode => {
-                    if self.config.test_mode {
-                        if let Err(e) = self.produce_l2_block(last_finalized_block.clone(), l1_fee_rate, L2BlockMode::NotEmpty, &None).await {
-                            error!("Sequencer error: {}", e);
-                        }
+                    if let Err(e) = self.produce_l2_block(last_finalized_block.clone(), l1_fee_rate, L2BlockMode::NotEmpty, &None).await {
+                        error!("Sequencer error: {}", e);
                     }
                 },
                 // If sequencer is in production mode, it will build a block every 2 seconds
