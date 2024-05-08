@@ -295,7 +295,7 @@ pub struct Sequencer<S: RollupBlueprint> {
         S::DaService,
         S::StorageManager,
         S::Vm,
-        StfBlueprint<S::NativeContext, S::DaSpec, S::Vm, S::NativeRuntime, S::NativeKernel>,
+        StfBlueprint<S::NativeContext, S::DaSpec, S::Vm, S::NativeRuntime>,
     >,
     /// Rpc methods for the rollup.
     pub rpc_methods: jsonrpsee::RpcModule<()>,
@@ -326,7 +326,7 @@ pub struct Rollup<S: RollupBlueprint> {
     /// The State Transition Runner.
     #[allow(clippy::type_complexity)]
     pub runner: StateTransitionRunner<
-        StfBlueprint<S::NativeContext, S::DaSpec, S::Vm, S::NativeRuntime, S::NativeKernel>,
+        StfBlueprint<S::NativeContext, S::DaSpec, S::Vm, S::NativeRuntime>,
         S::StorageManager,
         S::DaService,
         S::Vm,

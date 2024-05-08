@@ -45,13 +45,7 @@ impl RollupBlueprint for BitcoinRollup {
         <<Self::NativeContext as Spec>::Storage as Storage>::Witness,
         Self::DaService,
         Self::Vm,
-        StfBlueprint<
-            Self::ZkContext,
-            Self::DaSpec,
-            <Self::Vm as ZkvmHost>::Guest,
-            Self::ZkRuntime,
-            Self::ZkKernel,
-        >,
+        StfBlueprint<Self::ZkContext, Self::DaSpec, <Self::Vm as ZkvmHost>::Guest, Self::ZkRuntime>,
     >;
 
     fn new() -> Self {

@@ -2,7 +2,6 @@ use std::marker::PhantomData;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use sov_modules_api::hooks::{ApplySoftConfirmationError, HookSoftConfirmationInfo};
-use sov_modules_api::runtime::capabilities::KernelSlotHooks;
 use sov_modules_api::{
     BasicAddress, BlobReaderTrait, Context, DaSpec, DispatchCall, StateCheckpoint, WorkingSet,
 };
@@ -26,11 +25,10 @@ use sov_zk_cycle_macros::cycle_tracker;
 /// An implementation of the
 /// [`StateTransitionFunction`](sov_rollup_interface::stf::StateTransitionFunction)
 /// that is specifically designed to work with the module-system.
-pub struct StfBlueprint<C: Context, Da: DaSpec, Vm, RT: Runtime<C, Da>, K: KernelSlotHooks<C, Da>> {
+pub struct StfBlueprint<C: Context, Da: DaSpec, Vm, RT: Runtime<C, Da>> {
     /// State storage used by the rollup.
     /// The runtime includes all the modules that the rollup supports.
     pub(crate) runtime: RT,
-    pub(crate) kernel: K,
     phantom_context: PhantomData<C>,
     phantom_vm: PhantomData<Vm>,
     phantom_da: PhantomData<Da>,
@@ -70,30 +68,27 @@ impl<A: BasicAddress> From<ApplyBatchError<A>> for BatchReceipt<SequencerOutcome
 
 type ApplySoftConfirmationResult = Result<BatchReceipt<(), TxEffect>, ApplySoftConfirmationError>;
 
-impl<C, Vm, Da, RT, K> Default for StfBlueprint<C, Da, Vm, RT, K>
+impl<C, Vm, Da, RT> Default for StfBlueprint<C, Da, Vm, RT>
 where
     C: Context,
     Da: DaSpec,
     RT: Runtime<C, Da>,
-    K: KernelSlotHooks<C, Da>,
 {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<C, Vm, Da, RT, K> StfBlueprint<C, Da, Vm, RT, K>
+impl<C, Vm, Da, RT> StfBlueprint<C, Da, Vm, RT>
 where
     C: Context,
     Da: DaSpec,
     RT: Runtime<C, Da>,
-    K: KernelSlotHooks<C, Da>,
 {
     /// [`StfBlueprint`] constructor.
     pub fn new() -> Self {
         Self {
             runtime: RT::default(),
-            kernel: K::default(),
             phantom_context: PhantomData,
             phantom_vm: PhantomData,
             phantom_da: PhantomData,
