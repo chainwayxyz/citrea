@@ -102,6 +102,7 @@ mod tests {
     #[test]
     fn test_correct_config() {
         let config = r#"
+            [public_keys]
             sequencer_public_key = "0000000000000000000000000000000000000000000000000000000000000000"
             sequencer_da_pub_key = "7777777777777777777777777777777777777777777777777777777777777777"
             prover_da_pub_key = ""

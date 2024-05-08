@@ -1,6 +1,5 @@
+[public_keys]
 sequencer_public_key = "204040e364c10f2bec9c1fe500a1cd4c247c89d650a01ed7e82caba867877c21"
-include_tx_body = true
-
 sequencer_da_pub_key = ""
 prover_da_pub_key = ""
 
@@ -18,16 +17,7 @@ sequencer_da_private_key = "E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67
 # The path to the rollup's data directory. Paths that do not begin with `/` are interpreted as relative paths.
 path = "sequencer-db"
 
-# We define the rollup's genesis to occur at block number `start_height`. The rollup will ignore
-# any blocks before this height
-[runner]
-[runner.rpc_config]
+[rpc]
 # the host and port to bind the rpc server for
 bind_host = "127.0.0.1"
 bind_port = 12345
-
-[sequencer_client]
-url = "http://0.0.0.0:12346"
-
-[prover_service]
-aggregated_proof_block_jump = 1

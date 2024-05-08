@@ -1,3 +1,4 @@
+[public_keys]
 sequencer_public_key = "204040e364c10f2bec9c1fe500a1cd4c247c89d650a01ed7e82caba867877c21"
 sequencer_da_pub_key = "0000000000000000000000000000000000000000000000000000000000000000"
 prover_da_pub_key = ""
@@ -14,9 +15,3 @@ path = "sequencer-db"
 bind_host = "0.0.0.0"
 bind_port = 12345
 max_connections = 10000
-
-# We define the rollup's genesis to occur at block number `start_height`. The rollup will ignore
-# any blocks before this height
-[runner]
-include_tx_body = true
-sequencer_client_url = "http://0.0.0.0:12345"
