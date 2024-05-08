@@ -7,8 +7,8 @@ use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_state::{ArrayWitness, DefaultStorageSpec};
 use sov_stf_runner::{
-    InitVariant, ParallelProverService, ProverServiceConfig, RollupConfig, RollupProverConfig,
-    RpcConfig, RunnerConfig, StateTransitionRunner, StorageConfig,
+    InitVariant, ParallelProverService, ProverGuestRunConfig, RollupConfig, RpcConfig,
+    RunnerConfig, StateTransitionRunner, StorageConfig,
 };
 
 mod hash_stf;
@@ -66,7 +66,6 @@ fn initialize_runner(
             path: path.to_path_buf(),
         },
         runner: RunnerConfig {
-            start_height: 1,
             rpc_config: RpcConfig {
                 bind_host: "127.0.0.1".to_string(),
                 bind_port: 0,
@@ -75,9 +74,6 @@ fn initialize_runner(
         },
         da: MockDaConfig {
             sender_address: address,
-        },
-        prover_service: ProverServiceConfig {
-            aggregated_proof_block_jump: 1,
         },
         sequencer_client: None,
         sequencer_da_pub_key: vec![],
@@ -99,7 +95,7 @@ fn initialize_runner(
     let vm = MockZkvm::new(MockValidityCond::default());
     let verifier = MockDaVerifier::default();
 
-    let prover_config = RollupProverConfig::Prove;
+    let prover_config = ProverGuestRunConfig::Prove;
 
     let prover_service = ParallelProverService::new(
         vm,
@@ -109,7 +105,6 @@ fn initialize_runner(
         // Should be ZkStorage, but we don't need it for this test
         storage_manager.create_finalized_storage().unwrap(),
         1,
-        rollup_config.prover_service,
     )
     .expect("Should be able to instiate prover service");
 

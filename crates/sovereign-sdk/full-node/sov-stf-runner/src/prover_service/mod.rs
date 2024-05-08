@@ -8,7 +8,7 @@ use sov_rollup_interface::zk::StateTransitionData;
 use thiserror::Error;
 
 /// The possible configurations of the prover.
-pub enum RollupProverConfig {
+pub enum ProverGuestRunConfig {
     /// Skip proving.
     Skip,
     /// Run the rollup verification logic inside the current process.

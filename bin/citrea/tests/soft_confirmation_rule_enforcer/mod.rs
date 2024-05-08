@@ -1,7 +1,7 @@
 use citrea_stf::genesis_config::GenesisPaths;
 use sov_mock_da::{MockAddress, MockDaService};
 use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
-use sov_stf_runner::RollupProverConfig;
+use sov_stf_runner::ProverGuestRunConfig;
 
 use crate::evm::make_test_client;
 // use citrea::initialize_logging;
@@ -24,7 +24,7 @@ async fn too_many_l2_block_per_l1_block() {
                     "../test-data/genesis/integration-tests-low-limiting-number/chain_state.json"
                         .into(),
             },
-            RollupProverConfig::Execute,
+            ProverGuestRunConfig::Execute,
             NodeMode::SequencerNode,
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,

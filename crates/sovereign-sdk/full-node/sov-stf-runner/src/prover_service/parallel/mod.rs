@@ -11,10 +11,9 @@ use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::zk::{StateTransitionData, ZkvmHost};
 
 use super::{ProverService, ProverServiceError};
-use crate::config::ProverServiceConfig;
 use crate::verifier::StateTransitionVerifier;
 use crate::{
-    ProofGenConfig, ProofProcessingStatus, ProofSubmissionStatus, RollupProverConfig,
+    ProofGenConfig, ProofProcessingStatus, ProofSubmissionStatus, ProverGuestRunConfig,
     WitnessSubmissionStatus,
 };
 
@@ -48,19 +47,18 @@ where
         vm: Vm,
         zk_stf: V,
         da_verifier: Da::Verifier,
-        config: RollupProverConfig,
+        config: ProverGuestRunConfig,
         zk_storage: V::PreState,
         num_threads: usize,
-        prover_service_config: ProverServiceConfig,
     ) -> anyhow::Result<Self> {
         let stf_verifier =
             StateTransitionVerifier::<V, Da::Verifier, Vm::Guest>::new(zk_stf, da_verifier);
 
         let config: ProofGenConfig<V, Da, Vm> = match config {
-            RollupProverConfig::Skip => ProofGenConfig::Skip,
-            RollupProverConfig::Simulate => ProofGenConfig::Simulate(stf_verifier),
-            RollupProverConfig::Execute => ProofGenConfig::Execute,
-            RollupProverConfig::Prove => ProofGenConfig::Prover,
+            ProverGuestRunConfig::Skip => ProofGenConfig::Skip,
+            ProverGuestRunConfig::Simulate => ProofGenConfig::Simulate(stf_verifier),
+            ProverGuestRunConfig::Execute => ProofGenConfig::Execute,
+            ProverGuestRunConfig::Prove => ProofGenConfig::Prover,
         };
 
         // output config
@@ -84,10 +82,7 @@ where
         Ok(Self {
             vm,
             prover_config,
-            prover_state: Prover::new(
-                num_threads,
-                prover_service_config.aggregated_proof_block_jump,
-            )?,
+            prover_state: Prover::new(num_threads)?,
             zk_storage,
         })
     }
@@ -97,22 +92,13 @@ where
         vm: Vm,
         zk_stf: V,
         da_verifier: Da::Verifier,
-        config: RollupProverConfig,
+        config: ProverGuestRunConfig,
         zk_storage: V::PreState,
-        prover_service_config: ProverServiceConfig,
     ) -> anyhow::Result<Self> {
         let num_cpus = num_cpus::get();
         assert!(num_cpus > 1, "Unable to create parallel prover service");
 
-        Self::new(
-            vm,
-            zk_stf,
-            da_verifier,
-            config,
-            zk_storage,
-            num_cpus - 1,
-            prover_service_config,
-        )
+        Self::new(vm, zk_stf, da_verifier, config, zk_storage, num_cpus - 1)
     }
 }
 

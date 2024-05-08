@@ -13,7 +13,7 @@ use sov_modules_stf_blueprint::kernels::basic::{
     BasicKernelGenesisConfig, BasicKernelGenesisPaths,
 };
 use sov_stf_runner::{
-    ProverServiceConfig, RollupConfig, RollupProverConfig, RpcConfig, RunnerConfig,
+    ProverGuestRunConfig, ProverServiceConfig, RollupConfig, RpcConfig, RunnerConfig,
     SequencerClientRpcConfig, StorageConfig,
 };
 use tokio::sync::oneshot;
@@ -32,7 +32,7 @@ pub async fn start_rollup(
     rpc_reporting_channel: oneshot::Sender<SocketAddr>,
     rt_genesis_paths: GenesisPaths,
     kernel_genesis_paths: BasicKernelGenesisPaths,
-    rollup_prover_config: RollupProverConfig,
+    rollup_prover_config: ProverGuestRunConfig,
     node_mode: NodeMode,
     db_path: Option<&str>,
     min_soft_confirmations_per_commitment: u64,
@@ -149,7 +149,6 @@ pub fn create_default_rollup_config(
             path: path.unwrap().to_path_buf(),
         },
         runner: RunnerConfig {
-            start_height: 1,
             rpc_config: RpcConfig {
                 bind_host: "127.0.0.1".into(),
                 bind_port: 0,
@@ -158,9 +157,6 @@ pub fn create_default_rollup_config(
         },
         da: MockDaConfig {
             sender_address: MockAddress::from([0; 32]),
-        },
-        prover_service: ProverServiceConfig {
-            aggregated_proof_block_jump: 1,
         },
         sequencer_client: match node_mode {
             NodeMode::FullNode(socket_addr) | NodeMode::Prover(socket_addr) => {

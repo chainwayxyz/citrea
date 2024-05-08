@@ -20,7 +20,7 @@ use sov_rollup_interface::zk::ZkvmHost;
 use sov_state::storage::NativeStorage;
 use sov_state::Storage;
 use sov_stf_runner::{
-    InitVariant, ProverService, RollupConfig, RollupProverConfig, StateTransitionRunner,
+    InitVariant, ProverGuestRunConfig, ProverService, RollupConfig, StateTransitionRunner,
 };
 use tokio::sync::oneshot;
 pub use wallet::*;
@@ -115,7 +115,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
     /// Creates instance of [`ProverService`].
     async fn create_prover_service(
         &self,
-        prover_config: RollupProverConfig,
+        prover_config: ProverGuestRunConfig,
         rollup_config: &RollupConfig<Self::DaConfig>,
         da_service: &Self::DaService,
     ) -> Self::ProverService;
@@ -216,7 +216,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         >>::GenesisPaths,
         kernel_genesis_config: <Self::NativeKernel as Kernel<Self::NativeContext, Self::DaSpec>>::GenesisConfig,
         rollup_config: RollupConfig<Self::DaConfig>,
-        prover_config: RollupProverConfig,
+        prover_config: ProverGuestRunConfig,
         is_prover: bool,
     ) -> Result<Rollup<Self>, anyhow::Error>
     where

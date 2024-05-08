@@ -13,7 +13,7 @@ use sov_prover_storage_manager::ProverStorageManager;
 use sov_risc0_adapter::host::Risc0Host;
 use sov_rollup_interface::zk::ZkvmHost;
 use sov_state::{DefaultStorageSpec, Storage, ZkStorage};
-use sov_stf_runner::{ParallelProverService, RollupConfig, RollupProverConfig};
+use sov_stf_runner::{ParallelProverService, ProverGuestRunConfig, RollupConfig};
 
 /// Rollup with MockDa
 pub struct MockDemoRollup {}
@@ -90,8 +90,8 @@ impl RollupBlueprint for MockDemoRollup {
 
     async fn create_prover_service(
         &self,
-        prover_config: RollupProverConfig,
-        rollup_config: &RollupConfig<Self::DaConfig>,
+        prover_config: ProverGuestRunConfig,
+        _rollup_config: &RollupConfig<Self::DaConfig>,
         _da_service: &Self::DaService,
     ) -> Self::ProverService {
         let vm = Risc0Host::new(risc0::MOCK_DA_ELF);
@@ -105,7 +105,6 @@ impl RollupBlueprint for MockDemoRollup {
             da_verifier,
             prover_config,
             zk_storage,
-            rollup_config.prover_service,
         )
         .expect("Should be able to instantiate prover service")
     }

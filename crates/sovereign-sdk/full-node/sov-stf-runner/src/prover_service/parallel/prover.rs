@@ -81,7 +81,6 @@ pub(crate) struct Prover<StateRoot, Witness, Da: DaService> {
     prover_state: Arc<RwLock<ProverState<StateRoot, Witness, Da::Spec>>>,
     num_threads: usize,
     pool: rayon::ThreadPool,
-    _aggregated_proof_block_jump: u64,
 }
 
 impl<StateRoot, Witness, Da> Prover<StateRoot, Witness, Da>
@@ -90,10 +89,7 @@ where
     StateRoot: Serialize + DeserializeOwned + Clone + AsRef<[u8]> + Send + Sync + 'static,
     Witness: Serialize + DeserializeOwned + Send + Sync + 'static,
 {
-    pub(crate) fn new(
-        num_threads: usize,
-        _aggregated_proof_block_jump: u64,
-    ) -> anyhow::Result<Self> {
+    pub(crate) fn new(num_threads: usize) -> anyhow::Result<Self> {
         Ok(Self {
             num_threads,
             pool: rayon::ThreadPoolBuilder::new()
@@ -105,7 +101,6 @@ where
                 prover_status: Default::default(),
                 pending_tasks_count: Default::default(),
             })),
-            _aggregated_proof_block_jump,
         })
     }
 

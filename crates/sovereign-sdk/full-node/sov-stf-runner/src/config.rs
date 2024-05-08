@@ -8,8 +8,6 @@ use serde::Deserialize;
 /// Runner configuration.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct RunnerConfig {
-    /// DA start height.
-    pub start_height: u64,
     /// RPC configuration.
     pub rpc_config: RpcConfig,
 }
@@ -46,13 +44,6 @@ pub struct SequencerClientRpcConfig {
     pub url: String,
 }
 
-/// Prover service configuration.
-#[derive(Debug, Clone, PartialEq, Deserialize, Copy)]
-pub struct ProverServiceConfig {
-    /// The "distance"  measured in the number of blocks between two consecutive aggregated proofs.
-    pub aggregated_proof_block_jump: u64,
-}
-
 /// Rollup Configuration
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct RollupConfig<DaServiceConfig> {
@@ -76,8 +67,6 @@ pub struct RollupConfig<DaServiceConfig> {
     /// serialized as hex
     #[serde(with = "hex::serde")]
     pub prover_da_pub_key: Vec<u8>,
-    /// Prover service configuration.
-    pub prover_service: ProverServiceConfig,
     /// Saves sequencer soft batches if set to true
     pub include_tx_body: bool,
 }
@@ -124,7 +113,6 @@ mod tests {
             [storage]
             path = "/tmp"
             [runner]
-            start_height = 31337
             [runner.rpc_config]
             bind_host = "127.0.0.1"
             bind_port = 12345
@@ -142,7 +130,6 @@ mod tests {
         let expected = RollupConfig {
             sequencer_public_key: vec![0; 32],
             runner: RunnerConfig {
-                start_height: 31337,
                 rpc_config: RpcConfig {
                     bind_host: "127.0.0.1".to_string(),
                     bind_port: 12345,
@@ -159,9 +146,6 @@ mod tests {
             sequencer_client: Some(SequencerClientRpcConfig {
                 url: "http://0.0.0.0:12346".to_owned(),
             }),
-            prover_service: ProverServiceConfig {
-                aggregated_proof_block_jump: 22,
-            },
             sequencer_da_pub_key: vec![119; 32],
             prover_da_pub_key: vec![],
             include_tx_body: true,

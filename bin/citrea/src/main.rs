@@ -14,7 +14,7 @@ use sov_modules_stf_blueprint::kernels::basic::{
     BasicKernelGenesisConfig, BasicKernelGenesisPaths,
 };
 use sov_state::storage::NativeStorage;
-use sov_stf_runner::{from_toml_path, RollupConfig, RollupProverConfig};
+use sov_stf_runner::{from_toml_path, ProverGuestRunConfig, RollupConfig};
 use tracing::error;
 
 #[cfg(test)]
@@ -88,7 +88,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 &GenesisPaths::from_dir(&args.genesis_paths),
                 kernel_genesis,
                 rollup_config_path,
-                RollupProverConfig::Execute,
+                ProverGuestRunConfig::Execute,
                 sequencer_config,
                 is_prover,
             )
@@ -110,7 +110,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 &GenesisPaths::from_dir(&args.genesis_paths),
                 kernel_genesis,
                 rollup_config_path,
-                RollupProverConfig::Prove,
+                ProverGuestRunConfig::Prove,
                 sequencer_config,
                 is_prover,
             )
@@ -131,7 +131,7 @@ async fn start_rollup<S, DaC>(
         <S as RollupBlueprint>::DaSpec,
     >>::GenesisConfig,
     rollup_config_path: &str,
-    prover_config: RollupProverConfig,
+    prover_config: ProverGuestRunConfig,
     // genesis_paths: &<<S as RollupBlueprint>::NativeRuntime as sov_modules_stf_blueprint::Runtime<
     //     <S as RollupBlueprint>::NativeContext,
     //     <S as RollupBlueprint>::DaSpec,

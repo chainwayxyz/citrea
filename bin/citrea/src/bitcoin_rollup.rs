@@ -17,7 +17,7 @@ use sov_risc0_adapter::host::Risc0Host;
 use sov_rollup_interface::da::DaVerifier;
 use sov_rollup_interface::zk::ZkvmHost;
 use sov_state::{DefaultStorageSpec, Storage, ZkStorage};
-use sov_stf_runner::{ParallelProverService, RollupConfig, RollupProverConfig};
+use sov_stf_runner::{ParallelProverService, ProverGuestRunConfig, RollupConfig};
 
 /// Rollup with BitcoinDa
 pub struct BitcoinRollup {}
@@ -111,8 +111,8 @@ impl RollupBlueprint for BitcoinRollup {
 
     async fn create_prover_service(
         &self,
-        prover_config: RollupProverConfig,
-        rollup_config: &RollupConfig<Self::DaConfig>,
+        prover_config: ProverGuestRunConfig,
+        _rollup_config: &RollupConfig<Self::DaConfig>,
         _da_service: &Self::DaService,
     ) -> Self::ProverService {
         // TODO: will be BITCOIN_ELF
@@ -131,7 +131,6 @@ impl RollupBlueprint for BitcoinRollup {
             da_verifier,
             prover_config,
             zk_storage,
-            rollup_config.prover_service,
         )
         .expect("Should be able to instantiate prover service")
     }

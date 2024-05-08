@@ -8,8 +8,8 @@ use sov_rollup_interface::da::Time;
 use sov_rollup_interface::zk::StateTransitionData;
 use sov_stf_runner::mock::MockStf;
 use sov_stf_runner::{
-    ParallelProverService, ProofProcessingStatus, ProofSubmissionStatus, ProverService,
-    ProverServiceConfig, ProverServiceError, RollupProverConfig, WitnessSubmissionStatus,
+    ParallelProverService, ProofProcessingStatus, ProofSubmissionStatus, ProverGuestRunConfig,
+    ProverService, ProverServiceError, WitnessSubmissionStatus,
 };
 
 #[tokio::test]
@@ -199,7 +199,7 @@ fn make_new_prover() -> TestProver {
     let num_threads = num_cpus::get();
     let vm = MockZkvm::new(MockValidityCond::default());
 
-    let prover_config = RollupProverConfig::Execute;
+    let prover_config = ProverGuestRunConfig::Execute;
     let zk_stf = MockStf::<MockValidityCond>::default();
     let da_verifier = MockDaVerifier::default();
     TestProver {
@@ -210,9 +210,6 @@ fn make_new_prover() -> TestProver {
             prover_config,
             (),
             num_threads,
-            ProverServiceConfig {
-                aggregated_proof_block_jump: 1,
-            },
         )
         .expect("Should be able to instantiate Prover service"),
         vm,

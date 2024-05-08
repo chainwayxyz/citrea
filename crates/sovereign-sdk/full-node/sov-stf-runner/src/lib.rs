@@ -25,8 +25,7 @@ pub use prover_service::*;
 mod runner;
 #[cfg(feature = "native")]
 pub use config::{
-    from_toml_path, ProverServiceConfig, RollupConfig, RunnerConfig, SequencerClientRpcConfig,
-    StorageConfig,
+    from_toml_path, RollupConfig, RunnerConfig, SequencerClientRpcConfig, StorageConfig,
 };
 #[cfg(feature = "native")]
 pub use runner::*;

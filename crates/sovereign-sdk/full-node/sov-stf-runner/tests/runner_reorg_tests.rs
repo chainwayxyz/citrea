@@ -5,8 +5,8 @@ use sov_mock_da::{
 use sov_mock_zkvm::MockZkvm;
 use sov_modules_api::default_context::DefaultContext;
 use sov_stf_runner::{
-    InitVariant, ParallelProverService, ProverServiceConfig, RollupConfig, RollupProverConfig,
-    RpcConfig, RunnerConfig, StateTransitionRunner, StorageConfig,
+    InitVariant, ParallelProverService, ProverGuestRunConfig, RollupConfig, RpcConfig,
+    RunnerConfig, StateTransitionRunner, StorageConfig,
 };
 
 mod hash_stf;
@@ -122,7 +122,6 @@ async fn runner_execution(
             path: path.to_path_buf(),
         },
         runner: RunnerConfig {
-            start_height: 1,
             rpc_config: RpcConfig {
                 bind_host: "127.0.0.1".to_string(),
                 bind_port: 0,
@@ -131,9 +130,6 @@ async fn runner_execution(
         },
         da: MockDaConfig {
             sender_address: da_service.get_sequencer_address(),
-        },
-        prover_service: ProverServiceConfig {
-            aggregated_proof_block_jump: 1,
         },
         sequencer_client: None,
         sequencer_da_pub_key: vec![],
@@ -152,7 +148,7 @@ async fn runner_execution(
 
     let vm = MockZkvm::new(MockValidityCond::default());
     let verifier = MockDaVerifier::default();
-    let prover_config = RollupProverConfig::Skip;
+    let prover_config = ProverGuestRunConfig::Skip;
 
     let prover_service = ParallelProverService::new(
         vm,
@@ -162,7 +158,6 @@ async fn runner_execution(
         // Should be ZkStorage, but we don't need it for this test
         storage_manager.create_finalized_storage().unwrap(),
         1,
-        rollup_config.prover_service,
     )
     .expect("Should be able to instiate prover service");
 
