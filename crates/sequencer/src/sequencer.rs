@@ -536,7 +536,7 @@ where
                 // If sequencer is in test mode, it will build a block every time it receives a message
                 // The RPC from which the sender can be called is only registered for test mode. This means
                 // that evey though we check the receiver here, it'll never be "ready" to be consumed unless in test mode.
-                _ = self.l2_force_block_rx.next() => {
+                _ = self.l2_force_block_rx.next(), if self.config.test_mode => {
                     if self.config.test_mode {
                         if let Err(e) = self.produce_l2_block(last_finalized_block.clone(), l1_fee_rate, L2BlockMode::NotEmpty, &None).await {
                             error!("Sequencer error: {}", e);
@@ -544,7 +544,7 @@ where
                     }
                 },
                 // If sequencer is in production mode, it will build a block every 2 seconds
-                _ = interval.tick() => {
+                _ = interval.tick(), if !self.config.test_mode => {
                     // By default, we produce a non-empty block IFF we were caught up all the way to
                     // last_finalized_block. If there are missed DA blocks, we start producing
                     // empty blocks at ~2 second rate, 1 L2 block per respective missed DA block
