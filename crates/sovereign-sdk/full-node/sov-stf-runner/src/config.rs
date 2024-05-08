@@ -5,6 +5,8 @@ use std::path::{Path, PathBuf};
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
 
+use crate::ProverGuestRunConfig;
+
 /// Runner configuration.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct RunnerConfig {
@@ -69,6 +71,15 @@ pub struct RollupConfig<DaServiceConfig> {
     pub public_keys: RollupPublicKeys,
 }
 
+/// Prover configuration
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+pub struct ProverConfig {
+    /// Prover run mode
+    pub proving_mode: ProverGuestRunConfig,
+    /// If set, the prover will skip proving until the L1 height is reached.
+    pub skip_proving_until_l1_height: Option<u64>,
+}
+
 /// Reads toml file as a specific type.
 pub fn from_toml_path<P: AsRef<Path>, R: DeserializeOwned>(path: P) -> anyhow::Result<R> {
     let mut contents = String::new();
@@ -100,7 +111,7 @@ mod tests {
     }
 
     #[test]
-    fn test_correct_config() {
+    fn test_correct_rollup_config() {
         let config = r#"
             [public_keys]
             sequencer_public_key = "0000000000000000000000000000000000000000000000000000000000000000"
@@ -148,6 +159,23 @@ mod tests {
                 sequencer_da_pub_key: vec![119; 32],
                 prover_da_pub_key: vec![],
             },
+        };
+        assert_eq!(config, expected);
+    }
+
+    #[test]
+    fn test_correct_prover_config() {
+        let config = r#"
+            proving_mode = "skip"
+            skip_proving_until_l1_height = 100
+        "#;
+
+        let config_file = create_config_from(config);
+
+        let config: ProverConfig = from_toml_path(config_file.path()).unwrap();
+        let expected = ProverConfig {
+            proving_mode: ProverGuestRunConfig::Skip,
+            skip_proving_until_l1_height: Some(100),
         };
         assert_eq!(config, expected);
     }

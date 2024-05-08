@@ -1,13 +1,14 @@
 mod parallel;
 use async_trait::async_trait;
 pub use parallel::ParallelProverService;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::StateTransitionData;
 use thiserror::Error;
 
 /// The possible configurations of the prover.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProverGuestRunConfig {
     /// Skip proving.
     Skip,
@@ -17,6 +18,22 @@ pub enum ProverGuestRunConfig {
     Execute,
     /// Run the rollup verifier and create a SNARK of execution.
     Prove,
+}
+
+impl<'de> Deserialize<'de> for ProverGuestRunConfig {
+    fn deserialize<D>(deserializer: D) -> Result<ProverGuestRunConfig, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        match s.as_str() {
+            "skip" => Ok(ProverGuestRunConfig::Skip),
+            "simulate" => Ok(ProverGuestRunConfig::Simulate),
+            "execute" => Ok(ProverGuestRunConfig::Execute),
+            "prove" => Ok(ProverGuestRunConfig::Prove),
+            _ => Err(serde::de::Error::custom("invalid prover guest run config")),
+        }
+    }
 }
 
 /// Represents the status of a witness submission.

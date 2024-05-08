@@ -22,9 +22,7 @@ pub use prover_service::*;
 #[cfg(feature = "native")]
 mod runner;
 #[cfg(feature = "native")]
-pub use config::{
-    from_toml_path, RollupConfig, RollupPublicKeys, RpcConfig, RunnerConfig, StorageConfig,
-};
+pub use config::*;
 #[cfg(feature = "native")]
 pub use runner::*;
 

@@ -18,13 +18,14 @@ use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
 use sov_rollup_interface::services::da::DaService;
-use sov_stf_runner::ProverGuestRunConfig;
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
 
 use crate::evm::{init_test_rollup, make_test_client};
 use crate::test_client::TestClient;
-use crate::test_helpers::{create_default_sequencer_config, start_rollup, NodeMode};
+use crate::test_helpers::{
+    create_default_prover_config, create_default_sequencer_config, start_rollup, NodeMode,
+};
 use crate::{DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT};
 
 struct TestConfig {
@@ -59,7 +60,7 @@ async fn initialize_test(
             BasicKernelGenesisPaths {
                 chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
             },
-            ProverGuestRunConfig::Execute,
+            None,
             NodeMode::SequencerNode,
             None,
             config.seq_min_soft_confirmations,
@@ -84,7 +85,7 @@ async fn initialize_test(
             BasicKernelGenesisPaths {
                 chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
             },
-            ProverGuestRunConfig::Execute,
+            None,
             NodeMode::FullNode(seq_port),
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
@@ -122,7 +123,7 @@ async fn test_soft_batch_save() -> Result<(), anyhow::Error> {
             BasicKernelGenesisPaths {
                 chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
             },
-            ProverGuestRunConfig::Execute,
+            None,
             NodeMode::SequencerNode,
             None,
             config.seq_min_soft_confirmations,
@@ -147,7 +148,7 @@ async fn test_soft_batch_save() -> Result<(), anyhow::Error> {
             BasicKernelGenesisPaths {
                 chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
             },
-            ProverGuestRunConfig::Execute,
+            None,
             NodeMode::FullNode(seq_port),
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
@@ -172,7 +173,7 @@ async fn test_soft_batch_save() -> Result<(), anyhow::Error> {
             BasicKernelGenesisPaths {
                 chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
             },
-            ProverGuestRunConfig::Execute,
+            None,
             NodeMode::FullNode(full_node_port),
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
@@ -261,7 +262,7 @@ async fn test_delayed_sync_ten_blocks() -> Result<(), anyhow::Error> {
             BasicKernelGenesisPaths {
                 chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
             },
-            ProverGuestRunConfig::Execute,
+            None,
             NodeMode::SequencerNode,
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
@@ -296,7 +297,7 @@ async fn test_delayed_sync_ten_blocks() -> Result<(), anyhow::Error> {
             BasicKernelGenesisPaths {
                 chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
             },
-            ProverGuestRunConfig::Execute,
+            None,
             NodeMode::FullNode(seq_port),
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
@@ -362,7 +363,7 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
             BasicKernelGenesisPaths {
                 chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
             },
-            ProverGuestRunConfig::Execute,
+            None,
             NodeMode::SequencerNode,
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
@@ -387,7 +388,7 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
             BasicKernelGenesisPaths {
                 chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
             },
-            ProverGuestRunConfig::Execute,
+            None,
             NodeMode::FullNode(seq_port),
             Some("demo_data_test_close_and_reopen_full_node"),
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
@@ -471,7 +472,7 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
             BasicKernelGenesisPaths {
                 chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
             },
-            ProverGuestRunConfig::Execute,
+            None,
             NodeMode::FullNode(seq_port),
             Some("demo_data_test_close_and_reopen_full_node_copy"),
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
@@ -528,7 +529,7 @@ async fn test_get_transaction_by_hash() -> Result<(), anyhow::Error> {
             BasicKernelGenesisPaths {
                 chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
             },
-            ProverGuestRunConfig::Execute,
+            None,
             NodeMode::SequencerNode,
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
@@ -552,7 +553,7 @@ async fn test_get_transaction_by_hash() -> Result<(), anyhow::Error> {
             BasicKernelGenesisPaths {
                 chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
             },
-            ProverGuestRunConfig::Execute,
+            None,
             NodeMode::FullNode(seq_port),
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
@@ -790,7 +791,7 @@ async fn test_reopen_sequencer() -> Result<(), anyhow::Error> {
             BasicKernelGenesisPaths {
                 chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
             },
-            ProverGuestRunConfig::Execute,
+            None,
             NodeMode::SequencerNode,
             Some("demo_data_test_reopen_sequencer"),
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
@@ -838,7 +839,7 @@ async fn test_reopen_sequencer() -> Result<(), anyhow::Error> {
             BasicKernelGenesisPaths {
                 chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
             },
-            ProverGuestRunConfig::Execute,
+            None,
             NodeMode::SequencerNode,
             Some("demo_data_test_reopen_sequencer_copy"),
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
@@ -1128,7 +1129,7 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
             BasicKernelGenesisPaths {
                 chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
             },
-            ProverGuestRunConfig::Execute,
+            None,
             NodeMode::SequencerNode,
             None,
             4,
@@ -1153,7 +1154,7 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
             BasicKernelGenesisPaths {
                 chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
             },
-            ProverGuestRunConfig::Execute,
+            None,
             NodeMode::Prover(seq_port),
             None,
             4,
@@ -1239,7 +1240,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
             BasicKernelGenesisPaths {
                 chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
             },
-            ProverGuestRunConfig::Execute,
+            None,
             NodeMode::SequencerNode,
             None,
             4,
@@ -1264,7 +1265,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
             BasicKernelGenesisPaths {
                 chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
             },
-            ProverGuestRunConfig::Execute,
+            Some(create_default_prover_config()),
             NodeMode::Prover(seq_port),
             Some("demo_data_test_reopen_prover"),
             4,
@@ -1321,7 +1322,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
             BasicKernelGenesisPaths {
                 chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
             },
-            ProverGuestRunConfig::Execute,
+            Some(create_default_prover_config()),
             NodeMode::Prover(seq_port),
             Some("demo_data_test_reopen_prover_copy"),
             4,
@@ -1368,7 +1369,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
             BasicKernelGenesisPaths {
                 chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
             },
-            ProverGuestRunConfig::Execute,
+            Some(create_default_prover_config()),
             NodeMode::Prover(seq_port),
             Some("demo_data_test_reopen_prover_copy2"),
             4,
@@ -1558,7 +1559,7 @@ async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error>
                     "../test-data/genesis/integration-tests-low-block-gas-limit/chain_state.json"
                         .into(),
             },
-            ProverGuestRunConfig::Execute,
+            None,
             NodeMode::SequencerNode,
             None,
             4,
@@ -1724,7 +1725,7 @@ async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
             BasicKernelGenesisPaths {
                 chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
             },
-            ProverGuestRunConfig::Execute,
+            None,
             NodeMode::SequencerNode,
             None,
             4,
@@ -1750,7 +1751,7 @@ async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
             BasicKernelGenesisPaths {
                 chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
             },
-            ProverGuestRunConfig::Execute,
+            None,
             NodeMode::FullNode(seq_port),
             Some("demo_data_sequencer_full_node"),
             4,
@@ -1816,7 +1817,7 @@ async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
             BasicKernelGenesisPaths {
                 chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
             },
-            ProverGuestRunConfig::Execute,
+            None,
             NodeMode::SequencerNode,
             Some("demo_data_sequencer_full_node_copy"),
             4,
@@ -1977,7 +1978,7 @@ async fn sequencer_crash_restore_mempool() -> Result<(), anyhow::Error> {
             BasicKernelGenesisPaths {
                 chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
             },
-            ProverGuestRunConfig::Execute,
+            None,
             NodeMode::SequencerNode,
             Some("demo_data_sequencer_restore_mempool"),
             4,
@@ -2043,7 +2044,7 @@ async fn sequencer_crash_restore_mempool() -> Result<(), anyhow::Error> {
             BasicKernelGenesisPaths {
                 chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
             },
-            ProverGuestRunConfig::Execute,
+            None,
             NodeMode::SequencerNode,
             Some("demo_data_sequencer_restore_mempool_copy"),
             4,

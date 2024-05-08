@@ -11,6 +11,7 @@ use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::zk::{StateTransitionData, ZkvmHost};
 
 use super::{ProverService, ProverServiceError};
+use crate::config::ProverConfig;
 use crate::verifier::StateTransitionVerifier;
 use crate::{
     ProofGenConfig, ProofProcessingStatus, ProofSubmissionStatus, ProverGuestRunConfig,
@@ -92,13 +93,20 @@ where
         vm: Vm,
         zk_stf: V,
         da_verifier: Da::Verifier,
-        config: ProverGuestRunConfig,
+        prover_config: ProverConfig,
         zk_storage: V::PreState,
     ) -> anyhow::Result<Self> {
         let num_cpus = num_cpus::get();
         assert!(num_cpus > 1, "Unable to create parallel prover service");
 
-        Self::new(vm, zk_stf, da_verifier, config, zk_storage, num_cpus - 1)
+        Self::new(
+            vm,
+            zk_stf,
+            da_verifier,
+            prover_config.proving_mode,
+            zk_storage,
+            num_cpus - 1,
+        )
     }
 }
 

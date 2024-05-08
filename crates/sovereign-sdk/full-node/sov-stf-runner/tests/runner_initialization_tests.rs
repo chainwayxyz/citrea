@@ -1,14 +1,11 @@
 use sov_db::ledger_db::LedgerDB;
-use sov_mock_da::{
-    MockAddress, MockDaConfig, MockDaService, MockDaSpec, MockDaVerifier, MockValidityCond,
-};
+use sov_mock_da::{MockAddress, MockDaConfig, MockDaService, MockDaSpec, MockValidityCond};
 use sov_mock_zkvm::MockZkvm;
 use sov_prover_storage_manager::ProverStorageManager;
-use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_state::{ArrayWitness, DefaultStorageSpec};
 use sov_stf_runner::{
-    InitVariant, ParallelProverService, ProverGuestRunConfig, RollupConfig, RollupPublicKeys,
-    RpcConfig, RunnerConfig, StateTransitionRunner, StorageConfig,
+    InitVariant, ParallelProverService, RollupConfig, RollupPublicKeys, RpcConfig, RunnerConfig,
+    StateTransitionRunner, StorageConfig,
 };
 
 mod hash_stf;
@@ -92,23 +89,10 @@ fn initialize_runner(
     let storage_config = sov_state::config::Config {
         path: path.to_path_buf(),
     };
-    let mut storage_manager = ProverStorageManager::new(storage_config).unwrap();
+    let storage_manager = ProverStorageManager::new(storage_config).unwrap();
 
-    let vm = MockZkvm::new(MockValidityCond::default());
-    let verifier = MockDaVerifier::default();
-
-    let prover_config = ProverGuestRunConfig::Prove;
-
-    let prover_service = ParallelProverService::new(
-        vm,
-        stf.clone(),
-        verifier,
-        prover_config,
-        // Should be ZkStorage, but we don't need it for this test
-        storage_manager.create_finalized_storage().unwrap(),
-        1,
-    )
-    .expect("Should be able to instiate prover service");
+    // let vm = MockZkvm::new(MockValidityCond::default());
+    // let verifier = MockDaVerifier::default();
 
     StateTransitionRunner::new(
         rollup_config.runner.unwrap(),
@@ -119,7 +103,7 @@ fn initialize_runner(
         stf,
         storage_manager,
         init_variant,
-        Some(prover_service),
+        None,
     )
     .unwrap()
 }

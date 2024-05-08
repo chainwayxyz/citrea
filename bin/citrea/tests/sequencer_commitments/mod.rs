@@ -10,7 +10,6 @@ use sov_modules_api::{BlobReaderTrait, SignedSoftConfirmationBatch};
 use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
 use sov_rollup_interface::da::DaData;
 use sov_rollup_interface::services::da::DaService;
-use sov_stf_runner::ProverGuestRunConfig;
 use tokio::time::sleep;
 
 use crate::evm::make_test_client;
@@ -33,7 +32,7 @@ async fn sequencer_sends_commitments_to_da_layer() {
                     "../test-data/genesis/integration-tests-low-limiting-number/chain_state.json"
                         .into(),
             },
-            ProverGuestRunConfig::Execute,
+            None,
             NodeMode::SequencerNode,
             None,
             4,
@@ -216,7 +215,7 @@ async fn check_commitment_in_offchain_db() {
                     "../test-data/genesis/integration-tests-low-limiting-number/chain_state.json"
                         .into(),
             },
-            ProverGuestRunConfig::Execute,
+            None,
             NodeMode::SequencerNode,
             None,
             4,

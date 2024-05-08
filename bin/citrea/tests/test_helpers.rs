@@ -13,7 +13,8 @@ use sov_modules_stf_blueprint::kernels::basic::{
     BasicKernelGenesisConfig, BasicKernelGenesisPaths,
 };
 use sov_stf_runner::{
-    ProverGuestRunConfig, RollupConfig, RollupPublicKeys, RpcConfig, RunnerConfig, StorageConfig,
+    ProverConfig, ProverGuestRunConfig, RollupConfig, RollupPublicKeys, RpcConfig, RunnerConfig,
+    StorageConfig,
 };
 use tokio::sync::oneshot;
 use tracing::warn;
@@ -31,7 +32,7 @@ pub async fn start_rollup(
     rpc_reporting_channel: oneshot::Sender<SocketAddr>,
     rt_genesis_paths: GenesisPaths,
     kernel_genesis_paths: BasicKernelGenesisPaths,
-    rollup_prover_config: ProverGuestRunConfig,
+    rollup_prover_config: Option<ProverConfig>,
     node_mode: NodeMode,
     db_path: Option<&str>,
     min_soft_confirmations_per_commitment: u64,
@@ -53,14 +54,6 @@ pub async fn start_rollup(
     let rollup_config = rollup_config
         .unwrap_or_else(|| create_default_rollup_config(include_tx_body, path, node_mode));
 
-    let sequencer_config = sequencer_config.unwrap_or_else(|| {
-        create_default_sequencer_config(
-            min_soft_confirmations_per_commitment,
-            test_mode,
-            deposit_mempool_fetch_limit,
-        )
-    });
-
     let mock_demo_rollup = MockDemoRollup {};
 
     let kernel_genesis = BasicKernelGenesisConfig {
@@ -74,13 +67,7 @@ pub async fn start_rollup(
     match node_mode {
         NodeMode::FullNode(_) => {
             let rollup = mock_demo_rollup
-                .create_new_rollup(
-                    &rt_genesis_paths,
-                    kernel_genesis,
-                    rollup_config.clone(),
-                    rollup_prover_config,
-                    false,
-                )
+                .create_new_rollup(&rt_genesis_paths, kernel_genesis, rollup_config.clone())
                 .await
                 .unwrap();
             rollup
@@ -90,12 +77,11 @@ pub async fn start_rollup(
         }
         NodeMode::Prover(_) => {
             let rollup = mock_demo_rollup
-                .create_new_rollup(
+                .create_new_prover(
                     &rt_genesis_paths,
                     kernel_genesis,
                     rollup_config.clone(),
-                    rollup_prover_config,
-                    true,
+                    rollup_prover_config.unwrap(),
                 )
                 .await
                 .unwrap();
@@ -111,6 +97,13 @@ pub async fn start_rollup(
                     .unwrap()
                     .pub_key()
             );
+            let sequencer_config = sequencer_config.unwrap_or_else(|| {
+                create_default_sequencer_config(
+                    min_soft_confirmations_per_commitment,
+                    test_mode,
+                    deposit_mempool_fetch_limit,
+                )
+            });
 
             let sequencer_rollup = mock_demo_rollup
                 .create_new_sequencer(
@@ -131,6 +124,13 @@ pub async fn start_rollup(
     if db_path.is_none() {
         // Close the tempdir explicitly to ensure that rustc doesn't see that it's unused and drop it unexpectedly
         temp_dir.unwrap().close().unwrap();
+    }
+}
+
+pub fn create_default_prover_config() -> ProverConfig {
+    ProverConfig {
+        proving_mode: ProverGuestRunConfig::Execute,
+        skip_proving_until_l1_height: None,
     }
 }
 

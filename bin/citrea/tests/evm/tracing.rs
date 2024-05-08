@@ -12,7 +12,6 @@ use reth_rpc_types::trace::geth::{
 };
 use serde_json::{self, json};
 use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
-use sov_stf_runner::ProverGuestRunConfig;
 
 use crate::evm::make_test_client;
 use crate::test_helpers::{start_rollup, NodeMode};
@@ -29,7 +28,7 @@ async fn tracing_tests() -> Result<(), Box<dyn std::error::Error>> {
             BasicKernelGenesisPaths {
                 chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
             },
-            ProverGuestRunConfig::Skip,
+            None,
             NodeMode::SequencerNode,
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,

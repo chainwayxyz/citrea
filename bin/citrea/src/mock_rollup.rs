@@ -12,7 +12,7 @@ use sov_prover_storage_manager::ProverStorageManager;
 use sov_risc0_adapter::host::Risc0Host;
 use sov_rollup_interface::zk::ZkvmHost;
 use sov_state::{DefaultStorageSpec, Storage, ZkStorage};
-use sov_stf_runner::{ParallelProverService, ProverGuestRunConfig, RollupConfig};
+use sov_stf_runner::{ParallelProverService, ProverConfig, RollupConfig};
 
 /// Rollup with MockDa
 pub struct MockDemoRollup {}
@@ -89,7 +89,7 @@ impl RollupBlueprint for MockDemoRollup {
 
     async fn create_prover_service(
         &self,
-        prover_config: ProverGuestRunConfig,
+        prover_config: ProverConfig,
         _rollup_config: &RollupConfig<Self::DaConfig>,
         _da_service: &Self::DaService,
     ) -> Self::ProverService {

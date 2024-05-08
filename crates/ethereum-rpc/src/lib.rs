@@ -64,7 +64,7 @@ pub fn get_ethereum_rpc<C: sov_modules_api::Context, Da: DaService>(
         #[cfg(feature = "local")]
         eth_signer,
         storage,
-        sequencer_client_url.map(|url| SequencerClient::new(url)),
+        sequencer_client_url.map(SequencerClient::new),
     ));
 
     register_rpc_methods(&mut rpc, is_sequencer).expect("Failed to register ethereum RPC methods");

@@ -230,10 +230,9 @@ where
             .get_prover_last_scanned_l1_height()
             .unwrap_or_else(|_| panic!("Failed to get last scanned l1 height from the ledger db"));
 
-        let mut l1_height = if last_scanned_l1_height.is_none() {
-            get_initial_slot_height::<Da::Spec>(&self.sequencer_client).await
-        } else {
-            last_scanned_l1_height.unwrap().0 + 1
+        let mut l1_height = match last_scanned_l1_height {
+            Some(height) => height.0 + 1,
+            None => get_initial_slot_height::<Da::Spec>(&self.sequencer_client).await,
         };
 
         let mut l2_height = self.start_height;
