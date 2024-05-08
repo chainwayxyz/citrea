@@ -1,4 +1,4 @@
-use sov_chain_state::TransitionHeight;
+// use sov_chain_state::TransitionHeight;
 use sov_modules_api::prelude::*;
 use sov_modules_api::runtime::capabilities::{BlobRefOrOwned, BlobSelector};
 use sov_modules_api::{BlobReaderTrait, Context, DaSpec, KernelWorkingSet, WorkingSet};
@@ -65,7 +65,7 @@ impl<C: Context, Da: DaSpec> BlobSelector<Da> for BlobStorage<C, Da> {
         // Calculate any expiring deferred blobs first, since these have to be processed no matter what (Case 2 above).
         // Note that we have to handle this case even if there is no preferred sequencer, since that sequencer might have
         // exited while there were deferred blobs waiting to be processed
-        let current_slot: TransitionHeight = self.get_true_slot_height(working_set);
+        let current_slot: u64 = self.get_true_slot_height(working_set);
         let slot_for_expiring_blobs =
             current_slot.saturating_sub(self.get_deferred_slots_count(working_set.inner));
         let expiring_deferred_blobs: Vec<Da::BlobTransaction> =

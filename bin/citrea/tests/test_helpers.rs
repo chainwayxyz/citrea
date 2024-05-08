@@ -64,13 +64,7 @@ pub async fn start_rollup(
 
     let mock_demo_rollup = MockDemoRollup {};
 
-    let kernel_genesis = BasicKernelGenesisConfig {
-        chain_state: serde_json::from_str(
-            &std::fs::read_to_string(&kernel_genesis_paths.chain_state)
-                .expect("Failed to read chain_state genesis config"),
-        )
-        .expect("Failed to parse chain_state genesis config"),
-    };
+    let kernel_genesis = BasicKernelGenesisConfig::default();
 
     match node_mode {
         NodeMode::FullNode(_) => {

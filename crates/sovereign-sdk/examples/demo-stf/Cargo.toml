@@ -34,7 +34,6 @@ sov-blob-storage = { path = "../../../sovereign-sdk/module-system/module-impleme
 sov-bank = { path = "../../../sovereign-sdk/module-system/module-implementations/sov-bank" }
 sov-nft-module = { path = "../../../sovereign-sdk/module-system/module-implementations/sov-nft-module" }
 
-sov-chain-state = { path = "../../../sovereign-sdk/module-system/module-implementations/sov-chain-state" }
 sov-modules-stf-blueprint = { path = "../../../sovereign-sdk/module-system/sov-modules-stf-blueprint" }
 sov-value-setter = { path = "../../../sovereign-sdk/module-system/module-implementations/examples/sov-value-setter" }
 sov-accounts = { path = "../../../sovereign-sdk/module-system/module-implementations/sov-accounts" }
@@ -66,7 +65,6 @@ native = [
     "sov-accounts/native",
     "sov-sequencer-registry/native",
     "sov-blob-storage/native",
-    "sov-chain-state/native",
     "sov-value-setter/native",
     "sov-modules-api/native",
     "sov-rollup-interface/native",

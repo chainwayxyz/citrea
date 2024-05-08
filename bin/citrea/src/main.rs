@@ -10,9 +10,7 @@ use sov_mock_da::MockDaConfig;
 use sov_modules_api::runtime::capabilities::Kernel;
 use sov_modules_api::Spec;
 use sov_modules_rollup_blueprint::RollupBlueprint;
-use sov_modules_stf_blueprint::kernels::basic::{
-    BasicKernelGenesisConfig, BasicKernelGenesisPaths,
-};
+use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisConfig;
 use sov_state::storage::NativeStorage;
 use sov_stf_runner::{from_toml_path, RollupConfig, RollupProverConfig};
 use tracing::error;
@@ -73,16 +71,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let is_prover = args.prover;
     match args.da_layer {
         SupportedDaLayer::Mock => {
-            let kernel_genesis_paths = &BasicKernelGenesisPaths {
-                chain_state: (args.genesis_paths.clone() + "/chain_state.json").into(),
-            };
-
-            let kernel_genesis = BasicKernelGenesisConfig {
-                chain_state: serde_json::from_str(
-                    &std::fs::read_to_string(&kernel_genesis_paths.chain_state)
-                        .context("Failed to read chain state")?,
-                )?,
-            };
+            let kernel_genesis = BasicKernelGenesisConfig::default();
 
             start_rollup::<MockDemoRollup, MockDaConfig>(
                 &GenesisPaths::from_dir(&args.genesis_paths),
@@ -95,16 +84,7 @@ async fn main() -> Result<(), anyhow::Error> {
             .await?;
         }
         SupportedDaLayer::Bitcoin => {
-            let kernel_genesis_paths = &BasicKernelGenesisPaths {
-                chain_state: (args.genesis_paths.clone() + "/chain_state.json").into(),
-            };
-
-            let kernel_genesis = BasicKernelGenesisConfig {
-                chain_state: serde_json::from_str(
-                    &std::fs::read_to_string(&kernel_genesis_paths.chain_state)
-                        .context("Failed to read chain state")?,
-                )?,
-            };
+            let kernel_genesis = BasicKernelGenesisConfig::default();
 
             start_rollup::<BitcoinRollup, DaServiceConfig>(
                 &GenesisPaths::from_dir(&args.genesis_paths),

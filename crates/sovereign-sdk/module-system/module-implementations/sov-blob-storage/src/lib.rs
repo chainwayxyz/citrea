@@ -9,7 +9,7 @@ mod query;
 
 #[cfg(feature = "native")]
 pub use query::*;
-use sov_chain_state::TransitionHeight;
+// use sov_chain_state::TransitionHeight;
 use sov_modules_api::macros::config_constant;
 use sov_modules_api::{
     KernelModuleInfo, KernelWorkingSet, Module, StateMap, StateMapAccessor, StateValue, WorkingSet,
@@ -43,9 +43,8 @@ pub struct BlobStorage<C: sov_modules_api::Context, Da: sov_modules_api::DaSpec>
 
     #[module]
     pub(crate) sequencer_registry: sov_sequencer_registry::SequencerRegistry<C, Da>,
-
-    #[kernel_module]
-    chain_state: sov_chain_state::ChainState<C, Da>,
+    // #[kernel_module]
+    // chain_state: sov_chain_state::ChainState<C, Da>,
 }
 
 /// Non standard methods for blob storage
@@ -53,7 +52,7 @@ impl<C: sov_modules_api::Context, Da: sov_modules_api::DaSpec> BlobStorage<C, Da
     /// Store blobs for given block number, overwrite if already exists
     pub fn store_blobs(
         &self,
-        slot_height: TransitionHeight,
+        slot_height: u64, // TransitionHeight,
         blobs: &[&Da::BlobTransaction],
         working_set: &mut WorkingSet<C>,
     ) -> anyhow::Result<()> {
@@ -70,7 +69,7 @@ impl<C: sov_modules_api::Context, Da: sov_modules_api::DaSpec> BlobStorage<C, Da
     /// Returned blobs are removed from the storage
     pub fn take_blobs_for_slot_height(
         &self,
-        slot_height: TransitionHeight,
+        slot_height: u64, // TransitionHeight,
         working_set: &mut WorkingSet<C>,
     ) -> Vec<Da::BlobTransaction> {
         self.deferred_blobs
@@ -88,11 +87,8 @@ impl<C: sov_modules_api::Context, Da: sov_modules_api::DaSpec> BlobStorage<C, Da
         self.sequencer_registry.get_preferred_sequencer(working_set)
     }
 
-    pub(crate) fn get_true_slot_height(
-        &self,
-        working_set: &mut KernelWorkingSet<'_, C>,
-    ) -> TransitionHeight {
-        self.chain_state.true_slot_height(working_set.inner)
+    pub(crate) fn get_true_slot_height(&self, _working_set: &mut KernelWorkingSet<'_, C>) -> u64 {
+        0 // self.chain_state.true_slot_height(working_set.inner)
     }
 
     pub(crate) fn get_deferred_slots_count(&self, _working_set: &mut WorkingSet<C>) -> u64 {

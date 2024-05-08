@@ -447,9 +447,9 @@ where
     ) -> (Self::StateRoot, Self::ChangeSet) {
         let mut working_set = StateCheckpoint::new(pre_state.clone()).to_revertable();
 
-        self.kernel
-            .genesis(&params.kernel, &mut working_set)
-            .expect("Kernel initialization must succeed");
+        // self.kernel
+        //     .genesis(&params.kernel, &mut working_set)
+        //     .expect("Kernel initialization must succeed");
         self.runtime
             .genesis(&params.runtime, &mut working_set)
             .expect("Runtime initialization must succeed");

@@ -31,7 +31,6 @@ risc0-zkvm = { workspace = true, default-features = false, features = [
 risc0-zkvm-platform = { workspace = true, optional = true }
 rs_merkle = { workspace = true }
 jsonrpsee = { workspace = true, features = ["server"], optional = true }
-sov-chain-state = { path = "../module-implementations/sov-chain-state" }
 sov-blob-storage = { path = "../module-implementations/sov-blob-storage" }
 
 [features]
@@ -41,7 +40,6 @@ native = [
     "sov-state/native",
     "sov-modules-api/native",
     "jsonrpsee",
-    "sov-chain-state/native",
     "sov-blob-storage/native",
 ]
 

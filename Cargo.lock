@@ -2349,7 +2349,6 @@ dependencies = [
  "sov-accounts",
  "sov-bank",
  "sov-blob-storage",
- "sov-chain-state",
  "sov-cli",
  "sov-data-generators",
  "sov-mock-da",
@@ -4353,7 +4352,6 @@ dependencies = [
  "borsh",
  "jsonrpsee",
  "serde",
- "sov-chain-state",
  "sov-modules-api",
  "sov-modules-stf-blueprint",
  "sov-prover-storage-manager",
@@ -8848,30 +8846,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sov-attester-incentives"
-version = "0.3.0"
-dependencies = [
- "anyhow",
- "bcs",
- "bincode",
- "borsh",
- "jmt",
- "serde",
- "serde_json",
- "sov-bank",
- "sov-chain-state",
- "sov-mock-da",
- "sov-mock-zkvm",
- "sov-modules-api",
- "sov-modules-core",
- "sov-prover-storage-manager",
- "sov-rollup-interface",
- "sov-state",
- "tempfile",
- "thiserror",
-]
-
-[[package]]
 name = "sov-bank"
 version = "0.3.0"
 dependencies = [
@@ -8906,7 +8880,6 @@ dependencies = [
  "serde_json",
  "sov-bank",
  "sov-blob-storage",
- "sov-chain-state",
  "sov-mock-da",
  "sov-modules-api",
  "sov-prover-storage-manager",
@@ -8914,21 +8887,6 @@ dependencies = [
  "sov-state",
  "tempfile",
  "tracing",
-]
-
-[[package]]
-name = "sov-chain-state"
-version = "0.3.0"
-dependencies = [
- "anyhow",
- "borsh",
- "jsonrpsee",
- "serde",
- "serde_json",
- "sov-modules-api",
- "sov-prover-storage-manager",
- "sov-state",
- "tempfile",
 ]
 
 [[package]]
@@ -9172,7 +9130,6 @@ dependencies = [
  "rs_merkle",
  "serde",
  "sov-blob-storage",
- "sov-chain-state",
  "sov-modules-api",
  "sov-rollup-interface",
  "sov-state",
@@ -9361,17 +9318,6 @@ dependencies = [
  "sov-zk-cycle-macros",
  "sov-zk-cycle-utils",
  "tempfile",
-]
-
-[[package]]
-name = "sov-soft-confirmations-kernel"
-version = "0.3.0"
-dependencies = [
- "anyhow",
- "sov-blob-storage",
- "sov-chain-state",
- "sov-modules-api",
- "sov-state",
 ]
 
 [[package]]
