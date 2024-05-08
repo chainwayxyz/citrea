@@ -775,7 +775,7 @@ async fn test_soft_confirmations_on_different_blocks() -> Result<(), anyhow::Err
 
 #[tokio::test]
 async fn test_reopen_sequencer() -> Result<(), anyhow::Error> {
-    // open, close without publishing blokcs
+    // open, close without publishing blocks
     // then reopen, publish some blocks without error
     // Remove temp db directories if they exist
     let _ = fs::remove_dir_all(Path::new("demo_data_test_reopen_sequencer_copy"));
@@ -1198,13 +1198,13 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
 
     sleep(Duration::from_secs(3)).await;
 
-    // Still should have 4 blokcs there are no commitments yet
+    // Still should have 4 blocks there are no commitments yet
     assert_eq!(prover_node_test_client.eth_block_number().await, 4);
 
     seq_test_client.send_publish_batch_request().await;
     seq_test_client.send_publish_batch_request().await;
     sleep(Duration::from_secs(3)).await;
-    // Still should have 4 blokcs there are no commitments yet
+    // Still should have 4 blocks there are no commitments yet
     assert_eq!(prover_node_test_client.eth_block_number().await, 4);
     da_service.publish_test_block().await.unwrap();
 
@@ -1343,7 +1343,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
 
     sleep(Duration::from_secs(3)).await;
 
-    // Still should have 4 blokcs there are no commitments yet
+    // Still should have 4 blocks there are no commitments yet
     assert_eq!(prover_node_test_client.eth_block_number().await, 4);
 
     prover_node_task.abort();
@@ -1385,7 +1385,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     let prover_node_test_client = make_test_client(prover_node_port).await;
 
     sleep(Duration::from_secs(3)).await;
-    // Still should have 4 blokcs there are no commitments yet
+    // Still should have 4 blocks there are no commitments yet
     assert_eq!(prover_node_test_client.eth_block_number().await, 4);
     da_service.publish_test_block().await.unwrap();
 
@@ -1699,7 +1699,7 @@ fn find_subarray(haystack: &[u8], needle: &[u8]) -> Option<usize> {
 async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging();
 
-    // open, close without publishing blokcs
+    // open, close without publishing blocks
     // then reopen, publish some blocks without error
     // Remove temp db directories if they exist
     let _ = fs::remove_dir_all(Path::new("demo_data_sequencer_full_node"));
