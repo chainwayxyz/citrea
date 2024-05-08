@@ -67,6 +67,6 @@ impl<C: Context> sov_modules_api::Module for Accounts<C> {
         _context: &Self::Context,
         _working_set: &mut WorkingSet<C>,
     ) -> Result<sov_modules_api::CallResponse, Error> {
-        unimplemented!()
+        Ok(sov_modules_api::CallResponse::default())
     }
 }
