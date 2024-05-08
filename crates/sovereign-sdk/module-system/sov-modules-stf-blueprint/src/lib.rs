@@ -17,7 +17,7 @@ use sov_modules_api::hooks::{
     ApplyBlobHooks, ApplySoftConfirmationError, ApplySoftConfirmationHooks, FinalizeHook,
     SlotHooks, TxHooks,
 };
-use sov_modules_api::runtime::capabilities::{Kernel, KernelSlotHooks};
+use sov_modules_api::runtime::capabilities::KernelSlotHooks;
 use sov_modules_api::{
     BasicAddress, BlobReaderTrait, Context, DaSpec, DispatchCall, Genesis, Signature, Spec,
     StateCheckpoint, UnsignedSoftConfirmationBatch, WorkingSet, Zkvm,
@@ -112,11 +112,9 @@ pub enum SequencerOutcome<A: BasicAddress> {
 }
 
 /// Genesis parameters for a blueprint
-pub struct GenesisParams<RT, K> {
+pub struct GenesisParams<RT> {
     /// The runtime genesis parameters
     pub runtime: RT,
-    /// The kernel's genesis parameters
-    pub kernel: K,
 }
 
 /// Reason why sequencer was slashed.
@@ -426,8 +424,7 @@ where
 {
     type StateRoot = <C::Storage as Storage>::Root;
 
-    type GenesisParams =
-        GenesisParams<<RT as Genesis>::Config, <K as Kernel<C, Da>>::GenesisConfig>;
+    type GenesisParams = GenesisParams<<RT as Genesis>::Config>;
     type PreState = C::Storage;
     type ChangeSet = C::Storage;
 
@@ -447,9 +444,6 @@ where
     ) -> (Self::StateRoot, Self::ChangeSet) {
         let mut working_set = StateCheckpoint::new(pre_state.clone()).to_revertable();
 
-        // self.kernel
-        //     .genesis(&params.kernel, &mut working_set)
-        //     .expect("Kernel initialization must succeed");
         self.runtime
             .genesis(&params.runtime, &mut working_set)
             .expect("Runtime initialization must succeed");

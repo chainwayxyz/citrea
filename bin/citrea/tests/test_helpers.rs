@@ -9,7 +9,6 @@ use sov_mock_da::{MockAddress, MockDaConfig};
 use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
 use sov_modules_api::PrivateKey;
 use sov_modules_rollup_blueprint::RollupBlueprint;
-use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisConfig;
 use sov_stf_runner::{
     ProverServiceConfig, RollupConfig, RollupProverConfig, RpcConfig, RunnerConfig,
     SequencerClientRpcConfig, StorageConfig,
@@ -61,14 +60,11 @@ pub async fn start_rollup(
 
     let mock_demo_rollup = MockDemoRollup {};
 
-    let kernel_genesis = BasicKernelGenesisConfig::default();
-
     match node_mode {
         NodeMode::FullNode(_) => {
             let rollup = mock_demo_rollup
                 .create_new_rollup(
                     &rt_genesis_paths,
-                    kernel_genesis,
                     rollup_config.clone(),
                     rollup_prover_config,
                     false,
@@ -84,7 +80,6 @@ pub async fn start_rollup(
             let rollup = mock_demo_rollup
                 .create_new_rollup(
                     &rt_genesis_paths,
-                    kernel_genesis,
                     rollup_config.clone(),
                     rollup_prover_config,
                     true,
@@ -105,12 +100,7 @@ pub async fn start_rollup(
             );
 
             let sequencer_rollup = mock_demo_rollup
-                .create_new_sequencer(
-                    &rt_genesis_paths,
-                    kernel_genesis,
-                    rollup_config.clone(),
-                    sequencer_config,
-                )
+                .create_new_sequencer(&rt_genesis_paths, rollup_config.clone(), sequencer_config)
                 .await
                 .unwrap();
             sequencer_rollup

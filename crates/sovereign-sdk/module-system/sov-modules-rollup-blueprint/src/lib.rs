@@ -11,7 +11,7 @@ use const_rollup_config::TEST_PRIVATE_KEY;
 pub use runtime_rpc::*;
 use sequencer_client::SequencerClient;
 use sov_db::ledger_db::LedgerDB;
-use sov_modules_api::runtime::capabilities::{Kernel, KernelSlotHooks};
+use sov_modules_api::runtime::capabilities::KernelSlotHooks;
 use sov_modules_api::{Context, DaSpec, Spec};
 use sov_modules_stf_blueprint::{GenesisParams, Runtime as RuntimeTrait, StfBlueprint};
 use sov_rollup_interface::services::da::DaService;
@@ -87,12 +87,10 @@ pub trait RollupBlueprint: Sized + Send + Sync {
             Self::NativeContext,
             Self::DaSpec,
         >>::GenesisPaths,
-        kernel_genesis: <Self::NativeKernel as Kernel<Self::NativeContext, Self::DaSpec>>::GenesisConfig,
         _rollup_config: &RollupConfig<Self::DaConfig>,
     ) -> anyhow::Result<
         GenesisParams<
             <Self::NativeRuntime as RuntimeTrait<Self::NativeContext, Self::DaSpec>>::GenesisConfig,
-            <Self::NativeKernel as Kernel<Self::NativeContext, Self::DaSpec>>::GenesisConfig,
         >,
     > {
         let rt_genesis = <Self::NativeRuntime as RuntimeTrait<
@@ -102,7 +100,6 @@ pub trait RollupBlueprint: Sized + Send + Sync {
 
         Ok(GenesisParams {
             runtime: rt_genesis,
-            kernel: kernel_genesis,
         })
     }
 
@@ -139,7 +136,6 @@ pub trait RollupBlueprint: Sized + Send + Sync {
             Self::NativeContext,
             Self::DaSpec,
         >>::GenesisPaths,
-        kernel_genesis_config: <Self::NativeKernel as Kernel<Self::NativeContext, Self::DaSpec>>::GenesisConfig,
         rollup_config: RollupConfig<Self::DaConfig>,
         sequencer_config: SequencerConfig,
     ) -> Result<Sequencer<Self>, anyhow::Error>
@@ -153,11 +149,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         // Getting block here, so prover_service doesn't have to be `Send`
 
         let ledger_db = self.create_ledger_db(&rollup_config);
-        let genesis_config = self.create_genesis_config(
-            runtime_genesis_paths,
-            kernel_genesis_config,
-            &rollup_config,
-        )?;
+        let genesis_config = self.create_genesis_config(runtime_genesis_paths, &rollup_config)?;
 
         let mut storage_manager = self.create_storage_manager(&rollup_config)?;
         let prover_storage = storage_manager.create_finalized_storage()?;
@@ -214,7 +206,6 @@ pub trait RollupBlueprint: Sized + Send + Sync {
             Self::NativeContext,
             Self::DaSpec,
         >>::GenesisPaths,
-        kernel_genesis_config: <Self::NativeKernel as Kernel<Self::NativeContext, Self::DaSpec>>::GenesisConfig,
         rollup_config: RollupConfig<Self::DaConfig>,
         prover_config: RollupProverConfig,
         is_prover: bool,
@@ -237,11 +228,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         };
 
         let ledger_db = self.create_ledger_db(&rollup_config);
-        let genesis_config = self.create_genesis_config(
-            runtime_genesis_paths,
-            kernel_genesis_config,
-            &rollup_config,
-        )?;
+        let genesis_config = self.create_genesis_config(runtime_genesis_paths, &rollup_config)?;
 
         let mut storage_manager = self.create_storage_manager(&rollup_config)?;
         let prover_storage = storage_manager.create_finalized_storage()?;

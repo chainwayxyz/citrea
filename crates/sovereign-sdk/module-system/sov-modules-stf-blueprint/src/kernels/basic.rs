@@ -34,14 +34,6 @@ pub struct BasicKernelGenesisConfig<C: Context, Da: DaSpec> {
     _phantom: core::marker::PhantomData<fn() -> (C, Da)>,
 }
 
-impl<C: Context, Da: DaSpec> Default for BasicKernelGenesisConfig<C, Da> {
-    fn default() -> Self {
-        BasicKernelGenesisConfig {
-            _phantom: Default::default(),
-        }
-    }
-}
-
 impl<C: Context, Da: DaSpec> Kernel<C, Da> for BasicKernel<C, Da> {
     fn true_height(&self, _working_set: &mut WorkingSet<C>) -> u64 {
         0

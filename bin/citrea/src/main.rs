@@ -7,10 +7,8 @@ use citrea_sequencer::SequencerConfig;
 use citrea_stf::genesis_config::GenesisPaths;
 use clap::Parser;
 use sov_mock_da::MockDaConfig;
-use sov_modules_api::runtime::capabilities::Kernel;
 use sov_modules_api::Spec;
 use sov_modules_rollup_blueprint::RollupBlueprint;
-use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisConfig;
 use sov_state::storage::NativeStorage;
 use sov_stf_runner::{from_toml_path, RollupConfig, RollupProverConfig};
 use tracing::error;
@@ -71,11 +69,8 @@ async fn main() -> Result<(), anyhow::Error> {
     let is_prover = args.prover;
     match args.da_layer {
         SupportedDaLayer::Mock => {
-            let kernel_genesis = BasicKernelGenesisConfig::default();
-
             start_rollup::<MockDemoRollup, MockDaConfig>(
                 &GenesisPaths::from_dir(&args.genesis_paths),
-                kernel_genesis,
                 rollup_config_path,
                 RollupProverConfig::Execute,
                 sequencer_config,
@@ -84,11 +79,8 @@ async fn main() -> Result<(), anyhow::Error> {
             .await?;
         }
         SupportedDaLayer::Bitcoin => {
-            let kernel_genesis = BasicKernelGenesisConfig::default();
-
             start_rollup::<BitcoinRollup, DaServiceConfig>(
                 &GenesisPaths::from_dir(&args.genesis_paths),
-                kernel_genesis,
                 rollup_config_path,
                 RollupProverConfig::Execute,
                 sequencer_config,
@@ -106,16 +98,8 @@ async fn start_rollup<S, DaC>(
         <S as RollupBlueprint>::NativeContext,
         <S as RollupBlueprint>::DaSpec,
     >>::GenesisPaths,
-    kernel_genesis: <<S as RollupBlueprint>::NativeKernel as Kernel<
-        <S as RollupBlueprint>::NativeContext,
-        <S as RollupBlueprint>::DaSpec,
-    >>::GenesisConfig,
     rollup_config_path: &str,
     prover_config: RollupProverConfig,
-    // genesis_paths: &<<S as RollupBlueprint>::NativeRuntime as sov_modules_stf_blueprint::Runtime<
-    //     <S as RollupBlueprint>::NativeContext,
-    //     <S as RollupBlueprint>::DaSpec,
-    // >>::GenesisPaths,
     sequencer_config: Option<SequencerConfig>,
     is_prover: bool,
 ) -> Result<(), anyhow::Error>
@@ -132,12 +116,7 @@ where
     if let Some(sequencer_config) = sequencer_config {
         rollup_config.sequencer_client = None;
         let sequencer_rollup = rollup_blueprint
-            .create_new_sequencer(
-                rt_genesis_paths,
-                kernel_genesis,
-                rollup_config.clone(),
-                sequencer_config,
-            )
+            .create_new_sequencer(rt_genesis_paths, rollup_config.clone(), sequencer_config)
             .await
             .unwrap();
         if let Err(e) = sequencer_rollup.run().await {
@@ -148,13 +127,7 @@ where
             return Err(anyhow!("Must have sequencer client for full nodes!"));
         }
         let rollup = rollup_blueprint
-            .create_new_rollup(
-                rt_genesis_paths,
-                kernel_genesis,
-                rollup_config,
-                prover_config,
-                is_prover,
-            )
+            .create_new_rollup(rt_genesis_paths, rollup_config, prover_config, is_prover)
             .await
             .unwrap();
         if let Err(e) = rollup.run().await {
