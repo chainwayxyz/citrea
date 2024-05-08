@@ -2,7 +2,6 @@
 #![doc = include_str!("../README.md")]
 
 mod batch;
-pub mod kernels;
 mod stf_blueprint;
 mod tx_verifier;
 
