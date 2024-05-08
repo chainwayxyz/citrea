@@ -2348,7 +2348,6 @@ dependencies = [
  "soft-confirmation-rule-enforcer",
  "sov-accounts",
  "sov-bank",
- "sov-blob-storage",
  "sov-cli",
  "sov-data-generators",
  "sov-mock-da",
@@ -8865,31 +8864,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sov-blob-storage"
-version = "0.3.0"
-dependencies = [
- "anyhow",
- "bincode",
- "borsh",
- "clap",
- "hex",
- "jmt",
- "jsonrpsee",
- "schemars",
- "serde",
- "serde_json",
- "sov-bank",
- "sov-blob-storage",
- "sov-mock-da",
- "sov-modules-api",
- "sov-prover-storage-manager",
- "sov-sequencer-registry",
- "sov-state",
- "tempfile",
- "tracing",
-]
-
-[[package]]
 name = "sov-cli"
 version = "0.3.0"
 dependencies = [
@@ -9129,7 +9103,6 @@ dependencies = [
  "risc0-zkvm-platform",
  "rs_merkle",
  "serde",
- "sov-blob-storage",
  "sov-modules-api",
  "sov-rollup-interface",
  "sov-state",
