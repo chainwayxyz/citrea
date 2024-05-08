@@ -23,7 +23,5 @@ sov-state = { path = "../../sov-state", features = ["native"] }
 
 sov-schema-db = { path = "../../../full-node/db/sov-schema-db" }
 sov-rollup-interface = { path = "../../../rollup-interface", features = ["native"] }
-sov-modules-stf-blueprint = { path = "../../sov-modules-stf-blueprint", features = ["native"] }
 
-sov-value-setter = { path = "../examples/sov-value-setter", features = ["native"] }
 sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-manager", features = ["test-utils"] }

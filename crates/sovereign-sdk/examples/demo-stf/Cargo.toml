@@ -45,10 +45,6 @@ soft-confirmation-rule-enforcer = { path = "../../../soft-confirmation-rule-enfo
 [dev-dependencies]
 tempfile = { workspace = true }
 rand = { workspace = true }
-sov-cli = { path = "../../../sovereign-sdk/module-system/sov-cli" }
-sov-data-generators = { path = "../../../sovereign-sdk/module-system/utils/sov-data-generators" }
-sov-mock-da = { path = "../../../sovereign-sdk/adapters/mock-da" }
-sov-mock-zkvm = { path = "../../../sovereign-sdk/adapters/mock-zkvm" }
 sov-prover-storage-manager = { path = "../../../sovereign-sdk/full-node/sov-prover-storage-manager", features = [
     "test-utils",
 ] }
