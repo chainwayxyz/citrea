@@ -261,8 +261,3 @@ where
         Ok(decoded_messages)
     }
 }
-
-#[cfg(not(feature = "native"))]
-fn data_for_deserialization(blob: &mut impl BlobReaderTrait) -> &[u8] {
-    blob.verified_data()
-}
