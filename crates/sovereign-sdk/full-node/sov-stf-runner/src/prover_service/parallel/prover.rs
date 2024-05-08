@@ -149,15 +149,17 @@ where
 
         match prover_status {
             ProverStatus::WitnessSubmitted(state_transition_data) => {
+                tracing::info!("here");
                 let start_prover = prover_state.inc_task_count_if_not_busy(self.num_threads);
-
+                tracing::info!(start_prover);
                 // Initiate a new proving job only if the prover is not busy.
                 if start_prover {
                     prover_state.set_to_proving(block_header_hash.clone());
                     vm.add_hint(state_transition_data);
-
+                    tracing::info!("added hint");
                     self.pool.spawn(move || {
                         tracing::info_span!("guest_execution").in_scope(|| {
+                            tracing::info!("going into make proof");
                             let proof = make_proof(vm, config, zk_storage);
 
                             let mut prover_state =
@@ -198,7 +200,8 @@ where
             Some(ProverStatus::ProvingInProgress) => {
                 Ok(ProofSubmissionStatus::ProofGenerationInProgress)
             }
-            Some(ProverStatus::Proved(_)) => {
+            Some(ProverStatus::Proved(proof)) => {
+                tracing::info!("{:?}", proof);
                 prover_state.remove(&block_header_hash);
                 Ok(ProofSubmissionStatus::Success)
             }

@@ -110,7 +110,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 &GenesisPaths::from_dir(&args.genesis_paths),
                 kernel_genesis,
                 rollup_config_path,
-                RollupProverConfig::Execute,
+                RollupProverConfig::Prove,
                 sequencer_config,
                 is_prover,
             )

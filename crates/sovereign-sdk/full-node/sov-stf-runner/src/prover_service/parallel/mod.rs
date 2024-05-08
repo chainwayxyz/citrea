@@ -63,6 +63,22 @@ where
             RollupProverConfig::Prove => ProofGenConfig::Prover,
         };
 
+        // output config
+        match config {
+            ProofGenConfig::Skip => {
+                tracing::info!("Prover is configured to skip proving");
+            }
+            ProofGenConfig::Simulate(_) => {
+                tracing::info!("Prover is configured to simulate proving");
+            }
+            ProofGenConfig::Execute => {
+                tracing::info!("Prover is configured to execute proving");
+            }
+            ProofGenConfig::Prover => {
+                tracing::info!("Prover is configured to prove");
+            }
+        }
+
         let prover_config = Arc::new(config);
 
         Ok(Self {
@@ -125,7 +141,11 @@ where
             <Self::DaService as DaService>::Spec,
         >,
     ) -> WitnessSubmissionStatus {
-        self.prover_state.submit_witness(state_transition_data)
+        let status = self.prover_state.submit_witness(state_transition_data);
+
+        tracing::info!("Witness submission status: {:?}", status);
+
+        status
     }
 
     async fn prove(
@@ -135,6 +155,7 @@ where
         let vm = self.vm.clone();
         let zk_storage = self.zk_storage.clone();
 
+        tracing::info!("Starting proving for da  block: {:?},", block_header_hash,);
         self.prover_state.start_proving(
             block_header_hash,
             self.prover_config.clone(),
