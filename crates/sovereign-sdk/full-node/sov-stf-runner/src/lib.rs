@@ -8,6 +8,8 @@ mod config;
 #[cfg(feature = "mock")]
 pub mod mock;
 #[cfg(feature = "native")]
+mod prover_helpers;
+#[cfg(feature = "native")]
 mod prover_service;
 
 #[cfg(feature = "native")]

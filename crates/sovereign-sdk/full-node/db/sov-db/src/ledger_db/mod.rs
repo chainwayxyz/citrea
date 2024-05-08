@@ -10,8 +10,8 @@ use sov_schema_db::{Schema, SchemaBatch, SeekKeyEncoder, DB};
 use crate::rocks_db_config::gen_rocksdb_options;
 use crate::schema::tables::{
     BatchByHash, BatchByNumber, EventByKey, EventByNumber, L2RangeByL1Height,
-    LastSequencerCommitmentSent, SlotByHash, SlotByNumber, SoftBatchByHash, SoftBatchByNumber,
-    SoftConfirmationStatus, TxByHash, TxByNumber, LEDGER_TABLES,
+    LastSequencerCommitmentSent, ProverLastScannedSlot, SlotByHash, SlotByNumber, SoftBatchByHash,
+    SoftBatchByNumber, SoftConfirmationStatus, TxByHash, TxByNumber, LEDGER_TABLES,
 };
 use crate::schema::types::{
     split_tx_for_storage, BatchNumber, EventNumber, L2HeightRange, SlotNumber, StoredBatch,
@@ -518,5 +518,23 @@ impl LedgerDB {
         l1_height: SlotNumber,
     ) -> anyhow::Result<Option<L2HeightRange>> {
         self.db.get::<L2RangeByL1Height>(&l1_height)
+    }
+
+    /// Get the last scanned slot by the prover
+    pub fn get_prover_last_scanned_l1_height(&self) -> anyhow::Result<Option<SlotNumber>> {
+        self.db.get::<ProverLastScannedSlot>(&())
+    }
+
+    /// Set the last scanned slot by the prover
+    /// Called by the prover.
+    pub fn set_prover_last_scanned_l1_height(&self, l1_height: SlotNumber) -> anyhow::Result<()> {
+        let mut schema_batch = SchemaBatch::new();
+
+        schema_batch
+            .put::<ProverLastScannedSlot>(&(), &l1_height)
+            .unwrap();
+        self.db.write_schemas(schema_batch)?;
+
+        Ok(())
     }
 }

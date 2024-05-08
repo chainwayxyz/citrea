@@ -55,6 +55,7 @@ pub const LEDGER_TABLES: &[&str] = &[
     SoftBatchByHash::table_name(),
     L2RangeByL1Height::table_name(),
     LastSequencerCommitmentSent::table_name(),
+    ProverLastScannedSlot::table_name(),
     BatchByHash::table_name(),
     BatchByNumber::table_name(),
     SoftConfirmationStatus::table_name(),
@@ -241,6 +242,11 @@ define_table_with_default_codec!(
 define_table_with_seek_key_codec!(
     /// Sequencer uses this table to store the last commitment it sent
     (LastSequencerCommitmentSent) () => SlotNumber
+);
+
+define_table_with_seek_key_codec!(
+    /// Prover uses this table to store the last slot it scanned
+    (ProverLastScannedSlot) () => SlotNumber
 );
 
 define_table_with_seek_key_codec!(
