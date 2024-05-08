@@ -14,9 +14,9 @@ use digest::Digest;
 use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
 use futures::StreamExt;
 use jsonrpsee::RpcModule;
-use reth_primitives::IntoRecoveredTransaction;
+use reth_primitives::{FromRecoveredPooledTransaction, IntoRecoveredTransaction};
 use reth_provider::BlockReaderIdExt;
-use reth_transaction_pool::{BestTransactionsAttributes, PoolTransaction};
+use reth_transaction_pool::{BestTransactionsAttributes, EthPooledTransaction, PoolTransaction};
 use shared_backup_db::{CommitmentStatus, PostgresConnector, SharedBackupDbConfig};
 use sov_accounts::Accounts;
 use sov_accounts::Response::{AccountEmpty, AccountExists};
@@ -46,6 +46,7 @@ use crate::db_provider::DbProvider;
 use crate::deposit_data_mempool::DepositDataMempool;
 use crate::mempool::CitreaMempool;
 use crate::rpc::{create_rpc_module, RpcContext};
+use crate::utils::recover_raw_transaction;
 
 type StateRoot<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::StateRoot;
 /// Represents information about the current DA state.
@@ -163,7 +164,7 @@ where
         channel: Option<tokio::sync::oneshot::Sender<SocketAddr>>,
         methods: RpcModule<()>,
     ) -> anyhow::Result<()> {
-        let methods = self.register_rpc_methods(methods)?;
+        let methods = self.register_rpc_methods(methods).await?;
 
         let listen_address = SocketAddr::new(
             self.rpc_config
@@ -214,6 +215,7 @@ where
         da_block: <Da as DaService>::FilteredBlock,
         l1_fee_rate: u64,
         l2_block_mode: L2BlockMode,
+        pg_pool: &Option<PostgresConnector>,
     ) -> anyhow::Result<()> {
         let da_height = da_block.header().height();
         let (l2_height, l1_height) = match self
@@ -397,7 +399,20 @@ where
                 let mut txs_to_remove = self.db_provider.last_block_tx_hashes()?;
                 txs_to_remove.extend(l1_fee_failed_txs);
 
-                self.mempool.remove_transactions(txs_to_remove);
+                self.mempool.remove_transactions(txs_to_remove.clone());
+
+                if let Some(pg_pool) = pg_pool.clone() {
+                    // TODO: Is this okay? I'm not sure because we have a loop in this and I can't do async in spawn_blocking
+                    tokio::spawn(async move {
+                        let txs = txs_to_remove
+                            .iter()
+                            .map(|tx_hash| tx_hash.to_vec())
+                            .collect::<Vec<Vec<u8>>>();
+                        if let Err(e) = pg_pool.delete_txs_by_tx_hashes(txs).await {
+                            warn!("Failed to remove txs from mempool: {:?}", e);
+                        }
+                    });
+                }
 
                 // connect L1 and L2 height
                 self.ledger_db.extend_l2_range_of_l1_slot(
@@ -424,14 +439,29 @@ where
             .map_err(|e| anyhow!(e))?;
 
         // If connected to offchain db first check if the commitments are in sync
+        let mut pg_pool = None;
         if let Some(db_config) = self.config.db_config.clone() {
-            match self.compare_commitments_from_db(db_config).await {
-                Ok(()) => info!("Sequencer: Commitments are in sync"),
-                Err(e) => {
-                    warn!("Sequencer: Offchain db error: {:?}", e);
-                    return Err(e);
+            pg_pool = match PostgresConnector::new(db_config).await {
+                Ok(pg_connector) => {
+                    match self.compare_commitments_from_db(pg_connector.clone()).await {
+                        Ok(()) => info!("Sequencer: Commitments are in sync"),
+                        Err(e) => {
+                            warn!("Sequencer: Offchain db error: {:?}", e);
+                        }
+                    }
+                    match self.restore_mempool(pg_connector.clone()).await {
+                        Ok(()) => info!("Sequencer: Mempool restored"),
+                        Err(e) => {
+                            warn!("Sequencer: Mempool restore error: {:?}", e);
+                        }
+                    }
+                    Some(pg_connector)
                 }
-            }
+                Err(e) => {
+                    warn!("Failed to connect to postgres: {:?}", e);
+                    None
+                }
+            };
         }
 
         // Initialize our knowledge of the state of the DA-layer
@@ -508,7 +538,7 @@ where
                 // that evey though we check the receiver here, it'll never be "ready" to be consumed unless in test mode.
                 _ = self.l2_force_block_rx.next() => {
                     if self.config.test_mode {
-                        if let Err(e) = self.produce_l2_block(last_finalized_block.clone(), l1_fee_rate, L2BlockMode::NotEmpty).await {
+                        if let Err(e) = self.produce_l2_block(last_finalized_block.clone(), l1_fee_rate, L2BlockMode::NotEmpty, &None).await {
                             error!("Sequencer error: {}", e);
                         }
                     }
@@ -533,7 +563,7 @@ where
                     }
 
                     let instant = Instant::now();
-                    match self.produce_l2_block(da_block, l1_fee_rate, l2_block_mode).await {
+                    match self.produce_l2_block(da_block, l1_fee_rate, l2_block_mode, &pg_pool).await {
                         Ok(_) => {
                             // Set the next iteration's wait time to produce a block based on the
                             // previous block's execution time.
@@ -656,26 +686,53 @@ where
     }
 
     /// Creates a shared RpcContext with all required data.
-    fn create_rpc_context(&self) -> RpcContext<C> {
+    async fn create_rpc_context(&self) -> RpcContext<C> {
         let l2_force_block_tx = self.l2_force_block_tx.clone();
+        let mut pg_pool = None;
+        if let Some(pg_config) = self.config.db_config.clone() {
+            pg_pool = match PostgresConnector::new(pg_config).await {
+                Ok(pg_connector) => Some(Arc::new(pg_connector)),
+                Err(e) => {
+                    warn!("Failed to connect to postgres: {:?}", e);
+                    None
+                }
+            };
+        }
         RpcContext {
             mempool: self.mempool.clone(),
             deposit_mempool: Arc::new(Mutex::new(self.deposit_mempool.clone())),
             l2_force_block_tx,
             storage: self.storage.clone(),
             test_mode: self.config.test_mode,
+            pg_pool,
         }
     }
 
     /// Updates the given RpcModule with Sequencer methods.
-    pub fn register_rpc_methods(
+    pub async fn register_rpc_methods(
         &self,
         mut rpc_methods: jsonrpsee::RpcModule<()>,
     ) -> Result<jsonrpsee::RpcModule<()>, jsonrpsee::core::Error> {
-        let rpc_context = self.create_rpc_context();
+        let rpc_context = self.create_rpc_context().await;
         let rpc = create_rpc_module(rpc_context)?;
         rpc_methods.merge(rpc)?;
         Ok(rpc_methods)
+    }
+
+    pub async fn restore_mempool(
+        &self,
+        pg_connector: PostgresConnector,
+    ) -> Result<(), anyhow::Error> {
+        let mempool_txs = pg_connector.get_all_txs().await?;
+        for tx in mempool_txs {
+            let recovered =
+                recover_raw_transaction(reth_primitives::Bytes::from(tx.tx.as_slice().to_vec()))
+                    .unwrap();
+            let pooled_tx = EthPooledTransaction::from_recovered_pooled_transaction(recovered);
+
+            let _ = self.mempool.add_external_transaction(pooled_tx).await?;
+        }
+        Ok(())
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -733,35 +790,27 @@ where
 
     pub async fn compare_commitments_from_db(
         &self,
-        db_config: SharedBackupDbConfig,
+        pg_connector: PostgresConnector,
     ) -> Result<(), anyhow::Error> {
         let ledger_commitment_l1_height =
             self.ledger_db.get_last_sequencer_commitment_l1_height()?;
 
-        match PostgresConnector::new(db_config).await {
-            Ok(pg_connector) => {
-                let commitment = pg_connector.get_last_commitment().await?;
-                // check if last commitment in db matches sequencer's last commitment
-                match commitment {
-                    Some(db_commitment) => {
-                        // this means that the last commitment in the db is not the same as the sequencer's last commitment
-                        if db_commitment.l1_end_height as u64
-                            > ledger_commitment_l1_height.unwrap_or(SlotNumber(0)).0
-                        {
-                            self.ledger_db
-                                .set_last_sequencer_commitment_l1_height(SlotNumber(
-                                    db_commitment.l1_end_height as u64,
-                                ))?
-                        }
-                        Ok(())
-                    }
-                    None => Ok(()),
+        let commitment = pg_connector.get_last_commitment().await?;
+        // check if last commitment in db matches sequencer's last commitment
+        match commitment {
+            Some(db_commitment) => {
+                // this means that the last commitment in the db is not the same as the sequencer's last commitment
+                if db_commitment.l1_end_height as u64
+                    > ledger_commitment_l1_height.unwrap_or(SlotNumber(0)).0
+                {
+                    self.ledger_db
+                        .set_last_sequencer_commitment_l1_height(SlotNumber(
+                            db_commitment.l1_end_height as u64,
+                        ))?
                 }
+                Ok(())
             }
-            Err(e) => {
-                warn!("Failed to connect to postgres: {:?}", e);
-                Err(anyhow::anyhow!("Failed to connect to postgres: {:?}", e))
-            }
+            None => Ok(()),
         }
     }
 

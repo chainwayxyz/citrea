@@ -6,13 +6,16 @@ use reth_rpc_types::trace::geth::{
 };
 use revm::precompile::{PrecompileSpecId, Precompiles};
 use revm::primitives::db::Database;
-use revm::primitives::{Address, BlockEnv, CfgEnvWithHandlerCfg, EVMError, ResultAndState, SpecId};
+use revm::primitives::{Address, CfgEnvWithHandlerCfg, EVMError, ResultAndState, SpecId};
 use revm::{inspector_handle_register, Inspector};
 use revm_inspectors::tracing::{FourByteInspector, TracingInspector, TracingInspectorConfig};
 
 use crate::error::rpc::{EthApiError, EthResult};
 use crate::evm::db::EvmDb;
-use crate::handler::{citrea_handle_register, CitreaExternalExt, TracingCitreaExternal};
+use crate::evm::primitive_types::BlockEnv;
+use crate::handler::{
+    citrea_handle_register, CitreaExternal, CitreaExternalExt, TracingCitreaExternal, TxInfo,
+};
 use crate::RpcInvalidTransactionError;
 
 pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
@@ -136,7 +139,7 @@ where
         .with_db(db)
         .with_external_context(inspector)
         .with_cfg_env_with_handler_cfg(config_env)
-        .with_block_env(block_env)
+        .with_block_env(block_env.into())
         .with_tx_env(tx_env)
         .append_handler_register(citrea_handle_register)
         .append_handler_register(inspector_handle_register)
@@ -163,7 +166,7 @@ where
         .with_db(db)
         .with_external_context(inspector)
         .with_cfg_env_with_handler_cfg(config_env)
-        .with_block_env(block_env)
+        .with_block_env(block_env.into())
         .with_tx_env(tx_env)
         .append_handler_register(inspector_handle_register)
         .build();
@@ -176,19 +179,31 @@ pub(crate) fn inspect_no_tracing<DB>(
     config_env: CfgEnvWithHandlerCfg,
     block_env: BlockEnv,
     tx_env: TxEnv,
-) -> Result<ResultAndState, EVMError<DB::Error>>
+    l1_fee_rate: u64,
+) -> Result<(ResultAndState, TxInfo), EVMError<DB::Error>>
 where
     DB: Database,
-    <DB as Database>::Error: Into<EthApiError>,
 {
+    let tmp_hash: TxHash = b"hash_of_an_ephemeral_transaction".into();
+    let mut ext = CitreaExternal::new(l1_fee_rate);
+    ext.set_current_tx_hash(tmp_hash);
+
     let mut evm = revm::Evm::builder()
         .with_db(db)
+        .with_external_context(&mut ext)
         .with_cfg_env_with_handler_cfg(config_env)
-        .with_block_env(block_env)
+        .with_block_env(block_env.into())
         .with_tx_env(tx_env)
+        .append_handler_register(citrea_handle_register)
         .build();
 
-    evm.transact()
+    let result_and_state = evm.transact()?;
+    let tx_info = evm
+        .context
+        .external
+        .get_tx_info(tmp_hash)
+        .unwrap_or_default(); // default 0 in case tx was unsuccessful
+    Ok((result_and_state, tx_info))
 }
 
 /// Taken from reth

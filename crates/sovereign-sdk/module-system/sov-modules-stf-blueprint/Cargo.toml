@@ -25,8 +25,11 @@ sov-state = { path = "../sov-state", version = "0.3" }
 sov-modules-api = { path = "../sov-modules-api", version = "0.3" }
 sov-zk-cycle-macros = { path = "../../utils/zk-cycle-macros", version = "0.3", optional = true }
 sov-zk-cycle-utils = { path = "../../utils/zk-cycle-utils", version = "0.3", optional = true }
-risc0-zkvm = { workspace = true, default-features = false, features = ["std"], optional = true }
+risc0-zkvm = { workspace = true, default-features = false, features = [
+    "std",
+], optional = true }
 risc0-zkvm-platform = { workspace = true, optional = true }
+rs_merkle = { workspace = true }
 jsonrpsee = { workspace = true, features = ["server"], optional = true }
 sov-chain-state = { path = "../module-implementations/sov-chain-state" }
 sov-blob-storage = { path = "../module-implementations/sov-blob-storage" }
@@ -34,7 +37,18 @@ sov-blob-storage = { path = "../module-implementations/sov-blob-storage" }
 [features]
 bench = ["sov-zk-cycle-macros", "risc0-zkvm", "risc0-zkvm-platform"]
 default = []
-native = ["sov-state/native", "sov-modules-api/native", "jsonrpsee", "sov-chain-state/native", "sov-blob-storage/native"]
+native = [
+    "sov-state/native",
+    "sov-modules-api/native",
+    "jsonrpsee",
+    "sov-chain-state/native",
+    "sov-blob-storage/native",
+]
 
 [package.metadata.cargo-udeps.ignore]
-normal = ["risc0-zkvm", "risc0-zkvm-platform", "sov-zk-cycle-macros", "sov-zk-cycle-utils"]
+normal = [
+    "risc0-zkvm",
+    "risc0-zkvm-platform",
+    "sov-zk-cycle-macros",
+    "sov-zk-cycle-utils",
+]

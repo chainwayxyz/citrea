@@ -1,82 +1,85 @@
 use std::str::FromStr;
 
-use postgres::Error;
-use tokio_postgres::{Client, NoTls, Row};
+use deadpool_postgres::tokio_postgres::config::Config as PgConfig;
+use deadpool_postgres::tokio_postgres::{NoTls, Row};
+use deadpool_postgres::{Manager, ManagerConfig, Object, Pool, PoolError, RecyclingMethod};
 
 use crate::config::SharedBackupDbConfig;
 use crate::tables::{
-    CommitmentStatus, DbSequencerCommitment, Tables, INDEX_L1_END_HASH, INDEX_L1_END_HEIGHT,
-    INDEX_L2_END_HEIGHT, SEQUENCER_COMMITMENT_TABLE_CREATE_QUERY,
+    CommitmentStatus, DbMempoolTx, DbSequencerCommitment, Tables, INDEX_L1_END_HASH,
+    INDEX_L1_END_HEIGHT, INDEX_L2_END_HEIGHT, MEMPOOL_TXS_TABLE_CREATE_QUERY,
+    SEQUENCER_COMMITMENT_TABLE_CREATE_QUERY,
 };
 use crate::utils::get_db_extension;
 
+#[derive(Clone)]
 pub struct PostgresConnector {
-    client: Client,
+    client: Pool,
 }
 
 impl PostgresConnector {
-    pub async fn new(pg_config: SharedBackupDbConfig) -> Result<Self, Error> {
-        let (client, connection) =
-            tokio_postgres::connect(pg_config.parse_to_connection_string().as_str(), NoTls).await?;
+    pub async fn new(pg_config: SharedBackupDbConfig) -> Result<Self, PoolError> {
+        let mut cfg: PgConfig = pg_config.clone().into();
 
-        // The connection object performs the actual communication with the database,
-        // so spawn it off to run on its own.
-        tokio::spawn(async move {
-            if let Err(e) = connection.await {
-                eprintln!("connection error: {}", e);
-            }
-        });
+        let mgr_config = ManagerConfig {
+            recycling_method: RecyclingMethod::Fast,
+        };
+        let mgr = Manager::from_config(cfg.clone(), NoTls, mgr_config.clone());
+        let pool = Pool::builder(mgr)
+            .max_size(pg_config.max_pool_size().unwrap_or(16))
+            .build()
+            .unwrap();
+        let client = pool.get().await?;
         // create new db
         let db_name = format!("citrea{}", get_db_extension());
         let _ = client
             .batch_execute(&format!("CREATE DATABASE {};", db_name.clone()))
             .await;
-        drop(client);
+        drop(pool);
         //connect to new db
-        let (client, connection) = tokio_postgres::connect(
-            pg_config
-                .parse_to_connection_string_with_db(db_name)
-                .as_str(),
-            NoTls,
-        )
-        .await?;
-        tokio::spawn(async move {
-            if let Err(e) = connection.await {
-                eprintln!("connection error: {}", e);
-            }
-        });
+        cfg.dbname(&db_name);
+        let mgr = Manager::from_config(cfg, NoTls, mgr_config);
+        let pool = Pool::builder(mgr)
+            .max_size(pg_config.max_pool_size().unwrap_or(16))
+            .build()
+            .unwrap();
+        let client = pool.get().await?;
 
         // create tables
         client
             .batch_execute(SEQUENCER_COMMITMENT_TABLE_CREATE_QUERY)
             .await?;
-        let db_client = Self { client };
+        client.batch_execute(MEMPOOL_TXS_TABLE_CREATE_QUERY).await?;
+        let db_client = Self { client: pool };
 
         let _ = db_client.create_indexes().await;
 
         Ok(db_client)
     }
 
-    pub async fn create_indexes(&self) -> Result<(), Error> {
-        self.client.batch_execute(INDEX_L1_END_HEIGHT).await?;
-        self.client.batch_execute(INDEX_L1_END_HASH).await?;
-        self.client.batch_execute(INDEX_L2_END_HEIGHT).await?;
+    pub async fn client(&self) -> Result<Object, PoolError> {
+        self.client.get().await
+    }
+
+    pub async fn create_indexes(&self) -> Result<(), PoolError> {
+        let client = self.client().await?;
+        client.batch_execute(INDEX_L1_END_HEIGHT).await?;
+        client.batch_execute(INDEX_L1_END_HASH).await?;
+        client.batch_execute(INDEX_L2_END_HEIGHT).await?;
         Ok(())
     }
 
     #[cfg(feature = "test-utils")]
-    pub async fn new_test_client() -> Result<Self, Error> {
-        let pg_config = SharedBackupDbConfig::default();
+    pub async fn new_test_client() -> Result<Self, PoolError> {
+        let mut cfg: PgConfig = SharedBackupDbConfig::default().into();
 
-        let (client, connection) =
-            tokio_postgres::connect(pg_config.parse_to_connection_string().as_str(), NoTls).await?;
-        tokio::spawn(async move {
-            if let Err(e) = connection.await {
-                eprintln!("connection error: {}", e);
-            }
-        });
+        let mgr_config = ManagerConfig {
+            recycling_method: RecyclingMethod::Fast,
+        };
+        let mgr = Manager::from_config(cfg.clone(), NoTls, mgr_config.clone());
+        let pool = Pool::builder(mgr).max_size(16).build().unwrap();
+        let client = pool.get().await.unwrap();
 
-        // create new db
         let db_name = format!("citrea{}", get_db_extension());
         client
             .batch_execute(&format!("DROP DATABASE IF EXISTS {};", db_name.clone()))
@@ -88,27 +91,25 @@ impl PostgresConnector {
             .await
             .unwrap();
 
-        drop(client);
+        drop(pool);
         //connect to new db
-        let (test_client, connection) = tokio_postgres::connect(
-            pg_config
-                .parse_to_connection_string_with_db(db_name)
-                .as_str(),
-            NoTls,
-        )
-        .await?;
-        tokio::spawn(async move {
-            if let Err(e) = connection.await {
-                eprintln!("connection error: {}", e);
-            }
-        });
+
+        cfg.dbname(db_name.as_str());
+        let mgr = Manager::from_config(cfg, NoTls, mgr_config);
+        let test_pool = Pool::builder(mgr).max_size(16).build().unwrap();
+        let test_client = test_pool.get().await.unwrap();
+
         test_client
             .batch_execute(SEQUENCER_COMMITMENT_TABLE_CREATE_QUERY)
             .await
             .unwrap();
-        let test_client = Self {
-            client: test_client,
-        };
+
+        test_client
+            .batch_execute(MEMPOOL_TXS_TABLE_CREATE_QUERY)
+            .await
+            .unwrap();
+
+        let test_client = Self { client: test_pool };
 
         test_client.create_indexes().await.unwrap();
         Ok(test_client)
@@ -126,8 +127,9 @@ impl PostgresConnector {
         l2_end_height: u32,
         merkle_root: Vec<u8>,
         status: CommitmentStatus,
-    ) -> Result<u64, Error> {
-        self.client
+    ) -> Result<u64, PoolError> {
+        let client = self.client().await?;
+        Ok(client
             .execute(
                 "INSERT INTO sequencer_commitments (l1_start_height, l1_end_height, l1_tx_id, l1_start_hash, l1_end_hash, l2_start_height, l2_end_height, merkle_root, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)", 
                 &[
@@ -141,12 +143,22 @@ impl PostgresConnector {
                     &merkle_root,
                     &status.to_string(),
                 ],
-            ).await
+            ).await?)
     }
 
-    pub async fn get_all_commitments(&self) -> Result<Vec<DbSequencerCommitment>, Error> {
-        Ok(self
-            .client
+    pub async fn insert_mempool_tx(&self, tx_hash: Vec<u8>, tx: Vec<u8>) -> Result<u64, PoolError> {
+        let client = self.client().await?;
+        Ok(client
+            .execute(
+                "INSERT INTO mempool_txs (tx_hash, tx) VALUES ($1, $2);",
+                &[&tx_hash, &tx],
+            )
+            .await?)
+    }
+
+    pub async fn get_all_commitments(&self) -> Result<Vec<DbSequencerCommitment>, PoolError> {
+        let client = self.client().await?;
+        Ok(client
             .query("SELECT * FROM sequencer_commitments", &[])
             .await?
             .iter()
@@ -154,9 +166,19 @@ impl PostgresConnector {
             .collect())
     }
 
-    pub async fn get_last_commitment(&self) -> Result<Option<DbSequencerCommitment>, Error> {
-        let rows = self
-            .client
+    pub async fn get_all_txs(&self) -> Result<Vec<DbMempoolTx>, PoolError> {
+        let client = self.client().await?;
+        Ok(client
+            .query("SELECT * FROM mempool_txs", &[])
+            .await?
+            .iter()
+            .map(PostgresConnector::row_to_mempool_tx)
+            .collect())
+    }
+
+    pub async fn get_last_commitment(&self) -> Result<Option<DbSequencerCommitment>, PoolError> {
+        let client = self.client().await?;
+        let rows = client
             .query(
                 "SELECT * FROM sequencer_commitments ORDER BY id DESC LIMIT 1",
                 &[],
@@ -170,18 +192,31 @@ impl PostgresConnector {
         )))
     }
 
-    pub async fn drop_table(&self, table: Tables) -> Result<u64, Error> {
-        self.client
+    pub async fn delete_txs_by_tx_hashes(&self, tx_hashes: Vec<Vec<u8>>) -> Result<u64, PoolError> {
+        let client = self.client().await?;
+        Ok(client
+            .execute(
+                "DELETE FROM mempool_txs WHERE tx_hash = ANY($1);",
+                &[&tx_hashes],
+            )
+            .await?)
+    }
+
+    pub async fn drop_table(&self, table: Tables) -> Result<u64, PoolError> {
+        let client = self.client().await?;
+        Ok(client
             .execute(format!("DROP TABLE {};", table).as_str(), &[])
-            .await
+            .await?)
     }
 
     #[cfg(test)]
-    pub async fn create_sequencer_commitments_table(&self) {
-        self.client
-            .execute(SEQUENCER_COMMITMENT_TABLE_CREATE_QUERY, &[])
-            .await
-            .unwrap();
+    pub async fn create_table(&self, table: Tables) {
+        let client = self.client().await.unwrap();
+        let query = match table {
+            Tables::SequencerCommitment => SEQUENCER_COMMITMENT_TABLE_CREATE_QUERY,
+            Tables::MempoolTxs => MEMPOOL_TXS_TABLE_CREATE_QUERY,
+        };
+        client.execute(query, &[]).await.unwrap();
     }
 
     // Helper function to convert a Row to DbSequencerCommitment
@@ -199,6 +234,13 @@ impl PostgresConnector {
             status: CommitmentStatus::from_str(row.get("status")).unwrap(),
         }
     }
+
+    fn row_to_mempool_tx(row: &Row) -> DbMempoolTx {
+        DbMempoolTx {
+            tx_hash: row.get("tx_hash"),
+            tx: row.get("tx"),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -209,9 +251,7 @@ mod tests {
     #[tokio::test]
     async fn test_insert_sequencer_commitment() {
         let client = PostgresConnector::new_test_client().await.unwrap();
-
-        let _ = client.drop_table(Tables::SequencerCommitment).await;
-        client.create_sequencer_commitments_table().await;
+        client.create_table(Tables::SequencerCommitment).await;
 
         let inserted = client
             .insert_sequencer_commitment(
@@ -240,5 +280,53 @@ mod tests {
         assert!(matches!(rows[0].status, CommitmentStatus::Mempool));
 
         let _ = client.drop_table(Tables::SequencerCommitment).await;
+    }
+
+    #[tokio::test]
+    async fn test_insert_rlp_tx() {
+        let client = PostgresConnector::new_test_client().await.unwrap();
+        client.create_table(Tables::MempoolTxs).await;
+
+        client
+            .insert_mempool_tx(vec![1, 2, 3], vec![1, 2, 4])
+            .await
+            .unwrap();
+
+        let txs = client.get_all_txs().await.unwrap();
+
+        assert_eq!(txs.len(), 1);
+        assert_eq!(
+            txs[0],
+            DbMempoolTx {
+                tx_hash: vec![1, 2, 3],
+                tx: vec![1, 2, 4]
+            }
+        );
+
+        client
+            .insert_mempool_tx(vec![3, 4, 5], vec![10, 20, 42])
+            .await
+            .unwrap();
+
+        client
+            .insert_mempool_tx(vec![5, 6, 7], vec![12, 22, 42])
+            .await
+            .unwrap();
+
+        client
+            .delete_txs_by_tx_hashes(vec![vec![1, 2, 3], vec![5, 6, 7]])
+            .await
+            .unwrap();
+
+        let txs = client.get_all_txs().await.unwrap();
+
+        assert_eq!(txs.len(), 1);
+        assert_eq!(
+            txs[0],
+            DbMempoolTx {
+                tx_hash: vec![3, 4, 5],
+                tx: vec![10, 20, 42]
+            }
+        );
     }
 }

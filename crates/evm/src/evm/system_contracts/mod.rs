@@ -59,7 +59,7 @@ impl Bridge {
     }
 
     pub(crate) fn initialize(data: Vec<u8>) -> Bytes {
-        let mut func_selector: Vec<u8> = vec![0xc1, 0x24, 0x28, 0x9c]; // initialize(uint32,bytes,bytes,uint256,address) c124289c
+        let mut func_selector: Vec<u8> = vec![0x45, 0x07, 0xfc, 0x69]; // initialize(bytes,bytes,uint256,address) 4507fc69
 
         func_selector.extend_from_slice(data.as_slice());
 

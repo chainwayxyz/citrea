@@ -1,3 +1,5 @@
+use std::collections::VecDeque;
+
 use sov_mock_da::{
     MockBlockHeader, MockDaService, MockDaSpec, MockDaVerifier, MockHash, MockValidityCond,
 };
@@ -224,16 +226,18 @@ fn make_transition_data(
     StateTransitionData {
         initial_state_root: [],
         final_state_root: [],
-        da_block_header: MockBlockHeader {
+        inclusion_proof: [0; 32],
+        completeness_proof: (),
+        da_data: vec![],
+        da_block_header_of_commitments: MockBlockHeader {
             prev_hash: [0; 32].into(),
             hash: header_hash,
             txs_commitment: header_hash,
             height: 0,
             time: Time::now(),
         },
-        inclusion_proof: [0; 32],
-        completeness_proof: (),
-        blobs: vec![],
-        state_transition_witness: vec![],
+        soft_confirmations: VecDeque::new(),
+        state_transition_witnesses: VecDeque::new(),
+        da_block_headers_of_soft_confirmations: VecDeque::new(),
     }
 }

@@ -9,7 +9,9 @@ mod tx_verifier;
 use std::marker::PhantomData;
 
 pub use batch::Batch;
-use borsh::BorshSerialize;
+use borsh::{BorshDeserialize, BorshSerialize};
+use rs_merkle::algorithms::Sha256;
+use rs_merkle::MerkleTree;
 use sov_modules_api::da::BlockHeaderTrait;
 use sov_modules_api::hooks::{
     ApplyBlobHooks, ApplySoftConfirmationError, ApplySoftConfirmationHooks, FinalizeHook,
@@ -20,6 +22,8 @@ use sov_modules_api::{
     BasicAddress, BlobReaderTrait, Context, DaSpec, DispatchCall, Genesis, Signature, Spec,
     StateCheckpoint, UnsignedSoftConfirmationBatch, WorkingSet, Zkvm,
 };
+use sov_rollup_interface::da::{DaData, SequencerCommitment};
+use sov_rollup_interface::digest::Digest;
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
 pub use sov_rollup_interface::stf::{BatchReceipt, TransactionReceipt};
 use sov_rollup_interface::stf::{SlotResult, StateTransitionFunction};
@@ -240,9 +244,34 @@ where
         tx_receipts: Vec<TransactionReceipt<TxEffect>>,
         batch_workspace: WorkingSet<C>,
     ) -> (BatchReceipt<(), TxEffect>, StateCheckpoint<C>) {
+        let unsigned = UnsignedSoftConfirmationBatch::new(
+            soft_batch.da_slot_height(),
+            soft_batch.da_slot_hash(),
+            soft_batch.da_slot_txs_commitment(),
+            soft_batch.pre_state_root(),
+            soft_batch.txs(),
+            soft_batch.deposit_data(),
+            soft_batch.l1_fee_rate(),
+            soft_batch.timestamp(),
+        );
+
+        let unsigned_raw = unsigned.try_to_vec().unwrap();
+
+        // check the claimed hash
+        assert_eq!(
+            soft_batch.hash(),
+            Into::<[u8; 32]>::into(<C as Spec>::Hasher::digest(unsigned_raw)),
+            "Soft confirmation hashes must match"
+        );
+
         // verify signature
         assert!(
-            verify_soft_batch_signature::<C>(soft_batch, sequencer_public_key).is_ok(),
+            verify_soft_batch_signature::<C>(
+                unsigned,
+                soft_batch.signature().as_slice(),
+                sequencer_public_key
+            )
+            .is_ok(),
             "Signature verification must succeed"
         );
 
@@ -251,6 +280,7 @@ where
 
         (apply_soft_batch_result.unwrap(), checkpoint)
     }
+
     fn finalize_soft_batch(
         &self,
         batch_receipt: BatchReceipt<(), TxEffect>,
@@ -574,26 +604,165 @@ where
             }
         }
     }
+
+    fn apply_soft_confirmations_from_sequencer_commitments(
+        &self,
+        sequencer_public_key: &[u8],
+        initial_state_root: &Self::StateRoot,
+        pre_state: Self::PreState,
+        mut da_data: Vec<<Da as DaSpec>::BlobTransaction>,
+        mut witnesses: std::collections::VecDeque<Vec<Self::Witness>>,
+        mut slot_headers: std::collections::VecDeque<Vec<<Da as DaSpec>::BlockHeader>>,
+        validity_condition: &<Da as DaSpec>::ValidityCondition,
+        mut soft_confirmations: std::collections::VecDeque<Vec<SignedSoftConfirmationBatch>>,
+    ) -> (
+        Self::StateRoot,
+        Vec<u8>, // state diff
+    ) {
+        // First extract all sequencer commitments
+        // Ignore broken DaData and zk proofs. Also ignore ForcedTransaction's (will be implemented in the future).
+        let mut sequencer_commitments: Vec<SequencerCommitment> = vec![];
+        for blob in da_data.iter_mut() {
+            // TODO: get sequencer da pub key
+            if blob.sender().as_ref() == sequencer_public_key {
+                let da_data = DaData::try_from_slice(blob.verified_data());
+
+                if let Ok(DaData::SequencerCommitment(commitment)) = da_data {
+                    sequencer_commitments.push(commitment);
+                }
+            }
+        }
+
+        // Then verify these soft confirmations.
+
+        let mut current_state_root = initial_state_root.clone();
+
+        for sequencer_commitment in sequencer_commitments.iter() {
+            // should panic if number of sequencer commitments and soft confirmations don't match
+            let mut soft_confirmations = soft_confirmations.pop_front().unwrap();
+
+            // should panic if number of sequencer commitments and set of DA block headers don't match
+            let da_block_headers = slot_headers.pop_front().unwrap();
+
+            // should panic if number of sequencer commitments and set of witnesses don't match
+            let witnesses = witnesses.pop_front().unwrap();
+
+            // we must verify given DA headers match the commitments
+            let mut index_headers = 0;
+            let mut index_soft_confirmation = 0;
+            let mut current_da_height = da_block_headers[index_headers].height();
+
+            assert_eq!(
+                soft_confirmations[index_soft_confirmation].da_slot_hash(),
+                da_block_headers[index_headers].hash().into()
+            );
+
+            assert_eq!(
+                soft_confirmations[index_soft_confirmation].da_slot_height(),
+                da_block_headers[index_headers].height()
+            );
+
+            index_soft_confirmation += 1;
+
+            // TODO: chech for no da block height jump
+            while index_soft_confirmation < soft_confirmations.len() {
+                // the soft confirmations DA hash mus equal to da hash in index_headers
+                // if it's not matching, and if it's not matching the next one, then stat transition is invalid.
+
+                if soft_confirmations[index_soft_confirmation].hash()
+                    == da_block_headers[index_headers].hash().into()
+                {
+                    assert_eq!(
+                        soft_confirmations[index_soft_confirmation].da_slot_height(),
+                        da_block_headers[index_headers].height()
+                    );
+
+                    index_soft_confirmation += 1;
+                } else {
+                    index_headers += 1;
+
+                    // this can also be done in soft confirmation rule enforcer?
+                    assert_eq!(
+                        da_block_headers[index_headers].height(),
+                        current_da_height + 1
+                    );
+
+                    current_da_height += 1;
+
+                    // if the next one is not matching, then the state transition is invalid.
+                    assert_eq!(
+                        soft_confirmations[index_soft_confirmation].da_slot_hash(),
+                        da_block_headers[index_headers].hash().into()
+                    );
+
+                    assert_eq!(
+                        soft_confirmations[index_soft_confirmation].da_slot_height(),
+                        da_block_headers[index_headers].height()
+                    );
+
+                    index_soft_confirmation += 1;
+                }
+            }
+
+            // final da header was checked against
+            assert_eq!(index_headers, da_block_headers.len() - 1);
+
+            // now verify the claimed merkle root of soft confirmation hashes
+            let mut soft_confirmation_hashes = vec![];
+
+            for soft_confirmation in soft_confirmations.iter() {
+                // given hashes will be checked inside apply_soft_confirmation.
+                // so use the claimed hash for now.
+                soft_confirmation_hashes.push(soft_confirmation.hash());
+            }
+
+            let calculated_root =
+                MerkleTree::<Sha256>::from_leaves(soft_confirmation_hashes.as_slice()).root();
+
+            assert_eq!(calculated_root, Some(sequencer_commitment.merkle_root));
+
+            let mut witness_iter = witnesses.into_iter();
+            let mut da_block_headers_iter = da_block_headers.into_iter().peekable();
+            let mut da_block_header = da_block_headers_iter.next().unwrap();
+            // now that we verified the claimed root, we can apply the soft confirmations
+            for soft_confirmation in soft_confirmations.iter_mut() {
+                if soft_confirmation.da_slot_height()
+                    != da_block_headers_iter.peek().unwrap().height()
+                {
+                    da_block_header = da_block_headers_iter.next().unwrap();
+                }
+
+                let result = self.apply_soft_batch(
+                    sequencer_public_key,
+                    &current_state_root,
+                    // TODO: either somehow commit to the prestate after each soft confirmation and pass the correct prestate here, or run every soft confirmation all at once.
+                    pre_state.clone(),
+                    witness_iter.next().unwrap(), // should panic if the number of witnesses and soft confirmations don't match
+                    &da_block_header,
+                    validity_condition,
+                    soft_confirmation,
+                );
+
+                current_state_root = result.state_root;
+            }
+        }
+
+        // TODO: implement state diff extraction
+        (current_state_root, vec![])
+    }
 }
 
 fn verify_soft_batch_signature<C: Context>(
-    soft_batch: &SignedSoftConfirmationBatch,
+    unsigned_soft_confirmation: UnsignedSoftConfirmationBatch,
+    signature: &[u8],
     sequencer_public_key: &[u8],
 ) -> Result<(), anyhow::Error> {
-    let unsigned = UnsignedSoftConfirmationBatch::new(
-        soft_batch.da_slot_height(),
-        soft_batch.da_slot_hash(),
-        soft_batch.da_slot_txs_commitment(),
-        soft_batch.pre_state_root(),
-        soft_batch.txs(),
-        soft_batch.deposit_data(),
-        soft_batch.l1_fee_rate(),
-        soft_batch.timestamp(),
-    );
+    let message = unsigned_soft_confirmation.try_to_vec().unwrap();
 
-    let message = unsigned.try_to_vec().unwrap();
+    let signature = C::Signature::try_from(signature)?;
 
-    let signature = C::Signature::try_from(soft_batch.signature().as_slice())?;
+    // TODO: if verify function is modified to take the claimed hash in signed soft confirmation
+    // we wouldn't need to hash the thing twice
     signature.verify(
         &C::PublicKey::try_from(sequencer_public_key)?,
         message.as_slice(),

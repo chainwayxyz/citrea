@@ -12,6 +12,7 @@ publish = false
 resolver = "2"
 
 [dependencies]
+alloy-rlp = { workspace = true }
 anyhow = { workspace = true }
 borsh = { workspace = true }
 chrono = { workspace = true }
@@ -38,6 +39,7 @@ revm = { workspace = true }
 
 ethers = { workspace = true }
 tokio = { workspace = true }
+deadpool-postgres = { workspace = true }
 schnellru = "0.2.1"
 
 sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface", features = [

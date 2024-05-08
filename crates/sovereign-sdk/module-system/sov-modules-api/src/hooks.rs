@@ -158,7 +158,7 @@ impl From<HookSoftConfirmationInfo> for SignedSoftConfirmationBatch {
             val.pre_state_root(),
             val.l1_fee_rate,
             vec![],
-            vec![],
+            val.deposit_data,
             vec![],
             val.pub_key.clone(),
             val.timestamp,

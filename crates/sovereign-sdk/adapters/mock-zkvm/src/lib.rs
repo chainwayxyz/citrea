@@ -187,8 +187,9 @@ impl<ValidityCond: ValidityCondition> sov_rollup_interface::zk::ZkvmHost
                 Ok(sov_rollup_interface::zk::StateTransition {
                     initial_state_root: st.initial_state_root,
                     final_state_root: st.final_state_root,
-                    slot_hash: st.da_block_header.hash(),
                     validity_condition: data.validity_condition,
+                    state_diff: vec![],
+                    da_slot_hash: st.da_block_header_of_commitments.hash(),
                 })
             }
             sov_rollup_interface::zk::Proof::Full(_) => {
