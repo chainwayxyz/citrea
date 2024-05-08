@@ -50,3 +50,6 @@ native = [
     "sov-chain-state/native",
     "sov-state/native",
 ]
+
+[package.metadata.cargo-udeps.ignore]
+development = ["sov-attester-incentives"]
