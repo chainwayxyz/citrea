@@ -1,6 +1,3 @@
-#![deny(missing_docs)]
-#![doc = include_str!("../README.md")]
-mod call;
 #[cfg(all(feature = "arbitrary", feature = "native"))]
 mod fuzz;
 mod genesis;
@@ -13,7 +10,6 @@ pub use query::*;
 #[cfg(test)]
 mod tests;
 
-pub use call::{CallMessage, UPDATE_ACCOUNT_MSG};
 pub use hooks::AccountsTxHook;
 use sov_modules_api::{Context, Error, ModuleInfo, WorkingSet};
 
@@ -57,7 +53,7 @@ impl<C: Context> sov_modules_api::Module for Accounts<C> {
 
     type Config = AccountConfig<C>;
 
-    type CallMessage = call::CallMessage<C>;
+    type CallMessage = ();
 
     type Event = ();
 
@@ -67,14 +63,10 @@ impl<C: Context> sov_modules_api::Module for Accounts<C> {
 
     fn call(
         &self,
-        msg: Self::CallMessage,
-        context: &Self::Context,
-        working_set: &mut WorkingSet<C>,
+        _msg: Self::CallMessage,
+        _context: &Self::Context,
+        _working_set: &mut WorkingSet<C>,
     ) -> Result<sov_modules_api::CallResponse, Error> {
-        match msg {
-            call::CallMessage::UpdatePublicKey(new_pub_key, sig) => {
-                Ok(self.update_public_key(new_pub_key, sig, context, working_set)?)
-            }
-        }
+        Ok(sov_modules_api::CallResponse::default())
     }
 }
