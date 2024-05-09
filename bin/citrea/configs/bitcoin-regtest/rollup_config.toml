@@ -12,7 +12,6 @@ node_username = ""
 # fill here                                       
 node_password = ""
 network = "regtest"
-address = "bcrt1q02g8qhycr0v8cnflt86kksfe2sqhm486fdkx4l"
 
 [storage]
 # The path to the rollup's data directory. Paths that do not begin with `/` are interpreted as relative paths.
