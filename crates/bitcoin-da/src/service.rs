@@ -4,7 +4,6 @@ use core::time::Duration;
 
 // use std::sync::Arc;
 use async_trait::async_trait;
-use bitcoin::address::NetworkUnchecked;
 use bitcoin::consensus::encode;
 use bitcoin::hashes::{sha256d, Hash};
 use bitcoin::secp256k1::SecretKey;
@@ -37,7 +36,6 @@ pub struct BitcoinService {
     client: BitcoinNode,
     rollup_name: String,
     network: bitcoin::Network,
-    address: Address<NetworkUnchecked>,
     sequencer_da_private_key: Option<SecretKey>,
     reveal_tx_id_prefix: Vec<u8>,
 }
@@ -52,10 +50,6 @@ pub struct DaServiceConfig {
 
     // network of the bitcoin node
     pub network: String,
-
-    // taproot address that holds the funds of the sequencer
-    // will be used as the change address for the inscribe transaction
-    pub address: String,
 
     // da private key of the sequencer
     pub sequencer_da_private_key: Option<String>,
@@ -80,8 +74,6 @@ impl BitcoinService {
             network,
         );
 
-        let address = Address::from_str(&config.address).expect("Invalid bitcoin address");
-
         let private_key = config
             .sequencer_da_private_key
             .map(|pk| SecretKey::from_str(&pk).expect("Invalid private key"));
@@ -90,7 +82,6 @@ impl BitcoinService {
             client,
             chain_params.rollup_name,
             network,
-            address,
             private_key,
             chain_params.reveal_tx_id_prefix,
         )
@@ -109,8 +100,6 @@ impl BitcoinService {
             network,
         );
 
-        let address = Address::from_str(&config.address).expect("Invalid bitcoin address");
-
         let private_key = config
             .sequencer_da_private_key
             .map(|pk| SecretKey::from_str(&pk).expect("Invalid private key"));
@@ -119,7 +108,6 @@ impl BitcoinService {
             client,
             rollup_name: chain_params.rollup_name,
             network,
-            address,
             sequencer_da_private_key: private_key,
             reveal_tx_id_prefix: chain_params.reveal_tx_id_prefix,
         }
@@ -129,16 +117,9 @@ impl BitcoinService {
         client: BitcoinNode,
         rollup_name: String,
         network: bitcoin::Network,
-        address: Address<NetworkUnchecked>,
         sequencer_da_private_key: Option<SecretKey>,
         reveal_tx_id_prefix: Vec<u8>,
     ) -> Self {
-        // We can't store address with the network check because it's not serializable
-        address
-            .clone()
-            .require_network(network)
-            .expect("Invalid address for network!");
-
         let wallets = client
             .list_wallets()
             .await
@@ -152,7 +133,6 @@ impl BitcoinService {
             client,
             rollup_name,
             network,
-            address,
             sequencer_da_private_key,
             reveal_tx_id_prefix,
         }
@@ -167,11 +147,7 @@ impl BitcoinService {
 
         let blob = blob.to_vec();
         let network = self.network;
-        let address = self
-            .address
-            .clone()
-            .require_network(network)
-            .expect("Invalid network for address");
+
         let rollup_name = self.rollup_name.clone();
         let sequencer_da_private_key = self.sequencer_da_private_key.expect("No private key set");
 
@@ -180,6 +156,14 @@ impl BitcoinService {
 
         // get all available utxos
         let utxos: Vec<UTXO> = client.get_utxos().await?;
+        if utxos.len() == 0 {
+            return Err(anyhow::anyhow!("No UTXOs left for transaction"));
+        }
+        // get address from a utxo
+        let address = Address::from_str(&utxos[0].address.clone())
+            .unwrap()
+            .require_network(network)
+            .expect("Invalid network for address");
 
         // sign the blob for authentication of the sequencer
         let (signature, public_key) = sign_blob_with_private_key(&blob, &sequencer_da_private_key)
@@ -520,7 +504,6 @@ mod tests {
             node_username: "chainway".to_string(),
             node_password: "topsecret".to_string(),
             network: "regtest".to_string(),
-            address: "bcrt1qy85zdv5se9d9ceg9nvay36t6j86z95fny4rdzu".to_string(),
             sequencer_da_private_key: Some(
                 "E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67FC233AA33262".to_string(), // Test key, safe to publish
             ),
@@ -636,7 +619,6 @@ mod tests {
             node_username: "chainway".to_string(),
             node_password: "topsecret".to_string(),
             network: "regtest".to_string(),
-            address: "bcrt1qy85zdv5se9d9ceg9nvay36t6j86z95fny4rdzu".to_string(),
             sequencer_da_private_key: Some(
                 "E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67FC233AA33261".to_string(), // Test key, safe to publish
             ),
