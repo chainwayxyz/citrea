@@ -831,16 +831,14 @@ impl<C: sov_modules_api::Context> Evm<C> {
         })
     }
 
-    /// Handler for: `eth_estimateGas`
-    // https://github.com/paradigmxyz/reth/blob/main/crates/rpc/rpc/src/eth/api/call.rs#L172
-    #[rpc_method(name = "eth_estimateGas")]
-    pub fn eth_estimate_gas(
+    // This is a common function for both eth_estimateGas and eth_estimateDiffSize.
+    // The point of this function is to prepare env and call estimate_gas_with_env.
+    fn estimate_tx_expenses(
         &self,
         request: reth_rpc_types::TransactionRequest,
         block_number: Option<BlockNumberOrTag>,
         working_set: &mut WorkingSet<C>,
-    ) -> RpcResult<reth_primitives::U256> {
-        info!("evm module: eth_estimateGas");
+    ) -> RpcResult<EstimatedTxExpenses> {
         let (l1_fee_rate, block_env) = match block_number {
             None | Some(BlockNumberOrTag::Pending | BlockNumberOrTag::Latest) => {
                 // so we don't unnecessarily set archival version
@@ -885,14 +883,28 @@ impl<C: sov_modules_api::Context> Evm<C> {
         cfg_env.disable_eip3607 = true;
         cfg_env.disable_base_fee = true;
 
-        let estimated = self.estimate_gas_with_env(
+        self.estimate_gas_with_env(
             request,
             l1_fee_rate,
             block_env,
             cfg_env,
             &mut tx_env,
             working_set,
-        )?;
+        )
+    }
+
+    /// Handler for: `eth_estimateGas`
+    // https://github.com/paradigmxyz/reth/blob/main/crates/rpc/rpc/src/eth/api/call.rs#L172
+    #[rpc_method(name = "eth_estimateGas")]
+    pub fn eth_estimate_gas(
+        &self,
+        request: reth_rpc_types::TransactionRequest,
+        block_number: Option<BlockNumberOrTag>,
+        working_set: &mut WorkingSet<C>,
+    ) -> RpcResult<reth_primitives::U256> {
+        info!("evm module: eth_estimateGas");
+
+        let estimated = self.estimate_tx_expenses(request, block_number, working_set)?;
         Ok(estimated.gas_spent())
     }
 
@@ -908,58 +920,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         if request.gas.is_none() {
             return Err(EthApiError::InvalidParams("gas must be set".into()))?;
         }
-        let (l1_fee_rate, block_env) = match block_number {
-            None | Some(BlockNumberOrTag::Pending | BlockNumberOrTag::Latest) => {
-                // so we don't unnecessarily set archival version
-                // if no block was produced yet, the l1 fee rate can unwrap to 0, we don't care, else just return the latest
-                let l1_fee_rate = self.l1_fee_rate.get(working_set).unwrap_or_default();
-                // if no block is produced yet, should default to genesis block env, else just return the lates
-                let block_env = self.block_env.get(working_set).unwrap_or_else(|| {
-                    BlockEnv::from(
-                        &self
-                            .get_sealed_block_by_number(
-                                Some(BlockNumberOrTag::Earliest),
-                                working_set,
-                            )
-                            .unwrap()
-                            .expect("Genesis block must be set"),
-                    )
-                });
-                (l1_fee_rate, block_env)
-            }
-            _ => {
-                let block = match self.get_sealed_block_by_number(block_number, working_set)? {
-                    Some(block) => block,
-                    None => return Err(EthApiError::UnknownBlockNumber.into()),
-                };
-
-                set_state_to_end_of_evm_block(block.header.number, working_set);
-                let l1_fee_rate = block.l1_fee_rate;
-                let block_env = BlockEnv::from(&block);
-                (l1_fee_rate, block_env)
-            }
-        };
-
-        let mut tx_env = prepare_call_env(&block_env, request.clone(), None)?;
-
-        let cfg = self
-            .cfg
-            .get(working_set)
-            .expect("EVM chain config should be set");
-        let mut cfg_env = get_cfg_env(&block_env, cfg);
-
-        // set endpoint specific params
-        cfg_env.disable_eip3607 = true;
-        cfg_env.disable_base_fee = true;
-
-        let estimated = self.estimate_gas_with_env(
-            request,
-            l1_fee_rate,
-            block_env,
-            cfg_env,
-            &mut tx_env,
-            working_set,
-        )?;
+        let estimated = self.estimate_tx_expenses(request, block_number, working_set)?;
 
         Ok(EstimatedDiffSize {
             gas: estimated.gas_used,
