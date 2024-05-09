@@ -1,3 +1,4 @@
+private_key = "1212121212121212121212121212121212121212121212121212121212121212"
 min_soft_confirmations_per_commitment = 10
 test_mode = false
 deposit_mempool_fetch_limit = 10
