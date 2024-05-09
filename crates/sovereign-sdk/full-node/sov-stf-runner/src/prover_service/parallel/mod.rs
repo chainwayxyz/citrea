@@ -2,21 +2,20 @@ mod prover;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use borsh::BorshSerialize as _;
 use prover::Prover;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
-use sov_rollup_interface::da::DaSpec;
+use sov_rollup_interface::da::{DaData, DaSpec};
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::zk::{StateTransitionData, ZkvmHost};
 
+use self::prover::ProverStatus;
 use super::{ProverService, ProverServiceError};
 use crate::config::ProverConfig;
 use crate::verifier::StateTransitionVerifier;
-use crate::{
-    ProofGenConfig, ProofProcessingStatus, ProofSubmissionStatus, ProverGuestRunConfig,
-    WitnessSubmissionStatus,
-};
+use crate::{ProofGenConfig, ProofProcessingStatus, ProverGuestRunConfig, WitnessSubmissionStatus};
 
 /// Prover service that generates proofs in parallel.
 pub struct ParallelProverService<StateRoot, Witness, Da, Vm, V>
@@ -158,11 +157,37 @@ where
         )
     }
 
-    async fn send_proof_to_da(
+    async fn wait_for_proving_and_send_to_da(
         &self,
         block_header_hash: <Da::Spec as DaSpec>::SlotHash,
-    ) -> Result<ProofSubmissionStatus, anyhow::Error> {
-        self.prover_state
-            .get_proof_submission_status_and_remove_on_success(block_header_hash)
+        da_service: &Self::DaService,
+    ) -> Result<<Da as DaService>::TransactionId, anyhow::Error> {
+        loop {
+            let status = self
+                .prover_state
+                .get_prover_status_for_da_submission(block_header_hash.clone())?;
+
+            match status {
+                ProverStatus::Proved(proof) => {
+                    let da_data = DaData::ZKProof(proof);
+
+                    let tx_id = da_service
+                        .send_transaction(
+                            da_data.try_to_vec().expect("Should serialize").as_slice(),
+                        )
+                        .await
+                        .map_err(|e| anyhow::anyhow!(e))?;
+
+                    break Ok(tx_id);
+                }
+                ProverStatus::ProvingInProgress => {
+                    tracing::info!("Proof generation is in progress");
+                    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                }
+                _ => {
+                    // function will not return any other type of status
+                }
+            }
+        }
     }
 }

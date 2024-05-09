@@ -15,10 +15,9 @@ use secp256k1::rand::thread_rng;
 use shared_backup_db::{PostgresConnector, SharedBackupDbConfig};
 use sov_mock_da::{MockAddress, MockDaService, MockDaSpec, MockHash};
 use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
-use sov_rollup_interface::da::DaSpec;
+use sov_rollup_interface::da::{DaData, DaSpec};
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
 use sov_rollup_interface::services::da::DaService;
-use sov_stf_runner::{ProverConfig, ProverGuestRunConfig};
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
 
@@ -1197,6 +1196,18 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
     // prover should have synced all 4 l2 blocks
     assert_eq!(prover_node_test_client.eth_block_number().await, 4);
 
+    // wait here until we see from prover's rpc that it finished proving
+    while prover_node_test_client
+        .prover_get_last_scanned_l1_height()
+        .await
+        != 3
+    {
+        // sleep 2
+        sleep(Duration::from_secs(2)).await;
+    }
+
+    // this will cause another extra da block to be published bc prover will publish a proof
+
     seq_test_client.send_publish_batch_request().await;
 
     sleep(Duration::from_secs(3)).await;
@@ -1216,20 +1227,35 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
 
     // Wait for prover to sync
     sleep(Duration::from_secs(5)).await;
-    // Should now have 8 blocks = 2 commitments of blocks 1-4 and 5-8
-    assert_eq!(prover_node_test_client.eth_block_number().await, 8);
+    // Should now have 8 blocks = 2 commitments of blocks 1-4 and 5-9
+    // there is an extra soft confirmation due to the prover publishing a proof. This causes
+    // a new MockDa block, which in turn causes the sequencer to publish an extra soft confirmation
+    // becase it must not skip blocks.
+    assert_eq!(prover_node_test_client.eth_block_number().await, 9);
 
     // wait here until we see from prover's rpc that it finished proving
     while prover_node_test_client
         .prover_get_last_scanned_l1_height()
         .await
-        != 5
+        != 8
     {
         // sleep 2
         sleep(Duration::from_secs(2)).await;
     }
 
-    // on the sixth, we should have a proof
+    // on the 8th DA block, we should have a proof
+    let mut blobs = da_service.get_block_at(8).await.unwrap().blobs;
+
+    assert_eq!(blobs.len(), 1);
+
+    let mut blob = blobs.pop().unwrap();
+    blob.data.advance(blob.data.total_len());
+
+    let da_data = blob.data.accumulator();
+
+    let proof: DaData = borsh::BorshDeserialize::try_from_slice(da_data).unwrap();
+
+    assert!(matches!(proof, DaData::ZKProof(_)));
 
     // TODO: Also test with multiple commitments in single Mock DA Block
     seq_task.abort();

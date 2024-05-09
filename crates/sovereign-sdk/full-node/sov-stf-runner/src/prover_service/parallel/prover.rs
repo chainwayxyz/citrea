@@ -12,11 +12,9 @@ use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::zk::{Proof, StateTransitionData, ZkvmHost};
 
 use super::ProverServiceError;
-use crate::{
-    ProofGenConfig, ProofProcessingStatus, ProofSubmissionStatus, WitnessSubmissionStatus,
-};
+use crate::{ProofGenConfig, ProofProcessingStatus, WitnessSubmissionStatus};
 
-enum ProverStatus<StateRoot, Witness, Da: DaSpec> {
+pub(crate) enum ProverStatus<StateRoot, Witness, Da: DaSpec> {
     WitnessSubmitted(StateTransitionData<StateRoot, Witness, Da>),
     ProvingInProgress,
     #[allow(dead_code)]
@@ -184,21 +182,20 @@ where
         }
     }
 
-    pub(crate) fn get_proof_submission_status_and_remove_on_success(
+    pub(crate) fn get_prover_status_for_da_submission(
         &self,
         block_header_hash: <Da::Spec as DaSpec>::SlotHash,
-    ) -> Result<ProofSubmissionStatus, anyhow::Error> {
+    ) -> Result<ProverStatus<StateRoot, Witness, Da::Spec>, anyhow::Error> {
         let mut prover_state = self.prover_state.write().unwrap();
         let status = prover_state.get_prover_status(block_header_hash.clone());
 
         match status {
-            Some(ProverStatus::ProvingInProgress) => {
-                Ok(ProofSubmissionStatus::ProofGenerationInProgress)
-            }
-            Some(ProverStatus::Proved(proof)) => {
-                tracing::info!("{:?}", proof);
-                prover_state.remove(&block_header_hash);
-                Ok(ProofSubmissionStatus::Success)
+            Some(ProverStatus::ProvingInProgress) => Ok(ProverStatus::ProvingInProgress),
+            Some(ProverStatus::Proved(_)) => {
+                // we know its proved so we can unwrap
+                let status = prover_state.remove(&block_header_hash).unwrap();
+
+                Ok(status)
             }
             Some(ProverStatus::WitnessSubmitted(_)) => Err(anyhow::anyhow!(
                 "Witness for {:?} was submitted, but the proof generation is not triggered.",

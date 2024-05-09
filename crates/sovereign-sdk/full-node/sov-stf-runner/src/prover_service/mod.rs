@@ -4,7 +4,7 @@ pub use parallel::ParallelProverService;
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::services::da::DaService;
-use sov_rollup_interface::zk::StateTransitionData;
+use sov_rollup_interface::zk::{Proof, StateTransitionData};
 use thiserror::Error;
 
 /// The possible configurations of the prover.
@@ -49,7 +49,7 @@ pub enum WitnessSubmissionStatus {
 #[derive(Debug, Eq, PartialEq)]
 pub enum ProofSubmissionStatus {
     /// Indicates successful submission of the proof to the DA.
-    Success,
+    Success(Proof),
     /// Indicates that proof generation is currently in progress.
     ProofGenerationInProgress,
 }
@@ -107,9 +107,9 @@ pub trait ProverService {
     ) -> Result<ProofProcessingStatus, ProverServiceError>;
 
     /// Sends the ZK proof to the DA.
-    /// This method is noy yet fully implemented: see #1185
-    async fn send_proof_to_da(
+    async fn wait_for_proving_and_send_to_da(
         &self,
         block_header_hash: <<Self::DaService as DaService>::Spec as DaSpec>::SlotHash,
-    ) -> Result<ProofSubmissionStatus, anyhow::Error>;
+        da_service: &Self::DaService,
+    ) -> Result<<Self::DaService as DaService>::TransactionId, anyhow::Error>;
 }

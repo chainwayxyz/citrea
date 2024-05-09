@@ -14,21 +14,21 @@ use sov_db::schema::types::{BatchNumber, SlotNumber, StoredSoftBatch};
 use sov_modules_api::{Context, SignedSoftConfirmationBatch};
 use sov_modules_stf_blueprint::StfBlueprintTrait;
 use sov_rollup_interface::da::{
-    BatchProof, BlobReaderTrait, BlockHeaderTrait, DaData, DaSpec, SequencerCommitment,
+    BlobReaderTrait, BlockHeaderTrait, DaData, DaSpec, SequencerCommitment,
 };
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
 use sov_rollup_interface::services::da::{DaService, SlotData};
 pub use sov_rollup_interface::stf::BatchReceipt;
 use sov_rollup_interface::stf::{SoftBatchReceipt, StateTransitionFunction};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
-use sov_rollup_interface::zk::{StateTransitionData, Zkvm, ZkvmHost};
+use sov_rollup_interface::zk::{Proof, StateTransitionData, Zkvm, ZkvmHost};
 use tokio::sync::oneshot;
 use tokio::time::{sleep, Duration, Instant};
 use tracing::{debug, error, info};
 
 use crate::prover_helpers::get_initial_slot_height;
 use crate::verifier::StateTransitionVerifier;
-use crate::{ProofSubmissionStatus, ProverService, RollupPublicKeys, RpcConfig, RunnerConfig};
+use crate::{ProverService, RollupPublicKeys, RpcConfig, RunnerConfig};
 
 type StateRoot<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::StateRoot;
 type GenesisParams<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::GenesisParams;
@@ -252,7 +252,7 @@ where
             let filtered_block = self.da_service.get_block_at(l1_height).await?;
 
             let mut sequencer_commitments = Vec::<SequencerCommitment>::new();
-            let mut zk_proofs = Vec::<BatchProof>::new();
+            let mut zk_proofs = Vec::<Proof>::new();
 
             self.da_service
                 .extract_relevant_blobs(&filtered_block)
@@ -493,21 +493,9 @@ where
 
             prover_service.prove(hash.clone()).await?;
 
-            loop {
-                let status = prover_service.send_proof_to_da(hash.clone()).await;
-
-                match status {
-                    Ok(ProofSubmissionStatus::Success) => {
-                        break;
-                    }
-                    // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1185): Add timeout handling.
-                    Ok(ProofSubmissionStatus::ProofGenerationInProgress) => {
-                        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await
-                    }
-                    // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1185): Add handling for DA submission errors.
-                    Err(e) => panic!("{:?}", e),
-                }
-            }
+            let tx_id = prover_service
+                .wait_for_proving_and_send_to_da(hash.clone(), &self.da_service)
+                .await?;
 
             self.ledger_db
                 .set_prover_last_scanned_l1_height(SlotNumber(l1_height))
@@ -585,7 +573,7 @@ where
             // TODO: How to confirm this is what we submit - use?
 
             let mut sequencer_commitments = Vec::<SequencerCommitment>::new();
-            let mut zk_proofs = Vec::<BatchProof>::new();
+            let mut zk_proofs = Vec::<Proof>::new();
 
             self.da_service
                 .extract_relevant_blobs(&filtered_block)
