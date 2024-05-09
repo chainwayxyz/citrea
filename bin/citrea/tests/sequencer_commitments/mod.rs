@@ -259,3 +259,105 @@ async fn check_commitment_in_offchain_db() {
 
     seq_task.abort();
 }
+
+#[tokio::test]
+async fn test_ledger_get_commitments_on_slot() {
+    // citrea::initialize_logging();
+
+    let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
+
+    let seq_task = tokio::spawn(async {
+        start_rollup(
+            seq_port_tx,
+            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
+            BasicKernelGenesisPaths {
+                chain_state:
+                    "../test-data/genesis/integration-tests-low-limiting-number/chain_state.json"
+                        .into(),
+            },
+            RollupProverConfig::Execute,
+            NodeMode::SequencerNode,
+            None,
+            4,
+            true,
+            None,
+            None,
+            Some(true),
+            DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
+        )
+        .await;
+    });
+
+    let seq_port = seq_port_rx.await.unwrap();
+    let test_client = make_test_client(seq_port).await;
+    let da_service = MockDaService::new(MockAddress::from([0; 32]));
+    let first_block_hash = da_service.get_block_at(1).await.unwrap().header.hash;
+
+    let commitments = test_client
+        .ledger_get_sequencer_commitments_on_slot_by_number(1)
+        .await
+        .unwrap();
+    assert!(commitments.is_none());
+
+    let commitments = test_client
+        .ledger_get_sequencer_commitments_on_slot_by_hash(first_block_hash.0)
+        .await
+        .unwrap();
+    assert!(commitments.is_none());
+
+    // publish 4 sc
+    for _ in 0..4 {
+        test_client.send_publish_batch_request().await;
+    }
+
+    da_service.publish_test_block().await.unwrap();
+
+    // Commitment will be sent here
+    test_client.send_publish_batch_request().await;
+
+    let commitments = test_client
+        .ledger_get_sequencer_commitments_on_slot_by_number(1)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(commitments.len(), 1);
+    assert_eq!(
+        commitments[0].commitment.l1_end_block_hash,
+        first_block_hash.0
+    );
+
+    let commitments = test_client
+        .ledger_get_sequencer_commitments_on_slot_by_hash(first_block_hash.0)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(commitments.len(), 1);
+
+    // publish 3 soft confirmations, no commitment should be sent
+    for _ in 0..3 {
+        test_client.send_publish_batch_request().await;
+    }
+    da_service.publish_test_block().await.unwrap();
+
+    // next Commitment will be sent here
+    test_client.send_publish_batch_request().await;
+    let third_block_hash = da_service.get_block_at(3).await.unwrap().header.hash;
+    let commitments = test_client
+        .ledger_get_sequencer_commitments_on_slot_by_number(3)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(commitments.len(), 1);
+
+    let commitments = test_client
+        .ledger_get_sequencer_commitments_on_slot_by_hash(third_block_hash.0)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(commitments.len(), 1);
+    assert_eq!(
+        commitments[0].commitment.l1_end_block_hash,
+        third_block_hash.0
+    );
+    seq_task.abort();
+}

@@ -788,6 +788,26 @@ where
                             commitment_info.l1_height_range.end().0,
                         ))
                         .expect("Sequencer: Failed to set last sequencer commitment L1 height");
+
+                    let tx_id = Into::<[u8; 32]>::into(tx_id);
+                    let commitment_info_to_store =
+                        sov_rollup_interface::rpc::SequencerCommitmentInfo {
+                            l1_tx_id: hex::encode(tx_id),
+                            commitment: commitment.clone(),
+                        };
+                    ledger_db
+                        .set_l1_height_of_l1_hash(
+                            commitment_info.l1_end_hash,
+                            commitment_info.l1_height_range.end().0,
+                        )
+                        .expect("Sequencer failed to update l1 height of l1 hash");
+                    ledger_db
+                        .update_commitments_on_da_slot(
+                            commitment_info.l1_height_range.end().0,
+                            commitment_info_to_store,
+                        )
+                        .expect("Sequencer failed to update commitment info on slot");
+
                     warn!("Commitment info: {:?}", commitment_info);
                     if let Some(db_config) = db_config {
                         match PostgresConnector::new(db_config).await {

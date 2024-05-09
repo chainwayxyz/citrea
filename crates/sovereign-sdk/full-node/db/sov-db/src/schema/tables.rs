@@ -35,7 +35,8 @@ use sov_schema_db::{CodecError, SeekKeyEncoder};
 
 use super::types::{
     AccessoryKey, AccessoryStateValue, BatchNumber, DbHash, EventNumber, JmtValue, L2HeightRange,
-    SlotNumber, StateKey, StoredBatch, StoredSlot, StoredSoftBatch, StoredTransaction, TxNumber,
+    SlotNumber, StateKey, StoredBatch, StoredSequencerCommitment, StoredSlot, StoredSoftBatch,
+    StoredTransaction, TxNumber,
 };
 
 /// A list of all tables used by the StateDB. These tables store rollup state - meaning
@@ -62,6 +63,7 @@ pub const LEDGER_TABLES: &[&str] = &[
     TxByNumber::table_name(),
     EventByKey::table_name(),
     EventByNumber::table_name(),
+    CommitmentsByNumber::table_name(),
 ];
 
 /// A list of all tables used by the NativeDB. These tables store
@@ -221,6 +223,11 @@ define_table_with_seek_key_codec!(
 define_table_with_default_codec!(
     /// A "secondary index" for slot data by hash
     (SlotByHash) DbHash => SlotNumber
+);
+
+define_table_with_default_codec!(
+    /// The primary source for sequencer commitment data
+    (CommitmentsByNumber) SlotNumber => Vec<StoredSequencerCommitment>
 );
 
 define_table_with_seek_key_codec!(

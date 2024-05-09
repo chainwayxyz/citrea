@@ -17,7 +17,7 @@ use jsonrpsee::rpc_params;
 use reth_primitives::BlockNumberOrTag;
 use reth_rpc_types::trace::geth::{GethDebugTracingOptions, GethTrace};
 use sequencer_client::GetSoftBatchResponse;
-use sov_rollup_interface::rpc::SoftConfirmationStatus;
+use sov_rollup_interface::rpc::{SequencerCommitmentInfo, SoftConfirmationStatus};
 
 pub const MAX_FEE_PER_GAS: u64 = 1000000001;
 
@@ -579,6 +579,32 @@ impl TestClient {
             .request(
                 "ledger_getSoftConfirmationStatus",
                 rpc_params![soft_batch_receipt],
+            )
+            .await
+            .map_err(|e| e.into())
+    }
+
+    pub(crate) async fn ledger_get_sequencer_commitments_on_slot_by_number(
+        &self,
+        height: u64,
+    ) -> Result<Option<Vec<SequencerCommitmentInfo>>, Box<dyn std::error::Error>> {
+        self.http_client
+            .request(
+                "ledger_getSequencerCommitmentsOnSlotByNumber",
+                rpc_params![height],
+            )
+            .await
+            .map_err(|e| e.into())
+    }
+
+    pub(crate) async fn ledger_get_sequencer_commitments_on_slot_by_hash(
+        &self,
+        hash: [u8; 32],
+    ) -> Result<Option<Vec<SequencerCommitmentInfo>>, Box<dyn std::error::Error>> {
+        self.http_client
+            .request(
+                "ledger_getSequencerCommitmentsOnSlotByHash",
+                rpc_params![hash],
             )
             .await
             .map_err(|e| e.into())

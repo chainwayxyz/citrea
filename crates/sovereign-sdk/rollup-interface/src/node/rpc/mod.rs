@@ -7,10 +7,10 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
-use crate::maybestd::vec::Vec;
 #[cfg(feature = "native")]
 use crate::stf::Event;
 use crate::stf::EventKey;
+use crate::{da::SequencerCommitment, maybestd::vec::Vec};
 
 /// A struct containing enough information to uniquely specify single batch.
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
@@ -215,6 +215,15 @@ pub struct SoftBatchResponse {
     pub timestamp: u64,
 }
 
+/// The response to a JSON-RPC request for sequencer commitments on a DA Slot.
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+pub struct SequencerCommitmentInfo {
+    /// Sequencer commitment tx id on da as hex string
+    pub l1_tx_id: String,
+    /// sequecner commitment
+    pub commitment: SequencerCommitment,
+}
+
 /// The response to a JSON-RPC request for a particular batch.
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct BatchResponse<B, Tx> {
@@ -417,6 +426,15 @@ pub trait LedgerRpcProvider {
         &self,
         soft_batch_receipt: u64,
     ) -> Result<SoftConfirmationStatus, anyhow::Error>;
+
+    /// Returns the slot number of a given hash
+    fn get_slot_number_by_hash(&self, hash: [u8; 32]) -> Result<Option<u64>, anyhow::Error>;
+
+    /// Takes an L1 height and and returns all the sequencer commitments on the slot
+    fn get_sequencer_commitments_on_slot_by_number(
+        &self,
+        height: u64,
+    ) -> Result<Option<Vec<SequencerCommitmentInfo>>, anyhow::Error>;
 
     /// Get a notification each time a slot is processed
     fn subscribe_slots(&self) -> Result<tokio::sync::broadcast::Receiver<u64>, anyhow::Error>;

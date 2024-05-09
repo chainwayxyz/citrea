@@ -4,8 +4,9 @@ use std::sync::Arc;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
+use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::rpc::{
-    BatchResponse, HexTx, SoftBatchResponse, TxIdentifier, TxResponse,
+    BatchResponse, HexTx, SequencerCommitmentInfo, SoftBatchResponse, TxIdentifier, TxResponse,
 };
 use sov_rollup_interface::stf::{Event, EventKey, TransactionReceipt};
 
@@ -180,6 +181,33 @@ impl<R: DeserializeOwned> TryFrom<StoredTransaction> for TxResponse<R> {
             body: value.body,
             phantom_data: PhantomData,
         })
+    }
+}
+
+/// The on disk format of sequencer commitment info
+#[derive(Debug, PartialEq, BorshDeserialize, BorshSerialize)]
+pub struct StoredSequencerCommitment {
+    /// The hash of the commitment tx
+    pub l1_tx_id: Vec<u8>,
+    /// The sequencer Commitment
+    pub commitment: SequencerCommitment,
+}
+
+impl From<SequencerCommitmentInfo> for StoredSequencerCommitment {
+    fn from(value: SequencerCommitmentInfo) -> Self {
+        Self {
+            l1_tx_id: hex::decode(value.l1_tx_id).unwrap(),
+            commitment: value.commitment,
+        }
+    }
+}
+
+impl From<StoredSequencerCommitment> for SequencerCommitmentInfo {
+    fn from(value: StoredSequencerCommitment) -> Self {
+        Self {
+            l1_tx_id: hex::encode(value.l1_tx_id),
+            commitment: value.commitment,
+        }
     }
 }
 
