@@ -156,7 +156,7 @@ impl BitcoinService {
 
         // get all available utxos
         let utxos: Vec<UTXO> = client.get_utxos().await?;
-        if utxos.len() == 0 {
+        if utxos.is_empty() {
             return Err(anyhow::anyhow!("No UTXOs left for transaction"));
         }
         // get address from a utxo
