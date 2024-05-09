@@ -517,8 +517,8 @@ where
                         (prev_l1_height, last_finalized_block, l1_fee_rate) = l1_data;
 
                         if last_finalized_height > prev_l1_height {
-                            let skipped_blocks = last_finalized_height - prev_l1_height;
-                            if skipped_blocks > 1 {
+                            let skipped_blocks = last_finalized_height - prev_l1_height - 1;
+                            if skipped_blocks >= 1 {
                                 // This shouldn't happen. If it does, then we should produce at least 1 block for the blocks in between
                                 warn!(
                                     "Sequencer is falling behind on L1 blocks by {:?} blocks",
@@ -526,7 +526,7 @@ where
                                 );
 
                                 // Missed DA blocks means that we produce n - 1 empty blocks, 1 per missed DA block.
-                                missed_da_blocks_count = skipped_blocks - 1;
+                                missed_da_blocks_count = skipped_blocks;
                             }
                         }
 
