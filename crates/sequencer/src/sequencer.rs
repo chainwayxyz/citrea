@@ -379,7 +379,7 @@ where
                     tx_receipts: batch_receipt.tx_receipts,
                     soft_confirmation_signature: signed_soft_batch.signature().to_vec(),
                     pub_key: signed_soft_batch.pub_key().to_vec(),
-                    deposit_data: deposit_data,
+                    deposit_data,
                     l1_fee_rate: signed_soft_batch.l1_fee_rate(),
                     timestamp: signed_soft_batch.timestamp(),
                 };
