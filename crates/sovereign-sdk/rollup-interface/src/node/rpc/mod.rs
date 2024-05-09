@@ -7,10 +7,11 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
+use crate::da::SequencerCommitment;
+use crate::maybestd::vec::Vec;
 #[cfg(feature = "native")]
 use crate::stf::Event;
 use crate::stf::EventKey;
-use crate::{da::SequencerCommitment, maybestd::vec::Vec};
 
 /// A struct containing enough information to uniquely specify single batch.
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
