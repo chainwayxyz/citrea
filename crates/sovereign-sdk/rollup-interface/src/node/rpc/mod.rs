@@ -418,6 +418,9 @@ pub trait LedgerRpcProvider {
         soft_batch_receipt: u64,
     ) -> Result<SoftConfirmationStatus, anyhow::Error>;
 
+    /// (Prover) returns the last scanned L1 height (for sequencer commitments)
+    fn get_prover_last_scanned_l1_height(&self) -> Result<u64, anyhow::Error>;
+
     /// Get a notification each time a slot is processed
     fn subscribe_slots(&self) -> Result<tokio::sync::broadcast::Receiver<u64>, anyhow::Error>;
 }

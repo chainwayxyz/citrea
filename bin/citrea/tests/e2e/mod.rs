@@ -1219,6 +1219,18 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
     // Should now have 8 blocks = 2 commitments of blocks 1-4 and 5-8
     assert_eq!(prover_node_test_client.eth_block_number().await, 8);
 
+    // wait here until we see from prover's rpc that it finished proving
+    while prover_node_test_client
+        .prover_get_last_scanned_l1_height()
+        .await
+        != 5
+    {
+        // sleep 2
+        sleep(Duration::from_secs(2)).await;
+    }
+
+    // on the sixth, we should have a proof
+
     // TODO: Also test with multiple commitments in single Mock DA Block
     seq_task.abort();
     prover_node_task.abort();

@@ -368,6 +368,13 @@ impl LedgerRpcProvider for LedgerDB {
     fn subscribe_slots(&self) -> Result<Receiver<u64>, anyhow::Error> {
         Ok(self.slot_subscriptions.subscribe())
     }
+
+    fn get_prover_last_scanned_l1_height(&self) -> Result<u64, anyhow::Error> {
+        match self.get_prover_last_scanned_l1_height()? {
+            Some(height) => Ok(height.0),
+            None => Ok(0),
+        }
+    }
 }
 
 impl LedgerDB {

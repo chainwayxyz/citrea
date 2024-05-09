@@ -172,6 +172,11 @@ where
                 .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
         },
     )?;
+    rpc.register_async_method("prover_getLastScannedL1Slot", |_, ledger| async move {
+        ledger
+            .get_prover_last_scanned_l1_height()
+            .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
+    })?;
 
     rpc.register_subscription(
         "ledger_subscribeSlots",
