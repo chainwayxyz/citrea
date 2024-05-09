@@ -50,7 +50,8 @@ where
         let (final_state_root, state_diff) = self
             .app
             .apply_soft_confirmations_from_sequencer_commitments(
-                &[0; 32], // TODO: pass correct sequencer public key
+                data.sequencer_public_key.as_ref(),
+                data.sequencer_da_public_key.as_ref(),
                 &data.initial_state_root,
                 pre_state,
                 data.da_data,
@@ -60,7 +61,6 @@ where
                 data.soft_confirmations,
             );
 
-        tracing::info!("done with running sequencer commitments in DA slot");
         // let result = self.app.apply_slot(
         //     &data.initial_state_root,
         //     pre_state,
@@ -70,12 +70,20 @@ where
         //     &mut data.blobs,
         // );
 
+        assert_eq!(
+            final_state_root.as_ref(),
+            data.final_state_root.as_ref(),
+            "Invalid final state root"
+        );
+
         let out: StateTransition<Da::Spec, _> = StateTransition {
             initial_state_root: data.initial_state_root,
             final_state_root,
             validity_condition, // TODO: not sure about how to do this yet
             state_diff,
             da_slot_hash: data.da_block_header_of_commitments.hash(),
+            sequencer_public_key: data.sequencer_public_key,
+            sequencer_da_public_key: data.sequencer_da_public_key,
         };
 
         zkvm.commit(&out);

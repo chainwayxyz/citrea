@@ -313,12 +313,17 @@ where
 
             let initial_state_root = self.state_root.clone();
 
-            let da_data = self.da_service.extract_relevant_blobs(&filtered_block);
+            let mut da_data = self.da_service.extract_relevant_blobs(&filtered_block);
             let da_block_header_of_commitments = filtered_block.header().clone();
             let (inclusion_proof, completeness_proof) = self
                 .da_service
                 .get_extraction_proof(&filtered_block, &da_data)
                 .await;
+
+            // if we don't do this, the zk circuit can't read the sequencer commitments
+            da_data.iter_mut().for_each(|blob| {
+                blob.full_data();
+            });
 
             let mut soft_confirmations: VecDeque<Vec<SignedSoftConfirmationBatch>> =
                 VecDeque::new();
@@ -330,7 +335,9 @@ where
             for sequencer_commitment in sequencer_commitments.into_iter() {
                 let mut sof_soft_confirmations_to_push = vec![];
                 let mut state_transition_witnesses_to_push = vec![];
-                let mut da_block_headers_to_push = vec![];
+                let mut da_block_headers_to_push: Vec<
+                    <<Da as DaService>::Spec as DaSpec>::BlockHeader,
+                > = vec![];
 
                 let start_l1_height = self
                     .da_service
@@ -391,7 +398,12 @@ where
                         .get_block_at(soft_batch.da_slot_height)
                         .await?;
 
-                    da_block_headers_to_push.push(filtered_block.header().clone());
+                    if da_block_headers_to_push.is_empty()
+                        || da_block_headers_to_push.last().unwrap().height()
+                            != filtered_block.header().height()
+                    {
+                        da_block_headers_to_push.push(filtered_block.header().clone());
+                    }
 
                     let mut data_to_commit = SlotCommit::new(filtered_block.clone());
 
@@ -482,6 +494,9 @@ where
                     soft_confirmations,
                     state_transition_witnesses,
                     da_block_headers_of_soft_confirmations,
+
+                    sequencer_public_key: self.sequencer_pub_key.clone(),
+                    sequencer_da_public_key: self.sequencer_da_pub_key.clone(),
                 };
 
             let prover_service = self
