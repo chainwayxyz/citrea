@@ -823,7 +823,7 @@ where
     ) -> anyhow::Result<()> {
         let new_da_block = match last_finalized_height.cmp(&prev_l1_height) {
             Ordering::Less => {
-                panic!("DA L1 height is less than Ledger finalized height");
+                panic!("DA L1 height is less than Ledger finalized height. DA L1 height: {}, Finalized height: {}", last_finalized_height, prev_l1_height);
             }
             Ordering::Equal => None,
             Ordering::Greater => {
