@@ -918,21 +918,6 @@ async fn get_da_block_data<Da>(da_service: Da, ledger_db: LedgerDB) -> anyhow::R
 where
     Da: DaService,
 {
-    let prev_l1_height = match ledger_db.get_head_soft_batch() {
-        Ok(Some((_, sb))) => sb.da_slot_height,
-        Ok(None) => match da_service.get_last_finalized_block_header().await {
-            Ok(block_header) => block_header.height(),
-            Err(e) => {
-                return Err(anyhow!("Previous L1 height: {}", e));
-            }
-        },
-        Err(e) => {
-            return Err(anyhow!("previous L1 height: {}", e));
-        }
-    };
-
-    debug!("Sequencer: prev L1 height: {:?}", prev_l1_height);
-
     let last_finalized_height = match da_service.get_last_finalized_block_header().await {
         Ok(header) => header.height(),
         Err(e) => {
@@ -951,6 +936,16 @@ where
         "Sequencer: last finalized height: {:?}",
         last_finalized_block.header().height()
     );
+
+    let prev_l1_height = match ledger_db.get_head_soft_batch() {
+        Ok(Some((_, sb))) => sb.da_slot_height,
+        Ok(None) => last_finalized_height,
+        Err(e) => {
+            return Err(anyhow!("previous L1 height: {}", e));
+        }
+    };
+
+    debug!("Sequencer: prev L1 height: {:?}", prev_l1_height);
 
     let l1_fee_rate = match da_service.get_fee_rate().await {
         Ok(fee_rate) => fee_rate,
