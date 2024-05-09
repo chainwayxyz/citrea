@@ -76,7 +76,7 @@ pub struct EstimatedDiffSize {
     /// Gas used.
     pub gas: U64,
     /// Diff size.
-    pub diff_size: u64,
+    pub diff_size: U64,
 }
 
 #[rpc_gen(client, server)]
@@ -924,7 +924,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         Ok(EstimatedDiffSize {
             gas: estimated.gas_used,
-            diff_size: estimated.diff_size,
+            diff_size: U64::from(estimated.diff_size),
         })
     }
 
