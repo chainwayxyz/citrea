@@ -7,7 +7,6 @@ use std::net::SocketAddr;
 
 use async_trait::async_trait;
 use citrea_sequencer::{CitreaSequencer, SequencerConfig};
-use const_rollup_config::TEST_PRIVATE_KEY;
 pub use runtime_rpc::*;
 use sequencer_client::SequencerClient;
 use sov_db::ledger_db::LedgerDB;
