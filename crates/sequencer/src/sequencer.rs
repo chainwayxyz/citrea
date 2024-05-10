@@ -475,10 +475,11 @@ where
                     return Err(e);
                 }
             };
+        let mut last_finalized_height = last_finalized_block.header().height();
 
         // Based on the above initialization, decide whether we should submit a commitment to DA.
         if let Err(e) = self
-            .submit_commitment(last_finalized_block.header().height(), prev_l1_height)
+            .submit_commitment(last_finalized_height, prev_l1_height)
             .await
         {
             error!("Sequencer error: {}", e);
@@ -503,7 +504,6 @@ where
             // See: https://docs.rs/tokio/latest/tokio/time/struct.Interval.html#method.tick
             interval.tick().await;
 
-            let last_finalized_height = last_finalized_block.header().height();
             tokio::select! {
                 // Run the DA monitor worker
                 _ = &mut da_monitor => {},
@@ -515,8 +515,9 @@ where
                     }
                     if let Some(l1_data) = l1_data {
                         (prev_l1_height, last_finalized_block, l1_fee_rate) = l1_data;
+                        last_finalized_height = last_finalized_block.header().height();
 
-                        if last_finalized_height > prev_l1_height {
+                        if last_finalized_block.header().height() > prev_l1_height {
                             let skipped_blocks = last_finalized_height - prev_l1_height - 1;
                             if skipped_blocks >= 1 {
                                 // This shouldn't happen. If it does, then we should produce at least 1 block for the blocks in between
@@ -539,14 +540,27 @@ where
                 // The RPC from which the sender can be called is only registered for test mode. This means
                 // that evey though we check the receiver here, it'll never be "ready" to be consumed unless in test mode.
                 _ = self.l2_force_block_rx.next(), if self.config.test_mode => {
-                    println!("Received block production signal");
+                    if missed_da_blocks_count > 0 {
+                        for i in missed_da_blocks_count..0 {
+                            let needed_da_block_height = prev_l1_height + (last_finalized_height - prev_l1_height - i);
+                            let da_block = self
+                                .da_service
+                                .get_block_at(needed_da_block_height)
+                                .await
+                                .map_err(|e| anyhow!(e))?;
+
+                            if let Err(e) = self.produce_l2_block(da_block, l1_fee_rate, L2BlockMode::Empty, &None).await {
+                                error!("Sequencer error: {}", e);
+                            }
+                        }
+                        missed_da_blocks_count = 0;
+                    }
                     if let Err(e) = self.produce_l2_block(last_finalized_block.clone(), l1_fee_rate, L2BlockMode::NotEmpty, &None).await {
                         error!("Sequencer error: {}", e);
                     }
                 },
                 // If sequencer is in production mode, it will build a block every 2 seconds
                 _ = interval.tick(), if !self.config.test_mode => {
-                    println!("Produce the normal way");
                     // By default, we produce a non-empty block IFF we were caught up all the way to
                     // last_finalized_block. If there are missed DA blocks, we start producing
                     // empty blocks at ~2 second rate, 1 L2 block per respective missed DA block
@@ -934,7 +948,7 @@ where
 
     debug!(
         "Sequencer: last finalized height: {:?}",
-        last_finalized_block.header().height()
+        last_finalized_height
     );
 
     let prev_l1_height = match ledger_db.get_head_soft_batch() {

@@ -91,6 +91,7 @@ proptest = { workspace = true }
 reqwest = { workspace = true }
 tokio = { workspace = true }
 
+tracing-subscriber = { version = "0.3.17", features = ["fmt"] }
 ethereum-types = { workspace = true }
 ethers-core = { workspace = true }
 ethers-contract = { workspace = true }

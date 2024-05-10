@@ -1116,6 +1116,20 @@ async fn test_soft_confirmations_status_two_l1() -> Result<(), anyhow::Error> {
 
 #[tokio::test]
 async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
+    use std::env;
+
+    use tracing_subscriber::prelude::*;
+    use tracing_subscriber::{fmt, EnvFilter};
+    tracing_subscriber::registry()
+        .with(fmt::layer())
+        .with(
+            EnvFilter::from_str(
+                &env::var("RUST_LOG")
+                    .unwrap_or_else(|_| "debug,hyper=info,risc0_zkvm=info".to_string()),
+            )
+            .unwrap(),
+        )
+        .init();
     // citrea::initialize_logging();
     let da_service = MockDaService::new(MockAddress::default());
 
@@ -1185,35 +1199,40 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
 
     // sequencer commitment should be sent
     da_service.publish_test_block().await.unwrap();
+    sleep(Duration::from_secs(2)).await;
+
     // start l1 height = 1, end = 2
     seq_test_client.send_publish_batch_request().await;
 
     // wait for prover to sync
-    sleep(Duration::from_secs(5)).await;
+    sleep(Duration::from_secs(2)).await;
 
     // prover should have synced all 4 l2 blocks
+    wait_until_eth_block_number(&prover_node_test_client, 4).await;
     assert_eq!(prover_node_test_client.eth_block_number().await, 4);
 
     seq_test_client.send_publish_batch_request().await;
-
-    sleep(Duration::from_secs(3)).await;
 
     // Still should have 4 blocks there are no commitments yet
+    wait_until_eth_block_number(&prover_node_test_client, 4).await;
     assert_eq!(prover_node_test_client.eth_block_number().await, 4);
 
     seq_test_client.send_publish_batch_request().await;
     seq_test_client.send_publish_batch_request().await;
-    sleep(Duration::from_secs(3)).await;
+
     // Still should have 4 blocks there are no commitments yet
+    wait_until_eth_block_number(&prover_node_test_client, 4).await;
     assert_eq!(prover_node_test_client.eth_block_number().await, 4);
+
     da_service.publish_test_block().await.unwrap();
+    sleep(Duration::from_secs(2)).await;
 
     // Commitment is sent right before the 9th block is published
     seq_test_client.send_publish_batch_request().await;
 
     // Wait for prover to sync
-    sleep(Duration::from_secs(5)).await;
     // Should now have 8 blocks = 2 commitments of blocks 1-4 and 5-8
+    assert_eq!(prover_node_test_client.eth_block_number().await, 8);
     assert_eq!(prover_node_test_client.eth_block_number().await, 8);
 
     // TODO: Also test with multiple commitments in single Mock DA Block
@@ -2096,4 +2115,16 @@ async fn sequencer_crash_restore_mempool() -> Result<(), anyhow::Error> {
     let _ = fs::remove_dir_all(Path::new("demo_data_sequencer_restore_mempool_copy"));
 
     Ok(())
+}
+
+async fn wait_until_eth_block_number(
+    prover_node_test_client: &TestClient,
+    target_block_number: u64,
+) {
+    loop {
+        if prover_node_test_client.eth_block_number().await == target_block_number {
+            break;
+        }
+        sleep(Duration::from_secs(1)).await;
+    }
 }

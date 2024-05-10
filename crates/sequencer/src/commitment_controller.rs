@@ -50,11 +50,13 @@ pub fn get_commitment_info(
             let Some((l2_start_height, _)) =
                 ledger_db.get_l2_range_by_l1_height(SlotNumber(l1_height_range.0))?
             else {
+                println!("1");
                 bail!("Sequencer: Failed to get L1 L2 connection");
             };
             let Some((_, l2_end_height)) =
                 ledger_db.get_l2_range_by_l1_height(SlotNumber(prev_l1_height))?
             else {
+                println!("2");
                 bail!("Sequencer: Failed to get L1 L2 connection");
             };
 
@@ -73,6 +75,7 @@ pub fn get_commitment_info(
             let Some((_, last_soft_confirmation_height)) =
                 ledger_db.get_l2_range_by_l1_height(SlotNumber(prev_l1_height))?
             else {
+                println!("3");
                 bail!("Sequencer: Failed to get L1 L2 connection");
             };
 
@@ -85,6 +88,11 @@ pub fn get_commitment_info(
     debug!("L2 range to submit: {:?}", l2_range_to_submit);
     debug!("L1 height range: {:?}", l1_height_range);
 
+    println!("Param 1: {}", l2_range_to_submit.1 .0 + 1);
+    println!(
+        "Param 2: {}",
+        min_soft_confirmations_per_commitment + l2_range_to_submit.0 .0
+    );
     if (l2_range_to_submit.1 .0 + 1)
         < min_soft_confirmations_per_commitment + l2_range_to_submit.0 .0
     {
