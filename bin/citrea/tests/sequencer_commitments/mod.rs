@@ -259,3 +259,109 @@ async fn check_commitment_in_offchain_db() {
 
     seq_task.abort();
 }
+
+#[tokio::test]
+async fn test_ledger_get_commitments_on_slot() {
+    // citrea::initialize_logging();
+
+    let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
+
+    let seq_task = tokio::spawn(async {
+        start_rollup(
+            seq_port_tx,
+            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
+            BasicKernelGenesisPaths {
+                chain_state:
+                    "../test-data/genesis/integration-tests-low-limiting-number/chain_state.json"
+                        .into(),
+            },
+            RollupProverConfig::Execute,
+            NodeMode::SequencerNode,
+            None,
+            4,
+            true,
+            None,
+            None,
+            Some(true),
+            DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
+        )
+        .await;
+    });
+
+    let seq_port = seq_port_rx.await.unwrap();
+    let test_client = make_test_client(seq_port).await;
+    let da_service = MockDaService::new(MockAddress::from([0; 32]));
+
+    let (full_node_port_tx, full_node_port_rx) = tokio::sync::oneshot::channel();
+
+    let full_node_task = tokio::spawn(async move {
+        start_rollup(
+            full_node_port_tx,
+            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
+            BasicKernelGenesisPaths {
+                chain_state:
+                    "../test-data/genesis/integration-tests-low-limiting-number/chain_state.json"
+                        .into(),
+            },
+            RollupProverConfig::Execute,
+            NodeMode::FullNode(seq_port),
+            None,
+            4,
+            true,
+            None,
+            None,
+            Some(true),
+            DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
+        )
+        .await;
+    });
+
+    let full_node_port = full_node_port_rx.await.unwrap();
+
+    let full_node_test_client = make_test_client(full_node_port).await;
+    da_service.publish_test_block().await.unwrap();
+    sleep(Duration::from_secs(1)).await;
+
+    test_client.send_publish_batch_request().await;
+    test_client.send_publish_batch_request().await;
+    test_client.send_publish_batch_request().await;
+    test_client.send_publish_batch_request().await;
+    da_service.publish_test_block().await.unwrap();
+    // submits with new da block
+    test_client.send_publish_batch_request().await;
+    // full node gets the commitment
+    test_client.send_publish_batch_request().await;
+    // da_service.publish_test_block().await.unwrap();
+    sleep(Duration::from_secs(4)).await;
+
+    let commitments = full_node_test_client
+        .ledger_get_sequencer_commitments_on_slot_by_number(4)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(commitments.len(), 1);
+
+    let second_hash = da_service.get_block_at(2).await.unwrap().header.hash;
+    assert_eq!(
+        commitments[0].l1_start_block_hash.to_vec(),
+        second_hash.0.to_vec()
+    );
+    assert_eq!(
+        commitments[0].l1_end_block_hash.to_vec(),
+        second_hash.0.to_vec()
+    );
+
+    assert_eq!(commitments[0].found_in_l1, 4);
+
+    let fourth_block_hash = da_service.get_block_at(4).await.unwrap().header.hash;
+
+    let commitments_hash = full_node_test_client
+        .ledger_get_sequencer_commitments_on_slot_by_hash(fourth_block_hash.0)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(commitments_hash, commitments);
+
+    seq_task.abort();
+    full_node_task.abort();
+}

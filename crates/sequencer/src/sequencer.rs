@@ -788,6 +788,7 @@ where
                             commitment_info.l1_height_range.end().0,
                         ))
                         .expect("Sequencer: Failed to set last sequencer commitment L1 height");
+
                     warn!("Commitment info: {:?}", commitment_info);
                     if let Some(db_config) = db_config {
                         match PostgresConnector::new(db_config).await {

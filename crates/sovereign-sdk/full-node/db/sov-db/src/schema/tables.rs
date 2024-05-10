@@ -29,6 +29,7 @@ use borsh::{maybestd, BorshDeserialize, BorshSerialize};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use jmt::storage::{NibblePath, Node, NodeKey};
 use jmt::Version;
+use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::stf::{Event, EventKey};
 use sov_schema_db::schema::{KeyDecoder, KeyEncoder, ValueCodec};
 use sov_schema_db::{CodecError, SeekKeyEncoder};
@@ -62,6 +63,7 @@ pub const LEDGER_TABLES: &[&str] = &[
     TxByNumber::table_name(),
     EventByKey::table_name(),
     EventByNumber::table_name(),
+    CommitmentsByNumber::table_name(),
 ];
 
 /// A list of all tables used by the NativeDB. These tables store
@@ -221,6 +223,11 @@ define_table_with_seek_key_codec!(
 define_table_with_default_codec!(
     /// A "secondary index" for slot data by hash
     (SlotByHash) DbHash => SlotNumber
+);
+
+define_table_with_default_codec!(
+    /// The primary source for sequencer commitment data
+    (CommitmentsByNumber) SlotNumber => Vec<SequencerCommitment>
 );
 
 define_table_with_seek_key_codec!(
