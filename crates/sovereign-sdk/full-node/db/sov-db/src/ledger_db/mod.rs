@@ -2,8 +2,7 @@ use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 use serde::Serialize;
-use sov_rollup_interface::da::DaSpec;
-use sov_rollup_interface::da::SequencerCommitment;
+use sov_rollup_interface::da::{DaSpec, SequencerCommitment};
 use sov_rollup_interface::services::da::SlotData;
 use sov_rollup_interface::stf::{BatchReceipt, Event, SoftBatchReceipt};
 use sov_schema_db::{Schema, SchemaBatch, SeekKeyEncoder, DB};
@@ -534,7 +533,7 @@ impl LedgerDB {
         match commitments {
             // If there were other commitments, upsert
             Some(mut commitments) => {
-                commitments.push(commitment.into());
+                commitments.push(commitment);
                 self.db
                     .put::<CommitmentsByNumber>(&SlotNumber(height), &commitments)
             }

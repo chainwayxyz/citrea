@@ -562,8 +562,6 @@ where
             return Err(anyhow::anyhow!("Sequencer Client is not initialized"));
         };
 
-        let mut seen_block_headers: VecDeque<<Da::Spec as DaSpec>::BlockHeader> = VecDeque::new();
-        let mut seen_receipts: VecDeque<_> = VecDeque::new();
         let mut height = self.start_height;
         info!("Starting to sync from height {}", height);
 
@@ -624,28 +622,6 @@ where
                 )
                 .unwrap();
 
-            // TODO: when legit blocks are implemented use below to
-            // check for reorgs
-            // Checking if reorg happened or not.
-            // if let Some(prev_block_header) = seen_block_headers.back() {
-            //     if prev_block_header.hash() != filtered_block.header().prev_hash() {
-            //         tracing::warn!("Block at height={} does not belong in current chain. Chain has forked. Traversing backwards", height);
-            //         while let Some(seen_block_header) = seen_block_headers.pop_back() {
-            //             seen_receipts.pop_back();
-            //             let block = self
-            //                 .da_service
-            //                 .get_block_at(seen_block_header.height())
-            //                 .await?;
-            //             if block.header().prev_hash() == seen_block_header.prev_hash() {
-            //                 height = seen_block_header.height();
-            //                 filtered_block = block;
-            //                 break;
-            //             }
-            //         }
-            //         tracing::info!("Resuming execution on height={}", height);
-            //     }
-            // }
-
             // Merkle root hash - L1 start height - L1 end height
             // TODO: How to confirm this is what we submit - use?
             // TODO: Add support for multiple commitments in a single block
@@ -689,13 +665,6 @@ where
             }
 
             for sequencer_commitment in sequencer_commitments.iter() {
-                self.ledger_db
-                    .update_commitments_on_da_slot(
-                        soft_batch.da_slot_height,
-                        sequencer_commitment.clone(),
-                    )
-                    .unwrap();
-
                 let start_l1_height = self
                     .da_service
                     .get_block_by_hash(sequencer_commitment.l1_start_block_hash)
@@ -759,20 +728,26 @@ where
                         ),
                         hex::encode(sequencer_commitment.merkle_root)
                     );
-                }
-
-                for i in start_l1_height..=end_l1_height {
+                } else {
                     self.ledger_db
-                        .put_soft_confirmation_status(
-                            SlotNumber(i),
-                            SoftConfirmationStatus::Finalized,
+                        .update_commitments_on_da_slot(
+                            soft_batch.da_slot_height,
+                            sequencer_commitment.clone(),
                         )
-                        .unwrap_or_else(|_| {
-                            panic!(
-                                "Failed to put soft confirmation status in the ledger db {}",
-                                i
+                        .unwrap();
+                    for i in start_l1_height..=end_l1_height {
+                        self.ledger_db
+                            .put_soft_confirmation_status(
+                                SlotNumber(i),
+                                SoftConfirmationStatus::Finalized,
                             )
-                        });
+                            .unwrap_or_else(|_| {
+                                panic!(
+                                    "Failed to put soft confirmation status in the ledger db {}",
+                                    i
+                                )
+                            });
+                    }
                 }
             }
 
@@ -802,57 +777,8 @@ where
                 data_to_commit.add_batch(receipt);
             }
 
-            // let (inclusion_proof, completeness_proof) = self
-            //     .da_service
-            //     .get_extraction_proof(&filtered_block, vec_blobs.as_slice())
-            //     .await;
-
-            // let _transition_data: StateTransitionData<Stf::StateRoot, Stf::Witness, Da::Spec> =
-            //     StateTransitionData {
-            //         // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1247): incorrect pre-state root in case of re-org
-            //         initial_state_root: self.state_root.clone(),
-            //         final_state_root: slot_result.state_root.clone(),
-            //         da_block_header: filtered_block.header().clone(),
-            //         inclusion_proof,
-            //         completeness_proof,
-            //         blobs: vec_blobs,
-            //         state_transition_witness: slot_result.witness,
-            //     };
-
             self.storage_manager
                 .save_change_set_l2(height, slot_result.change_set)?;
-
-            // ----------------
-            // Create ZK proof.
-            // {
-            //     let header_hash = transition_data.da_block_header.hash();
-            //     self.prover_service.submit_witness(transition_data).await;
-            //     // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1185):
-            //     //   This section will be moved and called upon block finalization once we have fork management ready.
-            //     self.prover_service
-            //         .prove(header_hash.clone())
-            //         .await
-            //         .expect("The proof creation should succeed");
-
-            //     loop {
-            //         let status = self
-            //             .prover_service
-            //             .send_proof_to_da(header_hash.clone())
-            //             .await;
-
-            //         match status {
-            //             Ok(ProofSubmissionStatus::Success) => {
-            //                 break;
-            //             }
-            //             // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1185): Add timeout handling.
-            //             Ok(ProofSubmissionStatus::ProofGenerationInProgress) => {
-            //                 tokio::time::sleep(tokio::time::Duration::from_millis(100)).await
-            //             }
-            //             // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1185): Add handling for DA submission errors.
-            //             Err(e) => panic!("{:?}", e),
-            //         }
-            //     }
-            // }
 
             let batch_receipt = data_to_commit.batch_receipts()[0].clone();
 
@@ -887,46 +813,12 @@ where
             )?;
 
             self.state_root = next_state_root;
-            seen_receipts.push_back(data_to_commit);
-            seen_block_headers.push_back(filtered_block.header().clone());
 
             info!(
                 "New State Root after soft confirmation #{} is: {:?}",
                 height, self.state_root
             );
 
-            // ----------------
-            // Finalization. Done after seen block for proper handling of instant finality
-            // Can be moved to another thread to improve throughput
-            let last_finalized = self.da_service.get_last_finalized_block_header().await?;
-            // For safety we finalize blocks one by one
-            tracing::info!(
-                "Last finalized header height is {}, ",
-                last_finalized.height()
-            );
-            // Checking all seen blocks, in case if there was delay in getting last finalized header.
-            // while let Some(earliest_seen_header) = seen_block_headers.front() {
-            //     tracing::debug!(
-            //         "Checking seen header height={}",
-            //         earliest_seen_header.height()
-            //     );
-            //     if earliest_seen_header.height() <= last_finalized.height() {
-            //         tracing::debug!(
-            //             "Finalizing seen header height={}",
-            //             earliest_seen_header.height()
-            //         );
-
-            //         continue;
-            //     }
-
-            //     break;
-            // }
-            // self.storage_manager.finalize(earliest_seen_header)?;
-            seen_block_headers.pop_front();
-            let receipts = seen_receipts
-                .pop_front()
-                .ok_or(anyhow!("No seen receipts exist"))?;
-            // self.ledger_db.commit_slot(receipts)?;
             self.storage_manager.finalize_l2(height)?;
 
             height += 1;

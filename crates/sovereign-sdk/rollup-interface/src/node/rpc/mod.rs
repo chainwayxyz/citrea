@@ -218,7 +218,7 @@ pub struct SoftBatchResponse {
 
 /// The response to a JSON-RPC request for sequencer commitments on a DA Slot.
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-pub struct SequencerCommitmentInfo {
+pub struct SequencerCommitmentResponse {
     /// Hex encoded Merkle root of soft confirmation hashes
     pub merkle_root: String,
     /// Hex encoded Start L1 block's hash
@@ -227,7 +227,7 @@ pub struct SequencerCommitmentInfo {
     pub l1_end_block_hash: String,
 }
 
-impl From<SequencerCommitment> for SequencerCommitmentInfo {
+impl From<SequencerCommitment> for SequencerCommitmentResponse {
     fn from(value: SequencerCommitment) -> Self {
         Self {
             merkle_root: hex::encode(value.merkle_root),
@@ -447,7 +447,7 @@ pub trait LedgerRpcProvider {
     fn get_sequencer_commitments_on_slot_by_number(
         &self,
         height: u64,
-    ) -> Result<Option<Vec<SequencerCommitmentInfo>>, anyhow::Error>;
+    ) -> Result<Option<Vec<SequencerCommitmentResponse>>, anyhow::Error>;
 
     /// Get a notification each time a slot is processed
     fn subscribe_slots(&self) -> Result<tokio::sync::broadcast::Receiver<u64>, anyhow::Error>;

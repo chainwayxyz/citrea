@@ -1,7 +1,7 @@
 use serde::de::DeserializeOwned;
 use sov_rollup_interface::rpc::{
     BatchIdAndOffset, BatchIdentifier, BatchResponse, EventIdentifier, ItemOrHash,
-    LedgerRpcProvider, QueryMode, SequencerCommitmentInfo, SlotIdAndOffset, SlotIdentifier,
+    LedgerRpcProvider, QueryMode, SequencerCommitmentResponse, SlotIdAndOffset, SlotIdentifier,
     SlotResponse, SoftBatchIdentifier, SoftBatchResponse, TxIdAndOffset, TxIdentifier, TxResponse,
 };
 use sov_rollup_interface::stf::Event;
@@ -371,12 +371,12 @@ impl LedgerRpcProvider for LedgerDB {
     fn get_sequencer_commitments_on_slot_by_number(
         &self,
         height: u64,
-    ) -> Result<Option<Vec<SequencerCommitmentInfo>>, anyhow::Error> {
+    ) -> Result<Option<Vec<SequencerCommitmentResponse>>, anyhow::Error> {
         match self.db.get::<CommitmentsByNumber>(&SlotNumber(height))? {
             Some(commitments) => Ok(Some(
                 commitments
                     .into_iter()
-                    .map(SequencerCommitmentInfo::from)
+                    .map(SequencerCommitmentResponse::from)
                     .collect(),
             )),
             None => Ok(None),

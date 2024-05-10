@@ -1035,7 +1035,7 @@ async fn test_soft_confirmations_status_one_l1() -> Result<(), anyhow::Error> {
 
 #[tokio::test]
 async fn test_soft_confirmations_status_two_l1() -> Result<(), anyhow::Error> {
-    // citrea::initialize_logging();
+    citrea::initialize_logging();
 
     let da_service = MockDaService::new(MockAddress::default());
 
@@ -1072,8 +1072,8 @@ async fn test_soft_confirmations_status_two_l1() -> Result<(), anyhow::Error> {
 
     // publish new da block
     da_service.publish_test_block().await.unwrap();
-    seq_test_client.send_publish_batch_request().await; // TODO https://github.com/chainwayxyz/citrea/issues/214
-    seq_test_client.send_publish_batch_request().await; // TODO https://github.com/chainwayxyz/citrea/issues/214
+    seq_test_client.send_publish_batch_request().await;
+    seq_test_client.send_publish_batch_request().await;
 
     sleep(Duration::from_secs(2)).await;
 
