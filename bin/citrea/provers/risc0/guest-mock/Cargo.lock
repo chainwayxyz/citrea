@@ -3649,11 +3649,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "borsh",
- "clap",
- "jsonrpsee",
- "schemars",
  "serde",
- "serde_json",
  "sov-modules-api",
  "sov-state",
  "thiserror",
@@ -3692,7 +3688,9 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "borsh",
+ "jsonrpsee",
  "serde",
+ "serde_json",
  "sov-modules-api",
  "sov-state",
 ]

@@ -27,5 +27,5 @@ sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-man
 
 
 [features]
-default = []
+default = ["native"]
 native = ["serde_json", "jsonrpsee", "sov-state/native", "sov-modules-api/native"]
