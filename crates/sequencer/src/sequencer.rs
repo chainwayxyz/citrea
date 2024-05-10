@@ -467,7 +467,7 @@ where
         }
 
         // Initialize our knowledge of the state of the DA-layer
-        let (mut prev_l1_height, mut last_finalized_block, mut l1_fee_rate) =
+        let (mut last_used_l1_height, mut last_finalized_block, mut l1_fee_rate) =
             match get_da_block_data(self.da_service.clone(), self.ledger_db.clone()).await {
                 Ok(l1_data) => l1_data,
                 Err(e) => {
@@ -478,12 +478,12 @@ where
         let mut last_finalized_height = last_finalized_block.header().height();
 
         // Based on the above initialization, decide whether we should submit a commitment to DA.
-        if let Err(e) = self
-            .submit_commitment(last_finalized_height, prev_l1_height)
-            .await
-        {
-            error!("Sequencer error: {}", e);
-        }
+        // if let Err(e) = self
+        //     .submit_commitment(last_finalized_height, last_used_l1_height)
+        //     .await
+        // {
+        //     error!("Sequencer error: {}", e);
+        // }
 
         // Setup required workers to update our knowledge of the DA layer every 2 seconds.
         let (da_tx, mut da_rx) = mpsc::channel(1);
@@ -514,12 +514,12 @@ where
                         continue;
                     }
                     if let Some(l1_data) = l1_data {
-                        (prev_l1_height, last_finalized_block, l1_fee_rate) = l1_data;
+                        (last_used_l1_height, last_finalized_block, l1_fee_rate) = l1_data;
                         last_finalized_height = last_finalized_block.header().height();
 
-                        if last_finalized_block.header().height() > prev_l1_height {
-                            let skipped_blocks = last_finalized_height - prev_l1_height - 1;
-                            if skipped_blocks >= 1 {
+                        if last_finalized_block.header().height() > last_used_l1_height {
+                            let skipped_blocks = last_finalized_height - last_used_l1_height - 1;
+                            if skipped_blocks > 0 {
                                 // This shouldn't happen. If it does, then we should produce at least 1 block for the blocks in between
                                 warn!(
                                     "Sequencer is falling behind on L1 blocks by {:?} blocks",
@@ -531,7 +531,7 @@ where
                             }
                         }
 
-                        if let Err(e) = self.submit_commitment(last_finalized_height, prev_l1_height).await {
+                        if let Err(e) = self.submit_commitment(last_finalized_height, last_used_l1_height).await {
                             error!("Sequencer error: {}", e);
                         }
                     }
@@ -541,8 +541,8 @@ where
                 // that evey though we check the receiver here, it'll never be "ready" to be consumed unless in test mode.
                 _ = self.l2_force_block_rx.next(), if self.config.test_mode => {
                     if missed_da_blocks_count > 0 {
-                        for i in missed_da_blocks_count..0 {
-                            let needed_da_block_height = prev_l1_height + (last_finalized_height - prev_l1_height - i);
+                        for i in 1..=missed_da_blocks_count {
+                            let needed_da_block_height = last_used_l1_height + i;
                             let da_block = self
                                 .da_service
                                 .get_block_at(needed_da_block_height)
@@ -570,12 +570,19 @@ where
 
                     if missed_da_blocks_count > 0 {
                         l2_block_mode = L2BlockMode::Empty;
-                        let needed_da_block_height = prev_l1_height + (last_finalized_height - prev_l1_height - missed_da_blocks_count);
-                        da_block = self
-                            .da_service
-                            .get_block_at(needed_da_block_height)
-                            .await
-                            .map_err(|e| anyhow!(e))?;
+                        for i in 1..=missed_da_blocks_count {
+                            let needed_da_block_height = last_used_l1_height + i;
+                            let da_block = self
+                                .da_service
+                                .get_block_at(needed_da_block_height)
+                                .await
+                                .map_err(|e| anyhow!(e))?;
+
+                            if let Err(e) = self.produce_l2_block(da_block, l1_fee_rate, L2BlockMode::Empty, &None).await {
+                                error!("Sequencer error: {}", e);
+                            }
+                        }
+                        missed_da_blocks_count = 0;
                     }
 
                     let instant = Instant::now();
@@ -833,26 +840,26 @@ where
     async fn submit_commitment(
         &self,
         last_finalized_height: u64,
-        prev_l1_height: u64,
+        last_used_l1_height: u64,
     ) -> anyhow::Result<()> {
-        let new_da_block = match last_finalized_height.cmp(&prev_l1_height) {
+        let commit_up_to = match last_finalized_height.cmp(&last_used_l1_height) {
             Ordering::Less => {
-                panic!("DA L1 height is less than Ledger finalized height. DA L1 height: {}, Finalized height: {}", last_finalized_height, prev_l1_height);
+                panic!("DA L1 height is less than Ledger finalized height. DA L1 height: {}, Finalized height: {}", last_finalized_height, last_used_l1_height);
             }
             Ordering::Equal => None,
             Ordering::Greater => {
-                let prev_l1_height = last_finalized_height - 1;
-                Some(prev_l1_height)
+                let commit_up_to = last_finalized_height - 1;
+                Some(commit_up_to)
             }
         };
 
-        if let Some(prev_l1_height) = new_da_block {
+        if let Some(commit_up_to) = commit_up_to {
             debug!("Sequencer: new L1 block, checking if commitment should be submitted");
 
             let commitment_info = commitment_controller::get_commitment_info(
                 &self.ledger_db,
                 self.config.min_soft_confirmations_per_commitment,
-                prev_l1_height,
+                commit_up_to,
             )?;
 
             if let Some(commitment_info) = commitment_info {
@@ -951,15 +958,15 @@ where
         last_finalized_height
     );
 
-    let prev_l1_height = match ledger_db.get_head_soft_batch() {
+    let last_used_l1_height = match ledger_db.get_head_soft_batch() {
         Ok(Some((_, sb))) => sb.da_slot_height,
-        Ok(None) => last_finalized_height,
+        Ok(None) => last_finalized_height, // starting for the first time
         Err(e) => {
             return Err(anyhow!("previous L1 height: {}", e));
         }
     };
 
-    debug!("Sequencer: prev L1 height: {:?}", prev_l1_height);
+    debug!("Sequencer: prev L1 height: {:?}", last_used_l1_height);
 
     let l1_fee_rate = match da_service.get_fee_rate().await {
         Ok(fee_rate) => fee_rate,
@@ -968,5 +975,5 @@ where
         }
     };
 
-    Ok((prev_l1_height, last_finalized_block, l1_fee_rate))
+    Ok((last_used_l1_height, last_finalized_block, l1_fee_rate))
 }

@@ -11,7 +11,7 @@ use crate::{DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_MIN_SOFT_CONFIRMATIONS_
 /// Transaction with equal nonce to last tx should not be accepted by mempool.
 #[tokio::test]
 async fn too_many_l2_block_per_l1_block() {
-    // citrea::initialize_logging();
+    citrea::initialize_logging();
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
@@ -49,7 +49,7 @@ async fn too_many_l2_block_per_l1_block() {
 
     // create 2*limiting_number + 1 blocks so it has to give error
     for idx in 0..2 * limiting_number + 1 {
-        test_client.spam_publish_batch_request().await.unwrap();
+        test_client.send_publish_batch_request().await;
         if idx >= limiting_number {
             // There should not be any more blocks published from this point
             // because the limiting number is reached
@@ -61,7 +61,7 @@ async fn too_many_l2_block_per_l1_block() {
     da_service.publish_test_block().await.unwrap();
 
     for idx in 0..2 * limiting_number + 1 {
-        test_client.spam_publish_batch_request().await.unwrap();
+        test_client.send_publish_batch_request().await;
         if idx < limiting_number {
             assert_eq!(test_client.eth_block_number().await, last_block_number + 1);
         }
