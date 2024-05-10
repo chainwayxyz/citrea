@@ -317,7 +317,7 @@ where
 
             da_data.into_iter().for_each(|da_data| match da_data {
                 Ok(DaData::SequencerCommitment(seq_com)) => sequencer_commitments.push(seq_com),
-                Ok(DaData::ZKProof(batch_proof)) => zk_proofs.push(batch_proof),
+                Ok(DaData::ZKProof(proof)) => zk_proofs.push(proof),
                 _ => {}
             });
 
@@ -631,7 +631,7 @@ where
                 // TODO: Add support for multiple commitments in a single block
 
                 let mut sequencer_commitments = Vec::<SequencerCommitment>::new();
-                let mut zk_proofs = Vec::<BatchProof>::new();
+                let mut zk_proofs = Vec::<Proof>::new();
 
                 self.da_service
                     .extract_relevant_blobs(&filtered_block)

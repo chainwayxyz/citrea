@@ -214,11 +214,11 @@ where
 
     async fn produce_l2_block(
         &mut self,
-        last_used_l1_height: &mut u64,
         da_block: <Da as DaService>::FilteredBlock,
         l1_fee_rate: u64,
         l2_block_mode: L2BlockMode,
         pg_pool: &Option<PostgresConnector>,
+        last_used_l1_height: &mut u64,
     ) -> anyhow::Result<()> {
         let da_height = da_block.header().height();
         let (l2_height, l1_height) = match self
@@ -482,7 +482,7 @@ where
             };
         let mut last_finalized_height = last_finalized_block.header().height();
 
-        let last_used_l1_height = match ledger_db.get_head_soft_batch() {
+        let mut last_used_l1_height = match self.ledger_db.get_head_soft_batch() {
             Ok(Some((_, sb))) => sb.da_slot_height,
             Ok(None) => last_finalized_height, // starting for the first time
             Err(e) => {
@@ -534,7 +534,7 @@ where
                         continue;
                     }
                     if let Some(l1_data) = l1_data {
-                        (last_used_l1_height, last_finalized_block, l1_fee_rate) = l1_data;
+                        (last_finalized_block, l1_fee_rate) = l1_data;
                         last_finalized_height = last_finalized_block.header().height();
 
                         if last_finalized_block.header().height() > last_used_l1_height {
@@ -562,7 +562,7 @@ where
                 _ = self.l2_force_block_rx.next(), if self.config.test_mode => {
                     if missed_da_blocks_count > 0 {
                         for i in 1..=missed_da_blocks_count {
-                            let needed_da_block_height = last_used_l1_height + i;
+                            let needed_da_block_height = last_used_l1_height + 1;
                             let da_block = self
                                 .da_service
                                 .get_block_at(needed_da_block_height)
@@ -592,14 +592,14 @@ where
                     if missed_da_blocks_count > 0 {
                         l2_block_mode = L2BlockMode::Empty;
                         for i in 1..=missed_da_blocks_count {
-                            let needed_da_block_height = last_used_l1_height + i;
+                            let needed_da_block_height = last_used_l1_height + 1;
                             let da_block = self
                                 .da_service
                                 .get_block_at(needed_da_block_height)
                                 .await
                                 .map_err(|e| anyhow!(e))?;
 
-                            if let Err(e) = self.produce_l2_block(da_block, l1_fee_rate, L2BlockMode::Empty, &pg_pool, &mut last_l1_height).await {
+                            if let Err(e) = self.produce_l2_block(da_block, l1_fee_rate, L2BlockMode::Empty, &pg_pool, &mut last_used_l1_height).await {
                                 error!("Sequencer error: {}", e);
                             }
                         }
@@ -990,5 +990,5 @@ where
         }
     };
 
-    Ok((last_finalized_block, l1_fee_rates))
+    Ok((last_finalized_block, l1_fee_rate))
 }
