@@ -2904,7 +2904,6 @@ dependencies = [
  "sov-modules-api",
  "sov-modules-stf-blueprint",
  "sov-rollup-interface",
- "tracing",
 ]
 
 [[package]]
