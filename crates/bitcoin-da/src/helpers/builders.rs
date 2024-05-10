@@ -132,7 +132,7 @@ fn build_commit_transaction(
     fee_rate: f64,
 ) -> Result<Transaction, anyhow::Error> {
     // get single input single output transaction size
-    let mut size = get_size(
+    let size = get_size(
         &[TxIn {
             previous_output: OutPoint {
                 txid: Txid::from_str(
@@ -194,9 +194,18 @@ fn build_commit_transaction(
             })
             .collect();
 
-        size = get_size(&inputs, &outputs, None, None);
+        if direct_return {
+            break Transaction {
+                lock_time: LockTime::ZERO,
+                version: bitcoin::transaction::Version(2),
+                input: inputs,
+                output: outputs,
+            };
+        }
 
-        if size == last_size || direct_return {
+        let size = get_size(&inputs, &outputs, None, None);
+
+        if size == last_size {
             break Transaction {
                 lock_time: LockTime::ZERO,
                 version: bitcoin::transaction::Version(2),
