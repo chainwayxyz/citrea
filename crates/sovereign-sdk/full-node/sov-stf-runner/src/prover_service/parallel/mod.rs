@@ -180,7 +180,7 @@ where
                 }
                 ProverStatus::ProvingInProgress => {
                     tracing::info!("Proof generation is in progress");
-                    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
                 }
                 _ => {
                     // function will not return any other type of status
