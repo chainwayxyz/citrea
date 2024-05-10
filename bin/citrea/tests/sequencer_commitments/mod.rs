@@ -18,7 +18,7 @@ use crate::test_client::TestClient;
 use crate::test_helpers::{create_default_sequencer_config, start_rollup, NodeMode};
 use crate::DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT;
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn sequencer_sends_commitments_to_da_layer() {
     // citrea::initialize_logging();
 

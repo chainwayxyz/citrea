@@ -15,7 +15,7 @@ use crate::test_client::TestClient;
 use crate::test_helpers::{start_rollup, NodeMode};
 use crate::{DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT};
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_gas_price_increase() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging();
 
