@@ -142,14 +142,11 @@ where
 
         match prover_status {
             ProverStatus::WitnessSubmitted(state_transition_data) => {
-                tracing::info!("here");
                 let start_prover = prover_state.inc_task_count_if_not_busy(self.num_threads);
-                tracing::info!(start_prover);
                 // Initiate a new proving job only if the prover is not busy.
                 if start_prover {
                     prover_state.set_to_proving(block_header_hash.clone());
                     vm.add_hint(state_transition_data);
-                    tracing::info!("added hint");
                     self.pool.spawn(move || {
                         tracing::info_span!("guest_execution").in_scope(|| {
                             tracing::info!("Starting proving");

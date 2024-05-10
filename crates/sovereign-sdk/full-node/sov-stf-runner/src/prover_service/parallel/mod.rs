@@ -136,8 +136,6 @@ where
     ) -> WitnessSubmissionStatus {
         let status = self.prover_state.submit_witness(state_transition_data);
 
-        tracing::info!("Witness submission status: {:?}", status);
-
         status
     }
 
