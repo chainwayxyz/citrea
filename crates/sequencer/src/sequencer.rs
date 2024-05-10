@@ -52,7 +52,7 @@ type StateRoot<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::StateRoot;
 /// Represents information about the current DA state.
 ///
 /// Contains previous height, latest finalized block and fee rate.
-type L1Data<Da> = (u64, <Da as DaService>::FilteredBlock, u64);
+type L1Data<Da> = (<Da as DaService>::FilteredBlock, u64);
 
 pub struct CitreaSequencer<C, Da, Sm, Vm, Stf>
 where
@@ -214,6 +214,7 @@ where
 
     async fn produce_l2_block(
         &mut self,
+        last_used_l1_height: &mut u64,
         da_block: <Da as DaService>::FilteredBlock,
         l1_fee_rate: u64,
         l2_block_mode: L2BlockMode,
@@ -423,6 +424,8 @@ where
                     SlotNumber(da_block.header().height()),
                     BatchNumber(l2_height),
                 )?;
+
+                *last_used_l1_height = da_block.header().height();
             }
             (Err(err), batch_workspace) => {
                 warn!(
@@ -469,7 +472,7 @@ where
         }
 
         // Initialize our knowledge of the state of the DA-layer
-        let (mut last_used_l1_height, mut last_finalized_block, mut l1_fee_rate) =
+        let (mut last_finalized_block, mut l1_fee_rate) =
             match get_da_block_data(self.da_service.clone(), self.ledger_db.clone()).await {
                 Ok(l1_data) => l1_data,
                 Err(e) => {
@@ -478,6 +481,16 @@ where
                 }
             };
         let mut last_finalized_height = last_finalized_block.header().height();
+
+        let last_used_l1_height = match ledger_db.get_head_soft_batch() {
+            Ok(Some((_, sb))) => sb.da_slot_height,
+            Ok(None) => last_finalized_height, // starting for the first time
+            Err(e) => {
+                return Err(anyhow!("previous L1 height: {}", e));
+            }
+        };
+
+        debug!("Sequencer: prev L1 height: {:?}", last_used_l1_height);
 
         // Based on the above initialization, decide whether we should submit a commitment to DA.
         // if let Err(e) = self
@@ -489,10 +502,15 @@ where
 
         // Setup required workers to update our knowledge of the DA layer every 2 seconds.
         let (da_tx, mut da_rx) = mpsc::channel(1);
-        let da_monitor = da_block_monitor(self.da_service.clone(), self.ledger_db.clone(), da_tx);
+        let da_monitor = da_block_monitor(
+            self.da_service.clone(),
+            self.ledger_db.clone(),
+            da_tx,
+            self.config.da_update_interval_ms,
+        );
         tokio::pin!(da_monitor);
 
-        let target_block_time = Duration::from_secs(2);
+        let target_block_time = Duration::from_millis(self.config.block_production_interval_ms);
         let mut parent_block_exec_time = Duration::from_secs(0);
 
         // In case the sequencer falls behind on DA blocks, we need to produce at least 1
@@ -551,13 +569,14 @@ where
                                 .await
                                 .map_err(|e| anyhow!(e))?;
 
-                            if let Err(e) = self.produce_l2_block(da_block, l1_fee_rate, L2BlockMode::Empty, &None).await {
+                            if let Err(e) = self.produce_l2_block(da_block, l1_fee_rate, L2BlockMode::Empty, &pg_pool, &mut last_used_l1_height).await {
                                 error!("Sequencer error: {}", e);
                             }
                         }
                         missed_da_blocks_count = 0;
                     }
-                    if let Err(e) = self.produce_l2_block(last_finalized_block.clone(), l1_fee_rate, L2BlockMode::NotEmpty, &None).await {
+
+                    if let Err(e) = self.produce_l2_block(last_finalized_block.clone(), l1_fee_rate, L2BlockMode::NotEmpty, &pg_pool, &mut last_used_l1_height).await {
                         error!("Sequencer error: {}", e);
                     }
                 },
@@ -580,7 +599,7 @@ where
                                 .await
                                 .map_err(|e| anyhow!(e))?;
 
-                            if let Err(e) = self.produce_l2_block(da_block, l1_fee_rate, L2BlockMode::Empty, &None).await {
+                            if let Err(e) = self.produce_l2_block(da_block, l1_fee_rate, L2BlockMode::Empty, &pg_pool, &mut last_l1_height).await {
                                 error!("Sequencer error: {}", e);
                             }
                         }
@@ -588,14 +607,13 @@ where
                     }
 
                     let instant = Instant::now();
-                    match self.produce_l2_block(da_block, l1_fee_rate, l2_block_mode, &pg_pool).await {
+                    match self.produce_l2_block(da_block, l1_fee_rate, l2_block_mode, &pg_pool, &mut last_used_l1_height).await {
                         Ok(_) => {
                             // Set the next iteration's wait time to produce a block based on the
                             // previous block's execution time.
                             // This is mainly to make sure we account for the execution time to
                             // achieve consistent 2-second block production.
                             parent_block_exec_time = instant.elapsed();
-                            missed_da_blocks_count = missed_da_blocks_count.saturating_sub(1);
                         },
                         Err(e) => {
                             error!("Sequencer error: {}", e);
@@ -919,8 +937,12 @@ where
     }
 }
 
-async fn da_block_monitor<Da>(da_service: Da, ledger_db: LedgerDB, sender: mpsc::Sender<L1Data<Da>>)
-where
+async fn da_block_monitor<Da>(
+    da_service: Da,
+    ledger_db: LedgerDB,
+    sender: mpsc::Sender<L1Data<Da>>,
+    loop_interval: u64,
+) where
     Da: DaService + Clone,
 {
     loop {
@@ -934,7 +956,7 @@ where
 
         let _ = sender.send(l1_data).await;
 
-        sleep(Duration::from_secs(2)).await;
+        sleep(Duration::from_millis(loop_interval)).await;
     }
 }
 
@@ -961,16 +983,6 @@ where
         last_finalized_height
     );
 
-    let last_used_l1_height = match ledger_db.get_head_soft_batch() {
-        Ok(Some((_, sb))) => sb.da_slot_height,
-        Ok(None) => last_finalized_height, // starting for the first time
-        Err(e) => {
-            return Err(anyhow!("previous L1 height: {}", e));
-        }
-    };
-
-    debug!("Sequencer: prev L1 height: {:?}", last_used_l1_height);
-
     let l1_fee_rate = match da_service.get_fee_rate().await {
         Ok(fee_rate) => fee_rate,
         Err(e) => {
@@ -978,5 +990,5 @@ where
         }
     };
 
-    Ok((last_used_l1_height, last_finalized_block, l1_fee_rate))
+    Ok((last_finalized_block, l1_fee_rates))
 }

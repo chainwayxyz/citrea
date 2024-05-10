@@ -1595,6 +1595,8 @@ async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error>
                     ..Default::default()
                 },
                 db_config: Default::default(),
+                da_update_interval_ms: 2,
+                block_production_interval_ms: 500,
             }),
             Some(true),
             DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,

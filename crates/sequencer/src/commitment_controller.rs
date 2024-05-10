@@ -91,11 +91,6 @@ pub fn get_commitment_info(
     debug!("L2 range to submit: {:?}", l2_range_to_submit);
     debug!("L1 height range: {:?}", l1_height_range);
 
-    println!("Param 1: {}", l2_range_to_submit.1 .0 + 1);
-    println!(
-        "Param 2: {}",
-        min_soft_confirmations_per_commitment + l2_range_to_submit.0 .0
-    );
     if (l2_range_to_submit.1 .0 + 1)
         < min_soft_confirmations_per_commitment + l2_range_to_submit.0 .0
     {

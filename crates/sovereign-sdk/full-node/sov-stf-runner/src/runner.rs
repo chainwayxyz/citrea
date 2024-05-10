@@ -14,14 +14,14 @@ use sov_db::schema::types::{BatchNumber, SlotNumber, StoredSoftBatch};
 use sov_modules_api::Context;
 use sov_modules_stf_blueprint::StfBlueprintTrait;
 use sov_rollup_interface::da::{
-    BatchProof, BlobReaderTrait, BlockHeaderTrait, DaData, DaSpec, SequencerCommitment,
+    BlobReaderTrait, BlockHeaderTrait, DaData, DaSpec, SequencerCommitment,
 };
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
 use sov_rollup_interface::services::da::{DaService, SlotData};
 pub use sov_rollup_interface::stf::BatchReceipt;
 use sov_rollup_interface::stf::{SoftBatchReceipt, StateTransitionFunction};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
-use sov_rollup_interface::zk::{Zkvm, ZkvmHost};
+use sov_rollup_interface::zk::{Proof, Zkvm, ZkvmHost};
 use tokio::sync::oneshot;
 use tokio::time::{sleep, Duration, Instant};
 use tracing::{debug, error, info};
@@ -313,7 +313,7 @@ where
 
             // seperate DaData into sequencer commitments and proofs
             let mut sequencer_commitments = Vec::<SequencerCommitment>::new();
-            let mut zk_proofs = Vec::<BatchProof>::new();
+            let mut zk_proofs = Vec::<Proof>::new();
 
             da_data.into_iter().for_each(|da_data| match da_data {
                 Ok(DaData::SequencerCommitment(seq_com)) => sequencer_commitments.push(seq_com),
