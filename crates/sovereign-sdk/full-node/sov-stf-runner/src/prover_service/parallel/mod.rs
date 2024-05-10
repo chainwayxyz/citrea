@@ -134,9 +134,7 @@ where
             <Self::DaService as DaService>::Spec,
         >,
     ) -> WitnessSubmissionStatus {
-        let status = self.prover_state.submit_witness(state_transition_data);
-
-        status
+        self.prover_state.submit_witness(state_transition_data)
     }
 
     async fn prove(

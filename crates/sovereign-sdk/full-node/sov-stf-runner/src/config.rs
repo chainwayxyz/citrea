@@ -87,7 +87,6 @@ impl Default for ProverConfig {
             skip_proving_until_l1_height: None,
         }
     }
-    
 }
 
 /// Reads toml file as a specific type.

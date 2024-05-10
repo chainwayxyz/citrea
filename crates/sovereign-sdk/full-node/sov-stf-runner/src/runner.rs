@@ -338,7 +338,9 @@ where
                 Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader>,
             > = VecDeque::new();
 
-            for sequencer_commitment in sequencer_commitments.into_iter() {
+            let mut traversed_l1_tuples = vec![];
+
+            for sequencer_commitment in sequencer_commitments.clone().into_iter() {
                 let mut sof_soft_confirmations_to_push = vec![];
                 let mut state_transition_witnesses_to_push = vec![];
                 let mut da_block_headers_to_push: Vec<
@@ -358,10 +360,7 @@ where
                     .await?
                     .header()
                     .height();
-                // Save commitments on prover ledger db
-                self.ledger_db
-                    .update_commitments_on_da_slot(l1_height, sequencer_commitment.clone())
-                    .unwrap();
+                traversed_l1_tuples.push((start_l1_height, end_l1_height));
 
                 // start fetching blocks from sequencer, when you see a soft batch with l1 height more than end_l1_height, stop
                 // while getting the blocks to all the same ops as full node
@@ -374,19 +373,6 @@ where
                     .await?
                 {
                     if soft_batch.da_slot_height > end_l1_height {
-                        for i in start_l1_height..=end_l1_height {
-                            self.ledger_db
-                                .put_soft_confirmation_status(
-                                    SlotNumber(i),
-                                    SoftConfirmationStatus::Finalized,
-                                )
-                                .unwrap_or_else(|_| {
-                                    panic!(
-                                "Failed to put soft confirmation status in the ledger db {}",
-                                i
-                            )
-                                });
-                        }
                         break;
                     }
 
@@ -542,6 +528,29 @@ where
                 sequencer_da_public_key: transition_data.sequencer_da_public_key,
                 validity_condition: transition_data.validity_condition.try_to_vec().unwrap(),
             };
+
+            for (sequencer_commitment, l1_heights) in
+                sequencer_commitments.into_iter().zip(traversed_l1_tuples)
+            {
+                // Save commitments on prover ledger db
+                self.ledger_db
+                    .update_commitments_on_da_slot(l1_height, sequencer_commitment.clone())
+                    .unwrap();
+
+                for i in l1_heights.0..=l1_heights.1 {
+                    self.ledger_db
+                        .put_soft_confirmation_status(
+                            SlotNumber(i),
+                            SoftConfirmationStatus::Finalized,
+                        )
+                        .unwrap_or_else(|_| {
+                            panic!(
+                                "Failed to put soft confirmation status in the ledger db {}",
+                                i
+                            )
+                        });
+                }
+            }
 
             self.ledger_db
                 .put_proof_data(l1_height, tx_id_u8, proof, stored_state_transition)?;

@@ -13,8 +13,7 @@ use sov_modules_stf_blueprint::kernels::basic::{
     BasicKernelGenesisConfig, BasicKernelGenesisPaths,
 };
 use sov_stf_runner::{
-    ProverConfig, ProverGuestRunConfig, RollupConfig, RollupPublicKeys, RpcConfig, RunnerConfig,
-    StorageConfig,
+    ProverConfig, RollupConfig, RollupPublicKeys, RpcConfig, RunnerConfig, StorageConfig,
 };
 use tokio::sync::oneshot;
 use tracing::warn;

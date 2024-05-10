@@ -441,6 +441,16 @@ async fn test_ledger_get_commitments_on_slot_prover() {
     // prover node gets the commitment
     test_client.send_publish_batch_request().await;
     // da_service.publish_test_block().await.unwrap();
+
+    // wait here until we see from prover's rpc that it finished proving
+    while prover_node_test_client
+        .prover_get_last_scanned_l1_height()
+        .await
+        != 5
+    {
+        // sleep 2
+        sleep(Duration::from_secs(2)).await;
+    }
     sleep(Duration::from_secs(4)).await;
 
     let commitments = prover_node_test_client
