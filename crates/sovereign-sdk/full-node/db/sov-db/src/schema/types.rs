@@ -5,9 +5,10 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::rpc::{
-    BatchResponse, HexTx, SoftBatchResponse, TxIdentifier, TxResponse,
+    BatchResponse, HexTx, SoftBatchResponse, StateTransitionRpcResponse, TxIdentifier, TxResponse,
 };
 use sov_rollup_interface::stf::{Event, EventKey, TransactionReceipt};
+use sov_rollup_interface::zk::{Proof, StateTransition};
 
 /// A cheaply cloneable bytes abstraction for use within the trust boundary of the node
 /// (i.e. when interfacing with the database). Serializes and deserializes more efficiently,
@@ -68,6 +69,54 @@ pub struct StoredSlot {
     pub extra_data: DbBytes,
     /// The range of batches which occurred in this slot.
     pub batches: std::ops::Range<BatchNumber>,
+}
+
+/// The on-disk format for a proof. Stores the tx id of the proof sent to da, proof data and state transition
+#[derive(Debug, PartialEq, BorshDeserialize, BorshSerialize)]
+pub struct StoredProof {
+    /// Tx id
+    pub l1_tx_id: [u8; 32],
+    /// Proof
+    pub proof: Proof,
+    /// State transition
+    pub state_transition: StoredStateTransition,
+}
+
+/// The on-disk format for a state transition.
+#[derive(Debug, PartialEq, BorshDeserialize, BorshSerialize)]
+pub struct StoredStateTransition {
+    /// The state of the rollup before the transition
+    pub initial_state_root: Vec<u8>,
+    /// The state of the rollup after the transition
+    pub final_state_root: Vec<u8>,
+    /// State diff of L2 blocks in the processed sequencer commitments.
+    pub state_diff: Vec<u8>,
+    /// The DA slot hash that the sequencer commitments causing this state transition were found in.
+    pub da_slot_hash: [u8; 32],
+    /// Sequencer public key.
+    pub sequencer_public_key: Vec<u8>,
+    /// Sequencer DA public key.
+    pub sequencer_da_public_key: Vec<u8>,
+
+    /// An additional validity condition for the state transition which needs
+    /// to be checked outside of the zkVM circuit. This typically corresponds to
+    /// some claim about the DA layer history, such as (X) is a valid block on the DA layer
+    pub validity_condition: Vec<u8>,
+}
+
+/// Convert stored transition to rpc response
+pub fn convert_to_rpc_state_transition(
+    stored_state_transition: StoredStateTransition,
+) -> StateTransitionRpcResponse {
+    StateTransitionRpcResponse {
+        initial_state_root: stored_state_transition.initial_state_root,
+        final_state_root: stored_state_transition.final_state_root,
+        state_diff: stored_state_transition.state_diff,
+        da_slot_hash: stored_state_transition.da_slot_hash,
+        sequencer_da_public_key: stored_state_transition.sequencer_da_public_key,
+        sequencer_public_key: stored_state_transition.sequencer_public_key,
+        validity_condition: stored_state_transition.validity_condition,
+    }
 }
 
 /// The on-disk format for a batch. Stores the hash and identifies the range of transactions

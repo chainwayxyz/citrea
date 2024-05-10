@@ -5,17 +5,19 @@ use serde::Serialize;
 use sov_rollup_interface::da::{DaSpec, SequencerCommitment};
 use sov_rollup_interface::services::da::SlotData;
 use sov_rollup_interface::stf::{BatchReceipt, Event, SoftBatchReceipt};
+use sov_rollup_interface::zk::Proof;
 use sov_schema_db::{Schema, SchemaBatch, SeekKeyEncoder, DB};
 
 use crate::rocks_db_config::gen_rocksdb_options;
 use crate::schema::tables::{
     BatchByHash, BatchByNumber, CommitmentsByNumber, EventByKey, EventByNumber, L2RangeByL1Height,
-    LastSequencerCommitmentSent, ProverLastScannedSlot, SlotByHash, SlotByNumber, SoftBatchByHash,
-    SoftBatchByNumber, SoftConfirmationStatus, TxByHash, TxByNumber, LEDGER_TABLES,
+    LastSequencerCommitmentSent, ProofBySlotNumber, ProverLastScannedSlot, SlotByHash,
+    SlotByNumber, SoftBatchByHash, SoftBatchByNumber, SoftConfirmationStatus, TxByHash, TxByNumber,
+    LEDGER_TABLES,
 };
 use crate::schema::types::{
     split_tx_for_storage, BatchNumber, EventNumber, L2HeightRange, SlotNumber, StoredBatch,
-    StoredSlot, StoredSoftBatch, StoredTransaction, TxNumber,
+    StoredProof, StoredSlot, StoredSoftBatch, StoredStateTransition, StoredTransaction, TxNumber,
 };
 
 mod rpc;
@@ -560,6 +562,23 @@ impl LedgerDB {
                 .db
                 .put::<CommitmentsByNumber>(&SlotNumber(height), &vec![commitment]),
         }
+    }
+
+    /// Stores proof related data on disk, accessible via l1 slot height
+    pub fn put_proof_data(
+        &self,
+        l1_height: u64,
+        l1_tx_id: [u8; 32],
+        proof: Proof,
+        state_transition: StoredStateTransition,
+    ) -> anyhow::Result<()> {
+        let data_to_store = StoredProof {
+            l1_tx_id,
+            proof,
+            state_transition,
+        };
+        self.db
+            .put::<ProofBySlotNumber>(&SlotNumber(l1_height), &data_to_store)
     }
 
     /// Sets l1 height of l1 hash

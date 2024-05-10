@@ -10,7 +10,7 @@ use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 use sequencer_client::SequencerClient;
 use sov_db::ledger_db::{LedgerDB, SlotCommit};
-use sov_db::schema::types::{BatchNumber, SlotNumber, StoredSoftBatch};
+use sov_db::schema::types::{BatchNumber, SlotNumber, StoredSoftBatch, StoredStateTransition};
 use sov_modules_api::{Context, SignedSoftConfirmationBatch};
 use sov_modules_stf_blueprint::StfBlueprintTrait;
 use sov_rollup_interface::da::{
@@ -512,6 +512,9 @@ where
                 .wait_for_proving_and_send_to_da(hash.clone(), &self.da_service)
                 .await?;
 
+            let tx_id_u8 = tx_id.into();
+
+            // l1_height => (tx_id, proof, transition_data)
             // save proof along with tx id to db, should be queriable by slot number or slot hash
             let transition_data: sov_modules_api::StateTransition<
                 <Da as DaService>::Spec,
@@ -519,6 +522,26 @@ where
             > = Vm::extract_output(&proof).expect("Proof should be deserializable");
 
             tracing::info!("transition data: {:?}", transition_data);
+
+            let stored_state_transition = StoredStateTransition {
+                initial_state_root: transition_data.initial_state_root.as_ref().to_vec(),
+                final_state_root: transition_data.final_state_root.as_ref().to_vec(),
+                state_diff: transition_data.state_diff,
+                da_slot_hash: transition_data.da_slot_hash.into(),
+                sequencer_public_key: transition_data.sequencer_public_key,
+                sequencer_da_public_key: transition_data.sequencer_da_public_key,
+                validity_condition: serde_json::to_vec(&transition_data.validity_condition)
+                    .unwrap(),
+            };
+
+            self.ledger_db
+                .put_proof_data(l1_height, tx_id_u8, proof, stored_state_transition)
+                .unwrap_or_else(|_| {
+                    panic!(
+                        "Failed to put proof data by height to ledger db {}",
+                        l1_height
+                    )
+                });
 
             self.ledger_db
                 .set_prover_last_scanned_l1_height(SlotNumber(l1_height))

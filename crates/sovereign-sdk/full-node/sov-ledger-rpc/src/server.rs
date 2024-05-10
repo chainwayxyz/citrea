@@ -195,7 +195,6 @@ where
         |params, ledger| async move {
             // Returns commitments on DA slot with given hash.
             let hash: [u8; 32] = params.one()?;
-            println!("hash:{:?}", hash);
             let height = ledger
                 .get_slot_number_by_hash(hash)
                 .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))?;
@@ -208,6 +207,14 @@ where
             }
         },
     )?;
+
+    rpc.register_async_method("ledger_getProofBySlotHeight", |params, ledger| async move {
+        // Returns proof on DA slot with given height
+        let height: u64 = params.one()?;
+        ledger
+            .get_proof_data_by_l1_height(height)
+            .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
+    })?;
 
     rpc.register_subscription(
         "ledger_subscribeSlots",

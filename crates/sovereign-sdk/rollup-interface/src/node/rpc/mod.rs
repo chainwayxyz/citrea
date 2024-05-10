@@ -12,6 +12,7 @@ use crate::maybestd::vec::Vec;
 #[cfg(feature = "native")]
 use crate::stf::Event;
 use crate::stf::EventKey;
+use crate::zk::Proof;
 
 /// A struct containing enough information to uniquely specify single batch.
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
@@ -230,6 +231,46 @@ pub struct SequencerCommitmentResponse {
     /// Hex encoded End L1 block's hash
     #[serde(with = "hex::serde")]
     pub l1_end_block_hash: [u8; 32],
+}
+
+/// The rpc response of proof by l1 slot height
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+pub struct ProofResponse {
+    /// l1 tx id of
+    pub l1_tx_id: [u8; 32],
+    /// Proof
+    pub proof: Proof,
+    /// State transition
+    pub state_transition: StateTransitionRpcResponse,
+}
+
+/// The state transition response of ledger proof data rpc
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+pub struct StateTransitionRpcResponse {
+    /// The state of the rollup before the transition
+    #[serde(with = "hex::serde")]
+    pub initial_state_root: Vec<u8>,
+    /// The state of the rollup after the transition
+    #[serde(with = "hex::serde")]
+    pub final_state_root: Vec<u8>,
+    /// State diff of L2 blocks in the processed sequencer commitments.
+    #[serde(with = "hex::serde")]
+    pub state_diff: Vec<u8>,
+    /// The DA slot hash that the sequencer commitments causing this state transition were found in.
+    #[serde(with = "hex::serde")]
+    pub da_slot_hash: [u8; 32],
+    /// Sequencer public key.
+    #[serde(with = "hex::serde")]
+    pub sequencer_public_key: Vec<u8>,
+    /// Sequencer DA public key.
+    #[serde(with = "hex::serde")]
+    pub sequencer_da_public_key: Vec<u8>,
+
+    /// An additional validity condition for the state transition which needs
+    /// to be checked outside of the zkVM circuit. This typically corresponds to
+    /// some claim about the DA layer history, such as (X) is a valid block on the DA layer
+    #[serde(with = "hex::serde")]
+    pub validity_condition: Vec<u8>,
 }
 
 /// Converts `SequencerCommitment` to `SequencerCommitmentResponse`
@@ -462,6 +503,12 @@ pub trait LedgerRpcProvider {
 
     /// Get a notification each time a slot is processed
     fn subscribe_slots(&self) -> Result<tokio::sync::broadcast::Receiver<u64>, anyhow::Error>;
+
+    /// Get proof by l1 height
+    fn get_proof_data_by_l1_height(
+        &self,
+        height: u64,
+    ) -> Result<Option<ProofResponse>, anyhow::Error>;
 }
 
 /// JSON-RPC -related utilities. Occasionally useful but unimportant for most
