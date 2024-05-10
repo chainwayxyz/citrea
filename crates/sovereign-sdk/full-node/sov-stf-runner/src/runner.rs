@@ -251,6 +251,11 @@ where
 
             let filtered_block = self.da_service.get_block_at(l1_height).await?;
 
+            // map the height to the hash
+            self.ledger_db
+                .set_l1_height_of_l1_hash(filtered_block.header().hash().into(), l1_height)
+                .unwrap();
+
             let mut sequencer_commitments = Vec::<SequencerCommitment>::new();
             let mut zk_proofs = Vec::<Proof>::new();
 
@@ -352,6 +357,10 @@ where
                     .await?
                     .header()
                     .height();
+                // Save commitments on prover ledger db
+                self.ledger_db
+                    .update_commitments_on_da_slot(l1_height, sequencer_commitment.clone())
+                    .unwrap();
 
                 // start fetching blocks from sequencer, when you see a soft batch with l1 height more than end_l1_height, stop
                 // while getting the blocks to all the same ops as full node

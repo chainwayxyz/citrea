@@ -12,7 +12,6 @@ use crate::maybestd::vec::Vec;
 #[cfg(feature = "native")]
 use crate::stf::Event;
 use crate::stf::EventKey;
-use crate::zk::Proof;
 
 /// A struct containing enough information to uniquely specify single batch.
 #[derive(Debug, PartialEq, Serialize, Deserialize)]

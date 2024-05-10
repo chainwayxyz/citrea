@@ -198,7 +198,6 @@ where
             let height = ledger
                 .get_slot_number_by_hash(hash)
                 .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))?;
-            println!("height:{:?}", height);
             match height {
                 Some(height) => ledger
                     .get_sequencer_commitments_on_slot_by_number(height)
