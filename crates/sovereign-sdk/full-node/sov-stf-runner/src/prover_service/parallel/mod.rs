@@ -9,7 +9,7 @@ use serde::Serialize;
 use sov_rollup_interface::da::{DaData, DaSpec};
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::stf::StateTransitionFunction;
-use sov_rollup_interface::zk::{StateTransitionData, ZkvmHost};
+use sov_rollup_interface::zk::{Proof, StateTransitionData, ZkvmHost};
 
 use self::prover::ProverStatus;
 use super::{ProverService, ProverServiceError};
@@ -161,7 +161,7 @@ where
         &self,
         block_header_hash: <Da::Spec as DaSpec>::SlotHash,
         da_service: &Self::DaService,
-    ) -> Result<<Da as DaService>::TransactionId, anyhow::Error> {
+    ) -> Result<(<Da as DaService>::TransactionId, Proof), anyhow::Error> {
         loop {
             let status = self
                 .prover_state
@@ -169,7 +169,7 @@ where
 
             match status {
                 ProverStatus::Proved(proof) => {
-                    let da_data = DaData::ZKProof(proof);
+                    let da_data = DaData::ZKProof(proof.clone());
 
                     let tx_id = da_service
                         .send_transaction(
@@ -178,7 +178,7 @@ where
                         .await
                         .map_err(|e| anyhow::anyhow!(e))?;
 
-                    break Ok(tx_id);
+                    break Ok((tx_id, proof));
                 }
                 ProverStatus::ProvingInProgress => {
                     tracing::info!("Proof generation is in progress");

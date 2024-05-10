@@ -508,9 +508,17 @@ where
 
             prover_service.prove(hash.clone()).await?;
 
-            let tx_id = prover_service
+            let (tx_id, proof) = prover_service
                 .wait_for_proving_and_send_to_da(hash.clone(), &self.da_service)
                 .await?;
+
+            // save proof along with tx id to db, should be queriable by slot number or slot hash
+            let transition_data: sov_modules_api::StateTransition<
+                <Da as DaService>::Spec,
+                Stf::StateRoot,
+            > = Vm::extract_output(&proof).expect("Proof should be deserializable");
+
+            tracing::info!("transition data: {:?}", transition_data);
 
             self.ledger_db
                 .set_prover_last_scanned_l1_height(SlotNumber(l1_height))

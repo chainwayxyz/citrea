@@ -111,5 +111,5 @@ pub trait ProverService {
         &self,
         block_header_hash: <<Self::DaService as DaService>::Spec as DaSpec>::SlotHash,
         da_service: &Self::DaService,
-    ) -> Result<<Self::DaService as DaService>::TransactionId, anyhow::Error>;
+    ) -> Result<(<Self::DaService as DaService>::TransactionId, Proof), anyhow::Error>;
 }
