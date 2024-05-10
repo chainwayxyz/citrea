@@ -9311,6 +9311,7 @@ dependencies = [
  "sov-schema-db",
  "tempfile",
  "thiserror",
+ "tokio",
  "tracing",
 ]
 
