@@ -544,22 +544,10 @@ where
             };
 
             self.ledger_db
-                .put_proof_data(l1_height, tx_id_u8, proof, stored_state_transition)
-                .unwrap_or_else(|_| {
-                    panic!(
-                        "Failed to put proof data by height to ledger db {}",
-                        l1_height
-                    )
-                });
+                .put_proof_data(l1_height, tx_id_u8, proof, stored_state_transition)?;
 
             self.ledger_db
-                .set_prover_last_scanned_l1_height(SlotNumber(l1_height))
-                .unwrap_or_else(|_| {
-                    panic!(
-                        "Failed to put prover last scanned l1 height in the ledger db {}",
-                        l1_height
-                    )
-                });
+                .set_prover_last_scanned_l1_height(SlotNumber(l1_height))?;
             l1_height += 1;
         }
     }
