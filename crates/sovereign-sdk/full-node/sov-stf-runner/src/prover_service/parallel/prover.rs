@@ -156,17 +156,18 @@ where
                     prover_state.set_to_proving(block_header_hash.clone());
                     vm.add_hint(state_transition_data);
 
-                    self.pool.spawn(move || {
-                        tracing::info_span!("guest_execution").in_scope(|| {
-                            let proof = make_proof(vm, config, zk_storage);
+                    // Guest execution is done in bonsai
+                    // self.pool.spawn(move || {
+                    //     tracing::info_span!("guest_execution").in_scope(|| {
+                    //         let proof = make_proof(vm, config, zk_storage);
 
-                            let mut prover_state =
-                                prover_state_clone.write().expect("Lock was poisoned");
+                    //         let mut prover_state =
+                    //             prover_state_clone.write().expect("Lock was poisoned");
 
-                            prover_state.set_to_proved(block_header_hash, proof);
-                            prover_state.dec_task_count();
-                        })
-                    });
+                    //         prover_state.set_to_proved(block_header_hash, proof);
+                    //         prover_state.dec_task_count();
+                    //     })
+                    // });
 
                     Ok(ProofProcessingStatus::ProvingInProgress)
                 } else {
