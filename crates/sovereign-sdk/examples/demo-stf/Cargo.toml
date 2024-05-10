@@ -37,7 +37,7 @@ sov-nft-module = { path = "../../../sovereign-sdk/module-system/module-implement
 sov-chain-state = { path = "../../../sovereign-sdk/module-system/module-implementations/sov-chain-state" }
 sov-modules-stf-blueprint = { path = "../../../sovereign-sdk/module-system/sov-modules-stf-blueprint" }
 sov-value-setter = { path = "../../../sovereign-sdk/module-system/module-implementations/examples/sov-value-setter", default-features = false }
-sov-accounts = { path = "../../../sovereign-sdk/module-system/module-implementations/sov-accounts" }
+sov-accounts = { path = "../../../sovereign-sdk/module-system/module-implementations/sov-accounts", default-features = false }
 sov-state = { path = "../../../sovereign-sdk/module-system/sov-state" }
 sov-modules-api = { path = "../../../sovereign-sdk/module-system/sov-modules-api" }
 citrea-evm = { path = "../../../evm" }

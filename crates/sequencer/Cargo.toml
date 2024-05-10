@@ -54,7 +54,7 @@ sov-modules-stf-blueprint = { path = "../sovereign-sdk/module-system/sov-modules
 
 citrea-stf = { path = "../citrea-stf", features = ["native"] }
 sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api" }
-sov-accounts = { path = "../sovereign-sdk/module-system/module-implementations/sov-accounts" }
+sov-accounts = { path = "../sovereign-sdk/module-system/module-implementations/sov-accounts", default-features = false }
 sov-state = { path = "../sovereign-sdk/module-system/sov-state" }
 sov-mock-da = { path = "../sovereign-sdk/adapters/mock-da", default-features = false }
 hex = { workspace = true }
