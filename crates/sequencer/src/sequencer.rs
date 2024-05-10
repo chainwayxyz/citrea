@@ -34,7 +34,7 @@ use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::stf::{SoftBatchReceipt, StateTransitionFunction};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::ZkvmHost;
-use sov_stf_runner::{InitVariant, RpcConfig};
+use sov_stf_runner::{InitVariant, RollupPublicKeys, RpcConfig};
 use tokio::sync::oneshot::Receiver as OneshotReceiver;
 use tokio::sync::Mutex;
 use tokio::time::sleep;
@@ -103,7 +103,7 @@ where
         stf: Stf,
         mut storage_manager: Sm,
         init_variant: InitVariant<Stf, Vm, Da::Spec>,
-        sequencer_pub_key: Vec<u8>,
+        public_keys: RollupPublicKeys,
         ledger_db: LedgerDB,
         rpc_config: RpcConfig,
     ) -> anyhow::Result<Self> {
@@ -152,7 +152,7 @@ where
             deposit_mempool,
             storage_manager,
             state_root: prev_state_root,
-            sequencer_pub_key,
+            sequencer_pub_key: public_keys.sequencer_public_key,
             rpc_config,
         })
     }

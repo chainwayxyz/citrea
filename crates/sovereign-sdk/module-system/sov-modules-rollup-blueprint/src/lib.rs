@@ -188,7 +188,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
             native_stf,
             storage_manager,
             init_variant,
-            rollup_config.public_keys.sequencer_public_key,
+            rollup_config.public_keys,
             ledger_db,
             rollup_config.rpc,
         )
