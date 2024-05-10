@@ -8999,6 +8999,7 @@ dependencies = [
  "borsh",
  "byteorder",
  "criterion",
+ "hex",
  "jmt",
  "proptest",
  "proptest-derive 0.3.0",

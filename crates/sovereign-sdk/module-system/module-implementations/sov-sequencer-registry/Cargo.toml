@@ -19,7 +19,7 @@ clap = { workspace = true, optional = true }
 proptest = { workspace = true, optional = true }
 proptest-derive = { workspace = true, optional = true }
 sov-bank = { path = "../sov-bank", version = "0.3" }
-sov-modules-api = { path = "../../sov-modules-api", version = "0.3" }
+sov-modules-api = { path = "../../sov-modules-api", version = "0.3", default-features = false }
 sov-state = { path = "../../sov-state", version = "0.3" }
 schemars = { workspace = true, optional = true }
 serde = { workspace = true }

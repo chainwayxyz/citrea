@@ -21,6 +21,7 @@ use revm::primitives::{
 use revm::{Database, DatabaseCommit};
 use revm_inspectors::access_list::AccessListInspector;
 use revm_inspectors::tracing::{TracingInspector, TracingInspectorConfig};
+use serde::{Deserialize, Serialize};
 use sov_modules_api::macros::rpc_gen;
 use sov_modules_api::prelude::*;
 use sov_modules_api::WorkingSet;
@@ -43,23 +44,39 @@ pub(crate) const MIN_TRANSACTION_GAS: u64 = 21_000u64;
 /// <https://github.com/ethereum/go-ethereum/blob/a5a4fa7032bb248f5a7c40f4e8df2b131c4186a4/internal/ethapi/api.go#L56>
 const ESTIMATE_GAS_ERROR_RATIO: f64 = 0.015;
 
-/// The result of gas estimation.
+/// The result of gas/diffsize estimation.
 /// This struct holds estimated gas and l1_fee_overhead.
 /// This is very useful for users to test their balance after calling to `eth_estimateGas`
 /// whether they can afford to execute a transaction.
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
-pub(crate) struct EstimatedGas {
+pub(crate) struct EstimatedTxExpenses {
     /// Evm gas used.
-    gas: U64,
-    /// Actually not an L1 fee but l1_fee / base_fee.
-    l1_fee_overhead: U256,
+    gas_used: U64,
+    /// Base fee of the L2 block when tx was executed.
+    base_fee: U256,
+    /// L1 fee.
+    l1_fee: U256,
+    /// L1 diff size.
+    diff_size: u64,
 }
 
-impl EstimatedGas {
-    /// Return total estimated gas including evm gas and L1 fee.
-    pub(crate) fn total(&self) -> U256 {
-        self.l1_fee_overhead + U256::from(self.gas)
+impl EstimatedTxExpenses {
+    /// Return total estimated gas used including evm gas and L1 fee.
+    pub(crate) fn gas_with_l1_overhead(&self) -> U256 {
+        // Actually not an L1 fee but l1_fee / base_fee.
+        let l1_fee_overhead = U256::from(1).max(self.l1_fee / self.base_fee);
+        l1_fee_overhead + U256::from(self.gas_used)
     }
+}
+
+/// Result of estimation of diff size.
+#[derive(Clone, Default, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EstimatedDiffSize {
+    /// Gas used.
+    pub gas: U64,
+    /// Diff size.
+    pub diff_size: U64,
 }
 
 #[rpc_gen(client, server)]
@@ -810,20 +827,18 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         Ok(AccessListWithGasUsed {
             access_list,
-            gas_used: estimated.total(),
+            gas_used: estimated.gas_with_l1_overhead(),
         })
     }
 
-    /// Handler for: `eth_estimateGas`
-    // https://github.com/paradigmxyz/reth/blob/main/crates/rpc/rpc/src/eth/api/call.rs#L172
-    #[rpc_method(name = "eth_estimateGas")]
-    pub fn eth_estimate_gas(
+    // This is a common function for both eth_estimateGas and eth_estimateDiffSize.
+    // The point of this function is to prepare env and call estimate_gas_with_env.
+    fn estimate_tx_expenses(
         &self,
         request: reth_rpc_types::TransactionRequest,
         block_number: Option<BlockNumberOrTag>,
         working_set: &mut WorkingSet<C>,
-    ) -> RpcResult<reth_primitives::U256> {
-        info!("evm module: eth_estimateGas");
+    ) -> RpcResult<EstimatedTxExpenses> {
         let (l1_fee_rate, block_env) = match block_number {
             None | Some(BlockNumberOrTag::Pending | BlockNumberOrTag::Latest) => {
                 // so we don't unnecessarily set archival version
@@ -868,15 +883,49 @@ impl<C: sov_modules_api::Context> Evm<C> {
         cfg_env.disable_eip3607 = true;
         cfg_env.disable_base_fee = true;
 
-        let estimated = self.estimate_gas_with_env(
+        self.estimate_gas_with_env(
             request,
             l1_fee_rate,
             block_env,
             cfg_env,
             &mut tx_env,
             working_set,
-        )?;
-        Ok(estimated.total())
+        )
+    }
+
+    /// Handler for: `eth_estimateGas`
+    // https://github.com/paradigmxyz/reth/blob/main/crates/rpc/rpc/src/eth/api/call.rs#L172
+    #[rpc_method(name = "eth_estimateGas")]
+    pub fn eth_estimate_gas(
+        &self,
+        request: reth_rpc_types::TransactionRequest,
+        block_number: Option<BlockNumberOrTag>,
+        working_set: &mut WorkingSet<C>,
+    ) -> RpcResult<reth_primitives::U256> {
+        info!("evm module: eth_estimateGas");
+
+        let estimated = self.estimate_tx_expenses(request, block_number, working_set)?;
+        Ok(estimated.gas_with_l1_overhead())
+    }
+
+    /// Handler for: `eth_estimateDiffSize`
+    #[rpc_method(name = "eth_estimateDiffSize")]
+    pub fn eth_estimate_diff_size(
+        &self,
+        request: reth_rpc_types::TransactionRequest,
+        block_number: Option<BlockNumberOrTag>,
+        working_set: &mut WorkingSet<C>,
+    ) -> RpcResult<EstimatedDiffSize> {
+        info!("evm module: eth_estimateDiffSize");
+        if request.gas.is_none() {
+            return Err(EthApiError::InvalidParams("gas must be set".into()))?;
+        }
+        let estimated = self.estimate_tx_expenses(request, block_number, working_set)?;
+
+        Ok(EstimatedDiffSize {
+            gas: estimated.gas_used,
+            diff_size: U64::from(estimated.diff_size),
+        })
     }
 
     /// Handler for: `eth_getBlockTransactionCountByHash`
@@ -905,7 +954,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         cfg_env: CfgEnvWithHandlerCfg,
         tx_env: &mut TxEnv,
         working_set: &mut WorkingSet<C>,
-    ) -> RpcResult<EstimatedGas> {
+    ) -> RpcResult<EstimatedTxExpenses> {
         let request_gas = request.gas;
         let request_gas_price = request.gas_price;
         let env_gas_limit = block_env.gas_limit;
@@ -950,9 +999,11 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
                     if let Ok((res, tx_info)) = res {
                         if res.result.is_success() {
-                            return Ok(EstimatedGas {
-                                gas: U64::from(MIN_TRANSACTION_GAS),
-                                l1_fee_overhead: U256::from(1).max(tx_info.l1_fee / env_base_fee),
+                            return Ok(EstimatedTxExpenses {
+                                gas_used: U64::from(MIN_TRANSACTION_GAS),
+                                base_fee: env_base_fee,
+                                l1_fee: tx_info.l1_fee,
+                                diff_size: tx_info.diff_size,
                             });
                         }
                     }
@@ -1005,9 +1056,11 @@ impl<C: sov_modules_api::Context> Evm<C> {
             }
         }
 
-        let (result, l1_fee) = match result {
+        let (result, l1_fee, diff_size) = match result {
             Ok((result, tx_info)) => match result.result {
-                ExecutionResult::Success { .. } => (result.result, tx_info.l1_fee),
+                ExecutionResult::Success { .. } => {
+                    (result.result, tx_info.l1_fee, tx_info.diff_size)
+                }
                 ExecutionResult::Halt { reason, gas_used } => {
                     return Err(RpcInvalidTransactionError::halt(reason, gas_used).into())
                 }
@@ -1127,9 +1180,11 @@ impl<C: sov_modules_api::Context> Evm<C> {
             mid_gas_limit = ((highest_gas_limit as u128 + lowest_gas_limit as u128) / 2) as u64;
         }
 
-        Ok(EstimatedGas {
-            gas: reth_primitives::U64::from(highest_gas_limit),
-            l1_fee_overhead: U256::from(1).max(l1_fee / env_base_fee),
+        Ok(EstimatedTxExpenses {
+            gas_used: U64::from(highest_gas_limit),
+            base_fee: env_base_fee,
+            l1_fee,
+            diff_size,
         })
     }
 

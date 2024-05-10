@@ -14,9 +14,9 @@ repository.workspace = true
 anyhow = { workspace = true }
 
 sov-state = { path = "../sov-state", version = "0.3" }
-sov-modules-api = { path = "../sov-modules-api", version = "0.3" }
+sov-modules-api = { path = "../sov-modules-api", version = "0.3", default-features = false }
 sov-blob-storage = { path = "../module-implementations/sov-blob-storage" }
-sov-chain-state = { path = "../module-implementations/sov-chain-state" }
+sov-chain-state = { path = "../module-implementations/sov-chain-state", default-features = false }
 
 [features]
 default = ["native"]
