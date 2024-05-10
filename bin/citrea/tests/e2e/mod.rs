@@ -1190,12 +1190,6 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
     // start l1 height = 1, end = 2
     seq_test_client.send_publish_batch_request().await;
 
-    // wait for prover to sync
-    sleep(Duration::from_secs(5)).await;
-
-    // prover should have synced all 4 l2 blocks
-    assert_eq!(prover_node_test_client.eth_block_number().await, 4);
-
     // wait here until we see from prover's rpc that it finished proving
     while prover_node_test_client
         .prover_get_last_scanned_l1_height()
@@ -1205,8 +1199,8 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
         // sleep 2
         sleep(Duration::from_secs(2)).await;
     }
-
-    // this will cause another extra da block to be published bc prover will publish a proof
+    // prover should have synced all 4 l2 blocks
+    assert_eq!(prover_node_test_client.eth_block_number().await, 4);
 
     seq_test_client.send_publish_batch_request().await;
 
@@ -1225,14 +1219,6 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
     // Commitment is sent right before the 9th block is published
     seq_test_client.send_publish_batch_request().await;
 
-    // Wait for prover to sync
-    sleep(Duration::from_secs(5)).await;
-    // Should now have 8 blocks = 2 commitments of blocks 1-4 and 5-9
-    // there is an extra soft confirmation due to the prover publishing a proof. This causes
-    // a new MockDa block, which in turn causes the sequencer to publish an extra soft confirmation
-    // becase it must not skip blocks.
-    assert_eq!(prover_node_test_client.eth_block_number().await, 9);
-
     // wait here until we see from prover's rpc that it finished proving
     while prover_node_test_client
         .prover_get_last_scanned_l1_height()
@@ -1242,6 +1228,12 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
         // sleep 2
         sleep(Duration::from_secs(2)).await;
     }
+
+    // Should now have 8 blocks = 2 commitments of blocks 1-4 and 5-9
+    // there is an extra soft confirmation due to the prover publishing a proof. This causes
+    // a new MockDa block, which in turn causes the sequencer to publish an extra soft confirmation
+    // becase it must not skip blocks.
+    assert_eq!(prover_node_test_client.eth_block_number().await, 8);
 
     // on the 8th DA block, we should have a proof
     let mut blobs = da_service.get_block_at(8).await.unwrap().blobs;
@@ -1342,8 +1334,15 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     // start l1 height = 1, end = 2
     seq_test_client.send_publish_batch_request().await;
 
-    // wait for prover to sync
-    sleep(Duration::from_secs(5)).await;
+    // wait here until we see from prover's rpc that it finished proving
+    while prover_node_test_client
+        .prover_get_last_scanned_l1_height()
+        .await
+        != 5
+    {
+        // sleep 2
+        sleep(Duration::from_secs(2)).await;
+    }
 
     // prover should have synced all 4 l2 blocks
     assert_eq!(prover_node_test_client.eth_block_number().await, 4);
@@ -1435,10 +1434,20 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     // Commitment is sent right before the 9th block is published
     seq_test_client.send_publish_batch_request().await;
 
-    // Wait for prover to sync
-    sleep(Duration::from_secs(5)).await;
-    // Should now have 8 blocks = 2 commitments of blocks 1-4 and 5-8
-    assert_eq!(prover_node_test_client.eth_block_number().await, 8);
+    // wait here until we see from prover's rpc that it finished proving
+    while prover_node_test_client
+        .prover_get_last_scanned_l1_height()
+        .await
+        != 8
+    {
+        // sleep 2
+        sleep(Duration::from_secs(2)).await;
+    }
+
+    // Should now have 8 blocks = 2 commitments of blocks 1-4 and 5-9
+    // there is an extra soft confirmation due to the prover publishing a proof. This causes
+    // a new MockDa block, which in turn causes the sequencer to publish an extra soft confirmation
+    assert_eq!(prover_node_test_client.eth_block_number().await, 9);
 
     // TODO: Also test with multiple commitments in single Mock DA Block
     seq_task.abort();
