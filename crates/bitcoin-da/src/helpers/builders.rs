@@ -160,26 +160,26 @@ fn build_commit_transaction(
         let input_total = output_value + fee;
 
         let (chosen_utxos, sum) = choose_utxos(&utxos, input_total)?;
+        let has_change = (sum - input_total) >= 546;
+        let direct_return = !has_change;
 
-        let mut outputs: Vec<TxOut> = vec![];
-
-        outputs.push(TxOut {
-            value: Amount::from_sat(output_value),
-            script_pubkey: recipient.script_pubkey(),
-        });
-
-        let mut direct_return = false;
-        if let Some(excess) = sum.checked_sub(input_total) {
-            if excess >= 546 {
-                outputs.push(TxOut {
-                    value: Amount::from_sat(excess),
+        let outputs = if !has_change {
+            vec![TxOut {
+                value: Amount::from_sat(output_value),
+                script_pubkey: change_address.script_pubkey(),
+            }]
+        } else {
+            vec![
+                TxOut {
+                    value: Amount::from_sat(output_value),
                     script_pubkey: change_address.script_pubkey(),
-                });
-            } else {
-                // if dust is left, leave it for fee
-                direct_return = true;
-            }
-        }
+                },
+                TxOut {
+                    value: Amount::from_sat(sum - input_total),
+                    script_pubkey: change_address.script_pubkey(),
+                },
+            ]
+        };
 
         let inputs: Vec<_> = chosen_utxos
             .iter()
