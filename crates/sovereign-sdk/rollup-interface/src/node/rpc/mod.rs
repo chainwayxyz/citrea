@@ -219,10 +219,22 @@ pub struct SoftBatchResponse {
 /// The response to a JSON-RPC request for sequencer commitments on a DA Slot.
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct SequencerCommitmentInfo {
-    /// Sequencer commitment tx id on da as hex string
-    pub l1_tx_id: String,
-    /// sequecner commitment
-    pub commitment: SequencerCommitment,
+    /// Hex encoded Merkle root of soft confirmation hashes
+    pub merkle_root: String,
+    /// Hex encoded Start L1 block's hash
+    pub l1_start_block_hash: String,
+    /// Hex encoded End L1 block's hash
+    pub l1_end_block_hash: String,
+}
+
+impl From<SequencerCommitment> for SequencerCommitmentInfo {
+    fn from(value: SequencerCommitment) -> Self {
+        Self {
+            merkle_root: hex::encode(value.merkle_root),
+            l1_start_block_hash: hex::encode(value.l1_start_block_hash),
+            l1_end_block_hash: hex::encode(value.l1_end_block_hash),
+        }
+    }
 }
 
 /// The response to a JSON-RPC request for a particular batch.

@@ -29,14 +29,14 @@ use borsh::{maybestd, BorshDeserialize, BorshSerialize};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use jmt::storage::{NibblePath, Node, NodeKey};
 use jmt::Version;
+use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::stf::{Event, EventKey};
 use sov_schema_db::schema::{KeyDecoder, KeyEncoder, ValueCodec};
 use sov_schema_db::{CodecError, SeekKeyEncoder};
 
 use super::types::{
     AccessoryKey, AccessoryStateValue, BatchNumber, DbHash, EventNumber, JmtValue, L2HeightRange,
-    SlotNumber, StateKey, StoredBatch, StoredSequencerCommitment, StoredSlot, StoredSoftBatch,
-    StoredTransaction, TxNumber,
+    SlotNumber, StateKey, StoredBatch, StoredSlot, StoredSoftBatch, StoredTransaction, TxNumber,
 };
 
 /// A list of all tables used by the StateDB. These tables store rollup state - meaning
@@ -227,7 +227,7 @@ define_table_with_default_codec!(
 
 define_table_with_default_codec!(
     /// The primary source for sequencer commitment data
-    (CommitmentsByNumber) SlotNumber => Vec<StoredSequencerCommitment>
+    (CommitmentsByNumber) SlotNumber => Vec<SequencerCommitment>
 );
 
 define_table_with_seek_key_codec!(

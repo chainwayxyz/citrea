@@ -3,6 +3,7 @@ use std::sync::{Arc, Mutex};
 
 use serde::Serialize;
 use sov_rollup_interface::da::DaSpec;
+use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::services::da::SlotData;
 use sov_rollup_interface::stf::{BatchReceipt, Event, SoftBatchReceipt};
 use sov_schema_db::{Schema, SchemaBatch, SeekKeyEncoder, DB};
@@ -15,7 +16,7 @@ use crate::schema::tables::{
 };
 use crate::schema::types::{
     split_tx_for_storage, BatchNumber, EventNumber, L2HeightRange, SlotNumber, StoredBatch,
-    StoredSequencerCommitment, StoredSlot, StoredSoftBatch, StoredTransaction, TxNumber,
+    StoredSlot, StoredSoftBatch, StoredTransaction, TxNumber,
 };
 
 mod rpc;
@@ -525,7 +526,7 @@ impl LedgerDB {
     pub fn update_commitments_on_da_slot(
         &self,
         height: u64,
-        commitment_info: sov_rollup_interface::rpc::SequencerCommitmentInfo,
+        commitment: SequencerCommitment,
     ) -> anyhow::Result<()> {
         // get commitments
         let commitments = self.db.get::<CommitmentsByNumber>(&SlotNumber(height))?;
@@ -533,15 +534,14 @@ impl LedgerDB {
         match commitments {
             // If there were other commitments, upsert
             Some(mut commitments) => {
-                commitments.push(commitment_info.into());
+                commitments.push(commitment.into());
                 self.db
                     .put::<CommitmentsByNumber>(&SlotNumber(height), &commitments)
             }
             // Else insert
-            None => self.db.put::<CommitmentsByNumber>(
-                &SlotNumber(height),
-                &vec![StoredSequencerCommitment::from(commitment_info)],
-            ),
+            None => self
+                .db
+                .put::<CommitmentsByNumber>(&SlotNumber(height), &vec![commitment]),
         }
     }
 

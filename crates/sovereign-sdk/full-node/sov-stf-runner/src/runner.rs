@@ -616,6 +616,14 @@ where
                 .get_block_at(soft_batch.da_slot_height)
                 .await?;
 
+            // Set the l1 height of the l1 hash
+            self.ledger_db
+                .set_l1_height_of_l1_hash(
+                    filtered_block.header().hash().into(),
+                    soft_batch.da_slot_height,
+                )
+                .unwrap();
+
             // TODO: when legit blocks are implemented use below to
             // check for reorgs
             // Checking if reorg happened or not.
@@ -681,6 +689,13 @@ where
             }
 
             for sequencer_commitment in sequencer_commitments.iter() {
+                self.ledger_db
+                    .update_commitments_on_da_slot(
+                        soft_batch.da_slot_height,
+                        sequencer_commitment.clone(),
+                    )
+                    .unwrap();
+
                 let start_l1_height = self
                     .da_service
                     .get_block_by_hash(sequencer_commitment.l1_start_block_hash)
@@ -911,7 +926,7 @@ where
             let receipts = seen_receipts
                 .pop_front()
                 .ok_or(anyhow!("No seen receipts exist"))?;
-            self.ledger_db.commit_slot(receipts)?;
+            // self.ledger_db.commit_slot(receipts)?;
             self.storage_manager.finalize_l2(height)?;
 
             height += 1;

@@ -190,9 +190,11 @@ where
         |params, ledger| async move {
             // Returns commitments on DA slot with given hash.
             let hash: [u8; 32] = params.one()?;
+            println!("hash:{:?}", hash);
             let height = ledger
                 .get_slot_number_by_hash(hash)
                 .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))?;
+            println!("height:{:?}", height);
             match height {
                 Some(height) => ledger
                     .get_sequencer_commitments_on_slot_by_number(height)
