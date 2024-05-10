@@ -8,6 +8,8 @@ mod config;
 #[cfg(feature = "mock")]
 pub mod mock;
 #[cfg(feature = "native")]
+mod prover_helpers;
+#[cfg(feature = "native")]
 mod prover_service;
 
 #[cfg(feature = "native")]
@@ -16,16 +18,11 @@ use std::path::Path;
 #[cfg(feature = "native")]
 use anyhow::Context;
 #[cfg(feature = "native")]
-pub use config::RpcConfig;
-#[cfg(feature = "native")]
 pub use prover_service::*;
 #[cfg(feature = "native")]
 mod runner;
 #[cfg(feature = "native")]
-pub use config::{
-    from_toml_path, ProverServiceConfig, RollupConfig, RunnerConfig, SequencerClientRpcConfig,
-    StorageConfig,
-};
+pub use config::*;
 #[cfg(feature = "native")]
 pub use runner::*;
 

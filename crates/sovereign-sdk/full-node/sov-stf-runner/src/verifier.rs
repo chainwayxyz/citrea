@@ -37,6 +37,7 @@ where
         zkvm: Zk,
         pre_state: Stf::PreState,
     ) -> Result<(), Da::Error> {
+        println!("Running sequencer commitments in DA slot");
         let data: StateTransitionData<Stf::StateRoot, _, Da::Spec> = zkvm.read_from_host();
         let validity_condition = self.da_verifier.verify_relevant_tx_list(
             &data.da_block_header_of_commitments,
@@ -45,10 +46,13 @@ where
             data.completeness_proof,
         )?;
 
+        // tracing::info!("going into apply_soft_confirmations_from_sequencer_commitments");
+        println!("going into apply_soft_confirmations_from_sequencer_commitments");
         let (final_state_root, state_diff) = self
             .app
             .apply_soft_confirmations_from_sequencer_commitments(
-                &[0; 32], // TODO: pass correct sequencer public key
+                data.sequencer_public_key.as_ref(),
+                data.sequencer_da_public_key.as_ref(),
                 &data.initial_state_root,
                 pre_state,
                 data.da_data,
@@ -58,14 +62,12 @@ where
                 data.soft_confirmations,
             );
 
-        // let result = self.app.apply_slot(
-        //     &data.initial_state_root,
-        //     pre_state,
-        //     data.state_transition_witness,
-        //     &data.da_block_header,
-        //     &validity_condition,
-        //     &mut data.blobs,
-        // );
+        println!("out of apply_soft_confirmations_from_sequencer_commitments");
+        assert_eq!(
+            final_state_root.as_ref(),
+            data.final_state_root.as_ref(),
+            "Invalid final state root"
+        );
 
         let out: StateTransition<Da::Spec, _> = StateTransition {
             initial_state_root: data.initial_state_root,
@@ -73,6 +75,8 @@ where
             validity_condition, // TODO: not sure about how to do this yet
             state_diff,
             da_slot_hash: data.da_block_header_of_commitments.hash(),
+            sequencer_public_key: data.sequencer_public_key,
+            sequencer_da_public_key: data.sequencer_da_public_key,
         };
 
         zkvm.commit(&out);

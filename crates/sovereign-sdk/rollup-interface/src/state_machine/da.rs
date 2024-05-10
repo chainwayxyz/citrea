@@ -6,7 +6,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
-use crate::zk::ValidityCondition;
+use crate::zk::{Proof, ValidityCondition};
 use crate::BasicAddress;
 
 /// Commitments made to the DA layer from the sequencer.
@@ -21,12 +21,6 @@ pub struct SequencerCommitment {
     pub l1_end_block_hash: [u8; 32],
 }
 
-/// ZK proof of execution of a set of soft confirmations
-#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
-pub struct BatchProof {
-    // TODO - implement this
-}
-
 /// Data written to DA can only be one of these two types
 /// Data written to DA and read from DA is must be borsh serialization of this enum
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
@@ -34,7 +28,7 @@ pub enum DaData {
     /// A commitment from the sequencer
     SequencerCommitment(SequencerCommitment),
     /// Or a zk proof and state diff
-    ZKProof(BatchProof),
+    ZKProof(Proof),
 }
 
 /// A specification for the types used by a DA layer.

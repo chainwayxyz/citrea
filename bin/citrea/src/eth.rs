@@ -2,7 +2,6 @@ use std::str::FromStr;
 
 use anyhow::Context as _;
 use ethereum_rpc::{EthRpcConfig, FeeHistoryCacheConfig, GasPriceOracleConfig};
-use sequencer_client::SequencerClient;
 use sov_modules_api::default_context::DefaultContext;
 use sov_prover_storage_manager::SnapshotManager;
 use sov_rollup_interface::services::da::DaService;
@@ -13,7 +12,7 @@ pub(crate) fn register_ethereum<Da: DaService>(
     da_service: Da,
     storage: ProverStorage<sov_state::DefaultStorageSpec, SnapshotManager>,
     methods: &mut jsonrpsee::RpcModule<()>,
-    sequencer_client: Option<SequencerClient>,
+    sequencer_client_url: Option<String>,
 ) -> Result<(), anyhow::Error> {
     let eth_rpc_config = {
         let eth_signer = eth_dev_signer();
@@ -28,7 +27,7 @@ pub(crate) fn register_ethereum<Da: DaService>(
         da_service,
         eth_rpc_config,
         storage,
-        sequencer_client,
+        sequencer_client_url,
     );
     methods
         .merge(ethereum_rpc)
