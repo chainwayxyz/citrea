@@ -39,7 +39,7 @@ contract Bridge is Ownable {
     mapping(bytes32 => bool) public spentWtxIds;
     bytes32[] public withdrawalAddrs;
     
-    event Deposit(bytes32 wtxId, uint256 timestamp);
+    event Deposit(bytes32 wtxId, address recipient, uint256 timestamp);
     event Withdrawal(bytes32  bitcoin_address, uint256 index, uint256 timestamp);
     event DepositScriptUpdate(bytes depositScript, bytes scriptSuffix, uint256 requiredSigsCount);
     event OperatorUpdated(address oldOperator, address newOperator);
@@ -126,11 +126,11 @@ contract Bridge is Ownable {
         bytes memory _suffix = script.slice(_len + 20, script.length - (_len + 20)); // 20 bytes for address
         require(isBytesEqual(_suffix, scriptSuffix), "Invalid script suffix");
 
-        address receiver = extractRecipientAddress(script);
+        address recipient = extractRecipientAddress(script);
 
-        emit Deposit(wtxId, block.timestamp);
+        emit Deposit(wtxId, recipient, block.timestamp);
 
-        (bool success, ) = receiver.call{value: DEPOSIT_AMOUNT}("");
+        (bool success, ) = recipient.call{value: DEPOSIT_AMOUNT}("");
         require(success, "Transfer failed");
     }
 
