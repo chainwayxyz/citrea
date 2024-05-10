@@ -1155,7 +1155,7 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
             BasicKernelGenesisPaths {
                 chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
             },
-            Some(ProverConfig::default),
+            Some(ProverConfig::default()),
             NodeMode::Prover(seq_port),
             None,
             4,

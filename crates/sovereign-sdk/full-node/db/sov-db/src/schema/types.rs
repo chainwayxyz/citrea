@@ -5,8 +5,8 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::rpc::{
-    BatchResponse, HexTx, ProofRpcResponse, SoftBatchResponse, StateTransitionRpcResponse,
-    TxIdentifier, TxResponse,
+    BatchResponse, HexTx, ProofResponse, ProofRpcResponse, SoftBatchResponse,
+    StateTransitionRpcResponse, TxIdentifier, TxResponse,
 };
 use sov_rollup_interface::stf::{Event, EventKey, TransactionReceipt};
 use sov_rollup_interface::zk::Proof;
@@ -83,6 +83,16 @@ pub struct StoredProof {
     pub state_transition: StoredStateTransition,
 }
 
+impl From<StoredProof> for ProofResponse {
+    fn from(value: StoredProof) -> Self {
+        Self {
+            l1_tx_id: value.l1_tx_id,
+            proof: convert_to_rpc_proof(value.proof),
+            state_transition: StateTransitionRpcResponse::from(value.state_transition),
+        }
+    }
+}
+
 /// The on-disk format for a state transition.
 #[derive(Debug, PartialEq, BorshDeserialize, BorshSerialize)]
 pub struct StoredStateTransition {
@@ -105,18 +115,17 @@ pub struct StoredStateTransition {
     pub validity_condition: Vec<u8>,
 }
 
-/// Convert stored transition to rpc response
-pub fn convert_to_rpc_state_transition(
-    stored_state_transition: StoredStateTransition,
-) -> StateTransitionRpcResponse {
-    StateTransitionRpcResponse {
-        initial_state_root: stored_state_transition.initial_state_root,
-        final_state_root: stored_state_transition.final_state_root,
-        state_diff: stored_state_transition.state_diff,
-        da_slot_hash: stored_state_transition.da_slot_hash,
-        sequencer_da_public_key: stored_state_transition.sequencer_da_public_key,
-        sequencer_public_key: stored_state_transition.sequencer_public_key,
-        validity_condition: stored_state_transition.validity_condition,
+impl From<StoredStateTransition> for StateTransitionRpcResponse {
+    fn from(value: StoredStateTransition) -> Self {
+        Self {
+            initial_state_root: value.initial_state_root,
+            final_state_root: value.final_state_root,
+            state_diff: value.state_diff,
+            da_slot_hash: value.da_slot_hash,
+            sequencer_da_public_key: value.sequencer_da_public_key,
+            sequencer_public_key: value.sequencer_public_key,
+            validity_condition: value.validity_condition,
+        }
     }
 }
 
