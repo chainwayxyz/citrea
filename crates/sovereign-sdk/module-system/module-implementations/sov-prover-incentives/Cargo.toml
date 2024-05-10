@@ -34,7 +34,7 @@ sov-state = { path = "../../sov-state", version = "0.3" }
 
 
 [features]
-default = []
+default = ["native"]
 native = ["serde_json", "schemars", "sov-state/native", "sov-modules-api/native"]
 
 [package.metadata.cargo-udeps.ignore]

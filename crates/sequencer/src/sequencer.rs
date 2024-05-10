@@ -102,7 +102,6 @@ where
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         da_service: Da,
-        sov_tx_signer_priv_key: C::PrivateKey,
         storage: C::Storage,
         config: SequencerConfig,
         stf: Stf,
@@ -139,6 +138,9 @@ where
         let pool = CitreaMempool::new(db_provider.clone(), config.mempool_conf.clone())?;
 
         let deposit_mempool = Arc::new(Mutex::new(DepositDataMempool::new()));
+
+        let sov_tx_signer_priv_key =
+            C::PrivateKey::try_from(&hex::decode(&config.private_key).unwrap()).unwrap();
 
         Ok(Self {
             da_service,
@@ -763,6 +765,7 @@ where
                             commitment_info.l1_height_range.end().0,
                         ))
                         .expect("Sequencer: Failed to set last sequencer commitment L1 height");
+
                     warn!("Commitment info: {:?}", commitment_info);
                     if let Some(db_config) = db_config {
                         match PostgresConnector::new(db_config).await {

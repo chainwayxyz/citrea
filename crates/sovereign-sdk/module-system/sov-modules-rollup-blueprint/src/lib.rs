@@ -7,7 +7,6 @@ use std::net::SocketAddr;
 
 use async_trait::async_trait;
 use citrea_sequencer::{CitreaSequencer, SequencerConfig};
-use const_rollup_config::TEST_PRIVATE_KEY;
 pub use runtime_rpc::*;
 use sequencer_client::SequencerClient;
 use sov_db::ledger_db::LedgerDB;
@@ -183,23 +182,18 @@ pub trait RollupBlueprint: Sized + Send + Sync {
             },
         };
 
-        let seq =
-            CitreaSequencer::new(
-                da_service,
-                <<<Self as RollupBlueprint>::NativeContext as Spec>::PrivateKey as TryFrom<
-                    &[u8],
-                >>::try_from(hex::decode(TEST_PRIVATE_KEY).unwrap().as_slice())
-                .unwrap(),
-                prover_storage,
-                sequencer_config,
-                native_stf,
-                storage_manager,
-                init_variant,
-                rollup_config.sequencer_public_key,
-                ledger_db,
-                rollup_config.runner,
-            )
-            .unwrap();
+        let seq = CitreaSequencer::new(
+            da_service,
+            prover_storage,
+            sequencer_config,
+            native_stf,
+            storage_manager,
+            init_variant,
+            rollup_config.sequencer_public_key,
+            ledger_db,
+            rollup_config.runner,
+        )
+        .unwrap();
 
         Ok(Sequencer {
             runner: seq,

@@ -18,7 +18,7 @@ arbitrary = { workspace = true, optional = true }
 sov-state = { path = "../sov-state", version = "0.3" }
 sov-modules-core = { path = "../sov-modules-core", version = "0.3" }
 sov-rollup-interface = { path = "../../rollup-interface", version = "0.3" }
-sov-modules-macros = { path = "../sov-modules-macros", version = "0.3", optional = true }
+sov-modules-macros = { path = "../sov-modules-macros", version = "0.3", optional = true, default-features = false }
 sov-prover-storage-manager = { path = "../../full-node/sov-prover-storage-manager", optional = true }
 serde = { workspace = true }
 borsh = { workspace = true }
@@ -61,7 +61,7 @@ arbitrary = [
     "sov-state/arbitrary",
 ]
 bench = []
-default = ["macros"]
+default = ["native", "macros"]
 native = [
     "serde_json",
     "rand",

@@ -20,7 +20,6 @@ sov-stf-runner = { path = "../../full-node/sov-stf-runner", features = [
 ], version = "0.3" }
 citrea-sequencer = { path = "../../../sequencer", features = [
 ], version = "0.3" }
-const-rollup-config = { path = "../../examples/const-rollup-config" }
 sov-state = { path = "../sov-state", version = "0.3" }
 sequencer-client = { path = "../../../sequencer-client" }
 sov-modules-api = { path = "../../module-system/sov-modules-api", features = [

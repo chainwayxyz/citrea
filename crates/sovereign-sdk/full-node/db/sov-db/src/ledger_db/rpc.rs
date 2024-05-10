@@ -1,15 +1,16 @@
 use serde::de::DeserializeOwned;
 use sov_rollup_interface::rpc::{
-    BatchIdAndOffset, BatchIdentifier, BatchResponse, EventIdentifier, ItemOrHash,
-    LedgerRpcProvider, QueryMode, SlotIdAndOffset, SlotIdentifier, SlotResponse,
-    SoftBatchIdentifier, SoftBatchResponse, TxIdAndOffset, TxIdentifier, TxResponse,
+    sequencer_commitment_to_response, BatchIdAndOffset, BatchIdentifier, BatchResponse,
+    EventIdentifier, ItemOrHash, LedgerRpcProvider, QueryMode, SequencerCommitmentResponse,
+    SlotIdAndOffset, SlotIdentifier, SlotResponse, SoftBatchIdentifier, SoftBatchResponse,
+    TxIdAndOffset, TxIdentifier, TxResponse,
 };
 use sov_rollup_interface::stf::Event;
 use tokio::sync::broadcast::Receiver;
 
 use crate::schema::tables::{
-    BatchByHash, BatchByNumber, EventByNumber, SlotByHash, SlotByNumber, SoftBatchByHash,
-    SoftBatchByNumber, SoftConfirmationStatus, TxByHash, TxByNumber,
+    BatchByHash, BatchByNumber, CommitmentsByNumber, EventByNumber, SlotByHash, SlotByNumber,
+    SoftBatchByHash, SoftBatchByNumber, SoftConfirmationStatus, TxByHash, TxByNumber,
 };
 use crate::schema::types::{
     BatchNumber, EventNumber, SlotNumber, StoredBatch, StoredSlot, TxNumber,
@@ -362,6 +363,24 @@ impl LedgerRpcProvider for LedgerDB {
         match status {
             Some(status) => Ok(status),
             None => Ok(sov_rollup_interface::rpc::SoftConfirmationStatus::Trusted),
+        }
+    }
+    fn get_slot_number_by_hash(&self, hash: [u8; 32]) -> Result<Option<u64>, anyhow::Error> {
+        self.db.get::<SlotByHash>(&hash).map(|v| v.map(|a| a.0))
+    }
+
+    fn get_sequencer_commitments_on_slot_by_number(
+        &self,
+        height: u64,
+    ) -> Result<Option<Vec<SequencerCommitmentResponse>>, anyhow::Error> {
+        match self.db.get::<CommitmentsByNumber>(&SlotNumber(height))? {
+            Some(commitments) => Ok(Some(
+                commitments
+                    .into_iter()
+                    .map(|commitment| sequencer_commitment_to_response(commitment, height))
+                    .collect(),
+            )),
+            None => Ok(None),
         }
     }
 

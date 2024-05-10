@@ -16,7 +16,7 @@ publish = false
 tempfile = { workspace = true }
 sov-mock-da = { path = "../../../adapters/mock-da", features = ["native"] }
 sov-mock-zkvm = { path = "../../../adapters/mock-zkvm" }
-sov-modules-api = { path = "../../sov-modules-api", version = "0.3" }
+sov-modules-api = { path = "../../sov-modules-api", version = "0.3", default-features = false }
 sov-modules-core = { path = "../../sov-modules-core", version = "0.3", features = [
     "mocks",
 ] }
@@ -36,13 +36,13 @@ serde = { workspace = true }
 serde_json = { workspace = true, optional = true }
 
 sov-bank = { path = "../sov-bank", version = "0.3" }
-sov-chain-state = { path = "../sov-chain-state", version = "0.3" }
+sov-chain-state = { path = "../sov-chain-state", version = "0.3", default-features = false }
 sov-modules-api = { path = "../../sov-modules-api", version = "0.3" }
 sov-state = { path = "../../sov-state", version = "0.3" }
 
 
 [features]
-default = []
+default = ["native"]
 native = [
     "serde_json",
     "sov-modules-api/native",

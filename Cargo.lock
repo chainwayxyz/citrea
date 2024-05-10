@@ -2277,9 +2277,9 @@ dependencies = [
 
 [[package]]
 name = "deadpool"
-version = "0.12.0"
+version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "28d3c3845002cd8dec1e045bc3fc076d1e467a123794cf56326d804489df1896"
+checksum = "6541a3916932fe57768d4be0b1ffb5ec7cbf74ca8c903fdfd5c0fe8aa958f0ed"
 dependencies = [
  "deadpool-runtime",
  "num_cpus",
@@ -2288,11 +2288,12 @@ dependencies = [
 
 [[package]]
 name = "deadpool-postgres"
-version = "0.13.1"
+version = "0.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "10566d25f606cc5f2dee63311af0eb2dc861cba4a5a7dee2daa4c2b181a42862"
+checksum = "19be9da496d60d03ec3ab45d960d80a3afb285b787394b83614a79942f467e7f"
 dependencies = [
  "deadpool",
+ "getrandom 0.2.12",
  "tokio",
  "tokio-postgres",
  "tracing",
@@ -3516,8 +3517,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "190092ea657667030ac6a35e305e62fc4dd69fd98ac98631e5d3a2b1575a12b5"
 dependencies = [
  "cfg-if",
+ "js-sys",
  "libc",
  "wasi 0.11.0+wasi-snapshot-preview1",
+ "wasm-bindgen",
 ]
 
 [[package]]
@@ -8975,6 +8978,7 @@ dependencies = [
  "borsh",
  "byteorder",
  "criterion",
+ "hex",
  "jmt",
  "proptest",
  "proptest-derive 0.3.0",
@@ -9142,7 +9146,6 @@ dependencies = [
  "async-trait",
  "borsh",
  "citrea-sequencer",
- "const-rollup-config",
  "hex",
  "jsonrpsee",
  "sequencer-client",
