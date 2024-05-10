@@ -154,16 +154,6 @@ fn build_commit_transaction(
     );
     let mut last_size = size;
 
-    let utxos: Vec<UTXO> = utxos
-        .iter()
-        .filter(|utxo| utxo.spendable && utxo.solvable && utxo.amount > 546)
-        .cloned()
-        .collect();
-
-    if utxos.is_empty() {
-        return Err(anyhow::anyhow!("no spendable UTXOs"));
-    }
-
     let tx = loop {
         let fee = ((last_size as f64) * fee_rate).ceil() as u64;
 

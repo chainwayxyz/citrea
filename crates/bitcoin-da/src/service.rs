@@ -183,6 +183,27 @@ impl BitcoinService {
         }
     }
 
+    async fn get_utxos(&self) -> Result<Vec<UTXO>, anyhow::Error> {
+        let mut utxos = self.client.get_utxos().await?;
+        if utxos.is_empty() {
+            return Err(anyhow::anyhow!("There are no UTXOs"));
+        }
+        // Sort by ascending confirmations to order tx after a service restart
+        // TODO https://github.com/chainwayxyz/citrea/issues/537
+        utxos.sort_by_key(|utxo| utxo.confirmations);
+
+        let utxos: Vec<UTXO> = utxos
+            .into_iter()
+            .filter(|utxo| utxo.spendable && utxo.solvable && utxo.amount > 546)
+            .collect();
+
+        if utxos.is_empty() {
+            return Err(anyhow::anyhow!("There are no spendable UTXOs"));
+        }
+
+        Ok(utxos)
+    }
+
     pub async fn send_transaction_with_fee_rate(
         &self,
         prev_tx: Option<TxWithId>,
@@ -199,12 +220,7 @@ impl BitcoinService {
         let blob = compress_blob(&blob);
 
         // get all available utxos
-        let mut utxos: Vec<UTXO> = client.get_utxos().await?;
-        if utxos.is_empty() {
-            return Err(anyhow::anyhow!("No UTXOs left for transaction"));
-        }
-        // Sort by ascending confirmations to order tx after a service restart
-        utxos.sort_by_key(|utxo| utxo.confirmations);
+        let utxos: Vec<UTXO> = self.get_utxos().await?;
 
         // get address from a utxo
         let address = Address::from_str(&utxos[0].address.clone())
