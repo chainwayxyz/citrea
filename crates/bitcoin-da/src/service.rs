@@ -1,3 +1,6 @@
+// fix clippy for tracing::instrument
+#![allow(clippy::blocks_in_conditions)]
+
 use core::result::Result::Ok;
 use core::str::FromStr;
 use core::time::Duration;
@@ -16,7 +19,7 @@ use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 use tokio::sync::oneshot::{
     channel as oneshot_channel, Receiver as OneshotReceiver, Sender as OneshotSender,
 };
-use tracing::info;
+use tracing::{error, info, instrument, trace};
 
 use crate::helpers::builders::{
     compress_blob, create_inscription_transactions, decompress_blob, sign_blob_with_private_key,
@@ -104,8 +107,11 @@ impl BitcoinService {
                 // TODO find last tx by utxo chain
                 let mut prev_tx = None;
 
+                trace!("BitcoinDA queue is initialized. Waiting for the first request...");
+
                 // We execute commit and reveal txs one by one to chain them
                 while let Some(request) = rx.recv().await {
+                    trace!("A new request is received");
                     let fee_sat_per_vbyte = match this.get_fee_rate().await {
                         Ok(rate) => rate,
                         Err(e) => {
@@ -127,6 +133,7 @@ impl BitcoinService {
                             let _ = request.notify.send(Ok(tx_id));
                         }
                         Err(e) => {
+                            error!(?e, "Failed to send transaction to DA layer");
                             let _ = request.notify.send(Err(e));
                         }
                     }
@@ -187,6 +194,7 @@ impl BitcoinService {
         }
     }
 
+    #[instrument(level = "trace", skip_all, ret)]
     async fn get_utxos(&self) -> Result<Vec<UTXO>, anyhow::Error> {
         let utxos = self.client.get_utxos().await?;
         if utxos.is_empty() {
@@ -204,6 +212,7 @@ impl BitcoinService {
         Ok(utxos)
     }
 
+    #[instrument(level = "trace", fields(prev_tx), ret, err)]
     pub async fn send_transaction_with_fee_rate(
         &self,
         prev_tx: Option<TxWithId>,
@@ -276,6 +285,7 @@ impl BitcoinService {
         Ok(reveal_tx)
     }
 
+    #[instrument(level = "trace", skip_all, ret)]
     pub async fn get_fee_rate(&self) -> Result<f64, anyhow::Error> {
         if self.network == bitcoin::Network::Regtest {
             // sometimes local mempool is empty, node cannot estimate
@@ -310,6 +320,7 @@ impl DaService for BitcoinService {
 
     // Make an RPC call to the node to get the block at the given height
     // If no such block exists, block until one does.
+    #[instrument(level = "trace", skip(self), err)]
     async fn get_block_at(&self, height: u64) -> Result<Self::FilteredBlock, Self::Error> {
         info!("Getting block at height {}", height);
 
@@ -344,6 +355,7 @@ impl DaService for BitcoinService {
     }
 
     // Fetch the [`DaSpec::BlockHeader`] of the last finalized block.
+    #[instrument(level = "trace", skip(self), err)]
     async fn get_last_finalized_block_header(
         &self,
     ) -> Result<<Self::Spec as DaSpec>::BlockHeader, Self::Error> {
@@ -364,6 +376,7 @@ impl DaService for BitcoinService {
     }
 
     // Fetch the head block of DA.
+    #[instrument(level = "trace", skip(self), err)]
     async fn get_head_block_header(
         &self,
     ) -> Result<<Self::Spec as DaSpec>::BlockHeader, Self::Error> {
@@ -375,6 +388,7 @@ impl DaService for BitcoinService {
     }
 
     // Extract the blob transactions relevant to a particular rollup from a block.
+    #[instrument(level = "trace", skip_all)]
     fn extract_relevant_blobs(
         &self,
         block: &Self::FilteredBlock,
@@ -418,6 +432,7 @@ impl DaService for BitcoinService {
         txs
     }
 
+    #[instrument(level = "trace", skip_all)]
     async fn get_extraction_proof(
         &self,
         block: &Self::FilteredBlock,
@@ -483,6 +498,7 @@ impl DaService for BitcoinService {
         (txs, inclusion_proof, completeness_proof)
     }
 
+    #[instrument(level = "trace", skip_all)]
     async fn send_transaction(
         &self,
         _blob: &[u8],
@@ -490,6 +506,7 @@ impl DaService for BitcoinService {
         unimplemented!("Use send_tx_no_wait instead")
     }
 
+    #[instrument(level = "trace", skip_all)]
     async fn send_tx_no_wait(
         &self,
         blob: Vec<u8>,
@@ -513,14 +530,16 @@ impl DaService for BitcoinService {
         unimplemented!();
     }
 
+    #[instrument(level = "trace", skip(self))]
     async fn get_fee_rate(&self) -> Result<u128, Self::Error> {
         // This already returns ceil, so the conversion should work
-        let res = self.client.estimate_smart_fee().await.unwrap() as u128;
+        let res = self.client.estimate_smart_fee().await? as u128;
         // multiply with 10^10/4 = 25*10^8 = 2_500_000_000
         let multiplied_fee = res.saturating_mul(2_500_000_000);
         Ok(multiplied_fee)
     }
 
+    #[instrument(level = "trace", skip(self))]
     async fn get_block_by_hash(&self, hash: [u8; 32]) -> Result<Self::FilteredBlock, Self::Error> {
         info!("Getting block with hash {:?}", hash);
 

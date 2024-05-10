@@ -28,7 +28,7 @@ use serde_json::json;
 use sov_modules_api::utils::to_jsonrpsee_error_object;
 use sov_modules_api::WorkingSet;
 use sov_rollup_interface::services::da::DaService;
-use tracing::info;
+use tracing::{info, instrument};
 
 const MAX_TRACE_BLOCK: u32 = 1000;
 
@@ -127,6 +127,7 @@ impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
 }
 
 impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
+    #[instrument(level = "trace", skip_all)]
     async fn max_fee_per_gas(&self, working_set: &mut WorkingSet<C>) -> (U256, U256) {
         let suggested_tip = self
             .gas_price_oracle
