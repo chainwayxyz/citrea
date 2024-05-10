@@ -1,6 +1,6 @@
 use core::fmt::Debug as DebugTrait;
 
-use anyhow::{anyhow, Context as _};
+use anyhow::Context as _;
 use bitcoin_da::service::DaServiceConfig;
 use citrea::{initialize_logging, BitcoinRollup, MockDemoRollup};
 use citrea_sequencer::SequencerConfig;
@@ -14,7 +14,7 @@ use sov_modules_stf_blueprint::kernels::basic::{
     BasicKernelGenesisConfig, BasicKernelGenesisPaths,
 };
 use sov_state::storage::NativeStorage;
-use sov_stf_runner::{from_toml_path, RollupConfig, RollupProverConfig};
+use sov_stf_runner::{from_toml_path, ProverConfig, RollupConfig};
 use tracing::error;
 
 #[cfg(test)]
@@ -41,13 +41,12 @@ struct Args {
     rollup_config_path: String,
 
     /// The path to the sequencer config. If set, runs the node in sequencer mode, otherwise in full node mode.
-    #[arg(long)]
+    #[arg(long, conflicts_with = "prover_config_path")]
     sequencer_config_path: Option<String>,
 
-    /// If set, runs the node in prover mode, else in full node mode.
-    /// Can't be set if sequencer_config_path is set.
+    /// The path to the prover config. If set, runs the node in prover mode, otherwise in full node mode.
     #[arg(long, conflicts_with = "sequencer_config_path")]
-    prover: bool,
+    prover_config_path: Option<String>,
 }
 
 #[derive(clap::ValueEnum, Clone, Debug)]
@@ -70,7 +69,18 @@ async fn main() -> Result<(), anyhow::Error> {
                 .unwrap()
         });
 
-    let is_prover = args.prover;
+    let prover_config: Option<ProverConfig> = args.prover_config_path.clone().map(|path| {
+        from_toml_path(path)
+            .context("Failed to read prover configuration")
+            .unwrap()
+    });
+
+    if prover_config.is_some() && sequencer_config.is_some() {
+        return Err(anyhow::anyhow!(
+            "Cannot run in both prover and sequencer mode at the same time"
+        ));
+    }
+
     match args.da_layer {
         SupportedDaLayer::Mock => {
             let kernel_genesis_paths = &BasicKernelGenesisPaths {
@@ -88,9 +98,8 @@ async fn main() -> Result<(), anyhow::Error> {
                 &GenesisPaths::from_dir(&args.genesis_paths),
                 kernel_genesis,
                 rollup_config_path,
-                RollupProverConfig::Execute,
+                prover_config,
                 sequencer_config,
-                is_prover,
             )
             .await?;
         }
@@ -110,9 +119,8 @@ async fn main() -> Result<(), anyhow::Error> {
                 &GenesisPaths::from_dir(&args.genesis_paths),
                 kernel_genesis,
                 rollup_config_path,
-                RollupProverConfig::Execute,
+                prover_config,
                 sequencer_config,
-                is_prover,
             )
             .await?;
         }
@@ -131,26 +139,20 @@ async fn start_rollup<S, DaC>(
         <S as RollupBlueprint>::DaSpec,
     >>::GenesisConfig,
     rollup_config_path: &str,
-    prover_config: RollupProverConfig,
-    // genesis_paths: &<<S as RollupBlueprint>::NativeRuntime as sov_modules_stf_blueprint::Runtime<
-    //     <S as RollupBlueprint>::NativeContext,
-    //     <S as RollupBlueprint>::DaSpec,
-    // >>::GenesisPaths,
+    prover_config: Option<ProverConfig>,
     sequencer_config: Option<SequencerConfig>,
-    is_prover: bool,
 ) -> Result<(), anyhow::Error>
 where
     DaC: serde::de::DeserializeOwned + DebugTrait + Clone,
     S: RollupBlueprint<DaConfig = DaC>,
     <<S as RollupBlueprint>::NativeContext as Spec>::Storage: NativeStorage,
 {
-    let mut rollup_config: RollupConfig<DaC> = from_toml_path(rollup_config_path)
+    let rollup_config: RollupConfig<DaC> = from_toml_path(rollup_config_path)
         .context("Failed to read rollup configuration")
         .unwrap();
     let rollup_blueprint = S::new();
 
     if let Some(sequencer_config) = sequencer_config {
-        rollup_config.sequencer_client = None;
         let sequencer_rollup = rollup_blueprint
             .create_new_sequencer(
                 rt_genesis_paths,
@@ -163,18 +165,22 @@ where
         if let Err(e) = sequencer_rollup.run().await {
             error!("Error: {}", e);
         }
-    } else {
-        if rollup_config.sequencer_client.is_none() {
-            return Err(anyhow!("Must have sequencer client for full nodes!"));
-        }
-        let rollup = rollup_blueprint
-            .create_new_rollup(
+    } else if let Some(prover_config) = prover_config {
+        let prover = rollup_blueprint
+            .create_new_prover(
                 rt_genesis_paths,
                 kernel_genesis,
                 rollup_config,
                 prover_config,
-                is_prover,
             )
+            .await
+            .unwrap();
+        if let Err(e) = prover.run().await {
+            error!("Error: {}", e);
+        }
+    } else {
+        let rollup = rollup_blueprint
+            .create_new_rollup(rt_genesis_paths, kernel_genesis, rollup_config)
             .await
             .unwrap();
         if let Err(e) = rollup.run().await {

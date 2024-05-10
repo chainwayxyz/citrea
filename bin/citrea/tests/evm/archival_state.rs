@@ -6,7 +6,6 @@ use ethers::abi::Address;
 use ethers_core::abi::Bytes;
 use reth_primitives::BlockNumberOrTag;
 use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
-use sov_stf_runner::RollupProverConfig;
 
 use crate::evm::init_test_rollup;
 use crate::test_client::TestClient;
@@ -26,7 +25,7 @@ async fn test_archival_state() -> Result<(), anyhow::Error> {
             BasicKernelGenesisPaths {
                 chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
             },
-            RollupProverConfig::Execute,
+            None,
             NodeMode::SequencerNode,
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,

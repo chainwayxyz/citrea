@@ -2,7 +2,6 @@ use async_trait::async_trait;
 use citrea_risc0_bonsai_adapter::host::Risc0BonsaiHost;
 use citrea_stf::genesis_config::StorageConfig;
 use citrea_stf::runtime::Runtime;
-use sequencer_client::SequencerClient;
 use sov_db::ledger_db::LedgerDB;
 use sov_mock_da::{MockDaConfig, MockDaService, MockDaSpec};
 use sov_modules_api::default_context::{DefaultContext, ZkDefaultContext};
@@ -14,7 +13,7 @@ use sov_prover_storage_manager::ProverStorageManager;
 use sov_risc0_adapter::host::Risc0Host;
 use sov_rollup_interface::zk::ZkvmHost;
 use sov_state::{DefaultStorageSpec, Storage, ZkStorage};
-use sov_stf_runner::{ParallelProverService, RollupConfig, RollupProverConfig};
+use sov_stf_runner::{ParallelProverService, ProverConfig, RollupConfig};
 
 /// Rollup with MockDa
 pub struct MockDemoRollup {}
@@ -60,7 +59,7 @@ impl RollupBlueprint for MockDemoRollup {
         storage: &<Self::NativeContext as Spec>::Storage,
         ledger_db: &LedgerDB,
         da_service: &Self::DaService,
-        sequencer_client: Option<SequencerClient>,
+        sequencer_client_url: Option<String>,
     ) -> Result<jsonrpsee::RpcModule<()>, anyhow::Error> {
         // TODO set the sequencer address
         let sequencer = Address::new([0; 32]);
@@ -76,7 +75,7 @@ impl RollupBlueprint for MockDemoRollup {
             da_service.clone(),
             storage.clone(),
             &mut rpc_methods,
-            sequencer_client,
+            sequencer_client_url,
         )?;
 
         Ok(rpc_methods)
@@ -91,8 +90,8 @@ impl RollupBlueprint for MockDemoRollup {
 
     async fn create_prover_service(
         &self,
-        prover_config: RollupProverConfig,
-        rollup_config: &RollupConfig<Self::DaConfig>,
+        prover_config: ProverConfig,
+        _rollup_config: &RollupConfig<Self::DaConfig>,
         _da_service: &Self::DaService,
     ) -> Self::ProverService {
         let vm = Risc0BonsaiHost::new(risc0::MOCK_DA_ELF);
@@ -106,7 +105,6 @@ impl RollupBlueprint for MockDemoRollup {
             da_verifier,
             prover_config,
             zk_storage,
-            rollup_config.prover_service,
         )
         .expect("Should be able to instantiate prover service")
     }

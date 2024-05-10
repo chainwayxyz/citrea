@@ -5,17 +5,19 @@ use serde::Serialize;
 use sov_rollup_interface::da::{DaSpec, SequencerCommitment};
 use sov_rollup_interface::services::da::SlotData;
 use sov_rollup_interface::stf::{BatchReceipt, Event, SoftBatchReceipt};
+use sov_rollup_interface::zk::Proof;
 use sov_schema_db::{Schema, SchemaBatch, SeekKeyEncoder, DB};
 
 use crate::rocks_db_config::gen_rocksdb_options;
 use crate::schema::tables::{
     BatchByHash, BatchByNumber, CommitmentsByNumber, EventByKey, EventByNumber, L2RangeByL1Height,
-    LastSequencerCommitmentSent, SlotByHash, SlotByNumber, SoftBatchByHash, SoftBatchByNumber,
-    SoftConfirmationStatus, TxByHash, TxByNumber, LEDGER_TABLES,
+    LastSequencerCommitmentSent, ProofBySlotNumber, ProverLastScannedSlot, SlotByHash,
+    SlotByNumber, SoftBatchByHash, SoftBatchByNumber, SoftConfirmationStatus, TxByHash, TxByNumber,
+    LEDGER_TABLES,
 };
 use crate::schema::types::{
     split_tx_for_storage, BatchNumber, EventNumber, L2HeightRange, SlotNumber, StoredBatch,
-    StoredSlot, StoredSoftBatch, StoredTransaction, TxNumber,
+    StoredProof, StoredSlot, StoredSoftBatch, StoredStateTransition, StoredTransaction, TxNumber,
 };
 
 mod rpc;
@@ -520,6 +522,24 @@ impl LedgerDB {
         self.db.get::<L2RangeByL1Height>(&l1_height)
     }
 
+    /// Get the last scanned slot by the prover
+    pub fn get_prover_last_scanned_l1_height(&self) -> anyhow::Result<Option<SlotNumber>> {
+        self.db.get::<ProverLastScannedSlot>(&())
+    }
+
+    /// Set the last scanned slot by the prover
+    /// Called by the prover.
+    pub fn set_prover_last_scanned_l1_height(&self, l1_height: SlotNumber) -> anyhow::Result<()> {
+        let mut schema_batch = SchemaBatch::new();
+
+        schema_batch
+            .put::<ProverLastScannedSlot>(&(), &l1_height)
+            .unwrap();
+        self.db.write_schemas(schema_batch)?;
+
+        Ok(())
+    }
+
     /// Gets the commitments in the da slot with given height if any
     /// Adds the new coming commitment info
     pub fn update_commitments_on_da_slot(
@@ -542,6 +562,23 @@ impl LedgerDB {
                 .db
                 .put::<CommitmentsByNumber>(&SlotNumber(height), &vec![commitment]),
         }
+    }
+
+    /// Stores proof related data on disk, accessible via l1 slot height
+    pub fn put_proof_data(
+        &self,
+        l1_height: u64,
+        l1_tx_id: [u8; 32],
+        proof: Proof,
+        state_transition: StoredStateTransition,
+    ) -> anyhow::Result<()> {
+        let data_to_store = StoredProof {
+            l1_tx_id,
+            proof,
+            state_transition,
+        };
+        self.db
+            .put::<ProofBySlotNumber>(&SlotNumber(l1_height), &data_to_store)
     }
 
     /// Sets l1 height of l1 hash

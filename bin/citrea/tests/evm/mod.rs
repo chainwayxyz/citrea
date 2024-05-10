@@ -12,7 +12,6 @@ use ethers_signers::{LocalWallet, Signer};
 use reth_primitives::BlockNumberOrTag;
 // use sov_demo_rollup::initialize_logging;
 use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
-use sov_stf_runner::RollupProverConfig;
 
 use crate::test_client::TestClient;
 use crate::test_helpers::{start_rollup, NodeMode};
@@ -27,14 +26,13 @@ async fn web3_rpc_tests() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging();
     let (port_tx, port_rx) = tokio::sync::oneshot::channel();
     let rollup_task = tokio::spawn(async {
-        // Don't provide a prover since the EVM is not currently provable
         start_rollup(
             port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             BasicKernelGenesisPaths {
                 chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
             },
-            RollupProverConfig::Skip,
+            None,
             NodeMode::SequencerNode,
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
@@ -89,7 +87,7 @@ async fn evm_tx_tests() -> Result<(), anyhow::Error> {
             BasicKernelGenesisPaths {
                 chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
             },
-            RollupProverConfig::Skip,
+            None,
             NodeMode::SequencerNode,
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
@@ -128,7 +126,7 @@ async fn test_eth_get_logs() -> Result<(), anyhow::Error> {
             BasicKernelGenesisPaths {
                 chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
             },
-            RollupProverConfig::Skip,
+            None,
             NodeMode::SequencerNode,
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
@@ -163,7 +161,7 @@ async fn test_genesis_contract_call() -> Result<(), Box<dyn std::error::Error>> 
             BasicKernelGenesisPaths {
                 chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
             },
-            RollupProverConfig::Execute,
+            None,
             NodeMode::SequencerNode,
             None,
             123456,

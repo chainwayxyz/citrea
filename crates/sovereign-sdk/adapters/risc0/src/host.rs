@@ -92,7 +92,7 @@ impl<'a> ZkvmHost for Risc0Host<'a> {
             Ok(Proof::Full(data))
         } else {
             let session = self.run_without_proving()?;
-            let data = bincode::serialize(&session.journal)?;
+            let data = bincode::serialize(&session.journal.expect("Journal shouldn't be empty"))?;
             Ok(Proof::PublicInput(data))
         }
     }

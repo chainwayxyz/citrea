@@ -16,10 +16,10 @@ use secp256k1::rand::thread_rng;
 use shared_backup_db::{PostgresConnector, SharedBackupDbConfig};
 use sov_mock_da::{MockAddress, MockDaService, MockDaSpec, MockHash};
 use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
-use sov_rollup_interface::da::DaSpec;
+use sov_rollup_interface::da::{DaData, DaSpec};
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
 use sov_rollup_interface::services::da::DaService;
-use sov_stf_runner::RollupProverConfig;
+use sov_stf_runner::ProverConfig;
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
 
@@ -60,7 +60,7 @@ async fn initialize_test(
             BasicKernelGenesisPaths {
                 chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
             },
-            RollupProverConfig::Execute,
+            None,
             NodeMode::SequencerNode,
             None,
             config.seq_min_soft_confirmations,
@@ -85,7 +85,7 @@ async fn initialize_test(
             BasicKernelGenesisPaths {
                 chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
             },
-            RollupProverConfig::Execute,
+            None,
             NodeMode::FullNode(seq_port),
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
@@ -123,7 +123,7 @@ async fn test_soft_batch_save() -> Result<(), anyhow::Error> {
             BasicKernelGenesisPaths {
                 chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
             },
-            RollupProverConfig::Execute,
+            None,
             NodeMode::SequencerNode,
             None,
             config.seq_min_soft_confirmations,
@@ -148,7 +148,7 @@ async fn test_soft_batch_save() -> Result<(), anyhow::Error> {
             BasicKernelGenesisPaths {
                 chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
             },
-            RollupProverConfig::Execute,
+            None,
             NodeMode::FullNode(seq_port),
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
@@ -173,7 +173,7 @@ async fn test_soft_batch_save() -> Result<(), anyhow::Error> {
             BasicKernelGenesisPaths {
                 chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
             },
-            RollupProverConfig::Execute,
+            None,
             NodeMode::FullNode(full_node_port),
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
@@ -262,7 +262,7 @@ async fn test_delayed_sync_ten_blocks() -> Result<(), anyhow::Error> {
             BasicKernelGenesisPaths {
                 chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
             },
-            RollupProverConfig::Execute,
+            None,
             NodeMode::SequencerNode,
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
@@ -297,7 +297,7 @@ async fn test_delayed_sync_ten_blocks() -> Result<(), anyhow::Error> {
             BasicKernelGenesisPaths {
                 chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
             },
-            RollupProverConfig::Execute,
+            None,
             NodeMode::FullNode(seq_port),
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
@@ -363,7 +363,7 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
             BasicKernelGenesisPaths {
                 chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
             },
-            RollupProverConfig::Execute,
+            None,
             NodeMode::SequencerNode,
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
@@ -388,7 +388,7 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
             BasicKernelGenesisPaths {
                 chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
             },
-            RollupProverConfig::Execute,
+            None,
             NodeMode::FullNode(seq_port),
             Some("demo_data_test_close_and_reopen_full_node"),
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
@@ -472,7 +472,7 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
             BasicKernelGenesisPaths {
                 chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
             },
-            RollupProverConfig::Execute,
+            None,
             NodeMode::FullNode(seq_port),
             Some("demo_data_test_close_and_reopen_full_node_copy"),
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
@@ -529,7 +529,7 @@ async fn test_get_transaction_by_hash() -> Result<(), anyhow::Error> {
             BasicKernelGenesisPaths {
                 chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
             },
-            RollupProverConfig::Execute,
+            None,
             NodeMode::SequencerNode,
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
@@ -553,7 +553,7 @@ async fn test_get_transaction_by_hash() -> Result<(), anyhow::Error> {
             BasicKernelGenesisPaths {
                 chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
             },
-            RollupProverConfig::Execute,
+            None,
             NodeMode::FullNode(seq_port),
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
@@ -791,7 +791,7 @@ async fn test_reopen_sequencer() -> Result<(), anyhow::Error> {
             BasicKernelGenesisPaths {
                 chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
             },
-            RollupProverConfig::Execute,
+            None,
             NodeMode::SequencerNode,
             Some("demo_data_test_reopen_sequencer"),
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
@@ -839,7 +839,7 @@ async fn test_reopen_sequencer() -> Result<(), anyhow::Error> {
             BasicKernelGenesisPaths {
                 chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
             },
-            RollupProverConfig::Execute,
+            None,
             NodeMode::SequencerNode,
             Some("demo_data_test_reopen_sequencer_copy"),
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
@@ -1118,6 +1118,7 @@ async fn test_soft_confirmations_status_two_l1() -> Result<(), anyhow::Error> {
 #[tokio::test]
 async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging();
+
     let da_service = MockDaService::new(MockAddress::default());
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
@@ -1129,7 +1130,7 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
             BasicKernelGenesisPaths {
                 chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
             },
-            RollupProverConfig::Execute,
+            None,
             NodeMode::SequencerNode,
             None,
             4,
@@ -1154,7 +1155,7 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
             BasicKernelGenesisPaths {
                 chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
             },
-            RollupProverConfig::Execute,
+            Some(ProverConfig::default()),
             NodeMode::Prover(seq_port),
             None,
             4,
@@ -1189,9 +1190,16 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
     // start l1 height = 1, end = 2
     seq_test_client.send_publish_batch_request().await;
 
-    // wait for prover to sync
-    sleep(Duration::from_secs(5)).await;
-
+    // wait here until we see from prover's rpc that it finished proving
+    while prover_node_test_client
+        .prover_get_last_scanned_l1_height()
+        .await
+        != 3
+    {
+        // sleep 2
+        sleep(Duration::from_secs(2)).await;
+    }
+    sleep(Duration::from_secs(4)).await;
     // prover should have synced all 4 l2 blocks
     assert_eq!(prover_node_test_client.eth_block_number().await, 4);
 
@@ -1212,10 +1220,35 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
     // Commitment is sent right before the 9th block is published
     seq_test_client.send_publish_batch_request().await;
 
-    // Wait for prover to sync
-    sleep(Duration::from_secs(5)).await;
-    // Should now have 8 blocks = 2 commitments of blocks 1-4 and 5-8
+    // wait here until we see from prover's rpc that it finished proving
+    while prover_node_test_client
+        .prover_get_last_scanned_l1_height()
+        .await
+        != 8
+    {
+        // sleep 2
+        sleep(Duration::from_secs(2)).await;
+    }
+    sleep(Duration::from_secs(4)).await;
+    // Should now have 8 blocks = 2 commitments of blocks 1-4 and 5-9
+    // there is an extra soft confirmation due to the prover publishing a proof. This causes
+    // a new MockDa block, which in turn causes the sequencer to publish an extra soft confirmation
+    // becase it must not skip blocks.
     assert_eq!(prover_node_test_client.eth_block_number().await, 8);
+
+    // on the 8th DA block, we should have a proof
+    let mut blobs = da_service.get_block_at(8).await.unwrap().blobs;
+
+    assert_eq!(blobs.len(), 1);
+
+    let mut blob = blobs.pop().unwrap();
+    blob.data.advance(blob.data.total_len());
+
+    let da_data = blob.data.accumulator();
+
+    let proof: DaData = borsh::BorshDeserialize::try_from_slice(da_data).unwrap();
+
+    assert!(matches!(proof, DaData::ZKProof(_)));
 
     // TODO: Also test with multiple commitments in single Mock DA Block
     seq_task.abort();
@@ -1225,6 +1258,8 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
 
 #[tokio::test]
 async fn test_reopen_prover() -> Result<(), anyhow::Error> {
+    // citrea::initialize_logging();
+
     let _ = fs::remove_dir_all(Path::new("demo_data_test_reopen_prover_copy2"));
     let _ = fs::remove_dir_all(Path::new("demo_data_test_reopen_prover_copy"));
     let _ = fs::remove_dir_all(Path::new("demo_data_test_reopen_prover"));
@@ -1240,7 +1275,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
             BasicKernelGenesisPaths {
                 chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
             },
-            RollupProverConfig::Execute,
+            Some(ProverConfig::default()),
             NodeMode::SequencerNode,
             None,
             4,
@@ -1265,7 +1300,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
             BasicKernelGenesisPaths {
                 chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
             },
-            RollupProverConfig::Execute,
+            Some(ProverConfig::default()),
             NodeMode::Prover(seq_port),
             Some("demo_data_test_reopen_prover"),
             4,
@@ -1300,8 +1335,15 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     // start l1 height = 1, end = 2
     seq_test_client.send_publish_batch_request().await;
 
-    // wait for prover to sync
-    sleep(Duration::from_secs(5)).await;
+    // wait here until we see from prover's rpc that it finished proving
+    while prover_node_test_client
+        .prover_get_last_scanned_l1_height()
+        .await
+        != 5
+    {
+        // sleep 2
+        sleep(Duration::from_secs(2)).await;
+    }
 
     // prover should have synced all 4 l2 blocks
     assert_eq!(prover_node_test_client.eth_block_number().await, 4);
@@ -1322,7 +1364,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
             BasicKernelGenesisPaths {
                 chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
             },
-            RollupProverConfig::Execute,
+            Some(ProverConfig::default()),
             NodeMode::Prover(seq_port),
             Some("demo_data_test_reopen_prover_copy"),
             4,
@@ -1369,7 +1411,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
             BasicKernelGenesisPaths {
                 chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
             },
-            RollupProverConfig::Execute,
+            Some(ProverConfig::default()),
             NodeMode::Prover(seq_port),
             Some("demo_data_test_reopen_prover_copy2"),
             4,
@@ -1393,10 +1435,20 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     // Commitment is sent right before the 9th block is published
     seq_test_client.send_publish_batch_request().await;
 
-    // Wait for prover to sync
-    sleep(Duration::from_secs(5)).await;
-    // Should now have 8 blocks = 2 commitments of blocks 1-4 and 5-8
-    assert_eq!(prover_node_test_client.eth_block_number().await, 8);
+    // wait here until we see from prover's rpc that it finished proving
+    while prover_node_test_client
+        .prover_get_last_scanned_l1_height()
+        .await
+        != 8
+    {
+        // sleep 2
+        sleep(Duration::from_secs(2)).await;
+    }
+
+    // Should now have 8 blocks = 2 commitments of blocks 1-4 and 5-9
+    // there is an extra soft confirmation due to the prover publishing a proof. This causes
+    // a new MockDa block, which in turn causes the sequencer to publish an extra soft confirmation
+    assert_eq!(prover_node_test_client.eth_block_number().await, 9);
 
     // TODO: Also test with multiple commitments in single Mock DA Block
     seq_task.abort();
@@ -1559,7 +1611,7 @@ async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error>
                     "../test-data/genesis/integration-tests-low-block-gas-limit/chain_state.json"
                         .into(),
             },
-            RollupProverConfig::Execute,
+            None,
             NodeMode::SequencerNode,
             None,
             4,
@@ -1726,7 +1778,7 @@ async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
             BasicKernelGenesisPaths {
                 chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
             },
-            RollupProverConfig::Execute,
+            None,
             NodeMode::SequencerNode,
             None,
             4,
@@ -1752,7 +1804,7 @@ async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
             BasicKernelGenesisPaths {
                 chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
             },
-            RollupProverConfig::Execute,
+            None,
             NodeMode::FullNode(seq_port),
             Some("demo_data_sequencer_full_node"),
             4,
@@ -1797,7 +1849,7 @@ async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
 
     full_node_task.abort();
 
-    sleep(Duration::from_secs(1)).await;
+    sleep(Duration::from_secs(2)).await;
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
@@ -1818,7 +1870,7 @@ async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
             BasicKernelGenesisPaths {
                 chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
             },
-            RollupProverConfig::Execute,
+            None,
             NodeMode::SequencerNode,
             Some("demo_data_sequencer_full_node_copy"),
             4,
@@ -1834,6 +1886,8 @@ async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
     let seq_port = seq_port_rx.await.unwrap();
 
     let seq_test_client = make_test_client(seq_port).await;
+
+    sleep(Duration::from_secs(5)).await;
 
     assert_eq!(seq_test_client.eth_block_number().await as u64, 5);
 
@@ -1979,7 +2033,7 @@ async fn sequencer_crash_restore_mempool() -> Result<(), anyhow::Error> {
             BasicKernelGenesisPaths {
                 chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
             },
-            RollupProverConfig::Execute,
+            None,
             NodeMode::SequencerNode,
             Some("demo_data_sequencer_restore_mempool"),
             4,
@@ -2045,7 +2099,7 @@ async fn sequencer_crash_restore_mempool() -> Result<(), anyhow::Error> {
             BasicKernelGenesisPaths {
                 chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
             },
-            RollupProverConfig::Execute,
+            None,
             NodeMode::SequencerNode,
             Some("demo_data_sequencer_restore_mempool_copy"),
             4,
