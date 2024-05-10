@@ -53,16 +53,15 @@ pub fn sign_blob_with_private_key(
     ))
 }
 
-#[allow(clippy::ptr_arg)]
 fn get_size(
-    inputs: &Vec<TxIn>,
-    outputs: &Vec<TxOut>,
+    inputs: &[TxIn],
+    outputs: &[TxOut],
     script: Option<&ScriptBuf>,
     control_block: Option<&ControlBlock>,
 ) -> usize {
     let mut tx = Transaction {
-        input: inputs.clone(),
-        output: outputs.clone(),
+        input: inputs.to_owned(),
+        output: outputs.to_owned(),
         lock_time: LockTime::ZERO,
         version: bitcoin::transaction::Version(2),
     };
@@ -133,7 +132,7 @@ fn build_commit_transaction(
 ) -> Result<Transaction, anyhow::Error> {
     // get single input single output transaction size
     let mut size = get_size(
-        &vec![TxIn {
+        &[TxIn {
             previous_output: OutPoint {
                 txid: Txid::from_str(
                     "0000000000000000000000000000000000000000000000000000000000000000",
@@ -145,7 +144,7 @@ fn build_commit_transaction(
             witness: Witness::new(),
             sequence: Sequence::ENABLE_RBF_NO_LOCKTIME,
         }],
-        &vec![TxOut {
+        &[TxOut {
             script_pubkey: recipient.clone().script_pubkey(),
             value: Amount::from_sat(output_value),
         }],
@@ -191,7 +190,7 @@ fn build_commit_transaction(
             }
         }
 
-        let inputs = chosen_utxos
+        let inputs: Vec<_> = chosen_utxos
             .iter()
             .map(|u| TxIn {
                 previous_output: OutPoint {
@@ -360,7 +359,7 @@ pub fn create_inscription_transactions(
         );
 
         let commit_value = (get_size(
-            &vec![TxIn {
+            &[TxIn {
                 previous_output: OutPoint {
                     txid: Txid::from_str(
                         "0000000000000000000000000000000000000000000000000000000000000000",
@@ -372,7 +371,7 @@ pub fn create_inscription_transactions(
                 witness: Witness::new(),
                 sequence: Sequence::ENABLE_RBF_NO_LOCKTIME,
             }],
-            &vec![TxOut {
+            &[TxOut {
                 script_pubkey: recipient.clone().script_pubkey(),
                 value: Amount::from_sat(reveal_value),
             }],
