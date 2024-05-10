@@ -43,7 +43,7 @@ sov-state = { path = "../../sov-state", version = "0.3" }
 
 
 [features]
-default = []
+default = ["native"]
 native = [
     "serde_json",
     "sov-modules-api/native",
