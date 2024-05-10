@@ -23,7 +23,7 @@ jsonrpsee = { workspace = true, features = [
 ], optional = true }
 
 sov-modules-api = { path = "../../sov-modules-api" }
-sov-modules-macros = { path = "../../sov-modules-macros" }
+sov-modules-macros = { path = "../../sov-modules-macros", default-features = false }
 sov-state = { path = "../../sov-state" }
 
 postgres = { version = "0.19.7", optional = true }
