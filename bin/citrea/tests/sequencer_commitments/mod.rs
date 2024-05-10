@@ -343,10 +343,15 @@ async fn test_ledger_get_commitments_on_slot() {
 
     let second_hash = da_service.get_block_at(2).await.unwrap().header.hash;
     assert_eq!(
-        commitments[0].l1_start_block_hash,
-        hex::encode(second_hash.0)
+        commitments[0].l1_start_block_hash.to_vec(),
+        second_hash.0.to_vec()
     );
-    assert_eq!(commitments[0].l1_end_block_hash, hex::encode(second_hash.0));
+    assert_eq!(
+        commitments[0].l1_end_block_hash.to_vec(),
+        second_hash.0.to_vec()
+    );
+
+    assert_eq!(commitments[0].found_in_l1, 4);
 
     let fourth_block_hash = da_service.get_block_at(4).await.unwrap().header.hash;
 

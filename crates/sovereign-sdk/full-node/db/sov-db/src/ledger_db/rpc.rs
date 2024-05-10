@@ -1,8 +1,9 @@
 use serde::de::DeserializeOwned;
 use sov_rollup_interface::rpc::{
-    BatchIdAndOffset, BatchIdentifier, BatchResponse, EventIdentifier, ItemOrHash,
-    LedgerRpcProvider, QueryMode, SequencerCommitmentResponse, SlotIdAndOffset, SlotIdentifier,
-    SlotResponse, SoftBatchIdentifier, SoftBatchResponse, TxIdAndOffset, TxIdentifier, TxResponse,
+    sequencer_commitment_to_response, BatchIdAndOffset, BatchIdentifier, BatchResponse,
+    EventIdentifier, ItemOrHash, LedgerRpcProvider, QueryMode, SequencerCommitmentResponse,
+    SlotIdAndOffset, SlotIdentifier, SlotResponse, SoftBatchIdentifier, SoftBatchResponse,
+    TxIdAndOffset, TxIdentifier, TxResponse,
 };
 use sov_rollup_interface::stf::Event;
 use tokio::sync::broadcast::Receiver;
@@ -376,7 +377,7 @@ impl LedgerRpcProvider for LedgerDB {
             Some(commitments) => Ok(Some(
                 commitments
                     .into_iter()
-                    .map(SequencerCommitmentResponse::from)
+                    .map(|commitment| sequencer_commitment_to_response(commitment, height))
                     .collect(),
             )),
             None => Ok(None),

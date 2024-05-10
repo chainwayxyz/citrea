@@ -219,21 +219,29 @@ pub struct SoftBatchResponse {
 /// The response to a JSON-RPC request for sequencer commitments on a DA Slot.
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct SequencerCommitmentResponse {
+    /// L1 block hash the commitment was on
+    pub found_in_l1: u64,
     /// Hex encoded Merkle root of soft confirmation hashes
-    pub merkle_root: String,
+    #[serde(with = "hex::serde")]
+    pub merkle_root: [u8; 32],
     /// Hex encoded Start L1 block's hash
-    pub l1_start_block_hash: String,
+    #[serde(with = "hex::serde")]
+    pub l1_start_block_hash: [u8; 32],
     /// Hex encoded End L1 block's hash
-    pub l1_end_block_hash: String,
+    #[serde(with = "hex::serde")]
+    pub l1_end_block_hash: [u8; 32],
 }
 
-impl From<SequencerCommitment> for SequencerCommitmentResponse {
-    fn from(value: SequencerCommitment) -> Self {
-        Self {
-            merkle_root: hex::encode(value.merkle_root),
-            l1_start_block_hash: hex::encode(value.l1_start_block_hash),
-            l1_end_block_hash: hex::encode(value.l1_end_block_hash),
-        }
+/// Converts `SequencerCommitment` to `SequencerCommitmentResponse`
+pub fn sequencer_commitment_to_response(
+    commitment: SequencerCommitment,
+    l1_height: u64,
+) -> SequencerCommitmentResponse {
+    SequencerCommitmentResponse {
+        found_in_l1: l1_height,
+        merkle_root: commitment.merkle_root,
+        l1_start_block_hash: commitment.l1_start_block_hash,
+        l1_end_block_hash: commitment.l1_end_block_hash,
     }
 }
 

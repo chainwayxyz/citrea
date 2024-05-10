@@ -1035,7 +1035,7 @@ async fn test_soft_confirmations_status_one_l1() -> Result<(), anyhow::Error> {
 
 #[tokio::test]
 async fn test_soft_confirmations_status_two_l1() -> Result<(), anyhow::Error> {
-    citrea::initialize_logging();
+    // citrea::initialize_logging();
 
     let da_service = MockDaService::new(MockAddress::default());
 
