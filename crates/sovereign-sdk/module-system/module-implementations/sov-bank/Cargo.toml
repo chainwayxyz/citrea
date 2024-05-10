@@ -21,7 +21,7 @@ serde = { workspace = true }
 serde_json = { workspace = true, optional = true }
 thiserror = { workspace = true }
 
-sov-modules-api = { path = "../../sov-modules-api", version = "0.3" }
+sov-modules-api = { path = "../../sov-modules-api", version = "0.3", default-features = false }
 sov-state = { path = "../../sov-state", version = "0.3" }
 
 

@@ -61,7 +61,7 @@ arbitrary = [
     "sov-state/arbitrary",
 ]
 bench = []
-default = ["macros"]
+default = ["native", "macros"]
 native = [
     "serde_json",
     "rand",
