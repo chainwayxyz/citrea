@@ -5,7 +5,7 @@ use crate::metrics::SCHEMADB_BATCH_PUT_LATENCY_SECONDS;
 use crate::schema::{ColumnFamilyName, KeyCodec, ValueCodec};
 use crate::{Operation, Schema, SchemaKey};
 
-// [`SchemaBatch`] holds a collection of updates that can be applied to a DB
+/// [`SchemaBatch`] holds a collection of updates that can be applied to a DB
 /// ([`Schema`]) atomically. The updates will be applied in the order in which
 /// they are added to the [`SchemaBatch`].
 #[derive(Debug, Default)]

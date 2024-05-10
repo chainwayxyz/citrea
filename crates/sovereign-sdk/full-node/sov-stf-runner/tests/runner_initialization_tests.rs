@@ -18,7 +18,7 @@ type MockInitVariant =
 type S = DefaultStorageSpec;
 type StorageManager = ProverStorageManager<MockDaSpec, S>;
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn init_and_restart() {
     let tmpdir = tempfile::tempdir().unwrap();
     let genesis_params = vec![1, 2, 3, 4, 5];
