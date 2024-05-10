@@ -707,12 +707,12 @@ where
 
                     let end_l2_height = match self
                         .ledger_db
-                        .get_l2_range_by_l1_height(SlotNumber(start_l1_height))
+                        .get_l2_range_by_l1_height(SlotNumber(end_l1_height))
                     {
                         Ok(Some((_, end_l2_height))) => end_l2_height,
                         Ok(None) => bail!(
                             "Runner: L1 L2 connection does not exist. L1 height = {}",
-                            start_l1_height
+                            end_l1_height
                         ),
                         Err(e) => bail!("Runner: Failed to get L1 L2 connection. Err: {}", e),
                     };
