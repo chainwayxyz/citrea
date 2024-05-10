@@ -152,7 +152,7 @@ where
                     tracing::info!("added hint");
                     self.pool.spawn(move || {
                         tracing::info_span!("guest_execution").in_scope(|| {
-                            tracing::info!("going into make proof");
+                            tracing::info!("Starting proving");
                             let proof = make_proof(vm, config, zk_storage);
 
                             let mut prover_state =
