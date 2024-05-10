@@ -1200,6 +1200,7 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
         // sleep 2
         sleep(Duration::from_secs(2)).await;
     }
+    sleep(Duration::from_secs(4)).await;
     // prover should have synced all 4 l2 blocks
     assert_eq!(prover_node_test_client.eth_block_number().await, 4);
 
@@ -1229,7 +1230,7 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
         // sleep 2
         sleep(Duration::from_secs(2)).await;
     }
-
+    sleep(Duration::from_secs(4)).await;
     // Should now have 8 blocks = 2 commitments of blocks 1-4 and 5-9
     // there is an extra soft confirmation due to the prover publishing a proof. This causes
     // a new MockDa block, which in turn causes the sequencer to publish an extra soft confirmation
@@ -1849,7 +1850,7 @@ async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
 
     full_node_task.abort();
 
-    sleep(Duration::from_secs(1)).await;
+    sleep(Duration::from_secs(2)).await;
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
@@ -1886,6 +1887,8 @@ async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
     let seq_port = seq_port_rx.await.unwrap();
 
     let seq_test_client = make_test_client(seq_port).await;
+
+    sleep(Duration::from_secs(5)).await;
 
     assert_eq!(seq_test_client.eth_block_number().await as u64, 5);
 
