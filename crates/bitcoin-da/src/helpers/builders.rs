@@ -124,6 +124,7 @@ fn choose_utxos(utxos: &[UTXO], amount: u64) -> Result<(Vec<UTXO>, u64), anyhow:
 }
 
 fn build_commit_transaction(
+    _prev_tx: Option<TxWithId>, // reuse outputs to add commit tx order
     utxos: Vec<UTXO>,
     recipient: Address,
     change_address: Address,
@@ -267,6 +268,15 @@ fn build_reveal_transaction(
     Ok(tx)
 }
 
+/// Both transaction and its hash
+#[derive(Clone)]
+pub struct TxWithId {
+    /// ID (hash)
+    pub id: Txid,
+    /// Transaction
+    pub tx: Transaction,
+}
+
 // TODO: parametrize hardness
 // so tests are easier
 // Creates the inscription transactions (commit and reveal)
@@ -276,6 +286,7 @@ pub fn create_inscription_transactions(
     body: Vec<u8>,
     signature: Vec<u8>,
     sequencer_public_key: Vec<u8>,
+    prev_tx: Option<TxWithId>,
     utxos: Vec<UTXO>,
     recipient: Address,
     reveal_value: u64,
@@ -283,7 +294,7 @@ pub fn create_inscription_transactions(
     reveal_fee_rate: f64,
     network: Network,
     reveal_tx_prefix: &[u8],
-) -> Result<(Transaction, Transaction), anyhow::Error> {
+) -> Result<(Transaction, TxWithId), anyhow::Error> {
     // Create commit key
     let secp256k1 = Secp256k1::new();
     let key_pair = UntweakedKeypair::new(&secp256k1, &mut rand::thread_rng());
@@ -384,6 +395,7 @@ pub fn create_inscription_transactions(
 
         // build commit tx
         let unsigned_commit_tx = build_commit_transaction(
+            prev_tx.clone(),
             utxos,
             commit_tx_address.clone(),
             recipient.clone(),
@@ -404,7 +416,8 @@ pub fn create_inscription_transactions(
             &control_block,
         )?;
 
-        let reveal_hash = reveal_tx.txid().as_raw_hash().to_byte_array();
+        let reveal_tx_id = reveal_tx.txid();
+        let reveal_hash = reveal_tx_id.as_raw_hash().to_byte_array();
 
         // check if first N bytes equal to the given prefix
         if reveal_hash.starts_with(reveal_tx_prefix) {
@@ -447,7 +460,13 @@ pub fn create_inscription_transactions(
                 commit_tx_address
             );
 
-            return Ok((unsigned_commit_tx, reveal_tx));
+            return Ok((
+                unsigned_commit_tx,
+                TxWithId {
+                    id: reveal_tx_id,
+                    tx: reveal_tx,
+                },
+            ));
         }
 
         nonce += 1;
@@ -624,6 +643,7 @@ mod tests {
                 .require_network(bitcoin::Network::Bitcoin)
                 .unwrap();
         let mut tx = super::build_commit_transaction(
+            None,
             utxos.clone(),
             recipient.clone(),
             address.clone(),
@@ -651,6 +671,7 @@ mod tests {
         assert_eq!(tx.output[1].script_pubkey, address.script_pubkey());
 
         let mut tx = super::build_commit_transaction(
+            None,
             utxos.clone(),
             recipient.clone(),
             address.clone(),
@@ -676,6 +697,7 @@ mod tests {
         assert_eq!(tx.output[0].script_pubkey, recipient.script_pubkey());
 
         let mut tx = super::build_commit_transaction(
+            None,
             utxos.clone(),
             recipient.clone(),
             address.clone(),
@@ -706,6 +728,7 @@ mod tests {
         assert_eq!(tx.output[0].script_pubkey, recipient.script_pubkey());
 
         let mut tx = super::build_commit_transaction(
+            None,
             utxos.clone(),
             recipient.clone(),
             address.clone(),
@@ -738,6 +761,7 @@ mod tests {
         assert_eq!(tx.output[1].script_pubkey, address.script_pubkey());
 
         let tx = super::build_commit_transaction(
+            None,
             utxos.clone(),
             recipient.clone(),
             address.clone(),
@@ -749,6 +773,7 @@ mod tests {
         assert_eq!(format!("{}", tx.unwrap_err()), "not enough UTXOs");
 
         let tx = super::build_commit_transaction(
+            None,
             vec![UTXO {
                 tx_id: Txid::from_str(
                     "4cfbec13cf1510545f285cceceb6229bd7b6a918a8f6eba1dbee64d26226a3b7",
@@ -860,6 +885,7 @@ mod tests {
             body.clone(),
             signature.clone(),
             sequencer_public_key.clone(),
+            None,
             utxos.clone(),
             address.clone(),
             546,
@@ -871,11 +897,12 @@ mod tests {
         .unwrap();
 
         // check pow
-        assert!(reveal.txid().as_byte_array().starts_with(tx_prefix));
+        assert!(reveal.id.as_byte_array().starts_with(tx_prefix));
 
         // check outputs
         assert_eq!(commit.output.len(), 2, "commit tx should have 2 outputs");
 
+        let reveal = reveal.tx;
         assert_eq!(reveal.output.len(), 1, "reveal tx should have 1 output");
 
         assert_eq!(

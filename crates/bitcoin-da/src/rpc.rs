@@ -4,7 +4,7 @@ use core::str::FromStr;
 use bitcoin::block::{Header, Version};
 use bitcoin::hash_types::{TxMerkleNode, WitnessMerkleNode};
 use bitcoin::hashes::Hash;
-use bitcoin::{merkle_tree, Address, BlockHash, CompactTarget, Network, Wtxid};
+use bitcoin::{merkle_tree, BlockHash, CompactTarget, Wtxid};
 use reqwest::header::HeaderMap;
 use serde::{Deserialize, Serialize};
 use serde_json::value::RawValue;
@@ -42,10 +42,9 @@ struct Response<R = String> {
 pub struct BitcoinNode {
     url: String,
     client: reqwest::Client,
-    network: Network,
 }
 impl BitcoinNode {
-    pub fn new(url: String, username: String, password: String, network: Network) -> Self {
+    pub fn new(url: String, username: String, password: String) -> Self {
         let mut headers = HeaderMap::new();
         headers.insert(
             "Authorization",
@@ -67,11 +66,7 @@ impl BitcoinNode {
             .build()
             .expect("Failed to build client!");
 
-        Self {
-            url,
-            client,
-            network,
-        }
+        Self { url, client }
     }
 
     async fn call_inner<T: serde::de::DeserializeOwned>(
@@ -223,19 +218,6 @@ impl BitcoinNode {
             .await?;
 
         Ok(utxos)
-    }
-
-    // get_change_address returns a change address for the wallet of bitcoind
-    async fn get_change_address(&self) -> Result<Address, anyhow::Error> {
-        let address_string = self.call::<String>("getrawchangeaddress", vec![]).await?;
-        Ok(Address::from_str(&address_string)?.require_network(self.network)?)
-    }
-
-    pub async fn get_change_addresses(&self) -> Result<[Address; 2], anyhow::Error> {
-        let change_address = self.get_change_address().await?;
-        let change_address_2 = self.get_change_address().await?;
-
-        Ok([change_address, change_address_2])
     }
 
     // estimate_smart_fee estimates the fee to confirm a transaction in the next block
