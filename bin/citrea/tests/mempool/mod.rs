@@ -43,7 +43,7 @@ async fn initialize_test(
 }
 
 /// Transaction with equal nonce to last tx should not be accepted by mempool.
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_same_nonce_tx_should_panic() {
     // citrea::initialize_logging();
 
@@ -73,7 +73,7 @@ async fn test_same_nonce_tx_should_panic() {
 }
 
 ///  Transaction with nonce lower than account's nonce on state should not be accepted by mempool.
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_nonce_too_low() {
     // citrea::initialize_logging();
 
@@ -103,7 +103,7 @@ async fn test_nonce_too_low() {
 
 /// Transaction with nonce higher than account's nonce should be accepted by the mempool
 /// but shouldn't be received by the sequencer (so it doesn't end up in the block)
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_nonce_too_high() {
     // citrea::initialize_logging();
 
@@ -140,7 +140,7 @@ async fn test_nonce_too_high() {
     seq_task.abort();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_order_by_fee() {
     let db_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = db_dir.path().join("DA").to_path_buf();
@@ -244,7 +244,7 @@ async fn test_order_by_fee() {
 
 /// Send a transaction that pays less base fee then required.
 /// Publish block, tx should not be in block but should still be in the mempool.
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_tx_with_low_base_fee() {
     let db_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = db_dir.path().join("DA").to_path_buf();
@@ -290,7 +290,7 @@ async fn test_tx_with_low_base_fee() {
     seq_task.abort();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_same_nonce_tx_replacement() {
     let db_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = db_dir.path().join("DA").to_path_buf();

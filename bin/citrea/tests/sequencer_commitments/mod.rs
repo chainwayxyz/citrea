@@ -19,7 +19,7 @@ use crate::test_helpers::{
 };
 use crate::{DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_PROOF_WAIT_DURATION};
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn sequencer_sends_commitments_to_da_layer() {
     // citrea::initialize_logging();
 

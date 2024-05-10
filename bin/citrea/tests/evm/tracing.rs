@@ -16,7 +16,7 @@ use crate::evm::make_test_client;
 use crate::test_helpers::{start_rollup, tempdir_with_children, NodeMode};
 use crate::{DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT};
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn tracing_tests() -> Result<(), Box<dyn std::error::Error>> {
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
