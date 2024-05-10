@@ -40,7 +40,7 @@ contract Bridge is Ownable {
     bytes32[] public withdrawalAddrs;
     
     event Deposit(bytes32 wtxId, address recipient, uint256 timestamp);
-    event Withdrawal(bytes32  bitcoin_address, uint256 index, uint256 timestamp);
+    event Withdrawal(bytes32 bitcoin_address, uint256 index, uint256 timestamp);
     event DepositScriptUpdate(bytes depositScript, bytes scriptSuffix, uint256 requiredSigsCount);
     event OperatorUpdated(address oldOperator, address newOperator);
 
