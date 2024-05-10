@@ -15,11 +15,21 @@ rand = "0.8"
 
 # Sovereign-maintained dependencies.
 sov-celestia-adapter = { path = "../adapters/celestia", features = ["native"] }
-sov-modules-api = { path = "../module-system/sov-modules-api", features = ["arbitrary", "native"] }
-sov-accounts = { path = "../module-system/module-implementations/sov-accounts", features = ["arbitrary", "native"] }
-sov-bank = { path = "../module-system/module-implementations/sov-bank", features = ["native"] }
+sov-modules-api = { path = "../module-system/sov-modules-api", features = [
+    "arbitrary",
+    "native",
+] }
+sov-accounts = { path = "../module-system/module-implementations/sov-accounts", features = [
+    "arbitrary",
+    "native",
+] }
+sov-bank = { path = "../module-system/module-implementations/sov-bank", features = [
+    "native",
+] }
 sov-state = { path = "../module-system/sov-state" }
-sov-prover-storage-manager = { path = "../full-node/sov-prover-storage-manager", features = ["test-utils"] }
+sov-prover-storage-manager = { path = "../full-node/sov-prover-storage-manager", features = [
+    "test-utils",
+] }
 
 # Prevent this from interfering with workspaces.
 [workspace]
@@ -56,31 +66,7 @@ test = false
 doc = false
 
 [[bin]]
-name = "accounts_call"
-path = "fuzz_targets/accounts_call.rs"
-test = false
-doc = false
-
-[[bin]]
-name = "accounts_call_random"
-path = "fuzz_targets/accounts_call_random.rs"
-test = false
-doc = false
-
-[[bin]]
 name = "bank_parse_call_message"
 path = "fuzz_targets/bank_parse_call_message.rs"
-test = false
-doc = false
-
-[[bin]]
-name = "accounts_parse_call_message"
-path = "fuzz_targets/accounts_parse_call_message.rs"
-test = false
-doc = false
-
-[[bin]]
-name = "accounts_parse_call_message_random"
-path = "fuzz_targets/accounts_parse_call_message_random.rs"
 test = false
 doc = false

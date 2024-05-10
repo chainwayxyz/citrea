@@ -2,14 +2,14 @@ use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 use serde::Serialize;
-use sov_rollup_interface::da::DaSpec;
+use sov_rollup_interface::da::{DaSpec, SequencerCommitment};
 use sov_rollup_interface::services::da::SlotData;
 use sov_rollup_interface::stf::{BatchReceipt, Event, SoftBatchReceipt};
 use sov_schema_db::{Schema, SchemaBatch, SeekKeyEncoder, DB};
 
 use crate::rocks_db_config::gen_rocksdb_options;
 use crate::schema::tables::{
-    BatchByHash, BatchByNumber, EventByKey, EventByNumber, L2RangeByL1Height,
+    BatchByHash, BatchByNumber, CommitmentsByNumber, EventByKey, EventByNumber, L2RangeByL1Height,
     LastSequencerCommitmentSent, ProverLastScannedSlot, SlotByHash, SlotByNumber, SoftBatchByHash,
     SoftBatchByNumber, SoftConfirmationStatus, TxByHash, TxByNumber, LEDGER_TABLES,
 };
@@ -536,5 +536,34 @@ impl LedgerDB {
         self.db.write_schemas(schema_batch)?;
 
         Ok(())
+    }
+
+    /// Gets the commitments in the da slot with given height if any
+    /// Adds the new coming commitment info
+    pub fn update_commitments_on_da_slot(
+        &self,
+        height: u64,
+        commitment: SequencerCommitment,
+    ) -> anyhow::Result<()> {
+        // get commitments
+        let commitments = self.db.get::<CommitmentsByNumber>(&SlotNumber(height))?;
+
+        match commitments {
+            // If there were other commitments, upsert
+            Some(mut commitments) => {
+                commitments.push(commitment);
+                self.db
+                    .put::<CommitmentsByNumber>(&SlotNumber(height), &commitments)
+            }
+            // Else insert
+            None => self
+                .db
+                .put::<CommitmentsByNumber>(&SlotNumber(height), &vec![commitment]),
+        }
+    }
+
+    /// Sets l1 height of l1 hash
+    pub fn set_l1_height_of_l1_hash(&self, hash: [u8; 32], height: u64) -> anyhow::Result<()> {
+        self.db.put::<SlotByHash>(&hash, &SlotNumber(height))
     }
 }

@@ -7,6 +7,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
+use crate::da::SequencerCommitment;
 use crate::maybestd::vec::Vec;
 #[cfg(feature = "native")]
 use crate::stf::Event;
@@ -215,6 +216,35 @@ pub struct SoftBatchResponse {
     pub timestamp: u64,
 }
 
+/// The response to a JSON-RPC request for sequencer commitments on a DA Slot.
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+pub struct SequencerCommitmentResponse {
+    /// L1 block hash the commitment was on
+    pub found_in_l1: u64,
+    /// Hex encoded Merkle root of soft confirmation hashes
+    #[serde(with = "hex::serde")]
+    pub merkle_root: [u8; 32],
+    /// Hex encoded Start L1 block's hash
+    #[serde(with = "hex::serde")]
+    pub l1_start_block_hash: [u8; 32],
+    /// Hex encoded End L1 block's hash
+    #[serde(with = "hex::serde")]
+    pub l1_end_block_hash: [u8; 32],
+}
+
+/// Converts `SequencerCommitment` to `SequencerCommitmentResponse`
+pub fn sequencer_commitment_to_response(
+    commitment: SequencerCommitment,
+    l1_height: u64,
+) -> SequencerCommitmentResponse {
+    SequencerCommitmentResponse {
+        found_in_l1: l1_height,
+        merkle_root: commitment.merkle_root,
+        l1_start_block_hash: commitment.l1_start_block_hash,
+        l1_end_block_hash: commitment.l1_end_block_hash,
+    }
+}
+
 /// The response to a JSON-RPC request for a particular batch.
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct BatchResponse<B, Tx> {
@@ -420,6 +450,15 @@ pub trait LedgerRpcProvider {
 
     /// (Prover) returns the last scanned L1 height (for sequencer commitments)
     fn get_prover_last_scanned_l1_height(&self) -> Result<u64, anyhow::Error>;
+
+    /// Returns the slot number of a given hash
+    fn get_slot_number_by_hash(&self, hash: [u8; 32]) -> Result<Option<u64>, anyhow::Error>;
+
+    /// Takes an L1 height and and returns all the sequencer commitments on the slot
+    fn get_sequencer_commitments_on_slot_by_number(
+        &self,
+        height: u64,
+    ) -> Result<Option<Vec<SequencerCommitmentResponse>>, anyhow::Error>;
 
     /// Get a notification each time a slot is processed
     fn subscribe_slots(&self) -> Result<tokio::sync::broadcast::Receiver<u64>, anyhow::Error>;

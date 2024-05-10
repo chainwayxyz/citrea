@@ -7,6 +7,7 @@ use citrea_evm::smart_contracts::SimpleStorageContract;
 use citrea_evm::system_contracts::BitcoinLightClient;
 use citrea_sequencer::{SequencerConfig, SequencerMempoolConfig};
 use citrea_stf::genesis_config::GenesisPaths;
+use const_rollup_config::TEST_PRIVATE_KEY;
 use ethereum_types::{H256, U256};
 use ethers::abi::Address;
 use ethers_signers::{LocalWallet, Signer};
@@ -1072,8 +1073,8 @@ async fn test_soft_confirmations_status_two_l1() -> Result<(), anyhow::Error> {
 
     // publish new da block
     da_service.publish_test_block().await.unwrap();
-    seq_test_client.send_publish_batch_request().await; // TODO https://github.com/chainwayxyz/citrea/issues/214
-    seq_test_client.send_publish_batch_request().await; // TODO https://github.com/chainwayxyz/citrea/issues/214
+    seq_test_client.send_publish_batch_request().await;
+    seq_test_client.send_publish_batch_request().await;
 
     sleep(Duration::from_secs(2)).await;
 
@@ -1618,6 +1619,7 @@ async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error>
             None,
             // Increase max account slots to not stuck as spammer
             Some(SequencerConfig {
+                private_key: TEST_PRIVATE_KEY.to_string(),
                 min_soft_confirmations_per_commitment: 1000,
                 test_mode: true,
                 deposit_mempool_fetch_limit: 10,
