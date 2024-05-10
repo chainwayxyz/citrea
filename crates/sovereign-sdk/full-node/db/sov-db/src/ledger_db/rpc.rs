@@ -13,8 +13,8 @@ use crate::schema::tables::{
     SlotByNumber, SoftBatchByHash, SoftBatchByNumber, SoftConfirmationStatus, TxByHash, TxByNumber,
 };
 use crate::schema::types::{
-    convert_to_rpc_state_transition, BatchNumber, EventNumber, SlotNumber, StoredBatch, StoredSlot,
-    TxNumber,
+    convert_to_rpc_proof, convert_to_rpc_state_transition, BatchNumber, EventNumber, SlotNumber,
+    StoredBatch, StoredSlot, TxNumber,
 };
 
 /// The maximum number of slots that can be requested in a single RPC range query
@@ -403,7 +403,7 @@ impl LedgerRpcProvider for LedgerDB {
         match self.db.get::<ProofBySlotNumber>(&SlotNumber(height))? {
             Some(stored_proof) => Ok(Some(ProofResponse {
                 l1_tx_id: stored_proof.l1_tx_id,
-                proof: stored_proof.proof,
+                proof: convert_to_rpc_proof(stored_proof.proof),
                 state_transition: convert_to_rpc_state_transition(stored_proof.state_transition),
             })),
             None => Ok(None),

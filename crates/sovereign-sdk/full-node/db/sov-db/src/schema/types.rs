@@ -5,10 +5,11 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::rpc::{
-    BatchResponse, HexTx, SoftBatchResponse, StateTransitionRpcResponse, TxIdentifier, TxResponse,
+    BatchResponse, HexTx, ProofRpcResponse, SoftBatchResponse, StateTransitionRpcResponse,
+    TxIdentifier, TxResponse,
 };
 use sov_rollup_interface::stf::{Event, EventKey, TransactionReceipt};
-use sov_rollup_interface::zk::{Proof, StateTransition};
+use sov_rollup_interface::zk::Proof;
 
 /// A cheaply cloneable bytes abstraction for use within the trust boundary of the node
 /// (i.e. when interfacing with the database). Serializes and deserializes more efficiently,
@@ -116,6 +117,14 @@ pub fn convert_to_rpc_state_transition(
         sequencer_da_public_key: stored_state_transition.sequencer_da_public_key,
         sequencer_public_key: stored_state_transition.sequencer_public_key,
         validity_condition: stored_state_transition.validity_condition,
+    }
+}
+
+/// Converts proof data to hex encoded rpc response
+pub fn convert_to_rpc_proof(stored_proof: Proof) -> ProofRpcResponse {
+    match stored_proof {
+        Proof::Full(data) => ProofRpcResponse::Full(data),
+        Proof::PublicInput(data) => ProofRpcResponse::PublicInput(data),
     }
 }
 
