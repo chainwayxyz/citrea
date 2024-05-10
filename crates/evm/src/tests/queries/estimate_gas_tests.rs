@@ -9,6 +9,7 @@ use reth_rpc::eth::error::RpcInvalidTransactionError;
 use reth_rpc_types::request::{TransactionInput, TransactionRequest};
 use reth_rpc_types::AccessListWithGasUsed;
 use revm::primitives::U256;
+use serde_json::json;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::WorkingSet;
 
@@ -16,7 +17,7 @@ use crate::query::MIN_TRANSACTION_GAS;
 use crate::smart_contracts::{CallerContract, SimpleStorageContract};
 use crate::tests::queries::{init_evm, init_evm_single_block, init_evm_with_caller_contract};
 use crate::tests::test_signer::TestSigner;
-use crate::Evm;
+use crate::{EstimatedDiffSize, Evm};
 
 type C = DefaultContext;
 
@@ -84,6 +85,16 @@ fn test_tx_request_fields_gas() {
     assert_eq!(
         result_contract_call.unwrap(),
         Uint::from_str("0x6602").unwrap()
+    );
+    let contract_diff_size = evm.eth_estimate_diff_size(
+        tx_req_contract_call.clone(),
+        Some(BlockNumberOrTag::Latest),
+        &mut working_set,
+    );
+    assert_eq!(
+        contract_diff_size.unwrap(),
+        serde_json::from_value::<EstimatedDiffSize>(json![{"gas":"0x6601","diffSize":"0xa8"}])
+            .unwrap()
     );
 
     let tx_req_no_sender = TransactionRequest {
