@@ -57,7 +57,7 @@ sov-prover-storage-manager = { path = "../../../sovereign-sdk/full-node/sov-prov
 
 
 [features]
-default = []
+default = ["native"]
 offchain = ["sov-nft-module/offchain"]
 native = [
     "sov-stf-runner/native",
