@@ -32,6 +32,6 @@ jsonrpsee = { workspace = true, features = ["macros", "client-core", "server"], 
 clap = { workspace = true, optional = true }
 
 [features]
-default = []
+default = ["native"]
 native = ["serde", "serde_json", "jsonrpsee", "schemars", "clap", "sov-modules-api/native", "sov-state/native"]
 serde = []
