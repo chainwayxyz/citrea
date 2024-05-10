@@ -19,14 +19,13 @@ use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
 use sov_rollup_interface::da::{DaData, DaSpec};
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
 use sov_rollup_interface::services::da::DaService;
+use sov_stf_runner::ProverConfig;
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
 
 use crate::evm::{init_test_rollup, make_test_client};
 use crate::test_client::TestClient;
-use crate::test_helpers::{
-    create_default_prover_config, create_default_sequencer_config, start_rollup, NodeMode,
-};
+use crate::test_helpers::{create_default_sequencer_config, start_rollup, NodeMode};
 use crate::{DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT};
 
 struct TestConfig {
@@ -1156,7 +1155,7 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
             BasicKernelGenesisPaths {
                 chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
             },
-            Some(create_default_prover_config()),
+            Some(ProverConfig::default),
             NodeMode::Prover(seq_port),
             None,
             4,
@@ -1276,7 +1275,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
             BasicKernelGenesisPaths {
                 chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
             },
-            Some(create_default_prover_config()),
+            Some(ProverConfig::default()),
             NodeMode::SequencerNode,
             None,
             4,
@@ -1301,7 +1300,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
             BasicKernelGenesisPaths {
                 chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
             },
-            Some(create_default_prover_config()),
+            Some(ProverConfig::default()),
             NodeMode::Prover(seq_port),
             Some("demo_data_test_reopen_prover"),
             4,
@@ -1365,7 +1364,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
             BasicKernelGenesisPaths {
                 chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
             },
-            Some(create_default_prover_config()),
+            Some(ProverConfig::default()),
             NodeMode::Prover(seq_port),
             Some("demo_data_test_reopen_prover_copy"),
             4,
@@ -1412,7 +1411,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
             BasicKernelGenesisPaths {
                 chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
             },
-            Some(create_default_prover_config()),
+            Some(ProverConfig::default()),
             NodeMode::Prover(seq_port),
             Some("demo_data_test_reopen_prover_copy2"),
             4,

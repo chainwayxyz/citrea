@@ -127,13 +127,6 @@ pub async fn start_rollup(
     }
 }
 
-pub fn create_default_prover_config() -> ProverConfig {
-    ProverConfig {
-        proving_mode: ProverGuestRunConfig::Execute,
-        skip_proving_until_l1_height: None,
-    }
-}
-
 pub fn create_default_rollup_config(
     include_tx_body: bool,
     path: Option<&Path>,

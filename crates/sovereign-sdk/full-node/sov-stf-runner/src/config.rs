@@ -80,6 +80,16 @@ pub struct ProverConfig {
     pub skip_proving_until_l1_height: Option<u64>,
 }
 
+impl Default for ProverConfig {
+    fn default() -> Self {
+        Self {
+            proving_mode: ProverGuestRunConfig::Execute,
+            skip_proving_until_l1_height: None,
+        }
+    }
+    
+}
+
 /// Reads toml file as a specific type.
 pub fn from_toml_path<P: AsRef<Path>, R: DeserializeOwned>(path: P) -> anyhow::Result<R> {
     let mut contents = String::new();
