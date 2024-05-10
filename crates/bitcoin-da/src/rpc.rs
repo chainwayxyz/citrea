@@ -1,7 +1,6 @@
 use core::fmt::Display;
 use core::str::FromStr;
 
-use anyhow::anyhow;
 use bitcoin::block::{Header, Version};
 use bitcoin::hash_types::{TxMerkleNode, WitnessMerkleNode};
 use bitcoin::hashes::Hash;
@@ -223,10 +222,6 @@ impl BitcoinNode {
             .call::<Vec<UTXO>>("listunspent", vec![to_value(0)?, to_value(9999999)?])
             .await?;
 
-        if utxos.is_empty() {
-            return Err(anyhow!("No UTXOs found"));
-        }
-
         Ok(utxos)
     }
 
@@ -286,22 +281,5 @@ impl BitcoinNode {
 
     pub async fn list_wallets(&self) -> Result<Vec<String>, anyhow::Error> {
         self.call::<Vec<String>>("listwallets", vec![]).await
-    }
-
-    #[cfg(test)]
-    pub async fn generate_to_address(
-        &self,
-        address: Address,
-        blocks: u32,
-    ) -> Result<Vec<BlockHash>, anyhow::Error> {
-        if self.network == Network::Regtest {
-            self.call::<Vec<BlockHash>>(
-                "generatetoaddress",
-                vec![to_value(blocks)?, to_value(address.to_string())?],
-            )
-            .await
-        } else {
-            Err(anyhow!("Cannot generate blocks on non-regtest network"))
-        }
     }
 }

@@ -155,10 +155,13 @@ impl BitcoinService {
         let blob = compress_blob(&blob);
 
         // get all available utxos
-        let utxos: Vec<UTXO> = client.get_utxos().await?;
+        let mut utxos: Vec<UTXO> = client.get_utxos().await?;
         if utxos.is_empty() {
             return Err(anyhow::anyhow!("No UTXOs left for transaction"));
         }
+        // Sort by ascending confirmations to order tx after a service restart
+        utxos.sort_by_key(|utxo| utxo.confirmations);
+
         // get address from a utxo
         let address = Address::from_str(&utxos[0].address.clone())
             .unwrap()
