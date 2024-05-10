@@ -169,9 +169,7 @@ fn build_commit_transaction(
 
         let input_total = output_value + fee;
 
-        let res = choose_utxos(&utxos, input_total)?;
-
-        let (chosen_utxos, sum) = res;
+        let (chosen_utxos, sum) = choose_utxos(&utxos, input_total)?;
 
         let mut outputs: Vec<TxOut> = vec![];
 
