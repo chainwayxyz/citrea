@@ -62,7 +62,7 @@ pub(crate) struct EstimatedTxExpenses {
 
 impl EstimatedTxExpenses {
     /// Return total estimated gas used including evm gas and L1 fee.
-    pub(crate) fn gas_spent(&self) -> U256 {
+    pub(crate) fn gas_with_l1_overhead(&self) -> U256 {
         // Actually not an L1 fee but l1_fee / base_fee.
         let l1_fee_overhead = U256::from(1).max(self.l1_fee / self.base_fee);
         l1_fee_overhead + U256::from(self.gas_used)
@@ -827,7 +827,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         Ok(AccessListWithGasUsed {
             access_list,
-            gas_used: estimated.gas_spent(),
+            gas_used: estimated.gas_with_l1_overhead(),
         })
     }
 
@@ -905,7 +905,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         info!("evm module: eth_estimateGas");
 
         let estimated = self.estimate_tx_expenses(request, block_number, working_set)?;
-        Ok(estimated.gas_spent())
+        Ok(estimated.gas_with_l1_overhead())
     }
 
     /// Handler for: `eth_estimateDiffSize`
