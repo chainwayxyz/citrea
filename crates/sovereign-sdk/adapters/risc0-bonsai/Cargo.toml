@@ -29,6 +29,9 @@ sov-rollup-interface = { path = "../../rollup-interface", version = "0.3" }
 bonsai-sdk = "0.7.0"
 hex = { workspace = true }
 
+# we ar goingo to use its guest
+sov-risc0-adapter = { path = "../risc0" }
+
 
 [features]
 default = []

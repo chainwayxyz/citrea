@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use citrea_risc0_bonsai_adapter::host::Risc0BonsaiHost;
 use citrea_stf::genesis_config::StorageConfig;
 use citrea_stf::runtime::Runtime;
 use sequencer_client::SequencerClient;
@@ -23,7 +24,7 @@ impl RollupBlueprint for MockDemoRollup {
     type DaService = MockDaService;
     type DaSpec = MockDaSpec;
     type DaConfig = MockDaConfig;
-    type Vm = Risc0Host<'static>;
+    type Vm = Risc0BonsaiHost<'static>;
 
     type ZkContext = ZkDefaultContext;
     type NativeContext = DefaultContext;
@@ -94,7 +95,7 @@ impl RollupBlueprint for MockDemoRollup {
         rollup_config: &RollupConfig<Self::DaConfig>,
         _da_service: &Self::DaService,
     ) -> Self::ProverService {
-        let vm = Risc0Host::new(risc0::MOCK_DA_ELF);
+        let vm = Risc0BonsaiHost::new(risc0::MOCK_DA_ELF);
         let zk_stf = StfBlueprint::new();
         let zk_storage = ZkStorage::new();
         let da_verifier = Default::default();
