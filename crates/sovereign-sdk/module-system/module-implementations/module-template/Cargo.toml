@@ -23,7 +23,7 @@ serde_json = { workspace = true, optional = true }
 thiserror = { workspace = true }
 
 sov-bank = { path = "../sov-bank" }
-sov-modules-api = { path = "../../sov-modules-api" }
+sov-modules-api = { path = "../../sov-modules-api", default-features = false }
 sov-state = { path = "../../sov-state" }
 
 

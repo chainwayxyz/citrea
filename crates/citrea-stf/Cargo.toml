@@ -29,9 +29,9 @@ secp256k1 = { workspace = true }
 sov-stf-runner = { path = "../sovereign-sdk/full-node/sov-stf-runner" }
 sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
 sov-modules-stf-blueprint = { path = "../sovereign-sdk/module-system/sov-modules-stf-blueprint" }
-sov-accounts = { path = "../sovereign-sdk/module-system/module-implementations/sov-accounts" }
+sov-accounts = { path = "../sovereign-sdk/module-system/module-implementations/sov-accounts", default-features = false }
 sov-state = { path = "../sovereign-sdk/module-system/sov-state" }
-sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api" }
+sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api", default-features = false }
 
 citrea-evm = { path = "../evm" }
 soft-confirmation-rule-enforcer = { path = "../soft-confirmation-rule-enforcer" }
