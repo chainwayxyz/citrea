@@ -83,7 +83,11 @@ fn get_size(
     tx.vsize()
 }
 
-fn choose_utxos(utxos: &[UTXO], amount: u64) -> Result<(Vec<UTXO>, u64), anyhow::Error> {
+fn choose_utxos(
+    _required_utxo: Option<UTXO>,
+    utxos: &[UTXO],
+    amount: u64,
+) -> Result<(Vec<UTXO>, u64), anyhow::Error> {
     let mut bigger_utxos: Vec<&UTXO> = utxos.iter().filter(|utxo| utxo.amount >= amount).collect();
     let mut sum: u64 = 0;
 
@@ -124,7 +128,7 @@ fn choose_utxos(utxos: &[UTXO], amount: u64) -> Result<(Vec<UTXO>, u64), anyhow:
 }
 
 fn build_commit_transaction(
-    _prev_tx: Option<TxWithId>, // reuse outputs to add commit tx order
+    prev_tx: Option<TxWithId>, // reuse outputs to add commit tx order
     utxos: Vec<UTXO>,
     recipient: Address,
     change_address: Address,
@@ -152,6 +156,22 @@ fn build_commit_transaction(
         None,
         None,
     );
+
+    // Find least one utxo from prev tx to order tx in one block
+    let (required_utxo, utxos) = if let Some(tx) = prev_tx {
+        let (requited_utxos, free_utxos) = utxos
+            .into_iter()
+            .partition::<Vec<_>, _>(|utxo| utxo.tx_id == tx.id);
+
+        let required_utxo = requited_utxos
+            .first()
+            .expect("No spendable UTXO found in previous tx")
+            .clone();
+
+        (Some(required_utxo), free_utxos)
+    } else {
+        (None, utxos)
+    };
     let mut last_size = size;
 
     let tx = loop {
@@ -159,7 +179,7 @@ fn build_commit_transaction(
 
         let input_total = output_value + fee;
 
-        let (chosen_utxos, sum) = choose_utxos(&utxos, input_total)?;
+        let (chosen_utxos, sum) = choose_utxos(required_utxo.clone(), &utxos, input_total)?;
         let has_change = (sum - input_total) >= 546;
         let direct_return = !has_change;
 
@@ -601,32 +621,32 @@ mod tests {
     fn choose_utxos() {
         let (_, _, _, _, _, utxos) = get_mock_data();
 
-        let (chosen_utxos, sum) = super::choose_utxos(&utxos, 105_000).unwrap();
+        let (chosen_utxos, sum) = super::choose_utxos(None, &utxos, 105_000).unwrap();
 
         assert_eq!(sum, 1_000_000);
         assert_eq!(chosen_utxos.len(), 1);
         assert_eq!(chosen_utxos[0], utxos[0]);
 
-        let (chosen_utxos, sum) = super::choose_utxos(&utxos, 1_005_000).unwrap();
+        let (chosen_utxos, sum) = super::choose_utxos(None, &utxos, 1_005_000).unwrap();
 
         assert_eq!(sum, 1_100_000);
         assert_eq!(chosen_utxos.len(), 2);
         assert_eq!(chosen_utxos[0], utxos[0]);
         assert_eq!(chosen_utxos[1], utxos[1]);
 
-        let (chosen_utxos, sum) = super::choose_utxos(&utxos, 100_000).unwrap();
+        let (chosen_utxos, sum) = super::choose_utxos(None, &utxos, 100_000).unwrap();
 
         assert_eq!(sum, 100_000);
         assert_eq!(chosen_utxos.len(), 1);
         assert_eq!(chosen_utxos[0], utxos[1]);
 
-        let (chosen_utxos, sum) = super::choose_utxos(&utxos, 90_000).unwrap();
+        let (chosen_utxos, sum) = super::choose_utxos(None, &utxos, 90_000).unwrap();
 
         assert_eq!(sum, 100_000);
         assert_eq!(chosen_utxos.len(), 1);
         assert_eq!(chosen_utxos[0], utxos[1]);
 
-        let res = super::choose_utxos(&utxos, 100_000_000);
+        let res = super::choose_utxos(None, &utxos, 100_000_000);
 
         assert!(res.is_err());
         assert_eq!(format!("{}", res.unwrap_err()), "not enough UTXOs");
