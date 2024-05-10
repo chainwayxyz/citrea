@@ -4,6 +4,7 @@ use std::net::SocketAddr;
 
 use anyhow::{anyhow, bail};
 use borsh::de::BorshDeserialize;
+use borsh::BorshSerialize as _;
 use jsonrpsee::core::Error;
 use jsonrpsee::RpcModule;
 use rs_merkle::algorithms::Sha256;
@@ -539,8 +540,7 @@ where
                 da_slot_hash: transition_data.da_slot_hash.into(),
                 sequencer_public_key: transition_data.sequencer_public_key,
                 sequencer_da_public_key: transition_data.sequencer_da_public_key,
-                validity_condition: serde_json::to_vec(&transition_data.validity_condition)
-                    .unwrap(),
+                validity_condition: transition_data.validity_condition.try_to_vec().unwrap(),
             };
 
             self.ledger_db
