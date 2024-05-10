@@ -84,12 +84,26 @@ fn get_size(
 }
 
 fn choose_utxos(
-    _required_utxo: Option<UTXO>,
+    required_utxo: Option<UTXO>,
     utxos: &[UTXO],
-    amount: u64,
+    mut amount: u64,
 ) -> Result<(Vec<UTXO>, u64), anyhow::Error> {
+    let mut chosen_utxos = vec![];
+    let mut sum = 0;
+
+    // First include a required utxo
+    if let Some(required) = required_utxo {
+        let req_amount = required.amount;
+        chosen_utxos.push(required);
+        sum += req_amount;
+    }
+    if sum >= amount {
+        return Ok((chosen_utxos, sum));
+    } else {
+        amount -= sum;
+    }
+
     let mut bigger_utxos: Vec<&UTXO> = utxos.iter().filter(|utxo| utxo.amount >= amount).collect();
-    let mut sum: u64 = 0;
 
     if !bigger_utxos.is_empty() {
         // sort vec by amount (small first)
@@ -99,16 +113,15 @@ fn choose_utxos(
         // so return the transaction
         let utxo = bigger_utxos[0];
         sum += utxo.amount;
+        chosen_utxos.push(utxo.clone());
 
-        Ok((vec![utxo.clone()], sum))
+        Ok((chosen_utxos, sum))
     } else {
         let mut smaller_utxos: Vec<&UTXO> =
             utxos.iter().filter(|utxo| utxo.amount < amount).collect();
 
         // sort vec by amount (large first)
         smaller_utxos.sort_by(|a, b| b.amount.cmp(&a.amount));
-
-        let mut chosen_utxos: Vec<UTXO> = vec![];
 
         for utxo in smaller_utxos {
             sum += utxo.amount;
