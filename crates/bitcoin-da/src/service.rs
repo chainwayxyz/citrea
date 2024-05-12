@@ -41,7 +41,7 @@ pub struct BitcoinService {
     network: bitcoin::Network,
     sequencer_da_private_key: Option<SecretKey>,
     reveal_tx_id_prefix: Vec<u8>,
-    inscribes_tx: UnboundedSender<InscriptionRawTx>,
+    inscribes_queue: UnboundedSender<InscriptionRawTx>,
 }
 
 /// Runtime configuration for the DA service
@@ -96,11 +96,15 @@ impl BitcoinService {
 
         let serv = this.clone();
 
+        // This is a queue of inscribe requests
         tokio::task::spawn_blocking(|| {
             let this = serv;
             tokio::runtime::Handle::current().block_on(async move {
+                // TODO https://github.com/chainwayxyz/citrea/issues/537
+                // TODO find last tx by utxo chain
                 let mut prev_tx = None;
 
+                // We execute commit and reveal txs one by one to chain them
                 while let Some(request) = rx.recv().await {
                     let fee_sat_per_vbyte = match this.get_fee_rate().await {
                         Ok(rate) => rate,
@@ -152,7 +156,7 @@ impl BitcoinService {
             network,
             sequencer_da_private_key: private_key,
             reveal_tx_id_prefix: chain_params.reveal_tx_id_prefix,
-            inscribes_tx: tx,
+            inscribes_queue: tx,
         }
     }
 
@@ -162,7 +166,7 @@ impl BitcoinService {
         network: bitcoin::Network,
         sequencer_da_private_key: Option<SecretKey>,
         reveal_tx_id_prefix: Vec<u8>,
-        inscribes_tx: UnboundedSender<InscriptionRawTx>,
+        inscribes_queue: UnboundedSender<InscriptionRawTx>,
     ) -> Self {
         let wallets = client
             .list_wallets()
@@ -179,24 +183,20 @@ impl BitcoinService {
             network,
             sequencer_da_private_key,
             reveal_tx_id_prefix,
-            inscribes_tx,
+            inscribes_queue,
         }
     }
 
     async fn get_utxos(&self) -> Result<Vec<UTXO>, anyhow::Error> {
-        let mut utxos = self.client.get_utxos().await?;
+        let utxos = self.client.get_utxos().await?;
         if utxos.is_empty() {
             return Err(anyhow::anyhow!("There are no UTXOs"));
         }
-        // Sort by ascending confirmations to order tx after a service restart
-        // TODO https://github.com/chainwayxyz/citrea/issues/537
-        utxos.sort_by_key(|utxo| utxo.confirmations);
 
         let utxos: Vec<UTXO> = utxos
             .into_iter()
             .filter(|utxo| utxo.spendable && utxo.solvable && utxo.amount > 546)
             .collect();
-
         if utxos.is_empty() {
             return Err(anyhow::anyhow!("There are no spendable UTXOs"));
         }
@@ -487,7 +487,7 @@ impl DaService for BitcoinService {
         &self,
         _blob: &[u8],
     ) -> Result<<Self as DaService>::TransactionId, Self::Error> {
-        unimplemented!()
+        unimplemented!("Use send_tx_no_wait instead")
     }
 
     async fn send_tx_no_wait(
@@ -496,7 +496,7 @@ impl DaService for BitcoinService {
     ) -> OneshotReceiver<Result<Self::TransactionId, Self::Error>> {
         let (notify, rx) = oneshot_channel();
         let request = InscriptionRawTx { blob, notify };
-        self.inscribes_tx
+        self.inscribes_queue
             .send(request)
             .expect("Bitcoint service already stopped");
         rx
