@@ -199,13 +199,13 @@ fn build_commit_transaction(
         let outputs = if !has_change {
             vec![TxOut {
                 value: Amount::from_sat(output_value),
-                script_pubkey: change_address.script_pubkey(),
+                script_pubkey: recipient.script_pubkey(),
             }]
         } else {
             vec![
                 TxOut {
                     value: Amount::from_sat(output_value),
-                    script_pubkey: change_address.script_pubkey(),
+                    script_pubkey: recipient.script_pubkey(),
                 },
                 TxOut {
                     value: Amount::from_sat(sum - input_total),
@@ -827,7 +827,7 @@ mod tests {
         );
 
         assert!(tx.is_err());
-        assert_eq!(format!("{}", tx.unwrap_err()), "no spendable UTXOs");
+        assert_eq!(format!("{}", tx.unwrap_err()), "not enough UTXOs");
     }
 
     #[test]
