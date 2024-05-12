@@ -1,5 +1,7 @@
 //! This module implements the [`ZkvmHost`] trait for the RISC0 VM.
 
+use std::sync::mpsc::{self, Sender};
+use std::sync::Arc;
 use std::time::Duration;
 
 use ::bonsai_sdk::alpha::Client;
@@ -16,13 +18,155 @@ use sov_rollup_interface::zk::{Proof, Zkvm, ZkvmHost};
 
 use crate::Risc0MethodId;
 
+/// Requests to bonsai client. Each variant represents its own method.
+enum BonsaiRequest {
+    UploadImg {
+        image_id: String,
+        buf: Vec<u8>,
+        notify: Sender<Result<bool, bonsai_sdk::SdkErr>>,
+    },
+    UploadInput {
+        buf: Vec<u8>,
+        notify: Sender<Result<String, bonsai_sdk::SdkErr>>,
+    },
+    Download {
+        url: String,
+        notify: Sender<Result<Vec<u8>, bonsai_sdk::SdkErr>>,
+    },
+    CreateSession {
+        img_id: String,
+        input_id: String,
+        assumptions: Vec<String>,
+        notify: Sender<Result<bonsai_sdk::SessionId, bonsai_sdk::SdkErr>>,
+    },
+    Status {
+        session: bonsai_sdk::SessionId,
+        notify: Sender<Result<bonsai_sdk::responses::SessionStatusRes, bonsai_sdk::SdkErr>>,
+    },
+}
+
+/// A wrapper around Bonsai SDK to handle tokio runtime inside another tokio runtime.
+/// See https://stackoverflow.com/a/62536772.
+#[derive(Clone)]
+struct BonsaiClient {
+    queue: std::sync::mpsc::Sender<BonsaiRequest>,
+    _join_handle: Arc<std::thread::JoinHandle<()>>,
+}
+
+impl BonsaiClient {
+    fn from_env(risc0_version: &str) -> Self {
+        let risc0_version = risc0_version.to_string();
+        let (queue, rx) = std::sync::mpsc::channel();
+        let join_handle = std::thread::spawn(move || {
+            let client = bonsai_sdk::Client::from_env(&risc0_version).unwrap();
+            loop {
+                let request = rx.recv().expect("bonsai client sender is dead");
+                match request {
+                    BonsaiRequest::UploadImg {
+                        image_id,
+                        buf,
+                        notify,
+                    } => {
+                        let res = client.upload_img(&image_id, buf);
+                        let _ = notify.send(res);
+                    }
+                    BonsaiRequest::UploadInput { buf, notify } => {
+                        let res = client.upload_input(buf);
+                        let _ = notify.send(res);
+                    }
+                    BonsaiRequest::Download { url, notify } => {
+                        let res = client.download(&url);
+                        let _ = notify.send(res);
+                    }
+                    BonsaiRequest::CreateSession {
+                        img_id,
+                        input_id,
+                        assumptions,
+                        notify,
+                    } => {
+                        let res = client.create_session(img_id, input_id, assumptions);
+                        let _ = notify.send(res);
+                    }
+                    BonsaiRequest::Status { session, notify } => {
+                        let res = session.status(&client);
+                        let _ = notify.send(res);
+                    }
+                }
+            }
+        });
+        let _join_handle = Arc::new(join_handle);
+        Self {
+            queue,
+            _join_handle,
+        }
+    }
+
+    fn upload_img(&self, image_id: String, buf: Vec<u8>) -> Result<bool, bonsai_sdk::SdkErr> {
+        let (notify, rx) = mpsc::channel();
+        self.queue
+            .send(BonsaiRequest::UploadImg {
+                image_id,
+                buf,
+                notify,
+            })
+            .expect("Bonsai processing queue is dead");
+        rx.recv().unwrap()
+    }
+
+    fn upload_input(&self, buf: Vec<u8>) -> Result<String, bonsai_sdk::SdkErr> {
+        let (notify, rx) = mpsc::channel();
+        self.queue
+            .send(BonsaiRequest::UploadInput { buf, notify })
+            .expect("Bonsai processing queue is dead");
+        rx.recv().unwrap()
+    }
+
+    fn download(&self, url: String) -> Result<Vec<u8>, bonsai_sdk::SdkErr> {
+        let (notify, rx) = mpsc::channel();
+        self.queue
+            .send(BonsaiRequest::Download { url, notify })
+            .expect("Bonsai processing queue is dead");
+        rx.recv().unwrap()
+    }
+
+    fn create_session(
+        &self,
+        img_id: String,
+        input_id: String,
+        assumptions: Vec<String>,
+    ) -> Result<bonsai_sdk::SessionId, bonsai_sdk::SdkErr> {
+        let (notify, rx) = mpsc::channel();
+        self.queue
+            .send(BonsaiRequest::CreateSession {
+                img_id,
+                input_id,
+                assumptions,
+                notify,
+            })
+            .expect("Bonsai processing queue is dead");
+        rx.recv().unwrap()
+    }
+
+    fn status(
+        &self,
+        session: &bonsai_sdk::SessionId,
+    ) -> Result<bonsai_sdk::responses::SessionStatusRes, bonsai_sdk::SdkErr> {
+        let session = session.clone();
+        let (notify, rx) = mpsc::channel();
+        self.queue
+            .send(BonsaiRequest::Status { session, notify })
+            .expect("Bonsai processing queue is dead");
+        rx.recv().unwrap()
+    }
+}
+
 /// A [`Risc0BonsaiHost`] stores a binary to execute in the Risc0 VM and prove in the Risc0 Bonsai API.
 #[derive(Clone)]
 pub struct Risc0BonsaiHost<'a> {
     elf: &'a [u8],
     env: Vec<u32>,
     image_id: String,
-    client: Client,
+    client: BonsaiClient,
     last_input_id: Option<String>,
 }
 
@@ -51,13 +195,13 @@ impl<'a> Risc0BonsaiHost<'a> {
     /// Create a new Risc0Host to prove the given binary.
     pub fn new(elf: &'a [u8]) -> Self {
         // handle error
-        let client = bonsai_sdk::Client::from_env(risc0_zkvm::VERSION).unwrap();
+        let client = BonsaiClient::from_env(risc0_zkvm::VERSION);
 
         // Compute the image_id, then upload the ELF with the image_id as its key.
         // handle error
         let image_id = hex::encode(compute_image_id(elf).unwrap());
         // handle error
-        client.upload_img(&image_id, elf.to_vec()).unwrap();
+        client.upload_img(image_id.clone(), elf.to_vec()).unwrap();
 
         Self {
             elf,
@@ -134,7 +278,7 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
                 .map_err(|e| anyhow!("Bonsai API return error: {}", e))?;
             loop {
                 // handle error
-                let res = session.status(&self.client).unwrap();
+                let res = self.client.status(&session).unwrap();
                 if res.status == "RUNNING" {
                     println!(
                         "Current status: {} - state: {} - continue polling...",
@@ -150,7 +294,7 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
                         .receipt_url
                         .expect("API error, missing receipt on completed session");
 
-                    let receipt_buf = self.client.download(&receipt_url)?;
+                    let receipt_buf = self.client.download(receipt_url)?;
 
                     // let receipt: Receipt = bincode::deserialize(&receipt_buf).unwrap();
 
