@@ -34,7 +34,7 @@ use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::stf::{SoftBatchReceipt, StateTransitionFunction};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::ZkvmHost;
-use sov_stf_runner::{InitVariant, RpcConfig, RunnerConfig};
+use sov_stf_runner::{InitVariant, RollupPublicKeys, RpcConfig};
 use tokio::sync::oneshot::Receiver as OneshotReceiver;
 use tokio::sync::Mutex;
 use tokio::time::sleep;
@@ -103,9 +103,9 @@ where
         stf: Stf,
         mut storage_manager: Sm,
         init_variant: InitVariant<Stf, Vm, Da::Spec>,
-        sequencer_pub_key: Vec<u8>,
+        public_keys: RollupPublicKeys,
         ledger_db: LedgerDB,
-        runner_config: RunnerConfig,
+        rpc_config: RpcConfig,
     ) -> anyhow::Result<Self> {
         let (l2_force_block_tx, l2_force_block_rx) = unbounded();
 
@@ -152,8 +152,8 @@ where
             deposit_mempool,
             storage_manager,
             state_root: prev_state_root,
-            sequencer_pub_key,
-            rpc_config: runner_config.rpc_config,
+            sequencer_pub_key: public_keys.sequencer_public_key,
+            rpc_config,
         })
     }
 
@@ -788,6 +788,7 @@ where
                             commitment_info.l1_height_range.end().0,
                         ))
                         .expect("Sequencer: Failed to set last sequencer commitment L1 height");
+
                     warn!("Commitment info: {:?}", commitment_info);
                     if let Some(db_config) = db_config {
                         match PostgresConnector::new(db_config).await {

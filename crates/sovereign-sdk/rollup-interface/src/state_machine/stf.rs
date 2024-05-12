@@ -237,6 +237,7 @@ pub trait StateTransitionFunction<Vm: Zkvm, Da: DaSpec> {
     fn apply_soft_confirmations_from_sequencer_commitments(
         &self,
         sequencer_public_key: &[u8],
+        sequencer_da_public_key: &[u8],
         initial_state_root: &Self::StateRoot,
         pre_state: Self::PreState,
         da_data: Vec<<Da as DaSpec>::BlobTransaction>,

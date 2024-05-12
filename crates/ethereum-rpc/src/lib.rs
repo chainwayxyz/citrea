@@ -43,7 +43,7 @@ pub fn get_ethereum_rpc<C: sov_modules_api::Context, Da: DaService>(
     da_service: Da,
     eth_rpc_config: EthRpcConfig,
     storage: C::Storage,
-    sequencer_client: Option<SequencerClient>,
+    sequencer_client_url: Option<String>,
 ) -> RpcModule<Ethereum<C, Da>> {
     // Unpack config
     let EthRpcConfig {
@@ -54,7 +54,7 @@ pub fn get_ethereum_rpc<C: sov_modules_api::Context, Da: DaService>(
     } = eth_rpc_config;
 
     // If the node does not have a sequencer client, then it is the sequencer.
-    let is_sequencer = sequencer_client.is_none();
+    let is_sequencer = sequencer_client_url.is_none();
 
     // If the running node is a full node rpc context should also have sequencer client so that it can send txs to sequencer
     let mut rpc = RpcModule::new(Ethereum::new(
@@ -64,7 +64,7 @@ pub fn get_ethereum_rpc<C: sov_modules_api::Context, Da: DaService>(
         #[cfg(feature = "local")]
         eth_signer,
         storage,
-        sequencer_client,
+        sequencer_client_url.map(SequencerClient::new),
     ));
 
     register_rpc_methods(&mut rpc, is_sequencer).expect("Failed to register ethereum RPC methods");

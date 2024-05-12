@@ -67,6 +67,8 @@ fn test_valid_challenge() {
             final_state_root: transition_1.state_root,
             validity_condition: MockValidityCond { is_valid: true },
             state_diff: vec![],
+            sequencer_public_key: vec![],
+            sequencer_da_public_key: vec![],
         };
 
         let serialized_transition = bincode::serialize(&transition).unwrap();
@@ -196,6 +198,8 @@ fn test_invalid_challenge() {
         final_state_root: transition_1.state_root,
         validity_condition: MockValidityCond { is_valid: true },
         state_diff: vec![],
+        sequencer_public_key: vec![],
+        sequencer_da_public_key: vec![],
     };
 
     let serialized_transition = bincode::serialize(&transition).unwrap();
@@ -257,6 +261,8 @@ fn test_invalid_challenge() {
             final_state_root: transition_1.state_root,
             validity_condition: MockValidityCond { is_valid: true },
             state_diff: vec![],
+            sequencer_public_key: vec![],
+            sequencer_da_public_key: vec![],
         })
         .unwrap();
 
@@ -284,6 +290,8 @@ fn test_invalid_challenge() {
             final_state_root: transition_1.state_root,
             validity_condition: MockValidityCond { is_valid: false },
             state_diff: vec![],
+            sequencer_public_key: vec![],
+            sequencer_da_public_key: vec![],
         })
         .unwrap();
 
@@ -311,6 +319,8 @@ fn test_invalid_challenge() {
             final_state_root: transition_1.state_root,
             validity_condition: MockValidityCond { is_valid: true },
             state_diff: vec![],
+            sequencer_public_key: vec![],
+            sequencer_da_public_key: vec![],
         })
         .unwrap();
 

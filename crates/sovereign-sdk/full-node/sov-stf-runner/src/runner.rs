@@ -4,30 +4,32 @@ use std::net::SocketAddr;
 
 use anyhow::{anyhow, bail};
 use borsh::de::BorshDeserialize;
+use borsh::BorshSerialize as _;
 use jsonrpsee::core::Error;
 use jsonrpsee::RpcModule;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 use sequencer_client::SequencerClient;
 use sov_db::ledger_db::{LedgerDB, SlotCommit};
-use sov_db::schema::types::{BatchNumber, SlotNumber, StoredSoftBatch};
-use sov_modules_api::Context;
+use sov_db::schema::types::{BatchNumber, SlotNumber, StoredSoftBatch, StoredStateTransition};
+use sov_modules_api::{Context, SignedSoftConfirmationBatch};
 use sov_modules_stf_blueprint::StfBlueprintTrait;
 use sov_rollup_interface::da::{
-    BatchProof, BlobReaderTrait, BlockHeaderTrait, DaData, DaSpec, SequencerCommitment,
+    BlobReaderTrait, BlockHeaderTrait, DaData, DaSpec, SequencerCommitment,
 };
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
 use sov_rollup_interface::services::da::{DaService, SlotData};
 pub use sov_rollup_interface::stf::BatchReceipt;
 use sov_rollup_interface::stf::{SoftBatchReceipt, StateTransitionFunction};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
-use sov_rollup_interface::zk::{Zkvm, ZkvmHost};
+use sov_rollup_interface::zk::{Proof, StateTransitionData, Zkvm, ZkvmHost};
 use tokio::sync::oneshot;
 use tokio::time::{sleep, Duration, Instant};
 use tracing::{debug, error, info};
 
+use crate::prover_helpers::get_initial_slot_height;
 use crate::verifier::StateTransitionVerifier;
-use crate::{ProverService, RpcConfig, RunnerConfig};
+use crate::{ProverService, RollupPublicKeys, RpcConfig, RunnerConfig};
 
 type StateRoot<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::StateRoot;
 type GenesisParams<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::GenesisParams;
@@ -57,7 +59,7 @@ where
     rpc_config: RpcConfig,
     #[allow(dead_code)]
     prover_service: Option<Ps>,
-    sequencer_client: Option<SequencerClient>,
+    sequencer_client: SequencerClient,
     sequencer_pub_key: Vec<u8>,
     sequencer_da_pub_key: Vec<u8>,
     prover_da_pub_key: Vec<u8>,
@@ -113,20 +115,15 @@ where
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         runner_config: RunnerConfig,
+        public_keys: RollupPublicKeys,
+        rpc_config: RpcConfig,
         da_service: Da,
         ledger_db: LedgerDB,
         stf: Stf,
         mut storage_manager: Sm,
         init_variant: InitVariant<Stf, Vm, Da::Spec>,
         prover_service: Option<Ps>,
-        sequencer_client: Option<SequencerClient>,
-        sequencer_pub_key: Vec<u8>,
-        sequencer_da_pub_key: Vec<u8>,
-        prover_da_pub_key: Vec<u8>,
-        include_tx_body: bool,
     ) -> Result<Self, anyhow::Error> {
-        let rpc_config = runner_config.rpc_config;
-
         let prev_state_root = match init_variant {
             InitVariant::Initialized(state_root) => {
                 debug!("Chain is already initialized. Skipping initialization.");
@@ -161,12 +158,12 @@ where
             state_root: prev_state_root,
             rpc_config,
             prover_service,
-            sequencer_client,
-            sequencer_pub_key,
-            sequencer_da_pub_key,
-            prover_da_pub_key,
+            sequencer_client: SequencerClient::new(runner_config.sequencer_client_url),
+            sequencer_pub_key: public_keys.sequencer_public_key,
+            sequencer_da_pub_key: public_keys.sequencer_da_pub_key,
+            prover_da_pub_key: public_keys.prover_da_pub_key,
             phantom: std::marker::PhantomData,
-            include_tx_body,
+            include_tx_body: runner_config.include_tx_body,
         })
     }
 
@@ -229,341 +226,346 @@ where
     pub async fn run_prover_process(&mut self) -> Result<(), anyhow::Error> {
         // Prover node should sync when a new sequencer commitment arrives
         // Check da block get and sync up to the latest block in the latest commitment
-        let Some(client) = &self.sequencer_client else {
-            return Err(anyhow::anyhow!("Sequencer Client is not initialized"));
+        let last_scanned_l1_height = self
+            .ledger_db
+            .get_prover_last_scanned_l1_height()
+            .unwrap_or_else(|_| panic!("Failed to get last scanned l1 height from the ledger db"));
+
+        let mut l1_height = match last_scanned_l1_height {
+            Some(height) => height.0 + 1,
+            None => get_initial_slot_height::<Da::Spec>(&self.sequencer_client).await,
         };
 
-        let mut seen_receipts: VecDeque<_> = VecDeque::new();
-
-        let mut last_connection_error = Instant::now();
-        let mut last_parse_error = Instant::now();
-
-        let mut connection_index = 0;
-        let mut retry_index = 0;
-
-        let mut seen_block_headers: VecDeque<<Da::Spec as DaSpec>::BlockHeader> = VecDeque::new();
-        // let mut seen_receipts: VecDeque<_> = VecDeque::new();
-        let mut height = self.start_height;
-
-        info!("Prover trying to sync from height {}", height);
-
-        let soft_batch = loop {
-            match client.get_soft_batch::<Da::Spec>(height).await {
-                Ok(soft_batch) => {
-                    let soft_batch = match soft_batch {
-                        Some(soft_batch) => soft_batch,
-                        None => {
-                            debug!(
-                                "Soft Batch: no batch at height {}, retrying in {} seconds",
-                                height, RETRY_SLEEP
-                            );
-                            Self::log_error(
-                                &mut last_parse_error,
-                                RETRY_INTERVAL,
-                                &mut retry_index,
-                                "No soft batch published".to_string().as_str(),
-                            );
-                            sleep(Duration::from_secs(RETRY_SLEEP)).await;
-                            continue;
-                        }
-                    };
-                    break soft_batch;
-                }
-                Err(e) => match e.downcast_ref::<jsonrpsee::core::Error>() {
-                    Some(Error::Transport(e)) => {
-                        debug!("Soft Batch: connection error during RPC call: {:?}", e);
-                        Self::log_error(
-                            &mut last_connection_error,
-                            CONNECTION_INTERVALS,
-                            &mut connection_index,
-                            format!("Soft Batch: connection error during RPC call: {:?}", e)
-                                .as_str(),
-                        );
-                        sleep(Duration::from_secs(RETRY_SLEEP)).await;
-                        continue;
-                    }
-                    _ => {
-                        anyhow::bail!("Soft Batch: unknown error from RPC call: {:?}", e);
-                    }
-                },
-            }
-        };
-
-        // the l1 height of the soft batch
-        let mut l1_height = soft_batch.da_slot_height;
+        let mut l2_height = self.start_height;
 
         loop {
+            let last_finalized_height = self
+                .da_service
+                .get_last_finalized_block_header()
+                .await?
+                .height();
+
+            if l1_height > last_finalized_height {
+                sleep(Duration::from_secs(1)).await;
+                continue;
+            }
+
             let filtered_block = self.da_service.get_block_at(l1_height).await?;
 
-            let (da_data, _da_errors): (Vec<_>, Vec<_>) = self
-                .da_service
+            // map the height to the hash
+            self.ledger_db
+                .set_l1_height_of_l1_hash(filtered_block.header().hash().into(), l1_height)
+                .unwrap();
+
+            let mut sequencer_commitments = Vec::<SequencerCommitment>::new();
+            let mut zk_proofs = Vec::<Proof>::new();
+
+            self.da_service
                 .extract_relevant_blobs(&filtered_block)
                 .into_iter()
-                .map(|mut tx| DaData::try_from_slice(tx.full_data()))
-                .partition(Result::is_ok);
+                .for_each(|mut tx| {
+                    let data = DaData::try_from_slice(tx.full_data());
 
-            // when Da layer is mock, this fails because 1 cannot be converted to da data
-            // if !da_errors.is_empty() {
-            //     tracing::warn!(
-            //         "Found broken DA data in block 0x{}: {:?}",
-            //         hex::encode(filtered_block.hash()),
-            //         da_errors
-            //     );
-            // }
-
-            // seperate DaData into sequencer commitments and proofs
-            let mut sequencer_commitments = Vec::<SequencerCommitment>::new();
-            let mut zk_proofs = Vec::<BatchProof>::new();
-
-            da_data.into_iter().for_each(|da_data| match da_data {
-                Ok(DaData::SequencerCommitment(seq_com)) => sequencer_commitments.push(seq_com),
-                Ok(DaData::ZKProof(batch_proof)) => zk_proofs.push(batch_proof),
-                _ => {}
-            });
+                    if tx.sender().as_ref() == self.sequencer_da_pub_key.as_slice() {
+                        if let Ok(DaData::SequencerCommitment(seq_com)) = data {
+                            sequencer_commitments.push(seq_com);
+                        } else {
+                            tracing::warn!(
+                                "Found broken DA data in block 0x{}: {:?}",
+                                hex::encode(filtered_block.hash()),
+                                data
+                            );
+                        }
+                    } else if tx.sender().as_ref() == self.prover_da_pub_key.as_slice() {
+                        if let Ok(DaData::ZKProof(proof)) = data {
+                            zk_proofs.push(proof);
+                        } else {
+                            tracing::warn!(
+                                "Found broken DA data in block 0x{}: {:?}",
+                                hex::encode(filtered_block.hash()),
+                                data
+                            );
+                        }
+                    } else {
+                        // TODO: This is where force transactions will land - try to parse DA data force transaction
+                    }
+                });
 
             if !zk_proofs.is_empty() {
                 // TODO: Implement this
             }
 
-            // TODO for each commitment prover should verify them and move accordingly
-            let sequencer_commitment = sequencer_commitments.iter().last();
+            if sequencer_commitments.is_empty() {
+                tracing::info!("No sequencer commitment found at height {}", l1_height,);
 
-            match sequencer_commitment {
-                Some(sequencer_commitment) => {
-                    let start_l1_height = self
+                self.ledger_db
+                    .set_prover_last_scanned_l1_height(SlotNumber(l1_height))
+                    .unwrap_or_else(|_| {
+                        panic!(
+                            "Failed to put prover last scanned l1 height in the ledger db {}",
+                            l1_height
+                        )
+                    });
+
+                l1_height += 1;
+                continue;
+            }
+
+            tracing::info!(
+                "Processing {} sequencer commitments at height {}",
+                sequencer_commitments.len(),
+                filtered_block.header().height(),
+            );
+
+            let initial_state_root = self.state_root.clone();
+
+            let mut da_data = self.da_service.extract_relevant_blobs(&filtered_block);
+            let da_block_header_of_commitments = filtered_block.header().clone();
+            let (inclusion_proof, completeness_proof) = self
+                .da_service
+                .get_extraction_proof(&filtered_block, &da_data)
+                .await;
+
+            // if we don't do this, the zk circuit can't read the sequencer commitments
+            da_data.iter_mut().for_each(|blob| {
+                blob.full_data();
+            });
+
+            let mut soft_confirmations: VecDeque<Vec<SignedSoftConfirmationBatch>> =
+                VecDeque::new();
+            let mut state_transition_witnesses: VecDeque<Vec<Stf::Witness>> = VecDeque::new();
+            let mut da_block_headers_of_soft_confirmations: VecDeque<
+                Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader>,
+            > = VecDeque::new();
+
+            let mut traversed_l1_tuples = vec![];
+
+            for sequencer_commitment in sequencer_commitments.clone().into_iter() {
+                let mut sof_soft_confirmations_to_push = vec![];
+                let mut state_transition_witnesses_to_push = vec![];
+                let mut da_block_headers_to_push: Vec<
+                    <<Da as DaService>::Spec as DaSpec>::BlockHeader,
+                > = vec![];
+
+                let start_l1_height = self
+                    .da_service
+                    .get_block_by_hash(sequencer_commitment.l1_start_block_hash)
+                    .await?
+                    .header()
+                    .height();
+
+                let end_l1_height = self
+                    .da_service
+                    .get_block_by_hash(sequencer_commitment.l1_end_block_hash)
+                    .await?
+                    .header()
+                    .height();
+                traversed_l1_tuples.push((start_l1_height, end_l1_height));
+
+                // start fetching blocks from sequencer, when you see a soft batch with l1 height more than end_l1_height, stop
+                // while getting the blocks to all the same ops as full node
+                // after stopping call continue  and look for a new seq_commitment
+                // change the itemnumbers only after the sync is done so not for every da block
+
+                while let Some(soft_batch) = self
+                    .sequencer_client
+                    .get_soft_batch::<Da::Spec>(l2_height)
+                    .await?
+                {
+                    if soft_batch.da_slot_height > end_l1_height {
+                        break;
+                    }
+
+                    info!(
+                        "Running soft confirmation batch #{} with hash: 0x{} on DA block #{}",
+                        l2_height,
+                        hex::encode(soft_batch.hash),
+                        filtered_block.header().height()
+                    );
+
+                    let mut signed_soft_confirmation: SignedSoftConfirmationBatch =
+                        soft_batch.clone().into();
+
+                    sof_soft_confirmations_to_push.push(signed_soft_confirmation.clone());
+
+                    // The filtered block of soft batch, which is the block at the da_slot_height of soft batch
+                    let filtered_block = self
                         .da_service
-                        .get_block_by_hash(sequencer_commitment.l1_start_block_hash)
-                        .await?
-                        .header()
-                        .height();
+                        .get_block_at(soft_batch.da_slot_height)
+                        .await?;
 
-                    let end_l1_height = self
-                        .da_service
-                        .get_block_by_hash(sequencer_commitment.l1_end_block_hash)
-                        .await?
-                        .header()
-                        .height();
+                    if da_block_headers_to_push.is_empty()
+                        || da_block_headers_to_push.last().unwrap().height()
+                            != filtered_block.header().height()
+                    {
+                        da_block_headers_to_push.push(filtered_block.header().clone());
+                    }
 
-                    // start fetching blocks from sequencer, when you see a soft batch with l1 height more than end_l1_height, stop
-                    // while getting the blocks to all the same ops as full node
-                    // after stopping call continue  and look for a new seq_commitment
-                    // change the itemnumbers only after the sync is done so not for every da block
+                    let mut data_to_commit = SlotCommit::new(filtered_block.clone());
 
-                    loop {
-                        let Some(soft_batch) = client.get_soft_batch::<Da::Spec>(height).await?
-                        else {
-                            bail!("Soft batch at {} does not exist", height);
-                        };
+                    let pre_state = self
+                        .storage_manager
+                        .create_storage_on_l2_height(l2_height)?;
 
-                        if soft_batch.da_slot_height > end_l1_height {
-                            for i in start_l1_height..=end_l1_height {
-                                self.ledger_db
-                                    .put_soft_confirmation_status(
-                                        SlotNumber(i),
-                                        SoftConfirmationStatus::Finalized,
-                                    )
-                                    .unwrap_or_else(|_| {
-                                        panic!(
+                    let slot_result = self.stf.apply_soft_batch(
+                        self.sequencer_pub_key.as_slice(),
+                        // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1247): incorrect pre-state root in case of re-org
+                        &self.state_root,
+                        pre_state,
+                        Default::default(),
+                        filtered_block.header(),
+                        &filtered_block.validity_condition(),
+                        &mut signed_soft_confirmation,
+                    );
+
+                    state_transition_witnesses_to_push.push(slot_result.witness);
+
+                    for receipt in slot_result.batch_receipts {
+                        data_to_commit.add_batch(receipt);
+                    }
+
+                    self.storage_manager
+                        .save_change_set_l2(l2_height, slot_result.change_set)?;
+
+                    let batch_receipt = data_to_commit.batch_receipts()[0].clone();
+
+                    let next_state_root = slot_result.state_root;
+
+                    // Check if post state root is the same as the one in the soft batch
+                    if next_state_root.as_ref().to_vec() != soft_batch.post_state_root {
+                        bail!("Post state root mismatch")
+                    }
+
+                    let soft_batch_receipt = SoftBatchReceipt::<_, _, Da::Spec> {
+                        pre_state_root: self.state_root.as_ref().to_vec(),
+                        post_state_root: next_state_root.as_ref().to_vec(),
+                        phantom_data: PhantomData::<u64>,
+                        batch_hash: batch_receipt.batch_hash,
+                        da_slot_hash: filtered_block.header().hash(),
+                        da_slot_height: filtered_block.header().height(),
+                        da_slot_txs_commitment: filtered_block.header().txs_commitment(),
+                        tx_receipts: batch_receipt.tx_receipts,
+                        soft_confirmation_signature: soft_batch.soft_confirmation_signature,
+                        pub_key: soft_batch.pub_key,
+                        deposit_data: soft_batch.deposit_data.into_iter().map(|x| x.tx).collect(),
+                        l1_fee_rate: soft_batch.l1_fee_rate,
+                        timestamp: soft_batch.timestamp,
+                    };
+
+                    self.ledger_db.commit_soft_batch(soft_batch_receipt, true)?;
+                    self.ledger_db.extend_l2_range_of_l1_slot(
+                        SlotNumber(filtered_block.header().height()),
+                        BatchNumber(l2_height),
+                    )?;
+
+                    self.state_root = next_state_root;
+
+                    info!(
+                        "New State Root after soft confirmation #{} is: {:?}",
+                        l2_height, self.state_root
+                    );
+
+                    self.storage_manager.finalize_l2(l2_height)?;
+
+                    l2_height += 1;
+                }
+
+                soft_confirmations.push_back(sof_soft_confirmations_to_push);
+                state_transition_witnesses.push_back(state_transition_witnesses_to_push);
+                da_block_headers_of_soft_confirmations.push_back(da_block_headers_to_push);
+            }
+
+            tracing::info!("Sending for proving");
+
+            let hash = da_block_header_of_commitments.hash();
+
+            let transition_data: StateTransitionData<Stf::StateRoot, Stf::Witness, Da::Spec> =
+                StateTransitionData {
+                    initial_state_root,
+                    final_state_root: self.state_root.clone(),
+                    da_data,
+                    da_block_header_of_commitments,
+                    inclusion_proof,
+                    completeness_proof,
+                    soft_confirmations,
+                    state_transition_witnesses,
+                    da_block_headers_of_soft_confirmations,
+
+                    sequencer_public_key: self.sequencer_pub_key.clone(),
+                    sequencer_da_public_key: self.sequencer_da_pub_key.clone(),
+                };
+
+            let prover_service = self
+                .prover_service
+                .as_ref()
+                .ok_or_else(|| anyhow::anyhow!("Prover service is not initialized"))?;
+
+            prover_service.submit_witness(transition_data).await;
+
+            prover_service.prove(hash.clone()).await?;
+
+            let (tx_id, proof) = prover_service
+                .wait_for_proving_and_send_to_da(hash.clone(), &self.da_service)
+                .await?;
+
+            let tx_id_u8 = tx_id.into();
+
+            // l1_height => (tx_id, proof, transition_data)
+            // save proof along with tx id to db, should be queriable by slot number or slot hash
+            let transition_data: sov_modules_api::StateTransition<
+                <Da as DaService>::Spec,
+                Stf::StateRoot,
+            > = Vm::extract_output(&proof).expect("Proof should be deserializable");
+
+            tracing::info!("transition data: {:?}", transition_data);
+
+            let stored_state_transition = StoredStateTransition {
+                initial_state_root: transition_data.initial_state_root.as_ref().to_vec(),
+                final_state_root: transition_data.final_state_root.as_ref().to_vec(),
+                state_diff: transition_data.state_diff,
+                da_slot_hash: transition_data.da_slot_hash.into(),
+                sequencer_public_key: transition_data.sequencer_public_key,
+                sequencer_da_public_key: transition_data.sequencer_da_public_key,
+                validity_condition: transition_data.validity_condition.try_to_vec().unwrap(),
+            };
+
+            for (sequencer_commitment, l1_heights) in
+                sequencer_commitments.into_iter().zip(traversed_l1_tuples)
+            {
+                // Save commitments on prover ledger db
+                self.ledger_db
+                    .update_commitments_on_da_slot(l1_height, sequencer_commitment.clone())
+                    .unwrap();
+
+                for i in l1_heights.0..=l1_heights.1 {
+                    self.ledger_db
+                        .put_soft_confirmation_status(
+                            SlotNumber(i),
+                            SoftConfirmationStatus::Finalized,
+                        )
+                        .unwrap_or_else(|_| {
+                            panic!(
                                 "Failed to put soft confirmation status in the ledger db {}",
                                 i
                             )
-                                    });
-                            }
-                            l1_height += 1;
-                            break;
-                        }
-
-                        info!(
-                            "Running soft confirmation batch #{} with hash: 0x{} on DA block #{}",
-                            height,
-                            hex::encode(soft_batch.hash),
-                            filtered_block.header().height()
-                        );
-
-                        // The filtered block of soft batch, which is the block at the da_slot_height of soft batch
-                        let filtered_block = self
-                            .da_service
-                            .get_block_at(soft_batch.da_slot_height)
-                            .await?;
-
-                        let mut data_to_commit = SlotCommit::new(filtered_block.clone());
-
-                        let pre_state = self.storage_manager.create_storage_on_l2_height(height)?;
-
-                        let slot_result = self.stf.apply_soft_batch(
-                            self.sequencer_pub_key.as_slice(),
-                            // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1247): incorrect pre-state root in case of re-org
-                            &self.state_root,
-                            pre_state,
-                            Default::default(),
-                            filtered_block.header(),
-                            &filtered_block.validity_condition(),
-                            &mut soft_batch.clone().into(),
-                        );
-
-                        for receipt in slot_result.batch_receipts {
-                            data_to_commit.add_batch(receipt);
-                        }
-
-                        // let (inclusion_proof, completeness_proof) = self
-                        //     .da_service
-                        //     .get_extraction_proof(&filtered_block, vec_blobs.as_slice())
-                        //     .await;
-
-                        // let _transition_data: StateTransitionData<Stf::StateRoot, Stf::Witness, Da::Spec> =
-                        //     StateTransitionData {
-                        //         // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1247): incorrect pre-state root in case of re-org
-                        //         initial_state_root: self.state_root.clone(),
-                        //         final_state_root: slot_result.state_root.clone(),
-                        //         da_block_header: filtered_block.header().clone(),
-                        //         inclusion_proof,
-                        //         completeness_proof,
-                        //         blobs: vec_blobs,
-                        //         state_transition_witness: slot_result.witness,
-                        //     };
-
-                        self.storage_manager
-                            .save_change_set_l2(height, slot_result.change_set)?;
-
-                        // ----------------
-                        // Create ZK proof.
-                        // {
-                        //     let header_hash = transition_data.da_block_header.hash();
-                        //     self.prover_service.submit_witness(transition_data).await;
-                        //     // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1185):
-                        //     //   This section will be moved and called upon block finalization once we have fork management ready.
-                        //     self.prover_service
-                        //         .prove(header_hash.clone())
-                        //         .await
-                        //         .expect("The proof creation should succeed");
-
-                        //     loop {
-                        //         let status = self
-                        //             .prover_service
-                        //             .send_proof_to_da(header_hash.clone())
-                        //             .await;
-
-                        //         match status {
-                        //             Ok(ProofSubmissionStatus::Success) => {
-                        //                 break;
-                        //             }
-                        //             // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1185): Add timeout handling.
-                        //             Ok(ProofSubmissionStatus::ProofGenerationInProgress) => {
-                        //                 tokio::time::sleep(tokio::time::Duration::from_millis(100)).await
-                        //             }
-                        //             // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1185): Add handling for DA submission errors.
-                        //             Err(e) => panic!("{:?}", e),
-                        //         }
-                        //     }
-                        // }
-
-                        let batch_receipt = data_to_commit.batch_receipts()[0].clone();
-
-                        let next_state_root = slot_result.state_root;
-
-                        // Check if post state root is the same as the one in the soft batch
-                        if next_state_root.as_ref().to_vec() != soft_batch.post_state_root {
-                            bail!("Post state root mismatch")
-                        }
-
-                        let soft_batch_receipt = SoftBatchReceipt::<_, _, Da::Spec> {
-                            pre_state_root: self.state_root.as_ref().to_vec(),
-                            post_state_root: next_state_root.as_ref().to_vec(),
-                            phantom_data: PhantomData::<u64>,
-                            batch_hash: batch_receipt.batch_hash,
-                            da_slot_hash: filtered_block.header().hash(),
-                            da_slot_height: filtered_block.header().height(),
-                            da_slot_txs_commitment: filtered_block.header().txs_commitment(),
-                            tx_receipts: batch_receipt.tx_receipts,
-                            soft_confirmation_signature: soft_batch.soft_confirmation_signature,
-                            pub_key: soft_batch.pub_key,
-                            deposit_data: soft_batch
-                                .deposit_data
-                                .into_iter()
-                                .map(|x| x.tx)
-                                .collect(),
-                            l1_fee_rate: soft_batch.l1_fee_rate,
-                            timestamp: soft_batch.timestamp,
-                        };
-
-                        self.ledger_db.commit_soft_batch(soft_batch_receipt, true)?;
-                        self.ledger_db.extend_l2_range_of_l1_slot(
-                            SlotNumber(filtered_block.header().height()),
-                            BatchNumber(height),
-                        )?;
-
-                        self.state_root = next_state_root;
-                        seen_receipts.push_back(data_to_commit);
-                        seen_block_headers.push_back(filtered_block.header().clone());
-
-                        info!(
-                            "New State Root after soft confirmation #{} is: {:?}",
-                            height, self.state_root
-                        );
-
-                        // ----------------
-                        // Finalization. Done after seen block for proper handling of instant finality
-                        // Can be moved to another thread to improve throughput
-                        let last_finalized =
-                            self.da_service.get_last_finalized_block_header().await?;
-                        // For safety we finalize blocks one by one
-                        tracing::info!(
-                            "Last finalized header height is {}, ",
-                            last_finalized.height()
-                        );
-                        // Checking all seen blocks, in case if there was delay in getting last finalized header.
-                        // while let Some(earliest_seen_header) = seen_block_headers.front() {
-                        //     tracing::debug!(
-                        //         "Checking seen header height={}",
-                        //         earliest_seen_header.height()
-                        //     );
-                        //     if earliest_seen_header.height() <= last_finalized.height() {
-                        //         tracing::debug!(
-                        //             "Finalizing seen header height={}",
-                        //             earliest_seen_header.height()
-                        //         );
-
-                        //         continue;
-                        //     }a<zsqwxdec45a915e4d060149eb4365960e6a7a45f334393093061116b197e3240065ff2d8
-
-                        //     break;
-                        // }
-                        // self.storage_manager.finalize(earliest_seen_header)?;
-                        seen_block_headers.pop_front();
-                        let receipts = seen_receipts
-                            .pop_front()
-                            .ok_or(anyhow!("Seen receipts is empty"))?;
-                        self.ledger_db.commit_slot(receipts)?;
-                        self.storage_manager.finalize_l2(height)?;
-
-                        height += 1;
-                    }
-                }
-                _ => {
-                    // if there is no sequencer commitment, increase the l1_height
-                    // if the finalized l1_height is less than the l1_height, then stop
-                    let last_finalized_height = self
-                        .da_service
-                        .get_last_finalized_block_header()
-                        .await?
-                        .height();
-                    if l1_height < last_finalized_height {
-                        l1_height += 1;
-                        sleep(Duration::from_millis(100)).await;
-                    }
+                        });
                 }
             }
+
+            self.ledger_db
+                .put_proof_data(l1_height, tx_id_u8, proof, stored_state_transition)?;
+
+            self.ledger_db
+                .set_prover_last_scanned_l1_height(SlotNumber(l1_height))?;
+            l1_height += 1;
         }
     }
 
     /// Runs the rollup.
     pub async fn run_in_process(&mut self) -> Result<(), anyhow::Error> {
-        let Some(client) = &self.sequencer_client else {
-            return Err(anyhow::anyhow!("Sequencer Client is not initialized"));
-        };
+        let mut last_l1_height = 0;
+        let mut cur_l1_block = None;
 
-        let mut seen_block_headers: VecDeque<<Da::Spec as DaSpec>::BlockHeader> = VecDeque::new();
-        let mut seen_receipts: VecDeque<_> = VecDeque::new();
         let mut height = self.start_height;
         info!("Starting to sync from height {}", height);
 
@@ -574,7 +576,11 @@ where
         let mut retry_index = 0;
 
         loop {
-            let soft_batch = match client.get_soft_batch::<Da::Spec>(height).await {
+            let soft_batch = match self
+                .sequencer_client
+                .get_soft_batch::<Da::Spec>(height)
+                .await
+            {
                 Ok(Some(soft_batch)) => soft_batch,
                 Ok(None) => {
                     debug!(
@@ -609,166 +615,175 @@ where
                 },
             };
 
-            // TODO: for a node, the da block at slot_height might not have been finalized yet
-            // should wait for it to be finalized
-            let filtered_block = self
-                .da_service
-                .get_block_at(soft_batch.da_slot_height)
-                .await?;
-
-            // TODO: when legit blocks are implemented use below to
-            // check for reorgs
-            // Checking if reorg happened or not.
-            // if let Some(prev_block_header) = seen_block_headers.back() {
-            //     if prev_block_header.hash() != filtered_block.header().prev_hash() {
-            //         tracing::warn!("Block at height={} does not belong in current chain. Chain has forked. Traversing backwards", height);
-            //         while let Some(seen_block_header) = seen_block_headers.pop_back() {
-            //             seen_receipts.pop_back();
-            //             let block = self
-            //                 .da_service
-            //                 .get_block_at(seen_block_header.height())
-            //                 .await?;
-            //             if block.header().prev_hash() == seen_block_header.prev_hash() {
-            //                 height = seen_block_header.height();
-            //                 filtered_block = block;
-            //                 break;
-            //             }
-            //         }
-            //         tracing::info!("Resuming execution on height={}", height);
-            //     }
-            // }
-
-            // Merkle root hash - L1 start height - L1 end height
-            // TODO: How to confirm this is what we submit - use?
-            // TODO: Add support for multiple commitments in a single block
-
-            let mut sequencer_commitments = Vec::<SequencerCommitment>::new();
-            let mut zk_proofs = Vec::<BatchProof>::new();
-
-            self.da_service
-                .extract_relevant_blobs(&filtered_block)
-                .into_iter()
-                .for_each(|mut tx| {
-                    let data = DaData::try_from_slice(tx.full_data());
-
-                    if tx.sender().as_ref() == self.sequencer_da_pub_key.as_slice() {
-                        if let Ok(DaData::SequencerCommitment(seq_com)) = data {
-                            sequencer_commitments.push(seq_com);
-                        } else {
-                            tracing::warn!(
-                                "Found broken DA data in block 0x{}: {:?}",
-                                hex::encode(filtered_block.hash()),
-                                data
-                            );
-                        }
-                    } else if tx.sender().as_ref() == self.prover_da_pub_key.as_slice() {
-                        if let Ok(DaData::ZKProof(batch_proof)) = data {
-                            zk_proofs.push(batch_proof);
-                        } else {
-                            tracing::warn!(
-                                "Found broken DA data in block 0x{}: {:?}",
-                                hex::encode(filtered_block.hash()),
-                                data
-                            );
-                        }
-                    } else {
-                        // TODO: This is where force transactions will land - try to parse DA data force transaction
-                    }
-                });
-
-            if !zk_proofs.is_empty() {
-                // TODO: Implement this
-            }
-
-            for sequencer_commitment in sequencer_commitments.iter() {
-                let start_l1_height = self
+            if last_l1_height != soft_batch.da_slot_height || cur_l1_block.is_none() {
+                last_l1_height = soft_batch.da_slot_height;
+                // TODO: for a node, the da block at slot_height might not have been finalized yet
+                // should wait for it to be finalized
+                let filtered_block = self
                     .da_service
-                    .get_block_by_hash(sequencer_commitment.l1_start_block_hash)
-                    .await?
-                    .header()
-                    .height();
+                    .get_block_at(soft_batch.da_slot_height)
+                    .await?;
 
-                let end_l1_height = self
-                    .da_service
-                    .get_block_by_hash(sequencer_commitment.l1_end_block_hash)
-                    .await?
-                    .header()
-                    .height();
+                // Set the l1 height of the l1 hash
+                self.ledger_db
+                    .set_l1_height_of_l1_hash(
+                        filtered_block.header().hash().into(),
+                        soft_batch.da_slot_height,
+                    )
+                    .unwrap();
 
-                let start_l2_height = match self
-                    .ledger_db
-                    .get_l2_range_by_l1_height(SlotNumber(start_l1_height))
-                {
-                    Ok(Some((start_l2_height, _))) => start_l2_height,
-                    Ok(None) => bail!(
-                        "Sequencer: L1 L2 connection does not exist. L1 height = {}",
-                        start_l1_height
-                    ),
-                    Err(e) => bail!("Sequencer: Failed to get L1 L2 connection. Err: {}", e),
-                };
+                // Merkle root hash - L1 start height - L1 end height
+                // TODO: How to confirm this is what we submit - use?
+                // TODO: Add support for multiple commitments in a single block
 
-                let end_l2_height = match self
-                    .ledger_db
-                    .get_l2_range_by_l1_height(SlotNumber(start_l1_height))
-                {
-                    Ok(Some((_, end_l2_height))) => end_l2_height,
-                    Ok(None) => bail!(
-                        "Sequencer: L1 L2 connection does not exist. L1 height = {}",
-                        start_l1_height
-                    ),
-                    Err(e) => bail!("Sequencer: Failed to get L1 L2 connection. Err: {}", e),
-                };
+                let mut sequencer_commitments = Vec::<SequencerCommitment>::new();
+                let mut zk_proofs = Vec::<Proof>::new();
 
-                let range_end = BatchNumber(end_l2_height.0 + 1);
-                // Traverse each item's field of vector of transactions, put them in merkle tree
-                // and compare the root with the one from the ledger
-                let stored_soft_batches: Vec<StoredSoftBatch> = self
-                    .ledger_db
-                    .get_soft_batch_range(&(start_l2_height..range_end))?;
+                self.da_service
+                    .extract_relevant_blobs(&filtered_block)
+                    .into_iter()
+                    .for_each(|mut tx| {
+                        let data = DaData::try_from_slice(tx.full_data());
 
-                let soft_batches_tree = MerkleTree::<Sha256>::from_leaves(
-                    stored_soft_batches
-                        .iter()
-                        .map(|x| x.hash)
-                        .collect::<Vec<_>>()
-                        .as_slice(),
-                );
+                        if tx.sender().as_ref() == self.sequencer_da_pub_key.as_slice() {
+                            if let Ok(DaData::SequencerCommitment(seq_com)) = data {
+                                sequencer_commitments.push(seq_com);
+                            } else {
+                                tracing::warn!(
+                                    "Found broken DA data in block 0x{}: {:?}",
+                                    hex::encode(filtered_block.hash()),
+                                    data
+                                );
+                            }
+                        } else if tx.sender().as_ref() == self.prover_da_pub_key.as_slice() {
+                            if let Ok(DaData::ZKProof(proof)) = data {
+                                zk_proofs.push(proof);
+                            } else {
+                                tracing::warn!(
+                                    "Found broken DA data in block 0x{}: {:?}",
+                                    hex::encode(filtered_block.hash()),
+                                    data
+                                );
+                            }
+                        } else {
+                            // TODO: This is where force transactions will land - try to parse DA data force transaction
+                        }
+                    });
 
-                if soft_batches_tree.root() != Some(sequencer_commitment.merkle_root) {
-                    tracing::warn!(
-                        "Merkle root mismatch - expected 0x{} but got 0x{}",
-                        hex::encode(
-                            soft_batches_tree
-                                .root()
-                                .ok_or(anyhow!("Could not calculate soft batch tree root"))?
-                        ),
-                        hex::encode(sequencer_commitment.merkle_root)
-                    );
+                if !zk_proofs.is_empty() {
+                    // TODO: Implement this
                 }
 
-                for i in start_l1_height..=end_l1_height {
-                    self.ledger_db
-                        .put_soft_confirmation_status(
-                            SlotNumber(i),
-                            SoftConfirmationStatus::Finalized,
-                        )
-                        .unwrap_or_else(|_| {
-                            panic!(
+                for sequencer_commitment in sequencer_commitments.iter() {
+                    tracing::warn!(
+                        "Processing sequencer commitment: {:?}",
+                        sequencer_commitment
+                    );
+                    let start_l1_height = self
+                        .da_service
+                        .get_block_by_hash(sequencer_commitment.l1_start_block_hash)
+                        .await?
+                        .header()
+                        .height();
+
+                    let end_l1_height = self
+                        .da_service
+                        .get_block_by_hash(sequencer_commitment.l1_end_block_hash)
+                        .await?
+                        .header()
+                        .height();
+
+                    tracing::warn!(
+                        "start height: {}, end height: {}",
+                        start_l1_height,
+                        end_l1_height
+                    );
+
+                    let start_l2_height = match self
+                        .ledger_db
+                        .get_l2_range_by_l1_height(SlotNumber(start_l1_height))
+                    {
+                        Ok(Some((start_l2_height, _))) => start_l2_height,
+                        Ok(None) => bail!(
+                            "Runner: L1 L2 connection does not exist. L1 height = {}",
+                            start_l1_height
+                        ),
+                        Err(e) => bail!("Runner: Failed to get L1 L2 connection. Err: {}", e),
+                    };
+
+                    let end_l2_height = match self
+                        .ledger_db
+                        .get_l2_range_by_l1_height(SlotNumber(end_l1_height))
+                    {
+                        Ok(Some((_, end_l2_height))) => end_l2_height,
+                        Ok(None) => bail!(
+                            "Runner: L1 L2 connection does not exist. L1 height = {}",
+                            end_l1_height
+                        ),
+                        Err(e) => bail!("Runner: Failed to get L1 L2 connection. Err: {}", e),
+                    };
+
+                    let range_end = BatchNumber(end_l2_height.0 + 1);
+                    // Traverse each item's field of vector of transactions, put them in merkle tree
+                    // and compare the root with the one from the ledger
+                    let stored_soft_batches: Vec<StoredSoftBatch> = self
+                        .ledger_db
+                        .get_soft_batch_range(&(start_l2_height..range_end))?;
+
+                    let soft_batches_tree = MerkleTree::<Sha256>::from_leaves(
+                        stored_soft_batches
+                            .iter()
+                            .map(|x| x.hash)
+                            .collect::<Vec<_>>()
+                            .as_slice(),
+                    );
+
+                    if soft_batches_tree.root() != Some(sequencer_commitment.merkle_root) {
+                        tracing::warn!(
+                            "Merkle root mismatch - expected 0x{} but got 0x{}",
+                            hex::encode(
+                                soft_batches_tree
+                                    .root()
+                                    .ok_or(anyhow!("Could not calculate soft batch tree root"))?
+                            ),
+                            hex::encode(sequencer_commitment.merkle_root)
+                        );
+                    } else {
+                        self.ledger_db
+                            .update_commitments_on_da_slot(
+                                soft_batch.da_slot_height,
+                                sequencer_commitment.clone(),
+                            )
+                            .unwrap();
+                        for i in start_l1_height..=end_l1_height {
+                            self.ledger_db
+                                .put_soft_confirmation_status(
+                                    SlotNumber(i),
+                                    SoftConfirmationStatus::Finalized,
+                                )
+                                .unwrap_or_else(|_| {
+                                    panic!(
                                 "Failed to put soft confirmation status in the ledger db {}",
                                 i
                             )
-                        });
+                                });
+                        }
+                    }
                 }
+
+                cur_l1_block = Some(filtered_block);
             }
+
+            let cur_l1_block = cur_l1_block.clone().unwrap();
 
             info!(
                 "Running soft confirmation batch #{} with hash: 0x{} on DA block #{}",
                 height,
                 hex::encode(soft_batch.hash),
-                filtered_block.header().height()
+                cur_l1_block.header().height()
             );
 
-            let mut data_to_commit = SlotCommit::new(filtered_block.clone());
+            let mut data_to_commit = SlotCommit::new(cur_l1_block.clone());
 
             let pre_state = self.storage_manager.create_storage_on_l2_height(height)?;
 
@@ -778,8 +793,8 @@ where
                 &self.state_root,
                 pre_state,
                 Default::default(),
-                filtered_block.header(),
-                &filtered_block.validity_condition(),
+                cur_l1_block.header(),
+                &cur_l1_block.validity_condition(),
                 &mut soft_batch.clone().into(),
             );
 
@@ -787,57 +802,8 @@ where
                 data_to_commit.add_batch(receipt);
             }
 
-            // let (inclusion_proof, completeness_proof) = self
-            //     .da_service
-            //     .get_extraction_proof(&filtered_block, vec_blobs.as_slice())
-            //     .await;
-
-            // let _transition_data: StateTransitionData<Stf::StateRoot, Stf::Witness, Da::Spec> =
-            //     StateTransitionData {
-            //         // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1247): incorrect pre-state root in case of re-org
-            //         initial_state_root: self.state_root.clone(),
-            //         final_state_root: slot_result.state_root.clone(),
-            //         da_block_header: filtered_block.header().clone(),
-            //         inclusion_proof,
-            //         completeness_proof,
-            //         blobs: vec_blobs,
-            //         state_transition_witness: slot_result.witness,
-            //     };
-
             self.storage_manager
                 .save_change_set_l2(height, slot_result.change_set)?;
-
-            // ----------------
-            // Create ZK proof.
-            // {
-            //     let header_hash = transition_data.da_block_header.hash();
-            //     self.prover_service.submit_witness(transition_data).await;
-            //     // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1185):
-            //     //   This section will be moved and called upon block finalization once we have fork management ready.
-            //     self.prover_service
-            //         .prove(header_hash.clone())
-            //         .await
-            //         .expect("The proof creation should succeed");
-
-            //     loop {
-            //         let status = self
-            //             .prover_service
-            //             .send_proof_to_da(header_hash.clone())
-            //             .await;
-
-            //         match status {
-            //             Ok(ProofSubmissionStatus::Success) => {
-            //                 break;
-            //             }
-            //             // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1185): Add timeout handling.
-            //             Ok(ProofSubmissionStatus::ProofGenerationInProgress) => {
-            //                 tokio::time::sleep(tokio::time::Duration::from_millis(100)).await
-            //             }
-            //             // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1185): Add handling for DA submission errors.
-            //             Err(e) => panic!("{:?}", e),
-            //         }
-            //     }
-            // }
 
             let batch_receipt = data_to_commit.batch_receipts()[0].clone();
 
@@ -853,9 +819,9 @@ where
                 post_state_root: next_state_root.as_ref().to_vec(),
                 phantom_data: PhantomData::<u64>,
                 batch_hash: batch_receipt.batch_hash,
-                da_slot_hash: filtered_block.header().hash(),
-                da_slot_height: filtered_block.header().height(),
-                da_slot_txs_commitment: filtered_block.header().txs_commitment(),
+                da_slot_hash: cur_l1_block.header().hash(),
+                da_slot_height: cur_l1_block.header().height(),
+                da_slot_txs_commitment: cur_l1_block.header().txs_commitment(),
                 tx_receipts: batch_receipt.tx_receipts,
                 soft_confirmation_signature: soft_batch.soft_confirmation_signature,
                 pub_key: soft_batch.pub_key,
@@ -867,51 +833,17 @@ where
             self.ledger_db
                 .commit_soft_batch(soft_batch_receipt, self.include_tx_body)?;
             self.ledger_db.extend_l2_range_of_l1_slot(
-                SlotNumber(filtered_block.header().height()),
+                SlotNumber(cur_l1_block.header().height()),
                 BatchNumber(height),
             )?;
 
             self.state_root = next_state_root;
-            seen_receipts.push_back(data_to_commit);
-            seen_block_headers.push_back(filtered_block.header().clone());
 
             info!(
                 "New State Root after soft confirmation #{} is: {:?}",
                 height, self.state_root
             );
 
-            // ----------------
-            // Finalization. Done after seen block for proper handling of instant finality
-            // Can be moved to another thread to improve throughput
-            let last_finalized = self.da_service.get_last_finalized_block_header().await?;
-            // For safety we finalize blocks one by one
-            tracing::info!(
-                "Last finalized header height is {}, ",
-                last_finalized.height()
-            );
-            // Checking all seen blocks, in case if there was delay in getting last finalized header.
-            // while let Some(earliest_seen_header) = seen_block_headers.front() {
-            //     tracing::debug!(
-            //         "Checking seen header height={}",
-            //         earliest_seen_header.height()
-            //     );
-            //     if earliest_seen_header.height() <= last_finalized.height() {
-            //         tracing::debug!(
-            //             "Finalizing seen header height={}",
-            //             earliest_seen_header.height()
-            //         );
-
-            //         continue;
-            //     }
-
-            //     break;
-            // }
-            // self.storage_manager.finalize(earliest_seen_header)?;
-            seen_block_headers.pop_front();
-            let receipts = seen_receipts
-                .pop_front()
-                .ok_or(anyhow!("No seen receipts exist"))?;
-            self.ledger_db.commit_slot(receipts)?;
             self.storage_manager.finalize_l2(height)?;
 
             height += 1;

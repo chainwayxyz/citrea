@@ -261,37 +261,39 @@ where
         root_hash: &<<C as Spec>::Storage as Storage>::Root,
         accessory_working_set: &mut AccessoryWorkingSet<C>,
     ) {
-        let expected_block_number = self.blocks.len(accessory_working_set) as u64;
+        if cfg!(feature = "native") {
+            let expected_block_number = self.blocks.len(accessory_working_set) as u64;
 
-        let mut block = self
-            .pending_head
-            .get(accessory_working_set)
-            .unwrap_or_else(|| {
-                panic!(
-                    "Pending head must be set to block {}, but was empty",
-                    expected_block_number
-                )
-            });
+            let mut block = self
+                .pending_head
+                .get(accessory_working_set)
+                .unwrap_or_else(|| {
+                    panic!(
+                        "Pending head must be set to block {}, but was empty",
+                        expected_block_number
+                    )
+                });
 
-        assert_eq!(
-            block.header.number, expected_block_number,
-            "Pending head must be set to block {}, but found block {}",
-            expected_block_number, block.header.number
-        );
+            assert_eq!(
+                block.header.number, expected_block_number,
+                "Pending head must be set to block {}, but found block {}",
+                expected_block_number, block.header.number
+            );
 
-        let root_hash_bytes: [u8; 32] = root_hash.clone().into();
-        block.header.state_root = root_hash_bytes.into();
+            let root_hash_bytes: [u8; 32] = root_hash.clone().into();
+            block.header.state_root = root_hash_bytes.into();
 
-        let sealed_block = block.seal();
+            let sealed_block = block.seal();
 
-        self.blocks.push(&sealed_block, accessory_working_set);
-        self.block_hashes.set(
-            &sealed_block.header.hash(),
-            &sealed_block.header.number,
-            accessory_working_set,
-        );
-        self.pending_head.delete(accessory_working_set);
+            self.blocks.push(&sealed_block, accessory_working_set);
+            self.block_hashes.set(
+                &sealed_block.header.hash(),
+                &sealed_block.header.number,
+                accessory_working_set,
+            );
+            self.pending_head.delete(accessory_working_set);
 
-        self.l1_fee_failed_txs.clear(accessory_working_set);
+            self.l1_fee_failed_txs.clear(accessory_working_set);
+        }
     }
 }

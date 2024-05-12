@@ -5,7 +5,6 @@ use ethers::abi::Address;
 use ethers_signers::{LocalWallet, Signer};
 use reth_primitives::BlockNumberOrTag;
 use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
-use sov_stf_runner::RollupProverConfig;
 use tokio::task::JoinHandle;
 
 use crate::evm::make_test_client;
@@ -23,7 +22,7 @@ async fn initialize_test() -> (JoinHandle<()>, Box<TestClient>) {
             BasicKernelGenesisPaths {
                 chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
             },
-            RollupProverConfig::Execute,
+            None,
             NodeMode::SequencerNode,
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,

@@ -1,14 +1,11 @@
 use sov_db::ledger_db::LedgerDB;
-use sov_mock_da::{
-    MockAddress, MockDaConfig, MockDaService, MockDaSpec, MockDaVerifier, MockValidityCond,
-};
+use sov_mock_da::{MockAddress, MockDaConfig, MockDaService, MockDaSpec, MockValidityCond};
 use sov_mock_zkvm::MockZkvm;
 use sov_prover_storage_manager::ProverStorageManager;
-use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_state::{ArrayWitness, DefaultStorageSpec};
 use sov_stf_runner::{
-    InitVariant, ParallelProverService, ProverServiceConfig, RollupConfig, RollupProverConfig,
-    RpcConfig, RunnerConfig, StateTransitionRunner, StorageConfig,
+    InitVariant, ParallelProverService, RollupConfig, RollupPublicKeys, RpcConfig, RunnerConfig,
+    StateTransitionRunner, StorageConfig,
 };
 
 mod hash_stf;
@@ -61,28 +58,26 @@ fn initialize_runner(
 > {
     let address = MockAddress::new([11u8; 32]);
     let rollup_config = RollupConfig::<MockDaConfig> {
-        sequencer_public_key: vec![0u8; 32],
         storage: StorageConfig {
             path: path.to_path_buf(),
         },
-        runner: RunnerConfig {
-            start_height: 1,
-            rpc_config: RpcConfig {
-                bind_host: "127.0.0.1".to_string(),
-                bind_port: 0,
-                max_connections: 100,
-            },
+        rpc: RpcConfig {
+            bind_host: "127.0.0.1".to_string(),
+            bind_port: 0,
+            max_connections: 100,
         },
+        runner: Some(RunnerConfig {
+            sequencer_client_url: "http://127.0.0.1:4444".to_string(),
+            include_tx_body: true,
+        }),
         da: MockDaConfig {
             sender_address: address,
         },
-        prover_service: ProverServiceConfig {
-            aggregated_proof_block_jump: 1,
+        public_keys: RollupPublicKeys {
+            sequencer_public_key: vec![],
+            sequencer_da_pub_key: vec![],
+            prover_da_pub_key: vec![],
         },
-        sequencer_client: None,
-        sequencer_da_pub_key: vec![],
-        prover_da_pub_key: vec![],
-        include_tx_body: true,
     };
 
     let da_service = MockDaService::new(address);
@@ -94,38 +89,21 @@ fn initialize_runner(
     let storage_config = sov_state::config::Config {
         path: path.to_path_buf(),
     };
-    let mut storage_manager = ProverStorageManager::new(storage_config).unwrap();
+    let storage_manager = ProverStorageManager::new(storage_config).unwrap();
 
-    let vm = MockZkvm::new(MockValidityCond::default());
-    let verifier = MockDaVerifier::default();
-
-    let prover_config = RollupProverConfig::Prove;
-
-    let prover_service = ParallelProverService::new(
-        vm,
-        stf.clone(),
-        verifier,
-        prover_config,
-        // Should be ZkStorage, but we don't need it for this test
-        storage_manager.create_finalized_storage().unwrap(),
-        1,
-        rollup_config.prover_service,
-    )
-    .expect("Should be able to instiate prover service");
+    // let vm = MockZkvm::new(MockValidityCond::default());
+    // let verifier = MockDaVerifier::default();
 
     StateTransitionRunner::new(
-        rollup_config.runner,
+        rollup_config.runner.unwrap(),
+        rollup_config.public_keys,
+        rollup_config.rpc,
         da_service,
         ledger_db,
         stf,
         storage_manager,
         init_variant,
-        Some(prover_service),
         None,
-        vec![0u8; 32],
-        vec![0u8; 32],
-        vec![0u8; 32],
-        true,
     )
     .unwrap()
 }
