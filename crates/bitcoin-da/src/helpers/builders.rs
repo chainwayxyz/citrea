@@ -176,10 +176,9 @@ fn build_commit_transaction(
             .into_iter()
             .partition::<Vec<_>, _>(|utxo| utxo.tx_id == tx.id);
 
-        let required_utxo = requited_utxos
-            .first()
-            .expect("No spendable UTXO found in previous tx")
-            .clone();
+        let Some(required_utxo) = requited_utxos.first().cloned() else {
+            return Err(anyhow!("No spendable UTXO found in previous tx"));
+        };
 
         (Some(required_utxo), free_utxos)
     } else {
@@ -791,6 +790,59 @@ mod tests {
         assert_eq!(tx.output[0].script_pubkey, recipient.script_pubkey());
         assert_eq!(tx.output[1].value, Amount::from_sat(48940));
         assert_eq!(tx.output[1].script_pubkey, address.script_pubkey());
+
+        let prev_tx = tx;
+        let prev_tx_id = prev_tx.txid();
+        let tx = super::build_commit_transaction(
+            Some(super::TxWithId {
+                id: prev_tx_id,
+                tx: prev_tx.clone(),
+            }),
+            utxos.clone(),
+            recipient.clone(),
+            address.clone(),
+            100_000_000_000,
+            32.0,
+        );
+
+        assert!(tx.is_err());
+        assert_eq!(
+            format!("{}", tx.unwrap_err()),
+            "No spendable UTXO found in previous tx"
+        );
+
+        let prev_utxos: Vec<UTXO> = prev_tx
+            .output
+            .iter()
+            .enumerate()
+            .map(|(i, o)| UTXO {
+                tx_id: prev_tx_id,
+                vout: i as u32,
+                script_pubkey: o.script_pubkey.to_hex_string(),
+                address: "ANY".into(),
+                confirmations: 0,
+                amount: o.value.to_sat(),
+                spendable: true,
+                solvable: true,
+            })
+            .collect();
+        let prev_utxo = utxos.clone().into_iter().chain(prev_utxos).collect();
+
+        let tx = super::build_commit_transaction(
+            Some(super::TxWithId {
+                id: prev_tx_id,
+                tx: prev_tx,
+            }),
+            prev_utxo,
+            recipient.clone(),
+            address.clone(),
+            50000,
+            32.0,
+        )
+        .unwrap();
+
+        assert_eq!(tx.input.len(), 1);
+        assert_eq!(tx.input[0].previous_output.txid, prev_tx_id);
 
         let tx = super::build_commit_transaction(
             None,
