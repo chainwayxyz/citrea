@@ -140,7 +140,18 @@ async fn test_soft_batch_save() -> Result<(), anyhow::Error> {
             config.seq_min_soft_confirmations,
             true,
             None,
-            None,
+            // Increase max account slots to not stuck as spammer
+            Some(SequencerConfig {
+                private_key: TEST_PRIVATE_KEY.to_string(),
+                min_soft_confirmations_per_commitment: 1000,
+                test_mode: true,
+                deposit_mempool_fetch_limit: 10,
+                mempool_conf: SequencerMempoolConfig {
+                    max_account_slots: 100,
+                    ..Default::default()
+                },
+                db_config: Default::default(),
+            }),
             Some(true),
             config.deposit_mempool_fetch_limit,
         )
@@ -971,7 +982,7 @@ async fn execute_blocks(
     {
         let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
 
-        for _ in 0..100 {
+        for _ in 0..300 {
             sequencer_client
                 .send_eth(addr, None, None, None, 0u128)
                 .await
@@ -980,7 +991,7 @@ async fn execute_blocks(
         }
     }
 
-    sleep(Duration::from_millis(10000)).await;
+    sleep(Duration::from_secs(10)).await;
 
     let seq_last_block = sequencer_client
         .eth_get_block_by_number_with_detail(Some(BlockNumberOrTag::Latest))
@@ -990,8 +1001,8 @@ async fn execute_blocks(
         .eth_get_block_by_number_with_detail(Some(BlockNumberOrTag::Latest))
         .await;
 
-    assert_eq!(seq_last_block.number.unwrap().as_u64(), 304);
-    assert_eq!(full_node_last_block.number.unwrap().as_u64(), 304);
+    assert_eq!(seq_last_block.number.unwrap().as_u64(), 504);
+    assert_eq!(full_node_last_block.number.unwrap().as_u64(), 504);
 
     assert_eq!(seq_last_block.state_root, full_node_last_block.state_root);
     assert_eq!(seq_last_block.hash, full_node_last_block.hash);
