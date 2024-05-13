@@ -253,7 +253,7 @@ fn get_block_transaction_count_by_number_test() {
     assert_eq!(result, Ok(Some(U256::from(4))));
 
     let result = evm
-        .eth_get_block_transaction_count_by_number(BlockNumberOrTag::Number(2), &mut working_set);
+        .eth_get_block_transaction_count_by_number(BlockNumberOrTag::Number(3), &mut working_set);
     assert_eq!(result, Ok(Some(U256::from(2))));
 }
 
