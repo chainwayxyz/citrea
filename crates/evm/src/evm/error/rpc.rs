@@ -2,7 +2,7 @@
 
 use jsonrpsee::types::ErrorObject;
 use reth_primitives::{Bytes, U256};
-use reth_rpc::eth::error::{RpcInvalidTransactionError, RevertError, EthResult};
+use reth_rpc::eth::error::{EthResult, RevertError, RpcInvalidTransactionError};
 use revm::primitives::{ExecutionResult, HaltReason, OutOfGasError};
 
 use super::pool::{
@@ -182,42 +182,26 @@ impl From<SignError> for ErrorObject<'static> {
 /// We have to implement these functions because they are private to the reth_rpc crate
 pub trait RpcInvalidTransactionErrorExt {
     /// Converts the out of gas error
-    fn out_of_gas(
-        reason: OutOfGasError,
-        gas_limit: u64,
-    ) -> RpcInvalidTransactionError {
+    fn out_of_gas(reason: OutOfGasError, gas_limit: u64) -> RpcInvalidTransactionError {
         let gas_limit = U256::from(gas_limit);
         match reason {
-            OutOfGasError::Basic => {
-                RpcInvalidTransactionError::BasicOutOfGas(gas_limit)
-            }
-            OutOfGasError::Memory => {
-                RpcInvalidTransactionError::MemoryOutOfGas(gas_limit)
-            }
-            OutOfGasError::Precompile => {
-                RpcInvalidTransactionError::PrecompileOutOfGas(gas_limit)
-            }
+            OutOfGasError::Basic => RpcInvalidTransactionError::BasicOutOfGas(gas_limit),
+            OutOfGasError::Memory => RpcInvalidTransactionError::MemoryOutOfGas(gas_limit),
+            OutOfGasError::Precompile => RpcInvalidTransactionError::PrecompileOutOfGas(gas_limit),
             OutOfGasError::InvalidOperand => {
                 RpcInvalidTransactionError::InvalidOperandOutOfGas(gas_limit)
             }
-            OutOfGasError::MemoryLimit => {
-                RpcInvalidTransactionError::MemoryOutOfGas(gas_limit)
-            }
+            OutOfGasError::MemoryLimit => RpcInvalidTransactionError::MemoryOutOfGas(gas_limit),
         }
     }
 
     /// Converts the halt error
     ///
     /// Takes the configured gas limit of the transaction which is attached to the error
-    fn halt(
-        reason: HaltReason,
-        gas_limit: u64,
-    ) -> RpcInvalidTransactionError {
+    fn halt(reason: HaltReason, gas_limit: u64) -> RpcInvalidTransactionError {
         match reason {
             HaltReason::OutOfGas(err) => Self::out_of_gas(err, gas_limit),
-            HaltReason::NonceOverflow => {
-                RpcInvalidTransactionError::NonceMaxValue
-            }
+            HaltReason::NonceOverflow => RpcInvalidTransactionError::NonceMaxValue,
             err => RpcInvalidTransactionError::EvmHalt(err),
         }
     }
@@ -231,10 +215,7 @@ pub(crate) fn ensure_success(result: ExecutionResult) -> EthResult<Bytes> {
     match result {
         ExecutionResult::Success { output, .. } => Ok(output.into_data()),
         ExecutionResult::Revert { output, .. } => {
-            Err(RpcInvalidTransactionError::Revert(
-                RevertError::new(output),
-            )
-            .into())
+            Err(RpcInvalidTransactionError::Revert(RevertError::new(output)).into())
         }
         ExecutionResult::Halt { reason, gas_used } => {
             Err(RpcInvalidTransactionError::halt(reason, gas_used).into())
