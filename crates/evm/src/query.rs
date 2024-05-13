@@ -965,7 +965,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     pub(crate) fn estimate_gas_with_env(
         &self,
         request: reth_rpc_types::TransactionRequest,
-        l1_fee_rate: u64,
+        l1_fee_rate: u128,
         block_env: BlockEnv,
         cfg_env: CfgEnvWithHandlerCfg,
         tx_env: &mut TxEnv,
@@ -1800,7 +1800,7 @@ fn map_out_of_gas_err<C: sov_modules_api::Context>(
     mut tx_env: revm::primitives::TxEnv,
     cfg_env: revm::primitives::CfgEnvWithHandlerCfg,
     db: EvmDb<'_, C>,
-    l1_fee_rate: u64,
+    l1_fee_rate: u128,
 ) -> EthApiError {
     let req_gas_limit = tx_env.gas_limit;
     tx_env.gas_limit = block_env.gas_limit;

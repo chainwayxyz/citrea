@@ -98,7 +98,7 @@ pub struct Evm<C: sov_modules_api::Context> {
 
     /// L1 fee rate.
     #[state]
-    pub(crate) l1_fee_rate: sov_modules_api::StateValue<u64, BcsCodec>,
+    pub(crate) l1_fee_rate: sov_modules_api::StateValue<u128, BcsCodec>,
 
     /// Transaction's hash that failed to pay the L1 fee.
     /// Used to prevent DOS attacks.

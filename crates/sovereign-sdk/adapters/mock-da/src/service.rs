@@ -397,9 +397,9 @@ impl DaService for MockDaService {
         Ok(blobs.into_iter().map(|b| b.zk_proofs_data).collect())
     }
 
-    async fn get_fee_rate(&self) -> Result<u64, Self::Error> {
+    async fn get_fee_rate(&self) -> Result<u128, Self::Error> {
         // Mock constant
-        Ok(10_u64)
+        Ok(10_u128)
     }
 
     async fn get_block_by_hash(&self, hash: [u8; 32]) -> Result<Self::FilteredBlock, Self::Error> {

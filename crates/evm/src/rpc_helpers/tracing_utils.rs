@@ -25,7 +25,7 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
     tx_env: TxEnv,
     tx_hash: TxHash,
     db: &mut EvmDb<'_, C>,
-    l1_fee_rate: u64,
+    l1_fee_rate: u128,
 ) -> EthResult<(GethTrace, revm::primitives::State)> {
     let GethDebugTracingOptions {
         config,
@@ -179,7 +179,7 @@ pub(crate) fn inspect_no_tracing<DB>(
     config_env: CfgEnvWithHandlerCfg,
     block_env: BlockEnv,
     tx_env: TxEnv,
-    l1_fee_rate: u64,
+    l1_fee_rate: u128,
 ) -> Result<(ResultAndState, TxInfo), EVMError<DB::Error>>
 where
     DB: Database,
