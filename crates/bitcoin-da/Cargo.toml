@@ -17,7 +17,7 @@ sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
 tokio = { workspace = true, features = ["full"], optional = true }
 
 reqwest = { workspace = true, optional = true }
-base64 = "0.13.1"
+base64 = "0.22.0"
 hex = { workspace = true, features = ["serde"] }
 pin-project = { workspace = true, optional = true, features = [] }
 tracing = { workspace = true }
