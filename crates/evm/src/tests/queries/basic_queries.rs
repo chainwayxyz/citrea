@@ -236,6 +236,28 @@ fn get_block_transaction_count_by_hash_test() {
 }
 
 #[test]
+fn get_block_transaction_count_by_number_test() {
+    let (evm, mut working_set, _) = init_evm();
+
+    let result = evm
+        .eth_get_block_transaction_count_by_number(BlockNumberOrTag::Number(5), &mut working_set);
+    // Non-existent block number should return None
+    assert_eq!(result, Ok(None));
+
+    let result = evm
+        .eth_get_block_transaction_count_by_number(BlockNumberOrTag::Number(1), &mut working_set);
+    assert_eq!(result, Ok(Some(U256::from(3))));
+
+    let result = evm
+        .eth_get_block_transaction_count_by_number(BlockNumberOrTag::Number(2), &mut working_set);
+    assert_eq!(result, Ok(Some(U256::from(4))));
+
+    let result = evm
+        .eth_get_block_transaction_count_by_number(BlockNumberOrTag::Number(3), &mut working_set);
+    assert_eq!(result, Ok(Some(U256::from(2))));
+}
+
+#[test]
 fn call_test() {
     let (evm, mut working_set, signer) = init_evm();
 
