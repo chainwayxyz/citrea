@@ -11,7 +11,6 @@ use reth_rpc_types::trace::geth::{
     GethDebugTracingOptions,
 };
 use serde_json::{self, json};
-use sov_stf_runner::RollupProverConfig;
 
 use crate::evm::make_test_client;
 use crate::test_helpers::{start_rollup, NodeMode};
@@ -25,7 +24,7 @@ async fn tracing_tests() -> Result<(), Box<dyn std::error::Error>> {
         start_rollup(
             port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
-            RollupProverConfig::Skip,
+            None,
             NodeMode::SequencerNode,
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,

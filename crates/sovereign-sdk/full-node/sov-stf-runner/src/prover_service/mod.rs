@@ -1,14 +1,15 @@
 mod parallel;
 use async_trait::async_trait;
 pub use parallel::ParallelProverService;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::services::da::DaService;
-use sov_rollup_interface::zk::StateTransitionData;
+use sov_rollup_interface::zk::{Proof, StateTransitionData};
 use thiserror::Error;
 
 /// The possible configurations of the prover.
-pub enum RollupProverConfig {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProverGuestRunConfig {
     /// Skip proving.
     Skip,
     /// Run the rollup verification logic inside the current process.
@@ -17,6 +18,22 @@ pub enum RollupProverConfig {
     Execute,
     /// Run the rollup verifier and create a SNARK of execution.
     Prove,
+}
+
+impl<'de> Deserialize<'de> for ProverGuestRunConfig {
+    fn deserialize<D>(deserializer: D) -> Result<ProverGuestRunConfig, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        match s.as_str() {
+            "skip" => Ok(ProverGuestRunConfig::Skip),
+            "simulate" => Ok(ProverGuestRunConfig::Simulate),
+            "execute" => Ok(ProverGuestRunConfig::Execute),
+            "prove" => Ok(ProverGuestRunConfig::Prove),
+            _ => Err(serde::de::Error::custom("invalid prover guest run config")),
+        }
+    }
 }
 
 /// Represents the status of a witness submission.
@@ -32,7 +49,7 @@ pub enum WitnessSubmissionStatus {
 #[derive(Debug, Eq, PartialEq)]
 pub enum ProofSubmissionStatus {
     /// Indicates successful submission of the proof to the DA.
-    Success,
+    Success(Proof),
     /// Indicates that proof generation is currently in progress.
     ProofGenerationInProgress,
 }
@@ -90,9 +107,9 @@ pub trait ProverService {
     ) -> Result<ProofProcessingStatus, ProverServiceError>;
 
     /// Sends the ZK proof to the DA.
-    /// This method is noy yet fully implemented: see #1185
-    async fn send_proof_to_da(
+    async fn wait_for_proving_and_send_to_da(
         &self,
         block_header_hash: <<Self::DaService as DaService>::Spec as DaSpec>::SlotHash,
-    ) -> Result<ProofSubmissionStatus, anyhow::Error>;
+        da_service: &Self::DaService,
+    ) -> Result<(<Self::DaService as DaService>::TransactionId, Proof), anyhow::Error>;
 }

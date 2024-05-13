@@ -10,6 +10,8 @@ use super::DbAccount;
 
 impl<'a, C: sov_modules_api::Context> DatabaseCommit for EvmDb<'a, C> {
     fn commit(&mut self, changes: HashMap<Address, Account>) {
+        let changes = changes.into_iter().collect::<BTreeMap<_, _>>();
+
         for (address, account) in changes {
             if !account.is_touched() {
                 continue;

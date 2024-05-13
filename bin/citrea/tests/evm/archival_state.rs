@@ -5,7 +5,6 @@ use citrea_stf::genesis_config::GenesisPaths;
 use ethers::abi::Address;
 use ethers_core::abi::Bytes;
 use reth_primitives::BlockNumberOrTag;
-use sov_stf_runner::RollupProverConfig;
 
 use crate::evm::init_test_rollup;
 use crate::test_client::TestClient;
@@ -22,7 +21,7 @@ async fn test_archival_state() -> Result<(), anyhow::Error> {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
-            RollupProverConfig::Execute,
+            None,
             NodeMode::SequencerNode,
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,

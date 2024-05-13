@@ -34,10 +34,10 @@ sov-bank = { path = "../../../sovereign-sdk/module-system/module-implementations
 sov-nft-module = { path = "../../../sovereign-sdk/module-system/module-implementations/sov-nft-module" }
 
 sov-modules-stf-blueprint = { path = "../../../sovereign-sdk/module-system/sov-modules-stf-blueprint" }
-sov-value-setter = { path = "../../../sovereign-sdk/module-system/module-implementations/examples/sov-value-setter" }
-sov-accounts = { path = "../../../sovereign-sdk/module-system/module-implementations/sov-accounts" }
+sov-value-setter = { path = "../../../sovereign-sdk/module-system/module-implementations/examples/sov-value-setter", default-features = false }
+sov-accounts = { path = "../../../sovereign-sdk/module-system/module-implementations/sov-accounts", default-features = false }
 sov-state = { path = "../../../sovereign-sdk/module-system/sov-state" }
-sov-modules-api = { path = "../../../sovereign-sdk/module-system/sov-modules-api" }
+sov-modules-api = { path = "../../../sovereign-sdk/module-system/sov-modules-api", default-features = false }
 citrea-evm = { path = "../../../evm" }
 soft-confirmation-rule-enforcer = { path = "../../../soft-confirmation-rule-enforcer" }
 
@@ -51,7 +51,7 @@ sov-prover-storage-manager = { path = "../../../sovereign-sdk/full-node/sov-prov
 
 
 [features]
-default = []
+default = ["native"]
 offchain = ["sov-nft-module/offchain"]
 native = [
     "sov-stf-runner/native",

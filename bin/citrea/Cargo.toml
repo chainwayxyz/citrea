@@ -73,7 +73,7 @@ sov-rollup-interface = { path = "../../crates/sovereign-sdk/rollup-interface", f
 sov-prover-storage-manager = { path = "../../crates/sovereign-sdk/full-node/sov-prover-storage-manager", features = [
     "test-utils",
 ] }
-sov-mock-da = { path = "../../crates/sovereign-sdk/adapters/mock-da" }
+sov-mock-da = { path = "../../crates/sovereign-sdk/adapters/mock-da", default-features = false }
 citrea-evm = { path = "../../crates/evm", features = ["smart_contracts"] }
 shared-backup-db = { path = "../../crates/shared-backup-db", features = [
     "test-utils",
@@ -109,11 +109,7 @@ regex = "1.10"
 default = [
 ] # Deviate from convention by making the "native" feature active by default. This aligns with how this package is meant to be used (as a binary first, library second).
 
-bench = [
-    "hex",
-    "sov-risc0-adapter/bench",
-    "risc0/bench",
-]
+bench = ["hex", "sov-risc0-adapter/bench", "risc0/bench"]
 
 [[bin]]
 name = "citrea"

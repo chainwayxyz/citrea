@@ -22,7 +22,7 @@ hex = { workspace = true }
 
 sov-rollup-interface = { path = "../../rollup-interface", version = "0.3" }
 sov-state = { path = "../sov-state", version = "0.3" }
-sov-modules-api = { path = "../sov-modules-api", version = "0.3" }
+sov-modules-api = { path = "../sov-modules-api", version = "0.3", default-features = false }
 sov-zk-cycle-macros = { path = "../../utils/zk-cycle-macros", version = "0.3", optional = true }
 sov-zk-cycle-utils = { path = "../../utils/zk-cycle-utils", version = "0.3", optional = true }
 risc0-zkvm = { workspace = true, default-features = false, features = [

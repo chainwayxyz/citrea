@@ -7,7 +7,6 @@ use ethers_core::types::U256;
 use ethers_core::utils::Units::Ether;
 use ethers_signers::{LocalWallet, Signer};
 use reth_primitives::BlockNumberOrTag;
-use sov_stf_runner::RollupProverConfig;
 
 use crate::evm::init_test_rollup;
 use crate::test_client::TestClient;
@@ -25,7 +24,7 @@ async fn test_gas_price_increase() -> Result<(), anyhow::Error> {
         start_rollup(
             port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
-            RollupProverConfig::Skip,
+            None,
             NodeMode::SequencerNode,
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,

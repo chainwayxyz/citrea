@@ -12,7 +12,7 @@ readme = "README.md"
 publish = false
 
 [dependencies]
-sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api", version = "0.3" }
+sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api", version = "0.3", default-features = false }
 sov-state = { path = "../sovereign-sdk/module-system/sov-state", version = "0.3" }
 sov-prover-storage-manager = { path = "../sovereign-sdk/full-node/sov-prover-storage-manager", optional = true }
 

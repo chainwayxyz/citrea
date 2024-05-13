@@ -35,7 +35,7 @@ sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface", features = 
     "native",
 ] }
 
-sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api" }
+sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api", default-features = false }
 
 [dev-dependencies]
 tokio = { workspace = true }

@@ -1,12 +1,10 @@
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
-use sov_modules_api::{
-    AddressBech32, Context, Module, PrivateKey, PublicKey, Spec, StateMapAccessor, WorkingSet,
-};
+use sov_modules_api::{AddressBech32, PrivateKey, PublicKey, Spec, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
 
 use crate::query::{self, Response};
-use crate::{call, AccountConfig, Accounts};
+use crate::{AccountConfig, Accounts};
 
 type C = DefaultContext;
 
@@ -35,133 +33,6 @@ fn test_config_account() {
             nonce: 0
         }
     )
-}
-
-#[test]
-fn test_update_account() {
-    let tmpdir = tempfile::tempdir().unwrap();
-    let working_set = &mut WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
-    let accounts = &mut Accounts::<C>::default();
-
-    let priv_key = DefaultPrivateKey::generate();
-    let sequencer_priv_key = DefaultPrivateKey::generate();
-
-    let sender = priv_key.pub_key();
-    let sequencer = sequencer_priv_key.pub_key();
-    let sender_addr = sender.to_address::<<C as Spec>::Address>();
-    let sequencer_addr = sequencer.to_address::<<C as Spec>::Address>();
-    let sender_context = C::new(sender_addr, sequencer_addr, 1);
-
-    // Test new account creation
-    {
-        accounts
-            .create_default_account(&sender, working_set)
-            .unwrap();
-
-        let query_response = accounts.get_account(sender.clone(), working_set).unwrap();
-
-        assert_eq!(
-            query_response,
-            query::Response::AccountExists {
-                addr: AddressBech32::try_from(sender_addr.as_ref()).unwrap(),
-                nonce: 0
-            }
-        )
-    }
-
-    // Test public key update
-    {
-        let priv_key = DefaultPrivateKey::generate();
-        let new_pub_key = priv_key.pub_key();
-        let sig = priv_key.sign(&call::UPDATE_ACCOUNT_MSG);
-        accounts
-            .call(
-                call::CallMessage::<C>::UpdatePublicKey(new_pub_key.clone(), sig),
-                &sender_context,
-                working_set,
-            )
-            .unwrap();
-
-        // Account corresponding to the old public key does not exist
-        let query_response = accounts.get_account(sender, working_set).unwrap();
-
-        assert_eq!(query_response, query::Response::AccountEmpty);
-
-        // New account with the new public key and an old address is created.
-        let query_response = accounts.get_account(new_pub_key, working_set).unwrap();
-
-        assert_eq!(
-            query_response,
-            query::Response::AccountExists {
-                addr: AddressBech32::try_from(sender_addr.as_ref()).unwrap(),
-                nonce: 0
-            }
-        )
-    }
-}
-
-#[test]
-fn test_update_account_fails() {
-    let tmpdir = tempfile::tempdir().unwrap();
-    let working_set = &mut WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
-    let accounts = &mut Accounts::<C>::default();
-
-    let sender_1 = DefaultPrivateKey::generate().pub_key();
-    let sequencer = DefaultPrivateKey::generate().pub_key();
-    let sender_context_1 = C::new(sender_1.to_address(), sequencer.to_address(), 1);
-
-    accounts
-        .create_default_account(&sender_1, working_set)
-        .unwrap();
-
-    let priv_key = DefaultPrivateKey::generate();
-    let sender_2 = priv_key.pub_key();
-    let sig_2 = priv_key.sign(&call::UPDATE_ACCOUNT_MSG);
-
-    accounts
-        .create_default_account(&sender_2, working_set)
-        .unwrap();
-
-    // The new public key already exists and the call fails.
-    assert!(accounts
-        .call(
-            call::CallMessage::<C>::UpdatePublicKey(sender_2, sig_2),
-            &sender_context_1,
-            working_set
-        )
-        .is_err())
-}
-
-#[test]
-fn test_get_account_after_pub_key_update() {
-    let tmpdir = tempfile::tempdir().unwrap();
-    let working_set = &mut WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
-    let accounts = &mut Accounts::<C>::default();
-
-    let sender_1 = DefaultPrivateKey::generate().pub_key();
-    let sequencer = DefaultPrivateKey::generate().pub_key();
-    let sender_1_addr = sender_1.to_address::<<C as Spec>::Address>();
-    let sequencer_addr = sequencer.to_address::<<C as Spec>::Address>();
-    let sender_context_1 = C::new(sender_1_addr, sequencer_addr, 1);
-
-    accounts
-        .create_default_account(&sender_1, working_set)
-        .unwrap();
-
-    let priv_key = DefaultPrivateKey::generate();
-    let new_pub_key = priv_key.pub_key();
-    let sig = priv_key.sign(&call::UPDATE_ACCOUNT_MSG);
-    accounts
-        .call(
-            call::CallMessage::<C>::UpdatePublicKey(new_pub_key.clone(), sig),
-            &sender_context_1,
-            working_set,
-        )
-        .unwrap();
-
-    let acc = accounts.accounts.get(&new_pub_key, working_set).unwrap();
-
-    assert_eq!(acc.addr, sender_1_addr)
 }
 
 #[test]

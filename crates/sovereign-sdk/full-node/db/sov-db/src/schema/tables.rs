@@ -29,13 +29,15 @@ use borsh::{maybestd, BorshDeserialize, BorshSerialize};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use jmt::storage::{NibblePath, Node, NodeKey};
 use jmt::Version;
+use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::stf::{Event, EventKey};
 use sov_schema_db::schema::{KeyDecoder, KeyEncoder, ValueCodec};
 use sov_schema_db::{CodecError, SeekKeyEncoder};
 
 use super::types::{
     AccessoryKey, AccessoryStateValue, BatchNumber, DbHash, EventNumber, JmtValue, L2HeightRange,
-    SlotNumber, StateKey, StoredBatch, StoredSlot, StoredSoftBatch, StoredTransaction, TxNumber,
+    SlotNumber, StateKey, StoredBatch, StoredProof, StoredSlot, StoredSoftBatch, StoredTransaction,
+    TxNumber,
 };
 
 /// A list of all tables used by the StateDB. These tables store rollup state - meaning
@@ -55,6 +57,7 @@ pub const LEDGER_TABLES: &[&str] = &[
     SoftBatchByHash::table_name(),
     L2RangeByL1Height::table_name(),
     LastSequencerCommitmentSent::table_name(),
+    ProverLastScannedSlot::table_name(),
     BatchByHash::table_name(),
     BatchByNumber::table_name(),
     SoftConfirmationStatus::table_name(),
@@ -62,6 +65,8 @@ pub const LEDGER_TABLES: &[&str] = &[
     TxByNumber::table_name(),
     EventByKey::table_name(),
     EventByNumber::table_name(),
+    CommitmentsByNumber::table_name(),
+    ProofBySlotNumber::table_name(),
 ];
 
 /// A list of all tables used by the NativeDB. These tables store
@@ -223,6 +228,11 @@ define_table_with_default_codec!(
     (SlotByHash) DbHash => SlotNumber
 );
 
+define_table_with_default_codec!(
+    /// The primary source for sequencer commitment data
+    (CommitmentsByNumber) SlotNumber => Vec<SequencerCommitment>
+);
+
 define_table_with_seek_key_codec!(
     /// The primary source for soft batch data
     (SoftBatchByNumber) BatchNumber => StoredSoftBatch
@@ -241,6 +251,11 @@ define_table_with_default_codec!(
 define_table_with_seek_key_codec!(
     /// Sequencer uses this table to store the last commitment it sent
     (LastSequencerCommitmentSent) () => SlotNumber
+);
+
+define_table_with_seek_key_codec!(
+    /// Prover uses this table to store the last slot it scanned
+    (ProverLastScannedSlot) () => SlotNumber
 );
 
 define_table_with_seek_key_codec!(
@@ -281,6 +296,11 @@ define_table_with_default_codec!(
 define_table_without_codec!(
     /// The source of truth for JMT nodes
     (JmtNodes) NodeKey => Node
+);
+
+define_table_with_default_codec!(
+    /// Proof data on L1 slot
+    (ProofBySlotNumber) SlotNumber => StoredProof
 );
 
 impl KeyEncoder<JmtNodes> for NodeKey {

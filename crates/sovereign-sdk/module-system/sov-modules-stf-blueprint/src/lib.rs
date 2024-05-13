@@ -544,6 +544,7 @@ where
     fn apply_soft_confirmations_from_sequencer_commitments(
         &self,
         sequencer_public_key: &[u8],
+        sequencer_da_public_key: &[u8],
         initial_state_root: &Self::StateRoot,
         pre_state: Self::PreState,
         mut da_data: Vec<<Da as DaSpec>::BlobTransaction>,
@@ -560,7 +561,7 @@ where
         let mut sequencer_commitments: Vec<SequencerCommitment> = vec![];
         for blob in da_data.iter_mut() {
             // TODO: get sequencer da pub key
-            if blob.sender().as_ref() == sequencer_public_key {
+            if blob.sender().as_ref() == sequencer_da_public_key {
                 let da_data = DaData::try_from_slice(blob.verified_data());
 
                 if let Ok(DaData::SequencerCommitment(commitment)) = da_data {
@@ -600,12 +601,12 @@ where
 
             index_soft_confirmation += 1;
 
-            // TODO: chech for no da block height jump
+            // TODO: check for no da block height jump
             while index_soft_confirmation < soft_confirmations.len() {
-                // the soft confirmations DA hash mus equal to da hash in index_headers
-                // if it's not matching, and if it's not matching the next one, then stat transition is invalid.
+                // the soft confirmations DA hash must equal to da hash in index_headers
+                // if it's not matching, and if it's not matching the next one, then state transition is invalid.
 
-                if soft_confirmations[index_soft_confirmation].hash()
+                if soft_confirmations[index_soft_confirmation].da_slot_hash()
                     == da_block_headers[index_headers].hash().into()
                 {
                     assert_eq!(
@@ -662,9 +663,7 @@ where
             let mut da_block_header = da_block_headers_iter.next().unwrap();
             // now that we verified the claimed root, we can apply the soft confirmations
             for soft_confirmation in soft_confirmations.iter_mut() {
-                if soft_confirmation.da_slot_height()
-                    != da_block_headers_iter.peek().unwrap().height()
-                {
+                if soft_confirmation.da_slot_height() != da_block_header.height() {
                     da_block_header = da_block_headers_iter.next().unwrap();
                 }
 

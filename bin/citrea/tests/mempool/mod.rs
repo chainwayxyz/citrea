@@ -4,7 +4,6 @@ use citrea_stf::genesis_config::GenesisPaths;
 use ethers::abi::Address;
 use ethers_signers::{LocalWallet, Signer};
 use reth_primitives::BlockNumberOrTag;
-use sov_stf_runner::RollupProverConfig;
 use tokio::task::JoinHandle;
 
 use crate::evm::make_test_client;
@@ -19,7 +18,7 @@ async fn initialize_test() -> (JoinHandle<()>, Box<TestClient>) {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
-            RollupProverConfig::Execute,
+            None,
             NodeMode::SequencerNode,
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
