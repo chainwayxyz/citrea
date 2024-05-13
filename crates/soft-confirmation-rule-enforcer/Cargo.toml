@@ -12,7 +12,9 @@ publish = false
 resolver = "2"
 
 [dependencies]
-sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api", version = "0.3", default-features = false }
+sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api", version = "0.3", default-features = false, features = [
+    "macros",
+] }
 sov-state = { path = "../sovereign-sdk/module-system/sov-state", version = "0.3" }
 sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
 

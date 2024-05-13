@@ -2687,44 +2687,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sov-bank"
-version = "0.3.0"
-dependencies = [
- "anyhow",
- "borsh",
- "serde",
- "sov-modules-api",
- "sov-state",
- "thiserror",
-]
-
-[[package]]
-name = "sov-blob-storage"
-version = "0.3.0"
-dependencies = [
- "anyhow",
- "bincode",
- "borsh",
- "hex",
- "sov-chain-state",
- "sov-modules-api",
- "sov-sequencer-registry",
- "sov-state",
- "tracing",
-]
-
-[[package]]
-name = "sov-chain-state"
-version = "0.3.0"
-dependencies = [
- "anyhow",
- "borsh",
- "serde",
- "sov-modules-api",
- "sov-state",
-]
-
-[[package]]
 name = "sov-demo-prover-guest-mock"
 version = "0.3.0"
 dependencies = [
@@ -2818,8 +2780,6 @@ dependencies = [
  "risc0-zkvm-platform",
  "rs_merkle",
  "serde",
- "sov-blob-storage",
- "sov-chain-state",
  "sov-modules-api",
  "sov-rollup-interface",
  "sov-state",
@@ -2856,18 +2816,6 @@ dependencies = [
  "serde",
  "sha2",
  "thiserror",
-]
-
-[[package]]
-name = "sov-sequencer-registry"
-version = "0.3.0"
-dependencies = [
- "anyhow",
- "borsh",
- "serde",
- "sov-bank",
- "sov-modules-api",
- "sov-state",
 ]
 
 [[package]]
