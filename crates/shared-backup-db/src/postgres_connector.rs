@@ -30,12 +30,9 @@ impl PostgresConnector {
             .build()
             .unwrap();
         let mut client = pool.get().await?;
-        
-        let thread = std::thread::current();
-        let thread_name = thread.name().unwrap_or("unnamed");
 
         // Create new db if running thread is not main or tokio-runtime-worker, meaning when running for tests
-        if thread_name != "main" && thread_name != "tokio-runtime-worker" {
+        if cfg!(feature = "test-utils") {
             // create new db
             let db_name = format!("citrea{}", get_db_extension());
             let _ = client
