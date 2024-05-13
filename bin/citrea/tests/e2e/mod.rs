@@ -1000,7 +1000,7 @@ async fn execute_blocks(
 
     {
         for _ in 0..200 {
-            sequencer_client.spam_publish_batch_request().await.unwrap();
+            sequencer_client.send_publish_batch_request().await;
         }
 
         wait_for_l2_block(sequencer_client, 204, None).await;
@@ -1017,7 +1017,7 @@ async fn execute_blocks(
                 .send_eth(addr, None, None, None, 0u128)
                 .await
                 .unwrap();
-            sequencer_client.spam_publish_batch_request().await.unwrap();
+            sequencer_client.send_publish_batch_request().await;
         }
     }
 
