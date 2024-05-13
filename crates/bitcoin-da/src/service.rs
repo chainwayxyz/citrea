@@ -12,12 +12,15 @@ use hex::ToHex;
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::services::da::DaService;
-use tokio::sync::oneshot::{channel as oneshot_channel, Receiver as OneshotReceiver};
-use tracing::{error, info};
+use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
+use tokio::sync::oneshot::{
+    channel as oneshot_channel, Receiver as OneshotReceiver, Sender as OneshotSender,
+};
+use tracing::info;
 
 use crate::helpers::builders::{
     compress_blob, create_inscription_transactions, decompress_blob, sign_blob_with_private_key,
-    write_reveal_tx,
+    write_reveal_tx, TxWithId,
 };
 use crate::helpers::parsers::parse_transaction;
 use crate::rpc::{BitcoinNode, RPCError};
@@ -38,6 +41,7 @@ pub struct BitcoinService {
     network: bitcoin::Network,
     sequencer_da_private_key: Option<SecretKey>,
     reveal_tx_id_prefix: Vec<u8>,
+    inscribes_queue: UnboundedSender<InscriptionRawTx>,
 }
 
 /// Runtime configuration for the DA service
@@ -61,31 +65,76 @@ pub struct DaServiceConfig {
 const FINALITY_DEPTH: u64 = 4; // blocks
 const POLLING_INTERVAL: u64 = 10; // seconds
 
+struct InscriptionRawTx {
+    blob: Vec<u8>,
+    notify: OneshotSender<Result<TxidWrapper, anyhow::Error>>,
+}
+
 impl BitcoinService {
     // Create a new instance of the DA service from the given configuration.
     pub async fn new(config: DaServiceConfig, chain_params: RollupParams) -> Self {
         let network =
             bitcoin::Network::from_str(&config.network).expect("Invalid bitcoin network name");
 
-        let client = BitcoinNode::new(
-            config.node_url,
-            config.node_username,
-            config.node_password,
-            network,
-        );
+        let client = BitcoinNode::new(config.node_url, config.node_username, config.node_password);
 
         let private_key = config
             .sequencer_da_private_key
             .map(|pk| SecretKey::from_str(&pk).expect("Invalid private key"));
 
-        Self::with_client(
+        let (tx, mut rx) = unbounded_channel::<InscriptionRawTx>();
+
+        let this = Self::with_client(
             client,
             chain_params.rollup_name,
             network,
             private_key,
             chain_params.reveal_tx_id_prefix,
+            tx,
         )
-        .await
+        .await;
+
+        let serv = this.clone();
+
+        // This is a queue of inscribe requests
+        tokio::task::spawn_blocking(|| {
+            let this = serv;
+            tokio::runtime::Handle::current().block_on(async move {
+                // TODO https://github.com/chainwayxyz/citrea/issues/537
+                // TODO find last tx by utxo chain
+                let mut prev_tx = None;
+
+                // We execute commit and reveal txs one by one to chain them
+                while let Some(request) = rx.recv().await {
+                    let fee_sat_per_vbyte = match this.get_fee_rate().await {
+                        Ok(rate) => rate,
+                        Err(e) => {
+                            let _ = request.notify.send(Err(e));
+                            continue;
+                        }
+                    };
+                    match this
+                        .send_transaction_with_fee_rate(
+                            prev_tx.take(),
+                            request.blob,
+                            fee_sat_per_vbyte,
+                        )
+                        .await
+                    {
+                        Ok(tx) => {
+                            let tx_id = TxidWrapper(tx.id);
+                            prev_tx = Some(tx);
+                            let _ = request.notify.send(Ok(tx_id));
+                        }
+                        Err(e) => {
+                            let _ = request.notify.send(Err(e));
+                        }
+                    }
+                }
+            });
+        });
+
+        this
     }
 
     #[cfg(test)]
@@ -93,16 +142,13 @@ impl BitcoinService {
         let network =
             bitcoin::Network::from_str(&config.network).expect("Invalid bitcoin network name");
 
-        let client = BitcoinNode::new(
-            config.node_url,
-            config.node_username,
-            config.node_password,
-            network,
-        );
+        let client = BitcoinNode::new(config.node_url, config.node_username, config.node_password);
 
         let private_key = config
             .sequencer_da_private_key
             .map(|pk| SecretKey::from_str(&pk).expect("Invalid private key"));
+
+        let (tx, _rx) = unbounded_channel();
 
         Self {
             client,
@@ -110,15 +156,17 @@ impl BitcoinService {
             network,
             sequencer_da_private_key: private_key,
             reveal_tx_id_prefix: chain_params.reveal_tx_id_prefix,
+            inscribes_queue: tx,
         }
     }
 
-    pub async fn with_client(
+    async fn with_client(
         client: BitcoinNode,
         rollup_name: String,
         network: bitcoin::Network,
         sequencer_da_private_key: Option<SecretKey>,
         reveal_tx_id_prefix: Vec<u8>,
+        inscribes_queue: UnboundedSender<InscriptionRawTx>,
     ) -> Self {
         let wallets = client
             .list_wallets()
@@ -135,17 +183,34 @@ impl BitcoinService {
             network,
             sequencer_da_private_key,
             reveal_tx_id_prefix,
+            inscribes_queue,
         }
+    }
+
+    async fn get_utxos(&self) -> Result<Vec<UTXO>, anyhow::Error> {
+        let utxos = self.client.get_utxos().await?;
+        if utxos.is_empty() {
+            return Err(anyhow::anyhow!("There are no UTXOs"));
+        }
+
+        let utxos: Vec<UTXO> = utxos
+            .into_iter()
+            .filter(|utxo| utxo.spendable && utxo.solvable && utxo.amount > 546)
+            .collect();
+        if utxos.is_empty() {
+            return Err(anyhow::anyhow!("There are no spendable UTXOs"));
+        }
+
+        Ok(utxos)
     }
 
     pub async fn send_transaction_with_fee_rate(
         &self,
-        blob: &[u8],
+        prev_tx: Option<TxWithId>,
+        blob: Vec<u8>,
         fee_sat_per_vbyte: f64,
-    ) -> Result<<Self as DaService>::TransactionId, anyhow::Error> {
+    ) -> Result<TxWithId, anyhow::Error> {
         let client = self.client.clone();
-
-        let blob = blob.to_vec();
         let network = self.network;
 
         let rollup_name = self.rollup_name.clone();
@@ -155,10 +220,8 @@ impl BitcoinService {
         let blob = compress_blob(&blob);
 
         // get all available utxos
-        let utxos: Vec<UTXO> = client.get_utxos().await?;
-        if utxos.is_empty() {
-            return Err(anyhow::anyhow!("No UTXOs left for transaction"));
-        }
+        let utxos: Vec<UTXO> = self.get_utxos().await?;
+
         // get address from a utxo
         let address = Address::from_str(&utxos[0].address.clone())
             .unwrap()
@@ -175,6 +238,7 @@ impl BitcoinService {
             blob,
             signature,
             public_key,
+            prev_tx,
             utxos,
             address,
             REVEAL_OUTPUT_AMOUNT,
@@ -194,7 +258,7 @@ impl BitcoinService {
         client.send_raw_transaction(signed_raw_commit_tx).await?;
 
         // serialize reveal tx
-        let serialized_reveal_tx = &encode::serialize(&reveal_tx);
+        let serialized_reveal_tx = &encode::serialize(&reveal_tx.tx);
 
         // write reveal tx to file, it can be used to continue revealing blob if something goes wrong
         write_reveal_tx(
@@ -209,10 +273,7 @@ impl BitcoinService {
 
         info!("Blob inscribe tx sent. Hash: {}", reveal_tx_hash);
 
-        Ok(TxidWrapper(
-            Txid::from_str(reveal_tx_hash.as_str())
-                .expect("Failed to parse txid from reveal tx hash"),
-        ))
+        Ok(reveal_tx)
     }
 
     pub async fn get_fee_rate(&self) -> Result<f64, anyhow::Error> {
@@ -424,28 +485,20 @@ impl DaService for BitcoinService {
 
     async fn send_transaction(
         &self,
-        blob: &[u8],
+        _blob: &[u8],
     ) -> Result<<Self as DaService>::TransactionId, Self::Error> {
-        let fee_sat_per_vbyte = self.get_fee_rate().await?;
-        self.send_transaction_with_fee_rate(blob, fee_sat_per_vbyte)
-            .await
+        unimplemented!("Use send_tx_no_wait instead")
     }
 
     async fn send_tx_no_wait(
         &self,
         blob: Vec<u8>,
     ) -> OneshotReceiver<Result<Self::TransactionId, Self::Error>> {
-        let (tx, rx) = oneshot_channel();
-        let this = self.clone(); // Cheap to clone
-        tokio::task::spawn_blocking(|| {
-            tokio::runtime::Handle::current().block_on(async move {
-                let txid = this.send_transaction(blob.as_slice()).await;
-                if let Err(e) = txid.as_ref() {
-                    error!("Error sending tx: {:?}", e);
-                }
-                let _ignore = tx.send(txid);
-            });
-        });
+        let (notify, rx) = oneshot_channel();
+        let request = InscriptionRawTx { blob, notify };
+        self.inscribes_queue
+            .send(request)
+            .expect("Bitcoint service already stopped");
         rx
     }
 
