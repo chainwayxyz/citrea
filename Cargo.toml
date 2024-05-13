@@ -139,7 +139,7 @@ ethers-middleware = { version = "2.0", default-features = false }
 revm-inspectors = { git = "https://github.com/paradigmxyz/evm-inspectors", rev = "0ad0338" }
 reth-primitives = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.5", default-features = false }
 reth-interfaces = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.5" }
-reth-rpc-types = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.5" }
+reth-rpc-types = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.7" }
 reth-rpc-types-compat = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.5" }
 reth-node-api = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.5" }
 reth-transaction-pool = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.5" }
