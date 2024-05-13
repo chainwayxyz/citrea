@@ -1,7 +1,7 @@
 use bitcoin::Txid;
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Hash)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct UTXO {
     pub tx_id: Txid,
     pub vout: u32,
