@@ -945,6 +945,22 @@ impl<C: sov_modules_api::Context> Evm<C> {
         }
     }
 
+    /// Handler for: `eth_getBlockTransactionCountByNumber`
+    #[rpc_method(name = "eth_getBlockTransactionCountByNumber")]
+    pub fn eth_get_block_transaction_count_by_number(
+        &self,
+        block_number: Option<BlockNumberOrTag>,
+        working_set: &mut WorkingSet<C>,
+    ) -> RpcResult<Option<reth_primitives::U256>> {
+        info!("evm module: eth_getBlockTransactionCountByNumber");
+        // Get the number of transactions in a block given block number
+        let block = self.get_block_by_number(block_number, None, working_set)?;
+        match block {
+            Some(block) => Ok(Some(U256::from(block.transactions.len()))),
+            None => Ok(None),
+        }
+    }
+
     /// Inner gas estimator
     pub(crate) fn estimate_gas_with_env(
         &self,
