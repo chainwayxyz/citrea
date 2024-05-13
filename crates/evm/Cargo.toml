@@ -12,7 +12,9 @@ readme = "README.md"
 publish = false
 
 [dependencies]
-sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api", version = "0.3", default-features = false }
+sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api", version = "0.3", default-features = false, features = [
+    "macros",
+] }
 sov-state = { path = "../sovereign-sdk/module-system/sov-state", version = "0.3" }
 sov-prover-storage-manager = { path = "../sovereign-sdk/full-node/sov-prover-storage-manager", optional = true }
 
@@ -48,11 +50,11 @@ reth-interfaces = { workspace = true, optional = true }
 reth-rpc-types = { workspace = true, optional = true }
 reth-rpc-types-compat = { workspace = true, optional = true }
 revm-inspectors = { workspace = true, optional = true }
-reth-rpc = { workspace = true, optional = true }
 secp256k1 = { workspace = true, optional = true }
 itertools = { version = "0.11.0", optional = true }
 
 [dev-dependencies]
+reth-rpc = { workspace = true }
 revm = { workspace = true, features = [
     "optional_block_gas_limit",
     "optional_eip3607",

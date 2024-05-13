@@ -17,7 +17,7 @@ pub struct UnsignedSoftConfirmationBatch {
     pre_state_root: Vec<u8>,
     txs: Vec<Vec<u8>>,
     deposit_data: Vec<Vec<u8>>,
-    l1_fee_rate: u64,
+    l1_fee_rate: u128,
     timestamp: u64,
 }
 
@@ -31,7 +31,7 @@ impl UnsignedSoftConfirmationBatch {
         pre_state_root: Vec<u8>,
         txs: Vec<Vec<u8>>,
         deposit_data: Vec<Vec<u8>>,
-        l1_fee_rate: u64,
+        l1_fee_rate: u128,
         timestamp: u64,
     ) -> Self {
         Self {
@@ -70,7 +70,7 @@ impl UnsignedSoftConfirmationBatch {
         self.deposit_data.clone()
     }
     /// Base layer fee rate sats/wei etc. per byte.
-    pub fn l1_fee_rate(&self) -> u64 {
+    pub fn l1_fee_rate(&self) -> u128 {
         self.l1_fee_rate
     }
     /// Sequencer block timestamp
@@ -88,7 +88,7 @@ pub struct SignedSoftConfirmationBatch {
     da_slot_hash: [u8; 32],
     da_slot_txs_commitment: [u8; 32],
     pre_state_root: Vec<u8>,
-    l1_fee_rate: u64,
+    l1_fee_rate: u128,
     txs: Vec<Vec<u8>>,
     signature: Vec<u8>,
     deposit_data: Vec<Vec<u8>>,
@@ -105,7 +105,7 @@ impl SignedSoftConfirmationBatch {
         da_slot_hash: [u8; 32],
         da_slot_txs_commitment: [u8; 32],
         pre_state_root: Vec<u8>,
-        l1_fee_rate: u64,
+        l1_fee_rate: u128,
         txs: Vec<Vec<u8>>,
         deposit_data: Vec<Vec<u8>>,
         signature: Vec<u8>,
@@ -178,7 +178,7 @@ impl SignedSoftConfirmationBatch {
     }
 
     /// L1 fee rate
-    pub fn l1_fee_rate(&self) -> u64 {
+    pub fn l1_fee_rate(&self) -> u128 {
         self.l1_fee_rate
     }
 
@@ -188,7 +188,7 @@ impl SignedSoftConfirmationBatch {
     }
 
     /// Sets l1 fee rate
-    pub fn set_l1_fee_rate(&mut self, l1_fee_rate: u64) {
+    pub fn set_l1_fee_rate(&mut self, l1_fee_rate: u128) {
         self.l1_fee_rate = l1_fee_rate;
     }
 

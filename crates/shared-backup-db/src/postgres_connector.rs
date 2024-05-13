@@ -25,25 +25,30 @@ impl PostgresConnector {
             recycling_method: RecyclingMethod::Fast,
         };
         let mgr = Manager::from_config(cfg.clone(), NoTls, mgr_config.clone());
-        let pool = Pool::builder(mgr)
+        let mut pool = Pool::builder(mgr)
             .max_size(pg_config.max_pool_size().unwrap_or(16))
             .build()
             .unwrap();
-        let client = pool.get().await?;
-        // create new db
-        let db_name = format!("citrea{}", get_db_extension());
-        let _ = client
-            .batch_execute(&format!("CREATE DATABASE {};", db_name.clone()))
-            .await;
-        drop(pool);
-        //connect to new db
-        cfg.dbname(&db_name);
-        let mgr = Manager::from_config(cfg, NoTls, mgr_config);
-        let pool = Pool::builder(mgr)
-            .max_size(pg_config.max_pool_size().unwrap_or(16))
-            .build()
-            .unwrap();
-        let client = pool.get().await?;
+        let mut client = pool.get().await?;
+
+        // Create new db if running thread is not main or tokio-runtime-worker, meaning when running for tests
+        if cfg!(feature = "test-utils") {
+            // create new db
+            let db_name = format!("citrea{}", get_db_extension());
+            let _ = client
+                .batch_execute(&format!("CREATE DATABASE {};", db_name.clone()))
+                .await;
+
+            //connect to new db
+            cfg.dbname(&db_name);
+            let mgr = Manager::from_config(cfg, NoTls, mgr_config);
+            pool = Pool::builder(mgr)
+                .max_size(pg_config.max_pool_size().unwrap_or(16))
+                .build()
+                .unwrap();
+            // new client
+            client = pool.get().await?;
+        }
 
         // create tables
         client

@@ -40,12 +40,6 @@ sov-modules-api = { path = "../../module-system/sov-modules-api", version = "0.3
 tempfile = { workspace = true }
 sha2 = { workspace = true }
 
-sov-sequencer-registry = { path = "../../module-system/module-implementations/sov-sequencer-registry", features = [
-    "native",
-] }
-sov-bank = { path = "../../module-system/module-implementations/sov-bank", features = [
-    "native",
-] }
 sov-modules-stf-blueprint = { path = "../../module-system/sov-modules-stf-blueprint", features = [
     "native",
 ] }

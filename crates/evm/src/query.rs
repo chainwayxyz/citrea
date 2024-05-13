@@ -946,11 +946,27 @@ impl<C: sov_modules_api::Context> Evm<C> {
         }
     }
 
+    /// Handler for: `eth_getBlockTransactionCountByNumber`
+    #[rpc_method(name = "eth_getBlockTransactionCountByNumber")]
+    pub fn eth_get_block_transaction_count_by_number(
+        &self,
+        block_number: BlockNumberOrTag,
+        working_set: &mut WorkingSet<C>,
+    ) -> RpcResult<Option<reth_primitives::U256>> {
+        info!("evm module: eth_getBlockTransactionCountByNumber");
+        // Get the number of transactions in a block given block number
+        let block = self.get_block_by_number(Some(block_number), None, working_set)?;
+        match block {
+            Some(block) => Ok(Some(U256::from(block.transactions.len()))),
+            None => Ok(None),
+        }
+    }
+
     /// Inner gas estimator
     pub(crate) fn estimate_gas_with_env(
         &self,
         request: reth_rpc_types::TransactionRequest,
-        l1_fee_rate: u64,
+        l1_fee_rate: u128,
         block_env: BlockEnv,
         cfg_env: CfgEnvWithHandlerCfg,
         tx_env: &mut TxEnv,
@@ -1785,7 +1801,7 @@ fn map_out_of_gas_err<C: sov_modules_api::Context>(
     mut tx_env: revm::primitives::TxEnv,
     cfg_env: revm::primitives::CfgEnvWithHandlerCfg,
     db: EvmDb<'_, C>,
-    l1_fee_rate: u64,
+    l1_fee_rate: u128,
 ) -> EthApiError {
     let req_gas_limit = tx_env.gas_limit;
     tx_env.gas_limit = block_env.gas_limit;

@@ -29,7 +29,7 @@ pub struct TxInfo {
 /// In terms of Revm this is the trait for EXT for `Evm<'a, EXT, DB>`.
 pub(crate) trait CitreaExternalExt {
     /// Get current l1 fee rate.
-    fn l1_fee_rate(&self) -> u64;
+    fn l1_fee_rate(&self) -> u128;
     /// Set tx hash for the current execution context.
     fn set_current_tx_hash(&mut self, hash: B256);
     /// Set tx info for the current tx hash.
@@ -40,7 +40,7 @@ pub(crate) trait CitreaExternalExt {
 
 // Blanked impl for &mut T: CitreaExternalExt
 impl<T: CitreaExternalExt> CitreaExternalExt for &mut T {
-    fn l1_fee_rate(&self) -> u64 {
+    fn l1_fee_rate(&self) -> u128 {
         (**self).l1_fee_rate()
     }
     fn set_current_tx_hash(&mut self, hash: B256) {
@@ -58,13 +58,13 @@ impl<T: CitreaExternalExt> CitreaExternalExt for &mut T {
 /// In terms of Revm this type replaces EXT in `Evm<'a, EXT, DB>`.
 #[derive(Default)]
 pub(crate) struct CitreaExternal {
-    l1_fee_rate: u64,
+    l1_fee_rate: u128,
     current_tx_hash: Option<B256>,
     tx_infos: HashMap<B256, TxInfo>,
 }
 
 impl CitreaExternal {
-    pub(crate) fn new(l1_fee_rate: u64) -> Self {
+    pub(crate) fn new(l1_fee_rate: u128) -> Self {
         Self {
             l1_fee_rate,
             ..Default::default()
@@ -73,7 +73,7 @@ impl CitreaExternal {
 }
 
 impl CitreaExternalExt for CitreaExternal {
-    fn l1_fee_rate(&self) -> u64 {
+    fn l1_fee_rate(&self) -> u128 {
         self.l1_fee_rate
     }
     fn set_current_tx_hash(&mut self, hash: B256) {
@@ -106,7 +106,7 @@ where
     DB: Database,
     I: Inspector<DB>,
 {
-    pub(crate) fn new(inspector: I, l1_fee_rate: u64) -> Self {
+    pub(crate) fn new(inspector: I, l1_fee_rate: u128) -> Self {
         Self {
             ext: CitreaExternal::new(l1_fee_rate),
             inspector,
@@ -118,7 +118,7 @@ where
 #[cfg(feature = "native")]
 // Pass all methods to self.ext
 impl<I, DB> CitreaExternalExt for TracingCitreaExternal<I, DB> {
-    fn l1_fee_rate(&self) -> u64 {
+    fn l1_fee_rate(&self) -> u128 {
         self.ext.l1_fee_rate()
     }
     fn set_current_tx_hash(&mut self, hash: B256) {
