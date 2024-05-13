@@ -164,7 +164,7 @@ pub struct StoredSoftBatch {
     /// Sequencer public key
     pub pub_key: Vec<u8>,
     /// L1 fee rate
-    pub l1_fee_rate: u64,
+    pub l1_fee_rate: u128,
     /// Sequencer's block timestamp
     pub timestamp: u64,
 }

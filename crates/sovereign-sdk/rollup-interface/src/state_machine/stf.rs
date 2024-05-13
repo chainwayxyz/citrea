@@ -103,7 +103,7 @@ pub struct SoftBatchReceipt<BatchReceiptContents, TxReceiptContents, DS: DaSpec>
     /// Deposit data from the L1 chain
     pub deposit_data: Vec<Vec<u8>>,
     /// Base layer fee rate sats/wei etc. per byte.
-    pub l1_fee_rate: u64,
+    pub l1_fee_rate: u128,
     /// Sequencer's block timestamp
     pub timestamp: u64,
 }

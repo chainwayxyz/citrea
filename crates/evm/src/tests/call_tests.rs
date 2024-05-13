@@ -826,7 +826,7 @@ pub(crate) fn get_evm_config_starting_base_fee(
 
 #[test]
 fn test_l1_fee_success() {
-    fn run_tx(l1_fee_rate: u64, expected_balance: U256, expected_coinbase_balance: U256) {
+    fn run_tx(l1_fee_rate: u128, expected_balance: U256, expected_coinbase_balance: U256) {
         let (config, dev_signer, _) =
             get_evm_config_starting_base_fee(U256::from_str("1000000").unwrap(), None, 1);
 

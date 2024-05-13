@@ -195,6 +195,33 @@ fn genesis_cfg_cancun() {
 #[test]
 fn genesis_block() {
     let (evm, mut working_set) = get_evm(&TEST_CONFIG);
+
+    {
+        let first_block = evm
+            .get_block_by_number(
+                Some(reth_rpc_types::BlockNumberOrTag::Earliest),
+                None,
+                &mut working_set,
+            )
+            .unwrap()
+            .unwrap()
+            .header
+            .hash
+            .unwrap();
+        println!("first_block: {:?}", first_block);
+
+        let first_block = evm
+            .get_block_by_number(
+                Some(reth_rpc_types::BlockNumberOrTag::Earliest),
+                None,
+                &mut working_set,
+            )
+            .unwrap()
+            .unwrap()
+            .header
+            .state_root;
+        println!("first_block: {:?}", first_block);
+    }
     let mut accessory_state = working_set.accessory_state();
 
     let block_number = evm

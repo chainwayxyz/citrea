@@ -31,8 +31,8 @@ pub enum ApplySoftConfirmationError {
         l1_fee_rate_change_percentage
     )]
     L1FeeRateChangeMoreThanAllowedPercentage {
-        l1_fee_rate: u64,
-        l1_fee_rate_change_percentage: u64,
+        l1_fee_rate: u128,
+        l1_fee_rate_change_percentage: u128,
     },
     #[error(
         "Current block's timestamp {} is not greater than the previous block's one {}",
@@ -128,7 +128,7 @@ pub struct HookSoftConfirmationInfo {
     /// Deposit data from the L1 chain
     pub deposit_data: Vec<Vec<u8>>,
     /// L1 fee rate
-    pub l1_fee_rate: u64,
+    pub l1_fee_rate: u128,
     /// Timestamp
     pub timestamp: u64,
 }
@@ -196,7 +196,7 @@ impl HookSoftConfirmationInfo {
         self.deposit_data.clone()
     }
 
-    pub fn l1_fee_rate(&self) -> u64 {
+    pub fn l1_fee_rate(&self) -> u128 {
         self.l1_fee_rate
     }
 
