@@ -2896,6 +2896,7 @@ dependencies = [
  "jsonrpsee",
  "proptest",
  "reth-primitives",
+ "reth-rpc",
  "reth-rpc-types",
  "reth-rpc-types-compat",
  "rustc_version_runtime",

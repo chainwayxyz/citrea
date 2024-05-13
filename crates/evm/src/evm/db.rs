@@ -1,5 +1,3 @@
-use std::convert::Infallible;
-
 use reth_primitives::{Address, B256};
 use revm::primitives::{AccountInfo as ReVmAccountInfo, Bytecode, U256};
 use revm::Database;
@@ -31,8 +29,25 @@ impl<'a, C: sov_modules_api::Context> EvmDb<'a, C> {
     }
 }
 
+// infallible
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub enum DBError {}
+
+impl std::fmt::Display for DBError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "EVM Infallible DBError")
+    }
+}
+
+// impl stdError for dberror
+impl std::error::Error for DBError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        None
+    }
+}
+
 impl<'a, C: sov_modules_api::Context> Database for EvmDb<'a, C> {
-    type Error = Infallible;
+    type Error = DBError;
 
     fn basic(&mut self, address: Address) -> Result<Option<ReVmAccountInfo>, Self::Error> {
         let db_account = self.accounts.get(&address, self.working_set);
@@ -66,5 +81,12 @@ impl<'a, C: sov_modules_api::Context> Database for EvmDb<'a, C> {
             .unwrap_or(B256::ZERO);
 
         Ok(block_hash)
+    }
+}
+
+#[cfg(feature = "native")]
+impl From<DBError> for reth_rpc::eth::error::EthApiError {
+    fn from(_value: DBError) -> Self {
+        reth_rpc::eth::error::EthApiError::InternalEthError
     }
 }

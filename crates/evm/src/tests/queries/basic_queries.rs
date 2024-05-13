@@ -4,6 +4,7 @@ use std::str::FromStr;
 use alloy_primitives::FixedBytes;
 use hex::FromHex;
 use reth_primitives::{Address, BlockId, BlockNumberOrTag, U64};
+use reth_rpc::eth::error::EthApiError;
 use reth_rpc_types::request::{TransactionInput, TransactionRequest};
 use reth_rpc_types::{Block, Rich, TransactionReceipt};
 use revm::primitives::{B256, U256};
@@ -11,7 +12,6 @@ use serde_json::json;
 
 use crate::smart_contracts::SimpleStorageContract;
 use crate::tests::queries::init_evm;
-use crate::EthApiError;
 
 #[test]
 fn get_block_by_hash_test() {

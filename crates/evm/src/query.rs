@@ -10,6 +10,7 @@ use reth_primitives::TransactionKind::{Call, Create};
 use reth_primitives::{
     Block, BlockId, BlockNumberOrTag, SealedHeader, TransactionSignedEcRecovered, U128, U256, U64,
 };
+use reth_rpc::eth::error::{EthApiError, EthResult, RevertError, RpcInvalidTransactionError};
 use reth_rpc_types::other::OtherFields;
 use reth_rpc_types::trace::geth::{GethDebugTracingOptions, GethTrace};
 use reth_rpc_types::AccessListWithGasUsed;
@@ -28,12 +29,12 @@ use sov_modules_api::WorkingSet;
 use tracing::info;
 
 use crate::call::get_cfg_env;
-use crate::error::rpc::{ensure_success, EthApiError, RevertError, RpcInvalidTransactionError};
+use crate::error::rpc::{ensure_success, RpcInvalidTransactionErrorExt};
 use crate::evm::call::prepare_call_env;
 use crate::evm::db::EvmDb;
 use crate::evm::primitive_types::{BlockEnv, Receipt, SealedBlock, TransactionSignedAndRecovered};
 use crate::rpc_helpers::*;
-use crate::{BloomFilter, EthResult, Evm, EvmChainConfig, FilterBlockOption, FilterError};
+use crate::{BloomFilter, Evm, EvmChainConfig, FilterBlockOption, FilterError};
 
 // Gas per transaction not creating a contract.
 pub(crate) const MIN_TRANSACTION_GAS: u64 = 21_000u64;

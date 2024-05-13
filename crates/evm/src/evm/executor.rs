@@ -1,5 +1,3 @@
-use std::convert::Infallible;
-
 use reth_primitives::TransactionSignedEcRecovered;
 use revm::primitives::{
     CfgEnvWithHandlerCfg, EVMError, Env, ExecutionResult, ResultAndState, State,
@@ -9,6 +7,7 @@ use revm::{self, Context, Database, DatabaseCommit, EvmContext};
 use super::conversions::create_tx_env;
 use super::handler::{citrea_handler, CitreaExternalExt};
 use super::primitive_types::BlockEnv;
+use crate::db::DBError;
 use crate::SYSTEM_SIGNER;
 
 pub(crate) struct CitreaEvm<'a, EXT, DB: Database> {
@@ -76,7 +75,7 @@ pub(crate) fn execute_tx<DB: Database + DatabaseCommit, EXT: CitreaExternalExt>(
 }
 
 pub(crate) fn execute_multiple_tx<
-    DB: Database<Error = Infallible> + DatabaseCommit,
+    DB: Database<Error = DBError> + DatabaseCommit,
     EXT: CitreaExternalExt,
 >(
     db: DB,
@@ -85,7 +84,7 @@ pub(crate) fn execute_multiple_tx<
     config_env: CfgEnvWithHandlerCfg,
     ext: &mut EXT,
     prev_gas_used: u64,
-) -> Vec<Result<ExecutionResult, EVMError<Infallible>>> {
+) -> Vec<Result<ExecutionResult, EVMError<DBError>>> {
     if txs.is_empty() {
         return vec![];
     }
@@ -128,7 +127,7 @@ pub(crate) fn execute_multiple_tx<
 }
 
 pub(crate) fn execute_system_txs<
-    DB: Database<Error = Infallible> + DatabaseCommit,
+    DB: Database<Error = DBError> + DatabaseCommit,
     EXT: CitreaExternalExt,
 >(
     db: DB,
