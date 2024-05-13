@@ -2,7 +2,7 @@
 
 use jsonrpsee::types::ErrorObject;
 use reth_primitives::{Bytes, U256};
-use reth_rpc::eth::error::RpcInvalidTransactionError;
+use reth_rpc::eth::error::{RpcInvalidTransactionError, RevertError, EthResult};
 use revm::primitives::{ExecutionResult, HaltReason, OutOfGasError};
 
 use super::pool::{
@@ -185,23 +185,23 @@ pub trait RpcInvalidTransactionErrorExt {
     fn out_of_gas(
         reason: OutOfGasError,
         gas_limit: u64,
-    ) -> reth_rpc::eth::error::RpcInvalidTransactionError {
+    ) -> RpcInvalidTransactionError {
         let gas_limit = U256::from(gas_limit);
         match reason {
             OutOfGasError::Basic => {
-                reth_rpc::eth::error::RpcInvalidTransactionError::BasicOutOfGas(gas_limit)
+                RpcInvalidTransactionError::BasicOutOfGas(gas_limit)
             }
             OutOfGasError::Memory => {
-                reth_rpc::eth::error::RpcInvalidTransactionError::MemoryOutOfGas(gas_limit)
+                RpcInvalidTransactionError::MemoryOutOfGas(gas_limit)
             }
             OutOfGasError::Precompile => {
-                reth_rpc::eth::error::RpcInvalidTransactionError::PrecompileOutOfGas(gas_limit)
+                RpcInvalidTransactionError::PrecompileOutOfGas(gas_limit)
             }
             OutOfGasError::InvalidOperand => {
-                reth_rpc::eth::error::RpcInvalidTransactionError::InvalidOperandOutOfGas(gas_limit)
+                RpcInvalidTransactionError::InvalidOperandOutOfGas(gas_limit)
             }
             OutOfGasError::MemoryLimit => {
-                reth_rpc::eth::error::RpcInvalidTransactionError::MemoryOutOfGas(gas_limit)
+                RpcInvalidTransactionError::MemoryOutOfGas(gas_limit)
             }
         }
     }
@@ -212,32 +212,32 @@ pub trait RpcInvalidTransactionErrorExt {
     fn halt(
         reason: HaltReason,
         gas_limit: u64,
-    ) -> reth_rpc::eth::error::RpcInvalidTransactionError {
+    ) -> RpcInvalidTransactionError {
         match reason {
             HaltReason::OutOfGas(err) => Self::out_of_gas(err, gas_limit),
             HaltReason::NonceOverflow => {
-                reth_rpc::eth::error::RpcInvalidTransactionError::NonceMaxValue
+                RpcInvalidTransactionError::NonceMaxValue
             }
-            err => reth_rpc::eth::error::RpcInvalidTransactionError::EvmHalt(err),
+            err => RpcInvalidTransactionError::EvmHalt(err),
         }
     }
 }
 
-impl RpcInvalidTransactionErrorExt for reth_rpc::eth::error::RpcInvalidTransactionError {}
+impl RpcInvalidTransactionErrorExt for RpcInvalidTransactionError {}
 
 /// Converts the evm [ExecutionResult] into a result where `Ok` variant is the output bytes if it is
 /// [ExecutionResult::Success].
-pub(crate) fn ensure_success(result: ExecutionResult) -> reth_rpc::eth::error::EthResult<Bytes> {
+pub(crate) fn ensure_success(result: ExecutionResult) -> EthResult<Bytes> {
     match result {
         ExecutionResult::Success { output, .. } => Ok(output.into_data()),
         ExecutionResult::Revert { output, .. } => {
-            Err(reth_rpc::eth::error::RpcInvalidTransactionError::Revert(
-                reth_rpc::eth::error::RevertError::new(output),
+            Err(RpcInvalidTransactionError::Revert(
+                RevertError::new(output),
             )
             .into())
         }
         ExecutionResult::Halt { reason, gas_used } => {
-            Err(reth_rpc::eth::error::RpcInvalidTransactionError::halt(reason, gas_used).into())
+            Err(RpcInvalidTransactionError::halt(reason, gas_used).into())
         }
     }
 }
