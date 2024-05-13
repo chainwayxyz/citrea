@@ -5,10 +5,10 @@ let provider = new JsonRpcProvider('http://127.0.0.1:12345');
 
 describe("RpcTests", function() {
     let first_tx_receipt;
-    // Makes an initial tx to test for later, used to prevent waiting for a block to mine in each such test
+    //Makes an initial tx to test for later, used to prevent waiting for a block to mine in each such test
     before(async function() {
         this.timeout(0);
-        let tx = await generateTransaction();
+        let tx = await generateTransaction('1');
         let signer = new ethers.Wallet('0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80', provider);
         tx = await signer.signTransaction(tx);
         let tx_response = await provider.broadcastTransaction(tx);
@@ -101,7 +101,7 @@ describe("RpcTests", function() {
 
     it("broadcastTransaction publishes a txn and it gets mined", async function() {
         this.timeout(0);
-        let tx = await generateTransaction();
+        let tx = await generateTransaction('1');
         let signer = new ethers.Wallet('0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80', provider);
         tx = await signer.signTransaction(tx);
         let tx_response = await provider.broadcastTransaction(tx);
@@ -155,7 +155,128 @@ describe("RpcTests", function() {
         expect(receipt.index).to.equal(first_tx_receipt.index);
     });
 
-const generateTransaction = async () => {
+    it("call on non-existent function errors with the correct message", async function() {
+        const abi = [
+            {
+                "type": "function",
+                "name": "ERRENOUS_FUNC",
+                "inputs": [],
+                "outputs": [
+                  {
+                    "name": "",
+                    "type": "address",
+                    "internalType": "address"
+                  }
+                ],
+                "stateMutability": "view"
+              },
+        ];
+
+        const contractAddress = '0x3100000000000000000000000000000000000001';
+        const contract = new ethers.Contract(contractAddress, abi, provider);
+
+        let tx = {
+            to: "0x3100000000000000000000000000000000000001",
+            data: contract.interface.encodeFunctionData('ERRENOUS_FUNC', []),
+            chainId: 5655,
+        };
+
+        try {
+            await provider.call(tx);
+            expect.fail('Expected an error to be thrown');
+        } catch (error) {
+            expect(error.message).to.equal('missing revert data (action="call", data=null, reason=null, transaction={ "data": "0xd6c7a27a", "to": "0x3100000000000000000000000000000000000001" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.12.1)');
+        }        
+    });
+
+    it("call with wrong function parameters errors with the correct message", async function() {
+        this.timeout(0);
+        
+        const abi = [
+            {
+                "type": "function",
+                "name": "withdraw",
+                "inputs": [
+                    {
+                        "name": "bitcoin_address",
+                        "type": "bytes32",
+                        "internalType": "bytes32"
+                    }
+                ],
+                "outputs": [],
+                "stateMutability": "payable"
+            },
+        ];
+    
+        const contractAddress = '0x3100000000000000000000000000000000000002';
+        let wallet = new ethers.Wallet('0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80', provider);
+        const contract = new ethers.Contract(contractAddress, abi, wallet);
+        const bitcoinAddress = ethers.encodeBytes32String('bc1qa0a0a0a0a0a0a0a0a0a0a0a0');
+    
+        let tx = {
+            to: contractAddress,
+            value: ethers.parseEther('0.9'),
+            data: contract.interface.encodeFunctionData('withdraw', [bitcoinAddress]),
+            from: wallet.address
+        };
+
+        try {
+            await provider.call(tx);
+            expect.fail('Expected an error to be thrown');
+        } catch (error) {
+            expect(error.message).to.equal('execution reverted: "Invalid withdraw amount" (action="call", data="0x08c379a000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000017496e76616c696420776974686472617720616d6f756e74000000000000000000", reason="Invalid withdraw amount", transaction={ "data": "0x8e19899e6263317161306130613061306130613061306130613061306130613000000000", "from": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266", "to": "0x3100000000000000000000000000000000000002" }, invocation=null, revert={ "args": [ "Invalid withdraw amount" ], "name": "Error", "signature": "Error(string)" }, code=CALL_EXCEPTION, version=6.12.1)');
+        }
+    });
+
+    it("broadcastTransaction with wrong function parameters errors with the correct message", async function() {
+        this.timeout(0);
+        let tx = await generateTransaction('0.9');
+        let signer = new ethers.Wallet('0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80', provider);
+        tx = await signer.signTransaction(tx);
+        try {
+            let tx_response = await provider.broadcastTransaction(tx);
+            tx_receipt = await tx_response.wait(1);
+            expect.fail('Expected an error to be thrown');
+        } catch (error) {
+            expect(error.message).to.match(/transaction execution reverted \(action="sendTransaction", data=null, reason=null, invocation=null, revert=null, transaction={ "data": "", "from": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266", "to": "0x3100000000000000000000000000000000000002" }, receipt={ "_type": "TransactionReceipt", "blobGasPrice": null, "blobGasUsed": null, "blockHash": "0x[0-9a-fA-F]+", "blockNumber": \d+, "contractAddress": null, "cumulativeGasUsed": "21883", "from": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266", "gasPrice": "1000000", "gasUsed": "21883", "hash": "0x[0-9a-fA-F]+", "index": 0, "logs": \[  ], "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000", "root": null, "status": 0, "to": "0x3100000000000000000000000000000000000002" }, code=CALL_EXCEPTION, version=6\.12\.1\)/);
+        }
+    });
+
+    it("getTransaction with wrong hash returns null", async function() {
+        let tx = await provider.getTransaction('0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef');
+        expect(tx).to.be.null;
+    });
+
+    it("getTransactionReceipt with wrong hash returns null", async function() {
+        let tx = await provider.getTransactionReceipt('0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef');
+        expect(tx).to.be.null;
+    });
+
+    it("getBlock with wrong hash returns null", async function() {
+        let block = await provider.getBlock('0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef');
+        expect(block).to.be.null;
+    });
+
+    it("getLogs with wrong filter returns empty array", async function() {
+        const filter = [ethers.id('I_DO_NOT_EXIST(address)')];
+        let logs = await provider.getLogs({
+            fromBlock: 0,
+            toBlock: 'latest',
+            address: "0x3100000000000000000000000000000000000002", 
+            topics: filter
+        }
+        );
+        expect(logs).to.be.empty;
+    });
+
+    it("getBalance with different block numbers returns the correct balance at the time", async function() {
+        let balance = await provider.getBalance("0x3100000000000000000000000000000000000002", 0);
+        expect(balance).to.equal(ethers.parseEther('21000000'));
+        let balanceNow = await provider.getBalance("0x3100000000000000000000000000000000000002");
+        expect(balanceNow > ethers.parseEther('21000000')).to.be.true;
+    });
+
+const generateTransaction = async (ether_value) => {
     const abi = [
         {
             "type": "function",
@@ -180,7 +301,7 @@ const generateTransaction = async () => {
 
     let tx = {
         to: contractAddress,
-        value: ethers.parseEther('1'),
+        value: ethers.parseEther(ether_value),
         data: contract.interface.encodeFunctionData('withdraw', [bitcoinAddress]),
         from: wallet.address,
         chainId: 5655,
