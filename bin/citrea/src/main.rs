@@ -7,12 +7,8 @@ use citrea_sequencer::SequencerConfig;
 use citrea_stf::genesis_config::GenesisPaths;
 use clap::Parser;
 use sov_mock_da::MockDaConfig;
-use sov_modules_api::runtime::capabilities::Kernel;
 use sov_modules_api::Spec;
 use sov_modules_rollup_blueprint::RollupBlueprint;
-use sov_modules_stf_blueprint::kernels::basic::{
-    BasicKernelGenesisConfig, BasicKernelGenesisPaths,
-};
 use sov_state::storage::NativeStorage;
 use sov_stf_runner::{from_toml_path, ProverConfig, RollupConfig};
 use tracing::error;
@@ -83,20 +79,8 @@ async fn main() -> Result<(), anyhow::Error> {
 
     match args.da_layer {
         SupportedDaLayer::Mock => {
-            let kernel_genesis_paths = &BasicKernelGenesisPaths {
-                chain_state: (args.genesis_paths.clone() + "/chain_state.json").into(),
-            };
-
-            let kernel_genesis = BasicKernelGenesisConfig {
-                chain_state: serde_json::from_str(
-                    &std::fs::read_to_string(&kernel_genesis_paths.chain_state)
-                        .context("Failed to read chain state")?,
-                )?,
-            };
-
             start_rollup::<MockDemoRollup, MockDaConfig>(
                 &GenesisPaths::from_dir(&args.genesis_paths),
-                kernel_genesis,
                 rollup_config_path,
                 prover_config,
                 sequencer_config,
@@ -104,20 +88,8 @@ async fn main() -> Result<(), anyhow::Error> {
             .await?;
         }
         SupportedDaLayer::Bitcoin => {
-            let kernel_genesis_paths = &BasicKernelGenesisPaths {
-                chain_state: (args.genesis_paths.clone() + "/chain_state.json").into(),
-            };
-
-            let kernel_genesis = BasicKernelGenesisConfig {
-                chain_state: serde_json::from_str(
-                    &std::fs::read_to_string(&kernel_genesis_paths.chain_state)
-                        .context("Failed to read chain state")?,
-                )?,
-            };
-
             start_rollup::<BitcoinRollup, DaServiceConfig>(
                 &GenesisPaths::from_dir(&args.genesis_paths),
-                kernel_genesis,
                 rollup_config_path,
                 prover_config,
                 sequencer_config,
@@ -134,10 +106,6 @@ async fn start_rollup<S, DaC>(
         <S as RollupBlueprint>::NativeContext,
         <S as RollupBlueprint>::DaSpec,
     >>::GenesisPaths,
-    kernel_genesis: <<S as RollupBlueprint>::NativeKernel as Kernel<
-        <S as RollupBlueprint>::NativeContext,
-        <S as RollupBlueprint>::DaSpec,
-    >>::GenesisConfig,
     rollup_config_path: &str,
     prover_config: Option<ProverConfig>,
     sequencer_config: Option<SequencerConfig>,
@@ -154,12 +122,7 @@ where
 
     if let Some(sequencer_config) = sequencer_config {
         let sequencer_rollup = rollup_blueprint
-            .create_new_sequencer(
-                rt_genesis_paths,
-                kernel_genesis,
-                rollup_config.clone(),
-                sequencer_config,
-            )
+            .create_new_sequencer(rt_genesis_paths, rollup_config.clone(), sequencer_config)
             .await
             .unwrap();
         if let Err(e) = sequencer_rollup.run().await {
@@ -167,12 +130,7 @@ where
         }
     } else if let Some(prover_config) = prover_config {
         let prover = rollup_blueprint
-            .create_new_prover(
-                rt_genesis_paths,
-                kernel_genesis,
-                rollup_config,
-                prover_config,
-            )
+            .create_new_prover(rt_genesis_paths, rollup_config, prover_config)
             .await
             .unwrap();
         if let Err(e) = prover.run().await {
@@ -180,7 +138,7 @@ where
         }
     } else {
         let rollup = rollup_blueprint
-            .create_new_rollup(rt_genesis_paths, kernel_genesis, rollup_config)
+            .create_new_rollup(rt_genesis_paths, rollup_config)
             .await
             .unwrap();
         if let Err(e) = rollup.run().await {
