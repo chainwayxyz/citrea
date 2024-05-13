@@ -68,7 +68,6 @@ lazy_static = "1.4.0"
 walkdir = "2.3.3"
 reth-db = { workspace = true }
 reth-provider = { workspace = true }
-reth-rpc = { workspace = true }
 reth-stages = { workspace = true }
 rayon = { workspace = true }
 
@@ -83,7 +82,7 @@ native = [
     "reth-rpc-types",
     "reth-rpc-types-compat",
     "revm-inspectors",
-
+    "reth-rpc",
     "alloy-sol-types",
     "alloy-rlp",
 
