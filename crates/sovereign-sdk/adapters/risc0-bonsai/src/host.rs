@@ -200,6 +200,8 @@ impl<'a> Risc0BonsaiHost<'a> {
         // Compute the image_id, then upload the ELF with the image_id as its key.
         // handle error
         let image_id = hex::encode(compute_image_id(elf).unwrap());
+
+        tracing::info!("Uploading image with id: {}", image_id);
         // handle error
         client.upload_img(image_id.clone(), elf.to_vec()).unwrap();
 
@@ -239,7 +241,7 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
         let input_data = bytemuck::cast_slice(&input_data).to_vec();
         // handle error
         let input_id = self.client.upload_input(input_data).unwrap();
-
+        tracing::info!("Uploaded input with id: {}", input_id);
         self.last_input_id = Some(input_id);
     }
 
@@ -259,7 +261,7 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
             let mut executor = ExecutorImpl::from_elf(env, self.elf)?;
 
             let session = executor.run()?;
-            let data = bincode::serialize(&session.journal)?;
+            let data = bincode::serialize(&session.journal.expect("Journal shouldn't be empty"))?;
 
             Ok(Proof::PublicInput(data))
         } else {
@@ -276,11 +278,12 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
                 //hanfle error
                 .create_session(self.image_id.clone(), input_id, vec![])
                 .map_err(|e| anyhow!("Bonsai API return error: {}", e))?;
+            tracing::info!("Session created: {}", session.uuid);
             loop {
                 // handle error
                 let res = self.client.status(&session).unwrap();
                 if res.status == "RUNNING" {
-                    println!(
+                    tracing::debug!(
                         "Current status: {} - state: {} - continue polling...",
                         res.status,
                         res.state.unwrap_or_default()
@@ -294,6 +297,7 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
                         .receipt_url
                         .expect("API error, missing receipt on completed session");
 
+                    tracing::info!("Receipt URL: {}", receipt_url);
                     let receipt_buf = self.client.download(receipt_url)?;
 
                     // let receipt: Receipt = bincode::deserialize(&receipt_buf).unwrap();
