@@ -338,69 +338,6 @@ where
     }
 }
 
-impl<C, RT, Vm, Da> StfBlueprint<C, Da, Vm, RT>
-where
-    C: Context,
-    Vm: Zkvm,
-    Da: DaSpec,
-    RT: Runtime<C, Da>,
-{
-    #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
-    fn begin_slot(
-        &self,
-        state_checkpoint: StateCheckpoint<C>,
-        slot_header: &Da::BlockHeader,
-        validity_condition: &Da::ValidityCondition,
-        pre_state_root: &<C::Storage as Storage>::Root,
-    ) -> StateCheckpoint<C> {
-        let mut working_set = state_checkpoint.to_revertable();
-
-        self.runtime.begin_slot_hook(
-            slot_header,
-            validity_condition,
-            pre_state_root,
-            &mut working_set,
-        );
-
-        working_set.checkpoint()
-    }
-
-    #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
-    fn end_slot(
-        &self,
-        storage: C::Storage,
-        checkpoint: StateCheckpoint<C>,
-    ) -> (
-        <<C as Spec>::Storage as Storage>::Root,
-        <<C as Spec>::Storage as Storage>::Witness,
-        C::Storage,
-    ) {
-        // Run end end_slot_hook
-        let mut working_set = checkpoint.to_revertable();
-        self.runtime.end_slot_hook(&mut working_set);
-        // Save checkpoint
-        let mut checkpoint = working_set.checkpoint();
-
-        let (cache_log, witness) = checkpoint.freeze();
-
-        let (root_hash, state_update) = storage
-            .compute_state_update(cache_log, &witness)
-            .expect("jellyfish merkle tree update must succeed");
-
-        let mut working_set = checkpoint.to_revertable();
-
-        self.runtime
-            .finalize_hook(&root_hash, &mut working_set.accessory_state());
-
-        let mut checkpoint = working_set.checkpoint();
-        let accessory_log = checkpoint.freeze_non_provable();
-
-        storage.commit(&state_update, &accessory_log);
-
-        (root_hash, witness, storage)
-    }
-}
-
 impl<C, RT, Vm, Da> StateTransitionFunction<Vm, Da> for StfBlueprint<C, Da, Vm, RT>
 where
     C: Context,
@@ -457,11 +394,11 @@ where
 
     fn apply_slot<'a, I>(
         &self,
-        pre_state_root: &Self::StateRoot,
-        pre_state: Self::PreState,
-        witness: Self::Witness,
-        slot_header: &Da::BlockHeader,
-        validity_condition: &Da::ValidityCondition,
+        _pre_state_root: &Self::StateRoot,
+        _pre_state: Self::PreState,
+        _witness: Self::Witness,
+        _slot_header: &Da::BlockHeader,
+        _validity_condition: &Da::ValidityCondition,
         _blobs: I,
     ) -> SlotResult<
         Self::StateRoot,
@@ -473,19 +410,7 @@ where
     where
         I: IntoIterator<Item = &'a mut Da::BlobTransaction>,
     {
-        let checkpoint = StateCheckpoint::with_witness(pre_state.clone(), witness);
-        let checkpoint =
-            self.begin_slot(checkpoint, slot_header, validity_condition, pre_state_root);
-
-        let batch_receipts = vec![];
-
-        let (state_root, witness, storage) = self.end_slot(pre_state, checkpoint);
-        SlotResult {
-            state_root,
-            change_set: storage,
-            batch_receipts,
-            witness,
-        }
+        unimplemented!();
     }
 
     fn apply_soft_batch(
