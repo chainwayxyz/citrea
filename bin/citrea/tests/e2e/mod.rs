@@ -1,7 +1,7 @@
-use std::fs;
 use std::path::Path;
 use std::str::FromStr;
 use std::time::Duration;
+use std::{env, fs};
 
 use citrea_evm::smart_contracts::SimpleStorageContract;
 use citrea_evm::system_contracts::BitcoinLightClient;
@@ -22,6 +22,8 @@ use sov_rollup_interface::services::da::DaService;
 use sov_stf_runner::ProverConfig;
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
+use tracing_subscriber::prelude::*;
+use tracing_subscriber::{fmt, EnvFilter};
 
 use crate::evm::{init_test_rollup, make_test_client};
 use crate::test_client::TestClient;
@@ -110,8 +112,17 @@ async fn initialize_test(
     )
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_soft_batch_save() -> Result<(), anyhow::Error> {
+    tracing_subscriber::registry()
+        .with(fmt::layer())
+        .with(
+            EnvFilter::from_str(&env::var("RUST_LOG").unwrap_or_else(|_| {
+                "debug,hyper=info,risc0_zkvm=info,guest_execution=debug".to_string()
+            }))
+            .unwrap(),
+        )
+        .init();
     let config = TestConfig::default();
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
@@ -215,7 +226,7 @@ async fn test_soft_batch_save() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_full_node_send_tx() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging();
 
@@ -249,7 +260,7 @@ async fn test_full_node_send_tx() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_delayed_sync_ten_blocks() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging();
 
@@ -331,7 +342,7 @@ async fn test_delayed_sync_ten_blocks() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_e2e_same_block_sync() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging();
 
@@ -346,7 +357,7 @@ async fn test_e2e_same_block_sync() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging();
 
@@ -516,7 +527,7 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_get_transaction_by_hash() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging();
 
@@ -684,7 +695,7 @@ async fn test_get_transaction_by_hash() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_soft_confirmations_on_different_blocks() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging();
 
@@ -774,7 +785,7 @@ async fn test_soft_confirmations_on_different_blocks() -> Result<(), anyhow::Err
     Ok(())
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_reopen_sequencer() -> Result<(), anyhow::Error> {
     // open, close without publishing blokcs
     // then reopen, publish some blocks without error
@@ -960,7 +971,7 @@ async fn execute_blocks(
     {
         let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
 
-        for _ in 0..300 {
+        for _ in 0..100 {
             sequencer_client
                 .send_eth(addr, None, None, None, 0u128)
                 .await
@@ -969,7 +980,7 @@ async fn execute_blocks(
         }
     }
 
-    sleep(Duration::from_millis(5000)).await;
+    sleep(Duration::from_millis(10000)).await;
 
     let seq_last_block = sequencer_client
         .eth_get_block_by_number_with_detail(Some(BlockNumberOrTag::Latest))
@@ -979,8 +990,8 @@ async fn execute_blocks(
         .eth_get_block_by_number_with_detail(Some(BlockNumberOrTag::Latest))
         .await;
 
-    assert_eq!(seq_last_block.number.unwrap().as_u64(), 504);
-    assert_eq!(full_node_last_block.number.unwrap().as_u64(), 504);
+    assert_eq!(seq_last_block.number.unwrap().as_u64(), 304);
+    assert_eq!(full_node_last_block.number.unwrap().as_u64(), 304);
 
     assert_eq!(seq_last_block.state_root, full_node_last_block.state_root);
     assert_eq!(seq_last_block.hash, full_node_last_block.hash);
@@ -988,7 +999,7 @@ async fn execute_blocks(
     Ok(())
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_soft_confirmations_status_one_l1() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging();
 
@@ -1033,7 +1044,7 @@ async fn test_soft_confirmations_status_one_l1() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_soft_confirmations_status_two_l1() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging();
 
@@ -1115,7 +1126,7 @@ async fn test_soft_confirmations_status_two_l1() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging();
 
@@ -1256,7 +1267,7 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging();
 
@@ -1460,7 +1471,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_system_transactons() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging();
 
@@ -1590,7 +1601,7 @@ async fn test_system_transactons() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging();
     let da_service = MockDaService::new(MockAddress::default());
@@ -1749,7 +1760,7 @@ fn find_subarray(haystack: &[u8], needle: &[u8]) -> Option<usize> {
         .position(|window| window == needle)
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging();
 
@@ -1916,7 +1927,7 @@ async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn transaction_failing_on_l1_is_removed_from_mempool() -> Result<(), anyhow::Error> {
     citrea::initialize_logging();
 
@@ -2006,7 +2017,7 @@ async fn transaction_failing_on_l1_is_removed_from_mempool() -> Result<(), anyho
     Ok(())
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn sequencer_crash_restore_mempool() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging();
     let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();

@@ -24,6 +24,7 @@ jsonrpsee = { workspace = true, features = [
     "client-core",
     "server",
 ], optional = true }
+tokio = { workspace = true, default-features = false, optional = true }
 
 [dev-dependencies]
 sov-mock-da = { path = "../sovereign-sdk/adapters/mock-da", features = [
@@ -39,5 +40,5 @@ lazy_static = "1.4.0"
 
 [features]
 default = []
-native = ["sov-modules-api/native", "jsonrpsee"]
+native = ["sov-modules-api/native", "jsonrpsee", "tokio"]
 serde = []

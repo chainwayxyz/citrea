@@ -23,6 +23,7 @@ serde_json = { workspace = true, optional = true }
 thiserror = { workspace = true }
 clap = { workspace = true, optional = true }
 jsonrpsee = { workspace = true, features = ["macros", "client-core", "server"], optional = true }
+tokio = { workspace = true, default-features = false, optional = true }
 
 sov-modules-api = { path = "../../sov-modules-api", version = "0.3", default-features = false }
 sov-state = { path = "../../sov-state", version = "0.3" }
@@ -42,5 +43,5 @@ arbitrary = [
     "sov-modules-api/arbitrary",
     "sov-state/arbitrary"
 ]
-native = ["serde", "serde_json", "jsonrpsee", "schemars", "clap", "sov-state/native", "sov-modules-api/native"]
+native = ["serde", "serde_json", "jsonrpsee", "schemars", "clap", "sov-state/native", "sov-modules-api/native", "tokio"]
 serde = []

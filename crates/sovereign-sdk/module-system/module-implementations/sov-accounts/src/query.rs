@@ -32,14 +32,16 @@ impl<C: sov_modules_api::Context> Accounts<C> {
         pub_key: C::PublicKey,
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<Response> {
-        let response = match self.accounts.get(&pub_key, working_set) {
-            Some(Account { addr, nonce }) => Response::AccountExists {
-                addr: addr.into(),
-                nonce,
-            },
-            None => Response::AccountEmpty,
-        };
+        tokio::task::block_in_place(|| {
+            let response = match self.accounts.get(&pub_key, working_set) {
+                Some(Account { addr, nonce }) => Response::AccountExists {
+                    addr: addr.into(),
+                    nonce,
+                },
+                None => Response::AccountEmpty,
+            };
 
-        Ok(response)
+            Ok(response)
+        })
     }
 }

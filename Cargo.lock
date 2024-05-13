@@ -1669,6 +1669,7 @@ dependencies = [
  "sov-state",
  "tempfile",
  "thiserror",
+ "tokio",
  "tracing",
  "walkdir",
 ]
@@ -8784,6 +8785,7 @@ dependencies = [
  "sov-rollup-interface",
  "sov-state",
  "tempfile",
+ "tokio",
 ]
 
 [[package]]
@@ -8848,6 +8850,7 @@ dependencies = [
  "sov-state",
  "tempfile",
  "thiserror",
+ "tokio",
 ]
 
 [[package]]
