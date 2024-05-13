@@ -4,9 +4,9 @@ use std::sync::mpsc::{self, Sender};
 use std::sync::Arc;
 use std::time::Duration;
 
-use ::bonsai_sdk::alpha::Client;
 use anyhow::anyhow;
 use bonsai_sdk::alpha as bonsai_sdk;
+use bonsai_sdk::responses::SnarkReceipt;
 use risc0_zkvm::serde::to_vec;
 use risc0_zkvm::{
     compute_image_id, ExecutorEnvBuilder, ExecutorImpl, InnerReceipt, Journal, Receipt,
@@ -39,9 +39,17 @@ enum BonsaiRequest {
         assumptions: Vec<String>,
         notify: Sender<Result<bonsai_sdk::SessionId, bonsai_sdk::SdkErr>>,
     },
+    CreateSnark {
+        session: bonsai_sdk::SessionId,
+        notify: Sender<Result<bonsai_sdk::SnarkId, bonsai_sdk::SdkErr>>,
+    },
     Status {
         session: bonsai_sdk::SessionId,
         notify: Sender<Result<bonsai_sdk::responses::SessionStatusRes, bonsai_sdk::SdkErr>>,
+    },
+    SnarkStatus {
+        session: bonsai_sdk::SnarkId,
+        notify: Sender<Result<bonsai_sdk::responses::SnarkStatusRes, bonsai_sdk::SdkErr>>,
     },
 }
 
@@ -88,6 +96,14 @@ impl BonsaiClient {
                         let _ = notify.send(res);
                     }
                     BonsaiRequest::Status { session, notify } => {
+                        let res = session.status(&client);
+                        let _ = notify.send(res);
+                    }
+                    BonsaiRequest::CreateSnark { session, notify } => {
+                        let res = client.create_snark(session.uuid);
+                        let _ = notify.send(res);
+                    }
+                    BonsaiRequest::SnarkStatus { session, notify } => {
                         let res = session.status(&client);
                         let _ = notify.send(res);
                     }
@@ -155,6 +171,33 @@ impl BonsaiClient {
         let (notify, rx) = mpsc::channel();
         self.queue
             .send(BonsaiRequest::Status { session, notify })
+            .expect("Bonsai processing queue is dead");
+        rx.recv().unwrap()
+    }
+
+    fn create_snark(
+        &self,
+        session: &bonsai_sdk::SessionId,
+    ) -> Result<bonsai_sdk::SnarkId, bonsai_sdk::SdkErr> {
+        let session = session.clone();
+        let (notify, rx) = mpsc::channel();
+        self.queue
+            .send(BonsaiRequest::CreateSnark { session, notify })
+            .expect("Bonsai processing queue is dead");
+        rx.recv().unwrap()
+    }
+
+    fn snark_status(
+        &self,
+        snark_session: &bonsai_sdk::SnarkId,
+    ) -> Result<bonsai_sdk::responses::SnarkStatusRes, bonsai_sdk::SdkErr> {
+        let snark_session = snark_session.clone();
+        let (notify, rx) = mpsc::channel();
+        self.queue
+            .send(BonsaiRequest::SnarkStatus {
+                session: snark_session,
+                notify,
+            })
             .expect("Bonsai processing queue is dead");
         rx.recv().unwrap()
     }
@@ -279,7 +322,7 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
                 .create_session(self.image_id.clone(), input_id, vec![])
                 .map_err(|e| anyhow!("Bonsai API return error: {}", e))?;
             tracing::info!("Session created: {}", session.uuid);
-            loop {
+            let _full_proof = loop {
                 // handle error
                 let res = self.client.status(&session).unwrap();
                 if res.status == "RUNNING" {
@@ -302,13 +345,55 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
 
                     // let receipt: Receipt = bincode::deserialize(&receipt_buf).unwrap();
 
-                    return Ok(Proof::Full(receipt_buf));
+                    break Ok(Proof::Full(receipt_buf));
                 } else {
-                    return Err(anyhow!(
+                    break Err(anyhow!(
                         "Workflow exited: {} with error message: {}",
                         res.status,
                         res.error_msg.unwrap_or_default()
                     ));
+                }
+            }?;
+
+            tracing::info!("Creating the SNARK");
+
+            let snark_session = self
+                .client
+                .create_snark(&session)
+                .map_err(|e| anyhow!("Bonsai API return error: {}", e))?;
+
+            tracing::info!("SNARK session created: {}", snark_session.uuid);
+
+            loop {
+                let res = self.client.snark_status(&snark_session)?;
+                match res.status.as_str() {
+                    "RUNNING" => {
+                        tracing::debug!("Current status: {} - continue polling...", res.status,);
+                        std::thread::sleep(Duration::from_secs(15));
+                        continue;
+                    }
+                    "SUCCEEDED" => {
+                        let snark_receipt = match res.output {
+                            Some(output) => output,
+                            None => {
+                                return Err(anyhow!(
+                                    "SNARK session succeeded but no output was provided"
+                                ))
+                            }
+                        };
+                        tracing::info!("Snark proof!: {snark_receipt:?}");
+
+                        let snark_proof = bincode::serialize(&snark_receipt)?;
+
+                        return Ok(Proof::Full(snark_proof));
+                    }
+                    _ => {
+                        panic!(
+                            "Workflow exited: {} err: {}",
+                            res.status,
+                            res.error_msg.unwrap_or_default()
+                        );
+                    }
                 }
             }
         }
@@ -323,8 +408,9 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
                 Ok(journal.decode()?)
             }
             Proof::Full(data) => {
-                let receipt: Receipt = bincode::deserialize(data)?;
-                Ok(receipt.journal.decode()?)
+                let receipt: SnarkReceipt = bincode::deserialize(data)?;
+                let journal = Journal::new(receipt.journal);
+                Ok(journal.decode()?)
             }
         }
     }
