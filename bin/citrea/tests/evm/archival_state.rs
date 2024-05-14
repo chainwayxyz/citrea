@@ -5,7 +5,6 @@ use citrea_stf::genesis_config::GenesisPaths;
 use ethers::abi::Address;
 use ethers_core::abi::Bytes;
 use reth_primitives::BlockNumberOrTag;
-use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
 
 use crate::evm::init_test_rollup;
 use crate::test_client::TestClient;
@@ -22,9 +21,6 @@ async fn test_archival_state() -> Result<(), anyhow::Error> {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
-            BasicKernelGenesisPaths {
-                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
-            },
             None,
             NodeMode::SequencerNode,
             None,

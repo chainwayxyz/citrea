@@ -211,7 +211,7 @@ where
     async fn produce_l2_block(
         &mut self,
         da_block: <Da as DaService>::FilteredBlock,
-        l1_fee_rate: u64,
+        l1_fee_rate: u128,
         l2_block_mode: L2BlockMode,
         pg_pool: &Option<PostgresConnector>,
     ) -> anyhow::Result<()> {

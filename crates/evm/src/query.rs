@@ -5,11 +5,13 @@ use alloy_primitives::Uint;
 use alloy_rlp::Encodable;
 use jsonrpsee::core::RpcResult;
 use reth_interfaces::provider::ProviderError;
+use reth_primitives::constants::GWEI_TO_WEI;
 use reth_primitives::revm::env::tx_env_with_recovered;
 use reth_primitives::TransactionKind::{Call, Create};
 use reth_primitives::{
     Block, BlockId, BlockNumberOrTag, SealedHeader, TransactionSignedEcRecovered, U128, U256, U64,
 };
+use reth_rpc::eth::error::{EthApiError, EthResult, RevertError, RpcInvalidTransactionError};
 use reth_rpc_types::other::OtherFields;
 use reth_rpc_types::trace::geth::{GethDebugTracingOptions, GethTrace};
 use reth_rpc_types::AccessListWithGasUsed;
@@ -28,12 +30,13 @@ use sov_modules_api::WorkingSet;
 use tracing::info;
 
 use crate::call::get_cfg_env;
-use crate::error::rpc::{ensure_success, EthApiError, RevertError, RpcInvalidTransactionError};
+use crate::error::rpc::{ensure_success, RpcInvalidTransactionErrorExt};
 use crate::evm::call::prepare_call_env;
 use crate::evm::db::EvmDb;
 use crate::evm::primitive_types::{BlockEnv, Receipt, SealedBlock, TransactionSignedAndRecovered};
+use crate::handler::TxInfo;
 use crate::rpc_helpers::*;
-use crate::{BloomFilter, EthResult, Evm, EvmChainConfig, FilterBlockOption, FilterError};
+use crate::{BloomFilter, Evm, EvmChainConfig, FilterBlockOption, FilterError};
 
 // Gas per transaction not creating a contract.
 pub(crate) const MIN_TRANSACTION_GAS: u64 = 21_000u64;
@@ -64,7 +67,8 @@ impl EstimatedTxExpenses {
     /// Return total estimated gas used including evm gas and L1 fee.
     pub(crate) fn gas_with_l1_overhead(&self) -> U256 {
         // Actually not an L1 fee but l1_fee / base_fee.
-        let l1_fee_overhead = U256::from(1).max(self.l1_fee / self.base_fee);
+        let l1_fee_overhead =
+            U256::from(1).max(self.l1_fee / (self.base_fee + U256::from(GWEI_TO_WEI))); // assume 1 gwei priority fee
         l1_fee_overhead + U256::from(self.gas_used)
     }
 }
@@ -973,11 +977,27 @@ impl<C: sov_modules_api::Context> Evm<C> {
         })
     }
 
+    /// Handler for: `eth_getBlockTransactionCountByNumber`
+    #[rpc_method(name = "eth_getBlockTransactionCountByNumber")]
+    pub fn eth_get_block_transaction_count_by_number(
+        &self,
+        block_number: BlockNumberOrTag,
+        working_set: &mut WorkingSet<C>,
+    ) -> RpcResult<Option<reth_primitives::U256>> {
+        info!("evm module: eth_getBlockTransactionCountByNumber");
+        // Get the number of transactions in a block given block number
+        let block = self.get_block_by_number(Some(block_number), None, working_set)?;
+        match block {
+            Some(block) => Ok(Some(U256::from(block.transactions.len()))),
+            None => Ok(None),
+        }
+    }
+
     /// Inner gas estimator
     pub(crate) fn estimate_gas_with_env(
         &self,
         request: reth_rpc_types::TransactionRequest,
-        l1_fee_rate: u64,
+        l1_fee_rate: u128,
         block_env: BlockEnv,
         cfg_env: CfgEnvWithHandlerCfg,
         tx_env: &mut TxEnv,
@@ -1084,7 +1104,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             }
         }
 
-        let (result, l1_fee, diff_size) = match result {
+        let (result, mut l1_fee, mut diff_size) = match result {
             Ok((result, tx_info)) => match result.result {
                 ExecutionResult::Success { .. } => {
                     (result.result, tx_info.l1_fee, tx_info.diff_size)
@@ -1143,7 +1163,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 tx_env.clone(),
                 l1_fee_rate,
             );
-            let (curr_result, _tx_info) = match curr_result {
+            let (curr_result, tx_info) = match curr_result {
                 Ok(result) => result,
                 Err(err) => return Err(EthApiError::from(err).into()),
             };
@@ -1152,6 +1172,9 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 optimistic_gas_limit,
                 &mut highest_gas_limit,
                 &mut lowest_gas_limit,
+                &mut l1_fee,
+                &mut diff_size,
+                tx_info,
             )?;
         };
 
@@ -1191,7 +1214,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 // increase the lowest gas limit
                 lowest_gas_limit = mid_gas_limit;
             } else {
-                let (result, _tx_info) = match result {
+                let (result, tx_info) = match result {
                     Ok(result) => result,
                     Err(err) => return Err(EthApiError::from(err).into()),
                 };
@@ -1201,6 +1224,9 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     mid_gas_limit,
                     &mut highest_gas_limit,
                     &mut lowest_gas_limit,
+                    &mut l1_fee,
+                    &mut diff_size,
+                    tx_info,
                 )?;
             }
 
@@ -1814,7 +1840,7 @@ fn map_out_of_gas_err<C: sov_modules_api::Context>(
     mut tx_env: revm::primitives::TxEnv,
     cfg_env: revm::primitives::CfgEnvWithHandlerCfg,
     db: EvmDb<'_, C>,
-    l1_fee_rate: u64,
+    l1_fee_rate: u128,
 ) -> EthApiError {
     let req_gas_limit = tx_env.gas_limit;
     tx_env.gas_limit = block_env.gas_limit;
@@ -1846,15 +1872,23 @@ fn update_estimated_gas_range(
     tx_gas_limit: u64,
     highest_gas_limit: &mut u64,
     lowest_gas_limit: &mut u64,
+    l1_fee: &mut U256,
+    diff_size: &mut u64,
+    tx_info: TxInfo,
 ) -> EthResult<()> {
     match result {
         ExecutionResult::Success { .. } => {
             // cap the highest gas limit with succeeding gas limit
             *highest_gas_limit = tx_gas_limit;
+            *l1_fee = tx_info.l1_fee;
+            *diff_size = tx_info.diff_size;
         }
         ExecutionResult::Revert { .. } => {
             // increase the lowest gas limit
             *lowest_gas_limit = tx_gas_limit;
+
+            *l1_fee = tx_info.l1_fee;
+            *diff_size = tx_info.diff_size;
         }
         ExecutionResult::Halt { reason, .. } => {
             match reason {
@@ -1865,6 +1899,8 @@ fn update_estimated_gas_range(
 
                     // increase the lowest gas limit
                     *lowest_gas_limit = tx_gas_limit;
+
+                    // TODO: for halt l1 fee is calculated as 0, but it should be calculated
                 }
                 err => {
                     // these should be unreachable because we know the transaction succeeds,

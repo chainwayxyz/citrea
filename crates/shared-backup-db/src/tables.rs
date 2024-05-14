@@ -1,7 +1,5 @@
 use std::fmt;
 
-use crate::utils::get_db_extension;
-
 pub enum Tables {
     /// string version is sequencer_commitment
     #[allow(dead_code)]
@@ -63,10 +61,6 @@ pub struct DbSequencerCommitment {
     /// Hex encoded merkle root of soft confirmation hashes
     pub merkle_root: Vec<u8>,
     pub status: CommitmentStatus,
-}
-
-pub fn create_database() -> String {
-    format!("CREATE DATABASE citrea{};", get_db_extension())
 }
 
 pub const SEQUENCER_COMMITMENT_TABLE_CREATE_QUERY: &str = "

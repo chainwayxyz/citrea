@@ -22,16 +22,24 @@ serde = { workspace = true }
 serde_json = { workspace = true, optional = true }
 thiserror = { workspace = true }
 clap = { workspace = true, optional = true }
-jsonrpsee = { workspace = true, features = ["macros", "client-core", "server"], optional = true }
+jsonrpsee = { workspace = true, features = [
+    "macros",
+    "client-core",
+    "server",
+], optional = true }
 tokio = { workspace = true, default-features = false, optional = true }
 
-sov-modules-api = { path = "../../sov-modules-api", version = "0.3", default-features = false }
+sov-modules-api = { path = "../../sov-modules-api", version = "0.3", default-features = false, features = [
+    "macros",
+] }
 sov-state = { path = "../../sov-state", version = "0.3" }
 
 
 [dev-dependencies]
 tempfile = { workspace = true }
-sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
+sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-manager", features = [
+    "test-utils",
+] }
 
 [features]
 default = ["native"]
@@ -41,7 +49,17 @@ arbitrary = [
     "dep:proptest-derive",
     "sov-state/arbitrary",
     "sov-modules-api/arbitrary",
-    "sov-state/arbitrary"
+    "sov-state/arbitrary",
 ]
-native = ["serde", "serde_json", "jsonrpsee", "schemars", "clap", "sov-state/native", "sov-modules-api/native", "tokio"]
+
+native = [
+    "serde",
+    "serde_json",
+    "jsonrpsee",
+    "schemars",
+    "clap",
+    "sov-state/native",
+    "sov-modules-api/native",
+    "tokio",
+]
 serde = []

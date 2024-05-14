@@ -7,7 +7,6 @@ use rs_merkle::MerkleTree;
 use shared_backup_db::{PostgresConnector, SharedBackupDbConfig};
 use sov_mock_da::{MockAddress, MockDaService, MockDaSpec};
 use sov_modules_api::{BlobReaderTrait, SignedSoftConfirmationBatch};
-use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
 use sov_rollup_interface::da::DaData;
 use sov_rollup_interface::services::da::DaService;
 use sov_stf_runner::ProverConfig;
@@ -28,11 +27,6 @@ async fn sequencer_sends_commitments_to_da_layer() {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
-            BasicKernelGenesisPaths {
-                chain_state:
-                    "../test-data/genesis/integration-tests-low-limiting-number/chain_state.json"
-                        .into(),
-            },
             None,
             NodeMode::SequencerNode,
             None,
@@ -205,17 +199,15 @@ async fn check_commitment_in_offchain_db() {
     sequencer_config.db_config = Some(SharedBackupDbConfig::default());
 
     // drops db if exists from previous test runs, recreates the db
-    let db_test_client = PostgresConnector::new_test_client().await.unwrap();
+    let db_test_client =
+        PostgresConnector::new_test_client("check_commitment_in_offchain_db".to_string())
+            .await
+            .unwrap();
 
     let seq_task = tokio::spawn(async {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
-            BasicKernelGenesisPaths {
-                chain_state:
-                    "../test-data/genesis/integration-tests-low-limiting-number/chain_state.json"
-                        .into(),
-            },
             None,
             NodeMode::SequencerNode,
             None,
@@ -270,11 +262,6 @@ async fn test_ledger_get_commitments_on_slot() {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
-            BasicKernelGenesisPaths {
-                chain_state:
-                    "../test-data/genesis/integration-tests-low-limiting-number/chain_state.json"
-                        .into(),
-            },
             None,
             NodeMode::SequencerNode,
             None,
@@ -298,11 +285,6 @@ async fn test_ledger_get_commitments_on_slot() {
         start_rollup(
             full_node_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
-            BasicKernelGenesisPaths {
-                chain_state:
-                    "../test-data/genesis/integration-tests-low-limiting-number/chain_state.json"
-                        .into(),
-            },
             None,
             NodeMode::FullNode(seq_port),
             None,
@@ -376,11 +358,6 @@ async fn test_ledger_get_commitments_on_slot_prover() {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
-            BasicKernelGenesisPaths {
-                chain_state:
-                    "../test-data/genesis/integration-tests-low-limiting-number/chain_state.json"
-                        .into(),
-            },
             None,
             NodeMode::SequencerNode,
             None,
@@ -404,11 +381,6 @@ async fn test_ledger_get_commitments_on_slot_prover() {
         start_rollup(
             prover_node_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
-            BasicKernelGenesisPaths {
-                chain_state:
-                    "../test-data/genesis/integration-tests-low-limiting-number/chain_state.json"
-                        .into(),
-            },
             Some(ProverConfig {
                 proving_mode: sov_stf_runner::ProverGuestRunConfig::Execute,
                 skip_proving_until_l1_height: None,

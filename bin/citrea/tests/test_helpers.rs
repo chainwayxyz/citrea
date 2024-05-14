@@ -4,14 +4,12 @@ use std::path::Path;
 use citrea::MockDemoRollup;
 use citrea_sequencer::SequencerConfig;
 use citrea_stf::genesis_config::GenesisPaths;
-use const_rollup_config::TEST_PRIVATE_KEY;
+use rollup_constants::TEST_PRIVATE_KEY;
+use shared_backup_db::SharedBackupDbConfig;
 use sov_mock_da::{MockAddress, MockDaConfig};
 use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
 use sov_modules_api::PrivateKey;
 use sov_modules_rollup_blueprint::RollupBlueprint;
-use sov_modules_stf_blueprint::kernels::basic::{
-    BasicKernelGenesisConfig, BasicKernelGenesisPaths,
-};
 use sov_stf_runner::{
     ProverConfig, RollupConfig, RollupPublicKeys, RpcConfig, RunnerConfig, StorageConfig,
 };
@@ -30,7 +28,6 @@ pub enum NodeMode {
 pub async fn start_rollup(
     rpc_reporting_channel: oneshot::Sender<SocketAddr>,
     rt_genesis_paths: GenesisPaths,
-    kernel_genesis_paths: BasicKernelGenesisPaths,
     rollup_prover_config: Option<ProverConfig>,
     node_mode: NodeMode,
     db_path: Option<&str>,
@@ -55,18 +52,10 @@ pub async fn start_rollup(
 
     let mock_demo_rollup = MockDemoRollup {};
 
-    let kernel_genesis = BasicKernelGenesisConfig {
-        chain_state: serde_json::from_str(
-            &std::fs::read_to_string(&kernel_genesis_paths.chain_state)
-                .expect("Failed to read chain_state genesis config"),
-        )
-        .expect("Failed to parse chain_state genesis config"),
-    };
-
     match node_mode {
         NodeMode::FullNode(_) => {
             let rollup = mock_demo_rollup
-                .create_new_rollup(&rt_genesis_paths, kernel_genesis, rollup_config.clone())
+                .create_new_rollup(&rt_genesis_paths, rollup_config.clone())
                 .await
                 .unwrap();
             rollup
@@ -78,7 +67,6 @@ pub async fn start_rollup(
             let rollup = mock_demo_rollup
                 .create_new_prover(
                     &rt_genesis_paths,
-                    kernel_genesis,
                     rollup_config.clone(),
                     rollup_prover_config.unwrap(),
                 )
@@ -105,12 +93,7 @@ pub async fn start_rollup(
             });
 
             let sequencer_rollup = mock_demo_rollup
-                .create_new_sequencer(
-                    &rt_genesis_paths,
-                    kernel_genesis,
-                    rollup_config.clone(),
-                    sequencer_config,
-                )
+                .create_new_sequencer(&rt_genesis_paths, rollup_config.clone(), sequencer_config)
                 .await
                 .unwrap();
             sequencer_rollup

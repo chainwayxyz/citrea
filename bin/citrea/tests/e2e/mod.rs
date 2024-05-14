@@ -7,15 +7,14 @@ use citrea_evm::smart_contracts::SimpleStorageContract;
 use citrea_evm::system_contracts::BitcoinLightClient;
 use citrea_sequencer::{SequencerConfig, SequencerMempoolConfig};
 use citrea_stf::genesis_config::GenesisPaths;
-use const_rollup_config::TEST_PRIVATE_KEY;
 use ethereum_types::{H256, U256};
 use ethers::abi::Address;
 use ethers_signers::{LocalWallet, Signer};
 use reth_primitives::{BlockNumberOrTag, TxHash};
+use rollup_constants::TEST_PRIVATE_KEY;
 use secp256k1::rand::thread_rng;
 use shared_backup_db::{PostgresConnector, SharedBackupDbConfig};
 use sov_mock_da::{MockAddress, MockDaService, MockDaSpec, MockHash};
-use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
 use sov_rollup_interface::da::{DaData, DaSpec};
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
 use sov_rollup_interface::services::da::DaService;
@@ -57,9 +56,6 @@ async fn initialize_test(
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
-            BasicKernelGenesisPaths {
-                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
-            },
             None,
             NodeMode::SequencerNode,
             None,
@@ -93,9 +89,6 @@ async fn initialize_test(
         start_rollup(
             full_node_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
-            BasicKernelGenesisPaths {
-                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
-            },
             None,
             NodeMode::FullNode(seq_port),
             None,
@@ -131,9 +124,6 @@ async fn test_soft_batch_save() -> Result<(), anyhow::Error> {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
-            BasicKernelGenesisPaths {
-                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
-            },
             None,
             NodeMode::SequencerNode,
             None,
@@ -167,9 +157,6 @@ async fn test_soft_batch_save() -> Result<(), anyhow::Error> {
         start_rollup(
             full_node_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
-            BasicKernelGenesisPaths {
-                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
-            },
             None,
             NodeMode::FullNode(seq_port),
             None,
@@ -192,9 +179,6 @@ async fn test_soft_batch_save() -> Result<(), anyhow::Error> {
         start_rollup(
             full_node_port_tx_2,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
-            BasicKernelGenesisPaths {
-                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
-            },
             None,
             NodeMode::FullNode(full_node_port),
             None,
@@ -281,9 +265,6 @@ async fn test_delayed_sync_ten_blocks() -> Result<(), anyhow::Error> {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
-            BasicKernelGenesisPaths {
-                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
-            },
             None,
             NodeMode::SequencerNode,
             None,
@@ -316,9 +297,6 @@ async fn test_delayed_sync_ten_blocks() -> Result<(), anyhow::Error> {
         start_rollup(
             full_node_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
-            BasicKernelGenesisPaths {
-                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
-            },
             None,
             NodeMode::FullNode(seq_port),
             None,
@@ -382,9 +360,6 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
-            BasicKernelGenesisPaths {
-                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
-            },
             None,
             NodeMode::SequencerNode,
             None,
@@ -407,9 +382,6 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
         start_rollup(
             full_node_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
-            BasicKernelGenesisPaths {
-                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
-            },
             None,
             NodeMode::FullNode(seq_port),
             Some("demo_data_test_close_and_reopen_full_node"),
@@ -491,9 +463,6 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
         start_rollup(
             full_node_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
-            BasicKernelGenesisPaths {
-                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
-            },
             None,
             NodeMode::FullNode(seq_port),
             Some("demo_data_test_close_and_reopen_full_node_copy"),
@@ -548,9 +517,6 @@ async fn test_get_transaction_by_hash() -> Result<(), anyhow::Error> {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
-            BasicKernelGenesisPaths {
-                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
-            },
             None,
             NodeMode::SequencerNode,
             None,
@@ -572,9 +538,6 @@ async fn test_get_transaction_by_hash() -> Result<(), anyhow::Error> {
         start_rollup(
             full_node_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
-            BasicKernelGenesisPaths {
-                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
-            },
             None,
             NodeMode::FullNode(seq_port),
             None,
@@ -810,9 +773,6 @@ async fn test_reopen_sequencer() -> Result<(), anyhow::Error> {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
-            BasicKernelGenesisPaths {
-                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
-            },
             None,
             NodeMode::SequencerNode,
             Some("demo_data_test_reopen_sequencer"),
@@ -858,9 +818,6 @@ async fn test_reopen_sequencer() -> Result<(), anyhow::Error> {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
-            BasicKernelGenesisPaths {
-                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
-            },
             None,
             NodeMode::SequencerNode,
             Some("demo_data_test_reopen_sequencer_copy"),
@@ -1149,9 +1106,6 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
-            BasicKernelGenesisPaths {
-                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
-            },
             None,
             NodeMode::SequencerNode,
             None,
@@ -1174,9 +1128,6 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
         start_rollup(
             prover_node_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
-            BasicKernelGenesisPaths {
-                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
-            },
             Some(ProverConfig::default()),
             NodeMode::Prover(seq_port),
             None,
@@ -1294,9 +1245,6 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
-            BasicKernelGenesisPaths {
-                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
-            },
             Some(ProverConfig::default()),
             NodeMode::SequencerNode,
             None,
@@ -1319,9 +1267,6 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
         start_rollup(
             prover_node_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
-            BasicKernelGenesisPaths {
-                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
-            },
             Some(ProverConfig::default()),
             NodeMode::Prover(seq_port),
             Some("demo_data_test_reopen_prover"),
@@ -1383,9 +1328,6 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
         start_rollup(
             prover_node_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
-            BasicKernelGenesisPaths {
-                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
-            },
             Some(ProverConfig::default()),
             NodeMode::Prover(seq_port),
             Some("demo_data_test_reopen_prover_copy"),
@@ -1430,9 +1372,6 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
         start_rollup(
             prover_node_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
-            BasicKernelGenesisPaths {
-                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
-            },
             Some(ProverConfig::default()),
             NodeMode::Prover(seq_port),
             Some("demo_data_test_reopen_prover_copy2"),
@@ -1628,11 +1567,6 @@ async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error>
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests-low-block-gas-limit"),
-            BasicKernelGenesisPaths {
-                chain_state:
-                    "../test-data/genesis/integration-tests-low-block-gas-limit/chain_state.json"
-                        .into(),
-            },
             None,
             NodeMode::SequencerNode,
             None,
@@ -1773,19 +1707,33 @@ fn find_subarray(haystack: &[u8], needle: &[u8]) -> Option<usize> {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
-    // citrea::initialize_logging();
+    citrea::initialize_logging();
 
     // open, close without publishing blokcs
     // then reopen, publish some blocks without error
     // Remove temp db directories if they exist
     let _ = fs::remove_dir_all(Path::new("demo_data_sequencer_full_node"));
     let _ = fs::remove_dir_all(Path::new("demo_data_sequencer_full_node_copy"));
+    let db_name = std::thread::current()
+        .name()
+        .unwrap()
+        .to_string()
+        .split("::")
+        .last()
+        .unwrap()
+        .to_string();
 
-    let db_test_client = PostgresConnector::new_test_client().await.unwrap();
+    println!("DB Name: {}", db_name);
+
+    let db_test_client = PostgresConnector::new_test_client(db_name.clone())
+        .await
+        .unwrap();
 
     let mut sequencer_config = create_default_sequencer_config(4, Some(true), 10);
 
-    sequencer_config.db_config = Some(SharedBackupDbConfig::default());
+    sequencer_config.db_config = Some(SharedBackupDbConfig::default().set_db_name(db_name));
+
+    println!("cfgName: {:?}", sequencer_config.db_config);
 
     let da_service = MockDaService::with_finality(MockAddress::from([0; 32]), 2);
     da_service.publish_test_block().await.unwrap();
@@ -1797,9 +1745,6 @@ async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
-            BasicKernelGenesisPaths {
-                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
-            },
             None,
             NodeMode::SequencerNode,
             None,
@@ -1823,9 +1768,6 @@ async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
         start_rollup(
             full_node_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
-            BasicKernelGenesisPaths {
-                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
-            },
             None,
             NodeMode::FullNode(seq_port),
             Some("demo_data_sequencer_full_node"),
@@ -1889,9 +1831,6 @@ async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
-            BasicKernelGenesisPaths {
-                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
-            },
             None,
             NodeMode::SequencerNode,
             Some("demo_data_sequencer_full_node_copy"),
@@ -2030,20 +1969,29 @@ async fn transaction_failing_on_l1_is_removed_from_mempool() -> Result<(), anyho
 
 #[tokio::test(flavor = "multi_thread")]
 async fn sequencer_crash_restore_mempool() -> Result<(), anyhow::Error> {
-    citrea::initialize_logging();
+    // citrea::initialize_logging();
     let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
 
     let _ = fs::remove_dir_all(Path::new("demo_data_sequencer_restore_mempool"));
     let _ = fs::remove_dir_all(Path::new("demo_data_sequencer_restore_mempool_copy"));
-
-    let db_test_client = PostgresConnector::new_test_client().await.unwrap();
+    let db_name = std::thread::current()
+        .name()
+        .unwrap()
+        .to_string()
+        .split("::")
+        .last()
+        .unwrap()
+        .to_string();
+    let db_test_client = PostgresConnector::new_test_client(db_name.clone())
+        .await
+        .unwrap();
 
     let mut sequencer_config = create_default_sequencer_config(4, Some(true), 10);
     sequencer_config.mempool_conf = SequencerMempoolConfig {
         max_account_slots: 100,
         ..Default::default()
     };
-    sequencer_config.db_config = Some(SharedBackupDbConfig::default());
+    sequencer_config.db_config = Some(SharedBackupDbConfig::default().set_db_name(db_name.clone()));
 
     let da_service = MockDaService::with_finality(MockAddress::from([0; 32]), 2);
     da_service.publish_test_block().await.unwrap();
@@ -2055,9 +2003,6 @@ async fn sequencer_crash_restore_mempool() -> Result<(), anyhow::Error> {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
-            BasicKernelGenesisPaths {
-                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
-            },
             None,
             NodeMode::SequencerNode,
             Some("demo_data_sequencer_restore_mempool"),
@@ -2121,9 +2066,6 @@ async fn sequencer_crash_restore_mempool() -> Result<(), anyhow::Error> {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
-            BasicKernelGenesisPaths {
-                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
-            },
             None,
             NodeMode::SequencerNode,
             Some("demo_data_sequencer_restore_mempool_copy"),

@@ -4,7 +4,6 @@ use citrea_stf::genesis_config::GenesisPaths;
 use ethers::abi::Address;
 use ethers_signers::{LocalWallet, Signer};
 use reth_primitives::BlockNumberOrTag;
-use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
 use tokio::task::JoinHandle;
 
 use crate::evm::make_test_client;
@@ -19,9 +18,6 @@ async fn initialize_test() -> (JoinHandle<()>, Box<TestClient>) {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
-            BasicKernelGenesisPaths {
-                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
-            },
             None,
             NodeMode::SequencerNode,
             None,

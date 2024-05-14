@@ -6,7 +6,7 @@ use std::sync::Mutex;
 
 #[cfg(feature = "local")]
 pub use citrea_evm::DevSigner;
-use citrea_evm::{EthApiError, Evm};
+use citrea_evm::Evm;
 use ethers::types::{Bytes, H256};
 pub use gas_price::fee_history::FeeHistoryCacheConfig;
 use gas_price::gas_oracle::GasPriceOracle;
@@ -14,6 +14,7 @@ pub use gas_price::gas_oracle::GasPriceOracleConfig;
 use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::RpcModule;
 use reth_primitives::{keccak256, BlockNumberOrTag, B256, U256};
+use reth_rpc::eth::error::EthApiError;
 use reth_rpc_types::serde_helpers::U64HexOrNumber;
 use reth_rpc_types::trace::geth::{
     CallConfig, CallFrame, FourByteFrame, GethDebugBuiltInTracerType, GethDebugTracerConfig,

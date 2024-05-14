@@ -5,7 +5,6 @@ use citrea_stf::StfVerifier;
 use risc0_zkvm::guest::env;
 use sov_mock_da::MockDaVerifier;
 use sov_modules_api::default_context::ZkDefaultContext;
-use sov_modules_stf_blueprint::kernels::basic::BasicKernel;
 use sov_modules_stf_blueprint::StfBlueprint;
 use sov_risc0_adapter::guest::Risc0Guest;
 use sov_state::ZkStorage;
@@ -36,8 +35,7 @@ pub fn main() {
     #[cfg(feature = "bench")]
     let start_cycles = env::cycle_count();
 
-    let stf: StfBlueprint<ZkDefaultContext, _, _, Runtime<_, _>, BasicKernel<_, _>> =
-        StfBlueprint::new();
+    let stf: StfBlueprint<ZkDefaultContext, _, _, Runtime<_, _>> = StfBlueprint::new();
 
     let stf_verifier = StfVerifier::new(stf, MockDaVerifier {});
 

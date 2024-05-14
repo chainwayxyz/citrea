@@ -2,8 +2,8 @@
 use std::fmt::Debug;
 use std::sync::{Arc, Mutex};
 
-use citrea_evm::EthApiError;
 use reth_primitives::{B256, U256};
+use reth_rpc::eth::error::EthApiError;
 use reth_rpc_types::{
     Block, BlockTransactions, Rich, Transaction, TransactionReceipt, TxGasAndReward,
 };

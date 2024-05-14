@@ -10,9 +10,8 @@ use ethers_core::abi::Address;
 use ethers_core::types::{BlockId, Bytes, U256};
 use ethers_signers::{LocalWallet, Signer};
 use reth_primitives::BlockNumberOrTag;
-// use sov_demo_rollup::initialize_logging;
-use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
 
+// use sov_demo_rollup::initialize_logging;
 use crate::test_client::TestClient;
 use crate::test_helpers::{start_rollup, NodeMode};
 use crate::{DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT};
@@ -29,9 +28,6 @@ async fn web3_rpc_tests() -> Result<(), anyhow::Error> {
         start_rollup(
             port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
-            BasicKernelGenesisPaths {
-                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
-            },
             None,
             NodeMode::SequencerNode,
             None,
@@ -84,9 +80,6 @@ async fn evm_tx_tests() -> Result<(), anyhow::Error> {
         start_rollup(
             port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
-            BasicKernelGenesisPaths {
-                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
-            },
             None,
             NodeMode::SequencerNode,
             None,
@@ -123,9 +116,6 @@ async fn test_eth_get_logs() -> Result<(), anyhow::Error> {
         start_rollup(
             port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
-            BasicKernelGenesisPaths {
-                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
-            },
             None,
             NodeMode::SequencerNode,
             None,
@@ -158,9 +148,6 @@ async fn test_genesis_contract_call() -> Result<(), Box<dyn std::error::Error>> 
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir("../../hive/genesis"),
-            BasicKernelGenesisPaths {
-                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
-            },
             None,
             NodeMode::SequencerNode,
             None,

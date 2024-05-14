@@ -55,6 +55,11 @@ impl SharedBackupDbConfig {
         self.max_pool_size
     }
 
+    pub fn set_db_name(mut self, db_name: String) -> Self {
+        self.db_name = db_name;
+        self
+    }
+
     pub fn parse_to_connection_string(&self) -> String {
         format!(
             "host={} port={} user={} password={} dbname={}",

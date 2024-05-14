@@ -37,7 +37,7 @@ impl<C: Context, Da: DaSpec> SoftConfirmationRuleEnforcer<C, Da> {
     pub fn get_max_l1_fee_rate_change_percentage(
         &self,
         working_set: &mut WorkingSet<C>,
-    ) -> RpcResult<u64> {
+    ) -> RpcResult<u128> {
         tokio::task::block_in_place(|| {
             Ok(self
                 .l1_fee_rate_change_percentage
@@ -49,7 +49,7 @@ impl<C: Context, Da: DaSpec> SoftConfirmationRuleEnforcer<C, Da> {
     #[rpc_method(name = "getLastL1FeeRate")]
     /// Get the last processed L1 fee rate.
     /// 0 at genesis.
-    pub fn get_last_l1_fee_rate(&self, working_set: &mut WorkingSet<C>) -> RpcResult<u64> {
+    pub fn get_last_l1_fee_rate(&self, working_set: &mut WorkingSet<C>) -> RpcResult<u128> {
         tokio::task::block_in_place(|| Ok(self.last_l1_fee_rate.get(working_set).unwrap_or(0)))
     }
     #[rpc_method(name = "getLatestBlockTimestamp")]
