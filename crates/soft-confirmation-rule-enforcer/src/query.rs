@@ -63,7 +63,7 @@ impl<C: Context, Da: DaSpec> SoftConfirmationRuleEnforcer<C, Da> {
         let last_l1_fee_rate = self.last_l1_fee_rate.get(working_set).unwrap_or(0);
 
         if last_l1_fee_rate == 0 {
-            // on the first soft confirmtaion, we don't have a last fee rate
+            // on the first soft confirmation, we don't have a last fee rate
             return Ok(0..=u128::MAX);
         }
 
