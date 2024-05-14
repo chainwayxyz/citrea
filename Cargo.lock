@@ -1685,7 +1685,6 @@ dependencies = [
  "hex",
  "once_cell",
  "parking_lot 0.12.1",
- "risc0",
  "risc0-circuit-rv32im",
  "risc0-zkp",
  "risc0-zkvm",
