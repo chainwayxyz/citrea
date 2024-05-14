@@ -1843,7 +1843,7 @@ async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
 
 #[tokio::test]
 async fn transaction_failing_on_l1_is_removed_from_mempool() -> Result<(), anyhow::Error> {
-    citrea::initialize_logging();
+    // citrea::initialize_logging();
 
     let (seq_test_client, full_node_test_client, seq_task, full_node_task, _) =
         initialize_test(Default::default()).await;
