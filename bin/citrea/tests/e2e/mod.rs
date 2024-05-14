@@ -1,7 +1,7 @@
+use std::fs;
 use std::path::Path;
 use std::str::FromStr;
 use std::time::Duration;
-use std::{env, fs};
 
 use citrea_evm::smart_contracts::SimpleStorageContract;
 use citrea_evm::system_contracts::BitcoinLightClient;
@@ -22,8 +22,6 @@ use sov_rollup_interface::services::da::DaService;
 use sov_stf_runner::ProverConfig;
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
-use tracing_subscriber::prelude::*;
-use tracing_subscriber::{fmt, EnvFilter};
 
 use crate::evm::{init_test_rollup, make_test_client};
 use crate::test_client::TestClient;
@@ -68,7 +66,18 @@ async fn initialize_test(
             config.seq_min_soft_confirmations,
             true,
             None,
-            None,
+            // Increase max account slots to not stuck as spammer
+            Some(SequencerConfig {
+                private_key: TEST_PRIVATE_KEY.to_string(),
+                min_soft_confirmations_per_commitment: config.seq_min_soft_confirmations,
+                test_mode: true,
+                deposit_mempool_fetch_limit: 10,
+                mempool_conf: SequencerMempoolConfig {
+                    max_account_slots: 100,
+                    ..Default::default()
+                },
+                db_config: Default::default(),
+            }),
             Some(true),
             config.deposit_mempool_fetch_limit,
         )
@@ -114,15 +123,6 @@ async fn initialize_test(
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_soft_batch_save() -> Result<(), anyhow::Error> {
-    tracing_subscriber::registry()
-        .with(fmt::layer())
-        .with(
-            EnvFilter::from_str(&env::var("RUST_LOG").unwrap_or_else(|_| {
-                "debug,hyper=info,risc0_zkvm=info,guest_execution=debug".to_string()
-            }))
-            .unwrap(),
-        )
-        .init();
     let config = TestConfig::default();
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
@@ -991,7 +991,7 @@ async fn execute_blocks(
         }
     }
 
-    sleep(Duration::from_secs(10)).await;
+    sleep(Duration::from_secs(15)).await;
 
     let seq_last_block = sequencer_client
         .eth_get_block_by_number_with_detail(Some(BlockNumberOrTag::Latest))
@@ -2030,7 +2030,7 @@ async fn transaction_failing_on_l1_is_removed_from_mempool() -> Result<(), anyho
 
 #[tokio::test(flavor = "multi_thread")]
 async fn sequencer_crash_restore_mempool() -> Result<(), anyhow::Error> {
-    // citrea::initialize_logging();
+    citrea::initialize_logging();
     let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
 
     let _ = fs::remove_dir_all(Path::new("demo_data_sequencer_restore_mempool"));
@@ -2039,7 +2039,10 @@ async fn sequencer_crash_restore_mempool() -> Result<(), anyhow::Error> {
     let db_test_client = PostgresConnector::new_test_client().await.unwrap();
 
     let mut sequencer_config = create_default_sequencer_config(4, Some(true), 10);
-
+    sequencer_config.mempool_conf = SequencerMempoolConfig {
+        max_account_slots: 100,
+        ..Default::default()
+    };
     sequencer_config.db_config = Some(SharedBackupDbConfig::default());
 
     let da_service = MockDaService::with_finality(MockAddress::from([0; 32]), 2);
