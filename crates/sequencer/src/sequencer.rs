@@ -476,19 +476,13 @@ where
 
         let fee_rate_range = self.get_l1_fee_rate_range()?;
 
-        let mut l1_fee_rate = self
+        let l1_fee_rate = self
             .da_service
             .get_fee_rate()
             .await
             .map_err(|e| anyhow!(e))?;
 
-        l1_fee_rate = if l1_fee_rate < *fee_rate_range.start() {
-            *fee_rate_range.start()
-        } else if l1_fee_rate > *fee_rate_range.end() {
-            *fee_rate_range.end()
-        } else {
-            l1_fee_rate
-        };
+        let l1_fee_rate = l1_fee_rate.clamp(*fee_rate_range.start(), *fee_rate_range.end());
 
         let new_da_block = match last_finalized_height.cmp(&prev_l1_height) {
             Ordering::Less => {
