@@ -93,7 +93,11 @@ impl RollupBlueprint for MockDemoRollup {
         _rollup_config: &RollupConfig<Self::DaConfig>,
         _da_service: &Self::DaService,
     ) -> Self::ProverService {
-        let vm = Risc0BonsaiHost::new(risc0::MOCK_DA_ELF);
+        let vm = Risc0BonsaiHost::new(
+            risc0::MOCK_DA_ELF,
+            std::env::var("BONSAI_API_URL").unwrap_or("".to_string()),
+            std::env::var("BONSAI_API_KEY").unwrap_or("".to_string()),
+        );
         let zk_stf = StfBlueprint::new();
         let zk_storage = ZkStorage::new();
         let da_verifier = Default::default();

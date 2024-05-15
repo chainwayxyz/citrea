@@ -42,11 +42,11 @@ const RETRY_SLEEP: u64 = 2;
 pub struct StateTransitionRunner<Stf, Sm, Da, Vm, Ps, C>
 where
     Da: DaService,
-    Vm: ZkvmHost,
+    Vm: ZkvmHost + Zkvm,
     Sm: HierarchicalStorageManager<Da::Spec>,
     Stf: StateTransitionFunction<Vm, Da::Spec, Condition = <Da::Spec as DaSpec>::ValidityCondition>
         + StfBlueprintTrait<C, Da::Spec, Vm>,
-    Ps: ProverService,
+    Ps: ProverService<Vm>,
     C: Context,
 {
     start_height: u64,
@@ -95,7 +95,7 @@ pub enum InitVariant<Stf: StateTransitionFunction<Vm, Da>, Vm: Zkvm, Da: DaSpec>
 impl<Stf, Sm, Da, Vm, Ps, C> StateTransitionRunner<Stf, Sm, Da, Vm, Ps, C>
 where
     Da: DaService<Error = anyhow::Error> + Clone + Send + Sync + 'static,
-    Vm: ZkvmHost,
+    Vm: ZkvmHost + Zkvm,
     Sm: HierarchicalStorageManager<Da::Spec>,
     Stf: StateTransitionFunction<
             Vm,
@@ -105,7 +105,7 @@ where
             ChangeSet = Sm::NativeChangeSet,
         > + StfBlueprintTrait<C, Da::Spec, Vm>,
     C: Context,
-    Ps: ProverService<StateRoot = Stf::StateRoot, Witness = Stf::Witness, DaService = Da>,
+    Ps: ProverService<Vm, StateRoot = Stf::StateRoot, Witness = Stf::Witness, DaService = Da>,
 {
     /// Creates a new `StateTransitionRunner`.
     ///
@@ -516,6 +516,27 @@ where
                 <Da as DaService>::Spec,
                 Stf::StateRoot,
             > = Vm::extract_output(&proof).expect("Proof should be deserializable");
+
+            match proof {
+                Proof::PublicInput(_) => {
+                    tracing::warn!("Proof is public input, skipping");
+                    continue;
+                }
+                Proof::Full(ref proof) => {
+                    tracing::info!("Verifying proof!");
+                    let transition_data_from_proof =
+                        Vm::verify_and_extract_output::<<Da as DaService>::Spec, Stf::StateRoot>(
+                            &proof.clone(),
+                            &prover_service.get_code_commitment(),
+                        )
+                        .expect("Proof should be verifiable");
+
+                    tracing::info!(
+                        "transition data from proof: {:?}",
+                        transition_data_from_proof
+                    );
+                }
+            }
 
             tracing::info!("transition data: {:?}", transition_data);
 

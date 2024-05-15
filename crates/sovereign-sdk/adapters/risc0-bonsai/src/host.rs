@@ -64,11 +64,11 @@ struct BonsaiClient {
 }
 
 impl BonsaiClient {
-    fn from_env(risc0_version: &str) -> Self {
+    fn from_parts(api_url: String, api_key: String, risc0_version: &str) -> Self {
         let risc0_version = risc0_version.to_string();
         let (queue, rx) = std::sync::mpsc::channel();
         let join_handle = std::thread::spawn(move || {
-            let client = bonsai_sdk::Client::from_env(&risc0_version).unwrap();
+            let client = bonsai_sdk::Client::from_parts(api_url, api_key, &risc0_version).unwrap();
             loop {
                 let request = rx.recv().expect("bonsai client sender is dead");
                 match request {
@@ -211,7 +211,7 @@ pub struct Risc0BonsaiHost<'a> {
     elf: &'a [u8],
     env: Vec<u32>,
     image_id: Digest,
-    client: BonsaiClient,
+    client: Option<BonsaiClient>,
     last_input_id: Option<String>,
 }
 
@@ -238,19 +238,26 @@ fn add_benchmarking_callbacks(mut env: ExecutorEnvBuilder<'_>) -> ExecutorEnvBui
 
 impl<'a> Risc0BonsaiHost<'a> {
     /// Create a new Risc0Host to prove the given binary.
-    pub fn new(elf: &'a [u8]) -> Self {
-        // handle error
-        let client = BonsaiClient::from_env(risc0_zkvm::VERSION);
-
+    pub fn new(elf: &'a [u8], api_url: String, api_key: String) -> Self {
         // Compute the image_id, then upload the ELF with the image_id as its key.
         // handle error
         let image_id = compute_image_id(elf).unwrap();
 
-        tracing::info!("Uploading image with id: {}", image_id);
         // handle error
-        client
-            .upload_img(hex::encode(image_id), elf.to_vec())
-            .unwrap();
+        let client = if !api_url.is_empty() && !api_key.is_empty() {
+            let client = BonsaiClient::from_parts(api_url, api_key, risc0_zkvm::VERSION);
+
+            tracing::info!("Uploading image with id: {}", image_id);
+            // handle error
+
+            client
+                .upload_img(hex::encode(image_id), elf.to_vec())
+                .unwrap();
+
+            Some(client)
+        } else {
+            None
+        };
 
         Self {
             elf,
@@ -259,6 +266,20 @@ impl<'a> Risc0BonsaiHost<'a> {
             client,
             last_input_id: None,
         }
+    }
+
+    fn add_hint_bonsai<T: serde::Serialize>(&mut self, item: T) {
+        // For running in "prove" mode.
+
+        // Prepare input data and upload it.
+        let client = self.client.as_ref().unwrap();
+
+        let input_data = to_vec(&item).unwrap();
+        let input_data = bytemuck::cast_slice(&input_data).to_vec();
+        // handle error
+        let input_id = client.upload_input(input_data).unwrap();
+        tracing::info!("Uploaded input with id: {}", input_id);
+        self.last_input_id = Some(input_id);
     }
 }
 
@@ -281,15 +302,9 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
         item.serialize(&mut serializer)
             .expect("Risc0 hint serialization is infallible");
 
-        // For running in "prove" mode.
-
-        // Prepare input data and upload it.
-        let input_data = to_vec(&item).unwrap();
-        let input_data = bytemuck::cast_slice(&input_data).to_vec();
-        // handle error
-        let input_id = self.client.upload_input(input_data).unwrap();
-        tracing::info!("Uploaded input with id: {}", input_id);
-        self.last_input_id = Some(input_id);
+        if self.client.is_some() {
+            self.add_hint_bonsai(item)
+        }
     }
 
     /// Guest simulation (execute mode) is run inside the Risc0 VM locally
@@ -312,6 +327,10 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
 
             Ok(Proof::PublicInput(data))
         } else {
+            let client = self.client.as_ref().ok_or_else(|| {
+                anyhow!("Bonsai client is not initialized running in full node mode or missing API URL or API key")
+            })?;
+
             let input_id = self.last_input_id.take();
 
             let input_id = match input_id {
@@ -320,17 +339,16 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
             };
 
             // Start a session running the prover
-            let session = self
-                .client
+            let session = client
                 //hanfle error
                 .create_session(hex::encode(self.image_id.clone()), input_id, vec![])
                 .map_err(|e| anyhow!("Bonsai API return error: {}", e))?;
             tracing::info!("Session created: {}", session.uuid);
             let receipt = loop {
                 // handle error
-                let res = self.client.status(&session).unwrap();
+                let res = client.status(&session).unwrap();
                 if res.status == "RUNNING" {
-                    tracing::debug!(
+                    tracing::info!(
                         "Current status: {} - state: {} - continue polling...",
                         res.status,
                         res.state.unwrap_or_default()
@@ -345,7 +363,7 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
                         .expect("API error, missing receipt on completed session");
 
                     tracing::info!("Receipt URL: {}", receipt_url);
-                    let receipt_buf = self.client.download(receipt_url)?;
+                    let receipt_buf = client.download(receipt_url)?;
 
                     let receipt: Receipt = bincode::deserialize(&receipt_buf).unwrap();
 
@@ -361,18 +379,17 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
 
             tracing::info!("Creating the SNARK");
 
-            let snark_session = self
-                .client
+            let snark_session = client
                 .create_snark(&session)
                 .map_err(|e| anyhow!("Bonsai API return error: {}", e))?;
 
             tracing::info!("SNARK session created: {}", snark_session.uuid);
 
             loop {
-                let res = self.client.snark_status(&snark_session)?;
+                let res = client.snark_status(&snark_session)?;
                 match res.status.as_str() {
                     "RUNNING" => {
-                        tracing::debug!("Current status: {} - continue polling...", res.status,);
+                        tracing::info!("Current status: {} - continue polling...", res.status,);
                         std::thread::sleep(Duration::from_secs(15));
                         continue;
                     }
@@ -459,5 +476,9 @@ impl<'host> Zkvm for Risc0BonsaiHost<'host> {
         receipt.verify(code_commitment.clone())?;
 
         Ok(receipt.journal.decode()?)
+    }
+
+    fn get_code_commitment(&self) -> Self::CodeCommitment {
+        self.image_id.clone()
     }
 }
