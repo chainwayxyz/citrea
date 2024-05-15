@@ -73,7 +73,6 @@ fn initialize_runner(
         }),
         da: MockDaConfig {
             sender_address: address,
-            db_path: path.to_path_buf(),
         },
         public_keys: RollupPublicKeys {
             sequencer_public_key: vec![],

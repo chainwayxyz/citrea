@@ -1,5 +1,5 @@
 use std::net::SocketAddr;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use citrea::MockDemoRollup;
 use citrea_sequencer::SequencerConfig;
@@ -29,7 +29,7 @@ pub async fn start_rollup(
     rt_genesis_paths: GenesisPaths,
     rollup_prover_config: Option<ProverConfig>,
     node_mode: NodeMode,
-    db_path: Option<&str>,
+    db_path: PathBuf,
     min_soft_confirmations_per_commitment: u64,
     include_tx_body: bool,
     rollup_config: Option<RollupConfig<MockDaConfig>>,
@@ -37,21 +37,9 @@ pub async fn start_rollup(
     test_mode: Option<bool>,
     deposit_mempool_fetch_limit: usize,
 ) {
-    let db_path = match db_path {
-        Some(path) => path.to_owned(),
-        None => {
-            let temp_dir = tempfile::tempdir().unwrap();
-            temp_dir.path().to_str().unwrap().to_owned()
-        }
-    };
     // create rollup config default creator function and use them here for the configs
     let rollup_config = rollup_config.unwrap_or_else(|| {
-        create_default_rollup_config(
-            include_tx_body,
-            Some(Path::new(&db_path)),
-            node_mode,
-            format!("{}/da.db", db_path),
-        )
+        create_default_rollup_config(include_tx_body, Some(Path::new(&db_path)), node_mode)
     });
 
     let mock_demo_rollup = MockDemoRollup {};
@@ -117,8 +105,8 @@ pub fn create_default_rollup_config(
     include_tx_body: bool,
     path: Option<&Path>,
     node_mode: NodeMode,
-    db_name: String,
 ) -> RollupConfig<MockDaConfig> {
+    let path = path.expect("Path should be set");
     RollupConfig {
         public_keys: RollupPublicKeys {
             sequencer_public_key: vec![
@@ -128,9 +116,8 @@ pub fn create_default_rollup_config(
             sequencer_da_pub_key: vec![0; 32],
             prover_da_pub_key: vec![0; 32],
         },
-
         storage: StorageConfig {
-            path: path.unwrap().to_path_buf(),
+            path: path.to_path_buf(),
         },
         rpc: RpcConfig {
             bind_host: "127.0.0.1".into(),
@@ -147,7 +134,6 @@ pub fn create_default_rollup_config(
         },
         da: MockDaConfig {
             sender_address: MockAddress::from([0; 32]),
-            db_name,
         },
     }
 }

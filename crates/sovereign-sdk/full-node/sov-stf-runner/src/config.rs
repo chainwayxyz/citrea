@@ -141,7 +141,6 @@ mod tests {
 
             [da]
             sender_address = "0000000000000000000000000000000000000000000000000000000000000000"
-            db_path = {:?}
             
             [storage]
             path = {:?}
@@ -150,7 +149,6 @@ mod tests {
             include_tx_body = true
             sequencer_client_url = "http://0.0.0.0:12346"
         "#,
-            tmpdir.path(),
             tmpdir.path()
         );
 
@@ -167,7 +165,6 @@ mod tests {
             }),
             da: sov_mock_da::MockDaConfig {
                 sender_address: [0; 32].into(),
-                db_path: tmpdir.path().to_path_buf(),
             },
             storage: StorageConfig {
                 path: tmpdir.path().to_path_buf(),

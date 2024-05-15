@@ -2,7 +2,6 @@ mod address;
 
 use std::fmt::{Debug, Formatter};
 use std::hash::Hasher;
-use std::path::PathBuf;
 
 pub use address::{MockAddress, MOCK_SEQUENCER_DA_ADDRESS};
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -146,8 +145,6 @@ impl BlockHeaderTrait for MockBlockHeader {
 pub struct MockDaConfig {
     /// The address to use to "submit" blobs on the mock da layer
     pub sender_address: MockAddress,
-    /// The database filename.
-    pub db_path: PathBuf,
 }
 
 #[derive(Clone, Default)]

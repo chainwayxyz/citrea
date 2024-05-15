@@ -7,19 +7,22 @@ use crate::test_helpers::{start_rollup, NodeMode};
 use crate::{DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT};
 
 /// Transaction with equal nonce to last tx should not be accepted by mempool.
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn too_many_l2_block_per_l1_block() {
     // citrea::initialize_logging();
 
+    let db_dir = tempfile::tempdir().unwrap();
+
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
-    tokio::spawn(async {
+    let db_dir_cloned = db_dir.path().to_path_buf();
+    tokio::spawn(async move {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests-low-limiting-number"),
             None,
             NodeMode::SequencerNode,
-            None,
+            db_dir_cloned,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             true,
             None,
@@ -33,7 +36,7 @@ async fn too_many_l2_block_per_l1_block() {
     let test_client = make_test_client(seq_port).await;
     let limiting_number = test_client.get_limiting_number().await;
 
-    let da_service = MockDaService::new(MockAddress::from([0; 32]));
+    let da_service = MockDaService::new(MockAddress::from([0; 32]), db_dir.path());
 
     // limiting number should be 10
     // we use a low limiting number because mockda creates blocks every 5 seconds
