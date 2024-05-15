@@ -193,7 +193,7 @@ fn build_commit_transaction(
     let tx = loop {
         if iteration % 100 == 0 {
             trace!(iteration, "Trying to find commitment size");
-            if iteration > 1000 {
+            if iteration > 5000 {
                 warn!("Too many iterations");
             }
         }

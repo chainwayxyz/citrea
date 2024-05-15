@@ -129,6 +129,7 @@ impl BitcoinService {
                     {
                         Ok(tx) => {
                             let tx_id = TxidWrapper(tx.id);
+                            info!(%tx.id, "Send tx to BitcoinDA");
                             prev_tx = Some(tx);
                             let _ = request.notify.send(Ok(tx_id));
                         }
@@ -138,6 +139,8 @@ impl BitcoinService {
                         }
                     }
                 }
+
+                error!("BitcoinDA queue stopped");
             });
         });
 

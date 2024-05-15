@@ -282,7 +282,10 @@ where
         &mut self,
         block_header: &Da::BlockHeader,
     ) -> anyhow::Result<Self::NativeStorage> {
-        trace!("Requested native storage for block {:?} ", block_header);
+        trace!(
+            "Requested native storage for block {:?}",
+            block_header.hash()
+        );
         let current_block_hash = block_header.hash();
         let prev_block_hash = block_header.prev_hash();
         assert_ne!(
@@ -414,7 +417,7 @@ where
     }
 
     fn finalize(&mut self, block_header: &Da::BlockHeader) -> anyhow::Result<()> {
-        debug!("Finalizing block: {:?}", block_header);
+        debug!("Finalizing block: {:?}", block_header.hash());
         let current_block_hash = block_header.hash();
         let prev_block_hash = block_header.prev_hash();
         self.finalize_by_hash_pair(prev_block_hash, current_block_hash)

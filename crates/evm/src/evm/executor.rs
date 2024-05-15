@@ -101,7 +101,8 @@ pub(crate) fn execute_multiple_tx<
 
     let mut tx_results = Vec::with_capacity(txs.len());
     for (i, tx) in txs.iter().enumerate() {
-        let _span = trace_span!("Processing tx", i, signer = %tx.signer()).entered();
+        let _span =
+            trace_span!("Processing tx", i, signer = %tx.signer(), tx_hash = %tx.hash()).entered();
         let result_and_state = match evm.transact(tx) {
             Ok(result_and_state) => result_and_state,
             Err(e) => {
