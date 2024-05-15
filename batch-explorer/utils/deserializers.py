@@ -26,7 +26,7 @@ def deserialize_to_commitment_response(rows):
     for row in rows:
         responses.append(
             CommitmentResponse(
-                l1_tx_id=f"{CONFIG.mempool_space_url}/tx/{row[3]}",
+                l1_tx_id=f"{CONFIG.mempool_space_url}/tx/{row[3].decode("utf-8")}",
                 l1_start_hash=row[4].hex(),
                 l1_end_hash=row[5].hex(),
                 l1_start_hash_mempool_url=f"{CONFIG.mempool_space_url}/block/{row[4].hex()}",

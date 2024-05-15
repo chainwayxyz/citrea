@@ -84,6 +84,13 @@ async def get_l2_block_status(request: Request, search_param: SearchParam):
     except Exception as e:
         return Response(status_code=400, content="Invalid block hash or height")
 
+@router.get("/commitment_count")
+async def get_commitment_count(request: Request):
+    async with request.app.async_pool.connection() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute("SELECT COUNT(*) FROM sequencer_commitments")
+            result = await cur.fetchone()
+            return result[0]
 
 if CONFIG.env == "test":
 
@@ -100,7 +107,7 @@ if CONFIG.env == "test":
             def random_32_byte_array():
                 return str("%030x" % random.randrange(16**32))
 
-            for i in range(10):
+            for i in range(116):
                 yield SequencerCommitment(
                     l1_start_height=l1_start_height,
                     l1_end_height=l1_end_height,

@@ -7,11 +7,11 @@ use citrea_evm::smart_contracts::SimpleStorageContract;
 use citrea_evm::system_contracts::BitcoinLightClient;
 use citrea_sequencer::{SequencerConfig, SequencerMempoolConfig};
 use citrea_stf::genesis_config::GenesisPaths;
-use const_rollup_config::TEST_PRIVATE_KEY;
 use ethereum_types::{H256, U256};
 use ethers::abi::Address;
 use ethers_signers::{LocalWallet, Signer};
 use reth_primitives::{BlockNumberOrTag, TxHash};
+use rollup_constants::TEST_PRIVATE_KEY;
 use secp256k1::rand::thread_rng;
 use shared_backup_db::{PostgresConnector, SharedBackupDbConfig};
 use sov_mock_da::{MockAddress, MockDaService, MockDaSpec, MockHash};
@@ -1843,7 +1843,7 @@ async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
 
 #[tokio::test]
 async fn transaction_failing_on_l1_is_removed_from_mempool() -> Result<(), anyhow::Error> {
-    citrea::initialize_logging();
+    // citrea::initialize_logging();
 
     let (seq_test_client, full_node_test_client, seq_task, full_node_task, _) =
         initialize_test(Default::default()).await;

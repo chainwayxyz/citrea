@@ -4,7 +4,7 @@ use bitcoin_da::spec::{BitcoinSpec, RollupParams};
 use bitcoin_da::verifier::BitcoinVerifier;
 use citrea_stf::genesis_config::StorageConfig;
 use citrea_stf::runtime::Runtime;
-use const_rollup_config::{DA_TX_ID_LEADING_ZEROS, ROLLUP_NAME};
+use rollup_constants::{DA_TX_ID_LEADING_ZEROS, ROLLUP_NAME};
 use sov_db::ledger_db::LedgerDB;
 use sov_modules_api::default_context::{DefaultContext, ZkDefaultContext};
 use sov_modules_api::{Address, Spec};

@@ -18,6 +18,7 @@ use reth_primitives::{FromRecoveredPooledTransaction, IntoRecoveredTransaction};
 use reth_provider::BlockReaderIdExt;
 use reth_transaction_pool::{BestTransactionsAttributes, EthPooledTransaction, PoolTransaction};
 use shared_backup_db::{CommitmentStatus, PostgresConnector, SharedBackupDbConfig};
+use soft_confirmation_rule_enforcer::SoftConfirmationRuleEnforcer;
 use sov_accounts::Accounts;
 use sov_accounts::Response::{AccountEmpty, AccountExists};
 use sov_db::ledger_db::{LedgerDB, SlotCommit};
@@ -38,7 +39,7 @@ use sov_stf_runner::{InitVariant, RollupPublicKeys, RpcConfig};
 use tokio::sync::oneshot::Receiver as OneshotReceiver;
 use tokio::sync::Mutex;
 use tokio::time::sleep;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info, instrument, warn};
 
 use crate::commitment_controller::{self, CommitmentInfo};
 use crate::config::SequencerConfig;
@@ -74,6 +75,7 @@ where
     state_root: StateRoot<Stf, Vm, Da::Spec>,
     sequencer_pub_key: Vec<u8>,
     rpc_config: RpcConfig,
+    soft_confirmation_rule_enforcer: SoftConfirmationRuleEnforcer<C, Da::Spec>,
 }
 
 enum L2BlockMode {
@@ -138,6 +140,9 @@ where
         let sov_tx_signer_priv_key =
             C::PrivateKey::try_from(&hex::decode(&config.private_key).unwrap()).unwrap();
 
+        let soft_confirmation_rule_enforcer =
+            SoftConfirmationRuleEnforcer::<C, <Da as DaService>::Spec>::default();
+
         Ok(Self {
             da_service,
             mempool: Arc::new(pool),
@@ -154,6 +159,7 @@ where
             state_root: prev_state_root,
             sequencer_pub_key: public_keys.sequencer_public_key,
             rpc_config,
+            soft_confirmation_rule_enforcer,
         })
     }
 
@@ -208,10 +214,11 @@ where
         Ok(())
     }
 
+    #[instrument(level = "debug", skip_all, err, ret)]
     async fn produce_l2_block(
         &mut self,
         da_block: <Da as DaService>::FilteredBlock,
-        l1_fee_rate: u64,
+        l1_fee_rate: u128,
         l2_block_mode: L2BlockMode,
         pg_pool: &Option<PostgresConnector>,
     ) -> anyhow::Result<()> {
@@ -424,11 +431,16 @@ where
                     err
                 );
                 batch_workspace.revert();
+                return Err(anyhow!(
+                    "Failed to apply begin soft confirmation hook: {:?}",
+                    err
+                ));
             }
         }
         Ok(())
     }
 
+    #[instrument(level = "trace", skip_all, err, ret)]
     pub async fn build_block(&mut self, pg_pool: &Option<PostgresConnector>) -> anyhow::Result<()> {
         // best txs with base fee
         // get base fee from last blocks => header => next base fee() function
@@ -464,11 +476,15 @@ where
             last_finalized_height
         );
 
+        let fee_rate_range = self.get_l1_fee_rate_range()?;
+
         let l1_fee_rate = self
             .da_service
             .get_fee_rate()
             .await
             .map_err(|e| anyhow!(e))?;
+
+        let l1_fee_rate = l1_fee_rate.clamp(*fee_rate_range.start(), *fee_rate_range.end());
 
         let new_da_block = match last_finalized_height.cmp(&prev_l1_height) {
             Ordering::Less => {
@@ -575,6 +591,7 @@ where
         Ok(())
     }
 
+    #[instrument(level = "trace", skip(self), err, ret)]
     pub async fn run(&mut self) -> Result<(), anyhow::Error> {
         // TODO: hotfix for mock da
         self.da_service
@@ -861,5 +878,13 @@ where
             }
             None => Ok(()),
         }
+    }
+
+    fn get_l1_fee_rate_range(&self) -> Result<RangeInclusive<u128>, anyhow::Error> {
+        let mut working_set = WorkingSet::<C>::new(self.storage.clone());
+
+        self.soft_confirmation_rule_enforcer
+            .get_next_min_max_l1_fee_rate(&mut working_set)
+            .map_err(|e| anyhow::anyhow!("Error reading min max l1 fee rate: {}", e))
     }
 }
