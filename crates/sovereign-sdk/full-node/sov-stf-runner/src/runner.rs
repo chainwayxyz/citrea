@@ -520,7 +520,6 @@ where
             match proof {
                 Proof::PublicInput(_) => {
                     tracing::warn!("Proof is public input, skipping");
-                    continue;
                 }
                 Proof::Full(ref proof) => {
                     tracing::info!("Verifying proof!");
