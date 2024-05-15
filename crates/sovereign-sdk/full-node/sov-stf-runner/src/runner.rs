@@ -10,6 +10,7 @@ use jsonrpsee::RpcModule;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 use sequencer_client::SequencerClient;
+use shared_backup_db::PostgresConnector;
 use sov_db::ledger_db::{LedgerDB, SlotCommit};
 use sov_db::schema::types::{BatchNumber, SlotNumber, StoredSoftBatch, StoredStateTransition};
 use sov_modules_api::{Context, SignedSoftConfirmationBatch};
@@ -29,7 +30,7 @@ use tracing::{debug, error, info};
 
 use crate::prover_helpers::get_initial_slot_height;
 use crate::verifier::StateTransitionVerifier;
-use crate::{ProverService, RollupPublicKeys, RpcConfig, RunnerConfig};
+use crate::{ProverConfig, ProverService, RollupPublicKeys, RpcConfig, RunnerConfig};
 
 type StateRoot<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::StateRoot;
 type GenesisParams<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::GenesisParams;
@@ -65,6 +66,7 @@ where
     prover_da_pub_key: Vec<u8>,
     phantom: std::marker::PhantomData<C>,
     include_tx_body: bool,
+    prover_config: Option<ProverConfig>,
 }
 
 /// Represents the possible modes of execution for a zkVM program
@@ -123,6 +125,7 @@ where
         mut storage_manager: Sm,
         init_variant: InitVariant<Stf, Vm, Da::Spec>,
         prover_service: Option<Ps>,
+        prover_config: Option<ProverConfig>,
     ) -> Result<Self, anyhow::Error> {
         let prev_state_root = match init_variant {
             InitVariant::Initialized(state_root) => {
@@ -164,6 +167,7 @@ where
             prover_da_pub_key: public_keys.prover_da_pub_key,
             phantom: std::marker::PhantomData,
             include_tx_body: runner_config.include_tx_body,
+            prover_config,
         })
     }
 
@@ -237,6 +241,14 @@ where
         };
 
         let mut l2_height = self.start_height;
+
+        let pg_client = match self.prover_config.clone().unwrap().db_config {
+            Some(db_config) => {
+                println!("Connecting to postgres");
+                Some(PostgresConnector::new(db_config.clone()).await)
+            }
+            None => None,
+        };
 
         loop {
             let last_finalized_height = self
@@ -528,6 +540,28 @@ where
                 sequencer_da_public_key: transition_data.sequencer_da_public_key,
                 validity_condition: transition_data.validity_condition.try_to_vec().unwrap(),
             };
+
+            match pg_client.as_ref() {
+                Some(Ok(pool)) => {
+                    println!("Inserting proof data into postgres");
+                    pool.insert_proof_data(
+                        tx_id_u8.to_vec(),
+                        proof.try_to_vec().unwrap(),
+                        stored_state_transition.initial_state_root.clone(),
+                        stored_state_transition.final_state_root.clone(),
+                        stored_state_transition.state_diff.clone(),
+                        stored_state_transition.da_slot_hash.clone().to_vec(),
+                        stored_state_transition.sequencer_public_key.clone(),
+                        stored_state_transition.sequencer_da_public_key.clone(),
+                        stored_state_transition.validity_condition.clone(),
+                    )
+                    .await
+                    .unwrap();
+                }
+                _ => {
+                    tracing::warn!("No postgres client found");
+                }
+            }
 
             for (sequencer_commitment, l1_heights) in
                 sequencer_commitments.into_iter().zip(traversed_l1_tuples)

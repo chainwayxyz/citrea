@@ -3,6 +3,7 @@ use std::path::Path;
 use std::str::FromStr;
 use std::time::Duration;
 
+use borsh::BorshSerialize;
 use citrea_evm::smart_contracts::SimpleStorageContract;
 use citrea_evm::system_contracts::BitcoinLightClient;
 use citrea_sequencer::{SequencerConfig, SequencerMempoolConfig};
@@ -2071,4 +2072,111 @@ async fn sequencer_crash_restore_mempool() -> Result<(), anyhow::Error> {
     let _ = fs::remove_dir_all(Path::new("demo_data_sequencer_restore_mempool_copy"));
 
     Ok(())
+}
+
+#[tokio::test]
+async fn test_db_get_proof() {
+    //citrea::initialize_logging();
+
+    let db_test_client = PostgresConnector::new_test_client().await.unwrap();
+
+    let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
+
+    let seq_task = tokio::spawn(async {
+        start_rollup(
+            seq_port_tx,
+            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
+            None,
+            NodeMode::SequencerNode,
+            None,
+            4,
+            true,
+            None,
+            None,
+            Some(true),
+            DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
+        )
+        .await;
+    });
+
+    let seq_port = seq_port_rx.await.unwrap();
+    let test_client = make_test_client(seq_port).await;
+    let da_service = MockDaService::new(MockAddress::from([0; 32]));
+
+    let (prover_node_port_tx, prover_node_port_rx) = tokio::sync::oneshot::channel();
+
+    let prover_node_task = tokio::spawn(async move {
+        start_rollup(
+            prover_node_port_tx,
+            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
+            Some(ProverConfig {
+                proving_mode: sov_stf_runner::ProverGuestRunConfig::Execute,
+                skip_proving_until_l1_height: None,
+                db_config: Some(SharedBackupDbConfig::default()),
+            }),
+            NodeMode::Prover(seq_port),
+            None,
+            4,
+            true,
+            None,
+            None,
+            Some(true),
+            DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
+        )
+        .await;
+    });
+
+    let prover_node_port = prover_node_port_rx.await.unwrap();
+
+    let prover_node_test_client = make_test_client(prover_node_port).await;
+    da_service.publish_test_block().await.unwrap();
+    sleep(Duration::from_secs(1)).await;
+
+    test_client.send_publish_batch_request().await;
+    test_client.send_publish_batch_request().await;
+    test_client.send_publish_batch_request().await;
+    test_client.send_publish_batch_request().await;
+    da_service.publish_test_block().await.unwrap();
+    // submits with new da block
+    test_client.send_publish_batch_request().await;
+    // prover node gets the commitment
+    test_client.send_publish_batch_request().await;
+    // da_service.publish_test_block().await.unwrap();
+
+    // wait here until we see from prover's rpc that it finished proving
+    while prover_node_test_client
+        .prover_get_last_scanned_l1_height()
+        .await
+        != 5
+    {
+        // sleep 2
+        sleep(Duration::from_secs(2)).await;
+    }
+    sleep(Duration::from_secs(4)).await;
+
+    let ledger_proof = prover_node_test_client
+        .ledger_get_proof_by_slot_height(4)
+        .await;
+
+    sleep(Duration::from_secs(4)).await;
+
+    let db_proofs = db_test_client.get_all_proof_data().await.unwrap();
+
+    assert_eq!(db_proofs.len(), 1);
+    assert_eq!(
+        db_proofs[0].sequencer_da_public_key,
+        ledger_proof.state_transition.sequencer_da_public_key
+    );
+    assert_eq!(
+        db_proofs[0].sequencer_public_key,
+        ledger_proof.state_transition.sequencer_public_key
+    );
+    assert_eq!(db_proofs[0].l1_tx_id, ledger_proof.l1_tx_id);
+    assert_eq!(
+        db_proofs[0].proof_data,
+        ledger_proof.proof.try_to_vec().unwrap()
+    );
+
+    seq_task.abort();
+    prover_node_task.abort();
 }

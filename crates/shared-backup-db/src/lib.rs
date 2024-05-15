@@ -5,4 +5,4 @@ mod utils;
 
 pub use config::SharedBackupDbConfig;
 pub use postgres_connector::PostgresConnector;
-pub use tables::{CommitmentStatus, DbSequencerCommitment, Tables};
+pub use tables::{CommitmentStatus, DbProof, DbSequencerCommitment, Tables};
