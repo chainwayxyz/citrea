@@ -84,7 +84,7 @@ pub struct GetSoftBatchResponse {
     pub deposit_data: Vec<HexTx>, // Vec<u8> wrapper around deposit data
     #[serde(with = "hex::serde")]
     pub pub_key: Vec<u8>,
-    pub l1_fee_rate: u64,
+    pub l1_fee_rate: u128,
     pub timestamp: u64,
 }
 

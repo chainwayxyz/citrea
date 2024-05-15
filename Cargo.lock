@@ -1580,7 +1580,6 @@ dependencies = [
  "citrea-sequencer",
  "citrea-stf",
  "clap",
- "const-rollup-config",
  "ethereum-rpc",
  "ethereum-types",
  "ethers",
@@ -1601,6 +1600,7 @@ dependencies = [
  "reth-transaction-pool",
  "revm",
  "risc0",
+ "rollup-constants",
  "rs_merkle",
  "rustc_version_runtime",
  "secp256k1 0.27.0",
@@ -1728,6 +1728,7 @@ dependencies = [
  "serde",
  "serde_json",
  "shared-backup-db",
+ "soft-confirmation-rule-enforcer",
  "sov-accounts",
  "sov-db",
  "sov-mock-da",
@@ -2372,12 +2373,6 @@ dependencies = [
  "soft-confirmation-rule-enforcer",
  "sov-accounts",
  "sov-bank",
- "sov-blob-storage",
- "sov-chain-state",
- "sov-cli",
- "sov-data-generators",
- "sov-mock-da",
- "sov-mock-zkvm",
  "sov-modules-api",
  "sov-modules-stf-blueprint",
  "sov-nft-module",
@@ -2919,6 +2914,7 @@ dependencies = [
  "jsonrpsee",
  "proptest",
  "reth-primitives",
+ "reth-rpc",
  "reth-rpc-types",
  "reth-rpc-types-compat",
  "rustc_version_runtime",
@@ -4379,14 +4375,11 @@ dependencies = [
  "borsh",
  "jsonrpsee",
  "serde",
- "sov-chain-state",
  "sov-modules-api",
- "sov-modules-stf-blueprint",
  "sov-prover-storage-manager",
  "sov-rollup-interface",
  "sov-schema-db",
  "sov-state",
- "sov-value-setter",
  "tempfile",
 ]
 
@@ -7966,6 +7959,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "rollup-constants"
+version = "0.3.0"
+
+[[package]]
 name = "route-recognizer"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8874,30 +8871,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sov-attester-incentives"
-version = "0.3.0"
-dependencies = [
- "anyhow",
- "bcs",
- "bincode",
- "borsh",
- "jmt",
- "serde",
- "serde_json",
- "sov-bank",
- "sov-chain-state",
- "sov-mock-da",
- "sov-mock-zkvm",
- "sov-modules-api",
- "sov-modules-core",
- "sov-prover-storage-manager",
- "sov-rollup-interface",
- "sov-state",
- "tempfile",
- "thiserror",
-]
-
-[[package]]
 name = "sov-bank"
 version = "0.3.0"
 dependencies = [
@@ -8914,47 +8887,6 @@ dependencies = [
  "sov-state",
  "tempfile",
  "thiserror",
-]
-
-[[package]]
-name = "sov-blob-storage"
-version = "0.3.0"
-dependencies = [
- "anyhow",
- "bincode",
- "borsh",
- "clap",
- "hex",
- "jmt",
- "jsonrpsee",
- "schemars",
- "serde",
- "serde_json",
- "sov-bank",
- "sov-blob-storage",
- "sov-chain-state",
- "sov-mock-da",
- "sov-modules-api",
- "sov-prover-storage-manager",
- "sov-sequencer-registry",
- "sov-state",
- "tempfile",
- "tracing",
-]
-
-[[package]]
-name = "sov-chain-state"
-version = "0.3.0"
-dependencies = [
- "anyhow",
- "borsh",
- "jsonrpsee",
- "serde",
- "serde_json",
- "sov-modules-api",
- "sov-prover-storage-manager",
- "sov-state",
- "tempfile",
 ]
 
 [[package]]
@@ -9197,8 +9129,6 @@ dependencies = [
  "risc0-zkvm-platform",
  "rs_merkle",
  "serde",
- "sov-blob-storage",
- "sov-chain-state",
  "sov-modules-api",
  "sov-rollup-interface",
  "sov-state",
@@ -9390,17 +9320,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sov-soft-confirmations-kernel"
-version = "0.3.0"
-dependencies = [
- "anyhow",
- "sov-blob-storage",
- "sov-chain-state",
- "sov-modules-api",
- "sov-state",
-]
-
-[[package]]
 name = "sov-state"
 version = "0.3.0"
 dependencies = [
@@ -9442,7 +9361,6 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.10.8",
- "sov-bank",
  "sov-db",
  "sov-mock-da",
  "sov-mock-zkvm",
@@ -9450,7 +9368,6 @@ dependencies = [
  "sov-modules-stf-blueprint",
  "sov-prover-storage-manager",
  "sov-rollup-interface",
- "sov-sequencer-registry",
  "sov-state",
  "sov-stf-runner",
  "tempfile",

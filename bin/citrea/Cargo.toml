@@ -17,7 +17,7 @@ bitcoin-da = { path = "../../crates/bitcoin-da", features = ["native"] }
 sov-mock-da = { path = "../../crates/sovereign-sdk/adapters/mock-da", features = [
     "native",
 ] }
-const-rollup-config = { path = "../../crates/sovereign-sdk/examples/const-rollup-config" }
+rollup-constants = { path = "../rollup-constants" }
 sov-stf-runner = { path = "../../crates/sovereign-sdk/full-node/sov-stf-runner", features = [
     "native",
 ] }

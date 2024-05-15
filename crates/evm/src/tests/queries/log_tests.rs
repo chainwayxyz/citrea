@@ -4,6 +4,7 @@ use alloy_primitives::FixedBytes;
 use hex::FromHex;
 use reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT;
 use reth_primitives::BlockNumberOrTag;
+use reth_rpc::eth::error::EthApiError;
 use revm::primitives::{B256, U256};
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
@@ -15,7 +16,7 @@ use crate::smart_contracts::LogsContract;
 use crate::tests::call_tests::{create_contract_message, get_evm_config, publish_event_message};
 use crate::tests::queries::init_evm;
 use crate::tests::utils::get_evm;
-use crate::{EthApiError, Filter, FilterBlockOption, FilterSet};
+use crate::{Filter, FilterBlockOption, FilterSet};
 
 type C = DefaultContext;
 

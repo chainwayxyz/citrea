@@ -9,7 +9,6 @@ use async_trait::async_trait;
 use citrea_sequencer::{CitreaSequencer, SequencerConfig};
 pub use runtime_rpc::*;
 use sov_db::ledger_db::LedgerDB;
-use sov_modules_api::runtime::capabilities::{Kernel, KernelSlotHooks};
 use sov_modules_api::{Context, DaSpec, Spec};
 use sov_modules_stf_blueprint::{GenesisParams, Runtime as RuntimeTrait, StfBlueprint};
 use sov_rollup_interface::services::da::DaService;
@@ -53,11 +52,6 @@ pub trait RollupBlueprint: Sized + Send + Sync {
     /// Runtime for the Native environment.
     type NativeRuntime: RuntimeTrait<Self::NativeContext, Self::DaSpec> + Default + Send + Sync;
 
-    /// The kernel for the native environment.
-    type NativeKernel: KernelSlotHooks<Self::NativeContext, Self::DaSpec> + Default + Send + Sync;
-    /// The kernel for the Zero Knowledge environment.
-    type ZkKernel: KernelSlotHooks<Self::ZkContext, Self::DaSpec> + Default;
-
     /// Prover service.
     type ProverService: ProverService<
         Self::Vm,
@@ -86,12 +80,10 @@ pub trait RollupBlueprint: Sized + Send + Sync {
             Self::NativeContext,
             Self::DaSpec,
         >>::GenesisPaths,
-        kernel_genesis: <Self::NativeKernel as Kernel<Self::NativeContext, Self::DaSpec>>::GenesisConfig,
         _rollup_config: &RollupConfig<Self::DaConfig>,
     ) -> anyhow::Result<
         GenesisParams<
             <Self::NativeRuntime as RuntimeTrait<Self::NativeContext, Self::DaSpec>>::GenesisConfig,
-            <Self::NativeKernel as Kernel<Self::NativeContext, Self::DaSpec>>::GenesisConfig,
         >,
     > {
         let rt_genesis = <Self::NativeRuntime as RuntimeTrait<
@@ -101,7 +93,6 @@ pub trait RollupBlueprint: Sized + Send + Sync {
 
         Ok(GenesisParams {
             runtime: rt_genesis,
-            kernel: kernel_genesis,
         })
     }
 
@@ -138,7 +129,6 @@ pub trait RollupBlueprint: Sized + Send + Sync {
             Self::NativeContext,
             Self::DaSpec,
         >>::GenesisPaths,
-        kernel_genesis_config: <Self::NativeKernel as Kernel<Self::NativeContext, Self::DaSpec>>::GenesisConfig,
         rollup_config: RollupConfig<Self::DaConfig>,
         sequencer_config: SequencerConfig,
     ) -> Result<Sequencer<Self>, anyhow::Error>
@@ -152,11 +142,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         // Getting block here, so prover_service doesn't have to be `Send`
 
         let ledger_db = self.create_ledger_db(&rollup_config);
-        let genesis_config = self.create_genesis_config(
-            runtime_genesis_paths,
-            kernel_genesis_config,
-            &rollup_config,
-        )?;
+        let genesis_config = self.create_genesis_config(runtime_genesis_paths, &rollup_config)?;
 
         let mut storage_manager = self.create_storage_manager(&rollup_config)?;
         let prover_storage = storage_manager.create_finalized_storage()?;
@@ -208,7 +194,6 @@ pub trait RollupBlueprint: Sized + Send + Sync {
             Self::NativeContext,
             Self::DaSpec,
         >>::GenesisPaths,
-        kernel_genesis_config: <Self::NativeKernel as Kernel<Self::NativeContext, Self::DaSpec>>::GenesisConfig,
         rollup_config: RollupConfig<Self::DaConfig>,
         prover_config: ProverConfig,
     ) -> Result<Prover<Self>, anyhow::Error>
@@ -226,11 +211,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         // Getting block here, so prover_service doesn't have to be `Send`
 
         let ledger_db = self.create_ledger_db(&rollup_config);
-        let genesis_config = self.create_genesis_config(
-            runtime_genesis_paths,
-            kernel_genesis_config,
-            &rollup_config,
-        )?;
+        let genesis_config = self.create_genesis_config(runtime_genesis_paths, &rollup_config)?;
 
         let mut storage_manager = self.create_storage_manager(&rollup_config)?;
         let prover_storage = storage_manager.create_finalized_storage()?;
@@ -286,7 +267,6 @@ pub trait RollupBlueprint: Sized + Send + Sync {
             Self::NativeContext,
             Self::DaSpec,
         >>::GenesisPaths,
-        kernel_genesis_config: <Self::NativeKernel as Kernel<Self::NativeContext, Self::DaSpec>>::GenesisConfig,
         rollup_config: RollupConfig<Self::DaConfig>,
     ) -> Result<FullNode<Self>, anyhow::Error>
     where
@@ -299,11 +279,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         // Getting block here, so prover_service doesn't have to be `Send`
 
         let ledger_db = self.create_ledger_db(&rollup_config);
-        let genesis_config = self.create_genesis_config(
-            runtime_genesis_paths,
-            kernel_genesis_config,
-            &rollup_config,
-        )?;
+        let genesis_config = self.create_genesis_config(runtime_genesis_paths, &rollup_config)?;
 
         let mut storage_manager = self.create_storage_manager(&rollup_config)?;
         let prover_storage = storage_manager.create_finalized_storage()?;
@@ -362,7 +338,7 @@ pub struct Sequencer<S: RollupBlueprint> {
         S::DaService,
         S::StorageManager,
         S::Vm,
-        StfBlueprint<S::NativeContext, S::DaSpec, S::Vm, S::NativeRuntime, S::NativeKernel>,
+        StfBlueprint<S::NativeContext, S::DaSpec, S::Vm, S::NativeRuntime>,
     >,
     /// Rpc methods for the rollup.
     pub rpc_methods: jsonrpsee::RpcModule<()>,
@@ -393,7 +369,7 @@ pub struct FullNode<S: RollupBlueprint> {
     /// The State Transition Runner.
     #[allow(clippy::type_complexity)]
     pub runner: StateTransitionRunner<
-        StfBlueprint<S::NativeContext, S::DaSpec, S::Vm, S::NativeRuntime, S::NativeKernel>,
+        StfBlueprint<S::NativeContext, S::DaSpec, S::Vm, S::NativeRuntime>,
         S::StorageManager,
         S::DaService,
         S::Vm,
@@ -434,7 +410,7 @@ pub struct Prover<S: RollupBlueprint> {
     /// The State Transition Runner.
     #[allow(clippy::type_complexity)]
     pub runner: StateTransitionRunner<
-        StfBlueprint<S::NativeContext, S::DaSpec, S::Vm, S::NativeRuntime, S::NativeKernel>,
+        StfBlueprint<S::NativeContext, S::DaSpec, S::Vm, S::NativeRuntime>,
         S::StorageManager,
         S::DaService,
         S::Vm,

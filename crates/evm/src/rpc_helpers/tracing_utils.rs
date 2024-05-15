@@ -1,5 +1,6 @@
 use reth_primitives::revm_primitives::TxEnv;
 use reth_primitives::{TransactionSigned, TransactionSignedEcRecovered, TxHash, U256};
+use reth_rpc::eth::error::{EthApiError, EthResult, RpcInvalidTransactionError};
 use reth_rpc_types::trace::geth::{
     FourByteFrame, GethDebugBuiltInTracerType, GethDebugTracerType, GethDebugTracingOptions,
     GethTrace, NoopFrame,
@@ -10,13 +11,11 @@ use revm::primitives::{Address, CfgEnvWithHandlerCfg, EVMError, ResultAndState, 
 use revm::{inspector_handle_register, Inspector};
 use revm_inspectors::tracing::{FourByteInspector, TracingInspector, TracingInspectorConfig};
 
-use crate::error::rpc::{EthApiError, EthResult};
 use crate::evm::db::EvmDb;
 use crate::evm::primitive_types::BlockEnv;
 use crate::handler::{
     citrea_handle_register, CitreaExternal, CitreaExternalExt, TracingCitreaExternal, TxInfo,
 };
-use crate::RpcInvalidTransactionError;
 
 pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
     opts: GethDebugTracingOptions,
@@ -25,7 +24,7 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
     tx_env: TxEnv,
     tx_hash: TxHash,
     db: &mut EvmDb<'_, C>,
-    l1_fee_rate: u64,
+    l1_fee_rate: u128,
 ) -> EthResult<(GethTrace, revm::primitives::State)> {
     let GethDebugTracingOptions {
         config,
@@ -179,7 +178,7 @@ pub(crate) fn inspect_no_tracing<DB>(
     config_env: CfgEnvWithHandlerCfg,
     block_env: BlockEnv,
     tx_env: TxEnv,
-    l1_fee_rate: u64,
+    l1_fee_rate: u128,
 ) -> Result<(ResultAndState, TxInfo), EVMError<DB::Error>>
 where
     DB: Database,

@@ -1,7 +1,7 @@
 use std::sync::Mutex;
 
-use citrea_evm::EthResult;
 use reth_primitives::{BlockNumberOrTag, B256};
+use reth_rpc::eth::error::EthResult;
 use reth_rpc_types::{Block, BlockTransactions, Rich, TransactionReceipt};
 use schnellru::{ByLength, LruMap};
 use sov_modules_api::WorkingSet;
