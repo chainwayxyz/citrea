@@ -113,13 +113,15 @@ async fn test_instant_finality_data_stored() {
 }
 
 async fn runner_execution(
-    path: &std::path::Path,
+    storage_path: &std::path::Path,
     init_variant: MockInitVariant,
     da_service: MockDaService,
 ) -> ([u8; 32], [u8; 32]) {
+    let rollup_storage_path = storage_path.join("rollup").to_path_buf();
     let rollup_config = RollupConfig::<MockDaConfig> {
         storage: StorageConfig {
-            path: path.to_path_buf(),
+            rollup_path: rollup_storage_path.clone(),
+            da_path: storage_path.join("da").to_path_buf(),
         },
         rpc: RpcConfig {
             bind_host: "127.0.0.1".to_string(),
@@ -141,12 +143,12 @@ async fn runner_execution(
         },
     };
 
-    let ledger_db = LedgerDB::with_path(path).unwrap();
+    let ledger_db = LedgerDB::with_path(rollup_storage_path.clone()).unwrap();
 
     let stf = HashStf::<MockValidityCond>::new();
 
     let storage_config = sov_state::config::Config {
-        path: rollup_config.storage.path.clone(),
+        path: rollup_storage_path,
     };
     let mut storage_manager = ProverStorageManager::new(storage_config).unwrap();
 
