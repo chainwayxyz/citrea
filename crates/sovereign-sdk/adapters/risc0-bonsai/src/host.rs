@@ -6,7 +6,6 @@ use std::time::Duration;
 
 use anyhow::anyhow;
 use bonsai_sdk::alpha as bonsai_sdk;
-use bonsai_sdk::responses::SnarkReceipt;
 use risc0_zkvm::serde::to_vec;
 use risc0_zkvm::sha::Digest;
 use risc0_zkvm::{
@@ -17,8 +16,6 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_risc0_adapter::guest::Risc0Guest;
 use sov_rollup_interface::zk::{Proof, Zkvm, ZkvmHost};
-
-use crate::Risc0MethodId;
 
 /// Requests to bonsai client. Each variant represents its own method.
 enum BonsaiRequest {
@@ -341,7 +338,7 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
             // Start a session running the prover
             let session = client
                 //hanfle error
-                .create_session(hex::encode(self.image_id.clone()), input_id, vec![])
+                .create_session(hex::encode(self.image_id), input_id, vec![])
                 .map_err(|e| anyhow!("Bonsai API return error: {}", e))?;
             tracing::info!("Session created: {}", session.uuid);
             let receipt = loop {
@@ -458,8 +455,8 @@ impl<'host> Zkvm for Risc0BonsaiHost<'host> {
     type Error = anyhow::Error;
 
     fn verify<'a>(
-        serialized_proof: &'a [u8],
-        code_commitment: &Self::CodeCommitment,
+        _serialized_proof: &'a [u8],
+        _code_commitment: &Self::CodeCommitment,
     ) -> Result<&'a [u8], Self::Error> {
         unimplemented!();
     }
@@ -473,12 +470,13 @@ impl<'host> Zkvm for Risc0BonsaiHost<'host> {
     ) -> Result<sov_rollup_interface::zk::StateTransition<Da, Root>, Self::Error> {
         let receipt: Receipt = bincode::deserialize(serialized_proof)?;
 
+        #[allow(clippy::clone_on_copy)]
         receipt.verify(code_commitment.clone())?;
 
         Ok(receipt.journal.decode()?)
     }
 
     fn get_code_commitment(&self) -> Self::CodeCommitment {
-        self.image_id.clone()
+        self.image_id
     }
 }
