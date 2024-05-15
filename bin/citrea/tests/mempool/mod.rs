@@ -9,10 +9,13 @@ use tokio::task::JoinHandle;
 
 use crate::evm::make_test_client;
 use crate::test_client::{TestClient, MAX_FEE_PER_GAS};
-use crate::test_helpers::{start_rollup, NodeMode};
+use crate::test_helpers::{start_rollup, tempdir_with_children, NodeMode};
 use crate::{DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT};
 
-async fn initialize_test(db_path: PathBuf) -> (JoinHandle<()>, Box<TestClient>) {
+async fn initialize_test(
+    sequencer_path: PathBuf,
+    db_path: PathBuf,
+) -> (JoinHandle<()>, Box<TestClient>) {
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
     let seq_task = tokio::spawn(async {
@@ -21,6 +24,7 @@ async fn initialize_test(db_path: PathBuf) -> (JoinHandle<()>, Box<TestClient>) 
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             None,
             NodeMode::SequencerNode,
+            sequencer_path,
             db_path,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             true,
@@ -43,8 +47,10 @@ async fn initialize_test(db_path: PathBuf) -> (JoinHandle<()>, Box<TestClient>) 
 async fn test_same_nonce_tx_should_panic() {
     // citrea::initialize_logging();
 
-    let db_dir = tempfile::tempdir().unwrap();
-    let (seq_task, test_client) = initialize_test(db_dir.path().to_path_buf()).await;
+    let db_dir = tempdir_with_children(&vec!["DA", "sequencer", "full-node"]);
+    let da_db_dir = db_dir.path().join("DA").to_path_buf();
+    let sequencer_db_dir = db_dir.path().join("sequencer").to_path_buf();
+    let (seq_task, test_client) = initialize_test(sequencer_db_dir, da_db_dir).await;
 
     let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
 
@@ -71,8 +77,10 @@ async fn test_same_nonce_tx_should_panic() {
 async fn test_nonce_too_low() {
     // citrea::initialize_logging();
 
-    let db_dir = tempfile::tempdir().unwrap();
-    let (seq_task, test_client) = initialize_test(db_dir.path().to_path_buf()).await;
+    let db_dir = tempdir_with_children(&vec!["DA", "sequencer", "full-node"]);
+    let da_db_dir = db_dir.path().join("DA").to_path_buf();
+    let sequencer_db_dir = db_dir.path().join("sequencer").to_path_buf();
+    let (seq_task, test_client) = initialize_test(sequencer_db_dir, da_db_dir).await;
 
     let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
 
@@ -99,8 +107,10 @@ async fn test_nonce_too_low() {
 async fn test_nonce_too_high() {
     // citrea::initialize_logging();
 
-    let db_dir = tempfile::tempdir().unwrap();
-    let (seq_task, test_client) = initialize_test(db_dir.path().to_path_buf()).await;
+    let db_dir = tempdir_with_children(&vec!["DA", "sequencer", "full-node"]);
+    let da_db_dir = db_dir.path().join("DA").to_path_buf();
+    let sequencer_db_dir = db_dir.path().join("sequencer").to_path_buf();
+    let (seq_task, test_client) = initialize_test(sequencer_db_dir, da_db_dir).await;
 
     let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
 
@@ -132,8 +142,10 @@ async fn test_nonce_too_high() {
 
 #[tokio::test]
 async fn test_order_by_fee() {
-    let db_dir = tempfile::tempdir().unwrap();
-    let (seq_task, test_client) = initialize_test(db_dir.path().to_path_buf()).await;
+    let db_dir = tempdir_with_children(&vec!["DA", "sequencer", "full-node"]);
+    let da_db_dir = db_dir.path().join("DA").to_path_buf();
+    let sequencer_db_dir = db_dir.path().join("sequencer").to_path_buf();
+    let (seq_task, test_client) = initialize_test(sequencer_db_dir, da_db_dir).await;
 
     let chain_id: u64 = 5655;
     let key = "0xdcf2cbdd171a21c480aa7f53d77f31bb102282b3ff099c78e3118b37348c72f7"
@@ -234,8 +246,10 @@ async fn test_order_by_fee() {
 /// Publish block, tx should not be in block but should still be in the mempool.
 #[tokio::test]
 async fn test_tx_with_low_base_fee() {
-    let db_dir = tempfile::tempdir().unwrap();
-    let (seq_task, test_client) = initialize_test(db_dir.path().to_path_buf()).await;
+    let db_dir = tempdir_with_children(&vec!["DA", "sequencer", "full-node"]);
+    let da_db_dir = db_dir.path().join("DA").to_path_buf();
+    let sequencer_db_dir = db_dir.path().join("sequencer").to_path_buf();
+    let (seq_task, test_client) = initialize_test(sequencer_db_dir, da_db_dir).await;
 
     let chain_id: u64 = 5655;
     let key = "0xdcf2cbdd171a21c480aa7f53d77f31bb102282b3ff099c78e3118b37348c72f7"
@@ -278,8 +292,10 @@ async fn test_tx_with_low_base_fee() {
 
 #[tokio::test]
 async fn test_same_nonce_tx_replacement() {
-    let db_dir = tempfile::tempdir().unwrap();
-    let (seq_task, test_client) = initialize_test(db_dir.path().to_path_buf()).await;
+    let db_dir = tempdir_with_children(&vec!["DA", "sequencer", "full-node"]);
+    let da_db_dir = db_dir.path().join("DA").to_path_buf();
+    let sequencer_db_dir = db_dir.path().join("sequencer").to_path_buf();
+    let (seq_task, test_client) = initialize_test(sequencer_db_dir, da_db_dir).await;
 
     let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
 

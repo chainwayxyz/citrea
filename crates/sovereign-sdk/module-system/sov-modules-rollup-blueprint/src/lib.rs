@@ -123,7 +123,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
 
     /// Creates instance of a LedgerDB.
     fn create_ledger_db(&self, rollup_config: &RollupConfig<Self::DaConfig>) -> LedgerDB {
-        LedgerDB::with_path(&rollup_config.storage.path).expect("Ledger DB failed to open")
+        LedgerDB::with_path(&rollup_config.storage.rollup_path).expect("Ledger DB failed to open")
     }
 
     /// Creates a new sequencer
@@ -183,7 +183,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
             rollup_config.public_keys,
             ledger_db,
             rollup_config.rpc,
-            Some(rollup_config.storage.path.clone()),
+            Some(rollup_config.storage.da_path.clone()),
         )
         .unwrap();
 

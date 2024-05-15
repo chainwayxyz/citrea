@@ -91,7 +91,7 @@ impl RollupBlueprint for BitcoinRollup {
         rollup_config: &sov_stf_runner::RollupConfig<Self::DaConfig>,
     ) -> Result<Self::StorageManager, anyhow::Error> {
         let storage_config = StorageConfig {
-            path: rollup_config.storage.path.clone(),
+            path: rollup_config.storage.rollup_path.clone(),
         };
         ProverStorageManager::new(storage_config)
     }

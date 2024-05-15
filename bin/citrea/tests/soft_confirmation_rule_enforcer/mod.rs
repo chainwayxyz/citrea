@@ -3,7 +3,7 @@ use sov_mock_da::{MockAddress, MockDaService};
 
 use crate::evm::make_test_client;
 // use citrea::initialize_logging;
-use crate::test_helpers::{start_rollup, NodeMode};
+use crate::test_helpers::{start_rollup, tempdir_with_children, NodeMode};
 use crate::{DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT};
 
 /// Transaction with equal nonce to last tx should not be accepted by mempool.
@@ -11,18 +11,21 @@ use crate::{DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_MIN_SOFT_CONFIRMATIONS_
 async fn too_many_l2_block_per_l1_block() {
     // citrea::initialize_logging();
 
-    let db_dir = tempfile::tempdir().unwrap();
+    let storage_dir = tempdir_with_children(&vec!["DA", "sequencer", "full-node"]);
+    let da_db_dir = storage_dir.path().join("DA").to_path_buf();
+    let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
-    let db_dir_cloned = db_dir.path().to_path_buf();
+    let da_db_dir_cloned = da_db_dir.clone();
     tokio::spawn(async move {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests-low-limiting-number"),
             None,
             NodeMode::SequencerNode,
-            db_dir_cloned,
+            sequencer_db_dir,
+            da_db_dir_cloned,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             true,
             None,
@@ -36,7 +39,7 @@ async fn too_many_l2_block_per_l1_block() {
     let test_client = make_test_client(seq_port).await;
     let limiting_number = test_client.get_limiting_number().await;
 
-    let da_service = MockDaService::new(MockAddress::from([0; 32]), db_dir.path());
+    let da_service = MockDaService::new(MockAddress::from([0; 32]), &da_db_dir);
 
     // limiting number should be 10
     // we use a low limiting number because mockda creates blocks every 5 seconds
