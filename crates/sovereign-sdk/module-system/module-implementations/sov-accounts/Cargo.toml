@@ -27,7 +27,7 @@ jsonrpsee = { workspace = true, features = [
     "client-core",
     "server",
 ], optional = true }
-tokio = { workspace = true, default-features = false, optional = true }
+tokio = { workspace = true, optional = true }
 
 sov-modules-api = { path = "../../sov-modules-api", version = "0.3", default-features = false, features = [
     "macros",
