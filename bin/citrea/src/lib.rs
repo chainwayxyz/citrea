@@ -21,7 +21,7 @@ pub fn initialize_logging() {
         .with(fmt::layer())
         .with(
             EnvFilter::from_str(&env::var("RUST_LOG").unwrap_or_else(|_| {
-                "debug,hyper=info,risc0_zkvm=info,guest_execution=debug".to_string()
+                "debug,jmt=info,hyper=info,risc0_zkvm=info,guest_execution=debug".to_string()
             }))
             .unwrap(),
         )
