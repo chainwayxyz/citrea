@@ -174,7 +174,7 @@ impl BitcoinService {
             .expect("Failed to list loaded wallets");
 
         if wallets.is_empty() {
-            panic!("No loaded wallet found!");
+            tracing::warn!("No loaded wallet found!");
         }
 
         Self {
