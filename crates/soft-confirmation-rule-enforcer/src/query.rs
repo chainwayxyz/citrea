@@ -1,3 +1,5 @@
+use std::ops::RangeInclusive;
+
 use jsonrpsee::core::RpcResult;
 use sov_modules_api::macros::rpc_gen;
 use sov_modules_api::{Context, DaSpec, StateMapAccessor, StateValueAccessor, WorkingSet};
@@ -57,5 +59,31 @@ impl<C: Context, Da: DaSpec> SoftConfirmationRuleEnforcer<C, Da> {
     /// 0 at genesis.
     pub fn get_last_timestamp(&self, working_set: &mut WorkingSet<C>) -> RpcResult<u64> {
         tokio::task::block_in_place(|| Ok(self.last_timestamp.get(working_set).unwrap_or(0)))
+    }
+
+    /// function to get min and max for next L1 fee rate
+    pub fn get_next_min_max_l1_fee_rate(
+        &self,
+        working_set: &mut WorkingSet<C>,
+    ) -> RpcResult<RangeInclusive<u128>> {
+        let last_l1_fee_rate = self.last_l1_fee_rate.get(working_set).unwrap_or(0);
+
+        if last_l1_fee_rate == 0 {
+            // on the first soft confirmation, we don't have a last fee rate
+            return Ok(0..=u128::MAX);
+        }
+
+        let l1_fee_rate_change_percentage = self
+            .l1_fee_rate_change_percentage
+            .get(working_set)
+            .expect("L1 fee rate change should be set");
+
+        let min = last_l1_fee_rate
+            .saturating_sub((last_l1_fee_rate * l1_fee_rate_change_percentage) / 100);
+
+        let max = last_l1_fee_rate
+            .saturating_add((last_l1_fee_rate * l1_fee_rate_change_percentage) / 100);
+
+        Ok(min..=max)
     }
 }

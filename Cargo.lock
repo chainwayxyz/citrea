@@ -1706,6 +1706,7 @@ dependencies = [
  "serde",
  "serde_json",
  "shared-backup-db",
+ "soft-confirmation-rule-enforcer",
  "sov-accounts",
  "sov-db",
  "sov-mock-da",

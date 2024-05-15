@@ -45,7 +45,7 @@ schnellru = "0.2.1"
 sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface", features = [
     "native",
 ] }
-citrea-evm = { path = "../evm" }
+citrea-evm = { path = "../evm", features = ["native"] }
 sov-db = { path = "../sovereign-sdk/full-node/db/sov-db", version = "0.3" }
 
 sov-stf-runner = { path = "../sovereign-sdk/full-node/sov-stf-runner" }
@@ -57,6 +57,10 @@ sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api", def
 sov-accounts = { path = "../sovereign-sdk/module-system/module-implementations/sov-accounts", default-features = false }
 sov-state = { path = "../sovereign-sdk/module-system/sov-state" }
 sov-mock-da = { path = "../sovereign-sdk/adapters/mock-da", default-features = false }
+soft-confirmation-rule-enforcer = { path = "../soft-confirmation-rule-enforcer", features = [
+    "native",
+] }
+
 hex = { workspace = true }
 
 shared-backup-db = { path = "../shared-backup-db" }
@@ -68,4 +72,3 @@ tempfile = { workspace = true }
 [features]
 default = []
 local = []
-native = ["citrea-stf/native", "citrea-evm/native"]

@@ -15,7 +15,7 @@ use shared_backup_db::PostgresConnector;
 use sov_mock_da::{MockAddress, MockDaService};
 use sov_modules_api::WorkingSet;
 use tokio::sync::Mutex;
-use tracing::info;
+use tracing::{error, info};
 
 use crate::deposit_data_mempool::DepositDataMempool;
 use crate::mempool::CitreaMempool;
@@ -158,7 +158,7 @@ pub(crate) fn create_rpc_module<C: sov_modules_api::Context>(
                         .add_deposit_tx(deposit.to_vec());
                 }
                 Err(e) => {
-                    tracing::error!("Error processing deposit tx: {:?}", e);
+                    error!("Error processing deposit tx: {:?}", e);
                     return Err(e);
                 }
             }

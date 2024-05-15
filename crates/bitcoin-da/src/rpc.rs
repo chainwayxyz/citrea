@@ -1,4 +1,4 @@
-use core::fmt::Display;
+use core::fmt::{Debug, Display};
 use core::str::FromStr;
 
 use bitcoin::block::{Header, Version};
@@ -9,6 +9,7 @@ use reqwest::header::HeaderMap;
 use serde::{Deserialize, Serialize};
 use serde_json::value::RawValue;
 use serde_json::{json, to_value};
+use tracing::{instrument, warn};
 
 use crate::helpers::parsers::parse_hex_transaction;
 use crate::spec::block::BitcoinBlock;
@@ -44,6 +45,7 @@ pub struct BitcoinNode {
     client: reqwest::Client,
 }
 impl BitcoinNode {
+    #[instrument(level = "trace", ret)]
     pub fn new(url: String, username: String, password: String) -> Self {
         let mut headers = HeaderMap::new();
         headers.insert(
@@ -69,6 +71,7 @@ impl BitcoinNode {
         Self { url, client }
     }
 
+    #[instrument(level = "trace", skip_all, err)]
     async fn call_inner<T: serde::de::DeserializeOwned>(
         &self,
         method: &str,
@@ -89,6 +92,7 @@ impl BitcoinNode {
         let response = response.json::<Response<T>>().await?;
 
         if let Some(error) = response.error {
+            warn!(error=?error, "RPC returned error");
             return Ok(Err(error));
         }
 
@@ -96,7 +100,8 @@ impl BitcoinNode {
     }
 
     // TODO: add max retries
-    async fn call<T: serde::de::DeserializeOwned>(
+    #[instrument(level = "trace", skip(self), err, ret)]
+    async fn call<T: Debug + serde::de::DeserializeOwned>(
         &self,
         method: &str,
         params: Vec<serde_json::Value>,
@@ -112,7 +117,7 @@ impl BitcoinNode {
                     // sometimes requests to bitcoind are dropped without a reason
                     // TODO: maybe remove is_request() check?
                     if error.is_connect() || error.is_timeout() || error.is_request() {
-                        tracing::warn!(error=?error, attempt=attempt, "Failed to send a call to bitcoind");
+                        warn!(error=?error, attempt=attempt, "Failed to send a call to bitcoind");
                         attempt += 1;
                         tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
                         continue; // retry
@@ -221,6 +226,7 @@ impl BitcoinNode {
     }
 
     // estimate_smart_fee estimates the fee to confirm a transaction in the next block
+    #[instrument(level = "trace", skip(self), err, ret)]
     pub async fn estimate_smart_fee(&self) -> Result<f64, anyhow::Error> {
         let result = self
             .call::<Box<RawValue>>("estimatesmartfee", vec![to_value(1)?])
@@ -262,6 +268,10 @@ impl BitcoinNode {
     }
 
     pub async fn list_wallets(&self) -> Result<Vec<String>, anyhow::Error> {
-        self.call::<Vec<String>>("listwallets", vec![]).await
+        let res = self.call::<Vec<String>>("listwallets", vec![]).await;
+        match res {
+            Ok(wallets) => Ok(wallets),
+            Err(_) => Ok(vec![]),
+        }
     }
 }

@@ -1,3 +1,4 @@
+use core::fmt;
 use core::result::Result::Ok;
 use core::str::FromStr;
 use std::fs::File;
@@ -21,6 +22,7 @@ use bitcoin::{
     Witness,
 };
 use brotli::{CompressorWriter, DecompressorWriter};
+use tracing::{instrument, trace, warn};
 
 use crate::helpers::{BODY_TAG, PUBLICKEY_TAG, RANDOM_TAG, ROLLUP_NAME_TAG, SIGNATURE_TAG};
 use crate::spec::utxo::UTXO;
@@ -140,6 +142,7 @@ fn choose_utxos(
     }
 }
 
+#[instrument(level = "trace", skip(utxos), err)]
 fn build_commit_transaction(
     prev_tx: Option<TxWithId>, // reuse outputs to add commit tx order
     utxos: Vec<UTXO>,
@@ -184,9 +187,16 @@ fn build_commit_transaction(
     } else {
         (None, utxos)
     };
+    let mut iteration = 0;
     let mut last_size = size;
 
     let tx = loop {
+        if iteration % 100 == 0 {
+            trace!(iteration, "Trying to find commitment size");
+            if iteration > 5000 {
+                warn!("Too many iterations");
+            }
+        }
         let fee = ((last_size as f64) * fee_rate).ceil() as u64;
 
         let input_total = output_value + fee;
@@ -247,6 +257,7 @@ fn build_commit_transaction(
         }
 
         last_size = size;
+        iteration += 1;
     };
 
     Ok(tx)
@@ -308,10 +319,20 @@ pub struct TxWithId {
     pub tx: Transaction,
 }
 
+impl fmt::Debug for TxWithId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("TxWithId")
+            .field("id", &self.id)
+            .field("tx", &"...")
+            .finish()
+    }
+}
+
 // TODO: parametrize hardness
 // so tests are easier
 // Creates the inscription transactions (commit and reveal)
 #[allow(clippy::too_many_arguments)]
+#[instrument(level = "trace", skip_all, err)]
 pub fn create_inscription_transactions(
     rollup_name: &str,
     body: Vec<u8>,
@@ -358,6 +379,12 @@ pub fn create_inscription_transactions(
     // Start loop to find a 'nonce' i.e. random number that makes the reveal tx hash starting with zeros given length
     let mut nonce: i64 = 0;
     loop {
+        if nonce % 100 == 0 {
+            trace!(nonce, "Trying to find commit & reveal nonce");
+            if nonce > 1000 {
+                warn!("Too many iterations");
+            }
+        }
         let utxos = utxos.clone();
         let recipient = recipient.clone();
         // ownerships are moved to the loop
