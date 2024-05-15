@@ -25,7 +25,7 @@ use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::{Proof, StateTransitionData, Zkvm, ZkvmHost};
 use tokio::sync::oneshot;
 use tokio::time::{sleep, Duration, Instant};
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, instrument, warn};
 
 use crate::prover_helpers::get_initial_slot_height;
 use crate::verifier::StateTransitionVerifier;
@@ -218,11 +218,13 @@ where
     }
 
     /// Returns the head soft batch
+    #[instrument(level = "trace", skip_all, err)]
     pub fn get_head_soft_batch(&self) -> anyhow::Result<Option<(BatchNumber, StoredSoftBatch)>> {
         self.ledger_db.get_head_soft_batch()
     }
 
     /// Runs the prover process.
+    #[instrument(level = "trace", skip_all, err)]
     pub async fn run_prover_process(&mut self) -> Result<(), anyhow::Error> {
         // Prover node should sync when a new sequencer commitment arrives
         // Check da block get and sync up to the latest block in the latest commitment
@@ -287,11 +289,13 @@ where
                             );
                         }
                     } else {
+                        warn!("Force transactions are not implemented yet");
                         // TODO: This is where force transactions will land - try to parse DA data force transaction
                     }
                 });
 
             if !zk_proofs.is_empty() {
+                warn!("ZK proofs are not empty");
                 // TODO: Implement this
             }
 
@@ -562,6 +566,7 @@ where
     }
 
     /// Runs the rollup.
+    #[instrument(level = "trace", skip_all, err)]
     pub async fn run_in_process(&mut self) -> Result<(), anyhow::Error> {
         let mut last_l1_height = 0;
         let mut cur_l1_block = None;
@@ -666,11 +671,13 @@ where
                                 );
                             }
                         } else {
+                            warn!("Force transactions are not implemented yet");
                             // TODO: This is where force transactions will land - try to parse DA data force transaction
                         }
                     });
 
                 if !zk_proofs.is_empty() {
+                    warn!("ZK proofs are not empty");
                     // TODO: Implement this
                 }
 

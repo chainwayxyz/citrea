@@ -39,7 +39,7 @@ use sov_stf_runner::{InitVariant, RollupPublicKeys, RpcConfig};
 use tokio::sync::oneshot::Receiver as OneshotReceiver;
 use tokio::sync::Mutex;
 use tokio::time::sleep;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info, instrument, warn};
 
 use crate::commitment_controller::{self, CommitmentInfo};
 use crate::config::SequencerConfig;
@@ -214,6 +214,7 @@ where
         Ok(())
     }
 
+    #[instrument(level = "debug", skip_all, err, ret)]
     async fn produce_l2_block(
         &mut self,
         da_block: <Da as DaService>::FilteredBlock,
@@ -439,6 +440,7 @@ where
         Ok(())
     }
 
+    #[instrument(level = "trace", skip_all, err, ret)]
     pub async fn build_block(&mut self, pg_pool: &Option<PostgresConnector>) -> anyhow::Result<()> {
         // best txs with base fee
         // get base fee from last blocks => header => next base fee() function
@@ -589,6 +591,7 @@ where
         Ok(())
     }
 
+    #[instrument(level = "trace", skip(self), err, ret)]
     pub async fn run(&mut self) -> Result<(), anyhow::Error> {
         // TODO: hotfix for mock da
         self.da_service

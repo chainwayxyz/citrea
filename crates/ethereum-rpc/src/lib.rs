@@ -28,7 +28,7 @@ use serde_json::json;
 use sov_modules_api::utils::to_jsonrpsee_error_object;
 use sov_modules_api::WorkingSet;
 use sov_rollup_interface::services::da::DaService;
-use tracing::info;
+use tracing::{info, instrument};
 
 const MAX_TRACE_BLOCK: u32 = 1000;
 
@@ -127,6 +127,7 @@ impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
 }
 
 impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
+    #[instrument(level = "trace", skip_all)]
     async fn max_fee_per_gas(&self, working_set: &mut WorkingSet<C>) -> (U256, U256) {
         let suggested_tip = self
             .gas_price_oracle
@@ -610,7 +611,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
             // else; calls the debug_trace_transaction_block function in evm
             // that function traces the entire block, returns all the traces to here
             // then we put them into cache and return the trace of the requested transaction
-            info!("eth module: debug_traceTransaction");
+            info!(params = ?parameters, "eth module: debug_traceTransaction");
 
             let mut params = parameters.sequence();
 
@@ -716,7 +717,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
         rpc.register_async_method::<Result<H256, ErrorObjectOwned>, _, _>(
             "eth_sendRawTransaction",
             |parameters, ethereum| async move {
-                info!("Full Node: eth_sendRawTransaction");
+                info!(params = ?parameters, "Full Node: eth_sendRawTransaction");
                 // send this directly to the sequencer
                 let data: Bytes = parameters.one()?;
                 // sequencer client should send it
