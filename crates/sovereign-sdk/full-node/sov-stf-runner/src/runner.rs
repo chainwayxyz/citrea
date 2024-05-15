@@ -674,6 +674,10 @@ where
                     // TODO: Implement this
                 }
 
+                for proof in zk_proofs {
+                    // TODO: Verify proofs and store in ledger db
+                }
+
                 for sequencer_commitment in sequencer_commitments.iter() {
                     tracing::warn!(
                         "Processing sequencer commitment: {:?}",

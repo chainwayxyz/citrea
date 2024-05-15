@@ -13,11 +13,12 @@ use crate::schema::tables::{
     BatchByHash, BatchByNumber, CommitmentsByNumber, EventByKey, EventByNumber, L2RangeByL1Height,
     LastSequencerCommitmentSent, ProofBySlotNumber, ProverLastScannedSlot, SlotByHash,
     SlotByNumber, SoftBatchByHash, SoftBatchByNumber, SoftConfirmationStatus, TxByHash, TxByNumber,
-    LEDGER_TABLES,
+    VerifiedProofBySlotNumber, LEDGER_TABLES,
 };
 use crate::schema::types::{
     split_tx_for_storage, BatchNumber, EventNumber, L2HeightRange, SlotNumber, StoredBatch,
-    StoredProof, StoredSlot, StoredSoftBatch, StoredStateTransition, StoredTransaction, TxNumber,
+    StoredProof, StoredSlot, StoredSoftBatch, StoredStateTransition, StoredTransaction,
+    StoredVerifiedProof, TxNumber,
 };
 
 mod rpc;
@@ -579,6 +580,20 @@ impl LedgerDB {
         };
         self.db
             .put::<ProofBySlotNumber>(&SlotNumber(l1_height), &data_to_store)
+    }
+
+    /// Stores proof related data on disk, accessible via l1 slot height
+    pub fn put_verified_proof_data(
+        &self,
+        l1_height: u64,
+        proof: Proof,
+        state_transition: StoredStateTransition,
+    ) -> anyhow::Result<()> {
+        self.db
+            .put::<VerifiedProofBySlotNumber>(&SlotNumber(l1_height), &StoredVerifiedProof {
+                proof,
+                state_transition,
+            })
     }
 
     /// Sets l1 height of l1 hash
