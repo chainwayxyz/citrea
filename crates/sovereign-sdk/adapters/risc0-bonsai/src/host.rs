@@ -9,7 +9,8 @@ use bonsai_sdk::alpha as bonsai_sdk;
 use bonsai_sdk::responses::SnarkReceipt;
 use risc0_zkvm::serde::to_vec;
 use risc0_zkvm::{
-    compute_image_id, ExecutorEnvBuilder, ExecutorImpl, InnerReceipt, Journal, Receipt,
+    compute_image_id, CompactReceipt, ExecutorEnvBuilder, ExecutorImpl, InnerReceipt, Journal,
+    Receipt,
 };
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -322,7 +323,7 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
                 .create_session(self.image_id.clone(), input_id, vec![])
                 .map_err(|e| anyhow!("Bonsai API return error: {}", e))?;
             tracing::info!("Session created: {}", session.uuid);
-            let _full_proof = loop {
+            let receipt = loop {
                 // handle error
                 let res = self.client.status(&session).unwrap();
                 if res.status == "RUNNING" {
@@ -343,17 +344,17 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
                     tracing::info!("Receipt URL: {}", receipt_url);
                     let receipt_buf = self.client.download(receipt_url)?;
 
-                    // let receipt: Receipt = bincode::deserialize(&receipt_buf).unwrap();
+                    let receipt: Receipt = bincode::deserialize(&receipt_buf).unwrap();
 
-                    break Ok(Proof::Full(receipt_buf));
+                    break receipt;
                 } else {
-                    break Err(anyhow!(
+                    return Err(anyhow!(
                         "Workflow exited: {} with error message: {}",
                         res.status,
                         res.error_msg.unwrap_or_default()
                     ));
                 }
-            }?;
+            };
 
             tracing::info!("Creating the SNARK");
 
@@ -383,16 +384,32 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
                         };
                         tracing::info!("Snark proof!: {snark_receipt:?}");
 
-                        let snark_proof = bincode::serialize(&snark_receipt)?;
+                        // now we convert the snark_receipt to a full receipt
 
-                        return Ok(Proof::Full(snark_proof));
+                        let full_snark_receipt = Receipt {
+                            inner: InnerReceipt::Compact(CompactReceipt {
+                                seal: snark_receipt.snark.to_vec(),
+                                claim: receipt
+                                    .get_claim()
+                                    .expect("stark_2_snark error, receipt claim"),
+                            }),
+                            journal: risc0_zkvm::Journal {
+                                bytes: snark_receipt.journal,
+                            },
+                        };
+
+                        tracing::info!("Full snark proof!: {full_snark_receipt:?}");
+
+                        let full_snark_receipt = bincode::serialize(&full_snark_receipt)?;
+
+                        return Ok(Proof::Full(full_snark_receipt));
                     }
                     _ => {
-                        panic!(
-                            "Workflow exited: {} err: {}",
+                        return Err(anyhow!(
+                            "Workflow exited: {} with error message: {}",
                             res.status,
                             res.error_msg.unwrap_or_default()
-                        );
+                        ));
                     }
                 }
             }
@@ -408,9 +425,8 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
                 Ok(journal.decode()?)
             }
             Proof::Full(data) => {
-                let receipt: SnarkReceipt = bincode::deserialize(data)?;
-                let journal = Journal::new(receipt.journal);
-                Ok(journal.decode()?)
+                let receipt: Receipt = bincode::deserialize(data)?;
+                Ok(receipt.journal.decode()?)
             }
         }
     }
