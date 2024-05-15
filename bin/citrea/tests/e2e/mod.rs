@@ -237,10 +237,14 @@ async fn test_full_node_send_tx() -> Result<(), anyhow::Error> {
 
     let storage_dir = tempdir_with_children(&vec!["DA", "sequencer", "full-node"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
+    let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
+    let fullnode_db_dir = storage_dir.path().join("full-node").to_path_buf();
 
     let (seq_test_client, full_node_test_client, seq_task, full_node_task, addr) =
         initialize_test(TestConfig {
             da_path: da_db_dir,
+            sequencer_path: sequencer_db_dir,
+            fullnode_path: fullnode_db_dir,
             ..Default::default()
         })
         .await;
@@ -539,9 +543,6 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
 
     assert_eq!(seq_last_block.state_root, full_node_last_block.state_root);
     assert_eq!(seq_last_block.hash, full_node_last_block.hash);
-
-    fs::remove_dir_all(Path::new("demo_data_test_close_and_reopen_full_node_copy")).unwrap();
-    fs::remove_dir_all(Path::new("demo_data_test_close_and_reopen_full_node")).unwrap();
 
     seq_task.abort();
     rollup_task.abort();
