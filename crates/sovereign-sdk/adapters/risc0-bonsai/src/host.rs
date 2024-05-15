@@ -8,6 +8,7 @@ use anyhow::anyhow;
 use bonsai_sdk::alpha as bonsai_sdk;
 use bonsai_sdk::responses::SnarkReceipt;
 use risc0_zkvm::serde::to_vec;
+use risc0_zkvm::sha::Digest;
 use risc0_zkvm::{
     compute_image_id, CompactReceipt, ExecutorEnvBuilder, ExecutorImpl, InnerReceipt, Journal,
     Receipt,
@@ -209,7 +210,7 @@ impl BonsaiClient {
 pub struct Risc0BonsaiHost<'a> {
     elf: &'a [u8],
     env: Vec<u32>,
-    image_id: String,
+    image_id: Digest,
     client: BonsaiClient,
     last_input_id: Option<String>,
 }
@@ -243,11 +244,13 @@ impl<'a> Risc0BonsaiHost<'a> {
 
         // Compute the image_id, then upload the ELF with the image_id as its key.
         // handle error
-        let image_id = hex::encode(compute_image_id(elf).unwrap());
+        let image_id = compute_image_id(elf).unwrap();
 
         tracing::info!("Uploading image with id: {}", image_id);
         // handle error
-        client.upload_img(image_id.clone(), elf.to_vec()).unwrap();
+        client
+            .upload_img(hex::encode(image_id), elf.to_vec())
+            .unwrap();
 
         Self {
             elf,
@@ -320,7 +323,7 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
             let session = self
                 .client
                 //hanfle error
-                .create_session(self.image_id.clone(), input_id, vec![])
+                .create_session(hex::encode(self.image_id.clone()), input_id, vec![])
                 .map_err(|e| anyhow!("Bonsai API return error: {}", e))?;
             tracing::info!("Session created: {}", session.uuid);
             let receipt = loop {
@@ -433,7 +436,7 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
 }
 
 impl<'host> Zkvm for Risc0BonsaiHost<'host> {
-    type CodeCommitment = Risc0MethodId;
+    type CodeCommitment = Digest;
 
     type Error = anyhow::Error;
 
@@ -441,7 +444,7 @@ impl<'host> Zkvm for Risc0BonsaiHost<'host> {
         serialized_proof: &'a [u8],
         code_commitment: &Self::CodeCommitment,
     ) -> Result<&'a [u8], Self::Error> {
-        verify_from_slice(serialized_proof, code_commitment)
+        unimplemented!();
     }
 
     fn verify_and_extract_output<
@@ -451,61 +454,10 @@ impl<'host> Zkvm for Risc0BonsaiHost<'host> {
         serialized_proof: &[u8],
         code_commitment: &Self::CodeCommitment,
     ) -> Result<sov_rollup_interface::zk::StateTransition<Da, Root>, Self::Error> {
-        let output = Self::verify(serialized_proof, code_commitment)?;
-        Ok(risc0_zkvm::serde::from_slice(output)?)
+        let receipt: Receipt = bincode::deserialize(serialized_proof)?;
+
+        receipt.verify(code_commitment.clone())?;
+
+        Ok(receipt.journal.decode()?)
     }
-}
-
-/// A verifier for Risc0 proofs.
-pub struct Risc0Verifier;
-
-impl Zkvm for Risc0Verifier {
-    type CodeCommitment = Risc0MethodId;
-
-    type Error = anyhow::Error;
-
-    fn verify<'a>(
-        serialized_proof: &'a [u8],
-        code_commitment: &Self::CodeCommitment,
-    ) -> Result<&'a [u8], Self::Error> {
-        verify_from_slice(serialized_proof, code_commitment)
-    }
-
-    fn verify_and_extract_output<
-        Da: sov_rollup_interface::da::DaSpec,
-        Root: Serialize + DeserializeOwned,
-    >(
-        serialized_proof: &[u8],
-        code_commitment: &Self::CodeCommitment,
-    ) -> Result<sov_rollup_interface::zk::StateTransition<Da, Root>, Self::Error> {
-        let output = Self::verify(serialized_proof, code_commitment)?;
-        Ok(risc0_zkvm::serde::from_slice(output)?)
-    }
-}
-
-fn verify_from_slice<'a>(
-    serialized_proof: &'a [u8],
-    code_commitment: &Risc0MethodId,
-) -> Result<&'a [u8], anyhow::Error> {
-    let Risc0Proof::<'a> {
-        receipt, journal, ..
-    } = bincode::deserialize(serialized_proof)?;
-
-    // after upgrade to risc0, verify is now in type Receipt
-    // unless we change trait return types we have to clone here.
-    let receipt: Receipt = Receipt::new(receipt, journal.to_vec());
-
-    receipt.verify(code_commitment.0)?;
-
-    Ok(journal)
-}
-
-/// A convenience type which contains the same data a Risc0 [`Receipt`] but borrows the journal
-/// data. This allows us to avoid one unnecessary copy during proof verification.
-#[derive(serde::Serialize, serde::Deserialize)]
-pub struct Risc0Proof<'a> {
-    /// The cryptographic data certifying the execution of the program.
-    pub receipt: InnerReceipt,
-    /// The public outputs produced by the program execution.
-    pub journal: &'a [u8],
 }
