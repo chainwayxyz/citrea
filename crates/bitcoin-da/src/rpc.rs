@@ -262,6 +262,10 @@ impl BitcoinNode {
     }
 
     pub async fn list_wallets(&self) -> Result<Vec<String>, anyhow::Error> {
-        self.call::<Vec<String>>("listwallets", vec![]).await
+        let res = self.call::<Vec<String>>("listwallets", vec![]).await;
+        match res {
+            Ok(wallets) => Ok(wallets),
+            Err(_) => Ok(vec![]),
+        }
     }
 }
