@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT;
-use reth_primitives::{Address, BlockNumberOrTag, Bytes, TransactionKind};
+use reth_primitives::{address, Address, BlockNumberOrTag, Bytes, TransactionKind};
 use reth_rpc_types::request::{TransactionInput, TransactionRequest};
 use revm::primitives::{SpecId, KECCAK_EMPTY, U256};
 use sov_modules_api::default_context::DefaultContext;
@@ -12,7 +12,8 @@ use sov_modules_api::{Context, Module, StateMapAccessor, StateVecAccessor};
 use crate::call::CallMessage;
 use crate::evm::primitive_types::Receipt;
 use crate::smart_contracts::{
-    BlockHashContract, LogsContract, SelfDestructorContract, SimpleStorageContract, TestContract,
+    BlockHashContract, InfiniteLoopContract, LogsContract, SelfDestructorContract,
+    SimpleStorageContract, TestContract,
 };
 use crate::tests::test_signer::TestSigner;
 use crate::tests::utils::get_evm;
@@ -960,4 +961,113 @@ fn test_l1_fee_not_enough_funds() {
     // The coinbase was not created
     let db_coinbase = evm.accounts.get(&config.coinbase, &mut working_set);
     assert!(db_coinbase.is_none());
+}
+
+#[test]
+fn test_l1_fee_halt() {
+    let (config, dev_signer, _) =
+        get_evm_config_starting_base_fee(U256::from_str("2000000").unwrap(), None, 1);
+
+    let (evm, mut working_set) = get_evm(&config);
+    let l1_fee_rate = 1;
+
+    evm.begin_soft_confirmation_hook(
+        &HookSoftConfirmationInfo {
+            da_slot_hash: [5u8; 32],
+            da_slot_height: 1,
+            da_slot_txs_commitment: [42u8; 32],
+            pre_state_root: [10u8; 32].to_vec(),
+            pub_key: vec![],
+            deposit_data: vec![],
+            l1_fee_rate,
+            timestamp: 0,
+        },
+        &mut working_set,
+    );
+    {
+        let sender_address = generate_address::<C>("sender");
+        let sequencer_address = generate_address::<C>("sequencer");
+        let context = C::new(sender_address, sequencer_address, 1);
+
+        let deploy_message =
+            create_contract_message_with_fee(&dev_signer, 0, InfiniteLoopContract::default(), 1);
+
+        let call_message = dev_signer
+            .sign_default_transaction_with_fee(
+                TransactionKind::Call(address!("819c5497b157177315e1204f52e588b393771719")),
+                InfiniteLoopContract::default()
+                    .call_infinite_loop()
+                    .into_iter()
+                    .collect(),
+                1,
+                0,
+                1,
+            )
+            .unwrap();
+
+        evm.call(
+            CallMessage {
+                txs: vec![deploy_message, call_message],
+            },
+            &context,
+            &mut working_set,
+        )
+        .unwrap();
+    }
+    evm.end_soft_confirmation_hook(&mut working_set);
+    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+
+    assert_eq!(
+        evm.receipts
+            .iter(&mut working_set.accessory_state())
+            .collect::<Vec<_>>(),
+        [
+            Receipt {
+                receipt: reth_primitives::Receipt {
+                    tx_type: reth_primitives::TxType::Eip1559,
+                    success: true,
+                    cumulative_gas_used: 106947,
+                    logs: vec![],
+                },
+                gas_used: 106947,
+                log_index_start: 0,
+                diff_size: 445,
+            },
+            Receipt {
+                receipt: reth_primitives::Receipt {
+                    tx_type: reth_primitives::TxType::Eip1559,
+                    success: false,
+                    cumulative_gas_used: 1106947,
+                    logs: vec![],
+                },
+                gas_used: 1000000,
+                log_index_start: 0,
+                diff_size: 52,
+            },
+        ]
+    );
+
+    let db_account = evm
+        .accounts
+        .get(&dev_signer.address(), &mut working_set)
+        .unwrap();
+
+    let expenses = 1106947 + // evm gas
+        445 + // l1 contract deploy fee
+        52; // l1 contract call fee
+
+    assert_eq!(
+        db_account.info.balance,
+        U256::from(
+            2000000 - // initial balance
+            expenses
+        )
+    );
+
+    let coinbase_account = evm
+        .accounts
+        .get(&config.coinbase, &mut working_set)
+        .unwrap();
+
+    assert_eq!(coinbase_account.info.balance, U256::from(expenses));
 }

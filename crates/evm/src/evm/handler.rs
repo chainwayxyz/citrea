@@ -356,19 +356,16 @@ impl<SPEC: Spec, EXT: CitreaExternalExt, DB: Database> CitreaHandler<SPEC, EXT, 
         let l1_fee_rate = context.external.l1_fee_rate();
         let l1_fee = U256::from(diff_size) * U256::from(l1_fee_rate);
         context.external.set_tx_info(TxInfo { diff_size, l1_fee });
-        if result.interpreter_result().is_ok() {
-            // Deduct L1 fee only if tx is successful.
-            if context.is_system_caller() {
-                // System caller doesn't pay L1 fee.
-            } else {
-                if let Some(_out_of_funds) = decrease_caller_balance(context, l1_fee)? {
-                    return Err(EVMError::Custom(format!(
-                        "Not enough funds for L1 fee: {}",
-                        l1_fee
-                    )));
-                }
-                increase_coinbase_balance(context, l1_fee)?;
+        if context.is_system_caller() {
+            // System caller doesn't pay L1 fee.
+        } else {
+            if let Some(_out_of_funds) = decrease_caller_balance(context, l1_fee)? {
+                return Err(EVMError::Custom(format!(
+                    "Not enough funds for L1 fee: {}",
+                    l1_fee
+                )));
             }
+            increase_coinbase_balance(context, l1_fee)?;
         }
 
         revm::handler::mainnet::output(context, result)
