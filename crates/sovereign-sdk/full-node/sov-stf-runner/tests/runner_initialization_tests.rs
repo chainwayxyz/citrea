@@ -46,7 +46,7 @@ type MockProverService = ParallelProverService<
     HashStf<MockValidityCond>,
 >;
 fn initialize_runner(
-    path: &std::path::Path,
+    storage_path: &std::path::Path,
     init_variant: MockInitVariant,
 ) -> StateTransitionRunner<
     HashStf<MockValidityCond>,
@@ -56,10 +56,21 @@ fn initialize_runner(
     MockProverService,
     sov_modules_api::default_context::DefaultContext,
 > {
+    let da_storage_path = storage_path.join("da").to_path_buf();
+    let rollup_storage_path = storage_path.join("rollup").to_path_buf();
+
+    if !std::path::Path::new(&da_storage_path).exists() {
+        std::fs::create_dir(da_storage_path.clone()).unwrap();
+    }
+    if !std::path::Path::new(&rollup_storage_path).exists() {
+        std::fs::create_dir(rollup_storage_path.clone()).unwrap();
+    }
+
     let address = MockAddress::new([11u8; 32]);
     let rollup_config = RollupConfig::<MockDaConfig> {
         storage: StorageConfig {
-            path: path.to_path_buf(),
+            rollup_path: rollup_storage_path.clone(),
+            da_path: da_storage_path.clone(),
         },
         rpc: RpcConfig {
             bind_host: "127.0.0.1".to_string(),
@@ -80,14 +91,14 @@ fn initialize_runner(
         },
     };
 
-    let da_service = MockDaService::new(address, path);
+    let da_service = MockDaService::new(address, &da_storage_path);
 
-    let ledger_db = LedgerDB::with_path(path).unwrap();
+    let ledger_db = LedgerDB::with_path(rollup_storage_path.clone()).unwrap();
 
     let stf = HashStf::<MockValidityCond>::new();
 
     let storage_config = sov_state::config::Config {
-        path: path.to_path_buf(),
+        path: rollup_storage_path.to_path_buf(),
     };
     let storage_manager = ProverStorageManager::new(storage_config).unwrap();
 
