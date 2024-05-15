@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use rusqlite::{params, Connection};
 use tracing::debug;
 
@@ -9,10 +11,11 @@ pub(crate) struct DbConnector {
 }
 
 impl DbConnector {
-    pub fn new(db_path: &str) -> Self {
-        debug!("Using test db: {}", db_path);
+    pub fn new(db_path: &Path) -> Self {
+        debug!("Using test db: {:?}", db_path);
 
-        let conn = Connection::open(db_path).expect("DbConnector: failed to open db");
+        let conn =
+            Connection::open(db_path.join("mock_da.db")).expect("DbConnector: failed to open db");
 
         conn.execute(
             "CREATE TABLE IF NOT EXISTS blocks (
@@ -136,8 +139,6 @@ impl DbConnector {
 
 #[cfg(test)]
 mod tests {
-    use std::env::temp_dir;
-
     use crate::db_connector::DbConnector;
     use crate::{MockAddress, MockBlob, MockBlock, MockBlockHeader, MockValidityCond};
 
@@ -154,7 +155,8 @@ mod tests {
 
     #[test]
     fn test_write_and_read() {
-        let db = DbConnector::new(temp_dir().join("db").to_str().unwrap());
+        let db_path = tempfile::tempdir().unwrap();
+        let db = DbConnector::new(db_path.path());
 
         let block = get_test_block(1);
 
@@ -167,7 +169,8 @@ mod tests {
 
     #[test]
     fn test_read_by_hash() {
-        let db = DbConnector::new(temp_dir().join("db").to_str().unwrap());
+        let db_path = tempfile::tempdir().unwrap();
+        let db = DbConnector::new(db_path.path());
 
         let block = get_test_block(1);
 
@@ -182,7 +185,8 @@ mod tests {
 
     #[test]
     fn test_len() {
-        let db = DbConnector::new(temp_dir().join("db").to_str().unwrap());
+        let db_path = tempfile::tempdir().unwrap();
+        let db = DbConnector::new(db_path.path());
 
         let block = get_test_block(1);
 
@@ -193,7 +197,8 @@ mod tests {
 
     #[test]
     fn test_last() {
-        let db = DbConnector::new(temp_dir().join("db").to_str().unwrap());
+        let db_path = tempfile::tempdir().unwrap();
+        let db = DbConnector::new(db_path.path());
 
         let block1 = get_test_block(1);
         let block2 = get_test_block(2);
@@ -207,7 +212,8 @@ mod tests {
 
     #[test]
     fn test_prune_above() {
-        let db = DbConnector::new(temp_dir().join("db").to_str().unwrap());
+        let db_path = tempfile::tempdir().unwrap();
+        let db = DbConnector::new(db_path.path());
 
         let block1 = get_test_block(1);
         let block2 = get_test_block(2);
@@ -226,7 +232,8 @@ mod tests {
 
     #[test]
     fn test_same_thread_behaviour() {
-        let db = DbConnector::new(temp_dir().join("db1").to_str().unwrap());
+        let db_path = tempfile::tempdir().unwrap();
+        let db = DbConnector::new(db_path.path());
 
         let block = get_test_block(1);
 
@@ -236,7 +243,7 @@ mod tests {
 
         assert_eq!(block, block_from_db);
 
-        let db2 = DbConnector::new(temp_dir().join("db2").to_str().unwrap());
+        let db2 = DbConnector::new(db_path.path());
 
         // data wasn't wiped
         let block_from_db2 = db2.get(0).unwrap();
