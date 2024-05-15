@@ -24,13 +24,17 @@ use tokio::time::sleep;
 
 use crate::evm::{init_test_rollup, make_test_client};
 use crate::test_client::TestClient;
-use crate::test_helpers::{create_default_sequencer_config, start_rollup, NodeMode};
+use crate::test_helpers::{
+    create_default_sequencer_config, start_rollup, tempdir_with_children, NodeMode,
+};
 use crate::{DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT};
 
 struct TestConfig {
     seq_min_soft_confirmations: u64,
     deposit_mempool_fetch_limit: usize,
-    da_db_path: PathBuf,
+    sequencer_path: PathBuf,
+    fullnode_path: PathBuf,
+    da_path: PathBuf,
 }
 
 impl Default for TestConfig {
@@ -38,7 +42,9 @@ impl Default for TestConfig {
         Self {
             seq_min_soft_confirmations: DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             deposit_mempool_fetch_limit: 10,
-            da_db_path: PathBuf::new(),
+            sequencer_path: PathBuf::new(),
+            fullnode_path: PathBuf::new(),
+            da_path: PathBuf::new(),
         }
     }
 }
@@ -54,13 +60,18 @@ async fn initialize_test(
 ) {
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
-    let db_path1 = config.da_db_path.clone();
+    let db_path = config.da_path.clone();
+    let sequencer_path = config.sequencer_path.clone();
+    let fullnode_path = config.fullnode_path.clone();
+
+    let db_path1 = db_path.clone();
     let seq_task = tokio::spawn(async move {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             None,
             NodeMode::SequencerNode,
+            sequencer_path,
             db_path1,
             config.seq_min_soft_confirmations,
             true,
@@ -88,13 +99,14 @@ async fn initialize_test(
 
     let (full_node_port_tx, full_node_port_rx) = tokio::sync::oneshot::channel();
 
-    let db_path2 = config.da_db_path.clone();
+    let db_path2 = db_path.clone();
     let full_node_task = tokio::spawn(async move {
         start_rollup(
             full_node_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             None,
             NodeMode::FullNode(seq_port),
+            fullnode_path,
             db_path2,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             true,
@@ -120,22 +132,30 @@ async fn initialize_test(
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_soft_batch_save() -> Result<(), anyhow::Error> {
-    let db_dir = tempfile::tempdir().unwrap();
+    let storage_dir = tempdir_with_children(&vec!["DA", "sequencer", "full-node"]);
+    let da_db_dir = storage_dir.path().join("DA").to_path_buf();
+    let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
+    let fullnode_db_dir = storage_dir.path().join("full-node").to_path_buf();
+    let fullnode2_db_dir = storage_dir.path().join("full-node2").to_path_buf();
+
     let config = TestConfig {
-        da_db_path: db_dir.path().to_path_buf(),
+        da_path: da_db_dir.clone(),
+        sequencer_path: sequencer_db_dir.clone(),
+        fullnode_path: fullnode_db_dir.clone(),
         ..Default::default()
     };
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
-    let db_dir_cloned = db_dir.path().to_path_buf();
+    let da_db_dir_cloned = da_db_dir.clone();
     let seq_task = tokio::spawn(async move {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             None,
             NodeMode::SequencerNode,
-            db_dir_cloned,
+            sequencer_db_dir,
+            da_db_dir_cloned,
             config.seq_min_soft_confirmations,
             true,
             None,
@@ -162,14 +182,15 @@ async fn test_soft_batch_save() -> Result<(), anyhow::Error> {
 
     let (full_node_port_tx, full_node_port_rx) = tokio::sync::oneshot::channel();
 
-    let db_dir_cloned = db_dir.path().to_path_buf();
+    let da_db_dir_cloned = da_db_dir.clone();
     let full_node_task = tokio::spawn(async move {
         start_rollup(
             full_node_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             None,
             NodeMode::FullNode(seq_port),
-            db_dir_cloned,
+            fullnode_db_dir,
+            da_db_dir_cloned,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             true,
             None,
@@ -185,14 +206,14 @@ async fn test_soft_batch_save() -> Result<(), anyhow::Error> {
 
     let (full_node_port_tx_2, full_node_port_rx_2) = tokio::sync::oneshot::channel();
 
-    let db_dir_cloned = db_dir.path().to_path_buf();
     let full_node_task_2 = tokio::spawn(async move {
         start_rollup(
             full_node_port_tx_2,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             None,
             NodeMode::FullNode(full_node_port),
-            db_dir_cloned,
+            fullnode2_db_dir,
+            da_db_dir.clone(),
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             false,
             None,
@@ -236,11 +257,12 @@ async fn test_soft_batch_save() -> Result<(), anyhow::Error> {
 async fn test_full_node_send_tx() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging();
 
-    let db_dir = tempfile::tempdir().unwrap();
+    let storage_dir = tempdir_with_children(&vec!["DA", "sequencer", "full-node"]);
+    let da_db_dir = storage_dir.path().join("DA").to_path_buf();
 
     let (seq_test_client, full_node_test_client, seq_task, full_node_task, addr) =
         initialize_test(TestConfig {
-            da_db_path: db_dir.path().to_path_buf(),
+            da_path: da_db_dir,
             ..Default::default()
         })
         .await;
@@ -276,18 +298,22 @@ async fn test_full_node_send_tx() -> Result<(), anyhow::Error> {
 async fn test_delayed_sync_ten_blocks() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging();
 
-    let db_dir = tempfile::tempdir().unwrap();
+    let storage_dir = tempdir_with_children(&vec!["DA", "sequencer", "full-node"]);
+    let da_db_dir = storage_dir.path().join("DA").to_path_buf();
+    let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
+    let fullnode_db_dir = storage_dir.path().join("full-node").to_path_buf();
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
-    let db_dir_cloned = db_dir.path().to_path_buf();
+    let da_db_dir_cloned = da_db_dir.clone();
     let seq_task = tokio::spawn(async {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             None,
             NodeMode::SequencerNode,
-            db_dir_cloned,
+            sequencer_db_dir,
+            da_db_dir_cloned,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             true,
             None,
@@ -313,14 +339,15 @@ async fn test_delayed_sync_ten_blocks() -> Result<(), anyhow::Error> {
 
     let (full_node_port_tx, full_node_port_rx) = tokio::sync::oneshot::channel();
 
-    let db_dir_cloned = db_dir.path().to_path_buf();
+    let da_db_dir_cloned = da_db_dir.clone();
     let full_node_task = tokio::spawn(async move {
         start_rollup(
             full_node_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             None,
             NodeMode::FullNode(seq_port),
-            db_dir_cloned,
+            fullnode_db_dir,
+            da_db_dir_cloned,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             true,
             None,
@@ -356,11 +383,16 @@ async fn test_delayed_sync_ten_blocks() -> Result<(), anyhow::Error> {
 async fn test_e2e_same_block_sync() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging();
 
-    let db_dir = tempfile::tempdir().unwrap();
+    let storage_dir = tempdir_with_children(&vec!["DA", "sequencer", "full-node"]);
+    let da_db_dir = storage_dir.path().join("DA").to_path_buf();
+    let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
+    let fullnode_db_dir = storage_dir.path().join("full-node").to_path_buf();
 
     let (seq_test_client, full_node_test_client, seq_task, full_node_task, _) =
         initialize_test(TestConfig {
-            da_db_path: db_dir.path().to_path_buf(),
+            sequencer_path: sequencer_db_dir,
+            da_path: da_db_dir,
+            fullnode_path: fullnode_db_dir,
             ..Default::default()
         })
         .await;
@@ -376,18 +408,22 @@ async fn test_e2e_same_block_sync() -> Result<(), anyhow::Error> {
 #[tokio::test(flavor = "multi_thread")]
 async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging();
-    let db_dir = tempfile::tempdir().unwrap();
+    let storage_dir = tempdir_with_children(&vec!["DA", "sequencer", "full-node"]);
+    let da_db_dir = storage_dir.path().join("DA").to_path_buf();
+    let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
+    let fullnode_db_dir = storage_dir.path().join("full-node").to_path_buf();
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
-    let db_dir_cloned = db_dir.path().to_path_buf();
+    let da_db_dir_cloned = da_db_dir.clone();
     let seq_task = tokio::spawn(async {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             None,
             NodeMode::SequencerNode,
-            db_dir_cloned,
+            sequencer_db_dir,
+            da_db_dir_cloned,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             true,
             None,
@@ -402,7 +438,8 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
 
     let (full_node_port_tx, full_node_port_rx) = tokio::sync::oneshot::channel();
 
-    let db_dir_cloned = db_dir.path().to_path_buf();
+    let da_db_dir_cloned = da_db_dir.clone();
+    let fullnode_db_dir_cloned = fullnode_db_dir.clone();
     // starting full node with db path
     let rollup_task = tokio::spawn(async move {
         start_rollup(
@@ -410,7 +447,8 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             None,
             NodeMode::FullNode(seq_port),
-            db_dir_cloned,
+            fullnode_db_dir_cloned,
+            da_db_dir_cloned,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             true,
             None,
@@ -469,7 +507,7 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
         seq_test_client.send_publish_batch_request().await;
     }
 
-    let da_service = MockDaService::new(MockAddress::from([0; 32]), db_dir.path());
+    let da_service = MockDaService::new(MockAddress::from([0; 32]), storage_dir.path());
     da_service.publish_test_block().await.unwrap();
 
     // start full node again
@@ -477,14 +515,12 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
 
     // Copy the db to a new path with the same contents because
     // the lock is not released on the db directory even though the task is aborted
-    let _ = copy_dir_recursive(
-        Path::new("demo_data_test_close_and_reopen_full_node"),
-        Path::new("demo_data_test_close_and_reopen_full_node_copy"),
-    );
+    let _ = copy_dir_recursive(&fullnode_db_dir, &storage_dir.path().join("fullnode_copy"));
 
     sleep(Duration::from_secs(5)).await;
 
-    let db_dir_cloned = db_dir.path().to_path_buf();
+    let da_db_dir_cloned = da_db_dir.clone();
+    let fullnode_db_dir = storage_dir.path().join("fullnode_copy");
     // spin up the full node again with the same data where it left of only with different path to not stuck on lock
     let rollup_task = tokio::spawn(async move {
         start_rollup(
@@ -492,7 +528,8 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             None,
             NodeMode::FullNode(seq_port),
-            db_dir_cloned,
+            fullnode_db_dir,
+            da_db_dir_cloned,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             true,
             None,
@@ -537,18 +574,22 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
 #[tokio::test(flavor = "multi_thread")]
 async fn test_get_transaction_by_hash() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging();
-    let db_dir = tempfile::tempdir().unwrap();
+    let storage_dir = tempdir_with_children(&vec!["DA", "sequencer", "full-node"]);
+    let da_db_dir = storage_dir.path().join("DA").to_path_buf();
+    let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
+    let fullnode_db_dir = storage_dir.path().join("full-node").to_path_buf();
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
-    let db_dir_cloned = db_dir.path().to_path_buf();
+    let da_dir_cloned = da_db_dir.clone();
     let seq_task = tokio::spawn(async {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             None,
             NodeMode::SequencerNode,
-            db_dir_cloned,
+            sequencer_db_dir,
+            da_dir_cloned,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             true,
             None,
@@ -563,14 +604,15 @@ async fn test_get_transaction_by_hash() -> Result<(), anyhow::Error> {
 
     let (full_node_port_tx, full_node_port_rx) = tokio::sync::oneshot::channel();
 
-    let db_dir_cloned = db_dir.path().to_path_buf();
+    let da_dir_cloned = da_db_dir.clone();
     let rollup_task = tokio::spawn(async move {
         start_rollup(
             full_node_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             None,
             NodeMode::FullNode(seq_port),
-            db_dir_cloned,
+            fullnode_db_dir,
+            da_dir_cloned,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             true,
             None,
@@ -702,13 +744,18 @@ async fn test_get_transaction_by_hash() -> Result<(), anyhow::Error> {
 #[tokio::test(flavor = "multi_thread")]
 async fn test_soft_confirmations_on_different_blocks() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging();
-    let db_dir = tempfile::tempdir().unwrap();
+    let storage_dir = tempdir_with_children(&vec!["DA", "sequencer", "full-node"]);
+    let da_db_dir = storage_dir.path().join("DA").to_path_buf();
+    let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
+    let fullnode_db_dir = storage_dir.path().join("full-node").to_path_buf();
 
-    let da_service = MockDaService::new(MockAddress::default(), db_dir.path());
+    let da_service = MockDaService::new(MockAddress::default(), &da_db_dir.clone());
 
     let (seq_test_client, full_node_test_client, seq_task, full_node_task, _) =
         initialize_test(TestConfig {
-            da_db_path: db_dir.path().to_path_buf(),
+            da_path: da_db_dir.clone(),
+            sequencer_path: sequencer_db_dir.clone(),
+            fullnode_path: fullnode_db_dir.clone(),
             ..Default::default()
         })
         .await;
@@ -797,18 +844,22 @@ async fn test_soft_confirmations_on_different_blocks() -> Result<(), anyhow::Err
 #[tokio::test(flavor = "multi_thread")]
 async fn test_reopen_sequencer() -> Result<(), anyhow::Error> {
     // open, close without publishing blokcs
-    let db_dir = tempfile::tempdir().unwrap();
+    let storage_dir = tempdir_with_children(&vec!["DA", "sequencer"]);
+    let da_db_dir = storage_dir.path().join("DA").to_path_buf();
+    let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
-    let db_dir_cloned = db_dir.path().to_path_buf();
+    let sequencer_db_dir_cloned = sequencer_db_dir.clone();
+    let da_db_dir_cloned = da_db_dir.clone();
     let seq_task = tokio::spawn(async {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             None,
             NodeMode::SequencerNode,
-            db_dir_cloned,
+            sequencer_db_dir_cloned,
+            da_db_dir_cloned,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             true,
             None,
@@ -837,24 +888,26 @@ async fn test_reopen_sequencer() -> Result<(), anyhow::Error> {
 
     // Copy the db to a new path with the same contents because
     // the lock is not released on the db directory even though the task is aborted
-    // let _ = copy_dir_recursive(
-    //     Path::new("demo_data_test_reopen_sequencer"),
-    //     Path::new("demo_data_test_reopen_sequencer_copy"),
-    // );
+    let _ = copy_dir_recursive(
+        &sequencer_db_dir,
+        &storage_dir.path().join("sequencer_copy"),
+    );
 
-    let da_service = MockDaService::new(MockAddress::from([0; 32]), db_dir.path());
+    let da_service = MockDaService::new(MockAddress::from([0; 32]), storage_dir.path());
     da_service.publish_test_block().await.unwrap();
 
     sleep(Duration::from_secs(1)).await;
 
-    let db_dir_cloned = db_dir.path().to_path_buf();
+    let sequencer_db_dir = storage_dir.path().join("sequencer_copy");
+    let da_db_dir_cloned = da_db_dir.clone();
     let seq_task = tokio::spawn(async {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             None,
             NodeMode::SequencerNode,
-            db_dir_cloned,
+            sequencer_db_dir,
+            da_db_dir_cloned,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             true,
             None,
@@ -1007,13 +1060,18 @@ async fn execute_blocks(
 async fn test_soft_confirmations_status_one_l1() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging();
 
-    let db_dir = tempfile::tempdir().unwrap();
+    let storage_dir = tempdir_with_children(&vec!["DA", "sequencer", "full-node"]);
+    let da_db_dir = storage_dir.path().join("DA").to_path_buf();
+    let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
+    let fullnode_db_dir = storage_dir.path().join("full-node").to_path_buf();
 
-    let da_service = MockDaService::new(MockAddress::default(), db_dir.path());
+    let da_service = MockDaService::new(MockAddress::default(), storage_dir.path());
 
     let (seq_test_client, full_node_test_client, seq_task, full_node_task, _) =
         initialize_test(TestConfig {
-            da_db_path: db_dir.path().to_path_buf(),
+            da_path: da_db_dir.clone(),
+            sequencer_path: sequencer_db_dir.clone(),
+            fullnode_path: fullnode_db_dir.clone(),
             ..Default::default()
         })
         .await;
@@ -1054,12 +1112,18 @@ async fn test_soft_confirmations_status_one_l1() -> Result<(), anyhow::Error> {
 async fn test_soft_confirmations_status_two_l1() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging();
 
-    let db_dir = tempfile::tempdir().unwrap();
-    let da_service = MockDaService::new(MockAddress::default(), db_dir.path());
+    let storage_dir = tempdir_with_children(&vec!["DA", "sequencer", "full-node"]);
+    let da_db_dir = storage_dir.path().join("DA").to_path_buf();
+    let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
+    let fullnode_db_dir = storage_dir.path().join("full-node").to_path_buf();
+
+    let da_service = MockDaService::new(MockAddress::default(), &da_db_dir.clone());
 
     let (seq_test_client, full_node_test_client, seq_task, full_node_task, _) =
         initialize_test(TestConfig {
-            da_db_path: db_dir.path().to_path_buf(),
+            da_path: da_db_dir.clone(),
+            sequencer_path: sequencer_db_dir.clone(),
+            fullnode_path: fullnode_db_dir.clone(),
             seq_min_soft_confirmations: 3,
             deposit_mempool_fetch_limit: 10,
         })
@@ -1138,19 +1202,24 @@ async fn test_soft_confirmations_status_two_l1() -> Result<(), anyhow::Error> {
 async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging();
 
-    let db_dir = tempfile::tempdir().unwrap();
-    let da_service = MockDaService::new(MockAddress::default(), db_dir.path());
+    let storage_dir = tempdir_with_children(&vec!["DA", "sequencer", "prover"]);
+    let da_db_dir = storage_dir.path().join("DA").to_path_buf();
+    let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
+    let prover_db_dir = storage_dir.path().join("prover").to_path_buf();
+
+    let da_service = MockDaService::new(MockAddress::default(), &da_db_dir);
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
-    let db_dir_cloned = db_dir.path().to_path_buf();
+    let da_db_dir_cloned = da_db_dir.clone();
     let seq_task = tokio::spawn(async move {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             None,
             NodeMode::SequencerNode,
-            db_dir_cloned,
+            sequencer_db_dir,
+            da_db_dir_cloned,
             4,
             true,
             None,
@@ -1166,14 +1235,15 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
 
     let (prover_node_port_tx, prover_node_port_rx) = tokio::sync::oneshot::channel();
 
-    let db_dir_cloned = db_dir.path().to_path_buf();
+    let da_db_dir_cloned = da_db_dir.clone();
     let prover_node_task = tokio::spawn(async move {
         start_rollup(
             prover_node_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             Some(ProverConfig::default()),
             NodeMode::Prover(seq_port),
-            db_dir_cloned,
+            prover_db_dir,
+            da_db_dir_cloned,
             4,
             true,
             None,
@@ -1276,20 +1346,24 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
 async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging();
 
-    let db_dir = tempfile::tempdir().unwrap();
+    let storage_dir = tempdir_with_children(&vec!["DA", "sequencer", "prover"]);
+    let da_db_dir = storage_dir.path().join("DA").to_path_buf();
+    let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
+    let prover_db_dir = storage_dir.path().join("prover").to_path_buf();
 
-    let da_service = MockDaService::new(MockAddress::default(), db_dir.path());
+    let da_service = MockDaService::new(MockAddress::default(), &da_db_dir.clone());
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
-    let db_dir_cloned = db_dir.path().to_path_buf();
+    let da_db_dir_cloned = da_db_dir.clone();
     let seq_task = tokio::spawn(async move {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             Some(ProverConfig::default()),
             NodeMode::SequencerNode,
-            db_dir_cloned,
+            sequencer_db_dir,
+            da_db_dir_cloned,
             4,
             true,
             None,
@@ -1305,14 +1379,16 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
 
     let (prover_node_port_tx, prover_node_port_rx) = tokio::sync::oneshot::channel();
 
-    let db_dir_cloned = db_dir.path().to_path_buf();
+    let da_db_dir_cloned = da_db_dir.clone();
+    let prover_db_dir_cloned = prover_db_dir.clone();
     let prover_node_task = tokio::spawn(async move {
         start_rollup(
             prover_node_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             Some(ProverConfig::default()),
             NodeMode::Prover(seq_port),
-            db_dir_cloned,
+            prover_db_dir_cloned,
+            da_db_dir_cloned,
             4,
             true,
             None,
@@ -1359,22 +1435,22 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     assert_eq!(prover_node_test_client.eth_block_number().await, 4);
 
     prover_node_task.abort();
-    // let _ = copy_dir_recursive(
-    //     Path::new("demo_data_test_reopen_prover"),
-    //     Path::new("demo_data_test_reopen_prover_copy"),
-    // );
+
+    let _ = copy_dir_recursive(&prover_db_dir, &storage_dir.path().join("prover_copy"));
 
     // Reopen prover with the new path
     let (prover_node_port_tx, prover_node_port_rx) = tokio::sync::oneshot::channel();
 
-    let db_dir_cloned = db_dir.path().to_path_buf();
+    let prover_copy_db_dir = storage_dir.path().join("prover_copy");
+    let da_db_dir_cloned = da_db_dir.clone();
     let prover_node_task = tokio::spawn(async move {
         start_rollup(
             prover_node_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             Some(ProverConfig::default()),
             NodeMode::Prover(seq_port),
-            db_dir_cloned,
+            prover_copy_db_dir,
+            da_db_dir_cloned,
             4,
             true,
             None,
@@ -1404,22 +1480,21 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     seq_test_client.send_publish_batch_request().await;
     seq_test_client.send_publish_batch_request().await;
 
-    // let _ = copy_dir_recursive(
-    //     Path::new("demo_data_test_reopen_prover_copy"),
-    //     Path::new("demo_data_test_reopen_prover_copy2"),
-    // );
+    let _ = copy_dir_recursive(&prover_db_dir, &storage_dir.path().join("prover_copy2"));
 
     // Reopen prover with the new path
     let (prover_node_port_tx, prover_node_port_rx) = tokio::sync::oneshot::channel();
 
-    let db_dir_cloned = db_dir.path().to_path_buf();
+    let prover_copy2_dir_cloned = storage_dir.path().join("prover_copy2");
+    let da_db_dir_cloned = da_db_dir.clone();
     let prover_node_task = tokio::spawn(async move {
         start_rollup(
             prover_node_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             Some(ProverConfig::default()),
             NodeMode::Prover(seq_port),
-            db_dir_cloned,
+            prover_copy2_dir_cloned,
+            da_db_dir_cloned,
             4,
             true,
             None,
@@ -1475,8 +1550,12 @@ async fn test_system_transactons() -> Result<(), anyhow::Error> {
     let system_signer_address =
         Address::from_str("0xdeaddeaddeaddeaddeaddeaddeaddeaddeaddead").unwrap();
 
-    let db_dir = tempfile::tempdir().unwrap();
-    let da_service = MockDaService::new(MockAddress::default(), db_dir.path());
+    let storage_dir = tempdir_with_children(&vec!["DA", "sequencer", "full-node"]);
+    let da_db_dir = storage_dir.path().join("DA").to_path_buf();
+    let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
+    let fullnode_db_dir = storage_dir.path().join("full-node").to_path_buf();
+
+    let da_service = MockDaService::new(MockAddress::default(), &da_db_dir.clone());
 
     // start rollup on da block 3
     for _ in 0..3 {
@@ -1485,7 +1564,9 @@ async fn test_system_transactons() -> Result<(), anyhow::Error> {
 
     let (seq_test_client, full_node_test_client, seq_task, full_node_task, _) =
         initialize_test(TestConfig {
-            da_db_path: db_dir.path().to_path_buf(),
+            da_path: da_db_dir,
+            sequencer_path: sequencer_db_dir,
+            fullnode_path: fullnode_db_dir,
             ..Default::default()
         })
         .await;
@@ -1605,9 +1686,11 @@ async fn test_system_transactons() -> Result<(), anyhow::Error> {
 async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging();
 
-    let db_dir = tempfile::tempdir().unwrap();
+    let storage_dir = tempdir_with_children(&vec!["DA", "sequencer", "full-node"]);
+    let da_db_dir = storage_dir.path().join("DA").to_path_buf();
+    let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
 
-    let da_service = MockDaService::new(MockAddress::default(), db_dir.path());
+    let da_service = MockDaService::new(MockAddress::default(), &da_db_dir.clone());
 
     // start rollup on da block 3
     for _ in 0..3 {
@@ -1616,14 +1699,15 @@ async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error>
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
-    let db_dir_cloned = db_dir.path().to_path_buf();
+    let da_db_dir_cloned = da_db_dir.clone();
     let seq_task = tokio::spawn(async move {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests-low-block-gas-limit"),
             None,
             NodeMode::SequencerNode,
-            db_dir_cloned,
+            sequencer_db_dir,
+            da_db_dir_cloned,
             4,
             true,
             None,
@@ -1761,9 +1845,12 @@ fn find_subarray(haystack: &[u8], needle: &[u8]) -> Option<usize> {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
-    citrea::initialize_logging();
+    // citrea::initialize_logging();
 
-    let db_dir = tempfile::tempdir().unwrap();
+    let storage_dir = tempdir_with_children(&vec!["DA", "sequencer", "full-node"]);
+    let da_db_dir = storage_dir.path().join("DA").to_path_buf();
+    let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
+    let fullnode_db_dir = storage_dir.path().join("full-node").to_path_buf();
 
     let psql_db_name = std::thread::current()
         .name()
@@ -1780,24 +1867,25 @@ async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
 
     let mut sequencer_config = create_default_sequencer_config(4, Some(true), 10);
 
-    sequencer_config.db_config =
-        Some(SharedBackupDbConfig::default().set_db_name("sequencer.db".to_owned()));
+    sequencer_config.db_config = Some(SharedBackupDbConfig::default().set_db_name(psql_db_name));
 
-    let da_service = MockDaService::with_finality(MockAddress::from([0; 32]), 2, db_dir.path());
+    let da_service = MockDaService::with_finality(MockAddress::from([0; 32]), 2, &da_db_dir);
     da_service.publish_test_block().await.unwrap();
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
     let config1 = sequencer_config.clone();
 
-    let db_dir_cloned = db_dir.path().to_path_buf();
+    let da_db_dir_cloned = da_db_dir.clone();
+    let sequencer_db_dir_cloned = sequencer_db_dir.clone();
     let seq_task = tokio::spawn(async move {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             None,
             NodeMode::SequencerNode,
-            db_dir_cloned,
+            sequencer_db_dir_cloned,
+            da_db_dir_cloned,
             4,
             true,
             None,
@@ -1815,14 +1903,15 @@ async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
     let (full_node_port_tx, full_node_port_rx) = tokio::sync::oneshot::channel();
     let config1 = sequencer_config.clone();
 
-    let db_dir_cloned = db_dir.path().to_path_buf();
+    let da_db_dir_cloned = da_db_dir.clone();
     let full_node_task = tokio::spawn(async move {
         start_rollup(
             full_node_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             None,
             NodeMode::FullNode(seq_port),
-            db_dir_cloned,
+            fullnode_db_dir,
+            da_db_dir_cloned,
             4,
             true,
             None,
@@ -1871,14 +1960,14 @@ async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
 
     // Copy the db to a new path with the same contents because
     // the lock is not released on the db directory even though the task is aborted
-    // let _ = copy_dir_recursive(
-    //     Path::new("demo_data_sequencer_full_node"),
-    //     Path::new("demo_data_sequencer_full_node_copy"),
-    // );
+    let _ = copy_dir_recursive(
+        &sequencer_db_dir,
+        &storage_dir.path().join("sequencer_copy"),
+    );
+    let sequencer_db_dir = storage_dir.path().join("sequencer_copy");
 
     sleep(Duration::from_secs(1)).await;
     let config1 = sequencer_config.clone();
-    let db_dir_cloned = db_dir.path().to_path_buf();
 
     // Start the full node as sequencer
     let seq_task = tokio::spawn(async move {
@@ -1887,7 +1976,8 @@ async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             None,
             NodeMode::SequencerNode,
-            db_dir_cloned,
+            sequencer_db_dir,
+            da_db_dir,
             4,
             true,
             None,
@@ -1922,10 +2012,6 @@ async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
     assert_eq!(commitments[1].l1_start_height, 2);
     assert_eq!(commitments[1].l1_end_height, 3);
 
-    let _ = fs::remove_dir_all(Path::new("demo_data_test_reopen_sequencer"));
-    let _ = fs::remove_dir_all(Path::new("demo_data_sequencer_full_node"));
-    let _ = fs::remove_dir_all(Path::new("demo_data_sequencer_full_node_copy"));
-
     seq_task.abort();
 
     Ok(())
@@ -1933,13 +2019,18 @@ async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn transaction_failing_on_l1_is_removed_from_mempool() -> Result<(), anyhow::Error> {
-    citrea::initialize_logging();
+    // citrea::initialize_logging();
 
-    let db_dir = tempfile::tempdir().unwrap();
+    let storage_dir = tempdir_with_children(&vec!["DA", "sequencer", "full-node"]);
+    let da_db_dir = storage_dir.path().join("DA").to_path_buf();
+    let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
+    let fullnode_db_dir = storage_dir.path().join("full-node").to_path_buf();
 
     let (seq_test_client, full_node_test_client, seq_task, full_node_task, _) =
         initialize_test(TestConfig {
-            da_db_path: db_dir.path().to_path_buf(),
+            da_path: da_db_dir.clone(),
+            sequencer_path: sequencer_db_dir.clone(),
+            fullnode_path: fullnode_db_dir.clone(),
             ..Default::default()
         })
         .await;
@@ -2032,7 +2123,9 @@ async fn sequencer_crash_restore_mempool() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging();
     let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
 
-    let db_dir = tempfile::tempdir().unwrap();
+    let storage_dir = tempdir_with_children(&vec!["DA", "sequencer", "full-node"]);
+    let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
+    let da_db_dir = storage_dir.path().join("DA").to_path_buf();
 
     let psql_db_name = std::thread::current()
         .name()
@@ -2055,20 +2148,23 @@ async fn sequencer_crash_restore_mempool() -> Result<(), anyhow::Error> {
     sequencer_config.db_config =
         Some(SharedBackupDbConfig::default().set_db_name(psql_db_name.clone()));
 
-    let da_service = MockDaService::with_finality(MockAddress::from([0; 32]), 2, db_dir.path());
+    let da_service =
+        MockDaService::with_finality(MockAddress::from([0; 32]), 2, &da_db_dir.clone());
     da_service.publish_test_block().await.unwrap();
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
     let config1 = sequencer_config.clone();
-    let db_dir_cloned = db_dir.path().to_path_buf();
+    let da_db_dir_cloned = da_db_dir.clone();
+    let sequencer_db_dir_cloned = sequencer_db_dir.clone();
     let seq_task = tokio::spawn(async move {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             None,
             NodeMode::SequencerNode,
-            db_dir_cloned,
+            sequencer_db_dir_cloned,
+            da_db_dir_cloned,
             4,
             true,
             None,
@@ -2118,21 +2214,23 @@ async fn sequencer_crash_restore_mempool() -> Result<(), anyhow::Error> {
     seq_task.abort();
 
     let _ = copy_dir_recursive(
-        Path::new("demo_data_sequencer_restore_mempool"),
-        Path::new("demo_data_sequencer_restore_mempool_copy"),
+        &sequencer_db_dir,
+        &storage_dir.path().join("sequencer_copy"),
     );
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
     let config1 = sequencer_config.clone();
-    let db_dir_cloned = db_dir.path().to_path_buf();
+    let da_db_dir_cloned = da_db_dir.clone();
+    let sequencer_db_dir = storage_dir.path().join("sequencer_copy").to_path_buf();
     let seq_task = tokio::spawn(async move {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             None,
             NodeMode::SequencerNode,
-            db_dir_cloned,
+            sequencer_db_dir,
+            da_db_dir_cloned,
             4,
             true,
             None,

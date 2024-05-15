@@ -74,7 +74,10 @@ impl RollupBlueprint for MockDemoRollup {
         &self,
         rollup_config: &RollupConfig<Self::DaConfig>,
     ) -> Self::DaService {
-        MockDaService::new(rollup_config.da.sender_address, &rollup_config.storage.path)
+        MockDaService::new(
+            rollup_config.da.sender_address,
+            &rollup_config.storage.da_path,
+        )
     }
 
     async fn create_prover_service(
@@ -103,7 +106,7 @@ impl RollupBlueprint for MockDemoRollup {
         rollup_config: &RollupConfig<Self::DaConfig>,
     ) -> anyhow::Result<Self::StorageManager> {
         let storage_config = StorageConfig {
-            path: rollup_config.storage.path.clone(),
+            path: rollup_config.storage.rollup_path.clone(),
         };
         ProverStorageManager::new(storage_config)
     }

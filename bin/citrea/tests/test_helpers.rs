@@ -12,6 +12,7 @@ use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_stf_runner::{
     ProverConfig, RollupConfig, RollupPublicKeys, RpcConfig, RunnerConfig, StorageConfig,
 };
+use tempfile::TempDir;
 use tokio::sync::oneshot;
 use tracing::warn;
 
@@ -29,7 +30,8 @@ pub async fn start_rollup(
     rt_genesis_paths: GenesisPaths,
     rollup_prover_config: Option<ProverConfig>,
     node_mode: NodeMode,
-    db_path: PathBuf,
+    rollup_db_path: PathBuf,
+    da_db_path: PathBuf,
     min_soft_confirmations_per_commitment: u64,
     include_tx_body: bool,
     rollup_config: Option<RollupConfig<MockDaConfig>>,
@@ -39,7 +41,7 @@ pub async fn start_rollup(
 ) {
     // create rollup config default creator function and use them here for the configs
     let rollup_config = rollup_config.unwrap_or_else(|| {
-        create_default_rollup_config(include_tx_body, Some(Path::new(&db_path)), node_mode)
+        create_default_rollup_config(include_tx_body, &rollup_db_path, &da_db_path, node_mode)
     });
 
     let mock_demo_rollup = MockDemoRollup {};
@@ -103,10 +105,10 @@ pub async fn start_rollup(
 
 pub fn create_default_rollup_config(
     include_tx_body: bool,
-    path: Option<&Path>,
+    rollup_path: &Path,
+    da_path: &Path,
     node_mode: NodeMode,
 ) -> RollupConfig<MockDaConfig> {
-    let path = path.expect("Path should be set");
     RollupConfig {
         public_keys: RollupPublicKeys {
             sequencer_public_key: vec![
@@ -117,7 +119,8 @@ pub fn create_default_rollup_config(
             prover_da_pub_key: vec![],
         },
         storage: StorageConfig {
-            path: path.to_path_buf(),
+            rollup_path: rollup_path.to_path_buf(),
+            da_path: da_path.to_path_buf(),
         },
         rpc: RpcConfig {
             bind_host: "127.0.0.1".into(),
@@ -151,4 +154,16 @@ pub fn create_default_sequencer_config(
         // Offchain db will be active only in some tests
         db_config: None,
     }
+}
+
+pub fn tempdir_with_children(children: &[&str]) -> TempDir {
+    let db_dir = tempfile::tempdir().expect("Could not create temporary directory for test");
+    for child in children {
+        let p = db_dir.path().join(child);
+        if !std::path::Path::new(&p).exists() {
+            std::fs::create_dir(p).unwrap();
+        }
+    }
+
+    db_dir
 }
