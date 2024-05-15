@@ -18,7 +18,9 @@ use crate::{DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_MIN_SOFT_CONFIRMATIONS_
 
 #[tokio::test(flavor = "multi_thread")]
 async fn tracing_tests() -> Result<(), Box<dyn std::error::Error>> {
+    let db_dir = tempfile::tempdir().unwrap();
     let (port_tx, port_rx) = tokio::sync::oneshot::channel();
+    let db_dir_cloned = db_dir.path().to_path_buf();
     let rollup_task = tokio::spawn(async {
         // Don't provide a prover since the EVM is not currently provable
         start_rollup(
@@ -26,7 +28,7 @@ async fn tracing_tests() -> Result<(), Box<dyn std::error::Error>> {
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             None,
             NodeMode::SequencerNode,
-            None,
+            db_dir_cloned,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             true,
             None,

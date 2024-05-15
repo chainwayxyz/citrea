@@ -131,7 +131,6 @@ async fn runner_execution(
         }),
         da: MockDaConfig {
             sender_address: da_service.get_sequencer_address(),
-            db_path: path.to_path_buf(),
         },
         public_keys: RollupPublicKeys {
             sequencer_public_key: vec![0u8; 32],

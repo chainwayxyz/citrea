@@ -15,15 +15,18 @@ use crate::{DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_MIN_SOFT_CONFIRMATIONS_
 async fn test_archival_state() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging();
 
+    let db_dir = tempfile::tempdir().unwrap();
+
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
+    let db_dir_cloned = db_dir.path().to_path_buf();
     let seq_task = tokio::spawn(async {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             None,
             NodeMode::SequencerNode,
-            None,
+            db_dir_cloned,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             true,
             None,
