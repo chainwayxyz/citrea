@@ -1,3 +1,5 @@
+use std::env::temp_dir;
+
 use sov_mock_da::{
     MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaConfig, MockDaService, MockDaSpec,
     MockDaVerifier, MockValidityCond, PlannedFork,
@@ -47,7 +49,11 @@ async fn test_simple_reorg_case() {
         vec![15, 15, 15, 15],
     ];
 
-    let mut da_service = MockDaService::with_finality(sequencer_address, 4);
+    let mut da_service = MockDaService::with_finality(
+        sequencer_address,
+        4,
+        temp_dir().join("da.db").to_str().unwrap(),
+    );
     da_service.set_wait_attempts(2);
 
     let _genesis_header = da_service.get_last_finalized_block_header().await.unwrap();
@@ -66,7 +72,13 @@ async fn test_simple_reorg_case() {
 
     let init_variant: MockInitVariant = InitVariant::Genesis(genesis_params);
 
-    let (before, after) = runner_execution(tmpdir.path(), init_variant, da_service).await;
+    let (before, after) = runner_execution(
+        tmpdir.path(),
+        init_variant,
+        da_service,
+        temp_dir().join("seq.db").to_str().unwrap().to_owned(),
+    )
+    .await;
     assert_ne!(before, after);
     assert_eq!(expected_state_root, after);
 
@@ -86,7 +98,10 @@ async fn test_instant_finality_data_stored() {
     let sequencer_address = MockAddress::new([11u8; 32]);
     let genesis_params = vec![1, 2, 3, 4, 5];
 
-    let mut da_service = MockDaService::new(sequencer_address);
+    let mut da_service = MockDaService::new(
+        sequencer_address,
+        temp_dir().join("da.db").to_str().unwrap(),
+    );
     da_service.set_wait_attempts(2);
 
     let _genesis_header = da_service.get_last_finalized_block_header().await.unwrap();
@@ -102,7 +117,13 @@ async fn test_instant_finality_data_stored() {
 
     let init_variant: MockInitVariant = InitVariant::Genesis(genesis_params);
 
-    let (before, after) = runner_execution(tmpdir.path(), init_variant, da_service).await;
+    let (before, after) = runner_execution(
+        tmpdir.path(),
+        init_variant,
+        da_service,
+        temp_dir().join("da.db").to_str().unwrap().to_owned(),
+    )
+    .await;
     assert_ne!(before, after);
     assert_eq!(expected_state_root, after);
 
@@ -115,6 +136,7 @@ async fn runner_execution(
     path: &std::path::Path,
     init_variant: MockInitVariant,
     da_service: MockDaService,
+    da_db: String,
 ) -> ([u8; 32], [u8; 32]) {
     let rollup_config = RollupConfig::<MockDaConfig> {
         storage: StorageConfig {
@@ -131,6 +153,7 @@ async fn runner_execution(
         }),
         da: MockDaConfig {
             sender_address: da_service.get_sequencer_address(),
+            db_name: da_db,
         },
         public_keys: RollupPublicKeys {
             sequencer_public_key: vec![0u8; 32],

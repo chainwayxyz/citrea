@@ -106,6 +106,7 @@ pub fn from_toml_path<P: AsRef<Path>, R: DeserializeOwned>(path: P) -> anyhow::R
 
 #[cfg(test)]
 mod tests {
+    use std::env::temp_dir;
     use std::io::Write;
     use std::path::PathBuf;
 
@@ -147,6 +148,7 @@ mod tests {
 
         let config: RollupConfig<sov_mock_da::MockDaConfig> =
             from_toml_path(config_file.path()).unwrap();
+        let db_name = temp_dir().join("da.db");
         let expected = RollupConfig {
             runner: Some(RunnerConfig {
                 sequencer_client_url: "http://0.0.0.0:12346".to_owned(),
@@ -154,6 +156,7 @@ mod tests {
             }),
             da: sov_mock_da::MockDaConfig {
                 sender_address: [0; 32].into(),
+                db_name: db_name.to_str().unwrap().to_owned(),
             },
             storage: StorageConfig {
                 path: PathBuf::from("/tmp"),

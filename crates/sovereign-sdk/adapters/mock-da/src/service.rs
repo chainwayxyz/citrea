@@ -76,12 +76,16 @@ pub struct MockDaService {
 
 impl MockDaService {
     /// Creates a new [`MockDaService`] with instant finality.
-    pub fn new(sequencer_da_address: MockAddress) -> Self {
-        Self::with_finality(sequencer_da_address, 0)
+    pub fn new(sequencer_da_address: MockAddress, db_name: &str) -> Self {
+        Self::with_finality(sequencer_da_address, 0, db_name)
     }
 
     /// Create a new [`MockDaService`] with given finality.
-    pub fn with_finality(sequencer_da_address: MockAddress, blocks_to_finality: u32) -> Self {
+    pub fn with_finality(
+        sequencer_da_address: MockAddress,
+        blocks_to_finality: u32,
+        db_name: &str,
+    ) -> Self {
         let (tx, rx1) = broadcast::channel(16);
         // Spawn a task, so channel is never closed
         tokio::spawn(async move {
@@ -92,7 +96,7 @@ impl MockDaService {
         });
         Self {
             sequencer_da_address,
-            blocks: Arc::new(AsyncMutex::new(DbConnector::new())),
+            blocks: Arc::new(AsyncMutex::new(DbConnector::new(db_name))),
             blocks_to_finality,
             finalized_header_sender: tx,
             wait_attempts: 100_0000,
@@ -437,6 +441,8 @@ fn block_hash(
 
 #[cfg(test)]
 mod tests {
+    use std::env::temp_dir;
+
     use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait};
     use tokio::task::JoinHandle;
     use tokio_stream::StreamExt;
@@ -445,7 +451,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_empty() {
-        let mut da = MockDaService::new(MockAddress::new([1; 32]));
+        let mut da = MockDaService::new(
+            MockAddress::new([1; 32]),
+            temp_dir().join("da.db").to_str().unwrap(),
+        );
         da.wait_attempts = 10;
 
         let last_finalized_header = da.get_last_finalized_block_header().await.unwrap();
@@ -503,7 +512,11 @@ mod tests {
     }
 
     async fn test_push_and_read(finalization: u64, num_blocks: usize) {
-        let mut da = MockDaService::with_finality(MockAddress::new([1; 32]), finalization as u32);
+        let mut da = MockDaService::with_finality(
+            MockAddress::new([1; 32]),
+            finalization as u32,
+            temp_dir().join("da.db").to_str().unwrap(),
+        );
         da.blocks.lock().await.delete_all_rows();
         da.wait_attempts = 2;
         let number_of_finalized_blocks = num_blocks - finalization as usize;
@@ -539,7 +552,11 @@ mod tests {
     }
 
     async fn test_push_many_then_read(finalization: u64, num_blocks: usize) {
-        let mut da = MockDaService::with_finality(MockAddress::new([1; 32]), finalization as u32);
+        let mut da = MockDaService::with_finality(
+            MockAddress::new([1; 32]),
+            finalization as u32,
+            temp_dir().join("da.db").to_str().unwrap(),
+        );
         da.blocks.lock().await.delete_all_rows();
 
         da.wait_attempts = 2;
@@ -625,7 +642,11 @@ mod tests {
 
         #[tokio::test]
         async fn read_multiple_times() {
-            let mut da = MockDaService::with_finality(MockAddress::new([1; 32]), 4);
+            let mut da = MockDaService::with_finality(
+                MockAddress::new([1; 32]),
+                4,
+                temp_dir().join("da.db").to_str().unwrap(),
+            );
             da.wait_attempts = 2;
 
             // 1 -> 2 -> 3
@@ -658,7 +679,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_zk_submission() -> Result<(), anyhow::Error> {
-        let da = MockDaService::new(MockAddress::new([1; 32]));
+        let da = MockDaService::new(
+            MockAddress::new([1; 32]),
+            temp_dir().join("da.db").to_str().unwrap(),
+        );
         let aggregated_proof_data = vec![1, 2, 3];
         let height = da.send_aggregated_zk_proof(&aggregated_proof_data).await?;
         let proofs = da.get_aggregated_proofs_at(height).await?;
@@ -673,7 +697,11 @@ mod tests {
 
         #[tokio::test]
         async fn test_reorg_control_success() {
-            let da = MockDaService::with_finality(MockAddress::new([1; 32]), 4);
+            let da = MockDaService::with_finality(
+                MockAddress::new([1; 32]),
+                4,
+                temp_dir().join("da.db").to_str().unwrap(),
+            );
 
             // 1 -> 2 -> 3.1 -> 4.1
             //      \ -> 3.2 -> 4.2
@@ -708,7 +736,11 @@ mod tests {
 
         #[tokio::test]
         async fn test_attempt_reorg_after_finalized() {
-            let da = MockDaService::with_finality(MockAddress::new([1; 32]), 2);
+            let da = MockDaService::with_finality(
+                MockAddress::new([1; 32]),
+                2,
+                temp_dir().join("da.db").to_str().unwrap(),
+            );
 
             // 1 -> 2 -> 3 -> 4
 
@@ -760,7 +792,11 @@ mod tests {
 
         #[tokio::test]
         async fn test_planned_reorg() {
-            let mut da = MockDaService::with_finality(MockAddress::new([1; 32]), 4);
+            let mut da = MockDaService::with_finality(
+                MockAddress::new([1; 32]),
+                4,
+                temp_dir().join("da.db").to_str().unwrap(),
+            );
             da.wait_attempts = 2;
 
             // Planned for will replace blocks at height 3 and 4
@@ -796,7 +832,11 @@ mod tests {
 
         #[tokio::test]
         async fn test_planned_reorg_shorter() {
-            let mut da = MockDaService::with_finality(MockAddress::new([1; 32]), 4);
+            let mut da = MockDaService::with_finality(
+                MockAddress::new([1; 32]),
+                4,
+                temp_dir().join("da.db").to_str().unwrap(),
+            );
             da.wait_attempts = 2;
             // Planned for will replace blocks at height 3 and 4
             let planned_fork =

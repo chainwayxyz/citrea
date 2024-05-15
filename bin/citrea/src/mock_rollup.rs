@@ -74,7 +74,7 @@ impl RollupBlueprint for MockDemoRollup {
         &self,
         rollup_config: &RollupConfig<Self::DaConfig>,
     ) -> Self::DaService {
-        MockDaService::new(rollup_config.da.sender_address)
+        MockDaService::new(rollup_config.da.sender_address, &rollup_config.da.db_name)
     }
 
     async fn create_prover_service(

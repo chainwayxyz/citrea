@@ -1,3 +1,4 @@
+use std::env::temp_dir;
 use std::sync::Arc;
 
 use citrea_evm::Evm;
@@ -82,7 +83,10 @@ pub(crate) fn create_rpc_module<C: sov_modules_api::Context>(
 
         rpc.register_async_method("da_publishBlock", |_, _ctx| async move {
             info!("Sequencer: da_publishBlock");
-            let da = MockDaService::new(MockAddress::from([0; 32]));
+            let da = MockDaService::new(
+                MockAddress::from([0; 32]),
+                temp_dir().join("da.db").to_str().unwrap(),
+            );
             da.publish_test_block().await.map_err(|e| {
                 ErrorObjectOwned::owned(
                     INTERNAL_ERROR_CODE,

@@ -5,7 +5,6 @@ use citrea::MockDemoRollup;
 use citrea_sequencer::SequencerConfig;
 use citrea_stf::genesis_config::GenesisPaths;
 use rollup_constants::TEST_PRIVATE_KEY;
-use shared_backup_db::SharedBackupDbConfig;
 use sov_mock_da::{MockAddress, MockDaConfig};
 use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
 use sov_modules_api::PrivateKey;
@@ -38,17 +37,22 @@ pub async fn start_rollup(
     test_mode: Option<bool>,
     deposit_mempool_fetch_limit: usize,
 ) {
-    let mut path = db_path.map(Path::new);
-    let mut temp_dir: Option<tempfile::TempDir> = None;
-    if db_path.is_none() {
-        temp_dir = Some(tempfile::tempdir().unwrap());
-
-        path = Some(temp_dir.as_ref().unwrap().path());
-    }
-
+    let db_path = match db_path {
+        Some(path) => path.to_owned(),
+        None => {
+            let temp_dir = tempfile::tempdir().unwrap();
+            temp_dir.path().to_str().unwrap().to_owned()
+        }
+    };
     // create rollup config default creator function and use them here for the configs
-    let rollup_config = rollup_config
-        .unwrap_or_else(|| create_default_rollup_config(include_tx_body, path, node_mode));
+    let rollup_config = rollup_config.unwrap_or_else(|| {
+        create_default_rollup_config(
+            include_tx_body,
+            Some(Path::new(&db_path)),
+            node_mode,
+            format!("{}/da.db", db_path),
+        )
+    });
 
     let mock_demo_rollup = MockDemoRollup {};
 
@@ -103,16 +107,17 @@ pub async fn start_rollup(
         }
     }
 
-    if db_path.is_none() {
-        // Close the tempdir explicitly to ensure that rustc doesn't see that it's unused and drop it unexpectedly
-        temp_dir.unwrap().close().unwrap();
-    }
+    // if db_path.is_none() {
+    //     // Close the tempdir explicitly to ensure that rustc doesn't see that it's unused and drop it unexpectedly
+    //     temp_dir.unwrap().close().unwrap();
+    // }
 }
 
 pub fn create_default_rollup_config(
     include_tx_body: bool,
     path: Option<&Path>,
     node_mode: NodeMode,
+    db_name: String,
 ) -> RollupConfig<MockDaConfig> {
     RollupConfig {
         public_keys: RollupPublicKeys {
@@ -141,6 +146,7 @@ pub fn create_default_rollup_config(
         },
         da: MockDaConfig {
             sender_address: MockAddress::from([0; 32]),
+            db_name,
         },
     }
 }
