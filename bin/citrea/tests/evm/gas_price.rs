@@ -15,9 +15,9 @@ use crate::{DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_MIN_SOFT_CONFIRMATIONS_
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_gas_price_increase() -> Result<(), anyhow::Error> {
-    citrea::initialize_logging();
+    // citrea::initialize_logging();
 
-    let storage_dir = tempdir_with_children(&vec!["DA", "sequencer", "full-node"]);
+    let storage_dir = tempdir_with_children(&vec!["DA", "sequencer"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
     let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
 
