@@ -23,7 +23,7 @@ test-legacy: ## Runs test suite with output from tests printed
 	@cargo test -- --nocapture -Zunstable-options --report-time
 
 test: $(EF_TESTS_DIR) ## Runs test suite using next test
-	@cargo nextest run --workspace --all-features --no-fail-fast
+	@cargo nextest run --workspace --all-features --no-fail-fast $(filter-out $@,$(MAKECMDGOALS))
 
 install-dev-tools:  ## Installs all necessary cargo helpers
 	cargo install cargo-llvm-cov
@@ -94,3 +94,6 @@ $(EF_TESTS_DIR):
 .PHONY: ef-tests
 ef-tests: $(EF_TESTS_DIR) ## Runs Ethereum Foundation tests.
 	cargo nextest run -p citrea-evm general_state_tests
+
+%:
+	@:
