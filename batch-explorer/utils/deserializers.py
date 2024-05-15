@@ -1,6 +1,8 @@
 from dtos.commitment import (
     SequencerCommitment,
     CommitmentResponse,
+)
+from dtos.proof import (
     ProofData,
     ProofDataResponse,
 )
@@ -66,6 +68,7 @@ def deserialize_proof_data(rows):
                 sequencer_public_key=row[7],
                 sequencer_da_public_key=row[8],
                 validity_condition=row[9],
+                proof_type=row[10],
             )
         )
     return proofs
@@ -85,6 +88,7 @@ def deserialize_to_proof_data_response(rows):
                 sequencer_public_key=bytes_to_hex(row[7]),
                 sequencer_da_public_key=bytes_to_hex(row[8]),
                 validity_condition=bytes_to_hex(row[9]),
+                proof_type=row[10],
             )
         )
     return proofs

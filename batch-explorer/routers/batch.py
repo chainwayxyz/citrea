@@ -3,6 +3,8 @@ from pydantic import BaseModel, model_validator, ValidationError
 from dtos.commitment import (
     SequencerCommitment,
     CommitmentResponse,
+)
+from dtos.proof import (
     ProofData,
     ProofDataResponse,
 )
@@ -135,6 +137,7 @@ if CONFIG.env == "test":
                     sequencer_public_key=random_32_byte_array(),
                     sequencer_da_public_key=random_32_byte_array(),
                     validity_condition=random_32_byte_array(),
+                    proof_type="Full",
                 )
 
         def random_sequencer_commitments():
@@ -196,7 +199,8 @@ if CONFIG.env == "test":
                         da_slot_hash                BYTEA NOT NULL,
                         sequencer_public_key        BYTEA NOT NULL,
                         sequencer_da_public_key     BYTEA NOT NULL,
-                        validity_condition          BYTEA NOT NULL
+                        validity_condition          BYTEA NOT NULL,
+                        proof_type                  VARCHAR(20) NOT NULL
                     );
                     """
                 )
@@ -235,8 +239,8 @@ if CONFIG.env == "test":
                     for rp in rand_proofs:
                         await cur.execute(
                             """
-                            INSERT INTO proof (l1_tx_id, proof_data, initial_state_root, final_state_root, state_diff, da_slot_hash, sequencer_public_key, sequencer_da_public_key, validity_condition) 
-                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s);
+                            INSERT INTO proof (l1_tx_id, proof_data, initial_state_root, final_state_root, state_diff, da_slot_hash, sequencer_public_key, sequencer_da_public_key, validity_condition, proof_type) 
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
                             """,
                             (
                                 rp.l1_tx_id,
@@ -248,6 +252,7 @@ if CONFIG.env == "test":
                                 rp.sequencer_public_key,
                                 rp.sequencer_da_public_key,
                                 rp.validity_condition,
+                                rp.proof_type,
                             ),
                         )
                 except Exception as e:

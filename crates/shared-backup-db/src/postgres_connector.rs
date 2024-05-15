@@ -6,8 +6,8 @@ use deadpool_postgres::{Manager, ManagerConfig, Object, Pool, PoolError, Recycli
 
 use crate::config::SharedBackupDbConfig;
 use crate::tables::{
-    CommitmentStatus, DbMempoolTx, DbProof, DbSequencerCommitment, Tables, INDEX_L1_END_HASH,
-    INDEX_L1_END_HEIGHT, INDEX_L2_END_HEIGHT, MEMPOOL_TXS_TABLE_CREATE_QUERY,
+    CommitmentStatus, DbMempoolTx, DbProof, DbSequencerCommitment, ProofType, Tables,
+    INDEX_L1_END_HASH, INDEX_L1_END_HEIGHT, INDEX_L2_END_HEIGHT, MEMPOOL_TXS_TABLE_CREATE_QUERY,
     PROOF_TABLE_CREATE_QUERY, SEQUENCER_COMMITMENT_TABLE_CREATE_QUERY,
 };
 use crate::utils::get_db_extension;
@@ -224,12 +224,13 @@ impl PostgresConnector {
         sequemcer_public_key: Vec<u8>,
         sequencer_da_public_key: Vec<u8>,
         validity_condition: Vec<u8>,
+        proof_type: ProofType,
     ) -> Result<u64, PoolError> {
         let client = self.client().await?;
         Ok(client
             .execute(
-                "INSERT INTO proof (l1_tx_id, proof_data, initial_state_root, final_state_root, state_diff, da_slot_hash, sequencer_public_key, sequencer_da_public_key, validity_condition) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9);",
-                &[&l1_tx_id, &proof_data, &initial_state_root, &final_state_root, &state_diff, &da_slot_hash, &sequemcer_public_key, &sequencer_da_public_key, &validity_condition],
+                "INSERT INTO proof (l1_tx_id, proof_data, initial_state_root, final_state_root, state_diff, da_slot_hash, sequencer_public_key, sequencer_da_public_key, validity_condition, proof_type) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10);",
+                &[&l1_tx_id, &proof_data, &initial_state_root, &final_state_root, &state_diff, &da_slot_hash, &sequemcer_public_key, &sequencer_da_public_key, &validity_condition, &proof_type.to_string()],
             )
             .await?)
     }
@@ -296,6 +297,7 @@ impl PostgresConnector {
             sequencer_public_key: row.get("sequencer_public_key"),
             sequencer_da_public_key: row.get("sequencer_da_public_key"),
             validity_condition: row.get("validity_condition"),
+            proof_type: ProofType::from_str(row.get("proof_type")).unwrap(),
         }
     }
 }
@@ -403,6 +405,7 @@ mod tests {
                 vec![6; 32],
                 vec![7; 32],
                 vec![8; 32],
+                ProofType::Full,
             )
             .await
             .unwrap();
@@ -423,6 +426,7 @@ mod tests {
                 sequencer_public_key: vec![6; 32],
                 sequencer_da_public_key: vec![7; 32],
                 validity_condition: vec![8; 32],
+                proof_type: ProofType::Full,
             }
         );
 

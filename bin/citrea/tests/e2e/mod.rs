@@ -14,10 +14,10 @@ use ethers_signers::{LocalWallet, Signer};
 use reth_primitives::{BlockNumberOrTag, TxHash};
 use rollup_constants::TEST_PRIVATE_KEY;
 use secp256k1::rand::thread_rng;
-use shared_backup_db::{PostgresConnector, SharedBackupDbConfig};
+use shared_backup_db::{PostgresConnector, ProofType, SharedBackupDbConfig};
 use sov_mock_da::{MockAddress, MockDaService, MockDaSpec, MockHash};
 use sov_rollup_interface::da::{DaData, DaSpec};
-use sov_rollup_interface::rpc::SoftConfirmationStatus;
+use sov_rollup_interface::rpc::{ProofRpcResponse, SoftConfirmationStatus};
 use sov_rollup_interface::services::da::DaService;
 use sov_stf_runner::ProverConfig;
 use tokio::task::JoinHandle;
@@ -2172,10 +2172,17 @@ async fn test_db_get_proof() {
         ledger_proof.state_transition.sequencer_public_key
     );
     assert_eq!(db_proofs[0].l1_tx_id, ledger_proof.l1_tx_id);
-    assert_eq!(
-        db_proofs[0].proof_data,
-        ledger_proof.proof.try_to_vec().unwrap()
-    );
+
+    match ledger_proof.proof {
+        ProofRpcResponse::Full(p) => {
+            assert_eq!(db_proofs[0].proof_type, ProofType::Full);
+            assert_eq!(db_proofs[0].proof_data, p)
+        }
+        ProofRpcResponse::PublicInput(p) => {
+            assert_eq!(db_proofs[0].proof_type, ProofType::PublicInput);
+            assert_eq!(db_proofs[0].proof_data, p)
+        }
+    };
 
     seq_task.abort();
     prover_node_task.abort();

@@ -10,7 +10,7 @@ use jsonrpsee::RpcModule;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 use sequencer_client::SequencerClient;
-use shared_backup_db::PostgresConnector;
+use shared_backup_db::{PostgresConnector, ProofType};
 use sov_db::ledger_db::{LedgerDB, SlotCommit};
 use sov_db::schema::types::{BatchNumber, SlotNumber, StoredSoftBatch, StoredStateTransition};
 use sov_modules_api::{Context, SignedSoftConfirmationBatch};
@@ -244,7 +244,7 @@ where
 
         let pg_client = match self.prover_config.clone().unwrap().db_config {
             Some(db_config) => {
-                println!("Connecting to postgres");
+                tracing::info!("Connecting to postgres");
                 Some(PostgresConnector::new(db_config.clone()).await)
             }
             None => None,
@@ -543,10 +543,14 @@ where
 
             match pg_client.as_ref() {
                 Some(Ok(pool)) => {
-                    println!("Inserting proof data into postgres");
+                    tracing::info!("Inserting proof data into postgres");
+                    let (proof_data, proof_type) = match proof.clone() {
+                        Proof::Full(full_proof) => (full_proof, ProofType::Full),
+                        Proof::PublicInput(public_input) => (public_input, ProofType::PublicInput),
+                    };
                     pool.insert_proof_data(
                         tx_id_u8.to_vec(),
-                        proof.try_to_vec().unwrap(),
+                        proof_data,
                         stored_state_transition.initial_state_root.clone(),
                         stored_state_transition.final_state_root.clone(),
                         stored_state_transition.state_diff.clone(),
@@ -554,6 +558,7 @@ where
                         stored_state_transition.sequencer_public_key.clone(),
                         stored_state_transition.sequencer_da_public_key.clone(),
                         stored_state_transition.validity_condition.clone(),
+                        proof_type,
                     )
                     .await
                     .unwrap();
