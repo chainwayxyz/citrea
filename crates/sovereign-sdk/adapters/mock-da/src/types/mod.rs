@@ -145,6 +145,8 @@ impl BlockHeaderTrait for MockBlockHeader {
 pub struct MockDaConfig {
     /// The address to use to "submit" blobs on the mock da layer
     pub sender_address: MockAddress,
+    /// The database filename.
+    pub db_name: String,
 }
 
 #[derive(Clone, Default)]

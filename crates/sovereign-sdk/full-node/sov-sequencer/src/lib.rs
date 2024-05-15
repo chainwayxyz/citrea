@@ -137,6 +137,8 @@ pub enum SubmitTransactionResponse {
 #[cfg(test)]
 mod tests {
 
+    use std::env::temp_dir;
+
     use sov_mock_da::{MockAddress, MockDaService};
     use sov_rollup_interface::da::BlobReaderTrait;
 
@@ -177,7 +179,10 @@ mod tests {
     #[tokio::test]
     async fn test_submit_on_empty_mempool() {
         let batch_builder = MockBatchBuilder { mempool: vec![] };
-        let da_service = MockDaService::new(MockAddress::default());
+        let da_service = MockDaService::new(
+            MockAddress::default(),
+            temp_dir().join("da.db").to_str().unwrap(),
+        );
         let rpc = get_sequencer_rpc(batch_builder, da_service.clone());
 
         let arg: &[u8] = &[];
@@ -199,7 +204,10 @@ mod tests {
         let batch_builder = MockBatchBuilder {
             mempool: vec![tx1.clone(), tx2.clone()],
         };
-        let da_service = MockDaService::new(MockAddress::default());
+        let da_service = MockDaService::new(
+            MockAddress::default(),
+            temp_dir().join("da.db").to_str().unwrap(),
+        );
         let rpc = get_sequencer_rpc(batch_builder, da_service.clone());
 
         let arg: &[u8] = &[];
@@ -217,7 +225,10 @@ mod tests {
     #[tokio::test]
     async fn test_accept_tx() {
         let batch_builder = MockBatchBuilder { mempool: vec![] };
-        let da_service = MockDaService::new(MockAddress::default());
+        let da_service = MockDaService::new(
+            MockAddress::default(),
+            temp_dir().join("da.db").to_str().unwrap(),
+        );
 
         let rpc = get_sequencer_rpc(batch_builder, da_service.clone());
 

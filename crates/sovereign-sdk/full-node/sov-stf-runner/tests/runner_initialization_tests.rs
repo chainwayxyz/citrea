@@ -25,13 +25,31 @@ async fn init_and_restart() {
     let init_variant: MockInitVariant = InitVariant::Genesis(genesis_params);
 
     let state_root_after_genesis = {
-        let runner = initialize_runner(tmpdir.path(), init_variant);
+        let runner = initialize_runner(
+            tmpdir.path(),
+            init_variant,
+            tmpdir
+                .path()
+                .join("/initvariant1_db")
+                .to_str()
+                .unwrap()
+                .to_owned(),
+        );
         *runner.get_state_root()
     };
 
     let init_variant_2: MockInitVariant = InitVariant::Initialized(state_root_after_genesis);
 
-    let runner_2 = initialize_runner(tmpdir.path(), init_variant_2);
+    let runner_2 = initialize_runner(
+        tmpdir.path(),
+        init_variant_2,
+        tmpdir
+            .path()
+            .join("/initvariant2_db")
+            .to_str()
+            .unwrap()
+            .to_owned(),
+    );
 
     let state_root_2 = *runner_2.get_state_root();
 
@@ -48,6 +66,7 @@ type MockProverService = ParallelProverService<
 fn initialize_runner(
     path: &std::path::Path,
     init_variant: MockInitVariant,
+    db_name: String,
 ) -> StateTransitionRunner<
     HashStf<MockValidityCond>,
     StorageManager,
@@ -73,6 +92,7 @@ fn initialize_runner(
         }),
         da: MockDaConfig {
             sender_address: address,
+            db_name: db_name.clone(),
         },
         public_keys: RollupPublicKeys {
             sequencer_public_key: vec![],
@@ -81,7 +101,7 @@ fn initialize_runner(
         },
     };
 
-    let da_service = MockDaService::new(address);
+    let da_service = MockDaService::new(address, &db_name);
 
     let ledger_db = LedgerDB::with_path(path).unwrap();
 
