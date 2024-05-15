@@ -1,4 +1,4 @@
-use std::env::temp_dir;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use citrea_evm::Evm;
@@ -32,6 +32,7 @@ pub(crate) struct RpcContext<C: sov_modules_api::Context> {
 
 pub(crate) fn create_rpc_module<C: sov_modules_api::Context>(
     rpc_context: RpcContext<C>,
+    da_db_path: Option<PathBuf>,
 ) -> Result<RpcModule<RpcContext<C>>, RpcError> {
     let test_mode = rpc_context.test_mode;
     let mut rpc = RpcModule::new(rpc_context);
@@ -81,20 +82,21 @@ pub(crate) fn create_rpc_module<C: sov_modules_api::Context>(
             Ok::<(), ErrorObjectOwned>(())
         })?;
 
-        rpc.register_async_method("da_publishBlock", |_, _ctx| async move {
-            info!("Sequencer: da_publishBlock");
-            let da = MockDaService::new(
-                MockAddress::from([0; 32]),
-                temp_dir().join("da.db").to_str().unwrap(),
-            );
-            da.publish_test_block().await.map_err(|e| {
-                ErrorObjectOwned::owned(
-                    INTERNAL_ERROR_CODE,
-                    INTERNAL_ERROR_MSG,
-                    Some(format!("Could not publish mock-da block: {e}")),
-                )
-            })?;
-            Ok::<(), ErrorObjectOwned>(())
+        let da_db_path = da_db_path.expect("DA DB should be set");
+        rpc.register_async_method("da_publishBlock", move |_, _ctx| {
+            let mock_db_path = da_db_path.clone();
+            async move {
+                info!("Sequencer: da_publishBlock");
+                let da = MockDaService::new(MockAddress::from([0; 32]), &mock_db_path);
+                da.publish_test_block().await.map_err(|e| {
+                    ErrorObjectOwned::owned(
+                        INTERNAL_ERROR_CODE,
+                        INTERNAL_ERROR_MSG,
+                        Some(format!("Could not publish mock-da block: {e}")),
+                    )
+                })?;
+                Ok::<(), ErrorObjectOwned>(())
+            }
         })?;
     }
 
