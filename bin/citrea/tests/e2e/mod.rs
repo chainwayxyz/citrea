@@ -3,7 +3,6 @@ use std::path::Path;
 use std::str::FromStr;
 use std::time::Duration;
 
-use borsh::BorshSerialize;
 use citrea_evm::smart_contracts::SimpleStorageContract;
 use citrea_evm::system_contracts::BitcoinLightClient;
 use citrea_sequencer::{SequencerConfig, SequencerMempoolConfig};
