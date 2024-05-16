@@ -504,9 +504,13 @@ impl DaService for BitcoinService {
     #[instrument(level = "trace", skip_all)]
     async fn send_transaction(
         &self,
-        _blob: &[u8],
+        blob: &[u8],
     ) -> Result<<Self as DaService>::TransactionId, Self::Error> {
-        unimplemented!("Use send_tx_no_wait instead")
+        let rx = self.send_tx_no_wait(blob.to_vec()).await;
+
+        let res = rx.await?;
+
+        res
     }
 
     #[instrument(level = "trace", skip_all)]
