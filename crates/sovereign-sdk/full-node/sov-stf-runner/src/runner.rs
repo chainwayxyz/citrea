@@ -864,6 +864,13 @@ where
                 &mut soft_batch.clone().into(),
             );
 
+            let next_state_root = slot_result.state_root;
+            // Check if post state root is the same as the one in the soft batch
+            if next_state_root.as_ref().to_vec() != soft_batch.post_state_root {
+                warn!("Post state root mismatch at height: {}", height);
+                continue;
+            }
+
             for receipt in slot_result.batch_receipts {
                 data_to_commit.add_batch(receipt);
             }
@@ -872,13 +879,6 @@ where
                 .save_change_set_l2(height, slot_result.change_set)?;
 
             let batch_receipt = data_to_commit.batch_receipts()[0].clone();
-
-            let next_state_root = slot_result.state_root;
-
-            // Check if post state root is the same as the one in the soft batch
-            if next_state_root.as_ref().to_vec() != soft_batch.post_state_root {
-                bail!("Post state root mismatch at height: {}", height,)
-            }
 
             let soft_batch_receipt = SoftBatchReceipt::<_, _, Da::Spec> {
                 pre_state_root: self.state_root.as_ref().to_vec(),
