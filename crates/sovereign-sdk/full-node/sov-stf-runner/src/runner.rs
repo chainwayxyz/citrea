@@ -10,6 +10,7 @@ use jsonrpsee::RpcModule;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 use sequencer_client::SequencerClient;
+use shared_backup_db::{PostgresConnector, ProofType};
 use sov_db::ledger_db::{LedgerDB, SlotCommit};
 use sov_db::schema::types::{BatchNumber, SlotNumber, StoredSoftBatch, StoredStateTransition};
 use sov_modules_api::{Context, SignedSoftConfirmationBatch};
@@ -25,11 +26,11 @@ use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::{Proof, StateTransitionData, Zkvm, ZkvmHost};
 use tokio::sync::oneshot;
 use tokio::time::{sleep, Duration, Instant};
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, instrument, warn};
 
 use crate::prover_helpers::get_initial_slot_height;
 use crate::verifier::StateTransitionVerifier;
-use crate::{ProverService, RollupPublicKeys, RpcConfig, RunnerConfig};
+use crate::{ProverConfig, ProverService, RollupPublicKeys, RpcConfig, RunnerConfig};
 
 type StateRoot<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::StateRoot;
 type GenesisParams<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::GenesisParams;
@@ -65,6 +66,7 @@ where
     prover_da_pub_key: Vec<u8>,
     phantom: std::marker::PhantomData<C>,
     include_tx_body: bool,
+    prover_config: Option<ProverConfig>,
 }
 
 /// Represents the possible modes of execution for a zkVM program
@@ -123,6 +125,7 @@ where
         mut storage_manager: Sm,
         init_variant: InitVariant<Stf, Vm, Da::Spec>,
         prover_service: Option<Ps>,
+        prover_config: Option<ProverConfig>,
     ) -> Result<Self, anyhow::Error> {
         let prev_state_root = match init_variant {
             InitVariant::Initialized(state_root) => {
@@ -164,6 +167,7 @@ where
             prover_da_pub_key: public_keys.prover_da_pub_key,
             phantom: std::marker::PhantomData,
             include_tx_body: runner_config.include_tx_body,
+            prover_config,
         })
     }
 
@@ -218,11 +222,13 @@ where
     }
 
     /// Returns the head soft batch
+    #[instrument(level = "trace", skip_all, err)]
     pub fn get_head_soft_batch(&self) -> anyhow::Result<Option<(BatchNumber, StoredSoftBatch)>> {
         self.ledger_db.get_head_soft_batch()
     }
 
     /// Runs the prover process.
+    #[instrument(level = "trace", skip_all, err)]
     pub async fn run_prover_process(&mut self) -> Result<(), anyhow::Error> {
         // Prover node should sync when a new sequencer commitment arrives
         // Check da block get and sync up to the latest block in the latest commitment
@@ -237,6 +243,14 @@ where
         };
 
         let mut l2_height = self.start_height;
+
+        let pg_client = match self.prover_config.clone().unwrap().db_config {
+            Some(db_config) => {
+                tracing::info!("Connecting to postgres");
+                Some(PostgresConnector::new(db_config.clone()).await)
+            }
+            None => None,
+        };
 
         loop {
             let last_finalized_height = self
@@ -287,11 +301,13 @@ where
                             );
                         }
                     } else {
+                        warn!("Force transactions are not implemented yet");
                         // TODO: This is where force transactions will land - try to parse DA data force transaction
                     }
                 });
 
             if !zk_proofs.is_empty() {
+                warn!("ZK proofs are not empty");
                 // TODO: Implement this
             }
 
@@ -529,6 +545,33 @@ where
                 validity_condition: transition_data.validity_condition.try_to_vec().unwrap(),
             };
 
+            match pg_client.as_ref() {
+                Some(Ok(pool)) => {
+                    tracing::info!("Inserting proof data into postgres");
+                    let (proof_data, proof_type) = match proof.clone() {
+                        Proof::Full(full_proof) => (full_proof, ProofType::Full),
+                        Proof::PublicInput(public_input) => (public_input, ProofType::PublicInput),
+                    };
+                    pool.insert_proof_data(
+                        tx_id_u8.to_vec(),
+                        proof_data,
+                        stored_state_transition.initial_state_root.clone(),
+                        stored_state_transition.final_state_root.clone(),
+                        stored_state_transition.state_diff.clone(),
+                        stored_state_transition.da_slot_hash.clone().to_vec(),
+                        stored_state_transition.sequencer_public_key.clone(),
+                        stored_state_transition.sequencer_da_public_key.clone(),
+                        stored_state_transition.validity_condition.clone(),
+                        proof_type,
+                    )
+                    .await
+                    .unwrap();
+                }
+                _ => {
+                    tracing::warn!("No postgres client found");
+                }
+            }
+
             for (sequencer_commitment, l1_heights) in
                 sequencer_commitments.into_iter().zip(traversed_l1_tuples)
             {
@@ -562,6 +605,7 @@ where
     }
 
     /// Runs the rollup.
+    #[instrument(level = "trace", skip_all, err)]
     pub async fn run_in_process(&mut self) -> Result<(), anyhow::Error> {
         let mut last_l1_height = 0;
         let mut cur_l1_block = None;
@@ -666,11 +710,13 @@ where
                                 );
                             }
                         } else {
+                            warn!("Force transactions are not implemented yet");
                             // TODO: This is where force transactions will land - try to parse DA data force transaction
                         }
                     });
 
                 if !zk_proofs.is_empty() {
+                    warn!("ZK proofs are not empty");
                     // TODO: Implement this
                 }
 

@@ -174,6 +174,7 @@ async fn runner_execution(
             storage_manager,
             init_variant,
             Some(prover_service),
+            None,
         )
         .unwrap();
 

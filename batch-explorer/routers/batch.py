@@ -1,9 +1,17 @@
 from fastapi import APIRouter, Request, Response, HTTPException
 from pydantic import BaseModel, model_validator, ValidationError
-from dtos.commitment import SequencerCommitment, CommitmentResponse
+from dtos.commitment import (
+    SequencerCommitment,
+    CommitmentResponse,
+)
+from dtos.proof import (
+    ProofData,
+    ProofDataResponse,
+)
 from utils.deserializers import (
     deserialize_commitments,
     deserialize_to_commitment_response,
+    deserialize_to_proof_data_response,
 )
 from config import CONFIG
 
@@ -18,7 +26,6 @@ router = APIRouter(
 )
 
 import os
-os.urandom
 
 
 l2_rpc_client = L2RpcClient()
@@ -84,6 +91,7 @@ async def get_l2_block_status(request: Request, search_param: SearchParam):
     except Exception as e:
         return Response(status_code=400, content="Invalid block hash or height")
 
+
 @router.get("/commitment_count")
 async def get_commitment_count(request: Request):
     async with request.app.async_pool.connection() as conn:
@@ -92,10 +100,45 @@ async def get_commitment_count(request: Request):
             result = await cur.fetchone()
             return result[0]
 
+
+@router.get("/proof-data", response_model=list[ProofDataResponse])
+async def get_proof_data(request: Request, page: int = 1, limit: int = 10):
+    async with request.app.async_pool.connection() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(
+                """
+                SELECT * 
+                FROM proof
+                ORDER BY id DESC
+                LIMIT %s OFFSET %s
+            """,
+                (limit, (page - 1) * limit),
+            )
+            return deserialize_to_proof_data_response(await cur.fetchall())
+
+
 if CONFIG.env == "test":
 
     @router.post("/test-generate-data")
     async def generate_data(request: Request):
+
+        def random_32_byte_array():
+            return str("%030x" % random.randrange(16**32))
+
+        def random_proof_data():
+            for i in range(116):
+                yield ProofData(
+                    l1_tx_id=random_32_byte_array(),
+                    proof_data=random_32_byte_array(),
+                    initial_state_root=random_32_byte_array(),
+                    final_state_root=random_32_byte_array(),
+                    state_diff=random_32_byte_array(),
+                    da_slot_hash=random_32_byte_array(),
+                    sequencer_public_key=random_32_byte_array(),
+                    sequencer_da_public_key=random_32_byte_array(),
+                    validity_condition=random_32_byte_array(),
+                    proof_type="Full",
+                )
 
         def random_sequencer_commitments():
 
@@ -103,9 +146,6 @@ if CONFIG.env == "test":
             l1_end_height = 2
             l2_start_height = 1
             l2_end_height = 20
-
-            def random_32_byte_array():
-                return str("%030x" % random.randrange(16**32))
 
             for i in range(116):
                 yield SequencerCommitment(
@@ -147,9 +187,27 @@ if CONFIG.env == "test":
                     """
                 )
 
-                idx1 = "CREATE INDEX IF NOT EXISTS idx_l2_end_height ON sequencer_commitments(l2_end_height);";
-                idx2 = "CREATE INDEX IF NOT EXISTS idx_l1_end_height ON sequencer_commitments(l1_end_height);";
-                idx3 = "CREATE INDEX IF NOT EXISTS idx_l1_end_hash ON sequencer_commitments(l1_end_hash);";
+                await cur.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS proof (
+                        id                          SERIAL PRIMARY KEY,
+                        l1_tx_id                    BYTEA NOT NULL,
+                        proof_data                  BYTEA NOT NULL,
+                        initial_state_root          BYTEA NOT NULL,
+                        final_state_root            BYTEA NOT NULL,
+                        state_diff                  BYTEA NOT NULL,
+                        da_slot_hash                BYTEA NOT NULL,
+                        sequencer_public_key        BYTEA NOT NULL,
+                        sequencer_da_public_key     BYTEA NOT NULL,
+                        validity_condition          BYTEA NOT NULL,
+                        proof_type                  VARCHAR(20) NOT NULL
+                    );
+                    """
+                )
+
+                idx1 = "CREATE INDEX IF NOT EXISTS idx_l2_end_height ON sequencer_commitments(l2_end_height);"
+                idx2 = "CREATE INDEX IF NOT EXISTS idx_l1_end_height ON sequencer_commitments(l1_end_height);"
+                idx3 = "CREATE INDEX IF NOT EXISTS idx_l1_end_hash ON sequencer_commitments(l1_end_hash);"
                 try:
                     await cur.execute(idx1)
                     await cur.execute(idx2)
@@ -158,6 +216,7 @@ if CONFIG.env == "test":
                     pass
 
                 rand_data = random_sequencer_commitments()
+                rand_proofs = random_proof_data()
                 try:
                     for rd in rand_data:
                         await cur.execute(
@@ -177,7 +236,25 @@ if CONFIG.env == "test":
                                 rd.status,
                             ),
                         )
+                    for rp in rand_proofs:
+                        await cur.execute(
+                            """
+                            INSERT INTO proof (l1_tx_id, proof_data, initial_state_root, final_state_root, state_diff, da_slot_hash, sequencer_public_key, sequencer_da_public_key, validity_condition, proof_type) 
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+                            """,
+                            (
+                                rp.l1_tx_id,
+                                rp.proof_data,
+                                rp.initial_state_root,
+                                rp.final_state_root,
+                                rp.state_diff,
+                                rp.da_slot_hash,
+                                rp.sequencer_public_key,
+                                rp.sequencer_da_public_key,
+                                rp.validity_condition,
+                                rp.proof_type,
+                            ),
+                        )
                 except Exception as e:
                     print(e)
                     pass
-
