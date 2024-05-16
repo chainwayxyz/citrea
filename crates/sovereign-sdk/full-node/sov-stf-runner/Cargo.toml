@@ -36,6 +36,8 @@ sequencer-client = { path = "../../../sequencer-client", optional = true }
 
 sov-modules-api = { path = "../../module-system/sov-modules-api", version = "0.3", default-features = false }
 
+shared-backup-db = { path = "../../../shared-backup-db", optional = true }
+
 [dev-dependencies]
 tempfile = { workspace = true }
 sha2 = { workspace = true }
@@ -73,4 +75,5 @@ native = [
     "async-trait",
     "rayon",
     "thiserror",
+    "shared-backup-db",
 ]
