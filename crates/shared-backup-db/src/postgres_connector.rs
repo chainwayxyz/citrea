@@ -47,7 +47,7 @@ impl PostgresConnector {
                 .await;
 
             //connect to new db
-            cfg.dbname(&db_name);
+            cfg.dbname(db_name);
             let mgr = Manager::from_config(cfg, NoTls, mgr_config);
             pool = Pool::builder(mgr)
                 .max_size(pg_config.max_pool_size().unwrap_or(16))
