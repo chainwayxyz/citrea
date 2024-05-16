@@ -415,6 +415,7 @@ async fn test_ledger_get_commitments_on_slot_prover() {
             Some(ProverConfig {
                 proving_mode: sov_stf_runner::ProverGuestRunConfig::Execute,
                 skip_proving_until_l1_height: None,
+                db_config: None,
             }),
             NodeMode::Prover(seq_port),
             fullnode_db_dir,

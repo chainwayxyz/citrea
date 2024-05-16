@@ -57,11 +57,7 @@ pub trait ZkvmHost: Zkvm + Clone {
 /// Must support recursive proofs.
 pub trait Zkvm: Send + Sync {
     /// A commitment to the zkVM program which is being proven
-    type CodeCommitment: Matches<Self::CodeCommitment>
-        + Clone
-        + Debug
-        + Serialize
-        + DeserializeOwned;
+    type CodeCommitment: Clone + Debug + Serialize + DeserializeOwned;
 
     /// The error type which is returned when a proof fails to verify
     type Error: Debug;
@@ -80,6 +76,9 @@ pub trait Zkvm: Send + Sync {
         serialized_proof: &[u8],
         code_commitment: &Self::CodeCommitment,
     ) -> Result<StateTransition<Da, Root>, Self::Error>;
+
+    /// Return the code commitment for the zkVM program
+    fn get_code_commitment(&self) -> Self::CodeCommitment;
 }
 
 /// A trait which is accessible from within a zkVM program.

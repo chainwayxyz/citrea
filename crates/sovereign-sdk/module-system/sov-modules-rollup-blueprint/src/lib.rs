@@ -54,6 +54,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
 
     /// Prover service.
     type ProverService: ProverService<
+        Self::Vm,
         StateRoot = <<Self::NativeContext as Spec>::Storage as Storage>::Root,
         Witness = <<Self::NativeContext as Spec>::Storage as Storage>::Witness,
         DaService = Self::DaService,
@@ -203,7 +204,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         let da_service = self.create_da_service(&rollup_config).await;
 
         let prover_service = self
-            .create_prover_service(prover_config, &rollup_config, &da_service)
+            .create_prover_service(prover_config.clone(), &rollup_config, &da_service)
             .await;
 
         // TODO: Double check what kind of storage needed here.
@@ -252,6 +253,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
             storage_manager,
             init_variant,
             Some(prover_service),
+            Some(prover_config),
         )?;
 
         Ok(Prover {
@@ -319,6 +321,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
             native_stf,
             storage_manager,
             init_variant,
+            None,
             None,
         )?;
 

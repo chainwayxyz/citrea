@@ -147,9 +147,9 @@ where
                 if start_prover {
                     prover_state.set_to_proving(block_header_hash.clone());
                     vm.add_hint(state_transition_data);
+
                     self.pool.spawn(move || {
                         tracing::info_span!("guest_execution").in_scope(|| {
-                            tracing::info!("Starting proving");
                             let proof = make_proof(vm, config, zk_storage);
 
                             let mut prover_state =
