@@ -8,6 +8,11 @@
 
 extern crate alloc;
 
+/// The current version of Citrea.
+///
+/// Mostly used for web3_clientVersion RPC calls and might be used for other purposes.
+pub const CITREA_VERSION: &str = env!("CARGO_PKG_VERSION");
+
 mod state_machine;
 pub use state_machine::*;
 
