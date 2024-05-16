@@ -172,6 +172,9 @@ impl<S: MerkleProofSpec, Q: QueryManager> Storage for ProverStorage<S, Q> {
             key_preimages,
         };
 
+        // We need the state diff to be calculated only inside zk context.
+        // The diff then can be used by special nodes to construct the state of the rollup by verifying the zk proof.
+        // And constructing the tree from the diff.
         Ok((new_root, state_update, vec![]))
     }
 

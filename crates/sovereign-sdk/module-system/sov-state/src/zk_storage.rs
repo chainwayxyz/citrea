@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use jmt::KeyHash;
 use sov_modules_core::{
-    OrderedReadsAndWrites, StateDiff, Storage, StorageKey, StorageProof, StorageValue, Witness,
+    OrderedReadsAndWrites, Storage, StorageKey, StorageProof, StorageValue, Witness,
 };
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 use sov_zk_cycle_macros::cycle_tracker;

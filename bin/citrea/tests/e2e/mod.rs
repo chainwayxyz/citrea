@@ -2159,8 +2159,6 @@ async fn test_db_get_proof() {
         .ledger_get_proof_by_slot_height(4)
         .await;
 
-    println!("{:?}", ledger_proof);
-
     sleep(Duration::from_secs(4)).await;
 
     let db_proofs = db_test_client.get_all_proof_data().await.unwrap();

@@ -13,12 +13,10 @@ use crate::common::{AlignedVec, Prefix, Version, Witness};
 mod cache;
 mod codec;
 mod scratchpad;
-mod state_diff;
 
 pub use cache::*;
 pub use codec::*;
 pub use scratchpad::*;
-pub use state_diff::*;
 
 /// The key type suitable for use in [`Storage::get`] and other getter methods of
 /// [`Storage`]. Cheaply-clonable.
