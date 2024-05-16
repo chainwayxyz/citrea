@@ -1835,14 +1835,7 @@ async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
     let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
     let fullnode_db_dir = storage_dir.path().join("full-node").to_path_buf();
 
-    let psql_db_name = std::thread::current()
-        .name()
-        .unwrap()
-        .to_string()
-        .split("::")
-        .last()
-        .unwrap()
-        .to_string();
+    let psql_db_name = "sequencer_crash_and_replace_full_node".to_owned();
 
     let db_test_client = PostgresConnector::new_test_client(psql_db_name.clone())
         .await
