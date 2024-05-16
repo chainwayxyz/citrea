@@ -10,6 +10,7 @@ use ethers_core::abi::Address;
 use ethers_core::types::{BlockId, Bytes, U256};
 use ethers_signers::{LocalWallet, Signer};
 use reth_primitives::BlockNumberOrTag;
+use sov_rollup_interface::CITREA_VERSION;
 
 // use sov_demo_rollup::initialize_logging;
 use crate::test_client::TestClient;
@@ -53,14 +54,13 @@ async fn web3_rpc_tests() -> Result<(), anyhow::Error> {
 
     let test_client = make_test_client(port).await;
 
-    let tag = ethereum_rpc::get_latest_git_tag().unwrap_or_else(|_| "unknown".to_string());
     let arch = std::env::consts::ARCH;
 
     assert_eq!(
         test_client.web3_client_version().await,
         format!(
             "citrea/{}/{}/rust-{}",
-            tag,
+            CITREA_VERSION,
             arch,
             rustc_version_runtime::version()
         )
