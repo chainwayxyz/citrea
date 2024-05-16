@@ -208,8 +208,9 @@ async fn check_commitment_in_offchain_db() {
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
     let mut sequencer_config = create_default_sequencer_config(4, Some(true), 10);
-
-    sequencer_config.db_config = Some(SharedBackupDbConfig::default());
+    sequencer_config.db_config = Some(
+        SharedBackupDbConfig::default().set_db_name("check_commitment_in_offchain_db".to_string()),
+    );
 
     // drops db if exists from previous test runs, recreates the db
     let db_test_client =

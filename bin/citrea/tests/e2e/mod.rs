@@ -937,9 +937,6 @@ async fn test_reopen_sequencer() -> Result<(), anyhow::Error> {
         2
     );
 
-    // fs::remove_dir_all(Path::new("demo_data_test_reopen_sequencer_copy")).unwrap();
-    // fs::remove_dir_all(Path::new("demo_data_test_reopen_sequencer")).unwrap();
-
     seq_task.abort();
 
     Ok(())
@@ -1533,7 +1530,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn test_system_transactons() -> Result<(), anyhow::Error> {
+async fn test_system_transactions() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging();
 
     let system_contract_address =
