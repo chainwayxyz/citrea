@@ -10,7 +10,6 @@ use ethers_core::abi::Address;
 use ethers_core::types::{BlockId, Bytes, U256};
 use ethers_signers::{LocalWallet, Signer};
 use reth_primitives::BlockNumberOrTag;
-use sov_rollup_interface::CITREA_VERSION;
 
 // use sov_demo_rollup::initialize_logging;
 use crate::test_client::TestClient;
@@ -25,7 +24,7 @@ mod tracing;
 async fn web3_rpc_tests() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging();
 
-    let storage_dir = tempdir_with_children(&vec!["DA", "sequencer", "full-node"]);
+    let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
     let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
     let da_db_dir_cloned = da_db_dir.clone();
@@ -54,13 +53,14 @@ async fn web3_rpc_tests() -> Result<(), anyhow::Error> {
 
     let test_client = make_test_client(port).await;
 
+    let tag = ethereum_rpc::get_latest_git_tag().unwrap_or_else(|_| "unknown".to_string());
     let arch = std::env::consts::ARCH;
 
     assert_eq!(
         test_client.web3_client_version().await,
         format!(
             "citrea/{}/{}/rust-{}",
-            CITREA_VERSION,
+            tag,
             arch,
             rustc_version_runtime::version()
         )
@@ -80,7 +80,7 @@ async fn web3_rpc_tests() -> Result<(), anyhow::Error> {
 async fn evm_tx_tests() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging();
 
-    let storage_dir = tempdir_with_children(&vec!["DA", "sequencer", "full-node"]);
+    let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
     let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
     let da_db_dir_cloned = da_db_dir.clone();
@@ -121,7 +121,7 @@ async fn send_tx_test_to_eth(rpc_address: SocketAddr) -> Result<(), Box<dyn std:
 async fn test_eth_get_logs() -> Result<(), anyhow::Error> {
     use crate::test_helpers::start_rollup;
 
-    let storage_dir = tempdir_with_children(&vec!["DA", "sequencer", "full-node"]);
+    let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
     let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
     let da_db_dir_cloned = da_db_dir.clone();
@@ -161,7 +161,7 @@ async fn test_eth_get_logs() -> Result<(), anyhow::Error> {
 async fn test_genesis_contract_call() -> Result<(), Box<dyn std::error::Error>> {
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
-    let storage_dir = tempdir_with_children(&vec!["DA", "sequencer", "full-node"]);
+    let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
     let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
     let da_db_dir_cloned = da_db_dir.clone();

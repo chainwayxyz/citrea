@@ -23,7 +23,7 @@ use crate::DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT;
 async fn sequencer_sends_commitments_to_da_layer() {
     // citrea::initialize_logging();
 
-    let db_dir = tempdir_with_children(&vec!["DA", "sequencer", "full-node"]);
+    let db_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = db_dir.path().join("DA").to_path_buf();
     let sequencer_db_dir = db_dir.path().join("sequencer").to_path_buf();
 
@@ -202,7 +202,7 @@ async fn check_sequencer_commitment(
 async fn check_commitment_in_offchain_db() {
     // citrea::initialize_logging();
 
-    let db_dir = tempdir_with_children(&vec!["DA", "sequencer", "full-node"]);
+    let db_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = db_dir.path().join("DA").to_path_buf();
     let sequencer_db_dir = db_dir.path().join("sequencer").to_path_buf();
 
@@ -272,7 +272,7 @@ async fn check_commitment_in_offchain_db() {
 async fn test_ledger_get_commitments_on_slot() {
     // citrea::initialize_logging();
 
-    let db_dir = tempdir_with_children(&vec!["DA", "sequencer", "full-node"]);
+    let db_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = db_dir.path().join("DA").to_path_buf();
     let sequencer_db_dir = db_dir.path().join("sequencer").to_path_buf();
     let fullnode_db_dir = db_dir.path().join("full-node").to_path_buf();
@@ -376,7 +376,7 @@ async fn test_ledger_get_commitments_on_slot() {
 async fn test_ledger_get_commitments_on_slot_prover() {
     // citrea::initialize_logging();
 
-    let db_dir = tempdir_with_children(&vec!["DA", "sequencer", "full-node"]);
+    let db_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = db_dir.path().join("DA").to_path_buf();
     let sequencer_db_dir = db_dir.path().join("sequencer").to_path_buf();
     let fullnode_db_dir = db_dir.path().join("full-node").to_path_buf();
