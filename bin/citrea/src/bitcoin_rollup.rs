@@ -2,6 +2,7 @@ use async_trait::async_trait;
 use bitcoin_da::service::{BitcoinService, DaServiceConfig};
 use bitcoin_da::spec::{BitcoinSpec, RollupParams};
 use bitcoin_da::verifier::BitcoinVerifier;
+use citrea_risc0_bonsai_adapter::Digest;
 use citrea_stf::genesis_config::StorageConfig;
 use citrea_stf::runtime::Runtime;
 use rollup_constants::{DA_TX_ID_LEADING_ZEROS, ROLLUP_NAME};
@@ -12,8 +13,9 @@ use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_risc0_adapter::host::Risc0Host;
+use sov_risc0_adapter::Risc0MethodId;
 use sov_rollup_interface::da::DaVerifier;
-use sov_rollup_interface::zk::ZkvmHost;
+use sov_rollup_interface::zk::{Zkvm, ZkvmHost};
 use sov_state::{DefaultStorageSpec, Storage, ZkStorage};
 use sov_stf_runner::{ParallelProverService, ProverConfig, RollupConfig};
 
@@ -72,6 +74,10 @@ impl RollupBlueprint for BitcoinRollup {
         )?;
 
         Ok(rpc_methods)
+    }
+
+    fn get_code_commitment(&self) -> <Self::Vm as Zkvm>::CodeCommitment {
+        Risc0MethodId::new(risc0::MOCK_DA_ID)
     }
 
     fn create_storage_manager(

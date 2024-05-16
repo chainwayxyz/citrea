@@ -1,5 +1,6 @@
 use sov_db::ledger_db::LedgerDB;
 use sov_mock_da::{MockAddress, MockDaConfig, MockDaService, MockDaSpec, MockValidityCond};
+use sov_mock_zkvm::MockCodeCommitment;
 use sov_mock_zkvm::MockZkvm;
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_state::{ArrayWitness, DefaultStorageSpec};
@@ -105,6 +106,7 @@ fn initialize_runner(
         init_variant,
         None,
         None,
+        MockCodeCommitment([1u8; 32]),
     )
     .unwrap()
 }

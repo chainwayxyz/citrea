@@ -12,8 +12,9 @@ use sov_db::ledger_db::LedgerDB;
 use sov_modules_api::{Context, DaSpec, Spec};
 use sov_modules_stf_blueprint::{GenesisParams, Runtime as RuntimeTrait, StfBlueprint};
 use sov_rollup_interface::services::da::DaService;
+use sov_rollup_interface::stf::ZkConfig;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
-use sov_rollup_interface::zk::ZkvmHost;
+use sov_rollup_interface::zk::{Zkvm, ZkvmGuest, ZkvmHost};
 use sov_state::storage::NativeStorage;
 use sov_state::Storage;
 use sov_stf_runner::{
@@ -33,7 +34,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
     type DaConfig: Send + Sync;
 
     /// Host of a zkVM program.
-    type Vm: ZkvmHost + Send;
+    type Vm: ZkvmHost + Zkvm + Send;
 
     /// Context for Zero Knowledge environment.
     type ZkContext: Context;
@@ -62,6 +63,9 @@ pub trait RollupBlueprint: Sized + Send + Sync {
 
     /// Creates a new instance of the blueprint.
     fn new() -> Self;
+
+    /// Get code commitment.
+    fn get_code_commitment(&self) -> <Self::Vm as Zkvm>::CodeCommitment;
 
     /// Creates RPC methods for the rollup.
     fn create_rpc_methods(
@@ -242,6 +246,8 @@ pub trait RollupBlueprint: Sized + Send + Sync {
             },
         };
 
+        let code_commitment = self.get_code_commitment();
+
         let runner = StateTransitionRunner::new(
             runner_config,
             rollup_config.public_keys,
@@ -253,6 +259,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
             init_variant,
             Some(prover_service),
             Some(prover_config),
+            code_commitment,
         )?;
 
         Ok(Prover {
@@ -311,6 +318,8 @@ pub trait RollupBlueprint: Sized + Send + Sync {
             },
         };
 
+        let code_commitment = self.get_code_commitment();
+
         let runner = StateTransitionRunner::new(
             runner_config,
             rollup_config.public_keys,
@@ -322,6 +331,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
             init_variant,
             None,
             None,
+            code_commitment,
         )?;
 
         Ok(FullNode {

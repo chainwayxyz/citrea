@@ -13,6 +13,7 @@ mod hash_stf;
 
 use hash_stf::{get_result_from_blocks, HashStf, Q, S};
 use sov_db::ledger_db::LedgerDB;
+use sov_mock_zkvm::MockCodeCommitment;
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
@@ -175,6 +176,7 @@ async fn runner_execution(
             init_variant,
             Some(prover_service),
             None,
+            MockCodeCommitment([1u8; 32]),
         )
         .unwrap();
 

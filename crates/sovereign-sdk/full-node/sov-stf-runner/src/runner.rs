@@ -67,6 +67,7 @@ where
     phantom: std::marker::PhantomData<C>,
     include_tx_body: bool,
     prover_config: Option<ProverConfig>,
+    code_commitment: Vm::CodeCommitment,
 }
 
 /// Represents the possible modes of execution for a zkVM program
@@ -126,6 +127,7 @@ where
         init_variant: InitVariant<Stf, Vm, Da::Spec>,
         prover_service: Option<Ps>,
         prover_config: Option<ProverConfig>,
+        code_commitment: Vm::CodeCommitment,
     ) -> Result<Self, anyhow::Error> {
         let prev_state_root = match init_variant {
             InitVariant::Initialized(state_root) => {
@@ -168,6 +170,7 @@ where
             phantom: std::marker::PhantomData,
             include_tx_body: runner_config.include_tx_body,
             prover_config,
+            code_commitment,
         })
     }
 
@@ -542,7 +545,7 @@ where
                     let transition_data_from_proof =
                         Vm::verify_and_extract_output::<<Da as DaService>::Spec, Stf::StateRoot>(
                             &proof.clone(),
-                            &prover_service.get_code_commitment(),
+                            &self.code_commitment,
                         )
                         .expect("Proof should be verifiable");
 
@@ -742,6 +745,7 @@ where
 
                 for proof in zk_proofs {
                     // TODO: Verify proofs and store in ledger db
+                    // TODO Remove unnecessary get code commitment funcs
                 }
 
                 for sequencer_commitment in sequencer_commitments.iter() {
