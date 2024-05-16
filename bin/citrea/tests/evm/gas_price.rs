@@ -1,4 +1,5 @@
 use std::net::SocketAddr;
+use std::time::Duration;
 
 use citrea_evm::smart_contracts::SimpleStorageContract;
 use citrea_stf::genesis_config::GenesisPaths;
@@ -7,6 +8,7 @@ use ethers_core::types::U256;
 use ethers_core::utils::Units::Ether;
 use ethers_signers::{LocalWallet, Signer};
 use reth_primitives::BlockNumberOrTag;
+use tokio::time::sleep;
 
 use crate::evm::init_test_rollup;
 use crate::test_client::TestClient;
@@ -114,6 +116,9 @@ async fn execute(
         }
     }
     client.send_publish_batch_request().await;
+
+    sleep(Duration::from_secs(5)).await;
+
     let block = client.eth_get_block_by_number(None).await;
     assert!(
         block.gas_used.as_u64() <= reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT,
@@ -128,6 +133,8 @@ async fn execute(
     let initial_gas_price = client.eth_gas_price().await;
 
     client.send_publish_batch_request().await;
+
+    sleep(Duration::from_secs(5)).await;
 
     // get new gas price after the transactions that was adjusted in the last block
     let latest_gas_price = client.eth_gas_price().await;
