@@ -113,7 +113,7 @@ impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
             eth_signer,
             storage,
             sequencer_client,
-            web3_client_version: VERSION.to_owned(),
+            web3_client_version: current_version,
             trace_cache,
         }
     }
