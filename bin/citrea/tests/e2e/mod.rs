@@ -76,7 +76,19 @@ async fn initialize_test(
             config.seq_min_soft_confirmations,
             true,
             None,
-            None,
+            // Increase max account slots to not stuck as spammer
+            Some(SequencerConfig {
+                private_key: TEST_PRIVATE_KEY.to_string(),
+                min_soft_confirmations_per_commitment:
+                    DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
+                test_mode: true,
+                deposit_mempool_fetch_limit: 10,
+                mempool_conf: SequencerMempoolConfig {
+                    max_account_slots: 100,
+                    ..Default::default()
+                },
+                db_config: Default::default(),
+            }),
             Some(true),
             config.deposit_mempool_fetch_limit,
         )
