@@ -91,7 +91,7 @@ impl DaVerifier for BitcoinVerifier {
     ) -> Result<<Self::Spec as DaSpec>::ValidityCondition, Self::Error> {
         let validity_condition = ChainValidityCondition {
             prev_hash: block_header.prev_hash().to_byte_array(),
-            block_hash: block_header.prev_hash().to_byte_array(),
+            block_hash: block_header.block_hash().to_byte_array(),
         };
 
         // check that wtxid's of transactions in completeness proof are included in the InclusionMultiProof
