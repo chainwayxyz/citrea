@@ -402,7 +402,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_insert_proof_data() {
-        let client = PostgresConnector::new_test_client().await.unwrap();
+        let client = PostgresConnector::new_test_client("test_insert_proof_data".to_string())
+            .await
+            .unwrap();
         client.create_table(Tables::Proof).await;
 
         let inserted = client
