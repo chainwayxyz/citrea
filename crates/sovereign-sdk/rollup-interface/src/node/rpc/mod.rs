@@ -9,6 +9,7 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 use crate::da::SequencerCommitment;
+use crate::maybestd::string::String;
 use crate::maybestd::vec::Vec;
 #[cfg(feature = "native")]
 use crate::stf::Event;
