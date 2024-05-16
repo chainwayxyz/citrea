@@ -28,7 +28,7 @@ tracing = { workspace = true }
 bonsai-sdk = "0.7.0"
 hex = { workspace = true }
 
-# we ar goingo to use its guest
+# we are going to use its guest
 sov-risc0-adapter = { path = "../risc0" }
 
 
