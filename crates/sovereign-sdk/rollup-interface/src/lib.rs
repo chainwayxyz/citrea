@@ -8,6 +8,8 @@
 
 extern crate alloc;
 
+pub const CITREA_VERSION: &str = env!("CARGO_PKG_VERSION");
+
 mod state_machine;
 pub use state_machine::*;
 
