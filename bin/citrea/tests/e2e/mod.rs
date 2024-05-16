@@ -16,7 +16,9 @@ use secp256k1::rand::thread_rng;
 use shared_backup_db::{PostgresConnector, ProofType, SharedBackupDbConfig};
 use sov_mock_da::{MockAddress, MockDaService, MockDaSpec, MockHash};
 use sov_rollup_interface::da::{DaData, DaSpec};
-use sov_rollup_interface::rpc::{ProofRpcResponse, SoftConfirmationStatus};
+use sov_rollup_interface::rpc::{
+    ProofRpcResponse, SoftConfirmationStatus, StateTransitionRpcResponse,
+};
 use sov_rollup_interface::services::da::DaService;
 use sov_stf_runner::ProverConfig;
 use tokio::task::JoinHandle;
@@ -2157,17 +2159,23 @@ async fn test_db_get_proof() {
         .ledger_get_proof_by_slot_height(4)
         .await;
 
+    println!("{:?}", ledger_proof);
+
     sleep(Duration::from_secs(4)).await;
 
     let db_proofs = db_test_client.get_all_proof_data().await.unwrap();
 
     assert_eq!(db_proofs.len(), 1);
+
+    let db_state_transition: StateTransitionRpcResponse =
+        serde_json::from_str(&db_proofs[0].state_transition).unwrap();
+
     assert_eq!(
-        db_proofs[0].sequencer_da_public_key,
+        db_state_transition.sequencer_da_public_key,
         ledger_proof.state_transition.sequencer_da_public_key
     );
     assert_eq!(
-        db_proofs[0].sequencer_public_key,
+        db_state_transition.sequencer_public_key,
         ledger_proof.state_transition.sequencer_public_key
     );
     assert_eq!(db_proofs[0].l1_tx_id, ledger_proof.l1_tx_id);

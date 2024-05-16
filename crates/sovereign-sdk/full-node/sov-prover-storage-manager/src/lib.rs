@@ -922,7 +922,7 @@ mod tests {
             state_operations.ordered_writes.push(write_op(1, 2));
             let mut native_operations = OrderedReadsAndWrites::default();
             native_operations.ordered_writes.push(write_op(30, 40));
-            let (_, state_update) = storage_a
+            let (_, state_update, _) = storage_a
                 .compute_state_update(state_operations, &witness)
                 .unwrap();
             storage_a.commit(&state_update, &native_operations);
@@ -937,7 +937,7 @@ mod tests {
             state_operations.ordered_writes.push(write_op(3, 4));
             let mut native_operations = OrderedReadsAndWrites::default();
             native_operations.ordered_writes.push(write_op(50, 60));
-            let (_, state_update) = storage_b
+            let (_, state_update, _) = storage_b
                 .compute_state_update(state_operations, &witness)
                 .unwrap();
             storage_b.commit(&state_update, &native_operations);
@@ -1100,7 +1100,7 @@ mod tests {
             let mut native_operations = OrderedReadsAndWrites::default();
             native_operations.ordered_writes.push(write_op(3, 40));
 
-            let (_, state_update) = storage_a
+            let (_, state_update, _) = storage_a
                 .compute_state_update(state_operations, &witness)
                 .unwrap();
             storage_a.commit(&state_update, &native_operations);
@@ -1116,7 +1116,7 @@ mod tests {
             state_operations.ordered_writes.push(write_op(3, 2));
             let mut native_operations = OrderedReadsAndWrites::default();
             native_operations.ordered_writes.push(write_op(3, 50));
-            let (_, state_update) = storage_b
+            let (_, state_update, _) = storage_b
                 .compute_state_update(state_operations, &witness)
                 .unwrap();
             storage_b.commit(&state_update, &native_operations);
@@ -1132,7 +1132,7 @@ mod tests {
             state_operations.ordered_writes.push(write_op(4, 5));
             let mut native_operations = OrderedReadsAndWrites::default();
             native_operations.ordered_writes.push(write_op(1, 60));
-            let (_, state_update) = storage_c
+            let (_, state_update, _) = storage_c
                 .compute_state_update(state_operations, &witness)
                 .unwrap();
             storage_c.commit(&state_update, &native_operations);
@@ -1145,7 +1145,7 @@ mod tests {
         {
             let mut state_operations = OrderedReadsAndWrites::default();
             state_operations.ordered_writes.push(write_op(3, 6));
-            let (_, state_update) = storage_d
+            let (_, state_update, _) = storage_d
                 .compute_state_update(state_operations, &witness)
                 .unwrap();
             storage_d.commit(&state_update, &OrderedReadsAndWrites::default());
@@ -1162,7 +1162,7 @@ mod tests {
             let mut native_operations = OrderedReadsAndWrites::default();
             native_operations.ordered_writes.push(delete_op(1));
             native_operations.ordered_writes.push(write_op(3, 70));
-            let (_, state_update) = storage_f
+            let (_, state_update, _) = storage_f
                 .compute_state_update(state_operations, &witness)
                 .unwrap();
             storage_f.commit(&state_update, &native_operations);
@@ -1177,7 +1177,7 @@ mod tests {
             state_operations.ordered_writes.push(write_op(1, 8));
             let mut native_operations = OrderedReadsAndWrites::default();
             native_operations.ordered_writes.push(write_op(2, 9));
-            let (_, state_update) = storage_g
+            let (_, state_update, _) = storage_g
                 .compute_state_update(state_operations, &witness)
                 .unwrap();
             storage_g.commit(&state_update, &native_operations);
@@ -1190,7 +1190,7 @@ mod tests {
         {
             let mut state_operations = OrderedReadsAndWrites::default();
             state_operations.ordered_writes.push(write_op(1, 10));
-            let (_, state_update) = storage_l
+            let (_, state_update, _) = storage_l
                 .compute_state_update(state_operations, &witness)
                 .unwrap();
             storage_l.commit(&state_update, &OrderedReadsAndWrites::default());

@@ -1,5 +1,6 @@
 //! The rpc module defines types and traits for querying chain history
 //! via an RPC interface.
+use alloc::collections::BTreeMap;
 use core::marker::PhantomData;
 
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -265,8 +266,8 @@ pub struct StateTransitionRpcResponse {
     #[serde(with = "hex::serde")]
     pub final_state_root: Vec<u8>,
     /// State diff of L2 blocks in the processed sequencer commitments.
-    #[serde(with = "hex::serde")]
-    pub state_diff: Vec<u8>,
+    #[serde(serialize_with = "custom_serialize_btreemap")]
+    pub state_diff: BTreeMap<Vec<u8>, Option<Vec<u8>>>,
     /// The DA slot hash that the sequencer commitments causing this state transition were found in.
     #[serde(with = "hex::serde")]
     pub da_slot_hash: [u8; 32],
@@ -282,6 +283,26 @@ pub struct StateTransitionRpcResponse {
     /// some claim about the DA layer history, such as (X) is a valid block on the DA layer
     #[serde(with = "hex::serde")]
     pub validity_condition: Vec<u8>,
+}
+
+/// Custom serialization for BTreeMap
+/// Key and value are serialized as hex
+/// Value is optional, if None, it is serialized as null
+pub fn custom_serialize_btreemap<S>(
+    state_diff: &BTreeMap<Vec<u8>, Option<Vec<u8>>>,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    use serde::ser::SerializeMap;
+
+    let mut map = serializer.serialize_map(Some(state_diff.len()))?;
+    for (key, value) in state_diff.iter() {
+        let value = value.as_ref().map(|v| hex::encode(v));
+        map.serialize_entry(&hex::encode(key), &value)?;
+    }
+    map.end()
 }
 
 /// Converts `SequencerCommitment` to `SequencerCommitmentResponse`

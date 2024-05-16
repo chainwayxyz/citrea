@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
@@ -94,14 +95,14 @@ impl From<StoredProof> for ProofResponse {
 }
 
 /// The on-disk format for a state transition.
-#[derive(Debug, PartialEq, BorshDeserialize, BorshSerialize)]
+#[derive(Debug, PartialEq, BorshDeserialize, BorshSerialize, Clone)]
 pub struct StoredStateTransition {
     /// The state of the rollup before the transition
     pub initial_state_root: Vec<u8>,
     /// The state of the rollup after the transition
     pub final_state_root: Vec<u8>,
     /// State diff of L2 blocks in the processed sequencer commitments.
-    pub state_diff: Vec<u8>,
+    pub state_diff: BTreeMap<Vec<u8>, Option<Vec<u8>>>,
     /// The DA slot hash that the sequencer commitments causing this state transition were found in.
     pub da_slot_hash: [u8; 32],
     /// Sequencer public key.

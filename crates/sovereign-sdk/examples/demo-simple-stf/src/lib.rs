@@ -104,6 +104,7 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
             change_set: (),
             batch_receipts: receipts,
             witness: (),
+            state_diff: vec![],
         }
     }
 
@@ -139,7 +140,7 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
         _soft_batch: std::collections::VecDeque<Vec<SignedSoftConfirmationBatch>>,
     ) -> (
         Self::StateRoot,
-        Vec<u8>, // state diff
+        Vec<(Vec<u8>, Option<Vec<u8>>)>, // state diff
     ) {
         todo!()
     }

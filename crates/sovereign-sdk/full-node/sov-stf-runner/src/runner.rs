@@ -18,7 +18,7 @@ use sov_modules_stf_blueprint::StfBlueprintTrait;
 use sov_rollup_interface::da::{
     BlobReaderTrait, BlockHeaderTrait, DaData, DaSpec, SequencerCommitment,
 };
-use sov_rollup_interface::rpc::SoftConfirmationStatus;
+use sov_rollup_interface::rpc::{SoftConfirmationStatus, StateTransitionRpcResponse};
 use sov_rollup_interface::services::da::{DaService, SlotData};
 pub use sov_rollup_interface::stf::BatchReceipt;
 use sov_rollup_interface::stf::{SoftBatchReceipt, StateTransitionFunction};
@@ -555,13 +555,10 @@ where
                     pool.insert_proof_data(
                         tx_id_u8.to_vec(),
                         proof_data,
-                        stored_state_transition.initial_state_root.clone(),
-                        stored_state_transition.final_state_root.clone(),
-                        stored_state_transition.state_diff.clone(),
-                        stored_state_transition.da_slot_hash.clone().to_vec(),
-                        stored_state_transition.sequencer_public_key.clone(),
-                        stored_state_transition.sequencer_da_public_key.clone(),
-                        stored_state_transition.validity_condition.clone(),
+                        serde_json::to_string(&Into::<StateTransitionRpcResponse>::into(
+                            stored_state_transition.clone(),
+                        ))
+                        .expect("Failed to serialize state transition data"),
                         proof_type,
                     )
                     .await

@@ -111,7 +111,7 @@ fn setup_storage(
         };
 
         let witness = ArrayWitness::default();
-        let (_, state_update) = storage
+        let (_, state_update, _) = storage
             .compute_state_update(state_operations, &witness)
             .unwrap();
         storage.commit(&state_update, &OrderedReadsAndWrites::default());

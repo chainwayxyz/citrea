@@ -103,7 +103,14 @@ impl<S: MerkleProofSpec, Q: QueryManager> Storage for ProverStorage<S, Q> {
         &self,
         state_accesses: OrderedReadsAndWrites,
         witness: &Self::Witness,
-    ) -> Result<(Self::Root, Self::StateUpdate), anyhow::Error> {
+    ) -> Result<
+        (
+            Self::Root,
+            Self::StateUpdate,
+            Vec<(Vec<u8>, Option<Vec<u8>>)>,
+        ),
+        anyhow::Error,
+    > {
         let latest_version = self.db.get_next_version() - 1;
         let jmt = JellyfishMerkleTree::<_, S::Hasher>::new(&self.db);
 
@@ -165,7 +172,7 @@ impl<S: MerkleProofSpec, Q: QueryManager> Storage for ProverStorage<S, Q> {
             key_preimages,
         };
 
-        Ok((new_root, state_update))
+        Ok((new_root, state_update, vec![]))
     }
 
     fn commit(&self, state_update: &Self::StateUpdate, accessory_writes: &OrderedReadsAndWrites) {

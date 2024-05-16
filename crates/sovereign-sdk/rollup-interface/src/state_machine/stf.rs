@@ -123,6 +123,8 @@ pub struct SlotResult<S, Cs, B, T, W> {
     pub batch_receipts: Vec<BatchReceipt<B, T>>,
     /// Witness after applying the whole block
     pub witness: W,
+    /// State diff
+    pub state_diff: Vec<(Vec<u8>, Option<Vec<u8>>)>,
 }
 
 // TODO(@preston-evans98): update spec with simplified API
@@ -247,7 +249,7 @@ pub trait StateTransitionFunction<Vm: Zkvm, Da: DaSpec> {
         soft_confirmations: VecDeque<Vec<SignedSoftConfirmationBatch>>,
     ) -> (
         Self::StateRoot,
-        Vec<u8>, // state diff
+        Vec<(Vec<u8>, Option<Vec<u8>>)>, // state diff
     );
 }
 

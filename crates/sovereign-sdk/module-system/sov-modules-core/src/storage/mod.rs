@@ -13,10 +13,12 @@ use crate::common::{AlignedVec, Prefix, Version, Witness};
 mod cache;
 mod codec;
 mod scratchpad;
+mod state_diff;
 
 pub use cache::*;
 pub use codec::*;
 pub use scratchpad::*;
+pub use state_diff::*;
 
 /// The key type suitable for use in [`Storage::get`] and other getter methods of
 /// [`Storage`]. Cheaply-clonable.
@@ -232,7 +234,14 @@ pub trait Storage: Clone {
         &self,
         state_accesses: OrderedReadsAndWrites,
         witness: &Self::Witness,
-    ) -> Result<(Self::Root, Self::StateUpdate), anyhow::Error>;
+    ) -> Result<
+        (
+            Self::Root,
+            Self::StateUpdate,
+            Vec<(Vec<u8>, Option<Vec<u8>>)>, // State diff, computed in Zk mode
+        ),
+        anyhow::Error,
+    >;
 
     /// Commits state changes to the underlying storage.
     fn commit(&self, node_batch: &Self::StateUpdate, accessory_update: &OrderedReadsAndWrites);
@@ -244,7 +253,7 @@ pub trait Storage: Clone {
         witness: &Self::Witness,
         accessory_update: &OrderedReadsAndWrites,
     ) -> Result<Self::Root, anyhow::Error> {
-        let (root_hash, node_batch) = self.compute_state_update(state_accesses, witness)?;
+        let (root_hash, node_batch, _) = self.compute_state_update(state_accesses, witness)?;
         self.commit(&node_batch, accessory_update);
 
         Ok(root_hash)

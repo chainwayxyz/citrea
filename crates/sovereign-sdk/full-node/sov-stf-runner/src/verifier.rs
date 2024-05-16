@@ -69,10 +69,14 @@ where
             "Invalid final state root"
         );
 
+        // Collect state diffs into a BtreeMap
+        let state_diff: std::collections::BTreeMap<Vec<u8>, Option<Vec<u8>>> =
+            state_diff.into_iter().map(|(k, v)| (k, v)).collect();
+
         let out: StateTransition<Da::Spec, _> = StateTransition {
             initial_state_root: data.initial_state_root,
             final_state_root,
-            validity_condition, // TODO: not sure about how to do this yet
+            validity_condition, // TODO: not sure about what to do with this yet
             state_diff,
             da_slot_hash: data.da_block_header_of_commitments.hash(),
             sequencer_public_key: data.sequencer_public_key,

@@ -58,6 +58,7 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
                 phantom_data: PhantomData,
             }],
             witness: (),
+            state_diff: vec![],
         }
     }
 
@@ -95,7 +96,7 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
         >,
     ) -> (
         Self::StateRoot,
-        Vec<u8>, // state diff
+        Vec<(Vec<u8>, Option<Vec<u8>>)>, // state diff
     ) {
         todo!()
     }

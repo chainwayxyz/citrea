@@ -49,7 +49,7 @@ impl<Cond> HashStf<Cond> {
             ordered_writes: vec![(hash_key.to_cache_key(), Some(hash_value.into_cache_value()))],
         };
 
-        let (jmt_root_hash, state_update) = storage
+        let (jmt_root_hash, state_update, _) = storage
             .compute_state_update(ordered_reads_writes, witness)
             .unwrap();
 
@@ -198,6 +198,7 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
             // TODO: Add batch receipts to inspection
             batch_receipts: vec![],
             witness,
+            state_diff: vec![],
         }
     }
 
@@ -235,7 +236,7 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
         >,
     ) -> (
         Self::StateRoot,
-        Vec<u8>, // state diff
+        Vec<(Vec<u8>, Option<Vec<u8>>)>, // state diff
     ) {
         todo!()
     }

@@ -6,7 +6,7 @@
 //! For a detailed example showing how to implement these traits, see the
 //! [risc0 adapter](https://github.com/Sovereign-Labs/sovereign-sdk/tree/main/adapters/risc0)
 //! maintained by the Sovereign Labs team.
-use alloc::collections::VecDeque;
+use alloc::collections::{BTreeMap, VecDeque};
 use alloc::vec::Vec;
 use core::fmt::Debug;
 
@@ -123,7 +123,7 @@ pub struct StateTransition<Da: DaSpec, Root> {
     /// The state of the rollup after the transition
     pub final_state_root: Root,
     /// State diff of L2 blocks in the processed sequencer commitments.
-    pub state_diff: Vec<u8>,
+    pub state_diff: BTreeMap<Vec<u8>, Option<Vec<u8>>>,
     /// The DA slot hash that the sequencer commitments causing this state transition were found in.
     pub da_slot_hash: Da::SlotHash,
     /// Sequencer public key.
