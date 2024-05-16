@@ -862,6 +862,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "citrea-bitcoin-prover"
+version = "0.3.0"
+dependencies = [
+ "alloy-trie",
+ "anyhow",
+ "bitcoin-da",
+ "citrea-stf",
+ "revm-primitives",
+ "risc0-zkvm",
+ "risc0-zkvm-platform",
+ "rollup-constants",
+ "sov-modules-api",
+ "sov-modules-stf-blueprint",
+ "sov-risc0-adapter",
+ "sov-rollup-interface",
+ "sov-state",
+]
+
+[[package]]
 name = "citrea-evm"
 version = "0.3.0"
 dependencies = [
@@ -2909,25 +2928,6 @@ dependencies = [
  "sov-modules-api",
  "sov-state",
  "thiserror",
-]
-
-[[package]]
-name = "sov-demo-prover-guest-mock"
-version = "0.3.0"
-dependencies = [
- "alloy-trie",
- "anyhow",
- "bitcoin-da",
- "citrea-stf",
- "revm-primitives",
- "risc0-zkvm",
- "risc0-zkvm-platform",
- "rollup-constants",
- "sov-modules-api",
- "sov-modules-stf-blueprint",
- "sov-risc0-adapter",
- "sov-rollup-interface",
- "sov-state",
 ]
 
 [[package]]

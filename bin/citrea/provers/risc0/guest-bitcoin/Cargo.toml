@@ -1,5 +1,5 @@
 [package]
-name = "sov-demo-prover-guest-mock"
+name = "citrea-bitcoin-prover"
 version = "0.3.0"
 edition = "2021"
 resolver = "2"

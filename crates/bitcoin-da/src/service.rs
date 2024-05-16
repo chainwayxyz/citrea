@@ -508,9 +508,7 @@ impl DaService for BitcoinService {
     ) -> Result<<Self as DaService>::TransactionId, Self::Error> {
         let rx = self.send_tx_no_wait(blob.to_vec()).await;
 
-        let res = rx.await?;
-
-        res
+        rx.await?
     }
 
     #[instrument(level = "trace", skip_all)]
