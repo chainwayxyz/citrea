@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use citrea_risc0_bonsai_adapter::host::Risc0BonsaiHost;
 use citrea_stf::genesis_config::StorageConfig;
 use citrea_stf::runtime::Runtime;
 use sov_db::ledger_db::LedgerDB;
@@ -8,7 +9,6 @@ use sov_modules_api::{Address, Spec};
 use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
-use sov_risc0_adapter::host::Risc0Host;
 use sov_rollup_interface::zk::ZkvmHost;
 use sov_state::{DefaultStorageSpec, Storage, ZkStorage};
 use sov_stf_runner::{ParallelProverService, ProverConfig, RollupConfig};
@@ -21,7 +21,7 @@ impl RollupBlueprint for MockDemoRollup {
     type DaService = MockDaService;
     type DaSpec = MockDaSpec;
     type DaConfig = MockDaConfig;
-    type Vm = Risc0Host<'static>;
+    type Vm = Risc0BonsaiHost<'static>;
 
     type ZkContext = ZkDefaultContext;
     type NativeContext = DefaultContext;
@@ -83,7 +83,11 @@ impl RollupBlueprint for MockDemoRollup {
         _rollup_config: &RollupConfig<Self::DaConfig>,
         _da_service: &Self::DaService,
     ) -> Self::ProverService {
-        let vm = Risc0Host::new(risc0::MOCK_DA_ELF);
+        let vm = Risc0BonsaiHost::new(
+            risc0::MOCK_DA_ELF,
+            std::env::var("BONSAI_API_URL").unwrap_or("".to_string()),
+            std::env::var("BONSAI_API_KEY").unwrap_or("".to_string()),
+        );
         let zk_stf = StfBlueprint::new();
         let zk_storage = ZkStorage::new();
         let da_verifier = Default::default();

@@ -1576,6 +1576,7 @@ dependencies = [
  "bitcoin-da",
  "borsh",
  "citrea-evm",
+ "citrea-risc0-bonsai-adapter",
  "citrea-sequencer",
  "citrea-stf",
  "clap",
@@ -1671,6 +1672,28 @@ dependencies = [
  "thiserror",
  "tracing",
  "walkdir",
+]
+
+[[package]]
+name = "citrea-risc0-bonsai-adapter"
+version = "0.3.0"
+dependencies = [
+ "anyhow",
+ "bincode",
+ "bonsai-sdk",
+ "bytemuck",
+ "hex",
+ "once_cell",
+ "parking_lot 0.12.1",
+ "risc0-circuit-rv32im",
+ "risc0-zkp",
+ "risc0-zkvm",
+ "risc0-zkvm-platform",
+ "serde",
+ "sov-risc0-adapter",
+ "sov-rollup-interface",
+ "sov-zk-cycle-utils",
+ "tracing",
 ]
 
 [[package]]
