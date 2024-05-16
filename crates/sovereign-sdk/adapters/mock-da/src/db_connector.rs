@@ -14,6 +14,10 @@ impl DbConnector {
     pub fn new(db_path: &Path) -> Self {
         debug!("Using test db: {:?}", db_path);
 
+        if !db_path.exists() {
+            let _ = std::fs::create_dir(db_path);
+        }
+
         let conn =
             Connection::open(db_path.join("mock_da.db")).expect("DbConnector: failed to open db");
 
