@@ -10,7 +10,7 @@ use async_trait::async_trait;
 use bitcoin::consensus::encode;
 use bitcoin::hashes::{sha256d, Hash};
 use bitcoin::secp256k1::SecretKey;
-use bitcoin::{Address, Txid};
+use bitcoin::{Address, BlockHash, Txid};
 use hex::ToHex;
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::DaSpec;
@@ -546,9 +546,9 @@ impl DaService for BitcoinService {
     async fn get_block_by_hash(&self, hash: [u8; 32]) -> Result<Self::FilteredBlock, Self::Error> {
         info!("Getting block with hash {:?}", hash);
 
-        let hex_hash = hex::encode(hash);
+        let hash = BlockHash::from_byte_array(hash);
 
-        let block = self.client.get_block(hex_hash).await?;
+        let block = self.client.get_block(hash.to_string()).await?;
         Ok(block)
     }
 }
