@@ -8,7 +8,8 @@ sender_address = "00000000000000000000000000000000000000000000000000000000000000
 
 [storage]
 # The path to the rollup's data directory. Paths that do not begin with `/` are interpreted as relative paths.
-path = "full-node-db"
+rollup_path = "full-node-db"
+da_path = "da-db"
 
 [rpc]
 # the host and port to bind the rpc server for
