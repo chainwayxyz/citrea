@@ -31,6 +31,7 @@ use sov_rollup_interface::services::da::DaService;
 use tracing::{info, instrument};
 
 const MAX_TRACE_BLOCK: u32 = 1000;
+const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[derive(Clone)]
 pub struct EthRpcConfig {
@@ -101,15 +102,7 @@ impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
         let arch = std::env::consts::ARCH;
         let rustc_v = version();
 
-        let git_latest_tag = match get_latest_git_tag() {
-            Ok(tag) => tag,
-            Err(e) => {
-                info!("Failed to get latest git tag: {}", e);
-                "unknown".to_string()
-            }
-        };
-
-        let current_version = format!("{}/{}/{}/rust-{}", rollup, git_latest_tag, arch, rustc_v);
+        let current_version = format!("{}/{}/{}/rust-{}", rollup, VERSION, arch, rustc_v);
 
         let trace_cache = Mutex::new(LruMap::new(ByLength::new(MAX_TRACE_BLOCK)));
 
@@ -120,7 +113,7 @@ impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
             eth_signer,
             storage,
             sequencer_client,
-            web3_client_version: current_version,
+            web3_client_version: VERSION.to_owned(),
             trace_cache,
         }
     }
