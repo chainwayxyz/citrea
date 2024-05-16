@@ -76,18 +76,7 @@ async fn initialize_test(
             config.seq_min_soft_confirmations,
             true,
             None,
-            // Increase max account slots to not stuck as spammer
-            Some(SequencerConfig {
-                private_key: TEST_PRIVATE_KEY.to_string(),
-                min_soft_confirmations_per_commitment: config.seq_min_soft_confirmations,
-                test_mode: true,
-                deposit_mempool_fetch_limit: 10,
-                mempool_conf: SequencerMempoolConfig {
-                    max_account_slots: 100,
-                    ..Default::default()
-                },
-                db_config: Default::default(),
-            }),
+            None,
             Some(true),
             config.deposit_mempool_fetch_limit,
         )
@@ -206,6 +195,7 @@ async fn test_soft_batch_save() -> Result<(), anyhow::Error> {
 
     let (full_node_port_tx_2, full_node_port_rx_2) = tokio::sync::oneshot::channel();
 
+    let da_db_dir_cloned = da_db_dir.clone();
     let full_node_task_2 = tokio::spawn(async move {
         start_rollup(
             full_node_port_tx_2,
@@ -213,7 +203,7 @@ async fn test_soft_batch_save() -> Result<(), anyhow::Error> {
             None,
             NodeMode::FullNode(full_node_port),
             fullnode2_db_dir,
-            da_db_dir.clone(),
+            da_db_dir_cloned,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             false,
             None,
@@ -227,7 +217,7 @@ async fn test_soft_batch_save() -> Result<(), anyhow::Error> {
     let full_node_port_2 = full_node_port_rx_2.await.unwrap();
     let full_node_test_client_2 = make_test_client(full_node_port_2).await;
 
-    let _ = execute_blocks(&seq_test_client, &full_node_test_client).await;
+    let _ = execute_blocks(&seq_test_client, &full_node_test_client, &da_db_dir).await;
 
     sleep(Duration::from_secs(10)).await;
 
@@ -395,13 +385,13 @@ async fn test_e2e_same_block_sync() -> Result<(), anyhow::Error> {
     let (seq_test_client, full_node_test_client, seq_task, full_node_task, _) =
         initialize_test(TestConfig {
             sequencer_path: sequencer_db_dir,
-            da_path: da_db_dir,
+            da_path: da_db_dir.clone(),
             fullnode_path: fullnode_db_dir,
             ..Default::default()
         })
         .await;
 
-    let _ = execute_blocks(&seq_test_client, &full_node_test_client).await;
+    let _ = execute_blocks(&seq_test_client, &full_node_test_client, &da_db_dir).await;
 
     seq_task.abort();
     full_node_task.abort();
@@ -511,7 +501,7 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
         seq_test_client.send_publish_batch_request().await;
     }
 
-    let da_service = MockDaService::new(MockAddress::from([0; 32]), storage_dir.path());
+    let da_service = MockDaService::new(MockAddress::from([0; 32]), &da_db_dir);
     da_service.publish_test_block().await.unwrap();
 
     // start full node again
@@ -894,7 +884,7 @@ async fn test_reopen_sequencer() -> Result<(), anyhow::Error> {
         &storage_dir.path().join("sequencer_copy"),
     );
 
-    let da_service = MockDaService::new(MockAddress::from([0; 32]), storage_dir.path());
+    let da_service = MockDaService::new(MockAddress::from([0; 32]), &da_db_dir);
     da_service.publish_test_block().await.unwrap();
 
     sleep(Duration::from_secs(1)).await;
@@ -977,6 +967,7 @@ fn copy_dir_recursive(src: &Path, dst: &Path) -> std::io::Result<()> {
 async fn execute_blocks(
     sequencer_client: &TestClient,
     full_node_client: &TestClient,
+    da_db_dir: &Path,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let (contract_address, contract) = {
         let contract = SimpleStorageContract::default();
@@ -1021,9 +1012,7 @@ async fn execute_blocks(
         sleep(Duration::from_secs(1)).await;
     }
 
-    let temp = tempfile::tempdir().unwrap();
-
-    let da_service = MockDaService::new(MockAddress::from([0; 32]), temp.path());
+    let da_service = MockDaService::new(MockAddress::from([0; 32]), da_db_dir);
     da_service.publish_test_block().await.unwrap();
 
     {
@@ -1059,21 +1048,22 @@ async fn execute_blocks(
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_soft_confirmations_status_one_l1() -> Result<(), anyhow::Error> {
-    // citrea::initialize_logging();
+    citrea::initialize_logging();
 
     let storage_dir = tempdir_with_children(&vec!["DA", "sequencer", "full-node"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
     let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
     let fullnode_db_dir = storage_dir.path().join("full-node").to_path_buf();
 
-    let da_service = MockDaService::new(MockAddress::default(), storage_dir.path());
+    let da_service = MockDaService::new(MockAddress::default(), &da_db_dir);
 
     let (seq_test_client, full_node_test_client, seq_task, full_node_task, _) =
         initialize_test(TestConfig {
             da_path: da_db_dir.clone(),
             sequencer_path: sequencer_db_dir.clone(),
             fullnode_path: fullnode_db_dir.clone(),
-            ..Default::default()
+            seq_min_soft_confirmations: 3,
+            deposit_mempool_fetch_limit: 10,
         })
         .await;
 
