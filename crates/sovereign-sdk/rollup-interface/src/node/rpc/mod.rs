@@ -266,7 +266,10 @@ pub struct StateTransitionRpcResponse {
     #[serde(with = "hex::serde")]
     pub final_state_root: Vec<u8>,
     /// State diff of L2 blocks in the processed sequencer commitments.
-    #[serde(serialize_with = "custom_serialize_btreemap")]
+    #[serde(
+        serialize_with = "custom_serialize_btreemap",
+        deserialize_with = "custom_deserialize_btreemap"
+    )]
     pub state_diff: BTreeMap<Vec<u8>, Option<Vec<u8>>>,
     /// The DA slot hash that the sequencer commitments causing this state transition were found in.
     #[serde(with = "hex::serde")]
@@ -303,6 +306,48 @@ where
         map.serialize_entry(&hex::encode(key), &value)?;
     }
     map.end()
+}
+
+/// Custom deserialization for BTreeMap
+/// Key and value are deserialized from hex
+/// Value is optional, if null, it is deserialized as None
+/// If the key is not a valid hex string, an error is returned
+/// If the value is not a valid hex string or null, an error is returned
+pub fn custom_deserialize_btreemap<'de, D>(
+    deserializer: D,
+) -> Result<BTreeMap<Vec<u8>, Option<Vec<u8>>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::de::{Error, MapAccess};
+
+    struct BTreeMapVisitor;
+
+    impl<'de> serde::de::Visitor<'de> for BTreeMapVisitor {
+        type Value = BTreeMap<Vec<u8>, Option<Vec<u8>>>;
+
+        fn expecting(&self, formatter: &mut core::fmt::Formatter) -> core::fmt::Result {
+            formatter.write_str("a map")
+        }
+
+        fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+        where
+            A: MapAccess<'de>,
+        {
+            let mut btree_map = BTreeMap::new();
+            while let Some((key, value)) = map.next_entry::<String, Option<String>>()? {
+                let key = hex::decode(&key).map_err(A::Error::custom)?;
+                let value = match value {
+                    Some(value) => Some(hex::decode(&value).map_err(A::Error::custom)?),
+                    None => None,
+                };
+                btree_map.insert(key, value);
+            }
+            Ok(btree_map)
+        }
+    }
+
+    deserializer.deserialize_map(BTreeMapVisitor)
 }
 
 /// Converts `SequencerCommitment` to `SequencerCommitmentResponse`
