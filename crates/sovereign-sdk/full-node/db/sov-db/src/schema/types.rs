@@ -1,4 +1,3 @@
-use std::collections::BTreeMap;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
@@ -6,7 +5,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::rpc::{
-    BatchResponse, HexTx, ProofResponse, ProofRpcResponse, SoftBatchResponse,
+    BatchResponse, CumulativeStateDiff, HexTx, ProofResponse, ProofRpcResponse, SoftBatchResponse,
     StateTransitionRpcResponse, TxIdentifier, TxResponse,
 };
 use sov_rollup_interface::stf::{Event, EventKey, TransactionReceipt};
@@ -102,7 +101,7 @@ pub struct StoredStateTransition {
     /// The state of the rollup after the transition
     pub final_state_root: Vec<u8>,
     /// State diff of L2 blocks in the processed sequencer commitments.
-    pub state_diff: BTreeMap<Vec<u8>, Option<Vec<u8>>>,
+    pub state_diff: CumulativeStateDiff,
     /// The DA slot hash that the sequencer commitments causing this state transition were found in.
     pub da_slot_hash: [u8; 32],
     /// Sequencer public key.

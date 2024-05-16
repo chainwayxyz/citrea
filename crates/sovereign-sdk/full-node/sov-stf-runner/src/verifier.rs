@@ -1,6 +1,7 @@
 use std::marker::PhantomData;
 
 use sov_rollup_interface::da::{BlockHeaderTrait, DaVerifier};
+use sov_rollup_interface::rpc::CumulativeStateDiff;
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::zk::{StateTransition, StateTransitionData, Zkvm, ZkvmGuest};
 
@@ -70,8 +71,10 @@ where
         );
 
         // Collect state diffs into a BtreeMap
-        let state_diff: std::collections::BTreeMap<Vec<u8>, Option<Vec<u8>>> =
-            state_diff.into_iter().map(|(k, v)| (k, v)).collect();
+        let state_diff: CumulativeStateDiff = state_diff
+            .into_iter()
+            // .map(|(k, v)| (k, v))
+            .collect();
 
         let out: StateTransition<Da::Spec, _> = StateTransition {
             initial_state_root: data.initial_state_root,

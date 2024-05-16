@@ -175,6 +175,9 @@ pub struct StorageProof<P> {
     pub proof: P,
 }
 
+/// A diff of the state, represented as a list of key-value pairs.
+pub type StateDiff = Vec<(Vec<u8>, Option<Vec<u8>>)>;
+
 /// An interface for storing and retrieving values in the storage.
 pub trait Storage: Clone {
     /// The witness type for this storage instance.
@@ -236,7 +239,7 @@ pub trait Storage: Clone {
         (
             Self::Root,
             Self::StateUpdate,
-            Vec<(Vec<u8>, Option<Vec<u8>>)>, // State diff, computed in Zk mode
+            StateDiff, // State diff, computed in Zk mode
         ),
         anyhow::Error,
     >;

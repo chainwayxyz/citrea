@@ -256,6 +256,9 @@ pub enum ProofRpcResponse {
     Full(Vec<u8>),
 }
 
+/// State diff produced by the Zk proof
+pub type CumulativeStateDiff = BTreeMap<Vec<u8>, Option<Vec<u8>>>;
+
 /// The state transition response of ledger proof data rpc
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct StateTransitionRpcResponse {
@@ -270,7 +273,7 @@ pub struct StateTransitionRpcResponse {
         serialize_with = "custom_serialize_btreemap",
         deserialize_with = "custom_deserialize_btreemap"
     )]
-    pub state_diff: BTreeMap<Vec<u8>, Option<Vec<u8>>>,
+    pub state_diff: CumulativeStateDiff,
     /// The DA slot hash that the sequencer commitments causing this state transition were found in.
     #[serde(with = "hex::serde")]
     pub da_slot_hash: [u8; 32],
@@ -292,7 +295,7 @@ pub struct StateTransitionRpcResponse {
 /// Key and value are serialized as hex
 /// Value is optional, if None, it is serialized as null
 pub fn custom_serialize_btreemap<S>(
-    state_diff: &BTreeMap<Vec<u8>, Option<Vec<u8>>>,
+    state_diff: &CumulativeStateDiff,
     serializer: S,
 ) -> Result<S::Ok, S::Error>
 where
@@ -302,7 +305,7 @@ where
 
     let mut map = serializer.serialize_map(Some(state_diff.len()))?;
     for (key, value) in state_diff.iter() {
-        let value = value.as_ref().map(|v| hex::encode(v));
+        let value = value.as_ref().map(hex::encode);
         map.serialize_entry(&hex::encode(key), &value)?;
     }
     map.end()
@@ -313,9 +316,7 @@ where
 /// Value is optional, if null, it is deserialized as None
 /// If the key is not a valid hex string, an error is returned
 /// If the value is not a valid hex string or null, an error is returned
-pub fn custom_deserialize_btreemap<'de, D>(
-    deserializer: D,
-) -> Result<BTreeMap<Vec<u8>, Option<Vec<u8>>>, D::Error>
+pub fn custom_deserialize_btreemap<'de, D>(deserializer: D) -> Result<CumulativeStateDiff, D::Error>
 where
     D: serde::Deserializer<'de>,
 {
@@ -324,7 +325,7 @@ where
     struct BTreeMapVisitor;
 
     impl<'de> serde::de::Visitor<'de> for BTreeMapVisitor {
-        type Value = BTreeMap<Vec<u8>, Option<Vec<u8>>>;
+        type Value = CumulativeStateDiff;
 
         fn expecting(&self, formatter: &mut core::fmt::Formatter) -> core::fmt::Result {
             formatter.write_str("a map")
