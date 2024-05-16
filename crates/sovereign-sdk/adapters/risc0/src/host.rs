@@ -135,6 +135,10 @@ impl<'host> Zkvm for Risc0Host<'host> {
         let output = Self::verify(serialized_proof, code_commitment)?;
         Ok(risc0_zkvm::serde::from_slice(output)?)
     }
+
+    fn get_code_commitment(&self) -> Self::CodeCommitment {
+        unimplemented!()
+    }
 }
 
 /// A verifier for Risc0 proofs.
@@ -161,6 +165,10 @@ impl Zkvm for Risc0Verifier {
     ) -> Result<sov_rollup_interface::zk::StateTransition<Da, Root>, Self::Error> {
         let output = Self::verify(serialized_proof, code_commitment)?;
         Ok(risc0_zkvm::serde::from_slice(output)?)
+    }
+
+    fn get_code_commitment(&self) -> Self::CodeCommitment {
+        unimplemented!()
     }
 }
 

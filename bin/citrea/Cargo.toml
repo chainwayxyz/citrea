@@ -60,6 +60,9 @@ citrea-sequencer = { path = "../../crates/sequencer" }
 sov-risc0-adapter = { path = "../../crates/sovereign-sdk/adapters/risc0", features = [
     "native",
 ] }
+citrea-risc0-bonsai-adapter = { path = "../../crates/sovereign-sdk/adapters/risc0-bonsai", features = [
+    "native",
+] }
 sov-state = { path = "../../crates/sovereign-sdk/module-system/sov-state", features = [
     "native",
 ] }

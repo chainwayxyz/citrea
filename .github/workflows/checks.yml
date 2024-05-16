@@ -317,6 +317,10 @@ jobs:
         run: rustup show
       - name: Run nextest
         run: make test
+        env:
+          BONSAI_API_URL: ${{ secrets.BONSAI_API_URL }} # TODO: remove this once we don't use the client on tests
+          BONSAI_API_KEY: ${{ secrets.BONSAI_API_KEY }} # TODO: remove this once we don't use the client on tests
+
 
   system-contracts:
     strategy:
