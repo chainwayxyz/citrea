@@ -337,13 +337,20 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
 
             // Start a session running the prover
             let session = client
-                //hanfle error
                 .create_session(hex::encode(self.image_id), input_id, vec![])
                 .map_err(|e| anyhow!("Bonsai API return error: {}", e))?;
             tracing::info!("Session created: {}", session.uuid);
             let receipt = loop {
                 // handle error
-                let res = client.status(&session).unwrap();
+                let res = match client.status(&session) {
+                    Ok(res) => res,
+                    Err(_) => {
+                        tracing::warn!("Failed to get status, retrying...");
+                        std::thread::sleep(Duration::from_secs(15));
+                        continue;
+                    }
+                };
+
                 if res.status == "RUNNING" {
                     tracing::info!(
                         "Current status: {} - state: {} - continue polling...",
@@ -383,7 +390,14 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
             tracing::info!("SNARK session created: {}", snark_session.uuid);
 
             loop {
-                let res = client.snark_status(&snark_session)?;
+                let res = match client.snark_status(&snark_session) {
+                    Ok(res) => res,
+                    Err(_) => {
+                        tracing::warn!("Failed to get status, retrying...");
+                        std::thread::sleep(Duration::from_secs(15));
+                        continue;
+                    }
+                };
                 match res.status.as_str() {
                     "RUNNING" => {
                         tracing::info!("Current status: {} - continue polling...", res.status,);
