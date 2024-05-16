@@ -57,9 +57,6 @@ sov-db = { path = "../../crates/sovereign-sdk/full-node/db/sov-db" }
 ethereum-rpc = { path = "../../crates/ethereum-rpc" }
 sequencer-client = { path = "../../crates/sequencer-client" }
 citrea-sequencer = { path = "../../crates/sequencer" }
-sov-risc0-adapter = { path = "../../crates/sovereign-sdk/adapters/risc0", features = [
-    "native",
-] }
 citrea-risc0-bonsai-adapter = { path = "../../crates/sovereign-sdk/adapters/risc0-bonsai", features = [
     "native",
 ] }
@@ -112,7 +109,7 @@ regex = "1.10"
 default = [
 ] # Deviate from convention by making the "native" feature active by default. This aligns with how this package is meant to be used (as a binary first, library second).
 
-bench = ["hex", "sov-risc0-adapter/bench", "risc0/bench"]
+bench = ["hex"] #"sov-risc0-adapter/bench", "risc0/bench"]
 
 [[bin]]
 name = "citrea"
