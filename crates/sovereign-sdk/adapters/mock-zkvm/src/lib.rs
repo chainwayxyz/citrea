@@ -145,6 +145,10 @@ impl<ValidityCond: ValidityCondition> sov_rollup_interface::zk::Zkvm for MockZkv
         let output = Self::verify(serialized_proof, code_commitment)?;
         Ok(bincode::deserialize(output)?)
     }
+
+    fn get_code_commitment(&self) -> Self::CodeCommitment {
+        unimplemented!()
+    }
 }
 
 impl<ValidityCond: ValidityCondition> sov_rollup_interface::zk::ZkvmHost
@@ -223,6 +227,10 @@ impl sov_rollup_interface::zk::Zkvm for MockZkGuest {
         _serialized_proof: &[u8],
         _code_commitment: &Self::CodeCommitment,
     ) -> Result<sov_rollup_interface::zk::StateTransition<Da, Root>, Self::Error> {
+        unimplemented!()
+    }
+
+    fn get_code_commitment(&self) -> Self::CodeCommitment {
         unimplemented!()
     }
 }
