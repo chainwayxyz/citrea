@@ -31,7 +31,7 @@ use sov_rollup_interface::services::da::DaService;
 use tracing::{info, instrument};
 
 const MAX_TRACE_BLOCK: u32 = 1000;
-const VERSION: &str = env!("CARGO_PKG_VERSION");
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[derive(Clone)]
 pub struct EthRpcConfig {

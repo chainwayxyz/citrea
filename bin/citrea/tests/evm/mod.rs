@@ -6,6 +6,7 @@ use citrea_evm::smart_contracts::{
     HiveContract, LogsContract, SimpleStorageContract, TestContract,
 };
 use citrea_stf::genesis_config::GenesisPaths;
+use ethereum_rpc::VERSION;
 use ethers_core::abi::Address;
 use ethers_core::types::{BlockId, Bytes, U256};
 use ethers_signers::{LocalWallet, Signer};
@@ -46,14 +47,13 @@ async fn web3_rpc_tests() -> Result<(), anyhow::Error> {
 
     let test_client = make_test_client(port).await;
 
-    let tag = ethereum_rpc::get_latest_git_tag().unwrap_or_else(|_| "unknown".to_string());
     let arch = std::env::consts::ARCH;
 
     assert_eq!(
         test_client.web3_client_version().await,
         format!(
             "citrea/{}/{}/rust-{}",
-            tag,
+            VERSION,
             arch,
             rustc_version_runtime::version()
         )
