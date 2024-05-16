@@ -79,10 +79,9 @@ async fn initialize_test(
             // Increase max account slots to not stuck as spammer
             Some(SequencerConfig {
                 private_key: TEST_PRIVATE_KEY.to_string(),
-                min_soft_confirmations_per_commitment:
-                    DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
+                min_soft_confirmations_per_commitment: config.seq_min_soft_confirmations,
                 test_mode: true,
-                deposit_mempool_fetch_limit: 10,
+                deposit_mempool_fetch_limit: config.deposit_mempool_fetch_limit,
                 mempool_conf: SequencerMempoolConfig {
                     max_account_slots: 100,
                     ..Default::default()
@@ -2276,7 +2275,7 @@ async fn sequencer_crash_restore_mempool() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_db_get_proof() {
     //citrea::initialize_logging();
 
