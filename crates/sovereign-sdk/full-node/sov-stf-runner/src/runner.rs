@@ -575,7 +575,7 @@ where
                     pool.insert_proof_data(
                         tx_id_u8.to_vec(),
                         proof_data,
-                        Into::<StateTransitionRpcResponse>::into(stored_state_transition.clone()),
+                        stored_state_transition.clone().into(),
                         proof_type,
                     )
                     .await
