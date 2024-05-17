@@ -78,6 +78,9 @@ citrea-evm = { path = "../../crates/evm", features = ["smart_contracts"] }
 shared-backup-db = { path = "../../crates/shared-backup-db", features = [
     "test-utils",
 ] }
+sov-risc0-adapter = { path = "../../crates/sovereign-sdk/adapters/risc0", features = [
+    "native",
+] }
 
 humantime = "2.1"
 rs_merkle = { workspace = true }
