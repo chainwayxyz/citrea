@@ -1856,7 +1856,7 @@ async fn transaction_failing_on_l1_is_removed_from_mempool() -> Result<(), anyho
 
     let random_wallet_address = random_wallet.address();
 
-    let second_block_base_fee: u64 = 768809031;
+    let second_block_base_fee: u64 = 768809993;
 
     seq_test_client
         .send_eth(
@@ -2166,12 +2166,15 @@ async fn test_db_get_proof() {
     let db_proofs = db_test_client.get_all_proof_data().await.unwrap();
 
     assert_eq!(db_proofs.len(), 1);
+
+    let db_state_transition = &db_proofs[0].state_transition.0;
+
     assert_eq!(
-        db_proofs[0].sequencer_da_public_key,
+        db_state_transition.sequencer_da_public_key,
         ledger_proof.state_transition.sequencer_da_public_key
     );
     assert_eq!(
-        db_proofs[0].sequencer_public_key,
+        db_state_transition.sequencer_public_key,
         ledger_proof.state_transition.sequencer_public_key
     );
     assert_eq!(db_proofs[0].l1_tx_id, ledger_proof.l1_tx_id);

@@ -3,7 +3,9 @@
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 #[cfg(feature = "native")]
-use tokio::sync::oneshot::{channel as oneshot_channel, Receiver as OneshotReceiver};
+use tokio::sync::mpsc::UnboundedSender;
+#[cfg(feature = "native")]
+use tokio::sync::oneshot::Sender as OneshotSender;
 
 use crate::da::BlockHeaderTrait;
 #[cfg(feature = "native")]
@@ -11,6 +13,15 @@ use crate::da::{DaSpec, DaVerifier};
 #[cfg(feature = "native")]
 use crate::maybestd::vec::Vec;
 use crate::zk::ValidityCondition;
+
+/// This type represents a queued request to send_transaction
+#[cfg(feature = "native")]
+pub struct BlobWithNotifier<TxID> {
+    /// Blob to send.
+    pub blob: Vec<u8>,
+    /// Channel to receive result of the operation.
+    pub notify: OneshotSender<Result<TxID, anyhow::Error>>,
+}
 
 /// A DaService is the local side of an RPC connection talking to a node of the DA layer
 /// It is *not* part of the logic that is zk-proven.
@@ -115,17 +126,9 @@ pub trait DaService: Send + Sync + 'static {
     /// Returns nothing if the transaction was successfully sent.
     async fn send_transaction(&self, blob: &[u8]) -> Result<Self::TransactionId, Self::Error>;
 
-    /// Send a transaction directly to the DA layer.
-    /// The default impl of this method actually blocks on `self.send_transaction`.
-    /// But the implementors can redefine it to be non-blocking.
-    async fn send_tx_no_wait(
-        &self,
-        blob: Vec<u8>,
-    ) -> OneshotReceiver<Result<Self::TransactionId, Self::Error>> {
-        let (tx, rx) = oneshot_channel();
-        let res = self.send_transaction(&blob).await;
-        let _ignore = tx.send(res);
-        rx
+    /// A tx part of the queue to send transactions in order
+    fn get_send_transaction_queue(&self) -> UnboundedSender<BlobWithNotifier<Self::TransactionId>> {
+        unimplemented!()
     }
 
     /// Sends am aggregated ZK proofs to the DA layer.

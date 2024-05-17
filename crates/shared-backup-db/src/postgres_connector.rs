@@ -3,6 +3,7 @@ use std::str::FromStr;
 use deadpool_postgres::tokio_postgres::config::Config as PgConfig;
 use deadpool_postgres::tokio_postgres::{NoTls, Row};
 use deadpool_postgres::{Manager, ManagerConfig, Object, Pool, PoolError, RecyclingMethod};
+use sov_rollup_interface::rpc::StateTransitionRpcResponse;
 
 use crate::config::SharedBackupDbConfig;
 use crate::tables::{
@@ -217,20 +218,16 @@ impl PostgresConnector {
         &self,
         l1_tx_id: Vec<u8>,
         proof_data: Vec<u8>,
-        initial_state_root: Vec<u8>,
-        final_state_root: Vec<u8>,
-        state_diff: Vec<u8>,
-        da_slot_hash: Vec<u8>,
-        sequemcer_public_key: Vec<u8>,
-        sequencer_da_public_key: Vec<u8>,
-        validity_condition: Vec<u8>,
+        state_transition_rpc_response: StateTransitionRpcResponse,
         proof_type: ProofType,
     ) -> Result<u64, PoolError> {
+        let state_tranistion_rpc_response_json =
+            postgres_types::Json::<StateTransitionRpcResponse>(state_transition_rpc_response);
         let client = self.client().await?;
         Ok(client
             .execute(
-                "INSERT INTO proof (l1_tx_id, proof_data, initial_state_root, final_state_root, state_diff, da_slot_hash, sequencer_public_key, sequencer_da_public_key, validity_condition, proof_type) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10);",
-                &[&l1_tx_id, &proof_data, &initial_state_root, &final_state_root, &state_diff, &da_slot_hash, &sequemcer_public_key, &sequencer_da_public_key, &validity_condition, &proof_type.to_string()],
+                "INSERT INTO proof (l1_tx_id, proof_data, state_transition, proof_type) VALUES ($1, $2, $3, $4);",
+                &[&l1_tx_id, &proof_data, &state_tranistion_rpc_response_json, &proof_type.to_string()],
             )
             .await?)
     }
@@ -290,13 +287,7 @@ impl PostgresConnector {
         DbProof {
             l1_tx_id: row.get("l1_tx_id"),
             proof_data: row.get("proof_data"),
-            initial_state_root: row.get("initial_state_root"),
-            final_state_root: row.get("final_state_root"),
-            state_diff: row.get("state_diff"),
-            da_slot_hash: row.get("da_slot_hash"),
-            sequencer_public_key: row.get("sequencer_public_key"),
-            sequencer_da_public_key: row.get("sequencer_da_public_key"),
-            validity_condition: row.get("validity_condition"),
+            state_transition: row.get("state_transition"),
             proof_type: ProofType::from_str(row.get("proof_type")).unwrap(),
         }
     }
@@ -398,13 +389,17 @@ mod tests {
             .insert_proof_data(
                 vec![0; 32],
                 vec![1; 32],
-                vec![2; 32],
-                vec![3; 32],
-                vec![4; 32],
-                vec![5; 32],
-                vec![6; 32],
-                vec![7; 32],
-                vec![8; 32],
+                StateTransitionRpcResponse {
+                    initial_state_root: [0; 32].to_vec(),
+                    final_state_root: [1; 32].to_vec(),
+                    state_diff: vec![(vec![2; 32], Some(vec![3; 32])), (vec![5; 32], None)]
+                        .into_iter()
+                        .collect(),
+                    da_slot_hash: [2; 32],
+                    sequencer_public_key: [3; 32].to_vec(),
+                    sequencer_da_public_key: [4; 32].to_vec(),
+                    validity_condition: [5; 32].to_vec(),
+                },
                 ProofType::Full,
             )
             .await
@@ -419,13 +414,17 @@ mod tests {
             DbProof {
                 l1_tx_id: vec![0; 32],
                 proof_data: vec![1; 32],
-                initial_state_root: vec![2; 32],
-                final_state_root: vec![3; 32],
-                state_diff: vec![4; 32],
-                da_slot_hash: vec![5; 32],
-                sequencer_public_key: vec![6; 32],
-                sequencer_da_public_key: vec![7; 32],
-                validity_condition: vec![8; 32],
+                state_transition: postgres_types::Json(StateTransitionRpcResponse {
+                    initial_state_root: [0; 32].to_vec(),
+                    final_state_root: [1; 32].to_vec(),
+                    state_diff: vec![(vec![2; 32], Some(vec![3; 32])), (vec![5; 32], None)]
+                        .into_iter()
+                        .collect(),
+                    da_slot_hash: [2; 32],
+                    sequencer_public_key: [3; 32].to_vec(),
+                    sequencer_da_public_key: [4; 32].to_vec(),
+                    validity_condition: [5; 32].to_vec(),
+                }),
                 proof_type: ProofType::Full,
             }
         );
