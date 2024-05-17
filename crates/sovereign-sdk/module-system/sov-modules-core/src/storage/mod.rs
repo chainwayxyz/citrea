@@ -237,7 +237,7 @@ pub trait Storage: Clone {
         (
             Self::Root,
             Self::StateUpdate,
-            StateDiff, // State diff, computed in Zk mode
+            StateDiff, // computed in Zk mode
         ),
         anyhow::Error,
     >;

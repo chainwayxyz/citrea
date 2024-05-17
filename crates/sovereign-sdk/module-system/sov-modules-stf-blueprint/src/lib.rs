@@ -479,10 +479,7 @@ where
         mut slot_headers: std::collections::VecDeque<Vec<<Da as DaSpec>::BlockHeader>>,
         validity_condition: &<Da as DaSpec>::ValidityCondition,
         mut soft_confirmations: std::collections::VecDeque<Vec<SignedSoftConfirmationBatch>>,
-    ) -> (
-        Self::StateRoot,
-        StateDiff, // state diff
-    ) {
+    ) -> (Self::StateRoot, StateDiff) {
         let mut state_diff = vec![];
 
         // First extract all sequencer commitments

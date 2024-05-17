@@ -95,10 +95,7 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
         _soft_confirmations: std::collections::VecDeque<
             Vec<sov_modules_api::SignedSoftConfirmationBatch>,
         >,
-    ) -> (
-        Self::StateRoot,
-        StateDiff, // state diff
-    ) {
+    ) -> (Self::StateRoot, StateDiff) {
         todo!()
     }
 }

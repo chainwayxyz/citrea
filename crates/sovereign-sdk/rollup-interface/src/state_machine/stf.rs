@@ -250,10 +250,7 @@ pub trait StateTransitionFunction<Vm: Zkvm, Da: DaSpec> {
         slot_headers: VecDeque<Vec<Da::BlockHeader>>,
         validity_condition: &Da::ValidityCondition,
         soft_confirmations: VecDeque<Vec<SignedSoftConfirmationBatch>>,
-    ) -> (
-        Self::StateRoot,
-        Vec<(Vec<u8>, Option<Vec<u8>>)>, // state diff
-    );
+    ) -> (Self::StateRoot, Vec<(Vec<u8>, Option<Vec<u8>>)>);
 }
 
 /// A key-value pair representing a change to the rollup state
