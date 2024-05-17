@@ -14,7 +14,7 @@ use crate::maybestd::vec::Vec;
 use crate::zk::ValidityCondition;
 
 /// This type represents a queued request to send_transaction
-pub struct InscriptionRawTx<TxID> {
+pub struct BlobWithNotifier<TxID> {
     /// Blob to send.
     pub blob: Vec<u8>,
     /// Channel to receive result of the operation.
@@ -125,7 +125,7 @@ pub trait DaService: Send + Sync + 'static {
     async fn send_transaction(&self, blob: &[u8]) -> Result<Self::TransactionId, Self::Error>;
 
     /// A tx part of the queue to send transactions in order
-    fn inscription_queue(&self) -> UnboundedSender<InscriptionRawTx<Self::TransactionId>> {
+    fn get_send_transaction_queue(&self) -> UnboundedSender<BlobWithNotifier<Self::TransactionId>> {
         unimplemented!()
     }
 

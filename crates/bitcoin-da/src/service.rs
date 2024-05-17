@@ -14,7 +14,7 @@ use bitcoin::{Address, Txid};
 use hex::ToHex;
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::DaSpec;
-use sov_rollup_interface::services::da::{DaService, InscriptionRawTx};
+use sov_rollup_interface::services::da::{BlobWithNotifier, DaService};
 use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 use tracing::{error, info, instrument, trace};
 
@@ -41,7 +41,7 @@ pub struct BitcoinService {
     network: bitcoin::Network,
     da_private_key: Option<SecretKey>,
     reveal_tx_id_prefix: Vec<u8>,
-    inscribes_queue: UnboundedSender<InscriptionRawTx<TxidWrapper>>,
+    inscribes_queue: UnboundedSender<BlobWithNotifier<TxidWrapper>>,
 }
 
 /// Runtime configuration for the DA service
@@ -77,7 +77,7 @@ impl BitcoinService {
             .da_private_key
             .map(|pk| SecretKey::from_str(&pk).expect("Invalid private key"));
 
-        let (tx, mut rx) = unbounded_channel::<InscriptionRawTx<TxidWrapper>>();
+        let (tx, mut rx) = unbounded_channel::<BlobWithNotifier<TxidWrapper>>();
 
         let this = Self::with_client(
             client,
@@ -171,7 +171,7 @@ impl BitcoinService {
         network: bitcoin::Network,
         da_private_key: Option<SecretKey>,
         reveal_tx_id_prefix: Vec<u8>,
-        inscribes_queue: UnboundedSender<InscriptionRawTx<TxidWrapper>>,
+        inscribes_queue: UnboundedSender<BlobWithNotifier<TxidWrapper>>,
     ) -> Self {
         let wallets = client
             .list_wallets()
@@ -504,7 +504,7 @@ impl DaService for BitcoinService {
         unimplemented!("Use send_tx_no_wait instead")
     }
 
-    fn inscription_queue(&self) -> UnboundedSender<InscriptionRawTx<Self::TransactionId>> {
+    fn get_send_transaction_queue(&self) -> UnboundedSender<BlobWithNotifier<Self::TransactionId>> {
         self.inscribes_queue.clone()
     }
 

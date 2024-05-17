@@ -31,7 +31,7 @@ use sov_modules_api::{
 };
 use sov_modules_stf_blueprint::StfBlueprintTrait;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaData, DaSpec};
-use sov_rollup_interface::services::da::{DaService, InscriptionRawTx};
+use sov_rollup_interface::services::da::{BlobWithNotifier, DaService};
 use sov_rollup_interface::stf::{SoftBatchReceipt, StateTransitionFunction};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::ZkvmHost;
@@ -545,7 +545,7 @@ where
     fn spawn_commitment_thread(&self) -> UnboundedSender<u64> {
         let (da_height_tx, mut da_height_rx) = unbounded::<u64>();
         let ledger_db = self.ledger_db.clone();
-        let inscription_queue = self.da_service.inscription_queue();
+        let inscription_queue = self.da_service.get_send_transaction_queue();
         let min_soft_confirmations_per_commitment =
             self.config.min_soft_confirmations_per_commitment;
         let db_config = self.config.db_config.clone();
@@ -587,7 +587,7 @@ where
                         .map_err(|e| anyhow!(e))
                         .unwrap(); // TODO unwrap
                     let (notify, rx) = oneshot_channel();
-                    let request = InscriptionRawTx { blob, notify };
+                    let request = BlobWithNotifier { blob, notify };
                     inscription_queue
                         .send(request)
                         .expect("Bitcoin service already stopped");
