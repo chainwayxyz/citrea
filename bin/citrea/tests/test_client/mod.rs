@@ -613,12 +613,12 @@ impl TestClient {
             .unwrap()
     }
 
-    pub(crate) async fn ledger_get_verified_proof_by_slot_height(
+    pub(crate) async fn ledger_get_verified_proofs_by_slot_height(
         &self,
         height: u64,
-    ) -> VerifiedProofResponse {
+    ) -> Vec<VerifiedProofResponse> {
         self.http_client
-            .request("ledger_getVerifiedProofBySlotHeight", rpc_params![height])
+            .request("ledger_getVerifiedProofsBySlotHeight", rpc_params![height])
             .await
             .unwrap()
     }

@@ -12,7 +12,7 @@ use tokio::sync::broadcast::Receiver;
 use crate::schema::tables::{
     BatchByHash, BatchByNumber, CommitmentsByNumber, EventByNumber, ProofBySlotNumber, SlotByHash,
     SlotByNumber, SoftBatchByHash, SoftBatchByNumber, SoftConfirmationStatus, TxByHash, TxByNumber,
-    VerifiedProofBySlotNumber,
+    VerifiedProofsBySlotNumber,
 };
 use crate::schema::types::{
     BatchNumber, EventNumber, SlotNumber, StoredBatch, StoredSlot, TxNumber,
@@ -410,12 +410,17 @@ impl LedgerRpcProvider for LedgerDB {
     fn get_verified_proof_data_by_l1_height(
         &self,
         height: u64,
-    ) -> Result<Option<VerifiedProofResponse>, anyhow::Error> {
+    ) -> Result<Option<Vec<VerifiedProofResponse>>, anyhow::Error> {
         match self
             .db
-            .get::<VerifiedProofBySlotNumber>(&SlotNumber(height))?
+            .get::<VerifiedProofsBySlotNumber>(&SlotNumber(height))?
         {
-            Some(stored_proof) => Ok(Some(VerifiedProofResponse::from(stored_proof))),
+            Some(stored_proofs) => Ok(Some(
+                stored_proofs
+                    .into_iter()
+                    .map(VerifiedProofResponse::from)
+                    .collect(),
+            )),
             None => Ok(None),
         }
     }

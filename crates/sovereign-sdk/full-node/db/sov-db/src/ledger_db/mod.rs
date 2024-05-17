@@ -13,7 +13,7 @@ use crate::schema::tables::{
     BatchByHash, BatchByNumber, CommitmentsByNumber, EventByKey, EventByNumber, L2RangeByL1Height,
     LastSequencerCommitmentSent, ProofBySlotNumber, ProverLastScannedSlot, SlotByHash,
     SlotByNumber, SoftBatchByHash, SoftBatchByNumber, SoftConfirmationStatus, TxByHash, TxByNumber,
-    VerifiedProofBySlotNumber, LEDGER_TABLES,
+    VerifiedProofsBySlotNumber, LEDGER_TABLES,
 };
 use crate::schema::types::{
     split_tx_for_storage, BatchNumber, EventNumber, L2HeightRange, SlotNumber, StoredBatch,
@@ -591,19 +591,34 @@ impl LedgerDB {
     }
 
     /// Stores proof related data on disk, accessible via l1 slot height
-    pub fn put_verified_proof_data(
+    pub fn update_verified_proof_data(
         &self,
         l1_height: u64,
         proof: Proof,
         state_transition: StoredStateTransition,
     ) -> anyhow::Result<()> {
-        self.db.put::<VerifiedProofBySlotNumber>(
-            &SlotNumber(l1_height),
-            &StoredVerifiedProof {
-                proof,
-                state_transition,
-            },
-        )
+        let verified_proofs = self
+            .db
+            .get::<VerifiedProofsBySlotNumber>(&SlotNumber(l1_height))?;
+
+        match verified_proofs {
+            Some(mut verified_proofs) => {
+                let stored_verified_proof = StoredVerifiedProof {
+                    proof,
+                    state_transition,
+                };
+                verified_proofs.push(stored_verified_proof);
+                self.db
+                    .put::<VerifiedProofsBySlotNumber>(&SlotNumber(l1_height), &verified_proofs)
+            }
+            None => self.db.put(
+                &SlotNumber(l1_height),
+                &vec![StoredVerifiedProof {
+                    proof,
+                    state_transition,
+                }],
+            ),
+        }
     }
 
     /// Sets l1 height of l1 hash

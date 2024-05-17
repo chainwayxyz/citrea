@@ -67,7 +67,7 @@ pub const LEDGER_TABLES: &[&str] = &[
     EventByNumber::table_name(),
     CommitmentsByNumber::table_name(),
     ProofBySlotNumber::table_name(),
-    VerifiedProofBySlotNumber::table_name(),
+    VerifiedProofsBySlotNumber::table_name(),
 ];
 
 /// A list of all tables used by the NativeDB. These tables store
@@ -306,7 +306,7 @@ define_table_with_default_codec!(
 
 define_table_with_default_codec!(
     /// Proof data on L1 slot verified by full node
-    (VerifiedProofBySlotNumber) SlotNumber => StoredVerifiedProof
+    (VerifiedProofsBySlotNumber) SlotNumber => Vec<StoredVerifiedProof>
 );
 
 impl KeyEncoder<JmtNodes> for NodeKey {

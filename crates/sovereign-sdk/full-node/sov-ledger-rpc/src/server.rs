@@ -230,7 +230,7 @@ where
     })?;
 
     rpc.register_async_method(
-        "ledger_getVerifiedProofBySlotHeight",
+        "ledger_getVerifiedProofsBySlotHeight",
         |params, ledger| async move {
             // Returns proof on DA slot with given height
             let height: u64 = params.one()?;

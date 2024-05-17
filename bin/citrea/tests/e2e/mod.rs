@@ -2196,7 +2196,7 @@ async fn test_db_get_proof() {
 
 #[tokio::test]
 async fn full_node_verify_proof_and_store() {
-    citrea::initialize_logging();
+    // citrea::initialize_logging();
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
@@ -2335,14 +2335,14 @@ async fn full_node_verify_proof_and_store() {
 
     // So the full node should see the proof in block 5
     let full_node_proof = full_node_test_client
-        .ledger_get_verified_proof_by_slot_height(5)
+        .ledger_get_verified_proofs_by_slot_height(5)
         .await;
 
-    assert_eq!(prover_proof.proof, full_node_proof.proof);
+    assert_eq!(prover_proof.proof, full_node_proof[0].proof);
 
     assert_eq!(
         prover_proof.state_transition,
-        full_node_proof.state_transition
+        full_node_proof[0].state_transition
     );
 
     full_node_test_client
@@ -2541,14 +2541,14 @@ async fn test_all_flow() {
 
     // So the full node should see the proof in block 5
     let full_node_proof = full_node_test_client
-        .ledger_get_verified_proof_by_slot_height(5)
+        .ledger_get_verified_proofs_by_slot_height(5)
         .await;
 
-    assert_eq!(prover_proof.proof, full_node_proof.proof);
+    assert_eq!(prover_proof.proof, full_node_proof[0].proof);
 
     assert_eq!(
         prover_proof.state_transition,
-        full_node_proof.state_transition
+        full_node_proof[0].state_transition
     );
 
     full_node_test_client
@@ -2638,13 +2638,13 @@ async fn test_all_flow() {
     sleep(Duration::from_secs(2)).await;
 
     let full_node_proof_data = full_node_test_client
-        .ledger_get_verified_proof_by_slot_height(8)
+        .ledger_get_verified_proofs_by_slot_height(8)
         .await;
 
-    assert_eq!(prover_proof_data.proof, full_node_proof_data.proof);
+    assert_eq!(prover_proof_data.proof, full_node_proof_data[0].proof);
     assert_eq!(
         prover_proof_data.state_transition,
-        full_node_proof_data.state_transition
+        full_node_proof_data[0].state_transition
     );
 
     let balance = full_node_test_client

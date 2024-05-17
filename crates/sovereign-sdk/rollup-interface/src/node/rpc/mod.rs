@@ -600,7 +600,7 @@ pub trait LedgerRpcProvider {
     fn get_verified_proof_data_by_l1_height(
         &self,
         height: u64,
-    ) -> Result<Option<VerifiedProofResponse>, anyhow::Error>;
+    ) -> Result<Option<Vec<VerifiedProofResponse>>, anyhow::Error>;
 }
 
 /// JSON-RPC -related utilities. Occasionally useful but unimportant for most
