@@ -4,6 +4,7 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 #[cfg(feature = "native")]
 use tokio::sync::mpsc::UnboundedSender;
+#[cfg(feature = "native")]
 use tokio::sync::oneshot::Sender as OneshotSender;
 
 use crate::da::BlockHeaderTrait;
@@ -14,6 +15,7 @@ use crate::maybestd::vec::Vec;
 use crate::zk::ValidityCondition;
 
 /// This type represents a queued request to send_transaction
+#[cfg(feature = "native")]
 pub struct BlobWithNotifier<TxID> {
     /// Blob to send.
     pub blob: Vec<u8>,
