@@ -820,7 +820,7 @@ where
                         .ledger_db
                         .get_l2_range_by_l1_height(SlotNumber(l1_height_start))?
                     {
-                        Some((start, end)) => {
+                        Some((start, _)) => {
                             let l2_height = start.0;
                             let soft_batches = self.ledger_db.get_soft_batch_range(
                                 &(BatchNumber(l2_height)..BatchNumber(l2_height + 1)),
