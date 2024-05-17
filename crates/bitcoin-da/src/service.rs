@@ -14,11 +14,8 @@ use bitcoin::{Address, Txid};
 use hex::ToHex;
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::DaSpec;
-use sov_rollup_interface::services::da::DaService;
+use sov_rollup_interface::services::da::{DaService, InscriptionRawTx};
 use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
-use tokio::sync::oneshot::{
-    channel as oneshot_channel, Receiver as OneshotReceiver, Sender as OneshotSender,
-};
 use tracing::{error, info, instrument, trace};
 
 use crate::helpers::builders::{
@@ -44,7 +41,7 @@ pub struct BitcoinService {
     network: bitcoin::Network,
     da_private_key: Option<SecretKey>,
     reveal_tx_id_prefix: Vec<u8>,
-    inscribes_queue: UnboundedSender<InscriptionRawTx>,
+    inscribes_queue: UnboundedSender<InscriptionRawTx<TxidWrapper>>,
 }
 
 /// Runtime configuration for the DA service
@@ -68,11 +65,6 @@ pub struct DaServiceConfig {
 const FINALITY_DEPTH: u64 = 4; // blocks
 const POLLING_INTERVAL: u64 = 10; // seconds
 
-struct InscriptionRawTx {
-    blob: Vec<u8>,
-    notify: OneshotSender<Result<TxidWrapper, anyhow::Error>>,
-}
-
 impl BitcoinService {
     // Create a new instance of the DA service from the given configuration.
     pub async fn new(config: DaServiceConfig, chain_params: RollupParams) -> Self {
@@ -85,7 +77,7 @@ impl BitcoinService {
             .da_private_key
             .map(|pk| SecretKey::from_str(&pk).expect("Invalid private key"));
 
-        let (tx, mut rx) = unbounded_channel::<InscriptionRawTx>();
+        let (tx, mut rx) = unbounded_channel::<InscriptionRawTx<TxidWrapper>>();
 
         let this = Self::with_client(
             client,
@@ -179,7 +171,7 @@ impl BitcoinService {
         network: bitcoin::Network,
         da_private_key: Option<SecretKey>,
         reveal_tx_id_prefix: Vec<u8>,
-        inscribes_queue: UnboundedSender<InscriptionRawTx>,
+        inscribes_queue: UnboundedSender<InscriptionRawTx<TxidWrapper>>,
     ) -> Self {
         let wallets = client
             .list_wallets()
@@ -512,17 +504,8 @@ impl DaService for BitcoinService {
         unimplemented!("Use send_tx_no_wait instead")
     }
 
-    #[instrument(level = "trace", skip_all)]
-    async fn send_tx_no_wait(
-        &self,
-        blob: Vec<u8>,
-    ) -> OneshotReceiver<Result<Self::TransactionId, Self::Error>> {
-        let (notify, rx) = oneshot_channel();
-        let request = InscriptionRawTx { blob, notify };
-        self.inscribes_queue
-            .send(request)
-            .expect("Bitcoin service already stopped");
-        rx
+    fn inscription_queue(&self) -> UnboundedSender<InscriptionRawTx<Self::TransactionId>> {
+        self.inscribes_queue.clone()
     }
 
     async fn send_aggregated_zk_proof(

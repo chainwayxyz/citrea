@@ -8,7 +8,8 @@ use pin_project::pin_project;
 use sha2::Digest;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec, Time};
 use sov_rollup_interface::maybestd::sync::Arc;
-use sov_rollup_interface::services::da::{DaService, SlotData};
+use sov_rollup_interface::services::da::{DaService, InscriptionRawTx, SlotData};
+use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 use tokio::sync::{broadcast, Mutex as AsyncMutex, MutexGuard as AsyncMutexGuard};
 use tokio::time;
 
@@ -384,6 +385,18 @@ impl DaService for MockDaService {
         let blocks = self.blocks.lock().await;
         let _ = self.add_blob(&blocks, blob, Default::default())?;
         Ok(MockHash([0; 32]))
+    }
+
+    fn inscription_queue(&self) -> UnboundedSender<InscriptionRawTx<Self::TransactionId>> {
+        let (tx, mut rx) = unbounded_channel::<InscriptionRawTx<Self::TransactionId>>();
+        let this = self.clone();
+        tokio::spawn(async move {
+            while let Some(req) = rx.recv().await {
+                let res = this.send_transaction(&req.blob).await;
+                let _ = req.notify.send(res);
+            }
+        });
+        tx
     }
 
     async fn send_aggregated_zk_proof(&self, proof: &[u8]) -> Result<u64, Self::Error> {
