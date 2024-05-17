@@ -14,11 +14,8 @@ use bitcoin::{Address, BlockHash, Txid};
 use hex::ToHex;
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::DaSpec;
-use sov_rollup_interface::services::da::DaService;
+use sov_rollup_interface::services::da::{BlobWithNotifier, DaService};
 use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
-use tokio::sync::oneshot::{
-    channel as oneshot_channel, Receiver as OneshotReceiver, Sender as OneshotSender,
-};
 use tracing::{error, info, instrument, trace};
 
 use crate::helpers::builders::{
@@ -44,7 +41,7 @@ pub struct BitcoinService {
     network: bitcoin::Network,
     da_private_key: Option<SecretKey>,
     reveal_tx_id_prefix: Vec<u8>,
-    inscribes_queue: UnboundedSender<InscriptionRawTx>,
+    inscribes_queue: UnboundedSender<BlobWithNotifier<TxidWrapper>>,
 }
 
 /// Runtime configuration for the DA service
@@ -68,11 +65,6 @@ pub struct DaServiceConfig {
 const FINALITY_DEPTH: u64 = 4; // blocks
 const POLLING_INTERVAL: u64 = 10; // seconds
 
-struct InscriptionRawTx {
-    blob: Vec<u8>,
-    notify: OneshotSender<Result<TxidWrapper, anyhow::Error>>,
-}
-
 impl BitcoinService {
     // Create a new instance of the DA service from the given configuration.
     pub async fn new(config: DaServiceConfig, chain_params: RollupParams) -> Self {
@@ -85,7 +77,7 @@ impl BitcoinService {
             .da_private_key
             .map(|pk| SecretKey::from_str(&pk).expect("Invalid private key"));
 
-        let (tx, mut rx) = unbounded_channel::<InscriptionRawTx>();
+        let (tx, mut rx) = unbounded_channel::<BlobWithNotifier<TxidWrapper>>();
 
         let this = Self::with_client(
             client,
@@ -112,31 +104,34 @@ impl BitcoinService {
                 // We execute commit and reveal txs one by one to chain them
                 while let Some(request) = rx.recv().await {
                     trace!("A new request is received");
-                    let fee_sat_per_vbyte = match this.get_fee_rate().await {
-                        Ok(rate) => rate,
-                        Err(e) => {
-                            let _ = request.notify.send(Err(e));
-                            continue;
+                    let prev = prev_tx.take();
+                    loop {
+                        // Build and send tx with retries:
+                        let blob = request.blob.clone();
+                        let fee_sat_per_vbyte = match this.get_fee_rate().await {
+                            Ok(rate) => rate,
+                            Err(e) => {
+                                error!(?e, "Failed to call get_fee_rate. Retrying...");
+                                tokio::time::sleep(Duration::from_secs(1)).await;
+                                continue;
+                            }
+                        };
+                        match this
+                            .send_transaction_with_fee_rate(prev, blob, fee_sat_per_vbyte)
+                            .await
+                        {
+                            Ok(tx) => {
+                                let tx_id = TxidWrapper(tx.id);
+                                info!(%tx.id, "Sent tx to BitcoinDA");
+                                prev_tx = Some(tx);
+                                let _ = request.notify.send(Ok(tx_id));
+                            }
+                            Err(e) => {
+                                error!(?e, "Failed to send transaction to DA layer");
+                                tokio::time::sleep(Duration::from_secs(1)).await;
+                            }
                         }
-                    };
-                    match this
-                        .send_transaction_with_fee_rate(
-                            prev_tx.take(),
-                            request.blob,
-                            fee_sat_per_vbyte,
-                        )
-                        .await
-                    {
-                        Ok(tx) => {
-                            let tx_id = TxidWrapper(tx.id);
-                            info!(%tx.id, "Send tx to BitcoinDA");
-                            prev_tx = Some(tx);
-                            let _ = request.notify.send(Ok(tx_id));
-                        }
-                        Err(e) => {
-                            error!(?e, "Failed to send transaction to DA layer");
-                            let _ = request.notify.send(Err(e));
-                        }
+                        break;
                     }
                 }
 
@@ -176,7 +171,7 @@ impl BitcoinService {
         network: bitcoin::Network,
         da_private_key: Option<SecretKey>,
         reveal_tx_id_prefix: Vec<u8>,
-        inscribes_queue: UnboundedSender<InscriptionRawTx>,
+        inscribes_queue: UnboundedSender<BlobWithNotifier<TxidWrapper>>,
     ) -> Self {
         let wallets = client
             .list_wallets()
@@ -509,17 +504,8 @@ impl DaService for BitcoinService {
         unimplemented!("Use send_tx_no_wait instead")
     }
 
-    #[instrument(level = "trace", skip_all)]
-    async fn send_tx_no_wait(
-        &self,
-        blob: Vec<u8>,
-    ) -> OneshotReceiver<Result<Self::TransactionId, Self::Error>> {
-        let (notify, rx) = oneshot_channel();
-        let request = InscriptionRawTx { blob, notify };
-        self.inscribes_queue
-            .send(request)
-            .expect("Bitcoint service already stopped");
-        rx
+    fn get_send_transaction_queue(&self) -> UnboundedSender<BlobWithNotifier<Self::TransactionId>> {
+        self.inscribes_queue.clone()
     }
 
     async fn send_aggregated_zk_proof(
