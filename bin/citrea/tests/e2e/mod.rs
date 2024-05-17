@@ -2523,11 +2523,11 @@ async fn test_all_flow() {
 
     assert_eq!(db_proofs.len(), 1);
     assert_eq!(
-        db_proofs[0].sequencer_da_public_key,
+        db_proofs[0].state_transition.0.sequencer_da_public_key,
         prover_proof.state_transition.sequencer_da_public_key
     );
     assert_eq!(
-        db_proofs[0].sequencer_public_key,
+        db_proofs[0].state_transition.0.sequencer_public_key,
         prover_proof.state_transition.sequencer_public_key
     );
     assert_eq!(db_proofs[0].l1_tx_id, prover_proof.l1_tx_id);
@@ -2624,11 +2624,11 @@ async fn test_all_flow() {
 
     assert_eq!(db_proofs.len(), 2);
     assert_eq!(
-        db_proofs[1].sequencer_da_public_key,
+        db_proofs[1].state_transition.0.sequencer_da_public_key,
         prover_proof_data.state_transition.sequencer_da_public_key
     );
     assert_eq!(
-        db_proofs[1].sequencer_public_key,
+        db_proofs[1].state_transition.0.sequencer_public_key,
         prover_proof_data.state_transition.sequencer_public_key
     );
 
