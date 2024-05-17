@@ -490,7 +490,7 @@ where
 
         let l1_fee_rate = l1_fee_rate.clamp(*fee_rate_range.start(), *fee_rate_range.end());
 
-        let new_da_block = match last_finalized_height.cmp(&prev_l1_height) {
+        let last_commitable_l1_height = match last_finalized_height.cmp(&prev_l1_height) {
             Ordering::Less => {
                 panic!("DA L1 height is less than Ledger finalized height");
             }
@@ -514,14 +514,14 @@ where
                             .await?;
                     }
                 }
-                let prev_l1_height = last_finalized_height - 1;
-                Some(prev_l1_height)
+                let last_commitable_l1_height = last_finalized_height - 1;
+                Some(last_commitable_l1_height)
             }
         };
 
-        if let Some(prev_l1_height) = new_da_block {
+        if let Some(last_commitable_l1_height) = last_commitable_l1_height {
             da_height_tx
-                .unbounded_send(prev_l1_height)
+                .unbounded_send(last_commitable_l1_height)
                 .expect("Commitment thread is dead");
             // TODO: this is where we would include forced transactions from the new L1 block
         }
