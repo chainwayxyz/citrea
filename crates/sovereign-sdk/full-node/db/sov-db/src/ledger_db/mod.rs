@@ -565,6 +565,14 @@ impl LedgerDB {
         }
     }
 
+    /// Gets the commitments in the da slot with given height if any
+    pub fn get_commitments_on_da_slot(
+        &self,
+        height: u64,
+    ) -> anyhow::Result<Option<Vec<SequencerCommitment>>> {
+        self.db.get::<CommitmentsByNumber>(&SlotNumber(height))
+    }
+
     /// Stores proof related data on disk, accessible via l1 slot height
     pub fn put_proof_data(
         &self,
@@ -589,15 +597,22 @@ impl LedgerDB {
         proof: Proof,
         state_transition: StoredStateTransition,
     ) -> anyhow::Result<()> {
-        self.db
-            .put::<VerifiedProofBySlotNumber>(&SlotNumber(l1_height), &StoredVerifiedProof {
+        self.db.put::<VerifiedProofBySlotNumber>(
+            &SlotNumber(l1_height),
+            &StoredVerifiedProof {
                 proof,
                 state_transition,
-            })
+            },
+        )
     }
 
     /// Sets l1 height of l1 hash
     pub fn set_l1_height_of_l1_hash(&self, hash: [u8; 32], height: u64) -> anyhow::Result<()> {
         self.db.put::<SlotByHash>(&hash, &SlotNumber(height))
+    }
+
+    /// Gets l1 height of l1 hash
+    pub fn get_l1_height_of_l1_hash(&self, hash: [u8; 32]) -> Result<Option<u64>, anyhow::Error> {
+        self.db.get::<SlotByHash>(&hash).map(|v| v.map(|a| a.0))
     }
 }

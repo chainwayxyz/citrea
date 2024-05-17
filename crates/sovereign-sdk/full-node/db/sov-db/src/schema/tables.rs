@@ -67,6 +67,7 @@ pub const LEDGER_TABLES: &[&str] = &[
     EventByNumber::table_name(),
     CommitmentsByNumber::table_name(),
     ProofBySlotNumber::table_name(),
+    VerifiedProofBySlotNumber::table_name(),
 ];
 
 /// A list of all tables used by the NativeDB. These tables store

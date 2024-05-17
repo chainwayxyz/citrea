@@ -2075,7 +2075,7 @@ async fn sequencer_crash_restore_mempool() -> Result<(), anyhow::Error> {
 
 #[tokio::test]
 async fn test_db_get_proof() {
-    //citrea::initialize_logging();
+    // citrea::initialize_logging();
 
     let db_test_client = PostgresConnector::new_test_client().await.unwrap();
 
@@ -2185,4 +2185,176 @@ async fn test_db_get_proof() {
 
     seq_task.abort();
     prover_node_task.abort();
+}
+
+#[tokio::test]
+async fn full_node_verify_proof_and_store() {
+    citrea::initialize_logging();
+
+    let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
+
+    let seq_task = tokio::spawn(async {
+        start_rollup(
+            seq_port_tx,
+            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
+            None,
+            NodeMode::SequencerNode,
+            None,
+            4,
+            true,
+            None,
+            None,
+            Some(true),
+            DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
+        )
+        .await;
+    });
+
+    let seq_port = seq_port_rx.await.unwrap();
+    let test_client = make_test_client(seq_port).await;
+    let da_service = MockDaService::new(MockAddress::from([0; 32]));
+
+    let (prover_node_port_tx, prover_node_port_rx) = tokio::sync::oneshot::channel();
+
+    let prover_node_task = tokio::spawn(async move {
+        start_rollup(
+            prover_node_port_tx,
+            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
+            Some(ProverConfig {
+                proving_mode: sov_stf_runner::ProverGuestRunConfig::Execute,
+                skip_proving_until_l1_height: None,
+                db_config: None,
+            }),
+            NodeMode::Prover(seq_port.clone()),
+            None,
+            4,
+            true,
+            None,
+            None,
+            Some(true),
+            DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
+        )
+        .await;
+    });
+
+    let prover_node_port = prover_node_port_rx.await.unwrap();
+
+    let prover_node_test_client = make_test_client(prover_node_port).await;
+
+    let (full_node_port_tx, full_node_port_rx) = tokio::sync::oneshot::channel();
+
+    let full_node_task = tokio::spawn(async move {
+        start_rollup(
+            full_node_port_tx,
+            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
+            None,
+            NodeMode::FullNode(seq_port),
+            None,
+            4,
+            true,
+            None,
+            None,
+            Some(true),
+            DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
+        )
+        .await;
+    });
+
+    let full_node_port = full_node_port_rx.await.unwrap();
+    let full_node_test_client = make_test_client(full_node_port).await;
+
+    da_service.publish_test_block().await.unwrap();
+    sleep(Duration::from_secs(1)).await;
+
+    test_client.send_publish_batch_request().await;
+    test_client.send_publish_batch_request().await;
+    test_client.send_publish_batch_request().await;
+    test_client.send_publish_batch_request().await;
+    da_service.publish_test_block().await.unwrap();
+    // submits with new da block
+    test_client.send_publish_batch_request().await;
+    // prover node gets the commitment
+    test_client.send_publish_batch_request().await;
+    // da_service.publish_test_block().await.unwrap();
+
+    // wait here until we see from prover's rpc that it finished proving
+    while prover_node_test_client
+        .prover_get_last_scanned_l1_height()
+        .await
+        != 5
+    {
+        // sleep 2
+        sleep(Duration::from_secs(2)).await;
+    }
+    sleep(Duration::from_secs(4)).await;
+
+    let commitments = prover_node_test_client
+        .ledger_get_sequencer_commitments_on_slot_by_number(4)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(commitments.len(), 1);
+
+    let second_hash = da_service.get_block_at(2).await.unwrap().header.hash;
+    assert_eq!(
+        commitments[0].l1_start_block_hash.to_vec(),
+        second_hash.0.to_vec()
+    );
+    assert_eq!(
+        commitments[0].l1_end_block_hash.to_vec(),
+        second_hash.0.to_vec()
+    );
+
+    assert_eq!(commitments[0].found_in_l1, 4);
+
+    let fourth_block_hash = da_service.get_block_at(4).await.unwrap().header.hash;
+
+    let commitments_hash = prover_node_test_client
+        .ledger_get_sequencer_commitments_on_slot_by_hash(fourth_block_hash.0)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(commitments_hash, commitments);
+
+    let prover_proof = prover_node_test_client
+        .ledger_get_proof_by_slot_height(4)
+        .await;
+
+    // the proof will be in l1 block #5 because prover publishes it after the commitment and in mock da submitting proof and commitments creates a new block
+    // For full node to see the proof, we publish another l2 block and now it will check #5 l1 block
+    test_client.send_publish_batch_request().await;
+
+    sleep(Duration::from_secs(2)).await;
+
+    // So the full node should see the proof in block 5
+    let full_node_proof = full_node_test_client
+        .ledger_get_verified_proof_by_slot_height(5)
+        .await;
+
+    assert_eq!(prover_proof.proof, full_node_proof.proof);
+
+    assert_eq!(
+        prover_proof.state_transition,
+        full_node_proof.state_transition
+    );
+
+    full_node_test_client
+        .ledger_get_soft_confirmation_status(5)
+        .await
+        .unwrap()
+        .unwrap();
+
+    for i in 1..=4 {
+        let status = full_node_test_client
+            .ledger_get_soft_confirmation_status(i)
+            .await
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(status, SoftConfirmationStatus::Proven);
+    }
+
+    seq_task.abort();
+    prover_node_task.abort();
+    full_node_task.abort();
 }

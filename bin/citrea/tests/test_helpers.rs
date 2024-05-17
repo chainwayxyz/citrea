@@ -120,7 +120,7 @@ pub fn create_default_rollup_config(
                 137, 214, 80, 160, 30, 215, 232, 44, 171, 168, 103, 135, 124, 33,
             ],
             sequencer_da_pub_key: vec![0; 32],
-            prover_da_pub_key: vec![],
+            prover_da_pub_key: vec![0; 32],
         },
 
         storage: StorageConfig {
