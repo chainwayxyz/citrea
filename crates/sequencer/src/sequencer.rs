@@ -606,7 +606,7 @@ where
                     let l1_start_height = commitment_info.l1_height_range.start().0;
                     let l1_end_height = commitment_info.l1_height_range.end().0;
                     let l2_start = l2_range_to_submit.start().0 as u32;
-                    let l2_end = (l2_range_to_submit.end().0 + 1) as u32;
+                    let l2_end = l2_range_to_submit.end().0 as u32;
                     if let Some(db_config) = db_config.clone() {
                         match PostgresConnector::new(db_config).await {
                             Ok(pg_connector) => {

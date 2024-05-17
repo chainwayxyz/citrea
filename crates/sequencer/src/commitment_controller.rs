@@ -46,26 +46,27 @@ pub fn get_commitment_info(
     // if there is a height then start from height + 1 and go to prev_l1_height
     let (l2_range_to_submit, l1_height_range) = match last_commitment_l1_height {
         Some(last_commitment_l1_height) => {
-            let l1_start = last_commitment_l1_height.0;
+            let l1_start = last_commitment_l1_height.0 + 1;
             let mut l1_end = l1_start;
             let mut l2_length = 0;
             // Take while sum of l2 ranges <= min_soft_confirmations_per_commitment
-            while l2_length <= min_soft_confirmations_per_commitment
-                || l1_start < prev_l1_height - 1
-            {
+            for l1_i in l1_start..=prev_l1_height {
+                l1_end = l1_i;
                 let Some((l2_start, l2_end)) =
                     ledger_db.get_l2_range_by_l1_height(SlotNumber(l1_end))?
                 else {
                     bail!("Sequencer: Failed to get L1 L2 connection");
                 };
-                let l2_range_length = l2_end.0 - l2_start.0;
+                let l2_range_length = 1 + l2_end.0 - l2_start.0;
+                if l2_length <= min_soft_confirmations_per_commitment {
+                    break;
+                }
                 l2_length += l2_range_length;
-                l1_end += 1;
             }
-            let l1_height_range = (l1_start + 1, l1_end);
+            let l1_height_range = (l1_start, l1_end);
 
             let Some((l2_start_height, _)) =
-                ledger_db.get_l2_range_by_l1_height(SlotNumber(l1_start + 1))?
+                ledger_db.get_l2_range_by_l1_height(SlotNumber(l1_start))?
             else {
                 bail!("Sequencer: Failed to get L1 L2 connection");
             };
