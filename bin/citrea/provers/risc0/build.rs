@@ -11,8 +11,10 @@ fn main() {
         let methods_path = out_dir.join("methods.rs");
 
         let elf = r#"
-            pub const BITCOIN_ELF: &[u8] = &[];
+            pub const BITCOIN_DA_ELF: &[u8] = &[];
             pub const MOCK_DA_ELF: &[u8] = &[];
+            pub const BITCOIN_DA_ID: [u32; 8] = [0;8];
+            pub const MOCK_DA_ID: [u32; 8] = [0;8];
         "#;
 
         std::fs::write(methods_path, elf).expect("Failed to write mock rollup elf");

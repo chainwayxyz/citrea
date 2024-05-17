@@ -756,6 +756,7 @@ where
                         .expect("Proof should be verifiable"),
                         Proof::PublicInput(_) => {
                             if !self.accept_public_input_as_proven {
+                                tracing::warn!("Found public input in da block number: {:?}, Skipping to next proof..", soft_batch.da_slot_height);
                                 continue;
                             }
                             Vm::extract_output(&proof).expect("Proof should be deserializable")
