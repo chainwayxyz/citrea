@@ -192,7 +192,7 @@ impl<ValidityCond: ValidityCondition> sov_rollup_interface::zk::ZkvmHost
                     initial_state_root: st.initial_state_root,
                     final_state_root: st.final_state_root,
                     validity_condition: data.validity_condition,
-                    state_diff: vec![],
+                    state_diff: Default::default(),
                     da_slot_hash: st.da_block_header_of_commitments.hash(),
                     sequencer_public_key: vec![],
                     sequencer_da_public_key: vec![],

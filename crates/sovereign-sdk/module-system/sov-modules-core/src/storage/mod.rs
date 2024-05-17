@@ -7,6 +7,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_rollup_interface::maybestd::RefCount;
+use sov_rollup_interface::stf::StateDiff;
 
 use crate::common::{AlignedVec, Prefix, Version, Witness};
 
@@ -232,7 +233,14 @@ pub trait Storage: Clone {
         &self,
         state_accesses: OrderedReadsAndWrites,
         witness: &Self::Witness,
-    ) -> Result<(Self::Root, Self::StateUpdate), anyhow::Error>;
+    ) -> Result<
+        (
+            Self::Root,
+            Self::StateUpdate,
+            StateDiff, // computed in Zk mode
+        ),
+        anyhow::Error,
+    >;
 
     /// Commits state changes to the underlying storage.
     fn commit(&self, node_batch: &Self::StateUpdate, accessory_update: &OrderedReadsAndWrites);
@@ -244,7 +252,7 @@ pub trait Storage: Clone {
         witness: &Self::Witness,
         accessory_update: &OrderedReadsAndWrites,
     ) -> Result<Self::Root, anyhow::Error> {
-        let (root_hash, node_batch) = self.compute_state_update(state_accesses, witness)?;
+        let (root_hash, node_batch, _) = self.compute_state_update(state_accesses, witness)?;
         self.commit(&node_batch, accessory_update);
 
         Ok(root_hash)
