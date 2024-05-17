@@ -212,27 +212,6 @@ pub struct Risc0BonsaiHost<'a> {
     last_input_id: Option<String>,
 }
 
-#[cfg(not(feature = "bench"))]
-#[inline(always)]
-fn add_benchmarking_callbacks(env: ExecutorEnvBuilder<'_>) -> ExecutorEnvBuilder<'_> {
-    env
-}
-
-#[cfg(feature = "bench")]
-fn add_benchmarking_callbacks(mut env: ExecutorEnvBuilder<'_>) -> ExecutorEnvBuilder<'_> {
-    use sov_zk_cycle_utils::{cycle_count_callback, get_syscall_name, get_syscall_name_cycles};
-
-    use crate::metrics::metrics_callback;
-
-    let metrics_syscall_name = get_syscall_name();
-    env.io_callback(metrics_syscall_name, metrics_callback);
-
-    let cycles_syscall_name = get_syscall_name_cycles();
-    env.io_callback(cycles_syscall_name, cycle_count_callback);
-
-    env
-}
-
 impl<'a> Risc0BonsaiHost<'a> {
     /// Create a new Risc0Host to prove the given binary.
     pub fn new(elf: &'a [u8], api_url: String, api_key: String) -> Self {
@@ -313,10 +292,11 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
     /// Proofs are created on the Bonsai API.
     fn run(&mut self, with_proof: bool) -> Result<Proof, anyhow::Error> {
         if !with_proof {
-            let env = add_benchmarking_callbacks(ExecutorEnvBuilder::default())
-                .write_slice(&self.env)
-                .build()
-                .unwrap();
+            let env =
+                sov_risc0_adapter::host::add_benchmarking_callbacks(ExecutorEnvBuilder::default())
+                    .write_slice(&self.env)
+                    .build()
+                    .unwrap();
             let mut executor = ExecutorImpl::from_elf(env, self.elf)?;
 
             let session = executor.run()?;

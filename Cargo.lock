@@ -1617,7 +1617,6 @@ dependencies = [
  "sov-modules-rollup-blueprint",
  "sov-modules-stf-blueprint",
  "sov-prover-storage-manager",
- "sov-risc0-adapter",
  "sov-rollup-interface",
  "sov-state",
  "sov-stf-runner",
@@ -1692,7 +1691,6 @@ dependencies = [
  "serde",
  "sov-risc0-adapter",
  "sov-rollup-interface",
- "sov-zk-cycle-utils",
  "tracing",
 ]
 

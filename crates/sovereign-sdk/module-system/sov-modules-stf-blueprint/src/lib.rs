@@ -527,7 +527,6 @@ where
 
             index_soft_confirmation += 1;
 
-            // TODO: check for no da block height jump
             while index_soft_confirmation < soft_confirmations.len() {
                 // the soft confirmations DA hash must equal to da hash in index_headers
                 // if it's not matching, and if it's not matching the next one, then state transition is invalid.
@@ -548,6 +547,11 @@ where
                     assert_eq!(
                         da_block_headers[index_headers].height(),
                         current_da_height + 1
+                    );
+
+                    assert_eq!(
+                        da_block_headers[index_headers - 1].hash(),
+                        da_block_headers[index_headers].prev_hash()
                     );
 
                     current_da_height += 1;

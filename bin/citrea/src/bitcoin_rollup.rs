@@ -2,6 +2,7 @@ use async_trait::async_trait;
 use bitcoin_da::service::{BitcoinService, DaServiceConfig};
 use bitcoin_da::spec::{BitcoinSpec, RollupParams};
 use bitcoin_da::verifier::BitcoinVerifier;
+use citrea_risc0_bonsai_adapter::host::Risc0BonsaiHost;
 use citrea_stf::genesis_config::StorageConfig;
 use citrea_stf::runtime::Runtime;
 use rollup_constants::{DA_TX_ID_LEADING_ZEROS, ROLLUP_NAME};
@@ -11,7 +12,6 @@ use sov_modules_api::{Address, Spec};
 use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
-use sov_risc0_adapter::host::Risc0Host;
 use sov_rollup_interface::da::DaVerifier;
 use sov_rollup_interface::zk::ZkvmHost;
 use sov_state::{DefaultStorageSpec, Storage, ZkStorage};
@@ -25,7 +25,7 @@ impl RollupBlueprint for BitcoinRollup {
     type DaService = BitcoinService;
     type DaSpec = BitcoinSpec;
     type DaConfig = DaServiceConfig;
-    type Vm = Risc0Host<'static>;
+    type Vm = Risc0BonsaiHost<'static>;
 
     type ZkContext = ZkDefaultContext;
     type NativeContext = DefaultContext;
@@ -104,8 +104,11 @@ impl RollupBlueprint for BitcoinRollup {
         _rollup_config: &RollupConfig<Self::DaConfig>,
         _da_service: &Self::DaService,
     ) -> Self::ProverService {
-        // TODO: will be BITCOIN_ELF
-        let vm = Risc0Host::new(risc0::MOCK_DA_ELF);
+        let vm = Risc0BonsaiHost::new(
+            risc0::BITCOIN_DA_ELF,
+            std::env::var("BONSAI_API_URL").unwrap_or("".to_string()),
+            std::env::var("BONSAI_API_KEY").unwrap_or("".to_string()),
+        );
         let zk_stf = StfBlueprint::new();
         let zk_storage = ZkStorage::new();
 
