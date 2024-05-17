@@ -18,7 +18,7 @@ use sov_modules_stf_blueprint::StfBlueprintTrait;
 use sov_rollup_interface::da::{
     BlobReaderTrait, BlockHeaderTrait, DaData, DaSpec, SequencerCommitment,
 };
-use sov_rollup_interface::rpc::{SoftConfirmationStatus, StateTransitionRpcResponse};
+use sov_rollup_interface::rpc::SoftConfirmationStatus;
 use sov_rollup_interface::services::da::{DaService, SlotData};
 pub use sov_rollup_interface::stf::BatchReceipt;
 use sov_rollup_interface::stf::{SoftBatchReceipt, StateTransitionFunction};
