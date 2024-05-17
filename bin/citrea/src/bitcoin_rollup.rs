@@ -104,7 +104,6 @@ impl RollupBlueprint for BitcoinRollup {
         _rollup_config: &RollupConfig<Self::DaConfig>,
         _da_service: &Self::DaService,
     ) -> Self::ProverService {
-        // TODO: will be BITCOIN_ELF
         let vm = Risc0BonsaiHost::new(
             risc0::BITCOIN_DA_ELF,
             std::env::var("BONSAI_API_URL").unwrap_or("".to_string()),
