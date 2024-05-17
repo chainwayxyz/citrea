@@ -575,13 +575,7 @@ where
                     pool.insert_proof_data(
                         tx_id_u8.to_vec(),
                         proof_data,
-                        stored_state_transition.initial_state_root.clone(),
-                        stored_state_transition.final_state_root.clone(),
-                        stored_state_transition.state_diff.clone(),
-                        stored_state_transition.da_slot_hash.clone().to_vec(),
-                        stored_state_transition.sequencer_public_key.clone(),
-                        stored_state_transition.sequencer_da_public_key.clone(),
-                        stored_state_transition.validity_condition.clone(),
+                        stored_state_transition.clone().into(),
                         proof_type,
                     )
                     .await

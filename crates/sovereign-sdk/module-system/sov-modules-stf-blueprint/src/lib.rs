@@ -16,7 +16,7 @@ use sov_modules_api::hooks::{
 };
 use sov_modules_api::{
     BasicAddress, BlobReaderTrait, Context, DaSpec, DispatchCall, Genesis, Signature, Spec,
-    StateCheckpoint, UnsignedSoftConfirmationBatch, WorkingSet, Zkvm,
+    StateCheckpoint, StateDiff, UnsignedSoftConfirmationBatch, WorkingSet, Zkvm,
 };
 use sov_rollup_interface::da::{DaData, SequencerCommitment};
 use sov_rollup_interface::digest::Digest;
@@ -305,14 +305,14 @@ where
         }
         batch_receipts.push(batch_receipt);
 
-        let (state_root, witness, storage) = {
+        let (state_root, witness, storage, state_diff) = {
             let working_set = checkpoint.to_revertable();
             // Save checkpoint
             let mut checkpoint = working_set.checkpoint();
 
             let (cache_log, witness) = checkpoint.freeze();
 
-            let (root_hash, state_update) = pre_state
+            let (root_hash, state_update, state_diff) = pre_state
                 .compute_state_update(cache_log, &witness)
                 .expect("jellyfish merkle tree update must succeed");
 
@@ -326,7 +326,7 @@ where
 
             pre_state.commit(&state_update, &accessory_log);
 
-            (root_hash, witness, pre_state)
+            (root_hash, witness, pre_state, state_diff)
         };
 
         SlotResult {
@@ -334,6 +334,7 @@ where
             change_set: storage,
             batch_receipts,
             witness,
+            state_diff,
         }
     }
 }
@@ -374,7 +375,7 @@ where
         let mut checkpoint = working_set.checkpoint();
         let (log, witness) = checkpoint.freeze();
 
-        let (genesis_hash, state_update) = pre_state
+        let (genesis_hash, state_update, _) = pre_state
             .compute_state_update(log, &witness)
             .expect("Storage update must succeed");
 
@@ -461,6 +462,7 @@ where
                     change_set: pre_state, // should be empty
                     batch_receipts: vec![],
                     witness: <<C as Spec>::Storage as Storage>::Witness::default(),
+                    state_diff: vec![],
                 }
             }
         }
@@ -477,10 +479,9 @@ where
         mut slot_headers: std::collections::VecDeque<Vec<<Da as DaSpec>::BlockHeader>>,
         validity_condition: &<Da as DaSpec>::ValidityCondition,
         mut soft_confirmations: std::collections::VecDeque<Vec<SignedSoftConfirmationBatch>>,
-    ) -> (
-        Self::StateRoot,
-        Vec<u8>, // state diff
-    ) {
+    ) -> (Self::StateRoot, StateDiff) {
+        let mut state_diff = vec![];
+
         // First extract all sequencer commitments
         // Ignore broken DaData and zk proofs. Also ignore ForcedTransaction's (will be implemented in the future).
         let mut sequencer_commitments: Vec<SequencerCommitment> = vec![];
@@ -608,11 +609,12 @@ where
                 );
 
                 current_state_root = result.state_root;
+                state_diff.extend(result.state_diff);
             }
         }
 
         // TODO: implement state diff extraction
-        (current_state_root, vec![])
+        (current_state_root, state_diff)
     }
 }
 

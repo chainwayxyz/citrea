@@ -6039,6 +6039,8 @@ dependencies = [
  "bytes",
  "fallible-iterator 0.2.0",
  "postgres-protocol",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -8669,7 +8671,9 @@ name = "shared-backup-db"
 version = "0.3.0"
 dependencies = [
  "deadpool-postgres",
+ "postgres-types",
  "serde",
+ "sov-rollup-interface",
  "tokio",
 ]
 
