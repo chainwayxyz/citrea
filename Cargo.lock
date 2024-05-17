@@ -1691,7 +1691,6 @@ dependencies = [
  "serde",
  "sov-risc0-adapter",
  "sov-rollup-interface",
- "sov-zk-cycle-utils",
  "tracing",
 ]
 
