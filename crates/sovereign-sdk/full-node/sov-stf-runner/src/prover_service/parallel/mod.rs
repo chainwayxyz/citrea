@@ -186,8 +186,4 @@ where
             }
         }
     }
-
-    fn get_code_commitment(&self) -> Vm::CodeCommitment {
-        self.vm.get_code_commitment()
-    }
 }

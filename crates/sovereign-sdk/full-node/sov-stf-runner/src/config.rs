@@ -15,6 +15,8 @@ pub struct RunnerConfig {
     pub sequencer_client_url: String,
     /// Saves sequencer soft batches if set to true
     pub include_tx_body: bool,
+    /// Only true for tests
+    pub accept_public_input_as_proven: Option<bool>,
 }
 
 /// RPC configuration.
@@ -155,6 +157,7 @@ mod tests {
             runner: Some(RunnerConfig {
                 sequencer_client_url: "http://0.0.0.0:12346".to_owned(),
                 include_tx_body: true,
+                accept_public_input_as_proven: None,
             }),
             da: sov_mock_da::MockDaConfig {
                 sender_address: [0; 32].into(),

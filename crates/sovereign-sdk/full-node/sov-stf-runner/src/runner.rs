@@ -68,6 +68,7 @@ where
     include_tx_body: bool,
     prover_config: Option<ProverConfig>,
     code_commitment: Vm::CodeCommitment,
+    accept_public_input_as_proven: bool,
 }
 
 /// Represents the possible modes of execution for a zkVM program
@@ -171,6 +172,9 @@ where
             include_tx_body: runner_config.include_tx_body,
             prover_config,
             code_commitment,
+            accept_public_input_as_proven: runner_config
+                .accept_public_input_as_proven
+                .unwrap_or(false),
         })
     }
 
@@ -751,6 +755,9 @@ where
                         )
                         .expect("Proof should be verifiable"),
                         Proof::PublicInput(_) => {
+                            if !self.accept_public_input_as_proven {
+                                continue;
+                            }
                             Vm::extract_output(&proof).expect("Proof should be deserializable")
                         }
                     };
@@ -806,16 +813,13 @@ where
                             .unwrap()
                             .unwrap();
 
-                        // Finalize the l1 block, all soft confirmations in this block are now finalized
-                        self.ledger_db.put_soft_confirmation_status(
-                            sov_db::schema::types::SlotNumber(l1_height_start),
-                            SoftConfirmationStatus::Proven,
-                        )?;
-                        // Finalize the l1 block, all soft confirmations in this block are now finalized
-                        self.ledger_db.put_soft_confirmation_status(
-                            sov_db::schema::types::SlotNumber(l1_height_end),
-                            SoftConfirmationStatus::Proven,
-                        )?;
+                        // All soft confirmations in these blocks are now proven
+                        for i in l1_height_start..=l1_height_end {
+                            self.ledger_db.put_soft_confirmation_status(
+                                SlotNumber(i),
+                                SoftConfirmationStatus::Proven,
+                            )?;
+                        }
                     }
 
                     // TODO Remove unnecessary get code commitment funcs
@@ -1002,6 +1006,7 @@ where
         &self.state_root
     }
 
+    /// TODO: Fix backoff never resetting
     /// A basic helper for exponential backoff for error logging.
     pub fn log_error(
         last_error_log: &mut Instant,

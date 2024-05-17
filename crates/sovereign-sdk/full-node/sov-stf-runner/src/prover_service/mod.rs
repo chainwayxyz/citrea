@@ -113,7 +113,4 @@ pub trait ProverService<Vm: Zkvm> {
         block_header_hash: <<Self::DaService as DaService>::Spec as DaSpec>::SlotHash,
         da_service: &Self::DaService,
     ) -> Result<(<Self::DaService as DaService>::TransactionId, Proof), anyhow::Error>;
-
-    /// Returns code commitment
-    fn get_code_commitment(&self) -> Vm::CodeCommitment;
 }

@@ -2,7 +2,6 @@ use async_trait::async_trait;
 use bitcoin_da::service::{BitcoinService, DaServiceConfig};
 use bitcoin_da::spec::{BitcoinSpec, RollupParams};
 use bitcoin_da::verifier::BitcoinVerifier;
-use citrea_risc0_bonsai_adapter::Digest;
 use citrea_stf::genesis_config::StorageConfig;
 use citrea_stf::runtime::Runtime;
 use rollup_constants::{DA_TX_ID_LEADING_ZEROS, ROLLUP_NAME};

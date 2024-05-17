@@ -129,6 +129,7 @@ async fn runner_execution(
         runner: Some(RunnerConfig {
             sequencer_client_url: "http://127.0.0.1:4444".to_string(),
             include_tx_body: true,
+            accept_public_input_as_proven: None,
         }),
         da: MockDaConfig {
             sender_address: da_service.get_sequencer_address(),

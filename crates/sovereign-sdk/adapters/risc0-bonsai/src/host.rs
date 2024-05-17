@@ -489,8 +489,4 @@ impl<'host> Zkvm for Risc0BonsaiHost<'host> {
 
         Ok(receipt.journal.decode()?)
     }
-
-    fn get_code_commitment(&self) -> Self::CodeCommitment {
-        self.image_id
-    }
 }

@@ -12,9 +12,8 @@ use sov_db::ledger_db::LedgerDB;
 use sov_modules_api::{Context, DaSpec, Spec};
 use sov_modules_stf_blueprint::{GenesisParams, Runtime as RuntimeTrait, StfBlueprint};
 use sov_rollup_interface::services::da::DaService;
-use sov_rollup_interface::stf::ZkConfig;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
-use sov_rollup_interface::zk::{Zkvm, ZkvmGuest, ZkvmHost};
+use sov_rollup_interface::zk::{Zkvm, ZkvmHost};
 use sov_state::storage::NativeStorage;
 use sov_state::Storage;
 use sov_stf_runner::{

@@ -135,6 +135,7 @@ pub fn create_default_rollup_config(
             NodeMode::FullNode(socket_addr) | NodeMode::Prover(socket_addr) => Some(RunnerConfig {
                 include_tx_body,
                 sequencer_client_url: format!("http://localhost:{}", socket_addr.port()),
+                accept_public_input_as_proven: Some(true),
             }),
             NodeMode::SequencerNode => None,
         },
