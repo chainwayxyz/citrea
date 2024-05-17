@@ -3,7 +3,7 @@ use sov_mock_da::{
     MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaSpec, MockValidityCond,
 };
 use sov_mock_zkvm::MockZkvm;
-use sov_modules_api::Context;
+use sov_modules_api::{Context, StateDiff};
 use sov_modules_stf_blueprint::StfBlueprintTrait;
 use sov_prover_storage_manager::{new_orphan_storage, SnapshotManager};
 use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaSpec};
@@ -236,7 +236,7 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
         >,
     ) -> (
         Self::StateRoot,
-        Vec<(Vec<u8>, Option<Vec<u8>>)>, // state diff
+        StateDiff, // state diff
     ) {
         todo!()
     }

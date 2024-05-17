@@ -10,6 +10,7 @@ use sov_modules_core::{
     CacheKey, NativeStorage, OrderedReadsAndWrites, Storage, StorageKey, StorageProof,
     StorageValue, Witness,
 };
+use sov_rollup_interface::stf::StateDiff;
 
 use crate::config::Config;
 use crate::MerkleProofSpec;
@@ -103,14 +104,7 @@ impl<S: MerkleProofSpec, Q: QueryManager> Storage for ProverStorage<S, Q> {
         &self,
         state_accesses: OrderedReadsAndWrites,
         witness: &Self::Witness,
-    ) -> Result<
-        (
-            Self::Root,
-            Self::StateUpdate,
-            Vec<(Vec<u8>, Option<Vec<u8>>)>,
-        ),
-        anyhow::Error,
-    > {
+    ) -> Result<(Self::Root, Self::StateUpdate, StateDiff), anyhow::Error> {
         let latest_version = self.db.get_next_version() - 1;
         let jmt = JellyfishMerkleTree::<_, S::Hasher>::new(&self.db);
 

@@ -14,6 +14,7 @@ use crate::maybestd::vec::Vec;
 #[cfg(feature = "native")]
 use crate::stf::Event;
 use crate::stf::EventKey;
+use crate::zk::CumulativeStateDiff;
 
 /// A struct containing enough information to uniquely specify single batch.
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
@@ -256,9 +257,6 @@ pub enum ProofRpcResponse {
     #[serde(with = "hex::serde")]
     Full(Vec<u8>),
 }
-
-/// State diff produced by the Zk proof
-pub type CumulativeStateDiff = BTreeMap<Vec<u8>, Option<Vec<u8>>>;
 
 /// The state transition response of ledger proof data rpc
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]

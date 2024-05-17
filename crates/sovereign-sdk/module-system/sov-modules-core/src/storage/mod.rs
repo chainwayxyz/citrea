@@ -7,6 +7,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_rollup_interface::maybestd::RefCount;
+use sov_rollup_interface::stf::StateDiff;
 
 use crate::common::{AlignedVec, Prefix, Version, Witness};
 
@@ -174,9 +175,6 @@ pub struct StorageProof<P> {
     /// The cryptographic proof
     pub proof: P,
 }
-
-/// A diff of the state, represented as a list of key-value pairs.
-pub type StateDiff = Vec<(Vec<u8>, Option<Vec<u8>>)>;
 
 /// An interface for storing and retrieving values in the storage.
 pub trait Storage: Clone {

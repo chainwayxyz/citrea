@@ -108,6 +108,9 @@ pub struct SoftBatchReceipt<BatchReceiptContents, TxReceiptContents, DS: DaSpec>
     pub timestamp: u64,
 }
 
+/// A diff of the state, represented as a list of key-value pairs.
+pub type StateDiff = Vec<(Vec<u8>, Option<Vec<u8>>)>;
+
 /// Result of applying a slot to current state
 /// Where:
 ///  - S - generic for state root
@@ -124,7 +127,7 @@ pub struct SlotResult<S, Cs, B, T, W> {
     /// Witness after applying the whole block
     pub witness: W,
     /// State diff
-    pub state_diff: Vec<(Vec<u8>, Option<Vec<u8>>)>,
+    pub state_diff: StateDiff,
 }
 
 // TODO(@preston-evans98): update spec with simplified API

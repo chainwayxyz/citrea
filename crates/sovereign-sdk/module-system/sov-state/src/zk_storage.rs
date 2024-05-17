@@ -5,6 +5,7 @@ use jmt::KeyHash;
 use sov_modules_core::{
     OrderedReadsAndWrites, Storage, StorageKey, StorageProof, StorageValue, Witness,
 };
+use sov_rollup_interface::stf::StateDiff;
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 use sov_zk_cycle_macros::cycle_tracker;
 
@@ -57,14 +58,7 @@ impl<S: MerkleProofSpec> Storage for ZkStorage<S> {
         &self,
         state_accesses: OrderedReadsAndWrites,
         witness: &Self::Witness,
-    ) -> Result<
-        (
-            Self::Root,
-            Self::StateUpdate,
-            Vec<(Vec<u8>, Option<Vec<u8>>)>,
-        ),
-        anyhow::Error,
-    > {
+    ) -> Result<(Self::Root, Self::StateUpdate, StateDiff), anyhow::Error> {
         let prev_state_root = witness.get_hint();
 
         // For each value that's been read from the tree, verify the provided smt proof

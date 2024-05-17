@@ -5,11 +5,11 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::rpc::{
-    BatchResponse, CumulativeStateDiff, HexTx, ProofResponse, ProofRpcResponse, SoftBatchResponse,
+    BatchResponse, HexTx, ProofResponse, ProofRpcResponse, SoftBatchResponse,
     StateTransitionRpcResponse, TxIdentifier, TxResponse,
 };
 use sov_rollup_interface::stf::{Event, EventKey, TransactionReceipt};
-use sov_rollup_interface::zk::Proof;
+use sov_rollup_interface::zk::{CumulativeStateDiff, Proof};
 
 /// A cheaply cloneable bytes abstraction for use within the trust boundary of the node
 /// (i.e. when interfacing with the database). Serializes and deserializes more efficiently,

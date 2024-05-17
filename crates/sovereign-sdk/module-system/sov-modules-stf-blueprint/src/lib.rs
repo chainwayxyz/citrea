@@ -16,7 +16,7 @@ use sov_modules_api::hooks::{
 };
 use sov_modules_api::{
     BasicAddress, BlobReaderTrait, Context, DaSpec, DispatchCall, Genesis, Signature, Spec,
-    StateCheckpoint, UnsignedSoftConfirmationBatch, WorkingSet, Zkvm,
+    StateCheckpoint, StateDiff, UnsignedSoftConfirmationBatch, WorkingSet, Zkvm,
 };
 use sov_rollup_interface::da::{DaData, SequencerCommitment};
 use sov_rollup_interface::digest::Digest;
@@ -481,7 +481,7 @@ where
         mut soft_confirmations: std::collections::VecDeque<Vec<SignedSoftConfirmationBatch>>,
     ) -> (
         Self::StateRoot,
-        Vec<(Vec<u8>, Option<Vec<u8>>)>, // state diff
+        StateDiff, // state diff
     ) {
         let mut state_diff = vec![];
 

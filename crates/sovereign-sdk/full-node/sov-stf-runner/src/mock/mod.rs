@@ -1,5 +1,6 @@
 use std::marker::PhantomData;
 
+use sov_modules_api::StateDiff;
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::stf::{BatchReceipt, SlotResult, StateTransitionFunction};
 use sov_rollup_interface::zk::{ValidityCondition, Zkvm};
@@ -96,7 +97,7 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
         >,
     ) -> (
         Self::StateRoot,
-        Vec<(Vec<u8>, Option<Vec<u8>>)>, // state diff
+        StateDiff, // state diff
     ) {
         todo!()
     }
