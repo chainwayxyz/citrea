@@ -16,6 +16,7 @@ use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::services::da::{BlobWithNotifier, DaService};
 use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
+use tokio::sync::oneshot::channel as oneshot_channel;
 use tracing::{error, info, instrument, trace};
 
 use crate::helpers::builders::{
@@ -499,9 +500,15 @@ impl DaService for BitcoinService {
     #[instrument(level = "trace", skip_all)]
     async fn send_transaction(
         &self,
-        _blob: &[u8],
+        blob: &[u8],
     ) -> Result<<Self as DaService>::TransactionId, Self::Error> {
-        unimplemented!("Use send_tx_no_wait instead")
+        let queue = self.get_send_transaction_queue();
+        let (tx, rx) = oneshot_channel();
+        queue.send(BlobWithNotifier {
+            blob: blob.to_vec(),
+            notify: tx,
+        })?;
+        rx.await?
     }
 
     fn get_send_transaction_queue(&self) -> UnboundedSender<BlobWithNotifier<Self::TransactionId>> {

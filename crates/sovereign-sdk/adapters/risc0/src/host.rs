@@ -18,12 +18,14 @@ pub struct Risc0Host<'a> {
 
 #[cfg(not(feature = "bench"))]
 #[inline(always)]
-fn add_benchmarking_callbacks(env: ExecutorEnvBuilder<'_>) -> ExecutorEnvBuilder<'_> {
+/// Add benchmarking callbacks to the executor environment.
+pub fn add_benchmarking_callbacks(env: ExecutorEnvBuilder<'_>) -> ExecutorEnvBuilder<'_> {
     env
 }
 
 #[cfg(feature = "bench")]
-fn add_benchmarking_callbacks(mut env: ExecutorEnvBuilder<'_>) -> ExecutorEnvBuilder<'_> {
+/// Add benchmarking callbacks to the executor environment.
+pub fn add_benchmarking_callbacks(mut env: ExecutorEnvBuilder<'_>) -> ExecutorEnvBuilder<'_> {
     use sov_zk_cycle_utils::{cycle_count_callback, get_syscall_name, get_syscall_name_cycles};
 
     use crate::metrics::metrics_callback;

@@ -3011,7 +3011,6 @@ dependencies = [
  "risc0-zkvm-platform",
  "serde",
  "sov-rollup-interface",
- "sov-zk-cycle-utils",
 ]
 
 [[package]]
@@ -3073,15 +3072,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 1.0.109",
-]
-
-[[package]]
-name = "sov-zk-cycle-utils"
-version = "0.3.0"
-dependencies = [
- "bytes",
- "risc0-zkvm",
- "risc0-zkvm-platform",
 ]
 
 [[package]]

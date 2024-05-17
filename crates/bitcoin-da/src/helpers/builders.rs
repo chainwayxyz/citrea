@@ -191,10 +191,10 @@ fn build_commit_transaction(
     let mut last_size = size;
 
     let tx = loop {
-        if iteration % 100 == 0 {
+        if iteration % 10 == 0 {
             trace!(iteration, "Trying to find commitment size");
-            if iteration > 5000 {
-                warn!("Too many iterations");
+            if iteration > 100 {
+                warn!("Too many iterations choosing UTXOs");
             }
         }
         let fee = ((last_size as f64) * fee_rate).ceil() as u64;
@@ -379,10 +379,10 @@ pub fn create_inscription_transactions(
     // Start loop to find a 'nonce' i.e. random number that makes the reveal tx hash starting with zeros given length
     let mut nonce: i64 = 0;
     loop {
-        if nonce % 100 == 0 {
+        if nonce % 10000 == 0 {
             trace!(nonce, "Trying to find commit & reveal nonce");
-            if nonce > 1000 {
-                warn!("Too many iterations");
+            if nonce > 65536 {
+                warn!("Too many iterations finding nonce");
             }
         }
         let utxos = utxos.clone();
