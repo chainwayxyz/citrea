@@ -1,5 +1,8 @@
 use std::fmt;
 
+use postgres_types::Json;
+use sov_rollup_interface::rpc::StateTransitionRpcResponse;
+
 use crate::utils::get_db_extension;
 
 pub enum Tables {
@@ -118,7 +121,7 @@ CREATE TABLE IF NOT EXISTS proof (
     id                          SERIAL PRIMARY KEY,
     l1_tx_id                    BYTEA NOT NULL,
     proof_data                  BYTEA NOT NULL,
-    state_transition            TEXT NOT NULL,
+    state_transition            JSON NOT NULL,
     proof_type                  VARCHAR(20) NOT NULL
 );
 ";
@@ -127,7 +130,7 @@ CREATE TABLE IF NOT EXISTS proof (
 pub struct DbProof {
     pub l1_tx_id: Vec<u8>,
     pub proof_data: Vec<u8>,
-    pub state_transition: String,
+    pub state_transition: Json<StateTransitionRpcResponse>,
     pub proof_type: ProofType,
 }
 

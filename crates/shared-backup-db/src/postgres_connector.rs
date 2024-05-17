@@ -3,6 +3,7 @@ use std::str::FromStr;
 use deadpool_postgres::tokio_postgres::config::Config as PgConfig;
 use deadpool_postgres::tokio_postgres::{NoTls, Row};
 use deadpool_postgres::{Manager, ManagerConfig, Object, Pool, PoolError, RecyclingMethod};
+use sov_rollup_interface::rpc::StateTransitionRpcResponse;
 
 use crate::config::SharedBackupDbConfig;
 use crate::tables::{
@@ -217,14 +218,16 @@ impl PostgresConnector {
         &self,
         l1_tx_id: Vec<u8>,
         proof_data: Vec<u8>,
-        state_transition_rpc_response_json: String,
+        state_transition_rpc_response: StateTransitionRpcResponse,
         proof_type: ProofType,
     ) -> Result<u64, PoolError> {
+        let state_tranistion_rpc_response_json =
+            postgres_types::Json::<StateTransitionRpcResponse>(state_transition_rpc_response);
         let client = self.client().await?;
         Ok(client
             .execute(
                 "INSERT INTO proof (l1_tx_id, proof_data, state_transition, proof_type) VALUES ($1, $2, $3, $4);",
-                &[&l1_tx_id, &proof_data, &state_transition_rpc_response_json, &proof_type.to_string()],
+                &[&l1_tx_id, &proof_data, &state_tranistion_rpc_response_json, &proof_type.to_string()],
             )
             .await?)
     }
@@ -383,7 +386,22 @@ mod tests {
         client.create_table(Tables::Proof).await;
 
         let inserted = client
-            .insert_proof_data(vec![0; 32], vec![1; 32], "{}".to_string(), ProofType::Full)
+            .insert_proof_data(
+                vec![0; 32],
+                vec![1; 32],
+                StateTransitionRpcResponse {
+                    initial_state_root: [0; 32].to_vec(),
+                    final_state_root: [1; 32].to_vec(),
+                    state_diff: vec![(vec![2; 32], Some(vec![3; 32])), (vec![5; 32], None)]
+                        .into_iter()
+                        .collect(),
+                    da_slot_hash: [2; 32],
+                    sequencer_public_key: [3; 32].to_vec(),
+                    sequencer_da_public_key: [4; 32].to_vec(),
+                    validity_condition: [5; 32].to_vec(),
+                },
+                ProofType::Full,
+            )
             .await
             .unwrap();
 
@@ -396,7 +414,17 @@ mod tests {
             DbProof {
                 l1_tx_id: vec![0; 32],
                 proof_data: vec![1; 32],
-                state_transition: "{}".to_string(),
+                state_transition: postgres_types::Json(StateTransitionRpcResponse {
+                    initial_state_root: [0; 32].to_vec(),
+                    final_state_root: [1; 32].to_vec(),
+                    state_diff: vec![(vec![2; 32], Some(vec![3; 32])), (vec![5; 32], None)]
+                        .into_iter()
+                        .collect(),
+                    da_slot_hash: [2; 32],
+                    sequencer_public_key: [3; 32].to_vec(),
+                    sequencer_da_public_key: [4; 32].to_vec(),
+                    validity_condition: [5; 32].to_vec(),
+                }),
                 proof_type: ProofType::Full,
             }
         );

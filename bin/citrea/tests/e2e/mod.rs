@@ -16,9 +16,7 @@ use secp256k1::rand::thread_rng;
 use shared_backup_db::{PostgresConnector, ProofType, SharedBackupDbConfig};
 use sov_mock_da::{MockAddress, MockDaService, MockDaSpec, MockHash};
 use sov_rollup_interface::da::{DaData, DaSpec};
-use sov_rollup_interface::rpc::{
-    ProofRpcResponse, SoftConfirmationStatus, StateTransitionRpcResponse,
-};
+use sov_rollup_interface::rpc::{ProofRpcResponse, SoftConfirmationStatus};
 use sov_rollup_interface::services::da::DaService;
 use sov_stf_runner::ProverConfig;
 use tokio::task::JoinHandle;
@@ -2165,8 +2163,7 @@ async fn test_db_get_proof() {
 
     assert_eq!(db_proofs.len(), 1);
 
-    let db_state_transition: StateTransitionRpcResponse =
-        serde_json::from_str(&db_proofs[0].state_transition).unwrap();
+    let db_state_transition = &db_proofs[0].state_transition.0;
 
     assert_eq!(
         db_state_transition.sequencer_da_public_key,

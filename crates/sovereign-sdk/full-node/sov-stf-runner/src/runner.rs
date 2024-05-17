@@ -575,10 +575,7 @@ where
                     pool.insert_proof_data(
                         tx_id_u8.to_vec(),
                         proof_data,
-                        serde_json::to_string(&Into::<StateTransitionRpcResponse>::into(
-                            stored_state_transition.clone(),
-                        ))
-                        .expect("Failed to serialize state transition data"),
+                        Into::<StateTransitionRpcResponse>::into(stored_state_transition.clone()),
                         proof_type,
                     )
                     .await
