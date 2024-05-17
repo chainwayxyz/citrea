@@ -112,31 +112,34 @@ impl BitcoinService {
                 // We execute commit and reveal txs one by one to chain them
                 while let Some(request) = rx.recv().await {
                     trace!("A new request is received");
-                    let fee_sat_per_vbyte = match this.get_fee_rate().await {
-                        Ok(rate) => rate,
-                        Err(e) => {
-                            let _ = request.notify.send(Err(e));
-                            continue;
+                    let prev = prev_tx.take();
+                    loop {
+                        // Build and send tx with retries:
+                        let blob = request.blob.clone();
+                        let fee_sat_per_vbyte = match this.get_fee_rate().await {
+                            Ok(rate) => rate,
+                            Err(e) => {
+                                error!(?e, "Failed to call get_fee_rate. Retrying...");
+                                tokio::time::sleep(Duration::from_secs(1)).await;
+                                continue;
+                            }
+                        };
+                        match this
+                            .send_transaction_with_fee_rate(prev, blob, fee_sat_per_vbyte)
+                            .await
+                        {
+                            Ok(tx) => {
+                                let tx_id = TxidWrapper(tx.id);
+                                info!(%tx.id, "Sent tx to BitcoinDA");
+                                prev_tx = Some(tx);
+                                let _ = request.notify.send(Ok(tx_id));
+                            }
+                            Err(e) => {
+                                error!(?e, "Failed to send transaction to DA layer");
+                                tokio::time::sleep(Duration::from_secs(1)).await;
+                            }
                         }
-                    };
-                    match this
-                        .send_transaction_with_fee_rate(
-                            prev_tx.take(),
-                            request.blob,
-                            fee_sat_per_vbyte,
-                        )
-                        .await
-                    {
-                        Ok(tx) => {
-                            let tx_id = TxidWrapper(tx.id);
-                            info!(%tx.id, "Send tx to BitcoinDA");
-                            prev_tx = Some(tx);
-                            let _ = request.notify.send(Ok(tx_id));
-                        }
-                        Err(e) => {
-                            error!(?e, "Failed to send transaction to DA layer");
-                            let _ = request.notify.send(Err(e));
-                        }
+                        break;
                     }
                 }
 
@@ -518,7 +521,7 @@ impl DaService for BitcoinService {
         let request = InscriptionRawTx { blob, notify };
         self.inscribes_queue
             .send(request)
-            .expect("Bitcoint service already stopped");
+            .expect("Bitcoin service already stopped");
         rx
     }
 
