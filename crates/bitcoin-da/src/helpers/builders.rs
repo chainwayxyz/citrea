@@ -186,13 +186,10 @@ fn build_commit_transaction(
     });
 
     if let Some(req_utxo) = &required_utxo {
-        utxos = utxos
-            .into_iter()
-            // if we don't do this, then we might end up using the required utxo twice
-            // which would yield an invalid transaction
-            // however using a different txo from the same tx is fine.
-            .filter(|utxo| !(utxo.vout == req_utxo.vout && utxo.tx_id == req_utxo.tx_id))
-            .collect();
+        // if we don't do this, then we might end up using the required utxo twice
+        // which would yield an invalid transaction
+        // however using a different txo from the same tx is fine.
+        utxos.retain(|utxo| !(utxo.vout == req_utxo.vout && utxo.tx_id == req_utxo.tx_id));
     }
 
     let mut iteration = 0;
