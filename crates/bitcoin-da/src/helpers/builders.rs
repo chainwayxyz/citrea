@@ -831,10 +831,7 @@ mod tests {
         );
 
         assert!(tx.is_err());
-        assert_eq!(
-            format!("{}", tx.unwrap_err()),
-            "No spendable UTXO found in previous tx"
-        );
+        assert_eq!(format!("{}", tx.unwrap_err()), "not enough UTXOs");
 
         let prev_utxos: Vec<UTXO> = prev_tx
             .output
