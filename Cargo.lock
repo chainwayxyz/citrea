@@ -1592,6 +1592,7 @@ dependencies = [
  "humantime",
  "jsonrpsee",
  "log",
+ "log-panics",
  "proptest",
  "regex",
  "reqwest 0.12.3",
@@ -5069,6 +5070,16 @@ name = "log"
 version = "0.4.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "90ed8c1e510134f979dbc4f070f87d4313098b704861a105fe34231c70a3901c"
+
+[[package]]
+name = "log-panics"
+version = "2.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "68f9dd8546191c1850ecf67d22f5ff00a935b890d0e84713159a55495cc2ac5f"
+dependencies = [
+ "backtrace",
+ "log",
+]
 
 [[package]]
 name = "lru"

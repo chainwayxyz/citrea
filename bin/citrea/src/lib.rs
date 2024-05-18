@@ -26,4 +26,5 @@ pub fn initialize_logging() {
             .unwrap(),
         )
         .init();
+    log_panics::init();
 }

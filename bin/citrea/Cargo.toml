@@ -42,6 +42,7 @@ borsh = { workspace = true, features = ["bytes"] }
 async-trait = { workspace = true }
 anyhow = { workspace = true }
 jsonrpsee = { workspace = true, features = ["http-client", "server"] }
+log-panics = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 tracing = { workspace = true }
