@@ -118,7 +118,7 @@ impl BitcoinService {
                             }
                         };
                         match this
-                            .send_transaction_with_fee_rate(prev, blob, fee_sat_per_vbyte)
+                            .send_transaction_with_fee_rate(prev.clone(), blob, fee_sat_per_vbyte)
                             .await
                         {
                             Ok(tx) => {
@@ -130,6 +130,7 @@ impl BitcoinService {
                             Err(e) => {
                                 error!(?e, "Failed to send transaction to DA layer");
                                 tokio::time::sleep(Duration::from_secs(1)).await;
+                                continue;
                             }
                         }
                         break;

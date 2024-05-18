@@ -173,20 +173,18 @@ fn build_commit_transaction(
         None,
     );
 
-    // Find least one utxo from prev tx to order tx in one block
-    let (required_utxo, utxos) = if let Some(tx) = prev_tx {
-        let (requited_utxos, free_utxos) = utxos
-            .into_iter()
-            .partition::<Vec<_>, _>(|utxo| utxo.tx_id == tx.id);
+    // fields other then tx_id, vout, script_pubkey and amount are not really important.
+    let required_utxo = prev_tx.map(|tx| UTXO {
+        tx_id: tx.id,
+        vout: 0,
+        script_pubkey: tx.tx.output[0].script_pubkey.to_hex_string(),
+        address: "ANY".into(),
+        amount: tx.tx.output[0].value.to_sat(),
+        confirmations: 0,
+        spendable: true,
+        solvable: true,
+    });
 
-        let Some(required_utxo) = requited_utxos.first().cloned() else {
-            return Err(anyhow!("No spendable UTXO found in previous tx"));
-        };
-
-        (Some(required_utxo), free_utxos)
-    } else {
-        (None, utxos)
-    };
     let mut iteration = 0;
     let mut last_size = size;
 
