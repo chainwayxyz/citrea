@@ -37,7 +37,7 @@ use sov_schema_db::{CodecError, SeekKeyEncoder};
 use super::types::{
     AccessoryKey, AccessoryStateValue, BatchNumber, DbHash, EventNumber, JmtValue, L2HeightRange,
     SlotNumber, StateKey, StoredBatch, StoredProof, StoredSlot, StoredSoftBatch, StoredTransaction,
-    TxNumber,
+    StoredVerifiedProof, TxNumber,
 };
 
 /// A list of all tables used by the StateDB. These tables store rollup state - meaning
@@ -67,6 +67,7 @@ pub const LEDGER_TABLES: &[&str] = &[
     EventByNumber::table_name(),
     CommitmentsByNumber::table_name(),
     ProofBySlotNumber::table_name(),
+    VerifiedProofsBySlotNumber::table_name(),
 ];
 
 /// A list of all tables used by the NativeDB. These tables store
@@ -301,6 +302,11 @@ define_table_without_codec!(
 define_table_with_default_codec!(
     /// Proof data on L1 slot
     (ProofBySlotNumber) SlotNumber => StoredProof
+);
+
+define_table_with_default_codec!(
+    /// Proof data on L1 slot verified by full node
+    (VerifiedProofsBySlotNumber) SlotNumber => Vec<StoredVerifiedProof>
 );
 
 impl KeyEncoder<JmtNodes> for NodeKey {

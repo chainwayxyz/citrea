@@ -229,6 +229,17 @@ where
         }
     })?;
 
+    rpc.register_async_method(
+        "ledger_getVerifiedProofsBySlotHeight",
+        |params, ledger| async move {
+            // Returns proof on DA slot with given height
+            let height: u64 = params.one()?;
+            ledger
+                .get_verified_proof_data_by_l1_height(height)
+                .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
+        },
+    )?;
+
     rpc.register_subscription(
         "ledger_subscribeSlots",
         "ledger_slotProcessed",

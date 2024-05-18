@@ -76,9 +76,6 @@ pub trait Zkvm: Send + Sync {
         serialized_proof: &[u8],
         code_commitment: &Self::CodeCommitment,
     ) -> Result<StateTransition<Da, Root>, Self::Error>;
-
-    /// Return the code commitment for the zkVM program
-    fn get_code_commitment(&self) -> Self::CodeCommitment;
 }
 
 /// A trait which is accessible from within a zkVM program.

@@ -67,6 +67,8 @@ where
     phantom: std::marker::PhantomData<C>,
     include_tx_body: bool,
     prover_config: Option<ProverConfig>,
+    code_commitment: Vm::CodeCommitment,
+    accept_public_input_as_proven: bool,
 }
 
 /// Represents the possible modes of execution for a zkVM program
@@ -126,6 +128,7 @@ where
         init_variant: InitVariant<Stf, Vm, Da::Spec>,
         prover_service: Option<Ps>,
         prover_config: Option<ProverConfig>,
+        code_commitment: Vm::CodeCommitment,
     ) -> Result<Self, anyhow::Error> {
         let prev_state_root = match init_variant {
             InitVariant::Initialized(state_root) => {
@@ -168,6 +171,10 @@ where
             phantom: std::marker::PhantomData,
             include_tx_body: runner_config.include_tx_body,
             prover_config,
+            code_commitment,
+            accept_public_input_as_proven: runner_config
+                .accept_public_input_as_proven
+                .unwrap_or(false),
         })
     }
 
@@ -542,7 +549,7 @@ where
                     let transition_data_from_proof =
                         Vm::verify_and_extract_output::<<Da as DaService>::Spec, Stf::StateRoot>(
                             &proof.clone(),
-                            &prover_service.get_code_commitment(),
+                            &self.code_commitment,
                         )
                         .expect("Proof should be verifiable");
 
@@ -702,7 +709,7 @@ where
                     .into_iter()
                     .for_each(|mut tx| {
                         let data = DaData::try_from_slice(tx.full_data());
-
+                        // Check for commitment
                         if tx.sender().as_ref() == self.sequencer_da_pub_key.as_slice() {
                             if let Ok(DaData::SequencerCommitment(seq_com)) = data {
                                 sequencer_commitments.push(seq_com);
@@ -713,7 +720,10 @@ where
                                     data
                                 );
                             }
-                        } else if tx.sender().as_ref() == self.prover_da_pub_key.as_slice() {
+                        }
+                        let data = DaData::try_from_slice(tx.full_data());
+                        // Check for proof
+                        if tx.sender().as_ref() == self.prover_da_pub_key.as_slice() {
                             if let Ok(DaData::ZKProof(proof)) = data {
                                 zk_proofs.push(proof);
                             } else {
@@ -729,9 +739,167 @@ where
                         }
                     });
 
-                if !zk_proofs.is_empty() {
-                    warn!("ZK proofs are not empty");
-                    // TODO: Implement this
+                for proof in zk_proofs {
+                    tracing::warn!("Processing zk proof: {:?}", proof);
+                    let state_transition = match proof.clone() {
+                        Proof::Full(proof) => {
+                            if let Ok(proof_data) =
+                                Vm::verify_and_extract_output::<
+                                    <Da as DaService>::Spec,
+                                    Stf::StateRoot,
+                                >(&proof, &self.code_commitment)
+                            {
+                                if proof_data.sequencer_da_public_key != self.sequencer_da_pub_key
+                                    || proof_data.sequencer_public_key != self.sequencer_pub_key
+                                {
+                                    tracing::warn!(
+                                        "Proof verification: Sequencer public key or sequencer da public key mismatch. Skipping proof."
+                                    );
+                                    continue;
+                                }
+                                proof_data
+                            } else {
+                                tracing::warn!(
+                                    "Proof verification: SNARK verification failed. Skipping to next proof.."
+                                );
+                                continue;
+                            }
+                        }
+                        Proof::PublicInput(_) => {
+                            if !self.accept_public_input_as_proven {
+                                tracing::warn!("Found public input in da block number: {:?}, Skipping to next proof..", soft_batch.da_slot_height);
+                                continue;
+                            }
+                            // public input is accepted only in tests, so ok to expect
+                            Vm::extract_output(&proof).expect("Proof should be deserializable")
+                        }
+                    };
+
+                    let stored_state_transition = StoredStateTransition {
+                        initial_state_root: state_transition.initial_state_root.as_ref().to_vec(),
+                        final_state_root: state_transition.final_state_root.as_ref().to_vec(),
+                        state_diff: state_transition.state_diff,
+                        da_slot_hash: state_transition.da_slot_hash.clone().into(),
+                        sequencer_public_key: state_transition.sequencer_public_key,
+                        sequencer_da_public_key: state_transition.sequencer_da_public_key,
+                        validity_condition: state_transition
+                            .validity_condition
+                            .try_to_vec()
+                            .unwrap(),
+                    };
+
+                    let l1_hash = state_transition.da_slot_hash.into();
+
+                    // This is the l1 heidght where the sequencer commitment was read by the prover and proof generated by those commitments
+                    // We need to get commitments in this l1 hegight and set them as proven
+                    let l1_height = match self.ledger_db.get_l1_height_of_l1_hash(l1_hash)? {
+                        Some(l1_height) => l1_height,
+                        None => {
+                            tracing::warn!(
+                                "Proof verification: L1 height not found for l1 hash: {:?}. Skipping proof.",
+                                l1_hash
+                            );
+                            continue;
+                        }
+                    };
+
+                    // TODO: Handle error
+                    let proven_commitments = match self
+                        .ledger_db
+                        .get_commitments_on_da_slot(l1_height)?
+                    {
+                        Some(commitments) => commitments,
+                        None => {
+                            tracing::warn!(
+                                    "Proof verification: No commitments found for l1 height: {}. Skipping proof.",
+                                    l1_height
+                                );
+                            continue;
+                        }
+                    };
+
+                    let first_slot_hash = proven_commitments[0].l1_start_block_hash;
+                    let l1_height_start = match self
+                        .ledger_db
+                        .get_l1_height_of_l1_hash(first_slot_hash)?
+                    {
+                        Some(l1_height) => l1_height,
+                        None => {
+                            tracing::error!(
+                                    "Proof verification: For a known and verified sequencer commitment, L1 height not found for l1 hash: {:?}. Skipping proof.",
+                                    l1_hash
+                                );
+                            continue;
+                        }
+                    };
+                    match self
+                        .ledger_db
+                        .get_l2_range_by_l1_height(SlotNumber(l1_height_start))?
+                    {
+                        Some((start, _)) => {
+                            let l2_height = start.0;
+                            let soft_batches = self.ledger_db.get_soft_batch_range(
+                                &(BatchNumber(l2_height)..BatchNumber(l2_height + 1)),
+                            )?;
+
+                            let soft_batch = soft_batches.first().unwrap();
+                            if soft_batch.pre_state_root.as_slice()
+                                != state_transition.initial_state_root.as_ref()
+                            {
+                                tracing::warn!(
+                                    "Proof verification: For a known and verified sequencer commitment. Pre state root mismatch - expected 0x{} but got 0x{}. Skipping proof.",
+                                    hex::encode(&soft_batch.pre_state_root),
+                                    hex::encode(&state_transition.initial_state_root)
+                                );
+                                continue;
+                            }
+                        }
+                        None => {
+                            tracing::warn!(
+                                "Proof verification: For a known and verified sequencer commitment, L1 L2 connection does not exist. L1 height = {}. Skipping proof.",
+                                l1_height_start
+                            );
+                            continue;
+                        }
+                    }
+
+                    for commitment in proven_commitments {
+                        let l1_height_start = match self
+                            .ledger_db
+                            .get_l1_height_of_l1_hash(commitment.l1_start_block_hash)?
+                        {
+                            Some(l1_height) => l1_height,
+                            None => {
+                                tracing::warn!("Proof verification: For a known and verified sequencer commitment, L1 height not found for l1 hash: {:?}", l1_hash);
+                                continue;
+                            }
+                        };
+
+                        let l1_height_end = match self
+                            .ledger_db
+                            .get_l1_height_of_l1_hash(commitment.l1_end_block_hash)?
+                        {
+                            Some(l1_height) => l1_height,
+                            None => {
+                                tracing::warn!("Proof verification: For a known and verified sequencer commitment, L1 height not found for l1 hash: {:?}", l1_hash);
+                                continue;
+                            }
+                        };
+
+                        // All soft confirmations in these blocks are now proven
+                        for i in l1_height_start..=l1_height_end {
+                            self.ledger_db.put_soft_confirmation_status(
+                                SlotNumber(i),
+                                SoftConfirmationStatus::Proven,
+                            )?;
+                        }
+                    }
+                    // store in ledger db
+                    self.ledger_db.update_verified_proof_data(
+                        soft_batch.da_slot_height,
+                        proof.clone(),
+                        stored_state_transition,
+                    )?;
                 }
 
                 for sequencer_commitment in sequencer_commitments.iter() {
@@ -761,26 +929,30 @@ where
 
                     let start_l2_height = match self
                         .ledger_db
-                        .get_l2_range_by_l1_height(SlotNumber(start_l1_height))
+                        .get_l2_range_by_l1_height(SlotNumber(start_l1_height))?
                     {
-                        Ok(Some((start_l2_height, _))) => start_l2_height,
-                        Ok(None) => bail!(
-                            "Runner: L1 L2 connection does not exist. L1 height = {}",
+                        Some((start_l2_height, _)) => start_l2_height,
+                        None => {
+                            tracing::warn!(
+                            "Sequencer commitment verification: L1 L2 connection does not exist. L1 height = {}. Skipping commitment.",
                             start_l1_height
-                        ),
-                        Err(e) => bail!("Runner: Failed to get L1 L2 connection. Err: {}", e),
+                            );
+                            continue;
+                        }
                     };
 
                     let end_l2_height = match self
                         .ledger_db
-                        .get_l2_range_by_l1_height(SlotNumber(end_l1_height))
+                        .get_l2_range_by_l1_height(SlotNumber(end_l1_height))?
                     {
-                        Ok(Some((_, end_l2_height))) => end_l2_height,
-                        Ok(None) => bail!(
-                            "Runner: L1 L2 connection does not exist. L1 height = {}",
+                        Some((_, end_l2_height)) => end_l2_height,
+                        None => {
+                            tracing::warn!(
+                            "Sequencer commitment verification: L1 L2 connection does not exist. L1 height = {}. Skipping commitment.",
                             end_l1_height
-                        ),
-                        Err(e) => bail!("Runner: Failed to get L1 L2 connection. Err: {}", e),
+                            );
+                            continue;
+                        }
                     };
 
                     let range_end = BatchNumber(end_l2_height.0 + 1);
@@ -800,7 +972,7 @@ where
 
                     if soft_batches_tree.root() != Some(sequencer_commitment.merkle_root) {
                         tracing::warn!(
-                            "Merkle root mismatch - expected 0x{} but got 0x{}",
+                            "Merkle root mismatch - expected 0x{} but got 0x{}. Skipping commitment.",
                             hex::encode(
                                 soft_batches_tree
                                     .root()
@@ -809,24 +981,16 @@ where
                             hex::encode(sequencer_commitment.merkle_root)
                         );
                     } else {
-                        self.ledger_db
-                            .update_commitments_on_da_slot(
-                                soft_batch.da_slot_height,
-                                sequencer_commitment.clone(),
-                            )
-                            .unwrap();
+                        self.ledger_db.update_commitments_on_da_slot(
+                            soft_batch.da_slot_height,
+                            sequencer_commitment.clone(),
+                        )?;
+
                         for i in start_l1_height..=end_l1_height {
-                            self.ledger_db
-                                .put_soft_confirmation_status(
-                                    SlotNumber(i),
-                                    SoftConfirmationStatus::Finalized,
-                                )
-                                .unwrap_or_else(|_| {
-                                    panic!(
-                                "Failed to put soft confirmation status in the ledger db {}",
-                                i
-                            )
-                                });
+                            self.ledger_db.put_soft_confirmation_status(
+                                SlotNumber(i),
+                                SoftConfirmationStatus::Finalized,
+                            )?;
                         }
                     }
                 }
@@ -915,6 +1079,7 @@ where
         &self.state_root
     }
 
+    /// TODO: Fix backoff never resetting
     /// A basic helper for exponential backoff for error logging.
     pub fn log_error(
         last_error_log: &mut Instant,

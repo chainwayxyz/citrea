@@ -133,8 +133,4 @@ impl Zkvm for Risc0Guest {
     ) -> Result<sov_rollup_interface::zk::StateTransition<Da, Root>, Self::Error> {
         todo!()
     }
-
-    fn get_code_commitment(&self) -> Self::CodeCommitment {
-        unimplemented!()
-    }
 }

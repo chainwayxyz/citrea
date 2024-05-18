@@ -392,7 +392,7 @@ mod tests {
                 StateTransitionRpcResponse {
                     initial_state_root: [0; 32].to_vec(),
                     final_state_root: [1; 32].to_vec(),
-                    state_diff: vec![(vec![2; 32], Some(vec![3; 32])), (vec![5; 32], None)]
+                    state_diff: vec![(vec![2u8; 32], Some(vec![3u8; 32])), (vec![5u8; 32], None)]
                         .into_iter()
                         .collect(),
                     da_slot_hash: [2; 32],

@@ -4,6 +4,7 @@ use sov_rollup_interface::rpc::{
     EventIdentifier, ItemOrHash, LedgerRpcProvider, ProofResponse, QueryMode,
     SequencerCommitmentResponse, SlotIdAndOffset, SlotIdentifier, SlotResponse,
     SoftBatchIdentifier, SoftBatchResponse, TxIdAndOffset, TxIdentifier, TxResponse,
+    VerifiedProofResponse,
 };
 use sov_rollup_interface::stf::Event;
 use tokio::sync::broadcast::Receiver;
@@ -11,6 +12,7 @@ use tokio::sync::broadcast::Receiver;
 use crate::schema::tables::{
     BatchByHash, BatchByNumber, CommitmentsByNumber, EventByNumber, ProofBySlotNumber, SlotByHash,
     SlotByNumber, SoftBatchByHash, SoftBatchByNumber, SoftConfirmationStatus, TxByHash, TxByNumber,
+    VerifiedProofsBySlotNumber,
 };
 use crate::schema::types::{
     BatchNumber, EventNumber, SlotNumber, StoredBatch, StoredSlot, TxNumber,
@@ -401,6 +403,24 @@ impl LedgerRpcProvider for LedgerDB {
     ) -> Result<Option<ProofResponse>, anyhow::Error> {
         match self.db.get::<ProofBySlotNumber>(&SlotNumber(height))? {
             Some(stored_proof) => Ok(Some(ProofResponse::from(stored_proof))),
+            None => Ok(None),
+        }
+    }
+
+    fn get_verified_proof_data_by_l1_height(
+        &self,
+        height: u64,
+    ) -> Result<Option<Vec<VerifiedProofResponse>>, anyhow::Error> {
+        match self
+            .db
+            .get::<VerifiedProofsBySlotNumber>(&SlotNumber(height))?
+        {
+            Some(stored_proofs) => Ok(Some(
+                stored_proofs
+                    .into_iter()
+                    .map(VerifiedProofResponse::from)
+                    .collect(),
+            )),
             None => Ok(None),
         }
     }

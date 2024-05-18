@@ -6,7 +6,7 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::rpc::{
     BatchResponse, HexTx, ProofResponse, ProofRpcResponse, SoftBatchResponse,
-    StateTransitionRpcResponse, TxIdentifier, TxResponse,
+    StateTransitionRpcResponse, TxIdentifier, TxResponse, VerifiedProofResponse,
 };
 use sov_rollup_interface::stf::{Event, EventKey, TransactionReceipt};
 use sov_rollup_interface::zk::{CumulativeStateDiff, Proof};
@@ -87,6 +87,24 @@ impl From<StoredProof> for ProofResponse {
     fn from(value: StoredProof) -> Self {
         Self {
             l1_tx_id: value.l1_tx_id,
+            proof: convert_to_rpc_proof(value.proof),
+            state_transition: StateTransitionRpcResponse::from(value.state_transition),
+        }
+    }
+}
+
+/// The on-disk format for a proof verified by full node. Stores proof data and state transition
+#[derive(Debug, PartialEq, BorshDeserialize, BorshSerialize)]
+pub struct StoredVerifiedProof {
+    /// Verified Proof
+    pub proof: Proof,
+    /// State transition
+    pub state_transition: StoredStateTransition,
+}
+
+impl From<StoredVerifiedProof> for VerifiedProofResponse {
+    fn from(value: StoredVerifiedProof) -> Self {
+        Self {
             proof: convert_to_rpc_proof(value.proof),
             state_transition: StateTransitionRpcResponse::from(value.state_transition),
         }
