@@ -4,7 +4,7 @@ use core::str::FromStr;
 use std::fs::File;
 use std::io::{BufWriter, Write};
 
-use anyhow::anyhow;
+use anyhow::{anyhow, bail};
 use bitcoin::absolute::LockTime;
 use bitcoin::blockdata::opcodes::all::{OP_CHECKSIG, OP_ENDIF, OP_IF};
 use bitcoin::blockdata::opcodes::OP_FALSE;
@@ -377,8 +377,8 @@ pub fn create_inscription_transactions(
     // This envelope is not finished yet. The random number will be added later and followed by the body
 
     // Start loop to find a 'nonce' i.e. random number that makes the reveal tx hash starting with zeros given length
-    let mut nonce: i64 = 0;
-    loop {
+    let nonce_limit = 2i64.pow(8 * reveal_tx_prefix.len() as u32);
+    for nonce in 0..=nonce_limit {
         if nonce % 10000 == 0 {
             trace!(nonce, "Trying to find commit & reveal nonce");
             if nonce > 65536 {
@@ -526,9 +526,8 @@ pub fn create_inscription_transactions(
                 },
             ));
         }
-
-        nonce += 1;
     }
+    bail!("Bruteforced {nonce_limit} but could not find nonce to match reveal_tx_prefix")
 }
 
 pub fn write_reveal_tx(tx: &[u8], tx_id: String) {
