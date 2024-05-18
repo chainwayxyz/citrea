@@ -826,7 +826,7 @@ where
                                 &(BatchNumber(l2_height)..BatchNumber(l2_height + 1)),
                             )?;
 
-                            let soft_batch = soft_batches.get(0).unwrap();
+                            let soft_batch = soft_batches.first().unwrap();
                             if soft_batch.pre_state_root.as_slice()
                                 != state_transition.initial_state_root.as_ref()
                             {
