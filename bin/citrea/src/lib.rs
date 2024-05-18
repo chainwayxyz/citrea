@@ -33,4 +33,6 @@ pub fn initialize_logging() {
             .with(env_filter)
             .init();
     }
+
+    log_panics::init();
 }
