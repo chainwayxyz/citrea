@@ -145,7 +145,7 @@ fn choose_utxos(
 #[instrument(level = "trace", skip(utxos), err)]
 fn build_commit_transaction(
     prev_tx: Option<TxWithId>, // reuse outputs to add commit tx order
-    utxos: Vec<UTXO>,
+    mut utxos: Vec<UTXO>,
     recipient: Address,
     change_address: Address,
     output_value: u64,
@@ -184,6 +184,16 @@ fn build_commit_transaction(
         spendable: true,
         solvable: true,
     });
+
+    if let Some(req_utxo) = &required_utxo {
+        utxos = utxos
+            .into_iter()
+            // if we don't do this, then we might end up using the required utxo twice
+            // which would yield an invalid transaction
+            // however using a different txo from the same tx is fine.
+            .filter(|utxo| !(utxo.vout == req_utxo.vout && utxo.tx_id == req_utxo.tx_id))
+            .collect();
+    }
 
     let mut iteration = 0;
     let mut last_size = size;
