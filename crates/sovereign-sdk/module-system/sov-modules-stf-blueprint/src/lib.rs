@@ -516,6 +516,13 @@ where
             let mut current_da_height = da_block_headers[index_headers].height();
 
             assert_eq!(
+                soft_confirmations[index_soft_confirmation]
+                    .pre_state_root()
+                    .as_slice(),
+                initial_state_root.as_ref()
+            );
+
+            assert_eq!(
                 soft_confirmations[index_soft_confirmation].da_slot_hash(),
                 da_block_headers[index_headers].hash().into()
             );
