@@ -145,7 +145,7 @@ fn choose_utxos(
 #[instrument(level = "trace", skip(utxos), err)]
 fn build_commit_transaction(
     prev_tx: Option<TxWithId>, // reuse outputs to add commit tx order
-    utxos: Vec<UTXO>,
+    mut utxos: Vec<UTXO>,
     recipient: Address,
     change_address: Address,
     output_value: u64,
@@ -173,20 +173,25 @@ fn build_commit_transaction(
         None,
     );
 
-    // Find least one utxo from prev tx to order tx in one block
-    let (required_utxo, utxos) = if let Some(tx) = prev_tx {
-        let (requited_utxos, free_utxos) = utxos
-            .into_iter()
-            .partition::<Vec<_>, _>(|utxo| utxo.tx_id == tx.id);
+    // fields other then tx_id, vout, script_pubkey and amount are not really important.
+    let required_utxo = prev_tx.map(|tx| UTXO {
+        tx_id: tx.id,
+        vout: 0,
+        script_pubkey: tx.tx.output[0].script_pubkey.to_hex_string(),
+        address: "ANY".into(),
+        amount: tx.tx.output[0].value.to_sat(),
+        confirmations: 0,
+        spendable: true,
+        solvable: true,
+    });
 
-        let Some(required_utxo) = requited_utxos.first().cloned() else {
-            return Err(anyhow!("No spendable UTXO found in previous tx"));
-        };
+    if let Some(req_utxo) = &required_utxo {
+        // if we don't do this, then we might end up using the required utxo twice
+        // which would yield an invalid transaction
+        // however using a different txo from the same tx is fine.
+        utxos.retain(|utxo| !(utxo.vout == req_utxo.vout && utxo.tx_id == req_utxo.tx_id));
+    }
 
-        (Some(required_utxo), free_utxos)
-    } else {
-        (None, utxos)
-    };
     let mut iteration = 0;
     let mut last_size = size;
 
@@ -833,10 +838,7 @@ mod tests {
         );
 
         assert!(tx.is_err());
-        assert_eq!(
-            format!("{}", tx.unwrap_err()),
-            "No spendable UTXO found in previous tx"
-        );
+        assert_eq!(format!("{}", tx.unwrap_err()), "not enough UTXOs");
 
         let prev_utxos: Vec<UTXO> = prev_tx
             .output
