@@ -261,7 +261,7 @@ jobs:
       - name: Install node dependencies
         working-directory: ./bin/citrea/tests/evm/ethers.js_tests
         run: npm install
-      - name: Run uniswap tests
+      - name: Run ethers_js tests
         run: |
           RUST_LOG=off ./target/debug/citrea --da-layer mock --rollup-config-path bin/citrea/configs/mock/sequencer_rollup_config.toml --sequencer-config-path bin/citrea/configs/mock/sequencer_config.toml --genesis-paths bin/test-data/genesis/demo-tests/mock &
           sleep 2
