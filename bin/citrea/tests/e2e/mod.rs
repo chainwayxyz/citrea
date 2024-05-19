@@ -1017,7 +1017,7 @@ async fn execute_blocks(
             sequencer_client.spam_publish_batch_request().await.unwrap();
         }
 
-        sleep(Duration::from_secs(1)).await;
+        sleep(Duration::from_secs(2)).await;
     }
 
     let da_service = MockDaService::new(MockAddress::from([0; 32]), da_db_dir);
@@ -1033,6 +1033,8 @@ async fn execute_blocks(
                 .unwrap();
             sequencer_client.spam_publish_batch_request().await.unwrap();
         }
+
+        sleep(Duration::from_secs(2)).await;
     }
 
     sleep(Duration::from_secs(15)).await;
@@ -1575,6 +1577,7 @@ async fn test_system_transactions() -> Result<(), anyhow::Error> {
         for _ in 0..5 {
             seq_test_client.spam_publish_batch_request().await.unwrap();
         }
+        sleep(Duration::from_millis(500)).await;
 
         da_service.publish_test_block().await.unwrap();
     }
