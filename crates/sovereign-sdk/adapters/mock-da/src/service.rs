@@ -171,6 +171,11 @@ impl MockDaService {
         Ok(())
     }
 
+    /// Returns the latest block number
+    pub async fn get_height(&self) -> u64 {
+        self.blocks.lock().await.len() as u64
+    }
+
     async fn get_last_finalized_height(&self) -> u64 {
         self.blocks
             .lock()

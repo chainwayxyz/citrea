@@ -1,11 +1,13 @@
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
+use std::time::{Duration, SystemTime};
 
 use citrea::MockDemoRollup;
 use citrea_sequencer::SequencerConfig;
 use citrea_stf::genesis_config::GenesisPaths;
+use reth_rpc_types::BlockNumberOrTag;
 use rollup_constants::TEST_PRIVATE_KEY;
-use sov_mock_da::{MockAddress, MockDaConfig};
+use sov_mock_da::{MockAddress, MockDaConfig, MockDaService};
 use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
 use sov_modules_api::PrivateKey;
 use sov_modules_rollup_blueprint::RollupBlueprint;
@@ -14,7 +16,10 @@ use sov_stf_runner::{
 };
 use tempfile::TempDir;
 use tokio::sync::oneshot;
-use tracing::warn;
+use tokio::time::sleep;
+use tracing::{debug, warn};
+
+use crate::test_client::TestClient;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NodeMode {
@@ -162,4 +167,44 @@ pub fn tempdir_with_children(children: &[&str]) -> TempDir {
     }
 
     db_dir
+}
+
+pub async fn wait_for_l2_batch(sequencer_client: &TestClient, num: u64, timeout: Option<Duration>) {
+    let start = SystemTime::now();
+    let timeout = timeout.unwrap_or(Duration::from_secs(30)); // Default 30 seconds timeout
+    loop {
+        debug!("Waiting for soft batch {}", num);
+        let latest_block = sequencer_client
+            .eth_get_block_by_number_with_detail(Some(BlockNumberOrTag::Latest))
+            .await;
+        if latest_block.number >= Some(num.into()) {
+            break;
+        }
+
+        let now = SystemTime::now();
+        if start + timeout <= now {
+            panic!("Timeout");
+        }
+
+        sleep(Duration::from_secs(1)).await;
+    }
+}
+
+pub async fn wait_for_l1_block(da_service: &MockDaService, num: u64, timeout: Option<Duration>) {
+    let start = SystemTime::now();
+    let timeout = timeout.unwrap_or(Duration::from_secs(30)); // Default 30 seconds timeout
+    loop {
+        debug!("Waiting for soft batch {}", num);
+        let da_block = da_service.get_height().await;
+        if da_block >= num.into() {
+            break;
+        }
+
+        let now = SystemTime::now();
+        if start + timeout <= now {
+            panic!("Timeout");
+        }
+
+        sleep(Duration::from_secs(1)).await;
+    }
 }
