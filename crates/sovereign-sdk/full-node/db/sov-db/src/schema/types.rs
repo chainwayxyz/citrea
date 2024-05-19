@@ -6,10 +6,10 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::rpc::{
     BatchResponse, HexTx, ProofResponse, ProofRpcResponse, SoftBatchResponse,
-    StateTransitionRpcResponse, TxIdentifier, TxResponse,
+    StateTransitionRpcResponse, TxIdentifier, TxResponse, VerifiedProofResponse,
 };
 use sov_rollup_interface::stf::{Event, EventKey, TransactionReceipt};
-use sov_rollup_interface::zk::Proof;
+use sov_rollup_interface::zk::{CumulativeStateDiff, Proof};
 
 /// A cheaply cloneable bytes abstraction for use within the trust boundary of the node
 /// (i.e. when interfacing with the database). Serializes and deserializes more efficiently,
@@ -93,15 +93,33 @@ impl From<StoredProof> for ProofResponse {
     }
 }
 
-/// The on-disk format for a state transition.
+/// The on-disk format for a proof verified by full node. Stores proof data and state transition
 #[derive(Debug, PartialEq, BorshDeserialize, BorshSerialize)]
+pub struct StoredVerifiedProof {
+    /// Verified Proof
+    pub proof: Proof,
+    /// State transition
+    pub state_transition: StoredStateTransition,
+}
+
+impl From<StoredVerifiedProof> for VerifiedProofResponse {
+    fn from(value: StoredVerifiedProof) -> Self {
+        Self {
+            proof: convert_to_rpc_proof(value.proof),
+            state_transition: StateTransitionRpcResponse::from(value.state_transition),
+        }
+    }
+}
+
+/// The on-disk format for a state transition.
+#[derive(Debug, PartialEq, BorshDeserialize, BorshSerialize, Clone)]
 pub struct StoredStateTransition {
     /// The state of the rollup before the transition
     pub initial_state_root: Vec<u8>,
     /// The state of the rollup after the transition
     pub final_state_root: Vec<u8>,
     /// State diff of L2 blocks in the processed sequencer commitments.
-    pub state_diff: Vec<u8>,
+    pub state_diff: CumulativeStateDiff,
     /// The DA slot hash that the sequencer commitments causing this state transition were found in.
     pub da_slot_hash: [u8; 32],
     /// Sequencer public key.

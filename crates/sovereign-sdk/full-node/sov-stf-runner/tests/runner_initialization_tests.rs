@@ -1,6 +1,6 @@
 use sov_db::ledger_db::LedgerDB;
 use sov_mock_da::{MockAddress, MockDaConfig, MockDaService, MockDaSpec, MockValidityCond};
-use sov_mock_zkvm::MockZkvm;
+use sov_mock_zkvm::{MockCodeCommitment, MockZkvm};
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_state::{ArrayWitness, DefaultStorageSpec};
 use sov_stf_runner::{
@@ -80,6 +80,7 @@ fn initialize_runner(
         runner: Some(RunnerConfig {
             sequencer_client_url: "http://127.0.0.1:4444".to_string(),
             include_tx_body: true,
+            accept_public_input_as_proven: None,
         }),
         da: MockDaConfig {
             sender_address: address,
@@ -116,6 +117,7 @@ fn initialize_runner(
         init_variant,
         None,
         None,
+        MockCodeCommitment([1u8; 32]),
     )
     .unwrap()
 }

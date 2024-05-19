@@ -6,7 +6,7 @@
 //! For a detailed example showing how to implement these traits, see the
 //! [risc0 adapter](https://github.com/Sovereign-Labs/sovereign-sdk/tree/main/adapters/risc0)
 //! maintained by the Sovereign Labs team.
-use alloc::collections::VecDeque;
+use alloc::collections::{BTreeMap, VecDeque};
 use alloc::vec::Vec;
 use core::fmt::Debug;
 
@@ -76,9 +76,6 @@ pub trait Zkvm: Send + Sync {
         serialized_proof: &[u8],
         code_commitment: &Self::CodeCommitment,
     ) -> Result<StateTransition<Da, Root>, Self::Error>;
-
-    /// Return the code commitment for the zkVM program
-    fn get_code_commitment(&self) -> Self::CodeCommitment;
 }
 
 /// A trait which is accessible from within a zkVM program.
@@ -110,6 +107,9 @@ pub trait ValidityCondition:
     fn combine<H: Digest>(&self, rhs: Self) -> Result<Self, Self::Error>;
 }
 
+/// State diff produced by the Zk proof
+pub type CumulativeStateDiff = BTreeMap<Vec<u8>, Option<Vec<u8>>>;
+
 /// The public output of a SNARK proof in Sovereign, this struct makes a claim that
 /// the state of the rollup has transitioned from `initial_state_root` to `final_state_root`
 /// if and only if the condition `validity_condition` is satisfied.
@@ -122,7 +122,7 @@ pub struct StateTransition<Da: DaSpec, Root> {
     /// The state of the rollup after the transition
     pub final_state_root: Root,
     /// State diff of L2 blocks in the processed sequencer commitments.
-    pub state_diff: Vec<u8>,
+    pub state_diff: CumulativeStateDiff,
     /// The DA slot hash that the sequencer commitments causing this state transition were found in.
     pub da_slot_hash: Da::SlotHash,
     /// Sequencer public key.

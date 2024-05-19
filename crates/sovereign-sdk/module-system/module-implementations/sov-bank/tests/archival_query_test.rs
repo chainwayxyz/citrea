@@ -279,7 +279,7 @@ fn commit(
 
     let (cache_log, witness) = checkpoint.freeze();
 
-    let (_, authenticated_node_batch) = storage
+    let (_, authenticated_node_batch, _) = storage
         .compute_state_update(cache_log, &witness)
         .expect("jellyfish merkle tree update must succeed");
 

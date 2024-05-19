@@ -1,5 +1,10 @@
 use std::fmt;
 
+use postgres_types::Json;
+use sov_rollup_interface::rpc::StateTransitionRpcResponse;
+
+use crate::utils::get_db_extension;
+
 pub enum Tables {
     /// string version is sequencer_commitment
     #[allow(dead_code)]
@@ -112,13 +117,7 @@ CREATE TABLE IF NOT EXISTS proof (
     id                          SERIAL PRIMARY KEY,
     l1_tx_id                    BYTEA NOT NULL,
     proof_data                  BYTEA NOT NULL,
-    initial_state_root          BYTEA NOT NULL,
-    final_state_root            BYTEA NOT NULL,
-    state_diff                  BYTEA NOT NULL,
-    da_slot_hash                BYTEA NOT NULL,
-    sequencer_public_key        BYTEA NOT NULL,
-    sequencer_da_public_key     BYTEA NOT NULL,
-    validity_condition          BYTEA NOT NULL,
+    state_transition            JSON NOT NULL,
     proof_type                  VARCHAR(20) NOT NULL
 );
 ";
@@ -127,13 +126,7 @@ CREATE TABLE IF NOT EXISTS proof (
 pub struct DbProof {
     pub l1_tx_id: Vec<u8>,
     pub proof_data: Vec<u8>,
-    pub initial_state_root: Vec<u8>,
-    pub final_state_root: Vec<u8>,
-    pub state_diff: Vec<u8>,
-    pub da_slot_hash: Vec<u8>,
-    pub sequencer_public_key: Vec<u8>,
-    pub sequencer_da_public_key: Vec<u8>,
-    pub validity_condition: Vec<u8>,
+    pub state_transition: Json<StateTransitionRpcResponse>,
     pub proof_type: ProofType,
 }
 

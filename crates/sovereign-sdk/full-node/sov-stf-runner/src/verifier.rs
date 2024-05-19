@@ -2,7 +2,9 @@ use std::marker::PhantomData;
 
 use sov_rollup_interface::da::{BlockHeaderTrait, DaVerifier};
 use sov_rollup_interface::stf::StateTransitionFunction;
-use sov_rollup_interface::zk::{StateTransition, StateTransitionData, Zkvm, ZkvmGuest};
+use sov_rollup_interface::zk::{
+    CumulativeStateDiff, StateTransition, StateTransitionData, Zkvm, ZkvmGuest,
+};
 
 /// Verifies a state transition
 pub struct StateTransitionVerifier<ST, Da, Zk>
@@ -69,10 +71,16 @@ where
             "Invalid final state root"
         );
 
+        // Collect state diffs into a BtreeMap
+        let state_diff: CumulativeStateDiff = state_diff
+            .into_iter()
+            // .map(|(k, v)| (k, v))
+            .collect();
+
         let out: StateTransition<Da::Spec, _> = StateTransition {
             initial_state_root: data.initial_state_root,
             final_state_root,
-            validity_condition, // TODO: not sure about how to do this yet
+            validity_condition, // TODO: not sure about what to do with this yet
             state_diff,
             da_slot_hash: data.da_block_header_of_commitments.hash(),
             sequencer_public_key: data.sequencer_public_key,

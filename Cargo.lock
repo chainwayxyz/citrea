@@ -1592,6 +1592,7 @@ dependencies = [
  "humantime",
  "jsonrpsee",
  "log",
+ "log-panics",
  "proptest",
  "regex",
  "reqwest 0.12.3",
@@ -1617,7 +1618,6 @@ dependencies = [
  "sov-modules-rollup-blueprint",
  "sov-modules-stf-blueprint",
  "sov-prover-storage-manager",
- "sov-risc0-adapter",
  "sov-rollup-interface",
  "sov-state",
  "sov-stf-runner",
@@ -1693,7 +1693,6 @@ dependencies = [
  "serde",
  "sov-risc0-adapter",
  "sov-rollup-interface",
- "sov-zk-cycle-utils",
  "tracing",
 ]
 
@@ -5074,6 +5073,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "90ed8c1e510134f979dbc4f070f87d4313098b704861a105fe34231c70a3901c"
 
 [[package]]
+name = "log-panics"
+version = "2.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "68f9dd8546191c1850ecf67d22f5ff00a935b890d0e84713159a55495cc2ac5f"
+dependencies = [
+ "backtrace",
+ "log",
+]
+
+[[package]]
 name = "lru"
 version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6042,6 +6051,8 @@ dependencies = [
  "bytes",
  "fallible-iterator 0.2.0",
  "postgres-protocol",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -8672,7 +8683,9 @@ name = "shared-backup-db"
 version = "0.3.0"
 dependencies = [
  "deadpool-postgres",
+ "postgres-types",
  "serde",
+ "sov-rollup-interface",
  "tokio",
 ]
 

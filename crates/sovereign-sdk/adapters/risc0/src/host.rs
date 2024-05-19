@@ -18,12 +18,14 @@ pub struct Risc0Host<'a> {
 
 #[cfg(not(feature = "bench"))]
 #[inline(always)]
-fn add_benchmarking_callbacks(env: ExecutorEnvBuilder<'_>) -> ExecutorEnvBuilder<'_> {
+/// Add benchmarking callbacks to the executor environment.
+pub fn add_benchmarking_callbacks(env: ExecutorEnvBuilder<'_>) -> ExecutorEnvBuilder<'_> {
     env
 }
 
 #[cfg(feature = "bench")]
-fn add_benchmarking_callbacks(mut env: ExecutorEnvBuilder<'_>) -> ExecutorEnvBuilder<'_> {
+/// Add benchmarking callbacks to the executor environment.
+pub fn add_benchmarking_callbacks(mut env: ExecutorEnvBuilder<'_>) -> ExecutorEnvBuilder<'_> {
     use sov_zk_cycle_utils::{cycle_count_callback, get_syscall_name, get_syscall_name_cycles};
 
     use crate::metrics::metrics_callback;
@@ -135,10 +137,6 @@ impl<'host> Zkvm for Risc0Host<'host> {
         let output = Self::verify(serialized_proof, code_commitment)?;
         Ok(risc0_zkvm::serde::from_slice(output)?)
     }
-
-    fn get_code_commitment(&self) -> Self::CodeCommitment {
-        unimplemented!()
-    }
 }
 
 /// A verifier for Risc0 proofs.
@@ -165,10 +163,6 @@ impl Zkvm for Risc0Verifier {
     ) -> Result<sov_rollup_interface::zk::StateTransition<Da, Root>, Self::Error> {
         let output = Self::verify(serialized_proof, code_commitment)?;
         Ok(risc0_zkvm::serde::from_slice(output)?)
-    }
-
-    fn get_code_commitment(&self) -> Self::CodeCommitment {
-        unimplemented!()
     }
 }
 
