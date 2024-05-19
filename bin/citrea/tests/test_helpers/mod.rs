@@ -196,7 +196,7 @@ pub async fn wait_for_l1_block(da_service: &MockDaService, num: u64, timeout: Op
     loop {
         debug!("Waiting for soft batch {}", num);
         let da_block = da_service.get_height().await;
-        if da_block >= num.into() {
+        if da_block >= num {
             break;
         }
 

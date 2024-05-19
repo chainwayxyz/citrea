@@ -1134,7 +1134,7 @@ async fn test_soft_confirmations_status_two_l1() -> Result<(), anyhow::Error> {
         seq_test_client.send_publish_batch_request().await;
     }
 
-    sleep(Duration::from_secs(2)).await;
+    wait_for_l2_batch(&seq_test_client, 2, None).await;
 
     // publish new da block
     da_service.publish_test_block().await.unwrap();
@@ -1142,6 +1142,8 @@ async fn test_soft_confirmations_status_two_l1() -> Result<(), anyhow::Error> {
     for _ in 2..=6 {
         seq_test_client.send_publish_batch_request().await;
     }
+
+    wait_for_l2_batch(&full_node_test_client, 7, None).await;
 
     // now retrieve confirmation status from the sequencer and full node and check if they are the same
     for i in 1..=2 {
@@ -1158,7 +1160,7 @@ async fn test_soft_confirmations_status_two_l1() -> Result<(), anyhow::Error> {
     seq_test_client.send_publish_batch_request().await;
     seq_test_client.send_publish_batch_request().await;
 
-    sleep(Duration::from_secs(2)).await;
+    wait_for_l2_batch(&full_node_test_client, 9, None).await;
 
     // Check that these L2 blocks are bounded on different L1 block
     let mut batch_infos = vec![];
