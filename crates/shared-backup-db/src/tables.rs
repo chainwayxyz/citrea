@@ -3,8 +3,6 @@ use std::fmt;
 use postgres_types::Json;
 use sov_rollup_interface::rpc::StateTransitionRpcResponse;
 
-use crate::utils::get_db_extension;
-
 pub enum Tables {
     /// string version is sequencer_commitment
     #[allow(dead_code)]
