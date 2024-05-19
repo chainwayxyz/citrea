@@ -12,10 +12,10 @@ readme = "README.md"
 publish = false
 
 [dependencies]
-sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api", version = "0.3", default-features = false, features = [
+sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api", default-features = false, features = [
     "macros",
 ] }
-sov-state = { path = "../sovereign-sdk/module-system/sov-state", version = "0.3" }
+sov-state = { path = "../sovereign-sdk/module-system/sov-state" }
 sov-prover-storage-manager = { path = "../sovereign-sdk/full-node/sov-prover-storage-manager", optional = true }
 
 anyhow = { workspace = true }
