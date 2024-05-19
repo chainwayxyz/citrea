@@ -2,6 +2,7 @@ mod parallel;
 use async_trait::async_trait;
 pub use parallel::ParallelProverService;
 use serde::{Deserialize, Serialize};
+use sov_modules_api::Zkvm;
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::{Proof, StateTransitionData};
@@ -82,7 +83,7 @@ pub enum ProverServiceError {
 /// Currently, the cancellation of proving jobs for submitted witnesses is not supported,
 /// but this functionality will be added in the future (#1185).
 #[async_trait]
-pub trait ProverService {
+pub trait ProverService<Vm: Zkvm> {
     /// Ths root hash of state merkle tree.
     type StateRoot: Serialize + Clone + AsRef<[u8]>;
     /// Data that is produced during batch execution.

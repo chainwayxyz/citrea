@@ -13,7 +13,7 @@ use sov_modules_api::{Context, DaSpec, Spec};
 use sov_modules_stf_blueprint::{GenesisParams, Runtime as RuntimeTrait, StfBlueprint};
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
-use sov_rollup_interface::zk::ZkvmHost;
+use sov_rollup_interface::zk::{Zkvm, ZkvmHost};
 use sov_state::storage::NativeStorage;
 use sov_state::Storage;
 use sov_stf_runner::{
@@ -33,7 +33,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
     type DaConfig: Send + Sync;
 
     /// Host of a zkVM program.
-    type Vm: ZkvmHost + Send;
+    type Vm: ZkvmHost + Zkvm + Send;
 
     /// Context for Zero Knowledge environment.
     type ZkContext: Context;
@@ -54,6 +54,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
 
     /// Prover service.
     type ProverService: ProverService<
+        Self::Vm,
         StateRoot = <<Self::NativeContext as Spec>::Storage as Storage>::Root,
         Witness = <<Self::NativeContext as Spec>::Storage as Storage>::Witness,
         DaService = Self::DaService,
@@ -61,6 +62,9 @@ pub trait RollupBlueprint: Sized + Send + Sync {
 
     /// Creates a new instance of the blueprint.
     fn new() -> Self;
+
+    /// Get code commitment.
+    fn get_code_commitment(&self) -> <Self::Vm as Zkvm>::CodeCommitment;
 
     /// Creates RPC methods for the rollup.
     fn create_rpc_methods(
@@ -202,7 +206,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         let da_service = self.create_da_service(&rollup_config).await;
 
         let prover_service = self
-            .create_prover_service(prover_config, &rollup_config, &da_service)
+            .create_prover_service(prover_config.clone(), &rollup_config, &da_service)
             .await;
 
         // TODO: Double check what kind of storage needed here.
@@ -241,6 +245,8 @@ pub trait RollupBlueprint: Sized + Send + Sync {
             },
         };
 
+        let code_commitment = self.get_code_commitment();
+
         let runner = StateTransitionRunner::new(
             runner_config,
             rollup_config.public_keys,
@@ -251,6 +257,8 @@ pub trait RollupBlueprint: Sized + Send + Sync {
             storage_manager,
             init_variant,
             Some(prover_service),
+            Some(prover_config),
+            code_commitment,
         )?;
 
         Ok(Prover {
@@ -309,6 +317,8 @@ pub trait RollupBlueprint: Sized + Send + Sync {
             },
         };
 
+        let code_commitment = self.get_code_commitment();
+
         let runner = StateTransitionRunner::new(
             runner_config,
             rollup_config.public_keys,
@@ -319,6 +329,8 @@ pub trait RollupBlueprint: Sized + Send + Sync {
             storage_manager,
             init_variant,
             None,
+            None,
+            code_commitment,
         )?;
 
         Ok(FullNode {

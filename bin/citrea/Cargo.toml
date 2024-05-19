@@ -42,6 +42,7 @@ borsh = { workspace = true, features = ["bytes"] }
 async-trait = { workspace = true }
 anyhow = { workspace = true }
 jsonrpsee = { workspace = true, features = ["http-client", "server"] }
+log-panics = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 tracing = { workspace = true }
@@ -50,14 +51,14 @@ tokio = { workspace = true }
 reth-primitives = { workspace = true }
 reth-transaction-pool = { workspace = true }
 reth-rpc-types = { workspace = true }
-tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
+tracing-subscriber = { version = "0.3.17", features = ["env-filter", "json"] }
 
 soft-confirmation-rule-enforcer = { path = "../../crates/soft-confirmation-rule-enforcer" }
 sov-db = { path = "../../crates/sovereign-sdk/full-node/db/sov-db" }
 ethereum-rpc = { path = "../../crates/ethereum-rpc" }
 sequencer-client = { path = "../../crates/sequencer-client" }
 citrea-sequencer = { path = "../../crates/sequencer" }
-sov-risc0-adapter = { path = "../../crates/sovereign-sdk/adapters/risc0", features = [
+citrea-risc0-bonsai-adapter = { path = "../../crates/sovereign-sdk/adapters/risc0-bonsai", features = [
     "native",
 ] }
 sov-state = { path = "../../crates/sovereign-sdk/module-system/sov-state", features = [
@@ -109,7 +110,7 @@ regex = "1.10"
 default = [
 ] # Deviate from convention by making the "native" feature active by default. This aligns with how this package is meant to be used (as a binary first, library second).
 
-bench = ["hex", "sov-risc0-adapter/bench", "risc0/bench"]
+bench = ["hex"] #"sov-risc0-adapter/bench", "risc0/bench"]
 
 [[bin]]
 name = "citrea"

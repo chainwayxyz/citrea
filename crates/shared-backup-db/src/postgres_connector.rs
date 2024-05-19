@@ -3,12 +3,13 @@ use std::str::FromStr;
 use deadpool_postgres::tokio_postgres::config::Config as PgConfig;
 use deadpool_postgres::tokio_postgres::{NoTls, Row};
 use deadpool_postgres::{Manager, ManagerConfig, Object, Pool, PoolError, RecyclingMethod};
+use sov_rollup_interface::rpc::StateTransitionRpcResponse;
 
 use crate::config::SharedBackupDbConfig;
 use crate::tables::{
-    CommitmentStatus, DbMempoolTx, DbSequencerCommitment, Tables, INDEX_L1_END_HASH,
-    INDEX_L1_END_HEIGHT, INDEX_L2_END_HEIGHT, MEMPOOL_TXS_TABLE_CREATE_QUERY,
-    SEQUENCER_COMMITMENT_TABLE_CREATE_QUERY,
+    CommitmentStatus, DbMempoolTx, DbProof, DbSequencerCommitment, ProofType, Tables,
+    INDEX_L1_END_HASH, INDEX_L1_END_HEIGHT, INDEX_L2_END_HEIGHT, MEMPOOL_TXS_TABLE_CREATE_QUERY,
+    PROOF_TABLE_CREATE_QUERY, SEQUENCER_COMMITMENT_TABLE_CREATE_QUERY,
 };
 use crate::utils::get_db_extension;
 
@@ -55,6 +56,7 @@ impl PostgresConnector {
             .batch_execute(SEQUENCER_COMMITMENT_TABLE_CREATE_QUERY)
             .await?;
         client.batch_execute(MEMPOOL_TXS_TABLE_CREATE_QUERY).await?;
+        client.batch_execute(PROOF_TABLE_CREATE_QUERY).await?;
         let db_client = Self { client: pool };
 
         let _ = db_client.create_indexes().await;
@@ -111,6 +113,10 @@ impl PostgresConnector {
 
         test_client
             .batch_execute(MEMPOOL_TXS_TABLE_CREATE_QUERY)
+            .await
+            .unwrap();
+        test_client
+            .batch_execute(PROOF_TABLE_CREATE_QUERY)
             .await
             .unwrap();
 
@@ -207,6 +213,35 @@ impl PostgresConnector {
             .await?)
     }
 
+    #[allow(clippy::too_many_arguments)]
+    pub async fn insert_proof_data(
+        &self,
+        l1_tx_id: Vec<u8>,
+        proof_data: Vec<u8>,
+        state_transition_rpc_response: StateTransitionRpcResponse,
+        proof_type: ProofType,
+    ) -> Result<u64, PoolError> {
+        let state_tranistion_rpc_response_json =
+            postgres_types::Json::<StateTransitionRpcResponse>(state_transition_rpc_response);
+        let client = self.client().await?;
+        Ok(client
+            .execute(
+                "INSERT INTO proof (l1_tx_id, proof_data, state_transition, proof_type) VALUES ($1, $2, $3, $4);",
+                &[&l1_tx_id, &proof_data, &state_tranistion_rpc_response_json, &proof_type.to_string()],
+            )
+            .await?)
+    }
+
+    pub async fn get_all_proof_data(&self) -> Result<Vec<DbProof>, PoolError> {
+        let client = self.client().await?;
+        Ok(client
+            .query("SELECT * FROM proof", &[])
+            .await?
+            .iter()
+            .map(PostgresConnector::row_to_proof)
+            .collect())
+    }
+
     pub async fn drop_table(&self, table: Tables) -> Result<u64, PoolError> {
         let client = self.client().await?;
         Ok(client
@@ -220,6 +255,7 @@ impl PostgresConnector {
         let query = match table {
             Tables::SequencerCommitment => SEQUENCER_COMMITMENT_TABLE_CREATE_QUERY,
             Tables::MempoolTxs => MEMPOOL_TXS_TABLE_CREATE_QUERY,
+            Tables::Proof => PROOF_TABLE_CREATE_QUERY,
         };
         client.execute(query, &[]).await.unwrap();
     }
@@ -244,6 +280,15 @@ impl PostgresConnector {
         DbMempoolTx {
             tx_hash: row.get("tx_hash"),
             tx: row.get("tx"),
+        }
+    }
+
+    fn row_to_proof(row: &Row) -> DbProof {
+        DbProof {
+            l1_tx_id: row.get("l1_tx_id"),
+            proof_data: row.get("proof_data"),
+            state_transition: row.get("state_transition"),
+            proof_type: ProofType::from_str(row.get("proof_type")).unwrap(),
         }
     }
 }
@@ -333,5 +378,57 @@ mod tests {
                 tx: vec![10, 20, 42]
             }
         );
+    }
+
+    #[tokio::test]
+    async fn test_insert_proof_data() {
+        let client = PostgresConnector::new_test_client().await.unwrap();
+        client.create_table(Tables::Proof).await;
+
+        let inserted = client
+            .insert_proof_data(
+                vec![0; 32],
+                vec![1; 32],
+                StateTransitionRpcResponse {
+                    initial_state_root: [0; 32].to_vec(),
+                    final_state_root: [1; 32].to_vec(),
+                    state_diff: vec![(vec![2u8; 32], Some(vec![3u8; 32])), (vec![5u8; 32], None)]
+                        .into_iter()
+                        .collect(),
+                    da_slot_hash: [2; 32],
+                    sequencer_public_key: [3; 32].to_vec(),
+                    sequencer_da_public_key: [4; 32].to_vec(),
+                    validity_condition: [5; 32].to_vec(),
+                },
+                ProofType::Full,
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(inserted, 1);
+
+        let proofs = client.get_all_proof_data().await.unwrap();
+        assert_eq!(proofs.len(), 1);
+        assert_eq!(
+            proofs[0],
+            DbProof {
+                l1_tx_id: vec![0; 32],
+                proof_data: vec![1; 32],
+                state_transition: postgres_types::Json(StateTransitionRpcResponse {
+                    initial_state_root: [0; 32].to_vec(),
+                    final_state_root: [1; 32].to_vec(),
+                    state_diff: vec![(vec![2; 32], Some(vec![3; 32])), (vec![5; 32], None)]
+                        .into_iter()
+                        .collect(),
+                    da_slot_hash: [2; 32],
+                    sequencer_public_key: [3; 32].to_vec(),
+                    sequencer_da_public_key: [4; 32].to_vec(),
+                    validity_condition: [5; 32].to_vec(),
+                }),
+                proof_type: ProofType::Full,
+            }
+        );
+
+        client.drop_table(Tables::Proof).await.unwrap();
     }
 }

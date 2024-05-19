@@ -1576,6 +1576,7 @@ dependencies = [
  "bitcoin-da",
  "borsh",
  "citrea-evm",
+ "citrea-risc0-bonsai-adapter",
  "citrea-sequencer",
  "citrea-stf",
  "clap",
@@ -1591,6 +1592,7 @@ dependencies = [
  "humantime",
  "jsonrpsee",
  "log",
+ "log-panics",
  "proptest",
  "regex",
  "reqwest 0.12.3",
@@ -1616,7 +1618,6 @@ dependencies = [
  "sov-modules-rollup-blueprint",
  "sov-modules-stf-blueprint",
  "sov-prover-storage-manager",
- "sov-risc0-adapter",
  "sov-rollup-interface",
  "sov-state",
  "sov-stf-runner",
@@ -1671,6 +1672,27 @@ dependencies = [
  "thiserror",
  "tracing",
  "walkdir",
+]
+
+[[package]]
+name = "citrea-risc0-bonsai-adapter"
+version = "0.3.0"
+dependencies = [
+ "anyhow",
+ "bincode",
+ "bonsai-sdk",
+ "bytemuck",
+ "hex",
+ "once_cell",
+ "parking_lot 0.12.1",
+ "risc0-circuit-rv32im",
+ "risc0-zkp",
+ "risc0-zkvm",
+ "risc0-zkvm-platform",
+ "serde",
+ "sov-risc0-adapter",
+ "sov-rollup-interface",
+ "tracing",
 ]
 
 [[package]]
@@ -5050,6 +5072,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "90ed8c1e510134f979dbc4f070f87d4313098b704861a105fe34231c70a3901c"
 
 [[package]]
+name = "log-panics"
+version = "2.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "68f9dd8546191c1850ecf67d22f5ff00a935b890d0e84713159a55495cc2ac5f"
+dependencies = [
+ "backtrace",
+ "log",
+]
+
+[[package]]
 name = "lru"
 version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6018,6 +6050,8 @@ dependencies = [
  "bytes",
  "fallible-iterator 0.2.0",
  "postgres-protocol",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -8648,7 +8682,9 @@ name = "shared-backup-db"
 version = "0.3.0"
 dependencies = [
  "deadpool-postgres",
+ "postgres-types",
  "serde",
+ "sov-rollup-interface",
  "tokio",
 ]
 
@@ -9338,6 +9374,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.10.8",
+ "shared-backup-db",
  "sov-db",
  "sov-mock-da",
  "sov-mock-zkvm",

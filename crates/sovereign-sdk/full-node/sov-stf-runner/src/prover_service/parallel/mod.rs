@@ -110,7 +110,7 @@ where
 }
 
 #[async_trait]
-impl<StateRoot, Witness, Da, Vm, V> ProverService
+impl<StateRoot, Witness, Da, Vm, V> ProverService<Vm>
     for ParallelProverService<StateRoot, Witness, Da, Vm, V>
 where
     StateRoot: Serialize + DeserializeOwned + Clone + AsRef<[u8]> + Send + Sync + 'static,

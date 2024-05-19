@@ -13,6 +13,7 @@ mod hash_stf;
 
 use hash_stf::{get_result_from_blocks, HashStf, Q, S};
 use sov_db::ledger_db::LedgerDB;
+use sov_mock_zkvm::MockCodeCommitment;
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
@@ -128,6 +129,7 @@ async fn runner_execution(
         runner: Some(RunnerConfig {
             sequencer_client_url: "http://127.0.0.1:4444".to_string(),
             include_tx_body: true,
+            accept_public_input_as_proven: None,
         }),
         da: MockDaConfig {
             sender_address: da_service.get_sequencer_address(),
@@ -174,6 +176,8 @@ async fn runner_execution(
             storage_manager,
             init_variant,
             Some(prover_service),
+            None,
+            MockCodeCommitment([1u8; 32]),
         )
         .unwrap();
 

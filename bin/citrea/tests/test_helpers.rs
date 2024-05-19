@@ -120,7 +120,7 @@ pub fn create_default_rollup_config(
                 137, 214, 80, 160, 30, 215, 232, 44, 171, 168, 103, 135, 124, 33,
             ],
             sequencer_da_pub_key: vec![0; 32],
-            prover_da_pub_key: vec![],
+            prover_da_pub_key: vec![0; 32],
         },
 
         storage: StorageConfig {
@@ -135,6 +135,7 @@ pub fn create_default_rollup_config(
             NodeMode::FullNode(socket_addr) | NodeMode::Prover(socket_addr) => Some(RunnerConfig {
                 include_tx_body,
                 sequencer_client_url: format!("http://localhost:{}", socket_addr.port()),
+                accept_public_input_as_proven: Some(true),
             }),
             NodeMode::SequencerNode => None,
         },

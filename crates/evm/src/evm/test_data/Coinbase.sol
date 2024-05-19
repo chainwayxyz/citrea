@@ -1,6 +1,6 @@
 pragma solidity ^0.8.0;
 
-// solc --abi --bin  Store.sol  -o . --overwrite
+// solc --abi --bin  Coinbase.sol  -o . --overwrite
 contract Coinbase {
     // Function to reward the miner
     function rewardMiner() external payable {

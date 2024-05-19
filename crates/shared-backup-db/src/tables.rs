@@ -1,5 +1,8 @@
 use std::fmt;
 
+use postgres_types::Json;
+use sov_rollup_interface::rpc::StateTransitionRpcResponse;
+
 use crate::utils::get_db_extension;
 
 pub enum Tables {
@@ -7,6 +10,7 @@ pub enum Tables {
     #[allow(dead_code)]
     SequencerCommitment,
     MempoolTxs,
+    Proof,
 }
 
 // impl to_string for tables
@@ -15,6 +19,7 @@ impl fmt::Display for Tables {
         match self {
             Tables::SequencerCommitment => write!(f, "sequencer_commitments"),
             Tables::MempoolTxs => write!(f, "mempool_txs"),
+            Tables::Proof => write!(f, "proof"),
         }
     }
 }
@@ -109,4 +114,48 @@ pub struct DbMempoolTx {
     pub tx_hash: Vec<u8>,
     /// RLP encoded transaction
     pub tx: Vec<u8>,
+}
+
+pub const PROOF_TABLE_CREATE_QUERY: &str = "
+CREATE TABLE IF NOT EXISTS proof (
+    id                          SERIAL PRIMARY KEY,
+    l1_tx_id                    BYTEA NOT NULL,
+    proof_data                  BYTEA NOT NULL,
+    state_transition            JSON NOT NULL,
+    proof_type                  VARCHAR(20) NOT NULL
+);
+";
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct DbProof {
+    pub l1_tx_id: Vec<u8>,
+    pub proof_data: Vec<u8>,
+    pub state_transition: Json<StateTransitionRpcResponse>,
+    pub proof_type: ProofType,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ProofType {
+    Full,
+    PublicInput,
+}
+
+impl fmt::Display for ProofType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            ProofType::Full => write!(f, "Full"),
+            ProofType::PublicInput => write!(f, "Public Input"),
+        }
+    }
+}
+
+impl std::str::FromStr for ProofType {
+    type Err = ();
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "Full" => Ok(ProofType::Full),
+            "Public Input" => Ok(ProofType::PublicInput),
+            _ => Err(()),
+        }
+    }
 }

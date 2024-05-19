@@ -42,7 +42,7 @@ pub use sov_rollup_interface::services::da::SlotData;
 pub use sov_rollup_interface::soft_confirmation::{
     SignedSoftConfirmationBatch, UnsignedSoftConfirmationBatch,
 };
-pub use sov_rollup_interface::stf::Event;
+pub use sov_rollup_interface::stf::{Event, StateDiff};
 pub use sov_rollup_interface::zk::{
     StateTransition, ValidityCondition, ValidityConditionChecker, Zkvm,
 };

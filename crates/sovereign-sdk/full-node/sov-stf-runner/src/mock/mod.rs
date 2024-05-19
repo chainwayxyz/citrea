@@ -1,5 +1,6 @@
 use std::marker::PhantomData;
 
+use sov_modules_api::StateDiff;
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::stf::{BatchReceipt, SlotResult, StateTransitionFunction};
 use sov_rollup_interface::zk::{ValidityCondition, Zkvm};
@@ -58,6 +59,7 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
                 phantom_data: PhantomData,
             }],
             witness: (),
+            state_diff: vec![],
         }
     }
 
@@ -93,10 +95,7 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
         _soft_confirmations: std::collections::VecDeque<
             Vec<sov_modules_api::SignedSoftConfirmationBatch>,
         >,
-    ) -> (
-        Self::StateRoot,
-        Vec<u8>, // state diff
-    ) {
+    ) -> (Self::StateRoot, StateDiff) {
         todo!()
     }
 }

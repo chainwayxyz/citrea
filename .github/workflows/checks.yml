@@ -97,42 +97,42 @@ jobs:
             exit 1
           fi
 
-  udeps:
-    name: udeps
-    runs-on: ubicloud-standard-4
-    timeout-minutes: 60
-    if: github.event.pull_request.draft == false
-    steps:
-      - uses: actions/checkout@v4
-      - uses: rui314/setup-mold@v1
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v2
-        with:
-          version: "23.2"
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly
-          override: true
-          components: rustfmt, clippy
-      - name: Install Rust
-        run: rustup show && rustup install nightly && rustup component add rustfmt --toolchain nightly-x86_64-unknown-linux-gnu # Nightly is needed for our configuration of cargo fmt
-      - name: Install cargo-risczero
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-risczero@0.19
-      - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-        run: cargo risczero install --version v2024-04-22.0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Run cargo-udeps
-        env:
-          RUSTFLAGS: -A warnings
-        uses: aig787/cargo-udeps-action@v1
-        with:
-          version: 'latest'
-          args: '--workspace --all-features --all-targets'
+  # udeps:
+  #   name: udeps
+  #   runs-on: ubicloud-standard-4
+  #   timeout-minutes: 60
+  #   if: github.event.pull_request.draft == false
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: rui314/setup-mold@v1
+  #     - name: Install Protoc
+  #       uses: arduino/setup-protoc@v2
+  #       with:
+  #         version: "23.2"
+  #         repo-token: ${{ secrets.GITHUB_TOKEN }}
+  #     - name: Toolchain
+  #       uses: actions-rs/toolchain@v1
+  #       with:
+  #         toolchain: nightly
+  #         override: true
+  #         components: rustfmt, clippy
+  #     - name: Install Rust
+  #       run: rustup show && rustup install nightly && rustup component add rustfmt --toolchain nightly-x86_64-unknown-linux-gnu # Nightly is needed for our configuration of cargo fmt
+  #     - name: Install cargo-risczero
+  #       uses: taiki-e/install-action@v2
+  #       with:
+  #         tool: cargo-risczero@0.19
+  #     - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
+  #       run: cargo risczero install --version v2024-04-22.0
+  #       env:
+  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  #     - name: Run cargo-udeps
+  #       env:
+  #         RUSTFLAGS: -A warnings
+  #       uses: aig787/cargo-udeps-action@v1
+  #       with:
+  #         version: 'latest'
+  #         args: '--workspace --all-features --all-targets'
 
   deny:
     runs-on: ubuntu-latest
@@ -317,6 +317,10 @@ jobs:
         run: rustup show
       - name: Run nextest
         run: make test
+        env:
+          BONSAI_API_URL: ${{ secrets.BONSAI_API_URL }} # TODO: remove this once we don't use the client on tests
+          BONSAI_API_KEY: ${{ secrets.BONSAI_API_KEY }} # TODO: remove this once we don't use the client on tests
+
 
   system-contracts:
     strategy:

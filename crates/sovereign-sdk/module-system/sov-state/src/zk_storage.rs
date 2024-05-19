@@ -5,6 +5,7 @@ use jmt::KeyHash;
 use sov_modules_core::{
     OrderedReadsAndWrites, Storage, StorageKey, StorageProof, StorageValue, Witness,
 };
+use sov_rollup_interface::stf::StateDiff;
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 use sov_zk_cycle_macros::cycle_tracker;
 
@@ -57,7 +58,7 @@ impl<S: MerkleProofSpec> Storage for ZkStorage<S> {
         &self,
         state_accesses: OrderedReadsAndWrites,
         witness: &Self::Witness,
-    ) -> Result<(Self::Root, Self::StateUpdate), anyhow::Error> {
+    ) -> Result<(Self::Root, Self::StateUpdate, StateDiff), anyhow::Error> {
         let prev_state_root = witness.get_hint();
 
         // For each value that's been read from the tree, verify the provided smt proof
@@ -75,16 +76,22 @@ impl<S: MerkleProofSpec> Storage for ZkStorage<S> {
             }
         }
 
+        let mut diff = vec![];
+
         // Compute the jmt update from the write batch
         let batch = state_accesses
             .ordered_writes
             .into_iter()
             .map(|(key, value)| {
                 let key_hash = KeyHash::with::<S::Hasher>(key.key.as_ref());
-                (
-                    key_hash,
-                    value.map(|v| Arc::try_unwrap(v.value).unwrap_or_else(|arc| (*arc).clone())),
-                )
+
+                let key_bytes = Arc::try_unwrap(key.key).unwrap_or_else(|arc| (*arc).clone());
+                let value_bytes =
+                    value.map(|v| Arc::try_unwrap(v.value).unwrap_or_else(|arc| (*arc).clone()));
+
+                diff.push((key_bytes, value_bytes.clone()));
+
+                (key_hash, value_bytes)
             })
             .collect::<Vec<_>>();
 
@@ -98,7 +105,7 @@ impl<S: MerkleProofSpec> Storage for ZkStorage<S> {
             )
             .expect("Updates must be valid");
 
-        Ok((jmt::RootHash(new_root), ()))
+        Ok((jmt::RootHash(new_root), (), diff))
     }
 
     #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]

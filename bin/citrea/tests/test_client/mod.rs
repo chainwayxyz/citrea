@@ -17,7 +17,9 @@ use jsonrpsee::rpc_params;
 use reth_primitives::BlockNumberOrTag;
 use reth_rpc_types::trace::geth::{GethDebugTracingOptions, GethTrace};
 use sequencer_client::GetSoftBatchResponse;
-use sov_rollup_interface::rpc::{SequencerCommitmentResponse, SoftConfirmationStatus};
+use sov_rollup_interface::rpc::{
+    ProofResponse, SequencerCommitmentResponse, SoftConfirmationStatus, VerifiedProofResponse,
+};
 
 pub const MAX_FEE_PER_GAS: u64 = 1000000001;
 
@@ -602,6 +604,23 @@ impl TestClient {
             )
             .await
             .map_err(|e| e.into())
+    }
+
+    pub(crate) async fn ledger_get_proof_by_slot_height(&self, height: u64) -> ProofResponse {
+        self.http_client
+            .request("ledger_getProofBySlotHeight", rpc_params![height])
+            .await
+            .unwrap()
+    }
+
+    pub(crate) async fn ledger_get_verified_proofs_by_slot_height(
+        &self,
+        height: u64,
+    ) -> Vec<VerifiedProofResponse> {
+        self.http_client
+            .request("ledger_getVerifiedProofsBySlotHeight", rpc_params![height])
+            .await
+            .unwrap()
     }
 
     pub(crate) async fn ledger_get_sequencer_commitments_on_slot_by_hash(
