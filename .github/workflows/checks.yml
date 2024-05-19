@@ -234,6 +234,43 @@ jobs:
             exit 1
           fi
 
+  ethers.js:
+    runs-on: ubicloud-standard-16
+    if: github.event.pull_request.draft == false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 18
+      - uses: dcarbone/install-jq-action@v2
+      - name: Install cargo-risczero
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-risczero@0.19
+      - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
+        run: cargo risczero install --version v2024-04-22.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/cache@v3
+        with:
+          key: ${{ runner.os }}-${{ github.job }}-${{ github.head_ref }}
+          path: ./target
+      - name: Build citrea
+        run: make build
+      - name: Install node dependencies
+        working-directory: ./bin/citrea/tests/evm/ethers.js_tests
+        run: npm install
+      - name: Run uniswap tests
+        run: |
+          RUST_LOG=off ./target/debug/citrea --da-layer mock --rollup-config-path bin/citrea/configs/mock/sequencer_rollup_config.toml --sequencer-config-path bin/citrea/configs/mock/sequencer_config.toml --genesis-paths bin/test-data/genesis/demo-tests/mock &
+          sleep 2
+          RUST_LOG=off ./target/debug/citrea --rollup-config-path bin/citrea/configs/mock/rollup_config.toml --genesis-paths bin/test-data/genesis/demo-tests/mock &
+          sleep 2
+          ./bin/citrea/publish_da_block.sh &
+          cd ./bin/citrea/tests/evm/ethers.js_tests
+          npx mocha test.js
+
   sys_tx_keccak:
     runs-on: ubuntu-latest
     if: github.event.pull_request.draft == false
