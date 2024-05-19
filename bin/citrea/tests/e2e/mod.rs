@@ -26,7 +26,7 @@ use crate::evm::{init_test_rollup, make_test_client};
 use crate::test_client::TestClient;
 use crate::test_helpers::{
     create_default_sequencer_config, start_rollup, tempdir_with_children, wait_for_l1_block,
-    wait_for_l2_batch, NodeMode,
+    wait_for_l2_batch, wait_for_prover_height, NodeMode,
 };
 use crate::{DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT};
 
@@ -1017,7 +1017,7 @@ async fn execute_blocks(
             sequencer_client.spam_publish_batch_request().await.unwrap();
         }
 
-        wait_for_l2_batch(&sequencer_client, 204, None).await;
+        wait_for_l2_batch(sequencer_client, 204, None).await;
     }
 
     let da_service = MockDaService::new(MockAddress::from([0; 32]), da_db_dir);
@@ -1035,8 +1035,8 @@ async fn execute_blocks(
         }
     }
 
-    wait_for_l2_batch(&sequencer_client, 504, None).await;
-    wait_for_l2_batch(&full_node_client, 504, None).await;
+    wait_for_l2_batch(sequencer_client, 504, None).await;
+    wait_for_l2_batch(full_node_client, 504, None).await;
 
     let seq_last_block = sequencer_client
         .eth_get_block_by_number_with_detail(Some(BlockNumberOrTag::Latest))
@@ -2684,7 +2684,7 @@ async fn test_all_flow() {
     let full_node_test_client = make_test_client(full_node_port).await;
 
     da_service.publish_test_block().await.unwrap();
-    sleep(Duration::from_secs(1)).await;
+    wait_for_l1_block(&da_service, 1, None).await;
 
     test_client.send_publish_batch_request().await;
 
@@ -2706,6 +2706,9 @@ async fn test_all_flow() {
         .await
         .unwrap();
     test_client.send_publish_batch_request().await;
+
+    wait_for_l2_batch(&prover_node_test_client, 4, None).await;
+
     da_service.publish_test_block().await.unwrap();
     // submits with new da block
     test_client.send_publish_batch_request().await;
@@ -2714,15 +2717,7 @@ async fn test_all_flow() {
     // da_service.publish_test_block().await.unwrap();
 
     // wait here until we see from prover's rpc that it finished proving
-    while prover_node_test_client
-        .prover_get_last_scanned_l1_height()
-        .await
-        != 5
-    {
-        // sleep 2
-        sleep(Duration::from_secs(2)).await;
-    }
-    sleep(Duration::from_secs(4)).await;
+    wait_for_prover_height(&prover_node_test_client, 5, None).await;
 
     let commitments = prover_node_test_client
         .ledger_get_sequencer_commitments_on_slot_by_number(4)
@@ -2774,7 +2769,7 @@ async fn test_all_flow() {
     // 7th soft batch
     test_client.send_publish_batch_request().await;
 
-    sleep(Duration::from_secs(2)).await;
+    wait_for_prover_height(&prover_node_test_client, 6, None).await;
 
     // So the full node should see the proof in block 5
     let full_node_proof = full_node_test_client
@@ -2787,6 +2782,8 @@ async fn test_all_flow() {
         prover_proof.state_transition,
         full_node_proof[0].state_transition
     );
+
+    wait_for_l2_batch(&full_node_test_client, 6, None).await;
 
     full_node_test_client
         .ledger_get_soft_confirmation_status(5)
@@ -2836,15 +2833,7 @@ async fn test_all_flow() {
     test_client.send_publish_batch_request().await;
 
     // wait here until we see from prover's rpc that it finished proving
-    while prover_node_test_client
-        .prover_get_last_scanned_l1_height()
-        .await
-        != 8
-    {
-        // sleep 2
-        sleep(Duration::from_secs(2)).await;
-    }
-    sleep(Duration::from_secs(4)).await;
+    wait_for_prover_height(&prover_node_test_client, 8, None).await;
 
     let commitments = prover_node_test_client
         .ledger_get_sequencer_commitments_on_slot_by_number(7)
@@ -2872,7 +2861,7 @@ async fn test_all_flow() {
     // let full node see the proof
     test_client.send_publish_batch_request().await;
 
-    sleep(Duration::from_secs(2)).await;
+    wait_for_l2_batch(&full_node_test_client, 8, None).await;
 
     let full_node_proof_data = full_node_test_client
         .ledger_get_verified_proofs_by_slot_height(8)
