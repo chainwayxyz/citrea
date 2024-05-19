@@ -20,16 +20,29 @@ sov-state = { path = "../../module-system/sov-state" }
 clap = { workspace = true, optional = true }
 schemars = { workspace = true, optional = true }
 serde_json = { workspace = true, optional = true }
-jsonrpsee = { workspace = true, features = ["macros", "client-core", "server"], optional = true }
+jsonrpsee = { workspace = true, features = [
+    "macros",
+    "client-core",
+    "server",
+], optional = true }
 
 [dev-dependencies]
 sov-rollup-interface = { path = "../../rollup-interface" }
 tempfile = { workspace = true }
-simple-nft-module = { version = "*", features = ["native"], path = "." }
-sov-prover-storage-manager = { path = "../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
+simple-nft-module = { features = ["native"], path = "." }
+sov-prover-storage-manager = { path = "../../full-node/sov-prover-storage-manager", features = [
+    "test-utils",
+] }
 
 
 [features]
 default = []
-native = ["sov-state/native", "sov-modules-api/native", "jsonrpsee", "schemars", "serde_json", "clap"]
+native = [
+    "sov-state/native",
+    "sov-modules-api/native",
+    "jsonrpsee",
+    "schemars",
+    "serde_json",
+    "clap",
+]
 test = ["native"]
