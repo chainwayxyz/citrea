@@ -234,7 +234,7 @@ jobs:
             exit 1
           fi
 
-  ethers.js:
+  ethers_js:
     runs-on: ubicloud-standard-16
     if: github.event.pull_request.draft == false
     steps:
