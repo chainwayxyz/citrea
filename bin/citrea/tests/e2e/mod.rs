@@ -25,7 +25,8 @@ use tokio::time::sleep;
 use crate::evm::{init_test_rollup, make_test_client};
 use crate::test_client::TestClient;
 use crate::test_helpers::{
-    create_default_sequencer_config, start_rollup, tempdir_with_children, NodeMode,
+    create_default_sequencer_config, start_rollup, tempdir_with_children, wait_for_l1_block,
+    wait_for_l2_batch, NodeMode,
 };
 use crate::{DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT};
 
@@ -208,8 +209,6 @@ async fn test_soft_batch_save() -> Result<(), anyhow::Error> {
 
     let _ = execute_blocks(&seq_test_client, &full_node_test_client, &da_db_dir.clone()).await;
 
-    sleep(Duration::from_secs(10)).await;
-
     let seq_block = seq_test_client
         .eth_get_block_by_number(Some(BlockNumberOrTag::Latest))
         .await;
@@ -257,7 +256,8 @@ async fn test_full_node_send_tx() -> Result<(), anyhow::Error> {
 
     seq_test_client.send_publish_batch_request().await;
 
-    sleep(Duration::from_millis(2000)).await;
+    wait_for_l2_batch(&seq_test_client, 1, None).await;
+    wait_for_l2_batch(&full_node_test_client, 1, None).await;
 
     let sq_block = seq_test_client
         .eth_get_block_by_number(Some(BlockNumberOrTag::Latest))
@@ -320,6 +320,8 @@ async fn test_delayed_sync_ten_blocks() -> Result<(), anyhow::Error> {
         seq_test_client.send_publish_batch_request().await;
     }
 
+    wait_for_l2_batch(&seq_test_client, 10, None).await;
+
     let (full_node_port_tx, full_node_port_rx) = tokio::sync::oneshot::channel();
 
     let da_db_dir_cloned = da_db_dir.clone();
@@ -344,7 +346,7 @@ async fn test_delayed_sync_ten_blocks() -> Result<(), anyhow::Error> {
     let full_node_port = full_node_port_rx.await.unwrap();
     let full_node_test_client = make_test_client(full_node_port).await;
 
-    sleep(Duration::from_secs(10)).await;
+    wait_for_l2_batch(&full_node_test_client, 10, None).await;
 
     let seq_block = seq_test_client
         .eth_get_block_by_number(Some(BlockNumberOrTag::Number(10)))
@@ -459,7 +461,7 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
     }
 
     // wait for full node to sync
-    sleep(Duration::from_secs(5)).await;
+    wait_for_l2_batch(&full_node_test_client, 10, None).await;
 
     // check if latest blocks are the same
     let seq_last_block = seq_test_client
@@ -479,8 +481,6 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
     // close full node
     rollup_task.abort();
 
-    sleep(Duration::from_secs(2)).await;
-
     // create 100 more blocks
     for _ in 0..100 {
         seq_test_client
@@ -499,8 +499,6 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
     // Copy the db to a new path with the same contents because
     // the lock is not released on the db directory even though the task is aborted
     let _ = copy_dir_recursive(&fullnode_db_dir, &storage_dir.path().join("fullnode_copy"));
-
-    sleep(Duration::from_secs(5)).await;
 
     let da_db_dir_cloned = da_db_dir.clone();
     let fullnode_db_dir = storage_dir.path().join("fullnode_copy");
@@ -523,12 +521,12 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
         .await;
     });
 
-    // TODO: There should be a better way to test this?
-    sleep(Duration::from_secs(10)).await;
-
     let full_node_port = full_node_port_rx.await.unwrap();
 
     let full_node_test_client = make_test_client(full_node_port).await;
+
+    wait_for_l2_batch(&seq_test_client, 110, None).await;
+    wait_for_l2_batch(&full_node_test_client, 110, None).await;
 
     // check if the latest block state roots are same
     let seq_last_block = seq_test_client
@@ -654,7 +652,7 @@ async fn test_get_transaction_by_hash() -> Result<(), anyhow::Error> {
     seq_test_client.send_publish_batch_request().await;
 
     // wait for the full node to sync
-    sleep(Duration::from_millis(2000)).await;
+    wait_for_l2_batch(&full_node_test_client, 1, None).await;
 
     // make sure txs are in the block
     let seq_block = seq_test_client
@@ -745,7 +743,8 @@ async fn test_soft_confirmations_on_different_blocks() -> Result<(), anyhow::Err
         seq_test_client.send_publish_batch_request().await;
     }
 
-    sleep(Duration::from_secs(2)).await;
+    wait_for_l2_batch(&seq_test_client, 6, None).await;
+    wait_for_l2_batch(&full_node_test_client, 6, None).await;
 
     let mut last_da_slot_height = 0;
     let mut last_da_slot_hash = <MockDaSpec as DaSpec>::SlotHash::from([0u8; 32]);
@@ -784,7 +783,8 @@ async fn test_soft_confirmations_on_different_blocks() -> Result<(), anyhow::Err
         seq_test_client.spam_publish_batch_request().await.unwrap();
     }
 
-    sleep(Duration::from_secs(2)).await;
+    wait_for_l2_batch(&seq_test_client, 12, None).await;
+    wait_for_l2_batch(&full_node_test_client, 12, None).await;
 
     for i in 7..=12 {
         let seq_soft_conf = seq_test_client
@@ -862,8 +862,6 @@ async fn test_reopen_sequencer() -> Result<(), anyhow::Error> {
     // close sequencer
     seq_task.abort();
 
-    sleep(Duration::from_secs(1)).await;
-
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
     // Copy the db to a new path with the same contents because
@@ -876,7 +874,7 @@ async fn test_reopen_sequencer() -> Result<(), anyhow::Error> {
     let da_service = MockDaService::new(MockAddress::from([0; 32]), &da_db_dir);
     da_service.publish_test_block().await.unwrap();
 
-    sleep(Duration::from_secs(1)).await;
+    wait_for_l1_block(&da_service, 1, None).await;
 
     let sequencer_db_dir = storage_dir.path().join("sequencer_copy");
     let da_db_dir_cloned = da_db_dir.clone();
@@ -915,6 +913,8 @@ async fn test_reopen_sequencer() -> Result<(), anyhow::Error> {
 
     seq_test_client.send_publish_batch_request().await;
     seq_test_client.send_publish_batch_request().await;
+
+    wait_for_l2_batch(&seq_test_client, 2, None).await;
 
     assert_eq!(
         seq_test_client
@@ -995,7 +995,7 @@ async fn execute_blocks(
             sequencer_client.spam_publish_batch_request().await.unwrap();
         }
 
-        sleep(Duration::from_secs(1)).await;
+        wait_for_l2_batch(&sequencer_client, 204, None).await;
     }
 
     let da_service = MockDaService::new(MockAddress::from([0; 32]), da_db_dir);
@@ -1013,7 +1013,8 @@ async fn execute_blocks(
         }
     }
 
-    sleep(Duration::from_millis(5000)).await;
+    wait_for_l2_batch(&sequencer_client, 504, None).await;
+    wait_for_l2_batch(&full_node_client, 504, None).await;
 
     let seq_last_block = sequencer_client
         .eth_get_block_by_number_with_detail(Some(BlockNumberOrTag::Latest))
@@ -1060,14 +1061,14 @@ async fn test_soft_confirmations_status_one_l1() -> Result<(), anyhow::Error> {
 
     // TODO check status=trusted
 
-    sleep(Duration::from_secs(2)).await;
+    wait_for_l2_batch(&full_node_test_client, 6, None).await;
 
     // publish new da block
     da_service.publish_test_block().await.unwrap();
     seq_test_client.send_publish_batch_request().await; // TODO https://github.com/chainwayxyz/citrea/issues/214
     seq_test_client.send_publish_batch_request().await; // TODO https://github.com/chainwayxyz/citrea/issues/214
 
-    sleep(Duration::from_secs(2)).await;
+    wait_for_l2_batch(&full_node_test_client, 8, None).await;
 
     // now retrieve confirmation status from the sequencer and full node and check if they are the same
     for i in 1..=6 {
