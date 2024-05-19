@@ -1,5 +1,8 @@
+use std::time::Duration;
+
 use citrea_stf::genesis_config::GenesisPaths;
 use sov_mock_da::{MockAddress, MockDaService};
+use tokio::time::sleep;
 
 use crate::evm::make_test_client;
 // use citrea::initialize_logging;
@@ -9,7 +12,7 @@ use crate::{DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_MIN_SOFT_CONFIRMATIONS_
 /// Transaction with equal nonce to last tx should not be accepted by mempool.
 #[tokio::test(flavor = "multi_thread")]
 async fn too_many_l2_block_per_l1_block() {
-    // citrea::initialize_logging();
+    citrea::initialize_logging();
 
     let storage_dir = tempdir_with_children(&["DA", "sequencer"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
@@ -49,6 +52,7 @@ async fn too_many_l2_block_per_l1_block() {
     // create 2*limiting_number + 1 blocks so it has to give error
     for idx in 0..2 * limiting_number + 1 {
         test_client.spam_publish_batch_request().await.unwrap();
+        sleep(Duration::from_millis(500)).await;
         if idx >= limiting_number {
             // There should not be any more blocks published from this point
             // because the limiting number is reached
@@ -61,6 +65,7 @@ async fn too_many_l2_block_per_l1_block() {
 
     for idx in 0..2 * limiting_number + 1 {
         test_client.spam_publish_batch_request().await.unwrap();
+        sleep(Duration::from_millis(500)).await;
         if idx < limiting_number {
             assert_eq!(test_client.eth_block_number().await, last_block_number + 1);
         }
