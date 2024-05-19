@@ -1017,7 +1017,7 @@ async fn execute_blocks(
             sequencer_client.spam_publish_batch_request().await.unwrap();
         }
 
-        sleep(Duration::from_secs(2)).await;
+        sleep(Duration::from_secs(4)).await;
     }
 
     let da_service = MockDaService::new(MockAddress::from([0; 32]), da_db_dir);
@@ -1034,7 +1034,7 @@ async fn execute_blocks(
             sequencer_client.spam_publish_batch_request().await.unwrap();
         }
 
-        sleep(Duration::from_secs(2)).await;
+        sleep(Duration::from_secs(4)).await;
     }
 
     sleep(Duration::from_secs(15)).await;
