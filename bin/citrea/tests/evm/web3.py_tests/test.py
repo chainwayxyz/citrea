@@ -44,8 +44,7 @@ class TestWeb3(unittest.TestCase):
         self.assertEqual(block['number'], self.web3.eth.get_block_number())
 
     def test_get_transaction_count_block(self):
-        block_hash = self.web3.eth.get_block(0)['hash']
-        tx_count = self.web3.eth.get_block_transaction_count(block_hash)
+        tx_count = self.web3.eth.get_block_transaction_count(0)
         self.assertEqual(tx_count, 1)
 
 if __name__ == '__main__':
