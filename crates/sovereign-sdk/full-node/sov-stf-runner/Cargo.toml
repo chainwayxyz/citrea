@@ -29,12 +29,12 @@ tracing = { workspace = true, optional = true }
 futures = { workspace = true, optional = true }
 async-trait = { workspace = true, optional = true }
 rayon = { workspace = true, optional = true }
-sov-db = { path = "../db/sov-db", version = "0.3", optional = true }
-sov-rollup-interface = { path = "../../rollup-interface", version = "0.3" }
+sov-db = { path = "../db/sov-db", optional = true }
+sov-rollup-interface = { path = "../../rollup-interface" }
 sov-modules-stf-blueprint = { path = "../../module-system/sov-modules-stf-blueprint" }
 sequencer-client = { path = "../../../sequencer-client", optional = true }
 
-sov-modules-api = { path = "../../module-system/sov-modules-api", version = "0.3", default-features = false }
+sov-modules-api = { path = "../../module-system/sov-modules-api", default-features = false }
 
 shared-backup-db = { path = "../../../shared-backup-db", optional = true }
 

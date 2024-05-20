@@ -38,13 +38,13 @@ futures = { workspace = true, optional = true }
 pin-project = { workspace = true, optional = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
-sov-zk-cycle-macros = { path = "../../utils/zk-cycle-macros", version = "0.3", optional = true }
+sov-zk-cycle-macros = { path = "../../utils/zk-cycle-macros", optional = true }
 risc0-zkvm = { workspace = true, default-features = false, features = [
     "std",
 ], optional = true }
 risc0-zkvm-platform = { workspace = true, optional = true }
 
-sov-rollup-interface = { path = "../../rollup-interface", version = "0.3" }
+sov-rollup-interface = { path = "../../rollup-interface" }
 
 
 [dev-dependencies]
