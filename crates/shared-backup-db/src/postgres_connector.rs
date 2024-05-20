@@ -105,9 +105,10 @@ impl PostgresConnector {
             .unwrap();
 
         drop(pool);
+
         //connect to new db
         cfg.dbname(&db_name);
-        println!("cfg: {:?}", cfg);
+
         let mgr = Manager::from_config(cfg, NoTls, mgr_config);
         let test_pool = Pool::builder(mgr).max_size(16).build().unwrap();
         let test_client = test_pool.get().await.unwrap();
