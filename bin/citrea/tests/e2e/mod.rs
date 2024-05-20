@@ -26,7 +26,7 @@ use crate::evm::{init_test_rollup, make_test_client};
 use crate::test_client::TestClient;
 use crate::test_helpers::{
     create_default_sequencer_config, start_rollup, tempdir_with_children, wait_for_l1_block,
-    wait_for_l2_batch, wait_for_prover_height, NodeMode,
+    wait_for_l2_batch, wait_for_prover_l1_height, NodeMode,
 };
 use crate::{DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT};
 
@@ -2680,8 +2680,6 @@ async fn test_all_flow() {
         .unwrap();
     test_client.send_publish_batch_request().await;
 
-    wait_for_l2_batch(&prover_node_test_client, 4, None).await;
-
     da_service.publish_test_block().await.unwrap();
     // submits with new da block
     test_client.send_publish_batch_request().await;
@@ -2690,7 +2688,7 @@ async fn test_all_flow() {
     // da_service.publish_test_block().await.unwrap();
 
     // wait here until we see from prover's rpc that it finished proving
-    wait_for_prover_height(&prover_node_test_client, 5, None).await;
+    wait_for_prover_l1_height(&prover_node_test_client, 5, Some(Duration::from_secs(60))).await;
 
     let commitments = prover_node_test_client
         .ledger_get_sequencer_commitments_on_slot_by_number(4)
@@ -2742,7 +2740,7 @@ async fn test_all_flow() {
     // 7th soft batch
     test_client.send_publish_batch_request().await;
 
-    wait_for_prover_height(&prover_node_test_client, 6, None).await;
+    wait_for_prover_l1_height(&prover_node_test_client, 6, Some(Duration::from_secs(60))).await;
 
     // So the full node should see the proof in block 5
     let full_node_proof = full_node_test_client
@@ -2806,7 +2804,7 @@ async fn test_all_flow() {
     test_client.send_publish_batch_request().await;
 
     // wait here until we see from prover's rpc that it finished proving
-    wait_for_prover_height(&prover_node_test_client, 8, None).await;
+    wait_for_prover_l1_height(&prover_node_test_client, 8, Some(Duration::from_secs(60))).await;
 
     let commitments = prover_node_test_client
         .ledger_get_sequencer_commitments_on_slot_by_number(7)

@@ -190,8 +190,8 @@ pub async fn wait_for_l2_batch(sequencer_client: &TestClient, num: u64, timeout:
     }
 }
 
-pub async fn wait_for_prover_height(
-    sequencer_client: &TestClient,
+pub async fn wait_for_prover_l1_height(
+    prover_client: &TestClient,
     num: u64,
     timeout: Option<Duration>,
 ) {
@@ -199,7 +199,7 @@ pub async fn wait_for_prover_height(
     let timeout = timeout.unwrap_or(Duration::from_secs(30)); // Default 30 seconds timeout
     loop {
         debug!("Waiting for prover height {}", num);
-        let latest_block = sequencer_client.prover_get_last_scanned_l1_height().await;
+        let latest_block = prover_client.prover_get_last_scanned_l1_height().await;
         if latest_block >= num {
             break;
         }
