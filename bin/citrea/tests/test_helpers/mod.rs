@@ -217,7 +217,7 @@ pub async fn wait_for_l1_block(da_service: &MockDaService, num: u64, timeout: Op
     let start = SystemTime::now();
     let timeout = timeout.unwrap_or(Duration::from_secs(30)); // Default 30 seconds timeout
     loop {
-        debug!("Waiting for soft batch {}", num);
+        debug!("Waiting for L1 block height {}", num);
         let da_block = da_service.get_height().await;
         if da_block >= num {
             break;
