@@ -114,7 +114,7 @@ serde = { version = "1.0.192", default-features = false, features = [
 ] }
 serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
 sha2 = { version = "0.10.6", default-features = false }
-thiserror = "1.0.50"
+thiserror = "1.0.61"
 tracing = { version = "0.1.40", default-features = false }
 bech32 = { version = "0.9.1", default-features = false }
 derive_more = { version = "0.99.11", default-features = false }
