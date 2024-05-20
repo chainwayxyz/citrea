@@ -944,7 +944,7 @@ dependencies = [
  "bitflags 2.5.0",
  "cexpr",
  "clang-sys",
- "itertools 0.12.1",
+ "itertools 0.11.0",
  "lazy_static",
  "lazycell",
  "proc-macro2 1.0.79",
@@ -1718,7 +1718,7 @@ dependencies = [
  "reth-rpc",
  "reth-rpc-types",
  "reth-rpc-types-compat",
- "reth-tasks",
+ "reth-tasks 0.2.0-beta.7",
  "reth-transaction-pool",
  "reth-trie",
  "revm",
@@ -6680,7 +6680,7 @@ dependencies = [
  "reth-beacon-consensus-core",
  "reth-db",
  "reth-interfaces",
- "reth-metrics",
+ "reth-metrics 0.2.0-beta.5",
  "reth-node-api",
  "reth-payload-builder",
  "reth-payload-validator",
@@ -6690,7 +6690,7 @@ dependencies = [
  "reth-rpc-types",
  "reth-stages",
  "reth-static-file",
- "reth-tasks",
+ "reth-tasks 0.2.0-beta.5",
  "reth-tokio-util",
  "schnellru",
  "thiserror",
@@ -6774,7 +6774,7 @@ dependencies = [
  "reth-codecs",
  "reth-interfaces",
  "reth-libmdbx",
- "reth-metrics",
+ "reth-metrics 0.2.0-beta.5",
  "reth-nippy-jar",
  "reth-primitives",
  "reth-tracing",
@@ -6822,7 +6822,7 @@ dependencies = [
  "metrics",
  "multiaddr",
  "rand 0.8.5",
- "reth-metrics",
+ "reth-metrics 0.2.0-beta.5",
  "reth-primitives",
  "rlp",
  "secp256k1 0.27.0",
@@ -6902,7 +6902,7 @@ dependencies = [
  "reth-discv4",
  "reth-ecies",
  "reth-eth-wire-types",
- "reth-metrics",
+ "reth-metrics 0.2.0-beta.5",
  "reth-primitives",
  "serde",
  "snap",
@@ -7015,15 +7015,36 @@ source = "git+https://github.com/paradigmxyz/reth?tag=v0.2.0-beta.5#54f75cdcc821
 dependencies = [
  "futures",
  "metrics",
- "reth-metrics-derive",
+ "reth-metrics-derive 0.2.0-beta.5",
  "tokio",
  "tokio-util",
+]
+
+[[package]]
+name = "reth-metrics"
+version = "0.2.0-beta.7"
+source = "git+https://github.com/paradigmxyz/reth?tag=v0.2.0-beta.7#a44e0857373cee447c3823608194ccac53509140"
+dependencies = [
+ "metrics",
+ "reth-metrics-derive 0.2.0-beta.7",
 ]
 
 [[package]]
 name = "reth-metrics-derive"
 version = "0.2.0-beta.5"
 source = "git+https://github.com/paradigmxyz/reth?tag=v0.2.0-beta.5#54f75cdcc82125a97ffd82952c2a8bc8ed324b48"
+dependencies = [
+ "once_cell",
+ "proc-macro2 1.0.79",
+ "quote 1.0.35",
+ "regex",
+ "syn 2.0.55",
+]
+
+[[package]]
+name = "reth-metrics-derive"
+version = "0.2.0-beta.7"
+source = "git+https://github.com/paradigmxyz/reth?tag=v0.2.0-beta.7#a44e0857373cee447c3823608194ccac53509140"
 dependencies = [
  "once_cell",
  "proc-macro2 1.0.79",
@@ -7083,13 +7104,13 @@ dependencies = [
  "reth-ecies",
  "reth-eth-wire",
  "reth-interfaces",
- "reth-metrics",
+ "reth-metrics 0.2.0-beta.5",
  "reth-net-common",
  "reth-network-api",
  "reth-primitives",
  "reth-provider",
  "reth-rpc-types",
- "reth-tasks",
+ "reth-tasks 0.2.0-beta.5",
  "reth-tokio-util",
  "reth-transaction-pool",
  "schnellru",
@@ -7162,7 +7183,7 @@ dependencies = [
  "futures-util",
  "metrics",
  "reth-interfaces",
- "reth-metrics",
+ "reth-metrics 0.2.0-beta.5",
  "reth-node-api",
  "reth-primitives",
  "reth-provider",
@@ -7246,7 +7267,7 @@ dependencies = [
  "reth-db",
  "reth-evm",
  "reth-interfaces",
- "reth-metrics",
+ "reth-metrics 0.2.0-beta.5",
  "reth-nippy-jar",
  "reth-primitives",
  "reth-trie",
@@ -7268,7 +7289,7 @@ dependencies = [
  "reth-config",
  "reth-db",
  "reth-interfaces",
- "reth-metrics",
+ "reth-metrics 0.2.0-beta.5",
  "reth-primitives",
  "reth-provider",
  "reth-tokio-util",
@@ -7317,7 +7338,7 @@ dependencies = [
  "rand 0.8.5",
  "reth-consensus-common",
  "reth-interfaces",
- "reth-metrics",
+ "reth-metrics 0.2.0-beta.5",
  "reth-network",
  "reth-network-api",
  "reth-node-api",
@@ -7328,7 +7349,7 @@ dependencies = [
  "reth-rpc-engine-api",
  "reth-rpc-types",
  "reth-rpc-types-compat",
- "reth-tasks",
+ "reth-tasks 0.2.0-beta.5",
  "reth-transaction-pool",
  "revm",
  "revm-inspectors",
@@ -7368,7 +7389,7 @@ dependencies = [
  "metrics",
  "reth-beacon-consensus",
  "reth-interfaces",
- "reth-metrics",
+ "reth-metrics 0.2.0-beta.5",
  "reth-node-api",
  "reth-payload-builder",
  "reth-primitives",
@@ -7376,7 +7397,7 @@ dependencies = [
  "reth-rpc-api",
  "reth-rpc-types",
  "reth-rpc-types-compat",
- "reth-tasks",
+ "reth-tasks 0.2.0-beta.5",
  "serde",
  "thiserror",
  "tokio",
@@ -7435,7 +7456,7 @@ dependencies = [
  "reth-db",
  "reth-etl",
  "reth-interfaces",
- "reth-metrics",
+ "reth-metrics 0.2.0-beta.5",
  "reth-primitives",
  "reth-provider",
  "reth-static-file",
@@ -7475,7 +7496,22 @@ dependencies = [
  "metrics",
  "pin-project",
  "rayon",
- "reth-metrics",
+ "reth-metrics 0.2.0-beta.5",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "tracing-futures",
+]
+
+[[package]]
+name = "reth-tasks"
+version = "0.2.0-beta.7"
+source = "git+https://github.com/paradigmxyz/reth?tag=v0.2.0-beta.7#a44e0857373cee447c3823608194ccac53509140"
+dependencies = [
+ "dyn-clone",
+ "futures-util",
+ "metrics",
+ "reth-metrics 0.2.0-beta.7",
  "thiserror",
  "tokio",
  "tracing",
@@ -7523,10 +7559,10 @@ dependencies = [
  "paste",
  "rand 0.8.5",
  "reth-eth-wire",
- "reth-metrics",
+ "reth-metrics 0.2.0-beta.5",
  "reth-primitives",
  "reth-provider",
- "reth-tasks",
+ "reth-tasks 0.2.0-beta.5",
  "revm",
  "schnellru",
  "serde",
@@ -7549,7 +7585,7 @@ dependencies = [
  "metrics",
  "reth-db",
  "reth-interfaces",
- "reth-metrics",
+ "reth-metrics 0.2.0-beta.5",
  "reth-primitives",
  "revm",
  "thiserror",
