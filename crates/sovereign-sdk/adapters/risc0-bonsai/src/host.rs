@@ -78,10 +78,12 @@ impl BonsaiClient {
                             }
                             HttpErr(e) => {
                                 error!(?e, "Reconnecting to Bonsai");
+                                std::thread::sleep(Duration::from_secs(5));
                                 continue $client_loop
                             }
                             HttpHeaderErr(e) => {
                                 error!(?e, "Reconnecting to Bonsai");
+                                std::thread::sleep(Duration::from_secs(5));
                                 continue $client_loop
                             }
                             e => {
