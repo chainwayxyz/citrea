@@ -158,7 +158,10 @@ impl DaVerifier for BitcoinVerifier {
                     // check with sha256(sha256(<merkle root><witness value>))
                     let commitment = sha256d::Hash::hash(&vec_merkle);
 
-                    if script_pubkey.to_bytes()[6..] != *commitment.as_byte_array() {
+                    // check if the commitment is correct
+                    // on signet there is an additional commitment after the segwit commitment
+                    // so we check only the first 32 bytes after commitment header (bytes [2, 5])
+                    if script_pubkey.to_bytes()[6..38] != *commitment.as_byte_array() {
                         return Err(ValidationError::NonMatchingScript);
                     }
                 }
