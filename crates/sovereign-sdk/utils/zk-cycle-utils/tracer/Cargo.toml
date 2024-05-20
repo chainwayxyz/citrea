@@ -1,6 +1,6 @@
 [package]
 name = "tracer"
-version = "0.3.0"
+version = { workspace = true }
 edition = "2018"
 
 [workspace]
