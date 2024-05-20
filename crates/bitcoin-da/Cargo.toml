@@ -29,7 +29,7 @@ borsh = { workspace = true }
 anyhow = { workspace = true }
 thiserror = { workspace = true }
 
-bitcoin = { version = "0.31.1", features = ["serde", "rand"] }
+bitcoin = { version = "0.32.0", features = ["serde", "rand"] }
 brotli = "3.3.4"
 futures.workspace = true
 
