@@ -107,7 +107,7 @@ impl BonsaiClient {
                     Ok(client) => client,
                     Err(e) => {
                         error!(?e, "Failed to connect to Bonsai");
-                        std::thread::sleep(Duration::from_secs(1));
+                        std::thread::sleep(Duration::from_secs(5));
                         continue 'client;
                     }
                 };
