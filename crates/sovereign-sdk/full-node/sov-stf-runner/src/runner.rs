@@ -760,7 +760,7 @@ where
                         Proof::Full(proof) => {
                             // hotfix for devnet deployment
                             // TODO: handle these deployed bug fixes better
-                            let code_commitment = if serde_json::to_string(&self.code_commitment)? == "[3842079627,2815639187,3317649396,4056054925,3753540716,3130217418,1733128335,3196785989]" && soft_batch.da_slot_height <= 6787
+                            let code_commitment = if serde_json::to_string(&self.code_commitment)? == "[1925551184,1320674256,2242050743,1493430077,3768238887,667617216,2882916224,2512744534]" && soft_batch.da_slot_height <= 6787
                             {
                                 serde_json::from_str("[3565622432,3167720487,554880044,1689168947,3495902722,3638273228,1798052366,4175296332]").unwrap()
                             } else {

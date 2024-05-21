@@ -13,8 +13,8 @@ fn main() {
         let elf = r#"
             pub const BITCOIN_DA_ELF: &[u8] = &[];
             pub const MOCK_DA_ELF: &[u8] = &[];
-            pub const BITCOIN_DA_ID: [u32; 8] = [3842079627, 2815639187, 3317649396, 4056054925, 3753540716, 3130217418, 1733128335, 3196785989];
-            pub const MOCK_DA_ID: [u32; 8] = [2503148230, 148949284, 2316329630, 1295642878, 3196064991, 203223182, 811713055, 2739387916];
+            pub const BITCOIN_DA_ID: [u32; 8] = [];
+            pub const MOCK_DA_ID: [u32; 8] = [];
         "#;
 
         std::fs::write(methods_path, elf).expect("Failed to write mock rollup elf");
