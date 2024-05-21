@@ -237,6 +237,9 @@ where
     /// Runs the prover process.
     #[instrument(level = "trace", skip_all, err)]
     pub async fn run_prover_process(&mut self) -> Result<(), anyhow::Error> {
+        let skip_submission_until_l1 = std::env::var("SKIP_PROOF_SUBMISSION_UNTIL_L1")
+            .map_or(0u64, |v| v.parse().unwrap_or(0));
+
         // Prover node should sync when a new sequencer commitment arrives
         // Check da block get and sync up to the latest block in the latest commitment
         let last_scanned_l1_height = self
@@ -403,7 +406,7 @@ where
                         "Running soft confirmation batch #{} with hash: 0x{} on DA block #{}",
                         l2_height,
                         hex::encode(soft_batch.hash),
-                        filtered_block.header().height()
+                        soft_batch.da_slot_height
                     );
 
                     let mut signed_soft_confirmation: SignedSoftConfirmationBatch =
@@ -518,79 +521,94 @@ where
                     sequencer_da_public_key: self.sequencer_da_pub_key.clone(),
                 };
 
-            let prover_service = self
-                .prover_service
-                .as_ref()
-                .ok_or_else(|| anyhow::anyhow!("Prover service is not initialized"))?;
+            // Skip submission until l1 height
+            // hotfix for devnet deployment
+            // TODO: make a better way to skip submission, and fixing deployed bugs
+            if l1_height >= skip_submission_until_l1 {
+                let prover_service = self
+                    .prover_service
+                    .as_ref()
+                    .ok_or_else(|| anyhow::anyhow!("Prover service is not initialized"))?;
 
-            prover_service.submit_witness(transition_data).await;
+                prover_service.submit_witness(transition_data).await;
 
-            prover_service.prove(hash.clone()).await?;
+                prover_service.prove(hash.clone()).await?;
 
-            let (tx_id, proof) = prover_service
-                .wait_for_proving_and_send_to_da(hash.clone(), &self.da_service)
-                .await?;
+                let (tx_id, proof) = prover_service
+                    .wait_for_proving_and_send_to_da(hash.clone(), &self.da_service)
+                    .await?;
 
-            let tx_id_u8 = tx_id.into();
+                let tx_id_u8 = tx_id.into();
 
-            // l1_height => (tx_id, proof, transition_data)
-            // save proof along with tx id to db, should be queriable by slot number or slot hash
-            let transition_data: sov_modules_api::StateTransition<
-                <Da as DaService>::Spec,
-                Stf::StateRoot,
-            > = Vm::extract_output(&proof).expect("Proof should be deserializable");
+                // l1_height => (tx_id, proof, transition_data)
+                // save proof along with tx id to db, should be queriable by slot number or slot hash
+                let transition_data: sov_modules_api::StateTransition<
+                    <Da as DaService>::Spec,
+                    Stf::StateRoot,
+                > = Vm::extract_output(&proof).expect("Proof should be deserializable");
 
-            match proof {
-                Proof::PublicInput(_) => {
-                    tracing::warn!("Proof is public input, skipping");
-                }
-                Proof::Full(ref proof) => {
-                    tracing::info!("Verifying proof!");
-                    let transition_data_from_proof =
-                        Vm::verify_and_extract_output::<<Da as DaService>::Spec, Stf::StateRoot>(
-                            &proof.clone(),
-                            &self.code_commitment,
+                match proof {
+                    Proof::PublicInput(_) => {
+                        tracing::warn!("Proof is public input, skipping");
+                    }
+                    Proof::Full(ref proof) => {
+                        tracing::info!("Verifying proof!");
+                        let transition_data_from_proof = Vm::verify_and_extract_output::<
+                            <Da as DaService>::Spec,
+                            Stf::StateRoot,
+                        >(
+                            &proof.clone(), &self.code_commitment
                         )
                         .expect("Proof should be verifiable");
 
-                    tracing::info!(
-                        "transition data from proof: {:?}",
-                        transition_data_from_proof
-                    );
+                        tracing::info!(
+                            "transition data from proof: {:?}",
+                            transition_data_from_proof
+                        );
+                    }
                 }
-            }
 
-            tracing::info!("transition data: {:?}", transition_data);
+                tracing::info!("transition data: {:?}", transition_data);
 
-            let stored_state_transition = StoredStateTransition {
-                initial_state_root: transition_data.initial_state_root.as_ref().to_vec(),
-                final_state_root: transition_data.final_state_root.as_ref().to_vec(),
-                state_diff: transition_data.state_diff,
-                da_slot_hash: transition_data.da_slot_hash.into(),
-                sequencer_public_key: transition_data.sequencer_public_key,
-                sequencer_da_public_key: transition_data.sequencer_da_public_key,
-                validity_condition: transition_data.validity_condition.try_to_vec().unwrap(),
-            };
+                let stored_state_transition = StoredStateTransition {
+                    initial_state_root: transition_data.initial_state_root.as_ref().to_vec(),
+                    final_state_root: transition_data.final_state_root.as_ref().to_vec(),
+                    state_diff: transition_data.state_diff,
+                    da_slot_hash: transition_data.da_slot_hash.into(),
+                    sequencer_public_key: transition_data.sequencer_public_key,
+                    sequencer_da_public_key: transition_data.sequencer_da_public_key,
+                    validity_condition: transition_data.validity_condition.try_to_vec().unwrap(),
+                };
 
-            match pg_client.as_ref() {
-                Some(Ok(pool)) => {
-                    tracing::info!("Inserting proof data into postgres");
-                    let (proof_data, proof_type) = match proof.clone() {
-                        Proof::Full(full_proof) => (full_proof, ProofType::Full),
-                        Proof::PublicInput(public_input) => (public_input, ProofType::PublicInput),
-                    };
-                    pool.insert_proof_data(
-                        tx_id_u8.to_vec(),
-                        proof_data,
-                        stored_state_transition.clone().into(),
-                        proof_type,
-                    )
-                    .await
-                    .unwrap();
+                match pg_client.as_ref() {
+                    Some(Ok(pool)) => {
+                        tracing::info!("Inserting proof data into postgres");
+                        let (proof_data, proof_type) = match proof.clone() {
+                            Proof::Full(full_proof) => (full_proof, ProofType::Full),
+                            Proof::PublicInput(public_input) => {
+                                (public_input, ProofType::PublicInput)
+                            }
+                        };
+                        pool.insert_proof_data(
+                            tx_id_u8.to_vec(),
+                            proof_data,
+                            stored_state_transition.clone().into(),
+                            proof_type,
+                        )
+                        .await
+                        .unwrap();
+                    }
+                    _ => {
+                        tracing::warn!("No postgres client found");
+                    }
                 }
-                _ => {
-                    tracing::warn!("No postgres client found");
-                }
+
+                self.ledger_db.put_proof_data(
+                    l1_height,
+                    tx_id_u8,
+                    proof,
+                    stored_state_transition,
+                )?;
             }
 
             for (sequencer_commitment, l1_heights) in
@@ -615,9 +633,6 @@ where
                         });
                 }
             }
-
-            self.ledger_db
-                .put_proof_data(l1_height, tx_id_u8, proof, stored_state_transition)?;
 
             self.ledger_db
                 .set_prover_last_scanned_l1_height(SlotNumber(l1_height))?;
@@ -743,11 +758,25 @@ where
                     tracing::warn!("Processing zk proof: {:?}", proof);
                     let state_transition = match proof.clone() {
                         Proof::Full(proof) => {
+                            // hotfix for devnet deployment
+                            // TODO: handle these deployed bug fixes better
+                            let code_commitment = if serde_json::to_string(&self.code_commitment)? == "[3842079627,2815639187,3317649396,4056054925,3753540716,3130217418,1733128335,3196785989]" && soft_batch.da_slot_height <= 6787
+                            {
+                                serde_json::from_str("[2170772617,2185219863,3147817613,3435562326,2028413396,832797378,3678042619,791033588]").unwrap()
+                            } else {
+                                self.code_commitment.clone()
+                            };
+
+                            tracing::warn!(
+                                "using code commitment: {:?}",
+                                serde_json::to_string(&code_commitment).unwrap()
+                            );
+
                             if let Ok(proof_data) =
                                 Vm::verify_and_extract_output::<
                                     <Da as DaService>::Spec,
                                     Stf::StateRoot,
-                                >(&proof, &self.code_commitment)
+                                >(&proof, &code_commitment)
                             {
                                 if proof_data.sequencer_da_public_key != self.sequencer_da_pub_key
                                     || proof_data.sequencer_public_key != self.sequencer_pub_key
