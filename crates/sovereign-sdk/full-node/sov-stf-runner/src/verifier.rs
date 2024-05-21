@@ -51,9 +51,9 @@ where
         assert_eq!(
             data.initial_state_root.as_ref(),
             data.soft_confirmations
-                .get(0)
+                .front()
                 .expect("At least one set of soft confirmations")
-                .get(0)
+                .first()
                 .expect("At least one soft confirmation")
                 .pre_state_root()
                 .as_slice(),
