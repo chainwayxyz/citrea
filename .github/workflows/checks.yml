@@ -320,6 +320,7 @@ jobs:
         env:
           BONSAI_API_URL: ${{ secrets.BONSAI_API_URL }} # TODO: remove this once we don't use the client on tests
           BONSAI_API_KEY: ${{ secrets.BONSAI_API_KEY }} # TODO: remove this once we don't use the client on tests
+          RUST_BACKTRACE: 1
 
 
   system-contracts:
