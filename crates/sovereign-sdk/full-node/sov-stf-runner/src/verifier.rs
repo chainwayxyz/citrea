@@ -48,7 +48,18 @@ where
             data.completeness_proof,
         )?;
 
-        // tracing::info!("going into apply_soft_confirmations_from_sequencer_commitments");
+        assert_eq!(
+            data.initial_state_root.as_ref(),
+            data.soft_confirmations
+                .get(0)
+                .expect("At least one set of soft confirmations")
+                .get(0)
+                .expect("At least one soft confirmation")
+                .pre_state_root()
+                .as_slice(),
+            "Invalid initial state root"
+        );
+
         println!("going into apply_soft_confirmations_from_sequencer_commitments");
         let (final_state_root, state_diff) = self
             .app
