@@ -76,7 +76,10 @@ impl RollupBlueprint for BitcoinRollup {
     }
 
     fn get_code_commitment(&self) -> <Self::Vm as Zkvm>::CodeCommitment {
-        Digest::new(risc0::BITCOIN_DA_ID)
+        Digest::from([
+            3565622432, 3167720487, 554880044, 1689168947, 3495902722, 3638273228, 1798052366,
+            4175296332,
+        ])
     }
 
     fn create_storage_manager(

@@ -762,7 +762,7 @@ where
                             // TODO: handle these deployed bug fixes better
                             let code_commitment = if serde_json::to_string(&self.code_commitment)? == "[3842079627,2815639187,3317649396,4056054925,3753540716,3130217418,1733128335,3196785989]" && soft_batch.da_slot_height <= 6787
                             {
-                                serde_json::from_str("[2170772617,2185219863,3147817613,3435562326,2028413396,832797378,3678042619,791033588]").unwrap()
+                                serde_json::from_str("[3565622432,3167720487,554880044,1689168947,3495902722,3638273228,1798052366,4175296332]").unwrap()
                             } else {
                                 self.code_commitment.clone()
                             };
