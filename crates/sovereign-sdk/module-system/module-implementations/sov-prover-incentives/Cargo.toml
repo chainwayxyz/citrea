@@ -15,8 +15,10 @@ resolver = "2"
 tempfile = { workspace = true }
 sov-mock-da = { path = "../../../adapters/mock-da", features = ["native"] }
 sov-mock-zkvm = { path = "../../../adapters/mock-zkvm" }
-sov-modules-api = { path = "../../sov-modules-api", version = "0.3", features = ["native"] }
-sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
+sov-modules-api = { path = "../../sov-modules-api", features = ["native"] }
+sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-manager", features = [
+    "test-utils",
+] }
 
 
 [dependencies]
@@ -27,11 +29,16 @@ schemars = { workspace = true, optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true, optional = true }
 
-sov-bank = { path = "../sov-bank", version = "0.3" }
-sov-modules-api = { path = "../../sov-modules-api", version = "0.3" }
-sov-state = { path = "../../sov-state", version = "0.3" }
+sov-bank = { path = "../sov-bank" }
+sov-modules-api = { path = "../../sov-modules-api" }
+sov-state = { path = "../../sov-state" }
 
 
 [features]
 default = ["native"]
-native = ["serde_json", "schemars", "sov-state/native", "sov-modules-api/native"]
+native = [
+    "serde_json",
+    "schemars",
+    "sov-state/native",
+    "sov-modules-api/native",
+]

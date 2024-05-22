@@ -46,7 +46,7 @@ sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface", features = 
     "native",
 ] }
 citrea-evm = { path = "../evm", features = ["native"] }
-sov-db = { path = "../sovereign-sdk/full-node/db/sov-db", version = "0.3" }
+sov-db = { path = "../sovereign-sdk/full-node/db/sov-db" }
 
 sov-stf-runner = { path = "../sovereign-sdk/full-node/sov-stf-runner" }
 

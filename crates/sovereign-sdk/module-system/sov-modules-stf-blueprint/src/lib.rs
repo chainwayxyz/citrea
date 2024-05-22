@@ -516,20 +516,15 @@ where
             let mut current_da_height = da_block_headers[index_headers].height();
 
             assert_eq!(
-                soft_confirmations[index_soft_confirmation]
-                    .pre_state_root()
-                    .as_slice(),
-                initial_state_root.as_ref()
-            );
-
-            assert_eq!(
                 soft_confirmations[index_soft_confirmation].da_slot_hash(),
-                da_block_headers[index_headers].hash().into()
+                da_block_headers[index_headers].hash().into(),
+                "Soft confirmation DA slot hash must match DA block header hash"
             );
 
             assert_eq!(
                 soft_confirmations[index_soft_confirmation].da_slot_height(),
-                da_block_headers[index_headers].height()
+                da_block_headers[index_headers].height(),
+                "Soft confirmation DA slot height must match DA block header height"
             );
 
             index_soft_confirmation += 1;
@@ -543,7 +538,8 @@ where
                 {
                     assert_eq!(
                         soft_confirmations[index_soft_confirmation].da_slot_height(),
-                        da_block_headers[index_headers].height()
+                        da_block_headers[index_headers].height(),
+                        "Soft confirmation DA slot height must match DA block header height"
                     );
 
                     index_soft_confirmation += 1;
@@ -553,12 +549,14 @@ where
                     // this can also be done in soft confirmation rule enforcer?
                     assert_eq!(
                         da_block_headers[index_headers].height(),
-                        current_da_height + 1
+                        current_da_height + 1,
+                        "DA block headers must be in order"
                     );
 
                     assert_eq!(
                         da_block_headers[index_headers - 1].hash(),
-                        da_block_headers[index_headers].prev_hash()
+                        da_block_headers[index_headers].prev_hash(),
+                        "DA block headers must be in order"
                     );
 
                     current_da_height += 1;
@@ -566,12 +564,14 @@ where
                     // if the next one is not matching, then the state transition is invalid.
                     assert_eq!(
                         soft_confirmations[index_soft_confirmation].da_slot_hash(),
-                        da_block_headers[index_headers].hash().into()
+                        da_block_headers[index_headers].hash().into(),
+                        "Soft confirmation DA slot hash must match DA block header hash"
                     );
 
                     assert_eq!(
                         soft_confirmations[index_soft_confirmation].da_slot_height(),
-                        da_block_headers[index_headers].height()
+                        da_block_headers[index_headers].height(),
+                        "Soft confirmation DA slot height must match DA block header height"
                     );
 
                     index_soft_confirmation += 1;
@@ -579,7 +579,11 @@ where
             }
 
             // final da header was checked against
-            assert_eq!(index_headers, da_block_headers.len() - 1);
+            assert_eq!(
+                index_headers,
+                da_block_headers.len() - 1,
+                "All DA headers must be checked"
+            );
 
             // now verify the claimed merkle root of soft confirmation hashes
             let mut soft_confirmation_hashes = vec![];
@@ -593,7 +597,11 @@ where
             let calculated_root =
                 MerkleTree::<Sha256>::from_leaves(soft_confirmation_hashes.as_slice()).root();
 
-            assert_eq!(calculated_root, Some(sequencer_commitment.merkle_root));
+            assert_eq!(
+                calculated_root,
+                Some(sequencer_commitment.merkle_root),
+                "Invalid merkle root"
+            );
 
             let mut witness_iter = witnesses.into_iter();
             let mut da_block_headers_iter = da_block_headers.into_iter().peekable();

@@ -28,10 +28,10 @@ jsonrpsee = { workspace = true, features = [
     "server",
 ], optional = true }
 
-sov-modules-api = { path = "../../sov-modules-api", version = "0.3", default-features = false, features = [
+sov-modules-api = { path = "../../sov-modules-api", default-features = false, features = [
     "macros",
 ] }
-sov-state = { path = "../../sov-state", version = "0.3" }
+sov-state = { path = "../../sov-state" }
 
 
 [dev-dependencies]
