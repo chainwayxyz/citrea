@@ -657,27 +657,25 @@ where
                     Ok(Some(soft_batch)) => Ok(soft_batch),
                     Ok(None) => {
                         debug!("Soft Batch: no batch at height {}, retrying...", height);
-                        return Err(backoff::Error::Transient {
-                            err: format!("No soft batch published"),
+                        Err(backoff::Error::Transient {
+                            err: "No soft batch published".to_owned(),
                             retry_after: None,
-                        });
+                        })
                     }
                     Err(e) => match e.downcast_ref::<jsonrpsee::core::Error>() {
                         Some(Error::Transport(e)) => {
                             let error_msg =
                                 format!("Soft Batch: connection error during RPC call: {:?}", e);
                             debug!(error_msg);
-                            return Err(backoff::Error::Transient {
+                            Err(backoff::Error::Transient {
                                 err: error_msg,
                                 retry_after: None,
-                            });
+                            })
                         }
-                        _ => {
-                            return Err(backoff::Error::Transient {
-                                err: format!("Soft Batch: unknown error from RPC call: {:?}", e),
-                                retry_after: None,
-                            });
-                        }
+                        _ => Err(backoff::Error::Transient {
+                            err: format!("Soft Batch: unknown error from RPC call: {:?}", e),
+                            retry_after: None,
+                        }),
                     },
                 }
             })
