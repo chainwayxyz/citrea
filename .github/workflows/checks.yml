@@ -257,7 +257,7 @@ jobs:
       - name: Build citrea
         run: make build
       - name: Install dependencies
-        working-directory: ./bin/citrea/tests/evm/web3.py_tests
+        working-directory: ./bin/citrea/tests/evm/web3_py
         run: pip install -r requirements.txt
       - name: Run web3.py tests
         run: |
@@ -294,7 +294,7 @@ jobs:
       - name: Build citrea
         run: make build
       - name: Install node dependencies
-        working-directory: ./bin/citrea/tests/evm/ethers.js_tests
+        working-directory: ./bin/citrea/tests/evm/ethers_js
         run: npm install
       - name: Run ethers_js tests
         run: |
