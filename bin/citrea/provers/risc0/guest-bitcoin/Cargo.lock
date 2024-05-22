@@ -882,7 +882,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-evm"
-version = "0.4.0-rc.2"
+version = "0.4.0-rc.3"
 dependencies = [
  "alloy-primitives",
  "anyhow",
@@ -899,7 +899,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-stf"
-version = "0.4.0-rc.2"
+version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "borsh",
@@ -2566,7 +2566,7 @@ dependencies = [
 
 [[package]]
 name = "rollup-constants"
-version = "0.4.0-rc.2"
+version = "0.4.0-rc.3"
 
 [[package]]
 name = "rrs-lib"
@@ -2908,7 +2908,7 @@ dependencies = [
 
 [[package]]
 name = "soft-confirmation-rule-enforcer"
-version = "0.4.0-rc.2"
+version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "borsh",
@@ -2920,7 +2920,7 @@ dependencies = [
 
 [[package]]
 name = "sov-accounts"
-version = "0.4.0-rc.2"
+version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "borsh",
@@ -2932,7 +2932,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-api"
-version = "0.4.0-rc.2"
+version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "bech32 0.9.1",
@@ -2952,7 +2952,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-core"
-version = "0.4.0-rc.2"
+version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "bech32 0.9.1",
@@ -2970,7 +2970,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-macros"
-version = "0.4.0-rc.2"
+version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "borsh",
@@ -2982,7 +2982,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-stf-blueprint"
-version = "0.4.0-rc.2"
+version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "borsh",
@@ -3002,7 +3002,7 @@ dependencies = [
 
 [[package]]
 name = "sov-risc0-adapter"
-version = "0.4.0-rc.2"
+version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "bincode",
@@ -3015,7 +3015,7 @@ dependencies = [
 
 [[package]]
 name = "sov-rollup-interface"
-version = "0.4.0-rc.2"
+version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3031,7 +3031,7 @@ dependencies = [
 
 [[package]]
 name = "sov-state"
-version = "0.4.0-rc.2"
+version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "bcs",
@@ -3051,7 +3051,7 @@ dependencies = [
 
 [[package]]
 name = "sov-stf-runner"
-version = "0.4.0-rc.2"
+version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "borsh",
@@ -3067,7 +3067,7 @@ dependencies = [
 
 [[package]]
 name = "sov-zk-cycle-macros"
-version = "0.4.0-rc.2"
+version = "0.4.0-rc.3"
 dependencies = [
  "proc-macro2",
  "quote",
