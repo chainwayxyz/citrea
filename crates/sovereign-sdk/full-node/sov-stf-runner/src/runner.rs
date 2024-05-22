@@ -3,6 +3,7 @@ use std::marker::PhantomData;
 use std::net::SocketAddr;
 
 use anyhow::{anyhow, bail};
+use backoff::ExponentialBackoffBuilder;
 use borsh::de::BorshDeserialize;
 use borsh::BorshSerialize as _;
 use jsonrpsee::core::Error;
@@ -25,7 +26,7 @@ use sov_rollup_interface::stf::{SoftBatchReceipt, StateTransitionFunction};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::{Proof, StateTransitionData, Zkvm, ZkvmHost};
 use tokio::sync::oneshot;
-use tokio::time::{sleep, Duration, Instant};
+use tokio::time::{sleep, Duration};
 use tracing::{debug, error, info, instrument, warn};
 
 use crate::prover_helpers::get_initial_slot_height;
@@ -34,10 +35,6 @@ use crate::{ProverConfig, ProverService, RollupPublicKeys, RpcConfig, RunnerConf
 
 type StateRoot<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::StateRoot;
 type GenesisParams<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::GenesisParams;
-
-const CONNECTION_INTERVALS: &[u64] = &[0, 1, 2, 5, 10, 15, 30, 60];
-const RETRY_INTERVAL: &[u64] = &[1, 5];
-const RETRY_SLEEP: u64 = 2;
 
 /// Combines `DaService` with `StateTransitionFunction` and "runs" the rollup.
 pub struct StateTransitionRunner<Stf, Sm, Da, Vm, Ps, C>
@@ -649,51 +646,43 @@ where
         let mut height = self.start_height;
         info!("Starting to sync from height {}", height);
 
-        let mut last_connection_error = Instant::now();
-        let mut last_parse_error = Instant::now();
-
-        let mut connection_index = 0;
-        let mut retry_index = 0;
-
         loop {
-            let soft_batch = match self
-                .sequencer_client
-                .get_soft_batch::<Da::Spec>(height)
-                .await
-            {
-                Ok(Some(soft_batch)) => soft_batch,
-                Ok(None) => {
-                    debug!(
-                        "Soft Batch: no batch at height {}, retrying in {} seconds",
-                        height, RETRY_SLEEP
-                    );
-                    Self::log_error(
-                        &mut last_parse_error,
-                        RETRY_INTERVAL,
-                        &mut retry_index,
-                        "No soft batch published".to_string().as_str(),
-                    );
-                    sleep(Duration::from_secs(RETRY_SLEEP)).await;
-                    continue;
+            let exponential_backoff = ExponentialBackoffBuilder::new()
+                .with_initial_interval(Duration::from_secs(60))
+                .with_max_elapsed_time(Some(Duration::from_secs(15 * 60)))
+                .build();
+            let inner_client = &self.sequencer_client;
+            let soft_batch = backoff::future::retry(exponential_backoff, || async move {
+                match inner_client.get_soft_batch::<Da::Spec>(height).await {
+                    Ok(Some(soft_batch)) => Ok(soft_batch),
+                    Ok(None) => {
+                        debug!("Soft Batch: no batch at height {}, retrying...", height);
+                        return Err(backoff::Error::Transient {
+                            err: format!("No soft batch published"),
+                            retry_after: None,
+                        });
+                    }
+                    Err(e) => match e.downcast_ref::<jsonrpsee::core::Error>() {
+                        Some(Error::Transport(e)) => {
+                            let error_msg =
+                                format!("Soft Batch: connection error during RPC call: {:?}", e);
+                            debug!(error_msg);
+                            return Err(backoff::Error::Transient {
+                                err: error_msg,
+                                retry_after: None,
+                            });
+                        }
+                        _ => {
+                            return Err(backoff::Error::Transient {
+                                err: format!("Soft Batch: unknown error from RPC call: {:?}", e),
+                                retry_after: None,
+                            });
+                        }
+                    },
                 }
-                Err(e) => match e.downcast_ref::<jsonrpsee::core::Error>() {
-                    Some(Error::Transport(e)) => {
-                        debug!("Soft Batch: connection error during RPC call: {:?}", e);
-                        Self::log_error(
-                            &mut last_connection_error,
-                            CONNECTION_INTERVALS,
-                            &mut connection_index,
-                            format!("Soft Batch: connection error during RPC call: {:?}", e)
-                                .as_str(),
-                        );
-                        sleep(Duration::from_secs(RETRY_SLEEP)).await;
-                        continue;
-                    }
-                    _ => {
-                        anyhow::bail!("Soft Batch: unknown error from RPC call: {:?}", e);
-                    }
-                },
-            };
+            })
+            .await
+            .map_err(|e| anyhow!(e))?;
 
             if last_l1_height != soft_batch.da_slot_height || cur_l1_block.is_none() {
                 last_l1_height = soft_batch.da_slot_height;
@@ -1106,26 +1095,5 @@ where
     /// Allows to read current state root
     pub fn get_state_root(&self) -> &Stf::StateRoot {
         &self.state_root
-    }
-
-    /// TODO: Fix backoff never resetting
-    /// A basic helper for exponential backoff for error logging.
-    pub fn log_error(
-        last_error_log: &mut Instant,
-        error_log_intervals: &[u64],
-        error_interval_index: &mut usize,
-        error_msg: &str,
-    ) {
-        let now = Instant::now();
-        if now.duration_since(*last_error_log)
-            >= Duration::from_secs(error_log_intervals[*error_interval_index] * 60)
-        {
-            error!(
-                "{} : {} minutes",
-                error_msg, error_log_intervals[*error_interval_index]
-            );
-            *last_error_log = now; // Update the value pointed by the reference
-            *error_interval_index = (*error_interval_index + 1).min(error_log_intervals.len() - 1);
-        }
     }
 }

@@ -12,6 +12,7 @@ resolver = "2"
 
 [dependencies]
 anyhow = { workspace = true }
+backoff = { workspace = true, optional = true }
 num_cpus = { workspace = true }
 thiserror = { workspace = true, optional = true }
 borsh = { workspace = true }
@@ -76,4 +77,5 @@ native = [
     "rayon",
     "thiserror",
     "shared-backup-db",
+    "backoff",
 ]
