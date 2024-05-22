@@ -648,19 +648,22 @@ where
 
         loop {
             let exponential_backoff = ExponentialBackoffBuilder::new()
-                .with_initial_interval(Duration::from_secs(60))
+                .with_initial_interval(Duration::from_secs(1))
                 .with_max_elapsed_time(Some(Duration::from_secs(15 * 60)))
                 .build();
             let inner_client = &self.sequencer_client;
-            let soft_batch = backoff::future::retry(exponential_backoff, || async move {
+            let soft_batch = match backoff::future::retry(exponential_backoff, || async move {
                 match inner_client.get_soft_batch::<Da::Spec>(height).await {
                     Ok(Some(soft_batch)) => Ok(soft_batch),
                     Ok(None) => {
                         debug!("Soft Batch: no batch at height {}, retrying...", height);
-                        Err(backoff::Error::Transient {
-                            err: "No soft batch published".to_owned(),
-                            retry_after: None,
-                        })
+
+                        // We wait for 2 seconds and then return a Permanent error so that we exit the retry.
+                        // This should not backoff exponentially
+                        sleep(Duration::from_secs(2)).await;
+                        Err(backoff::Error::Permanent(
+                            "No soft batch published".to_owned(),
+                        ))
                     }
                     Err(e) => match e.downcast_ref::<jsonrpsee::core::Error>() {
                         Some(Error::Transport(e)) => {
@@ -680,7 +683,12 @@ where
                 }
             })
             .await
-            .map_err(|e| anyhow!(e))?;
+            {
+                Ok(soft_batch) => soft_batch,
+                Err(_) => {
+                    continue;
+                }
+            };
 
             if last_l1_height != soft_batch.da_slot_height || cur_l1_block.is_none() {
                 last_l1_height = soft_batch.da_slot_height;
