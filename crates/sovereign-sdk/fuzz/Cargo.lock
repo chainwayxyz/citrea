@@ -2954,6 +2954,7 @@ dependencies = [
  "sov-rollup-interface",
  "sov-schema-db",
  "tokio",
+ "tracing",
 ]
 
 [[package]]

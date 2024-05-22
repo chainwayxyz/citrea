@@ -7,6 +7,7 @@ use sov_rollup_interface::services::da::SlotData;
 use sov_rollup_interface::stf::{BatchReceipt, Event, SoftBatchReceipt};
 use sov_rollup_interface::zk::Proof;
 use sov_schema_db::{Schema, SchemaBatch, SeekKeyEncoder, DB};
+use tracing::instrument;
 
 use crate::rocks_db_config::gen_rocksdb_options;
 use crate::schema::tables::{
@@ -95,6 +96,7 @@ impl<S: SlotData, B, T> SlotCommit<S, B, T> {
 impl LedgerDB {
     /// Open a [`LedgerDB`] (backed by RocksDB) at the specified path.
     /// The returned instance will be at the path `{path}/ledger-db`.
+    #[instrument(level = "trace", skip_all, err)]
     pub fn with_path(path: impl AsRef<Path>) -> Result<Self, anyhow::Error> {
         let path = path.as_ref().join(LEDGER_DB_PATH_SUFFIX);
         let inner = DB::open(
@@ -124,6 +126,7 @@ impl LedgerDB {
     }
 
     /// Get the next slot, block, transaction, and event numbers
+    #[instrument(level = "trace", skip(self), ret)]
     pub fn get_next_items_numbers(&self) -> ItemNumbers {
         self.next_item_numbers.lock().unwrap().clone()
     }
@@ -132,6 +135,7 @@ impl LedgerDB {
     /// the range of the database, the result will smaller than the requested range.
     /// Note that this method blindly preallocates for the requested range, so it should not be exposed
     /// directly via rpc.
+    #[instrument(level = "trace", skip(self), err)]
     pub(crate) fn _get_slot_range(
         &self,
         range: &std::ops::Range<SlotNumber>,
@@ -143,6 +147,7 @@ impl LedgerDB {
     /// the range of the database, the result will smaller than the requested range.
     /// Note that this method blindly preallocates for the requested range, so it should not be exposed
     /// directly via rpc.
+    #[instrument(level = "trace", skip(self), err)]
     pub(crate) fn get_batch_range(
         &self,
         range: &std::ops::Range<BatchNumber>,
@@ -154,6 +159,7 @@ impl LedgerDB {
     /// the range of the database, the result will smaller than the requested range.
     /// Note that this method blindly preallocates for the requested range, so it should not be exposed
     /// directly via rpc.
+    #[instrument(level = "trace", skip(self), err)]
     pub fn get_soft_batch_range(
         &self,
         range: &std::ops::Range<BatchNumber>,
@@ -165,6 +171,7 @@ impl LedgerDB {
     /// the range of the database, the result will smaller than the requested range.
     /// Note that this method blindly preallocates for the requested range, so it should not be exposed
     /// directly via rpc.
+    #[instrument(level = "trace", skip(self), err)]
     pub(crate) fn get_tx_range(
         &self,
         range: &std::ops::Range<TxNumber>,
@@ -176,6 +183,7 @@ impl LedgerDB {
     /// the range of the database, the result will smaller than the requested range.
     /// Note that this method blindly preallocates for the requested range, so it should not be exposed
     /// directly via rpc.
+    #[instrument(level = "trace", skip_all, err)]
     fn get_data_range<T, K, V>(&self, range: &std::ops::Range<K>) -> Result<Vec<V>, anyhow::Error>
     where
         T: Schema<Key = K, Value = V>,
@@ -193,6 +201,7 @@ impl LedgerDB {
         Ok(out)
     }
 
+    #[instrument(level = "trace", skip(self, schema_batch), err, ret)]
     fn put_slot(
         &self,
         slot: &StoredSlot,
@@ -203,6 +212,7 @@ impl LedgerDB {
         schema_batch.put::<SlotByHash>(&slot.hash, slot_number)
     }
 
+    #[instrument(level = "trace", skip(self, schema_batch), err, ret)]
     fn put_soft_batch(
         &self,
         batch: &StoredSoftBatch,
@@ -213,6 +223,7 @@ impl LedgerDB {
         schema_batch.put::<SoftBatchByHash>(&batch.hash, batch_number)
     }
 
+    #[instrument(level = "trace", skip(self, schema_batch), err, ret)]
     fn put_batch(
         &self,
         batch: &StoredBatch,
@@ -223,6 +234,7 @@ impl LedgerDB {
         schema_batch.put::<BatchByHash>(&batch.hash, batch_number)
     }
 
+    #[instrument(level = "trace", skip(self, tx, schema_batch), err, ret)]
     fn put_transaction(
         &self,
         tx: &StoredTransaction,
@@ -233,6 +245,7 @@ impl LedgerDB {
         schema_batch.put::<TxByHash>(&tx.hash, tx_number)
     }
 
+    #[instrument(level = "trace", skip_all, fields(event_number, tx_number), err, ret)]
     fn put_event(
         &self,
         event: &Event,
@@ -333,6 +346,7 @@ impl LedgerDB {
 
     /// Commits a slot to the database by inserting its events, transactions, and batches before
     /// inserting the slot metadata.
+    #[instrument(level = "trace", skip_all, err, ret)]
     pub fn commit_slot<S: SlotData, B: Serialize, T: Serialize>(
         &self,
         data_to_commit: SlotCommit<S, B, T>,
@@ -415,6 +429,7 @@ impl LedgerDB {
     }
 
     /// Records the L2 height that was created as a soft confirmaiton of an L1 height
+    #[instrument(level = "trace", skip(self), err, ret)]
     pub fn extend_l2_range_of_l1_slot(
         &self,
         l1_height: SlotNumber,
@@ -438,6 +453,7 @@ impl LedgerDB {
     }
 
     /// Used by the sequencer to record that it has committed to soft confirmations on a given L1 height
+    #[instrument(level = "trace", skip(self), err, ret)]
     pub fn set_last_sequencer_commitment_l1_height(
         &self,
         l1_height: SlotNumber,
@@ -453,6 +469,7 @@ impl LedgerDB {
     }
 
     /// Saves a soft confirmation status for a given L1 height
+    #[instrument(level = "trace", skip(self), err, ret)]
     pub fn put_soft_confirmation_status(
         &self,
         height: SlotNumber,
@@ -483,6 +500,7 @@ impl LedgerDB {
     }
 
     /// Get the most recent committed slot, if any
+    #[instrument(level = "trace", skip(self), err)]
     pub fn get_head_slot(&self) -> anyhow::Result<Option<(SlotNumber, StoredSlot)>> {
         let mut iter = self.db.iter::<SlotByNumber>()?;
         iter.seek_to_last();
@@ -495,6 +513,7 @@ impl LedgerDB {
     }
 
     /// Get the most recent committed soft batch, if any
+    #[instrument(level = "trace", skip(self), err)]
     pub fn get_head_soft_batch(&self) -> anyhow::Result<Option<(BatchNumber, StoredSoftBatch)>> {
         let mut iter = self.db.iter::<SoftBatchByNumber>()?;
         iter.seek_to_last();
@@ -510,12 +529,14 @@ impl LedgerDB {
     /// Returns L1 height, which means the corresponding L2 heights
     /// were committed.
     /// Called by the sequencer.
+    #[instrument(level = "trace", skip(self), err, ret)]
     pub fn get_last_sequencer_commitment_l1_height(&self) -> anyhow::Result<Option<SlotNumber>> {
         self.db.get::<LastSequencerCommitmentSent>(&())
     }
 
     /// Get L2 height range for a given L1 height.
     /// This means L2 heights in that range were soft confirmations for L1 height.
+    #[instrument(level = "trace", skip(self), err, ret)]
     pub fn get_l2_range_by_l1_height(
         &self,
         l1_height: SlotNumber,
@@ -524,12 +545,14 @@ impl LedgerDB {
     }
 
     /// Get the last scanned slot by the prover
+    #[instrument(level = "trace", skip(self), err, ret)]
     pub fn get_prover_last_scanned_l1_height(&self) -> anyhow::Result<Option<SlotNumber>> {
         self.db.get::<ProverLastScannedSlot>(&())
     }
 
     /// Set the last scanned slot by the prover
     /// Called by the prover.
+    #[instrument(level = "trace", skip(self), err, ret)]
     pub fn set_prover_last_scanned_l1_height(&self, l1_height: SlotNumber) -> anyhow::Result<()> {
         let mut schema_batch = SchemaBatch::new();
 
@@ -543,6 +566,7 @@ impl LedgerDB {
 
     /// Gets the commitments in the da slot with given height if any
     /// Adds the new coming commitment info
+    #[instrument(level = "trace", skip(self, commitment), err, ret)]
     pub fn update_commitments_on_da_slot(
         &self,
         height: u64,
@@ -566,6 +590,7 @@ impl LedgerDB {
     }
 
     /// Gets the commitments in the da slot with given height if any
+    #[instrument(level = "trace", skip(self), err)]
     pub fn get_commitments_on_da_slot(
         &self,
         height: u64,
@@ -574,6 +599,7 @@ impl LedgerDB {
     }
 
     /// Stores proof related data on disk, accessible via l1 slot height
+    #[instrument(level = "trace", skip(self, proof, state_transition), err, ret)]
     pub fn put_proof_data(
         &self,
         l1_height: u64,
@@ -591,6 +617,7 @@ impl LedgerDB {
     }
 
     /// Stores proof related data on disk, accessible via l1 slot height
+    #[instrument(level = "trace", skip(self, proof, state_transition), err, ret)]
     pub fn update_verified_proof_data(
         &self,
         l1_height: u64,
@@ -622,11 +649,13 @@ impl LedgerDB {
     }
 
     /// Sets l1 height of l1 hash
+    #[instrument(level = "trace", skip(self), err, ret)]
     pub fn set_l1_height_of_l1_hash(&self, hash: [u8; 32], height: u64) -> anyhow::Result<()> {
         self.db.put::<SlotByHash>(&hash, &SlotNumber(height))
     }
 
     /// Gets l1 height of l1 hash
+    #[instrument(level = "trace", skip(self), err, ret)]
     pub fn get_l1_height_of_l1_hash(&self, hash: [u8; 32]) -> Result<Option<u64>, anyhow::Error> {
         self.db.get::<SlotByHash>(&hash).map(|v| v.map(|a| a.0))
     }

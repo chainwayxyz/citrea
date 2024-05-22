@@ -4,6 +4,7 @@ use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::prelude::*;
 use sov_modules_api::{AccessoryWorkingSet, Spec, WorkingSet};
 use sov_state::Storage;
+use tracing::instrument;
 
 use crate::evm::primitive_types::{Block, BlockEnv};
 use crate::evm::system_events::SystemEvent;
@@ -14,7 +15,7 @@ where
     <C::Storage as Storage>::Root: Into<[u8; 32]>,
 {
     /// Logic executed at the beginning of the slot. Here we set the state root of the previous head.
-    #[allow(clippy::too_many_arguments)]
+    #[instrument(level = "trace", skip(self, working_set), ret)]
     pub fn begin_soft_confirmation_hook(
         &self,
         soft_confirmation_info: &HookSoftConfirmationInfo,
@@ -131,6 +132,7 @@ where
 
     /// Logic executed at the end of the slot. Here, we generate an authenticated block and set it as the new head of the chain.
     /// It's important to note that the state root hash is not known at this moment, so we postpone setting this field until the begin_slot_hook of the next slot.
+    #[instrument(level = "trace", skip_all, ret)]
     pub fn end_soft_confirmation_hook(&self, working_set: &mut WorkingSet<C>) {
         let cfg = self
             .cfg
@@ -256,6 +258,7 @@ where
     /// However, non-state data can be modified.
     /// This function's purpose is to add the block to the (non-authenticated) blocks structure,
     /// enabling block-related RPC queries.
+    #[instrument(level = "trace", skip(self, accessory_working_set), ret)]
     pub fn finalize_hook(
         &self,
         root_hash: &<<C as Spec>::Storage as Storage>::Root,

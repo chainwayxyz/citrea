@@ -7,7 +7,7 @@ use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
 use sov_rollup_interface::stf::{BatchReceipt, TransactionReceipt};
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 use sov_zk_cycle_macros::cycle_tracker;
-use tracing::{debug, error};
+use tracing::{debug, error, instrument};
 
 use crate::tx_verifier::{verify_txs_stateless, TransactionAndRawHash};
 use crate::{RawTx, Runtime, RuntimeTxHook, SlashingReason, TxEffect};
@@ -54,6 +54,7 @@ where
     }
 
     /// Applies sov txs to the state
+    #[instrument(level = "trace", skip_all)]
     pub fn apply_sov_txs_inner(
         &self,
         txs: Vec<Vec<u8>>,
@@ -146,6 +147,7 @@ where
 
     /// Begins the inner processes of applying soft confirmation
     /// Module hooks are called here
+    #[instrument(level = "trace", skip_all)]
     pub fn begin_soft_confirmation_inner(
         &self,
         checkpoint: StateCheckpoint<C>,
@@ -187,6 +189,7 @@ where
 
     /// Ends the inner processes of applying soft confirmation
     /// Module hooks are called here
+    #[instrument(level = "trace", skip_all)]
     pub fn end_soft_confirmation_inner(
         &self,
         soft_batch: &mut SignedSoftConfirmationBatch,

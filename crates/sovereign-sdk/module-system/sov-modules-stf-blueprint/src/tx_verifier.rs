@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{Context, Spec};
 use sov_rollup_interface::digest::Digest;
-use tracing::debug;
+use tracing::{debug, instrument};
 
 type RawTxHash = [u8; 32];
 
@@ -27,6 +27,7 @@ impl RawTx {
     }
 }
 
+#[instrument(level = "trace", skip_all, err)]
 pub(crate) fn verify_txs_stateless<C: Context>(
     raw_txs: Vec<RawTx>,
 ) -> anyhow::Result<Vec<TransactionAndRawHash<C>>> {

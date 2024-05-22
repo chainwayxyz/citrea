@@ -21,6 +21,7 @@ sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
 borsh = { workspace = true }
 serde = { workspace = true }
 anyhow = { workspace = true }
+tracing = { workspace = true }
 jsonrpsee = { workspace = true, features = [
     "macros",
     "client-core",
