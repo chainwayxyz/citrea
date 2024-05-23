@@ -11,7 +11,7 @@ use sov_modules_api::Spec;
 use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_state::storage::NativeStorage;
 use sov_stf_runner::{from_toml_path, ProverConfig, RollupConfig};
-use tracing::error;
+use tracing::{error, instrument};
 
 #[cfg(test)]
 mod test_rpc;
@@ -101,6 +101,7 @@ async fn main() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
+#[instrument(level = "trace", skip_all, err)]
 async fn start_rollup<S, DaC>(
     rt_genesis_paths: &<<S as RollupBlueprint>::NativeRuntime as sov_modules_stf_blueprint::Runtime<
         <S as RollupBlueprint>::NativeContext,

@@ -4,6 +4,7 @@ use deadpool_postgres::tokio_postgres::config::Config as PgConfig;
 use deadpool_postgres::tokio_postgres::{NoTls, Row};
 use deadpool_postgres::{Manager, ManagerConfig, Object, Pool, PoolError, RecyclingMethod};
 use sov_rollup_interface::rpc::StateTransitionRpcResponse;
+use tracing::instrument;
 
 use crate::config::SharedBackupDbConfig;
 use crate::tables::{
@@ -19,6 +20,7 @@ pub struct PostgresConnector {
 }
 
 impl PostgresConnector {
+    #[instrument(level = "trace", err)]
     pub async fn new(pg_config: SharedBackupDbConfig) -> Result<Self, PoolError> {
         let mut cfg: PgConfig = pg_config.clone().into();
 
@@ -64,10 +66,12 @@ impl PostgresConnector {
         Ok(db_client)
     }
 
+    #[instrument(level = "trace", skip(self), err)]
     pub async fn client(&self) -> Result<Object, PoolError> {
         self.client.get().await
     }
 
+    #[instrument(level = "trace", skip(self), err, ret)]
     pub async fn create_indexes(&self) -> Result<(), PoolError> {
         let client = self.client().await?;
         client.batch_execute(INDEX_L1_END_HEIGHT).await?;
@@ -127,6 +131,7 @@ impl PostgresConnector {
     }
 
     #[allow(clippy::too_many_arguments)]
+    #[instrument(level = "trace", skip_all, fields(l1_start_height), err, ret)]
     pub async fn insert_sequencer_commitment(
         &self,
         l1_start_height: u32,
@@ -157,6 +162,7 @@ impl PostgresConnector {
             ).await?)
     }
 
+    #[instrument(level = "trace", skip(self, tx), err, ret)]
     pub async fn insert_mempool_tx(&self, tx_hash: Vec<u8>, tx: Vec<u8>) -> Result<u64, PoolError> {
         let client = self.client().await?;
         Ok(client
@@ -167,6 +173,7 @@ impl PostgresConnector {
             .await?)
     }
 
+    #[instrument(level = "trace", skip(self), err)]
     pub async fn get_all_commitments(&self) -> Result<Vec<DbSequencerCommitment>, PoolError> {
         let client = self.client().await?;
         Ok(client
@@ -177,6 +184,7 @@ impl PostgresConnector {
             .collect())
     }
 
+    #[instrument(level = "trace", skip(self), err)]
     pub async fn get_all_txs(&self) -> Result<Vec<DbMempoolTx>, PoolError> {
         let client = self.client().await?;
         Ok(client
@@ -187,6 +195,7 @@ impl PostgresConnector {
             .collect())
     }
 
+    #[instrument(level = "trace", skip(self), err)]
     pub async fn get_last_commitment(&self) -> Result<Option<DbSequencerCommitment>, PoolError> {
         let client = self.client().await?;
         let rows = client
@@ -203,6 +212,7 @@ impl PostgresConnector {
         )))
     }
 
+    #[instrument(level = "trace", skip_all, err, ret)]
     pub async fn delete_txs_by_tx_hashes(&self, tx_hashes: Vec<Vec<u8>>) -> Result<u64, PoolError> {
         let client = self.client().await?;
         Ok(client
@@ -214,6 +224,7 @@ impl PostgresConnector {
     }
 
     #[allow(clippy::too_many_arguments)]
+    #[instrument(level = "trace", skip_all, fields(l1_tx_id), err, ret)]
     pub async fn insert_proof_data(
         &self,
         l1_tx_id: Vec<u8>,
@@ -232,6 +243,7 @@ impl PostgresConnector {
             .await?)
     }
 
+    #[instrument(level = "trace", skip(self), err)]
     pub async fn get_all_proof_data(&self) -> Result<Vec<DbProof>, PoolError> {
         let client = self.client().await?;
         Ok(client
@@ -242,6 +254,7 @@ impl PostgresConnector {
             .collect())
     }
 
+    #[instrument(level = "trace", skip(self), fields(%table), err, ret)]
     pub async fn drop_table(&self, table: Tables) -> Result<u64, PoolError> {
         let client = self.client().await?;
         Ok(client
@@ -250,6 +263,7 @@ impl PostgresConnector {
     }
 
     #[cfg(test)]
+    #[instrument(level = "trace", skip(self), fields(%table), ret)]
     pub async fn create_table(&self, table: Tables) {
         let client = self.client().await.unwrap();
         let query = match table {

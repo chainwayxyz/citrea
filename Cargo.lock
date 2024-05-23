@@ -1022,6 +1022,7 @@ dependencies = [
  "reqwest 0.12.3",
  "serde",
  "serde_json",
+ "sov-modules-api",
  "sov-rollup-interface",
  "thiserror",
  "tokio",
@@ -8700,6 +8701,7 @@ dependencies = [
  "serde",
  "sov-rollup-interface",
  "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -8831,6 +8833,7 @@ dependencies = [
  "sov-rollup-interface",
  "sov-state",
  "tempfile",
+ "tracing",
 ]
 
 [[package]]
@@ -8972,6 +8975,7 @@ dependencies = [
  "sov-schema-db",
  "tempfile",
  "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -9141,6 +9145,7 @@ dependencies = [
  "sov-state",
  "sov-stf-runner",
  "tokio",
+ "tracing",
 ]
 
 [[package]]

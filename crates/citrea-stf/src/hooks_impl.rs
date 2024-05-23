@@ -8,6 +8,8 @@ use sov_modules_api::{AccessoryWorkingSet, Context, Spec, WorkingSet};
 use sov_modules_stf_blueprint::{RuntimeTxHook, SequencerOutcome};
 use sov_rollup_interface::da::{BlobReaderTrait, DaSpec};
 use sov_state::Storage;
+#[cfg(feature = "native")]
+use tracing::instrument;
 
 use crate::runtime::Runtime;
 
@@ -16,6 +18,7 @@ impl<C: Context, Da: DaSpec> TxHooks for Runtime<C, Da> {
     type PreArg = RuntimeTxHook<C>;
     type PreResult = C;
 
+    #[cfg_attr(feature = "native", instrument(level = "trace", skip_all, err))]
     fn pre_dispatch_tx_hook(
         &self,
         tx: &Transaction<Self::Context>,
@@ -30,6 +33,7 @@ impl<C: Context, Da: DaSpec> TxHooks for Runtime<C, Da> {
         Ok(C::new(sender, sequencer, *height))
     }
 
+    #[cfg_attr(feature = "native", instrument(level = "trace", skip_all, ret))]
     fn post_dispatch_tx_hook(
         &self,
         tx: &Transaction<Self::Context>,
@@ -65,6 +69,10 @@ impl<C: Context, Da: DaSpec> ApplySoftConfirmationHooks<Da> for Runtime<C, Da> {
     type SoftConfirmationResult =
         SequencerOutcome<<<Da as DaSpec>::BlobTransaction as BlobReaderTrait>::Address>;
 
+    #[cfg_attr(
+        feature = "native",
+        instrument(level = "trace", skip(self, working_set), err, ret)
+    )]
     fn begin_soft_confirmation_hook(
         &self,
         soft_batch: &mut HookSoftConfirmationInfo,
@@ -79,6 +87,7 @@ impl<C: Context, Da: DaSpec> ApplySoftConfirmationHooks<Da> for Runtime<C, Da> {
         Ok(())
     }
 
+    #[cfg_attr(feature = "native", instrument(level = "trace", skip_all, err, ret))]
     fn end_soft_confirmation_hook(
         &self,
         working_set: &mut WorkingSet<C>,
@@ -106,6 +115,10 @@ impl<C: Context, Da: DaSpec> SlotHooks<Da> for Runtime<C, Da> {
 impl<C: Context, Da: sov_modules_api::DaSpec> FinalizeHook<Da> for Runtime<C, Da> {
     type Context = C;
 
+    #[cfg_attr(
+        feature = "native",
+        instrument(level = "trace", skip(self, accessory_working_set), ret)
+    )]
     fn finalize_hook(
         &self,
         root_hash: &<<Self::Context as Spec>::Storage as Storage>::Root,
