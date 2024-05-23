@@ -163,7 +163,7 @@ where
         loop {
             let exponential_backoff = ExponentialBackoffBuilder::new()
                 .with_initial_interval(Duration::from_secs(1))
-                .with_max_elapsed_time(Some(Duration::from_secs(15 * 60)))
+                .with_max_elapsed_time(Some(Duration::from_secs(5 * 60)))
                 .build();
             let status = self
                 .prover_state
