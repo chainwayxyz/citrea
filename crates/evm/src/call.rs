@@ -4,8 +4,9 @@ use anyhow::Result;
 use reth_primitives::TransactionSignedEcRecovered;
 use revm::primitives::{CfgEnv, CfgEnvWithHandlerCfg, EVMError, SpecId};
 use sov_modules_api::prelude::*;
-use sov_modules_api::{CallResponse, WorkingSet};
-use tracing::{error, instrument};
+use sov_modules_api::{native_error, CallResponse, WorkingSet};
+#[cfg(feature = "native")]
+use tracing::instrument;
 
 use crate::evm::db::EvmDb;
 use crate::evm::executor::{self};
@@ -31,7 +32,7 @@ pub struct CallMessage {
 
 impl<C: sov_modules_api::Context> Evm<C> {
     /// Executes system events for the current block and push tx to pending_transactions.
-    #[instrument(level = "debug", skip_all, ret)]
+    #[cfg_attr(feature = "native", instrument(level = "debug", skip_all, ret))]
     pub(crate) fn execute_system_events(
         &self,
         system_events: Vec<SystemEvent>,
@@ -55,13 +56,13 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .get(&BitcoinLightClient::address(), working_set)
             .is_some();
         if !l1_block_hash_exists {
-            error!("System contract not found: BitcoinLightClient");
+            native_error!("System contract not found: BitcoinLightClient");
             return;
         }
 
         let bridge_contract_exists = self.accounts.get(&Bridge::address(), working_set).is_some();
         if !bridge_contract_exists {
-            error!("System contract not found: Bridge");
+            native_error!("System contract not found: Bridge");
             return;
         }
 
@@ -127,7 +128,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     }
 
     /// Executes a call message.
-    #[instrument(level = "debug", skip_all, ret, err)]
+    #[cfg_attr(feature = "native", instrument(level = "debug", skip_all, ret, err))]
     pub(crate) fn execute_call(
         &self,
         txs: Vec<RlpEvmTransaction>,
@@ -220,7 +221,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 // Adopted from https://github.com/paradigmxyz/reth/blob/main/crates/payload/basic/src/lib.rs#L884
                 Err(err) => match err {
                     EVMError::Transaction(_) => {
-                        error!("evm: Transaction error: {:?}", err);
+                        native_error!("evm: Transaction error: {:?}", err);
                         // This is a transactional error, so we can skip it without doing anything.
                         continue;
                     }
@@ -233,11 +234,11 @@ impl<C: sov_modules_api::Context> Evm<C> {
                                 .push(&evm_tx_recovered.hash(), &mut working_set.accessory_state());
                         }
                         // This is a custom error - we need to log it but no need to shutdown the system as of now.
-                        error!("evm: Custom error: {:?}", msg);
+                        native_error!("evm: Custom error: {:?}", msg);
                         continue;
                     }
                     err => {
-                        error!("evm: Transaction error: {:?}", err);
+                        native_error!("evm: Transaction error: {:?}", err);
                         // This is a fatal error, so we need to return it.
                         return Err(err.into());
                     }

@@ -1008,6 +1008,7 @@ dependencies = [
  "reqwest 0.12.3",
  "serde",
  "serde_json",
+ "sov-modules-api",
  "sov-rollup-interface",
  "thiserror",
  "tokio",

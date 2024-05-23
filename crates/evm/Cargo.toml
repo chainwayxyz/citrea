@@ -31,7 +31,7 @@ jsonrpsee = { workspace = true, features = [
     "client-core",
     "server",
 ], optional = true }
-tracing = { workspace = true }
+tracing = { workspace = true, optional = true }
 
 
 ethereum-types = { workspace = true, optional = true }
@@ -94,6 +94,7 @@ native = [
     "itertools",
     "serde_json",
     "secp256k1",
+    "dep:tracing",
 ]
 serde = []
 smart_contracts = [

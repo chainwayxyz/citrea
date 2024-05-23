@@ -772,7 +772,6 @@ dependencies = [
  "sov-modules-api",
  "sov-state",
  "thiserror",
- "tracing",
 ]
 
 [[package]]
@@ -792,7 +791,6 @@ dependencies = [
  "sov-rollup-interface",
  "sov-state",
  "sov-stf-runner",
- "tracing",
 ]
 
 [[package]]
@@ -2785,7 +2783,6 @@ dependencies = [
  "sov-state",
  "sov-zk-cycle-macros",
  "thiserror",
- "tracing",
 ]
 
 [[package]]

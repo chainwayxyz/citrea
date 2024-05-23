@@ -3,9 +3,10 @@ use std::io::Cursor;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_modules_api::transaction::Transaction;
-use sov_modules_api::{Context, Spec};
+use sov_modules_api::{native_debug, Context, Spec};
 use sov_rollup_interface::digest::Digest;
-use tracing::{debug, instrument};
+#[cfg(feature = "native")]
+use tracing::instrument;
 
 type RawTxHash = [u8; 32];
 
@@ -27,12 +28,12 @@ impl RawTx {
     }
 }
 
-#[instrument(level = "trace", skip_all, err)]
+#[cfg_attr(feature = "native", instrument(level = "trace", skip_all, err))]
 pub(crate) fn verify_txs_stateless<C: Context>(
     raw_txs: Vec<RawTx>,
 ) -> anyhow::Result<Vec<TransactionAndRawHash<C>>> {
     let mut txs = Vec::with_capacity(raw_txs.len());
-    debug!("Verifying {} transactions", raw_txs.len());
+    native_debug!("Verifying {} transactions", raw_txs.len());
     for raw_tx in raw_txs {
         let raw_tx_hash = raw_tx.hash::<C>();
         let mut data = Cursor::new(&raw_tx.data);

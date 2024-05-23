@@ -15,8 +15,9 @@ use sov_modules_api::hooks::{
     SlotHooks, TxHooks,
 };
 use sov_modules_api::{
-    BasicAddress, BlobReaderTrait, Context, DaSpec, DispatchCall, Genesis, Signature, Spec,
-    StateCheckpoint, StateDiff, UnsignedSoftConfirmationBatch, WorkingSet, Zkvm,
+    native_debug, native_info, native_warn, BasicAddress, BlobReaderTrait, Context, DaSpec,
+    DispatchCall, Genesis, Signature, Spec, StateCheckpoint, StateDiff,
+    UnsignedSoftConfirmationBatch, WorkingSet, Zkvm,
 };
 use sov_rollup_interface::da::{DaData, SequencerCommitment};
 use sov_rollup_interface::digest::Digest;
@@ -24,10 +25,7 @@ use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
 pub use sov_rollup_interface::stf::{BatchReceipt, TransactionReceipt};
 use sov_rollup_interface::stf::{SlotResult, StateTransitionFunction};
 use sov_state::Storage;
-#[cfg(all(target_os = "zkvm", feature = "bench"))]
-use sov_zk_cycle_macros::cycle_tracker;
 pub use stf_blueprint::StfBlueprint;
-use tracing::{debug, info, warn};
 pub use tx_verifier::RawTx;
 
 /// The tx hook for a blueprint runtime
@@ -186,7 +184,7 @@ where
         slot_header: &<Da as DaSpec>::BlockHeader,
         soft_batch: &mut SignedSoftConfirmationBatch,
     ) -> (Result<(), ApplySoftConfirmationError>, WorkingSet<C>) {
-        debug!("Applying soft batch in STF Blueprint");
+        native_debug!("Applying soft batch in STF Blueprint");
 
         // check if soft confirmation is coming from our sequencer
         assert_eq!(
@@ -286,7 +284,7 @@ where
         TxEffect,
         <<C as Spec>::Storage as Storage>::Witness,
     > {
-        info!(
+        native_info!(
             "soft batch  with hash: {:?} from sequencer {:?} has been applied with #{} transactions.",
             soft_batch.hash(),
             soft_batch.sequencer_pub_key(),
@@ -296,7 +294,7 @@ where
         let mut batch_receipts = vec![];
 
         for (i, tx_receipt) in batch_receipt.tx_receipts.iter().enumerate() {
-            info!(
+            native_info!(
                 "tx #{} hash: 0x{} result {:?}",
                 i,
                 hex::encode(tx_receipt.tx_hash),
@@ -452,7 +450,7 @@ where
                 self.finalize_soft_batch(batch_receipt, checkpoint, pre_state, soft_batch)
             }
             (Err(err), batch_workspace) => {
-                warn!(
+                native_warn!(
                     "Error applying soft batch: {:?} \n reverting batch workspace",
                     err
                 );

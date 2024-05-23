@@ -16,7 +16,9 @@ use revm::primitives::{
 use revm::{Context, Database, FrameResult, InnerEvmContext, JournalEntry};
 #[cfg(feature = "native")]
 use revm::{EvmContext, Inspector};
-use tracing::{debug, error, instrument, warn};
+use sov_modules_api::{native_debug, native_error, native_warn};
+#[cfg(feature = "native")]
+use tracing::instrument;
 
 use crate::system_events::SYSTEM_SIGNER;
 
@@ -77,17 +79,17 @@ impl CitreaExternalExt for CitreaExternal {
     fn l1_fee_rate(&self) -> u128 {
         self.l1_fee_rate
     }
-    #[instrument(level = "trace", skip(self))]
+    #[cfg_attr(feature = "native", instrument(level = "trace", skip(self)))]
     fn set_current_tx_hash(&mut self, hash: B256) {
         self.current_tx_hash.replace(hash);
     }
-    #[instrument(level = "trace", skip(self))]
+    #[cfg_attr(feature = "native", instrument(level = "trace", skip(self)))]
     fn set_tx_info(&mut self, info: TxInfo) {
         let current_tx_hash = self.current_tx_hash.take();
         if let Some(hash) = current_tx_hash {
             self.tx_infos.insert(hash, info);
         } else {
-            error!("No hash set for the current tx in Citrea handler");
+            native_error!("No hash set for the current tx in Citrea handler");
         }
     }
     fn get_tx_info(&self, tx_hash: B256) -> Option<TxInfo> {
@@ -202,7 +204,7 @@ impl CitreaEnv for &'_ Env {
 }
 
 impl<EXT, DB: Database> CitreaEnv for &'_ mut Context<EXT, DB> {
-    #[instrument(level = "debug", skip(self), ret)]
+    #[cfg_attr(feature = "native", instrument(level = "debug", skip(self), ret))]
     fn is_system_caller(&self) -> bool {
         (&*self.evm.env).is_system_caller()
     }
@@ -284,7 +286,7 @@ impl<SPEC: Spec, EXT: CitreaExternalExt, DB: Database> CitreaHandler<SPEC, EXT, 
         }
         revm::handler::mainnet::validate_tx_against_state::<SPEC, EXT, DB>(context)
     }
-    #[instrument(level = "trace", skip_all)]
+    #[cfg_attr(feature = "native", instrument(level = "trace", skip_all))]
     fn deduct_caller(context: &mut Context<EXT, DB>) -> Result<(), EVMError<DB::Error>> {
         if context.is_system_caller() {
             // System caller doesn't spend gas.
@@ -304,7 +306,7 @@ impl<SPEC: Spec, EXT: CitreaExternalExt, DB: Database> CitreaHandler<SPEC, EXT, 
         }
         revm::handler::mainnet::deduct_caller::<SPEC, EXT, DB>(context)
     }
-    #[instrument(level = "trace", skip_all)]
+    #[cfg_attr(feature = "native", instrument(level = "trace", skip_all))]
     fn reimburse_caller(
         context: &mut Context<EXT, DB>,
         gas: &Gas,
@@ -315,7 +317,7 @@ impl<SPEC: Spec, EXT: CitreaExternalExt, DB: Database> CitreaHandler<SPEC, EXT, 
         }
         revm::handler::mainnet::reimburse_caller::<SPEC, EXT, DB>(context, gas)
     }
-    #[instrument(level = "trace", fields(gas), skip_all)]
+    #[cfg_attr(feature = "native", instrument(level = "trace", fields(gas), skip_all))]
     fn reward_beneficiary(
         context: &mut Context<EXT, DB>,
         gas: &Gas,
@@ -347,7 +349,7 @@ impl<SPEC: Spec, EXT: CitreaExternalExt, DB: Database> CitreaHandler<SPEC, EXT, 
 
         Ok(())
     }
-    #[instrument(level = "trace", skip_all, fields(caller = %context.evm.env.tx.caller))]
+    #[cfg_attr(feature = "native", instrument(level = "trace", skip_all, fields(caller = %context.evm.env.tx.caller)))]
     fn post_execution_output(
         context: &mut Context<EXT, DB>,
         result: FrameResult,
@@ -373,7 +375,7 @@ impl<SPEC: Spec, EXT: CitreaExternalExt, DB: Database> CitreaHandler<SPEC, EXT, 
 }
 
 /// Calculates the diff of the modified state.
-#[instrument(level = "trace", skip_all)]
+#[cfg_attr(feature = "native", instrument(level = "trace", skip_all))]
 fn calc_diff_size<EXT, DB: Database>(
     context: &mut Context<EXT, DB>,
 ) -> Result<usize, <DB as Database>::Error> {
@@ -440,7 +442,7 @@ fn calc_diff_size<EXT, DB: Database>(
             _ => {}
         }
     }
-    debug!(
+    native_debug!(
         accounts = account_changes.len(),
         "Total accounts for diff size"
     );
@@ -491,7 +493,7 @@ fn calc_diff_size<EXT, DB: Database>(
             if let Some(code) = account.info.code.as_ref() {
                 diff_size += code.len()
             } else {
-                warn!(
+                native_warn!(
                     "Code must exist for account when calculating diff: {}",
                     addr,
                 );
@@ -523,7 +525,7 @@ fn calc_diff_size<EXT, DB: Database>(
     Ok(diff_size)
 }
 
-#[instrument(level = "trace", skip(context))]
+#[cfg_attr(feature = "native", instrument(level = "trace", skip(context)))]
 fn change_balance<EXT, DB: Database>(
     context: &mut Context<EXT, DB>,
     amount: U256,
@@ -540,7 +542,7 @@ fn change_balance<EXT, DB: Database>(
     account.mark_touch();
 
     let balance = &mut account.info.balance;
-    debug!(%balance);
+    native_debug!(%balance);
 
     let new_balance = if positive {
         balance.saturating_add(amount)

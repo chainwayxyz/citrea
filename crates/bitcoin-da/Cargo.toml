@@ -12,6 +12,7 @@ rust-version = "1.66"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api", default-features = false }
 sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
 
 tokio = { workspace = true, features = ["full"], optional = true }
@@ -20,7 +21,7 @@ reqwest = { workspace = true, optional = true }
 base64 = "0.13.1"
 hex = { workspace = true, features = ["serde"] }
 pin-project = { workspace = true, optional = true, features = [] }
-tracing = { workspace = true }
+tracing = { workspace = true, optional = true }
 rand = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true, features = ["raw_value"] }
@@ -40,5 +41,6 @@ native = [
     "dep:tokio",
     "dep:reqwest",
     "dep:pin-project",
+    "dep:tracing",
     "sov-rollup-interface/native",
 ]

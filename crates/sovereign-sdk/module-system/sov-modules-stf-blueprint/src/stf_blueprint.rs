@@ -2,12 +2,15 @@ use std::marker::PhantomData;
 
 use borsh::BorshSerialize;
 use sov_modules_api::hooks::{ApplySoftConfirmationError, HookSoftConfirmationInfo};
-use sov_modules_api::{Context, DaSpec, DispatchCall, StateCheckpoint, WorkingSet};
+use sov_modules_api::{
+    native_debug, native_error, Context, DaSpec, DispatchCall, StateCheckpoint, WorkingSet,
+};
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
 use sov_rollup_interface::stf::{BatchReceipt, TransactionReceipt};
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 use sov_zk_cycle_macros::cycle_tracker;
-use tracing::{debug, error, instrument};
+#[cfg(feature = "native")]
+use tracing::instrument;
 
 use crate::tx_verifier::{verify_txs_stateless, TransactionAndRawHash};
 use crate::{RawTx, Runtime, RuntimeTxHook, SlashingReason, TxEffect};
@@ -54,7 +57,7 @@ where
     }
 
     /// Applies sov txs to the state
-    #[instrument(level = "trace", skip_all)]
+    #[cfg_attr(feature = "native", instrument(level = "trace", skip_all))]
     pub fn apply_sov_txs_inner(
         &self,
         txs: Vec<Vec<u8>>,
@@ -91,7 +94,7 @@ where
                 Err(e) => {
                     // Don't revert any state changes made by the pre_dispatch_hook even if the Tx is rejected.
                     // For example nonce for the relevant account is incremented.
-                    error!("Stateful verification error - the sequencer included an invalid transaction: {}", e);
+                    native_error!("Stateful verification error - the sequencer included an invalid transaction: {}", e);
                     let receipt = TransactionReceipt {
                         tx_hash: raw_tx_hash,
                         body_to_save: None,
@@ -112,7 +115,7 @@ where
             let tx_effect = match tx_result {
                 Ok(_) => TxEffect::Successful,
                 Err(e) => {
-                    error!(
+                    native_error!(
                         "Tx 0x{} was reverted error: {}",
                         hex::encode(raw_tx_hash),
                         e
@@ -123,7 +126,7 @@ where
                     TxEffect::Reverted
                 }
             };
-            debug!("Tx {} effect: {:?}", hex::encode(raw_tx_hash), tx_effect);
+            native_debug!("Tx {} effect: {:?}", hex::encode(raw_tx_hash), tx_effect);
 
             let receipt = TransactionReceipt {
                 tx_hash: raw_tx_hash,
@@ -147,13 +150,13 @@ where
 
     /// Begins the inner processes of applying soft confirmation
     /// Module hooks are called here
-    #[instrument(level = "trace", skip_all)]
+    #[cfg_attr(feature = "native", instrument(level = "trace", skip_all))]
     pub fn begin_soft_confirmation_inner(
         &self,
         checkpoint: StateCheckpoint<C>,
         soft_batch: &mut SignedSoftConfirmationBatch,
     ) -> (Result<(), ApplySoftConfirmationError>, WorkingSet<C>) {
-        debug!(
+        native_debug!(
             "Beginning soft batch 0x{} from sequencer: 0x{}",
             hex::encode(soft_batch.hash()),
             hex::encode(soft_batch.sequencer_pub_key())
@@ -166,7 +169,7 @@ where
             &mut HookSoftConfirmationInfo::from(soft_batch.clone()),
             &mut batch_workspace,
         ) {
-            error!(
+            native_error!(
                 "Error: The batch was rejected by the 'begin_soft_confirmation_hook'. Skipping batch with error: {}",
                 e
             );
@@ -189,7 +192,7 @@ where
 
     /// Ends the inner processes of applying soft confirmation
     /// Module hooks are called here
-    #[instrument(level = "trace", skip_all)]
+    #[cfg_attr(feature = "native", instrument(level = "trace", skip_all))]
     pub fn end_soft_confirmation_inner(
         &self,
         soft_batch: &mut SignedSoftConfirmationBatch,
@@ -203,7 +206,7 @@ where
             .end_soft_confirmation_hook(&mut batch_workspace)
         {
             // TODO: will be covered in https://github.com/Sovereign-Labs/sovereign-sdk/issues/421
-            error!("Failed on `end_blob_hook`: {}", e);
+            native_error!("Failed on `end_blob_hook`: {}", e);
         };
 
         (
@@ -256,7 +259,7 @@ where
             match RT::decode_call(tx.runtime_msg()) {
                 Ok(msg) => decoded_messages.push(msg),
                 Err(e) => {
-                    error!("Tx 0x{} decoding error: {}", hex::encode(raw_tx_hash), e);
+                    native_error!("Tx 0x{} decoding error: {}", hex::encode(raw_tx_hash), e);
                     return Err(SlashingReason::InvalidTransactionEncoding);
                 }
             }
