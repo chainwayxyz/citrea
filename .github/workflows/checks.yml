@@ -181,6 +181,7 @@ jobs:
       - name: Cache ethereum-tests
         uses: actions/cache@v3
         with:
+          key: "eth-tests"
           path: crates/evm/ethereum-tests
       - name: Run coverage
         run: make coverage
@@ -258,10 +259,8 @@ jobs:
         run: cargo risczero install --version v2024-04-22.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - uses: actions/cache@v3
-        with:
-          key: ${{ runner.os }}-${{ github.job }}-${{ github.head_ref }}
-          path: ./target
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
       - name: Build citrea
         run: make build
       - name: Install node dependencies
@@ -359,6 +358,7 @@ jobs:
       - name: Cache ethereum-tests
         uses: actions/cache@v3
         with:
+          key: "eth-tests"
           path: crates/evm/ethereum-tests
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
