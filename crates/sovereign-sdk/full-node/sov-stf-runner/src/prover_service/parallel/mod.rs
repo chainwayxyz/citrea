@@ -1,7 +1,9 @@
 mod prover;
 use std::sync::Arc;
+use std::time::Duration;
 
 use async_trait::async_trait;
+use backoff::ExponentialBackoffBuilder;
 use borsh::BorshSerialize as _;
 use prover::Prover;
 use serde::de::DeserializeOwned;
@@ -159,6 +161,10 @@ where
         da_service: &Self::DaService,
     ) -> Result<(<Da as DaService>::TransactionId, Proof), anyhow::Error> {
         loop {
+            let exponential_backoff = ExponentialBackoffBuilder::new()
+                .with_initial_interval(Duration::from_secs(1))
+                .with_max_elapsed_time(Some(Duration::from_secs(15 * 60)))
+                .build();
             let status = self
                 .prover_state
                 .get_prover_status_for_da_submission(block_header_hash.clone())?;
@@ -167,12 +173,16 @@ where
                 ProverStatus::Proved(proof) => {
                     let da_data = DaData::ZKProof(proof.clone());
 
-                    let tx_id = da_service
-                        .send_transaction(
-                            da_data.try_to_vec().expect("Should serialize").as_slice(),
-                        )
-                        .await
-                        .map_err(|e| anyhow::anyhow!(e))?;
+                    let tx_id = backoff::future::retry(exponential_backoff, || async {
+                        da_service
+                            .send_transaction(
+                                da_data.try_to_vec().expect("Should serialize").as_slice(),
+                            )
+                            .await
+                            .map_err(backoff::Error::transient)
+                    })
+                    .await
+                    .map_err(|e| anyhow::anyhow!(e))?;
 
                     break Ok((tx_id, proof));
                 }
