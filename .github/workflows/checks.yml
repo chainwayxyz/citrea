@@ -181,7 +181,7 @@ jobs:
       - name: Cache ethereum-tests
         uses: actions/cache@v3
         with:
-          key: "eth-tests"
+          key: "eth-tests-1c23e3c"
           path: crates/evm/ethereum-tests
       - name: Run coverage
         run: make coverage
@@ -358,7 +358,7 @@ jobs:
       - name: Cache ethereum-tests
         uses: actions/cache@v3
         with:
-          key: "eth-tests"
+          key: "eth-tests-1c23e3c"
           path: crates/evm/ethereum-tests
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
