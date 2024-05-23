@@ -1956,7 +1956,6 @@ async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
     seq_test_client.send_publish_batch_request().await;
 
     wait_for_l2_batch(&seq_test_client, 9, Some(Duration::from_secs(60))).await;
-    wait_for_l1_block(&da_service, 5, Some(Duration::from_secs(30))).await;
 
     sleep(Duration::from_secs(2)).await;
 
