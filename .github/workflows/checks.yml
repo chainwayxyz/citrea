@@ -90,6 +90,8 @@ jobs:
         run: cargo risczero install --version v2024-04-22.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
       - name: Run lint
         run: |
           if ! SKIP_GUEST_BUILD=1 make lint ; then
@@ -174,6 +176,12 @@ jobs:
           tool: cargo-risczero@0.19
       - name: Install risc0-zkvm toolchain
         run: cargo risczero install --version v2024-04-22.0
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+      - name: Cache ethereum-tests
+        uses: actions/cache@v3
+        with:
+          path: crates/evm/ethereum-tests
       - name: Run coverage
         run: make coverage
       - name: Upload coverage
@@ -201,10 +209,8 @@ jobs:
         run: cargo risczero install --version v2024-04-22.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - uses: actions/cache@v3
-        with:
-          key: ${{ runner.os }}-${{ github.job }}-${{ github.head_ref }}
-          path: ./target
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
       - name: Build citrea
         run: make build
       - name: Install node dependencies
@@ -350,8 +356,12 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         # `cargo-nextest` is much faster than standard `cargo test`.
       - uses: taiki-e/install-action@nextest
-      - name: Install Rust
-        run: rustup show
+      - name: Cache ethereum-tests
+        uses: actions/cache@v3
+        with:
+          path: crates/evm/ethereum-tests
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
       - name: Run nextest
         run: make test
         env:
