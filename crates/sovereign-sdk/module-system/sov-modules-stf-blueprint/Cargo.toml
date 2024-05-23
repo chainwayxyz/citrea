@@ -20,11 +20,11 @@ tracing = { workspace = true }
 jmt = { workspace = true }
 hex = { workspace = true }
 
-sov-rollup-interface = { path = "../../rollup-interface", version = "0.3" }
-sov-state = { path = "../sov-state", version = "0.3" }
-sov-modules-api = { path = "../sov-modules-api", version = "0.3", default-features = false }
-sov-zk-cycle-macros = { path = "../../utils/zk-cycle-macros", version = "0.3", optional = true }
-sov-zk-cycle-utils = { path = "../../utils/zk-cycle-utils", version = "0.3", optional = true }
+sov-rollup-interface = { path = "../../rollup-interface" }
+sov-state = { path = "../sov-state" }
+sov-modules-api = { path = "../sov-modules-api", default-features = false }
+sov-zk-cycle-macros = { path = "../../utils/zk-cycle-macros", optional = true }
+sov-zk-cycle-utils = { path = "../../utils/zk-cycle-utils", optional = true }
 risc0-zkvm = { workspace = true, default-features = false, features = [
     "std",
 ], optional = true }
@@ -35,11 +35,7 @@ jsonrpsee = { workspace = true, features = ["server"], optional = true }
 [features]
 bench = ["sov-zk-cycle-macros", "risc0-zkvm", "risc0-zkvm-platform"]
 default = []
-native = [
-    "sov-state/native",
-    "sov-modules-api/native",
-    "jsonrpsee",
-]
+native = ["sov-state/native", "sov-modules-api/native", "jsonrpsee"]
 
 [package.metadata.cargo-udeps.ignore]
 normal = [

@@ -27,7 +27,7 @@ rusqlite = { version = "0.31.0", features = ["bundled"], optional = true }
 serde_json = { workspace = true, optional = true }
 tracing = { workspace = true }
 
-sov-rollup-interface = { path = "../../rollup-interface", version = "0.3" }
+sov-rollup-interface = { path = "../../rollup-interface" }
 
 [dev-dependencies]
 futures = { workspace = true }

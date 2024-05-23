@@ -2877,7 +2877,7 @@ dependencies = [
 
 [[package]]
 name = "sov-accounts"
-version = "0.3.0"
+version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "arbitrary",
@@ -2896,7 +2896,7 @@ dependencies = [
 
 [[package]]
 name = "sov-bank"
-version = "0.3.0"
+version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "borsh",
@@ -2912,7 +2912,7 @@ dependencies = [
 
 [[package]]
 name = "sov-celestia-adapter"
-version = "0.3.0"
+version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2941,7 +2941,7 @@ dependencies = [
 
 [[package]]
 name = "sov-db"
-version = "0.3.0"
+version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "bincode",
@@ -2958,7 +2958,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-api"
-version = "0.3.0"
+version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "arbitrary",
@@ -2987,7 +2987,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-core"
-version = "0.3.0"
+version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "arbitrary",
@@ -3008,7 +3008,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-macros"
-version = "0.3.0"
+version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "borsh",
@@ -3021,7 +3021,7 @@ dependencies = [
 
 [[package]]
 name = "sov-prover-storage-manager"
-version = "0.3.0"
+version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "sov-db",
@@ -3033,7 +3033,7 @@ dependencies = [
 
 [[package]]
 name = "sov-rollup-interface"
-version = "0.3.0"
+version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3051,7 +3051,7 @@ dependencies = [
 
 [[package]]
 name = "sov-schema-db"
-version = "0.3.0"
+version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "once_cell",
@@ -3063,7 +3063,7 @@ dependencies = [
 
 [[package]]
 name = "sov-state"
-version = "0.3.0"
+version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "arbitrary",
@@ -3084,7 +3084,7 @@ dependencies = [
 
 [[package]]
 name = "sovereign-sdk-fuzz"
-version = "0.3.0"
+version = "0.4.0-rc.3"
 dependencies = [
  "libfuzzer-sys",
  "rand",

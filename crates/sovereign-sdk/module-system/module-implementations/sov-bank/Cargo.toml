@@ -15,24 +15,38 @@ resolver = "2"
 anyhow = { workspace = true }
 borsh = { workspace = true, features = ["rc"] }
 clap = { workspace = true, optional = true }
-jsonrpsee = { workspace = true, features = ["macros", "client-core", "server"], optional = true }
+jsonrpsee = { workspace = true, features = [
+    "macros",
+    "client-core",
+    "server",
+], optional = true }
 schemars = { workspace = true, optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true, optional = true }
 thiserror = { workspace = true }
 
-sov-modules-api = { path = "../../sov-modules-api", version = "0.3", default-features = false }
-sov-state = { path = "../../sov-state", version = "0.3" }
+sov-modules-api = { path = "../../sov-modules-api", default-features = false }
+sov-state = { path = "../../sov-state" }
 
 
 [dev-dependencies]
 sov-bank = { path = ".", features = ["native", "test-utils"] }
 tempfile = { workspace = true }
-sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-manager", features = ["test-utils"] }
+sov-prover-storage-manager = { path = "../../../full-node/sov-prover-storage-manager", features = [
+    "test-utils",
+] }
 
 [features]
 default = []
-native = ["serde", "serde_json", "jsonrpsee", "clap", "schemars", "sov-state/native", "sov-modules-api/native", ]
+native = [
+    "serde",
+    "serde_json",
+    "jsonrpsee",
+    "clap",
+    "schemars",
+    "sov-state/native",
+    "sov-modules-api/native",
+]
 cli = ["native"]
 serde = []
 test-utils = []
