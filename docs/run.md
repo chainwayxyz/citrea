@@ -18,7 +18,7 @@ For production use cases, we leverage PostgreSQL for a few extra features in the
 If running Postgres is prefered, you can execute the following command:
 
 ```sh
-docker compose up -d -f docker-compose.postgres.yml
+docker compose -f docker-compose.postgres.yml up -d
 
 ```
 this will run postgres in a dockerized daemon mode.
