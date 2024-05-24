@@ -79,8 +79,8 @@ pub struct RollupConfig<DaServiceConfig> {
 pub struct ProverConfig {
     /// Prover run mode
     pub proving_mode: ProverGuestRunConfig,
-    /// If set, the prover will skip proving until the L1 height is reached.
-    pub skip_proving_until_l1_height: Option<u64>,
+    /// Average number of commitments to prove
+    pub proof_sampling_number: usize,
     /// Offchain db config
     pub db_config: Option<SharedBackupDbConfig>,
 }
@@ -89,7 +89,7 @@ impl Default for ProverConfig {
     fn default() -> Self {
         Self {
             proving_mode: ProverGuestRunConfig::Execute,
-            skip_proving_until_l1_height: None,
+            proof_sampling_number: 0,
             db_config: None,
         }
     }
@@ -183,7 +183,7 @@ mod tests {
     fn test_correct_prover_config() {
         let config = r#"
             proving_mode = "skip"
-            skip_proving_until_l1_height = 100
+            proof_sampling_number = 500
 
             [db_config]
             db_host = "localhost"
@@ -198,7 +198,7 @@ mod tests {
         let config: ProverConfig = from_toml_path(config_file.path()).unwrap();
         let expected = ProverConfig {
             proving_mode: ProverGuestRunConfig::Skip,
-            skip_proving_until_l1_height: Some(100),
+            proof_sampling_number: 500,
             db_config: Some(SharedBackupDbConfig::default()),
         };
         assert_eq!(config, expected);

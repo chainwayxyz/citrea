@@ -9,6 +9,7 @@ use borsh::de::BorshDeserialize;
 use borsh::BorshSerialize as _;
 use jsonrpsee::core::Error;
 use jsonrpsee::RpcModule;
+use rand::Rng;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 use sequencer_client::SequencerClient;
@@ -238,6 +239,8 @@ where
         let skip_submission_until_l1 = std::env::var("SKIP_PROOF_SUBMISSION_UNTIL_L1")
             .map_or(0u64, |v| v.parse().unwrap_or(0));
 
+        let mut rng = rand::thread_rng();
+
         // Prover node should sync when a new sequencer commitment arrives
         // Check da block get and sync up to the latest block in the latest commitment
         let last_scanned_l1_height = self
@@ -252,7 +255,9 @@ where
 
         let mut l2_height = self.start_height;
 
-        let pg_client = match self.prover_config.clone().unwrap().db_config {
+        let prover_config = self.prover_config.clone().unwrap();
+
+        let pg_client = match prover_config.db_config {
             Some(db_config) => {
                 tracing::info!("Connecting to postgres");
                 Some(PostgresConnector::new(db_config.clone()).await)
@@ -590,7 +595,9 @@ where
             // Skip submission until l1 height
             // hotfix for devnet deployment
             // TODO: make a better way to skip submission, and fixing deployed bugs
-            if l1_height >= skip_submission_until_l1 {
+            if l1_height >= skip_submission_until_l1
+                && rng.gen_range(0, prover_config.proof_sampling_number) == 0
+            {
                 let prover_service = self
                     .prover_service
                     .as_ref()
@@ -675,6 +682,8 @@ where
                     proof,
                     stored_state_transition,
                 )?;
+            } else {
+                tracing::info!("Skipping proving for l1 height {}", l1_height);
             }
 
             for (sequencer_commitment, l1_heights) in

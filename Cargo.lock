@@ -9388,6 +9388,7 @@ dependencies = [
  "hex",
  "jsonrpsee",
  "num_cpus",
+ "rand 0.8.5",
  "rayon",
  "rs_merkle",
  "sequencer-client",
