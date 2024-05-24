@@ -239,8 +239,6 @@ where
         let skip_submission_until_l1 = std::env::var("SKIP_PROOF_SUBMISSION_UNTIL_L1")
             .map_or(0u64, |v| v.parse().unwrap_or(0));
 
-        let mut rng = rand::thread_rng();
-
         // Prover node should sync when a new sequencer commitment arrives
         // Check da block get and sync up to the latest block in the latest commitment
         let last_scanned_l1_height = self
@@ -592,12 +590,21 @@ where
                     sequencer_da_public_key: self.sequencer_da_pub_key.clone(),
                 };
 
+            let should_prove: bool = {
+                let mut rng = rand::thread_rng();
+                // if proof_sampling_number is 0, then we always prove and submit
+                // otherwise we submit and prove with a probability of 1/proof_sampling_number
+                if prover_config.proof_sampling_number == 0 {
+                    true
+                } else {
+                    rng.gen_range(0..prover_config.proof_sampling_number) == 0
+                }
+            };
+
             // Skip submission until l1 height
             // hotfix for devnet deployment
             // TODO: make a better way to skip submission, and fixing deployed bugs
-            if l1_height >= skip_submission_until_l1
-                && rng.gen_range(0, prover_config.proof_sampling_number) == 0
-            {
+            if l1_height >= skip_submission_until_l1 && should_prove {
                 let prover_service = self
                     .prover_service
                     .as_ref()
