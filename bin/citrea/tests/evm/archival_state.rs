@@ -15,7 +15,7 @@ use crate::{DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_MIN_SOFT_CONFIRMATIONS_
 async fn test_archival_state() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging();
 
-    let storage_dir = tempdir_with_children(&vec!["DA", "sequencer", "full-node"]);
+    let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
     let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
 

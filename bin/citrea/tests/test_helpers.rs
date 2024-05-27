@@ -96,11 +96,6 @@ pub async fn start_rollup(
                 .unwrap();
         }
     }
-
-    // if db_path.is_none() {
-    //     // Close the tempdir explicitly to ensure that rustc doesn't see that it's unused and drop it unexpectedly
-    //     temp_dir.unwrap().close().unwrap();
-    // }
 }
 
 pub fn create_default_rollup_config(

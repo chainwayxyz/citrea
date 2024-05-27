@@ -47,7 +47,7 @@ async fn initialize_test(
 async fn test_same_nonce_tx_should_panic() {
     // citrea::initialize_logging();
 
-    let db_dir = tempdir_with_children(&vec!["DA", "sequencer", "full-node"]);
+    let db_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = db_dir.path().join("DA").to_path_buf();
     let sequencer_db_dir = db_dir.path().join("sequencer").to_path_buf();
     let (seq_task, test_client) = initialize_test(sequencer_db_dir, da_db_dir).await;
@@ -77,7 +77,7 @@ async fn test_same_nonce_tx_should_panic() {
 async fn test_nonce_too_low() {
     // citrea::initialize_logging();
 
-    let db_dir = tempdir_with_children(&vec!["DA", "sequencer", "full-node"]);
+    let db_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = db_dir.path().join("DA").to_path_buf();
     let sequencer_db_dir = db_dir.path().join("sequencer").to_path_buf();
     let (seq_task, test_client) = initialize_test(sequencer_db_dir, da_db_dir).await;
@@ -107,7 +107,7 @@ async fn test_nonce_too_low() {
 async fn test_nonce_too_high() {
     // citrea::initialize_logging();
 
-    let db_dir = tempdir_with_children(&vec!["DA", "sequencer", "full-node"]);
+    let db_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = db_dir.path().join("DA").to_path_buf();
     let sequencer_db_dir = db_dir.path().join("sequencer").to_path_buf();
     let (seq_task, test_client) = initialize_test(sequencer_db_dir, da_db_dir).await;
@@ -142,7 +142,7 @@ async fn test_nonce_too_high() {
 
 #[tokio::test]
 async fn test_order_by_fee() {
-    let db_dir = tempdir_with_children(&vec!["DA", "sequencer", "full-node"]);
+    let db_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = db_dir.path().join("DA").to_path_buf();
     let sequencer_db_dir = db_dir.path().join("sequencer").to_path_buf();
     let (seq_task, test_client) = initialize_test(sequencer_db_dir, da_db_dir).await;
@@ -246,7 +246,7 @@ async fn test_order_by_fee() {
 /// Publish block, tx should not be in block but should still be in the mempool.
 #[tokio::test]
 async fn test_tx_with_low_base_fee() {
-    let db_dir = tempdir_with_children(&vec!["DA", "sequencer", "full-node"]);
+    let db_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = db_dir.path().join("DA").to_path_buf();
     let sequencer_db_dir = db_dir.path().join("sequencer").to_path_buf();
     let (seq_task, test_client) = initialize_test(sequencer_db_dir, da_db_dir).await;
@@ -292,7 +292,7 @@ async fn test_tx_with_low_base_fee() {
 
 #[tokio::test]
 async fn test_same_nonce_tx_replacement() {
-    let db_dir = tempdir_with_children(&vec!["DA", "sequencer", "full-node"]);
+    let db_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = db_dir.path().join("DA").to_path_buf();
     let sequencer_db_dir = db_dir.path().join("sequencer").to_path_buf();
     let (seq_task, test_client) = initialize_test(sequencer_db_dir, da_db_dir).await;
