@@ -936,7 +936,7 @@ where
         };
 
         if let Some(commit_up_to) = commit_up_to {
-            if let Err(_) = da_commitment_tx.unbounded_send(commit_up_to) {
+            if da_commitment_tx.unbounded_send(commit_up_to).is_err() {
                 error!("Commitment thread is dead!");
             }
         }
