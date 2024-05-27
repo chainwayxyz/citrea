@@ -1108,8 +1108,8 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             Some(ProverConfig {
                 proving_mode: sov_stf_runner::ProverGuestRunConfig::Execute,
-                skip_proving_until_l1_height: None,
                 db_config: Some(SharedBackupDbConfig::default()),
+                proof_sampling_number: 0,
             }),
             NodeMode::Prover(seq_port),
             None,
@@ -2114,7 +2114,7 @@ async fn test_db_get_proof() {
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             Some(ProverConfig {
                 proving_mode: sov_stf_runner::ProverGuestRunConfig::Execute,
-                skip_proving_until_l1_height: None,
+                proof_sampling_number: 0,
                 db_config: Some(SharedBackupDbConfig::default()),
             }),
             NodeMode::Prover(seq_port),
@@ -2229,7 +2229,7 @@ async fn full_node_verify_proof_and_store() {
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             Some(ProverConfig {
                 proving_mode: sov_stf_runner::ProverGuestRunConfig::Execute,
-                skip_proving_until_l1_height: None,
+                proof_sampling_number: 0,
                 db_config: None,
             }),
             NodeMode::Prover(seq_port),
@@ -2403,7 +2403,7 @@ async fn test_all_flow() {
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             Some(ProverConfig {
                 proving_mode: sov_stf_runner::ProverGuestRunConfig::Execute,
-                skip_proving_until_l1_height: None,
+                proof_sampling_number: 0,
                 db_config: Some(SharedBackupDbConfig::default()),
             }),
             NodeMode::Prover(seq_port),
