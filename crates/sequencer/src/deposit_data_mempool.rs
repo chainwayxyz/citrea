@@ -3,6 +3,7 @@ use std::collections::VecDeque;
 use citrea_evm::system_contracts::Bridge;
 use reth_primitives::{self, address};
 use reth_rpc_types::{TransactionInput, TransactionRequest};
+use tracing::instrument;
 
 #[derive(Clone, Debug)]
 pub struct DepositDataMempool {
@@ -37,6 +38,7 @@ impl DepositDataMempool {
             .collect()
     }
 
+    #[instrument(level = "trace", skip_all, ret)]
     pub fn add_deposit_tx(&mut self, req: Vec<u8>) {
         self.accepted_deposit_txs.push_back(req);
     }

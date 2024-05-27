@@ -814,6 +814,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "backoff"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b62ddb9cb1ec0a098ad4bbf9344d0713fa193ae1a80af55febcff2627b6a00c1"
+dependencies = [
+ "futures-core",
+ "getrandom 0.2.12",
+ "instant",
+ "pin-project-lite",
+ "rand 0.8.5",
+ "tokio",
+]
+
+[[package]]
 name = "backtrace"
 version = "0.3.69"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -866,7 +880,7 @@ checksum = "8c3c1a368f70d6cf7302d78f8f7093da241fb8e8807c05cc9e51a125895a6d5b"
 
 [[package]]
 name = "bashtestmd"
-version = "0.3.0"
+version = "0.4.0-rc.3"
 dependencies = [
  "clap",
  "indoc",
@@ -1008,6 +1022,7 @@ dependencies = [
  "reqwest 0.12.3",
  "serde",
  "serde_json",
+ "sov-modules-api",
  "sov-rollup-interface",
  "thiserror",
  "tokio",
@@ -1568,7 +1583,7 @@ dependencies = [
 
 [[package]]
 name = "citrea"
-version = "0.3.0"
+version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1576,10 +1591,10 @@ dependencies = [
  "bitcoin-da",
  "borsh",
  "citrea-evm",
+ "citrea-risc0-bonsai-adapter",
  "citrea-sequencer",
  "citrea-stf",
  "clap",
- "const-rollup-config",
  "ethereum-rpc",
  "ethereum-types",
  "ethers",
@@ -1592,6 +1607,7 @@ dependencies = [
  "humantime",
  "jsonrpsee",
  "log",
+ "log-panics",
  "proptest",
  "regex",
  "reqwest 0.12.3",
@@ -1600,6 +1616,7 @@ dependencies = [
  "reth-transaction-pool",
  "revm",
  "risc0",
+ "rollup-constants",
  "rs_merkle",
  "rustc_version_runtime",
  "secp256k1 0.27.0",
@@ -1616,7 +1633,6 @@ dependencies = [
  "sov-modules-rollup-blueprint",
  "sov-modules-stf-blueprint",
  "sov-prover-storage-manager",
- "sov-risc0-adapter",
  "sov-rollup-interface",
  "sov-state",
  "sov-stf-runner",
@@ -1629,7 +1645,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-evm"
-version = "0.3.0"
+version = "0.4.0-rc.3"
 dependencies = [
  "alloy-primitives",
  "alloy-rlp",
@@ -1674,8 +1690,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "citrea-risc0-bonsai-adapter"
+version = "0.4.0-rc.3"
+dependencies = [
+ "anyhow",
+ "bincode",
+ "bonsai-sdk",
+ "bytemuck",
+ "hex",
+ "once_cell",
+ "parking_lot 0.12.1",
+ "risc0-circuit-rv32im",
+ "risc0-zkp",
+ "risc0-zkvm",
+ "risc0-zkvm-platform",
+ "serde",
+ "sov-risc0-adapter",
+ "sov-rollup-interface",
+ "tracing",
+]
+
+[[package]]
 name = "citrea-sequencer"
-version = "0.3.0"
+version = "0.4.0-rc.3"
 dependencies = [
  "alloy-rlp",
  "anyhow",
@@ -1705,6 +1742,7 @@ dependencies = [
  "serde",
  "serde_json",
  "shared-backup-db",
+ "soft-confirmation-rule-enforcer",
  "sov-accounts",
  "sov-db",
  "sov-mock-da",
@@ -1720,7 +1758,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-stf"
-version = "0.3.0"
+version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "borsh",
@@ -1880,7 +1918,7 @@ checksum = "c2459377285ad874054d797f3ccebf984978aa39129f6eafde5cdc8315b612f8"
 
 [[package]]
 name = "const-rollup-config"
-version = "0.3.0"
+version = "0.4.0-rc.3"
 
 [[package]]
 name = "constant_time_eq"
@@ -2320,7 +2358,7 @@ dependencies = [
 
 [[package]]
 name = "demo-simple-stf"
-version = "0.3.0"
+version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "hex",
@@ -2333,7 +2371,7 @@ dependencies = [
 
 [[package]]
 name = "demo-stf"
-version = "0.3.0"
+version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "borsh",
@@ -2349,12 +2387,6 @@ dependencies = [
  "soft-confirmation-rule-enforcer",
  "sov-accounts",
  "sov-bank",
- "sov-blob-storage",
- "sov-chain-state",
- "sov-cli",
- "sov-data-generators",
- "sov-mock-da",
- "sov-mock-zkvm",
  "sov-modules-api",
  "sov-modules-stf-blueprint",
  "sov-nft-module",
@@ -2887,7 +2919,7 @@ dependencies = [
 
 [[package]]
 name = "ethereum-rpc"
-version = "0.3.0"
+version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "borsh",
@@ -2896,6 +2928,7 @@ dependencies = [
  "jsonrpsee",
  "proptest",
  "reth-primitives",
+ "reth-rpc",
  "reth-rpc-types",
  "reth-rpc-types-compat",
  "rustc_version_runtime",
@@ -4350,20 +4383,17 @@ dependencies = [
 
 [[package]]
 name = "integration-tests"
-version = "0.3.0"
+version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "borsh",
  "jsonrpsee",
  "serde",
- "sov-chain-state",
  "sov-modules-api",
- "sov-modules-stf-blueprint",
  "sov-prover-storage-manager",
  "sov-rollup-interface",
  "sov-schema-db",
  "sov-state",
- "sov-value-setter",
  "tempfile",
 ]
 
@@ -5057,6 +5087,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "90ed8c1e510134f979dbc4f070f87d4313098b704861a105fe34231c70a3901c"
 
 [[package]]
+name = "log-panics"
+version = "2.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "68f9dd8546191c1850ecf67d22f5ff00a935b890d0e84713159a55495cc2ac5f"
+dependencies = [
+ "backtrace",
+ "log",
+]
+
+[[package]]
 name = "lru"
 version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5256,7 +5296,7 @@ dependencies = [
 
 [[package]]
 name = "module-template"
-version = "0.3.0"
+version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "arbitrary",
@@ -6025,6 +6065,8 @@ dependencies = [
  "bytes",
  "fallible-iterator 0.2.0",
  "postgres-protocol",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -7661,7 +7703,7 @@ dependencies = [
 
 [[package]]
 name = "risc0"
-version = "0.3.0"
+version = "0.4.0-rc.3"
 dependencies = [
  "risc0-build",
 ]
@@ -7941,6 +7983,10 @@ checksum = "8395b4f860856b740f20a296ea2cd4d823e81a2658cf05ef61be22916026a906"
 dependencies = [
  "chrono",
 ]
+
+[[package]]
+name = "rollup-constants"
+version = "0.4.0-rc.3"
 
 [[package]]
 name = "route-recognizer"
@@ -8440,7 +8486,7 @@ checksum = "cd0b0ec5f1c1ca621c432a25813d8d60c88abe6d3e08a3eb9cf37d97a0fe3d73"
 
 [[package]]
 name = "sequencer-client"
-version = "0.3.0"
+version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "ethers",
@@ -8648,11 +8694,14 @@ dependencies = [
 
 [[package]]
 name = "shared-backup-db"
-version = "0.3.0"
+version = "0.4.0-rc.3"
 dependencies = [
  "deadpool-postgres",
+ "postgres-types",
  "serde",
+ "sov-rollup-interface",
  "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -8688,7 +8737,7 @@ dependencies = [
 
 [[package]]
 name = "simple-nft-module"
-version = "0.3.0"
+version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "borsh",
@@ -8770,7 +8819,7 @@ dependencies = [
 
 [[package]]
 name = "soft-confirmation-rule-enforcer"
-version = "0.3.0"
+version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "borsh",
@@ -8784,6 +8833,7 @@ dependencies = [
  "sov-rollup-interface",
  "sov-state",
  "tempfile",
+ "tracing",
 ]
 
 [[package]]
@@ -8818,7 +8868,7 @@ dependencies = [
 
 [[package]]
 name = "sov-accessory-state"
-version = "0.3.0"
+version = "0.4.0-rc.3"
 dependencies = [
  "borsh",
  "jsonrpsee",
@@ -8831,7 +8881,7 @@ dependencies = [
 
 [[package]]
 name = "sov-accounts"
-version = "0.3.0"
+version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "arbitrary",
@@ -8851,33 +8901,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "sov-attester-incentives"
-version = "0.3.0"
-dependencies = [
- "anyhow",
- "bcs",
- "bincode",
- "borsh",
- "jmt",
- "serde",
- "serde_json",
- "sov-attester-incentives",
- "sov-bank",
- "sov-chain-state",
- "sov-mock-da",
- "sov-mock-zkvm",
- "sov-modules-api",
- "sov-modules-core",
- "sov-prover-storage-manager",
- "sov-rollup-interface",
- "sov-state",
- "tempfile",
- "thiserror",
-]
-
-[[package]]
 name = "sov-bank"
-version = "0.3.0"
+version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "borsh",
@@ -8892,52 +8917,11 @@ dependencies = [
  "sov-state",
  "tempfile",
  "thiserror",
-]
-
-[[package]]
-name = "sov-blob-storage"
-version = "0.3.0"
-dependencies = [
- "anyhow",
- "bincode",
- "borsh",
- "clap",
- "hex",
- "jmt",
- "jsonrpsee",
- "schemars",
- "serde",
- "serde_json",
- "sov-bank",
- "sov-blob-storage",
- "sov-chain-state",
- "sov-mock-da",
- "sov-modules-api",
- "sov-prover-storage-manager",
- "sov-sequencer-registry",
- "sov-state",
- "tempfile",
- "tracing",
-]
-
-[[package]]
-name = "sov-chain-state"
-version = "0.3.0"
-dependencies = [
- "anyhow",
- "borsh",
- "jsonrpsee",
- "serde",
- "serde_json",
- "sov-modules-api",
- "sov-prover-storage-manager",
- "sov-state",
- "tempfile",
 ]
 
 [[package]]
 name = "sov-cli"
-version = "0.3.0"
+version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "borsh",
@@ -8956,7 +8940,7 @@ dependencies = [
 
 [[package]]
 name = "sov-data-generators"
-version = "0.3.0"
+version = "0.4.0-rc.3"
 dependencies = [
  "borsh",
  "proptest",
@@ -8970,7 +8954,7 @@ dependencies = [
 
 [[package]]
 name = "sov-db"
-version = "0.3.0"
+version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "arbitrary",
@@ -8991,11 +8975,12 @@ dependencies = [
  "sov-schema-db",
  "tempfile",
  "tokio",
+ "tracing",
 ]
 
 [[package]]
 name = "sov-ledger-rpc"
-version = "0.3.0"
+version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "futures",
@@ -9012,7 +8997,7 @@ dependencies = [
 
 [[package]]
 name = "sov-mock-da"
-version = "0.3.0"
+version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -9034,7 +9019,7 @@ dependencies = [
 
 [[package]]
 name = "sov-mock-zkvm"
-version = "0.3.0"
+version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "bincode",
@@ -9045,7 +9030,7 @@ dependencies = [
 
 [[package]]
 name = "sov-module-schemas"
-version = "0.3.0"
+version = "0.4.0-rc.3"
 dependencies = [
  "sov-accounts",
  "sov-bank",
@@ -9059,7 +9044,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-api"
-version = "0.3.0"
+version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "arbitrary",
@@ -9093,7 +9078,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-core"
-version = "0.3.0"
+version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "arbitrary",
@@ -9121,7 +9106,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-macros"
-version = "0.3.0"
+version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "borsh",
@@ -9140,7 +9125,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-rollup-blueprint"
-version = "0.3.0"
+version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -9160,11 +9145,12 @@ dependencies = [
  "sov-state",
  "sov-stf-runner",
  "tokio",
+ "tracing",
 ]
 
 [[package]]
 name = "sov-modules-stf-blueprint"
-version = "0.3.0"
+version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "borsh",
@@ -9175,8 +9161,6 @@ dependencies = [
  "risc0-zkvm-platform",
  "rs_merkle",
  "serde",
- "sov-blob-storage",
- "sov-chain-state",
  "sov-modules-api",
  "sov-rollup-interface",
  "sov-state",
@@ -9188,7 +9172,7 @@ dependencies = [
 
 [[package]]
 name = "sov-nft-module"
-version = "0.3.0"
+version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "borsh",
@@ -9209,7 +9193,7 @@ dependencies = [
 
 [[package]]
 name = "sov-prover-incentives"
-version = "0.3.0"
+version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "bincode",
@@ -9221,7 +9205,6 @@ dependencies = [
  "sov-mock-da",
  "sov-mock-zkvm",
  "sov-modules-api",
- "sov-prover-incentives",
  "sov-prover-storage-manager",
  "sov-state",
  "tempfile",
@@ -9229,7 +9212,7 @@ dependencies = [
 
 [[package]]
 name = "sov-prover-storage-manager"
-version = "0.3.0"
+version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "criterion",
@@ -9246,7 +9229,7 @@ dependencies = [
 
 [[package]]
 name = "sov-risc0-adapter"
-version = "0.3.0"
+version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "bincode",
@@ -9264,7 +9247,7 @@ dependencies = [
 
 [[package]]
 name = "sov-rng-da-service"
-version = "0.3.0"
+version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -9282,7 +9265,7 @@ dependencies = [
 
 [[package]]
 name = "sov-rollup-interface"
-version = "0.3.0"
+version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -9302,7 +9285,7 @@ dependencies = [
 
 [[package]]
 name = "sov-schema-db"
-version = "0.3.0"
+version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "byteorder",
@@ -9319,7 +9302,7 @@ dependencies = [
 
 [[package]]
 name = "sov-sequencer"
-version = "0.3.0"
+version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -9343,7 +9326,7 @@ dependencies = [
 
 [[package]]
 name = "sov-sequencer-registry"
-version = "0.3.0"
+version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "arbitrary",
@@ -9369,19 +9352,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "sov-soft-confirmations-kernel"
-version = "0.3.0"
-dependencies = [
- "anyhow",
- "sov-blob-storage",
- "sov-chain-state",
- "sov-modules-api",
- "sov-state",
-]
-
-[[package]]
 name = "sov-state"
-version = "0.3.0"
+version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "arbitrary",
@@ -9406,22 +9378,24 @@ dependencies = [
 
 [[package]]
 name = "sov-stf-runner"
-version = "0.3.0"
+version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "async-trait",
+ "backoff",
  "borsh",
  "futures",
  "hex",
  "jsonrpsee",
  "num_cpus",
+ "rand 0.8.5",
  "rayon",
  "rs_merkle",
  "sequencer-client",
  "serde",
  "serde_json",
  "sha2 0.10.8",
- "sov-bank",
+ "shared-backup-db",
  "sov-db",
  "sov-mock-da",
  "sov-mock-zkvm",
@@ -9429,7 +9403,6 @@ dependencies = [
  "sov-modules-stf-blueprint",
  "sov-prover-storage-manager",
  "sov-rollup-interface",
- "sov-sequencer-registry",
  "sov-state",
  "sov-stf-runner",
  "tempfile",
@@ -9441,7 +9414,7 @@ dependencies = [
 
 [[package]]
 name = "sov-value-setter"
-version = "0.3.0"
+version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "borsh",
@@ -9459,7 +9432,7 @@ dependencies = [
 
 [[package]]
 name = "sov-vec-setter"
-version = "0.3.0"
+version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "borsh",
@@ -9477,7 +9450,7 @@ dependencies = [
 
 [[package]]
 name = "sov-zk-cycle-macros"
-version = "0.3.0"
+version = "0.4.0-rc.3"
 dependencies = [
  "proc-macro2 1.0.79",
  "quote 1.0.35",
@@ -9490,7 +9463,7 @@ dependencies = [
 
 [[package]]
 name = "sov-zk-cycle-utils"
-version = "0.3.0"
+version = "0.4.0-rc.3"
 dependencies = [
  "bytes",
  "risc0-zkvm",

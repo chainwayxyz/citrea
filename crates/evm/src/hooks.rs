@@ -4,6 +4,8 @@ use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::prelude::*;
 use sov_modules_api::{AccessoryWorkingSet, Spec, WorkingSet};
 use sov_state::Storage;
+#[cfg(feature = "native")]
+use tracing::instrument;
 
 use crate::evm::primitive_types::{Block, BlockEnv};
 use crate::evm::system_events::SystemEvent;
@@ -14,7 +16,10 @@ where
     <C::Storage as Storage>::Root: Into<[u8; 32]>,
 {
     /// Logic executed at the beginning of the slot. Here we set the state root of the previous head.
-    #[allow(clippy::too_many_arguments)]
+    #[cfg_attr(
+        feature = "native",
+        instrument(level = "trace", skip(self, working_set), ret)
+    )]
     pub fn begin_soft_confirmation_hook(
         &self,
         soft_confirmation_info: &HookSoftConfirmationInfo,
@@ -64,22 +69,22 @@ where
                     0, 0, 0, 0, 0, 128, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 96, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0,
-                    0, 0, 0, 0, 102, 246, 134, 146, 192, 62, 185, 192, 101, 109, 103, 111, 47, 75,
-                    209, 62, 186, 64, 209, 183, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 175, 195, 32, 52, 2, 237, 230, 131,
-                    149, 51, 30, 39, 151, 225, 216, 253, 43, 169, 81, 56, 107, 170, 179, 45, 20,
-                    64, 37, 44, 50, 20, 224, 112, 143, 228, 121, 173, 32, 193, 140, 89, 52, 128,
-                    244, 245, 90, 63, 215, 97, 124, 157, 246, 227, 218, 188, 128, 252, 165, 146,
-                    127, 102, 210, 0, 80, 200, 42, 32, 18, 190, 122, 173, 32, 137, 195, 16, 192,
-                    123, 60, 57, 1, 86, 42, 63, 0, 12, 74, 71, 127, 203, 94, 191, 211, 98, 222, 61,
-                    7, 160, 191, 249, 39, 242, 145, 19, 1, 173, 32, 103, 222, 104, 248, 235, 129,
-                    108, 134, 57, 104, 2, 179, 137, 222, 222, 192, 23, 3, 215, 158, 153, 16, 224,
-                    200, 70, 244, 137, 32, 163, 227, 61, 215, 173, 32, 64, 241, 80, 103, 2, 228, 0,
-                    184, 209, 174, 210, 222, 5, 191, 119, 110, 109, 118, 2, 55, 138, 176, 131, 74,
-                    125, 119, 16, 57, 69, 74, 245, 110, 173, 81, 0, 99, 20, 0, 0, 0, 0, 0, 0, 0, 0,
-                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 104, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 249, 114, 91, 99, 254, 20, 239, 175, 124, 199, 5, 186, 78, 92, 85,
+                    160, 61, 80, 233, 64, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 181, 210, 32, 93, 175, 87, 112, 72, 197,
+                    229, 169, 167, 93, 10, 146, 78, 208, 62, 34, 108, 51, 4, 244, 162, 240, 28,
+                    101, 202, 29, 171, 115, 82, 46, 107, 139, 173, 32, 98, 40, 235, 166, 83, 207,
+                    24, 25, 188, 252, 27, 200, 88, 99, 14, 90, 227, 115, 238, 193, 169, 146, 67,
+                    34, 165, 254, 132, 69, 197, 231, 96, 39, 173, 32, 21, 33, 214, 95, 100, 190,
+                    63, 113, 183, 28, 164, 98, 34, 15, 19, 199, 123, 37, 16, 39, 246, 202, 68, 58,
+                    72, 51, 83, 169, 111, 188, 226, 34, 173, 32, 15, 171, 238, 210, 105, 105, 78,
+                    232, 61, 155, 51, 67, 165, 113, 32, 46, 104, 175, 101, 208, 95, 237, 166, 29,
+                    190, 208, 196, 189, 178, 86, 166, 234, 173, 32, 0, 50, 109, 111, 114, 28, 3,
+                    220, 95, 29, 136, 23, 216, 248, 238, 137, 10, 149, 162, 238, 218, 13, 77, 154,
+                    1, 177, 204, 155, 123, 27, 114, 77, 172, 0, 99, 6, 99, 105, 116, 114, 101, 97,
+                    20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10, 8, 0, 0, 0, 0, 5, 245,
+                    225, 0, 104, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                 ],
             ));
         }
@@ -131,6 +136,7 @@ where
 
     /// Logic executed at the end of the slot. Here, we generate an authenticated block and set it as the new head of the chain.
     /// It's important to note that the state root hash is not known at this moment, so we postpone setting this field until the begin_slot_hook of the next slot.
+    #[cfg_attr(feature = "native", instrument(level = "trace", skip_all, ret))]
     pub fn end_soft_confirmation_hook(&self, working_set: &mut WorkingSet<C>) {
         let cfg = self
             .cfg
@@ -256,42 +262,48 @@ where
     /// However, non-state data can be modified.
     /// This function's purpose is to add the block to the (non-authenticated) blocks structure,
     /// enabling block-related RPC queries.
+    #[cfg_attr(
+        feature = "native",
+        instrument(level = "trace", skip(self, accessory_working_set), ret)
+    )]
     pub fn finalize_hook(
         &self,
         root_hash: &<<C as Spec>::Storage as Storage>::Root,
         accessory_working_set: &mut AccessoryWorkingSet<C>,
     ) {
-        let expected_block_number = self.blocks.len(accessory_working_set) as u64;
+        if cfg!(feature = "native") {
+            let expected_block_number = self.blocks.len(accessory_working_set) as u64;
 
-        let mut block = self
-            .pending_head
-            .get(accessory_working_set)
-            .unwrap_or_else(|| {
-                panic!(
-                    "Pending head must be set to block {}, but was empty",
-                    expected_block_number
-                )
-            });
+            let mut block = self
+                .pending_head
+                .get(accessory_working_set)
+                .unwrap_or_else(|| {
+                    panic!(
+                        "Pending head must be set to block {}, but was empty",
+                        expected_block_number
+                    )
+                });
 
-        assert_eq!(
-            block.header.number, expected_block_number,
-            "Pending head must be set to block {}, but found block {}",
-            expected_block_number, block.header.number
-        );
+            assert_eq!(
+                block.header.number, expected_block_number,
+                "Pending head must be set to block {}, but found block {}",
+                expected_block_number, block.header.number
+            );
 
-        let root_hash_bytes: [u8; 32] = root_hash.clone().into();
-        block.header.state_root = root_hash_bytes.into();
+            let root_hash_bytes: [u8; 32] = root_hash.clone().into();
+            block.header.state_root = root_hash_bytes.into();
 
-        let sealed_block = block.seal();
+            let sealed_block = block.seal();
 
-        self.blocks.push(&sealed_block, accessory_working_set);
-        self.block_hashes.set(
-            &sealed_block.header.hash(),
-            &sealed_block.header.number,
-            accessory_working_set,
-        );
-        self.pending_head.delete(accessory_working_set);
+            self.blocks.push(&sealed_block, accessory_working_set);
+            self.block_hashes.set(
+                &sealed_block.header.hash(),
+                &sealed_block.header.number,
+                accessory_working_set,
+            );
+            self.pending_head.delete(accessory_working_set);
 
-        self.l1_fee_failed_txs.clear(accessory_working_set);
+            self.l1_fee_failed_txs.clear(accessory_working_set);
+        }
     }
 }

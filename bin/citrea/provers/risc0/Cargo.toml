@@ -1,6 +1,6 @@
 [package]
 name = "risc0"
-version = "0.3.0"
+version = "0.4.0-rc.3"
 edition = "2021"
 resolver = "2"
 license = "MIT OR Apache-2.0"
@@ -10,7 +10,7 @@ publish = false
 risc0-build = { workspace = true }
 
 [package.metadata.risc0]
-methods = ["guest-mock"]
+methods = ["guest-mock", "guest-bitcoin"]
 
 [features]
 bench = []

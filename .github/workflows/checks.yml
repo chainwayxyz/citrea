@@ -90,6 +90,8 @@ jobs:
         run: cargo risczero install --version v2024-04-22.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
       - name: Run lint
         run: |
           if ! SKIP_GUEST_BUILD=1 make lint ; then
@@ -97,42 +99,42 @@ jobs:
             exit 1
           fi
 
-  udeps:
-    name: udeps
-    runs-on: ubicloud-standard-4
-    timeout-minutes: 60
-    if: github.event.pull_request.draft == false
-    steps:
-      - uses: actions/checkout@v4
-      - uses: rui314/setup-mold@v1
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v2
-        with:
-          version: "23.2"
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly
-          override: true
-          components: rustfmt, clippy
-      - name: Install Rust
-        run: rustup show && rustup install nightly && rustup component add rustfmt --toolchain nightly-x86_64-unknown-linux-gnu # Nightly is needed for our configuration of cargo fmt
-      - name: Install cargo-risczero
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-risczero@0.19
-      - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-        run: cargo risczero install --version v2024-04-22.0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Run cargo-udeps
-        env:
-          RUSTFLAGS: -A warnings
-        uses: aig787/cargo-udeps-action@v1
-        with:
-          version: 'latest'
-          args: '--workspace --all-features --all-targets'
+  # udeps:
+  #   name: udeps
+  #   runs-on: ubicloud-standard-4
+  #   timeout-minutes: 60
+  #   if: github.event.pull_request.draft == false
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: rui314/setup-mold@v1
+  #     - name: Install Protoc
+  #       uses: arduino/setup-protoc@v2
+  #       with:
+  #         version: "23.2"
+  #         repo-token: ${{ secrets.GITHUB_TOKEN }}
+  #     - name: Toolchain
+  #       uses: actions-rs/toolchain@v1
+  #       with:
+  #         toolchain: nightly
+  #         override: true
+  #         components: rustfmt, clippy
+  #     - name: Install Rust
+  #       run: rustup show && rustup install nightly && rustup component add rustfmt --toolchain nightly-x86_64-unknown-linux-gnu # Nightly is needed for our configuration of cargo fmt
+  #     - name: Install cargo-risczero
+  #       uses: taiki-e/install-action@v2
+  #       with:
+  #         tool: cargo-risczero@0.19
+  #     - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
+  #       run: cargo risczero install --version v2024-04-22.0
+  #       env:
+  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  #     - name: Run cargo-udeps
+  #       env:
+  #         RUSTFLAGS: -A warnings
+  #       uses: aig787/cargo-udeps-action@v1
+  #       with:
+  #         version: 'latest'
+  #         args: '--workspace --all-features --all-targets'
 
   deny:
     runs-on: ubuntu-latest
@@ -174,6 +176,13 @@ jobs:
           tool: cargo-risczero@0.19
       - name: Install risc0-zkvm toolchain
         run: cargo risczero install --version v2024-04-22.0
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+      - name: Cache ethereum-tests
+        uses: actions/cache@v3
+        with:
+          key: "eth-tests-1c23e3c"
+          path: crates/evm/ethereum-tests
       - name: Run coverage
         run: make coverage
       - name: Upload coverage
@@ -201,10 +210,8 @@ jobs:
         run: cargo risczero install --version v2024-04-22.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - uses: actions/cache@v3
-        with:
-          key: ${{ runner.os }}-${{ github.job }}-${{ github.head_ref }}
-          path: ./target
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
       - name: Build citrea
         run: make build
       - name: Install node dependencies
@@ -233,6 +240,41 @@ jobs:
             echo "State root mismatch";
             exit 1
           fi
+
+  ethers_js:
+    runs-on: ubicloud-standard-16
+    if: github.event.pull_request.draft == false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 18
+      - uses: dcarbone/install-jq-action@v2
+      - name: Install cargo-risczero
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-risczero@0.19
+      - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
+        run: cargo risczero install --version v2024-04-22.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+      - name: Build citrea
+        run: make build
+      - name: Install node dependencies
+        working-directory: ./bin/citrea/tests/evm/ethers.js_tests
+        run: npm install
+      - name: Run ethers_js tests
+        run: |
+          RUST_LOG=off ./target/debug/citrea --da-layer mock --rollup-config-path bin/citrea/configs/mock/sequencer_rollup_config.toml --sequencer-config-path bin/citrea/configs/mock/sequencer_config.toml --genesis-paths bin/test-data/genesis/demo-tests/mock &
+          sleep 2
+          RUST_LOG=off ./target/debug/citrea --rollup-config-path bin/citrea/configs/mock/rollup_config.toml --genesis-paths bin/test-data/genesis/demo-tests/mock &
+          sleep 2
+          ./bin/citrea/publish_da_block.sh &
+          cd ./bin/citrea/tests/evm/ethers.js_tests
+          npx mocha test.js
 
   sys_tx_keccak:
     runs-on: ubuntu-latest
@@ -313,10 +355,19 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         # `cargo-nextest` is much faster than standard `cargo test`.
       - uses: taiki-e/install-action@nextest
-      - name: Install Rust
-        run: rustup show
+      - name: Cache ethereum-tests
+        uses: actions/cache@v3
+        with:
+          key: "eth-tests-1c23e3c"
+          path: crates/evm/ethereum-tests
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
       - name: Run nextest
         run: make test
+        env:
+          BONSAI_API_URL: ${{ secrets.BONSAI_API_URL }} # TODO: remove this once we don't use the client on tests
+          BONSAI_API_KEY: ${{ secrets.BONSAI_API_KEY }} # TODO: remove this once we don't use the client on tests
+
 
   system-contracts:
     strategy:

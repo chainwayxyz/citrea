@@ -3,11 +3,11 @@
 use std::cmp::min;
 
 use reth_primitives::{B256, U256};
+use reth_rpc::eth::error::{EthApiError, EthResult, RpcInvalidTransactionError};
 use reth_rpc_types::TransactionRequest;
 use revm::primitives::{TransactTo, TxEnv};
 
 use crate::caller_gas_allowance;
-use crate::error::rpc::{EthApiError, EthResult, RpcInvalidTransactionError};
 use crate::primitive_types::BlockEnv;
 
 /// Helper type for representing the fees of a [TransactionRequest]

@@ -15,10 +15,10 @@ resolver = "2"
 jsonrpsee = { workspace = true, optional = true }
 anyhow = { workspace = true }
 arbitrary = { workspace = true, optional = true }
-sov-state = { path = "../sov-state", version = "0.3" }
-sov-modules-core = { path = "../sov-modules-core", version = "0.3" }
-sov-rollup-interface = { path = "../../rollup-interface", version = "0.3" }
-sov-modules-macros = { path = "../sov-modules-macros", version = "0.3", optional = true, default-features = false }
+sov-state = { path = "../sov-state" }
+sov-modules-core = { path = "../sov-modules-core" }
+sov-rollup-interface = { path = "../../rollup-interface" }
+sov-modules-macros = { path = "../sov-modules-macros", optional = true, default-features = false }
 sov-prover-storage-manager = { path = "../../full-node/sov-prover-storage-manager", optional = true }
 serde = { workspace = true }
 borsh = { workspace = true }

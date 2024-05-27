@@ -16,10 +16,13 @@ use revm::primitives::{
 use revm::{Context, Database, FrameResult, InnerEvmContext, JournalEntry};
 #[cfg(feature = "native")]
 use revm::{EvmContext, Inspector};
+use sov_modules_api::{native_debug, native_error, native_warn};
+#[cfg(feature = "native")]
+use tracing::instrument;
 
 use crate::system_events::SYSTEM_SIGNER;
 
-#[derive(Copy, Clone, Default)]
+#[derive(Copy, Clone, Default, Debug)]
 pub struct TxInfo {
     pub diff_size: u64,
     pub l1_fee: U256,
@@ -29,7 +32,7 @@ pub struct TxInfo {
 /// In terms of Revm this is the trait for EXT for `Evm<'a, EXT, DB>`.
 pub(crate) trait CitreaExternalExt {
     /// Get current l1 fee rate.
-    fn l1_fee_rate(&self) -> u64;
+    fn l1_fee_rate(&self) -> u128;
     /// Set tx hash for the current execution context.
     fn set_current_tx_hash(&mut self, hash: B256);
     /// Set tx info for the current tx hash.
@@ -40,7 +43,7 @@ pub(crate) trait CitreaExternalExt {
 
 // Blanked impl for &mut T: CitreaExternalExt
 impl<T: CitreaExternalExt> CitreaExternalExt for &mut T {
-    fn l1_fee_rate(&self) -> u64 {
+    fn l1_fee_rate(&self) -> u128 {
         (**self).l1_fee_rate()
     }
     fn set_current_tx_hash(&mut self, hash: B256) {
@@ -58,13 +61,13 @@ impl<T: CitreaExternalExt> CitreaExternalExt for &mut T {
 /// In terms of Revm this type replaces EXT in `Evm<'a, EXT, DB>`.
 #[derive(Default)]
 pub(crate) struct CitreaExternal {
-    l1_fee_rate: u64,
+    l1_fee_rate: u128,
     current_tx_hash: Option<B256>,
     tx_infos: HashMap<B256, TxInfo>,
 }
 
 impl CitreaExternal {
-    pub(crate) fn new(l1_fee_rate: u64) -> Self {
+    pub(crate) fn new(l1_fee_rate: u128) -> Self {
         Self {
             l1_fee_rate,
             ..Default::default()
@@ -73,18 +76,20 @@ impl CitreaExternal {
 }
 
 impl CitreaExternalExt for CitreaExternal {
-    fn l1_fee_rate(&self) -> u64 {
+    fn l1_fee_rate(&self) -> u128 {
         self.l1_fee_rate
     }
+    #[cfg_attr(feature = "native", instrument(level = "trace", skip(self)))]
     fn set_current_tx_hash(&mut self, hash: B256) {
         self.current_tx_hash.replace(hash);
     }
+    #[cfg_attr(feature = "native", instrument(level = "trace", skip(self)))]
     fn set_tx_info(&mut self, info: TxInfo) {
         let current_tx_hash = self.current_tx_hash.take();
         if let Some(hash) = current_tx_hash {
             self.tx_infos.insert(hash, info);
         } else {
-            tracing::error!("No hash set for the current tx in Citrea handler");
+            native_error!("No hash set for the current tx in Citrea handler");
         }
     }
     fn get_tx_info(&self, tx_hash: B256) -> Option<TxInfo> {
@@ -106,7 +111,7 @@ where
     DB: Database,
     I: Inspector<DB>,
 {
-    pub(crate) fn new(inspector: I, l1_fee_rate: u64) -> Self {
+    pub(crate) fn new(inspector: I, l1_fee_rate: u128) -> Self {
         Self {
             ext: CitreaExternal::new(l1_fee_rate),
             inspector,
@@ -118,7 +123,7 @@ where
 #[cfg(feature = "native")]
 // Pass all methods to self.ext
 impl<I, DB> CitreaExternalExt for TracingCitreaExternal<I, DB> {
-    fn l1_fee_rate(&self) -> u64 {
+    fn l1_fee_rate(&self) -> u128 {
         self.ext.l1_fee_rate()
     }
     fn set_current_tx_hash(&mut self, hash: B256) {
@@ -199,6 +204,7 @@ impl CitreaEnv for &'_ Env {
 }
 
 impl<EXT, DB: Database> CitreaEnv for &'_ mut Context<EXT, DB> {
+    #[cfg_attr(feature = "native", instrument(level = "debug", skip(self), ret))]
     fn is_system_caller(&self) -> bool {
         (&*self.evm.env).is_system_caller()
     }
@@ -280,6 +286,7 @@ impl<SPEC: Spec, EXT: CitreaExternalExt, DB: Database> CitreaHandler<SPEC, EXT, 
         }
         revm::handler::mainnet::validate_tx_against_state::<SPEC, EXT, DB>(context)
     }
+    #[cfg_attr(feature = "native", instrument(level = "trace", skip_all))]
     fn deduct_caller(context: &mut Context<EXT, DB>) -> Result<(), EVMError<DB::Error>> {
         if context.is_system_caller() {
             // System caller doesn't spend gas.
@@ -299,6 +306,7 @@ impl<SPEC: Spec, EXT: CitreaExternalExt, DB: Database> CitreaHandler<SPEC, EXT, 
         }
         revm::handler::mainnet::deduct_caller::<SPEC, EXT, DB>(context)
     }
+    #[cfg_attr(feature = "native", instrument(level = "trace", skip_all))]
     fn reimburse_caller(
         context: &mut Context<EXT, DB>,
         gas: &Gas,
@@ -309,6 +317,7 @@ impl<SPEC: Spec, EXT: CitreaExternalExt, DB: Database> CitreaHandler<SPEC, EXT, 
         }
         revm::handler::mainnet::reimburse_caller::<SPEC, EXT, DB>(context, gas)
     }
+    #[cfg_attr(feature = "native", instrument(level = "trace", fields(gas), skip_all))]
     fn reward_beneficiary(
         context: &mut Context<EXT, DB>,
         gas: &Gas,
@@ -340,6 +349,7 @@ impl<SPEC: Spec, EXT: CitreaExternalExt, DB: Database> CitreaHandler<SPEC, EXT, 
 
         Ok(())
     }
+    #[cfg_attr(feature = "native", instrument(level = "trace", skip_all, fields(caller = %context.evm.env.tx.caller)))]
     fn post_execution_output(
         context: &mut Context<EXT, DB>,
         result: FrameResult,
@@ -348,19 +358,16 @@ impl<SPEC: Spec, EXT: CitreaExternalExt, DB: Database> CitreaHandler<SPEC, EXT, 
         let l1_fee_rate = context.external.l1_fee_rate();
         let l1_fee = U256::from(diff_size) * U256::from(l1_fee_rate);
         context.external.set_tx_info(TxInfo { diff_size, l1_fee });
-        if result.interpreter_result().is_ok() {
-            // Deduct L1 fee only if tx is successful.
-            if context.is_system_caller() {
-                // System caller doesn't pay L1 fee.
-            } else {
-                if let Some(_out_of_funds) = decrease_caller_balance(context, l1_fee)? {
-                    return Err(EVMError::Custom(format!(
-                        "Not enough funds for L1 fee: {}",
-                        l1_fee
-                    )));
-                }
-                increase_coinbase_balance(context, l1_fee)?;
+        if context.is_system_caller() {
+            // System caller doesn't pay L1 fee.
+        } else {
+            if let Some(_out_of_funds) = decrease_caller_balance(context, l1_fee)? {
+                return Err(EVMError::Custom(format!(
+                    "Not enough funds for L1 fee: {}",
+                    l1_fee
+                )));
             }
+            increase_coinbase_balance(context, l1_fee)?;
         }
 
         revm::handler::mainnet::output(context, result)
@@ -368,6 +375,7 @@ impl<SPEC: Spec, EXT: CitreaExternalExt, DB: Database> CitreaHandler<SPEC, EXT, 
 }
 
 /// Calculates the diff of the modified state.
+#[cfg_attr(feature = "native", instrument(level = "trace", skip_all))]
 fn calc_diff_size<EXT, DB: Database>(
     context: &mut Context<EXT, DB>,
 ) -> Result<usize, <DB as Database>::Error> {
@@ -434,6 +442,10 @@ fn calc_diff_size<EXT, DB: Database>(
             _ => {}
         }
     }
+    native_debug!(
+        accounts = account_changes.len(),
+        "Total accounts for diff size"
+    );
 
     let slot_size = 2 * size_of::<U256>(); // key + value;
     let mut diff_size = 0usize;
@@ -481,7 +493,7 @@ fn calc_diff_size<EXT, DB: Database>(
             if let Some(code) = account.info.code.as_ref() {
                 diff_size += code.len()
             } else {
-                tracing::warn!(
+                native_warn!(
                     "Code must exist for account when calculating diff: {}",
                     addr,
                 );
@@ -513,6 +525,7 @@ fn calc_diff_size<EXT, DB: Database>(
     Ok(diff_size)
 }
 
+#[cfg_attr(feature = "native", instrument(level = "trace", skip(context)))]
 fn change_balance<EXT, DB: Database>(
     context: &mut Context<EXT, DB>,
     amount: U256,
@@ -529,6 +542,7 @@ fn change_balance<EXT, DB: Database>(
     account.mark_touch();
 
     let balance = &mut account.info.balance;
+    native_debug!(%balance);
 
     let new_balance = if positive {
         balance.saturating_add(amount)

@@ -5,9 +5,11 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::rpc::{
-    BatchResponse, HexTx, SoftBatchResponse, TxIdentifier, TxResponse,
+    BatchResponse, HexTx, ProofResponse, ProofRpcResponse, SoftBatchResponse,
+    StateTransitionRpcResponse, TxIdentifier, TxResponse, VerifiedProofResponse,
 };
 use sov_rollup_interface::stf::{Event, EventKey, TransactionReceipt};
+use sov_rollup_interface::zk::{CumulativeStateDiff, Proof};
 
 /// A cheaply cloneable bytes abstraction for use within the trust boundary of the node
 /// (i.e. when interfacing with the database). Serializes and deserializes more efficiently,
@@ -70,6 +72,89 @@ pub struct StoredSlot {
     pub batches: std::ops::Range<BatchNumber>,
 }
 
+/// The on-disk format for a proof. Stores the tx id of the proof sent to da, proof data and state transition
+#[derive(Debug, PartialEq, BorshDeserialize, BorshSerialize)]
+pub struct StoredProof {
+    /// Tx id
+    pub l1_tx_id: [u8; 32],
+    /// Proof
+    pub proof: Proof,
+    /// State transition
+    pub state_transition: StoredStateTransition,
+}
+
+impl From<StoredProof> for ProofResponse {
+    fn from(value: StoredProof) -> Self {
+        Self {
+            l1_tx_id: value.l1_tx_id,
+            proof: convert_to_rpc_proof(value.proof),
+            state_transition: StateTransitionRpcResponse::from(value.state_transition),
+        }
+    }
+}
+
+/// The on-disk format for a proof verified by full node. Stores proof data and state transition
+#[derive(Debug, PartialEq, BorshDeserialize, BorshSerialize)]
+pub struct StoredVerifiedProof {
+    /// Verified Proof
+    pub proof: Proof,
+    /// State transition
+    pub state_transition: StoredStateTransition,
+}
+
+impl From<StoredVerifiedProof> for VerifiedProofResponse {
+    fn from(value: StoredVerifiedProof) -> Self {
+        Self {
+            proof: convert_to_rpc_proof(value.proof),
+            state_transition: StateTransitionRpcResponse::from(value.state_transition),
+        }
+    }
+}
+
+/// The on-disk format for a state transition.
+#[derive(Debug, PartialEq, BorshDeserialize, BorshSerialize, Clone)]
+pub struct StoredStateTransition {
+    /// The state of the rollup before the transition
+    pub initial_state_root: Vec<u8>,
+    /// The state of the rollup after the transition
+    pub final_state_root: Vec<u8>,
+    /// State diff of L2 blocks in the processed sequencer commitments.
+    pub state_diff: CumulativeStateDiff,
+    /// The DA slot hash that the sequencer commitments causing this state transition were found in.
+    pub da_slot_hash: [u8; 32],
+    /// Sequencer public key.
+    pub sequencer_public_key: Vec<u8>,
+    /// Sequencer DA public key.
+    pub sequencer_da_public_key: Vec<u8>,
+
+    /// An additional validity condition for the state transition which needs
+    /// to be checked outside of the zkVM circuit. This typically corresponds to
+    /// some claim about the DA layer history, such as (X) is a valid block on the DA layer
+    pub validity_condition: Vec<u8>,
+}
+
+impl From<StoredStateTransition> for StateTransitionRpcResponse {
+    fn from(value: StoredStateTransition) -> Self {
+        Self {
+            initial_state_root: value.initial_state_root,
+            final_state_root: value.final_state_root,
+            state_diff: value.state_diff,
+            da_slot_hash: value.da_slot_hash,
+            sequencer_da_public_key: value.sequencer_da_public_key,
+            sequencer_public_key: value.sequencer_public_key,
+            validity_condition: value.validity_condition,
+        }
+    }
+}
+
+/// Converts proof data to hex encoded rpc response
+pub fn convert_to_rpc_proof(stored_proof: Proof) -> ProofRpcResponse {
+    match stored_proof {
+        Proof::Full(data) => ProofRpcResponse::Full(data),
+        Proof::PublicInput(data) => ProofRpcResponse::PublicInput(data),
+    }
+}
+
 /// The on-disk format for a batch. Stores the hash and identifies the range of transactions
 /// included in the batch.
 #[derive(Debug, PartialEq, BorshDeserialize, BorshSerialize)]
@@ -97,7 +182,7 @@ pub struct StoredSoftBatch {
     /// Sequencer public key
     pub pub_key: Vec<u8>,
     /// L1 fee rate
-    pub l1_fee_rate: u64,
+    pub l1_fee_rate: u128,
     /// Sequencer's block timestamp
     pub timestamp: u64,
 }

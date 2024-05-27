@@ -30,11 +30,9 @@ secp256k1 = { workspace = true }
 sov-stf-runner = { path = "../../../sovereign-sdk/full-node/sov-stf-runner" }
 sov-rollup-interface = { path = "../../../sovereign-sdk/rollup-interface" }
 sov-sequencer-registry = { path = "../../../sovereign-sdk/module-system/module-implementations/sov-sequencer-registry" }
-sov-blob-storage = { path = "../../../sovereign-sdk/module-system/module-implementations/sov-blob-storage" }
 sov-bank = { path = "../../../sovereign-sdk/module-system/module-implementations/sov-bank" }
 sov-nft-module = { path = "../../../sovereign-sdk/module-system/module-implementations/sov-nft-module" }
 
-sov-chain-state = { path = "../../../sovereign-sdk/module-system/module-implementations/sov-chain-state", default-features = false }
 sov-modules-stf-blueprint = { path = "../../../sovereign-sdk/module-system/sov-modules-stf-blueprint" }
 sov-value-setter = { path = "../../../sovereign-sdk/module-system/module-implementations/examples/sov-value-setter", default-features = false }
 sov-accounts = { path = "../../../sovereign-sdk/module-system/module-implementations/sov-accounts", default-features = false }
@@ -47,10 +45,6 @@ soft-confirmation-rule-enforcer = { path = "../../../soft-confirmation-rule-enfo
 [dev-dependencies]
 tempfile = { workspace = true }
 rand = { workspace = true }
-sov-cli = { path = "../../../sovereign-sdk/module-system/sov-cli" }
-sov-data-generators = { path = "../../../sovereign-sdk/module-system/utils/sov-data-generators" }
-sov-mock-da = { path = "../../../sovereign-sdk/adapters/mock-da" }
-sov-mock-zkvm = { path = "../../../sovereign-sdk/adapters/mock-zkvm" }
 sov-prover-storage-manager = { path = "../../../sovereign-sdk/full-node/sov-prover-storage-manager", features = [
     "test-utils",
 ] }
@@ -65,8 +59,6 @@ native = [
     "sov-nft-module/native",
     "sov-accounts/native",
     "sov-sequencer-registry/native",
-    "sov-blob-storage/native",
-    "sov-chain-state/native",
     "sov-value-setter/native",
     "sov-modules-api/native",
     "sov-rollup-interface/native",
@@ -81,7 +73,6 @@ native = [
 serde = [
     "sov-bank/serde",
     "sov-sequencer-registry/serde",
-    "sov-blob-storage/serde",
     "sov-value-setter/serde",
     "sov-accounts/serde",
     "sov-nft-module/serde",

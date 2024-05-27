@@ -12,13 +12,16 @@ publish = false
 resolver = "2"
 
 [dependencies]
-sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api", version = "0.3", default-features = false }
-sov-state = { path = "../sovereign-sdk/module-system/sov-state", version = "0.3" }
+sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api", default-features = false, features = [
+    "macros",
+] }
+sov-state = { path = "../sovereign-sdk/module-system/sov-state" }
 sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
 
 borsh = { workspace = true }
 serde = { workspace = true }
 anyhow = { workspace = true }
+tracing = { workspace = true, optional = true }
 jsonrpsee = { workspace = true, features = [
     "macros",
     "client-core",
@@ -39,5 +42,5 @@ lazy_static = "1.4.0"
 
 [features]
 default = []
-native = ["sov-modules-api/native", "jsonrpsee"]
+native = ["sov-modules-api/native", "dep:tracing", "jsonrpsee"]
 serde = []

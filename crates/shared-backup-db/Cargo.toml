@@ -15,6 +15,10 @@ resolver = "2"
 deadpool-postgres = { workspace = true }
 serde = { workspace = true }
 tokio = { workspace = true }
+tracing = { workspace = true } 
+postgres-types = { workspace = true, features = ["with-serde_json-1"] }
+
+sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
 
 [dev-dependencies]
 

@@ -22,13 +22,13 @@ serde = { workspace = true }
 bytemuck = "1.13.1"
 once_cell = { version = "1.19.0", optional = true }
 parking_lot = { version = "0.12.1", optional = true }
-sov-zk-cycle-utils = { path = "../../utils/zk-cycle-utils", version = "0.3" }
-sov-rollup-interface = { path = "../../rollup-interface", version = "0.3" }
+sov-zk-cycle-utils = { path = "../../utils/zk-cycle-utils", optional = true }
+sov-rollup-interface = { path = "../../rollup-interface" }
 
 [features]
 default = []
 native = ["risc0-zkvm/prove", "dep:risc0-zkp", "dep:risc0-circuit-rv32im"]
-bench = ["once_cell", "parking_lot","native","sov-zk-cycle-utils/native"]
+bench = ["once_cell", "parking_lot", "native", "sov-zk-cycle-utils/native"]
 
 [[test]]
 name = "native"

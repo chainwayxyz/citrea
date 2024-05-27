@@ -1,19 +1,22 @@
 use std::collections::VecDeque;
 
 use sov_mock_da::{
-    MockBlockHeader, MockDaService, MockDaSpec, MockDaVerifier, MockHash, MockValidityCond,
+    MockAddress, MockBlockHeader, MockDaService, MockDaSpec, MockDaVerifier, MockHash,
+    MockValidityCond,
 };
 use sov_mock_zkvm::MockZkvm;
 use sov_rollup_interface::da::Time;
 use sov_rollup_interface::zk::StateTransitionData;
 use sov_stf_runner::mock::MockStf;
 use sov_stf_runner::{
-    ParallelProverService, ProofProcessingStatus, ProofSubmissionStatus, ProverService,
-    ProverServiceConfig, ProverServiceError, RollupProverConfig, WitnessSubmissionStatus,
+    ParallelProverService, ProofProcessingStatus, ProverGuestRunConfig, ProverService,
+    ProverServiceError, WitnessSubmissionStatus,
 };
 
 #[tokio::test]
 async fn test_successful_prover_execution() -> Result<(), ProverServiceError> {
+    let da_service = MockDaService::new(MockAddress::from([0; 32]));
+
     let TestProver {
         prover_service, vm, ..
     } = make_new_prover();
@@ -24,11 +27,13 @@ async fn test_successful_prover_execution() -> Result<(), ProverServiceError> {
         .await;
     prover_service.prove(header_hash).await?;
     vm.make_proof();
-    wait_for_proof_proof_da_submission(header_hash, &prover_service).await;
+    prover_service
+        .wait_for_proving_and_send_to_da(header_hash, &da_service)
+        .await?;
 
     // The proof has already been sent, and the prover_service no longer has a reference to it.
     let err = prover_service
-        .send_proof_to_da(header_hash)
+        .wait_for_proving_and_send_to_da(header_hash, &da_service)
         .await
         .unwrap_err();
 
@@ -42,6 +47,7 @@ async fn test_successful_prover_execution() -> Result<(), ProverServiceError> {
 
 #[tokio::test]
 async fn test_prover_status_busy() -> Result<(), anyhow::Error> {
+    let da_service = MockDaService::new(MockAddress::from([0; 32]));
     let TestProver {
         prover_service,
         vm,
@@ -62,12 +68,6 @@ async fn test_prover_status_busy() -> Result<(), anyhow::Error> {
             ProofProcessingStatus::ProvingInProgress,
             poof_processing_status
         );
-
-        let proof_submission_status = prover_service.send_proof_to_da(header_hash).await?;
-        assert_eq!(
-            ProofSubmissionStatus::ProofGenerationInProgress,
-            proof_submission_status
-        );
     }
 
     // Attempting to create another proof while the prover is busy.
@@ -82,7 +82,7 @@ async fn test_prover_status_busy() -> Result<(), anyhow::Error> {
         assert_eq!(ProofProcessingStatus::Busy, status);
 
         let proof_submission_status = prover_service
-            .send_proof_to_da(header_hash)
+            .wait_for_proving_and_send_to_da(header_hash, &da_service)
             .await
             .unwrap_err();
 
@@ -94,7 +94,9 @@ async fn test_prover_status_busy() -> Result<(), anyhow::Error> {
 
     vm.make_proof();
     for header_hash in header_hashes.clone() {
-        wait_for_proof_proof_da_submission(header_hash, &prover_service).await;
+        prover_service
+            .wait_for_proving_and_send_to_da(header_hash, &da_service)
+            .await?;
     }
 
     // Retry once the prover is available to process new proofs.
@@ -176,30 +178,11 @@ struct TestProver {
     num_worker_threads: usize,
 }
 
-async fn wait_for_proof_proof_da_submission(
-    header_hash: MockHash,
-    prover_service: &ParallelProverService<
-        [u8; 0],
-        Vec<u8>,
-        MockDaService,
-        MockZkvm<MockValidityCond>,
-        MockStf<MockValidityCond>,
-    >,
-) {
-    for _ in 0..10 {
-        let status = prover_service.send_proof_to_da(header_hash).await;
-        if let Ok(ProofSubmissionStatus::Success) = status {
-            return;
-        }
-        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await
-    }
-}
-
 fn make_new_prover() -> TestProver {
     let num_threads = num_cpus::get();
     let vm = MockZkvm::new(MockValidityCond::default());
 
-    let prover_config = RollupProverConfig::Execute;
+    let prover_config = ProverGuestRunConfig::Execute;
     let zk_stf = MockStf::<MockValidityCond>::default();
     let da_verifier = MockDaVerifier::default();
     TestProver {
@@ -210,9 +193,6 @@ fn make_new_prover() -> TestProver {
             prover_config,
             (),
             num_threads,
-            ProverServiceConfig {
-                aggregated_proof_block_jump: 1,
-            },
         )
         .expect("Should be able to instantiate Prover service"),
         vm,
@@ -239,5 +219,7 @@ fn make_transition_data(
         soft_confirmations: VecDeque::new(),
         state_transition_witnesses: VecDeque::new(),
         da_block_headers_of_soft_confirmations: VecDeque::new(),
+        sequencer_public_key: vec![],
+        sequencer_da_public_key: vec![],
     }
 }

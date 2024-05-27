@@ -72,7 +72,7 @@ pub(crate) struct Block {
     pub(crate) header: Header,
 
     /// L1 fee rate.
-    pub(crate) l1_fee_rate: u64,
+    pub(crate) l1_fee_rate: u128,
 
     /// The hash of L1 block that the L2 block corresponds to.  
     pub(crate) l1_hash: B256,
@@ -98,7 +98,7 @@ pub(crate) struct SealedBlock {
     pub(crate) header: SealedHeader,
 
     /// L1 fee rate.
-    pub(crate) l1_fee_rate: u64,
+    pub(crate) l1_fee_rate: u128,
 
     /// The hash of L1 block that the L2 block corresponds to.  
     pub(crate) l1_hash: B256,

@@ -2,11 +2,8 @@
 #![doc = include_str!("../README.md")]
 
 mod batch;
-pub mod kernels;
 mod stf_blueprint;
 mod tx_verifier;
-
-use std::marker::PhantomData;
 
 pub use batch::Batch;
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -17,22 +14,18 @@ use sov_modules_api::hooks::{
     ApplyBlobHooks, ApplySoftConfirmationError, ApplySoftConfirmationHooks, FinalizeHook,
     SlotHooks, TxHooks,
 };
-use sov_modules_api::runtime::capabilities::{Kernel, KernelSlotHooks};
 use sov_modules_api::{
-    BasicAddress, BlobReaderTrait, Context, DaSpec, DispatchCall, Genesis, Signature, Spec,
-    StateCheckpoint, UnsignedSoftConfirmationBatch, WorkingSet, Zkvm,
+    native_debug, native_info, native_warn, BasicAddress, BlobReaderTrait, Context, DaSpec,
+    DispatchCall, Genesis, Signature, Spec, StateCheckpoint, StateDiff,
+    UnsignedSoftConfirmationBatch, WorkingSet, Zkvm,
 };
 use sov_rollup_interface::da::{DaData, SequencerCommitment};
 use sov_rollup_interface::digest::Digest;
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
 pub use sov_rollup_interface::stf::{BatchReceipt, TransactionReceipt};
 use sov_rollup_interface::stf::{SlotResult, StateTransitionFunction};
-use sov_state::storage::KernelWorkingSet;
 use sov_state::Storage;
-#[cfg(all(target_os = "zkvm", feature = "bench"))]
-use sov_zk_cycle_macros::cycle_tracker;
 pub use stf_blueprint::StfBlueprint;
-use tracing::{debug, info, warn};
 pub use tx_verifier::RawTx;
 
 /// The tx hook for a blueprint runtime
@@ -112,11 +105,9 @@ pub enum SequencerOutcome<A: BasicAddress> {
 }
 
 /// Genesis parameters for a blueprint
-pub struct GenesisParams<RT, K> {
+pub struct GenesisParams<RT> {
     /// The runtime genesis parameters
     pub runtime: RT,
-    /// The kernel's genesis parameters
-    pub kernel: K,
 }
 
 /// Reason why sequencer was slashed.
@@ -177,13 +168,12 @@ pub trait StfBlueprintTrait<C: Context, Da: DaSpec, Vm: Zkvm>:
     >;
 }
 
-impl<C, RT, Vm, Da, K> StfBlueprintTrait<C, Da, Vm> for StfBlueprint<C, Da, Vm, RT, K>
+impl<C, RT, Vm, Da> StfBlueprintTrait<C, Da, Vm> for StfBlueprint<C, Da, Vm, RT>
 where
     C: Context,
     Vm: Zkvm,
     Da: DaSpec,
     RT: Runtime<C, Da>,
-    K: KernelSlotHooks<C, Da>,
 {
     fn begin_soft_batch(
         &self,
@@ -194,7 +184,7 @@ where
         slot_header: &<Da as DaSpec>::BlockHeader,
         soft_batch: &mut SignedSoftConfirmationBatch,
     ) -> (Result<(), ApplySoftConfirmationError>, WorkingSet<C>) {
-        debug!("Applying soft batch in STF Blueprint");
+        native_debug!("Applying soft batch in STF Blueprint");
 
         // check if soft confirmation is coming from our sequencer
         assert_eq!(
@@ -294,7 +284,7 @@ where
         TxEffect,
         <<C as Spec>::Storage as Storage>::Witness,
     > {
-        info!(
+        native_info!(
             "soft batch  with hash: {:?} from sequencer {:?} has been applied with #{} transactions.",
             soft_batch.hash(),
             soft_batch.sequencer_pub_key(),
@@ -304,7 +294,7 @@ where
         let mut batch_receipts = vec![];
 
         for (i, tx_receipt) in batch_receipt.tx_receipts.iter().enumerate() {
-            info!(
+            native_info!(
                 "tx #{} hash: 0x{} result {:?}",
                 i,
                 hex::encode(tx_receipt.tx_hash),
@@ -313,14 +303,14 @@ where
         }
         batch_receipts.push(batch_receipt);
 
-        let (state_root, witness, storage) = {
+        let (state_root, witness, storage, state_diff) = {
             let working_set = checkpoint.to_revertable();
             // Save checkpoint
             let mut checkpoint = working_set.checkpoint();
 
             let (cache_log, witness) = checkpoint.freeze();
 
-            let (root_hash, state_update) = pre_state
+            let (root_hash, state_update, state_diff) = pre_state
                 .compute_state_update(cache_log, &witness)
                 .expect("jellyfish merkle tree update must succeed");
 
@@ -334,7 +324,7 @@ where
 
             pre_state.commit(&state_update, &accessory_log);
 
-            (root_hash, witness, pre_state)
+            (root_hash, witness, pre_state, state_diff)
         };
 
         SlotResult {
@@ -342,92 +332,21 @@ where
             change_set: storage,
             batch_receipts,
             witness,
+            state_diff,
         }
     }
 }
 
-impl<C, RT, Vm, Da, K> StfBlueprint<C, Da, Vm, RT, K>
-where
-    C: Context,
-    Vm: Zkvm,
-    Da: DaSpec,
-    RT: Runtime<C, Da>,
-    K: KernelSlotHooks<C, Da>,
-{
-    #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
-    fn begin_slot(
-        &self,
-        state_checkpoint: StateCheckpoint<C>,
-        slot_header: &Da::BlockHeader,
-        validity_condition: &Da::ValidityCondition,
-        pre_state_root: &<C::Storage as Storage>::Root,
-    ) -> StateCheckpoint<C> {
-        let mut working_set = state_checkpoint.to_revertable();
-        self.kernel.begin_slot_hook(
-            slot_header,
-            validity_condition,
-            pre_state_root,
-            &mut working_set,
-        );
-
-        self.runtime.begin_slot_hook(
-            slot_header,
-            validity_condition,
-            pre_state_root,
-            &mut working_set,
-        );
-
-        working_set.checkpoint()
-    }
-
-    #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
-    fn end_slot(
-        &self,
-        storage: C::Storage,
-        checkpoint: StateCheckpoint<C>,
-    ) -> (
-        <<C as Spec>::Storage as Storage>::Root,
-        <<C as Spec>::Storage as Storage>::Witness,
-        C::Storage,
-    ) {
-        // Run end end_slot_hook
-        let mut working_set = checkpoint.to_revertable();
-        self.runtime.end_slot_hook(&mut working_set);
-        // Save checkpoint
-        let mut checkpoint = working_set.checkpoint();
-
-        let (cache_log, witness) = checkpoint.freeze();
-
-        let (root_hash, state_update) = storage
-            .compute_state_update(cache_log, &witness)
-            .expect("jellyfish merkle tree update must succeed");
-
-        let mut working_set = checkpoint.to_revertable();
-
-        self.runtime
-            .finalize_hook(&root_hash, &mut working_set.accessory_state());
-
-        let mut checkpoint = working_set.checkpoint();
-        let accessory_log = checkpoint.freeze_non_provable();
-
-        storage.commit(&state_update, &accessory_log);
-
-        (root_hash, witness, storage)
-    }
-}
-
-impl<C, RT, Vm, Da, K> StateTransitionFunction<Vm, Da> for StfBlueprint<C, Da, Vm, RT, K>
+impl<C, RT, Vm, Da> StateTransitionFunction<Vm, Da> for StfBlueprint<C, Da, Vm, RT>
 where
     C: Context,
     Da: DaSpec,
     Vm: Zkvm,
     RT: Runtime<C, Da>,
-    K: KernelSlotHooks<C, Da>,
 {
     type StateRoot = <C::Storage as Storage>::Root;
 
-    type GenesisParams =
-        GenesisParams<<RT as Genesis>::Config, <K as Kernel<C, Da>>::GenesisConfig>;
+    type GenesisParams = GenesisParams<<RT as Genesis>::Config>;
     type PreState = C::Storage;
     type ChangeSet = C::Storage;
 
@@ -447,9 +366,6 @@ where
     ) -> (Self::StateRoot, Self::ChangeSet) {
         let mut working_set = StateCheckpoint::new(pre_state.clone()).to_revertable();
 
-        self.kernel
-            .genesis(&params.kernel, &mut working_set)
-            .expect("Kernel initialization must succeed");
         self.runtime
             .genesis(&params.runtime, &mut working_set)
             .expect("Runtime initialization must succeed");
@@ -457,7 +373,7 @@ where
         let mut checkpoint = working_set.checkpoint();
         let (log, witness) = checkpoint.freeze();
 
-        let (genesis_hash, state_update) = pre_state
+        let (genesis_hash, state_update, _) = pre_state
             .compute_state_update(log, &witness)
             .expect("Storage update must succeed");
 
@@ -477,12 +393,12 @@ where
 
     fn apply_slot<'a, I>(
         &self,
-        pre_state_root: &Self::StateRoot,
-        pre_state: Self::PreState,
-        witness: Self::Witness,
-        slot_header: &Da::BlockHeader,
-        validity_condition: &Da::ValidityCondition,
-        blobs: I,
+        _pre_state_root: &Self::StateRoot,
+        _pre_state: Self::PreState,
+        _witness: Self::Witness,
+        _slot_header: &Da::BlockHeader,
+        _validity_condition: &Da::ValidityCondition,
+        _blobs: I,
     ) -> SlotResult<
         Self::StateRoot,
         Self::ChangeSet,
@@ -493,63 +409,7 @@ where
     where
         I: IntoIterator<Item = &'a mut Da::BlobTransaction>,
     {
-        let checkpoint = StateCheckpoint::with_witness(pre_state.clone(), witness);
-        let checkpoint =
-            self.begin_slot(checkpoint, slot_header, validity_condition, pre_state_root);
-
-        // Initialize batch workspace
-        let mut batch_workspace = checkpoint.to_revertable();
-        let mut kernel_working_set =
-            KernelWorkingSet::from_kernel(&self.kernel, &mut batch_workspace);
-        let selected_blobs = self
-            .kernel
-            .get_blobs_for_this_slot(blobs, &mut kernel_working_set)
-            .expect("blob selection must succeed, probably serialization failed");
-
-        info!(
-            "Selected {} blob(s) for execution in current slot",
-            selected_blobs.len()
-        );
-
-        let mut checkpoint = batch_workspace.checkpoint();
-
-        let mut batch_receipts = vec![];
-
-        for (blob_idx, mut blob) in selected_blobs.into_iter().enumerate() {
-            let (apply_blob_result, checkpoint_after_blob) =
-                self.apply_blob(checkpoint, blob.as_mut_ref());
-            checkpoint = checkpoint_after_blob;
-            let batch_receipt = apply_blob_result.unwrap_or_else(Into::into);
-            info!(
-                "blob #{} from sequencer {} with blob_hash 0x{} has been applied with #{} transactions, sequencer outcome {:?}",
-                blob_idx,
-                blob.as_mut_ref().sender(),
-                hex::encode(batch_receipt.batch_hash),
-                batch_receipt.tx_receipts.len(),
-                batch_receipt.phantom_data
-            );
-            for (i, tx_receipt) in batch_receipt.tx_receipts.iter().enumerate() {
-                info!(
-                    "tx #{} hash: 0x{} result {:?}",
-                    i,
-                    hex::encode(tx_receipt.tx_hash),
-                    tx_receipt.receipt
-                );
-            }
-            batch_receipts.push(BatchReceipt {
-                batch_hash: batch_receipt.batch_hash,
-                tx_receipts: batch_receipt.tx_receipts,
-                phantom_data: PhantomData,
-            });
-        }
-
-        let (state_root, witness, storage) = self.end_slot(pre_state, checkpoint);
-        SlotResult {
-            state_root,
-            change_set: storage,
-            batch_receipts,
-            witness,
-        }
+        unimplemented!();
     }
 
     fn apply_soft_batch(
@@ -590,7 +450,7 @@ where
                 self.finalize_soft_batch(batch_receipt, checkpoint, pre_state, soft_batch)
             }
             (Err(err), batch_workspace) => {
-                warn!(
+                native_warn!(
                     "Error applying soft batch: {:?} \n reverting batch workspace",
                     err
                 );
@@ -600,6 +460,7 @@ where
                     change_set: pre_state, // should be empty
                     batch_receipts: vec![],
                     witness: <<C as Spec>::Storage as Storage>::Witness::default(),
+                    state_diff: vec![],
                 }
             }
         }
@@ -608,6 +469,7 @@ where
     fn apply_soft_confirmations_from_sequencer_commitments(
         &self,
         sequencer_public_key: &[u8],
+        sequencer_da_public_key: &[u8],
         initial_state_root: &Self::StateRoot,
         pre_state: Self::PreState,
         mut da_data: Vec<<Da as DaSpec>::BlobTransaction>,
@@ -615,16 +477,15 @@ where
         mut slot_headers: std::collections::VecDeque<Vec<<Da as DaSpec>::BlockHeader>>,
         validity_condition: &<Da as DaSpec>::ValidityCondition,
         mut soft_confirmations: std::collections::VecDeque<Vec<SignedSoftConfirmationBatch>>,
-    ) -> (
-        Self::StateRoot,
-        Vec<u8>, // state diff
-    ) {
+    ) -> (Self::StateRoot, StateDiff) {
+        let mut state_diff = vec![];
+
         // First extract all sequencer commitments
         // Ignore broken DaData and zk proofs. Also ignore ForcedTransaction's (will be implemented in the future).
         let mut sequencer_commitments: Vec<SequencerCommitment> = vec![];
         for blob in da_data.iter_mut() {
             // TODO: get sequencer da pub key
-            if blob.sender().as_ref() == sequencer_public_key {
+            if blob.sender().as_ref() == sequencer_da_public_key {
                 let da_data = DaData::try_from_slice(blob.verified_data());
 
                 if let Ok(DaData::SequencerCommitment(commitment)) = da_data {
@@ -654,27 +515,29 @@ where
 
             assert_eq!(
                 soft_confirmations[index_soft_confirmation].da_slot_hash(),
-                da_block_headers[index_headers].hash().into()
+                da_block_headers[index_headers].hash().into(),
+                "Soft confirmation DA slot hash must match DA block header hash"
             );
 
             assert_eq!(
                 soft_confirmations[index_soft_confirmation].da_slot_height(),
-                da_block_headers[index_headers].height()
+                da_block_headers[index_headers].height(),
+                "Soft confirmation DA slot height must match DA block header height"
             );
 
             index_soft_confirmation += 1;
 
-            // TODO: chech for no da block height jump
             while index_soft_confirmation < soft_confirmations.len() {
-                // the soft confirmations DA hash mus equal to da hash in index_headers
-                // if it's not matching, and if it's not matching the next one, then stat transition is invalid.
+                // the soft confirmations DA hash must equal to da hash in index_headers
+                // if it's not matching, and if it's not matching the next one, then state transition is invalid.
 
-                if soft_confirmations[index_soft_confirmation].hash()
+                if soft_confirmations[index_soft_confirmation].da_slot_hash()
                     == da_block_headers[index_headers].hash().into()
                 {
                     assert_eq!(
                         soft_confirmations[index_soft_confirmation].da_slot_height(),
-                        da_block_headers[index_headers].height()
+                        da_block_headers[index_headers].height(),
+                        "Soft confirmation DA slot height must match DA block header height"
                     );
 
                     index_soft_confirmation += 1;
@@ -684,7 +547,14 @@ where
                     // this can also be done in soft confirmation rule enforcer?
                     assert_eq!(
                         da_block_headers[index_headers].height(),
-                        current_da_height + 1
+                        current_da_height + 1,
+                        "DA block headers must be in order"
+                    );
+
+                    assert_eq!(
+                        da_block_headers[index_headers - 1].hash(),
+                        da_block_headers[index_headers].prev_hash(),
+                        "DA block headers must be in order"
                     );
 
                     current_da_height += 1;
@@ -692,12 +562,14 @@ where
                     // if the next one is not matching, then the state transition is invalid.
                     assert_eq!(
                         soft_confirmations[index_soft_confirmation].da_slot_hash(),
-                        da_block_headers[index_headers].hash().into()
+                        da_block_headers[index_headers].hash().into(),
+                        "Soft confirmation DA slot hash must match DA block header hash"
                     );
 
                     assert_eq!(
                         soft_confirmations[index_soft_confirmation].da_slot_height(),
-                        da_block_headers[index_headers].height()
+                        da_block_headers[index_headers].height(),
+                        "Soft confirmation DA slot height must match DA block header height"
                     );
 
                     index_soft_confirmation += 1;
@@ -705,7 +577,11 @@ where
             }
 
             // final da header was checked against
-            assert_eq!(index_headers, da_block_headers.len() - 1);
+            assert_eq!(
+                index_headers,
+                da_block_headers.len() - 1,
+                "All DA headers must be checked"
+            );
 
             // now verify the claimed merkle root of soft confirmation hashes
             let mut soft_confirmation_hashes = vec![];
@@ -719,16 +595,18 @@ where
             let calculated_root =
                 MerkleTree::<Sha256>::from_leaves(soft_confirmation_hashes.as_slice()).root();
 
-            assert_eq!(calculated_root, Some(sequencer_commitment.merkle_root));
+            assert_eq!(
+                calculated_root,
+                Some(sequencer_commitment.merkle_root),
+                "Invalid merkle root"
+            );
 
             let mut witness_iter = witnesses.into_iter();
             let mut da_block_headers_iter = da_block_headers.into_iter().peekable();
             let mut da_block_header = da_block_headers_iter.next().unwrap();
             // now that we verified the claimed root, we can apply the soft confirmations
             for soft_confirmation in soft_confirmations.iter_mut() {
-                if soft_confirmation.da_slot_height()
-                    != da_block_headers_iter.peek().unwrap().height()
-                {
+                if soft_confirmation.da_slot_height() != da_block_header.height() {
                     da_block_header = da_block_headers_iter.next().unwrap();
                 }
 
@@ -744,11 +622,12 @@ where
                 );
 
                 current_state_root = result.state_root;
+                state_diff.extend(result.state_diff);
             }
         }
 
         // TODO: implement state diff extraction
-        (current_state_root, vec![])
+        (current_state_root, state_diff)
     }
 }
 

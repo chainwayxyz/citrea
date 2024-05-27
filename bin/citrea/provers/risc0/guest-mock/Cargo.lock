@@ -760,7 +760,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-evm"
-version = "0.3.0"
+version = "0.4.0-rc.3"
 dependencies = [
  "alloy-primitives",
  "anyhow",
@@ -772,12 +772,11 @@ dependencies = [
  "sov-modules-api",
  "sov-state",
  "thiserror",
- "tracing",
 ]
 
 [[package]]
 name = "citrea-stf"
-version = "0.3.0"
+version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "borsh",
@@ -792,7 +791,6 @@ dependencies = [
  "sov-rollup-interface",
  "sov-state",
  "sov-stf-runner",
- "tracing",
 ]
 
 [[package]]
@@ -2664,7 +2662,7 @@ dependencies = [
 
 [[package]]
 name = "soft-confirmation-rule-enforcer"
-version = "0.3.0"
+version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "borsh",
@@ -2676,7 +2674,7 @@ dependencies = [
 
 [[package]]
 name = "sov-accounts"
-version = "0.3.0"
+version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "borsh",
@@ -2684,44 +2682,6 @@ dependencies = [
  "sov-modules-api",
  "sov-state",
  "thiserror",
-]
-
-[[package]]
-name = "sov-bank"
-version = "0.3.0"
-dependencies = [
- "anyhow",
- "borsh",
- "serde",
- "sov-modules-api",
- "sov-state",
- "thiserror",
-]
-
-[[package]]
-name = "sov-blob-storage"
-version = "0.3.0"
-dependencies = [
- "anyhow",
- "bincode",
- "borsh",
- "hex",
- "sov-chain-state",
- "sov-modules-api",
- "sov-sequencer-registry",
- "sov-state",
- "tracing",
-]
-
-[[package]]
-name = "sov-chain-state"
-version = "0.3.0"
-dependencies = [
- "anyhow",
- "borsh",
- "serde",
- "sov-modules-api",
- "sov-state",
 ]
 
 [[package]]
@@ -2743,7 +2703,7 @@ dependencies = [
 
 [[package]]
 name = "sov-mock-da"
-version = "0.3.0"
+version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2758,7 +2718,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-api"
-version = "0.3.0"
+version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "bech32",
@@ -2778,7 +2738,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-core"
-version = "0.3.0"
+version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "bech32",
@@ -2796,7 +2756,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-macros"
-version = "0.3.0"
+version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "borsh",
@@ -2808,7 +2768,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-stf-blueprint"
-version = "0.3.0"
+version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "borsh",
@@ -2818,19 +2778,16 @@ dependencies = [
  "risc0-zkvm-platform",
  "rs_merkle",
  "serde",
- "sov-blob-storage",
- "sov-chain-state",
  "sov-modules-api",
  "sov-rollup-interface",
  "sov-state",
  "sov-zk-cycle-macros",
  "thiserror",
- "tracing",
 ]
 
 [[package]]
 name = "sov-risc0-adapter"
-version = "0.3.0"
+version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "bincode",
@@ -2839,12 +2796,11 @@ dependencies = [
  "risc0-zkvm-platform",
  "serde",
  "sov-rollup-interface",
- "sov-zk-cycle-utils",
 ]
 
 [[package]]
 name = "sov-rollup-interface"
-version = "0.3.0"
+version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2859,20 +2815,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "sov-sequencer-registry"
-version = "0.3.0"
-dependencies = [
- "anyhow",
- "borsh",
- "serde",
- "sov-bank",
- "sov-modules-api",
- "sov-state",
-]
-
-[[package]]
 name = "sov-state"
-version = "0.3.0"
+version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "bcs",
@@ -2892,7 +2836,7 @@ dependencies = [
 
 [[package]]
 name = "sov-stf-runner"
-version = "0.3.0"
+version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "borsh",
@@ -2908,20 +2852,11 @@ dependencies = [
 
 [[package]]
 name = "sov-zk-cycle-macros"
-version = "0.3.0"
+version = "0.4.0-rc.3"
 dependencies = [
  "proc-macro2",
  "quote",
  "syn 1.0.109",
-]
-
-[[package]]
-name = "sov-zk-cycle-utils"
-version = "0.3.0"
-dependencies = [
- "bytes",
- "risc0-zkvm",
- "risc0-zkvm-platform",
 ]
 
 [[package]]

@@ -7,6 +7,7 @@ use reth_primitives::B256;
 use serde::Deserialize;
 use sov_rollup_interface::rpc::HexTx;
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
+use tracing::instrument;
 
 /// Configuration for SequencerClient.
 #[derive(Debug, Clone)]
@@ -19,12 +20,14 @@ pub struct SequencerClient {
 
 impl SequencerClient {
     /// Creates the sequencer client
+    #[instrument(level = "trace")]
     pub fn new(rpc_url: String) -> Self {
         let client = HttpClientBuilder::default().build(&rpc_url).unwrap();
         Self { rpc_url, client }
     }
 
     /// Gets l2 block given l2 height
+    #[instrument(level = "trace", skip(self), err, ret)]
     pub async fn get_soft_batch<DaSpec: sov_rollup_interface::da::DaSpec>(
         &self,
         num: u64,
@@ -44,12 +47,14 @@ impl SequencerClient {
     }
 
     /// Sends raw tx to sequencer
+    #[instrument(level = "trace", skip_all, err, ret)]
     pub async fn send_raw_tx(&self, tx: Bytes) -> Result<H256, Error> {
         self.client
             .request("eth_sendRawTransaction", rpc_params![tx])
             .await
     }
 
+    #[instrument(level = "trace", skip(self), err, ret)]
     pub async fn get_tx_by_hash(
         &self,
         tx_hash: B256,
@@ -84,7 +89,7 @@ pub struct GetSoftBatchResponse {
     pub deposit_data: Vec<HexTx>, // Vec<u8> wrapper around deposit data
     #[serde(with = "hex::serde")]
     pub pub_key: Vec<u8>,
-    pub l1_fee_rate: u64,
+    pub l1_fee_rate: u128,
     pub timestamp: u64,
 }
 

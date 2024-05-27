@@ -3,7 +3,7 @@ use sov_mock_da::{
     MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaSpec, MockValidityCond,
 };
 use sov_mock_zkvm::MockZkvm;
-use sov_modules_api::Context;
+use sov_modules_api::{Context, StateDiff};
 use sov_modules_stf_blueprint::StfBlueprintTrait;
 use sov_prover_storage_manager::{new_orphan_storage, SnapshotManager};
 use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaSpec};
@@ -49,7 +49,7 @@ impl<Cond> HashStf<Cond> {
             ordered_writes: vec![(hash_key.to_cache_key(), Some(hash_value.into_cache_value()))],
         };
 
-        let (jmt_root_hash, state_update) = storage
+        let (jmt_root_hash, state_update, _) = storage
             .compute_state_update(ordered_reads_writes, witness)
             .unwrap();
 
@@ -198,6 +198,7 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
             // TODO: Add batch receipts to inspection
             batch_receipts: vec![],
             witness,
+            state_diff: vec![],
         }
     }
 
@@ -223,6 +224,7 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
     fn apply_soft_confirmations_from_sequencer_commitments(
         &self,
         _sequencer_public_key: &[u8],
+        _sequencer_da_public_key: &[u8],
         _initial_state_root: &Self::StateRoot,
         _pre_state: Self::PreState,
         _da_data: Vec<<Da as DaSpec>::BlobTransaction>,
@@ -232,10 +234,7 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
         _soft_confirmations: std::collections::VecDeque<
             Vec<sov_modules_api::SignedSoftConfirmationBatch>,
         >,
-    ) -> (
-        Self::StateRoot,
-        Vec<u8>, // state diff
-    ) {
+    ) -> (Self::StateRoot, StateDiff) {
         todo!()
     }
 }

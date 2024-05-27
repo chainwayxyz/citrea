@@ -12,11 +12,9 @@ use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::zk::{Proof, StateTransitionData, ZkvmHost};
 
 use super::ProverServiceError;
-use crate::{
-    ProofGenConfig, ProofProcessingStatus, ProofSubmissionStatus, WitnessSubmissionStatus,
-};
+use crate::{ProofGenConfig, ProofProcessingStatus, WitnessSubmissionStatus};
 
-enum ProverStatus<StateRoot, Witness, Da: DaSpec> {
+pub(crate) enum ProverStatus<StateRoot, Witness, Da: DaSpec> {
     WitnessSubmitted(StateTransitionData<StateRoot, Witness, Da>),
     ProvingInProgress,
     #[allow(dead_code)]
@@ -81,7 +79,6 @@ pub(crate) struct Prover<StateRoot, Witness, Da: DaService> {
     prover_state: Arc<RwLock<ProverState<StateRoot, Witness, Da::Spec>>>,
     num_threads: usize,
     pool: rayon::ThreadPool,
-    _aggregated_proof_block_jump: u64,
 }
 
 impl<StateRoot, Witness, Da> Prover<StateRoot, Witness, Da>
@@ -90,10 +87,7 @@ where
     StateRoot: Serialize + DeserializeOwned + Clone + AsRef<[u8]> + Send + Sync + 'static,
     Witness: Serialize + DeserializeOwned + Send + Sync + 'static,
 {
-    pub(crate) fn new(
-        num_threads: usize,
-        _aggregated_proof_block_jump: u64,
-    ) -> anyhow::Result<Self> {
+    pub(crate) fn new(num_threads: usize) -> anyhow::Result<Self> {
         Ok(Self {
             num_threads,
             pool: rayon::ThreadPoolBuilder::new()
@@ -105,7 +99,6 @@ where
                 prover_status: Default::default(),
                 pending_tasks_count: Default::default(),
             })),
-            _aggregated_proof_block_jump,
         })
     }
 
@@ -150,7 +143,6 @@ where
         match prover_status {
             ProverStatus::WitnessSubmitted(state_transition_data) => {
                 let start_prover = prover_state.inc_task_count_if_not_busy(self.num_threads);
-
                 // Initiate a new proving job only if the prover is not busy.
                 if start_prover {
                     prover_state.set_to_proving(block_header_hash.clone());
@@ -187,20 +179,20 @@ where
         }
     }
 
-    pub(crate) fn get_proof_submission_status_and_remove_on_success(
+    pub(crate) fn get_prover_status_for_da_submission(
         &self,
         block_header_hash: <Da::Spec as DaSpec>::SlotHash,
-    ) -> Result<ProofSubmissionStatus, anyhow::Error> {
+    ) -> Result<ProverStatus<StateRoot, Witness, Da::Spec>, anyhow::Error> {
         let mut prover_state = self.prover_state.write().unwrap();
         let status = prover_state.get_prover_status(block_header_hash.clone());
 
         match status {
-            Some(ProverStatus::ProvingInProgress) => {
-                Ok(ProofSubmissionStatus::ProofGenerationInProgress)
-            }
+            Some(ProverStatus::ProvingInProgress) => Ok(ProverStatus::ProvingInProgress),
             Some(ProverStatus::Proved(_)) => {
-                prover_state.remove(&block_header_hash);
-                Ok(ProofSubmissionStatus::Success)
+                // we know its proved so we can unwrap
+                let status = prover_state.remove(&block_header_hash).unwrap();
+
+                Ok(status)
             }
             Some(ProverStatus::WitnessSubmitted(_)) => Err(anyhow::anyhow!(
                 "Witness for {:?} was submitted, but the proof generation is not triggered.",

@@ -4,6 +4,7 @@ use std::str::FromStr;
 use alloy_primitives::FixedBytes;
 use hex::FromHex;
 use reth_primitives::{Address, BlockId, BlockNumberOrTag, U64};
+use reth_rpc::eth::error::EthApiError;
 use reth_rpc_types::request::{TransactionInput, TransactionRequest};
 use reth_rpc_types::{Block, Rich, TransactionReceipt};
 use revm::primitives::{B256, U256};
@@ -11,7 +12,6 @@ use serde_json::json;
 
 use crate::smart_contracts::SimpleStorageContract;
 use crate::tests::queries::init_evm;
-use crate::EthApiError;
 
 #[test]
 fn get_block_by_hash_test() {
@@ -232,6 +232,28 @@ fn get_block_transaction_count_by_hash_test() {
 
     let result = evm.eth_get_block_transaction_count_by_hash(bock_hash_3, &mut working_set);
 
+    assert_eq!(result, Ok(Some(U256::from(2))));
+}
+
+#[test]
+fn get_block_transaction_count_by_number_test() {
+    let (evm, mut working_set, _) = init_evm();
+
+    let result = evm
+        .eth_get_block_transaction_count_by_number(BlockNumberOrTag::Number(5), &mut working_set);
+    // Non-existent block number should return None
+    assert_eq!(result, Ok(None));
+
+    let result = evm
+        .eth_get_block_transaction_count_by_number(BlockNumberOrTag::Number(1), &mut working_set);
+    assert_eq!(result, Ok(Some(U256::from(3))));
+
+    let result = evm
+        .eth_get_block_transaction_count_by_number(BlockNumberOrTag::Number(2), &mut working_set);
+    assert_eq!(result, Ok(Some(U256::from(4))));
+
+    let result = evm
+        .eth_get_block_transaction_count_by_number(BlockNumberOrTag::Number(3), &mut working_set);
     assert_eq!(result, Ok(Some(U256::from(2))));
 }
 

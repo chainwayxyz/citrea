@@ -1,4 +1,3 @@
-use std::convert::Infallible;
 use std::str::FromStr;
 
 use reth_primitives::{Address, TransactionKind};
@@ -7,7 +6,7 @@ use revm::{Database, DatabaseCommit};
 use sov_modules_api::WorkingSet;
 use sov_prover_storage_manager::new_orphan_storage;
 
-use super::db::EvmDb;
+use super::db::{DBError, EvmDb};
 use super::db_init::InitEvmDb;
 use super::executor;
 use crate::evm::handler::CitreaExternal;
@@ -33,7 +32,7 @@ fn simple_contract_execution_sov_state() {
     simple_contract_execution(evm_db);
 }
 
-fn simple_contract_execution<DB: Database<Error = Infallible> + DatabaseCommit + InitEvmDb>(
+fn simple_contract_execution<DB: Database<Error = DBError> + DatabaseCommit + InitEvmDb>(
     mut evm_db: DB,
 ) {
     let dev_signer = TestSigner::new_random();

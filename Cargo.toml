@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     # Citrea
     "bin/citrea",
+    "bin/rollup-constants",
     "crates/bitcoin-da",
     "crates/evm",
     "crates/sequencer",
@@ -12,6 +13,7 @@ members = [
     # Sovereign sdk
     "crates/sovereign-sdk/rollup-interface",
     "crates/sovereign-sdk/adapters/risc0",
+    "crates/sovereign-sdk/adapters/risc0-bonsai",
     "crates/sovereign-sdk/adapters/mock-da",
     "crates/sovereign-sdk/adapters/mock-zkvm",
     # Examples
@@ -36,7 +38,6 @@ members = [
     "crates/sovereign-sdk/module-system/sov-modules-rollup-blueprint",
     "crates/sovereign-sdk/module-system/sov-modules-macros",
     "crates/sovereign-sdk/module-system/sov-modules-core",
-    "crates/sovereign-sdk/module-system/sov-soft-confirmations-kernel",
     "crates/sovereign-sdk/module-system/sov-state",
     "crates/sovereign-sdk/module-system/sov-modules-api",
     "crates/sovereign-sdk/module-system/module-schemas",
@@ -44,10 +45,7 @@ members = [
     "crates/sovereign-sdk/module-system/module-implementations/sov-accounts",
     "crates/sovereign-sdk/module-system/module-implementations/sov-bank",
     "crates/sovereign-sdk/module-system/module-implementations/sov-nft-module",
-    "crates/sovereign-sdk/module-system/module-implementations/sov-chain-state",
-    "crates/sovereign-sdk/module-system/module-implementations/sov-blob-storage",
     "crates/sovereign-sdk/module-system/module-implementations/sov-prover-incentives",
-    "crates/sovereign-sdk/module-system/module-implementations/sov-attester-incentives",
     "crates/sovereign-sdk/module-system/module-implementations/sov-sequencer-registry",
     "crates/sovereign-sdk/module-system/module-implementations/module-template",
     "crates/sovereign-sdk/module-system/module-implementations/examples/sov-value-setter",
@@ -59,7 +57,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.3.0"
+version = "0.4.0-rc.3"
 edition = "2021"
 license = "GPL-3.0"
 authors = ["Chainway Labs <info@chainway.xyz>"]
@@ -76,6 +74,7 @@ async-trait = "0.1.71"
 anyhow = { version = "1.0.68", default-features = false }
 arbitrary = { version = "1.3.1", features = ["derive"] }
 alloy-rlp = "0.3"
+backoff = { version = "0.4.0", features = [ "futures", "tokio" ] }
 borsh = { version = "0.10.3", default-features = false }
 # TODO: Consider replacing this serialization format
 #     https://github.com/Sovereign-Labs/sovereign-sdk/issues/283
@@ -86,6 +85,7 @@ bytes = { version = "1.2.1", default-features = false }
 chrono = { version = "0.4.37", default-features = false }
 digest = { version = "0.10.6", default-features = false, features = ["alloc"] }
 deadpool-postgres = "0.13.1"
+postgres-types = "0.2.6"
 rs_merkle = "1.4.2"
 futures = "0.3"
 pin-project = { version = "1.1.3" }
@@ -93,6 +93,7 @@ hex = { version = "0.4.3", default-features = false, features = [
     "alloc",
     "serde",
 ] }
+log-panics = { version = "2", features = ["with-backtrace"] }
 once_cell = { version = "1.19.0", default-features = false, features = [
     "alloc",
 ] }

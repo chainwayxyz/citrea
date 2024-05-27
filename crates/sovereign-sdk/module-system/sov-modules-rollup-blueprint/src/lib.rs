@@ -8,20 +8,19 @@ use std::net::SocketAddr;
 use async_trait::async_trait;
 use citrea_sequencer::{CitreaSequencer, SequencerConfig};
 pub use runtime_rpc::*;
-use sequencer_client::SequencerClient;
 use sov_db::ledger_db::LedgerDB;
-use sov_modules_api::runtime::capabilities::{Kernel, KernelSlotHooks};
 use sov_modules_api::{Context, DaSpec, Spec};
 use sov_modules_stf_blueprint::{GenesisParams, Runtime as RuntimeTrait, StfBlueprint};
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
-use sov_rollup_interface::zk::ZkvmHost;
+use sov_rollup_interface::zk::{Zkvm, ZkvmHost};
 use sov_state::storage::NativeStorage;
 use sov_state::Storage;
 use sov_stf_runner::{
-    InitVariant, ProverService, RollupConfig, RollupProverConfig, StateTransitionRunner,
+    InitVariant, ProverConfig, ProverService, RollupConfig, StateTransitionRunner,
 };
 use tokio::sync::oneshot;
+use tracing::instrument;
 pub use wallet::*;
 
 /// This trait defines how to crate all the necessary dependencies required by a rollup.
@@ -35,7 +34,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
     type DaConfig: Send + Sync;
 
     /// Host of a zkVM program.
-    type Vm: ZkvmHost + Send;
+    type Vm: ZkvmHost + Zkvm + Send;
 
     /// Context for Zero Knowledge environment.
     type ZkContext: Context;
@@ -54,13 +53,9 @@ pub trait RollupBlueprint: Sized + Send + Sync {
     /// Runtime for the Native environment.
     type NativeRuntime: RuntimeTrait<Self::NativeContext, Self::DaSpec> + Default + Send + Sync;
 
-    /// The kernel for the native environment.
-    type NativeKernel: KernelSlotHooks<Self::NativeContext, Self::DaSpec> + Default + Send + Sync;
-    /// The kernel for the Zero Knowledge environment.
-    type ZkKernel: KernelSlotHooks<Self::ZkContext, Self::DaSpec> + Default;
-
     /// Prover service.
     type ProverService: ProverService<
+        Self::Vm,
         StateRoot = <<Self::NativeContext as Spec>::Storage as Storage>::Root,
         Witness = <<Self::NativeContext as Spec>::Storage as Storage>::Witness,
         DaService = Self::DaService,
@@ -69,13 +64,16 @@ pub trait RollupBlueprint: Sized + Send + Sync {
     /// Creates a new instance of the blueprint.
     fn new() -> Self;
 
+    /// Get code commitment.
+    fn get_code_commitment(&self) -> <Self::Vm as Zkvm>::CodeCommitment;
+
     /// Creates RPC methods for the rollup.
     fn create_rpc_methods(
         &self,
         storage: &<Self::NativeContext as Spec>::Storage,
         ledger_db: &LedgerDB,
         da_service: &Self::DaService,
-        sequencer_client: Option<SequencerClient>,
+        sequencer_client_url: Option<String>,
     ) -> Result<jsonrpsee::RpcModule<()>, anyhow::Error>;
 
     /// Creates GenesisConfig from genesis files.
@@ -86,12 +84,10 @@ pub trait RollupBlueprint: Sized + Send + Sync {
             Self::NativeContext,
             Self::DaSpec,
         >>::GenesisPaths,
-        kernel_genesis: <Self::NativeKernel as Kernel<Self::NativeContext, Self::DaSpec>>::GenesisConfig,
         _rollup_config: &RollupConfig<Self::DaConfig>,
     ) -> anyhow::Result<
         GenesisParams<
             <Self::NativeRuntime as RuntimeTrait<Self::NativeContext, Self::DaSpec>>::GenesisConfig,
-            <Self::NativeKernel as Kernel<Self::NativeContext, Self::DaSpec>>::GenesisConfig,
         >,
     > {
         let rt_genesis = <Self::NativeRuntime as RuntimeTrait<
@@ -101,7 +97,6 @@ pub trait RollupBlueprint: Sized + Send + Sync {
 
         Ok(GenesisParams {
             runtime: rt_genesis,
-            kernel: kernel_genesis,
         })
     }
 
@@ -114,7 +109,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
     /// Creates instance of [`ProverService`].
     async fn create_prover_service(
         &self,
-        prover_config: RollupProverConfig,
+        prover_config: ProverConfig,
         rollup_config: &RollupConfig<Self::DaConfig>,
         da_service: &Self::DaService,
     ) -> Self::ProverService;
@@ -132,13 +127,13 @@ pub trait RollupBlueprint: Sized + Send + Sync {
     }
 
     /// Creates a new sequencer
+    #[instrument(level = "trace", skip_all)]
     async fn create_new_sequencer(
         &self,
         runtime_genesis_paths: &<Self::NativeRuntime as RuntimeTrait<
             Self::NativeContext,
             Self::DaSpec,
         >>::GenesisPaths,
-        kernel_genesis_config: <Self::NativeKernel as Kernel<Self::NativeContext, Self::DaSpec>>::GenesisConfig,
         rollup_config: RollupConfig<Self::DaConfig>,
         sequencer_config: SequencerConfig,
     ) -> Result<Sequencer<Self>, anyhow::Error>
@@ -152,11 +147,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         // Getting block here, so prover_service doesn't have to be `Send`
 
         let ledger_db = self.create_ledger_db(&rollup_config);
-        let genesis_config = self.create_genesis_config(
-            runtime_genesis_paths,
-            kernel_genesis_config,
-            &rollup_config,
-        )?;
+        let genesis_config = self.create_genesis_config(runtime_genesis_paths, &rollup_config)?;
 
         let mut storage_manager = self.create_storage_manager(&rollup_config)?;
         let prover_storage = storage_manager.create_finalized_storage()?;
@@ -189,9 +180,9 @@ pub trait RollupBlueprint: Sized + Send + Sync {
             native_stf,
             storage_manager,
             init_variant,
-            rollup_config.sequencer_public_key,
+            rollup_config.public_keys,
             ledger_db,
-            rollup_config.runner,
+            rollup_config.rpc,
         )
         .unwrap();
 
@@ -201,41 +192,32 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         })
     }
 
-    /// Creates a new rollup.
-    async fn create_new_rollup(
+    /// Creates a new prover
+    #[instrument(level = "trace", skip_all)]
+    async fn create_new_prover(
         &self,
         runtime_genesis_paths: &<Self::NativeRuntime as RuntimeTrait<
             Self::NativeContext,
             Self::DaSpec,
         >>::GenesisPaths,
-        kernel_genesis_config: <Self::NativeKernel as Kernel<Self::NativeContext, Self::DaSpec>>::GenesisConfig,
         rollup_config: RollupConfig<Self::DaConfig>,
-        prover_config: RollupProverConfig,
-        is_prover: bool,
-    ) -> Result<Rollup<Self>, anyhow::Error>
+        prover_config: ProverConfig,
+    ) -> Result<Prover<Self>, anyhow::Error>
     where
         <Self::NativeContext as Spec>::Storage: NativeStorage,
     {
         let da_service = self.create_da_service(&rollup_config).await;
 
+        let prover_service = self
+            .create_prover_service(prover_config.clone(), &rollup_config, &da_service)
+            .await;
+
         // TODO: Double check what kind of storage needed here.
         // Maybe whole "prev_root" can be initialized inside runner
         // Getting block here, so prover_service doesn't have to be `Send`
 
-        let prover_service = match is_prover {
-            true => Some(
-                self.create_prover_service(prover_config, &rollup_config, &da_service)
-                    .await,
-            ),
-            false => None,
-        };
-
         let ledger_db = self.create_ledger_db(&rollup_config);
-        let genesis_config = self.create_genesis_config(
-            runtime_genesis_paths,
-            kernel_genesis_config,
-            &rollup_config,
-        )?;
+        let genesis_config = self.create_genesis_config(runtime_genesis_paths, &rollup_config)?;
 
         let mut storage_manager = self.create_storage_manager(&rollup_config)?;
         let prover_storage = storage_manager.create_finalized_storage()?;
@@ -245,17 +227,13 @@ pub trait RollupBlueprint: Sized + Send + Sync {
             .map(|(number, _)| prover_storage.get_root_hash(number.0 + 1))
             .transpose()?;
 
-        // if node does not have a sequencer client, then it is a sequencer
-        let sequencer_client = rollup_config
-            .sequencer_client
-            .map(|s| SequencerClient::new(s.url));
-
+        let runner_config = rollup_config.runner.expect("Runner config is missing");
         // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1218)
         let rpc_methods = self.create_rpc_methods(
             &prover_storage,
             &ledger_db,
             &da_service,
-            sequencer_client.clone(),
+            Some(runner_config.sequencer_client_url.clone()),
         )?;
 
         let native_stf = StfBlueprint::new();
@@ -270,25 +248,98 @@ pub trait RollupBlueprint: Sized + Send + Sync {
             },
         };
 
+        let code_commitment = self.get_code_commitment();
+
         let runner = StateTransitionRunner::new(
-            rollup_config.runner,
+            runner_config,
+            rollup_config.public_keys,
+            rollup_config.rpc,
             da_service,
             ledger_db,
             native_stf,
             storage_manager,
             init_variant,
-            prover_service,
-            sequencer_client,
-            rollup_config.sequencer_public_key,
-            rollup_config.sequencer_da_pub_key,
-            rollup_config.prover_da_pub_key,
-            rollup_config.include_tx_body,
+            Some(prover_service),
+            Some(prover_config),
+            code_commitment,
         )?;
 
-        Ok(Rollup {
+        Ok(Prover {
             runner,
             rpc_methods,
-            is_prover,
+        })
+    }
+
+    /// Creates a new rollup.
+    #[instrument(level = "trace", skip_all)]
+    async fn create_new_rollup(
+        &self,
+        runtime_genesis_paths: &<Self::NativeRuntime as RuntimeTrait<
+            Self::NativeContext,
+            Self::DaSpec,
+        >>::GenesisPaths,
+        rollup_config: RollupConfig<Self::DaConfig>,
+    ) -> Result<FullNode<Self>, anyhow::Error>
+    where
+        <Self::NativeContext as Spec>::Storage: NativeStorage,
+    {
+        let da_service = self.create_da_service(&rollup_config).await;
+
+        // TODO: Double check what kind of storage needed here.
+        // Maybe whole "prev_root" can be initialized inside runner
+        // Getting block here, so prover_service doesn't have to be `Send`
+
+        let ledger_db = self.create_ledger_db(&rollup_config);
+        let genesis_config = self.create_genesis_config(runtime_genesis_paths, &rollup_config)?;
+
+        let mut storage_manager = self.create_storage_manager(&rollup_config)?;
+        let prover_storage = storage_manager.create_finalized_storage()?;
+
+        let prev_root = ledger_db
+            .get_head_soft_batch()?
+            .map(|(number, _)| prover_storage.get_root_hash(number.0 + 1))
+            .transpose()?;
+
+        let runner_config = rollup_config.runner.expect("Runner config is missing");
+        // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1218)
+        let rpc_methods = self.create_rpc_methods(
+            &prover_storage,
+            &ledger_db,
+            &da_service,
+            Some(runner_config.sequencer_client_url.clone()),
+        )?;
+
+        let native_stf = StfBlueprint::new();
+
+        let genesis_root = prover_storage.get_root_hash(1);
+
+        let init_variant = match prev_root {
+            Some(root_hash) => InitVariant::Initialized(root_hash),
+            None => match genesis_root {
+                Ok(root_hash) => InitVariant::Initialized(root_hash),
+                _ => InitVariant::Genesis(genesis_config),
+            },
+        };
+
+        let code_commitment = self.get_code_commitment();
+
+        let runner = StateTransitionRunner::new(
+            runner_config,
+            rollup_config.public_keys,
+            rollup_config.rpc,
+            da_service,
+            ledger_db,
+            native_stf,
+            storage_manager,
+            init_variant,
+            None,
+            None,
+            code_commitment,
+        )?;
+
+        Ok(FullNode {
+            runner,
+            rpc_methods,
         })
     }
 }
@@ -302,7 +353,7 @@ pub struct Sequencer<S: RollupBlueprint> {
         S::DaService,
         S::StorageManager,
         S::Vm,
-        StfBlueprint<S::NativeContext, S::DaSpec, S::Vm, S::NativeRuntime, S::NativeKernel>,
+        StfBlueprint<S::NativeContext, S::DaSpec, S::Vm, S::NativeRuntime>,
     >,
     /// Rpc methods for the rollup.
     pub rpc_methods: jsonrpsee::RpcModule<()>,
@@ -310,6 +361,7 @@ pub struct Sequencer<S: RollupBlueprint> {
 
 impl<S: RollupBlueprint> Sequencer<S> {
     /// Runs the sequencer.
+    #[instrument(level = "trace", skip_all, err, ret(level = "error"))]
     pub async fn run(self) -> Result<(), anyhow::Error> {
         self.run_and_report_rpc_port(None).await
     }
@@ -329,11 +381,11 @@ impl<S: RollupBlueprint> Sequencer<S> {
 }
 
 /// Dependencies needed to run the rollup.
-pub struct Rollup<S: RollupBlueprint> {
+pub struct FullNode<S: RollupBlueprint> {
     /// The State Transition Runner.
     #[allow(clippy::type_complexity)]
     pub runner: StateTransitionRunner<
-        StfBlueprint<S::NativeContext, S::DaSpec, S::Vm, S::NativeRuntime, S::NativeKernel>,
+        StfBlueprint<S::NativeContext, S::DaSpec, S::Vm, S::NativeRuntime>,
         S::StorageManager,
         S::DaService,
         S::Vm,
@@ -342,12 +394,11 @@ pub struct Rollup<S: RollupBlueprint> {
     >,
     /// Rpc methods for the rollup.
     pub rpc_methods: jsonrpsee::RpcModule<()>,
-    /// True for prover node, false for full node.
-    pub is_prover: bool,
 }
 
-impl<S: RollupBlueprint> Rollup<S> {
+impl<S: RollupBlueprint> FullNode<S> {
     /// Runs the rollup.
+    #[instrument(level = "trace", skip(self), err, ret(level = "error"))]
     pub async fn run(self) -> Result<(), anyhow::Error> {
         self.run_and_report_rpc_port(None).await
     }
@@ -365,11 +416,50 @@ impl<S: RollupBlueprint> Rollup<S> {
     ) -> Result<(), anyhow::Error> {
         let mut runner = self.runner;
         runner.start_rpc_server(self.rpc_methods, channel).await;
-        if self.is_prover {
-            runner.run_prover_process().await?;
-        } else {
-            runner.run_in_process().await?;
-        }
+
+        runner.run_in_process().await?;
+        Ok(())
+    }
+}
+
+/// Dependencies needed to run the rollup.
+pub struct Prover<S: RollupBlueprint> {
+    /// The State Transition Runner.
+    #[allow(clippy::type_complexity)]
+    pub runner: StateTransitionRunner<
+        StfBlueprint<S::NativeContext, S::DaSpec, S::Vm, S::NativeRuntime>,
+        S::StorageManager,
+        S::DaService,
+        S::Vm,
+        S::ProverService,
+        S::NativeContext,
+    >,
+    /// Rpc methods for the rollup.
+    pub rpc_methods: jsonrpsee::RpcModule<()>,
+}
+
+impl<S: RollupBlueprint> Prover<S> {
+    /// Runs the rollup.
+    #[instrument(level = "trace", skip_all, err, ret(level = "error"))]
+    pub async fn run(self) -> Result<(), anyhow::Error> {
+        self.run_and_report_rpc_port(None).await
+    }
+
+    /// Only run the rpc.
+    pub async fn run_rpc(self) -> Result<(), anyhow::Error> {
+        self.runner.start_rpc_server(self.rpc_methods, None).await;
+        Ok(())
+    }
+
+    /// Runs the rollup. Reports rpc port to the caller using the provided channel.
+    pub async fn run_and_report_rpc_port(
+        self,
+        channel: Option<oneshot::Sender<SocketAddr>>,
+    ) -> Result<(), anyhow::Error> {
+        let mut runner = self.runner;
+        runner.start_rpc_server(self.rpc_methods, channel).await;
+
+        runner.run_prover_process().await?;
         Ok(())
     }
 }

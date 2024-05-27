@@ -10,6 +10,7 @@ use sov_modules_core::{
     CacheKey, NativeStorage, OrderedReadsAndWrites, Storage, StorageKey, StorageProof,
     StorageValue, Witness,
 };
+use sov_rollup_interface::stf::StateDiff;
 
 use crate::config::Config;
 use crate::MerkleProofSpec;
@@ -103,7 +104,7 @@ impl<S: MerkleProofSpec, Q: QueryManager> Storage for ProverStorage<S, Q> {
         &self,
         state_accesses: OrderedReadsAndWrites,
         witness: &Self::Witness,
-    ) -> Result<(Self::Root, Self::StateUpdate), anyhow::Error> {
+    ) -> Result<(Self::Root, Self::StateUpdate, StateDiff), anyhow::Error> {
         let latest_version = self.db.get_next_version() - 1;
         let jmt = JellyfishMerkleTree::<_, S::Hasher>::new(&self.db);
 
@@ -165,7 +166,10 @@ impl<S: MerkleProofSpec, Q: QueryManager> Storage for ProverStorage<S, Q> {
             key_preimages,
         };
 
-        Ok((new_root, state_update))
+        // We need the state diff to be calculated only inside zk context.
+        // The diff then can be used by special nodes to construct the state of the rollup by verifying the zk proof.
+        // And constructing the tree from the diff.
+        Ok((new_root, state_update, vec![]))
     }
 
     fn commit(&self, state_update: &Self::StateUpdate, accessory_writes: &OrderedReadsAndWrites) {

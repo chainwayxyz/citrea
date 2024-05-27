@@ -10,5 +10,5 @@ use sov_rollup_interface::da::DaVerifier;
 use sov_stf_runner::verifier::StateTransitionVerifier;
 
 /// Alias for StateTransitionVerifier.
-pub type StfVerifier<DA, Vm, ZkContext, RT, K> =
-    StateTransitionVerifier<StfBlueprint<ZkContext, <DA as DaVerifier>::Spec, Vm, RT, K>, DA, Vm>;
+pub type StfVerifier<DA, Vm, ZkContext, RT> =
+    StateTransitionVerifier<StfBlueprint<ZkContext, <DA as DaVerifier>::Spec, Vm, RT>, DA, Vm>;

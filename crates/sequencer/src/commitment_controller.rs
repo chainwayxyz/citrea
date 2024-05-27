@@ -7,7 +7,7 @@ use sov_db::ledger_db::LedgerDB;
 use sov_db::schema::types::{BatchNumber, SlotNumber};
 use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::rpc::LedgerRpcProvider;
-use tracing::debug;
+use tracing::{debug, instrument};
 
 #[derive(Clone, Debug)]
 pub struct CommitmentInfo {
@@ -24,6 +24,7 @@ pub struct CommitmentInfo {
 /// Checks if the sequencer should commit
 /// Returns none if the commitable L2 block range is shorter than `min_soft_confirmations_per_commitment`
 /// Returns `CommitmentInfo` if the sequencer should commit
+#[instrument(level = "debug", skip_all, fields(prev_l1_height), err)]
 pub fn get_commitment_info(
     ledger_db: &LedgerDB,
     min_soft_confirmations_per_commitment: u64,
@@ -45,24 +46,37 @@ pub fn get_commitment_info(
     // if there is a height then start from height + 1 and go to prev_l1_height
     let (l2_range_to_submit, l1_height_range) = match last_commitment_l1_height {
         Some(last_commitment_l1_height) => {
-            let l1_height_range = (last_commitment_l1_height.0 + 1, last_commitable_l1_height);
+            let l1_start = last_commitment_l1_height.0 + 1;
+            let mut l1_end = l1_start;
 
-            let Some((l2_start_height, _)) =
-                ledger_db.get_l2_range_by_l1_height(SlotNumber(l1_height_range.0))?
+            let Some((l2_start, mut l2_end)) =
+                ledger_db.get_l2_range_by_l1_height(SlotNumber(l1_start))?
             else {
-                println!("1");
-                bail!("Sequencer: Failed to get L1 L2 connection");
-            };
-            let Some((_, l2_end_height)) =
-                ledger_db.get_l2_range_by_l1_height(SlotNumber(last_commitable_l1_height))?
-            else {
-                println!("2");
                 bail!("Sequencer: Failed to get L1 L2 connection");
             };
 
-            let l2_range_to_submit = (l2_start_height, l2_end_height);
+            // Take while sum of l2 ranges <= min_soft_confirmations_per_commitment
+            for l1_i in l1_start..=prev_l1_height {
+                l1_end = l1_i;
 
-            (l2_range_to_submit, l1_height_range)
+                let Some((_, l2_end_new)) =
+                    ledger_db.get_l2_range_by_l1_height(SlotNumber(l1_end))?
+                else {
+                    bail!("Sequencer: Failed to get L1 L2 connection");
+                };
+
+                l2_end = l2_end_new;
+
+                let l2_range_length = 1 + l2_end.0 - l2_start.0;
+                if l2_range_length >= min_soft_confirmations_per_commitment {
+                    break;
+                }
+            }
+            let l1_height_range = (l1_start, l1_end);
+
+            let l2_height_range = (l2_start, l2_end);
+
+            (l2_height_range, l1_height_range)
         }
         None => {
             let first_soft_confirmation = match ledger_db.get_soft_batch_by_number::<()>(1)? {
@@ -78,7 +92,6 @@ pub fn get_commitment_info(
             let Some((_, last_soft_confirmation_height)) =
                 ledger_db.get_l2_range_by_l1_height(SlotNumber(last_commitable_l1_height))?
             else {
-                println!("3");
                 bail!("Sequencer: Failed to get L1 L2 connection");
             };
 
@@ -122,6 +135,7 @@ pub fn get_commitment_info(
     }))
 }
 
+#[instrument(level = "debug", skip_all, err)]
 pub fn get_commitment(
     commitment_info: CommitmentInfo,
     soft_confirmation_hashes: Vec<[u8; 32]>,

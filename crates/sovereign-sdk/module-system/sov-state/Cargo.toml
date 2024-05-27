@@ -21,15 +21,17 @@ proptest-derive = { workspace = true, optional = true }
 serde = { workspace = true, features = ["rc"] }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
-sov-rollup-interface = { path = "../../rollup-interface", version = "0.3" }
-sov-modules-core = { path = "../sov-modules-core", version = "0.3" }
-sov-db = { path = "../../full-node/db/sov-db", version = "0.3", optional = true }
+sov-rollup-interface = { path = "../../rollup-interface" }
+sov-modules-core = { path = "../sov-modules-core" }
+sov-db = { path = "../../full-node/db/sov-db", optional = true }
 jmt = { workspace = true }
 hex = { workspace = true }
 sha2 = { workspace = true }
 
-sov-zk-cycle-macros = { path = "../../utils/zk-cycle-macros", version = "0.3", optional = true }
-risc0-zkvm = { workspace = true, default-features = false, features = ["std"], optional = true }
+sov-zk-cycle-macros = { path = "../../utils/zk-cycle-macros", optional = true }
+risc0-zkvm = { workspace = true, default-features = false, features = [
+    "std",
+], optional = true }
 risc0-zkvm-platform = { workspace = true, optional = true }
 
 [dev-dependencies]

@@ -2,7 +2,9 @@ use std::marker::PhantomData;
 
 use sov_rollup_interface::da::{BlockHeaderTrait, DaVerifier};
 use sov_rollup_interface::stf::StateTransitionFunction;
-use sov_rollup_interface::zk::{StateTransition, StateTransitionData, Zkvm, ZkvmGuest};
+use sov_rollup_interface::zk::{
+    CumulativeStateDiff, StateTransition, StateTransitionData, Zkvm, ZkvmGuest,
+};
 
 /// Verifies a state transition
 pub struct StateTransitionVerifier<ST, Da, Zk>
@@ -37,6 +39,7 @@ where
         zkvm: Zk,
         pre_state: Stf::PreState,
     ) -> Result<(), Da::Error> {
+        println!("Running sequencer commitments in DA slot");
         let data: StateTransitionData<Stf::StateRoot, _, Da::Spec> = zkvm.read_from_host();
         let validity_condition = self.da_verifier.verify_relevant_tx_list(
             &data.da_block_header_of_commitments,
@@ -45,10 +48,24 @@ where
             data.completeness_proof,
         )?;
 
+        assert_eq!(
+            data.initial_state_root.as_ref(),
+            data.soft_confirmations
+                .front()
+                .expect("At least one set of soft confirmations")
+                .first()
+                .expect("At least one soft confirmation")
+                .pre_state_root()
+                .as_slice(),
+            "Invalid initial state root"
+        );
+
+        println!("going into apply_soft_confirmations_from_sequencer_commitments");
         let (final_state_root, state_diff) = self
             .app
             .apply_soft_confirmations_from_sequencer_commitments(
-                &[0; 32], // TODO: pass correct sequencer public key
+                data.sequencer_public_key.as_ref(),
+                data.sequencer_da_public_key.as_ref(),
                 &data.initial_state_root,
                 pre_state,
                 data.da_data,
@@ -58,21 +75,27 @@ where
                 data.soft_confirmations,
             );
 
-        // let result = self.app.apply_slot(
-        //     &data.initial_state_root,
-        //     pre_state,
-        //     data.state_transition_witness,
-        //     &data.da_block_header,
-        //     &validity_condition,
-        //     &mut data.blobs,
-        // );
+        println!("out of apply_soft_confirmations_from_sequencer_commitments");
+        assert_eq!(
+            final_state_root.as_ref(),
+            data.final_state_root.as_ref(),
+            "Invalid final state root"
+        );
+
+        // Collect state diffs into a BtreeMap
+        let state_diff: CumulativeStateDiff = state_diff
+            .into_iter()
+            // .map(|(k, v)| (k, v))
+            .collect();
 
         let out: StateTransition<Da::Spec, _> = StateTransition {
             initial_state_root: data.initial_state_root,
             final_state_root,
-            validity_condition, // TODO: not sure about how to do this yet
+            validity_condition, // TODO: not sure about what to do with this yet
             state_diff,
             da_slot_hash: data.da_block_header_of_commitments.hash(),
+            sequencer_public_key: data.sequencer_public_key,
+            sequencer_da_public_key: data.sequencer_da_public_key,
         };
 
         zkvm.commit(&out);

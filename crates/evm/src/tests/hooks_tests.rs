@@ -97,7 +97,7 @@ fn end_soft_confirmation_hook_sets_head() {
         Block {
             header: Header {
                 parent_hash: B256::from(hex!(
-                    "6292397e08daf4f9941486e927d49feb0d88bb9856861c2560021ae88090b25b"
+                    "217b8b78a5bee17a693165176a913b0eddc3a517937591761ef97d32805af2c7"
                 )),
 
                 ommers_hash: EMPTY_OMMER_ROOT_HASH,
@@ -323,7 +323,7 @@ fn finalize_hook_creates_final_block() {
                     parent_beacon_block_root: None,
                 },
                 B256::from(hex!(
-                    "efc09c2c001fd4570686b0988334ac828f34ffcdef76566df7074f0b313b04f0"
+                    "c9bd106c4099122704bd197c224d8eeee7f5535469af91fdba7d4e804570d56e"
                 ))
             ),
             l1_fee_rate: 0,

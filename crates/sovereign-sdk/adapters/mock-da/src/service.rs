@@ -8,7 +8,8 @@ use pin_project::pin_project;
 use sha2::Digest;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec, Time};
 use sov_rollup_interface::maybestd::sync::Arc;
-use sov_rollup_interface::services::da::{DaService, SlotData};
+use sov_rollup_interface::services::da::{BlobWithNotifier, DaService, SlotData};
+use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 use tokio::sync::{broadcast, Mutex as AsyncMutex, MutexGuard as AsyncMutexGuard};
 use tokio::time;
 
@@ -386,6 +387,18 @@ impl DaService for MockDaService {
         Ok(MockHash([0; 32]))
     }
 
+    fn get_send_transaction_queue(&self) -> UnboundedSender<BlobWithNotifier<Self::TransactionId>> {
+        let (tx, mut rx) = unbounded_channel::<BlobWithNotifier<Self::TransactionId>>();
+        let this = self.clone();
+        tokio::spawn(async move {
+            while let Some(req) = rx.recv().await {
+                let res = this.send_transaction(&req.blob).await;
+                let _ = req.notify.send(res);
+            }
+        });
+        tx
+    }
+
     async fn send_aggregated_zk_proof(&self, proof: &[u8]) -> Result<u64, Self::Error> {
         let blocks = self.blocks.lock().await;
 
@@ -397,9 +410,9 @@ impl DaService for MockDaService {
         Ok(blobs.into_iter().map(|b| b.zk_proofs_data).collect())
     }
 
-    async fn get_fee_rate(&self) -> Result<u64, Self::Error> {
+    async fn get_fee_rate(&self) -> Result<u128, Self::Error> {
         // Mock constant
-        Ok(10_u64)
+        Ok(10_u128)
     }
 
     async fn get_block_by_hash(&self, hash: [u8; 32]) -> Result<Self::FilteredBlock, Self::Error> {

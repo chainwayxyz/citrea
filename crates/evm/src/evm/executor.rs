@@ -1,14 +1,16 @@
-use std::convert::Infallible;
-
 use reth_primitives::TransactionSignedEcRecovered;
 use revm::primitives::{
     CfgEnvWithHandlerCfg, EVMError, Env, ExecutionResult, ResultAndState, State,
 };
 use revm::{self, Context, Database, DatabaseCommit, EvmContext};
+use sov_modules_api::{native_error, native_trace};
+#[cfg(feature = "native")]
+use tracing::{instrument, trace_span};
 
 use super::conversions::create_tx_env;
 use super::handler::{citrea_handler, CitreaExternalExt};
 use super::primitive_types::BlockEnv;
+use crate::db::DBError;
 use crate::SYSTEM_SIGNER;
 
 pub(crate) struct CitreaEvm<'a, EXT, DB: Database> {
@@ -45,6 +47,7 @@ where
 
     /// Runs a single transaction in the configured environment and proceeds
     /// to return the result and state diff (without applying it).
+    #[cfg_attr(feature = "native", instrument(level = "debug", skip_all))]
     fn transact(
         &mut self,
         tx: &TransactionSignedEcRecovered,
@@ -55,6 +58,7 @@ where
     }
 
     /// Commits the given state diff to the database.
+    #[cfg_attr(feature = "native", instrument(level = "debug", skip_all, ret))]
     fn commit(&mut self, state: State)
     where
         DB: DatabaseCommit,
@@ -75,8 +79,9 @@ pub(crate) fn execute_tx<DB: Database + DatabaseCommit, EXT: CitreaExternalExt>(
     evm.transact_commit(tx)
 }
 
+#[cfg_attr(feature = "native", instrument(level = "debug", skip_all))]
 pub(crate) fn execute_multiple_tx<
-    DB: Database<Error = Infallible> + DatabaseCommit,
+    DB: Database<Error = DBError> + DatabaseCommit,
     EXT: CitreaExternalExt,
 >(
     db: DB,
@@ -85,7 +90,7 @@ pub(crate) fn execute_multiple_tx<
     config_env: CfgEnvWithHandlerCfg,
     ext: &mut EXT,
     prev_gas_used: u64,
-) -> Vec<Result<ExecutionResult, EVMError<Infallible>>> {
+) -> Vec<Result<ExecutionResult, EVMError<DBError>>> {
     if txs.is_empty() {
         return vec![];
     }
@@ -97,10 +102,15 @@ pub(crate) fn execute_multiple_tx<
     let mut evm = CitreaEvm::new(db, block_env, config_env, ext);
 
     let mut tx_results = Vec::with_capacity(txs.len());
-    for tx in txs {
+    for (_i, tx) in txs.iter().enumerate() {
+        #[cfg(feature = "native")]
+        let _span =
+            trace_span!("Processing tx", i = _i, signer = %tx.signer(), tx_hash = %tx.hash())
+                .entered();
         let result_and_state = match evm.transact(tx) {
             Ok(result_and_state) => result_and_state,
             Err(e) => {
+                native_error!(error = %e, "Transaction failed");
                 tx_results.push(Err(e));
                 continue;
             }
@@ -108,6 +118,7 @@ pub(crate) fn execute_multiple_tx<
 
         // Check if the transaction used more gas than the available block gas limit
         let result = if cumulative_gas_used + result_and_state.result.gas_used() > block_gas_limit {
+            native_error!("Gas used exceeds block gas limit");
             Err(EVMError::Custom(format!(
                 "Gas used exceeds block gas limit {:?}",
                 block_gas_limit
@@ -118,6 +129,7 @@ pub(crate) fn execute_multiple_tx<
                 hex::encode(tx.hash())
             )))
         } else {
+            native_trace!("Commiting tx to DB");
             evm.commit(result_and_state.state);
             cumulative_gas_used += result_and_state.result.gas_used();
             Ok(result_and_state.result)
@@ -128,7 +140,7 @@ pub(crate) fn execute_multiple_tx<
 }
 
 pub(crate) fn execute_system_txs<
-    DB: Database<Error = Infallible> + DatabaseCommit,
+    DB: Database<Error = DBError> + DatabaseCommit,
     EXT: CitreaExternalExt,
 >(
     db: DB,

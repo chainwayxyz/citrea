@@ -6,10 +6,11 @@
 use std::array::TryFromSliceError;
 use std::sync::Arc;
 
-use citrea_evm::{EthApiError, EthResult, Evm, RpcInvalidTransactionError};
+use citrea_evm::Evm;
 use reth_primitives::basefee::calculate_next_block_base_fee;
 use reth_primitives::constants::GWEI_TO_WEI;
 use reth_primitives::{BlockNumberOrTag, B256, U256, U8};
+use reth_rpc::eth::error::{EthApiError, EthResult, RpcInvalidTransactionError};
 use reth_rpc_types::{BlockTransactions, FeeHistory};
 use serde::{Deserialize, Serialize};
 use sov_modules_api::WorkingSet;

@@ -195,6 +195,7 @@ fn genesis_cfg_cancun() {
 #[test]
 fn genesis_block() {
     let (evm, mut working_set) = get_evm(&TEST_CONFIG);
+
     let mut accessory_state = working_set.accessory_state();
 
     let block_number = evm

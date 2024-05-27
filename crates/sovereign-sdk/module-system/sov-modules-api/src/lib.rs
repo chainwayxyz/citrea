@@ -13,6 +13,156 @@ mod reexport_macros;
 #[cfg(feature = "macros")]
 pub use reexport_macros::*;
 
+#[macro_export]
+macro_rules! native_debug {
+    (?$($k:ident).+) => (
+        #[cfg(feature = "native")]
+        ::tracing::debug!(?$($k).+);
+        #[cfg(not(feature = "native"))]
+        $(let _ = $k;)*
+    );
+    (%$($k:ident).+) => (
+        #[cfg(feature = "native")]
+        ::tracing::debug!(%$($k).+);
+        #[cfg(not(feature = "native"))]
+        $(let _ = $k;)*
+    );
+    ($($k:ident).+ = $($field:tt)*) => (
+        #[cfg(feature = "native")]
+        ::tracing::debug!($($k).+ = $($field)*);
+    );
+    ($($k:ident).+, $($field:tt)*) => (
+        #[cfg(feature = "native")]
+        ::tracing::debug!($($k).+, $($field)*);
+    );
+    ($($t:expr),* $(,)?) => {
+        #[cfg(feature = "native")]
+        ::tracing::debug!($($t),*);
+        #[cfg(not(feature = "native"))]
+        $(let _ = $t;)*
+    };
+}
+
+#[macro_export]
+macro_rules! native_error {
+    (?$($k:ident).+) => (
+        #[cfg(feature = "native")]
+        ::tracing::error!(?$($k).+);
+        #[cfg(not(feature = "native"))]
+        $(let _ = $k;)*
+    );
+    (%$($k:ident).+) => (
+        #[cfg(feature = "native")]
+        ::tracing::error!(%$($k).+);
+        #[cfg(not(feature = "native"))]
+        $(let _ = $k;)*
+    );
+    ($($k:ident).+ = $($field:tt)*) => (
+        #[cfg(feature = "native")]
+        ::tracing::error!($($k).+ = $($field)*);
+    );
+    ($($k:ident).+, $($field:tt)*) => (
+        #[cfg(feature = "native")]
+        ::tracing::error!($($k).+, $($field)*);
+    );
+    ($($t:expr),* $(,)?) => {
+        #[cfg(feature = "native")]
+        ::tracing::error!($($t),*);
+        #[cfg(not(feature = "native"))]
+        $(let _ = $t;)*
+    };
+}
+
+#[macro_export]
+macro_rules! native_info {
+    (?$($k:ident).+) => (
+        #[cfg(feature = "native")]
+        ::tracing::info!(?$($k).+);
+        #[cfg(not(feature = "native"))]
+        $(let _ = $k;)*
+    );
+    (%$($k:ident).+) => (
+        #[cfg(feature = "native")]
+        ::tracing::info!(%$($k).+);
+        #[cfg(not(feature = "native"))]
+        $(let _ = $k;)*
+    );
+    ($($k:ident).+ = $($field:tt)*) => (
+        #[cfg(feature = "native")]
+        ::tracing::info!($($k).+ = $($field)*);
+    );
+    ($($k:ident).+, $($field:tt)*) => (
+        #[cfg(feature = "native")]
+        ::tracing::info!($($k).+, $($field)*);
+    );
+    ($($t:expr),* $(,)?) => {
+        #[cfg(feature = "native")]
+        ::tracing::info!($($t),*);
+        #[cfg(not(feature = "native"))]
+        $(let _ = $t;)*
+    };
+}
+
+#[macro_export]
+macro_rules! native_trace {
+    (?$($k:ident).+) => (
+        #[cfg(feature = "native")]
+        ::tracing::trace!(?$($k).+);
+        #[cfg(not(feature = "native"))]
+        $(let _ = $k;)*
+    );
+    (%$($k:ident).+) => (
+        #[cfg(feature = "native")]
+        ::tracing::trace!(%$($k).+);
+        #[cfg(not(feature = "native"))]
+        $(let _ = $k;)*
+    );
+    ($($k:ident).+ = $($field:tt)*) => (
+        #[cfg(feature = "native")]
+        ::tracing::trace!($($k).+ = $($field)*);
+    );
+    ($($k:ident).+, $($field:tt)*) => (
+        #[cfg(feature = "native")]
+        ::tracing::trace!($($k).+, $($field)*);
+    );
+    ($($t:expr),* $(,)?) => {
+        #[cfg(feature = "native")]
+        ::tracing::trace!($($t),*);
+        #[cfg(not(feature = "native"))]
+        $(let _ = $t;)*
+    };
+}
+
+#[macro_export]
+macro_rules! native_warn {
+    (?$($k:ident).+) => (
+        #[cfg(feature = "native")]
+        ::tracing::warn!(?$($k).+);
+        #[cfg(not(feature = "native"))]
+        $(let _ = $k;)*
+    );
+    (%$($k:ident).+) => (
+        #[cfg(feature = "native")]
+        ::tracing::warn!(%$($k).+);
+        #[cfg(not(feature = "native"))]
+        $(let _ = $k;)*
+    );
+    ($($k:ident).+ = $($field:tt)*) => (
+        #[cfg(feature = "native")]
+        ::tracing::warn!($($k).+ = $($field)*);
+    );
+    ($($k:ident).+, $($field:tt)*) => (
+        #[cfg(feature = "native")]
+        ::tracing::warn!($($k).+, $($field)*);
+    );
+    ($($t:expr),* $(,)?) => {
+        #[cfg(feature = "native")]
+        ::tracing::warn!($($t),*);
+        #[cfg(not(feature = "native"))]
+        $(let _ = $t;)*
+    };
+}
+
 mod serde_pub_key;
 #[cfg(test)]
 mod tests;
@@ -42,7 +192,7 @@ pub use sov_rollup_interface::services::da::SlotData;
 pub use sov_rollup_interface::soft_confirmation::{
     SignedSoftConfirmationBatch, UnsignedSoftConfirmationBatch,
 };
-pub use sov_rollup_interface::stf::Event;
+pub use sov_rollup_interface::stf::{Event, StateDiff};
 pub use sov_rollup_interface::zk::{
     StateTransition, ValidityCondition, ValidityConditionChecker, Zkvm,
 };

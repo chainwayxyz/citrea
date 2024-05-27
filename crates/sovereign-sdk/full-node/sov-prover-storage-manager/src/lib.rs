@@ -9,6 +9,7 @@ use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_schema_db::snapshot::{DbSnapshot, ReadOnlyLock, SnapshotId};
 use sov_state::{MerkleProofSpec, ProverStorage};
+use tracing::{debug, instrument, trace};
 
 pub use crate::snapshot_manager::SnapshotManager;
 
@@ -106,6 +107,7 @@ where
         Ok(ProverStorage::with_db_handles(state_db, native_db))
     }
 
+    #[instrument(level = "info", skip(self), err, ret)]
     fn finalize_by_l2_height(&mut self, l2_block_height: u64) -> anyhow::Result<()> {
         let snapshot_id = self
             .block_height_to_snapshot_id
@@ -129,10 +131,9 @@ where
         prev_block_hash: Da::SlotHash,
         current_block_hash: Da::SlotHash,
     ) -> anyhow::Result<()> {
-        tracing::debug!(
+        debug!(
             "Finalizing block prev_hash={:?}; current_hash={:?}",
-            prev_block_hash,
-            current_block_hash
+            prev_block_hash, current_block_hash
         );
         // Check if this is the oldest block
         if self
@@ -175,7 +176,7 @@ where
             self.blocks_to_parent.remove(&block_hash).unwrap();
 
             let snapshot_id = self.block_hash_to_snapshot_id.remove(&block_hash).unwrap();
-            tracing::debug!("Discarding snapshot={}", snapshot_id);
+            debug!("Discarding snapshot={}", snapshot_id);
             snapshot_id_to_parent.remove(&snapshot_id);
             state_manager.discard_snapshot(&snapshot_id);
             native_manager.discard_snapshot(&snapshot_id);
@@ -207,7 +208,7 @@ where
         &mut self,
         l2_block_height: u64,
     ) -> anyhow::Result<Self::NativeStorage> {
-        tracing::trace!(
+        trace!(
             "Requested native storage for block at height: {:?} ",
             l2_block_height
         );
@@ -221,19 +222,20 @@ where
                 new_snapshot_id
             }
         };
-        tracing::debug!(
+        debug!(
             "Requested native storage for block at height: {:?}, giving snapshot id={}",
-            l2_block_height,
-            snapshot_id
+            l2_block_height, snapshot_id
         );
 
         self.get_storage_with_snapshot_id(snapshot_id)
     }
 
+    #[instrument(level = "info", skip(self), err, ret)]
     fn finalize_l2(&mut self, l2_block_height: u64) -> anyhow::Result<()> {
         self.finalize_by_l2_height(l2_block_height)
     }
 
+    #[instrument(level = "info", skip(self, change_set), err, ret)]
     fn save_change_set_l2(
         &mut self,
         l2_block_height: u64,
@@ -255,7 +257,7 @@ where
         }
 
         if self.orphaned_snapshots.remove(&snapshot_id) {
-            tracing::debug!(
+            debug!(
                 "Discarded reference to 'finalized' snapshot={}",
                 snapshot_id
             );
@@ -269,10 +271,9 @@ where
             state_manager.add_snapshot(state_snapshot);
             native_manager.add_snapshot(native_snapshot);
         }
-        tracing::debug!(
+        debug!(
             "Snapshot id={} for block at height={} has been saved to StorageManager",
-            snapshot_id,
-            l2_block_height
+            snapshot_id, l2_block_height
         );
         Ok(())
     }
@@ -281,7 +282,10 @@ where
         &mut self,
         block_header: &Da::BlockHeader,
     ) -> anyhow::Result<Self::NativeStorage> {
-        tracing::trace!("Requested native storage for block {:?} ", block_header);
+        trace!(
+            "Requested native storage for block {:?}",
+            block_header.hash()
+        );
         let current_block_hash = block_header.hash();
         let prev_block_hash = block_header.prev_hash();
         assert_ne!(
@@ -324,10 +328,9 @@ where
                 new_snapshot_id
             }
         };
-        tracing::debug!(
+        debug!(
             "Requested native storage for block {:?}, giving snapshot id={}",
-            block_header,
-            new_snapshot_id
+            block_header, new_snapshot_id
         );
 
         self.get_storage_with_snapshot_id(new_snapshot_id)
@@ -336,7 +339,7 @@ where
     fn create_finalized_storage(&mut self) -> anyhow::Result<Self::NativeStorage> {
         self.latest_snapshot_id += 1;
         let snapshot_id = self.latest_snapshot_id;
-        tracing::debug!("Giving 'finalized' storage ref with id {}", snapshot_id);
+        debug!("Giving 'finalized' storage ref with id {}", snapshot_id);
         self.orphaned_snapshots.insert(snapshot_id);
         let state_db_snapshot = DbSnapshot::new(
             snapshot_id,
@@ -382,7 +385,7 @@ where
         }
 
         if self.orphaned_snapshots.remove(&snapshot_id) {
-            tracing::debug!(
+            debug!(
                 "Discarded reference to 'finalized' snapshot={}",
                 snapshot_id
             );
@@ -406,16 +409,15 @@ where
             state_manager.add_snapshot(state_snapshot);
             native_manager.add_snapshot(native_snapshot);
         }
-        tracing::debug!(
+        debug!(
             "Snapshot id={} for block={:?} has been saved to StorageManager",
-            snapshot_id,
-            block_header
+            snapshot_id, block_header
         );
         Ok(())
     }
 
     fn finalize(&mut self, block_header: &Da::BlockHeader) -> anyhow::Result<()> {
-        tracing::debug!("Finalizing block: {:?}", block_header);
+        debug!("Finalizing block: {:?}", block_header.hash());
         let current_block_hash = block_header.hash();
         let prev_block_hash = block_header.prev_hash();
         self.finalize_by_hash_pair(prev_block_hash, current_block_hash)
@@ -920,7 +922,7 @@ mod tests {
             state_operations.ordered_writes.push(write_op(1, 2));
             let mut native_operations = OrderedReadsAndWrites::default();
             native_operations.ordered_writes.push(write_op(30, 40));
-            let (_, state_update) = storage_a
+            let (_, state_update, _) = storage_a
                 .compute_state_update(state_operations, &witness)
                 .unwrap();
             storage_a.commit(&state_update, &native_operations);
@@ -935,7 +937,7 @@ mod tests {
             state_operations.ordered_writes.push(write_op(3, 4));
             let mut native_operations = OrderedReadsAndWrites::default();
             native_operations.ordered_writes.push(write_op(50, 60));
-            let (_, state_update) = storage_b
+            let (_, state_update, _) = storage_b
                 .compute_state_update(state_operations, &witness)
                 .unwrap();
             storage_b.commit(&state_update, &native_operations);
@@ -1098,7 +1100,7 @@ mod tests {
             let mut native_operations = OrderedReadsAndWrites::default();
             native_operations.ordered_writes.push(write_op(3, 40));
 
-            let (_, state_update) = storage_a
+            let (_, state_update, _) = storage_a
                 .compute_state_update(state_operations, &witness)
                 .unwrap();
             storage_a.commit(&state_update, &native_operations);
@@ -1114,7 +1116,7 @@ mod tests {
             state_operations.ordered_writes.push(write_op(3, 2));
             let mut native_operations = OrderedReadsAndWrites::default();
             native_operations.ordered_writes.push(write_op(3, 50));
-            let (_, state_update) = storage_b
+            let (_, state_update, _) = storage_b
                 .compute_state_update(state_operations, &witness)
                 .unwrap();
             storage_b.commit(&state_update, &native_operations);
@@ -1130,7 +1132,7 @@ mod tests {
             state_operations.ordered_writes.push(write_op(4, 5));
             let mut native_operations = OrderedReadsAndWrites::default();
             native_operations.ordered_writes.push(write_op(1, 60));
-            let (_, state_update) = storage_c
+            let (_, state_update, _) = storage_c
                 .compute_state_update(state_operations, &witness)
                 .unwrap();
             storage_c.commit(&state_update, &native_operations);
@@ -1143,7 +1145,7 @@ mod tests {
         {
             let mut state_operations = OrderedReadsAndWrites::default();
             state_operations.ordered_writes.push(write_op(3, 6));
-            let (_, state_update) = storage_d
+            let (_, state_update, _) = storage_d
                 .compute_state_update(state_operations, &witness)
                 .unwrap();
             storage_d.commit(&state_update, &OrderedReadsAndWrites::default());
@@ -1160,7 +1162,7 @@ mod tests {
             let mut native_operations = OrderedReadsAndWrites::default();
             native_operations.ordered_writes.push(delete_op(1));
             native_operations.ordered_writes.push(write_op(3, 70));
-            let (_, state_update) = storage_f
+            let (_, state_update, _) = storage_f
                 .compute_state_update(state_operations, &witness)
                 .unwrap();
             storage_f.commit(&state_update, &native_operations);
@@ -1175,7 +1177,7 @@ mod tests {
             state_operations.ordered_writes.push(write_op(1, 8));
             let mut native_operations = OrderedReadsAndWrites::default();
             native_operations.ordered_writes.push(write_op(2, 9));
-            let (_, state_update) = storage_g
+            let (_, state_update, _) = storage_g
                 .compute_state_update(state_operations, &witness)
                 .unwrap();
             storage_g.commit(&state_update, &native_operations);
@@ -1188,7 +1190,7 @@ mod tests {
         {
             let mut state_operations = OrderedReadsAndWrites::default();
             state_operations.ordered_writes.push(write_op(1, 10));
-            let (_, state_update) = storage_l
+            let (_, state_update, _) = storage_l
                 .compute_state_update(state_operations, &witness)
                 .unwrap();
             storage_l.commit(&state_update, &OrderedReadsAndWrites::default());

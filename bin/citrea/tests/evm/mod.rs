@@ -10,10 +10,9 @@ use ethers_core::abi::Address;
 use ethers_core::types::{BlockId, Bytes, U256};
 use ethers_signers::{LocalWallet, Signer};
 use reth_primitives::BlockNumberOrTag;
-// use sov_demo_rollup::initialize_logging;
-use sov_modules_stf_blueprint::kernels::basic::BasicKernelGenesisPaths;
-use sov_stf_runner::RollupProverConfig;
+use sov_rollup_interface::CITREA_VERSION;
 
+// use sov_demo_rollup::initialize_logging;
 use crate::test_client::TestClient;
 use crate::test_helpers::{start_rollup, NodeMode};
 use crate::{DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT};
@@ -27,14 +26,10 @@ async fn web3_rpc_tests() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging();
     let (port_tx, port_rx) = tokio::sync::oneshot::channel();
     let rollup_task = tokio::spawn(async {
-        // Don't provide a prover since the EVM is not currently provable
         start_rollup(
             port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
-            BasicKernelGenesisPaths {
-                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
-            },
-            RollupProverConfig::Skip,
+            None,
             NodeMode::SequencerNode,
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
@@ -52,14 +47,13 @@ async fn web3_rpc_tests() -> Result<(), anyhow::Error> {
 
     let test_client = make_test_client(port).await;
 
-    let tag = ethereum_rpc::get_latest_git_tag().unwrap_or_else(|_| "unknown".to_string());
     let arch = std::env::consts::ARCH;
 
     assert_eq!(
         test_client.web3_client_version().await,
         format!(
             "citrea/{}/{}/rust-{}",
-            tag,
+            CITREA_VERSION,
             arch,
             rustc_version_runtime::version()
         )
@@ -86,10 +80,7 @@ async fn evm_tx_tests() -> Result<(), anyhow::Error> {
         start_rollup(
             port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
-            BasicKernelGenesisPaths {
-                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
-            },
-            RollupProverConfig::Skip,
+            None,
             NodeMode::SequencerNode,
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
@@ -125,10 +116,7 @@ async fn test_eth_get_logs() -> Result<(), anyhow::Error> {
         start_rollup(
             port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
-            BasicKernelGenesisPaths {
-                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
-            },
-            RollupProverConfig::Skip,
+            None,
             NodeMode::SequencerNode,
             None,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
@@ -160,10 +148,7 @@ async fn test_genesis_contract_call() -> Result<(), Box<dyn std::error::Error>> 
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir("../../hive/genesis"),
-            BasicKernelGenesisPaths {
-                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
-            },
-            RollupProverConfig::Execute,
+            None,
             NodeMode::SequencerNode,
             None,
             123456,
