@@ -20,6 +20,7 @@ serde_json = { workspace = true }
 serde = { workspace = true }
 toml = { workspace = true, optional = true }
 rs_merkle = { workspace = true }
+rand = { workspace = true, optional = true }
 jsonrpsee = { workspace = true, features = [
     "http-client",
     "server",
@@ -78,4 +79,5 @@ native = [
     "thiserror",
     "shared-backup-db",
     "backoff",
+    "rand",
 ]
