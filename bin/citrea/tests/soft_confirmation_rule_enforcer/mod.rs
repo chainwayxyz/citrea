@@ -7,7 +7,7 @@ use crate::test_helpers::{start_rollup, tempdir_with_children, NodeMode};
 use crate::{DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT};
 
 /// Transaction with equal nonce to last tx should not be accepted by mempool.
-#[tokio::test(flavor = "multi_thread")]
+#[tokio::test]
 async fn too_many_l2_block_per_l1_block() {
     // citrea::initialize_logging();
 
