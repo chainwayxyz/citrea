@@ -28,7 +28,7 @@ pub struct CommitmentInfo {
 pub fn get_commitment_info(
     ledger_db: &LedgerDB,
     min_soft_confirmations_per_commitment: u64,
-    last_commitable_l1_height: u64,
+    prev_l1_height: u64,
 ) -> anyhow::Result<Option<CommitmentInfo>> {
     // first get when the last merkle root of soft confirmations was submitted
     let last_commitment_l1_height = ledger_db
@@ -84,13 +84,10 @@ pub fn get_commitment_info(
                 None => return Ok(None), // not even the first soft confirmation is there, shouldn't happen actually
             };
 
-            let l1_height_range = (
-                first_soft_confirmation.da_slot_height,
-                last_commitable_l1_height,
-            );
+            let l1_height_range = (first_soft_confirmation.da_slot_height, prev_l1_height);
 
             let Some((_, last_soft_confirmation_height)) =
-                ledger_db.get_l2_range_by_l1_height(SlotNumber(last_commitable_l1_height))?
+                ledger_db.get_l2_range_by_l1_height(SlotNumber(prev_l1_height))?
             else {
                 bail!("Sequencer: Failed to get L1 L2 connection");
             };
