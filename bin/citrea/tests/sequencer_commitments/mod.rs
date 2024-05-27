@@ -212,7 +212,10 @@ async fn check_commitment_in_offchain_db() {
     sequencer_config.db_config = Some(SharedBackupDbConfig::default());
 
     // drops db if exists from previous test runs, recreates the db
-    let db_test_client = PostgresConnector::new_test_client().await.unwrap();
+    let db_test_client =
+        PostgresConnector::new_test_client("check_commitment_in_offchain_db".to_owned())
+            .await
+            .unwrap();
 
     let da_db_dir_cloned = da_db_dir.clone();
     let seq_task = tokio::spawn(async move {
