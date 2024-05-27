@@ -1874,6 +1874,7 @@ async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
     let (full_node_port_tx, full_node_port_rx) = tokio::sync::oneshot::channel();
     let config1 = sequencer_config.clone();
 
+    let fullnode_db_dir_cloned = fullnode_db_dir.clone();
     let da_db_dir_cloned = da_db_dir.clone();
     let full_node_task = tokio::spawn(async move {
         start_rollup(
@@ -1881,7 +1882,7 @@ async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             None,
             NodeMode::FullNode(seq_port),
-            fullnode_db_dir,
+            fullnode_db_dir_cloned,
             da_db_dir_cloned,
             4,
             true,
@@ -1931,11 +1932,8 @@ async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
 
     // Copy the db to a new path with the same contents because
     // the lock is not released on the db directory even though the task is aborted
-    let _ = copy_dir_recursive(
-        &sequencer_db_dir,
-        &storage_dir.path().join("sequencer_copy"),
-    );
-    let sequencer_db_dir = storage_dir.path().join("sequencer_copy");
+    let _ = copy_dir_recursive(&fullnode_db_dir, &storage_dir.path().join("full_node_copy"));
+    let sequencer_db_dir = storage_dir.path().join("full_node_copy");
 
     sleep(Duration::from_secs(1)).await;
     let config1 = sequencer_config.clone();
