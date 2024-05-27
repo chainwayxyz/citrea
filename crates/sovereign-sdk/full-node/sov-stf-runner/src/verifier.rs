@@ -39,7 +39,6 @@ where
         zkvm: Zk,
         pre_state: Stf::PreState,
     ) -> Result<(), Da::Error> {
-        println!("Running sequencer commitments in DA slot");
         let data: StateTransitionData<Stf::StateRoot, _, Da::Spec> = zkvm.read_from_host();
         let validity_condition = self.da_verifier.verify_relevant_tx_list(
             &data.da_block_header_of_commitments,
@@ -60,7 +59,6 @@ where
             "Invalid initial state root"
         );
 
-        println!("going into apply_soft_confirmations_from_sequencer_commitments");
         let (final_state_root, state_diff) = self
             .app
             .apply_soft_confirmations_from_sequencer_commitments(
@@ -75,7 +73,6 @@ where
                 data.soft_confirmations,
             );
 
-        println!("out of apply_soft_confirmations_from_sequencer_commitments");
         assert_eq!(
             final_state_root.as_ref(),
             data.final_state_root.as_ref(),

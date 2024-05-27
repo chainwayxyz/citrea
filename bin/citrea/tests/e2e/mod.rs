@@ -2252,7 +2252,7 @@ async fn test_db_get_proof() {
     let prover_db_dir = storage_dir.path().join("prover").to_path_buf();
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
 
-    let db_test_client = PostgresConnector::new_test_client("test_db_get_proof".to_string())
+    let db_test_client = PostgresConnector::new_test_client("test_db_get_proof".to_owned())
         .await
         .unwrap();
 
@@ -2291,7 +2291,9 @@ async fn test_db_get_proof() {
             Some(ProverConfig {
                 proving_mode: sov_stf_runner::ProverGuestRunConfig::Execute,
                 proof_sampling_number: 0,
-                db_config: Some(SharedBackupDbConfig::default()),
+                db_config: Some(
+                    SharedBackupDbConfig::default().set_db_name("test_db_get_proof".to_owned()),
+                ),
             }),
             NodeMode::Prover(seq_port),
             prover_db_dir,
@@ -2604,7 +2606,9 @@ async fn test_all_flow() {
             Some(ProverConfig {
                 proving_mode: sov_stf_runner::ProverGuestRunConfig::Execute,
                 proof_sampling_number: 0,
-                db_config: Some(SharedBackupDbConfig::default()),
+                db_config: Some(
+                    SharedBackupDbConfig::default().set_db_name("test_all_flow".to_owned()),
+                ),
             }),
             NodeMode::Prover(seq_port),
             prover_db_dir,

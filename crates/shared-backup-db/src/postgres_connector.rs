@@ -4,7 +4,7 @@ use deadpool_postgres::tokio_postgres::config::Config as PgConfig;
 use deadpool_postgres::tokio_postgres::{NoTls, Row};
 use deadpool_postgres::{Manager, ManagerConfig, Object, Pool, PoolError, RecyclingMethod};
 use sov_rollup_interface::rpc::StateTransitionRpcResponse;
-use tracing::instrument;
+use tracing::{debug, instrument};
 
 use crate::config::SharedBackupDbConfig;
 use crate::tables::{
@@ -12,7 +12,6 @@ use crate::tables::{
     INDEX_L1_END_HASH, INDEX_L1_END_HEIGHT, INDEX_L2_END_HEIGHT, MEMPOOL_TXS_TABLE_CREATE_QUERY,
     PROOF_TABLE_CREATE_QUERY, SEQUENCER_COMMITMENT_TABLE_CREATE_QUERY,
 };
-use crate::utils::get_db_extension;
 
 #[derive(Clone)]
 pub struct PostgresConnector {
@@ -34,16 +33,17 @@ impl PostgresConnector {
             .unwrap();
         let mut client = pool.get().await?;
 
+        debug!("Connecting PG client to DB: {}", pg_config.db_name());
+
         // Create new db if running thread is not main or tokio-runtime-worker, meaning when running for tests
         if cfg!(feature = "test-utils") {
             // create new db
-            let db_name = format!("citrea{}", get_db_extension());
             let _ = client
-                .batch_execute(&format!("CREATE DATABASE {};", db_name.clone()))
+                .batch_execute(&format!("CREATE DATABASE {};", pg_config.db_name()))
                 .await;
 
             //connect to new db
-            cfg.dbname(&db_name);
+            cfg.dbname(&pg_config.db_name());
             let mgr = Manager::from_config(cfg, NoTls, mgr_config);
             pool = Pool::builder(mgr)
                 .max_size(pg_config.max_pool_size().unwrap_or(16))
@@ -102,8 +102,8 @@ impl PostgresConnector {
             .unwrap();
 
         drop(pool);
-        //connect to new db
 
+        //connect to new db
         cfg.dbname(db_name.as_str());
         let mgr = Manager::from_config(cfg, NoTls, mgr_config);
         let test_pool = Pool::builder(mgr).max_size(16).build().unwrap();
