@@ -1,3 +1,4 @@
+use risc0_build::{embed_methods_with_options, DockerOptions, GuestOptions};
 use std::collections::HashMap;
 
 fn main() {
@@ -20,7 +21,7 @@ fn main() {
         std::fs::write(methods_path, elf).expect("Failed to write mock rollup elf");
     } else {
         let guest_pkg_to_options = get_guest_options();
-        risc0_build::embed_methods_with_options(guest_pkg_to_options);
+        embed_methods_with_options(guest_pkg_to_options);
     }
 }
 
@@ -33,9 +34,18 @@ fn get_guest_options() -> HashMap<&'static str, risc0_build::GuestOptions> {
     }
     guest_pkg_to_options.insert(
         "sov-demo-prover-guest-mock",
-        risc0_build::GuestOptions {
+        GuestOptions {
             features,
             ..Default::default()
+        },
+    );
+    guest_pkg_to_options.insert(
+        "citrea-bitcoin-prover",
+        GuestOptions {
+            features: vec![],
+            use_docker: Some(DockerOptions {
+                root_dir: Some("../../../../".into()),
+            }),
         },
     );
     guest_pkg_to_options
