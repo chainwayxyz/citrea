@@ -472,7 +472,7 @@ where
         sequencer_da_public_key: &[u8],
         initial_state_root: &Self::StateRoot,
         pre_state: Self::PreState,
-        mut da_data: Vec<<Da as DaSpec>::BlobTransaction>,
+        da_data: Vec<<Da as DaSpec>::BlobTransaction>,
         mut witnesses: std::collections::VecDeque<Vec<Self::Witness>>,
         mut slot_headers: std::collections::VecDeque<Vec<<Da as DaSpec>::BlockHeader>>,
         validity_condition: &<Da as DaSpec>::ValidityCondition,
@@ -483,7 +483,7 @@ where
         // First extract all sequencer commitments
         // Ignore broken DaData and zk proofs. Also ignore ForcedTransaction's (will be implemented in the future).
         let mut sequencer_commitments: Vec<SequencerCommitment> = vec![];
-        for blob in da_data.iter_mut() {
+        for blob in da_data {
             // TODO: get sequencer da pub key
             if blob.sender().as_ref() == sequencer_da_public_key {
                 let da_data = DaData::try_from_slice(blob.verified_data());
@@ -498,9 +498,9 @@ where
 
         let mut current_state_root = initial_state_root.clone();
 
-        for sequencer_commitment in sequencer_commitments.iter() {
+        for sequencer_commitment in sequencer_commitments {
             // should panic if number of sequencer commitments and soft confirmations don't match
-            let mut soft_confirmations = soft_confirmations.pop_front().unwrap();
+            let soft_confirmations = soft_confirmations.pop_front().unwrap();
 
             // should panic if number of sequencer commitments and set of DA block headers don't match
             let da_block_headers = slot_headers.pop_front().unwrap();
@@ -605,7 +605,7 @@ where
             let mut da_block_headers_iter = da_block_headers.into_iter().peekable();
             let mut da_block_header = da_block_headers_iter.next().unwrap();
             // now that we verified the claimed root, we can apply the soft confirmations
-            for soft_confirmation in soft_confirmations.iter_mut() {
+            for mut soft_confirmation in soft_confirmations {
                 if soft_confirmation.da_slot_height() != da_block_header.height() {
                     da_block_header = da_block_headers_iter.next().unwrap();
                 }
@@ -618,9 +618,10 @@ where
                     witness_iter.next().unwrap(), // should panic if the number of witnesses and soft confirmations don't match
                     &da_block_header,
                     validity_condition,
-                    soft_confirmation,
+                    &mut soft_confirmation,
                 );
 
+                // TODO: accumulate btree here.
                 current_state_root = result.state_root;
                 state_diff.extend(result.state_diff);
             }
