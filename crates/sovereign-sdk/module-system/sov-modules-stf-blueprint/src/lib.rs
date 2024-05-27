@@ -16,14 +16,15 @@ use sov_modules_api::hooks::{
 };
 use sov_modules_api::{
     native_debug, native_info, native_warn, BasicAddress, BlobReaderTrait, Context, DaSpec,
-    DispatchCall, Genesis, Signature, Spec, StateCheckpoint, StateDiff,
-    UnsignedSoftConfirmationBatch, WorkingSet, Zkvm,
+    DispatchCall, Genesis, Signature, Spec, StateCheckpoint, UnsignedSoftConfirmationBatch,
+    WorkingSet, Zkvm,
 };
 use sov_rollup_interface::da::{DaData, SequencerCommitment};
 use sov_rollup_interface::digest::Digest;
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
 pub use sov_rollup_interface::stf::{BatchReceipt, TransactionReceipt};
 use sov_rollup_interface::stf::{SlotResult, StateTransitionFunction};
+use sov_rollup_interface::zk::CumulativeStateDiff;
 use sov_state::Storage;
 pub use stf_blueprint::StfBlueprint;
 pub use tx_verifier::RawTx;
@@ -477,8 +478,8 @@ where
         mut slot_headers: std::collections::VecDeque<Vec<<Da as DaSpec>::BlockHeader>>,
         validity_condition: &<Da as DaSpec>::ValidityCondition,
         mut soft_confirmations: std::collections::VecDeque<Vec<SignedSoftConfirmationBatch>>,
-    ) -> (Self::StateRoot, StateDiff) {
-        let mut state_diff = vec![];
+    ) -> (Self::StateRoot, CumulativeStateDiff) {
+        let mut state_diff: CumulativeStateDiff = Default::default();
 
         // First extract all sequencer commitments
         // Ignore broken DaData and zk proofs. Also ignore ForcedTransaction's (will be implemented in the future).
@@ -613,7 +614,6 @@ where
                 let result = self.apply_soft_batch(
                     sequencer_public_key,
                     &current_state_root,
-                    // TODO: either somehow commit to the prestate after each soft confirmation and pass the correct prestate here, or run every soft confirmation all at once.
                     pre_state.clone(),
                     witness_iter.next().unwrap(), // should panic if the number of witnesses and soft confirmations don't match
                     &da_block_header,
@@ -621,13 +621,11 @@ where
                     &mut soft_confirmation,
                 );
 
-                // TODO: accumulate btree here.
                 current_state_root = result.state_root;
                 state_diff.extend(result.state_diff);
             }
         }
 
-        // TODO: implement state diff extraction
         (current_state_root, state_diff)
     }
 }

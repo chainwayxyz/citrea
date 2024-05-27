@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use crate::da::DaSpec;
 use crate::maybestd::vec::Vec;
 use crate::soft_confirmation::SignedSoftConfirmationBatch;
-use crate::zk::{ValidityCondition, Zkvm};
+use crate::zk::{CumulativeStateDiff, ValidityCondition, Zkvm};
 
 #[cfg(any(all(test, feature = "sha2"), feature = "fuzzing"))]
 pub mod fuzzing;
@@ -250,7 +250,7 @@ pub trait StateTransitionFunction<Vm: Zkvm, Da: DaSpec> {
         slot_headers: VecDeque<Vec<Da::BlockHeader>>,
         validity_condition: &Da::ValidityCondition,
         soft_confirmations: VecDeque<Vec<SignedSoftConfirmationBatch>>,
-    ) -> (Self::StateRoot, Vec<(Vec<u8>, Option<Vec<u8>>)>);
+    ) -> (Self::StateRoot, CumulativeStateDiff);
 }
 
 /// A key-value pair representing a change to the rollup state
