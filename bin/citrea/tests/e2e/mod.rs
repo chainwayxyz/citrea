@@ -925,9 +925,6 @@ async fn test_reopen_sequencer() -> Result<(), anyhow::Error> {
         2
     );
 
-    // fs::remove_dir_all(Path::new("demo_data_test_reopen_sequencer_copy")).unwrap();
-    // fs::remove_dir_all(Path::new("demo_data_test_reopen_sequencer")).unwrap();
-
     seq_task.abort();
 
     Ok(())
@@ -1518,9 +1515,6 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     seq_task.abort();
     prover_node_task.abort();
 
-    let _ = fs::remove_dir_all(Path::new("demo_data_test_reopen_prover_copy2"));
-    let _ = fs::remove_dir_all(Path::new("demo_data_test_reopen_prover_copy"));
-    let _ = fs::remove_dir_all(Path::new("demo_data_test_reopen_prover"));
     Ok(())
 }
 
@@ -2246,8 +2240,6 @@ async fn sequencer_crash_restore_mempool() -> Result<(), anyhow::Error> {
     assert_eq!(txs.len(), 0);
 
     seq_task.abort();
-    let _ = fs::remove_dir_all(Path::new("demo_data_sequencer_restore_mempool"));
-    let _ = fs::remove_dir_all(Path::new("demo_data_sequencer_restore_mempool_copy"));
 
     Ok(())
 }
