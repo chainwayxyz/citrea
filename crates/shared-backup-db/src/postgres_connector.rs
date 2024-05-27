@@ -81,7 +81,7 @@ impl PostgresConnector {
     }
 
     #[cfg(feature = "test-utils")]
-    pub async fn new_test_client() -> Result<Self, PoolError> {
+    pub async fn new_test_client(db_name: String) -> Result<Self, PoolError> {
         let mut cfg: PgConfig = SharedBackupDbConfig::default().into();
 
         let mgr_config = ManagerConfig {
@@ -91,7 +91,6 @@ impl PostgresConnector {
         let pool = Pool::builder(mgr).max_size(16).build().unwrap();
         let client = pool.get().await.unwrap();
 
-        let db_name = format!("citrea{}", get_db_extension());
         client
             .batch_execute(&format!("DROP DATABASE IF EXISTS {};", db_name.clone()))
             .await
@@ -314,7 +313,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_insert_sequencer_commitment() {
-        let client = PostgresConnector::new_test_client().await.unwrap();
+        let client = PostgresConnector::new_test_client("insert_sequencer_commitments".to_owned())
+            .await
+            .unwrap();
         client.create_table(Tables::SequencerCommitment).await;
 
         let inserted = client
@@ -348,7 +349,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_insert_rlp_tx() {
-        let client = PostgresConnector::new_test_client().await.unwrap();
+        let client = PostgresConnector::new_test_client("insert_rlp_tx".to_owned())
+            .await
+            .unwrap();
         client.create_table(Tables::MempoolTxs).await;
 
         client
