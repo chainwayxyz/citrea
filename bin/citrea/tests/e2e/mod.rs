@@ -824,7 +824,7 @@ async fn test_soft_confirmations_on_different_blocks() -> Result<(), anyhow::Err
 #[tokio::test]
 async fn test_reopen_sequencer() -> Result<(), anyhow::Error> {
     // open, close without publishing blokcs
-    let storage_dir = tempdir_with_children(&vec!["DA", "sequencer"]);
+    let storage_dir = tempdir_with_children(&["DA", "sequencer"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
     let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
 
@@ -1179,7 +1179,7 @@ async fn test_soft_confirmations_status_two_l1() -> Result<(), anyhow::Error> {
 async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging();
 
-    let storage_dir = tempdir_with_children(&vec!["DA", "sequencer", "prover"]);
+    let storage_dir = tempdir_with_children(&["DA", "sequencer", "prover"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
     let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
     let prover_db_dir = storage_dir.path().join("prover").to_path_buf();
@@ -1327,7 +1327,7 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
 async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging();
 
-    let storage_dir = tempdir_with_children(&vec!["DA", "sequencer", "prover"]);
+    let storage_dir = tempdir_with_children(&["DA", "sequencer", "prover"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
     let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
     let prover_db_dir = storage_dir.path().join("prover").to_path_buf();
@@ -2247,7 +2247,7 @@ async fn sequencer_crash_restore_mempool() -> Result<(), anyhow::Error> {
 async fn test_db_get_proof() {
     // citrea::initialize_logging();
 
-    let storage_dir = tempdir_with_children(&vec!["DA", "sequencer", "prover"]);
+    let storage_dir = tempdir_with_children(&["DA", "sequencer", "prover"]);
     let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
     let prover_db_dir = storage_dir.path().join("prover").to_path_buf();
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
