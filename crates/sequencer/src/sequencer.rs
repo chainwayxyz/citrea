@@ -449,98 +449,95 @@ where
         Ok(())
     }
 
-    fn spawn_commitment_thread(&self) -> UnboundedSender<u64> {
-        let (da_height_tx, mut da_height_rx) = unbounded::<u64>();
-        let ledger_db = self.ledger_db.clone();
+    async fn submit_commitment(&self, prev_l1_height: u64) -> anyhow::Result<()> {
+        debug!("Sequencer: new L1 block, checking if commitment should be submitted");
         let inscription_queue = self.da_service.get_send_transaction_queue();
         let min_soft_confirmations_per_commitment =
             self.config.min_soft_confirmations_per_commitment;
-        let db_config = self.config.db_config.clone();
-        tokio::spawn(async move {
-            while let Some(prev_l1_height) = da_height_rx.next().await {
-                debug!("Sequencer: new L1 block, checking if commitment should be submitted");
+        let commitment_info = commitment_controller::get_commitment_info(
+            &self.ledger_db,
+            min_soft_confirmations_per_commitment,
+            prev_l1_height,
+        )
+        .unwrap(); // TODO unwrap()
 
-                let commitment_info = commitment_controller::get_commitment_info(
-                    &ledger_db,
-                    min_soft_confirmations_per_commitment,
-                    prev_l1_height,
-                )
-                .unwrap(); // TODO unwrap()
+        if let Some(commitment_info) = commitment_info {
+            debug!("Sequencer: enough soft confirmations to submit commitment");
+            let l2_range_to_submit = commitment_info.l2_height_range.clone();
 
-                if let Some(commitment_info) = commitment_info {
-                    debug!("Sequencer: enough soft confirmations to submit commitment");
-                    let l2_range_to_submit = commitment_info.l2_height_range.clone();
+            // calculate exclusive range end
+            let range_end = BatchNumber(l2_range_to_submit.end().0 + 1); // cannnot add u64 to BatchNumber directly
 
-                    // calculate exclusive range end
-                    let range_end = BatchNumber(l2_range_to_submit.end().0 + 1); // cannnot add u64 to BatchNumber directly
+            let soft_confirmation_hashes = self
+                .ledger_db
+                .get_soft_batch_range(&(*l2_range_to_submit.start()..range_end))
+                .unwrap() // TODO unwrap
+                .iter()
+                .map(|sb| sb.hash)
+                .collect::<Vec<[u8; 32]>>();
 
-                    let soft_confirmation_hashes = ledger_db
-                        .get_soft_batch_range(&(*l2_range_to_submit.start()..range_end))
-                        .unwrap() // TODO unwrap
-                        .iter()
-                        .map(|sb| sb.hash)
-                        .collect::<Vec<[u8; 32]>>();
+            let commitment = commitment_controller::get_commitment(
+                commitment_info.clone(),
+                soft_confirmation_hashes,
+            )
+            .unwrap(); // TODO unwrap
 
-                    let commitment = commitment_controller::get_commitment(
-                        commitment_info.clone(),
-                        soft_confirmation_hashes,
-                    )
-                    .unwrap(); // TODO unwrap
+            info!("Sequencer: submitting commitment: {:?}", commitment);
 
-                    info!("Sequencer: submitting commitment: {:?}", commitment);
+            let blob = DaData::SequencerCommitment(commitment.clone())
+                .try_to_vec()
+                .map_err(|e| anyhow!(e))
+                .unwrap(); // TODO unwrap
+            let (notify, rx) = oneshot_channel();
+            let request = BlobWithNotifier { blob, notify };
+            inscription_queue
+                .send(request)
+                .map_err(|_| anyhow!("Bitcoin service already stopped!"))?;
+            let tx_id = rx
+                .await
+                .map_err(|_| anyhow!("DA service is dead!"))?
+                .map_err(|_| anyhow!("Send transaction cannot fail"))?;
 
-                    let blob = DaData::SequencerCommitment(commitment.clone())
-                        .try_to_vec()
-                        .map_err(|e| anyhow!(e))
-                        .unwrap(); // TODO unwrap
-                    let (notify, rx) = oneshot_channel();
-                    let request = BlobWithNotifier { blob, notify };
-                    inscription_queue
-                        .send(request)
-                        .expect("Bitcoin service already stopped");
-                    let tx_id = rx
-                        .await
-                        .expect("DA service is dead")
-                        .expect("send_transaction cannot fail");
+            self.ledger_db
+                .set_last_sequencer_commitment_l1_height(SlotNumber(
+                    commitment_info.l1_height_range.end().0,
+                ))
+                .map_err(|_| {
+                    anyhow!("Sequencer: Failed to set last sequencer commitment L1 height")
+                })?;
 
-                    ledger_db
-                        .set_last_sequencer_commitment_l1_height(SlotNumber(
-                            commitment_info.l1_height_range.end().0,
-                        ))
-                        .expect("Sequencer: Failed to set last sequencer commitment L1 height");
-
-                    warn!("Commitment info: {:?}", commitment_info);
-                    let l1_start_height = commitment_info.l1_height_range.start().0;
-                    let l1_end_height = commitment_info.l1_height_range.end().0;
-                    let l2_start = l2_range_to_submit.start().0 as u32;
-                    let l2_end = l2_range_to_submit.end().0 as u32;
-                    if let Some(db_config) = db_config.clone() {
-                        match PostgresConnector::new(db_config).await {
-                            Ok(pg_connector) => {
-                                pg_connector
-                                    .insert_sequencer_commitment(
-                                        l1_start_height as u32,
-                                        l1_end_height as u32,
-                                        Into::<[u8; 32]>::into(tx_id).to_vec(),
-                                        commitment.l1_start_block_hash.to_vec(),
-                                        commitment.l1_end_block_hash.to_vec(),
-                                        l2_start,
-                                        l2_end,
-                                        commitment.merkle_root.to_vec(),
-                                        CommitmentStatus::Mempool,
-                                    )
-                                    .await
-                                    .expect("Sequencer: Failed to insert sequencer commitment");
-                            }
-                            Err(e) => {
-                                warn!("Failed to connect to postgres: {:?}", e);
-                            }
-                        }
+            warn!("Commitment info: {:?}", commitment_info);
+            let l1_start_height = commitment_info.l1_height_range.start().0;
+            let l1_end_height = commitment_info.l1_height_range.end().0;
+            let l2_start = l2_range_to_submit.start().0 as u32;
+            let l2_end = l2_range_to_submit.end().0 as u32;
+            if let Some(db_config) = self.config.db_config.clone() {
+                match PostgresConnector::new(db_config).await {
+                    Ok(pg_connector) => {
+                        pg_connector
+                            .insert_sequencer_commitment(
+                                l1_start_height as u32,
+                                l1_end_height as u32,
+                                Into::<[u8; 32]>::into(tx_id).to_vec(),
+                                commitment.l1_start_block_hash.to_vec(),
+                                commitment.l1_end_block_hash.to_vec(),
+                                l2_start,
+                                l2_end,
+                                commitment.merkle_root.to_vec(),
+                                CommitmentStatus::Mempool,
+                            )
+                            .await
+                            .map_err(|_| {
+                                anyhow!("Sequencer: Failed to insert sequencer commitment")
+                            })?;
+                    }
+                    Err(e) => {
+                        warn!("Failed to connect to postgres: {:?}", e);
                     }
                 }
             }
-        });
-        da_height_tx
+        }
+        Ok(())
     }
 
     #[instrument(level = "trace", skip(self), err, ret)]
@@ -550,8 +547,6 @@ where
             .get_block_at(1)
             .await
             .map_err(|e| anyhow!(e))?;
-
-        let da_height_tx = self.spawn_commitment_thread();
 
         // If connected to offchain db first check if the commitments are in sync
         let mut pg_pool = None;
@@ -613,12 +608,13 @@ where
         // }
 
         // Setup required workers to update our knowledge of the DA layer every 2 seconds.
-        let (da_tx, mut da_rx) = mpsc::channel(1);
+        let (da_height_update_tx, mut da_height_update_rx) = mpsc::channel(1);
+        let (da_commitment_tx, mut da_commitment_rx) = unbounded::<u64>();
         let da_monitor = da_block_monitor(
             self.da_service.clone(),
             self.storage.clone(),
             self.soft_confirmation_rule_enforcer.clone(),
-            da_tx,
+            da_height_update_tx,
             self.config.da_update_interval_ms,
         );
         tokio::pin!(da_monitor);
@@ -641,7 +637,7 @@ where
                 // Run the DA monitor worker
                 _ = &mut da_monitor => {},
                 // Receive updates from DA layer worker.
-                l1_data = da_rx.recv() => {
+                l1_data = da_height_update_rx.recv() => {
                     // Stop receiving updates from DA layer until we have caught up.
                     if missed_da_blocks_count > 0 {
                         continue;
@@ -664,9 +660,14 @@ where
                             }
                         }
 
-                        if let Err(e) = self.submit_commitment(da_height_tx.clone(), last_finalized_height, last_used_l1_height).await {
+                        if let Err(e) = self.notify_commitment(da_commitment_tx.clone(), last_finalized_height, last_used_l1_height).await {
                             error!("Sequencer error: {}", e);
                         }
+                    }
+                },
+                prev_l1_height = da_commitment_rx.select_next_some() => {
+                    if let Err(e) = self.submit_commitment(prev_l1_height).await {
+                        error!("Failed to submit commitment: {}", e);
                     }
                 },
                 // If sequencer is in test mode, it will build a block every time it receives a message
@@ -917,9 +918,9 @@ where
         }
     }
 
-    async fn submit_commitment(
+    async fn notify_commitment(
         &self,
-        da_height_tx: UnboundedSender<u64>,
+        da_commitment_tx: UnboundedSender<u64>,
         last_finalized_height: u64,
         last_used_l1_height: u64,
     ) -> anyhow::Result<()> {
@@ -935,7 +936,7 @@ where
         };
 
         if let Some(commit_up_to) = commit_up_to {
-            if let Err(_) = da_height_tx.unbounded_send(commit_up_to) {
+            if let Err(_) = da_commitment_tx.unbounded_send(commit_up_to) {
                 error!("Commitment thread is dead!");
             }
         }
