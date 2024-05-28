@@ -18,17 +18,10 @@ pub struct PostgresConnector {
     client: Pool,
 }
 
-/// if test first connect to postgres
-/// then create a db with the given db name
-
 impl PostgresConnector {
     #[instrument(level = "trace", err)]
     pub async fn new(pg_config: SharedBackupDbConfig) -> Result<Self, PoolError> {
         let mut cfg: PgConfig = pg_config.clone().into();
-        if cfg!(feature = "test-utils") {
-            // if test connect to postgres first
-            cfg.dbname("postgres");
-        }
 
         let mgr_config = ManagerConfig {
             recycling_method: RecyclingMethod::Fast,
