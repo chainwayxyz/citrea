@@ -7,6 +7,7 @@ mod tx_verifier;
 
 pub use batch::Batch;
 use borsh::{BorshDeserialize, BorshSerialize};
+use itertools::Itertools;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 use sov_modules_api::da::BlockHeaderTrait;
@@ -16,14 +17,15 @@ use sov_modules_api::hooks::{
 };
 use sov_modules_api::{
     native_debug, native_info, native_warn, BasicAddress, BlobReaderTrait, Context, DaSpec,
-    DispatchCall, Genesis, Signature, Spec, StateCheckpoint, StateDiff,
-    UnsignedSoftConfirmationBatch, WorkingSet, Zkvm,
+    DispatchCall, Genesis, Signature, Spec, StateCheckpoint, UnsignedSoftConfirmationBatch,
+    WorkingSet, Zkvm,
 };
 use sov_rollup_interface::da::{DaData, SequencerCommitment};
 use sov_rollup_interface::digest::Digest;
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
 pub use sov_rollup_interface::stf::{BatchReceipt, TransactionReceipt};
 use sov_rollup_interface::stf::{SlotResult, StateTransitionFunction};
+use sov_rollup_interface::zk::CumulativeStateDiff;
 use sov_state::Storage;
 pub use stf_blueprint::StfBlueprint;
 pub use tx_verifier::RawTx;
@@ -472,18 +474,18 @@ where
         sequencer_da_public_key: &[u8],
         initial_state_root: &Self::StateRoot,
         pre_state: Self::PreState,
-        mut da_data: Vec<<Da as DaSpec>::BlobTransaction>,
-        mut witnesses: std::collections::VecDeque<Vec<Self::Witness>>,
-        mut slot_headers: std::collections::VecDeque<Vec<<Da as DaSpec>::BlockHeader>>,
+        da_data: Vec<<Da as DaSpec>::BlobTransaction>,
+        witnesses: std::collections::VecDeque<Vec<Self::Witness>>,
+        slot_headers: std::collections::VecDeque<Vec<<Da as DaSpec>::BlockHeader>>,
         validity_condition: &<Da as DaSpec>::ValidityCondition,
-        mut soft_confirmations: std::collections::VecDeque<Vec<SignedSoftConfirmationBatch>>,
-    ) -> (Self::StateRoot, StateDiff) {
-        let mut state_diff = vec![];
+        soft_confirmations: std::collections::VecDeque<Vec<SignedSoftConfirmationBatch>>,
+    ) -> (Self::StateRoot, CumulativeStateDiff) {
+        let mut state_diff = CumulativeStateDiff::default();
 
         // First extract all sequencer commitments
         // Ignore broken DaData and zk proofs. Also ignore ForcedTransaction's (will be implemented in the future).
         let mut sequencer_commitments: Vec<SequencerCommitment> = vec![];
-        for blob in da_data.iter_mut() {
+        for blob in da_data {
             // TODO: get sequencer da pub key
             if blob.sender().as_ref() == sequencer_da_public_key {
                 let da_data = DaData::try_from_slice(blob.verified_data());
@@ -498,16 +500,14 @@ where
 
         let mut current_state_root = initial_state_root.clone();
 
-        for sequencer_commitment in sequencer_commitments.iter() {
-            // should panic if number of sequencer commitments and soft confirmations don't match
-            let mut soft_confirmations = soft_confirmations.pop_front().unwrap();
-
-            // should panic if number of sequencer commitments and set of DA block headers don't match
-            let da_block_headers = slot_headers.pop_front().unwrap();
-
-            // should panic if number of sequencer commitments and set of witnesses don't match
-            let witnesses = witnesses.pop_front().unwrap();
-
+        // should panic if number of sequencer commitments, soft confirmations, slot headers and witnesses don't match
+        for (((sequencer_commitment, soft_confirmations), da_block_headers), witnesses) in
+            sequencer_commitments
+                .into_iter()
+                .zip_eq(soft_confirmations)
+                .zip_eq(slot_headers)
+                .zip_eq(witnesses)
+        {
             // we must verify given DA headers match the commitments
             let mut index_headers = 0;
             let mut index_soft_confirmation = 0;
@@ -601,11 +601,13 @@ where
                 "Invalid merkle root"
             );
 
-            let mut witness_iter = witnesses.into_iter();
             let mut da_block_headers_iter = da_block_headers.into_iter().peekable();
             let mut da_block_header = da_block_headers_iter.next().unwrap();
+
             // now that we verified the claimed root, we can apply the soft confirmations
-            for soft_confirmation in soft_confirmations.iter_mut() {
+            // should panic if the number of witnesses and soft confirmations don't match
+            for (mut soft_confirmation, witness) in soft_confirmations.into_iter().zip_eq(witnesses)
+            {
                 if soft_confirmation.da_slot_height() != da_block_header.height() {
                     da_block_header = da_block_headers_iter.next().unwrap();
                 }
@@ -613,12 +615,11 @@ where
                 let result = self.apply_soft_batch(
                     sequencer_public_key,
                     &current_state_root,
-                    // TODO: either somehow commit to the prestate after each soft confirmation and pass the correct prestate here, or run every soft confirmation all at once.
                     pre_state.clone(),
-                    witness_iter.next().unwrap(), // should panic if the number of witnesses and soft confirmations don't match
+                    witness,
                     &da_block_header,
                     validity_condition,
-                    soft_confirmation,
+                    &mut soft_confirmation,
                 );
 
                 current_state_root = result.state_root;
@@ -626,7 +627,6 @@ where
             }
         }
 
-        // TODO: implement state diff extraction
         (current_state_root, state_diff)
     }
 }

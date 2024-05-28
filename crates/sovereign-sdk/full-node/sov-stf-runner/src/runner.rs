@@ -844,9 +844,11 @@ where
                         Proof::Full(proof) => {
                             // hotfix for devnet deployment
                             // TODO: handle these deployed bug fixes better
-                            let code_commitment = if serde_json::to_string(&self.code_commitment)? == "[1860130309,3212374340,1571693462,196802355,3242449784,3924610482,1760955211,1058326957]" && soft_batch.da_slot_height <= 6787
+                            let code_commitment = if serde_json::to_string(&self.code_commitment)? == "[3965686256,604444860,1238257798,1624929768,3378693295,3187615180,1121902498,1170832510]" && soft_batch.da_slot_height <= 6787
                             {
                                 serde_json::from_str("[3565622432,3167720487,554880044,1689168947,3495902722,3638273228,1798052366,4175296332]").unwrap()
+                            } else if serde_json::to_string(&self.code_commitment)? == "[3965686256,604444860,1238257798,1624929768,3378693295,3187615180,1121902498,1170832510]" && soft_batch.da_slot_height > 6786 && soft_batch.da_slot_height <= 11075 {
+                                serde_json::from_str("[1860130309,3212374340,1571693462,196802355,3242449784,3924610482,1760955211,1058326957]").unwrap()
                             } else {
                                 self.code_commitment.clone()
                             };
