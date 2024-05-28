@@ -126,7 +126,7 @@ mod tests {
 
     #[test]
     fn test_correct_rollup_config() {
-        let config = format!(
+        let config =
             r#"
             [public_keys]
             sequencer_public_key = "0000000000000000000000000000000000000000000000000000000000000000"
@@ -148,8 +148,7 @@ mod tests {
             [runner]
             include_tx_body = true
             sequencer_client_url = "http://0.0.0.0:12346"
-        "#,
-        );
+        "#.to_owned();
 
         let config_file = create_config_from(&config);
 
