@@ -7,6 +7,7 @@ use citrea_sequencer::SequencerConfig;
 use citrea_stf::genesis_config::GenesisPaths;
 use reth_rpc_types::BlockNumberOrTag;
 use rollup_constants::TEST_PRIVATE_KEY;
+use shared_backup_db::PostgresConnector;
 use sov_mock_da::{MockAddress, MockDaConfig, MockDaService};
 use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
 use sov_modules_api::PrivateKey;
@@ -220,6 +221,29 @@ pub async fn wait_for_l1_block(da_service: &MockDaService, num: u64, timeout: Op
         debug!("Waiting for L1 block height {}", num);
         let da_block = da_service.get_height().await;
         if da_block >= num {
+            break;
+        }
+
+        let now = SystemTime::now();
+        if start + timeout <= now {
+            panic!("Timeout");
+        }
+
+        sleep(Duration::from_secs(1)).await;
+    }
+}
+
+pub async fn wait_for_commitment(
+    db_test_client: &PostgresConnector,
+    num: usize,
+    timeout: Option<Duration>,
+) {
+    let start = SystemTime::now();
+    let timeout = timeout.unwrap_or(Duration::from_secs(30)); // Default 30 seconds timeout
+    loop {
+        debug!("Waiting for {} L1 commitments to be published", num);
+        let commitments = db_test_client.get_all_commitments().await.unwrap().len();
+        if commitments >= num {
             break;
         }
 

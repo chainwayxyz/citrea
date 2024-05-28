@@ -18,11 +18,11 @@ use crate::test_helpers::{
     create_default_sequencer_config, start_rollup, tempdir_with_children, wait_for_l1_block,
     wait_for_l2_batch, wait_for_prover_l1_height, NodeMode,
 };
-use crate::DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT;
+use crate::{DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_PROOF_WAIT_DURATION};
 
 #[tokio::test]
 async fn sequencer_sends_commitments_to_da_layer() {
-    // citrea::initialize_logging();
+    citrea::initialize_logging();
 
     let db_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = db_dir.path().join("DA").to_path_buf();
@@ -254,10 +254,15 @@ async fn check_commitment_in_offchain_db() {
     // new da block
     da_service.publish_test_block().await.unwrap();
 
-    // commtiment should be published with this call
+    // commitment should be published with this call
     test_client.send_publish_batch_request().await;
 
-    sleep(Duration::from_secs(5)).await;
+    wait_for_commitment(
+        &db_test_client,
+        1,
+        Some(Duration::from_secs(DEFAULT_PROOF_WAIT_DURATION)),
+    )
+    .await;
 
     let commitments = db_test_client.get_all_commitments().await.unwrap();
     assert_eq!(commitments.len(), 1);
@@ -373,7 +378,7 @@ async fn test_ledger_get_commitments_on_slot() {
 
 #[tokio::test]
 async fn test_ledger_get_commitments_on_slot_prover() {
-    // citrea::initialize_logging();
+    citrea::initialize_logging();
 
     let db_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = db_dir.path().join("DA").to_path_buf();
@@ -447,7 +452,12 @@ async fn test_ledger_get_commitments_on_slot_prover() {
     // da_service.publish_test_block().await.unwrap();
 
     // wait here until we see from prover's rpc that it finished proving
-    wait_for_prover_l1_height(&prover_node_test_client, 5, Some(Duration::from_secs(60))).await;
+    wait_for_prover_l1_height(
+        &prover_node_test_client,
+        5,
+        Some(Duration::from_secs(DEFAULT_PROOF_WAIT_DURATION)),
+    )
+    .await;
 
     let commitments = prover_node_test_client
         .ledger_get_sequencer_commitments_on_slot_by_number(4)

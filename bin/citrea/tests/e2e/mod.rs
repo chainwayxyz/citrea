@@ -25,10 +25,13 @@ use tokio::time::sleep;
 use crate::evm::{init_test_rollup, make_test_client};
 use crate::test_client::TestClient;
 use crate::test_helpers::{
-    create_default_sequencer_config, start_rollup, tempdir_with_children, wait_for_l1_block,
-    wait_for_l2_batch, wait_for_prover_l1_height, NodeMode,
+    create_default_sequencer_config, start_rollup, tempdir_with_children, wait_for_commitment,
+    wait_for_l1_block, wait_for_l2_batch, wait_for_prover_l1_height, NodeMode,
 };
-use crate::{DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT};
+use crate::{
+    DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
+    DEFAULT_PROOF_WAIT_DURATION,
+};
 
 struct TestConfig {
     seq_min_soft_confirmations: u64,
@@ -1261,7 +1264,12 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
     seq_test_client.send_publish_batch_request().await;
 
     // wait here until we see from prover's rpc that it finished proving
-    wait_for_prover_l1_height(&prover_node_test_client, 3, Some(Duration::from_secs(60))).await;
+    wait_for_prover_l1_height(
+        &prover_node_test_client,
+        3,
+        Some(Duration::from_secs(DEFAULT_PROOF_WAIT_DURATION)),
+    )
+    .await;
 
     // prover should have synced all 4 l2 blocks
     assert_eq!(prover_node_test_client.eth_block_number().await, 4);
@@ -1269,7 +1277,12 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
     seq_test_client.send_publish_batch_request().await;
 
     // Still should have 4 blokcs there are no commitments yet
-    wait_for_prover_l1_height(&prover_node_test_client, 4, Some(Duration::from_secs(60))).await;
+    wait_for_prover_l1_height(
+        &prover_node_test_client,
+        4,
+        Some(Duration::from_secs(DEFAULT_PROOF_WAIT_DURATION)),
+    )
+    .await;
     assert_eq!(prover_node_test_client.eth_block_number().await, 4);
 
     seq_test_client.send_publish_batch_request().await;
@@ -1283,7 +1296,12 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
     seq_test_client.send_publish_batch_request().await;
 
     // wait here until we see from prover's rpc that it finished proving
-    wait_for_prover_l1_height(&prover_node_test_client, 8, Some(Duration::from_secs(60))).await;
+    wait_for_prover_l1_height(
+        &prover_node_test_client,
+        8,
+        Some(Duration::from_secs(DEFAULT_PROOF_WAIT_DURATION)),
+    )
+    .await;
 
     // Should now have 8 blocks = 2 commitments of blocks 1-4 and 5-9
     // there is an extra soft confirmation due to the prover publishing a proof. This causes
@@ -1389,7 +1407,12 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     seq_test_client.send_publish_batch_request().await;
 
     // wait here until we see from prover's rpc that it finished proving
-    wait_for_prover_l1_height(&prover_node_test_client, 5, Some(Duration::from_secs(120))).await;
+    wait_for_prover_l1_height(
+        &prover_node_test_client,
+        5,
+        Some(Duration::from_secs(DEFAULT_PROOF_WAIT_DURATION)),
+    )
+    .await;
 
     // prover should have synced all 4 l2 blocks
     assert_eq!(prover_node_test_client.eth_block_number().await, 4);
@@ -1470,7 +1493,12 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     seq_test_client.send_publish_batch_request().await;
 
     // wait here until we see from prover's rpc that it finished proving
-    wait_for_prover_l1_height(&prover_node_test_client, 8, Some(Duration::from_secs(120))).await;
+    wait_for_prover_l1_height(
+        &prover_node_test_client,
+        8,
+        Some(Duration::from_secs(DEFAULT_PROOF_WAIT_DURATION)),
+    )
+    .await;
 
     // Should now have 8 blocks = 2 commitments of blocks 1-4 and 5-9
     // there is an extra soft confirmation due to the prover publishing a proof. This causes
@@ -1933,9 +1961,12 @@ async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
     // new commitment will be sent here, it should send between 2 and 3 should not include 1
     seq_test_client.send_publish_batch_request().await;
 
-    wait_for_l2_batch(&seq_test_client, 9, Some(Duration::from_secs(60))).await;
-
-    sleep(Duration::from_secs(2)).await;
+    wait_for_commitment(
+        &db_test_client,
+        2,
+        Some(Duration::from_secs(DEFAULT_PROOF_WAIT_DURATION)),
+    )
+    .await;
 
     let commitments = db_test_client.get_all_commitments().await.unwrap();
     assert_eq!(commitments.len(), 2);
@@ -2286,7 +2317,12 @@ async fn test_db_get_proof() {
     // da_service.publish_test_block().await.unwrap();
 
     // wait here until we see from prover's rpc that it finished proving
-    wait_for_prover_l1_height(&prover_node_test_client, 5, Some(Duration::from_secs(60))).await;
+    wait_for_prover_l1_height(
+        &prover_node_test_client,
+        5,
+        Some(Duration::from_secs(DEFAULT_PROOF_WAIT_DURATION)),
+    )
+    .await;
 
     let ledger_proof = prover_node_test_client
         .ledger_get_proof_by_slot_height(4)
@@ -2427,7 +2463,12 @@ async fn full_node_verify_proof_and_store() {
     // da_service.publish_test_block().await.unwrap();
 
     // wait here until we see from prover's rpc that it finished proving
-    wait_for_prover_l1_height(&prover_node_test_client, 5, Some(Duration::from_secs(60))).await;
+    wait_for_prover_l1_height(
+        &prover_node_test_client,
+        5,
+        Some(Duration::from_secs(DEFAULT_PROOF_WAIT_DURATION)),
+    )
+    .await;
 
     let commitments = prover_node_test_client
         .ledger_get_sequencer_commitments_on_slot_by_number(4)
@@ -2629,7 +2670,12 @@ async fn test_all_flow() {
     // da_service.publish_test_block().await.unwrap();
 
     // wait here until we see from prover's rpc that it finished proving
-    wait_for_prover_l1_height(&prover_node_test_client, 5, Some(Duration::from_secs(60))).await;
+    wait_for_prover_l1_height(
+        &prover_node_test_client,
+        5,
+        Some(Duration::from_secs(DEFAULT_PROOF_WAIT_DURATION)),
+    )
+    .await;
 
     let commitments = prover_node_test_client
         .ledger_get_sequencer_commitments_on_slot_by_number(4)
@@ -2745,7 +2791,12 @@ async fn test_all_flow() {
     test_client.send_publish_batch_request().await;
 
     // wait here until we see from prover's rpc that it finished proving
-    wait_for_prover_l1_height(&prover_node_test_client, 8, Some(Duration::from_secs(60))).await;
+    wait_for_prover_l1_height(
+        &prover_node_test_client,
+        8,
+        Some(Duration::from_secs(DEFAULT_PROOF_WAIT_DURATION)),
+    )
+    .await;
 
     let commitments = prover_node_test_client
         .ledger_get_sequencer_commitments_on_slot_by_number(7)
