@@ -14,8 +14,8 @@ use sov_stf_runner::ProverConfig;
 use crate::evm::make_test_client;
 use crate::test_client::TestClient;
 use crate::test_helpers::{
-    create_default_sequencer_config, start_rollup, tempdir_with_children, wait_for_commitment,
-    wait_for_l1_block, wait_for_l2_batch, wait_for_prover_l1_height, NodeMode,
+    create_default_sequencer_config, start_rollup, tempdir_with_children, wait_for_l1_block,
+    wait_for_l2_block, wait_for_postgres_commitment, wait_for_prover_l1_height, NodeMode,
 };
 use crate::{DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_PROOF_WAIT_DURATION};
 
@@ -106,7 +106,7 @@ async fn sequencer_sends_commitments_to_da_layer() {
 
     test_client.send_publish_batch_request().await;
 
-    wait_for_l2_batch(&test_client, 5, None).await;
+    wait_for_l2_block(&test_client, 5, None).await;
 
     let start_l2_block: u64 = end_l2_block + 1;
     let end_l2_block: u64 = end_l2_block + 5; // can only be the block before the one comitment landed in
@@ -256,7 +256,7 @@ async fn check_commitment_in_offchain_db() {
     // commitment should be published with this call
     test_client.send_publish_batch_request().await;
 
-    wait_for_commitment(
+    wait_for_postgres_commitment(
         &db_test_client,
         1,
         Some(Duration::from_secs(DEFAULT_PROOF_WAIT_DURATION)),
@@ -341,7 +341,7 @@ async fn test_ledger_get_commitments_on_slot() {
     test_client.send_publish_batch_request().await;
     // da_service.publish_test_block().await.unwrap();
 
-    wait_for_l2_batch(&full_node_test_client, 6, None).await;
+    wait_for_l2_block(&full_node_test_client, 6, None).await;
 
     let commitments = full_node_test_client
         .ledger_get_sequencer_commitments_on_slot_by_number(4)

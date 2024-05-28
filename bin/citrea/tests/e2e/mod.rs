@@ -25,8 +25,8 @@ use tokio::time::sleep;
 use crate::evm::{init_test_rollup, make_test_client};
 use crate::test_client::TestClient;
 use crate::test_helpers::{
-    create_default_sequencer_config, start_rollup, tempdir_with_children, wait_for_commitment,
-    wait_for_l1_block, wait_for_l2_batch, wait_for_prover_l1_height, NodeMode,
+    create_default_sequencer_config, start_rollup, tempdir_with_children, wait_for_l1_block,
+    wait_for_l2_block, wait_for_postgres_commitment, wait_for_prover_l1_height, NodeMode,
 };
 use crate::{
     DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
@@ -212,7 +212,7 @@ async fn test_soft_batch_save() -> Result<(), anyhow::Error> {
 
     let _ = execute_blocks(&seq_test_client, &full_node_test_client, &da_db_dir.clone()).await;
 
-    wait_for_l2_batch(&full_node_test_client_2, 504, None).await;
+    wait_for_l2_block(&full_node_test_client_2, 504, None).await;
 
     let seq_block = seq_test_client
         .eth_get_block_by_number(Some(BlockNumberOrTag::Latest))
@@ -261,8 +261,8 @@ async fn test_full_node_send_tx() -> Result<(), anyhow::Error> {
 
     seq_test_client.send_publish_batch_request().await;
 
-    wait_for_l2_batch(&seq_test_client, 1, None).await;
-    wait_for_l2_batch(&full_node_test_client, 1, None).await;
+    wait_for_l2_block(&seq_test_client, 1, None).await;
+    wait_for_l2_block(&full_node_test_client, 1, None).await;
 
     let sq_block = seq_test_client
         .eth_get_block_by_number(Some(BlockNumberOrTag::Latest))
@@ -325,7 +325,7 @@ async fn test_delayed_sync_ten_blocks() -> Result<(), anyhow::Error> {
         seq_test_client.send_publish_batch_request().await;
     }
 
-    wait_for_l2_batch(&seq_test_client, 10, None).await;
+    wait_for_l2_block(&seq_test_client, 10, None).await;
 
     let (full_node_port_tx, full_node_port_rx) = tokio::sync::oneshot::channel();
 
@@ -351,7 +351,7 @@ async fn test_delayed_sync_ten_blocks() -> Result<(), anyhow::Error> {
     let full_node_port = full_node_port_rx.await.unwrap();
     let full_node_test_client = make_test_client(full_node_port).await;
 
-    wait_for_l2_batch(&full_node_test_client, 10, None).await;
+    wait_for_l2_block(&full_node_test_client, 10, None).await;
 
     let seq_block = seq_test_client
         .eth_get_block_by_number(Some(BlockNumberOrTag::Number(10)))
@@ -466,7 +466,7 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
     }
 
     // wait for full node to sync
-    wait_for_l2_batch(&full_node_test_client, 10, None).await;
+    wait_for_l2_block(&full_node_test_client, 10, None).await;
 
     // check if latest blocks are the same
     let seq_last_block = seq_test_client
@@ -530,8 +530,8 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
 
     let full_node_test_client = make_test_client(full_node_port).await;
 
-    wait_for_l2_batch(&seq_test_client, 110, None).await;
-    wait_for_l2_batch(&full_node_test_client, 110, None).await;
+    wait_for_l2_block(&seq_test_client, 110, None).await;
+    wait_for_l2_block(&full_node_test_client, 110, None).await;
 
     // check if the latest block state roots are same
     let seq_last_block = seq_test_client
@@ -657,7 +657,7 @@ async fn test_get_transaction_by_hash() -> Result<(), anyhow::Error> {
     seq_test_client.send_publish_batch_request().await;
 
     // wait for the full node to sync
-    wait_for_l2_batch(&full_node_test_client, 1, None).await;
+    wait_for_l2_block(&full_node_test_client, 1, None).await;
 
     // make sure txs are in the block
     let seq_block = seq_test_client
@@ -748,8 +748,8 @@ async fn test_soft_confirmations_on_different_blocks() -> Result<(), anyhow::Err
         seq_test_client.send_publish_batch_request().await;
     }
 
-    wait_for_l2_batch(&seq_test_client, 6, None).await;
-    wait_for_l2_batch(&full_node_test_client, 6, None).await;
+    wait_for_l2_block(&seq_test_client, 6, None).await;
+    wait_for_l2_block(&full_node_test_client, 6, None).await;
 
     let mut last_da_slot_height = 0;
     let mut last_da_slot_hash = <MockDaSpec as DaSpec>::SlotHash::from([0u8; 32]);
@@ -788,8 +788,8 @@ async fn test_soft_confirmations_on_different_blocks() -> Result<(), anyhow::Err
         seq_test_client.spam_publish_batch_request().await.unwrap();
     }
 
-    wait_for_l2_batch(&seq_test_client, 12, None).await;
-    wait_for_l2_batch(&full_node_test_client, 12, None).await;
+    wait_for_l2_block(&seq_test_client, 12, None).await;
+    wait_for_l2_block(&full_node_test_client, 12, None).await;
 
     for i in 7..=12 {
         let seq_soft_conf = seq_test_client
@@ -919,7 +919,7 @@ async fn test_reopen_sequencer() -> Result<(), anyhow::Error> {
     seq_test_client.send_publish_batch_request().await;
     seq_test_client.send_publish_batch_request().await;
 
-    wait_for_l2_batch(&seq_test_client, 2, None).await;
+    wait_for_l2_block(&seq_test_client, 2, None).await;
 
     assert_eq!(
         seq_test_client
@@ -1000,7 +1000,7 @@ async fn execute_blocks(
             sequencer_client.spam_publish_batch_request().await.unwrap();
         }
 
-        wait_for_l2_batch(sequencer_client, 204, None).await;
+        wait_for_l2_block(sequencer_client, 204, None).await;
     }
 
     let da_service = MockDaService::new(MockAddress::from([0; 32]), da_db_dir);
@@ -1018,8 +1018,8 @@ async fn execute_blocks(
         }
     }
 
-    wait_for_l2_batch(sequencer_client, 504, None).await;
-    wait_for_l2_batch(full_node_client, 504, None).await;
+    wait_for_l2_block(sequencer_client, 504, None).await;
+    wait_for_l2_block(full_node_client, 504, None).await;
 
     let seq_last_block = sequencer_client
         .eth_get_block_by_number_with_detail(Some(BlockNumberOrTag::Latest))
@@ -1066,14 +1066,14 @@ async fn test_soft_confirmations_status_one_l1() -> Result<(), anyhow::Error> {
 
     // TODO check status=trusted
 
-    wait_for_l2_batch(&full_node_test_client, 6, None).await;
+    wait_for_l2_block(&full_node_test_client, 6, None).await;
 
     // publish new da block
     da_service.publish_test_block().await.unwrap();
     seq_test_client.send_publish_batch_request().await; // TODO https://github.com/chainwayxyz/citrea/issues/214
     seq_test_client.send_publish_batch_request().await; // TODO https://github.com/chainwayxyz/citrea/issues/214
 
-    wait_for_l2_batch(&full_node_test_client, 8, None).await;
+    wait_for_l2_block(&full_node_test_client, 8, None).await;
 
     // now retrieve confirmation status from the sequencer and full node and check if they are the same
     for i in 1..=6 {
@@ -1117,7 +1117,7 @@ async fn test_soft_confirmations_status_two_l1() -> Result<(), anyhow::Error> {
         seq_test_client.send_publish_batch_request().await;
     }
 
-    wait_for_l2_batch(&seq_test_client, 2, None).await;
+    wait_for_l2_block(&seq_test_client, 2, None).await;
 
     // publish new da block
     da_service.publish_test_block().await.unwrap();
@@ -1126,7 +1126,7 @@ async fn test_soft_confirmations_status_two_l1() -> Result<(), anyhow::Error> {
         seq_test_client.send_publish_batch_request().await;
     }
 
-    wait_for_l2_batch(&full_node_test_client, 7, None).await;
+    wait_for_l2_block(&full_node_test_client, 7, None).await;
 
     // now retrieve confirmation status from the sequencer and full node and check if they are the same
     for i in 1..=2 {
@@ -1143,7 +1143,7 @@ async fn test_soft_confirmations_status_two_l1() -> Result<(), anyhow::Error> {
     seq_test_client.send_publish_batch_request().await;
     seq_test_client.send_publish_batch_request().await;
 
-    wait_for_l2_batch(&full_node_test_client, 9, None).await;
+    wait_for_l2_block(&full_node_test_client, 9, None).await;
 
     // Check that these L2 blocks are bounded on different L1 block
     let mut batch_infos = vec![];
@@ -1546,13 +1546,13 @@ async fn test_system_transactons() -> Result<(), anyhow::Error> {
         for _ in 0..5 {
             seq_test_client.spam_publish_batch_request().await.unwrap();
         }
-        wait_for_l2_batch(&seq_test_client, 5 * (i + 1), None).await;
+        wait_for_l2_block(&seq_test_client, 5 * (i + 1), None).await;
 
         da_service.publish_test_block().await.unwrap();
     }
 
     seq_test_client.send_publish_batch_request().await;
-    wait_for_l2_batch(&full_node_test_client, 51, None).await;
+    wait_for_l2_block(&full_node_test_client, 51, None).await;
 
     // check block 1-6-11-16-21-26-31-36-41-46-51 has system transactions
     for i in 0..=10 {
@@ -1733,7 +1733,7 @@ async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error>
 
     let last_in_receipt = last_in_tx.unwrap().await.unwrap().unwrap();
 
-    wait_for_l2_batch(&seq_test_client, 1, None).await;
+    wait_for_l2_block(&seq_test_client, 1, None).await;
 
     let initial_soft_batch = seq_test_client
         .ledger_get_soft_batch_by_number::<MockDaSpec>(1)
@@ -1904,7 +1904,7 @@ async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
     seq_test_client.send_publish_batch_request().await;
 
     // wait for sync
-    wait_for_l2_batch(&full_node_test_client, 5, None).await;
+    wait_for_l2_block(&full_node_test_client, 5, None).await;
 
     // should be synced
     assert_eq!(full_node_test_client.eth_block_number().await, 5);
@@ -1949,7 +1949,7 @@ async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
 
     let seq_test_client = make_test_client(seq_port).await;
 
-    wait_for_l2_batch(&seq_test_client, 5, None).await;
+    wait_for_l2_block(&seq_test_client, 5, None).await;
 
     assert_eq!(seq_test_client.eth_block_number().await as u64, 5);
 
@@ -1961,7 +1961,7 @@ async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
     // new commitment will be sent here, it should send between 2 and 3 should not include 1
     seq_test_client.send_publish_batch_request().await;
 
-    wait_for_commitment(
+    wait_for_postgres_commitment(
         &db_test_client,
         2,
         Some(Duration::from_secs(DEFAULT_PROOF_WAIT_DURATION)),
@@ -2067,7 +2067,7 @@ async fn transaction_failing_on_l1_is_removed_from_mempool() -> Result<(), anyho
     assert!(tx_from_mempool.is_none());
     assert_eq!(soft_confirmation.txs.unwrap().len(), 1); // TODO: if we can also remove the tx from soft confirmation, that'd be very efficient
 
-    wait_for_l2_batch(&full_node_test_client, block.number.unwrap().as_u64(), None).await;
+    wait_for_l2_block(&full_node_test_client, block.number.unwrap().as_u64(), None).await;
 
     let block_from_full_node = full_node_test_client
         .eth_get_block_by_number_with_detail(Some(BlockNumberOrTag::Latest))
@@ -2507,7 +2507,7 @@ async fn full_node_verify_proof_and_store() {
     // For full node to see the proof, we publish another l2 block and now it will check #5 l1 block
     test_client.send_publish_batch_request().await;
 
-    wait_for_l2_batch(&full_node_test_client, 7, None).await;
+    wait_for_l2_block(&full_node_test_client, 7, None).await;
     wait_for_l1_block(&da_service, 5, None).await;
 
     // So the full node should see the proof in block 5
@@ -2741,7 +2741,7 @@ async fn test_all_flow() {
         full_node_proof[0].state_transition
     );
 
-    wait_for_l2_batch(&full_node_test_client, 5, None).await;
+    wait_for_l2_block(&full_node_test_client, 5, None).await;
 
     full_node_test_client
         .ledger_get_soft_confirmation_status(5)
@@ -2824,7 +2824,7 @@ async fn test_all_flow() {
     // let full node see the proof
     test_client.send_publish_batch_request().await;
 
-    wait_for_l2_batch(&full_node_test_client, 8, None).await;
+    wait_for_l2_block(&full_node_test_client, 8, None).await;
 
     sleep(Duration::from_secs(2)).await;
 

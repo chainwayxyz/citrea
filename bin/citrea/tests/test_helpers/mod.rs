@@ -170,7 +170,7 @@ pub fn tempdir_with_children(children: &[&str]) -> TempDir {
     db_dir
 }
 
-pub async fn wait_for_l2_batch(sequencer_client: &TestClient, num: u64, timeout: Option<Duration>) {
+pub async fn wait_for_l2_block(sequencer_client: &TestClient, num: u64, timeout: Option<Duration>) {
     let start = SystemTime::now();
     let timeout = timeout.unwrap_or(Duration::from_secs(30)); // Default 30 seconds timeout
     loop {
@@ -233,7 +233,7 @@ pub async fn wait_for_l1_block(da_service: &MockDaService, num: u64, timeout: Op
     }
 }
 
-pub async fn wait_for_commitment(
+pub async fn wait_for_postgres_commitment(
     db_test_client: &PostgresConnector,
     num: usize,
     timeout: Option<Duration>,
