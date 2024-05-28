@@ -119,8 +119,7 @@ pub fn create_default_rollup_config(
             prover_da_pub_key: vec![0; 32],
         },
         storage: StorageConfig {
-            rollup_path: rollup_path.to_path_buf(),
-            da_path: da_path.to_path_buf(),
+            path: rollup_path.to_path_buf(),
         },
         rpc: RpcConfig {
             bind_host: "127.0.0.1".into(),
@@ -137,6 +136,7 @@ pub fn create_default_rollup_config(
         },
         da: MockDaConfig {
             sender_address: MockAddress::from([0; 32]),
+            db_path: da_path.to_path_buf(),
         },
     }
 }
