@@ -120,8 +120,7 @@ async fn runner_execution(
     let rollup_storage_path = storage_path.join("rollup").to_path_buf();
     let rollup_config = RollupConfig::<MockDaConfig> {
         storage: StorageConfig {
-            rollup_path: rollup_storage_path.clone(),
-            da_path: storage_path.join("da").to_path_buf(),
+            path: rollup_storage_path.clone(),
         },
         rpc: RpcConfig {
             bind_host: "127.0.0.1".to_string(),
@@ -135,6 +134,7 @@ async fn runner_execution(
         }),
         da: MockDaConfig {
             sender_address: da_service.get_sequencer_address(),
+            db_path: storage_path.join("da").to_path_buf(),
         },
         public_keys: RollupPublicKeys {
             sequencer_public_key: vec![0u8; 32],

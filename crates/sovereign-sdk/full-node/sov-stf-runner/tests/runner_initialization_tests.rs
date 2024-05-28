@@ -69,8 +69,7 @@ fn initialize_runner(
     let address = MockAddress::new([11u8; 32]);
     let rollup_config = RollupConfig::<MockDaConfig> {
         storage: StorageConfig {
-            rollup_path: rollup_storage_path.clone(),
-            da_path: da_storage_path.clone(),
+            path: rollup_storage_path.clone(),
         },
         rpc: RpcConfig {
             bind_host: "127.0.0.1".to_string(),
@@ -84,6 +83,7 @@ fn initialize_runner(
         }),
         da: MockDaConfig {
             sender_address: address,
+            db_path: da_storage_path.clone(),
         },
         public_keys: RollupPublicKeys {
             sequencer_public_key: vec![],

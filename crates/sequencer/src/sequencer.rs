@@ -2,7 +2,6 @@ use std::cmp::Ordering;
 use std::marker::PhantomData;
 use std::net::SocketAddr;
 use std::ops::RangeInclusive;
-use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 use std::vec;
@@ -77,7 +76,6 @@ where
     sequencer_pub_key: Vec<u8>,
     rpc_config: RpcConfig,
     soft_confirmation_rule_enforcer: SoftConfirmationRuleEnforcer<C, Da::Spec>,
-    da_db_path: Option<PathBuf>,
 }
 
 enum L2BlockMode {
@@ -110,7 +108,6 @@ where
         public_keys: RollupPublicKeys,
         ledger_db: LedgerDB,
         rpc_config: RpcConfig,
-        da_db_path: Option<PathBuf>,
     ) -> anyhow::Result<Self> {
         let (l2_force_block_tx, l2_force_block_rx) = unbounded();
 
@@ -163,7 +160,6 @@ where
             sequencer_pub_key: public_keys.sequencer_public_key,
             rpc_config,
             soft_confirmation_rule_enforcer,
-            da_db_path,
         })
     }
 
@@ -830,7 +826,7 @@ where
         mut rpc_methods: jsonrpsee::RpcModule<()>,
     ) -> Result<jsonrpsee::RpcModule<()>, jsonrpsee::core::Error> {
         let rpc_context = self.create_rpc_context().await;
-        let rpc = create_rpc_module(rpc_context, self.da_db_path.clone())?;
+        let rpc = create_rpc_module(rpc_context)?;
         rpc_methods.merge(rpc)?;
         Ok(rpc_methods)
     }

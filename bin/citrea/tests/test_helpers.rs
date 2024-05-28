@@ -114,8 +114,7 @@ pub fn create_default_rollup_config(
             prover_da_pub_key: vec![0; 32],
         },
         storage: StorageConfig {
-            rollup_path: rollup_path.to_path_buf(),
-            da_path: da_path.to_path_buf(),
+            path: rollup_path.to_path_buf(),
         },
         rpc: RpcConfig {
             bind_host: "127.0.0.1".into(),
@@ -132,6 +131,7 @@ pub fn create_default_rollup_config(
         },
         da: MockDaConfig {
             sender_address: MockAddress::from([0; 32]),
+            db_path: da_path.to_path_buf(),
         },
     }
 }
@@ -156,9 +156,7 @@ pub fn tempdir_with_children(children: &[&str]) -> TempDir {
     let db_dir = tempfile::tempdir().expect("Could not create temporary directory for test");
     for child in children {
         let p = db_dir.path().join(child);
-        if !std::path::Path::new(&p).exists() {
-            std::fs::create_dir(p).unwrap();
-        }
+        std::fs::create_dir(p).unwrap();
     }
 
     db_dir

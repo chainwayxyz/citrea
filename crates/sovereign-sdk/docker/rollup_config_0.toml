@@ -5,8 +5,7 @@ max_celestia_response_body_size = 104_857_600
 celestia_rpc_timeout_seconds = 60
 
 [storage]
-rollup_path = "demo_data_0"
-da_path = "demo_da_data_0"
+path = "demo_data_0"
 
 [runner]
 start_height = 1

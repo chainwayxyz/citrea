@@ -41,9 +41,7 @@ const fn default_max_connections() -> u32 {
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct StorageConfig {
     /// Path that can be utilized by concrete rollup implementation
-    pub rollup_path: PathBuf,
-    /// Path that can be utilized by concrete DA implementation
-    pub da_path: PathBuf,
+    pub path: PathBuf,
 }
 
 /// Important public keys for the rollup
@@ -142,10 +140,10 @@ mod tests {
 
             [da]
             sender_address = "0000000000000000000000000000000000000000000000000000000000000000"
+            db_path = /tmp/da
             
             [storage]
-            rollup_path = /tmp/rollup
-            da_path = /tmp/da
+            path = /tmp/rollup
             
             [runner]
             include_tx_body = true
@@ -166,10 +164,10 @@ mod tests {
             }),
             da: sov_mock_da::MockDaConfig {
                 sender_address: [0; 32].into(),
+                db_path: "/tmp/da".into(),
             },
             storage: StorageConfig {
-                rollup_path: "/tmp/rollup".to_owned(),
-                da_path: "/tmp/da".to_owned(),
+                path: "/tmp/rollup".into(),
             },
             rpc: RpcConfig {
                 bind_host: "127.0.0.1".to_string(),
