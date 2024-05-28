@@ -19,9 +19,7 @@ serde = { workspace = true, features = ["derive"] }
 tracing = { workspace = true, optional = true }
 jmt = { workspace = true }
 hex = { workspace = true }
-itertools = { workspace = true, default-features = false, features = [
-    "use_alloc",
-] }
+itertools = { workspace = true }
 sov-rollup-interface = { path = "../../rollup-interface" }
 sov-state = { path = "../sov-state" }
 sov-modules-api = { path = "../sov-modules-api", default-features = false }
