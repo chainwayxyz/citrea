@@ -140,10 +140,10 @@ mod tests {
 
             [da]
             sender_address = "0000000000000000000000000000000000000000000000000000000000000000"
-            db_path = /tmp/da
+            db_path = "/tmp/da"
             
             [storage]
-            path = /tmp/rollup
+            path = "/tmp/rollup"
             
             [runner]
             include_tx_body = true
