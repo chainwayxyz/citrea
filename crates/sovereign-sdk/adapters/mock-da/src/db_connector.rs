@@ -1,16 +1,9 @@
-use std::collections::HashSet;
-use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::path::Path;
 
-use lazy_static::lazy_static;
 use rusqlite::{params, Connection};
 use tracing::debug;
 
 use crate::{MockBlock, MockBlockHeader, MockHash, MockValidityCond};
-
-lazy_static! {
-    static ref USED_THREAD: Mutex<HashSet<String>> = Mutex::new(HashSet::new());
-}
 
 pub(crate) struct DbConnector {
     // thread-safe sqlite connection
@@ -18,20 +11,15 @@ pub(crate) struct DbConnector {
 }
 
 impl DbConnector {
-    pub fn new() -> Self {
-        let thread = std::thread::current();
-        let mut thread_name = thread.name().unwrap_or("unnamed");
-        if thread_name == "tokio-runtime-worker" {
-            thread_name = "main"
+    pub fn new(db_path: &Path) -> Self {
+        debug!("Using test db: {:?}", db_path);
+
+        if !db_path.exists() {
+            let _ = std::fs::create_dir(db_path);
         }
-        let dir = workspace_dir()
-            .join("test-da-dbs")
-            .join(thread_name.to_string() + ".db");
-        let db_name = dir.to_str().unwrap().to_string();
 
-        debug!("Using test db: {}", db_name);
-
-        let conn = Connection::open(db_name.clone()).expect("DbConnector: failed to open db");
+        let conn =
+            Connection::open(db_path.join("mock_da.db")).expect("DbConnector: failed to open db");
 
         conn.execute(
             "CREATE TABLE IF NOT EXISTS blocks (
@@ -46,17 +34,6 @@ impl DbConnector {
             (),
         )
         .expect("DbConnector: failed to create table");
-
-        // first time db is opened in a thread, wipe data inside it unless it's the main thread
-        // keep main thread's data since main thread runs only when running demo or mocknet
-        // we would like to keep da data in that case
-        let mut set = USED_THREAD.lock().unwrap();
-        if !set.contains(&thread_name.to_string()) && thread_name != "main" {
-            debug!("deleting db");
-            conn.execute("DELETE FROM blocks", ())
-                .expect("DbConnector: failed to delete all rows");
-            set.insert(thread_name.to_string());
-        }
 
         Self { conn }
     }
@@ -164,18 +141,6 @@ impl DbConnector {
     }
 }
 
-fn workspace_dir() -> PathBuf {
-    let output = std::process::Command::new(env!("CARGO"))
-        .arg("locate-project")
-        .arg("--workspace")
-        .arg("--message-format=plain")
-        .output()
-        .unwrap()
-        .stdout;
-    let cargo_path = Path::new(std::str::from_utf8(&output).unwrap().trim());
-    cargo_path.parent().unwrap().to_path_buf()
-}
-
 #[cfg(test)]
 mod tests {
     use crate::db_connector::DbConnector;
@@ -194,7 +159,8 @@ mod tests {
 
     #[test]
     fn test_write_and_read() {
-        let db = DbConnector::new();
+        let db_path = tempfile::tempdir().unwrap();
+        let db = DbConnector::new(db_path.path());
 
         let block = get_test_block(1);
 
@@ -207,7 +173,8 @@ mod tests {
 
     #[test]
     fn test_read_by_hash() {
-        let db = DbConnector::new();
+        let db_path = tempfile::tempdir().unwrap();
+        let db = DbConnector::new(db_path.path());
 
         let block = get_test_block(1);
 
@@ -222,7 +189,8 @@ mod tests {
 
     #[test]
     fn test_len() {
-        let db = DbConnector::new();
+        let db_path = tempfile::tempdir().unwrap();
+        let db = DbConnector::new(db_path.path());
 
         let block = get_test_block(1);
 
@@ -233,7 +201,8 @@ mod tests {
 
     #[test]
     fn test_last() {
-        let db = DbConnector::new();
+        let db_path = tempfile::tempdir().unwrap();
+        let db = DbConnector::new(db_path.path());
 
         let block1 = get_test_block(1);
         let block2 = get_test_block(2);
@@ -247,7 +216,8 @@ mod tests {
 
     #[test]
     fn test_prune_above() {
-        let db = DbConnector::new();
+        let db_path = tempfile::tempdir().unwrap();
+        let db = DbConnector::new(db_path.path());
 
         let block1 = get_test_block(1);
         let block2 = get_test_block(2);
@@ -266,7 +236,8 @@ mod tests {
 
     #[test]
     fn test_same_thread_behaviour() {
-        let db = DbConnector::new();
+        let db_path = tempfile::tempdir().unwrap();
+        let db = DbConnector::new(db_path.path());
 
         let block = get_test_block(1);
 
@@ -276,7 +247,7 @@ mod tests {
 
         assert_eq!(block, block_from_db);
 
-        let db2 = DbConnector::new();
+        let db2 = DbConnector::new(db_path.path());
 
         // data wasn't wiped
         let block_from_db2 = db2.get(0).unwrap();

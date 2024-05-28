@@ -4,7 +4,7 @@ use deadpool_postgres::tokio_postgres::config::Config as PgConfig;
 use deadpool_postgres::tokio_postgres::{NoTls, Row};
 use deadpool_postgres::{Manager, ManagerConfig, Object, Pool, PoolError, RecyclingMethod};
 use sov_rollup_interface::rpc::StateTransitionRpcResponse;
-use tracing::instrument;
+use tracing::{debug, instrument};
 
 use crate::config::SharedBackupDbConfig;
 use crate::tables::{
@@ -12,7 +12,6 @@ use crate::tables::{
     INDEX_L1_END_HASH, INDEX_L1_END_HEIGHT, INDEX_L2_END_HEIGHT, MEMPOOL_TXS_TABLE_CREATE_QUERY,
     PROOF_TABLE_CREATE_QUERY, SEQUENCER_COMMITMENT_TABLE_CREATE_QUERY,
 };
-use crate::utils::get_db_extension;
 
 #[derive(Clone)]
 pub struct PostgresConnector {
@@ -34,16 +33,17 @@ impl PostgresConnector {
             .unwrap();
         let mut client = pool.get().await?;
 
+        debug!("Connecting PG client to DB: {}", pg_config.db_name());
+
         // Create new db if running thread is not main or tokio-runtime-worker, meaning when running for tests
         if cfg!(feature = "test-utils") {
             // create new db
-            let db_name = format!("citrea{}", get_db_extension());
             let _ = client
-                .batch_execute(&format!("CREATE DATABASE {};", db_name.clone()))
+                .batch_execute(&format!("CREATE DATABASE {};", pg_config.db_name()))
                 .await;
 
             //connect to new db
-            cfg.dbname(&db_name);
+            cfg.dbname(pg_config.db_name());
             let mgr = Manager::from_config(cfg, NoTls, mgr_config);
             pool = Pool::builder(mgr)
                 .max_size(pg_config.max_pool_size().unwrap_or(16))
@@ -81,7 +81,7 @@ impl PostgresConnector {
     }
 
     #[cfg(feature = "test-utils")]
-    pub async fn new_test_client() -> Result<Self, PoolError> {
+    pub async fn new_test_client(db_name: String) -> Result<Self, PoolError> {
         let mut cfg: PgConfig = SharedBackupDbConfig::default().into();
 
         let mgr_config = ManagerConfig {
@@ -91,7 +91,6 @@ impl PostgresConnector {
         let pool = Pool::builder(mgr).max_size(16).build().unwrap();
         let client = pool.get().await.unwrap();
 
-        let db_name = format!("citrea{}", get_db_extension());
         client
             .batch_execute(&format!("DROP DATABASE IF EXISTS {};", db_name.clone()))
             .await
@@ -103,9 +102,10 @@ impl PostgresConnector {
             .unwrap();
 
         drop(pool);
-        //connect to new db
 
-        cfg.dbname(db_name.as_str());
+        //connect to new db
+        cfg.dbname(&db_name);
+
         let mgr = Manager::from_config(cfg, NoTls, mgr_config);
         let test_pool = Pool::builder(mgr).max_size(16).build().unwrap();
         let test_client = test_pool.get().await.unwrap();
@@ -314,7 +314,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_insert_sequencer_commitment() {
-        let client = PostgresConnector::new_test_client().await.unwrap();
+        let client = PostgresConnector::new_test_client("insert_sequencer_commitments".to_owned())
+            .await
+            .unwrap();
         client.create_table(Tables::SequencerCommitment).await;
 
         let inserted = client
@@ -348,7 +350,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_insert_rlp_tx() {
-        let client = PostgresConnector::new_test_client().await.unwrap();
+        let client = PostgresConnector::new_test_client("insert_rlp_tx".to_owned())
+            .await
+            .unwrap();
         client.create_table(Tables::MempoolTxs).await;
 
         client
@@ -396,7 +400,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_insert_proof_data() {
-        let client = PostgresConnector::new_test_client().await.unwrap();
+        let client = PostgresConnector::new_test_client("test_insert_proof_data".to_string())
+            .await
+            .unwrap();
         client.create_table(Tables::Proof).await;
 
         let inserted = client

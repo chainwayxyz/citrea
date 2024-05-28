@@ -11,7 +11,6 @@ use reth_rpc::eth::error::EthApiError;
 use reth_rpc_types_compat::transaction::from_recovered;
 use reth_transaction_pool::EthPooledTransaction;
 use shared_backup_db::PostgresConnector;
-use sov_mock_da::{MockAddress, MockDaService};
 use sov_modules_api::WorkingSet;
 use tokio::sync::Mutex;
 use tracing::{error, info};
@@ -75,19 +74,6 @@ pub(crate) fn create_rpc_module<C: sov_modules_api::Context>(
                     INTERNAL_ERROR_CODE,
                     INTERNAL_ERROR_MSG,
                     Some(format!("Could not send L2 force block transaction: {e}")),
-                )
-            })?;
-            Ok::<(), ErrorObjectOwned>(())
-        })?;
-
-        rpc.register_async_method("da_publishBlock", |_, _ctx| async move {
-            info!("Sequencer: da_publishBlock");
-            let da = MockDaService::new(MockAddress::from([0; 32]));
-            da.publish_test_block().await.map_err(|e| {
-                ErrorObjectOwned::owned(
-                    INTERNAL_ERROR_CODE,
-                    INTERNAL_ERROR_MSG,
-                    Some(format!("Could not publish mock-da block: {e}")),
                 )
             })?;
             Ok::<(), ErrorObjectOwned>(())
