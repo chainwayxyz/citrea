@@ -10,18 +10,18 @@ use sov_modules_api::{BlobReaderTrait, SignedSoftConfirmationBatch};
 use sov_rollup_interface::da::DaData;
 use sov_rollup_interface::services::da::DaService;
 use sov_stf_runner::ProverConfig;
-use tokio::time::sleep;
 
 use crate::evm::make_test_client;
 use crate::test_client::TestClient;
 use crate::test_helpers::{
-    create_default_sequencer_config, start_rollup, tempdir_with_children, NodeMode,
+    create_default_sequencer_config, start_rollup, tempdir_with_children, wait_for_l1_block,
+    wait_for_l2_block, wait_for_postgres_commitment, wait_for_prover_l1_height, NodeMode,
 };
-use crate::DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT;
+use crate::{DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_PROOF_WAIT_DURATION};
 
 #[tokio::test]
 async fn sequencer_sends_commitments_to_da_layer() {
-    // citrea::initialize_logging();
+    citrea::initialize_logging();
 
     let db_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = db_dir.path().join("DA").to_path_buf();
@@ -105,7 +105,8 @@ async fn sequencer_sends_commitments_to_da_layer() {
     da_service.publish_test_block().await.unwrap();
 
     test_client.send_publish_batch_request().await;
-    sleep(Duration::from_secs(1)).await;
+
+    wait_for_l2_block(&test_client, 5, None).await;
 
     let start_l2_block: u64 = end_l2_block + 1;
     let end_l2_block: u64 = end_l2_block + 5; // can only be the block before the one comitment landed in
@@ -252,10 +253,15 @@ async fn check_commitment_in_offchain_db() {
     // new da block
     da_service.publish_test_block().await.unwrap();
 
-    // commtiment should be published with this call
+    // commitment should be published with this call
     test_client.send_publish_batch_request().await;
 
-    sleep(Duration::from_secs(5)).await;
+    wait_for_postgres_commitment(
+        &db_test_client,
+        1,
+        Some(Duration::from_secs(DEFAULT_PROOF_WAIT_DURATION)),
+    )
+    .await;
 
     let commitments = db_test_client.get_all_commitments().await.unwrap();
     assert_eq!(commitments.len(), 1);
@@ -323,7 +329,6 @@ async fn test_ledger_get_commitments_on_slot() {
 
     let full_node_test_client = make_test_client(full_node_port).await;
     da_service.publish_test_block().await.unwrap();
-    sleep(Duration::from_secs(1)).await;
 
     test_client.send_publish_batch_request().await;
     test_client.send_publish_batch_request().await;
@@ -335,7 +340,8 @@ async fn test_ledger_get_commitments_on_slot() {
     // full node gets the commitment
     test_client.send_publish_batch_request().await;
     // da_service.publish_test_block().await.unwrap();
-    sleep(Duration::from_secs(4)).await;
+
+    wait_for_l2_block(&full_node_test_client, 6, None).await;
 
     let commitments = full_node_test_client
         .ledger_get_sequencer_commitments_on_slot_by_number(4)
@@ -371,7 +377,7 @@ async fn test_ledger_get_commitments_on_slot() {
 
 #[tokio::test]
 async fn test_ledger_get_commitments_on_slot_prover() {
-    // citrea::initialize_logging();
+    citrea::initialize_logging();
 
     let db_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = db_dir.path().join("DA").to_path_buf();
@@ -431,7 +437,7 @@ async fn test_ledger_get_commitments_on_slot_prover() {
 
     let prover_node_test_client = make_test_client(prover_node_port).await;
     da_service.publish_test_block().await.unwrap();
-    sleep(Duration::from_secs(1)).await;
+    wait_for_l1_block(&da_service, 1, None).await;
 
     test_client.send_publish_batch_request().await;
     test_client.send_publish_batch_request().await;
@@ -445,15 +451,12 @@ async fn test_ledger_get_commitments_on_slot_prover() {
     // da_service.publish_test_block().await.unwrap();
 
     // wait here until we see from prover's rpc that it finished proving
-    while prover_node_test_client
-        .prover_get_last_scanned_l1_height()
-        .await
-        != 5
-    {
-        // sleep 2
-        sleep(Duration::from_secs(2)).await;
-    }
-    sleep(Duration::from_secs(4)).await;
+    wait_for_prover_l1_height(
+        &prover_node_test_client,
+        5,
+        Some(Duration::from_secs(DEFAULT_PROOF_WAIT_DURATION)),
+    )
+    .await;
 
     let commitments = prover_node_test_client
         .ledger_get_sequencer_commitments_on_slot_by_number(4)
