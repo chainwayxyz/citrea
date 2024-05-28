@@ -4,6 +4,7 @@ use deadpool_postgres::tokio_postgres::config::Config as PgConfig;
 use deadpool_postgres::tokio_postgres::{NoTls, Row};
 use deadpool_postgres::{Manager, ManagerConfig, Object, Pool, PoolError, RecyclingMethod};
 use sov_rollup_interface::rpc::StateTransitionRpcResponse;
+use tracing::{debug, instrument};
 
 use crate::config::SharedBackupDbConfig;
 use crate::tables::{
@@ -21,8 +22,8 @@ pub struct PostgresConnector {
 /// then create a db with the given db name
 
 impl PostgresConnector {
+    #[instrument(level = "trace", err)]
     pub async fn new(pg_config: SharedBackupDbConfig) -> Result<Self, PoolError> {
-        let cfg_db_name = pg_config.db_name();
         let mut cfg: PgConfig = pg_config.clone().into();
         if cfg!(feature = "test-utils") {
             // if test connect to postgres first
@@ -39,16 +40,17 @@ impl PostgresConnector {
             .unwrap();
         let mut client = pool.get().await?;
 
+        debug!("Connecting PG client to DB: {}", pg_config.db_name());
+
         // Create new db if running thread is not main or tokio-runtime-worker, meaning when running for tests
         if cfg!(feature = "test-utils") {
             // create new db
-            let db_name = cfg_db_name;
             let _ = client
-                .batch_execute(&format!("CREATE DATABASE {};", db_name.clone()))
+                .batch_execute(&format!("CREATE DATABASE {};", pg_config.db_name()))
                 .await;
 
             //connect to new db
-            cfg.dbname(db_name);
+            cfg.dbname(pg_config.db_name());
             let mgr = Manager::from_config(cfg, NoTls, mgr_config);
             pool = Pool::builder(mgr)
                 .max_size(pg_config.max_pool_size().unwrap_or(16))
@@ -71,10 +73,12 @@ impl PostgresConnector {
         Ok(db_client)
     }
 
+    #[instrument(level = "trace", skip(self), err)]
     pub async fn client(&self) -> Result<Object, PoolError> {
         self.client.get().await
     }
 
+    #[instrument(level = "trace", skip(self), err, ret)]
     pub async fn create_indexes(&self) -> Result<(), PoolError> {
         let client = self.client().await?;
         client.batch_execute(INDEX_L1_END_HEIGHT).await?;
@@ -134,6 +138,7 @@ impl PostgresConnector {
     }
 
     #[allow(clippy::too_many_arguments)]
+    #[instrument(level = "trace", skip_all, fields(l1_start_height), err, ret)]
     pub async fn insert_sequencer_commitment(
         &self,
         l1_start_height: u32,
@@ -164,6 +169,7 @@ impl PostgresConnector {
             ).await?)
     }
 
+    #[instrument(level = "trace", skip(self, tx), err, ret)]
     pub async fn insert_mempool_tx(&self, tx_hash: Vec<u8>, tx: Vec<u8>) -> Result<u64, PoolError> {
         let client = self.client().await?;
         Ok(client
@@ -174,6 +180,7 @@ impl PostgresConnector {
             .await?)
     }
 
+    #[instrument(level = "trace", skip(self), err)]
     pub async fn get_all_commitments(&self) -> Result<Vec<DbSequencerCommitment>, PoolError> {
         let client = self.client().await?;
         Ok(client
@@ -184,6 +191,7 @@ impl PostgresConnector {
             .collect())
     }
 
+    #[instrument(level = "trace", skip(self), err)]
     pub async fn get_all_txs(&self) -> Result<Vec<DbMempoolTx>, PoolError> {
         let client = self.client().await?;
         Ok(client
@@ -194,6 +202,7 @@ impl PostgresConnector {
             .collect())
     }
 
+    #[instrument(level = "trace", skip(self), err)]
     pub async fn get_last_commitment(&self) -> Result<Option<DbSequencerCommitment>, PoolError> {
         let client = self.client().await?;
         let rows = client
@@ -210,6 +219,7 @@ impl PostgresConnector {
         )))
     }
 
+    #[instrument(level = "trace", skip_all, err, ret)]
     pub async fn delete_txs_by_tx_hashes(&self, tx_hashes: Vec<Vec<u8>>) -> Result<u64, PoolError> {
         let client = self.client().await?;
         Ok(client
@@ -221,6 +231,7 @@ impl PostgresConnector {
     }
 
     #[allow(clippy::too_many_arguments)]
+    #[instrument(level = "trace", skip_all, fields(l1_tx_id), err, ret)]
     pub async fn insert_proof_data(
         &self,
         l1_tx_id: Vec<u8>,
@@ -239,6 +250,7 @@ impl PostgresConnector {
             .await?)
     }
 
+    #[instrument(level = "trace", skip(self), err)]
     pub async fn get_all_proof_data(&self) -> Result<Vec<DbProof>, PoolError> {
         let client = self.client().await?;
         Ok(client
@@ -249,6 +261,7 @@ impl PostgresConnector {
             .collect())
     }
 
+    #[instrument(level = "trace", skip(self), fields(%table), err, ret)]
     pub async fn drop_table(&self, table: Tables) -> Result<u64, PoolError> {
         let client = self.client().await?;
         Ok(client
@@ -257,6 +270,7 @@ impl PostgresConnector {
     }
 
     #[cfg(test)]
+    #[instrument(level = "trace", skip(self), fields(%table), ret)]
     pub async fn create_table(&self, table: Tables) {
         let client = self.client().await.unwrap();
         let query = match table {
@@ -307,10 +321,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_insert_sequencer_commitment() {
-        let client =
-            PostgresConnector::new_test_client("test_insert_sequencer_commitment".to_string())
-                .await
-                .unwrap();
+        let client = PostgresConnector::new_test_client("insert_sequencer_commitments".to_owned())
+            .await
+            .unwrap();
         client.create_table(Tables::SequencerCommitment).await;
 
         let inserted = client
@@ -344,7 +357,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_insert_rlp_tx() {
-        let client = PostgresConnector::new_test_client("test_insert_rlp_tx".to_string())
+        let client = PostgresConnector::new_test_client("insert_rlp_tx".to_owned())
             .await
             .unwrap();
         client.create_table(Tables::MempoolTxs).await;

@@ -17,6 +17,7 @@ use sov_rollup_interface::da::DaVerifier;
 use sov_rollup_interface::zk::{Zkvm, ZkvmHost};
 use sov_state::{DefaultStorageSpec, Storage, ZkStorage};
 use sov_stf_runner::{ParallelProverService, ProverConfig, RollupConfig};
+use tracing::instrument;
 
 /// Rollup with BitcoinDa
 pub struct BitcoinRollup {}
@@ -48,6 +49,7 @@ impl RollupBlueprint for BitcoinRollup {
         Self {}
     }
 
+    #[instrument(level = "trace", skip_all, err)]
     fn create_rpc_methods(
         &self,
         storage: &<Self::NativeContext as Spec>::Storage,
@@ -75,6 +77,7 @@ impl RollupBlueprint for BitcoinRollup {
         Ok(rpc_methods)
     }
 
+    #[instrument(level = "trace", skip(self), ret)]
     fn get_code_commitment(&self) -> <Self::Vm as Zkvm>::CodeCommitment {
         Digest::from([
             1860130309, 3212374340, 1571693462, 196802355, 3242449784, 3924610482, 1760955211,
@@ -82,16 +85,18 @@ impl RollupBlueprint for BitcoinRollup {
         ])
     }
 
+    #[instrument(level = "trace", skip_all, err)]
     fn create_storage_manager(
         &self,
         rollup_config: &sov_stf_runner::RollupConfig<Self::DaConfig>,
     ) -> Result<Self::StorageManager, anyhow::Error> {
         let storage_config = StorageConfig {
-            path: rollup_config.storage.rollup_path.clone(),
+            path: rollup_config.storage.path.clone(),
         };
         ProverStorageManager::new(storage_config)
     }
 
+    #[instrument(level = "trace", skip_all)]
     async fn create_da_service(
         &self,
         rollup_config: &RollupConfig<Self::DaConfig>,
@@ -106,6 +111,7 @@ impl RollupBlueprint for BitcoinRollup {
         .await
     }
 
+    #[instrument(level = "trace", skip_all)]
     async fn create_prover_service(
         &self,
         prover_config: ProverConfig,

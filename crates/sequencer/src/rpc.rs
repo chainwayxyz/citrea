@@ -1,4 +1,3 @@
-use std::path::PathBuf;
 use std::sync::Arc;
 
 use citrea_evm::Evm;
@@ -12,7 +11,6 @@ use reth_rpc::eth::error::EthApiError;
 use reth_rpc_types_compat::transaction::from_recovered;
 use reth_transaction_pool::EthPooledTransaction;
 use shared_backup_db::PostgresConnector;
-use sov_mock_da::{MockAddress, MockDaService};
 use sov_modules_api::WorkingSet;
 use tokio::sync::Mutex;
 use tracing::{error, info};
@@ -32,7 +30,6 @@ pub(crate) struct RpcContext<C: sov_modules_api::Context> {
 
 pub(crate) fn create_rpc_module<C: sov_modules_api::Context>(
     rpc_context: RpcContext<C>,
-    da_db_path: Option<PathBuf>,
 ) -> Result<RpcModule<RpcContext<C>>, RpcError> {
     let test_mode = rpc_context.test_mode;
     let mut rpc = RpcModule::new(rpc_context);
@@ -80,23 +77,6 @@ pub(crate) fn create_rpc_module<C: sov_modules_api::Context>(
                 )
             })?;
             Ok::<(), ErrorObjectOwned>(())
-        })?;
-
-        let da_db_path = da_db_path.expect("DA DB should be set");
-        rpc.register_async_method("da_publishBlock", move |_, _ctx| {
-            let mock_db_path = da_db_path.clone();
-            async move {
-                info!("Sequencer: da_publishBlock");
-                let da = MockDaService::new(MockAddress::from([0; 32]), &mock_db_path);
-                da.publish_test_block().await.map_err(|e| {
-                    ErrorObjectOwned::owned(
-                        INTERNAL_ERROR_CODE,
-                        INTERNAL_ERROR_MSG,
-                        Some(format!("Could not publish mock-da block: {e}")),
-                    )
-                })?;
-                Ok::<(), ErrorObjectOwned>(())
-            }
         })?;
     }
 

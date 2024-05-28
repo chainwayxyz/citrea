@@ -10,15 +10,14 @@ use sov_modules_api::{BlobReaderTrait, SignedSoftConfirmationBatch};
 use sov_rollup_interface::da::DaData;
 use sov_rollup_interface::services::da::DaService;
 use sov_stf_runner::ProverConfig;
-use tokio::time::sleep;
 
 use crate::evm::make_test_client;
 use crate::test_client::TestClient;
 use crate::test_helpers::{
     create_default_sequencer_config, start_rollup, tempdir_with_children, wait_for_l1_block,
-    wait_for_l2_batch, wait_for_prover_l1_height, NodeMode,
+    wait_for_l2_block, wait_for_postgres_commitment, wait_for_prover_l1_height, NodeMode,
 };
-use crate::DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT;
+use crate::{DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_PROOF_WAIT_DURATION};
 
 #[tokio::test(flavor = "multi_thread")]
 async fn sequencer_sends_commitments_to_da_layer() {
@@ -107,7 +106,7 @@ async fn sequencer_sends_commitments_to_da_layer() {
 
     test_client.send_publish_batch_request().await;
 
-    wait_for_l2_batch(&test_client, 5, None).await;
+    wait_for_l2_block(&test_client, 5, None).await;
 
     let start_l2_block: u64 = end_l2_block + 1;
     let end_l2_block: u64 = end_l2_block + 5; // can only be the block before the one comitment landed in
@@ -210,15 +209,12 @@ async fn check_commitment_in_offchain_db() {
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
     let mut sequencer_config = create_default_sequencer_config(4, Some(true), 10);
-    sequencer_config.db_config = Some(
-        SharedBackupDbConfig::default().set_db_name("check_commitment_in_offchain_db".to_string()),
-    );
+
+    let db_name = "check_commitment_in_offchain_db".to_owned();
+    sequencer_config.db_config = Some(SharedBackupDbConfig::default().set_db_name(db_name.clone()));
 
     // drops db if exists from previous test runs, recreates the db
-    let db_test_client =
-        PostgresConnector::new_test_client("check_commitment_in_offchain_db".to_string())
-            .await
-            .unwrap();
+    let db_test_client = PostgresConnector::new_test_client(db_name).await.unwrap();
 
     let da_db_dir_cloned = da_db_dir.clone();
     let seq_task = tokio::spawn(async move {
@@ -257,10 +253,15 @@ async fn check_commitment_in_offchain_db() {
     // new da block
     da_service.publish_test_block().await.unwrap();
 
-    // commtiment should be published with this call
+    // commitment should be published with this call
     test_client.send_publish_batch_request().await;
 
-    sleep(Duration::from_secs(5)).await;
+    wait_for_postgres_commitment(
+        &db_test_client,
+        1,
+        Some(Duration::from_secs(DEFAULT_PROOF_WAIT_DURATION)),
+    )
+    .await;
 
     let commitments = db_test_client.get_all_commitments().await.unwrap();
     assert_eq!(commitments.len(), 1);
@@ -340,7 +341,7 @@ async fn test_ledger_get_commitments_on_slot() {
     test_client.send_publish_batch_request().await;
     // da_service.publish_test_block().await.unwrap();
 
-    wait_for_l2_batch(&full_node_test_client, 6, None).await;
+    wait_for_l2_block(&full_node_test_client, 6, None).await;
 
     let commitments = full_node_test_client
         .ledger_get_sequencer_commitments_on_slot_by_number(4)
@@ -416,7 +417,7 @@ async fn test_ledger_get_commitments_on_slot_prover() {
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             Some(ProverConfig {
                 proving_mode: sov_stf_runner::ProverGuestRunConfig::Execute,
-                skip_proving_until_l1_height: None,
+                proof_sampling_number: 0,
                 db_config: None,
             }),
             NodeMode::Prover(seq_port),
@@ -450,7 +451,12 @@ async fn test_ledger_get_commitments_on_slot_prover() {
     // da_service.publish_test_block().await.unwrap();
 
     // wait here until we see from prover's rpc that it finished proving
-    wait_for_prover_l1_height(&prover_node_test_client, 5, Some(Duration::from_secs(60))).await;
+    wait_for_prover_l1_height(
+        &prover_node_test_client,
+        5,
+        Some(Duration::from_secs(DEFAULT_PROOF_WAIT_DURATION)),
+    )
+    .await;
 
     let commitments = prover_node_test_client
         .ledger_get_sequencer_commitments_on_slot_by_number(4)

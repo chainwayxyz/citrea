@@ -41,9 +41,7 @@ const fn default_max_connections() -> u32 {
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct StorageConfig {
     /// Path that can be utilized by concrete rollup implementation
-    pub rollup_path: PathBuf,
-    /// Path that can be utilized by concrete DA implementation
-    pub da_path: PathBuf,
+    pub path: PathBuf,
 }
 
 /// Important public keys for the rollup
@@ -81,8 +79,8 @@ pub struct RollupConfig<DaServiceConfig> {
 pub struct ProverConfig {
     /// Prover run mode
     pub proving_mode: ProverGuestRunConfig,
-    /// If set, the prover will skip proving until the L1 height is reached.
-    pub skip_proving_until_l1_height: Option<u64>,
+    /// Average number of commitments to prove
+    pub proof_sampling_number: usize,
     /// Offchain db config
     pub db_config: Option<SharedBackupDbConfig>,
 }
@@ -91,7 +89,7 @@ impl Default for ProverConfig {
     fn default() -> Self {
         Self {
             proving_mode: ProverGuestRunConfig::Execute,
-            skip_proving_until_l1_height: None,
+            proof_sampling_number: 0,
             db_config: None,
         }
     }
@@ -128,10 +126,7 @@ mod tests {
 
     #[test]
     fn test_correct_rollup_config() {
-        let tmpdir = tempfile::tempdir().unwrap();
-        let rollup_path = tmpdir.path().join("rollup").to_path_buf();
-        let da_path = tmpdir.path().join("da").to_path_buf();
-        let config = format!(
+        let config =
             r#"
             [public_keys]
             sequencer_public_key = "0000000000000000000000000000000000000000000000000000000000000000"
@@ -145,24 +140,20 @@ mod tests {
 
             [da]
             sender_address = "0000000000000000000000000000000000000000000000000000000000000000"
+            db_path = "/tmp/da"
             
             [storage]
-            rollup_path = {:?}
-            da_path = {:?}
+            path = "/tmp/rollup"
             
             [runner]
             include_tx_body = true
             sequencer_client_url = "http://0.0.0.0:12346"
-        "#,
-            rollup_path, da_path
-        );
+        "#.to_owned();
 
         let config_file = create_config_from(&config);
 
         let config: RollupConfig<sov_mock_da::MockDaConfig> =
             from_toml_path(config_file.path()).unwrap();
-
-        let storage_path = tmpdir.path();
 
         let expected = RollupConfig {
             runner: Some(RunnerConfig {
@@ -172,10 +163,10 @@ mod tests {
             }),
             da: sov_mock_da::MockDaConfig {
                 sender_address: [0; 32].into(),
+                db_path: "/tmp/da".into(),
             },
             storage: StorageConfig {
-                rollup_path: storage_path.join("rollup").to_path_buf(),
-                da_path: storage_path.join("da").to_path_buf(),
+                path: "/tmp/rollup".into(),
             },
             rpc: RpcConfig {
                 bind_host: "127.0.0.1".to_string(),
@@ -195,7 +186,7 @@ mod tests {
     fn test_correct_prover_config() {
         let config = r#"
             proving_mode = "skip"
-            skip_proving_until_l1_height = 100
+            proof_sampling_number = 500
 
             [db_config]
             db_host = "localhost"
@@ -210,7 +201,7 @@ mod tests {
         let config: ProverConfig = from_toml_path(config_file.path()).unwrap();
         let expected = ProverConfig {
             proving_mode: ProverGuestRunConfig::Skip,
-            skip_proving_until_l1_height: Some(100),
+            proof_sampling_number: 500,
             db_config: Some(SharedBackupDbConfig::default()),
         };
         assert_eq!(config, expected);

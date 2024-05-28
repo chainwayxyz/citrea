@@ -3,10 +3,13 @@ use std::marker::PhantomData;
 use std::net::SocketAddr;
 
 use anyhow::{anyhow, bail};
+use backoff::future::retry as retry_backoff;
+use backoff::ExponentialBackoffBuilder;
 use borsh::de::BorshDeserialize;
 use borsh::BorshSerialize as _;
 use jsonrpsee::core::Error;
 use jsonrpsee::RpcModule;
+use rand::Rng;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 use sequencer_client::SequencerClient;
@@ -25,7 +28,7 @@ use sov_rollup_interface::stf::{SoftBatchReceipt, StateTransitionFunction};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::{Proof, StateTransitionData, Zkvm, ZkvmHost};
 use tokio::sync::oneshot;
-use tokio::time::{sleep, Duration, Instant};
+use tokio::time::{sleep, Duration};
 use tracing::{debug, error, info, instrument, warn};
 
 use crate::prover_helpers::get_initial_slot_height;
@@ -34,10 +37,6 @@ use crate::{ProverConfig, ProverService, RollupPublicKeys, RpcConfig, RunnerConf
 
 type StateRoot<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::StateRoot;
 type GenesisParams<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::GenesisParams;
-
-const CONNECTION_INTERVALS: &[u64] = &[0, 1, 2, 5, 10, 15, 30, 60];
-const RETRY_INTERVAL: &[u64] = &[1, 5];
-const RETRY_SLEEP: u64 = 2;
 
 /// Combines `DaService` with `StateTransitionFunction` and "runs" the rollup.
 pub struct StateTransitionRunner<Stf, Sm, Da, Vm, Ps, C>
@@ -254,7 +253,9 @@ where
 
         let mut l2_height = self.start_height;
 
-        let pg_client = match self.prover_config.clone().unwrap().db_config {
+        let prover_config = self.prover_config.clone().unwrap();
+
+        let pg_client = match prover_config.db_config {
             Some(db_config) => {
                 tracing::info!("Connecting to postgres");
                 Some(PostgresConnector::new(db_config.clone()).await)
@@ -263,18 +264,33 @@ where
         };
 
         loop {
-            let last_finalized_height = self
-                .da_service
-                .get_last_finalized_block_header()
-                .await?
-                .height();
+            let da_service = &self.da_service;
+
+            let exponential_backoff = ExponentialBackoffBuilder::new()
+                .with_initial_interval(Duration::from_secs(1))
+                .with_max_elapsed_time(Some(Duration::from_secs(5 * 60)))
+                .build();
+            let last_finalized_height = retry_backoff(exponential_backoff.clone(), || async {
+                da_service
+                    .get_last_finalized_block_header()
+                    .await
+                    .map_err(backoff::Error::transient)
+            })
+            .await?
+            .height();
 
             if l1_height > last_finalized_height {
                 sleep(Duration::from_secs(1)).await;
                 continue;
             }
 
-            let filtered_block = self.da_service.get_block_at(l1_height).await?;
+            let filtered_block = retry_backoff(exponential_backoff.clone(), || async {
+                da_service
+                    .get_block_at(l1_height)
+                    .await
+                    .map_err(backoff::Error::transient)
+            })
+            .await?;
 
             // map the height to the hash
             self.ledger_db
@@ -373,19 +389,25 @@ where
                     <<Da as DaService>::Spec as DaSpec>::BlockHeader,
                 > = vec![];
 
-                let start_l1_height = self
-                    .da_service
-                    .get_block_by_hash(sequencer_commitment.l1_start_block_hash)
-                    .await?
-                    .header()
-                    .height();
+                let start_l1_height = retry_backoff(exponential_backoff.clone(), || async {
+                    da_service
+                        .get_block_by_hash(sequencer_commitment.l1_start_block_hash)
+                        .await
+                        .map_err(backoff::Error::transient)
+                })
+                .await?
+                .header()
+                .height();
 
-                let end_l1_height = self
-                    .da_service
-                    .get_block_by_hash(sequencer_commitment.l1_end_block_hash)
-                    .await?
-                    .header()
-                    .height();
+                let end_l1_height = retry_backoff(exponential_backoff.clone(), || async {
+                    da_service
+                        .get_block_by_hash(sequencer_commitment.l1_end_block_hash)
+                        .await
+                        .map_err(backoff::Error::transient)
+                })
+                .await?
+                .header()
+                .height();
                 traversed_l1_tuples.push((start_l1_height, end_l1_height));
 
                 // start fetching blocks from sequencer, when you see a soft batch with l1 height more than end_l1_height, stop
@@ -393,11 +415,55 @@ where
                 // after stopping call continue  and look for a new seq_commitment
                 // change the itemnumbers only after the sync is done so not for every da block
 
-                while let Some(soft_batch) = self
-                    .sequencer_client
-                    .get_soft_batch::<Da::Spec>(l2_height)
-                    .await?
-                {
+                loop {
+                    let inner_client = &self.sequencer_client;
+                    let soft_batch =
+                        match retry_backoff(exponential_backoff.clone(), || async move {
+                            match inner_client.get_soft_batch::<Da::Spec>(l2_height).await {
+                                Ok(Some(soft_batch)) => Ok(soft_batch),
+                                Ok(None) => {
+                                    debug!(
+                                        "Soft Batch: no batch at height {}, retrying...",
+                                        l2_height
+                                    );
+
+                                    // We wait for 2 seconds and then return a Permanent error so that we exit the retry.
+                                    // This should not backoff exponentially
+                                    sleep(Duration::from_secs(2)).await;
+                                    Err(backoff::Error::Permanent(
+                                        "No soft batch published".to_owned(),
+                                    ))
+                                }
+                                Err(e) => match e.downcast_ref::<jsonrpsee::core::Error>() {
+                                    Some(Error::Transport(e)) => {
+                                        let error_msg = format!(
+                                            "Soft Batch: connection error during RPC call: {:?}",
+                                            e
+                                        );
+                                        debug!(error_msg);
+                                        Err(backoff::Error::Transient {
+                                            err: error_msg,
+                                            retry_after: None,
+                                        })
+                                    }
+                                    _ => Err(backoff::Error::Transient {
+                                        err: format!(
+                                            "Soft Batch: unknown error from RPC call: {:?}",
+                                            e
+                                        ),
+                                        retry_after: None,
+                                    }),
+                                },
+                            }
+                        })
+                        .await
+                        {
+                            Ok(soft_batch) => soft_batch,
+                            Err(_) => {
+                                break;
+                            }
+                        };
+
                     if soft_batch.da_slot_height > end_l1_height {
                         break;
                     }
@@ -415,10 +481,13 @@ where
                     sof_soft_confirmations_to_push.push(signed_soft_confirmation.clone());
 
                     // The filtered block of soft batch, which is the block at the da_slot_height of soft batch
-                    let filtered_block = self
-                        .da_service
-                        .get_block_at(soft_batch.da_slot_height)
-                        .await?;
+                    let filtered_block = retry_backoff(exponential_backoff.clone(), || async {
+                        da_service
+                            .get_block_at(soft_batch.da_slot_height)
+                            .await
+                            .map_err(backoff::Error::transient)
+                    })
+                    .await?;
 
                     if da_block_headers_to_push.is_empty()
                         || da_block_headers_to_push.last().unwrap().height()
@@ -521,10 +590,21 @@ where
                     sequencer_da_public_key: self.sequencer_da_pub_key.clone(),
                 };
 
+            let should_prove: bool = {
+                let mut rng = rand::thread_rng();
+                // if proof_sampling_number is 0, then we always prove and submit
+                // otherwise we submit and prove with a probability of 1/proof_sampling_number
+                if prover_config.proof_sampling_number == 0 {
+                    true
+                } else {
+                    rng.gen_range(0..prover_config.proof_sampling_number) == 0
+                }
+            };
+
             // Skip submission until l1 height
             // hotfix for devnet deployment
             // TODO: make a better way to skip submission, and fixing deployed bugs
-            if l1_height >= skip_submission_until_l1 {
+            if l1_height >= skip_submission_until_l1 && should_prove {
                 let prover_service = self
                     .prover_service
                     .as_ref()
@@ -609,6 +689,8 @@ where
                     proof,
                     stored_state_transition,
                 )?;
+            } else {
+                tracing::info!("Skipping proving for l1 height {}", l1_height);
             }
 
             for (sequencer_commitment, l1_heights) in
@@ -649,60 +731,62 @@ where
         let mut height = self.start_height;
         info!("Starting to sync from height {}", height);
 
-        let mut last_connection_error = Instant::now();
-        let mut last_parse_error = Instant::now();
-
-        let mut connection_index = 0;
-        let mut retry_index = 0;
-
         loop {
-            let soft_batch = match self
-                .sequencer_client
-                .get_soft_batch::<Da::Spec>(height)
-                .await
+            let exponential_backoff = ExponentialBackoffBuilder::new()
+                .with_initial_interval(Duration::from_secs(1))
+                .with_max_elapsed_time(Some(Duration::from_secs(15 * 60)))
+                .build();
+            let inner_client = &self.sequencer_client;
+            let soft_batch = match retry_backoff(exponential_backoff.clone(), || async move {
+                match inner_client.get_soft_batch::<Da::Spec>(height).await {
+                    Ok(Some(soft_batch)) => Ok(soft_batch),
+                    Ok(None) => {
+                        debug!("Soft Batch: no batch at height {}, retrying...", height);
+
+                        // We wait for 2 seconds and then return a Permanent error so that we exit the retry.
+                        // This should not backoff exponentially
+                        sleep(Duration::from_secs(2)).await;
+                        Err(backoff::Error::Permanent(
+                            "No soft batch published".to_owned(),
+                        ))
+                    }
+                    Err(e) => match e.downcast_ref::<jsonrpsee::core::Error>() {
+                        Some(Error::Transport(e)) => {
+                            let error_msg =
+                                format!("Soft Batch: connection error during RPC call: {:?}", e);
+                            debug!(error_msg);
+                            Err(backoff::Error::Transient {
+                                err: error_msg,
+                                retry_after: None,
+                            })
+                        }
+                        _ => Err(backoff::Error::Transient {
+                            err: format!("Soft Batch: unknown error from RPC call: {:?}", e),
+                            retry_after: None,
+                        }),
+                    },
+                }
+            })
+            .await
             {
-                Ok(Some(soft_batch)) => soft_batch,
-                Ok(None) => {
-                    debug!(
-                        "Soft Batch: no batch at height {}, retrying in {} seconds",
-                        height, RETRY_SLEEP
-                    );
-                    Self::log_error(
-                        &mut last_parse_error,
-                        RETRY_INTERVAL,
-                        &mut retry_index,
-                        "No soft batch published".to_string().as_str(),
-                    );
-                    sleep(Duration::from_secs(RETRY_SLEEP)).await;
+                Ok(soft_batch) => soft_batch,
+                Err(_) => {
                     continue;
                 }
-                Err(e) => match e.downcast_ref::<jsonrpsee::core::Error>() {
-                    Some(Error::Transport(e)) => {
-                        debug!("Soft Batch: connection error during RPC call: {:?}", e);
-                        Self::log_error(
-                            &mut last_connection_error,
-                            CONNECTION_INTERVALS,
-                            &mut connection_index,
-                            format!("Soft Batch: connection error during RPC call: {:?}", e)
-                                .as_str(),
-                        );
-                        sleep(Duration::from_secs(RETRY_SLEEP)).await;
-                        continue;
-                    }
-                    _ => {
-                        anyhow::bail!("Soft Batch: unknown error from RPC call: {:?}", e);
-                    }
-                },
             };
 
             if last_l1_height != soft_batch.da_slot_height || cur_l1_block.is_none() {
                 last_l1_height = soft_batch.da_slot_height;
                 // TODO: for a node, the da block at slot_height might not have been finalized yet
                 // should wait for it to be finalized
-                let filtered_block = self
-                    .da_service
-                    .get_block_at(soft_batch.da_slot_height)
-                    .await?;
+                let da_service = &self.da_service;
+                let filtered_block = retry_backoff(exponential_backoff.clone(), || async {
+                    da_service
+                        .get_block_at(soft_batch.da_slot_height)
+                        .await
+                        .map_err(backoff::Error::transient)
+                })
+                .await?;
 
                 // Set the l1 height of the l1 hash
                 self.ledger_db
@@ -936,19 +1020,25 @@ where
                         "Processing sequencer commitment: {:?}",
                         sequencer_commitment
                     );
-                    let start_l1_height = self
-                        .da_service
-                        .get_block_by_hash(sequencer_commitment.l1_start_block_hash)
-                        .await?
-                        .header()
-                        .height();
+                    let start_l1_height = retry_backoff(exponential_backoff.clone(), || async {
+                        da_service
+                            .get_block_by_hash(sequencer_commitment.l1_start_block_hash)
+                            .await
+                            .map_err(backoff::Error::transient)
+                    })
+                    .await?
+                    .header()
+                    .height();
 
-                    let end_l1_height = self
-                        .da_service
-                        .get_block_by_hash(sequencer_commitment.l1_end_block_hash)
-                        .await?
-                        .header()
-                        .height();
+                    let end_l1_height = retry_backoff(exponential_backoff.clone(), || async {
+                        da_service
+                            .get_block_by_hash(sequencer_commitment.l1_end_block_hash)
+                            .await
+                            .map_err(backoff::Error::transient)
+                    })
+                    .await?
+                    .header()
+                    .height();
 
                     tracing::warn!(
                         "start height: {}, end height: {}",
@@ -1106,26 +1196,5 @@ where
     /// Allows to read current state root
     pub fn get_state_root(&self) -> &Stf::StateRoot {
         &self.state_root
-    }
-
-    /// TODO: Fix backoff never resetting
-    /// A basic helper for exponential backoff for error logging.
-    pub fn log_error(
-        last_error_log: &mut Instant,
-        error_log_intervals: &[u64],
-        error_interval_index: &mut usize,
-        error_msg: &str,
-    ) {
-        let now = Instant::now();
-        if now.duration_since(*last_error_log)
-            >= Duration::from_secs(error_log_intervals[*error_interval_index] * 60)
-        {
-            error!(
-                "{} : {} minutes",
-                error_msg, error_log_intervals[*error_interval_index]
-            );
-            *last_error_log = now; // Update the value pointed by the reference
-            *error_interval_index = (*error_interval_index + 1).min(error_log_intervals.len() - 1);
-        }
     }
 }

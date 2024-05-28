@@ -20,6 +20,7 @@ use sov_stf_runner::{
     InitVariant, ProverConfig, ProverService, RollupConfig, StateTransitionRunner,
 };
 use tokio::sync::oneshot;
+use tracing::instrument;
 pub use wallet::*;
 
 /// This trait defines how to crate all the necessary dependencies required by a rollup.
@@ -122,10 +123,11 @@ pub trait RollupBlueprint: Sized + Send + Sync {
 
     /// Creates instance of a LedgerDB.
     fn create_ledger_db(&self, rollup_config: &RollupConfig<Self::DaConfig>) -> LedgerDB {
-        LedgerDB::with_path(&rollup_config.storage.rollup_path).expect("Ledger DB failed to open")
+        LedgerDB::with_path(&rollup_config.storage.path).expect("Ledger DB failed to open")
     }
 
     /// Creates a new sequencer
+    #[instrument(level = "trace", skip_all)]
     async fn create_new_sequencer(
         &self,
         runtime_genesis_paths: &<Self::NativeRuntime as RuntimeTrait<
@@ -181,7 +183,6 @@ pub trait RollupBlueprint: Sized + Send + Sync {
             rollup_config.public_keys,
             ledger_db,
             rollup_config.rpc,
-            Some(rollup_config.storage.da_path.clone()),
         )
         .unwrap();
 
@@ -192,6 +193,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
     }
 
     /// Creates a new prover
+    #[instrument(level = "trace", skip_all)]
     async fn create_new_prover(
         &self,
         runtime_genesis_paths: &<Self::NativeRuntime as RuntimeTrait<
@@ -269,6 +271,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
     }
 
     /// Creates a new rollup.
+    #[instrument(level = "trace", skip_all)]
     async fn create_new_rollup(
         &self,
         runtime_genesis_paths: &<Self::NativeRuntime as RuntimeTrait<
@@ -358,6 +361,7 @@ pub struct Sequencer<S: RollupBlueprint> {
 
 impl<S: RollupBlueprint> Sequencer<S> {
     /// Runs the sequencer.
+    #[instrument(level = "trace", skip_all, err, ret(level = "error"))]
     pub async fn run(self) -> Result<(), anyhow::Error> {
         self.run_and_report_rpc_port(None).await
     }
@@ -394,6 +398,7 @@ pub struct FullNode<S: RollupBlueprint> {
 
 impl<S: RollupBlueprint> FullNode<S> {
     /// Runs the rollup.
+    #[instrument(level = "trace", skip(self), err, ret(level = "error"))]
     pub async fn run(self) -> Result<(), anyhow::Error> {
         self.run_and_report_rpc_port(None).await
     }
@@ -435,6 +440,7 @@ pub struct Prover<S: RollupBlueprint> {
 
 impl<S: RollupBlueprint> Prover<S> {
     /// Runs the rollup.
+    #[instrument(level = "trace", skip_all, err, ret(level = "error"))]
     pub async fn run(self) -> Result<(), anyhow::Error> {
         self.run_and_report_rpc_port(None).await
     }

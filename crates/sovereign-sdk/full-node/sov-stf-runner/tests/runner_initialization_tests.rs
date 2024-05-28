@@ -60,17 +60,16 @@ fn initialize_runner(
     let rollup_storage_path = storage_path.join("rollup").to_path_buf();
 
     if !std::path::Path::new(&da_storage_path).exists() {
-        std::fs::create_dir(da_storage_path.clone()).unwrap();
+        let _ = std::fs::create_dir(da_storage_path.clone());
     }
     if !std::path::Path::new(&rollup_storage_path).exists() {
-        std::fs::create_dir(rollup_storage_path.clone()).unwrap();
+        let _ = std::fs::create_dir(rollup_storage_path.clone());
     }
 
     let address = MockAddress::new([11u8; 32]);
     let rollup_config = RollupConfig::<MockDaConfig> {
         storage: StorageConfig {
-            rollup_path: rollup_storage_path.clone(),
-            da_path: da_storage_path.clone(),
+            path: rollup_storage_path.clone(),
         },
         rpc: RpcConfig {
             bind_host: "127.0.0.1".to_string(),
@@ -84,6 +83,7 @@ fn initialize_runner(
         }),
         da: MockDaConfig {
             sender_address: address,
+            db_path: da_storage_path.clone(),
         },
         public_keys: RollupPublicKeys {
             sequencer_public_key: vec![],

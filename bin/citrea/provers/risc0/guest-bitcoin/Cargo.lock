@@ -615,9 +615,9 @@ dependencies = [
  "rand",
  "serde",
  "serde_json",
+ "sov-modules-api",
  "sov-rollup-interface",
  "thiserror",
- "tracing",
 ]
 
 [[package]]
@@ -894,7 +894,6 @@ dependencies = [
  "sov-modules-api",
  "sov-state",
  "thiserror",
- "tracing",
 ]
 
 [[package]]
@@ -914,7 +913,6 @@ dependencies = [
  "sov-rollup-interface",
  "sov-state",
  "sov-stf-runner",
- "tracing",
 ]
 
 [[package]]
@@ -2997,7 +2995,6 @@ dependencies = [
  "sov-state",
  "sov-zk-cycle-macros",
  "thiserror",
- "tracing",
 ]
 
 [[package]]

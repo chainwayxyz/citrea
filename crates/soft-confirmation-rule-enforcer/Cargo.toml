@@ -21,6 +21,7 @@ sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
 borsh = { workspace = true }
 serde = { workspace = true }
 anyhow = { workspace = true }
+tracing = { workspace = true, optional = true }
 jsonrpsee = { workspace = true, features = [
     "macros",
     "client-core",
@@ -42,5 +43,5 @@ lazy_static = "1.4.0"
 
 [features]
 default = []
-native = ["sov-modules-api/native", "jsonrpsee", "tokio"]
+native = ["sov-modules-api/native", "dep:tracing", "jsonrpsee", "tokio"]
 serde = []

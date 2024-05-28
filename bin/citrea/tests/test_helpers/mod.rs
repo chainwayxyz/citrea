@@ -7,6 +7,7 @@ use citrea_sequencer::SequencerConfig;
 use citrea_stf::genesis_config::GenesisPaths;
 use reth_rpc_types::BlockNumberOrTag;
 use rollup_constants::TEST_PRIVATE_KEY;
+use shared_backup_db::PostgresConnector;
 use sov_mock_da::{MockAddress, MockDaConfig, MockDaService};
 use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
 use sov_modules_api::PrivateKey;
@@ -119,8 +120,7 @@ pub fn create_default_rollup_config(
             prover_da_pub_key: vec![0; 32],
         },
         storage: StorageConfig {
-            rollup_path: rollup_path.to_path_buf(),
-            da_path: da_path.to_path_buf(),
+            path: rollup_path.to_path_buf(),
         },
         rpc: RpcConfig {
             bind_host: "127.0.0.1".into(),
@@ -137,6 +137,7 @@ pub fn create_default_rollup_config(
         },
         da: MockDaConfig {
             sender_address: MockAddress::from([0; 32]),
+            db_path: da_path.to_path_buf(),
         },
     }
 }
@@ -169,7 +170,7 @@ pub fn tempdir_with_children(children: &[&str]) -> TempDir {
     db_dir
 }
 
-pub async fn wait_for_l2_batch(sequencer_client: &TestClient, num: u64, timeout: Option<Duration>) {
+pub async fn wait_for_l2_block(sequencer_client: &TestClient, num: u64, timeout: Option<Duration>) {
     let start = SystemTime::now();
     let timeout = timeout.unwrap_or(Duration::from_secs(30)); // Default 30 seconds timeout
     loop {
@@ -220,6 +221,29 @@ pub async fn wait_for_l1_block(da_service: &MockDaService, num: u64, timeout: Op
         debug!("Waiting for L1 block height {}", num);
         let da_block = da_service.get_height().await;
         if da_block >= num {
+            break;
+        }
+
+        let now = SystemTime::now();
+        if start + timeout <= now {
+            panic!("Timeout");
+        }
+
+        sleep(Duration::from_secs(1)).await;
+    }
+}
+
+pub async fn wait_for_postgres_commitment(
+    db_test_client: &PostgresConnector,
+    num: usize,
+    timeout: Option<Duration>,
+) {
+    let start = SystemTime::now();
+    let timeout = timeout.unwrap_or(Duration::from_secs(30)); // Default 30 seconds timeout
+    loop {
+        debug!("Waiting for {} L1 commitments to be published", num);
+        let commitments = db_test_client.get_all_commitments().await.unwrap().len();
+        if commitments >= num {
             break;
         }
 

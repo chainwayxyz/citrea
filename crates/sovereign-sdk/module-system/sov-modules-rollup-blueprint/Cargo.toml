@@ -42,4 +42,5 @@ serde_json = { workspace = true }
 async-trait = { workspace = true }
 jsonrpsee = { workspace = true, features = ["http-client", "server"] }
 tokio = { workspace = true }
+tracing = { workspace = true }
 borsh = { workspace = true }
