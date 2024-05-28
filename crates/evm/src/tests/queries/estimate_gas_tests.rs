@@ -4,7 +4,9 @@ use alloy_primitives::{FixedBytes, Uint};
 use hex::FromHex;
 use jsonrpsee::core::RpcResult;
 use reth_primitives::hex::ToHexExt;
-use reth_primitives::{AccessList, AccessListItem, Address, BlockNumberOrTag, Bytes};
+use reth_primitives::{
+    address, AccessList, AccessListItem, Address, BlockNumberOrTag, Bytes, TxKind,
+};
 use reth_rpc::eth::error::RpcInvalidTransactionError;
 use reth_rpc_types::request::{TransactionInput, TransactionRequest};
 use reth_rpc_types::AccessListWithGasUsed;
@@ -27,9 +29,11 @@ fn payable_contract_value_test() {
 
     let tx_req = TransactionRequest {
         from: Some(signer.address()),
-        to: Some(Address::from_str("0x819c5497b157177315e1204f52e588b393771719").unwrap()), // Address of the payable contract.
-        gas: Some(U256::from(100000)),
-        gas_price: Some(U256::from(100000000)),
+        to: Some(TxKind::Call(address!(
+            "819c5497b157177315e1204f52e588b393771719"
+        ))), // Address of the payable contract.
+        gas: Some(100000),
+        gas_price: Some(100000000),
         max_fee_per_gas: None,
         max_priority_fee_per_gas: None,
         value: Some(U256::from(3100000)),
@@ -44,7 +48,6 @@ fn payable_contract_value_test() {
         blob_versioned_hashes: None,
         transaction_type: None,
         sidecar: None,
-        other: Default::default(),
     };
 
     let result = evm.eth_estimate_gas(tx_req, Some(BlockNumberOrTag::Latest), &mut working_set);
@@ -57,9 +60,11 @@ fn test_tx_request_fields_gas() {
 
     let tx_req_contract_call = TransactionRequest {
         from: Some(signer.address()),
-        to: Some(Address::from_str("0x819c5497b157177315e1204f52e588b393771719").unwrap()),
-        gas: Some(U256::from(10000000)),
-        gas_price: Some(U256::from(100)),
+        to: Some(TxKind::Call(address!(
+            "819c5497b157177315e1204f52e588b393771719"
+        ))),
+        gas: Some(10000000),
+        gas_price: Some(100),
         max_fee_per_gas: None,
         max_priority_fee_per_gas: None,
         value: None,
@@ -74,7 +79,6 @@ fn test_tx_request_fields_gas() {
         blob_versioned_hashes: None,
         transaction_type: None,
         sidecar: None,
-        other: Default::default(),
     };
 
     let result_contract_call = evm.eth_estimate_gas(
@@ -225,23 +229,19 @@ fn test_tx_request_fields_gas() {
                     "0xd17c80a661d193357ea7c5311e029471883989438c7bcae8362437311a764685"
                 )
                 .unwrap()]
-            }])
-            .into(),
+            }]),
             gas_used: Uint::from_str("0x6e67").unwrap()
         }
     );
 
     let access_list_req = TransactionRequest {
-        access_list: Some(
-            AccessList(vec![AccessListItem {
-                address: Address::from_str("0x819c5497b157177315e1204f52e588b393771719").unwrap(),
-                storage_keys: vec![FixedBytes::from_hex(
-                    "0xd17c80a661d193357ea7c5311e029471883989438c7bcae8362437311a764685",
-                )
-                .unwrap()],
-            }])
-            .into(),
-        ),
+        access_list: Some(AccessList(vec![AccessListItem {
+            address: Address::from_str("0x819c5497b157177315e1204f52e588b393771719").unwrap(),
+            storage_keys: vec![FixedBytes::from_hex(
+                "0xd17c80a661d193357ea7c5311e029471883989438c7bcae8362437311a764685",
+            )
+            .unwrap()],
+        }])),
         ..tx_req_contract_call.clone()
     };
 
@@ -272,8 +272,7 @@ fn test_tx_request_fields_gas() {
                     "0xd17c80a661d193357ea7c5311e029471883989438c7bcae8362437311a764685"
                 )
                 .unwrap()]
-            }])
-            .into(),
+            }]),
             gas_used: Uint::from_str("0x6e67").unwrap()
         }
     );
@@ -298,9 +297,11 @@ fn test_access_list() {
 
     let tx_req_contract_call = TransactionRequest {
         from: Some(signer.address()),
-        to: Some(Address::from_str("0x5ccda3e6d071a059f00d4f3f25a1adc244eb5c93").unwrap()),
-        gas: Some(U256::from(10000000)),
-        gas_price: Some(U256::from(100)),
+        to: Some(TxKind::Call(address!(
+            "5ccda3e6d071a059f00d4f3f25a1adc244eb5c93"
+        ))),
+        gas: Some(10000000),
+        gas_price: Some(100),
         max_fee_per_gas: None,
         max_priority_fee_per_gas: None,
         value: None,
@@ -312,7 +313,6 @@ fn test_access_list() {
         blob_versioned_hashes: None,
         transaction_type: None,
         sidecar: None,
-        other: Default::default(),
     };
 
     let no_access_list = evm.eth_estimate_gas(tx_req_contract_call.clone(), None, &mut working_set);
@@ -330,23 +330,19 @@ fn test_access_list() {
                     "0x0000000000000000000000000000000000000000000000000000000000000000"
                 )
                 .unwrap()]
-            }])
-            .into(),
+            }]),
             gas_used: Uint::from_str("0x775e").unwrap()
         }
     );
 
     let tx_req_with_access_list = TransactionRequest {
-        access_list: Some(
-            AccessList(vec![AccessListItem {
-                address: Address::from_str("0x819c5497b157177315e1204f52e588b393771719").unwrap(),
-                storage_keys: vec![FixedBytes::from_hex(
-                    "0x0000000000000000000000000000000000000000000000000000000000000000",
-                )
-                .unwrap()],
-            }])
-            .into(),
-        ),
+        access_list: Some(AccessList(vec![AccessListItem {
+            address: Address::from_str("0x819c5497b157177315e1204f52e588b393771719").unwrap(),
+            storage_keys: vec![FixedBytes::from_hex(
+                "0x0000000000000000000000000000000000000000000000000000000000000000",
+            )
+            .unwrap()],
+        }])),
         ..tx_req_contract_call.clone()
     };
 
@@ -391,8 +387,10 @@ fn test_estimate_gas_with_input(
         .encode_hex();
     let tx_req = TransactionRequest {
         from: Some(signer.address()),
-        to: Some(Address::from_str("eeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap()),
-        gas: Some(U256::from(100_000)),
+        to: Some(TxKind::Call(address!(
+            "eeb03d20dae810f52111b853b31c8be6f30f4cd3"
+        ))),
+        gas: Some(100_000),
         input: TransactionInput::new(Bytes::from_hex(input_data).unwrap()),
         ..Default::default()
     };
@@ -408,7 +406,9 @@ fn test_estimate_gas_with_value(
 ) -> RpcResult<U256> {
     let tx_req = TransactionRequest {
         from: Some(signer.address()),
-        to: Some(Address::from_str("0xabababababababababababababababababababab").unwrap()),
+        to: Some(TxKind::Call(address!(
+            "abababababababababababababababababababab"
+        ))),
         value: Some(value),
         ..Default::default()
     };

@@ -15,12 +15,11 @@ use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::RpcModule;
 use reth_primitives::{keccak256, BlockNumberOrTag, B256, U256};
 use reth_rpc::eth::error::EthApiError;
-use reth_rpc_types::serde_helpers::U64HexOrNumber;
 use reth_rpc_types::trace::geth::{
     CallConfig, CallFrame, FourByteFrame, GethDebugBuiltInTracerType, GethDebugTracerConfig,
     GethDebugTracerType, GethDebugTracingOptions, GethTrace, NoopFrame,
 };
-use reth_rpc_types::FeeHistory;
+use reth_rpc_types::{FeeHistory, Index};
 use rustc_version_runtime::version;
 use schnellru::{ByLength, LruMap};
 use sequencer_client::SequencerClient;
@@ -137,7 +136,7 @@ impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
             .base_fee_per_gas
             .unwrap_or_default();
 
-        (base_fee, suggested_tip)
+        (U256::from(base_fee), U256::from(suggested_tip))
     }
 }
 
@@ -145,7 +144,7 @@ impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
 //     fn make_raw_tx(
 //         &self,
 //         raw_tx: RlpEvmTransaction,
-//     ) -> Result<(B256, Vec<u8>), jsonrpsee::core::Error> {
+//     ) -> Result<(B256, Vec<u8>), jsonrpsee::core::RegisterMethodError> {
 //         let signed_transaction: RethTransactionSignedNoHash = raw_tx.clone().try_into()?;
 
 //         let tx_hash = signed_transaction.hash();
@@ -161,7 +160,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
     rpc: &mut RpcModule<Ethereum<C, Da>>,
     // Checks wether the running node is a sequencer or not, if it is not a sequencer it should also have methods like eth_sendRawTransaction here.
     is_sequencer: bool,
-) -> Result<(), jsonrpsee::core::Error> {
+) -> Result<(), jsonrpsee::core::RegisterMethodError> {
     rpc.register_async_method("web3_clientVersion", |_, ethereum| async move {
         info!("eth module: web3_clientVersion");
 
@@ -220,12 +219,12 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
         info!("eth module: eth_feeHistory");
         let mut params = params.sequence();
 
-        let block_count: U64HexOrNumber = params.next()?;
+        let block_count: Index = params.next()?;
         let newest_block: BlockNumberOrTag = params.next()?;
         let reward_percentiles: Option<Vec<f64>> = params.optional_next()?;
 
         // convert block count to u64 from hex
-        let block_count = block_count.to();
+        let block_count = usize::from(block_count) as u64;
 
         let fee_history = {
             let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
@@ -619,13 +618,11 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                 .ok_or_else(|| EthApiError::UnknownBlockOrTxIndex)?;
             let trace_index: u64 = tx
                 .transaction_index
-                .expect("Tx index must be set for tx inside block")
-                .saturating_to();
+                .expect("Tx index must be set for tx inside block");
 
             let block_number: u64 = tx
                 .block_number
-                .expect("Block number must be set for tx inside block")
-                .saturating_to();
+                .expect("Block number must be set for tx inside block");
 
             let opts: Option<GethDebugTracingOptions> = params.optional_next()?;
 
@@ -724,7 +721,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                 match tx_hash {
                     Ok(tx_hash) => Ok(tx_hash),
                     Err(e) => match e {
-                        jsonrpsee::core::Error::Call(e_owned) => Err(e_owned),
+                        jsonrpsee::core::client::Error::Call(e_owned) => Err(e_owned),
                         _ => Err(to_jsonrpsee_error_object("SEQUENCER_CLIENT_ERROR", e)),
                     },
                 }
@@ -755,7 +752,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                         {
                             Ok(tx) => Ok(tx),
                             Err(e) => match e {
-                                jsonrpsee::core::Error::Call(e_owned) => Err(e_owned),
+                                jsonrpsee::core::client::Error::Call(e_owned) => Err(e_owned),
                                 _ => Err(to_jsonrpsee_error_object("SEQUENCER_CLIENT_ERROR", e)),
                             },
                         }
@@ -777,7 +774,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                                 {
                                     Ok(tx) => Ok(tx),
                                     Err(e) => match e {
-                                        jsonrpsee::core::Error::Call(e_owned) => Err(e_owned),
+                                        jsonrpsee::core::client::Error::Call(e_owned) => Err(e_owned),
                                         _ => Err(to_jsonrpsee_error_object(
                                             "SEQUENCER_CLIENT_ERROR",
                                             e,

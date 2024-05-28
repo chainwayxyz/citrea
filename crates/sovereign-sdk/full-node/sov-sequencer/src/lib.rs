@@ -8,6 +8,7 @@ pub mod batch_builder;
 pub mod utils;
 
 use anyhow::anyhow;
+use jsonrpsee::core::ClientError;
 use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::RpcModule;
 use sov_modules_api::utils::to_jsonrpsee_error_object;
@@ -64,9 +65,7 @@ impl<B: BatchBuilder + Send + Sync, T: DaService + Send + Sync> Sequencer<B, T> 
     }
 }
 
-fn register_txs_rpc_methods<B, D>(
-    rpc: &mut RpcModule<Sequencer<B, D>>,
-) -> Result<(), jsonrpsee::core::Error>
+fn register_txs_rpc_methods<B, D>(rpc: &mut RpcModule<Sequencer<B, D>>) -> Result<(), ClientError>
 where
     B: BatchBuilder + Send + Sync + 'static,
     D: DaService,
@@ -181,8 +180,7 @@ mod tests {
         let rpc = get_sequencer_rpc(batch_builder, da_service.clone());
 
         let arg: &[u8] = &[];
-        let result: Result<String, jsonrpsee::core::Error> =
-            rpc.call("sequencer_publishBatch", arg).await;
+        let result: Result<String, _> = rpc.call("sequencer_publishBatch", arg).await;
 
         assert!(result.is_err());
         let error = result.err().unwrap();

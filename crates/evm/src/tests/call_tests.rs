@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT;
-use reth_primitives::{address, Address, BlockNumberOrTag, Bytes, TransactionKind};
+use reth_primitives::{address, Address, BlockNumberOrTag, Bytes, TxKind};
 use reth_rpc_types::request::{TransactionInput, TransactionRequest};
 use revm::primitives::{SpecId, KECCAK_EMPTY, U256};
 use sov_modules_api::default_context::DefaultContext;
@@ -503,7 +503,7 @@ fn test_block_hash_in_evm() {
 
     let mut request = TransactionRequest {
         from: None,
-        to: Some(contract_addr),
+        to: Some(TxKind::Call(contract_addr)),
         gas_price: None,
         max_fee_per_gas: None,
         max_priority_fee_per_gas: None,
@@ -525,7 +525,6 @@ fn test_block_hash_in_evm() {
         blob_versioned_hashes: None,
         transaction_type: None,
         sidecar: None,
-        other: Default::default(),
     };
 
     for i in 0..=1000 {
@@ -613,7 +612,7 @@ fn test_block_gas_limit() {
         .unwrap()
         .unwrap();
 
-    assert_eq!(block.header.gas_limit, U256::from(ETHEREUM_BLOCK_GAS_LIMIT));
+    assert_eq!(block.header.gas_limit, ETHEREUM_BLOCK_GAS_LIMIT as _);
     assert!(block.header.gas_used <= block.header.gas_limit);
     assert!(
         block.transactions.hashes().len() < 10_000,
@@ -627,12 +626,7 @@ pub fn create_contract_message<T: TestContract>(
     contract: T,
 ) -> RlpEvmTransaction {
     dev_signer
-        .sign_default_transaction(
-            TransactionKind::Create,
-            contract.byte_code().to_vec(),
-            nonce,
-            0,
-        )
+        .sign_default_transaction(TxKind::Create, contract.byte_code().to_vec(), nonce, 0)
         .unwrap()
 }
 
@@ -644,7 +638,7 @@ pub(crate) fn create_contract_message_with_fee<T: TestContract>(
 ) -> RlpEvmTransaction {
     dev_signer
         .sign_default_transaction_with_fee(
-            TransactionKind::Create,
+            TxKind::Create,
             contract.byte_code().to_vec(),
             nonce,
             0,
@@ -659,12 +653,7 @@ pub(crate) fn create_contract_transaction<T: TestContract>(
     contract: T,
 ) -> RlpEvmTransaction {
     dev_signer
-        .sign_default_transaction(
-            TransactionKind::Create,
-            contract.byte_code().to_vec(),
-            nonce,
-            0,
-        )
+        .sign_default_transaction(TxKind::Create, contract.byte_code().to_vec(), nonce, 0)
         .unwrap()
 }
 
@@ -678,7 +667,7 @@ fn set_selfdestruct_arg_message(
 
     dev_signer
         .sign_default_transaction(
-            TransactionKind::Call(contract_addr),
+            TxKind::Call(contract_addr),
             hex::decode(hex::encode(&contract.set_call_data(set_arg))).unwrap(),
             nonce,
             0,
@@ -696,7 +685,7 @@ pub(crate) fn set_arg_message(
 
     dev_signer
         .sign_default_transaction(
-            TransactionKind::Call(contract_addr),
+            TxKind::Call(contract_addr),
             hex::decode(hex::encode(&contract.set_call_data(set_arg))).unwrap(),
             nonce,
             0,
@@ -714,7 +703,7 @@ fn set_arg_transaction(
 
     dev_signer
         .sign_default_transaction(
-            TransactionKind::Call(contract_addr),
+            TxKind::Call(contract_addr),
             hex::decode(hex::encode(&contract.set_call_data(set_arg))).unwrap(),
             nonce,
             0,
@@ -729,7 +718,7 @@ fn send_money_to_contract_message(
     value: u128,
 ) -> RlpEvmTransaction {
     signer
-        .sign_default_transaction(TransactionKind::Call(contract_addr), vec![], nonce, value)
+        .sign_default_transaction(TxKind::Call(contract_addr), vec![], nonce, value)
         .unwrap()
 }
 
@@ -743,7 +732,7 @@ fn selfdestruct_message(
 
     dev_signer
         .sign_default_transaction(
-            TransactionKind::Call(contract_addr),
+            TxKind::Call(contract_addr),
             hex::decode(hex::encode(&contract.selfdestruct(to_address))).unwrap(),
             nonce,
             0,
@@ -761,7 +750,7 @@ pub(crate) fn publish_event_message(
 
     signer
         .sign_default_transaction(
-            TransactionKind::Call(contract_addr),
+            TxKind::Call(contract_addr),
             hex::decode(hex::encode(&contract.publish_event(message))).unwrap(),
             nonce,
             0,
@@ -994,7 +983,7 @@ fn test_l1_fee_halt() {
 
         let call_message = dev_signer
             .sign_default_transaction_with_fee(
-                TransactionKind::Call(address!("819c5497b157177315e1204f52e588b393771719")),
+                TxKind::Call(address!("819c5497b157177315e1204f52e588b393771719")),
                 InfiniteLoopContract::default()
                     .call_infinite_loop()
                     .into_iter()

@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use hex::FromHex;
 use jsonrpsee::core::RpcResult;
-use reth_primitives::{Address, BlockNumberOrTag, Bytes};
+use reth_primitives::{address, Address, BlockNumberOrTag, Bytes, TxKind};
 use reth_rpc::eth::error::RpcInvalidTransactionError;
 use reth_rpc_types::request::{TransactionInput, TransactionRequest};
 use revm::primitives::U256;
@@ -27,9 +27,9 @@ fn call_contract_without_value() {
     let call_result = evm.get_call(
         TransactionRequest {
             from: Some(signer.address()),
-            to: Some(contract_address),
-            gas: Some(U256::from(100000)),
-            gas_price: Some(U256::from(100000000)),
+            to: Some(TxKind::Call(contract_address)),
+            gas: Some(100000),
+            gas_price: Some(100000000),
             value: None,
             input: TransactionInput::new(contract_call_data),
             ..Default::default()
@@ -45,9 +45,9 @@ fn call_contract_without_value() {
     let call_result = evm.get_call(
         TransactionRequest {
             from: Some(signer.address()),
-            to: Some(contract_address),
-            gas: Some(U256::from(100000)),
-            gas_price: Some(U256::from(100000000)),
+            to: Some(TxKind::Call(contract_address)),
+            gas: Some(100000),
+            gas_price: Some(100000000),
             value: None,
             input: TransactionInput::new(contract.get_call_data().to_vec().into()),
             ..Default::default()
@@ -90,9 +90,9 @@ fn test_state_change() {
     let call_result = evm.get_call(
         TransactionRequest {
             from: Some(signer.address()),
-            to: Some(random_address),
-            gas: Some(U256::from(100000)),
-            gas_price: Some(U256::from(100000000)),
+            to: Some(TxKind::Call(random_address)),
+            gas: Some(100000),
+            gas_price: Some(100000000),
             value: Some(U256::from(123134235)),
             ..Default::default()
         },
@@ -123,9 +123,9 @@ fn call_contract_with_value_transfer() {
     let call_result = evm.get_call(
         TransactionRequest {
             from: Some(signer.address()),
-            to: Some(contract_address),
-            gas: Some(U256::from(100000)),
-            gas_price: Some(U256::from(100000000)),
+            to: Some(TxKind::Call(contract_address)),
+            gas: Some(100000),
+            gas_price: Some(100000000),
             value: Some(U256::from(100000000)), // reverts here.
             input: TransactionInput::new(contract_call_data),
             ..Default::default()
@@ -153,9 +153,9 @@ fn call_contract_with_invalid_nonce() {
     let call_result = evm.get_call(
         TransactionRequest {
             from: Some(signer.address()),
-            to: Some(contract_address),
-            gas: Some(U256::from(100000)),
-            gas_price: Some(U256::from(100000000)),
+            to: Some(TxKind::Call(contract_address)),
+            gas: Some(100000),
+            gas_price: Some(100000000),
             nonce: Some(invalid_nonce),
             input: TransactionInput::new(contract_call_data.clone()),
             ..Default::default()
@@ -173,9 +173,9 @@ fn call_contract_with_invalid_nonce() {
     let call_result = evm.get_call(
         TransactionRequest {
             from: Some(signer.address()),
-            to: Some(contract_address),
-            gas: Some(U256::from(100000)),
-            gas_price: Some(U256::from(100000000)),
+            to: Some(TxKind::Call(contract_address)),
+            gas: Some(100000),
+            gas_price: Some(100000000),
             nonce: Some(low_nonce),
             input: TransactionInput::new(contract_call_data),
             ..Default::default()
@@ -199,9 +199,9 @@ fn call_to_nonexistent_contract() {
     let call_result = evm.get_call(
         TransactionRequest {
             from: Some(signer.address()),
-            to: Some(nonexistent_contract_address),
-            gas: Some(U256::from(100000)),
-            gas_price: Some(U256::from(100000000)),
+            to: Some(TxKind::Call(nonexistent_contract_address)),
+            gas: Some(100000),
+            gas_price: Some(100000000),
             input: TransactionInput {
                 input: None,
                 data: None,
@@ -226,13 +226,13 @@ fn call_with_high_gas_price() {
 
     let contract_call_data = Bytes::from(contract.set_call_data(5).to_vec());
 
-    let high_gas_price = U256::from(1000) * U256::from(10_000_000_000_000_000_000_i128); // A very high gas price
+    let high_gas_price = 1000u128 * 10_000_000_000_000_000_000_u128; // A very high gas price
 
     let call_result = evm.get_call(
         TransactionRequest {
             from: Some(signer.address()),
-            to: Some(contract_address),
-            gas: Some(U256::from(100000)),
+            to: Some(TxKind::Call(contract_address)),
+            gas: Some(100000),
             gas_price: Some(high_gas_price),
             input: TransactionInput::new(contract_call_data),
             ..Default::default()
@@ -257,8 +257,8 @@ fn test_eip1559_fields_call() {
         &evm,
         &mut working_set,
         &signer,
-        Some(U256::from(100e9 as u64)),
-        Some(U256::from(2e9 as u64)),
+        Some(100e9 as _),
+        Some(2e9 as _),
     );
 
     assert_eq!(
@@ -270,34 +270,23 @@ fn test_eip1559_fields_call() {
         &evm,
         &mut working_set,
         &signer,
-        Some(U256::MAX),
-        Some(U256::MAX),
+        Some(u128::MAX),
+        Some(u128::MAX),
     );
     assert_eq!(
         high_fee_result,
-        Err(RpcInvalidTransactionError::TipVeryHigh.into())
+        Err(RpcInvalidTransactionError::InsufficientFunds.into())
     );
 
-    let low_max_fee_result = eth_call_eip1559(
-        &evm,
-        &mut working_set,
-        &signer,
-        Some(U256::from(1)),
-        Some(U256::from(1)),
-    );
+    let low_max_fee_result = eth_call_eip1559(&evm, &mut working_set, &signer, Some(1), Some(1));
 
     assert_eq!(
         low_max_fee_result,
         Err(RpcInvalidTransactionError::FeeCapTooLow.into())
     );
 
-    let no_max_fee_per_gas = eth_call_eip1559(
-        &evm,
-        &mut working_set,
-        &signer,
-        None,
-        Some(U256::from(2e9 as u64)),
-    );
+    let no_max_fee_per_gas =
+        eth_call_eip1559(&evm, &mut working_set, &signer, None, Some(2e9 as _));
     assert_eq!(
         no_max_fee_per_gas,
         Ok(
@@ -306,13 +295,7 @@ fn test_eip1559_fields_call() {
         )
     );
 
-    let no_priority_fee = eth_call_eip1559(
-        &evm,
-        &mut working_set,
-        &signer,
-        Some(U256::from(100e9 as u64)),
-        None,
-    );
+    let no_priority_fee = eth_call_eip1559(&evm, &mut working_set, &signer, Some(100e9 as _), None);
 
     assert_eq!(
         no_priority_fee.unwrap().to_string(),
@@ -331,15 +314,17 @@ fn eth_call_eip1559(
     evm: &Evm<C>,
     working_set: &mut WorkingSet<C>,
     signer: &TestSigner,
-    max_fee_per_gas: Option<U256>,
-    max_priority_fee_per_gas: Option<U256>,
+    max_fee_per_gas: Option<u128>,
+    max_priority_fee_per_gas: Option<u128>,
 ) -> RpcResult<reth_primitives::Bytes> {
     let contract = SimpleStorageContract::default();
 
     let tx_req = TransactionRequest {
         from: Some(signer.address()),
-        to: Some(Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap()),
-        gas: Some(U256::from(100_000)),
+        to: Some(TxKind::Call(address!(
+            "eeb03d20dae810f52111b853b31c8be6f30f4cd3"
+        ))),
+        gas: Some(100_000),
         gas_price: None,
         max_fee_per_gas,
         max_priority_fee_per_gas,
@@ -366,7 +351,9 @@ fn gas_price_call_test() {
     // Define a base transaction request for reuse
     let base_tx_req = || TransactionRequest {
         from: Some(signer.address()),
-        to: Some(Address::from_str("0x819c5497b157177315e1204f52e588b393771719").unwrap()),
+        to: Some(TxKind::Call(address!(
+            "819c5497b157177315e1204f52e588b393771719"
+        ))),
         value: Some(U256::from(1000)),
         input: None.into(),
         nonce: Some(1u64),
@@ -376,7 +363,6 @@ fn gas_price_call_test() {
         blob_versioned_hashes: None,
         transaction_type: None,
         sidecar: None,
-        other: Default::default(),
         // Gas, gas_price, max_fee_per_gas, and max_priority_fee_per_gas will be varied
         gas: None,
         gas_price: None,
@@ -388,7 +374,7 @@ fn gas_price_call_test() {
     let tx_req_low_gas = base_tx_req();
     let result_low_gas = evm.get_call(
         TransactionRequest {
-            gas: Some(U256::from(21000)),
+            gas: Some(21000),
             ..tx_req_low_gas
         },
         Some(BlockNumberOrTag::Latest),
@@ -406,7 +392,7 @@ fn gas_price_call_test() {
     let tx_req_only_gas = base_tx_req();
     let result_only_gas = evm.get_call(
         TransactionRequest {
-            gas: Some(U256::from(250000)),
+            gas: Some(250000),
             ..tx_req_only_gas
         },
         Some(BlockNumberOrTag::Latest),
@@ -422,8 +408,8 @@ fn gas_price_call_test() {
     let tx_req_gas_and_gas_price = base_tx_req();
     let result_gas_and_gas_price = evm.get_call(
         TransactionRequest {
-            gas: Some(U256::from(25000)),
-            gas_price: Some(U256::from(20e9 as u64)),
+            gas: Some(25000),
+            gas_price: Some(20e9 as _),
             ..tx_req_gas_and_gas_price
         },
         Some(BlockNumberOrTag::Latest),
@@ -442,8 +428,8 @@ fn gas_price_call_test() {
     let tx_req_gas_and_gas_price = base_tx_req();
     let result_gas_and_gas_price = evm.get_call(
         TransactionRequest {
-            gas: Some(U256::from(250000)),
-            gas_price: Some(U256::from(20e9 as u64)),
+            gas: Some(250000),
+            gas_price: Some(20e9 as _),
             ..tx_req_gas_and_gas_price
         },
         Some(BlockNumberOrTag::Latest),
@@ -459,8 +445,8 @@ fn gas_price_call_test() {
     let tx_req_fees = base_tx_req();
     let result_fees = evm.get_call(
         TransactionRequest {
-            max_fee_per_gas: Some(U256::from(30e9 as u64)),
-            max_priority_fee_per_gas: Some(U256::from(10e9 as u64)),
+            max_fee_per_gas: Some(30e9 as _),
+            max_priority_fee_per_gas: Some(10e9 as _),
             ..tx_req_fees
         },
         Some(BlockNumberOrTag::Latest),
@@ -477,8 +463,8 @@ fn gas_price_call_test() {
     let tx_req_high_gas_price = base_tx_req();
     let result_high_gas_price = evm.get_call(
         TransactionRequest {
-            gas_price: Some(U256::from(1e12 as u64)),
-            gas: Some(U256::from(250000)),
+            gas_price: Some(1e12 as _),
+            gas: Some(250000),
             ..tx_req_high_gas_price
         },
         Some(BlockNumberOrTag::Latest),
@@ -496,7 +482,7 @@ fn gas_price_call_test() {
     let tx_req_high_gas_price = base_tx_req();
     let result_high_gas_price = evm.get_call(
         TransactionRequest {
-            gas_price: Some(U256::from(1e12 as u64)),
+            gas_price: Some(1e12 as _),
             ..tx_req_high_gas_price
         },
         Some(BlockNumberOrTag::Latest),
@@ -512,8 +498,8 @@ fn gas_price_call_test() {
     let tx_req_high_fees = base_tx_req();
     let result_high_fees = evm.get_call(
         TransactionRequest {
-            max_fee_per_gas: Some(U256::from(1e12 as u64)),
-            max_priority_fee_per_gas: Some(U256::from(500e9 as u64)),
+            max_fee_per_gas: Some(1e12 as _),
+            max_priority_fee_per_gas: Some(500e9 as _),
             ..tx_req_high_fees
         },
         Some(BlockNumberOrTag::Latest),
