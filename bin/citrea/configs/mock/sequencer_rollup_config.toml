@@ -5,6 +5,7 @@ prover_da_pub_key = ""
 
 [da]
 sender_address = "0000000000000000000000000000000000000000000000000000000000000000"
+db_path = "da-db"
 
 [storage]
 # The path to the rollup's data directory. Paths that do not begin with `/` are interpreted as relative paths.

@@ -14,7 +14,7 @@ use sov_rollup_interface::CITREA_VERSION;
 
 // use sov_demo_rollup::initialize_logging;
 use crate::test_client::TestClient;
-use crate::test_helpers::{start_rollup, NodeMode};
+use crate::test_helpers::{start_rollup, tempdir_with_children, NodeMode};
 use crate::{DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT};
 
 mod archival_state;
@@ -24,6 +24,12 @@ mod tracing;
 #[tokio::test]
 async fn web3_rpc_tests() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging();
+
+    let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
+    let da_db_dir = storage_dir.path().join("DA").to_path_buf();
+    let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
+    let da_db_dir_cloned = da_db_dir.clone();
+
     let (port_tx, port_rx) = tokio::sync::oneshot::channel();
     let rollup_task = tokio::spawn(async {
         start_rollup(
@@ -31,7 +37,8 @@ async fn web3_rpc_tests() -> Result<(), anyhow::Error> {
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             None,
             NodeMode::SequencerNode,
-            None,
+            sequencer_db_dir,
+            da_db_dir_cloned,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             true,
             None,
@@ -73,16 +80,21 @@ async fn web3_rpc_tests() -> Result<(), anyhow::Error> {
 async fn evm_tx_tests() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging();
 
+    let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
+    let da_db_dir = storage_dir.path().join("DA").to_path_buf();
+    let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
+    let da_db_dir_cloned = da_db_dir.clone();
+
     let (port_tx, port_rx) = tokio::sync::oneshot::channel();
 
     let rollup_task = tokio::spawn(async {
-        // Don't provide a prover since the EVM is not currently provable
         start_rollup(
             port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             None,
             NodeMode::SequencerNode,
-            None,
+            sequencer_db_dir,
+            da_db_dir_cloned,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             true,
             None,
@@ -109,16 +121,21 @@ async fn send_tx_test_to_eth(rpc_address: SocketAddr) -> Result<(), Box<dyn std:
 async fn test_eth_get_logs() -> Result<(), anyhow::Error> {
     use crate::test_helpers::start_rollup;
 
+    let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
+    let da_db_dir = storage_dir.path().join("DA").to_path_buf();
+    let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
+    let da_db_dir_cloned = da_db_dir.clone();
+
     let (port_tx, port_rx) = tokio::sync::oneshot::channel();
 
     let rollup_task = tokio::spawn(async {
-        // Don't provide a prover since the EVM is not currently provable
         start_rollup(
             port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             None,
             NodeMode::SequencerNode,
-            None,
+            sequencer_db_dir,
+            da_db_dir_cloned,
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             true,
             None,
@@ -144,13 +161,19 @@ async fn test_eth_get_logs() -> Result<(), anyhow::Error> {
 async fn test_genesis_contract_call() -> Result<(), Box<dyn std::error::Error>> {
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
+    let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
+    let da_db_dir = storage_dir.path().join("DA").to_path_buf();
+    let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
+    let da_db_dir_cloned = da_db_dir.clone();
+
     let seq_task = tokio::spawn(async move {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir("../../hive/genesis"),
             None,
             NodeMode::SequencerNode,
-            None,
+            sequencer_db_dir,
+            da_db_dir_cloned,
             123456,
             true,
             None,

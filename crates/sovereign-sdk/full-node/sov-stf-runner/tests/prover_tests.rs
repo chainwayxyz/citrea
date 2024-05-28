@@ -15,7 +15,9 @@ use sov_stf_runner::{
 
 #[tokio::test]
 async fn test_successful_prover_execution() -> Result<(), ProverServiceError> {
-    let da_service = MockDaService::new(MockAddress::from([0; 32]));
+    let temp = tempfile::tempdir().unwrap();
+
+    let da_service = MockDaService::new(MockAddress::from([0; 32]), temp.path());
 
     let TestProver {
         prover_service, vm, ..
@@ -47,7 +49,8 @@ async fn test_successful_prover_execution() -> Result<(), ProverServiceError> {
 
 #[tokio::test]
 async fn test_prover_status_busy() -> Result<(), anyhow::Error> {
-    let da_service = MockDaService::new(MockAddress::from([0; 32]));
+    let temp = tempfile::tempdir().unwrap();
+    let da_service = MockDaService::new(MockAddress::from([0; 32]), temp.path());
     let TestProver {
         prover_service,
         vm,

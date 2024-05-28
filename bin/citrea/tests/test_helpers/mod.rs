@@ -1,19 +1,26 @@
 use std::net::SocketAddr;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::time::{Duration, SystemTime};
 
 use citrea::MockDemoRollup;
 use citrea_sequencer::SequencerConfig;
 use citrea_stf::genesis_config::GenesisPaths;
+use reth_rpc_types::BlockNumberOrTag;
 use rollup_constants::TEST_PRIVATE_KEY;
-use sov_mock_da::{MockAddress, MockDaConfig};
+use shared_backup_db::PostgresConnector;
+use sov_mock_da::{MockAddress, MockDaConfig, MockDaService};
 use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
 use sov_modules_api::PrivateKey;
 use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_stf_runner::{
     ProverConfig, RollupConfig, RollupPublicKeys, RpcConfig, RunnerConfig, StorageConfig,
 };
+use tempfile::TempDir;
 use tokio::sync::oneshot;
-use tracing::warn;
+use tokio::time::sleep;
+use tracing::{debug, warn};
+
+use crate::test_client::TestClient;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NodeMode {
@@ -29,7 +36,8 @@ pub async fn start_rollup(
     rt_genesis_paths: GenesisPaths,
     rollup_prover_config: Option<ProverConfig>,
     node_mode: NodeMode,
-    db_path: Option<&str>,
+    rollup_db_path: PathBuf,
+    da_db_path: PathBuf,
     min_soft_confirmations_per_commitment: u64,
     include_tx_body: bool,
     rollup_config: Option<RollupConfig<MockDaConfig>>,
@@ -37,17 +45,10 @@ pub async fn start_rollup(
     test_mode: Option<bool>,
     deposit_mempool_fetch_limit: usize,
 ) {
-    let mut path = db_path.map(Path::new);
-    let mut temp_dir: Option<tempfile::TempDir> = None;
-    if db_path.is_none() {
-        temp_dir = Some(tempfile::tempdir().unwrap());
-
-        path = Some(temp_dir.as_ref().unwrap().path());
-    }
-
     // create rollup config default creator function and use them here for the configs
-    let rollup_config = rollup_config
-        .unwrap_or_else(|| create_default_rollup_config(include_tx_body, path, node_mode));
+    let rollup_config = rollup_config.unwrap_or_else(|| {
+        create_default_rollup_config(include_tx_body, &rollup_db_path, &da_db_path, node_mode)
+    });
 
     let mock_demo_rollup = MockDemoRollup {};
 
@@ -101,16 +102,12 @@ pub async fn start_rollup(
                 .unwrap();
         }
     }
-
-    if db_path.is_none() {
-        // Close the tempdir explicitly to ensure that rustc doesn't see that it's unused and drop it unexpectedly
-        temp_dir.unwrap().close().unwrap();
-    }
 }
 
 pub fn create_default_rollup_config(
     include_tx_body: bool,
-    path: Option<&Path>,
+    rollup_path: &Path,
+    da_path: &Path,
     node_mode: NodeMode,
 ) -> RollupConfig<MockDaConfig> {
     RollupConfig {
@@ -122,9 +119,8 @@ pub fn create_default_rollup_config(
             sequencer_da_pub_key: vec![0; 32],
             prover_da_pub_key: vec![0; 32],
         },
-
         storage: StorageConfig {
-            path: path.unwrap().to_path_buf(),
+            path: rollup_path.to_path_buf(),
         },
         rpc: RpcConfig {
             bind_host: "127.0.0.1".into(),
@@ -141,6 +137,7 @@ pub fn create_default_rollup_config(
         },
         da: MockDaConfig {
             sender_address: MockAddress::from([0; 32]),
+            db_path: da_path.to_path_buf(),
         },
     }
 }
@@ -158,5 +155,103 @@ pub fn create_default_sequencer_config(
         mempool_conf: Default::default(),
         // Offchain db will be active only in some tests
         db_config: None,
+    }
+}
+
+pub fn tempdir_with_children(children: &[&str]) -> TempDir {
+    let db_dir = tempfile::tempdir().expect("Could not create temporary directory for test");
+    for child in children {
+        let p = db_dir.path().join(child);
+        if !std::path::Path::new(&p).exists() {
+            std::fs::create_dir(p).unwrap();
+        }
+    }
+
+    db_dir
+}
+
+pub async fn wait_for_l2_block(sequencer_client: &TestClient, num: u64, timeout: Option<Duration>) {
+    let start = SystemTime::now();
+    let timeout = timeout.unwrap_or(Duration::from_secs(30)); // Default 30 seconds timeout
+    loop {
+        debug!("Waiting for soft batch {}", num);
+        let latest_block = sequencer_client
+            .eth_get_block_by_number_with_detail(Some(BlockNumberOrTag::Latest))
+            .await;
+        if latest_block.number >= Some(num.into()) {
+            break;
+        }
+
+        let now = SystemTime::now();
+        if start + timeout <= now {
+            panic!("Timeout");
+        }
+
+        sleep(Duration::from_secs(1)).await;
+    }
+}
+
+pub async fn wait_for_prover_l1_height(
+    prover_client: &TestClient,
+    num: u64,
+    timeout: Option<Duration>,
+) {
+    let start = SystemTime::now();
+    let timeout = timeout.unwrap_or(Duration::from_secs(30)); // Default 30 seconds timeout
+    loop {
+        debug!("Waiting for prover height {}", num);
+        let latest_block = prover_client.prover_get_last_scanned_l1_height().await;
+        if latest_block >= num {
+            break;
+        }
+
+        let now = SystemTime::now();
+        if start + timeout <= now {
+            panic!("Timeout");
+        }
+
+        sleep(Duration::from_secs(1)).await;
+    }
+}
+
+pub async fn wait_for_l1_block(da_service: &MockDaService, num: u64, timeout: Option<Duration>) {
+    let start = SystemTime::now();
+    let timeout = timeout.unwrap_or(Duration::from_secs(30)); // Default 30 seconds timeout
+    loop {
+        debug!("Waiting for L1 block height {}", num);
+        let da_block = da_service.get_height().await;
+        if da_block >= num {
+            break;
+        }
+
+        let now = SystemTime::now();
+        if start + timeout <= now {
+            panic!("Timeout");
+        }
+
+        sleep(Duration::from_secs(1)).await;
+    }
+}
+
+pub async fn wait_for_postgres_commitment(
+    db_test_client: &PostgresConnector,
+    num: usize,
+    timeout: Option<Duration>,
+) {
+    let start = SystemTime::now();
+    let timeout = timeout.unwrap_or(Duration::from_secs(30)); // Default 30 seconds timeout
+    loop {
+        debug!("Waiting for {} L1 commitments to be published", num);
+        let commitments = db_test_client.get_all_commitments().await.unwrap().len();
+        if commitments >= num {
+            break;
+        }
+
+        let now = SystemTime::now();
+        if start + timeout <= now {
+            panic!("Timeout");
+        }
+
+        sleep(Duration::from_secs(1)).await;
     }
 }
