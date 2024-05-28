@@ -479,7 +479,7 @@ where
         validity_condition: &<Da as DaSpec>::ValidityCondition,
         mut soft_confirmations: std::collections::VecDeque<Vec<SignedSoftConfirmationBatch>>,
     ) -> (Self::StateRoot, CumulativeStateDiff) {
-        let mut state_diff: CumulativeStateDiff = Default::default();
+        let mut state_diff = CumulativeStateDiff::default();
 
         // First extract all sequencer commitments
         // Ignore broken DaData and zk proofs. Also ignore ForcedTransaction's (will be implemented in the future).
