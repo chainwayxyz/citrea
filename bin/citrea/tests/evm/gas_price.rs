@@ -40,7 +40,7 @@ async fn test_gas_price_increase() -> Result<(), anyhow::Error> {
             None,
             None,
             Some(true),
-            DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
+            100,
         )
         .await;
     });
