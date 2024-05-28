@@ -40,7 +40,7 @@ const fn default_max_connections() -> u32 {
 /// Simple storage configuration
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct StorageConfig {
-    /// Path that can be utilized by concrete implementation
+    /// Path that can be utilized by concrete rollup implementation
     pub path: PathBuf,
 }
 
@@ -113,7 +113,6 @@ pub fn from_toml_path<P: AsRef<Path>, R: DeserializeOwned>(path: P) -> anyhow::R
 #[cfg(test)]
 mod tests {
     use std::io::Write;
-    use std::path::PathBuf;
 
     use tempfile::NamedTempFile;
 
@@ -127,7 +126,8 @@ mod tests {
 
     #[test]
     fn test_correct_rollup_config() {
-        let config = r#"
+        let config =
+            r#"
             [public_keys]
             sequencer_public_key = "0000000000000000000000000000000000000000000000000000000000000000"
             sequencer_da_pub_key = "7777777777777777777777777777777777777777777777777777777777777777"
@@ -140,19 +140,21 @@ mod tests {
 
             [da]
             sender_address = "0000000000000000000000000000000000000000000000000000000000000000"
+            db_path = "/tmp/da"
             
             [storage]
-            path = "/tmp"
+            path = "/tmp/rollup"
             
             [runner]
             include_tx_body = true
             sequencer_client_url = "http://0.0.0.0:12346"
-        "#;
+        "#.to_owned();
 
-        let config_file = create_config_from(config);
+        let config_file = create_config_from(&config);
 
         let config: RollupConfig<sov_mock_da::MockDaConfig> =
             from_toml_path(config_file.path()).unwrap();
+
         let expected = RollupConfig {
             runner: Some(RunnerConfig {
                 sequencer_client_url: "http://0.0.0.0:12346".to_owned(),
@@ -161,9 +163,10 @@ mod tests {
             }),
             da: sov_mock_da::MockDaConfig {
                 sender_address: [0; 32].into(),
+                db_path: "/tmp/da".into(),
             },
             storage: StorageConfig {
-                path: PathBuf::from("/tmp"),
+                path: "/tmp/rollup".into(),
             },
             rpc: RpcConfig {
                 bind_host: "127.0.0.1".to_string(),

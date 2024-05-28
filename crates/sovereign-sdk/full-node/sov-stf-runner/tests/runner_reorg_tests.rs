@@ -48,7 +48,7 @@ async fn test_simple_reorg_case() {
         vec![15, 15, 15, 15],
     ];
 
-    let mut da_service = MockDaService::with_finality(sequencer_address, 4);
+    let mut da_service = MockDaService::with_finality(sequencer_address, 4, tmpdir.path());
     da_service.set_wait_attempts(2);
 
     let _genesis_header = da_service.get_last_finalized_block_header().await.unwrap();
@@ -87,7 +87,7 @@ async fn test_instant_finality_data_stored() {
     let sequencer_address = MockAddress::new([11u8; 32]);
     let genesis_params = vec![1, 2, 3, 4, 5];
 
-    let mut da_service = MockDaService::new(sequencer_address);
+    let mut da_service = MockDaService::new(sequencer_address, tmpdir.path());
     da_service.set_wait_attempts(2);
 
     let _genesis_header = da_service.get_last_finalized_block_header().await.unwrap();
@@ -113,13 +113,14 @@ async fn test_instant_finality_data_stored() {
 }
 
 async fn runner_execution(
-    path: &std::path::Path,
+    storage_path: &std::path::Path,
     init_variant: MockInitVariant,
     da_service: MockDaService,
 ) -> ([u8; 32], [u8; 32]) {
+    let rollup_storage_path = storage_path.join("rollup").to_path_buf();
     let rollup_config = RollupConfig::<MockDaConfig> {
         storage: StorageConfig {
-            path: path.to_path_buf(),
+            path: rollup_storage_path.clone(),
         },
         rpc: RpcConfig {
             bind_host: "127.0.0.1".to_string(),
@@ -133,6 +134,7 @@ async fn runner_execution(
         }),
         da: MockDaConfig {
             sender_address: da_service.get_sequencer_address(),
+            db_path: storage_path.join("da").to_path_buf(),
         },
         public_keys: RollupPublicKeys {
             sequencer_public_key: vec![0u8; 32],
@@ -141,12 +143,12 @@ async fn runner_execution(
         },
     };
 
-    let ledger_db = LedgerDB::with_path(path).unwrap();
+    let ledger_db = LedgerDB::with_path(rollup_storage_path.clone()).unwrap();
 
     let stf = HashStf::<MockValidityCond>::new();
 
     let storage_config = sov_state::config::Config {
-        path: rollup_config.storage.path.clone(),
+        path: rollup_storage_path,
     };
     let mut storage_manager = ProverStorageManager::new(storage_config).unwrap();
 
