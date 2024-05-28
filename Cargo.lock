@@ -1661,7 +1661,7 @@ dependencies = [
  "ethers-middleware",
  "ethers-signers",
  "hex",
- "itertools 0.11.0",
+ "itertools 0.13.0",
  "jsonrpsee",
  "lazy_static",
  "rand 0.8.5",
@@ -4464,6 +4464,15 @@ name = "itertools"
 version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ba291022dbbd398a455acf126c1e341954079855bc60dfdda641363bd6922569"
+dependencies = [
+ "either",
+]
+
+[[package]]
+name = "itertools"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "413ee7dfc52ee1a4949ceeb7dbc8a33f2d6c088194d9f922fb8318faf1f01186"
 dependencies = [
  "either",
 ]
@@ -9155,6 +9164,7 @@ dependencies = [
  "anyhow",
  "borsh",
  "hex",
+ "itertools 0.13.0",
  "jmt",
  "jsonrpsee",
  "risc0-zkvm",

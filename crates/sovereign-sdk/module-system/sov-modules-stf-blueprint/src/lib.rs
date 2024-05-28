@@ -7,6 +7,7 @@ mod tx_verifier;
 
 pub use batch::Batch;
 use borsh::{BorshDeserialize, BorshSerialize};
+use itertools::Itertools;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 use sov_modules_api::da::BlockHeaderTrait;
@@ -474,10 +475,10 @@ where
         initial_state_root: &Self::StateRoot,
         pre_state: Self::PreState,
         da_data: Vec<<Da as DaSpec>::BlobTransaction>,
-        mut witnesses: std::collections::VecDeque<Vec<Self::Witness>>,
-        mut slot_headers: std::collections::VecDeque<Vec<<Da as DaSpec>::BlockHeader>>,
+        witnesses: std::collections::VecDeque<Vec<Self::Witness>>,
+        slot_headers: std::collections::VecDeque<Vec<<Da as DaSpec>::BlockHeader>>,
         validity_condition: &<Da as DaSpec>::ValidityCondition,
-        mut soft_confirmations: std::collections::VecDeque<Vec<SignedSoftConfirmationBatch>>,
+        soft_confirmations: std::collections::VecDeque<Vec<SignedSoftConfirmationBatch>>,
     ) -> (Self::StateRoot, CumulativeStateDiff) {
         let mut state_diff = CumulativeStateDiff::default();
 
@@ -499,16 +500,14 @@ where
 
         let mut current_state_root = initial_state_root.clone();
 
-        for sequencer_commitment in sequencer_commitments {
-            // should panic if number of sequencer commitments and soft confirmations don't match
-            let soft_confirmations = soft_confirmations.pop_front().unwrap();
-
-            // should panic if number of sequencer commitments and set of DA block headers don't match
-            let da_block_headers = slot_headers.pop_front().unwrap();
-
-            // should panic if number of sequencer commitments and set of witnesses don't match
-            let witnesses = witnesses.pop_front().unwrap();
-
+        // should panic if number of sequencer commitments, soft confirmations, slot headers and witnesses don't match
+        for (((sequencer_commitment, soft_confirmations), da_block_headers), witnesses) in
+            sequencer_commitments
+                .into_iter()
+                .zip_eq(soft_confirmations)
+                .zip_eq(slot_headers)
+                .zip_eq(witnesses)
+        {
             // we must verify given DA headers match the commitments
             let mut index_headers = 0;
             let mut index_soft_confirmation = 0;
@@ -602,11 +601,13 @@ where
                 "Invalid merkle root"
             );
 
-            let mut witness_iter = witnesses.into_iter();
             let mut da_block_headers_iter = da_block_headers.into_iter().peekable();
             let mut da_block_header = da_block_headers_iter.next().unwrap();
+
             // now that we verified the claimed root, we can apply the soft confirmations
-            for mut soft_confirmation in soft_confirmations {
+            // should panic if the number of witnesses and soft confirmations don't match
+            for (mut soft_confirmation, witness) in soft_confirmations.into_iter().zip_eq(witnesses)
+            {
                 if soft_confirmation.da_slot_height() != da_block_header.height() {
                     da_block_header = da_block_headers_iter.next().unwrap();
                 }
@@ -615,7 +616,7 @@ where
                     sequencer_public_key,
                     &current_state_root,
                     pre_state.clone(),
-                    witness_iter.next().unwrap(), // should panic if the number of witnesses and soft confirmations don't match
+                    witness,
                     &da_block_header,
                     validity_condition,
                     &mut soft_confirmation,
