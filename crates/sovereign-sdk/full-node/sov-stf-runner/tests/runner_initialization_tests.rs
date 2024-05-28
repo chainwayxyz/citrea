@@ -60,10 +60,10 @@ fn initialize_runner(
     let rollup_storage_path = storage_path.join("rollup").to_path_buf();
 
     if !std::path::Path::new(&da_storage_path).exists() {
-        std::fs::create_dir(da_storage_path.clone()).unwrap();
+        let _ = std::fs::create_dir(da_storage_path.clone());
     }
     if !std::path::Path::new(&rollup_storage_path).exists() {
-        std::fs::create_dir(rollup_storage_path.clone()).unwrap();
+        let _ = std::fs::create_dir(rollup_storage_path.clone());
     }
 
     let address = MockAddress::new([11u8; 32]);
