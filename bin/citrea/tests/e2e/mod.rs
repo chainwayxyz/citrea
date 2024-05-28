@@ -1838,7 +1838,6 @@ async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
     let (full_node_port_tx, full_node_port_rx) = tokio::sync::oneshot::channel();
     let config1 = sequencer_config.clone();
 
-    let fullnode_db_dir_cloned = fullnode_db_dir.clone();
     let da_db_dir_cloned = da_db_dir.clone();
     let fullnode_db_dir_cloned = fullnode_db_dir.clone();
     let full_node_task = tokio::spawn(async move {
@@ -2254,7 +2253,7 @@ async fn test_db_get_proof() {
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             Some(ProverConfig {
                 proving_mode: sov_stf_runner::ProverGuestRunConfig::Execute,
-                skip_proving_until_l1_height: None,
+                proof_sampling_number: 0,
                 db_config: Some(SharedBackupDbConfig::default().set_db_name(psql_db_name)),
             }),
             NodeMode::Prover(seq_port),
@@ -2508,6 +2507,7 @@ async fn test_all_flow() {
     // citrea::initialize_logging();
 
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "prover", "full-node"]);
+    let da_db_dir = storage_dir.path().join("DA").to_path_buf();
     let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
     let prover_db_dir = storage_dir.path().join("prover").to_path_buf();
     let fullnode_db_dir = storage_dir.path().join("full-node").to_path_buf();
@@ -2551,7 +2551,7 @@ async fn test_all_flow() {
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             Some(ProverConfig {
                 proving_mode: sov_stf_runner::ProverGuestRunConfig::Execute,
-                skip_proving_until_l1_height: None,
+                proof_sampling_number: 0,
                 db_config: Some(SharedBackupDbConfig::default().set_db_name(psql_db_name)),
             }),
             NodeMode::Prover(seq_port),
