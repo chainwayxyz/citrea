@@ -128,9 +128,6 @@ mod tests {
 
     #[test]
     fn test_correct_rollup_config() {
-        let tmpdir = tempfile::tempdir().unwrap();
-        let rollup_path = tmpdir.path().join("rollup").to_path_buf();
-        let da_path = tmpdir.path().join("da").to_path_buf();
         let config = format!(
             r#"
             [public_keys]
@@ -147,22 +144,19 @@ mod tests {
             sender_address = "0000000000000000000000000000000000000000000000000000000000000000"
             
             [storage]
-            rollup_path = {:?}
-            da_path = {:?}
+            rollup_path = /tmp/rollup
+            da_path = /tmp/da
             
             [runner]
             include_tx_body = true
             sequencer_client_url = "http://0.0.0.0:12346"
         "#,
-            rollup_path, da_path
         );
 
         let config_file = create_config_from(&config);
 
         let config: RollupConfig<sov_mock_da::MockDaConfig> =
             from_toml_path(config_file.path()).unwrap();
-
-        let storage_path = tmpdir.path();
 
         let expected = RollupConfig {
             runner: Some(RunnerConfig {
@@ -174,8 +168,8 @@ mod tests {
                 sender_address: [0; 32].into(),
             },
             storage: StorageConfig {
-                rollup_path: storage_path.join("rollup").to_path_buf(),
-                da_path: storage_path.join("da").to_path_buf(),
+                rollup_path: "/tmp/rollup".to_owned(),
+                da_path: "/tmp/da".to_owned(),
             },
             rpc: RpcConfig {
                 bind_host: "127.0.0.1".to_string(),
