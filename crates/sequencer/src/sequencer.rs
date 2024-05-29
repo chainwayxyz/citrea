@@ -141,8 +141,7 @@ where
 
         let deposit_mempool = Arc::new(Mutex::new(DepositDataMempool::new()));
 
-        let sov_tx_signer_priv_key =
-            C::PrivateKey::try_from(&hex::decode(&config.private_key).unwrap()).unwrap();
+        let sov_tx_signer_priv_key = C::PrivateKey::try_from(&hex::decode(&config.private_key)?)?;
 
         let soft_confirmation_rule_enforcer =
             SoftConfirmationRuleEnforcer::<C, <Da as DaService>::Spec>::default();
@@ -458,8 +457,7 @@ where
             &self.ledger_db,
             min_soft_confirmations_per_commitment,
             prev_l1_height,
-        )
-        .unwrap(); // TODO unwrap()
+        )?;
 
         if let Some(commitment_info) = commitment_info {
             debug!("Sequencer: enough soft confirmations to submit commitment");
@@ -470,8 +468,7 @@ where
 
             let soft_confirmation_hashes = self
                 .ledger_db
-                .get_soft_batch_range(&(*l2_range_to_submit.start()..range_end))
-                .unwrap() // TODO unwrap
+                .get_soft_batch_range(&(*l2_range_to_submit.start()..range_end))?
                 .iter()
                 .map(|sb| sb.hash)
                 .collect::<Vec<[u8; 32]>>();
@@ -479,15 +476,13 @@ where
             let commitment = commitment_controller::get_commitment(
                 commitment_info.clone(),
                 soft_confirmation_hashes,
-            )
-            .unwrap(); // TODO unwrap
+            )?;
 
             info!("Sequencer: submitting commitment: {:?}", commitment);
 
             let blob = DaData::SequencerCommitment(commitment.clone())
                 .try_to_vec()
-                .map_err(|e| anyhow!(e))
-                .unwrap(); // TODO unwrap
+                .map_err(|e| anyhow!(e))?;
             let (notify, rx) = oneshot_channel();
             let request = BlobWithNotifier { blob, notify };
             inscription_queue
@@ -883,8 +878,7 @@ where
         let mempool_txs = pg_connector.get_all_txs().await?;
         for tx in mempool_txs {
             let recovered =
-                recover_raw_transaction(reth_primitives::Bytes::from(tx.tx.as_slice().to_vec()))
-                    .unwrap();
+                recover_raw_transaction(reth_primitives::Bytes::from(tx.tx.as_slice().to_vec()))?;
             let pooled_tx = EthPooledTransaction::from_recovered_pooled_transaction(recovered);
 
             let _ = self.mempool.add_external_transaction(pooled_tx).await?;
