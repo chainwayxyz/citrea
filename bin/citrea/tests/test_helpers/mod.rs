@@ -155,7 +155,7 @@ pub fn create_default_sequencer_config(
         mempool_conf: Default::default(),
         // Offchain db will be active only in some tests
         db_config: None,
-        da_update_interval_ms: 1000,
+        da_update_interval_ms: 500,
         block_production_interval_ms: 500, // since running in test mode, we can set this to a lower value
     }
 }

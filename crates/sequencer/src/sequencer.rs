@@ -647,7 +647,7 @@ where
                             }
                         }
 
-                        if let Err(e) = self.notify_commitment(da_commitment_tx.clone(), last_finalized_height, last_used_l1_height).await {
+                        if let Err(e) = self.maybe_submit_commitment(da_commitment_tx.clone(), last_finalized_height, last_used_l1_height).await {
                             error!("Sequencer error: {}", e);
                         }
                     }
@@ -904,7 +904,7 @@ where
         }
     }
 
-    async fn notify_commitment(
+    async fn maybe_submit_commitment(
         &self,
         da_commitment_tx: UnboundedSender<u64>,
         last_finalized_height: u64,

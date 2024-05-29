@@ -52,7 +52,7 @@ pub fn get_commitment_info(
             let Some((l2_start, mut l2_end)) =
                 ledger_db.get_l2_range_by_l1_height(SlotNumber(l1_start))?
             else {
-                bail!("Sequencer: Failed to get L1 L2 connection");
+                return Ok(None);
             };
 
             // Take while sum of l2 ranges <= min_soft_confirmations_per_commitment
