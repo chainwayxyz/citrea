@@ -594,14 +594,6 @@ where
 
         debug!("Sequencer: prev L1 height: {:?}", last_used_l1_height);
 
-        // Based on the above initialization, decide whether we should submit a commitment to DA.
-        // if let Err(e) = self
-        //     .submit_commitment(last_finalized_height, last_used_l1_height)
-        //     .await
-        // {
-        //     error!("Sequencer error: {}", e);
-        // }
-
         // Setup required workers to update our knowledge of the DA layer every 2 seconds.
         let (da_height_update_tx, mut da_height_update_rx) = mpsc::channel(1);
         let (da_commitment_tx, mut da_commitment_rx) = unbounded::<u64>();
