@@ -1274,7 +1274,7 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
     .await;
 
     // prover should have synced all 4 l2 blocks
-    wait_until_eth_block_number(&prover_node_test_client, 4).await;
+    wait_for_l2_block(&prover_node_test_client, 4, None).await;
     assert_eq!(prover_node_test_client.eth_block_number().await, 4);
 
     seq_test_client.send_publish_batch_request().await;
@@ -2881,16 +2881,4 @@ async fn test_all_flow() {
     seq_task.abort();
     prover_node_task.abort();
     full_node_task.abort();
-}
-
-async fn wait_until_eth_block_number(
-    prover_node_test_client: &TestClient,
-    target_block_number: u64,
-) {
-    loop {
-        if prover_node_test_client.eth_block_number().await == target_block_number {
-            break;
-        }
-        sleep(Duration::from_secs(1)).await;
-    }
 }
