@@ -295,19 +295,28 @@ where
                 (Ok(()), mut batch_workspace) => {
                     // if there's going to be system txs somewhere other than the beginning of the block
                     // TODO: Handle system txs gas usage in the middle and end of the block
+                    //
                     // Since we have multiple iterations, we only want to account for
                     // system transactions once in the block's gas limit.
-                    let cumulative_gas_used = if selected_transactions.is_empty() {
-                        self.db_provider
+                    // On the first iteration, we don't have any selected transactions and therefore
+                    // we use the system txs gas_used as cumulative gas used.
+                    // On the next iteration, we need cumulative gas used to start where
+                    // we left off from the previous iteration.
+                    // Example:
+                    // 1st iteration, starting gas limit is 0 and selected transactions consumed 10M.
+                    // 2nd iteration, we are looking for 5M more to fill the whole block, so we start
+                    // at 10M and fill until 15M.
+                    let mut starting_gas_used = prev_cumulative_gas_used;
+                    if selected_transactions.is_empty() {
+                        starting_gas_used += self
+                            .db_provider
                             .evm
-                            .get_pending_txs_cumulative_gas_used(&mut batch_workspace)
-                    } else {
-                        0
-                    };
+                            .get_pending_txs_cumulative_gas_used(&mut batch_workspace);
+                    }
 
                     let new_transactions_batch = match l2_block_mode {
                         L2BlockMode::Empty => vec![],
-                        L2BlockMode::NotEmpty => self.get_best_transactions(cumulative_gas_used)?,
+                        L2BlockMode::NotEmpty => self.get_best_transactions(starting_gas_used)?,
                     };
                     selected_transactions.extend(new_transactions_batch);
 
