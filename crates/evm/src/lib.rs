@@ -59,8 +59,8 @@ impl PendingTransaction {
     }
 
     /// Returns the cumulative gas used for this transaction
-    pub fn cumulative_gas_used(&self) -> u64 {
-        self.receipt.receipt.cumulative_gas_used
+    pub fn gas_used(&self) -> u64 {
+        self.receipt.gas_used
     }
 }
 

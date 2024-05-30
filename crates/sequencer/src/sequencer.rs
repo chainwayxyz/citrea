@@ -363,7 +363,7 @@ where
                     // Check if we have more transactions we can fit into this block.
                     let cumulative_gas_used = applied_transactions
                         .iter()
-                        .fold(0u64, |acc, tx| acc + tx.cumulative_gas_used());
+                        .fold(0u64, |acc, tx| acc + tx.gas_used());
                     // Keep filing transactions until we fill at least half the block with transactions.
                     if cumulative_gas_used > prev_cumulative_gas_used
                         && (cumulative_gas_used as f64) < (block_gas_limit as f64 * 0.5)
