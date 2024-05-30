@@ -129,8 +129,4 @@ impl<C: sov_modules_api::Context> CitreaMempool<C> {
         self.0
             .best_transactions_with_attributes(best_transactions_attributes)
     }
-
-    pub(crate) fn is_empty(&self) -> bool {
-        self.0.is_empty()
-    }
 }

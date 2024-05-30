@@ -282,6 +282,7 @@ where
         // into account instead of the gas limit specified by the transaction to prevent
         // transactions from reserving the whole block's gas limit.
         let mut selected_transactions = vec![];
+        let mut prev_cumulative_gas_used: u64 = 0;
         loop {
             match self.stf.begin_soft_batch(
                 &pub_key,
@@ -364,9 +365,10 @@ where
                         .iter()
                         .fold(0u64, |acc, tx| acc + tx.cumulative_gas_used());
                     // Keep filing transactions until we fill at least half the block with transactions.
-                    if !self.mempool.is_empty()
-                        && (cumulative_gas_used as f64) / (block_gas_limit as f64) < 0.5
+                    if cumulative_gas_used > prev_cumulative_gas_used
+                        && (cumulative_gas_used as f64) < (block_gas_limit as f64 * 0.5)
                     {
+                        prev_cumulative_gas_used = cumulative_gas_used;
                         continue;
                     }
 
