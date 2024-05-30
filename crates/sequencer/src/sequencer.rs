@@ -282,17 +282,18 @@ where
         // into account instead of the gas limit specified by the transaction to prevent
         // transactions from reserving the whole block's gas limit.
         let mut selected_transactions = vec![];
+        let mut selected_rlp_transactions = vec![];
         let mut prev_cumulative_gas_used: u64 = 0;
-        loop {
-            match self.stf.begin_soft_batch(
-                &pub_key,
-                &self.state_root,
-                prestate.clone(),
-                Default::default(),
-                da_block.header(),
-                &mut signed_batch,
-            ) {
-                (Ok(()), mut batch_workspace) => {
+        match self.stf.begin_soft_batch(
+            &pub_key,
+            &self.state_root,
+            prestate.clone(),
+            Default::default(),
+            da_block.header(),
+            &mut signed_batch,
+        ) {
+            (Ok(()), mut batch_workspace) => {
+                loop {
                     // if there's going to be system txs somewhere other than the beginning of the block
                     // TODO: Handle system txs gas usage in the middle and end of the block
                     //
@@ -318,9 +319,8 @@ where
                         L2BlockMode::Empty => vec![],
                         L2BlockMode::NotEmpty => self.get_best_transactions(starting_gas_used)?,
                     };
-                    selected_transactions.extend(new_transactions_batch);
 
-                    let rlp_txs: Vec<RlpEvmTransaction> = selected_transactions
+                    let rlp_txs: Vec<RlpEvmTransaction> = new_transactions_batch
                         .iter()
                         .map(|tx| {
                             tx.to_recovered_transaction()
@@ -331,7 +331,10 @@ where
                         .map(|rlp| RlpEvmTransaction { rlp })
                         .collect();
 
-                    let rlp_txs_len = rlp_txs.len();
+                    selected_transactions.extend(new_transactions_batch);
+                    selected_rlp_transactions.extend(rlp_txs.clone());
+
+                    let rlp_txs_len = selected_rlp_transactions.len();
                     let call_txs = CallMessage { txs: rlp_txs };
                     let raw_message =
                         <Runtime<C, Da::Spec> as EncodeCall<citrea_evm::Evm<C>>>::encode_call(
@@ -340,8 +343,10 @@ where
                     let signed_blob = self.make_blob(raw_message)?;
                     let txs = vec![signed_blob.clone()];
 
-                    let (mut batch_workspace, tx_receipts) =
+                    let (batch_workspace_updated, tx_receipts) =
                         self.stf.apply_soft_batch_txs(txs.clone(), batch_workspace);
+
+                    batch_workspace = batch_workspace_updated;
 
                     // create the unsigned batch with the txs then sign th sc
                     let unsigned_batch = UnsignedSoftConfirmationBatch::new(
@@ -375,6 +380,7 @@ where
                         && (cumulative_gas_used as f64) < (block_gas_limit as f64 * 0.5)
                     {
                         prev_cumulative_gas_used = cumulative_gas_used;
+
                         continue;
                     }
 
@@ -488,21 +494,21 @@ where
                         SlotNumber(da_block.header().height()),
                         BatchNumber(l2_height),
                     )?;
-                }
-                (Err(err), batch_workspace) => {
-                    warn!(
-                        "Failed to apply soft confirmation hook: {:?} \n reverting batch workspace",
-                        err
-                    );
-                    batch_workspace.revert();
-                    return Err(anyhow!(
-                        "Failed to apply begin soft confirmation hook: {:?}",
-                        err
-                    ));
+
+                    break;
                 }
             }
-
-            break;
+            (Err(err), batch_workspace) => {
+                warn!(
+                    "Failed to apply soft confirmation hook: {:?} \n reverting batch workspace",
+                    err
+                );
+                batch_workspace.revert();
+                return Err(anyhow!(
+                    "Failed to apply begin soft confirmation hook: {:?}",
+                    err
+                ));
+            }
         }
         Ok(())
     }

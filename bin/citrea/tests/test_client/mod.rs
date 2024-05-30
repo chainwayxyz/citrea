@@ -47,7 +47,7 @@ impl TestClient {
             .unwrap();
 
         let http_client = HttpClientBuilder::default()
-            .request_timeout(Duration::from_secs(120))
+            .request_timeout(Duration::from_secs(60))
             .build(host)
             .unwrap();
 
