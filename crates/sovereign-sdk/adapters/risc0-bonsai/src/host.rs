@@ -9,7 +9,7 @@ use bonsai_sdk::alpha as bonsai_sdk;
 use risc0_zkvm::serde::to_vec;
 use risc0_zkvm::sha::Digest;
 use risc0_zkvm::{
-    compute_image_id, CompactReceipt, ExecutorEnvBuilder, ExecutorImpl, InnerReceipt, Journal,
+    compute_image_id, ExecutorEnvBuilder, ExecutorImpl, Groth16Receipt, InnerReceipt, Journal,
     Receipt,
 };
 use serde::de::DeserializeOwned;
@@ -460,16 +460,19 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
 
                         // now we convert the snark_receipt to a full receipt
 
+                        use risc0_zkvm::sha::Digestible;
+                        let inner = InnerReceipt::Groth16(Groth16Receipt::new(
+                            snark_receipt.snark.to_vec(),
+                            receipt.claim().expect("stark_2_snark error, receipt claim"),
+                            risc0_zkvm::Groth16ReceiptVerifierParameters::default().digest(), // FIXME
+                        ));
+
                         let full_snark_receipt = Receipt {
-                            inner: InnerReceipt::Compact(CompactReceipt {
-                                seal: snark_receipt.snark.to_vec(),
-                                claim: receipt
-                                    .get_claim()
-                                    .expect("stark_2_snark error, receipt claim"),
-                            }),
+                            inner,
                             journal: risc0_zkvm::Journal {
                                 bytes: snark_receipt.journal,
                             },
+                            metadata: receipt.metadata,
                         };
 
                         tracing::info!("Full snark proof!: {full_snark_receipt:?}");

@@ -118,12 +118,13 @@ tokio = { version = "1", features = ["full"] }
 num_cpus = "1.0"
 
 # Risc0 dependencies
-risc0-zkvm = { version = "0.21", default-features = false }
-risc0-zkvm-platform = { version = "0.21" }
-risc0-zkp = "0.21"
-risc0-circuit-rv32im = "0.21"
-risc0-build = "0.21"
-bonsai-sdk = "0.7.0"
+risc0-zkvm = { version = "1.0.0", default-features = false }
+risc0-zkvm-platform = { version = "1.0.0" }
+risc0-zkp = { version = "1.0.0" }
+risc0-circuit-rv32im = { version = "1.0.0" }
+risc0-build = { version = "1.0.0" }
+bonsai-sdk = { version = "0.8.0" }
+
 
 # EVM dependencies
 ethereum-types = "0.14.1"
