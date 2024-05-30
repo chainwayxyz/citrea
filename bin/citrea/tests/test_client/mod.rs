@@ -46,7 +46,10 @@ impl TestClient {
             .await
             .unwrap();
 
-        let http_client = HttpClientBuilder::default().build(host).unwrap();
+        let http_client = HttpClientBuilder::default()
+            .request_timeout(Duration::from_secs(120))
+            .build(host)
+            .unwrap();
 
         let client = Self {
             chain_id,
