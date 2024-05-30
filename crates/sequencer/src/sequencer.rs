@@ -364,7 +364,9 @@ where
                         .iter()
                         .fold(0u64, |acc, tx| acc + tx.cumulative_gas_used());
                     // Keep filing transactions until we fill at least half the block with transactions.
-                    if (cumulative_gas_used as f64) / (block_gas_limit as f64) < 0.5 {
+                    if !self.mempool.is_empty()
+                        && (cumulative_gas_used as f64) / (block_gas_limit as f64) < 0.5
+                    {
                         continue;
                     }
 
