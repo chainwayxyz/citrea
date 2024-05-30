@@ -472,8 +472,9 @@ async fn test_gas_limit_too_high() {
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
     let target_gas_limit = 15_000_000;
-    let transfer_gas_limit = 650_000;
-    let tx_count = target_gas_limit / transfer_gas_limit;
+    let transfer_gas_limit = 21_000;
+    let system_txs_gas_used = 415_811;
+    let tx_count = (target_gas_limit - system_txs_gas_used) / transfer_gas_limit;
 
     let seq_task = tokio::spawn(async move {
         start_rollup(
@@ -491,7 +492,7 @@ async fn test_gas_limit_too_high() {
                 private_key: TEST_PRIVATE_KEY.to_string(),
                 min_soft_confirmations_per_commitment: 1000,
                 test_mode: true,
-                deposit_mempool_fetch_limit: DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
+                deposit_mempool_fetch_limit: 100,
                 mempool_conf: SequencerMempoolConfig {
                     // Set the max number of txs per user account
                     // to be higher than the number of transactions
@@ -502,7 +503,7 @@ async fn test_gas_limit_too_high() {
                 db_config: Default::default(),
             }),
             Some(true),
-            DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
+            100,
         )
         .await;
     });
