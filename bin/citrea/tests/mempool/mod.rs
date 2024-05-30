@@ -107,7 +107,7 @@ async fn test_nonce_too_low() {
 /// but shouldn't be received by the sequencer (so it doesn't end up in the block)
 #[tokio::test]
 async fn test_nonce_too_high() {
-    citrea::initialize_logging();
+    // citrea::initialize_logging();
 
     let db_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = db_dir.path().join("DA").to_path_buf();
@@ -463,7 +463,7 @@ async fn test_same_nonce_tx_replacement() {
 /// whole blocks on their own.
 #[tokio::test]
 async fn test_gas_limit_too_high() {
-    citrea::initialize_logging();
+    // citrea::initialize_logging();
 
     let db_dir = tempdir_with_children(&["DA", "sequencer"]);
     let da_db_dir = db_dir.path().join("DA").to_path_buf();
