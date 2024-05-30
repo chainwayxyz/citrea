@@ -57,7 +57,7 @@ pub struct RlpEvmTransaction {
 }
 
 #[derive(Debug, PartialEq, Clone, serde::Serialize, serde::Deserialize)]
-pub(crate) struct TransactionSignedAndRecovered {
+pub struct TransactionSignedAndRecovered {
     /// Signer of the transaction
     pub(crate) signer: Address,
     /// Signed transaction
@@ -108,7 +108,7 @@ pub(crate) struct SealedBlock {
 }
 
 #[derive(Debug, PartialEq, Clone, serde::Serialize, serde::Deserialize)]
-pub(crate) struct Receipt {
+pub struct Receipt {
     pub(crate) receipt: reth_primitives::Receipt,
     pub(crate) gas_used: u64,
     pub(crate) log_index_start: u64,
