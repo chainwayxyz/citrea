@@ -8,7 +8,7 @@ describe("RpcTests", function() {
     //Makes an initial tx to test for later, used to prevent waiting for a block to mine in each such test
     before(async function() {
         this.timeout(0);
-        let tx = await generateTransaction('1');
+        let tx = await generateTransaction('0.01');
         let signer = new ethers.Wallet('0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80', provider);
         tx = await signer.signTransaction(tx);
         let tx_response = await provider.broadcastTransaction(tx);
@@ -101,7 +101,7 @@ describe("RpcTests", function() {
 
     it("broadcastTransaction publishes a txn and it gets mined", async function() {
         this.timeout(0);
-        let tx = await generateTransaction('1');
+        let tx = await generateTransaction('0.01');
         let signer = new ethers.Wallet('0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80', provider);
         tx = await signer.signTransaction(tx);
         let tx_response = await provider.broadcastTransaction(tx);
