@@ -1,6 +1,5 @@
 use std::path::PathBuf;
 use std::str::FromStr;
-use std::time::Duration;
 
 use citrea_sequencer::{SequencerConfig, SequencerMempoolConfig};
 use citrea_stf::genesis_config::GenesisPaths;
@@ -9,7 +8,6 @@ use ethers_signers::{LocalWallet, Signer};
 use reth_primitives::BlockNumberOrTag;
 use rollup_constants::TEST_PRIVATE_KEY;
 use tokio::task::JoinHandle;
-use tokio::time::sleep;
 
 use crate::evm::make_test_client;
 use crate::test_client::{TestClient, MAX_FEE_PER_GAS};
