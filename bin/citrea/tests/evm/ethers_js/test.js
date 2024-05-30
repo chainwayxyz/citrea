@@ -65,7 +65,7 @@ describe("RpcTests", function() {
         const contract = new ethers.Contract(contractAddress, abi, wallet);
         const bitcoinAddress = ethers.encodeBytes32String('bc1qa0a0a0a0a0a0a0a0a0a0a0a0');
 
-        let gasEstimate = await contract.withdraw.estimateGas(bitcoinAddress, {value: ethers.parseEther('1')});
+        let gasEstimate = await contract.withdraw.estimateGas(bitcoinAddress, {value: ethers.parseEther('0.01')});
         expect(gasEstimate > 0n).to.be.true;
     });
 
