@@ -530,10 +530,10 @@ async fn test_gas_limit_too_high() {
         .await;
 
     // assert the block contains all txs apart from the last 5
-    for (i, tx_hash) in tx_hashes[0..tx_hashes.len() - 5].iter().enumerate() {
+    for tx_hash in tx_hashes[0..tx_hashes.len() - 5].iter() {
         assert!(block.transactions.contains(&tx_hash.tx_hash()));
     }
-    for (i, tx_hash) in tx_hashes[tx_hashes.len() - 5..].iter().enumerate() {
+    for tx_hash in tx_hashes[tx_hashes.len() - 5..].iter() {
         assert!(!block.transactions.contains(&tx_hash.tx_hash()));
     }
     seq_task.abort();
