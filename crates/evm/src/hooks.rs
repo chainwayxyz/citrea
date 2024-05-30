@@ -253,8 +253,6 @@ where
 
             tx_index += 1
         }
-
-        self.pending_transactions.clear(working_set);
     }
 
     /// This logic is executed after calculating the root hash.
