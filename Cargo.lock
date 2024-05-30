@@ -4700,8 +4700,7 @@ dependencies = [
 [[package]]
 name = "k256"
 version = "0.13.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "956ff9b67e26e1a6a866cb758f12c6f8746208489e3e4a4b5580802f2f0a587b"
+source = "git+https://github.com/risc0/RustCrypto-elliptic-curves?tag=k256/v0.13.3-risczero.0#d4f457a04410397cbb652a67c168b6cd6e9757c4"
 dependencies = [
  "cfg-if",
  "ecdsa",
@@ -8393,8 +8392,7 @@ dependencies = [
 [[package]]
 name = "secp256k1"
 version = "0.27.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "25996b82292a7a57ed3508f052cfff8640d38d32018784acd714758b43da9c8f"
+source = "git+https://github.com/Sovereign-Labs/rust-secp256k1.git?branch=risc0-compatible-0-27-0#5f425f1223cfc7cd0cee61335268629659dc6007"
 dependencies = [
  "rand 0.8.5",
  "secp256k1-sys 0.8.1",
@@ -8404,8 +8402,7 @@ dependencies = [
 [[package]]
 name = "secp256k1"
 version = "0.28.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d24b59d129cdadea20aea4fb2352fa053712e5d713eee47d700cd4b2bc002f10"
+source = "git+https://github.com/Sovereign-Labs/rust-secp256k1.git?branch=risc0-compatible-0-28-2#c921ac680bc998c738d83adac4c916eb4b191094"
 dependencies = [
  "bitcoin_hashes",
  "rand 0.8.5",
@@ -8416,8 +8413,7 @@ dependencies = [
 [[package]]
 name = "secp256k1-sys"
 version = "0.8.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "70a129b9e9efbfb223753b9163c4ab3b13cff7fd9c7f010fbac25ab4099fa07e"
+source = "git+https://github.com/Sovereign-Labs/rust-secp256k1.git?branch=risc0-compatible-0-27-0#5f425f1223cfc7cd0cee61335268629659dc6007"
 dependencies = [
  "cc",
 ]
@@ -8425,8 +8421,7 @@ dependencies = [
 [[package]]
 name = "secp256k1-sys"
 version = "0.9.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e5d1746aae42c19d583c3c1a8c646bfad910498e2051c551a7f2e3c0c9fbb7eb"
+source = "git+https://github.com/Sovereign-Labs/rust-secp256k1.git?branch=risc0-compatible-0-28-2#c921ac680bc998c738d83adac4c916eb4b191094"
 dependencies = [
  "cc",
 ]
@@ -8664,8 +8659,7 @@ dependencies = [
 [[package]]
 name = "sha2"
 version = "0.10.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "793db75ad2bcafc3ffa7c68b215fee268f537982cd901d132f89c6343f3a3dc8"
+source = "git+https://github.com/risc0/RustCrypto-hashes?tag=sha2-v0.10.8-risczero.0#244dc3b08788f7a4ccce14c66896ae3b4f24c166"
 dependencies = [
  "cfg-if",
  "cpufeatures",
