@@ -1,10 +1,12 @@
 use std::path::PathBuf;
 use std::str::FromStr;
 
+use citrea_sequencer::{SequencerConfig, SequencerMempoolConfig};
 use citrea_stf::genesis_config::GenesisPaths;
 use ethers::abi::Address;
 use ethers_signers::{LocalWallet, Signer};
 use reth_primitives::BlockNumberOrTag;
+use rollup_constants::TEST_PRIVATE_KEY;
 use tokio::task::JoinHandle;
 
 use crate::evm::make_test_client;
@@ -105,7 +107,7 @@ async fn test_nonce_too_low() {
 /// but shouldn't be received by the sequencer (so it doesn't end up in the block)
 #[tokio::test]
 async fn test_nonce_too_high() {
-    // citrea::initialize_logging();
+    citrea::initialize_logging();
 
     let db_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = db_dir.path().join("DA").to_path_buf();
@@ -453,5 +455,86 @@ async fn test_same_nonce_tx_replacement() {
     assert!(!block.transactions.contains(&tx_hash_25_bump.tx_hash()));
     assert!(block.transactions.contains(&tx_hash_ultra_bump.tx_hash()));
 
+    seq_task.abort();
+}
+
+/// Transactions with a high gas limit should be accounted for by using
+/// their actual cumulative gas consumption to prevent them from reserving
+/// whole blocks on their own.
+#[tokio::test]
+async fn test_gas_limit_too_high() {
+    citrea::initialize_logging();
+
+    let db_dir = tempdir_with_children(&["DA", "sequencer"]);
+    let da_db_dir = db_dir.path().join("DA").to_path_buf();
+    let sequencer_db_dir = db_dir.path().join("sequencer").to_path_buf();
+
+    let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
+
+    let target_gas_limit = 15_000_000;
+    let transfer_gas_limit = 650_000;
+    let tx_count = target_gas_limit / transfer_gas_limit;
+
+    let seq_task = tokio::spawn(async move {
+        start_rollup(
+            seq_port_tx,
+            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
+            None,
+            NodeMode::SequencerNode,
+            sequencer_db_dir,
+            da_db_dir,
+            DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
+            true,
+            None,
+            // Increase max account slots to not stuck as spammer
+            Some(SequencerConfig {
+                private_key: TEST_PRIVATE_KEY.to_string(),
+                min_soft_confirmations_per_commitment: 1000,
+                test_mode: true,
+                deposit_mempool_fetch_limit: DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
+                mempool_conf: SequencerMempoolConfig {
+                    // Set the max number of txs per user account
+                    // to be higher than the number of transactions
+                    // we want to send.
+                    max_account_slots: tx_count * 2,
+                    ..Default::default()
+                },
+                db_config: Default::default(),
+            }),
+            Some(true),
+            DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
+        )
+        .await;
+    });
+
+    let seq_port = seq_port_rx.await.unwrap();
+    let test_client = make_test_client(seq_port).await;
+
+    let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
+
+    let mut tx_hashes = vec![];
+    // Loop until tx_count (inclusive).
+    // This means that we are going to have 5 transactions which have not bee included.
+    for _ in 0..=tx_count + 4 {
+        let tx_hash = test_client
+            .send_eth_with_gas(addr, None, None, 10_000_000, 0u128)
+            .await
+            .unwrap();
+        tx_hashes.push(tx_hash);
+    }
+
+    test_client.send_publish_batch_request().await;
+
+    let block = test_client
+        .eth_get_block_by_number(Some(BlockNumberOrTag::Latest))
+        .await;
+
+    // assert the block contains all txs apart from the last 5
+    for (i, tx_hash) in tx_hashes[0..tx_hashes.len() - 5].iter().enumerate() {
+        assert!(block.transactions.contains(&tx_hash.tx_hash()));
+    }
+    for (i, tx_hash) in tx_hashes[tx_hashes.len() - 5..].iter().enumerate() {
+        assert!(!block.transactions.contains(&tx_hash.tx_hash()));
+    }
     seq_task.abort();
 }
