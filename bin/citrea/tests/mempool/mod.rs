@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 use std::str::FromStr;
+use std::time::Duration;
 
 use citrea_sequencer::{SequencerConfig, SequencerMempoolConfig};
 use citrea_stf::genesis_config::GenesisPaths;
@@ -8,6 +9,7 @@ use ethers_signers::{LocalWallet, Signer};
 use reth_primitives::BlockNumberOrTag;
 use rollup_constants::TEST_PRIVATE_KEY;
 use tokio::task::JoinHandle;
+use tokio::time::sleep;
 
 use crate::evm::make_test_client;
 use crate::test_client::{TestClient, MAX_FEE_PER_GAS};
@@ -471,10 +473,10 @@ async fn test_gas_limit_too_high() {
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
-    let target_gas_limit = 15_000_000;
+    let target_gas_limit: u64 = 15_000_000;
     let transfer_gas_limit = 21_000;
     let system_txs_gas_used = 415_811;
-    let tx_count = (target_gas_limit - system_txs_gas_used) / transfer_gas_limit;
+    let tx_count = (target_gas_limit - system_txs_gas_used).div_ceil(transfer_gas_limit);
 
     let seq_task = tokio::spawn(async move {
         start_rollup(

@@ -331,10 +331,7 @@ where
                         .map(|rlp| RlpEvmTransaction { rlp })
                         .collect();
 
-                    debug!(
-                        "Sequencer: publishing block with {} transactions",
-                        rlp_txs.len()
-                    );
+                    let rlp_txs_len = rlp_txs.len();
                     let call_txs = CallMessage { txs: rlp_txs };
                     let raw_message =
                         <Runtime<C, Da::Spec> as EncodeCall<citrea_evm::Evm<C>>>::encode_call(
@@ -380,6 +377,11 @@ where
                         prev_cumulative_gas_used = cumulative_gas_used;
                         continue;
                     }
+
+                    debug!(
+                        "Sequencer: publishing block with {} transactions",
+                        rlp_txs_len
+                    );
 
                     // After applying transactions, remove them from the mempool.
                     // This is to select a new list of transactions to fill the whole block.
