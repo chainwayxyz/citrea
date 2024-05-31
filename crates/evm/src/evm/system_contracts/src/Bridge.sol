@@ -30,7 +30,7 @@ contract Bridge is Ownable {
     address public constant SYSTEM_CALLER = address(0xdeaDDeADDEaDdeaDdEAddEADDEAdDeadDEADDEaD);
 
     bool public initialized;
-    uint256 public constant DEPOSIT_AMOUNT = 1 ether;
+    uint256 public constant DEPOSIT_AMOUNT = 0.01 ether;
     address public operator;
     uint256 public requiredSigsCount;
     bytes public depositScript;

@@ -19,7 +19,7 @@ contract BridgeHarness is Bridge {
 }
 
 contract BridgeTest is Test {
-    uint256 constant DEPOSIT_AMOUNT = 1 ether;
+    uint256 constant DEPOSIT_AMOUNT = 0.01 ether;
     BridgeHarness public bridge;
     bytes2 flag = hex"0001";
     bytes4 version = hex"02000000";
@@ -91,13 +91,13 @@ contract BridgeTest is Test {
 
     function testBatchWithdraw() public {
         vm.startPrank(user);
-        vm.deal(address(user), 10 ether);
+        vm.deal(address(user), 0.1 ether);
         bytes32[] memory btc_addresses = new bytes32[](10);
         for (uint i = 0; i < 10; i++) {
             btc_addresses[i] = bytes32(abi.encodePacked(i));
         }
         
-        bridge.batchWithdraw{value: 10 ether}(btc_addresses);
+        bridge.batchWithdraw{value: 0.1 ether}(btc_addresses);
         
 
         for (uint i = 0; i < 10; i++) {
