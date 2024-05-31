@@ -2874,3 +2874,120 @@ async fn test_all_flow() {
     prover_node_task.abort();
     full_node_task.abort();
 }
+
+/// Transactions with a high gas limit should be accounted for by using
+/// their actual cumulative gas consumption to prevent them from reserving
+/// whole blocks on their own.
+#[tokio::test]
+async fn test_gas_limit_too_high() {
+    // citrea::initialize_logging();
+
+    let db_dir: tempfile::TempDir = tempdir_with_children(&["DA", "sequencer"]);
+    let da_db_dir = db_dir.path().join("DA").to_path_buf();
+    let sequencer_db_dir = db_dir.path().join("sequencer").to_path_buf();
+    let full_node_db_dir = db_dir.path().join("full-node").to_path_buf();
+
+    let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
+
+    let target_gas_limit: u64 = 30_000_000;
+    let transfer_gas_limit = 21_000;
+    let system_txs_gas_used = 415_811;
+    let tx_count = (target_gas_limit - system_txs_gas_used).div_ceil(transfer_gas_limit);
+    let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
+
+    let seq_da_dir = da_db_dir.clone();
+    let seq_task = tokio::spawn(async move {
+        start_rollup(
+            seq_port_tx,
+            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
+            None,
+            NodeMode::SequencerNode,
+            sequencer_db_dir,
+            seq_da_dir,
+            DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
+            true,
+            None,
+            // Increase max account slots to not stuck as spammer
+            Some(SequencerConfig {
+                private_key: TEST_PRIVATE_KEY.to_string(),
+                min_soft_confirmations_per_commitment: 1000,
+                test_mode: true,
+                deposit_mempool_fetch_limit: 100,
+                mempool_conf: SequencerMempoolConfig {
+                    // Set the max number of txs per user account
+                    // to be higher than the number of transactions
+                    // we want to send.
+                    max_account_slots: tx_count * 2,
+                    ..Default::default()
+                },
+                db_config: Default::default(),
+            }),
+            Some(true),
+            100,
+        )
+        .await;
+    });
+
+    let seq_port = seq_port_rx.await.unwrap();
+    let seq_test_client = make_test_client(seq_port.clone()).await;
+
+    let (full_node_port_tx, full_node_port_rx) = tokio::sync::oneshot::channel();
+
+    let full_node_da_dir = da_db_dir.clone();
+    let full_node_task = tokio::spawn(async move {
+        start_rollup(
+            full_node_port_tx,
+            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
+            None,
+            NodeMode::FullNode(seq_port),
+            full_node_db_dir,
+            full_node_da_dir,
+            1000,
+            true,
+            None,
+            None,
+            Some(true),
+            100,
+        )
+        .await;
+    });
+
+    let full_node_port = full_node_port_rx.await.unwrap();
+    let full_node_test_client = make_test_client(full_node_port).await;
+
+    let mut tx_hashes = vec![];
+    // Loop until tx_count (inclusive).
+    // This means that we are going to have 5 transactions which have not bee included.
+    for _ in 0..tx_count + 4 {
+        let tx_hash = seq_test_client
+            .send_eth_with_gas(addr, None, None, 10_000_000, 0u128)
+            .await
+            .unwrap();
+        tx_hashes.push(tx_hash);
+    }
+
+    seq_test_client.send_publish_batch_request().await;
+
+    let block = full_node_test_client
+        .eth_get_block_by_number(Some(BlockNumberOrTag::Latest))
+        .await;
+
+    tracing::error!("Block: {:?}", block);
+
+    // assert the block contains all txs apart from the last 5
+    for tx_hash in tx_hashes[0..tx_hashes.len() - 5].iter() {
+        assert!(block.transactions.contains(&tx_hash.tx_hash()));
+    }
+    for tx_hash in tx_hashes[tx_hashes.len() - 5..].iter() {
+        assert!(!block.transactions.contains(&tx_hash.tx_hash()));
+    }
+
+    let block_from_sequencer = seq_test_client
+        .eth_get_block_by_number(Some(BlockNumberOrTag::Latest))
+        .await;
+
+    assert_eq!(block_from_sequencer.state_root, block.state_root);
+    assert_eq!(block_from_sequencer.hash, block.hash);
+    seq_task.abort();
+    full_node_task.abort();
+}
