@@ -16,7 +16,10 @@ use futures::StreamExt;
 use jsonrpsee::RpcModule;
 use reth_primitives::{FromRecoveredPooledTransaction, IntoRecoveredTransaction};
 use reth_provider::BlockReaderIdExt;
-use reth_transaction_pool::{BestTransactionsAttributes, EthPooledTransaction, PoolTransaction};
+use reth_transaction_pool::{
+    BestTransactions, BestTransactionsAttributes, EthPooledTransaction, PoolTransaction,
+    ValidPoolTransaction,
+};
 use shared_backup_db::{CommitmentStatus, PostgresConnector};
 use soft_confirmation_rule_enforcer::SoftConfirmationRuleEnforcer;
 use sov_accounts::Accounts;
@@ -273,6 +276,8 @@ where
 
         let pub_key = signed_batch.pub_key().clone();
 
+        let evm_txs_iter = self.get_best_transactions()?;
+
         match self.stf.begin_soft_batch(
             &pub_key,
             &self.state_root,
@@ -289,141 +294,212 @@ where
                     .evm
                     .get_pending_txs_cumulative_gas_used(&mut batch_workspace);
 
-                let rlp_txs = match l2_block_mode {
-                    L2BlockMode::Empty => vec![],
-                    L2BlockMode::NotEmpty => self.get_best_transactions(system_tx_gas_usage)?,
-                };
-                debug!(
-                    "Sequencer: publishing block with {} transactions",
-                    rlp_txs.len()
-                );
-                let call_txs = CallMessage { txs: rlp_txs };
-                let raw_message =
-                    <Runtime<C, Da::Spec> as EncodeCall<citrea_evm::Evm<C>>>::encode_call(call_txs);
-                let signed_blob = self.make_blob(raw_message)?;
-                let txs = vec![signed_blob.clone()];
+                let mut working_set_to_discard = batch_workspace.checkpoint().to_revertable();
 
-                let (batch_workspace, tx_receipts) =
-                    self.stf.apply_soft_batch_txs(txs.clone(), batch_workspace);
-
-                // create the unsigned batch with the txs then sign th sc
-                let unsigned_batch = UnsignedSoftConfirmationBatch::new(
-                    da_block.header().height(),
-                    da_block.header().hash().into(),
-                    da_block.header().txs_commitment().into(),
-                    self.state_root.clone().as_ref().to_vec(),
-                    txs,
-                    deposit_data.clone(),
-                    l1_fee_rate,
-                    timestamp,
-                );
-
-                let mut signed_soft_batch = self.sign_soft_confirmation_batch(unsigned_batch)?;
-
-                let (batch_receipt, checkpoint) = self.stf.end_soft_batch(
-                    self.sequencer_pub_key.as_ref(),
-                    &mut signed_soft_batch,
-                    tx_receipts,
-                    batch_workspace,
-                );
-
-                // before finalize we can get tx hashes that failed due to L1 fees.
                 let evm = Evm::<C>::default();
 
-                // nasty hack to access state
-                let mut intermediary_working_set = checkpoint.to_revertable();
+                // while cumulative_gas_used <= 30_000_000 - 21000 {
+                let (txs_to_run, l1_fee_failed_txs) =
+                    if matches!(l2_block_mode, L2BlockMode::NotEmpty) {
+                        let mut all_txs = vec![];
 
-                let l1_fee_failed_txs =
-                    evm.get_l1_fee_failed_txs(&mut intermediary_working_set.accessory_state());
+                        for evm_tx in evm_txs_iter {
+                            let rlp_tx = RlpEvmTransaction {
+                                rlp: evm_tx
+                                    .to_recovered_transaction()
+                                    .into_signed()
+                                    .envelope_encoded()
+                                    .to_vec(),
+                            };
 
-                let checkpoint = intermediary_working_set.checkpoint();
+                            let call_txs = CallMessage {
+                                txs: vec![rlp_tx.clone()],
+                            };
+                            let raw_message = <Runtime<C, Da::Spec> as EncodeCall<
+                                citrea_evm::Evm<C>,
+                            >>::encode_call(call_txs);
+                            let signed_blob =
+                                self.make_blob(raw_message, &mut working_set_to_discard)?;
 
-                // Finalize soft confirmation
-                let slot_result = self.stf.finalize_soft_batch(
-                    batch_receipt,
-                    checkpoint,
-                    prestate,
-                    &mut signed_soft_batch,
-                );
+                            let txs = vec![signed_blob.clone()];
 
-                if slot_result.state_root.as_ref() == self.state_root.as_ref() {
-                    debug!("Limiting number is reached for the current L1 block. State root is the same as before, skipping");
-                    // TODO: Check if below is legit
-                    self.storage_manager
-                        .save_change_set_l2(l2_height, slot_result.change_set)?;
+                            let (batch_workspace, tx_receipts) = self
+                                .stf
+                                .apply_soft_batch_txs(txs.clone(), working_set_to_discard);
 
-                    tracing::debug!("Finalizing l2 height: {:?}", l2_height);
-                    self.storage_manager.finalize_l2(l2_height)?;
-                    return Ok(());
-                }
+                            working_set_to_discard = batch_workspace;
 
-                info!(
-                    "State root after applying slot: {:?}",
-                    slot_result.state_root
-                );
+                            let last_tx =
+                                evm.get_last_pending_transaction(&mut working_set_to_discard);
 
-                let mut data_to_commit = SlotCommit::new(da_block.clone());
-                for receipt in slot_result.batch_receipts {
-                    data_to_commit.add_batch(receipt);
-                }
+                            if let Some(last_tx) = last_tx {
+                                if last_tx.hash() == *evm_tx.hash() {
+                                    all_txs.push(rlp_tx);
+                                }
 
-                // TODO: This will be a single receipt once we have apply_soft_batch.
-                let batch_receipt = data_to_commit.batch_receipts()[0].clone();
-
-                let next_state_root = slot_result.state_root;
-
-                let soft_batch_receipt = SoftBatchReceipt::<_, _, Da::Spec> {
-                    pre_state_root: self.state_root.as_ref().to_vec(),
-                    post_state_root: next_state_root.as_ref().to_vec(),
-                    phantom_data: PhantomData::<u64>,
-                    batch_hash: batch_receipt.batch_hash,
-                    da_slot_hash: da_block.header().hash(),
-                    da_slot_height: da_block.header().height(),
-                    da_slot_txs_commitment: da_block.header().txs_commitment(),
-                    tx_receipts: batch_receipt.tx_receipts,
-                    soft_confirmation_signature: signed_soft_batch.signature().to_vec(),
-                    pub_key: signed_soft_batch.pub_key().to_vec(),
-                    deposit_data,
-                    l1_fee_rate: signed_soft_batch.l1_fee_rate(),
-                    timestamp: signed_soft_batch.timestamp(),
-                };
-
-                // TODO: this will only work for mock da
-                // when https://github.com/Sovereign-Labs/sovereign-sdk/issues/1218
-                // is merged, rpc will access up to date storage then we won't need to finalize rigth away.
-                // however we need much better DA + finalization logic here
-                self.storage_manager
-                    .save_change_set_l2(l2_height, slot_result.change_set)?;
-
-                tracing::debug!("Finalizing l2 height: {:?}", l2_height);
-                self.storage_manager.finalize_l2(l2_height)?;
-
-                self.state_root = next_state_root;
-
-                self.ledger_db.commit_soft_batch(soft_batch_receipt, true)?;
-
-                let mut txs_to_remove = self.db_provider.last_block_tx_hashes()?;
-                txs_to_remove.extend(l1_fee_failed_txs);
-
-                self.mempool.remove_transactions(txs_to_remove.clone());
-
-                if let Some(pg_pool) = pg_pool.clone() {
-                    // TODO: Is this okay? I'm not sure because we have a loop in this and I can't do async in spawn_blocking
-                    tokio::spawn(async move {
-                        let txs = txs_to_remove
-                            .iter()
-                            .map(|tx_hash| tx_hash.to_vec())
-                            .collect::<Vec<Vec<u8>>>();
-                        if let Err(e) = pg_pool.delete_txs_by_tx_hashes(txs).await {
-                            warn!("Failed to remove txs from mempool: {:?}", e);
+                                if last_tx.cumulative_gas_used() >= 30_000_000 - 21000 {
+                                    break;
+                                }
+                            }
                         }
-                    });
+
+                        // before finalize we can get tx hashes that failed due to L1 fees.
+                        // nasty hack to access state
+                        let l1_fee_failed_txs = evm
+                            .get_l1_fee_failed_txs(&mut working_set_to_discard.accessory_state());
+
+                        (all_txs, l1_fee_failed_txs)
+                    } else {
+                        (vec![], vec![])
+                    };
+
+                let prestate = self
+                    .storage_manager
+                    .create_storage_on_l2_height(l2_height)
+                    .map_err(Into::<anyhow::Error>::into)?;
+
+                match self.stf.begin_soft_batch(
+                    &pub_key,
+                    &self.state_root,
+                    prestate.clone(),
+                    Default::default(),
+                    da_block.header(),
+                    &mut signed_batch,
+                ) {
+                    (Ok(()), mut batch_workspace) => {
+                        tracing::error!("we are out of tx selection!");
+
+                        let call_txs = CallMessage { txs: txs_to_run };
+                        let raw_message = <Runtime<C, Da::Spec> as EncodeCall<
+                            citrea_evm::Evm<C>,
+                        >>::encode_call(call_txs);
+                        let signed_blob = self.make_blob(raw_message, &mut batch_workspace)?;
+                        let txs = vec![signed_blob.clone()];
+
+                        let (batch_workspace, tx_receipts) =
+                            self.stf.apply_soft_batch_txs(txs.clone(), batch_workspace);
+
+                        // create the unsigned batch with the txs then sign th sc
+                        let unsigned_batch = UnsignedSoftConfirmationBatch::new(
+                            da_block.header().height(),
+                            da_block.header().hash().into(),
+                            da_block.header().txs_commitment().into(),
+                            self.state_root.clone().as_ref().to_vec(),
+                            txs,
+                            deposit_data.clone(),
+                            l1_fee_rate,
+                            timestamp,
+                        );
+
+                        let mut signed_soft_batch =
+                            self.sign_soft_confirmation_batch(unsigned_batch)?;
+
+                        let (batch_receipt, checkpoint) = self.stf.end_soft_batch(
+                            self.sequencer_pub_key.as_ref(),
+                            &mut signed_soft_batch,
+                            tx_receipts,
+                            batch_workspace,
+                        );
+
+                        // Finalize soft confirmation
+                        let slot_result = self.stf.finalize_soft_batch(
+                            batch_receipt,
+                            checkpoint,
+                            prestate,
+                            &mut signed_soft_batch,
+                        );
+
+                        if slot_result.state_root.as_ref() == self.state_root.as_ref() {
+                            debug!("Limiting number is reached for the current L1 block. State root is the same as before, skipping");
+                            // TODO: Check if below is legit
+                            self.storage_manager
+                                .save_change_set_l2(l2_height, slot_result.change_set)?;
+
+                            tracing::debug!("Finalizing l2 height: {:?}", l2_height);
+                            self.storage_manager.finalize_l2(l2_height)?;
+                            return Ok(());
+                        }
+
+                        info!(
+                            "State root after applying slot: {:?}",
+                            slot_result.state_root
+                        );
+
+                        let mut data_to_commit = SlotCommit::new(da_block.clone());
+                        for receipt in slot_result.batch_receipts {
+                            data_to_commit.add_batch(receipt);
+                        }
+
+                        // TODO: This will be a single receipt once we have apply_soft_batch.
+                        let batch_receipt = data_to_commit.batch_receipts()[0].clone();
+
+                        let next_state_root = slot_result.state_root;
+
+                        let soft_batch_receipt = SoftBatchReceipt::<_, _, Da::Spec> {
+                            pre_state_root: self.state_root.as_ref().to_vec(),
+                            post_state_root: next_state_root.as_ref().to_vec(),
+                            phantom_data: PhantomData::<u64>,
+                            batch_hash: batch_receipt.batch_hash,
+                            da_slot_hash: da_block.header().hash(),
+                            da_slot_height: da_block.header().height(),
+                            da_slot_txs_commitment: da_block.header().txs_commitment(),
+                            tx_receipts: batch_receipt.tx_receipts,
+                            soft_confirmation_signature: signed_soft_batch.signature().to_vec(),
+                            pub_key: signed_soft_batch.pub_key().to_vec(),
+                            deposit_data,
+                            l1_fee_rate: signed_soft_batch.l1_fee_rate(),
+                            timestamp: signed_soft_batch.timestamp(),
+                        };
+
+                        // TODO: this will only work for mock da
+                        // when https://github.com/Sovereign-Labs/sovereign-sdk/issues/1218
+                        // is merged, rpc will access up to date storage then we won't need to finalize rigth away.
+                        // however we need much better DA + finalization logic here
+                        self.storage_manager
+                            .save_change_set_l2(l2_height, slot_result.change_set)?;
+
+                        tracing::debug!("Finalizing l2 height: {:?}", l2_height);
+                        self.storage_manager.finalize_l2(l2_height)?;
+
+                        self.state_root = next_state_root;
+
+                        self.ledger_db.commit_soft_batch(soft_batch_receipt, true)?;
+
+                        let mut txs_to_remove = self.db_provider.last_block_tx_hashes()?;
+                        txs_to_remove.extend(l1_fee_failed_txs);
+
+                        self.mempool.remove_transactions(txs_to_remove.clone());
+
+                        if let Some(pg_pool) = pg_pool.clone() {
+                            // TODO: Is this okay? I'm not sure because we have a loop in this and I can't do async in spawn_blocking
+                            tokio::spawn(async move {
+                                let txs = txs_to_remove
+                                    .iter()
+                                    .map(|tx_hash| tx_hash.to_vec())
+                                    .collect::<Vec<Vec<u8>>>();
+                                if let Err(e) = pg_pool.delete_txs_by_tx_hashes(txs).await {
+                                    warn!("Failed to remove txs from mempool: {:?}", e);
+                                }
+                            });
+                        }
+                        // connect L1 and L2 height
+                        self.ledger_db.extend_l2_range_of_l1_slot(
+                            SlotNumber(da_block.header().height()),
+                            BatchNumber(l2_height),
+                        )?;
+                    }
+                    (Err(err), batch_workspace) => {
+                        warn!(
+                            "Failed to apply soft confirmation hook: {:?} \n reverting batch workspace",
+                            err
+                        );
+                        batch_workspace.revert();
+                        return Err(anyhow!(
+                            "Failed to apply begin soft confirmation hook: {:?}",
+                            err
+                        ));
+                    }
                 }
-                // connect L1 and L2 height
-                self.ledger_db.extend_l2_range_of_l1_slot(
-                    SlotNumber(da_block.header().height()),
-                    BatchNumber(l2_height),
-                )?;
             }
             (Err(err), batch_workspace) => {
                 warn!(
@@ -695,8 +771,11 @@ where
 
     fn get_best_transactions(
         &self,
-        system_tx_gas_usage: u64,
-    ) -> anyhow::Result<Vec<RlpEvmTransaction>> {
+    ) -> anyhow::Result<
+        std::boxed::Box<
+            dyn BestTransactions<Item = Arc<ValidPoolTransaction<EthPooledTransaction>>>,
+        >,
+    > {
         let cfg = self.db_provider.cfg();
         let latest_header = self
             .db_provider
@@ -712,40 +791,20 @@ where
         let best_txs_with_base_fee = self
             .mempool
             .best_transactions_with_attributes(BestTransactionsAttributes::base_fee(base_fee));
-        // TODO: implement block builder instead of just including every transaction in order
-        let mut cumulative_gas_used = 0;
 
-        // Add the system tx gas usage to the cumulative gas used
-        cumulative_gas_used += system_tx_gas_usage;
-
-        Ok(best_txs_with_base_fee
-            .into_iter()
-            .filter(|tx| {
-                // Don't include transactions that exceed the block gas limit
-                let tx_gas_limit = tx.transaction.gas_limit();
-                let fits_into_block = cumulative_gas_used + tx_gas_limit <= cfg.block_gas_limit;
-                if fits_into_block {
-                    cumulative_gas_used += tx_gas_limit
-                }
-                fits_into_block
-            })
-            .map(|tx| {
-                tx.to_recovered_transaction()
-                    .into_signed()
-                    .envelope_encoded()
-                    .to_vec()
-            })
-            .map(|rlp| RlpEvmTransaction { rlp })
-            .collect::<Vec<RlpEvmTransaction>>())
+        Ok(best_txs_with_base_fee)
     }
 
     /// Signs batch of messages with sovereign priv key turns them into a sov blob
     /// Returns a single sovereign transaction made up of multiple ethereum transactions
-    fn make_blob(&mut self, raw_message: Vec<u8>) -> anyhow::Result<Vec<u8>> {
+    fn make_blob(
+        &mut self,
+        raw_message: Vec<u8>,
+        working_set: &mut WorkingSet<C>,
+    ) -> anyhow::Result<Vec<u8>> {
         // if a batch failed need to refetch nonce
         // so sticking to fetching from state makes sense
-        let nonce = self.get_nonce()?;
-
+        let nonce = self.get_nonce(working_set)?;
         // TODO: figure out what to do with sov-tx fields
         // chain id gas tip and gas limit
 
@@ -784,12 +843,11 @@ where
     }
 
     /// Fetches nonce from state
-    fn get_nonce(&self) -> anyhow::Result<u64> {
+    fn get_nonce(&self, working_set: &mut WorkingSet<C>) -> anyhow::Result<u64> {
         let accounts = Accounts::<C>::default();
-        let mut working_set = WorkingSet::<C>::new(self.storage.clone());
 
         match accounts
-            .get_account(self.sov_tx_signer_priv_key.pub_key(), &mut working_set)
+            .get_account(self.sov_tx_signer_priv_key.pub_key(), working_set)
             .map_err(|e| anyhow!("Sequencer: Failed to get sov-account: {}", e))?
         {
             AccountExists { addr: _, nonce } => Ok(nonce),

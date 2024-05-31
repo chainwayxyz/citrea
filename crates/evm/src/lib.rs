@@ -46,9 +46,22 @@ use crate::evm::system_events::SystemEvent;
 pub use crate::EvmConfig;
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
-pub(crate) struct PendingTransaction {
+/// Pending EVM transaction
+pub struct PendingTransaction {
     pub(crate) transaction: TransactionSignedAndRecovered,
     pub(crate) receipt: Receipt,
+}
+
+impl PendingTransaction {
+    /// Returns the transaction's hash
+    pub fn hash(&self) -> TxHash {
+        self.transaction.signed_transaction.hash
+    }
+
+    /// Returns the cumulative gas used for this transaction
+    pub fn cumulative_gas_used(&self) -> u64 {
+        self.receipt.receipt.cumulative_gas_used
+    }
 }
 
 /// The citrea-evm module provides compatibility with the EVM.
@@ -176,5 +189,13 @@ impl<C: sov_modules_api::Context> Evm<C> {
         accessory_working_set: &mut AccessoryWorkingSet<C>,
     ) -> Vec<TxHash> {
         self.l1_fee_failed_txs.iter(accessory_working_set).collect()
+    }
+
+    /// Returns the list of pending EVM transactions
+    pub fn get_last_pending_transaction(
+        &self,
+        accessory_working_set: &mut WorkingSet<C>,
+    ) -> Option<PendingTransaction> {
+        self.pending_transactions.iter(accessory_working_set).last()
     }
 }
