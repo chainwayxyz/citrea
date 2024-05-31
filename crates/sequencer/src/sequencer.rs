@@ -410,7 +410,7 @@ where
                         );
 
                         if slot_result.state_root.as_ref() == self.state_root.as_ref() {
-                            debug!("Limiting number is reached for the current L1 block. State root is the same as before, skipping");
+                            debug!("Max L2 blocks per L1 is reached for the current L1 block. State root is the same as before, skipping");
                             // TODO: Check if below is legit
                             self.storage_manager
                                 .save_change_set_l2(l2_height, slot_result.change_set)?;

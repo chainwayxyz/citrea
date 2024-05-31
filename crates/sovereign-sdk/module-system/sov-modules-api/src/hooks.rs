@@ -12,18 +12,18 @@ use crate::transaction::Transaction;
 pub enum ApplySoftConfirmationError {
     /// Checks count of soft confirmations on the slot
     #[error(
-        "Too many soft confirmations on the slot {:?} by sequencer {:?} with limiting number {}",
+        "Too many soft confirmations on the slot {:?} by sequencer {:?} with max L2 blocks per L1 {}",
         hash,
         sequencer_pub_key,
-        limiting_number
+        max_l2_blocks_per_l1
     )]
     TooManySoftConfirmationsOnDaSlot {
         /// Hash of the slot
         hash: [u8; 32],
         /// Sequencer public key
         sequencer_pub_key: Vec<u8>,
-        /// Limiting number
-        limiting_number: u64,
+        /// max L2 blocks per L1
+        max_l2_blocks_per_l1: u64,
     },
     #[error(
         "L1 fee rate {} changed more than allowed limit %{}",

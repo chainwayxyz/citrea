@@ -11,8 +11,8 @@ where
     <C::Storage as Storage>::Root: Into<[u8; 32]>,
 {
     /// Checks the block count rule.
-    /// For every L1 block, the number of L2 blocks should not exceed the limiting number.
-    /// If the number of L2 blocks exceeds the limiting number, the soft confirmation should fail and not be accepted by full nodes.
+    /// For every L1 block, the number of L2 blocks should not exceed the max L2 blocks per L1.
+    /// If the number of L2 blocks exceeds the max L2 blocks per L1, the soft confirmation should fail and not be accepted by full nodes.
     /// This ensures the sequencer cannot publish more than the allowed number of L2 blocks per L1 block.
     /// Thus blocks the ability of the sequencer to censor the forced transactions in a future L1 block by not using that block.
     #[cfg_attr(feature = "native", instrument(level = "trace", skip_all, err, ret))]
@@ -26,19 +26,19 @@ where
             .da_root_hash_to_number
             .get(&da_root_hash, working_set)
             .unwrap_or(0);
-        let limiting_number = self
-            .limiting_number
+        let max_l2_blocks_per_l1 = self
+            .max_l2_blocks_per_l1
             .get(working_set)
-            .expect("Limiting number must be set");
+            .expect("max L2 blocks per L1 must be set");
 
-        // Adding one more l2 block will exceed the limiting number
-        if l2_block_count + 1 > limiting_number {
-            // block count per l1 block should not be more than limiting number
+        // Adding one more l2 block will exceed the max L2 blocks per L1
+        if l2_block_count + 1 > max_l2_blocks_per_l1 {
+            // block count per l1 block should not be more than max L2 blocks per L1
             return Err(
                 ApplySoftConfirmationError::TooManySoftConfirmationsOnDaSlot {
                     hash: da_root_hash,
                     sequencer_pub_key: soft_batch_info.sequencer_pub_key().to_vec(),
-                    limiting_number,
+                    max_l2_blocks_per_l1,
                 },
             );
         }

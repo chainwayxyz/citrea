@@ -23,13 +23,13 @@ pub struct SoftConfirmationRuleEnforcer<C: Context, Da: DaSpec> {
     address: C::Address,
     ///  Maximum number of L2 blocks per L1 slot.
     #[state]
-    pub(crate) limiting_number: StateValue<u64, BcsCodec>,
+    pub(crate) max_l2_blocks_per_l1: StateValue<u64, BcsCodec>,
     /// Mapping from DA root hash to a number.
     /// Checks how many L1 blocks were published for a specific L1 block with given DA root hash.
     #[state]
     pub(crate) da_root_hash_to_number: StateMap<[u8; 32], u64, BcsCodec>,
     /// Authority address. Address of the sequencer.
-    /// This address is allowed to modify the limiting number.
+    /// This address is allowed to modify the max L2 blocks per L1.
     #[state]
     pub(crate) authority: StateValue<C::Address, BcsCodec>,
     /// L1 fee rate change percentage
@@ -69,8 +69,10 @@ impl<C: Context, Da: DaSpec> sov_modules_api::Module for SoftConfirmationRuleEnf
             CallMessage::ChangeAuthority { new_authority } => {
                 Ok(self.change_authority(new_authority, context, working_set)?)
             }
-            CallMessage::ModifyLimitingNumber { limiting_number } => {
-                Ok(self.modify_limiting_number(limiting_number, context, working_set)?)
+            CallMessage::ModifyMaxL2BlocksPerL1 {
+                max_l2_blocks_per_l1,
+            } => {
+                Ok(self.modify_max_l2_blocks_per_l1(max_l2_blocks_per_l1, context, working_set)?)
             }
         }
     }
