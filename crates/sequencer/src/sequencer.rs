@@ -899,7 +899,7 @@ where
     pub async fn register_rpc_methods(
         &self,
         mut rpc_methods: jsonrpsee::RpcModule<()>,
-    ) -> Result<jsonrpsee::RpcModule<()>, jsonrpsee::core::Error> {
+    ) -> Result<jsonrpsee::RpcModule<()>, jsonrpsee::core::RegisterMethodError> {
         let rpc_context = self.create_rpc_context().await;
         let rpc = create_rpc_module(rpc_context)?;
         rpc_methods.merge(rpc)?;

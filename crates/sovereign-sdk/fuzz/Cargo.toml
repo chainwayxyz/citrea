@@ -14,7 +14,6 @@ tempfile = "3"
 rand = "0.8"
 
 # Sovereign-maintained dependencies.
-sov-celestia-adapter = { path = "../adapters/celestia", features = ["native"] }
 sov-modules-api = { path = "../module-system/sov-modules-api", features = [
     "arbitrary",
     "native",
@@ -50,12 +49,6 @@ doc = false
 [[bin]]
 name = "address_bech_32_try_from_bytes"
 path = "fuzz_targets/address_bech_32_try_from_bytes.rs"
-test = false
-doc = false
-
-[[bin]]
-name = "share_deserialize"
-path = "fuzz_targets/share_deserialize.rs"
 test = false
 doc = false
 

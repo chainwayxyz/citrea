@@ -1,8 +1,9 @@
 use std::collections::HashMap;
 use std::str::FromStr;
 
+use alloy_primitives::LogData;
 use reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT;
-use reth_primitives::{address, b256, hex, BlockNumberOrTag, Log};
+use reth_primitives::{address, b256, hex, BlockNumberOrTag, Log, TxKind};
 use reth_rpc_types::{TransactionInput, TransactionRequest};
 use revm::primitives::{Bytes, U256};
 use sov_modules_api::default_context::DefaultContext;
@@ -57,8 +58,10 @@ fn test_sys_bitcoin_light_client() {
                     logs: vec![
                         Log {
                             address: BitcoinLightClient::address(),
-                            topics: vec![b256!("32eff959e2e8d1609edc4b39ccf75900aa6c1da5719f8432752963fdf008234f")],
-                            data: Bytes::from_static(&hex!("000000000000000000000000000000000000000000000000000000000000000201010101010101010101010101010101010101010101010101010101010101010202020202020202020202020202020202020202020202020202020202020202")),
+                            data: LogData::new(
+                                vec![b256!("32eff959e2e8d1609edc4b39ccf75900aa6c1da5719f8432752963fdf008234f")],
+                                Bytes::from_static(&hex!("000000000000000000000000000000000000000000000000000000000000000201010101010101010101010101010101010101010101010101010101010101010202020202020202020202020202020202020202020202020202020202020202")),
+                            ).unwrap(),
                         }
                     ]
                 },
@@ -74,13 +77,17 @@ fn test_sys_bitcoin_light_client() {
                     logs: vec![
                         Log {
                             address: Bridge::address(),
-                            topics: vec![b256!("fbe5b6cbafb274f445d7fed869dc77a838d8243a22c460de156560e8857cad03")],
-                            data: Bytes::from_static(&hex!("0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000deaddeaddeaddeaddeaddeaddeaddeaddeaddead")),
+                            data: LogData::new(
+                                vec![b256!("fbe5b6cbafb274f445d7fed869dc77a838d8243a22c460de156560e8857cad03")],
+                                Bytes::from_static(&hex!("0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000deaddeaddeaddeaddeaddeaddeaddeaddeaddead")),
+                            ).unwrap(),
                         },
                         Log {
                             address: Bridge::address(),
-                            topics: vec![b256!("89ed79f38bee253aee2fb8d52df0d71b4aaf0843800d093a499a55eeca455c34")],
-                            data: Bytes::from_static(&hex!("00000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000140000000000000000000000000000000000000000000000000000000000000000500000000000000000000000000000000000000000000000000000000000000b5d2205daf577048c5e5a9a75d0a924ed03e226c3304f4a2f01c65ca1dab73522e6b8bad206228eba653cf1819bcfc1bc858630e5ae373eec1a9924322a5fe8445c5e76027ad201521d65f64be3f71b71ca462220f13c77b251027f6ca443a483353a96fbce222ad200fabeed269694ee83d9b3343a571202e68af65d05feda61dbed0c4bdb256a6eaad2000326d6f721c03dc5f1d8817d8f8ee890a95a2eeda0d4d9a01b1cc9b7b1b724dac006306636974726561140000000000000000000000000000000000000000000000000000000000000000000000000000000000000a0800000000000f42406800000000000000000000000000000000000000000000"))
+                            data: LogData::new(
+                                vec![b256!("89ed79f38bee253aee2fb8d52df0d71b4aaf0843800d093a499a55eeca455c34")],
+                                Bytes::from_static(&hex!("00000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000140000000000000000000000000000000000000000000000000000000000000000500000000000000000000000000000000000000000000000000000000000000b5d2205daf577048c5e5a9a75d0a924ed03e226c3304f4a2f01c65ca1dab73522e6b8bad206228eba653cf1819bcfc1bc858630e5ae373eec1a9924322a5fe8445c5e76027ad201521d65f64be3f71b71ca462220f13c77b251027f6ca443a483353a96fbce222ad200fabeed269694ee83d9b3343a571202e68af65d05feda61dbed0c4bdb256a6eaad2000326d6f721c03dc5f1d8817d8f8ee890a95a2eeda0d4d9a01b1cc9b7b1b724dac006306636974726561140000000000000000000000000000000000000000000000000000000000000000000000000000000000000a0800000000000f42406800000000000000000000000000000000000000000000"))
+                            ).unwrap(),
                         }
                     ]
                 },
@@ -101,7 +108,7 @@ fn test_sys_bitcoin_light_client() {
     let hash = evm
         .get_call(
             TransactionRequest {
-                to: Some(BitcoinLightClient::address()),
+                to: Some(TxKind::Call(BitcoinLightClient::address())),
                 input: TransactionInput::new(BitcoinLightClient::get_block_hash(1)),
                 ..Default::default()
             },
@@ -115,7 +122,7 @@ fn test_sys_bitcoin_light_client() {
     let merkle_root = evm
         .get_call(
             TransactionRequest {
-                to: Some(BitcoinLightClient::address()),
+                to: Some(TxKind::Call(BitcoinLightClient::address())),
                 input: TransactionInput::new(BitcoinLightClient::get_witness_root_by_number(1)),
                 ..Default::default()
             },
@@ -185,8 +192,10 @@ fn test_sys_bitcoin_light_client() {
                     logs: vec![
                         Log {
                             address: BitcoinLightClient::address(),
-                            topics: vec![b256!("32eff959e2e8d1609edc4b39ccf75900aa6c1da5719f8432752963fdf008234f")],
-                            data: Bytes::from_static(&hex!("000000000000000000000000000000000000000000000000000000000000000302020202020202020202020202020202020202020202020202020202020202020303030303030303030303030303030303030303030303030303030303030303")),
+                            data: LogData::new(
+                                vec![b256!("32eff959e2e8d1609edc4b39ccf75900aa6c1da5719f8432752963fdf008234f")],
+                                Bytes::from_static(&hex!("000000000000000000000000000000000000000000000000000000000000000302020202020202020202020202020202020202020202020202020202020202020303030303030303030303030303030303030303030303030303030303030303")),
+                            ).unwrap(),
                         }
                     ]
                 },
@@ -217,7 +226,7 @@ fn test_sys_bitcoin_light_client() {
     let hash = evm
         .get_call(
             TransactionRequest {
-                to: Some(BitcoinLightClient::address()),
+                to: Some(TxKind::Call(BitcoinLightClient::address())),
                 input: TransactionInput::new(BitcoinLightClient::get_block_hash(2)),
                 ..Default::default()
             },
@@ -231,7 +240,7 @@ fn test_sys_bitcoin_light_client() {
     let merkle_root = evm
         .get_call(
             TransactionRequest {
-                to: Some(BitcoinLightClient::address()),
+                to: Some(TxKind::Call(BitcoinLightClient::address())),
                 input: TransactionInput::new(BitcoinLightClient::get_witness_root_by_number(2)),
                 ..Default::default()
             },
@@ -350,7 +359,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
         .unwrap()
         .unwrap();
 
-    assert_eq!(block.header.gas_limit, U256::from(ETHEREUM_BLOCK_GAS_LIMIT));
+    assert_eq!(block.header.gas_limit, ETHEREUM_BLOCK_GAS_LIMIT as _);
     assert!(block.header.gas_used <= block.header.gas_limit);
 
     // In total there should only be 1135 transactions 1 is system tx others are contract calls

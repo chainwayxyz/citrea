@@ -2,7 +2,7 @@ use std::sync::Mutex;
 
 use reth_primitives::{BlockNumberOrTag, B256};
 use reth_rpc::eth::error::EthResult;
-use reth_rpc_types::{Block, BlockTransactions, Rich, TransactionReceipt};
+use reth_rpc_types::{AnyTransactionReceipt, Block, BlockTransactions, Rich};
 use schnellru::{ByLength, LruMap};
 use sov_modules_api::WorkingSet;
 
@@ -34,7 +34,7 @@ impl<C: sov_modules_api::Context> BlockCache<C> {
         let mut number_to_hash = self.number_to_hash.lock().unwrap();
         if let Some(block) = cache.get(&block_hash) {
             // Even though block is in cache, ask number_to_hash to keep it in sync
-            let number: u64 = block.header.number.unwrap_or_default().saturating_to();
+            let number: u64 = block.header.number.unwrap_or_default();
             number_to_hash.get(&number);
             return Ok(Some(block.clone()));
         }
@@ -47,7 +47,7 @@ impl<C: sov_modules_api::Context> BlockCache<C> {
 
         // Add block to cache if it exists
         if let Some(block) = &block {
-            let number: u64 = block.header.number.unwrap_or_default().saturating_to();
+            let number: u64 = block.header.number.unwrap_or_default();
 
             number_to_hash.insert(number, block_hash);
             cache.insert(block_hash, block.clone());
@@ -81,7 +81,7 @@ impl<C: sov_modules_api::Context> BlockCache<C> {
 
         // Add block to cache if it exists
         if let Some(block) = &block {
-            let number: u64 = block.header.number.unwrap_or_default().saturating_to();
+            let number: u64 = block.header.number.unwrap_or_default();
             let hash = block.header.hash.unwrap_or_default();
 
             number_to_hash.insert(number, hash);
@@ -95,12 +95,12 @@ impl<C: sov_modules_api::Context> BlockCache<C> {
         &self,
         block_number: u64,
         working_set: &mut WorkingSet<C>,
-    ) -> EthResult<Option<(Rich<Block>, Vec<TransactionReceipt>)>> {
+    ) -> EthResult<Option<(Rich<Block>, Vec<AnyTransactionReceipt>)>> {
         // if height not in cache, get hash from provider and call get_block
         let block = self.get_block_by_number(block_number, working_set)?;
         if let Some(block) = block {
             // Receipts are not added to cache but their fee history will be kept in cache in fee_history.rs
-            let receipts: Vec<TransactionReceipt> = match &block.transactions {
+            let receipts: Vec<_> = match &block.transactions {
                 BlockTransactions::Full(transactions) => {
                     transactions
                         .iter()

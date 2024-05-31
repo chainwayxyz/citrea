@@ -7,6 +7,7 @@ use proptest::strategy::Strategy;
 use proptest::{prop_compose, proptest};
 use reqwest::header::CONTENT_TYPE;
 use serde_json::json;
+use sha2::Digest;
 use sov_db::ledger_db::{LedgerDB, SlotCommit};
 use sov_mock_da::MockDaSpec;
 #[cfg(test)]
@@ -18,7 +19,6 @@ use sov_rollup_interface::stf::fuzzing::BatchReceiptStrategyArgs;
 use sov_rollup_interface::stf::{BatchReceipt, Event, SoftBatchReceipt, TransactionReceipt};
 #[cfg(test)]
 use sov_stf_runner::RpcConfig;
-use tendermint::crypto::Sha256;
 
 struct TestExpect {
     payload: serde_json::Value,
@@ -104,7 +104,7 @@ fn test_helper(
 fn batch2_tx_receipts() -> Vec<TransactionReceipt<u32>> {
     (0..260u64)
         .map(|i| TransactionReceipt::<u32> {
-            tx_hash: ::sha2::Sha256::digest(i.to_string()),
+            tx_hash: sha2::Sha256::digest(i.to_string()).into(),
             body_to_save: Some(b"tx body".to_vec()),
             events: vec![],
             receipt: 0,
@@ -115,9 +115,9 @@ fn batch2_tx_receipts() -> Vec<TransactionReceipt<u32>> {
 fn regular_test_helper(payload: serde_json::Value, expected: &serde_json::Value) {
     let mut slots: Vec<SlotCommit<MockBlock, u32, u32>> = vec![SlotCommit::new(MockBlock {
         header: MockBlockHeader {
-            prev_hash: sha2::Sha256::digest(b"prev_header").into(),
-            hash: sha2::Sha256::digest(b"slot_data").into(),
-            txs_commitment: sha2::Sha256::digest(b"txs_commitment").into(),
+            prev_hash: MockHash(sha2::Sha256::digest(b"prev_header").into()),
+            hash: MockHash(sha2::Sha256::digest(b"slot_data").into()),
+            txs_commitment: MockHash(sha2::Sha256::digest(b"txs_commitment").into()),
             height: 0,
             time: Time::now(),
         },
@@ -133,16 +133,16 @@ fn regular_test_helper(payload: serde_json::Value, expected: &serde_json::Value)
             pre_state_root: vec![],
             post_state_root: vec![],
             soft_confirmation_signature: vec![],
-            batch_hash: ::sha2::Sha256::digest(b"batch_receipt"),
+            batch_hash: ::sha2::Sha256::digest(b"batch_receipt").into(),
             tx_receipts: vec![
                 TransactionReceipt::<u32> {
-                    tx_hash: ::sha2::Sha256::digest(b"tx1"),
+                    tx_hash: ::sha2::Sha256::digest(b"tx1").into(),
                     body_to_save: Some(b"tx1 body".to_vec()),
                     events: vec![],
                     receipt: 0,
                 },
                 TransactionReceipt::<u32> {
-                    tx_hash: ::sha2::Sha256::digest(b"tx2"),
+                    tx_hash: ::sha2::Sha256::digest(b"tx2").into(),
                     body_to_save: Some(b"tx2 body".to_vec()),
                     events: vec![
                         Event::new("event1_key", "event1_value"),
@@ -167,7 +167,7 @@ fn regular_test_helper(payload: serde_json::Value, expected: &serde_json::Value)
             pre_state_root: vec![],
             post_state_root: vec![],
             soft_confirmation_signature: vec![],
-            batch_hash: ::sha2::Sha256::digest(b"batch_receipt2"),
+            batch_hash: ::sha2::Sha256::digest(b"batch_receipt2").into(),
             tx_receipts: batch2_tx_receipts(),
             phantom_data: PhantomData,
             pub_key: vec![],
@@ -179,16 +179,16 @@ fn regular_test_helper(payload: serde_json::Value, expected: &serde_json::Value)
 
     let batches = vec![
         BatchReceipt {
-            batch_hash: ::sha2::Sha256::digest(b"batch_receipt"),
+            batch_hash: ::sha2::Sha256::digest(b"batch_receipt").into(),
             tx_receipts: vec![
                 TransactionReceipt::<u32> {
-                    tx_hash: ::sha2::Sha256::digest(b"tx1"),
+                    tx_hash: ::sha2::Sha256::digest(b"tx1").into(),
                     body_to_save: Some(b"tx1 body".to_vec()),
                     events: vec![],
                     receipt: 0,
                 },
                 TransactionReceipt::<u32> {
-                    tx_hash: ::sha2::Sha256::digest(b"tx2"),
+                    tx_hash: ::sha2::Sha256::digest(b"tx2").into(),
                     body_to_save: Some(b"tx2 body".to_vec()),
                     events: vec![
                         Event::new("event1_key", "event1_value"),
@@ -200,7 +200,7 @@ fn regular_test_helper(payload: serde_json::Value, expected: &serde_json::Value)
             phantom_data: PhantomData,
         },
         BatchReceipt {
-            batch_hash: ::sha2::Sha256::digest(b"batch_receipt2"),
+            batch_hash: ::sha2::Sha256::digest(b"batch_receipt2").into(),
             tx_receipts: batch2_tx_receipts(),
             phantom_data: PhantomData,
         },

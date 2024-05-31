@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use reth_primitives::{Address, TransactionKind};
+use reth_primitives::{Address, TxKind};
 use revm::primitives::{CfgEnvWithHandlerCfg, ExecutionResult, Output, SpecId, KECCAK_EMPTY, U256};
 use revm::{Database, DatabaseCommit};
 use sov_modules_api::WorkingSet;
@@ -57,7 +57,7 @@ fn simple_contract_execution<DB: Database<Error = DBError> + DatabaseCommit + In
 
     let contract_address: Address = {
         let tx = dev_signer
-            .sign_default_transaction(TransactionKind::Create, contract.byte_code().to_vec(), 1, 0)
+            .sign_default_transaction(TxKind::Create, contract.byte_code().to_vec(), 1, 0)
             .unwrap();
 
         let tx = &tx.try_into().unwrap();
@@ -79,7 +79,7 @@ fn simple_contract_execution<DB: Database<Error = DBError> + DatabaseCommit + In
 
         let tx = dev_signer
             .sign_default_transaction(
-                TransactionKind::Call(contract_address),
+                TxKind::Call(contract_address),
                 hex::decode(hex::encode(&call_data)).unwrap(),
                 2,
                 0,
@@ -102,7 +102,7 @@ fn simple_contract_execution<DB: Database<Error = DBError> + DatabaseCommit + In
 
         let tx = dev_signer
             .sign_default_transaction(
-                TransactionKind::Call(contract_address),
+                TxKind::Call(contract_address),
                 hex::decode(hex::encode(&call_data)).unwrap(),
                 3,
                 0,
@@ -131,7 +131,7 @@ fn simple_contract_execution<DB: Database<Error = DBError> + DatabaseCommit + In
 
         let tx = dev_signer
             .sign_default_transaction(
-                TransactionKind::Call(contract_address),
+                TxKind::Call(contract_address),
                 hex::decode(hex::encode(&failing_call_data)).unwrap(),
                 4,
                 0,

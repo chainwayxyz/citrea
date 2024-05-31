@@ -1,6 +1,6 @@
 use reth_primitives::{
-    address, Address, Signature, Transaction, TransactionKind, TransactionSigned,
-    TransactionSignedEcRecovered, TransactionSignedNoHash, TxEip1559, U256,
+    address, Address, Signature, Transaction, TransactionSigned, TransactionSignedEcRecovered,
+    TransactionSignedNoHash, TxEip1559, TxKind, U256,
 };
 
 use super::system_contracts::{BitcoinLightClient, Bridge};
@@ -28,7 +28,7 @@ pub(crate) enum SystemEvent {
 fn system_event_to_transaction(event: SystemEvent, nonce: u64, chain_id: u64) -> Transaction {
     let body: TxEip1559 = match event {
         SystemEvent::BitcoinLightClientInitialize(block_number) => TxEip1559 {
-            to: TransactionKind::Call(BitcoinLightClient::address()),
+            to: TxKind::Call(BitcoinLightClient::address()),
             input: BitcoinLightClient::init(block_number),
             nonce,
             chain_id,
@@ -38,7 +38,7 @@ fn system_event_to_transaction(event: SystemEvent, nonce: u64, chain_id: u64) ->
             ..Default::default()
         },
         SystemEvent::BitcoinLightClientSetBlockInfo(block_hash, txs_commitments) => TxEip1559 {
-            to: TransactionKind::Call(BitcoinLightClient::address()),
+            to: TxKind::Call(BitcoinLightClient::address()),
             input: BitcoinLightClient::set_block_info(block_hash, txs_commitments),
             nonce,
             chain_id,
@@ -48,7 +48,7 @@ fn system_event_to_transaction(event: SystemEvent, nonce: u64, chain_id: u64) ->
             ..Default::default()
         },
         SystemEvent::BridgeInitialize(data) => TxEip1559 {
-            to: TransactionKind::Call(Bridge::address()),
+            to: TxKind::Call(Bridge::address()),
             input: Bridge::initialize(data),
             nonce,
             chain_id,
@@ -58,7 +58,7 @@ fn system_event_to_transaction(event: SystemEvent, nonce: u64, chain_id: u64) ->
             ..Default::default()
         },
         SystemEvent::BridgeDeposit(data) => TxEip1559 {
-            to: TransactionKind::Call(Bridge::address()),
+            to: TxKind::Call(Bridge::address()),
             input: Bridge::deposit(data),
             nonce,
             chain_id,
