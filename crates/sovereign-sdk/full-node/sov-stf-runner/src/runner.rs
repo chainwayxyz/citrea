@@ -7,7 +7,7 @@ use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoffBuilder;
 use borsh::de::BorshDeserialize;
 use borsh::BorshSerialize as _;
-use jsonrpsee::core::client::Error as JsonRError;
+use jsonrpsee::core::client::Error as JsonrpseeError;
 use jsonrpsee::RpcModule;
 use rand::Rng;
 use rs_merkle::algorithms::Sha256;
@@ -434,8 +434,8 @@ where
                                         "No soft batch published".to_owned(),
                                     ))
                                 }
-                                Err(e) => match e.downcast_ref::<JsonRError>() {
-                                    Some(JsonRError::Transport(e)) => {
+                                Err(e) => match e.downcast_ref::<JsonrpseeError>() {
+                                    Some(JsonrpseeError::Transport(e)) => {
                                         let error_msg = format!(
                                             "Soft Batch: connection error during RPC call: {:?}",
                                             e
@@ -750,8 +750,8 @@ where
                             "No soft batch published".to_owned(),
                         ))
                     }
-                    Err(e) => match e.downcast_ref::<JsonRError>() {
-                        Some(JsonRError::Transport(e)) => {
+                    Err(e) => match e.downcast_ref::<JsonrpseeError>() {
+                        Some(JsonrpseeError::Transport(e)) => {
                             let error_msg =
                                 format!("Soft Batch: connection error during RPC call: {:?}", e);
                             debug!(error_msg);
