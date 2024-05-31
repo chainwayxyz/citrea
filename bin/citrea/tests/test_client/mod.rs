@@ -46,7 +46,10 @@ impl TestClient {
             .await
             .unwrap();
 
-        let http_client = HttpClientBuilder::default().build(host).unwrap();
+        let http_client = HttpClientBuilder::default()
+            .request_timeout(Duration::from_secs(120))
+            .build(host)
+            .unwrap();
 
         let client = Self {
             chain_id,
@@ -636,10 +639,10 @@ impl TestClient {
             .map_err(|e| e.into())
     }
 
-    pub(crate) async fn get_limiting_number(&self) -> u64 {
+    pub(crate) async fn get_max_l2_blocks_per_l1(&self) -> u64 {
         self.http_client
             .request(
-                "softConfirmationRuleEnforcer_getLimitingNumber",
+                "softConfirmationRuleEnforcer_getMaxL2BlocksPerL1",
                 rpc_params![],
             )
             .await
