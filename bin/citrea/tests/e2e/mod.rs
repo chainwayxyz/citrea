@@ -2933,7 +2933,7 @@ async fn test_gas_limit_too_high() {
 
     let (full_node_port_tx, full_node_port_rx) = tokio::sync::oneshot::channel();
 
-    let full_node_da_dir = da_db_dir.clone();
+    let da_db_dir_cloned = da_db_dir.clone();
     let full_node_task = tokio::spawn(async move {
         start_rollup(
             full_node_port_tx,
@@ -2941,7 +2941,7 @@ async fn test_gas_limit_too_high() {
             None,
             NodeMode::FullNode(seq_port),
             full_node_db_dir,
-            full_node_da_dir,
+            da_db_dir_cloned,
             1000,
             true,
             None,
