@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use citrea_stf::genesis_config::GenesisPaths;
 use sov_mock_da::{MockAddress, MockDaService};
 
@@ -54,6 +56,7 @@ async fn too_many_l2_block_per_l1_block() {
         if idx >= max_l2_blocks_per_l1 {
             // There should not be any more blocks published from this point
             // because the max L2 blocks per L1 is reached
+            wait_for_l2_block(&test_client, 10, None).await;
             assert_eq!(test_client.eth_block_number().await, 10);
         }
     }
@@ -64,12 +67,19 @@ async fn too_many_l2_block_per_l1_block() {
     for idx in 0..2 * max_l2_blocks_per_l1 + 1 {
         test_client.spam_publish_batch_request().await.unwrap();
         if idx < max_l2_blocks_per_l1 {
+            wait_for_l2_block(
+                &test_client,
+                last_block_number + 1,
+                Some(Duration::from_secs(60)),
+            )
+            .await;
             assert_eq!(test_client.eth_block_number().await, last_block_number + 1);
         }
         last_block_number += 1;
         if idx >= max_l2_blocks_per_l1 {
             // There should not be any more blocks published from this point
             // because the max L2 blocks per L1 is reached again
+            wait_for_l2_block(&test_client, 20, None).await;
             assert_eq!(test_client.eth_block_number().await, 20);
         }
     }

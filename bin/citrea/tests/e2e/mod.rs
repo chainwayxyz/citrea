@@ -2948,13 +2948,12 @@ async fn test_gas_limit_too_high() {
                 test_mode: true,
                 deposit_mempool_fetch_limit: 100,
                 mempool_conf: SequencerMempoolConfig {
-                    // Set the max number of txs per user account
-                    // to be higher than the number of transactions
-                    // we want to send.
                     max_account_slots: tx_count * 2,
                     ..Default::default()
                 },
                 db_config: Default::default(),
+                da_update_interval_ms: 1000,
+                block_production_interval_ms: 1000,
             }),
             Some(true),
             100,
