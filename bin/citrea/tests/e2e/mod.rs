@@ -2882,7 +2882,7 @@ async fn test_all_flow() {
 async fn test_gas_limit_too_high() {
     // citrea::initialize_logging();
 
-    let db_dir: tempfile::TempDir = tempdir_with_children(&["DA", "sequencer"]);
+    let db_dir: tempfile::TempDir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = db_dir.path().join("DA").to_path_buf();
     let sequencer_db_dir = db_dir.path().join("sequencer").to_path_buf();
     let full_node_db_dir = db_dir.path().join("full-node").to_path_buf();
@@ -2973,8 +2973,6 @@ async fn test_gas_limit_too_high() {
     let block = full_node_test_client
         .eth_get_block_by_number(Some(BlockNumberOrTag::Latest))
         .await;
-
-    tracing::error!("Block: {:?}", block);
 
     // assert the block contains all txs apart from the last 5
     for tx_hash in tx_hashes[0..tx_hashes.len() - 5].iter() {

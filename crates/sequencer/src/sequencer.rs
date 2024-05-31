@@ -8,7 +8,7 @@ use std::vec;
 
 use anyhow::anyhow;
 use borsh::ser::BorshSerialize;
-use citrea_evm::{CallMessage, Evm, RlpEvmTransaction};
+use citrea_evm::{CallMessage, Evm, RlpEvmTransaction, MIN_TRANSACTION_GAS};
 use citrea_stf::runtime::Runtime;
 use digest::Digest;
 use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
@@ -237,14 +237,8 @@ where
             &da_block_header,
             &mut signed_batch,
         ) {
-            (Ok(()), mut batch_workspace) => {
+            (Ok(()), batch_workspace) => {
                 let block_gas_limit = self.db_provider.cfg().block_gas_limit;
-                // if there's going to be system txs somewhere other than the beginning of the block
-                // TODO: Handle system txs gas usage in the middle and end of the block
-                let system_tx_gas_usage = self
-                    .db_provider
-                    .evm
-                    .get_pending_txs_cumulative_gas_used(&mut batch_workspace);
 
                 let mut working_set_to_discard = batch_workspace.checkpoint().to_revertable();
 
@@ -287,8 +281,8 @@ where
                                 all_txs.push(rlp_tx);
                             }
 
-                            if last_tx.cumulative_gas_used() + system_tx_gas_usage
-                                >= block_gas_limit
+                            if last_tx.cumulative_gas_used()
+                                >= block_gas_limit - MIN_TRANSACTION_GAS
                             {
                                 break;
                             }
