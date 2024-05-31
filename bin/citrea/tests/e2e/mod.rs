@@ -2956,8 +2956,8 @@ async fn test_gas_limit_too_high() {
     let full_node_test_client = make_test_client(full_node_port).await;
 
     let mut tx_hashes = vec![];
-    // Loop until tx_count (inclusive).
-    // This means that we are going to have 5 transactions which have not bee included.
+    // Loop until tx_count.
+    // This means that we are going to have 5 transactions which have not been included.
     for _ in 0..tx_count + 4 {
         let tx_hash = seq_test_client
             .send_eth_with_gas(addr, None, None, 10_000_000, 0u128)
@@ -3000,7 +3000,7 @@ async fn test_gas_limit_too_high() {
         .eth_get_block_by_number(Some(BlockNumberOrTag::Latest))
         .await;
 
-    assert!(block.transactions.len() > 0);
+    assert!(!block.transactions.is_empty());
     assert_eq!(block_from_sequencer.state_root, block.state_root);
     assert_eq!(block_from_sequencer.hash, block.hash);
 
