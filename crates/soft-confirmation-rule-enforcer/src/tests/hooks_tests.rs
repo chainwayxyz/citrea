@@ -13,12 +13,12 @@ use crate::tests::genesis_tests::{get_soft_confirmation_rule_enforcer, TEST_CONF
 type C = DefaultContext;
 
 #[test]
-fn begin_soft_confirmation_hook_checks_limiting_number() {
+fn begin_soft_confirmation_hook_checks_max_l2_blocks_per_l1() {
     let (soft_confirmation_rule_enforcer, mut working_set) =
         get_soft_confirmation_rule_enforcer::<MockDaSpec>(&TEST_CONFIG);
 
-    let call_message = CallMessage::ModifyLimitingNumber {
-        limiting_number: 10,
+    let call_message = CallMessage::ModifyMaxL2BlocksPerL1 {
+        max_l2_blocks_per_l1: 10,
     };
 
     let sender_address = <DefaultContext as Spec>::Address::from_str(
