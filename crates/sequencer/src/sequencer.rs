@@ -216,6 +216,7 @@ where
         Ok(())
     }
 
+    #[allow(clippy::too_many_arguments)]
     async fn dry_run_transactions(
         &mut self,
         transactions: std::boxed::Box<
@@ -229,7 +230,7 @@ where
         l2_block_mode: L2BlockMode,
     ) -> anyhow::Result<(Vec<RlpEvmTransaction>, Vec<TxHash>)> {
         match self.stf.begin_soft_batch(
-            &pub_key,
+            pub_key,
             &state_root,
             prestate.clone(),
             Default::default(),
@@ -310,10 +311,10 @@ where
                     err
                 );
                 batch_workspace.revert();
-                return Err(anyhow!(
+                Err(anyhow!(
                     "DryRun: Failed to apply begin soft confirmation hook: {:?}",
                     err
-                ));
+                ))
             }
         }
     }
