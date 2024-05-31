@@ -219,7 +219,7 @@ where
     #[allow(clippy::too_many_arguments)]
     async fn dry_run_transactions(
         &mut self,
-        transactions: std::boxed::Box<
+        transactions: Box<
             dyn BestTransactions<Item = Arc<ValidPoolTransaction<EthPooledTransaction>>>,
         >,
         pub_key: &[u8],
@@ -800,9 +800,7 @@ where
     fn get_best_transactions(
         &self,
     ) -> anyhow::Result<
-        std::boxed::Box<
-            dyn BestTransactions<Item = Arc<ValidPoolTransaction<EthPooledTransaction>>>,
-        >,
+        Box<dyn BestTransactions<Item = Arc<ValidPoolTransaction<EthPooledTransaction>>>>,
     > {
         let cfg = self.db_provider.cfg();
         let latest_header = self
