@@ -18,7 +18,7 @@ sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
 tokio = { workspace = true, features = ["full"], optional = true }
 
 reqwest = { workspace = true, optional = true }
-base64 = "0.13.1"
+base64 = { workspace = true }
 hex = { workspace = true, features = ["serde"] }
 pin-project = { workspace = true, optional = true, features = [] }
 tracing = { workspace = true, optional = true }
@@ -30,8 +30,8 @@ borsh = { workspace = true }
 anyhow = { workspace = true }
 thiserror = { workspace = true }
 
-bitcoin = { version = "0.31.1", features = ["serde", "rand"] }
-brotli = "3.3.4"
+bitcoin = { workspace = true }
+brotli = { workspace = true }
 futures.workspace = true
 
 

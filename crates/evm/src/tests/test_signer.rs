@@ -1,8 +1,8 @@
 use ethers_core::rand::rngs::StdRng;
 use ethers_core::rand::SeedableRng;
 use reth_primitives::{
-    Address, Bytes as RethBytes, Transaction as RethTransaction, TransactionKind,
-    TxEip1559 as RethTxEip1559, U256,
+    Address, Bytes as RethBytes, Transaction as RethTransaction, TxEip1559 as RethTxEip1559,
+    TxKind, U256,
 };
 use secp256k1::{PublicKey, SecretKey};
 
@@ -43,7 +43,7 @@ impl TestSigner {
     /// Signs default Eip1559 transaction with to, data and nonce overridden.
     pub(crate) fn sign_default_transaction(
         &self,
-        to: TransactionKind,
+        to: TxKind,
         data: Vec<u8>,
         nonce: u64,
         value: u128,
@@ -54,7 +54,7 @@ impl TestSigner {
     /// Signs default Eip1559 transaction with to, data and nonce overridden.
     pub(crate) fn sign_default_transaction_with_fee(
         &self,
-        to: TransactionKind,
+        to: TxKind,
         data: Vec<u8>,
         nonce: u64,
         value: u128,

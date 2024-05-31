@@ -2,7 +2,7 @@
 
 use std::cmp::min;
 
-use reth_primitives::{B256, U256};
+use reth_primitives::{TxKind, B256, U256};
 use reth_rpc::eth::error::{EthApiError, EthResult, RpcInvalidTransactionError};
 use reth_rpc_types::TransactionRequest;
 use revm::primitives::{TransactTo, TxEnv};
@@ -161,9 +161,9 @@ pub(crate) fn prepare_call_env(
     let TransactionRequest {
         from,
         to,
-        mut gas_price,
-        mut max_fee_per_gas,
-        mut max_priority_fee_per_gas,
+        gas_price,
+        max_fee_per_gas,
+        max_priority_fee_per_gas,
         gas,
         value,
         input,
@@ -172,6 +172,10 @@ pub(crate) fn prepare_call_env(
         chain_id,
         ..
     } = request;
+    let mut gas_price = gas_price.map(U256::from);
+    let mut max_fee_per_gas = max_fee_per_gas.map(U256::from);
+    let mut max_priority_fee_per_gas = max_priority_fee_per_gas.map(U256::from);
+    let gas = gas.map(U256::from);
 
     // TODO: write hardhat and unit tests for this
     if max_fee_per_gas == Some(U256::ZERO) {
@@ -223,6 +227,15 @@ pub(crate) fn prepare_call_env(
         gas_limit = min(gas_limit, max_gas_limit);
     }
 
+    let to = if let Some(kind) = to {
+        match kind {
+            TxKind::Create => TransactTo::create(),
+            TxKind::Call(address) => TransactTo::call(address),
+        }
+    } else {
+        TransactTo::create()
+    };
+
     let env = TxEnv {
         gas_price,
         nonce,
@@ -232,7 +245,7 @@ pub(crate) fn prepare_call_env(
             .map_err(|_| RpcInvalidTransactionError::GasUintOverflow)?,
         caller: from.unwrap_or_default(),
         gas_priority_fee: max_priority_fee_per_gas,
-        transact_to: to.map(TransactTo::Call).unwrap_or_else(TransactTo::create),
+        transact_to: to,
         value: value.unwrap_or_default(),
         data: input.try_into_unique_input()?.unwrap_or_default(),
         access_list: access_list

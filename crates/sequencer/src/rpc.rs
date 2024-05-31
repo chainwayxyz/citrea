@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use citrea_evm::Evm;
 use futures::channel::mpsc::UnboundedSender;
-use jsonrpsee::core::Error as RpcError;
 use jsonrpsee::types::error::{INTERNAL_ERROR_CODE, INTERNAL_ERROR_MSG};
 use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::RpcModule;
@@ -30,7 +29,7 @@ pub(crate) struct RpcContext<C: sov_modules_api::Context> {
 
 pub(crate) fn create_rpc_module<C: sov_modules_api::Context>(
     rpc_context: RpcContext<C>,
-) -> Result<RpcModule<RpcContext<C>>, RpcError> {
+) -> Result<RpcModule<RpcContext<C>>, jsonrpsee::core::RegisterMethodError> {
     let test_mode = rpc_context.test_mode;
     let mut rpc = RpcModule::new(rpc_context);
     rpc.register_async_method("eth_sendRawTransaction", |parameters, ctx| async move {
