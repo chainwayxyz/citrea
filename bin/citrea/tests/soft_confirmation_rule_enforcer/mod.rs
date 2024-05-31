@@ -21,7 +21,9 @@ async fn too_many_l2_block_per_l1_block() {
     tokio::spawn(async move {
         start_rollup(
             seq_port_tx,
-            GenesisPaths::from_dir("../test-data/genesis/integration-tests-low-limiting-number"),
+            GenesisPaths::from_dir(
+                "../test-data/genesis/integration-tests-low-max-l2-blocks-per-l1",
+            ),
             None,
             NodeMode::SequencerNode,
             sequencer_db_dir,
@@ -41,8 +43,8 @@ async fn too_many_l2_block_per_l1_block() {
 
     let da_service = MockDaService::new(MockAddress::from([0; 32]), &da_db_dir);
 
-    // limiting number should be 10
-    // we use a low limiting number because mockda creates blocks every 5 seconds
+    // max L2 blocks per L1 should be 10
+    // we use a low max L2 blocks per L1 because mockda creates blocks every 5 seconds
     // and we want to test the error in a reasonable time
     assert_eq!(max_l2_blocks_per_l1, 10);
 
@@ -51,7 +53,7 @@ async fn too_many_l2_block_per_l1_block() {
         test_client.spam_publish_batch_request().await.unwrap();
         if idx >= max_l2_blocks_per_l1 {
             // There should not be any more blocks published from this point
-            // because the limiting number is reached
+            // because the max L2 blocks per L1 is reached
             assert_eq!(test_client.eth_block_number().await, 10);
         }
     }
@@ -67,7 +69,7 @@ async fn too_many_l2_block_per_l1_block() {
         last_block_number += 1;
         if idx >= max_l2_blocks_per_l1 {
             // There should not be any more blocks published from this point
-            // because the limiting number is reached again
+            // because the max L2 blocks per L1 is reached again
             assert_eq!(test_client.eth_block_number().await, 20);
         }
     }

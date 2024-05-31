@@ -17,7 +17,7 @@ pub enum CallMessage<C: Context> {
     },
     /// Remove a sequencer from the sequencer registry.
     ModifyMaxL2BlocksPerL1 {
-        /// The new limiting number representing max number of L2 blocks published per L1 block.
+        /// The new max L2 blocks per L1 representing max number of L2 blocks published per L1 block.
         max_l2_blocks_per_l1: u64,
     },
 }
@@ -52,7 +52,7 @@ impl<C: Context, Da: DaSpec> SoftConfirmationRuleEnforcer<C, Da> {
     ) -> anyhow::Result<CallResponse> {
         anyhow::ensure!(
             *context.sender() == self.get_authority(working_set),
-            "Only authority can change the limiting number"
+            "Only authority can change the max L2 blocks per L1"
         );
         self.max_l2_blocks_per_l1
             .set(&max_l2_blocks_per_l1, working_set);

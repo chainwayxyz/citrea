@@ -29,7 +29,7 @@ pub struct SoftConfirmationRuleEnforcer<C: Context, Da: DaSpec> {
     #[state]
     pub(crate) da_root_hash_to_number: StateMap<[u8; 32], u64, BcsCodec>,
     /// Authority address. Address of the sequencer.
-    /// This address is allowed to modify the limiting number.
+    /// This address is allowed to modify the max L2 blocks per L1.
     #[state]
     pub(crate) authority: StateValue<C::Address, BcsCodec>,
     /// L1 fee rate change percentage
