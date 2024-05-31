@@ -37,19 +37,19 @@ async fn too_many_l2_block_per_l1_block() {
     });
     let seq_port = seq_port_rx.await.unwrap();
     let test_client = make_test_client(seq_port).await;
-    let limiting_number = test_client.get_limiting_number().await;
+    let max_l2_blocks_per_l1 = test_client.get_max_l2_blocks_per_l1().await;
 
     let da_service = MockDaService::new(MockAddress::from([0; 32]), &da_db_dir);
 
     // limiting number should be 10
     // we use a low limiting number because mockda creates blocks every 5 seconds
     // and we want to test the error in a reasonable time
-    assert_eq!(limiting_number, 10);
+    assert_eq!(max_l2_blocks_per_l1, 10);
 
-    // create 2*limiting_number + 1 blocks so it has to give error
-    for idx in 0..2 * limiting_number + 1 {
+    // create 2*max_l2_blocks_per_l1 + 1 blocks so it has to give error
+    for idx in 0..2 * max_l2_blocks_per_l1 + 1 {
         test_client.spam_publish_batch_request().await.unwrap();
-        if idx >= limiting_number {
+        if idx >= max_l2_blocks_per_l1 {
             // There should not be any more blocks published from this point
             // because the limiting number is reached
             assert_eq!(test_client.eth_block_number().await, 10);
@@ -59,13 +59,13 @@ async fn too_many_l2_block_per_l1_block() {
 
     da_service.publish_test_block().await.unwrap();
 
-    for idx in 0..2 * limiting_number + 1 {
+    for idx in 0..2 * max_l2_blocks_per_l1 + 1 {
         test_client.spam_publish_batch_request().await.unwrap();
-        if idx < limiting_number {
+        if idx < max_l2_blocks_per_l1 {
             assert_eq!(test_client.eth_block_number().await, last_block_number + 1);
         }
         last_block_number += 1;
-        if idx >= limiting_number {
+        if idx >= max_l2_blocks_per_l1 {
             // There should not be any more blocks published from this point
             // because the limiting number is reached again
             assert_eq!(test_client.eth_block_number().await, 20);

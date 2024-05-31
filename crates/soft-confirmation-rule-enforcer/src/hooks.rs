@@ -26,19 +26,19 @@ where
             .da_root_hash_to_number
             .get(&da_root_hash, working_set)
             .unwrap_or(0);
-        let limiting_number = self
-            .limiting_number
+        let max_l2_blocks_per_l1 = self
+            .max_l2_blocks_per_l1
             .get(working_set)
             .expect("Limiting number must be set");
 
         // Adding one more l2 block will exceed the limiting number
-        if l2_block_count + 1 > limiting_number {
+        if l2_block_count + 1 > max_l2_blocks_per_l1 {
             // block count per l1 block should not be more than limiting number
             return Err(
                 ApplySoftConfirmationError::TooManySoftConfirmationsOnDaSlot {
                     hash: da_root_hash,
                     sequencer_pub_key: soft_batch_info.sequencer_pub_key().to_vec(),
-                    limiting_number,
+                    max_l2_blocks_per_l1,
                 },
             );
         }

@@ -15,7 +15,7 @@ pub enum ApplySoftConfirmationError {
         "Too many soft confirmations on the slot {:?} by sequencer {:?} with limiting number {}",
         hash,
         sequencer_pub_key,
-        limiting_number
+        max_l2_blocks_per_l1
     )]
     TooManySoftConfirmationsOnDaSlot {
         /// Hash of the slot
@@ -23,7 +23,7 @@ pub enum ApplySoftConfirmationError {
         /// Sequencer public key
         sequencer_pub_key: Vec<u8>,
         /// Limiting number
-        limiting_number: u64,
+        max_l2_blocks_per_l1: u64,
     },
     #[error(
         "L1 fee rate {} changed more than allowed limit %{}",

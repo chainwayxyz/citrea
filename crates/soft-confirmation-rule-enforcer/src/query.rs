@@ -10,9 +10,9 @@ use crate::SoftConfirmationRuleEnforcer;
 impl<C: Context, Da: DaSpec> SoftConfirmationRuleEnforcer<C, Da> {
     #[rpc_method(name = "getLimitingNumber")]
     /// Get the account corresponding to the given public key.
-    pub fn get_limiting_number(&self, working_set: &mut WorkingSet<C>) -> RpcResult<u64> {
+    pub fn get_max_l2_blocks_per_l1(&self, working_set: &mut WorkingSet<C>) -> RpcResult<u64> {
         Ok(self
-            .limiting_number
+            .max_l2_blocks_per_l1
             .get(working_set)
             .expect("Limiting number must be set"))
     }

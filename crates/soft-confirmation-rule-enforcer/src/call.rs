@@ -18,7 +18,7 @@ pub enum CallMessage<C: Context> {
     /// Remove a sequencer from the sequencer registry.
     ModifyLimitingNumber {
         /// The new limiting number representing max number of L2 blocks published per L1 block.
-        limiting_number: u64,
+        max_l2_blocks_per_l1: u64,
     },
 }
 
@@ -44,9 +44,9 @@ impl<C: Context, Da: DaSpec> SoftConfirmationRuleEnforcer<C, Da> {
         Ok(CallResponse::default())
     }
 
-    pub(crate) fn modify_limiting_number(
+    pub(crate) fn modify_max_l2_blocks_per_l1(
         &self,
-        limiting_number: u64,
+        max_l2_blocks_per_l1: u64,
         context: &C,
         working_set: &mut WorkingSet<C>,
     ) -> anyhow::Result<CallResponse> {
@@ -54,7 +54,8 @@ impl<C: Context, Da: DaSpec> SoftConfirmationRuleEnforcer<C, Da> {
             *context.sender() == self.get_authority(working_set),
             "Only authority can change the limiting number"
         );
-        self.limiting_number.set(&limiting_number, working_set);
+        self.max_l2_blocks_per_l1
+            .set(&max_l2_blocks_per_l1, working_set);
         Ok(CallResponse::default())
     }
 }
