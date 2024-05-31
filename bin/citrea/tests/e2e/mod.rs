@@ -2929,7 +2929,7 @@ async fn test_gas_limit_too_high() {
     });
 
     let seq_port = seq_port_rx.await.unwrap();
-    let seq_test_client = make_test_client(seq_port.clone()).await;
+    let seq_test_client = make_test_client(seq_port).await;
 
     let (full_node_port_tx, full_node_port_rx) = tokio::sync::oneshot::channel();
 
