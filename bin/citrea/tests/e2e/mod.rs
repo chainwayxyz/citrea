@@ -2988,6 +2988,22 @@ async fn test_gas_limit_too_high() {
 
     assert_eq!(block_from_sequencer.state_root, block.state_root);
     assert_eq!(block_from_sequencer.hash, block.hash);
+
+    seq_test_client.send_publish_batch_request().await;
+    wait_for_l2_block(&full_node_test_client, 2, None).await;
+
+    let block = full_node_test_client
+        .eth_get_block_by_number(Some(BlockNumberOrTag::Latest))
+        .await;
+
+    let block_from_sequencer = seq_test_client
+        .eth_get_block_by_number(Some(BlockNumberOrTag::Latest))
+        .await;
+
+    assert!(block.transactions.len() > 0);
+    assert_eq!(block_from_sequencer.state_root, block.state_root);
+    assert_eq!(block_from_sequencer.hash, block.hash);
+
     seq_task.abort();
     full_node_task.abort();
 }
