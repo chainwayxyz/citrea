@@ -1,9 +1,8 @@
 use std::marker::PhantomData;
 
-use sov_modules_api::StateDiff;
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::stf::{BatchReceipt, SlotResult, StateTransitionFunction};
-use sov_rollup_interface::zk::{ValidityCondition, Zkvm};
+use sov_rollup_interface::zk::{CumulativeStateDiff, ValidityCondition, Zkvm};
 
 /// A mock implementation of the [`StateTransitionFunction`]
 #[derive(PartialEq, Debug, Clone, Eq, serde::Serialize, serde::Deserialize, Default)]
@@ -95,7 +94,7 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
         _soft_confirmations: std::collections::VecDeque<
             Vec<sov_modules_api::SignedSoftConfirmationBatch>,
         >,
-    ) -> (Self::StateRoot, StateDiff) {
+    ) -> (Self::StateRoot, CumulativeStateDiff) {
         todo!()
     }
 }
