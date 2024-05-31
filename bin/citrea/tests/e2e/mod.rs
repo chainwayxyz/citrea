@@ -2968,6 +2968,8 @@ async fn test_gas_limit_too_high() {
 
     seq_test_client.send_publish_batch_request().await;
 
+    wait_for_l2_block(&full_node_test_client, 1, None).await;
+
     let block = full_node_test_client
         .eth_get_block_by_number(Some(BlockNumberOrTag::Latest))
         .await;
