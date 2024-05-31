@@ -8,15 +8,17 @@ use std::vec;
 
 use anyhow::anyhow;
 use borsh::ser::BorshSerialize;
-use citrea_evm::{CallMessage, Evm, RlpEvmTransaction};
+use citrea_evm::{CallMessage, Evm, RlpEvmTransaction, MIN_TRANSACTION_GAS};
 use citrea_stf::runtime::Runtime;
 use digest::Digest;
 use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
 use futures::StreamExt;
 use jsonrpsee::RpcModule;
-use reth_primitives::{FromRecoveredPooledTransaction, IntoRecoveredTransaction};
+use reth_primitives::{FromRecoveredPooledTransaction, IntoRecoveredTransaction, TxHash};
 use reth_provider::BlockReaderIdExt;
-use reth_transaction_pool::{BestTransactionsAttributes, EthPooledTransaction, PoolTransaction};
+use reth_transaction_pool::{
+    BestTransactions, BestTransactionsAttributes, EthPooledTransaction, ValidPoolTransaction,
+};
 use shared_backup_db::{CommitmentStatus, PostgresConnector};
 use soft_confirmation_rule_enforcer::SoftConfirmationRuleEnforcer;
 use sov_accounts::Accounts;
@@ -214,6 +216,105 @@ where
         Ok(())
     }
 
+    #[allow(clippy::too_many_arguments)]
+    async fn dry_run_transactions(
+        &mut self,
+        transactions: Box<
+            dyn BestTransactions<Item = Arc<ValidPoolTransaction<EthPooledTransaction>>>,
+        >,
+        pub_key: &[u8],
+        state_root: <Stf as StateTransitionFunction<Vm, <Da as DaService>::Spec>>::StateRoot,
+        prestate: <Sm as HierarchicalStorageManager<<Da as DaService>::Spec>>::NativeStorage,
+        da_block_header: <<Da as DaService>::Spec as DaSpec>::BlockHeader,
+        mut signed_batch: SignedSoftConfirmationBatch,
+        l2_block_mode: L2BlockMode,
+    ) -> anyhow::Result<(Vec<RlpEvmTransaction>, Vec<TxHash>)> {
+        match self.stf.begin_soft_batch(
+            pub_key,
+            &state_root,
+            prestate.clone(),
+            Default::default(),
+            &da_block_header,
+            &mut signed_batch,
+        ) {
+            (Ok(()), batch_workspace) => {
+                let block_gas_limit = self.db_provider.cfg().block_gas_limit;
+
+                let mut working_set_to_discard = batch_workspace.checkpoint().to_revertable();
+
+                let evm = Evm::<C>::default();
+
+                // while cumulative_gas_used <= 30_000_000 - 21000 {
+                match l2_block_mode {
+                    L2BlockMode::NotEmpty => {
+                        let mut all_txs = vec![];
+
+                        for evm_tx in transactions {
+                            let rlp_tx = RlpEvmTransaction {
+                                rlp: evm_tx
+                                    .to_recovered_transaction()
+                                    .into_signed()
+                                    .envelope_encoded()
+                                    .to_vec(),
+                            };
+
+                            let call_txs = CallMessage {
+                                txs: vec![rlp_tx.clone()],
+                            };
+                            let raw_message = <Runtime<C, Da::Spec> as EncodeCall<
+                                citrea_evm::Evm<C>,
+                            >>::encode_call(call_txs);
+                            let signed_blob =
+                                self.make_blob(raw_message, &mut working_set_to_discard)?;
+
+                            let txs = vec![signed_blob.clone()];
+
+                            let (batch_workspace, _) = self
+                                .stf
+                                .apply_soft_batch_txs(txs.clone(), working_set_to_discard);
+
+                            working_set_to_discard = batch_workspace;
+
+                            let last_tx =
+                                evm.get_last_pending_transaction(&mut working_set_to_discard);
+
+                            if let Some(last_tx) = last_tx {
+                                if last_tx.hash() == *evm_tx.hash() {
+                                    all_txs.push(rlp_tx);
+                                }
+
+                                if last_tx.cumulative_gas_used()
+                                    >= block_gas_limit - MIN_TRANSACTION_GAS
+                                {
+                                    break;
+                                }
+                            }
+                        }
+
+                        // before finalize we can get tx hashes that failed due to L1 fees.
+                        // nasty hack to access state
+                        let l1_fee_failed_txs = evm
+                            .get_l1_fee_failed_txs(&mut working_set_to_discard.accessory_state());
+
+                        Ok((all_txs, l1_fee_failed_txs))
+                    }
+                    L2BlockMode::Empty => Ok((vec![], vec![])),
+                }
+            }
+            (Err(err), batch_workspace) => {
+                warn!(
+                    "DryRun: Failed to apply soft confirmation hook: {:?} \n reverting batch workspace",
+                    err
+                );
+                batch_workspace.revert();
+                Err(anyhow!(
+                    "DryRun: Failed to apply begin soft confirmation hook: {:?}",
+                    err
+                ))
+            }
+        }
+    }
+
     #[instrument(level = "debug", skip_all, err, ret)]
     async fn produce_l2_block(
         &mut self,
@@ -259,8 +360,8 @@ where
             l1_fee_rate,
             timestamp,
         };
-        let mut signed_batch: SignedSoftConfirmationBatch = batch_info.clone().into();
         // initially create sc info and call begin soft confirmation hook with it
+        let mut signed_batch: SignedSoftConfirmationBatch = batch_info.clone().into();
 
         let prestate = self
             .storage_manager
@@ -273,6 +374,29 @@ where
 
         let pub_key = signed_batch.pub_key().clone();
 
+        let evm_txs = self.get_best_transactions()?;
+
+        // Dry running transactions would basically allow for figuring out a list of
+        // all transactions that would fit into the current block and the list of transactions
+        // which do not have enough balance to pay for the L1 fee.
+        let (txs_to_run, l1_fee_failed_txs) = self
+            .dry_run_transactions(
+                evm_txs,
+                &pub_key,
+                self.state_root.clone(),
+                prestate.clone(),
+                da_block.header().clone(),
+                signed_batch.clone(),
+                l2_block_mode,
+            )
+            .await?;
+
+        let prestate = self
+            .storage_manager
+            .create_storage_on_l2_height(l2_height)
+            .map_err(Into::<anyhow::Error>::into)?;
+
+        // Execute the selected transactions
         match self.stf.begin_soft_batch(
             &pub_key,
             &self.state_root,
@@ -282,25 +406,12 @@ where
             &mut signed_batch,
         ) {
             (Ok(()), mut batch_workspace) => {
-                // if there's going to be system txs somewhere other than the beginning of the block
-                // TODO: Handle system txs gas usage in the middle and end of the block
-                let system_tx_gas_usage = self
-                    .db_provider
-                    .evm
-                    .get_pending_txs_cumulative_gas_used(&mut batch_workspace);
+                tracing::error!("we are out of tx selection!");
 
-                let rlp_txs = match l2_block_mode {
-                    L2BlockMode::Empty => vec![],
-                    L2BlockMode::NotEmpty => self.get_best_transactions(system_tx_gas_usage)?,
-                };
-                debug!(
-                    "Sequencer: publishing block with {} transactions",
-                    rlp_txs.len()
-                );
-                let call_txs = CallMessage { txs: rlp_txs };
+                let call_txs = CallMessage { txs: txs_to_run };
                 let raw_message =
                     <Runtime<C, Da::Spec> as EncodeCall<citrea_evm::Evm<C>>>::encode_call(call_txs);
-                let signed_blob = self.make_blob(raw_message)?;
+                let signed_blob = self.make_blob(raw_message, &mut batch_workspace)?;
                 let txs = vec![signed_blob.clone()];
 
                 let (batch_workspace, tx_receipts) =
@@ -327,17 +438,6 @@ where
                     batch_workspace,
                 );
 
-                // before finalize we can get tx hashes that failed due to L1 fees.
-                let evm = Evm::<C>::default();
-
-                // nasty hack to access state
-                let mut intermediary_working_set = checkpoint.to_revertable();
-
-                let l1_fee_failed_txs =
-                    evm.get_l1_fee_failed_txs(&mut intermediary_working_set.accessory_state());
-
-                let checkpoint = intermediary_working_set.checkpoint();
-
                 // Finalize soft confirmation
                 let slot_result = self.stf.finalize_soft_batch(
                     batch_receipt,
@@ -347,7 +447,7 @@ where
                 );
 
                 if slot_result.state_root.as_ref() == self.state_root.as_ref() {
-                    debug!("max L2 blocks per L1 is reached for the current L1 block. State root is the same as before, skipping");
+                    debug!("Max L2 blocks per L1 is reached for the current L1 block. State root is the same as before, skipping");
                     // TODO: Check if below is legit
                     self.storage_manager
                         .save_change_set_l2(l2_height, slot_result.change_set)?;
@@ -695,8 +795,9 @@ where
 
     fn get_best_transactions(
         &self,
-        system_tx_gas_usage: u64,
-    ) -> anyhow::Result<Vec<RlpEvmTransaction>> {
+    ) -> anyhow::Result<
+        Box<dyn BestTransactions<Item = Arc<ValidPoolTransaction<EthPooledTransaction>>>>,
+    > {
         let cfg = self.db_provider.cfg();
         let latest_header = self
             .db_provider
@@ -712,40 +813,20 @@ where
         let best_txs_with_base_fee = self
             .mempool
             .best_transactions_with_attributes(BestTransactionsAttributes::base_fee(base_fee));
-        // TODO: implement block builder instead of just including every transaction in order
-        let mut cumulative_gas_used = 0;
 
-        // Add the system tx gas usage to the cumulative gas used
-        cumulative_gas_used += system_tx_gas_usage;
-
-        Ok(best_txs_with_base_fee
-            .into_iter()
-            .filter(|tx| {
-                // Don't include transactions that exceed the block gas limit
-                let tx_gas_limit = tx.transaction.gas_limit();
-                let fits_into_block = cumulative_gas_used + tx_gas_limit <= cfg.block_gas_limit;
-                if fits_into_block {
-                    cumulative_gas_used += tx_gas_limit
-                }
-                fits_into_block
-            })
-            .map(|tx| {
-                tx.to_recovered_transaction()
-                    .into_signed()
-                    .envelope_encoded()
-                    .to_vec()
-            })
-            .map(|rlp| RlpEvmTransaction { rlp })
-            .collect::<Vec<RlpEvmTransaction>>())
+        Ok(best_txs_with_base_fee)
     }
 
     /// Signs batch of messages with sovereign priv key turns them into a sov blob
     /// Returns a single sovereign transaction made up of multiple ethereum transactions
-    fn make_blob(&mut self, raw_message: Vec<u8>) -> anyhow::Result<Vec<u8>> {
+    fn make_blob(
+        &mut self,
+        raw_message: Vec<u8>,
+        working_set: &mut WorkingSet<C>,
+    ) -> anyhow::Result<Vec<u8>> {
         // if a batch failed need to refetch nonce
         // so sticking to fetching from state makes sense
-        let nonce = self.get_nonce()?;
-
+        let nonce = self.get_nonce(working_set)?;
         // TODO: figure out what to do with sov-tx fields
         // chain id gas tip and gas limit
 
@@ -784,12 +865,11 @@ where
     }
 
     /// Fetches nonce from state
-    fn get_nonce(&self) -> anyhow::Result<u64> {
+    fn get_nonce(&self, working_set: &mut WorkingSet<C>) -> anyhow::Result<u64> {
         let accounts = Accounts::<C>::default();
-        let mut working_set = WorkingSet::<C>::new(self.storage.clone());
 
         match accounts
-            .get_account(self.sov_tx_signer_priv_key.pub_key(), &mut working_set)
+            .get_account(self.sov_tx_signer_priv_key.pub_key(), working_set)
             .map_err(|e| anyhow!("Sequencer: Failed to get sov-account: {}", e))?
         {
             AccountExists { addr: _, nonce } => Ok(nonce),
