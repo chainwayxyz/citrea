@@ -15,7 +15,7 @@ fn change_max_l2_blocks_per_l1_and_authority() {
     let (soft_confirmation_rule_enforcer, mut working_set) =
         get_soft_confirmation_rule_enforcer::<MockDaSpec>(&TEST_CONFIG);
 
-    let call_message = CallMessage::ModifyLimitingNumber {
+    let call_message = CallMessage::ModifyMaxL2BlocksPerL1 {
         max_l2_blocks_per_l1: 999,
     };
 
@@ -54,7 +54,7 @@ fn change_max_l2_blocks_per_l1_and_authority() {
         new_authority
     );
 
-    let modify_max_l2_blocks_per_l1_message = CallMessage::ModifyLimitingNumber {
+    let modify_max_l2_blocks_per_l1_message = CallMessage::ModifyMaxL2BlocksPerL1 {
         max_l2_blocks_per_l1: 123,
     };
     // after the authority is changed we cannot call the modules function with the old context

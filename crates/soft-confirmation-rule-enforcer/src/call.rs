@@ -16,7 +16,7 @@ pub enum CallMessage<C: Context> {
         new_authority: C::Address,
     },
     /// Remove a sequencer from the sequencer registry.
-    ModifyLimitingNumber {
+    ModifyMaxL2BlocksPerL1 {
         /// The new limiting number representing max number of L2 blocks published per L1 block.
         max_l2_blocks_per_l1: u64,
     },

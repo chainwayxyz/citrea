@@ -69,7 +69,7 @@ impl<C: Context, Da: DaSpec> sov_modules_api::Module for SoftConfirmationRuleEnf
             CallMessage::ChangeAuthority { new_authority } => {
                 Ok(self.change_authority(new_authority, context, working_set)?)
             }
-            CallMessage::ModifyLimitingNumber {
+            CallMessage::ModifyMaxL2BlocksPerL1 {
                 max_l2_blocks_per_l1,
             } => {
                 Ok(self.modify_max_l2_blocks_per_l1(max_l2_blocks_per_l1, context, working_set)?)
