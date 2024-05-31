@@ -237,14 +237,11 @@ where
             &da_block_header,
             &mut signed_batch,
         ) {
-            (Ok(()), batch_workspace) => {
+            (Ok(()), mut working_set_to_discard) => {
                 let block_gas_limit = self.db_provider.cfg().block_gas_limit;
-
-                let mut working_set_to_discard = batch_workspace.checkpoint().to_revertable();
 
                 let evm = Evm::<C>::default();
 
-                // while cumulative_gas_used <= 30_000_000 - 21000 {
                 match l2_block_mode {
                     L2BlockMode::NotEmpty => {
                         let mut all_txs = vec![];
@@ -406,8 +403,6 @@ where
             &mut signed_batch,
         ) {
             (Ok(()), mut batch_workspace) => {
-                tracing::error!("we are out of tx selection!");
-
                 let call_txs = CallMessage { txs: txs_to_run };
                 let raw_message =
                     <Runtime<C, Da::Spec> as EncodeCall<citrea_evm::Evm<C>>>::encode_call(call_txs);
