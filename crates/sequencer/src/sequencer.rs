@@ -1,4 +1,5 @@
 use std::cmp::Ordering;
+use std::collections::HashSet;
 use std::marker::PhantomData;
 use std::net::SocketAddr;
 use std::ops::RangeInclusive;
@@ -15,10 +16,11 @@ use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
 use futures::StreamExt;
 use jsonrpsee::server::{BatchRequestConfig, ServerBuilder};
 use jsonrpsee::RpcModule;
-use reth_primitives::{FromRecoveredPooledTransaction, IntoRecoveredTransaction, TxHash};
-use reth_provider::BlockReaderIdExt;
+use reth_primitives::{Address, FromRecoveredPooledTransaction, IntoRecoveredTransaction, TxHash};
+use reth_provider::{AccountReader, BlockReaderIdExt};
 use reth_transaction_pool::{
-    BestTransactions, BestTransactionsAttributes, EthPooledTransaction, ValidPoolTransaction,
+    BestTransactions, BestTransactionsAttributes, ChangedAccount, EthPooledTransaction,
+    ValidPoolTransaction,
 };
 use shared_backup_db::{CommitmentStatus, PostgresConnector};
 use soft_confirmation_rule_enforcer::SoftConfirmationRuleEnforcer;
@@ -509,6 +511,10 @@ where
 
                 self.mempool.remove_transactions(txs_to_remove.clone());
 
+                let account_updates = self.get_account_updates()?;
+
+                self.mempool.update_accounts(account_updates);
+
                 if let Some(pg_pool) = pg_pool.clone() {
                     // TODO: Is this okay? I'm not sure because we have a loop in this and I can't do async in spawn_blocking
                     tokio::spawn(async move {
@@ -961,5 +967,32 @@ where
         self.soft_confirmation_rule_enforcer
             .get_next_min_max_l1_fee_rate(&mut working_set)
             .map_err(|e| anyhow::anyhow!("Error reading min max l1 fee rate: {}", e))
+    }
+
+    fn get_account_updates(&self) -> Result<Vec<ChangedAccount>, anyhow::Error> {
+        let head = self.db_provider.last_block()?.expect("Head must exist");
+
+        let addresses: HashSet<Address> = match head.transactions {
+            reth_rpc_types::BlockTransactions::Full(ref txs) => {
+                txs.iter().map(|tx| tx.from).collect()
+            }
+            _ => panic!("Block should have full transactions"),
+        };
+
+        let mut updates = vec![];
+
+        for address in addresses {
+            let account = self
+                .db_provider
+                .basic_account(address)?
+                .expect("Account must exist");
+            updates.push(ChangedAccount {
+                address,
+                nonce: account.nonce,
+                balance: account.balance,
+            });
+        }
+
+        Ok(vec![])
     }
 }
