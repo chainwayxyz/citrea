@@ -40,29 +40,13 @@ pub struct EthRpcConfig {
     pub eth_signer: DevSigner,
 }
 
-#[derive(
-    Clone,
-    Debug,
-    serde::Serialize,
-    serde::Deserialize,
-    PartialEq,
-    borsh::BorshDeserialize,
-    borsh::BorshSerialize,
-)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, PartialEq)]
 pub struct SyncStatus {
     pub head_block_number: u64,
     pub synced_block_number: u64,
 }
 
-#[derive(
-    Clone,
-    Debug,
-    serde::Serialize,
-    serde::Deserialize,
-    PartialEq,
-    borsh::BorshDeserialize,
-    borsh::BorshSerialize,
-)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, PartialEq)]
 pub enum CitreaStatus {
     Synced,
     Syncing(SyncStatus),
