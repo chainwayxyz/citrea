@@ -2,10 +2,13 @@ use std::time::Duration;
 
 use citrea_stf::genesis_config::GenesisPaths;
 use sov_mock_da::{MockAddress, MockDaService};
+use tokio::time::sleep;
 
 use crate::evm::make_test_client;
 // use citrea::initialize_logging;
-use crate::test_helpers::{start_rollup, tempdir_with_children, wait_for_l2_block, NodeMode};
+use crate::test_helpers::{
+    start_rollup, tempdir_with_children, wait_for_l1_block, wait_for_l2_block, NodeMode,
+};
 use crate::{DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT};
 
 /// Transaction with equal nonce to last tx should not be accepted by mempool.
@@ -63,6 +66,11 @@ async fn too_many_l2_block_per_l1_block() {
     let mut last_block_number = test_client.eth_block_number().await;
 
     da_service.publish_test_block().await.unwrap();
+    wait_for_l1_block(&da_service, 2, None).await;
+
+    // Wait for the sequencer DA update interval to pass for it to recognize
+    // the new DA block.
+    sleep(Duration::from_secs(1)).await;
 
     for idx in 0..2 * max_l2_blocks_per_l1 + 1 {
         test_client.spam_publish_batch_request().await.unwrap();

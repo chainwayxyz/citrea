@@ -410,8 +410,6 @@ where
             &mut signed_batch,
         ) {
             (Ok(()), mut batch_workspace) => {
-                tracing::error!("we are out of tx selection!");
-
                 let call_txs = CallMessage { txs: txs_to_run };
                 let raw_message =
                     <Runtime<C, Da::Spec> as EncodeCall<citrea_evm::Evm<C>>>::encode_call(call_txs);

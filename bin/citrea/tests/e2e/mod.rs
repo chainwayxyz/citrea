@@ -1544,7 +1544,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
 }
 
 #[tokio::test]
-async fn test_system_transactons() -> Result<(), anyhow::Error> {
+async fn test_system_transactions() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging();
 
     let system_contract_address =
