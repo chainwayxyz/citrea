@@ -3,6 +3,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 use citrea_evm::LogResponse;
+use ethereum_rpc::CitreaStatus;
 use ethereum_types::H160;
 use ethers_core::abi::Address;
 use ethers_core::k256::ecdsa::SigningKey;
@@ -709,6 +710,13 @@ impl TestClient {
             .unwrap();
 
         block_number.as_u64()
+    }
+
+    pub(crate) async fn citrea_sync_status(&self) -> CitreaStatus {
+        self.http_client
+            .request("citrea_syncStatus", rpc_params![])
+            .await
+            .unwrap()
     }
 }
 

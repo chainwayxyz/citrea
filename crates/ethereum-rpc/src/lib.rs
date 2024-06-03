@@ -40,6 +40,18 @@ pub struct EthRpcConfig {
     pub eth_signer: DevSigner,
 }
 
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, PartialEq)]
+pub struct SyncStatus {
+    pub head_block_number: u64,
+    pub synced_block_number: u64,
+}
+
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, PartialEq)]
+pub enum CitreaStatus {
+    Synced(u64),
+    Syncing(SyncStatus),
+}
+
 pub fn get_ethereum_rpc<C: sov_modules_api::Context, Da: DaService>(
     da_service: Da,
     eth_rpc_config: EthRpcConfig,
@@ -788,6 +800,50 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                             }
                         }
                     }
+                }
+            },
+        )?;
+
+        rpc.register_async_method::<Result<CitreaStatus, ErrorObjectOwned>, _, _>(
+            "citrea_syncStatus",
+            |_, ethereum| async move {
+                info!("Full Node: citrea_syncStatus");
+
+                // sequencer client should send it
+                let block_number = ethereum
+                    .sequencer_client
+                    .as_ref()
+                    .unwrap()
+                    .block_number()
+                    .await;
+
+                let head_block_number = match block_number {
+                    Ok(block_number) => block_number,
+                    Err(e) => match e {
+                        jsonrpsee::core::client::Error::Call(e_owned) => return Err(e_owned),
+                        _ => return Err(to_jsonrpsee_error_object("SEQUENCER_CLIENT_ERROR", e)),
+                    },
+                };
+
+                let evm = Evm::<C>::default();
+                let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
+
+                let block =
+                    evm.get_block_by_number(Some(BlockNumberOrTag::Latest), None, &mut working_set);
+
+                let synced_block_number = match block {
+                    Ok(Some(block)) => block.header.number.unwrap(),
+                    Ok(None) => 0u64,
+                    Err(e) => return Err(e),
+                };
+
+                if synced_block_number < head_block_number {
+                    Ok::<CitreaStatus, ErrorObjectOwned>(CitreaStatus::Syncing(SyncStatus {
+                        synced_block_number,
+                        head_block_number,
+                    }))
+                } else {
+                    Ok::<CitreaStatus, ErrorObjectOwned>(CitreaStatus::Synced(head_block_number))
                 }
             },
         )?;
