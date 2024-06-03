@@ -80,8 +80,8 @@ impl RollupBlueprint for BitcoinRollup {
     #[instrument(level = "trace", skip(self), ret)]
     fn get_code_commitment(&self) -> <Self::Vm as Zkvm>::CodeCommitment {
         Digest::from([
-            3965686256, 604444860, 1238257798, 1624929768, 3378693295, 3187615180, 1121902498,
-            1170832510,
+            581052143, 2275184185, 1715279787, 1149073804, 1128615771, 1332991789, 268524604,
+            982556413,
         ])
     }
 
