@@ -196,6 +196,9 @@ mod tests {
                 bind_host: "127.0.0.1".to_string(),
                 bind_port: 12345,
                 max_connections: 500,
+                max_request_body_size: 10 * 1024 * 1024,
+                max_response_body_size: 10 * 1024 * 1024,
+                batch_requests_limit: 50,
             },
             public_keys: RollupPublicKeys {
                 sequencer_public_key: vec![0; 32],
