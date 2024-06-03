@@ -783,6 +783,7 @@ async fn test_soft_confirmations_on_different_blocks() -> Result<(), anyhow::Err
 
     // publish new da block
     da_service.publish_test_block().await.unwrap();
+    wait_for_l1_block(&da_service, 2, None).await;
 
     for _ in 1..=6 {
         seq_test_client.spam_publish_batch_request().await.unwrap();
@@ -1147,6 +1148,7 @@ async fn test_soft_confirmations_status_two_l1() -> Result<(), anyhow::Error> {
 
     // publish new da block
     da_service.publish_test_block().await.unwrap();
+    wait_for_l1_block(&da_service, 2, None).await;
 
     for _ in 2..=6 {
         seq_test_client.send_publish_batch_request().await;
@@ -1166,6 +1168,8 @@ async fn test_soft_confirmations_status_two_l1() -> Result<(), anyhow::Error> {
 
     // publish new da block
     da_service.publish_test_block().await.unwrap();
+    wait_for_l1_block(&da_service, 3, None).await;
+
     seq_test_client.send_publish_batch_request().await;
     seq_test_client.send_publish_batch_request().await;
 
@@ -1280,15 +1284,14 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
     // prover should not have any blocks saved
     assert_eq!(prover_node_test_client.eth_block_number().await, 0);
 
-    da_service.publish_test_block().await.unwrap();
-
+    // start l1 height = 1, end = 2
     seq_test_client.send_publish_batch_request().await;
 
     // sequencer commitment should be sent
     da_service.publish_test_block().await.unwrap();
-    sleep(Duration::from_secs(2)).await;
+    wait_for_l1_block(&da_service, 2, None).await;
+    wait_for_l1_block(&da_service, 3, None).await;
 
-    // start l1 height = 1, end = 2
     seq_test_client.send_publish_batch_request().await;
 
     // wait here until we see from prover's rpc that it finished proving
@@ -1314,22 +1317,19 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
     .await;
     assert_eq!(prover_node_test_client.eth_block_number().await, 4);
 
-    seq_test_client.send_publish_batch_request().await;
-    seq_test_client.send_publish_batch_request().await;
-
     // Still should have 4 blocks there are no commitments yet
     assert_eq!(prover_node_test_client.eth_block_number().await, 4);
 
     da_service.publish_test_block().await.unwrap();
-    sleep(Duration::from_secs(2)).await;
+    wait_for_l1_block(&da_service, 4, None).await;
+    wait_for_l1_block(&da_service, 5, None).await;
 
-    // Commitment is sent right before the 9th block is published
     seq_test_client.send_publish_batch_request().await;
 
     // wait here until we see from prover's rpc that it finished proving
     wait_for_prover_l1_height(
         &prover_node_test_client,
-        8,
+        5,
         Some(Duration::from_secs(DEFAULT_PROOF_WAIT_DURATION)),
     )
     .await;
@@ -1338,11 +1338,11 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
     // there is an extra soft confirmation due to the prover publishing a proof. This causes
     // a new MockDa block, which in turn causes the sequencer to publish an extra soft confirmation
     // becase it must not skip blocks.
-    assert_eq!(prover_node_test_client.eth_block_number().await, 8);
-    assert_eq!(prover_node_test_client.eth_block_number().await, 8);
+    assert_eq!(prover_node_test_client.eth_block_number().await, 4);
+    assert_eq!(prover_node_test_client.eth_block_number().await, 4);
 
     // on the 8th DA block, we should have a proof
-    let mut blobs = da_service.get_block_at(8).await.unwrap().blobs;
+    let mut blobs = da_service.get_block_at(4).await.unwrap().blobs;
 
     assert_eq!(blobs.len(), 1);
 
@@ -1563,6 +1563,7 @@ async fn test_system_transactions() -> Result<(), anyhow::Error> {
     for _ in 0..3 {
         da_service.publish_test_block().await.unwrap();
     }
+    wait_for_l1_block(&da_service, 3, None).await;
 
     let (seq_test_client, full_node_test_client, seq_task, full_node_task, _) =
         initialize_test(TestConfig {
@@ -1581,6 +1582,8 @@ async fn test_system_transactions() -> Result<(), anyhow::Error> {
         wait_for_l2_block(&seq_test_client, 5 * (i + 1), None).await;
 
         da_service.publish_test_block().await.unwrap();
+
+        wait_for_l1_block(&da_service, 4 + i, None).await;
     }
 
     seq_test_client.send_publish_batch_request().await;
@@ -2483,18 +2486,18 @@ async fn full_node_verify_proof_and_store() {
     let full_node_test_client = make_test_client(full_node_port).await;
 
     da_service.publish_test_block().await.unwrap();
-    wait_for_l1_block(&da_service, 1, None).await;
+    wait_for_l1_block(&da_service, 2, None).await;
 
     test_client.send_publish_batch_request().await;
     test_client.send_publish_batch_request().await;
     test_client.send_publish_batch_request().await;
     test_client.send_publish_batch_request().await;
+    // submits with new da block, triggers commitment submission.
     da_service.publish_test_block().await.unwrap();
-    // submits with new da block
-    test_client.send_publish_batch_request().await;
-    // prover node gets the commitment
-    test_client.send_publish_batch_request().await;
-    // da_service.publish_test_block().await.unwrap();
+    // This is the above block created.
+    wait_for_l1_block(&da_service, 3, None).await;
+    // Commitment submitted
+    wait_for_l1_block(&da_service, 4, None).await;
 
     // wait here until we see from prover's rpc that it finished proving
     wait_for_prover_l1_height(
@@ -2540,9 +2543,7 @@ async fn full_node_verify_proof_and_store() {
     // in mock da submitting proof and commitments creates a new block.
     // For full node to see the proof, we publish another l2 block and now it will check #5 l1 block
     test_client.send_publish_batch_request().await;
-
-    wait_for_l2_block(&full_node_test_client, 7, None).await;
-    wait_for_l1_block(&da_service, 5, None).await;
+    wait_for_l2_block(&full_node_test_client, 6, None).await;
 
     // So the full node should see the proof in block 5
     let full_node_proof = full_node_test_client
