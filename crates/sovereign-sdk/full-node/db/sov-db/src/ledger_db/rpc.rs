@@ -184,30 +184,11 @@ impl LedgerRpcProvider for LedgerDB {
         Ok(None)
     }
 
-    // Get X by hash
-    fn get_slot_by_hash<B: DeserializeOwned, T: DeserializeOwned>(
-        &self,
-        hash: &[u8; 32],
-        query_mode: QueryMode,
-    ) -> Result<Option<SlotResponse<B, T>>, anyhow::Error> {
-        self.get_slots(&[SlotIdentifier::Hash(*hash)], query_mode)
-            .map(|mut batches: Vec<Option<SlotResponse<B, T>>>| batches.pop().unwrap_or(None))
-    }
-
     fn get_soft_batch_by_hash<T: DeserializeOwned>(
         &self,
         hash: &[u8; 32],
     ) -> Result<Option<SoftBatchResponse>, anyhow::Error> {
         self.get_soft_batch(&SoftBatchIdentifier::Hash(*hash))
-    }
-
-    fn get_batch_by_hash<B: DeserializeOwned, T: DeserializeOwned>(
-        &self,
-        hash: &[u8; 32],
-        query_mode: QueryMode,
-    ) -> Result<Option<BatchResponse<B, T>>, anyhow::Error> {
-        self.get_batches(&[BatchIdentifier::Hash(*hash)], query_mode)
-            .map(|mut batches: Vec<Option<BatchResponse<B, T>>>| batches.pop().unwrap_or(None))
     }
 
     fn get_tx_by_hash<T: DeserializeOwned>(
@@ -234,61 +215,6 @@ impl LedgerRpcProvider for LedgerDB {
         number: u64,
     ) -> Result<Option<SoftBatchResponse>, anyhow::Error> {
         self.get_soft_batch(&SoftBatchIdentifier::Number(number))
-    }
-
-    fn get_batch_by_number<B: DeserializeOwned, T: DeserializeOwned>(
-        &self,
-        number: u64,
-        query_mode: QueryMode,
-    ) -> Result<Option<BatchResponse<B, T>>, anyhow::Error> {
-        self.get_batches(&[BatchIdentifier::Number(number)], query_mode)
-            .map(|mut slots| slots.pop().unwrap_or(None))
-    }
-
-    fn get_tx_by_number<T: DeserializeOwned>(
-        &self,
-        number: u64,
-        query_mode: QueryMode,
-    ) -> Result<Option<TxResponse<T>>, anyhow::Error> {
-        self.get_transactions(&[TxIdentifier::Number(number)], query_mode)
-            .map(|mut txs| txs.pop().unwrap_or(None))
-    }
-
-    fn get_event_by_number(&self, number: u64) -> Result<Option<Event>, anyhow::Error> {
-        self.get_events(&[EventIdentifier::Number(number)])
-            .map(|mut events| events.pop().unwrap_or(None))
-    }
-
-    fn get_slots_range<B: DeserializeOwned, T: DeserializeOwned>(
-        &self,
-        start: u64,
-        end: u64,
-        query_mode: QueryMode,
-    ) -> Result<Vec<Option<SlotResponse<B, T>>>, anyhow::Error> {
-        anyhow::ensure!(start <= end, "start must be <= end");
-        anyhow::ensure!(
-            end - start <= MAX_SLOTS_PER_REQUEST,
-            "requested slot range too large. Max: {}",
-            MAX_SLOTS_PER_REQUEST
-        );
-        let ids: Vec<_> = (start..=end).map(SlotIdentifier::Number).collect();
-        self.get_slots(&ids, query_mode)
-    }
-
-    fn get_batches_range<B: DeserializeOwned, T: DeserializeOwned>(
-        &self,
-        start: u64,
-        end: u64,
-        query_mode: QueryMode,
-    ) -> Result<Vec<Option<BatchResponse<B, T>>>, anyhow::Error> {
-        anyhow::ensure!(start <= end, "start must be <= end");
-        anyhow::ensure!(
-            end - start <= MAX_BATCHES_PER_REQUEST,
-            "requested batch range too large. Max: {}",
-            MAX_BATCHES_PER_REQUEST
-        );
-        let ids: Vec<_> = (start..=end).map(BatchIdentifier::Number).collect();
-        self.get_batches(&ids, query_mode)
     }
 
     fn get_soft_batches(
@@ -326,22 +252,6 @@ impl LedgerRpcProvider for LedgerDB {
         );
         let ids: Vec<_> = (start..=end).map(SoftBatchIdentifier::Number).collect();
         self.get_soft_batches(&ids)
-    }
-
-    fn get_transactions_range<T: DeserializeOwned>(
-        &self,
-        start: u64,
-        end: u64,
-        query_mode: QueryMode,
-    ) -> Result<Vec<Option<TxResponse<T>>>, anyhow::Error> {
-        anyhow::ensure!(start <= end, "start must be <= end");
-        anyhow::ensure!(
-            end - start <= MAX_TRANSACTIONS_PER_REQUEST,
-            "requested transaction range too large. Max: {}",
-            MAX_TRANSACTIONS_PER_REQUEST
-        );
-        let ids: Vec<_> = (start..=end).map(TxIdentifier::Number).collect();
-        self.get_transactions(&ids, query_mode)
     }
 
     fn get_soft_confirmation_status(
