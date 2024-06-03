@@ -805,9 +805,9 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
         )?;
 
         rpc.register_async_method::<Result<CitreaStatus, ErrorObjectOwned>, _, _>(
-            "citrea_status",
+            "citrea_syncStatus",
             |_, ethereum| async move {
-                info!("Full Node: citrea_status");
+                info!("Full Node: citrea_syncStatus");
 
                 // sequencer client should send it
                 let block_number = ethereum

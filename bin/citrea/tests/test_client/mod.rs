@@ -693,9 +693,9 @@ impl TestClient {
         block_number.as_u64()
     }
 
-    pub(crate) async fn citrea_status(&self) -> CitreaStatus {
+    pub(crate) async fn citrea_sync_status(&self) -> CitreaStatus {
         self.http_client
-            .request("citrea_status", rpc_params![])
+            .request("citrea_syncStatus", rpc_params![])
             .await
             .unwrap()
     }

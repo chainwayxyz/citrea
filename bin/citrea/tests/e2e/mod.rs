@@ -3076,7 +3076,7 @@ async fn test_full_node_sync_status() {
     let full_node_port = full_node_port_rx.await.unwrap();
     let full_node_test_client = make_test_client(full_node_port).await;
 
-    let status = full_node_test_client.citrea_status().await;
+    let status = full_node_test_client.citrea_sync_status().await;
 
     match status {
         CitreaStatus::Syncing(syncing) => {
@@ -3088,7 +3088,7 @@ async fn test_full_node_sync_status() {
 
     wait_for_l2_block(&full_node_test_client, 100, None).await;
 
-    let status = full_node_test_client.citrea_status().await;
+    let status = full_node_test_client.citrea_sync_status().await;
 
     matches!(status, CitreaStatus::Synced);
 
