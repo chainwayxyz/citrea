@@ -1425,18 +1425,21 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     for _ in 0..3 {
         seq_test_client.send_publish_batch_request().await;
     }
+    wait_for_l2_block(&seq_test_client, 3, None).await;
 
     // prover should not have any blocks saved
     assert_eq!(prover_node_test_client.eth_block_number().await, 0);
 
     da_service.publish_test_block().await.unwrap();
+    wait_for_l1_block(&da_service, 2, None).await;
 
     seq_test_client.send_publish_batch_request().await;
+    wait_for_l2_block(&seq_test_client, 4, None).await;
 
     // sequencer commitment should be sent
     da_service.publish_test_block().await.unwrap();
-    // start l1 height = 1, end = 2
-    seq_test_client.send_publish_batch_request().await;
+    wait_for_l1_block(&da_service, 3, None).await;
+    wait_for_l1_block(&da_service, 4, None).await;
 
     // wait here until we see from prover's rpc that it finished proving
     wait_for_prover_l1_height(
@@ -1480,6 +1483,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     let prover_node_test_client = make_test_client(prover_node_port).await;
 
     seq_test_client.send_publish_batch_request().await;
+    wait_for_l2_block(&seq_test_client, 6, None).await;
 
     // Still should have 4 blocks there are no commitments yet
     assert_eq!(prover_node_test_client.eth_block_number().await, 4);
@@ -1488,6 +1492,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
 
     seq_test_client.send_publish_batch_request().await;
     seq_test_client.send_publish_batch_request().await;
+    wait_for_l2_block(&seq_test_client, 8, None).await;
 
     let _ = copy_dir_recursive(&prover_db_dir, &storage_dir.path().join("prover_copy2"));
 
@@ -1519,10 +1524,12 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
 
     // Still should have 4 blocks there are no commitments yet
     assert_eq!(prover_node_test_client.eth_block_number().await, 4);
-    da_service.publish_test_block().await.unwrap();
 
-    // Commitment is sent right before the 9th block is published
     seq_test_client.send_publish_batch_request().await;
+    da_service.publish_test_block().await.unwrap();
+    wait_for_l1_block(&da_service, 6, None).await;
+    // Commitment is sent
+    wait_for_l1_block(&da_service, 7, None).await;
 
     // wait here until we see from prover's rpc that it finished proving
     wait_for_prover_l1_height(
@@ -1535,7 +1542,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     // Should now have 8 blocks = 2 commitments of blocks 1-4 and 5-9
     // there is an extra soft confirmation due to the prover publishing a proof. This causes
     // a new MockDa block, which in turn causes the sequencer to publish an extra soft confirmation
-    assert_eq!(prover_node_test_client.eth_block_number().await, 9);
+    assert_eq!(prover_node_test_client.eth_block_number().await, 8);
 
     // TODO: Also test with multiple commitments in single Mock DA Block
     seq_task.abort();
