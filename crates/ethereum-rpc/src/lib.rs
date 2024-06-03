@@ -823,8 +823,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                         jsonrpsee::core::client::Error::Call(e_owned) => return Err(e_owned),
                         _ => return Err(to_jsonrpsee_error_object("SEQUENCER_CLIENT_ERROR", e)),
                     },
-                }
-                .to::<u64>();
+                };
 
                 let evm = Evm::<C>::default();
                 let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
