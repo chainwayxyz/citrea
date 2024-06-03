@@ -45,6 +45,12 @@ impl SequencerClient {
         }
     }
 
+    /// Gets l2 block height
+    #[instrument(level = "trace", skip(self), err, ret)]
+    pub async fn block_number(&self) -> Result<reth_primitives::U256, Error> {
+        self.client.request("eth_blockNumber", rpc_params![]).await
+    }
+
     /// Sends raw tx to sequencer
     #[instrument(level = "trace", skip_all, err, ret)]
     pub async fn send_raw_tx(&self, tx: Bytes) -> Result<H256, Error> {

@@ -201,8 +201,8 @@ note: type in trait
    |
 86 |             pub fn query_value(&self, working_set: &mut WorkingSet<C>) -> RpcResult<QueryResponse> {
    |                                                         ^^^^^^^^^^^^^
-   = note: expected signature `fn(&RpcStorage<_, _>) -> sov_modules_api::WorkingSet<C>`
-              found signature `fn(&RpcStorage<_, _>) -> sov_modules_api::WorkingSet<S>`
+   = note: expected signature `fn(&RpcStorage<S, C>) -> sov_modules_api::WorkingSet<C>`
+              found signature `fn(&RpcStorage<S, C>) -> sov_modules_api::WorkingSet<S>`
    = note: a type parameter was expected, but a different one was found; you might be missing a type parameter or trait bound
    = note: for more information, visit https://doc.rust-lang.org/book/ch10-02-traits.html#traits-as-parameters
    = note: this error originates in the attribute macro `expose_rpc` (in Nightly builds, run with -Z macro-backtrace for more info)
