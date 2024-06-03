@@ -3090,7 +3090,10 @@ async fn test_full_node_sync_status() {
 
     let status = full_node_test_client.citrea_sync_status().await;
 
-    matches!(status, CitreaStatus::Synced);
+    match status {
+        CitreaStatus::Synced(synced_up_to) => assert_eq!(synced_up_to, 100),
+        _ => panic!("Expected synced status"),
+    }
 
     seq_task.abort();
     full_node_task.abort();

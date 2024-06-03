@@ -48,7 +48,7 @@ pub struct SyncStatus {
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, PartialEq)]
 pub enum CitreaStatus {
-    Synced,
+    Synced(u64),
     Syncing(SyncStatus),
 }
 
@@ -844,7 +844,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                         head_block_number,
                     }))
                 } else {
-                    Ok::<CitreaStatus, ErrorObjectOwned>(CitreaStatus::Synced)
+                    Ok::<CitreaStatus, ErrorObjectOwned>(CitreaStatus::Synced(head_block_number))
                 }
             },
         )?;
