@@ -95,6 +95,9 @@ fn test_helper(
             bind_host: "127.0.0.1".to_string(),
             bind_port: addr.port(),
             max_connections: 100,
+            max_request_body_size: 10 * 1024 * 1024,
+            max_response_body_size: 10 * 1024 * 1024,
+            batch_requests_limit: 50,
         };
 
         queries_test_runner(test_queries, rpc_config).await;

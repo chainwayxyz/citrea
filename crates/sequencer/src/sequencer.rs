@@ -13,6 +13,7 @@ use citrea_stf::runtime::Runtime;
 use digest::Digest;
 use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
 use futures::StreamExt;
+use jsonrpsee::server::{BatchRequestConfig, ServerBuilder};
 use jsonrpsee::RpcModule;
 use reth_primitives::{FromRecoveredPooledTransaction, IntoRecoveredTransaction, TxHash};
 use reth_provider::BlockReaderIdExt;
@@ -181,10 +182,16 @@ where
         );
 
         let max_connections = self.rpc_config.max_connections;
+        let max_request_body_size = self.rpc_config.max_request_body_size;
+        let max_response_body_size = self.rpc_config.max_response_body_size;
+        let batch_requests_limit = self.rpc_config.batch_requests_limit;
 
         let _handle = tokio::spawn(async move {
-            let server = jsonrpsee::server::ServerBuilder::default()
+            let server = ServerBuilder::default()
                 .max_connections(max_connections)
+                .max_request_body_size(max_request_body_size)
+                .max_response_body_size(max_response_body_size)
+                .set_batch_request_config(BatchRequestConfig::Limit(batch_requests_limit))
                 .build([listen_address].as_ref())
                 .await;
 
