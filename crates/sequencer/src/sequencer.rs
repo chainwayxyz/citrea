@@ -993,6 +993,6 @@ where
             });
         }
 
-        Ok(vec![])
+        Ok(updates)
     }
 }
