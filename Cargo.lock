@@ -9730,7 +9730,7 @@ dependencies = [
  "sov-modules-api",
  "sov-modules-core",
  "sov-state",
- "syn 1.0.109",
+ "syn 2.0.66",
  "trybuild",
 ]
 
@@ -10069,7 +10069,7 @@ dependencies = [
  "risc0-zkvm",
  "risc0-zkvm-platform",
  "sov-zk-cycle-macros",
- "syn 1.0.109",
+ "syn 2.0.66",
  "trybuild",
 ]
 
