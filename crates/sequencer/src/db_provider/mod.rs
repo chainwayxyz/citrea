@@ -13,7 +13,7 @@ use reth_provider::{
     ChainSpecProvider, HeaderProvider, ReceiptProvider, ReceiptProviderIdExt, StateProvider,
     StateProviderFactory, StateRootProvider, TransactionsProvider, WithdrawalsProvider,
 };
-use reth_rpc_types::{Block, BlockTransactions};
+use reth_rpc_types::{Block, BlockTransactions, Rich};
 use reth_trie::updates::TrieUpdates;
 use revm::db::states::bundle_state::BundleState;
 use sov_modules_api::WorkingSet;
@@ -43,6 +43,14 @@ impl<C: sov_modules_api::Context> DbProvider<C> {
             Some(BlockTransactions::Hashes(hashes)) => Ok(hashes),
             _ => Ok(vec![]),
         }
+    }
+
+    pub fn last_block(&self) -> RpcResult<Option<Rich<Block>>> {
+        let mut working_set = WorkingSet::<C>::new(self.storage.clone());
+        let rich_block = self
+            .evm
+            .get_block_by_number(None, Some(true), &mut working_set)?;
+        Ok(rich_block)
     }
 
     pub fn genesis_block(&self) -> RpcResult<Option<Block>> {

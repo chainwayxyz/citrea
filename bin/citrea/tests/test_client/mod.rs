@@ -19,7 +19,8 @@ use reth_primitives::BlockNumberOrTag;
 use reth_rpc_types::trace::geth::{GethDebugTracingOptions, GethTrace};
 use sequencer_client::GetSoftBatchResponse;
 use sov_rollup_interface::rpc::{
-    ProofResponse, SequencerCommitmentResponse, SoftConfirmationStatus, VerifiedProofResponse,
+    ProofResponse, SequencerCommitmentResponse, SoftBatchResponse, SoftConfirmationStatus,
+    VerifiedProofResponse,
 };
 
 pub const MAX_FEE_PER_GAS: u64 = 1000000001;
@@ -636,6 +637,24 @@ impl TestClient {
                 "ledger_getSequencerCommitmentsOnSlotByHash",
                 rpc_params![hash],
             )
+            .await
+            .map_err(|e| e.into())
+    }
+
+    pub(crate) async fn ledger_get_head_soft_batch(
+        &self,
+    ) -> Result<Option<SoftBatchResponse>, Box<dyn std::error::Error>> {
+        self.http_client
+            .request("ledger_getHeadSoftBatch", rpc_params![])
+            .await
+            .map_err(|e| e.into())
+    }
+
+    pub(crate) async fn ledger_get_head_soft_batch_height(
+        &self,
+    ) -> Result<Option<u64>, Box<dyn std::error::Error>> {
+        self.http_client
+            .request("ledger_getHeadSoftBatchHeight", rpc_params![])
             .await
             .map_err(|e| e.into())
     }

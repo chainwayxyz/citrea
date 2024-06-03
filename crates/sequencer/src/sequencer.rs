@@ -1,4 +1,5 @@
 use std::cmp::Ordering;
+use std::collections::HashSet;
 use std::marker::PhantomData;
 use std::net::SocketAddr;
 use std::ops::RangeInclusive;
@@ -13,11 +14,13 @@ use citrea_stf::runtime::Runtime;
 use digest::Digest;
 use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
 use futures::StreamExt;
+use jsonrpsee::server::{BatchRequestConfig, ServerBuilder};
 use jsonrpsee::RpcModule;
-use reth_primitives::{FromRecoveredPooledTransaction, IntoRecoveredTransaction, TxHash};
-use reth_provider::BlockReaderIdExt;
+use reth_primitives::{Address, FromRecoveredPooledTransaction, IntoRecoveredTransaction, TxHash};
+use reth_provider::{AccountReader, BlockReaderIdExt};
 use reth_transaction_pool::{
-    BestTransactions, BestTransactionsAttributes, EthPooledTransaction, ValidPoolTransaction,
+    BestTransactions, BestTransactionsAttributes, ChangedAccount, EthPooledTransaction,
+    ValidPoolTransaction,
 };
 use shared_backup_db::{CommitmentStatus, PostgresConnector};
 use soft_confirmation_rule_enforcer::SoftConfirmationRuleEnforcer;
@@ -181,10 +184,16 @@ where
         );
 
         let max_connections = self.rpc_config.max_connections;
+        let max_request_body_size = self.rpc_config.max_request_body_size;
+        let max_response_body_size = self.rpc_config.max_response_body_size;
+        let batch_requests_limit = self.rpc_config.batch_requests_limit;
 
         let _handle = tokio::spawn(async move {
-            let server = jsonrpsee::server::ServerBuilder::default()
+            let server = ServerBuilder::default()
                 .max_connections(max_connections)
+                .max_request_body_size(max_request_body_size)
+                .max_response_body_size(max_response_body_size)
+                .set_batch_request_config(BatchRequestConfig::Limit(batch_requests_limit))
                 .build([listen_address].as_ref())
                 .await;
 
@@ -501,6 +510,10 @@ where
                 txs_to_remove.extend(l1_fee_failed_txs);
 
                 self.mempool.remove_transactions(txs_to_remove.clone());
+
+                let account_updates = self.get_account_updates()?;
+
+                self.mempool.update_accounts(account_updates);
 
                 if let Some(pg_pool) = pg_pool.clone() {
                     // TODO: Is this okay? I'm not sure because we have a loop in this and I can't do async in spawn_blocking
@@ -954,5 +967,35 @@ where
         self.soft_confirmation_rule_enforcer
             .get_next_min_max_l1_fee_rate(&mut working_set)
             .map_err(|e| anyhow::anyhow!("Error reading min max l1 fee rate: {}", e))
+    }
+
+    fn get_account_updates(&self) -> Result<Vec<ChangedAccount>, anyhow::Error> {
+        let head = self
+            .db_provider
+            .last_block()?
+            .expect("Unrecoverable: Head must exist");
+
+        let addresses: HashSet<Address> = match head.transactions {
+            reth_rpc_types::BlockTransactions::Full(ref txs) => {
+                txs.iter().map(|tx| tx.from).collect()
+            }
+            _ => panic!("Block should have full transactions"),
+        };
+
+        let mut updates = vec![];
+
+        for address in addresses {
+            let account = self
+                .db_provider
+                .basic_account(address)?
+                .expect("Account must exist");
+            updates.push(ChangedAccount {
+                address,
+                nonce: account.nonce,
+                balance: account.balance,
+            });
+        }
+
+        Ok(updates)
     }
 }
