@@ -3014,7 +3014,6 @@ async fn test_ledger_get_head_soft_batch() {
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
     let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
     let fullnode_db_dir = storage_dir.path().join("full-node").to_path_buf();
-    let fullnode2_db_dir = storage_dir.path().join("full-node2").to_path_buf();
 
     let config = TestConfig {
         da_path: da_db_dir.clone(),
@@ -3064,6 +3063,13 @@ async fn test_ledger_get_head_soft_batch() {
         head_soft_batch.post_state_root.as_slice(),
         latest_block.state_root.as_ref()
     );
+
+    let head_soft_batch_height = seq_test_client
+        .ledger_get_head_soft_batch_height()
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(head_soft_batch_height, 2);
 
     seq_task.abort();
 }

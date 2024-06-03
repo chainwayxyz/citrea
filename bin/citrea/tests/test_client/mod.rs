@@ -651,7 +651,7 @@ impl TestClient {
 
     pub(crate) async fn ledger_get_head_soft_batch_height(
         &self,
-    ) -> Result<Option<SoftBatchResponse>, Box<dyn std::error::Error>> {
+    ) -> Result<Option<u64>, Box<dyn std::error::Error>> {
         self.http_client
             .request("ledger_getHeadSoftBatchHeight", rpc_params![])
             .await
