@@ -970,7 +970,10 @@ where
     }
 
     fn get_account_updates(&self) -> Result<Vec<ChangedAccount>, anyhow::Error> {
-        let head = self.db_provider.last_block()?.expect("Head must exist");
+        let head = self
+            .db_provider
+            .last_block()?
+            .expect("Unrecoverable: Head must exist");
 
         let addresses: HashSet<Address> = match head.transactions {
             reth_rpc_types::BlockTransactions::Full(ref txs) => {
