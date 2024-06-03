@@ -30,11 +30,35 @@ pub struct RpcConfig {
     /// if not set defaults to 100.
     #[serde(default = "default_max_connections")]
     pub max_connections: u32,
+    /// Max request body request
+    #[serde(default = "default_max_request_body_size")]
+    pub max_request_body_size: u32,
+    /// Max response body request
+    #[serde(default = "default_max_response_body_size")]
+    pub max_response_body_size: u32,
+    /// Maximum number of batch requests
+    #[serde(default = "default_batch_requests_limit")]
+    pub batch_requests_limit: u32,
 }
 
 #[inline]
 const fn default_max_connections() -> u32 {
     100
+}
+
+#[inline]
+const fn default_max_request_body_size() -> u32 {
+    10 * 1024 * 1024
+}
+
+#[inline]
+const fn default_max_response_body_size() -> u32 {
+    10 * 1024 * 1024
+}
+
+#[inline]
+const fn default_batch_requests_limit() -> u32 {
+    50
 }
 
 /// Simple storage configuration
