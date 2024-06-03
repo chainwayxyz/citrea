@@ -601,6 +601,12 @@ pub trait LedgerRpcProvider {
         &self,
         height: u64,
     ) -> Result<Option<Vec<VerifiedProofResponse>>, anyhow::Error>;
+
+    /// Get head soft batch
+    fn get_head_soft_batch(&self) -> Result<Option<SoftBatchResponse>, anyhow::Error>;
+
+    /// Get head soft batch height
+    fn get_head_soft_batch_height(&self) -> Result<u64, anyhow::Error>;
 }
 
 /// JSON-RPC -related utilities. Occasionally useful but unimportant for most

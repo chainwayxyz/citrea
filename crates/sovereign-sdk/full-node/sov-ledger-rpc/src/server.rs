@@ -276,6 +276,18 @@ where
         },
     )?;
 
+    rpc.register_async_method("ledger_getHeadSoftBatch", |_, ledger| async move {
+        ledger
+            .get_head_soft_batch()
+            .map_err(|e: anyhow::Error| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
+    })?;
+
+    rpc.register_async_method("ledger_getHeadSoftBatchHeight", |_, ledger| async move {
+        ledger
+            .get_head_soft_batch_height()
+            .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
+    })?;
+
     Ok(rpc)
 }
 
