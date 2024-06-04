@@ -16,8 +16,6 @@ path = "full-node-db"
 bind_host = "0.0.0.0"
 bind_port = 8545
 
-# We define the rollup's genesis to occur at block number `start_height`. The rollup will ignore
-# any blocks before this height
 [runner]
 sequencer_client_url = "http://0.0.0.0:8545"
 include_tx_body = false
