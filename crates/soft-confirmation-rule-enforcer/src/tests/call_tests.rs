@@ -11,12 +11,12 @@ use crate::tests::genesis_tests::{get_soft_confirmation_rule_enforcer, TEST_CONF
 type C = DefaultContext;
 
 #[test]
-fn change_limiting_number_and_authority() {
+fn change_max_l2_blocks_per_l1_and_authority() {
     let (soft_confirmation_rule_enforcer, mut working_set) =
         get_soft_confirmation_rule_enforcer::<MockDaSpec>(&TEST_CONFIG);
 
-    let call_message = CallMessage::ModifyLimitingNumber {
-        limiting_number: 999,
+    let call_message = CallMessage::ModifyMaxL2BlocksPerL1 {
+        max_l2_blocks_per_l1: 999,
     };
 
     let sender_address = <DefaultContext as Spec>::Address::from_str(
@@ -33,7 +33,7 @@ fn change_limiting_number_and_authority() {
 
     assert_eq!(
         soft_confirmation_rule_enforcer
-            .limiting_number
+            .max_l2_blocks_per_l1
             .get(&mut working_set)
             .unwrap(),
         999
@@ -54,13 +54,13 @@ fn change_limiting_number_and_authority() {
         new_authority
     );
 
-    let modify_limiting_number_message = CallMessage::ModifyLimitingNumber {
-        limiting_number: 123,
+    let modify_max_l2_blocks_per_l1_message = CallMessage::ModifyMaxL2BlocksPerL1 {
+        max_l2_blocks_per_l1: 123,
     };
     // after the authority is changed we cannot call the modules function with the old context
     assert!(soft_confirmation_rule_enforcer
         .call(
-            modify_limiting_number_message.clone(),
+            modify_max_l2_blocks_per_l1_message.clone(),
             &context,
             &mut working_set
         )
@@ -76,7 +76,7 @@ fn change_limiting_number_and_authority() {
     // make sure it is still the same
     assert_eq!(
         soft_confirmation_rule_enforcer
-            .limiting_number
+            .max_l2_blocks_per_l1
             .get(&mut working_set)
             .unwrap(),
         999
@@ -92,12 +92,16 @@ fn change_limiting_number_and_authority() {
     // create a new context with the new authority
     let context = C::new(new_authority, sequencer_address, 1);
     let _ = soft_confirmation_rule_enforcer
-        .call(modify_limiting_number_message, &context, &mut working_set)
+        .call(
+            modify_max_l2_blocks_per_l1_message,
+            &context,
+            &mut working_set,
+        )
         .unwrap();
 
     assert_eq!(
         soft_confirmation_rule_enforcer
-            .limiting_number
+            .max_l2_blocks_per_l1
             .get(&mut working_set)
             .unwrap(),
         123

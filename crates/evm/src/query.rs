@@ -7,14 +7,17 @@ use jsonrpsee::core::RpcResult;
 use reth_interfaces::provider::ProviderError;
 use reth_primitives::constants::GWEI_TO_WEI;
 use reth_primitives::revm::env::tx_env_with_recovered;
-use reth_primitives::TransactionKind::{Call, Create};
+use reth_primitives::TxKind::{Call, Create};
 use reth_primitives::{
-    Block, BlockId, BlockNumberOrTag, SealedHeader, TransactionSignedEcRecovered, U128, U256, U64,
+    Block, BlockId, BlockNumberOrTag, SealedHeader, TransactionSignedEcRecovered, U256, U64,
 };
 use reth_rpc::eth::error::{EthApiError, EthResult, RevertError, RpcInvalidTransactionError};
 use reth_rpc_types::other::OtherFields;
 use reth_rpc_types::trace::geth::{GethDebugTracingOptions, GethTrace};
-use reth_rpc_types::AccessListWithGasUsed;
+use reth_rpc_types::{
+    AccessListWithGasUsed, AnyReceiptEnvelope, AnyTransactionReceipt, Log, ReceiptWithBloom,
+    TransactionReceipt,
+};
 use reth_rpc_types_compat::block::from_primitive_with_hash;
 use revm::primitives::{
     CfgEnvWithHandlerCfg, EVMError, ExecutionResult, HaltReason, InvalidTransaction, TransactTo,
@@ -38,8 +41,8 @@ use crate::handler::TxInfo;
 use crate::rpc_helpers::*;
 use crate::{BloomFilter, Evm, EvmChainConfig, FilterBlockOption, FilterError};
 
-// Gas per transaction not creating a contract.
-pub(crate) const MIN_TRANSACTION_GAS: u64 = 21_000u64;
+/// Gas per transaction not creating a contract.
+pub const MIN_TRANSACTION_GAS: u64 = 21_000u64;
 
 /// https://github.com/paradigmxyz/reth/pull/7133/files
 /// Allowed error ratio for gas estimation
@@ -194,12 +197,9 @@ impl<C: sov_modules_api::Context> Evm<C> {
                             reth_rpc_types_compat::transaction::from_recovered_with_block_context(
                                 tx.clone().into(),
                                 header.hash.expect("Block must be already sealed"),
-                                header
-                                    .number
-                                    .expect("Block must be already sealed")
-                                    .to::<u64>(),
-                                header.base_fee_per_gas.map(|bfpg| bfpg.to::<u64>()),
-                                U256::from(id),
+                                header.number.expect("Block must be already sealed"),
+                                header.base_fee_per_gas.map(|bfpg| bfpg.try_into().unwrap()), // u64 max is 18446744073 gwei, for the conversion to fail the base fee per gas would have to be higher than that
+                                id,
                             )
                         })
                         .collect::<Vec<_>>(),
@@ -241,7 +241,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         &self,
         block_number_or_hash: BlockId,
         working_set: &mut WorkingSet<C>,
-    ) -> RpcResult<Option<Vec<reth_rpc_types::TransactionReceipt>>> {
+    ) -> RpcResult<Option<Vec<AnyTransactionReceipt>>> {
         tokio::task::block_in_place(|| {
             info!("evm module: eth_getBlockReceipts");
 
@@ -533,7 +533,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 block.header.hash(),
                 block.header.number,
                 block.header.base_fee_per_gas,
-                U256::from(tx_number - block.transactions.start),
+                (tx_number - block.transactions.start) as usize,
             );
 
             Ok(Some(transaction))
@@ -583,7 +583,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 block.header.hash(),
                 block.header.number,
                 block.header.base_fee_per_gas,
-                U256::from(tx_number - block.transactions.start),
+                (tx_number - block.transactions.start) as usize,
             );
 
             Ok(Some(transaction))
@@ -596,7 +596,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         &self,
         hash: reth_primitives::B256,
         working_set: &mut WorkingSet<C>,
-    ) -> RpcResult<Option<reth_rpc_types::TransactionReceipt>> {
+    ) -> RpcResult<Option<AnyTransactionReceipt>> {
         tokio::task::block_in_place(|| {
             info!("evm module: eth_getTransactionReceipt");
             let mut accessory_state = working_set.accessory_state();
@@ -801,11 +801,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
             )?;
 
             let from = request.from.unwrap_or_default();
-            let to = if let Some(to) = request.to {
+            let to = if let Some(Call(to)) = request.to {
                 to
             } else {
                 let account = evm_db.basic(from).unwrap();
-
                 let nonce = account.unwrap_or_default().nonce;
                 from.create(nonce)
             };
@@ -1005,12 +1004,12 @@ impl<C: sov_modules_api::Context> Evm<C> {
     ) -> RpcResult<EstimatedTxExpenses> {
         let request_gas = request.gas;
         let request_gas_price = request.gas_price;
-        let env_gas_limit = block_env.gas_limit;
+        let env_gas_limit = block_env.gas_limit.into();
         let env_base_fee = U256::from(block_env.basefee);
 
         // get the highest possible gas limit, either the request's set value or the currently
         // configured gas limit
-        let mut highest_gas_limit = request.gas.unwrap_or(U256::from(env_gas_limit));
+        let mut highest_gas_limit = request.gas.unwrap_or(env_gas_limit);
 
         let account = self
             .accounts
@@ -1062,7 +1061,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         // check funds of the sender
         if tx_env.gas_price > U256::ZERO {
             // allowance is (balance - tx.value) / tx.gas_price
-            let allowance = (account.balance - tx_env.value) / tx_env.gas_price;
+            let allowance = ((account.balance - tx_env.value) / tx_env.gas_price).saturating_to();
 
             if highest_gas_limit > allowance {
                 // cap the highest gas limit by max gas caller can afford with given gas price
@@ -1071,8 +1070,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
         }
 
         // if the provided gas limit is less than computed cap, use that
-        let gas_limit = std::cmp::min(U256::from(tx_env.gas_limit), highest_gas_limit);
-        tx_env.gas_limit = gas_limit.saturating_to();
+        let gas_limit: u64 = std::cmp::min(tx_env.gas_limit, highest_gas_limit as u64); // highest_gas_limit is capped to u64::MAX
+        tx_env.gas_limit = gas_limit;
 
         let evm_db = self.get_db(working_set);
 
@@ -1290,7 +1289,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 block.header.hash(),
                 block.header.number,
                 block.header.base_fee_per_gas,
-                U256::from(number - block.transactions.start),
+                (number - block.transactions.start) as usize,
             )
         });
 
@@ -1537,8 +1536,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 ) {
                     let log = LogResponse {
                         address: log.address,
-                        topics: log.topics,
-                        data: log.data.to_vec().into(),
+                        topics: log.topics().to_vec(),
+                        data: log.data.data.to_vec().into(),
                         block_hash: Some(block.header.hash()),
                         block_number: Some(U256::from(block.header.number)),
                         transaction_hash: Some(tx.signed_transaction.hash),
@@ -1587,78 +1586,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
             headers.push(block.header);
         }
         Ok(headers)
-    }
-
-    /// Helper function to get transactions and receipts for a given block hash
-    pub fn get_transactions_and_receipts(
-        &self,
-        block_hash: reth_primitives::B256,
-        working_set: &mut WorkingSet<C>,
-    ) -> Result<
-        (
-            Vec<reth_rpc_types::Transaction>,
-            Vec<reth_rpc_types::TransactionReceipt>,
-        ),
-        EthApiError,
-    > {
-        let mut accessory_state = working_set.accessory_state();
-
-        let block_number = self
-            .block_hashes
-            .get(&block_hash, &mut accessory_state)
-            .ok_or_else(|| EthApiError::InvalidBlockRange)?;
-
-        let block = self
-            .blocks
-            .get(block_number as usize, &mut accessory_state)
-            .ok_or_else(|| EthApiError::InvalidBlockRange)?;
-
-        let transactions = block
-            .transactions
-            .clone()
-            .map(|id| {
-                let tx = self
-                    .transactions
-                    .get(id as usize, &mut accessory_state)
-                    .expect("Transaction must be set");
-                let block = self
-                    .blocks
-                    .get(tx.block_number as usize, &mut accessory_state)
-                    .expect("Block number for known transaction must be set");
-
-                reth_rpc_types_compat::transaction::from_recovered_with_block_context(
-                    tx.into(),
-                    block.header.hash(),
-                    block.header.number,
-                    block.header.base_fee_per_gas,
-                    U256::from(id - block.transactions.start),
-                )
-            })
-            .collect::<Vec<_>>();
-
-        let receipts = block
-            .transactions
-            .clone()
-            .map(|id| {
-                let tx = self
-                    .transactions
-                    .get(id as usize, &mut accessory_state)
-                    .expect("Transaction must be set");
-                let block = self
-                    .blocks
-                    .get(tx.block_number as usize, &mut accessory_state)
-                    .expect("Block number for known transaction must be set");
-
-                let receipt = self
-                    .receipts
-                    .get(id as usize, &mut accessory_state)
-                    .expect("Receipt for known transaction must be set");
-
-                build_rpc_receipt(&block, tx, id, receipt)
-            })
-            .collect::<Vec<_>>();
-
-        Ok((transactions, receipts))
     }
 
     /// Helper function to check if the block number is valid
@@ -1735,11 +1662,11 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
     /// Returns the cumulative gas used in pending transactions
     /// Used to calculate how much gas system transactions use at the beginning of the block
-    pub fn get_pending_txs_cumulative_gas_used(&self, working_set: &mut WorkingSet<C>) -> u64 {
+    pub fn get_pending_txs_cumulative_gas_used(&self, working_set: &mut WorkingSet<C>) -> u128 {
         self.pending_transactions
             .iter(working_set)
             .map(|tx| tx.receipt.gas_used)
-            .sum::<u64>()
+            .sum::<u128>()
     }
 }
 
@@ -1749,14 +1676,16 @@ pub(crate) fn build_rpc_receipt(
     tx: TransactionSignedAndRecovered,
     tx_number: u64,
     receipt: Receipt,
-) -> reth_rpc_types::TransactionReceipt {
+) -> AnyTransactionReceipt {
     let transaction: TransactionSignedEcRecovered = tx.into();
     let transaction_kind = transaction.kind();
 
     let transaction_hash = transaction.hash;
     let transaction_index = tx_number - block.transactions.start;
-    let block_hash = Some(block.header.hash());
-    let block_number = Some(U256::from(block.header.number));
+    let block_hash = block.header.hash();
+    let block_number = block.header.number;
+    let block_timestamp = block.header.timestamp;
+    let block_base_fee = block.header.base_fee_per_gas;
     let other = OtherFields::new(
         [
             (
@@ -1772,54 +1701,59 @@ pub(crate) fn build_rpc_receipt(
         .collect(),
     );
 
-    reth_rpc_types::TransactionReceipt {
+    let mut logs = Vec::with_capacity(receipt.receipt.logs.len());
+    for (tx_log_idx, log) in receipt.receipt.logs.iter().enumerate() {
+        let rpclog = Log {
+            inner: log.clone(),
+            block_hash: Some(block_hash),
+            block_number: Some(block_number),
+            block_timestamp: Some(block_timestamp),
+            transaction_hash: Some(transaction_hash),
+            transaction_index: Some(transaction_index),
+            log_index: Some(receipt.log_index_start + tx_log_idx as u64),
+            removed: false,
+        };
+        logs.push(rpclog);
+    }
+
+    let rpc_receipt = reth_rpc_types::Receipt {
+        status: receipt.receipt.success,
+        cumulative_gas_used: receipt.receipt.cumulative_gas_used as u128,
+        logs,
+    };
+
+    let res_receipt = TransactionReceipt {
+        inner: AnyReceiptEnvelope {
+            inner: ReceiptWithBloom {
+                receipt: rpc_receipt,
+                logs_bloom: receipt.receipt.bloom_slow(),
+            },
+            r#type: transaction.transaction.tx_type().into(),
+        },
         transaction_hash,
-        transaction_index: U64::from(transaction_index),
-        block_hash,
-        block_number,
+        transaction_index: Some(transaction_index),
+        block_hash: Some(block_hash),
+        block_number: Some(block_number),
         from: transaction.signer(),
         to: match transaction_kind {
             Create => None,
             Call(addr) => Some(*addr),
         },
-        cumulative_gas_used: U256::from(receipt.receipt.cumulative_gas_used),
-        gas_used: Some(U256::from(receipt.gas_used)),
-        // EIP-4844 related
-        // https://github.com/Sovereign-Labs/sovereign-sdk/issues/912
-        blob_gas_used: None,
-        blob_gas_price: None,
+        gas_used: receipt.gas_used,
         contract_address: match transaction_kind {
             Create => Some(transaction.signer().create(transaction.nonce())),
             Call(_) => None,
         },
-        effective_gas_price: U128::from(
-            transaction.effective_gas_price(block.header.base_fee_per_gas),
-        ),
-        transaction_type: transaction.tx_type().into(),
-        logs_bloom: receipt.receipt.bloom_slow(),
-        status_code: if receipt.receipt.success {
-            Some(U64::from(1))
-        } else {
-            Some(U64::from(0))
-        },
-        state_root: None, // Pre https://eips.ethereum.org/EIPS/eip-658 (pre-byzantium) and won't be used
-        logs: receipt
-            .receipt
-            .logs
-            .into_iter()
-            .enumerate()
-            .map(|(idx, log)| reth_rpc_types::Log {
-                address: log.address,
-                topics: log.topics,
-                data: log.data,
-                block_hash,
-                block_number,
-                transaction_hash: Some(transaction_hash),
-                transaction_index: Some(U256::from(transaction_index)),
-                log_index: Some(U256::from(receipt.log_index_start + idx as u64)),
-                removed: false,
-            })
-            .collect(),
+        effective_gas_price: transaction.effective_gas_price(block_base_fee),
+        // TODO pre-byzantium receipts have a post-transaction state root
+        state_root: None,
+        // EIP-4844 related
+        // https://github.com/Sovereign-Labs/sovereign-sdk/issues/912
+        blob_gas_price: None,
+        blob_gas_used: None,
+    };
+    AnyTransactionReceipt {
+        inner: res_receipt,
         other,
     }
 }

@@ -3,12 +3,12 @@ use sov_mock_da::{
     MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaSpec, MockValidityCond,
 };
 use sov_mock_zkvm::MockZkvm;
-use sov_modules_api::{Context, StateDiff};
+use sov_modules_api::Context;
 use sov_modules_stf_blueprint::StfBlueprintTrait;
 use sov_prover_storage_manager::{new_orphan_storage, SnapshotManager};
 use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::stf::{SlotResult, StateTransitionFunction};
-use sov_rollup_interface::zk::{ValidityCondition, Zkvm};
+use sov_rollup_interface::zk::{CumulativeStateDiff, ValidityCondition, Zkvm};
 use sov_state::storage::{NativeStorage, StorageKey, StorageValue};
 use sov_state::{
     ArrayWitness, DefaultStorageSpec, OrderedReadsAndWrites, Prefix, ProverStorage, Storage,
@@ -234,7 +234,7 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
         _soft_confirmations: std::collections::VecDeque<
             Vec<sov_modules_api::SignedSoftConfirmationBatch>,
         >,
-    ) -> (Self::StateRoot, StateDiff) {
+    ) -> (Self::StateRoot, CumulativeStateDiff) {
         todo!()
     }
 }

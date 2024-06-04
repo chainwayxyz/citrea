@@ -13,7 +13,7 @@ use tokio::time::sleep;
 use crate::evm::init_test_rollup;
 use crate::test_client::TestClient;
 use crate::test_helpers::{start_rollup, tempdir_with_children, NodeMode};
-use crate::{DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT};
+use crate::DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_gas_price_increase() -> Result<(), anyhow::Error> {

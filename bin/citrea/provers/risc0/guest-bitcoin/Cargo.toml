@@ -7,9 +7,14 @@ resolver = "2"
 [workspace]
 
 [dependencies]
-anyhow = "1.0.68"
 risc0-zkvm = { version = "0.21", default-features = false, features = ["std"] }
-risc0-zkvm-platform = "0.21"
+risc0-zkvm-platform = { version = "0.21" }
+# forcing cargo for this version
+reth-primitives = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.7", default-features = false }
+# forcing cargo for this version
+alloy-trie = { version = "=0.3.1", default-features = false }
+
+anyhow = "1.0.68"
 bitcoin-da = { path = "../../../../../crates/bitcoin-da", default-features = false }
 rollup-constants = { path = "../../../../rollup-constants" }
 citrea-stf = { path = "../../../../../crates/citrea-stf" }
@@ -18,17 +23,15 @@ sov-modules-api = { path = "../../../../../crates/sovereign-sdk/module-system/so
 sov-state = { path = "../../../../../crates/sovereign-sdk/module-system/sov-state" }
 sov-modules-stf-blueprint = { path = "../../../../../crates/sovereign-sdk/module-system/sov-modules-stf-blueprint" }
 sov-rollup-interface = { path = "../../../../../crates/sovereign-sdk/rollup-interface" }
-# forcing cargo for this version or else chooses 3.1.1 and there is some dependency conflicts
-revm-primitives = { version = "=3.1.0", default-features = false }
-# forcing cargo for this version or else chooses 0.3.1 and there is some dependency conflicts
-alloy-trie = { version = "=0.3.0", default-features = false }
 
 [patch.crates-io]
 sha2 = { git = "https://github.com/risc0/RustCrypto-hashes", tag = "sha2-v0.10.8-risczero.0" }
 ed25519-dalek = { git = "https://github.com/risc0/curve25519-dalek", tag = "curve25519-4.1.0-risczero.1" }
 crypto-bigint = { git = "https://github.com/risc0/RustCrypto-crypto-bigint", tag = "v0.5.2-risc0" }
-secp256k1_v027 = { package = "secp256k1", version = "0.27", git = "https://github.com/Sovereign-Labs/rust-secp256k1.git", branch = "risc0-compatible-0-27-0" }
 secp256k1_v028 = { package = "secp256k1", version = "0.28", git = "https://github.com/Sovereign-Labs/rust-secp256k1.git", branch = "risc0-compatible-0-28-2" }
+k256 = { package = "k256", version = "0.13.3", git = "https://github.com/risc0/RustCrypto-elliptic-curves", tag = "k256/v0.13.3-risczero.0" }
+# tmp fix
+alloy-primitives = { git = "https://github.com/alloy-rs/core.git", rev = "7f17fe3" }
 
 [profile.dev]
 opt-level = 3

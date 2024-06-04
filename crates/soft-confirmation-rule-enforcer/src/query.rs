@@ -8,14 +8,14 @@ use crate::SoftConfirmationRuleEnforcer;
 
 #[rpc_gen(client, server, namespace = "softConfirmationRuleEnforcer")]
 impl<C: Context, Da: DaSpec> SoftConfirmationRuleEnforcer<C, Da> {
-    #[rpc_method(name = "getLimitingNumber")]
+    #[rpc_method(name = "getMaxL2BlocksPerL1")]
     /// Get the account corresponding to the given public key.
-    pub fn get_limiting_number(&self, working_set: &mut WorkingSet<C>) -> RpcResult<u64> {
+    pub fn get_max_l2_blocks_per_l1(&self, working_set: &mut WorkingSet<C>) -> RpcResult<u64> {
         tokio::task::block_in_place(|| {
             Ok(self
-                .limiting_number
+                .max_l2_blocks_per_l1
                 .get(working_set)
-                .expect("Limiting number must be set"))
+                .expect("Max L2 blocks per L1 must be set"))
         })
     }
 

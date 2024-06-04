@@ -16,6 +16,7 @@ clean: ## Cleans compiled
 clean-node: ## Cleans local dbs needed for sequencer and nodes
 	sudo rm -rf data/postgres
 	rm -rf sequencer-db
+	rm -rf prover-db
 	rm -rf full-node-db
 	rm test-da-dbs/*.db
 

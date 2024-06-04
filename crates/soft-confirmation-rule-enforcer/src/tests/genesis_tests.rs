@@ -13,7 +13,7 @@ type C = DefaultContext;
 lazy_static! {
     pub(crate) static ref TEST_CONFIG: SoftConfirmationRuleEnforcerConfig<C> =
         SoftConfirmationRuleEnforcerConfig {
-            limiting_number: 10,
+            max_l2_blocks_per_l1: 10,
             authority: <DefaultContext as Spec>::Address::from_str(
                 "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94"
             )
@@ -26,16 +26,16 @@ lazy_static! {
 fn genesis_data() {
     let (soft_confirmation_rule_enforcer, mut working_set) =
         get_soft_confirmation_rule_enforcer::<MockDaSpec>(&TEST_CONFIG);
-    let limiting_number = &TEST_CONFIG.limiting_number;
+    let max_l2_blocks_per_l1 = &TEST_CONFIG.max_l2_blocks_per_l1;
     let authority = &TEST_CONFIG.authority;
     let l1_fee_rate_change_percentage = TEST_CONFIG.l1_fee_rate_change_percentage;
 
     assert_eq!(
         soft_confirmation_rule_enforcer
-            .limiting_number
+            .max_l2_blocks_per_l1
             .get(&mut working_set)
             .unwrap(),
-        *limiting_number
+        *max_l2_blocks_per_l1
     );
     assert_eq!(
         soft_confirmation_rule_enforcer

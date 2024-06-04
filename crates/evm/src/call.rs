@@ -108,7 +108,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     cumulative_gas_used,
                     logs,
                 },
-                gas_used,
+                gas_used: gas_used as u128,
                 log_index_start,
                 diff_size: tx_info.diff_size,
             };
@@ -200,7 +200,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                             cumulative_gas_used,
                             logs,
                         },
-                        gas_used,
+                        gas_used: gas_used as u128,
                         log_index_start,
                         diff_size: tx_info.diff_size,
                     };

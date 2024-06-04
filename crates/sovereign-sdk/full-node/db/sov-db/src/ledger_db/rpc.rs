@@ -424,6 +424,23 @@ impl LedgerRpcProvider for LedgerDB {
             None => Ok(None),
         }
     }
+
+    fn get_head_soft_batch(&self) -> Result<Option<SoftBatchResponse>, anyhow::Error> {
+        let next_ids = self.get_next_items_numbers();
+
+        if let Some(stored_soft_batch) = self
+            .db
+            .get::<SoftBatchByNumber>(&BatchNumber(next_ids.soft_batch_number.saturating_sub(1)))?
+        {
+            return Ok(Some(stored_soft_batch.try_into()?));
+        }
+        Ok(None)
+    }
+
+    fn get_head_soft_batch_height(&self) -> Result<u64, anyhow::Error> {
+        let next_ids = self.get_next_items_numbers();
+        Ok(next_ids.soft_batch_number.saturating_sub(1))
+    }
 }
 
 impl LedgerDB {

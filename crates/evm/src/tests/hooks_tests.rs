@@ -97,7 +97,7 @@ fn end_soft_confirmation_hook_sets_head() {
         Block {
             header: Header {
                 parent_hash: B256::from(hex!(
-                    "217b8b78a5bee17a693165176a913b0eddc3a517937591761ef97d32805af2c7"
+                    "f664bb45f3cde370b0e86edee379d69d2d88c4bc636fdc2155795028561f92c7"
                 )),
 
                 ommers_hash: EMPTY_OMMER_ROOT_HASH,
@@ -204,7 +204,7 @@ fn create_pending_transaction(hash: B256, index: u64) -> PendingTransaction {
                     gas_limit: 1000u64,
                     max_fee_per_gas: 2000u64 as u128,
                     max_priority_fee_per_gas: 3000u64 as u128,
-                    to: reth_primitives::TransactionKind::Call(Address::from([3u8; 20])),
+                    to: reth_primitives::TxKind::Call(Address::from([3u8; 20])),
                     value: U256::from(4000u128),
                     access_list: reth_primitives::AccessList::default(),
                     input: Bytes::from([4u8; 20]),
@@ -219,7 +219,7 @@ fn create_pending_transaction(hash: B256, index: u64) -> PendingTransaction {
                 cumulative_gas_used: 100u64 * index,
                 logs: vec![],
             },
-            gas_used: 100u64,
+            gas_used: 100,
             log_index_start: 0,
             diff_size: 0,
         },
@@ -323,7 +323,7 @@ fn finalize_hook_creates_final_block() {
                     parent_beacon_block_root: None,
                 },
                 B256::from(hex!(
-                    "c9bd106c4099122704bd197c224d8eeee7f5535469af91fdba7d4e804570d56e"
+                    "fd01e66ab6de887f27d53f9d71f32137e9e8e9c8550ff01aa5303557c539bb8d"
                 ))
             ),
             l1_fee_rate: 0,

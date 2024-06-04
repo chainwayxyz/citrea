@@ -2,17 +2,17 @@
 use std::fmt::Debug;
 use std::sync::{Arc, Mutex};
 
-use reth_primitives::{B256, U256};
+use reth_primitives::B256;
 use reth_rpc::eth::error::EthApiError;
 use reth_rpc_types::{
-    Block, BlockTransactions, Rich, Transaction, TransactionReceipt, TxGasAndReward,
+    AnyTransactionReceipt, Block, BlockTransactions, Rich, Transaction, TxGasAndReward,
 };
 use schnellru::{ByLength, LruMap};
 use serde::{Deserialize, Serialize};
 use sov_modules_api::WorkingSet;
 
 use super::cache::BlockCache;
-use super::gas_oracle::{convert_u256_to_u128, effective_gas_tip, MAX_HEADER_HISTORY};
+use super::gas_oracle::{effective_gas_tip, MAX_HEADER_HISTORY};
 
 /// Settings for the [FeeHistoryCache].
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
@@ -75,7 +75,7 @@ impl<C: sov_modules_api::Context> FeeHistoryCache<C> {
     /// Processing of the arriving blocks
     pub fn insert_blocks<I>(&self, entries: &mut LruMap<u64, FeeHistoryEntry, ByLength>, blocks: I)
     where
-        I: Iterator<Item = (Rich<Block>, Vec<TransactionReceipt>)>,
+        I: Iterator<Item = (Rich<Block>, Vec<AnyTransactionReceipt>)>,
     {
         let percentiles = self.predefined_percentiles();
         // Insert all new blocks and calculate approximated rewards
@@ -93,7 +93,7 @@ impl<C: sov_modules_api::Context> FeeHistoryCache<C> {
                 &receipts,
             )
             .unwrap_or_default();
-            let block_number: u64 = block.header.number.unwrap_or_default().saturating_to();
+            let block_number: u64 = block.header.number.unwrap_or_default();
             entries.insert(block_number, fee_history_entry);
         }
     }
@@ -169,8 +169,8 @@ pub(crate) fn calculate_reward_percentiles_for_block(
     gas_used: u64,
     base_fee_per_gas: u64,
     transactions: &[Transaction],
-    receipts: &[TransactionReceipt],
-) -> Result<Vec<U256>, EthApiError> {
+    receipts: &[AnyTransactionReceipt],
+) -> Result<Vec<u128>, EthApiError> {
     let mut transactions = transactions
         .iter()
         .zip(receipts)
@@ -181,16 +181,13 @@ pub(crate) fn calculate_reward_percentiles_for_block(
             // While we will sum up the gas again later, it is worth
             // noting that the order of the transactions will be different,
             // so the sum will also be different for each receipt.
-            let cumulative_gas_used: u64 = receipt.cumulative_gas_used.saturating_to();
+            let cumulative_gas_used = receipt.inner.inner.cumulative_gas_used();
             let gas_used = cumulative_gas_used - *previous_gas;
             *previous_gas = cumulative_gas_used;
 
             Some(TxGasAndReward {
-                gas_used,
-                reward: convert_u256_to_u128(
-                    effective_gas_tip(tx, Some(U256::from(base_fee_per_gas))).unwrap_or_default(),
-                )
-                .unwrap(),
+                gas_used: gas_used.try_into().unwrap(),
+                reward: effective_gas_tip(tx, Some(base_fee_per_gas as u128)).unwrap_or_default(),
             })
         })
         .collect::<Vec<_>>();
@@ -211,7 +208,7 @@ pub(crate) fn calculate_reward_percentiles_for_block(
     for percentile in percentiles {
         // Empty blocks should return in a zero row
         if transactions.is_empty() {
-            rewards_in_block.push(U256::ZERO);
+            rewards_in_block.push(0);
             continue;
         }
 
@@ -220,7 +217,7 @@ pub(crate) fn calculate_reward_percentiles_for_block(
             tx_index += 1;
             cumulative_gas_used += transactions[tx_index].gas_used;
         }
-        rewards_in_block.push(U256::from(transactions[tx_index].reward));
+        rewards_in_block.push(transactions[tx_index].reward);
     }
 
     Ok(rewards_in_block)
@@ -240,7 +237,7 @@ pub struct FeeHistoryEntry {
     /// Hash of the block.
     pub header_hash: B256,
     /// Approximated rewards for the configured percentiles.
-    pub rewards: Vec<U256>,
+    pub rewards: Vec<u128>,
 }
 
 impl FeeHistoryEntry {
@@ -248,22 +245,18 @@ impl FeeHistoryEntry {
     ///
     /// Note: This does not calculate the rewards for the block.
     pub fn new(block: &Rich<Block>) -> Self {
-        let base_fee_per_gas: u64 = block
-            .header
-            .base_fee_per_gas
-            .unwrap_or_default()
-            .saturating_to();
+        let base_fee_per_gas = block.header.base_fee_per_gas.unwrap_or_default();
 
-        let gas_used: u64 = block.header.gas_used.saturating_to();
-        let gas_limit: u64 = block.header.gas_limit.saturating_to();
+        let gas_used = block.header.gas_used;
+        let gas_limit = block.header.gas_limit;
         let gas_used_ratio = gas_used as f64 / gas_limit as f64;
 
         FeeHistoryEntry {
-            base_fee_per_gas,
+            base_fee_per_gas: base_fee_per_gas.try_into().unwrap(),
             gas_used_ratio,
-            gas_used,
+            gas_used: gas_used.try_into().unwrap(),
             header_hash: block.header.hash.unwrap_or_default(),
-            gas_limit,
+            gas_limit: gas_limit.try_into().unwrap(),
             rewards: Vec::new(),
         }
     }
