@@ -27,6 +27,7 @@ pub fn initialize_logging(level: Level) {
             "guest_execution=debug".to_owned(),
             "jsonrpsee-server=info".to_owned(),
             "reqwest=info".to_owned(),
+            "sov_schema_db=info".to_owned(),
             "sov_prover_storage_manager=info".to_owned(),
             format!("sov_mock_da::db_connector={}", level.as_str()),
         ];
