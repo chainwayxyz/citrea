@@ -13,11 +13,9 @@ path = "full-node-db"
 
 [rpc]
 # the host and port to bind the rpc server for
-bind_host = "0.0.0.0"
-bind_port = 12345
+bind_host = "127.0.0.1"
+bind_port = 12346
 
-# We define the rollup's genesis to occur at block number `start_height`. The rollup will ignore
-# any blocks before this height
 [runner]
-sequencer_client_url = "http://159.89.214.47:12345"
 include_tx_body = false
+sequencer_client_url = "http://0.0.0.0:12345"

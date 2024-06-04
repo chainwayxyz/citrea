@@ -9,10 +9,13 @@ db_path = "da-db"
 
 [storage]
 # The path to the rollup's data directory. Paths that do not begin with `/` are interpreted as relative paths.
-path = "sequencer-db"
+path = "full-node-db"
 
 [rpc]
 # the host and port to bind the rpc server for
 bind_host = "0.0.0.0"
-bind_port = 12345
-max_connections = 10000
+bind_port = 8545
+
+[runner]
+sequencer_client_url = "http://0.0.0.0:8545"
+include_tx_body = false
