@@ -32,7 +32,6 @@ pub struct CallMessage {
 
 impl<C: sov_modules_api::Context> Evm<C> {
     /// Executes system events for the current block and push tx to pending_transactions.
-    #[cfg_attr(feature = "native", instrument(level = "debug", skip_all, ret))]
     pub(crate) fn execute_system_events(
         &self,
         system_events: Vec<SystemEvent>,

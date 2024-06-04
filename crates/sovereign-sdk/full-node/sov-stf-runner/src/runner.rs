@@ -257,7 +257,7 @@ where
 
         let pg_client = match prover_config.db_config {
             Some(db_config) => {
-                tracing::info!("Connecting to postgres");
+                tracing::debug!("Connecting to postgres");
                 Some(PostgresConnector::new(db_config.clone()).await)
             }
             None => None,
@@ -338,7 +338,7 @@ where
             }
 
             if sequencer_commitments.is_empty() {
-                tracing::info!("No sequencer commitment found at height {}", l1_height,);
+                tracing::debug!("No sequencer commitment found at height {}", l1_height,);
 
                 self.ledger_db
                     .set_prover_last_scanned_l1_height(SlotNumber(l1_height))
@@ -570,7 +570,7 @@ where
                 da_block_headers_of_soft_confirmations.push_back(da_block_headers_to_push);
             }
 
-            tracing::info!("Sending for proving");
+            tracing::debug!("Sending for proving");
 
             let hash = da_block_header_of_commitments.hash();
 
@@ -630,7 +630,7 @@ where
                         tracing::warn!("Proof is public input, skipping");
                     }
                     Proof::Full(ref proof) => {
-                        tracing::info!("Verifying proof!");
+                        tracing::debug!("Verifying proof!");
                         let transition_data_from_proof = Vm::verify_and_extract_output::<
                             <Da as DaService>::Spec,
                             Stf::StateRoot,
@@ -639,14 +639,14 @@ where
                         )
                         .expect("Proof should be verifiable");
 
-                        tracing::info!(
+                        tracing::debug!(
                             "transition data from proof: {:?}",
                             transition_data_from_proof
                         );
                     }
                 }
 
-                tracing::info!("transition data: {:?}", transition_data);
+                tracing::trace!("transition data: {:?}", transition_data);
 
                 let stored_state_transition = StoredStateTransition {
                     initial_state_root: transition_data.initial_state_root.as_ref().to_vec(),
@@ -660,7 +660,7 @@ where
 
                 match pg_client.as_ref() {
                     Some(Ok(pool)) => {
-                        tracing::info!("Inserting proof data into postgres");
+                        tracing::debug!("Inserting proof data into postgres");
                         let (proof_data, proof_type) = match proof.clone() {
                             Proof::Full(full_proof) => (full_proof, ProofType::Full),
                             Proof::PublicInput(public_input) => {

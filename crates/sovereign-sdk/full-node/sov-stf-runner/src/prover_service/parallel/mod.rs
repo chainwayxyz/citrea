@@ -177,7 +177,7 @@ where
                     break Ok((tx_id, proof));
                 }
                 ProverStatus::ProvingInProgress => {
-                    tracing::info!("Proof generation is in progress");
+                    tracing::trace!("Proof generation is in progress");
                     tokio::time::sleep(std::time::Duration::from_secs(5)).await;
                 }
                 _ => {

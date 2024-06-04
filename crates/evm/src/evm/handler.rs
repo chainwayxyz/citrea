@@ -204,7 +204,6 @@ impl CitreaEnv for &'_ Env {
 }
 
 impl<EXT, DB: Database> CitreaEnv for &'_ mut Context<EXT, DB> {
-    #[cfg_attr(feature = "native", instrument(level = "debug", skip(self), ret))]
     fn is_system_caller(&self) -> bool {
         (&*self.evm.env).is_system_caller()
     }
