@@ -53,7 +53,7 @@ enum SupportedDaLayer {
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
-    initialize_logging();
+    initialize_logging(tracing::Level::INFO);
 
     let args = Args::parse();
     let rollup_config_path = args.rollup_config_path.as_str();

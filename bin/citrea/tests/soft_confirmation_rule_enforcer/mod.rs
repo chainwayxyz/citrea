@@ -9,7 +9,7 @@ use crate::{DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_MIN_SOFT_CONFIRMATIONS_
 /// Transaction with equal nonce to last tx should not be accepted by mempool.
 #[tokio::test]
 async fn too_many_l2_block_per_l1_block() {
-    // citrea::initialize_logging();
+    // citrea::initialize_logging(tracing::Level::INFO);
 
     let storage_dir = tempdir_with_children(&["DA", "sequencer"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();

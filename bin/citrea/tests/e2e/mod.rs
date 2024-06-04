@@ -239,7 +239,7 @@ async fn test_soft_batch_save() -> Result<(), anyhow::Error> {
 
 #[tokio::test]
 async fn test_full_node_send_tx() -> Result<(), anyhow::Error> {
-    // citrea::initialize_logging();
+    // citrea::initialize_logging(tracing::Level::INFO);
 
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
@@ -285,7 +285,7 @@ async fn test_full_node_send_tx() -> Result<(), anyhow::Error> {
 
 #[tokio::test]
 async fn test_delayed_sync_ten_blocks() -> Result<(), anyhow::Error> {
-    // citrea::initialize_logging();
+    // citrea::initialize_logging(tracing::Level::INFO);
 
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
@@ -372,7 +372,7 @@ async fn test_delayed_sync_ten_blocks() -> Result<(), anyhow::Error> {
 
 #[tokio::test]
 async fn test_e2e_same_block_sync() -> Result<(), anyhow::Error> {
-    // citrea::initialize_logging();
+    // citrea::initialize_logging(tracing::Level::INFO);
 
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
@@ -398,7 +398,7 @@ async fn test_e2e_same_block_sync() -> Result<(), anyhow::Error> {
 
 #[tokio::test]
 async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
-    // citrea::initialize_logging();
+    // citrea::initialize_logging(tracing::Level::INFO);
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
     let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
@@ -557,7 +557,7 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
 
 #[tokio::test]
 async fn test_get_transaction_by_hash() -> Result<(), anyhow::Error> {
-    // citrea::initialize_logging();
+    // citrea::initialize_logging(tracing::Level::INFO);
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
     let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
@@ -727,7 +727,7 @@ async fn test_get_transaction_by_hash() -> Result<(), anyhow::Error> {
 
 #[tokio::test]
 async fn test_soft_confirmations_on_different_blocks() -> Result<(), anyhow::Error> {
-    // citrea::initialize_logging();
+    // citrea::initialize_logging(tracing::Level::INFO);
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
     let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
@@ -1041,7 +1041,7 @@ async fn execute_blocks(
 
 #[tokio::test]
 async fn test_soft_confirmations_status_one_l1() -> Result<(), anyhow::Error> {
-    // citrea::initialize_logging();
+    // citrea::initialize_logging(tracing::Level::INFO);
 
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
@@ -1094,7 +1094,7 @@ async fn test_soft_confirmations_status_one_l1() -> Result<(), anyhow::Error> {
 
 #[tokio::test]
 async fn test_soft_confirmations_status_two_l1() -> Result<(), anyhow::Error> {
-    // citrea::initialize_logging();
+    // citrea::initialize_logging(tracing::Level::INFO);
 
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
@@ -1186,7 +1186,7 @@ async fn test_soft_confirmations_status_two_l1() -> Result<(), anyhow::Error> {
 
 #[tokio::test]
 async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
-    // citrea::initialize_logging();
+    // citrea::initialize_logging(tracing::Level::INFO);
 
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "prover"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
@@ -1332,7 +1332,7 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
 
 #[tokio::test]
 async fn test_reopen_prover() -> Result<(), anyhow::Error> {
-    // citrea::initialize_logging();
+    citrea::initialize_logging(tracing::Level::INFO);
 
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "prover"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
@@ -1514,7 +1514,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
 
 #[tokio::test]
 async fn test_system_transactons() -> Result<(), anyhow::Error> {
-    // citrea::initialize_logging();
+    // citrea::initialize_logging(tracing::Level::INFO);
 
     let system_contract_address =
         Address::from_str("0x3100000000000000000000000000000000000001").unwrap();
@@ -1655,7 +1655,7 @@ async fn test_system_transactons() -> Result<(), anyhow::Error> {
 
 #[tokio::test]
 async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error> {
-    // citrea::initialize_logging();
+    // citrea::initialize_logging(tracing::Level::INFO);
 
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
@@ -1816,7 +1816,7 @@ fn find_subarray(haystack: &[u8], needle: &[u8]) -> Option<usize> {
 
 #[tokio::test]
 async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
-    // citrea::initialize_logging();
+    // citrea::initialize_logging(tracing::Level::INFO);
 
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
@@ -1983,7 +1983,7 @@ async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
 
 #[tokio::test]
 async fn transaction_failing_on_l1_is_removed_from_mempool() -> Result<(), anyhow::Error> {
-    // citrea::initialize_logging();
+    // citrea::initialize_logging(tracing::Level::INFO);
 
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
@@ -2084,7 +2084,7 @@ async fn transaction_failing_on_l1_is_removed_from_mempool() -> Result<(), anyho
 
 #[tokio::test]
 async fn sequencer_crash_restore_mempool() -> Result<(), anyhow::Error> {
-    // citrea::initialize_logging();
+    // citrea::initialize_logging(tracing::Level::INFO);
     let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
 
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
@@ -2239,7 +2239,7 @@ async fn sequencer_crash_restore_mempool() -> Result<(), anyhow::Error> {
 
 #[tokio::test]
 async fn test_db_get_proof() {
-    // citrea::initialize_logging();
+    // citrea::initialize_logging(tracing::Level::INFO);
 
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "prover"]);
     let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
@@ -2362,7 +2362,7 @@ async fn test_db_get_proof() {
 
 #[tokio::test]
 async fn full_node_verify_proof_and_store() {
-    // citrea::initialize_logging();
+    // citrea::initialize_logging(tracing::Level::INFO);
 
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "prover", "full-node"]);
     let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
@@ -2546,7 +2546,7 @@ async fn full_node_verify_proof_and_store() {
 
 #[tokio::test]
 async fn test_all_flow() {
-    // citrea::initialize_logging();
+    // citrea::initialize_logging(tracing::Level::INFO);
 
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "prover", "full-node"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
@@ -2881,7 +2881,7 @@ async fn test_all_flow() {
 /// whole blocks on their own.
 #[tokio::test]
 async fn test_gas_limit_too_high() {
-    // citrea::initialize_logging();
+    // citrea::initialize_logging(tracing::Level::INFO);
 
     let db_dir: tempfile::TempDir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = db_dir.path().join("DA").to_path_buf();

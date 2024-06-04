@@ -23,7 +23,7 @@ mod tracing;
 
 #[tokio::test]
 async fn web3_rpc_tests() -> Result<(), anyhow::Error> {
-    // citrea::initialize_logging();
+    // citrea::initialize_logging(tracing::Level::INFO);
 
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
@@ -78,7 +78,7 @@ async fn web3_rpc_tests() -> Result<(), anyhow::Error> {
 
 #[tokio::test]
 async fn evm_tx_tests() -> Result<(), anyhow::Error> {
-    // citrea::initialize_logging();
+    // citrea::initialize_logging(tracing::Level::INFO);
 
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();

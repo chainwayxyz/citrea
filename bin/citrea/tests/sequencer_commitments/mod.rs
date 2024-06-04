@@ -21,7 +21,7 @@ use crate::{DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_PROOF_WAIT_DURATION};
 
 #[tokio::test]
 async fn sequencer_sends_commitments_to_da_layer() {
-    citrea::initialize_logging();
+    // citrea::initialize_logging(tracing::Level::INFO);
 
     let db_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = db_dir.path().join("DA").to_path_buf();
@@ -201,7 +201,7 @@ async fn check_sequencer_commitment(
 
 #[tokio::test]
 async fn check_commitment_in_offchain_db() {
-    // citrea::initialize_logging();
+    // citrea::initialize_logging(tracing::Level::INFO);
 
     let db_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = db_dir.path().join("DA").to_path_buf();
@@ -273,7 +273,7 @@ async fn check_commitment_in_offchain_db() {
 
 #[tokio::test]
 async fn test_ledger_get_commitments_on_slot() {
-    // citrea::initialize_logging();
+    // citrea::initialize_logging(tracing::Level::INFO);
 
     let db_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = db_dir.path().join("DA").to_path_buf();
@@ -377,7 +377,7 @@ async fn test_ledger_get_commitments_on_slot() {
 
 #[tokio::test]
 async fn test_ledger_get_commitments_on_slot_prover() {
-    citrea::initialize_logging();
+    citrea::initialize_logging(tracing::Level::INFO);
 
     let db_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = db_dir.path().join("DA").to_path_buf();
