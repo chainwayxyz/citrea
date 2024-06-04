@@ -759,6 +759,7 @@ where
                 // that evey though we check the receiver here, it'll never be "ready" to be consumed unless in test mode.
                 _ = self.l2_force_block_rx.next(), if self.config.test_mode => {
                     if missed_da_blocks_count > 0 {
+                        debug!("We have {} missed DA blocks", missed_da_blocks_count);
                         for _ in 1..=missed_da_blocks_count {
                             let needed_da_block_height = last_used_l1_height + 1;
                             let da_block = self
@@ -767,6 +768,7 @@ where
                                 .await
                                 .map_err(|e| anyhow!(e))?;
 
+                            debug!("Created an empty L2 for L1={}", needed_da_block_height);
                             if let Err(e) = self.produce_l2_block(da_block, l1_fee_rate, L2BlockMode::Empty, &pg_pool, &mut last_used_l1_height).await {
                                 error!("Sequencer error: {}", e);
                             }
@@ -784,11 +786,10 @@ where
                     // last_finalized_block. If there are missed DA blocks, we start producing
                     // empty blocks at ~2 second rate, 1 L2 block per respective missed DA block
                     // until we know we caught up with L1.
-                    let mut l2_block_mode = L2BlockMode::NotEmpty;
                     let da_block = last_finalized_block.clone();
 
                     if missed_da_blocks_count > 0 {
-                        l2_block_mode = L2BlockMode::Empty;
+                        debug!("We have {} missed DA blocks", missed_da_blocks_count);
                         for _ in 1..=missed_da_blocks_count {
                             let needed_da_block_height = last_used_l1_height + 1;
                             let da_block = self
@@ -797,6 +798,7 @@ where
                                 .await
                                 .map_err(|e| anyhow!(e))?;
 
+                            debug!("Created an empty L2 for L1={}", needed_da_block_height);
                             if let Err(e) = self.produce_l2_block(da_block, l1_fee_rate, L2BlockMode::Empty, &pg_pool, &mut last_used_l1_height).await {
                                 error!("Sequencer error: {}", e);
                             }
@@ -805,7 +807,7 @@ where
                     }
 
                     let instant = Instant::now();
-                    match self.produce_l2_block(da_block, l1_fee_rate, l2_block_mode, &pg_pool, &mut last_used_l1_height).await {
+                    match self.produce_l2_block(da_block, l1_fee_rate, L2BlockMode::NotEmpty, &pg_pool, &mut last_used_l1_height).await {
                         Ok(_) => {
                             // Set the next iteration's wait time to produce a block based on the
                             // previous block's execution time.
