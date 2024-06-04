@@ -28,21 +28,21 @@ Run on a local da layer, sharable between nodes that run on your computer.
 
 Run sequencer on Mock DA:
 ```sh
-./target/debug/citrea --da-layer mock --rollup-config-path bin/citrea/configs/mock/sequencer_rollup_config.toml --sequencer-config-path bin/citrea/configs/mock/sequencer_config.toml --genesis-paths bin/test-data/genesis/demo-tests/mock
+./target/debug/citrea --da-layer mock --rollup-config-path configs/mock/sequencer_rollup_config.toml --sequencer-config-path configs/mock/sequencer_config.toml --genesis-paths configs/mock/genesis-files
 ```
 
 Sequencer RPC is accessible at `127.0.0.1:12345`
 
 _Optional_: Run full node on Mock DA:
 ```sh
-./target/debug/citrea --rollup-config-path bin/citrea/configs/mock/sequencer_rollup_config.toml --genesis-paths bin/test-data/genesis/demo-tests/mock
+./target/debug/citrea --rollup-config-path configs/mock/sequencer_rollup_config.toml --genesis-paths bin/test-data/genesis/demo-tests/mock
 ```
 
 Full node RPC is accessible at `127.0.0.1:12346`
 
 If test_mode is set to false in the sequencer config, the sequencer will publish blocks every 2 seconds. To also publish mock DA blocks, run this script:
 ```sh
-./bin/citrea/publish_da_block.sh
+./configs/mock-dockerized/publish_da_block.sh
 ```
 
 ### Run on Bitcoin Regtest
@@ -66,7 +66,7 @@ Mine blocks so that the wallet has BTC:
 bitcoin-cli -regtest -generate 201
 ```
 
-Edit `bin/citrea/configs/bitcoin-regtest/sequencer_rollup_config.toml` and `bin/citrea/configs/bitcoin-regtest/sequencer_config.toml` files and put in your rpc url, username and password:
+Edit `configs/bitcoin-regtest/sequencer_rollup_config.toml` and `configs/bitcoin-regtest/sequencer_config.toml` files and put in your rpc url, username and password:
 
 ```toml
 [da]
@@ -80,7 +80,7 @@ node_password = ""
 
 Run sequencer:
 ```sh
-./target/debug/citrea --da-layer bitcoin --rollup-config-path bin/citrea/configs/bitcoin-regtest/sequencer_rollup_config.toml --sequencer-config-path bin/citrea/configs/bitcoin-regtest/sequencer_config.toml --genesis-paths bin/test-data/genesis/demo-tests/bitcoin-regtest
+./target/debug/citrea --da-layer bitcoin --rollup-config-path configs/bitcoin-regtest/sequencer_rollup_config.toml --sequencer-config-path configs/bitcoin-regtest/sequencer_config.toml --genesis-paths configs/bitcoin-regtest/genesis-files
 ```
 
 Sequencer RPC is accessible at `127.0.0.1:12345`
@@ -89,7 +89,7 @@ _Optional_: Run full node
 
 Run full node:
 ```sh
-./target/debug/citrea --da-layer bitcoin --rollup-config-path bin/citrea/configs/bitcoin-regtest/rollup_config.toml --genesis-paths bin/test-data/genesis/demo-tests/bitcoin-regtest
+./target/debug/citrea --da-layer bitcoin --rollup-config-path configs/bitcoin-regtest/rollup_config.toml --genesis-paths configs/bitcoin-regtest/genesis-files
 ```
 
 Full node RPC is accessible at `127.0.0.1:12346`

@@ -219,11 +219,11 @@ jobs:
         run: npm install
       - name: Run uniswap tests
         run: |
-          RUST_LOG=off ./target/debug/citrea --da-layer mock --rollup-config-path bin/citrea/configs/mock/sequencer_rollup_config.toml --sequencer-config-path bin/citrea/configs/mock/sequencer_config.toml --genesis-paths bin/test-data/genesis/demo-tests/mock &
+          RUST_LOG=off ./target/debug/citrea --da-layer mock --rollup-config-path configs/mock/sequencer_rollup_config.toml --sequencer-config-path configs/mock/sequencer_config.toml --genesis-paths configs/mock/genesis-files &
           sleep 2
-          RUST_LOG=off ./target/debug/citrea --rollup-config-path bin/citrea/configs/mock/rollup_config.toml --genesis-paths bin/test-data/genesis/demo-tests/mock &
+          RUST_LOG=off ./target/debug/citrea --rollup-config-path configs/mock/rollup_config.toml --genesis-paths configs/mock/genesis-files &
           sleep 2
-          ./bin/citrea/publish_da_block.sh &
+          ./configs/mock-dockerized/publish_da_block.sh &
           cd ./bin/citrea/tests/evm/uniswap
           npx hardhat run --network citrea scripts/01_deploy.js
           npx hardhat run --network citrea scripts/02_swap.js
@@ -268,11 +268,11 @@ jobs:
         run: pip install -r requirements.txt
       - name: Run web3.py tests
         run: |
-          RUST_LOG=off ./target/debug/citrea --da-layer mock --rollup-config-path bin/citrea/configs/mock/sequencer_rollup_config.toml --sequencer-config-path bin/citrea/configs/mock/sequencer_config.toml --genesis-paths bin/test-data/genesis/demo-tests/mock &
+          RUST_LOG=off ./target/debug/citrea --da-layer mock --rollup-config-path configs/mock/sequencer_rollup_config.toml --sequencer-config-path configs/mock/sequencer_config.toml --genesis-paths configs/mock/genesis-files &
           sleep 2
-          RUST_LOG=off ./target/debug/citrea --rollup-config-path bin/citrea/configs/mock/rollup_config.toml --genesis-paths bin/test-data/genesis/demo-tests/mock &
+          RUST_LOG=off ./target/debug/citrea --rollup-config-path configs/mock/rollup_config.toml --genesis-paths configs/mock/genesis-files &
           sleep 2
-          ./bin/citrea/publish_da_block.sh &
+          ./configs/mock-dockerized/publish_da_block.sh &
           cd ./bin/citrea/tests/evm/web3_py
           python test.py
 
@@ -303,11 +303,11 @@ jobs:
         run: npm install
       - name: Run ethers_js tests
         run: |
-          RUST_LOG=off ./target/debug/citrea --da-layer mock --rollup-config-path bin/citrea/configs/mock/sequencer_rollup_config.toml --sequencer-config-path bin/citrea/configs/mock/sequencer_config.toml --genesis-paths bin/test-data/genesis/demo-tests/mock &
+          RUST_LOG=off ./target/debug/citrea --da-layer mock --rollup-config-path configs/mock/sequencer_rollup_config.toml --sequencer-config-path configs/mock/sequencer_config.toml --genesis-paths confgis/mock/genesis-files &
           sleep 2
-          RUST_LOG=off ./target/debug/citrea --rollup-config-path bin/citrea/configs/mock/rollup_config.toml --genesis-paths bin/test-data/genesis/demo-tests/mock &
+          RUST_LOG=off ./target/debug/citrea --rollup-config-path configs/mock/rollup_config.toml --genesis-paths configs/mock/genesis-files &
           sleep 2
-          ./bin/citrea/publish_da_block.sh &
+          ./configs/mock-dockerized/publish_da_block.sh &
           cd ./bin/citrea/tests/evm/ethers_js
           npx mocha test.js
 
