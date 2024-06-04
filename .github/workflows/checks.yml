@@ -303,7 +303,7 @@ jobs:
         run: npm install
       - name: Run ethers_js tests
         run: |
-          RUST_LOG=off ./target/debug/citrea --da-layer mock --rollup-config-path configs/mock/sequencer_rollup_config.toml --sequencer-config-path configs/mock/sequencer_config.toml --genesis-paths confgis/mock/genesis-files &
+          RUST_LOG=off ./target/debug/citrea --da-layer mock --rollup-config-path configs/mock/sequencer_rollup_config.toml --sequencer-config-path configs/mock/sequencer_config.toml --genesis-paths configs/mock/genesis-files &
           sleep 2
           RUST_LOG=off ./target/debug/citrea --rollup-config-path configs/mock/rollup_config.toml --genesis-paths configs/mock/genesis-files &
           sleep 2
