@@ -18,7 +18,7 @@ use sov_stf_runner::{
 use tempfile::TempDir;
 use tokio::sync::oneshot;
 use tokio::time::sleep;
-use tracing::{debug, info_span, warn, Instrument};
+use tracing::{debug, info_span, instrument, warn, Instrument};
 
 use crate::test_client::TestClient;
 
@@ -179,6 +179,7 @@ pub fn tempdir_with_children(children: &[&str]) -> TempDir {
     db_dir
 }
 
+#[instrument(level = "debug")]
 pub async fn wait_for_l2_block(sequencer_client: &TestClient, num: u64, timeout: Option<Duration>) {
     let start = SystemTime::now();
     let timeout = timeout.unwrap_or(Duration::from_secs(30)); // Default 30 seconds timeout
@@ -200,6 +201,7 @@ pub async fn wait_for_l2_block(sequencer_client: &TestClient, num: u64, timeout:
     }
 }
 
+#[instrument(level = "debug")]
 pub async fn wait_for_prover_l1_height(
     prover_client: &TestClient,
     num: u64,
@@ -223,6 +225,7 @@ pub async fn wait_for_prover_l1_height(
     }
 }
 
+#[instrument(level = "debug")]
 pub async fn wait_for_l1_block(da_service: &MockDaService, num: u64, timeout: Option<Duration>) {
     let start = SystemTime::now();
     let timeout = timeout.unwrap_or(Duration::from_secs(30)); // Default 30 seconds timeout
@@ -242,6 +245,7 @@ pub async fn wait_for_l1_block(da_service: &MockDaService, num: u64, timeout: Op
     }
 }
 
+#[instrument(level = "debug")]
 pub async fn wait_for_postgres_commitment(
     db_test_client: &PostgresConnector,
     num: usize,
