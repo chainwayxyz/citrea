@@ -18,7 +18,7 @@ use sov_stf_runner::{
 use tempfile::TempDir;
 use tokio::sync::oneshot;
 use tokio::time::sleep;
-use tracing::{debug, warn};
+use tracing::{debug, info_span, warn, Instrument};
 
 use crate::test_client::TestClient;
 
@@ -58,8 +58,10 @@ pub async fn start_rollup(
                 .create_new_rollup(&rt_genesis_paths, rollup_config.clone())
                 .await
                 .unwrap();
+            let span = info_span!("FullNode");
             rollup
                 .run_and_report_rpc_port(Some(rpc_reporting_channel))
+                .instrument(span)
                 .await
                 .unwrap();
         }
@@ -72,8 +74,10 @@ pub async fn start_rollup(
                 )
                 .await
                 .unwrap();
+            let span = info_span!("Prover");
             rollup
                 .run_and_report_rpc_port(Some(rpc_reporting_channel))
+                .instrument(span)
                 .await
                 .unwrap();
         }
@@ -96,8 +100,10 @@ pub async fn start_rollup(
                 .create_new_sequencer(&rt_genesis_paths, rollup_config.clone(), sequencer_config)
                 .await
                 .unwrap();
+            let span = info_span!("Sequencer");
             sequencer_rollup
                 .run_and_report_rpc_port(Some(rpc_reporting_channel))
+                .instrument(span)
                 .await
                 .unwrap();
         }
