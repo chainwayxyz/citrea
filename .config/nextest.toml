@@ -1,0 +1,8 @@
+[test-groups]
+heavy-tests = { max-threads = 16 }
+
+[[profile.default.overrides]]
+filter = 'test(e2e::)'
+test-group = 'heavy-tests'
+threads-required = "num-cpus"
+slow-timeout = { period = "360s" }
