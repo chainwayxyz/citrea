@@ -189,7 +189,7 @@ pub async fn wait_for_l2_block(sequencer_client: &TestClient, num: u64, timeout:
 
         let now = SystemTime::now();
         if start + timeout <= now {
-            panic!("Timeout");
+            panic!("Timeout. Latest L2 block is {:?}", latest_block.number);
         }
 
         sleep(Duration::from_secs(1)).await;
@@ -212,7 +212,7 @@ pub async fn wait_for_prover_l1_height(
 
         let now = SystemTime::now();
         if start + timeout <= now {
-            panic!("Timeout");
+            panic!("Timeout. Latest prover L1 height is {}", latest_block);
         }
 
         sleep(Duration::from_secs(1)).await;
@@ -231,7 +231,7 @@ pub async fn wait_for_l1_block(da_service: &MockDaService, num: u64, timeout: Op
 
         let now = SystemTime::now();
         if start + timeout <= now {
-            panic!("Timeout");
+            panic!("Timeout. Latest L1 block is {}", da_block);
         }
 
         sleep(Duration::from_secs(1)).await;
@@ -256,7 +256,7 @@ pub async fn wait_for_postgres_commitment(
 
         let now = SystemTime::now();
         if start + timeout <= now {
-            panic!("Timeout");
+            panic!("Timeout. {} commitments exist at this point", commitments);
         }
 
         sleep(Duration::from_secs(1)).await;
