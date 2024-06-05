@@ -427,9 +427,7 @@ where
                                         l2_height
                                     );
 
-                                    // We wait for 2 seconds and then return a Permanent error so that we exit the retry.
-                                    // This should not backoff exponentially
-                                    sleep(Duration::from_secs(2)).await;
+                                    // Return a Permanent error so that we exit the retry.
                                     Err(backoff::Error::Permanent(
                                         "No soft batch published".to_owned(),
                                     ))
