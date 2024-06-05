@@ -1535,7 +1535,6 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     wait_for_l1_block(&da_service, 6, None).await;
     // Commitment is sent
     wait_for_l1_block(&da_service, 7, None).await;
-    wait_for_l2_block(&seq_test_client, 10, None).await;
 
     // wait here until we see from prover's rpc that it finished proving
     wait_for_prover_l1_height(
@@ -1545,10 +1544,11 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     )
     .await;
 
-    // Should now have 10 blocks = 2 commitments of blocks 1-4 and 5-8
+    // Should now have 9 blocks = 2 commitments of blocks 1-4 and 5-8
     // there is an extra soft confirmation due to the prover publishing a proof. This causes
     // a new MockDa block, which in turn causes the sequencer to publish an extra soft confirmation
-    assert_eq!(prover_node_test_client.eth_block_number().await, 8);
+    wait_for_l2_block(&prover_node_test_client, 9, None).await;
+    assert_eq!(prover_node_test_client.eth_block_number().await, 9);
 
     // TODO: Also test with multiple commitments in single Mock DA Block
     seq_task.abort();
