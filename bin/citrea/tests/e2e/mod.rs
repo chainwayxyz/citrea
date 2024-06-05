@@ -2409,7 +2409,7 @@ async fn test_db_get_proof() {
     prover_node_task.abort();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 3)]
 async fn full_node_verify_proof_and_store() {
     // citrea::initialize_logging();
 
@@ -2511,6 +2511,12 @@ async fn full_node_verify_proof_and_store() {
     wait_for_l1_block(&da_service, 3, None).await;
     // Commitment submitted
     wait_for_l1_block(&da_service, 4, None).await;
+    // Full node sync commitment block
+    test_client.send_publish_batch_request().await;
+    wait_for_l2_block(&full_node_test_client, 5, None).await;
+    // Full node sync commitment block
+    test_client.send_publish_batch_request().await;
+    wait_for_l2_block(&full_node_test_client, 6, None).await;
 
     // wait here until we see from prover's rpc that it finished proving
     wait_for_prover_l1_height(
@@ -2555,14 +2561,20 @@ async fn full_node_verify_proof_and_store() {
     // The proof will be in l1 block #5 because prover publishes it after the commitment and
     // in mock da submitting proof and commitments creates a new block.
     // For full node to see the proof, we publish another l2 block and now it will check #5 l1 block
-    test_client.send_publish_batch_request().await;
-    wait_for_l2_block(&full_node_test_client, 6, None).await;
+    wait_for_l1_block(&da_service, 5, None).await;
+
+    // Up until this moment, Full node has only seen 2 DA blocks.
+    // We need to force it to sync up to 5th DA block.
+    for i in 7..=9 {
+        test_client.send_publish_batch_request().await;
+        wait_for_l2_block(&full_node_test_client, i, None).await;
+    }
 
     // So the full node should see the proof in block 5
     let full_node_proof = full_node_test_client
         .ledger_get_verified_proofs_by_slot_height(5)
-        .await;
-
+        .await
+        .unwrap();
     assert_eq!(prover_proof.proof, full_node_proof[0].proof);
 
     assert_eq!(
