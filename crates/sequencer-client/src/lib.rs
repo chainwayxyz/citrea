@@ -1,6 +1,5 @@
 use ethers::types::{Bytes, H256};
-use jsonrpsee::core::client::ClientT;
-use jsonrpsee::core::Error;
+use jsonrpsee::core::client::{ClientT, Error};
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use jsonrpsee::rpc_params;
 use reth_primitives::B256;
@@ -32,7 +31,7 @@ impl SequencerClient {
         &self,
         num: u64,
     ) -> anyhow::Result<Option<GetSoftBatchResponse>> {
-        let res: Result<Option<GetSoftBatchResponse>, jsonrpsee::core::Error> = self
+        let res: Result<Option<GetSoftBatchResponse>, Error> = self
             .client
             .request("ledger_getSoftBatchByNumber", rpc_params![num])
             .await;
@@ -44,6 +43,14 @@ impl SequencerClient {
                 _ => Err(anyhow::anyhow!(e)),
             },
         }
+    }
+
+    /// Gets l2 block height
+    #[instrument(level = "trace", skip(self), err, ret)]
+    pub async fn block_number(&self) -> Result<u64, Error> {
+        self.client
+            .request("ledger_getHeadSoftBatchHeight", rpc_params![])
+            .await
     }
 
     /// Sends raw tx to sequencer

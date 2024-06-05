@@ -7,9 +7,9 @@ use reth_tasks::TokioTaskExecutor;
 use reth_transaction_pool::blobstore::NoopBlobStore;
 use reth_transaction_pool::error::PoolError;
 use reth_transaction_pool::{
-    BestTransactions, BestTransactionsAttributes, CoinbaseTipOrdering, EthPooledTransaction,
-    EthTransactionValidator, Pool, PoolConfig, PoolResult, SubPoolLimit, TransactionPool,
-    TransactionValidationTaskExecutor, ValidPoolTransaction,
+    BestTransactions, BestTransactionsAttributes, ChangedAccount, CoinbaseTipOrdering,
+    EthPooledTransaction, EthTransactionValidator, Pool, PoolConfig, PoolResult, SubPoolLimit,
+    TransactionPool, TransactionPoolExt, TransactionValidationTaskExecutor, ValidPoolTransaction,
 };
 
 use crate::config::SequencerMempoolConfig;
@@ -48,18 +48,13 @@ impl<C: sov_modules_api::Context> CitreaMempool<C> {
             .genesis(
                 Genesis::default()
                     .with_nonce(nonce.into())
-                    .with_timestamp(genesis_block.header.timestamp.saturating_to())
+                    .with_timestamp(genesis_block.header.timestamp)
                     .with_extra_data(genesis_block.header.extra_data)
-                    .with_gas_limit(genesis_block.header.gas_limit.saturating_to())
+                    .with_gas_limit(genesis_block.header.gas_limit)
                     .with_difficulty(genesis_block.header.difficulty)
                     .with_mix_hash(genesis_mix_hash)
                     .with_coinbase(genesis_block.header.miner)
-                    .with_base_fee(
-                        genesis_block
-                            .header
-                            .base_fee_per_gas
-                            .map(|f| f.saturating_to()),
-                    ),
+                    .with_base_fee(genesis_block.header.base_fee_per_gas),
             )
             .build();
 
@@ -86,16 +81,14 @@ impl<C: sov_modules_api::Context> CitreaMempool<C> {
             ..pool_config
         };
 
-        Ok(Self(Pool::eth_pool(
-            TransactionValidationTaskExecutor::eth(
-                client,
-                Arc::new(chain_spec),
-                blob_store,
-                TokioTaskExecutor::default(),
-            ),
-            blob_store,
-            pool_config,
-        )))
+        let validator = TransactionValidationTaskExecutor::eth_builder(Arc::new(chain_spec))
+            .no_cancun()
+            // .no_eip4844() cannot use since underlying impl. disables eip1559
+            .set_shanghai(true)
+            .with_additional_tasks(0)
+            .build_with_tasks(client, TokioTaskExecutor::default(), blob_store);
+
+        Ok(Self(Pool::eth_pool(validator, blob_store, pool_config)))
     }
 
     pub(crate) async fn add_external_transaction(
@@ -120,6 +113,10 @@ impl<C: sov_modules_api::Context> CitreaMempool<C> {
         tx_hashes: Vec<TxHash>,
     ) -> Vec<Arc<ValidPoolTransaction<Transaction<C>>>> {
         self.0.remove_transactions(tx_hashes)
+    }
+
+    pub(crate) fn update_accounts(&self, account_updates: Vec<ChangedAccount>) {
+        self.0.update_accounts(account_updates);
     }
 
     pub(crate) fn best_transactions_with_attributes(

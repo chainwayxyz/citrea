@@ -3,6 +3,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 use citrea_evm::LogResponse;
+use ethereum_rpc::CitreaStatus;
 use ethereum_types::H160;
 use ethers_core::abi::Address;
 use ethers_core::k256::ecdsa::SigningKey;
@@ -18,7 +19,8 @@ use reth_primitives::BlockNumberOrTag;
 use reth_rpc_types::trace::geth::{GethDebugTracingOptions, GethTrace};
 use sequencer_client::GetSoftBatchResponse;
 use sov_rollup_interface::rpc::{
-    ProofResponse, SequencerCommitmentResponse, SoftConfirmationStatus, VerifiedProofResponse,
+    ProofResponse, SequencerCommitmentResponse, SoftBatchResponse, SoftConfirmationStatus,
+    VerifiedProofResponse,
 };
 
 pub const MAX_FEE_PER_GAS: u64 = 1000000001;
@@ -639,6 +641,24 @@ impl TestClient {
             .map_err(|e| e.into())
     }
 
+    pub(crate) async fn ledger_get_head_soft_batch(
+        &self,
+    ) -> Result<Option<SoftBatchResponse>, Box<dyn std::error::Error>> {
+        self.http_client
+            .request("ledger_getHeadSoftBatch", rpc_params![])
+            .await
+            .map_err(|e| e.into())
+    }
+
+    pub(crate) async fn ledger_get_head_soft_batch_height(
+        &self,
+    ) -> Result<Option<u64>, Box<dyn std::error::Error>> {
+        self.http_client
+            .request("ledger_getHeadSoftBatchHeight", rpc_params![])
+            .await
+            .map_err(|e| e.into())
+    }
+
     pub(crate) async fn get_max_l2_blocks_per_l1(&self) -> u64 {
         self.http_client
             .request(
@@ -690,6 +710,13 @@ impl TestClient {
             .unwrap();
 
         block_number.as_u64()
+    }
+
+    pub(crate) async fn citrea_sync_status(&self) -> CitreaStatus {
+        self.http_client
+            .request("citrea_syncStatus", rpc_params![])
+            .await
+            .unwrap()
     }
 }
 

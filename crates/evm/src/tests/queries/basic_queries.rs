@@ -3,10 +3,10 @@ use std::str::FromStr;
 
 use alloy_primitives::FixedBytes;
 use hex::FromHex;
-use reth_primitives::{Address, BlockId, BlockNumberOrTag, U64};
+use reth_primitives::{address, BlockId, BlockNumberOrTag, TxKind, U64};
 use reth_rpc::eth::error::EthApiError;
 use reth_rpc_types::request::{TransactionInput, TransactionRequest};
-use reth_rpc_types::{Block, Rich, TransactionReceipt};
+use reth_rpc_types::{AnyTransactionReceipt, Block, Rich};
 use revm::primitives::{B256, U256};
 use serde_json::json;
 
@@ -73,11 +73,16 @@ fn get_block_receipts_test() {
         &mut working_set,
     );
 
-    assert_eq!(result, Ok(None));
+    // AnyTransactionReceipt doesn't impl Eq or PartialEq
+    // assert_eq!(result, Ok(None));
+    // doesn't work
+    assert!(result.is_ok());
+    assert!(result.unwrap().is_none());
 
     let result = evm.get_block_receipts(BlockId::from(B256::from([5u8; 32])), &mut working_set);
 
-    assert_eq!(result, Ok(None));
+    assert!(result.is_ok());
+    assert!(result.unwrap().is_none());
 
     let third_block_receipts = evm
         .get_block_receipts(
@@ -264,9 +269,11 @@ fn call_test() {
     let fail_result = evm.get_call(
         TransactionRequest {
             from: Some(signer.address()),
-            to: Some(Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap()),
-            gas: Some(U256::from(100000)),
-            gas_price: Some(U256::from(100000000)),
+            to: Some(TxKind::Call(address!(
+                "eeb03d20dae810f52111b853b31c8be6f30f4cd3"
+            ))),
+            gas: Some(100000),
+            gas_price: Some(100000000),
             max_fee_per_gas: None,
             max_priority_fee_per_gas: None,
             value: Some(U256::from(100000000)),
@@ -278,7 +285,6 @@ fn call_test() {
             blob_versioned_hashes: None,
             transaction_type: None,
             sidecar: None,
-            other: Default::default(),
         },
         Some(BlockNumberOrTag::Number(100)),
         None,
@@ -295,9 +301,11 @@ fn call_test() {
     let nonce_too_low_result = evm.get_call(
         TransactionRequest {
             from: Some(signer.address()),
-            to: Some(Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap()),
-            gas: Some(U256::from(100000)),
-            gas_price: Some(U256::from(100000000)),
+            to: Some(TxKind::Call(address!(
+                "eeb03d20dae810f52111b853b31c8be6f30f4cd3"
+            ))),
+            gas: Some(100000),
+            gas_price: Some(100000000),
             max_fee_per_gas: None,
             max_priority_fee_per_gas: None,
             value: Some(U256::from(100000000)),
@@ -309,7 +317,6 @@ fn call_test() {
             blob_versioned_hashes: None,
             transaction_type: None,
             sidecar: None,
-            other: Default::default(),
         },
         Some(BlockNumberOrTag::Number(3)),
         None,
@@ -324,9 +331,11 @@ fn call_test() {
         .get_call(
             TransactionRequest {
                 from: Some(signer.address()),
-                to: Some(Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap()),
-                gas: Some(U256::from(100000)),
-                gas_price: Some(U256::from(10000)),
+                to: Some(TxKind::Call(address!(
+                    "eeb03d20dae810f52111b853b31c8be6f30f4cd3"
+                ))),
+                gas: Some(100000),
+                gas_price: Some(10000),
                 max_fee_per_gas: None,
                 max_priority_fee_per_gas: None,
                 value: None,
@@ -340,7 +349,6 @@ fn call_test() {
                 blob_versioned_hashes: None,
                 transaction_type: None,
                 sidecar: None,
-                other: Default::default(),
             },
             // How does this work precisely? In the first block, the contract was not there?
             Some(BlockNumberOrTag::Latest),
@@ -360,7 +368,9 @@ fn call_test() {
         .get_call(
             TransactionRequest {
                 from: Some(signer.address()),
-                to: Some(Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap()),
+                to: Some(TxKind::Call(address!(
+                    "eeb03d20dae810f52111b853b31c8be6f30f4cd3"
+                ))),
                 gas: None,
                 gas_price: None,
                 max_fee_per_gas: None,
@@ -376,7 +386,6 @@ fn call_test() {
                 blob_versioned_hashes: None,
                 transaction_type: None,
                 sidecar: None,
-                other: Default::default(),
             },
             // How does this work precisely? In the first block, the contract was not there?
             Some(BlockNumberOrTag::Latest),
@@ -447,8 +456,8 @@ fn check_against_third_block(block: &Rich<Block>) {
     assert_eq!(block, &rich_block);
 }
 
-fn check_against_third_block_receipts(receipts: Vec<TransactionReceipt>) {
-    let test_receipts = serde_json::from_value::<Vec<TransactionReceipt>>(json!([
+fn check_against_third_block_receipts(receipts: Vec<AnyTransactionReceipt>) {
+    let test_receipts = serde_json::from_value::<Vec<AnyTransactionReceipt>>(json!([
     {
         "transactionHash": "0x2ff3a833e99d5a97e26f912c2e855f95e2dda542c89131fea0d189889d384d99",
         "transactionIndex": "0x0",
@@ -474,6 +483,7 @@ fn check_against_third_block_receipts(receipts: Vec<TransactionReceipt>) {
                 "data": "0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000c48656c6c6f20576f726c64210000000000000000000000000000000000000000",
                 "blockHash": "0x2d7962c316685635252886d6801a553139e94e3b7d2b678f8c9d974a54e24ab9",
                 "blockNumber": "0x2",
+                "blockTimestamp": "0x18",
                 "transactionHash": "0x2ff3a833e99d5a97e26f912c2e855f95e2dda542c89131fea0d189889d384d99",
                 "transactionIndex": "0x0",
                 "logIndex": "0x0",
@@ -488,6 +498,7 @@ fn check_against_third_block_receipts(receipts: Vec<TransactionReceipt>) {
                 "data": "0x",
                 "blockHash": "0x2d7962c316685635252886d6801a553139e94e3b7d2b678f8c9d974a54e24ab9",
                 "blockNumber": "0x2",
+                "blockTimestamp": "0x18",
                 "transactionHash": "0x2ff3a833e99d5a97e26f912c2e855f95e2dda542c89131fea0d189889d384d99",
                 "transactionIndex": "0x0",
                 "logIndex": "0x1",
@@ -523,6 +534,7 @@ fn check_against_third_block_receipts(receipts: Vec<TransactionReceipt>) {
                 "data": "0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000c48656c6c6f20576f726c64210000000000000000000000000000000000000000",
                 "blockHash": "0x2d7962c316685635252886d6801a553139e94e3b7d2b678f8c9d974a54e24ab9",
                 "blockNumber": "0x2",
+                "blockTimestamp": "0x18",
                 "transactionHash": "0xa69485c543cd51dc1856619f3ddb179416af040da2835a10405c856cd5fb41b8",
                 "transactionIndex": "0x1",
                 "logIndex": "0x2",
@@ -537,6 +549,7 @@ fn check_against_third_block_receipts(receipts: Vec<TransactionReceipt>) {
                 "data": "0x",
                 "blockHash": "0x2d7962c316685635252886d6801a553139e94e3b7d2b678f8c9d974a54e24ab9",
                 "blockNumber": "0x2",
+                "blockTimestamp": "0x18",
                 "transactionHash": "0xa69485c543cd51dc1856619f3ddb179416af040da2835a10405c856cd5fb41b8",
                 "transactionIndex": "0x1",
                 "logIndex": "0x3",
@@ -572,6 +585,7 @@ fn check_against_third_block_receipts(receipts: Vec<TransactionReceipt>) {
                 "data": "0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000c48656c6c6f20576f726c64210000000000000000000000000000000000000000",
                 "blockHash": "0x2d7962c316685635252886d6801a553139e94e3b7d2b678f8c9d974a54e24ab9",
                 "blockNumber": "0x2",
+                "blockTimestamp": "0x18",
                 "transactionHash": "0x17fa953338b32b30795ccb62f050f1c9bcdd48f4793fb2d6d34290b444841271",
                 "transactionIndex": "0x2",
                 "logIndex": "0x4",
@@ -586,6 +600,7 @@ fn check_against_third_block_receipts(receipts: Vec<TransactionReceipt>) {
                 "data": "0x",
                 "blockHash": "0x2d7962c316685635252886d6801a553139e94e3b7d2b678f8c9d974a54e24ab9",
                 "blockNumber": "0x2",
+                "blockTimestamp": "0x18",
                 "transactionHash": "0x17fa953338b32b30795ccb62f050f1c9bcdd48f4793fb2d6d34290b444841271",
                 "transactionIndex": "0x2",
                 "logIndex": "0x5",
@@ -621,6 +636,7 @@ fn check_against_third_block_receipts(receipts: Vec<TransactionReceipt>) {
                 "data": "0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000c48656c6c6f20576f726c64210000000000000000000000000000000000000000",
                 "blockHash": "0x2d7962c316685635252886d6801a553139e94e3b7d2b678f8c9d974a54e24ab9",
                 "blockNumber": "0x2",
+                "blockTimestamp": "0x18",
                 "transactionHash": "0xd7e5b2bce65678b5e1a4430b1320b18a258fd5412e20bd5734f446124a9894e6",
                 "transactionIndex": "0x3",
                 "logIndex": "0x6",
@@ -635,6 +651,7 @@ fn check_against_third_block_receipts(receipts: Vec<TransactionReceipt>) {
                 "data": "0x",
                 "blockHash": "0x2d7962c316685635252886d6801a553139e94e3b7d2b678f8c9d974a54e24ab9",
                 "blockNumber": "0x2",
+                "blockTimestamp": "0x18",
                 "transactionHash": "0xd7e5b2bce65678b5e1a4430b1320b18a258fd5412e20bd5734f446124a9894e6",
                 "transactionIndex": "0x3",
                 "logIndex": "0x7",
@@ -646,5 +663,8 @@ fn check_against_third_block_receipts(receipts: Vec<TransactionReceipt>) {
         "type": "0x2"
     }])).unwrap();
 
-    assert_eq!(receipts, test_receipts)
+    let receipts = serde_json::to_string(&receipts).unwrap();
+    let expected = serde_json::to_string(&test_receipts).unwrap();
+
+    assert_eq!(receipts, expected)
 }

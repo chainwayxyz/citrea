@@ -103,7 +103,6 @@ ethers = { workspace = true }
 revm = { workspace = true }
 
 rustc_version_runtime = { workspace = true }
-tendermint = "0.32"
 log = "0.4"
 regex = "1.10"
 
