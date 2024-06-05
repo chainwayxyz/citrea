@@ -262,3 +262,26 @@ pub async fn wait_for_postgres_commitment(
         sleep(Duration::from_secs(1)).await;
     }
 }
+
+pub async fn wait_for_postgres_proofs(
+    db_test_client: &PostgresConnector,
+    num: usize,
+    timeout: Option<Duration>,
+) {
+    let start = SystemTime::now();
+    let timeout = timeout.unwrap_or(Duration::from_secs(30)); // Default 30 seconds timeout
+    loop {
+        debug!("Waiting for {} L1 proofs to be published", num);
+        let commitments = db_test_client.get_all_proof_data().await.unwrap().len();
+        if commitments >= num {
+            break;
+        }
+
+        let now = SystemTime::now();
+        if start + timeout <= now {
+            panic!("Timeout. {} proofs exist at this point", commitments);
+        }
+
+        sleep(Duration::from_secs(1)).await;
+    }
+}
