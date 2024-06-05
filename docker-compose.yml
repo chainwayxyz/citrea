@@ -36,6 +36,7 @@ services:
       - ROLLUP__DA__NODE_PASSWORD=citrea
       - ROLLUP__RUNNER__SEQUENCER_CLIENT_URL=https://rpc.devnet.citrea.xyz
       - ROLLUP__RUNNER__INCLUDE_TX_BODY=true
+      - RUST_LOG=info
     volumes:
       - citrea-full-node-data:/mnt/task/citrea-db
     ports:
