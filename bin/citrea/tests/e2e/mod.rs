@@ -2566,7 +2566,7 @@ async fn full_node_verify_proof_and_store() {
 
     // Up until this moment, Full node has only seen 2 DA blocks.
     // We need to force it to sync up to 5th DA block.
-    for i in 7..=9 {
+    for i in 7..=8 {
         test_client.send_publish_batch_request().await;
         wait_for_l2_block(&full_node_test_client, i, None).await;
     }
@@ -2574,8 +2574,7 @@ async fn full_node_verify_proof_and_store() {
     // So the full node should see the proof in block 5
     let full_node_proof = full_node_test_client
         .ledger_get_verified_proofs_by_slot_height(5)
-        .await
-        .unwrap();
+        .await;
     assert_eq!(prover_proof.proof, full_node_proof[0].proof);
 
     assert_eq!(
