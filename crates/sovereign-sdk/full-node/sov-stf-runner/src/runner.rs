@@ -435,7 +435,7 @@ where
                                             "Soft Batch: connection error during RPC call: {:?}",
                                             e
                                         );
-                                        debug!(error_msg);
+                                        error!(error_msg);
                                         Err(backoff::Error::Transient {
                                             err: error_msg,
                                             retry_after: None,
@@ -446,6 +446,7 @@ where
                                             "Soft Batch: unknown error from RPC call: {:?}",
                                             e
                                         );
+                                        error!(error_msg);
                                         Err(backoff::Error::Transient {
                                             err: error_msg,
                                             retry_after: None,
