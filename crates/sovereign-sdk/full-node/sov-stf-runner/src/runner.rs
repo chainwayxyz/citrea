@@ -422,10 +422,7 @@ where
                             match inner_client.get_soft_batch::<Da::Spec>(l2_height).await {
                                 Ok(Some(soft_batch)) => Ok(soft_batch),
                                 Ok(None) => {
-                                    debug!(
-                                        "Soft Batch: no batch at height {}, retrying...",
-                                        l2_height
-                                    );
+                                    debug!("Soft Batch: no batch at height {}", l2_height);
 
                                     // Return a Permanent error so that we exit the retry.
                                     Err(backoff::Error::Permanent(
@@ -444,13 +441,16 @@ where
                                             retry_after: None,
                                         })
                                     }
-                                    _ => Err(backoff::Error::Transient {
-                                        err: format!(
+                                    _ => {
+                                        let error_msg = format!(
                                             "Soft Batch: unknown error from RPC call: {:?}",
                                             e
-                                        ),
-                                        retry_after: None,
-                                    }),
+                                        );
+                                        Err(backoff::Error::Transient {
+                                            err: error_msg,
+                                            retry_after: None,
+                                        })
+                                    }
                                 },
                             }
                         })
