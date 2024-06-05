@@ -240,6 +240,32 @@ pub async fn wait_for_l1_block(da_service: &MockDaService, num: u64, timeout: Op
     sleep(Duration::from_secs(2)).await;
 }
 
+pub async fn wait_for_proof(test_client: &TestClient, slot_height: u64, timeout: Option<Duration>) {
+    let start = SystemTime::now();
+    let timeout = timeout.unwrap_or(Duration::from_secs(60)); // Default 60 seconds timeout
+    loop {
+        debug!(
+            "Waiting for L1 block height containing zkproof {}",
+            slot_height
+        );
+        let proof = test_client
+            .ledger_get_verified_proofs_by_slot_height(slot_height)
+            .await;
+        if proof.is_some() {
+            break;
+        }
+
+        let now = SystemTime::now();
+        if start + timeout <= now {
+            panic!("Timeout while waiting for proof at height {}", slot_height);
+        }
+
+        sleep(Duration::from_secs(1)).await;
+    }
+    // Let knowledgage of the new DA block propagate
+    sleep(Duration::from_secs(2)).await;
+}
+
 pub async fn wait_for_postgres_commitment(
     db_test_client: &PostgresConnector,
     num: usize,

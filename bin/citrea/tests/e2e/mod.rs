@@ -27,7 +27,7 @@ use crate::evm::{init_test_rollup, make_test_client};
 use crate::test_client::TestClient;
 use crate::test_helpers::{
     create_default_sequencer_config, start_rollup, tempdir_with_children, wait_for_l1_block,
-    wait_for_l2_block, wait_for_postgres_commitment, wait_for_postgres_proofs,
+    wait_for_l2_block, wait_for_postgres_commitment, wait_for_postgres_proofs, wait_for_proof,
     wait_for_prover_l1_height, NodeMode,
 };
 use crate::{
@@ -2576,9 +2576,11 @@ async fn full_node_verify_proof_and_store() {
     }
 
     // So the full node should see the proof in block 5
+    wait_for_proof(&full_node_test_client, 5, None).await;
     let full_node_proof = full_node_test_client
         .ledger_get_verified_proofs_by_slot_height(5)
-        .await;
+        .await
+        .unwrap();
     assert_eq!(prover_proof.proof, full_node_proof[0].proof);
 
     assert_eq!(
@@ -2800,9 +2802,11 @@ async fn test_all_flow() {
     wait_for_l2_block(&full_node_test_client, 7, None).await;
 
     // So the full node should see the proof in block 5
+    wait_for_proof(&full_node_test_client, 5, None).await;
     let full_node_proof = full_node_test_client
         .ledger_get_verified_proofs_by_slot_height(5)
-        .await;
+        .await
+        .unwrap();
 
     assert_eq!(prover_proof.proof, full_node_proof[0].proof);
 
@@ -2897,9 +2901,11 @@ async fn test_all_flow() {
         wait_for_l2_block(&full_node_test_client, i, None).await;
     }
 
+    wait_for_proof(&full_node_test_client, 8, None).await;
     let full_node_proof_data = full_node_test_client
         .ledger_get_verified_proofs_by_slot_height(8)
-        .await;
+        .await
+        .unwrap();
 
     assert_eq!(prover_proof_data.proof, full_node_proof_data[0].proof);
     assert_eq!(
