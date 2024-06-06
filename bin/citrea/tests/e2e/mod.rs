@@ -1949,6 +1949,8 @@ async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
 
     // second da block
     da_service.publish_test_block().await.unwrap();
+    wait_for_l1_block(&da_service, 2, None).await;
+    wait_for_l1_block(&da_service, 3, None).await;
 
     // before this the commitment will be sent
     // the commitment will be only in the first block so it is still not finalized
@@ -1956,14 +1958,15 @@ async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
     seq_test_client.send_publish_batch_request().await;
 
     // wait for sync
-    wait_for_l2_block(&full_node_test_client, 5, None).await;
+    wait_for_l2_block(&full_node_test_client, 6, None).await;
 
     // should be synced
-    assert_eq!(full_node_test_client.eth_block_number().await, 5);
+    assert_eq!(full_node_test_client.eth_block_number().await, 6);
 
     // assume sequencer craashed
     seq_task.abort();
 
+    wait_for_postgres_commitment(&db_test_client, 1, Some(Duration::from_secs(60))).await;
     let commitments = db_test_client.get_all_commitments().await.unwrap();
     assert_eq!(commitments.len(), 1);
 
@@ -2001,15 +2004,18 @@ async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
 
     let seq_test_client = make_test_client(seq_port).await;
 
-    wait_for_l2_block(&seq_test_client, 5, None).await;
+    wait_for_l2_block(&seq_test_client, 6, None).await;
 
-    assert_eq!(seq_test_client.eth_block_number().await as u64, 5);
+    assert_eq!(seq_test_client.eth_block_number().await as u64, 6);
 
     seq_test_client.send_publish_batch_request().await;
     seq_test_client.send_publish_batch_request().await;
     seq_test_client.send_publish_batch_request().await;
 
     da_service.publish_test_block().await.unwrap();
+    wait_for_l1_block(&da_service, 4, None).await;
+    wait_for_l1_block(&da_service, 5, None).await;
+
     // new commitment will be sent here, it should send between 2 and 3 should not include 1
     seq_test_client.send_publish_batch_request().await;
 
