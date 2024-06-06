@@ -12,7 +12,7 @@ use reth_transaction_pool::EthPooledTransaction;
 use shared_backup_db::PostgresConnector;
 use sov_modules_api::WorkingSet;
 use tokio::sync::Mutex;
-use tracing::{error, info};
+use tracing::{debug, error};
 
 use crate::deposit_data_mempool::DepositDataMempool;
 use crate::mempool::CitreaMempool;
@@ -33,7 +33,7 @@ pub(crate) fn create_rpc_module<C: sov_modules_api::Context>(
     let test_mode = rpc_context.test_mode;
     let mut rpc = RpcModule::new(rpc_context);
     rpc.register_async_method("eth_sendRawTransaction", |parameters, ctx| async move {
-        info!("Sequencer: eth_sendRawTransaction");
+        debug!("Sequencer: eth_sendRawTransaction");
         let data: Bytes = parameters.one()?;
 
         // Only check if the signature is valid for now
@@ -67,7 +67,7 @@ pub(crate) fn create_rpc_module<C: sov_modules_api::Context>(
 
     if test_mode {
         rpc.register_async_method("citrea_testPublishBlock", |_, ctx| async move {
-            info!("Sequencer: citrea_testPublishBlock");
+            debug!("Sequencer: citrea_testPublishBlock");
             ctx.l2_force_block_tx.unbounded_send(()).map_err(|e| {
                 ErrorObjectOwned::owned(
                     INTERNAL_ERROR_CODE,
@@ -83,7 +83,7 @@ pub(crate) fn create_rpc_module<C: sov_modules_api::Context>(
         let mut params = parameters.sequence();
         let hash: B256 = params.next()?;
         let mempool_only: Result<Option<bool>, ErrorObjectOwned> = params.optional_next();
-        info!(
+        debug!(
             "Sequencer: eth_getTransactionByHash({}, {:?})",
             hash, mempool_only
         );
@@ -115,7 +115,7 @@ pub(crate) fn create_rpc_module<C: sov_modules_api::Context>(
             let mut params = parameters.sequence();
             let deposit: Bytes = params.next()?;
 
-            info!("Sequencer: citrea_sendRawDepositTransaction");
+            debug!("Sequencer: citrea_sendRawDepositTransaction");
 
             let evm = Evm::<C>::default();
             let mut working_set = WorkingSet::<C>::new(ctx.storage.clone());
@@ -130,7 +130,7 @@ pub(crate) fn create_rpc_module<C: sov_modules_api::Context>(
 
             match tx_res {
                 Ok(hex_res) => {
-                    tracing::info!("Deposit tx processed successfully {}", hex_res);
+                    tracing::debug!("Deposit tx processed successfully {}", hex_res);
                     ctx.deposit_mempool
                         .lock()
                         .await

@@ -20,7 +20,7 @@ use sov_stf_runner::{
     InitVariant, ProverConfig, ProverService, RollupConfig, StateTransitionRunner,
 };
 use tokio::sync::oneshot;
-use tracing::instrument;
+use tracing::{instrument, Instrument};
 pub use wallet::*;
 
 /// This trait defines how to crate all the necessary dependencies required by a rollup.
@@ -363,7 +363,7 @@ impl<S: RollupBlueprint> Sequencer<S> {
     /// Runs the sequencer.
     #[instrument(
         name = "Sequencer",
-        level = "trace",
+        level = "info",
         skip_all,
         err,
         ret(level = "error")
@@ -379,6 +379,7 @@ impl<S: RollupBlueprint> Sequencer<S> {
     ) -> Result<(), anyhow::Error> {
         let mut seq = self.runner;
         seq.start_rpc_server(channel, self.rpc_methods)
+            .instrument(tracing::Span::current())
             .await
             .unwrap();
         seq.run().await?;
@@ -406,7 +407,7 @@ impl<S: RollupBlueprint> FullNode<S> {
     /// Runs the rollup.
     #[instrument(
         name = "FullNode",
-        level = "trace",
+        level = "info",
         skip(self),
         err,
         ret(level = "error")
@@ -417,7 +418,10 @@ impl<S: RollupBlueprint> FullNode<S> {
 
     /// Only run the rpc.
     pub async fn run_rpc(self) -> Result<(), anyhow::Error> {
-        self.runner.start_rpc_server(self.rpc_methods, None).await;
+        self.runner
+            .start_rpc_server(self.rpc_methods, None)
+            .instrument(tracing::Span::current())
+            .await;
         Ok(())
     }
 
@@ -427,7 +431,10 @@ impl<S: RollupBlueprint> FullNode<S> {
         channel: Option<oneshot::Sender<SocketAddr>>,
     ) -> Result<(), anyhow::Error> {
         let mut runner = self.runner;
-        runner.start_rpc_server(self.rpc_methods, channel).await;
+        runner
+            .start_rpc_server(self.rpc_methods, channel)
+            .instrument(tracing::Span::current())
+            .await;
 
         runner.run_in_process().await?;
         Ok(())
@@ -452,14 +459,17 @@ pub struct Prover<S: RollupBlueprint> {
 
 impl<S: RollupBlueprint> Prover<S> {
     /// Runs the rollup.
-    #[instrument(name = "Prover", level = "trace", skip_all, err, ret(level = "error"))]
+    #[instrument(name = "Prover", level = "info", skip_all, err, ret(level = "error"))]
     pub async fn run(self) -> Result<(), anyhow::Error> {
         self.run_and_report_rpc_port(None).await
     }
 
     /// Only run the rpc.
     pub async fn run_rpc(self) -> Result<(), anyhow::Error> {
-        self.runner.start_rpc_server(self.rpc_methods, None).await;
+        self.runner
+            .start_rpc_server(self.rpc_methods, None)
+            .instrument(tracing::Span::current())
+            .await;
         Ok(())
     }
 
@@ -469,7 +479,10 @@ impl<S: RollupBlueprint> Prover<S> {
         channel: Option<oneshot::Sender<SocketAddr>>,
     ) -> Result<(), anyhow::Error> {
         let mut runner = self.runner;
-        runner.start_rpc_server(self.rpc_methods, channel).await;
+        runner
+            .start_rpc_server(self.rpc_methods, channel)
+            .instrument(tracing::Span::current())
+            .await;
 
         runner.run_prover_process().await?;
         Ok(())

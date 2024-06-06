@@ -64,16 +64,16 @@ where
         // output config
         match config {
             ProofGenConfig::Skip => {
-                tracing::info!("Prover is configured to skip proving");
+                tracing::debug!("Prover is configured to skip proving");
             }
             ProofGenConfig::Simulate(_) => {
-                tracing::info!("Prover is configured to simulate proving");
+                tracing::debug!("Prover is configured to simulate proving");
             }
             ProofGenConfig::Execute => {
-                tracing::info!("Prover is configured to execute proving");
+                tracing::debug!("Prover is configured to execute proving");
             }
             ProofGenConfig::Prover => {
-                tracing::info!("Prover is configured to prove");
+                tracing::debug!("Prover is configured to prove");
             }
         }
 

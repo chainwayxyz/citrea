@@ -2546,7 +2546,7 @@ async fn full_node_verify_proof_and_store() {
 
 #[tokio::test]
 async fn test_all_flow() {
-    // citrea::initialize_logging(tracing::Level::INFO);
+    // citrea::initialize_logging(tracing::Level::DEBUG);
 
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "prover", "full-node"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();

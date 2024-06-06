@@ -482,7 +482,7 @@ where
                         break;
                     }
 
-                    info!(
+                    debug!(
                         "Running soft confirmation batch #{} with hash: 0x{} on DA block #{}",
                         l2_height,
                         hex::encode(soft_batch.hash),
@@ -641,7 +641,7 @@ where
 
                 match proof {
                     Proof::PublicInput(_) => {
-                        tracing::warn!("Proof is public input, skipping");
+                        tracing::debug!("Proof is public input, skipping");
                     }
                     Proof::Full(ref proof) => {
                         tracing::debug!("Verifying proof!");
@@ -865,12 +865,12 @@ where
                     });
 
                 for proof in zk_proofs {
-                    tracing::warn!("Processing zk proof: {:?}", proof);
+                    tracing::trace!("Processing zk proof: {:?}", proof);
                     let state_transition = match proof.clone() {
                         Proof::Full(proof) => {
                             let code_commitment = self.code_commitment.clone();
 
-                            tracing::warn!(
+                            tracing::trace!(
                                 "using code commitment: {:?}",
                                 serde_json::to_string(&code_commitment).unwrap()
                             );
@@ -1035,7 +1035,7 @@ where
                 }
 
                 for sequencer_commitment in sequencer_commitments.iter() {
-                    tracing::warn!(
+                    tracing::debug!(
                         "Processing sequencer commitment: {:?}",
                         sequencer_commitment
                     );
@@ -1059,7 +1059,7 @@ where
                     .header()
                     .height();
 
-                    tracing::warn!(
+                    tracing::debug!(
                         "start height: {}, end height: {}",
                         start_l1_height,
                         end_l1_height
@@ -1138,7 +1138,7 @@ where
 
             let cur_l1_block = cur_l1_block.clone().unwrap();
 
-            info!(
+            debug!(
                 "Running soft confirmation batch #{} with hash: 0x{} on DA block #{}",
                 height,
                 hex::encode(soft_batch.hash),

@@ -23,12 +23,15 @@ pub fn initialize_logging(level: Level) {
             level.as_str().to_owned(),
             "jmt=info".to_owned(),
             "hyper=info".to_owned(),
-            "risc0_zkvm=info".to_owned(),
-            "guest_execution=debug".to_owned(),
+            // Limit output as much as possible, use WARN.
+            "risc0_zkvm=warn".to_owned(),
+            "guest_execution=info".to_owned(),
             "jsonrpsee-server=info".to_owned(),
             "reqwest=info".to_owned(),
             "sov_schema_db=info".to_owned(),
             "sov_prover_storage_manager=info".to_owned(),
+            // Limit output as much as possible, use WARN.
+            "tokio_postgres=warn".to_owned(),
             format!("sov_mock_da::db_connector={}", level.as_str()),
         ];
         debug_components.join(",")
