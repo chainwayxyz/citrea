@@ -307,24 +307,38 @@ where
                     let data = DaData::try_from_slice(tx.full_data());
 
                     if tx.sender().as_ref() == self.sequencer_da_pub_key.as_slice() {
-                        if let Ok(DaData::SequencerCommitment(seq_com)) = data {
-                            sequencer_commitments.push(seq_com);
-                        } else {
-                            tracing::warn!(
-                                "Found broken DA data in block 0x{}: {:?}",
-                                hex::encode(filtered_block.hash()),
-                                data
-                            );
+                        match data {
+                            Ok(DaData::SequencerCommitment(seq_com)) => {
+                                sequencer_commitments.push(seq_com);
+                            }
+                            Ok(_) => { // We don't care about other types here
+                                 // Skip
+                            }
+                            Err(ref e) => {
+                                tracing::error!(
+                                    "Found broken DA data in block 0x{}: {:?}. Error: {}",
+                                    hex::encode(filtered_block.hash()),
+                                    data,
+                                    e
+                                );
+                            }
                         }
                     } else if tx.sender().as_ref() == self.prover_da_pub_key.as_slice() {
-                        if let Ok(DaData::ZKProof(proof)) = data {
-                            zk_proofs.push(proof);
-                        } else {
-                            tracing::warn!(
-                                "Found broken DA data in block 0x{}: {:?}",
-                                hex::encode(filtered_block.hash()),
-                                data
-                            );
+                        match data {
+                            Ok(DaData::ZKProof(proof)) => {
+                                zk_proofs.push(proof);
+                            }
+                            Ok(_) => { // We don't care about other types here
+                                 // Skip
+                            }
+                            Err(ref e) => {
+                                tracing::error!(
+                                    "Found broken DA data in block 0x{}: {:?}. Error: {}",
+                                    hex::encode(filtered_block.hash()),
+                                    data,
+                                    e
+                                );
+                            }
                         }
                     } else {
                         warn!("Force transactions are not implemented yet");
@@ -808,27 +822,41 @@ where
                         let data = DaData::try_from_slice(tx.full_data());
                         // Check for commitment
                         if tx.sender().as_ref() == self.sequencer_da_pub_key.as_slice() {
-                            if let Ok(DaData::SequencerCommitment(seq_com)) = data {
-                                sequencer_commitments.push(seq_com);
-                            } else {
-                                tracing::warn!(
-                                    "Found broken DA data in block 0x{}: {:?}",
-                                    hex::encode(filtered_block.hash()),
-                                    data
-                                );
+                            match data {
+                                Ok(DaData::SequencerCommitment(seq_com)) => {
+                                    sequencer_commitments.push(seq_com);
+                                }
+                                Ok(_) => { // We don't care about other types here
+                                     // Skip
+                                }
+                                Err(ref e) => {
+                                    tracing::error!(
+                                        "Found broken DA data in block 0x{}: {:?}. Error: {}",
+                                        hex::encode(filtered_block.hash()),
+                                        data,
+                                        e
+                                    );
+                                }
                             }
                         }
                         let data = DaData::try_from_slice(tx.full_data());
                         // Check for proof
                         if tx.sender().as_ref() == self.prover_da_pub_key.as_slice() {
-                            if let Ok(DaData::ZKProof(proof)) = data {
-                                zk_proofs.push(proof);
-                            } else {
-                                tracing::warn!(
-                                    "Found broken DA data in block 0x{}: {:?}",
-                                    hex::encode(filtered_block.hash()),
-                                    data
-                                );
+                            match data {
+                                Ok(DaData::ZKProof(proof)) => {
+                                    zk_proofs.push(proof);
+                                }
+                                Ok(_) => { // We don't care about other types here
+                                     // Skip
+                                }
+                                Err(ref e) => {
+                                    tracing::error!(
+                                        "Found broken DA data in block 0x{}: {:?}. Error: {}",
+                                        hex::encode(filtered_block.hash()),
+                                        data,
+                                        e
+                                    );
+                                }
                             }
                         } else {
                             warn!("Force transactions are not implemented yet");
