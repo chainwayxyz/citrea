@@ -13,6 +13,7 @@ use sov_rollup_interface::services::da::{BlobWithNotifier, DaService, SlotData};
 use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 use tokio::sync::{broadcast, Mutex as AsyncMutex, MutexGuard as AsyncMutexGuard};
 use tokio::time;
+use tracing::{instrument, Instrument};
 
 use crate::db_connector::DbConnector;
 use crate::types::{MockAddress, MockBlob, MockBlock, MockDaVerifier};
@@ -83,6 +84,7 @@ impl MockDaService {
     }
 
     /// Create a new [`MockDaService`] with given finality.
+    #[instrument(name = "DA")]
     pub fn with_finality(
         sequencer_da_address: MockAddress,
         blocks_to_finality: u32,
@@ -92,7 +94,7 @@ impl MockDaService {
         // Spawn a task, so channel is never closed
         tokio::spawn(async move {
             let mut rx = rx1;
-            while let Ok(header) = rx.recv().await {
+            while let Ok(header) = rx.recv().instrument(tracing::Span::current()).await {
                 tracing::debug!("Finalized MockHeader: {}", header);
             }
         });

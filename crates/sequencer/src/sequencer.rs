@@ -321,7 +321,6 @@ where
         }
     }
 
-    #[instrument(level = "debug", skip_all, err, ret)]
     async fn produce_l2_block(
         &mut self,
         da_block: <Da as DaService>::FilteredBlock,
