@@ -1,5 +1,8 @@
 [test-groups]
-heavy-tests = { max-threads = 16 }
+heavy-tests = { max-threads = 2 } # Limit to 2 tests concurrently running
+
+[profile.default]
+fail-fast = false
 
 [[profile.default.overrides]]
 filter = 'test(e2e::)'
