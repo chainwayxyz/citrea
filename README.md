@@ -11,7 +11,7 @@
 > \
 > Citrea uses **BTC** as its native token. **There's no Citrea token**. Please beware of scams! \
 > \
-> Please also note that **BTC** and **cBTC** of Citrea Devnet does not possess a real value.
+> Please also note that **BTC** and **cBTC** of Citrea Devnet does not carry any real value.
 
 ## What is Citrea?
 
