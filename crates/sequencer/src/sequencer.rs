@@ -944,21 +944,18 @@ where
 
         let commitment = pg_connector.get_last_commitment().await?;
         // check if last commitment in db matches sequencer's last commitment
-        match commitment {
-            Some(db_commitment) => {
-                // this means that the last commitment in the db is not the same as the sequencer's last commitment
-                if db_commitment.l1_end_height as u64
-                    > ledger_commitment_l1_height.unwrap_or(SlotNumber(0)).0
-                {
-                    self.ledger_db
-                        .set_last_sequencer_commitment_l1_height(SlotNumber(
-                            db_commitment.l1_end_height as u64,
-                        ))?
-                }
-                Ok(())
+        if let Some(db_commitment) = commitment {
+            // this means that the last commitment in the db is not the same as the sequencer's last commitment
+            if db_commitment.l1_end_height as u64
+                > ledger_commitment_l1_height.unwrap_or(SlotNumber(0)).0
+            {
+                self.ledger_db
+                    .set_last_sequencer_commitment_l1_height(SlotNumber(
+                        db_commitment.l1_end_height as u64,
+                    ))?
             }
-            None => Ok(()),
         }
+        Ok(())
     }
 
     fn get_l1_fee_rate_range(&self) -> Result<RangeInclusive<u128>, anyhow::Error> {
