@@ -203,7 +203,7 @@ async fn check_sequencer_commitment(
     end_l1_block.header.height
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn check_commitment_in_offchain_db() {
     // citrea::initialize_logging();
 
@@ -277,7 +277,7 @@ async fn check_commitment_in_offchain_db() {
     seq_task.abort();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_ledger_get_commitments_on_slot() {
     // citrea::initialize_logging();
 
@@ -383,7 +383,7 @@ async fn test_ledger_get_commitments_on_slot() {
     full_node_task.abort();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_ledger_get_commitments_on_slot_prover() {
     // citrea::initialize_logging();
 

@@ -1559,7 +1559,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_system_transactions() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging();
 
@@ -2616,7 +2616,7 @@ async fn full_node_verify_proof_and_store() {
     full_node_task.abort();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_all_flow() {
     // citrea::initialize_logging();
 
@@ -2962,7 +2962,7 @@ async fn test_all_flow() {
 /// Transactions with a high gas limit should be accounted for by using
 /// their actual cumulative gas consumption to prevent them from reserving
 /// whole blocks on their own.
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_gas_limit_too_high() {
     // citrea::initialize_logging();
 
@@ -3091,7 +3091,7 @@ async fn test_gas_limit_too_high() {
     full_node_task.abort();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_ledger_get_head_soft_batch() {
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
@@ -3157,7 +3157,7 @@ async fn test_ledger_get_head_soft_batch() {
     seq_task.abort();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_full_node_sync_status() {
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
