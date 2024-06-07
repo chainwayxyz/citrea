@@ -21,9 +21,9 @@ use crate::{DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_PROOF_WAIT_DURATION};
 
 #[tokio::test]
 async fn sequencer_sends_commitments_to_da_layer() {
-    citrea::initialize_logging();
+    // citrea::initialize_logging();
 
-    let db_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
+    let db_dir = tempdir_with_children(&["DA", "sequencer"]);
     let da_db_dir = db_dir.path().join("DA").to_path_buf();
     let sequencer_db_dir = db_dir.path().join("sequencer").to_path_buf();
 
@@ -59,6 +59,7 @@ async fn sequencer_sends_commitments_to_da_layer() {
     }
 
     da_service.publish_test_block().await.unwrap();
+    wait_for_l1_block(&da_service, 2, None).await;
 
     let mut height = 1;
     let last_finalized = da_service
@@ -82,8 +83,15 @@ async fn sequencer_sends_commitments_to_da_layer() {
         height += 1;
     }
 
-    da_service.publish_test_block().await.unwrap();
+    // Publish one more L2 block
     test_client.send_publish_batch_request().await;
+
+    // Trigger a commitment
+    da_service.publish_test_block().await.unwrap();
+    wait_for_l1_block(&da_service, 3, None).await;
+    // The previous L1 block triggers a commitment
+    // which will create yet another L1 block.
+    wait_for_l1_block(&da_service, 4, None).await;
 
     let start_l2_block: u64 = 1;
     let end_l2_block: u64 = 4; // can only be the block before the one comitment landed in
@@ -103,10 +111,8 @@ async fn sequencer_sends_commitments_to_da_layer() {
         test_client.send_publish_batch_request().await;
     }
     da_service.publish_test_block().await.unwrap();
-
-    test_client.send_publish_batch_request().await;
-
-    wait_for_l2_block(&test_client, 5, None).await;
+    wait_for_l1_block(&da_service, 4, None).await;
+    wait_for_l1_block(&da_service, 5, None).await;
 
     let start_l2_block: u64 = end_l2_block + 1;
     let end_l2_block: u64 = end_l2_block + 5; // can only be the block before the one comitment landed in
@@ -158,10 +164,8 @@ async fn check_sequencer_commitment(
         panic!("Expected SequencerCommitment, got {:?}", commitment);
     };
 
-    let height = test_client.eth_block_number().await;
-
     let commitments_last_soft_confirmation: SignedSoftConfirmationBatch = test_client
-        .ledger_get_soft_batch_by_number::<MockDaSpec>(height - 1) // after commitment is sent another block is published
+        .ledger_get_soft_batch_by_number::<MockDaSpec>(end_l2_block) // after commitment is sent another block is published
         .await
         .unwrap()
         .into();
@@ -240,6 +244,7 @@ async fn check_commitment_in_offchain_db() {
     let da_service = MockDaService::new(MockAddress::from([0; 32]), &da_db_dir);
 
     da_service.publish_test_block().await.unwrap();
+    wait_for_l1_block(&da_service, 2, None).await;
 
     // publish 3 soft confirmations, no commitment should be sent
     for _ in 0..3 {
@@ -247,14 +252,15 @@ async fn check_commitment_in_offchain_db() {
     }
 
     da_service.publish_test_block().await.unwrap();
+    wait_for_l1_block(&da_service, 3, None).await;
 
     // publish 4th block
     test_client.send_publish_batch_request().await;
-    // new da block
-    da_service.publish_test_block().await.unwrap();
+    wait_for_l2_block(&test_client, 4, None).await;
 
     // commitment should be published with this call
-    test_client.send_publish_batch_request().await;
+    da_service.publish_test_block().await.unwrap();
+    wait_for_l1_block(&da_service, 4, None).await;
 
     wait_for_postgres_commitment(
         &db_test_client,
@@ -329,17 +335,19 @@ async fn test_ledger_get_commitments_on_slot() {
 
     let full_node_test_client = make_test_client(full_node_port).await;
     da_service.publish_test_block().await.unwrap();
+    wait_for_l1_block(&da_service, 2, None).await;
 
     test_client.send_publish_batch_request().await;
     test_client.send_publish_batch_request().await;
     test_client.send_publish_batch_request().await;
     test_client.send_publish_batch_request().await;
     da_service.publish_test_block().await.unwrap();
-    // submits with new da block
-    test_client.send_publish_batch_request().await;
+    wait_for_l1_block(&da_service, 3, None).await;
+    // Commit
+    wait_for_l1_block(&da_service, 4, None).await;
+
     // full node gets the commitment
     test_client.send_publish_batch_request().await;
-    // da_service.publish_test_block().await.unwrap();
 
     wait_for_l2_block(&full_node_test_client, 6, None).await;
 
@@ -377,7 +385,7 @@ async fn test_ledger_get_commitments_on_slot() {
 
 #[tokio::test]
 async fn test_ledger_get_commitments_on_slot_prover() {
-    citrea::initialize_logging();
+    // citrea::initialize_logging();
 
     let db_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = db_dir.path().join("DA").to_path_buf();
@@ -437,18 +445,17 @@ async fn test_ledger_get_commitments_on_slot_prover() {
 
     let prover_node_test_client = make_test_client(prover_node_port).await;
     da_service.publish_test_block().await.unwrap();
-    wait_for_l1_block(&da_service, 1, None).await;
+    wait_for_l1_block(&da_service, 2, None).await;
 
     test_client.send_publish_batch_request().await;
     test_client.send_publish_batch_request().await;
     test_client.send_publish_batch_request().await;
     test_client.send_publish_batch_request().await;
+
     da_service.publish_test_block().await.unwrap();
-    // submits with new da block
-    test_client.send_publish_batch_request().await;
-    // prover node gets the commitment
-    test_client.send_publish_batch_request().await;
-    // da_service.publish_test_block().await.unwrap();
+    wait_for_l1_block(&da_service, 3, None).await;
+    // Commitment
+    wait_for_l1_block(&da_service, 4, None).await;
 
     // wait here until we see from prover's rpc that it finished proving
     wait_for_prover_l1_height(

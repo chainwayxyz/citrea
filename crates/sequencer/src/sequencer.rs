@@ -42,8 +42,8 @@ use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::ZkvmHost;
 use sov_stf_runner::{InitVariant, RollupPublicKeys, RpcConfig};
 use tokio::sync::oneshot::channel as oneshot_channel;
-use tokio::sync::Mutex;
-use tokio::time::sleep;
+use tokio::sync::{mpsc, Mutex};
+use tokio::time::{sleep, Instant};
 use tracing::{debug, error, info, instrument, warn};
 
 use crate::commitment_controller;
@@ -55,6 +55,10 @@ use crate::rpc::{create_rpc_module, RpcContext};
 use crate::utils::recover_raw_transaction;
 
 type StateRoot<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::StateRoot;
+/// Represents information about the current DA state.
+///
+/// Contains previous height, latest finalized block and fee rate.
+type L1Data<Da> = (<Da as DaService>::FilteredBlock, u128);
 
 pub struct CitreaSequencer<C, Da, Sm, Vm, Stf>
 where
@@ -91,7 +95,7 @@ enum L2BlockMode {
 impl<C, Da, Sm, Vm, Stf> CitreaSequencer<C, Da, Sm, Vm, Stf>
 where
     C: Context,
-    Da: DaService,
+    Da: DaService + Clone,
     Sm: HierarchicalStorageManager<Da::Spec>,
     Vm: ZkvmHost,
     Stf: StateTransitionFunction<
@@ -142,8 +146,7 @@ where
 
         let deposit_mempool = Arc::new(Mutex::new(DepositDataMempool::new()));
 
-        let sov_tx_signer_priv_key =
-            C::PrivateKey::try_from(&hex::decode(&config.private_key).unwrap()).unwrap();
+        let sov_tx_signer_priv_key = C::PrivateKey::try_from(&hex::decode(&config.private_key)?)?;
 
         let soft_confirmation_rule_enforcer =
             SoftConfirmationRuleEnforcer::<C, <Da as DaService>::Spec>::default();
@@ -328,7 +331,8 @@ where
         l1_fee_rate: u128,
         l2_block_mode: L2BlockMode,
         pg_pool: &Option<PostgresConnector>,
-    ) -> anyhow::Result<()> {
+        last_used_l1_height: u64,
+    ) -> anyhow::Result<u64> {
         let da_height = da_block.header().height();
         let (l2_height, l1_height) = match self
             .ledger_db
@@ -458,7 +462,7 @@ where
 
                     tracing::debug!("Finalizing l2 height: {:?}", l2_height);
                     self.storage_manager.finalize_l2(l2_height)?;
-                    return Ok(());
+                    return Ok(last_used_l1_height);
                 }
 
                 info!(
@@ -527,11 +531,14 @@ where
                         }
                     });
                 }
+
                 // connect L1 and L2 height
                 self.ledger_db.extend_l2_range_of_l1_slot(
                     SlotNumber(da_block.header().height()),
                     BatchNumber(l2_height),
                 )?;
+
+                Ok(da_block.header().height())
             }
             (Err(err), batch_workspace) => {
                 warn!(
@@ -539,209 +546,99 @@ where
                     err
                 );
                 batch_workspace.revert();
-                return Err(anyhow!(
+                Err(anyhow!(
                     "Failed to apply begin soft confirmation hook: {:?}",
                     err
-                ));
+                ))
             }
         }
-        Ok(())
     }
 
-    #[instrument(level = "trace", skip_all, err, ret)]
-    pub async fn build_block(
-        &mut self,
-        pg_pool: &Option<PostgresConnector>,
-        da_height_tx: UnboundedSender<u64>,
-    ) -> anyhow::Result<()> {
-        // best txs with base fee
-        // get base fee from last blocks => header => next base fee() function
-
-        let mut prev_l1_height = self
-            .ledger_db
-            .get_head_soft_batch()?
-            .map(|(_, sb)| sb.da_slot_height);
-
-        if prev_l1_height.is_none() {
-            prev_l1_height = Some(
-                self.da_service
-                    .get_last_finalized_block_header()
-                    .await
-                    .map_err(|e| anyhow!(e))?
-                    .height(),
-            );
-        }
-
-        let prev_l1_height = prev_l1_height.expect("Should be set at this point");
-
-        debug!("Sequencer: prev L1 height: {:?}", prev_l1_height);
-
-        let last_finalized_height = self
-            .da_service
-            .get_last_finalized_block_header()
-            .await
-            .map_err(|e| anyhow!(e))?
-            .height();
-
-        debug!(
-            "Sequencer: last finalized height: {:?}",
-            last_finalized_height
-        );
-
-        let fee_rate_range = self.get_l1_fee_rate_range()?;
-
-        let l1_fee_rate = self
-            .da_service
-            .get_fee_rate()
-            .await
-            .map_err(|e| anyhow!(e))?;
-
-        let l1_fee_rate = l1_fee_rate.clamp(*fee_rate_range.start(), *fee_rate_range.end());
-
-        let last_commitable_l1_height = match last_finalized_height.cmp(&prev_l1_height) {
-            Ordering::Less => {
-                panic!("DA L1 height is less than Ledger finalized height");
-            }
-            Ordering::Equal => None,
-            Ordering::Greater => {
-                // Compare if there is no skip
-                if last_finalized_height - prev_l1_height > 1 {
-                    // This shouldn't happen. If it does, then we should produce at least 1 block for the blocks in between
-                    for skipped_height in (prev_l1_height + 1)..last_finalized_height {
-                        debug!(
-                            "Sequencer: publishing empty L2 for skipped L1 block: {:?}",
-                            skipped_height
-                        );
-                        let da_block = self
-                            .da_service
-                            .get_block_at(skipped_height)
-                            .await
-                            .map_err(|e| anyhow!(e))?;
-                        // pool does not need to be passed here as no tx is included
-                        self.produce_l2_block(da_block, l1_fee_rate, L2BlockMode::Empty, &None)
-                            .await?;
-                    }
-                }
-                let last_commitable_l1_height = last_finalized_height - 1;
-                Some(last_commitable_l1_height)
-            }
-        };
-
-        if let Some(last_commitable_l1_height) = last_commitable_l1_height {
-            da_height_tx
-                .unbounded_send(last_commitable_l1_height)
-                .expect("Commitment thread is dead");
-            // TODO: this is where we would include forced transactions from the new L1 block
-        }
-
-        let last_finalized_block = self
-            .da_service
-            .get_block_at(last_finalized_height)
-            .await
-            .map_err(|e| anyhow!(e))?;
-
-        self.produce_l2_block(
-            last_finalized_block,
-            l1_fee_rate,
-            L2BlockMode::NotEmpty,
-            pg_pool,
-        )
-        .await?;
-        Ok(())
-    }
-
-    fn spawn_commitment_thread(&self) -> UnboundedSender<u64> {
-        let (da_height_tx, mut da_height_rx) = unbounded::<u64>();
-        let ledger_db = self.ledger_db.clone();
+    async fn submit_commitment(&self, prev_l1_height: u64) -> anyhow::Result<()> {
+        debug!("Sequencer: new L1 block, checking if commitment should be submitted");
         let inscription_queue = self.da_service.get_send_transaction_queue();
         let min_soft_confirmations_per_commitment =
             self.config.min_soft_confirmations_per_commitment;
-        let db_config = self.config.db_config.clone();
-        tokio::spawn(async move {
-            while let Some(prev_l1_height) = da_height_rx.next().await {
-                debug!("Sequencer: new L1 block, checking if commitment should be submitted");
+        let commitment_info = commitment_controller::get_commitment_info(
+            &self.ledger_db,
+            min_soft_confirmations_per_commitment,
+            prev_l1_height,
+        )?;
 
-                let commitment_info = commitment_controller::get_commitment_info(
-                    &ledger_db,
-                    min_soft_confirmations_per_commitment,
-                    prev_l1_height,
-                )
-                .unwrap(); // TODO unwrap()
+        if let Some(commitment_info) = commitment_info {
+            debug!("Sequencer: enough soft confirmations to submit commitment");
+            let l2_range_to_submit = commitment_info.l2_height_range.clone();
 
-                if let Some(commitment_info) = commitment_info {
-                    debug!("Sequencer: enough soft confirmations to submit commitment");
-                    let l2_range_to_submit = commitment_info.l2_height_range.clone();
+            // calculate exclusive range end
+            let range_end = BatchNumber(l2_range_to_submit.end().0 + 1); // cannnot add u64 to BatchNumber directly
 
-                    // calculate exclusive range end
-                    let range_end = BatchNumber(l2_range_to_submit.end().0 + 1); // cannnot add u64 to BatchNumber directly
+            let soft_confirmation_hashes = self
+                .ledger_db
+                .get_soft_batch_range(&(*l2_range_to_submit.start()..range_end))?
+                .iter()
+                .map(|sb| sb.hash)
+                .collect::<Vec<[u8; 32]>>();
 
-                    let soft_confirmation_hashes = ledger_db
-                        .get_soft_batch_range(&(*l2_range_to_submit.start()..range_end))
-                        .unwrap() // TODO unwrap
-                        .iter()
-                        .map(|sb| sb.hash)
-                        .collect::<Vec<[u8; 32]>>();
+            let commitment = commitment_controller::get_commitment(
+                commitment_info.clone(),
+                soft_confirmation_hashes,
+            )?;
 
-                    let commitment = commitment_controller::get_commitment(
-                        commitment_info.clone(),
-                        soft_confirmation_hashes,
-                    )
-                    .unwrap(); // TODO unwrap
+            info!("Sequencer: submitting commitment: {:?}", commitment);
 
-                    info!("Sequencer: submitting commitment: {:?}", commitment);
+            let blob = DaData::SequencerCommitment(commitment.clone())
+                .try_to_vec()
+                .map_err(|e| anyhow!(e))?;
+            let (notify, rx) = oneshot_channel();
+            let request = BlobWithNotifier { blob, notify };
+            inscription_queue
+                .send(request)
+                .map_err(|_| anyhow!("Bitcoin service already stopped!"))?;
+            let tx_id = rx
+                .await
+                .map_err(|_| anyhow!("DA service is dead!"))?
+                .map_err(|_| anyhow!("Send transaction cannot fail"))?;
 
-                    let blob = DaData::SequencerCommitment(commitment.clone())
-                        .try_to_vec()
-                        .map_err(|e| anyhow!(e))
-                        .unwrap(); // TODO unwrap
-                    let (notify, rx) = oneshot_channel();
-                    let request = BlobWithNotifier { blob, notify };
-                    inscription_queue
-                        .send(request)
-                        .expect("Bitcoin service already stopped");
-                    let tx_id = rx
-                        .await
-                        .expect("DA service is dead")
-                        .expect("send_transaction cannot fail");
+            self.ledger_db
+                .set_last_sequencer_commitment_l1_height(SlotNumber(
+                    commitment_info.l1_height_range.end().0,
+                ))
+                .map_err(|_| {
+                    anyhow!("Sequencer: Failed to set last sequencer commitment L1 height")
+                })?;
 
-                    ledger_db
-                        .set_last_sequencer_commitment_l1_height(SlotNumber(
-                            commitment_info.l1_height_range.end().0,
-                        ))
-                        .expect("Sequencer: Failed to set last sequencer commitment L1 height");
-
-                    warn!("Commitment info: {:?}", commitment_info);
-                    let l1_start_height = commitment_info.l1_height_range.start().0;
-                    let l1_end_height = commitment_info.l1_height_range.end().0;
-                    let l2_start = l2_range_to_submit.start().0 as u32;
-                    let l2_end = l2_range_to_submit.end().0 as u32;
-                    if let Some(db_config) = db_config.clone() {
-                        match PostgresConnector::new(db_config).await {
-                            Ok(pg_connector) => {
-                                pg_connector
-                                    .insert_sequencer_commitment(
-                                        l1_start_height as u32,
-                                        l1_end_height as u32,
-                                        Into::<[u8; 32]>::into(tx_id).to_vec(),
-                                        commitment.l1_start_block_hash.to_vec(),
-                                        commitment.l1_end_block_hash.to_vec(),
-                                        l2_start,
-                                        l2_end,
-                                        commitment.merkle_root.to_vec(),
-                                        CommitmentStatus::Mempool,
-                                    )
-                                    .await
-                                    .expect("Sequencer: Failed to insert sequencer commitment");
-                            }
-                            Err(e) => {
-                                warn!("Failed to connect to postgres: {:?}", e);
-                            }
-                        }
+            warn!("Commitment info: {:?}", commitment_info);
+            let l1_start_height = commitment_info.l1_height_range.start().0;
+            let l1_end_height = commitment_info.l1_height_range.end().0;
+            let l2_start = l2_range_to_submit.start().0 as u32;
+            let l2_end = l2_range_to_submit.end().0 as u32;
+            if let Some(db_config) = self.config.db_config.clone() {
+                match PostgresConnector::new(db_config).await {
+                    Ok(pg_connector) => {
+                        pg_connector
+                            .insert_sequencer_commitment(
+                                l1_start_height as u32,
+                                l1_end_height as u32,
+                                Into::<[u8; 32]>::into(tx_id).to_vec(),
+                                commitment.l1_start_block_hash.to_vec(),
+                                commitment.l1_end_block_hash.to_vec(),
+                                l2_start,
+                                l2_end,
+                                commitment.merkle_root.to_vec(),
+                                CommitmentStatus::Mempool,
+                            )
+                            .await
+                            .map_err(|_| {
+                                anyhow!("Sequencer: Failed to insert sequencer commitment")
+                            })?;
+                    }
+                    Err(e) => {
+                        warn!("Failed to connect to postgres: {:?}", e);
                     }
                 }
             }
-        });
-        da_height_tx
+        }
+        Ok(())
     }
 
     #[instrument(level = "trace", skip(self), err, ret)]
@@ -751,8 +648,6 @@ where
             .get_block_at(1)
             .await
             .map_err(|e| anyhow!(e))?;
-
-        let da_height_tx = self.spawn_commitment_thread();
 
         // If connected to offchain db first check if the commitments are in sync
         let mut pg_pool = None;
@@ -780,22 +675,184 @@ where
             };
         }
 
-        // If sequencer is in test mode, it will build a block every time it receives a message
-        if self.config.test_mode {
-            loop {
-                if (self.l2_force_block_rx.next().await).is_some() {
-                    if let Err(e) = self.build_block(&pg_pool, da_height_tx.clone()).await {
-                        error!("Sequencer error: {}", e);
-                    }
+        // Initialize our knowledge of the state of the DA-layer
+        let fee_rate_range = get_l1_fee_rate_range::<C, Da>(
+            self.storage.clone(),
+            self.soft_confirmation_rule_enforcer.clone(),
+        )?;
+        let (mut last_finalized_block, l1_fee_rate) =
+            match get_da_block_data(self.da_service.clone()).await {
+                Ok(l1_data) => l1_data,
+                Err(e) => {
+                    error!("{}", e);
+                    return Err(e);
                 }
+            };
+        let mut l1_fee_rate = l1_fee_rate.clamp(*fee_rate_range.start(), *fee_rate_range.end());
+        let mut last_finalized_height = last_finalized_block.header().height();
+
+        let mut last_used_l1_height = match self.ledger_db.get_head_soft_batch() {
+            Ok(Some((_, sb))) => sb.da_slot_height,
+            Ok(None) => last_finalized_height, // starting for the first time
+            Err(e) => {
+                return Err(anyhow!("previous L1 height: {}", e));
             }
-        }
-        // If sequencer is in production mode, it will build a block every 2 seconds
-        else {
-            loop {
-                sleep(Duration::from_secs(2)).await;
-                if let Err(e) = self.build_block(&pg_pool, da_height_tx.clone()).await {
-                    error!("Sequencer error: {}", e);
+        };
+
+        debug!("Sequencer: Last used L1 height: {:?}", last_used_l1_height);
+
+        // Setup required workers to update our knowledge of the DA layer every X seconds (configurable).
+        let (da_height_update_tx, mut da_height_update_rx) = mpsc::channel(1);
+        let (da_commitment_tx, mut da_commitment_rx) = unbounded::<u64>();
+        let da_monitor = da_block_monitor(
+            self.da_service.clone(),
+            da_height_update_tx,
+            self.config.da_update_interval_ms,
+        );
+        tokio::pin!(da_monitor);
+
+        let target_block_time = Duration::from_millis(self.config.block_production_interval_ms);
+        let mut parent_block_exec_time = Duration::from_secs(0);
+
+        // In case the sequencer falls behind on DA blocks, we need to produce at least 1
+        // empty block per DA block. Which means that we have to keep count of missed blocks
+        // and only resume normal operations once the sequencer has caught up.
+        let mut missed_da_blocks_count = 0;
+
+        loop {
+            let mut interval = tokio::time::interval(target_block_time - parent_block_exec_time);
+            // The first ticket completes immediately.
+            // See: https://docs.rs/tokio/latest/tokio/time/struct.Interval.html#method.tick
+            interval.tick().await;
+
+            tokio::select! {
+                // Run the DA monitor worker
+                _ = &mut da_monitor => {},
+                // Receive updates from DA layer worker.
+                l1_data = da_height_update_rx.recv() => {
+                    // Stop receiving updates from DA layer until we have caught up.
+                    if missed_da_blocks_count > 0 {
+                        continue;
+                    }
+                    if let Some(l1_data) = l1_data {
+                        (last_finalized_block, l1_fee_rate) = l1_data;
+                        last_finalized_height = last_finalized_block.header().height();
+
+                        if last_finalized_block.header().height() > last_used_l1_height {
+                            let skipped_blocks = last_finalized_height - last_used_l1_height - 1;
+                            if skipped_blocks > 0 {
+                                // This shouldn't happen. If it does, then we should produce at least 1 block for the blocks in between
+                                warn!(
+                                    "Sequencer is falling behind on L1 blocks by {:?} blocks",
+                                    skipped_blocks
+                                );
+
+                                // Missed DA blocks means that we produce n - 1 empty blocks, 1 per missed DA block.
+                                missed_da_blocks_count = skipped_blocks;
+                            }
+                        }
+
+                        if let Err(e) = self.maybe_submit_commitment(da_commitment_tx.clone(), last_finalized_height, last_used_l1_height).await {
+                            error!("Sequencer error: {}", e);
+                        }
+                    }
+                },
+                prev_l1_height = da_commitment_rx.select_next_some() => {
+                    if let Err(e) = self.submit_commitment(prev_l1_height).await {
+                        error!("Failed to submit commitment: {}", e);
+                    }
+                },
+                // If sequencer is in test mode, it will build a block every time it receives a message
+                // The RPC from which the sender can be called is only registered for test mode. This means
+                // that evey though we check the receiver here, it'll never be "ready" to be consumed unless in test mode.
+                _ = self.l2_force_block_rx.next(), if self.config.test_mode => {
+                    if missed_da_blocks_count > 0 {
+                        debug!("We have {} missed DA blocks", missed_da_blocks_count);
+                        for _ in 1..=missed_da_blocks_count {
+                            let needed_da_block_height = last_used_l1_height + 1;
+                            let da_block = self
+                                .da_service
+                                .get_block_at(needed_da_block_height)
+                                .await
+                                .map_err(|e| anyhow!(e))?;
+
+                            debug!("Created an empty L2 for L1={}", needed_da_block_height);
+                            if let Err(e) = self.produce_l2_block(da_block, l1_fee_rate, L2BlockMode::Empty, &pg_pool, last_used_l1_height).await {
+                                error!("Sequencer error: {}", e);
+                            }
+                        }
+                        missed_da_blocks_count = 0;
+                    }
+
+                    let l1_fee_rate_range =
+                        match get_l1_fee_rate_range::<C, Da>(self.storage.clone(), self.soft_confirmation_rule_enforcer.clone()) {
+                            Ok(fee_rate_range) => fee_rate_range,
+                            Err(e) => {
+                                error!("Could not fetch L1 fee rate range: {}", e);
+                                continue;
+                            }
+                        };
+                    let l1_fee_rate = l1_fee_rate.clamp(*l1_fee_rate_range.start(), *l1_fee_rate_range.end());
+                    match self.produce_l2_block(last_finalized_block.clone(), l1_fee_rate, L2BlockMode::NotEmpty, &pg_pool, last_used_l1_height).await {
+                        Ok(l1_block_number) => {
+                            last_used_l1_height = l1_block_number;
+                        },
+                        Err(e) => {
+                            error!("Sequencer error: {}", e);
+                        }
+                    }
+                },
+                // If sequencer is in production mode, it will build a block every 2 seconds
+                _ = interval.tick(), if !self.config.test_mode => {
+                    // By default, we produce a non-empty block IFF we were caught up all the way to
+                    // last_finalized_block. If there are missed DA blocks, we start producing
+                    // empty blocks at ~2 second rate, 1 L2 block per respective missed DA block
+                    // until we know we caught up with L1.
+                    let da_block = last_finalized_block.clone();
+
+                    if missed_da_blocks_count > 0 {
+                        debug!("We have {} missed DA blocks", missed_da_blocks_count);
+                        for _ in 1..=missed_da_blocks_count {
+                            let needed_da_block_height = last_used_l1_height + 1;
+                            let da_block = self
+                                .da_service
+                                .get_block_at(needed_da_block_height)
+                                .await
+                                .map_err(|e| anyhow!(e))?;
+
+                            debug!("Created an empty L2 for L1={}", needed_da_block_height);
+                            if let Err(e) = self.produce_l2_block(da_block, l1_fee_rate, L2BlockMode::Empty, &pg_pool, last_used_l1_height).await {
+                                error!("Sequencer error: {}", e);
+                            }
+                        }
+                        missed_da_blocks_count = 0;
+                    }
+
+                    let l1_fee_rate_range =
+                        match get_l1_fee_rate_range::<C, Da>(self.storage.clone(), self.soft_confirmation_rule_enforcer.clone()) {
+                            Ok(fee_rate_range) => fee_rate_range,
+                            Err(e) => {
+                                error!("Could not fetch L1 fee rate range: {}", e);
+                                continue;
+                            }
+                        };
+                    let l1_fee_rate = l1_fee_rate.clamp(*l1_fee_rate_range.start(), *l1_fee_rate_range.end());
+
+                    let instant = Instant::now();
+                    match self.produce_l2_block(da_block, l1_fee_rate, L2BlockMode::NotEmpty, &pg_pool, last_used_l1_height).await {
+                        Ok(l1_block_number) => {
+                            // Set the next iteration's wait time to produce a block based on the
+                            // previous block's execution time.
+                            // This is mainly to make sure we account for the execution time to
+                            // achieve consistent 2-second block production.
+                            parent_block_exec_time = instant.elapsed();
+
+                            last_used_l1_height = l1_block_number;
+                        },
+                        Err(e) => {
+                            error!("Sequencer error: {}", e);
+                        }
+                    }
                 }
             }
         }
@@ -926,8 +983,7 @@ where
         let mempool_txs = pg_connector.get_all_txs().await?;
         for tx in mempool_txs {
             let recovered =
-                recover_raw_transaction(reth_primitives::Bytes::from(tx.tx.as_slice().to_vec()))
-                    .unwrap();
+                recover_raw_transaction(reth_primitives::Bytes::from(tx.tx.as_slice().to_vec()))?;
             let pooled_tx = EthPooledTransaction::from_recovered_pooled_transaction(recovered);
 
             let _ = self.mempool.add_external_transaction(pooled_tx).await?;
@@ -961,12 +1017,29 @@ where
         }
     }
 
-    fn get_l1_fee_rate_range(&self) -> Result<RangeInclusive<u128>, anyhow::Error> {
-        let mut working_set = WorkingSet::<C>::new(self.storage.clone());
+    async fn maybe_submit_commitment(
+        &self,
+        da_commitment_tx: UnboundedSender<u64>,
+        last_finalized_height: u64,
+        last_used_l1_height: u64,
+    ) -> anyhow::Result<()> {
+        let commit_up_to = match last_finalized_height.cmp(&last_used_l1_height) {
+            Ordering::Less => {
+                panic!("DA L1 height is less than Ledger finalized height. DA L1 height: {}, Finalized height: {}", last_finalized_height, last_used_l1_height);
+            }
+            Ordering::Equal => None,
+            Ordering::Greater => {
+                let commit_up_to = last_finalized_height - 1;
+                Some(commit_up_to)
+            }
+        };
 
-        self.soft_confirmation_rule_enforcer
-            .get_next_min_max_l1_fee_rate(&mut working_set)
-            .map_err(|e| anyhow::anyhow!("Error reading min max l1 fee rate: {}", e))
+        if let Some(commit_up_to) = commit_up_to {
+            if da_commitment_tx.unbounded_send(commit_up_to).is_err() {
+                error!("Commitment thread is dead!");
+            }
+        }
+        Ok(())
     }
 
     fn get_account_updates(&self) -> Result<Vec<ChangedAccount>, anyhow::Error> {
@@ -998,4 +1071,71 @@ where
 
         Ok(updates)
     }
+}
+
+fn get_l1_fee_rate_range<C, Da>(
+    storage: C::Storage,
+    rule_enforcer: SoftConfirmationRuleEnforcer<C, Da::Spec>,
+) -> Result<RangeInclusive<u128>, anyhow::Error>
+where
+    C: Context,
+    Da: DaService,
+{
+    let mut working_set = WorkingSet::<C>::new(storage);
+
+    rule_enforcer
+        .get_next_min_max_l1_fee_rate(&mut working_set)
+        .map_err(|e| anyhow::anyhow!("Error reading min max l1 fee rate: {}", e))
+}
+
+async fn da_block_monitor<Da>(da_service: Da, sender: mpsc::Sender<L1Data<Da>>, loop_interval: u64)
+where
+    Da: DaService + Clone,
+{
+    loop {
+        let l1_data = match get_da_block_data(da_service.clone()).await {
+            Ok(l1_data) => l1_data,
+            Err(e) => {
+                error!("Could not fetch L1 data, {}", e);
+                continue;
+            }
+        };
+
+        let _ = sender.send(l1_data).await;
+
+        sleep(Duration::from_millis(loop_interval)).await;
+    }
+}
+
+async fn get_da_block_data<Da>(da_service: Da) -> anyhow::Result<L1Data<Da>>
+where
+    Da: DaService,
+{
+    let last_finalized_height = match da_service.get_last_finalized_block_header().await {
+        Ok(header) => header.height(),
+        Err(e) => {
+            return Err(anyhow!("Finalized height: {}", e));
+        }
+    };
+
+    let last_finalized_block = match da_service.get_block_at(last_finalized_height).await {
+        Ok(block) => block,
+        Err(e) => {
+            return Err(anyhow!("Finalized block: {}", e));
+        }
+    };
+
+    debug!(
+        "Sequencer: last finalized height: {:?}",
+        last_finalized_height
+    );
+
+    let l1_fee_rate = match da_service.get_fee_rate().await {
+        Ok(fee_rate) => fee_rate,
+        Err(e) => {
+            return Err(anyhow!("L1 fee rate: {}", e));
+        }
+    };
+
+    Ok((last_finalized_block, l1_fee_rate))
 }

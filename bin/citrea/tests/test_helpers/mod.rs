@@ -158,6 +158,8 @@ pub fn create_default_sequencer_config(
         mempool_conf: Default::default(),
         // Offchain db will be active only in some tests
         db_config: None,
+        da_update_interval_ms: 500,
+        block_production_interval_ms: 500, // since running in test mode, we can set this to a lower value
     }
 }
 
@@ -187,7 +189,7 @@ pub async fn wait_for_l2_block(sequencer_client: &TestClient, num: u64, timeout:
 
         let now = SystemTime::now();
         if start + timeout <= now {
-            panic!("Timeout");
+            panic!("Timeout. Latest L2 block is {:?}", latest_block.number);
         }
 
         sleep(Duration::from_secs(1)).await;
@@ -210,7 +212,7 @@ pub async fn wait_for_prover_l1_height(
 
         let now = SystemTime::now();
         if start + timeout <= now {
-            panic!("Timeout");
+            panic!("Timeout. Latest prover L1 height is {}", latest_block);
         }
 
         sleep(Duration::from_secs(1)).await;
@@ -229,11 +231,39 @@ pub async fn wait_for_l1_block(da_service: &MockDaService, num: u64, timeout: Op
 
         let now = SystemTime::now();
         if start + timeout <= now {
-            panic!("Timeout");
+            panic!("Timeout. Latest L1 block is {}", da_block);
         }
 
         sleep(Duration::from_secs(1)).await;
     }
+    // Let knowledgage of the new DA block propagate
+    sleep(Duration::from_secs(2)).await;
+}
+
+pub async fn wait_for_proof(test_client: &TestClient, slot_height: u64, timeout: Option<Duration>) {
+    let start = SystemTime::now();
+    let timeout = timeout.unwrap_or(Duration::from_secs(60)); // Default 60 seconds timeout
+    loop {
+        debug!(
+            "Waiting for L1 block height containing zkproof {}",
+            slot_height
+        );
+        let proof = test_client
+            .ledger_get_verified_proofs_by_slot_height(slot_height)
+            .await;
+        if proof.is_some() {
+            break;
+        }
+
+        let now = SystemTime::now();
+        if start + timeout <= now {
+            panic!("Timeout while waiting for proof at height {}", slot_height);
+        }
+
+        sleep(Duration::from_secs(1)).await;
+    }
+    // Let knowledgage of the new DA block propagate
+    sleep(Duration::from_secs(2)).await;
 }
 
 pub async fn wait_for_postgres_commitment(
@@ -252,7 +282,30 @@ pub async fn wait_for_postgres_commitment(
 
         let now = SystemTime::now();
         if start + timeout <= now {
-            panic!("Timeout");
+            panic!("Timeout. {} commitments exist at this point", commitments);
+        }
+
+        sleep(Duration::from_secs(1)).await;
+    }
+}
+
+pub async fn wait_for_postgres_proofs(
+    db_test_client: &PostgresConnector,
+    num: usize,
+    timeout: Option<Duration>,
+) {
+    let start = SystemTime::now();
+    let timeout = timeout.unwrap_or(Duration::from_secs(30)); // Default 30 seconds timeout
+    loop {
+        debug!("Waiting for {} L1 proofs to be published", num);
+        let commitments = db_test_client.get_all_proof_data().await.unwrap().len();
+        if commitments >= num {
+            break;
+        }
+
+        let now = SystemTime::now();
+        if start + timeout <= now {
+            panic!("Timeout. {} proofs exist at this point", commitments);
         }
 
         sleep(Duration::from_secs(1)).await;
