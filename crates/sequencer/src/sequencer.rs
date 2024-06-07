@@ -331,8 +331,8 @@ where
         l1_fee_rate: u128,
         l2_block_mode: L2BlockMode,
         pg_pool: &Option<PostgresConnector>,
-        last_used_l1_height: &mut u64,
-    ) -> anyhow::Result<()> {
+        last_used_l1_height: u64,
+    ) -> anyhow::Result<u64> {
         let da_height = da_block.header().height();
         let (l2_height, l1_height) = match self
             .ledger_db
@@ -462,7 +462,7 @@ where
 
                     tracing::debug!("Finalizing l2 height: {:?}", l2_height);
                     self.storage_manager.finalize_l2(l2_height)?;
-                    return Ok(());
+                    return Ok(last_used_l1_height);
                 }
 
                 info!(
@@ -538,7 +538,7 @@ where
                     BatchNumber(l2_height),
                 )?;
 
-                *last_used_l1_height = da_block.header().height();
+                Ok(da_block.header().height())
             }
             (Err(err), batch_workspace) => {
                 warn!(
@@ -546,13 +546,12 @@ where
                     err
                 );
                 batch_workspace.revert();
-                return Err(anyhow!(
+                Err(anyhow!(
                     "Failed to apply begin soft confirmation hook: {:?}",
                     err
-                ));
+                ))
             }
         }
-        Ok(())
     }
 
     async fn submit_commitment(&self, prev_l1_height: u64) -> anyhow::Result<()> {
@@ -778,7 +777,7 @@ where
                                 .map_err(|e| anyhow!(e))?;
 
                             debug!("Created an empty L2 for L1={}", needed_da_block_height);
-                            if let Err(e) = self.produce_l2_block(da_block, l1_fee_rate, L2BlockMode::Empty, &pg_pool, &mut last_used_l1_height).await {
+                            if let Err(e) = self.produce_l2_block(da_block, l1_fee_rate, L2BlockMode::Empty, &pg_pool, last_used_l1_height).await {
                                 error!("Sequencer error: {}", e);
                             }
                         }
@@ -794,8 +793,13 @@ where
                             }
                         };
                     let l1_fee_rate = l1_fee_rate.clamp(*l1_fee_rate_range.start(), *l1_fee_rate_range.end());
-                    if let Err(e) = self.produce_l2_block(last_finalized_block.clone(), l1_fee_rate, L2BlockMode::NotEmpty, &pg_pool, &mut last_used_l1_height).await {
-                        error!("Sequencer error: {}", e);
+                    match self.produce_l2_block(last_finalized_block.clone(), l1_fee_rate, L2BlockMode::NotEmpty, &pg_pool, last_used_l1_height).await {
+                        Ok(l1_block_number) => {
+                            last_used_l1_height = l1_block_number;
+                        },
+                        Err(e) => {
+                            error!("Sequencer error: {}", e);
+                        }
                     }
                 },
                 // If sequencer is in production mode, it will build a block every 2 seconds
@@ -817,7 +821,7 @@ where
                                 .map_err(|e| anyhow!(e))?;
 
                             debug!("Created an empty L2 for L1={}", needed_da_block_height);
-                            if let Err(e) = self.produce_l2_block(da_block, l1_fee_rate, L2BlockMode::Empty, &pg_pool, &mut last_used_l1_height).await {
+                            if let Err(e) = self.produce_l2_block(da_block, l1_fee_rate, L2BlockMode::Empty, &pg_pool, last_used_l1_height).await {
                                 error!("Sequencer error: {}", e);
                             }
                         }
@@ -835,13 +839,15 @@ where
                     let l1_fee_rate = l1_fee_rate.clamp(*l1_fee_rate_range.start(), *l1_fee_rate_range.end());
 
                     let instant = Instant::now();
-                    match self.produce_l2_block(da_block, l1_fee_rate, L2BlockMode::NotEmpty, &pg_pool, &mut last_used_l1_height).await {
-                        Ok(_) => {
+                    match self.produce_l2_block(da_block, l1_fee_rate, L2BlockMode::NotEmpty, &pg_pool, last_used_l1_height).await {
+                        Ok(l1_block_number) => {
                             // Set the next iteration's wait time to produce a block based on the
                             // previous block's execution time.
                             // This is mainly to make sure we account for the execution time to
                             // achieve consistent 2-second block production.
                             parent_block_exec_time = instant.elapsed();
+
+                            last_used_l1_height = l1_block_number;
                         },
                         Err(e) => {
                             error!("Sequencer error: {}", e);
