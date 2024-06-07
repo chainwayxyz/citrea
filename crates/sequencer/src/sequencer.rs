@@ -681,14 +681,15 @@ where
             self.storage.clone(),
             self.soft_confirmation_rule_enforcer.clone(),
         )?;
-        let (mut last_finalized_block, mut l1_fee_rate) =
-            match get_da_block_data(self.da_service.clone(), fee_rate_range).await {
+        let (mut last_finalized_block, l1_fee_rate) =
+            match get_da_block_data(self.da_service.clone()).await {
                 Ok(l1_data) => l1_data,
                 Err(e) => {
                     error!("{}", e);
                     return Err(e);
                 }
             };
+        let mut l1_fee_rate = l1_fee_rate.clamp(*fee_rate_range.start(), *fee_rate_range.end());
         let mut last_finalized_height = last_finalized_block.header().height();
 
         let mut last_used_l1_height = match self.ledger_db.get_head_soft_batch() {
@@ -699,15 +700,13 @@ where
             }
         };
 
-        debug!("Sequencer: prev L1 height: {:?}", last_used_l1_height);
+        debug!("Sequencer: Last used L1 height: {:?}", last_used_l1_height);
 
-        // Setup required workers to update our knowledge of the DA layer every 2 seconds.
+        // Setup required workers to update our knowledge of the DA layer every X seconds (configurable).
         let (da_height_update_tx, mut da_height_update_rx) = mpsc::channel(1);
         let (da_commitment_tx, mut da_commitment_rx) = unbounded::<u64>();
         let da_monitor = da_block_monitor(
             self.da_service.clone(),
-            self.storage.clone(),
-            self.soft_confirmation_rule_enforcer.clone(),
             da_height_update_tx,
             self.config.da_update_interval_ms,
         );
@@ -786,6 +785,15 @@ where
                         missed_da_blocks_count = 0;
                     }
 
+                    let l1_fee_rate_range =
+                        match get_l1_fee_rate_range::<C, Da>(self.storage.clone(), self.soft_confirmation_rule_enforcer.clone()) {
+                            Ok(fee_rate_range) => fee_rate_range,
+                            Err(e) => {
+                                error!("Could not fetch L1 fee rate range: {}", e);
+                                continue;
+                            }
+                        };
+                    let l1_fee_rate = l1_fee_rate.clamp(*l1_fee_rate_range.start(), *l1_fee_rate_range.end());
                     if let Err(e) = self.produce_l2_block(last_finalized_block.clone(), l1_fee_rate, L2BlockMode::NotEmpty, &pg_pool, &mut last_used_l1_height).await {
                         error!("Sequencer error: {}", e);
                     }
@@ -815,6 +823,16 @@ where
                         }
                         missed_da_blocks_count = 0;
                     }
+
+                    let l1_fee_rate_range =
+                        match get_l1_fee_rate_range::<C, Da>(self.storage.clone(), self.soft_confirmation_rule_enforcer.clone()) {
+                            Ok(fee_rate_range) => fee_rate_range,
+                            Err(e) => {
+                                error!("Could not fetch L1 fee rate range: {}", e);
+                                continue;
+                            }
+                        };
+                    let l1_fee_rate = l1_fee_rate.clamp(*l1_fee_rate_range.start(), *l1_fee_rate_range.end());
 
                     let instant = Instant::now();
                     match self.produce_l2_block(da_block, l1_fee_rate, L2BlockMode::NotEmpty, &pg_pool, &mut last_used_l1_height).await {
@@ -1064,26 +1082,12 @@ where
         .map_err(|e| anyhow::anyhow!("Error reading min max l1 fee rate: {}", e))
 }
 
-async fn da_block_monitor<C, Da>(
-    da_service: Da,
-    storage: C::Storage,
-    rule_enforcer: SoftConfirmationRuleEnforcer<C, Da::Spec>,
-    sender: mpsc::Sender<L1Data<Da>>,
-    loop_interval: u64,
-) where
-    C: Context,
+async fn da_block_monitor<Da>(da_service: Da, sender: mpsc::Sender<L1Data<Da>>, loop_interval: u64)
+where
     Da: DaService + Clone,
 {
     loop {
-        let l1_fee_rate_range =
-            match get_l1_fee_rate_range::<C, Da>(storage.clone(), rule_enforcer.clone()) {
-                Ok(fee_rate_range) => fee_rate_range,
-                Err(e) => {
-                    error!("Could not fetch L1 fee rate range: {}", e);
-                    continue;
-                }
-            };
-        let l1_data = match get_da_block_data(da_service.clone(), l1_fee_rate_range).await {
+        let l1_data = match get_da_block_data(da_service.clone()).await {
             Ok(l1_data) => l1_data,
             Err(e) => {
                 error!("Could not fetch L1 data, {}", e);
@@ -1097,10 +1101,7 @@ async fn da_block_monitor<C, Da>(
     }
 }
 
-async fn get_da_block_data<Da>(
-    da_service: Da,
-    l1_fee_rate_range: RangeInclusive<u128>,
-) -> anyhow::Result<L1Data<Da>>
+async fn get_da_block_data<Da>(da_service: Da) -> anyhow::Result<L1Data<Da>>
 where
     Da: DaService,
 {
@@ -1129,7 +1130,6 @@ where
             return Err(anyhow!("L1 fee rate: {}", e));
         }
     };
-    let l1_fee_rate = l1_fee_rate.clamp(*l1_fee_rate_range.start(), *l1_fee_rate_range.end());
 
     Ok((last_finalized_block, l1_fee_rate))
 }

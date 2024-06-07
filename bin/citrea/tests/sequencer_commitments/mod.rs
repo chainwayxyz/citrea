@@ -112,8 +112,6 @@ async fn sequencer_sends_commitments_to_da_layer() {
     }
     da_service.publish_test_block().await.unwrap();
     wait_for_l1_block(&da_service, 4, None).await;
-
-    test_client.send_publish_batch_request().await;
     wait_for_l1_block(&da_service, 5, None).await;
 
     let start_l2_block: u64 = end_l2_block + 1;
@@ -345,12 +343,11 @@ async fn test_ledger_get_commitments_on_slot() {
     test_client.send_publish_batch_request().await;
     da_service.publish_test_block().await.unwrap();
     wait_for_l1_block(&da_service, 3, None).await;
-    // submits with new da block
-    test_client.send_publish_batch_request().await;
+    // Commit
     wait_for_l1_block(&da_service, 4, None).await;
+
     // full node gets the commitment
     test_client.send_publish_batch_request().await;
-    // da_service.publish_test_block().await.unwrap();
 
     wait_for_l2_block(&full_node_test_client, 6, None).await;
 
@@ -457,16 +454,8 @@ async fn test_ledger_get_commitments_on_slot_prover() {
 
     da_service.publish_test_block().await.unwrap();
     wait_for_l1_block(&da_service, 3, None).await;
-
-    // submits with new da block
-    test_client.send_publish_batch_request().await;
+    // Commitment
     wait_for_l1_block(&da_service, 4, None).await;
-
-    test_client.send_publish_batch_request().await;
-
-    // prover node gets the commitment
-    test_client.send_publish_batch_request().await;
-    wait_for_l2_block(&test_client, 6, None).await;
 
     // wait here until we see from prover's rpc that it finished proving
     wait_for_prover_l1_height(

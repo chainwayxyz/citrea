@@ -1341,7 +1341,6 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
     // a new MockDa block, which in turn causes the sequencer to publish an extra soft confirmation
     // becase it must not skip blocks.
     assert_eq!(prover_node_test_client.eth_block_number().await, 4);
-    assert_eq!(prover_node_test_client.eth_block_number().await, 4);
 
     // on the 8th DA block, we should have a proof
     let mut blobs = da_service.get_block_at(4).await.unwrap().blobs;
@@ -1363,7 +1362,7 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[tokio::test]
 async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging();
 
