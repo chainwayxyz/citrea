@@ -1526,8 +1526,10 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     let prover_node_port = prover_node_port_rx.await.unwrap();
     let prover_node_test_client = make_test_client(prover_node_port).await;
 
-    // Still should have 4 blocks there are no commitments yet
-    assert_eq!(prover_node_test_client.eth_block_number().await, 4);
+    // We have 8 blocks in total, make sure the prover syncs
+    // and starts proving the second commitment.
+    wait_for_l2_block(&prover_node_test_client, 8, None).await;
+    assert_eq!(prover_node_test_client.eth_block_number().await, 8);
 
     seq_test_client.send_publish_batch_request().await;
     wait_for_l2_block(&seq_test_client, 9, None).await;
@@ -1550,9 +1552,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     // a new MockDa block, which in turn causes the sequencer to publish an extra soft confirmation
     // TODO: Debug why this is not including block 9 in the commitment
     // https://github.com/chainwayxyz/citrea/issues/684
-    wait_for_l2_block(&prover_node_test_client, 8, None).await;
     assert!(prover_node_test_client.eth_block_number().await >= 8);
-
     // TODO: Also test with multiple commitments in single Mock DA Block
     seq_task.abort();
     prover_node_task.abort();
