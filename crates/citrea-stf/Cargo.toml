@@ -5,7 +5,7 @@ edition = { workspace = true }
 resolver = "2"
 authors = { workspace = true }
 license = { workspace = true }
-homepage = "sovereign.xyz"
+homepage = { workspace = true }
 publish = false
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html

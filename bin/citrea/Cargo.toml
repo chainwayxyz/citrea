@@ -4,7 +4,7 @@ version = { workspace = true }
 edition = { workspace = true }
 authors = { workspace = true }
 license = { workspace = true }
-homepage = "sovereign.xyz"
+homepage = { workspace = true }
 publish = false
 resolver = "2"
 default-run = "citrea"
