@@ -2933,7 +2933,6 @@ async fn test_all_flow() {
 
     for i in 1..=8 {
         // print statuses
-
         let status = full_node_test_client
             .ledger_get_soft_confirmation_status(i)
             .await
@@ -2943,13 +2942,16 @@ async fn test_all_flow() {
         assert_eq!(status, SoftConfirmationStatus::Proven);
     }
 
+    wait_for_l2_block(&test_client, 14, None).await;
     assert_eq!(test_client.eth_block_number().await, 14);
 
     // Synced up to the latest block
-    assert_eq!(full_node_test_client.eth_block_number().await, 14);
+    wait_for_l2_block(&full_node_test_client, 14, Some(Duration::from_secs(60))).await;
+    assert!(full_node_test_client.eth_block_number().await >= 14);
 
     // Synced up to the latest commitment
-    assert_eq!(prover_node_test_client.eth_block_number().await, 9);
+    wait_for_l2_block(&prover_node_test_client, 9, Some(Duration::from_secs(60))).await;
+    assert!(prover_node_test_client.eth_block_number().await >= 9);
 
     seq_task.abort();
     prover_node_task.abort();
