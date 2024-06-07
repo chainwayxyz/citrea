@@ -1548,6 +1548,8 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     // Should now have 8 blocks = 2 commitments of blocks 1-4 and 5-8
     // there is an extra soft confirmation due to the prover publishing a proof. This causes
     // a new MockDa block, which in turn causes the sequencer to publish an extra soft confirmation
+    // TODO: Debug why this is not including block 9 in the commitment
+    // https://github.com/chainwayxyz/citrea/issues/684
     wait_for_l2_block(&prover_node_test_client, 8, None).await;
     assert!(prover_node_test_client.eth_block_number().await >= 8);
 
