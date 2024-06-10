@@ -121,24 +121,26 @@ impl DB {
         &self,
         schema_key: &impl KeyCodec<S>,
     ) -> anyhow::Result<Option<S::Value>> {
-        tokio::task::block_in_place(|| {
-            let _timer = SCHEMADB_GET_LATENCY_SECONDS
-                .with_label_values(&[S::COLUMN_FAMILY_NAME])
-                .start_timer();
+        tokio::task::block_in_place(|| self._get(schema_key))
+    }
 
-            let k = schema_key.encode_key()?;
-            let cf_handle = self.get_cf_handle(S::COLUMN_FAMILY_NAME)?;
+    fn _get<S: Schema>(&self, schema_key: &impl KeyCodec<S>) -> anyhow::Result<Option<S::Value>> {
+        let _timer = SCHEMADB_GET_LATENCY_SECONDS
+            .with_label_values(&[S::COLUMN_FAMILY_NAME])
+            .start_timer();
 
-            let result = self.inner.get_pinned_cf(cf_handle, k)?;
-            SCHEMADB_GET_BYTES
-                .with_label_values(&[S::COLUMN_FAMILY_NAME])
-                .observe(result.as_ref().map_or(0.0, |v| v.len() as f64));
+        let k = schema_key.encode_key()?;
+        let cf_handle = self.get_cf_handle(S::COLUMN_FAMILY_NAME)?;
 
-            result
-                .map(|raw_value| <S::Value as ValueCodec<S>>::decode_value(&raw_value))
-                .transpose()
-                .map_err(|err| err.into())
-        })
+        let result = self.inner.get_pinned_cf(cf_handle, k)?;
+        SCHEMADB_GET_BYTES
+            .with_label_values(&[S::COLUMN_FAMILY_NAME])
+            .observe(result.as_ref().map_or(0.0, |v| v.len() as f64));
+
+        result
+            .map(|raw_value| <S::Value as ValueCodec<S>>::decode_value(&raw_value))
+            .transpose()
+            .map_err(|err| err.into())
     }
 
     /// Writes single record.
@@ -147,24 +149,32 @@ impl DB {
         key: &impl KeyCodec<S>,
         value: &impl ValueCodec<S>,
     ) -> anyhow::Result<()> {
-        tokio::task::block_in_place(|| {
-            // Not necessary to use a batch, but we'd like a central place to bump counters.
-            // Used in tests only anyway.
-            let mut batch = SchemaBatch::new();
-            batch.put::<S>(key, value)?;
-            self.write_schemas(batch)
-        })
+        tokio::task::block_in_place(|| self._put(key, value))
+    }
+
+    fn _put<S: Schema>(
+        &self,
+        key: &impl KeyCodec<S>,
+        value: &impl ValueCodec<S>,
+    ) -> anyhow::Result<()> {
+        // Not necessary to use a batch, but we'd like a central place to bump counters.
+        // Used in tests only anyway.
+        let mut batch = SchemaBatch::new();
+        batch.put::<S>(key, value)?;
+        self.write_schemas(batch)
     }
 
     /// Delete a single key from the database.
     pub fn delete<S: Schema>(&self, key: &impl KeyCodec<S>) -> anyhow::Result<()> {
-        tokio::task::block_in_place(|| {
-            // Not necessary to use a batch, but we'd like a central place to bump counters.
-            // Used in tests only anyway.
-            let mut batch = SchemaBatch::new();
-            batch.delete::<S>(key)?;
-            self.write_schemas(batch)
-        })
+        tokio::task::block_in_place(|| self._delete(key))
+    }
+
+    fn _delete<S: Schema>(&self, key: &impl KeyCodec<S>) -> anyhow::Result<()> {
+        // Not necessary to use a batch, but we'd like a central place to bump counters.
+        // Used in tests only anyway.
+        let mut batch = SchemaBatch::new();
+        batch.delete::<S>(key)?;
+        self.write_schemas(batch)
     }
 
     /// Removes the database entries in the range `["from", "to")` using default write options.
@@ -177,13 +187,19 @@ impl DB {
         from: &impl SeekKeyEncoder<S>,
         to: &impl SeekKeyEncoder<S>,
     ) -> anyhow::Result<()> {
-        tokio::task::block_in_place(|| {
-            let cf_handle = self.get_cf_handle(S::COLUMN_FAMILY_NAME)?;
-            let from = from.encode_seek_key()?;
-            let to = to.encode_seek_key()?;
-            self.inner.delete_range_cf(cf_handle, from, to)?;
-            Ok(())
-        })
+        tokio::task::block_in_place(|| self._delete_range(from, to))
+    }
+
+    fn _delete_range<S: Schema>(
+        &self,
+        from: &impl SeekKeyEncoder<S>,
+        to: &impl SeekKeyEncoder<S>,
+    ) -> anyhow::Result<()> {
+        let cf_handle = self.get_cf_handle(S::COLUMN_FAMILY_NAME)?;
+        let from = from.encode_seek_key()?;
+        let to = to.encode_seek_key()?;
+        self.inner.delete_range_cf(cf_handle, from, to)?;
+        Ok(())
     }
 
     fn iter_with_direction<S: Schema>(
@@ -224,45 +240,47 @@ impl DB {
 
     /// Writes a group of records wrapped in a [`SchemaBatch`].
     pub fn write_schemas(&self, batch: SchemaBatch) -> anyhow::Result<()> {
-        tokio::task::block_in_place(|| {
-            let _timer = SCHEMADB_BATCH_COMMIT_LATENCY_SECONDS
-                .with_label_values(&[self.name])
-                .start_timer();
-            let mut db_batch = rocksdb::WriteBatch::default();
-            for (cf_name, rows) in batch.last_writes.iter() {
-                let cf_handle = self.get_cf_handle(cf_name)?;
-                for (key, operation) in rows {
-                    match operation {
-                        Operation::Put { value } => db_batch.put_cf(cf_handle, key, value),
-                        Operation::Delete => db_batch.delete_cf(cf_handle, key),
+        tokio::task::block_in_place(|| self._write_schemas(batch))
+    }
+
+    fn _write_schemas(&self, batch: SchemaBatch) -> anyhow::Result<()> {
+        let _timer = SCHEMADB_BATCH_COMMIT_LATENCY_SECONDS
+            .with_label_values(&[self.name])
+            .start_timer();
+        let mut db_batch = rocksdb::WriteBatch::default();
+        for (cf_name, rows) in batch.last_writes.iter() {
+            let cf_handle = self.get_cf_handle(cf_name)?;
+            for (key, operation) in rows {
+                match operation {
+                    Operation::Put { value } => db_batch.put_cf(cf_handle, key, value),
+                    Operation::Delete => db_batch.delete_cf(cf_handle, key),
+                }
+            }
+        }
+        let serialized_size = db_batch.size_in_bytes();
+
+        self.inner.write_opt(db_batch, &default_write_options())?;
+
+        // Bump counters only after DB write succeeds.
+        for (cf_name, rows) in batch.last_writes.iter() {
+            for (key, operation) in rows {
+                match operation {
+                    Operation::Put { value } => {
+                        SCHEMADB_PUT_BYTES
+                            .with_label_values(&[cf_name])
+                            .observe((key.len() + value.len()) as f64);
+                    }
+                    Operation::Delete => {
+                        SCHEMADB_DELETES.with_label_values(&[cf_name]).inc();
                     }
                 }
             }
-            let serialized_size = db_batch.size_in_bytes();
+        }
+        SCHEMADB_BATCH_COMMIT_BYTES
+            .with_label_values(&[self.name])
+            .observe(serialized_size as f64);
 
-            self.inner.write_opt(db_batch, &default_write_options())?;
-
-            // Bump counters only after DB write succeeds.
-            for (cf_name, rows) in batch.last_writes.iter() {
-                for (key, operation) in rows {
-                    match operation {
-                        Operation::Put { value } => {
-                            SCHEMADB_PUT_BYTES
-                                .with_label_values(&[cf_name])
-                                .observe((key.len() + value.len()) as f64);
-                        }
-                        Operation::Delete => {
-                            SCHEMADB_DELETES.with_label_values(&[cf_name]).inc();
-                        }
-                    }
-                }
-            }
-            SCHEMADB_BATCH_COMMIT_BYTES
-                .with_label_values(&[self.name])
-                .observe(serialized_size as f64);
-
-            Ok(())
-        })
+        Ok(())
     }
 
     fn get_cf_handle(&self, cf_name: &str) -> anyhow::Result<&rocksdb::ColumnFamily> {
@@ -296,10 +314,12 @@ impl DB {
 
     /// Creates new physical DB checkpoint in directory specified by `path`.
     pub fn create_checkpoint<P: AsRef<Path>>(&self, path: P) -> anyhow::Result<()> {
-        tokio::task::block_in_place(|| {
-            rocksdb::checkpoint::Checkpoint::new(&self.inner)?.create_checkpoint(path)?;
-            Ok(())
-        })
+        tokio::task::block_in_place(|| self._create_checkpoint(path))
+    }
+
+    fn _create_checkpoint<P: AsRef<Path>>(&self, path: P) -> anyhow::Result<()> {
+        rocksdb::checkpoint::Checkpoint::new(&self.inner)?.create_checkpoint(path)?;
+        Ok(())
     }
 }
 
