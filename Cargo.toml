@@ -152,7 +152,7 @@ revm-inspectors = { git = "https://github.com/paradigmxyz/evm-inspectors", rev =
 reth-primitives = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.7", default-features = false }
 reth-interfaces = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.7", default-features = false }
 reth-rpc-types = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.7", default-features = false }
-reth-rpc-types-compat = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.7", default-features = false }
+reth-rpc-types-compat = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.9", default-features = false }
 reth-node-api = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.7", default-features = false }
 reth-transaction-pool = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.7", default-features = false }
 reth-provider = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.7", default-features = false }
