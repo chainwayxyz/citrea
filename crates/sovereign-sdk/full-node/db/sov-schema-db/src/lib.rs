@@ -191,29 +191,27 @@ impl DB {
         opts: ReadOptions,
         direction: ScanDirection,
     ) -> anyhow::Result<SchemaIterator<S>> {
-        tokio::task::block_in_place(|| {
-            let cf_handle = self.get_cf_handle(S::COLUMN_FAMILY_NAME)?;
-            Ok(SchemaIterator::new(
-                self.inner.raw_iterator_cf_opt(cf_handle, opts),
-                direction,
-            ))
-        })
+        let cf_handle = self.get_cf_handle(S::COLUMN_FAMILY_NAME)?;
+        Ok(SchemaIterator::new(
+            self.inner.raw_iterator_cf_opt(cf_handle, opts),
+            direction,
+        ))
     }
 
     /// Returns a forward [`SchemaIterator`] on a certain schema with the default read options.
     pub fn iter<S: Schema>(&self) -> anyhow::Result<SchemaIterator<S>> {
-        self.iter_with_direction::<S>(Default::default(), ScanDirection::Forward)
+        let mut read_options = ReadOptions::default();
+        read_options.set_async_io(true);
+        self.iter_with_direction::<S>(read_options, ScanDirection::Forward)
     }
 
     /// Returns a [`RawDbReverseIterator`] which allows to iterate over raw values, backwards
     pub fn raw_iter<S: Schema>(&self) -> anyhow::Result<RawDbReverseIterator> {
-        tokio::task::block_in_place(|| {
-            let cf_handle = self.get_cf_handle(S::COLUMN_FAMILY_NAME)?;
-            Ok(RawDbReverseIterator::new(
-                self.inner
-                    .raw_iterator_cf_opt(cf_handle, Default::default()),
-            ))
-        })
+        let cf_handle = self.get_cf_handle(S::COLUMN_FAMILY_NAME)?;
+        Ok(RawDbReverseIterator::new(
+            self.inner
+                .raw_iterator_cf_opt(cf_handle, Default::default()),
+        ))
     }
 
     /// Returns a forward [`SchemaIterator`] on a certain schema with the provided read options.
@@ -279,23 +277,21 @@ impl DB {
     /// Flushes [MemTable](https://github.com/facebook/rocksdb/wiki/MemTable) data.
     /// This is only used for testing `get_approximate_sizes_cf` in unit tests.
     pub fn flush_cf(&self, cf_name: &str) -> anyhow::Result<()> {
-        tokio::task::block_in_place(|| Ok(self.inner.flush_cf(self.get_cf_handle(cf_name)?)?))
+        Ok(self.inner.flush_cf(self.get_cf_handle(cf_name)?)?)
     }
 
     /// Returns the current RocksDB property value for the provided column family name
     /// and property name.
     pub fn get_property(&self, cf_name: &str, property_name: &str) -> anyhow::Result<u64> {
-        tokio::task::block_in_place(|| {
-            self.inner
-                .property_int_value_cf(self.get_cf_handle(cf_name)?, property_name)?
-                .ok_or_else(|| {
-                    format_err!(
-                        "Unable to get property \"{}\" of  column family \"{}\".",
-                        property_name,
-                        cf_name,
-                    )
-                })
-        })
+        self.inner
+            .property_int_value_cf(self.get_cf_handle(cf_name)?, property_name)?
+            .ok_or_else(|| {
+                format_err!(
+                    "Unable to get property \"{}\" of  column family \"{}\".",
+                    property_name,
+                    cf_name,
+                )
+            })
     }
 
     /// Creates new physical DB checkpoint in directory specified by `path`.
