@@ -367,7 +367,7 @@ where
                 continue;
             }
 
-            tracing::info!(
+            tracing::debug!(
                 "Processing {} sequencer commitments at height {}",
                 sequencer_commitments.len(),
                 filtered_block.header().height(),
@@ -568,7 +568,7 @@ where
 
                     self.state_root = next_state_root;
 
-                    info!(
+                    debug!(
                         "New State Root after soft confirmation #{} is: {:?}",
                         l2_height, self.state_root
                     );
@@ -1200,7 +1200,7 @@ where
 
             self.state_root = next_state_root;
 
-            info!(
+            debug!(
                 "New State Root after soft confirmation #{} is: {:?}",
                 height, self.state_root
             );
