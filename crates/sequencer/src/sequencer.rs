@@ -420,6 +420,7 @@ where
                     <Runtime<C, Da::Spec> as EncodeCall<citrea_evm::Evm<C>>>::encode_call(call_txs);
                 let signed_blob = self.make_blob(raw_message, &mut batch_workspace)?;
                 let txs = vec![signed_blob.clone()];
+                let txs_count = txs.len();
 
                 let (batch_workspace, tx_receipts) =
                     self.stf.apply_soft_batch_txs(txs.clone(), batch_workspace);
@@ -531,6 +532,13 @@ where
                     });
                 }
 
+                info!(
+                    "New block #{}, DA #{}, Tx count: #{}",
+                    l2_height,
+                    da_block.header().height(),
+                    txs_count,
+                );
+
                 // connect L1 and L2 height
                 self.ledger_db.extend_l2_range_of_l1_slot(
                     SlotNumber(da_block.header().height()),
@@ -606,7 +614,7 @@ where
                     anyhow!("Sequencer: Failed to set last sequencer commitment L1 height")
                 })?;
 
-            warn!("Commitment info: {:?}", commitment_info);
+            debug!("Commitment info: {:?}", commitment_info);
             let l1_start_height = commitment_info.l1_height_range.start().0;
             let l1_end_height = commitment_info.l1_height_range.end().0;
             let l2_start = l2_range_to_submit.start().0 as u32;
@@ -636,6 +644,11 @@ where
                     }
                 }
             }
+
+            info!(
+                "New commitment. L2 range: #{}-{}, L1 Range #{}-{}",
+                l2_start, l2_end, l1_start_height, l1_end_height,
+            );
         }
         Ok(())
     }
