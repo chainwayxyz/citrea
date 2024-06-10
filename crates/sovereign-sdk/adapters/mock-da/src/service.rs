@@ -84,7 +84,7 @@ impl MockDaService {
     }
 
     /// Create a new [`MockDaService`] with given finality.
-    #[instrument(name = "DA")]
+    #[instrument(name = "MockDA")]
     pub fn with_finality(
         sequencer_da_address: MockAddress,
         blocks_to_finality: u32,
