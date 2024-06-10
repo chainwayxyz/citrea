@@ -101,12 +101,12 @@ async fn execute(
 
         if i % tx_count_from_single_address == 0 {
             client.send_publish_batch_request().await;
-            wait_for_l2_block(&client, block_index, None).await;
+            wait_for_l2_block(client, block_index, None).await;
             block_index += 1;
         }
     }
     client.send_publish_batch_request().await;
-    wait_for_l2_block(&client, block_index, None).await;
+    wait_for_l2_block(client, block_index, None).await;
     block_index += 1;
 
     // send 15 transactions from each wallet
@@ -120,7 +120,7 @@ async fn execute(
         }
     }
     client.send_publish_batch_request().await;
-    wait_for_l2_block(&client, block_index, None).await;
+    wait_for_l2_block(client, block_index, None).await;
     block_index += 1;
 
     let block = client.eth_get_block_by_number(None).await;
@@ -137,7 +137,7 @@ async fn execute(
     let initial_gas_price = client.eth_gas_price().await;
 
     client.send_publish_batch_request().await;
-    wait_for_l2_block(&client, block_index, None).await;
+    wait_for_l2_block(client, block_index, None).await;
 
     // get new gas price after the transactions that was adjusted in the last block
     let latest_gas_price = client.eth_gas_price().await;

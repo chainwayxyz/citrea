@@ -2145,6 +2145,7 @@ async fn transaction_failing_on_l1_is_removed_from_mempool() -> Result<(), anyho
 #[tokio::test(flavor = "multi_thread")]
 async fn sequencer_crash_restore_mempool() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging();
+
     let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
 
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
@@ -2279,6 +2280,8 @@ async fn sequencer_crash_restore_mempool() -> Result<(), anyhow::Error> {
 
     // publish block and check if the txs are deleted from pg
     seq_test_client.send_publish_batch_request().await;
+    wait_for_l2_block(&seq_test_client, 1, None).await;
+
     // should be removed from mempool
     assert!(seq_test_client
         .eth_get_transaction_by_hash(tx_hash, Some(true))
@@ -3160,6 +3163,8 @@ async fn test_ledger_get_head_soft_batch() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_full_node_sync_status() {
+    // citrea::initialize_logging();
+
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
     let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
@@ -3199,7 +3204,7 @@ async fn test_full_node_sync_status() {
         seq_test_client.send_publish_batch_request().await;
     }
 
-    wait_for_l2_block(&seq_test_client, 100, None).await;
+    wait_for_l2_block(&seq_test_client, 100, Some(Duration::from_secs(60))).await;
 
     let (full_node_port_tx, full_node_port_rx) = tokio::sync::oneshot::channel();
 
@@ -3224,6 +3229,8 @@ async fn test_full_node_sync_status() {
 
     let full_node_port = full_node_port_rx.await.unwrap();
     let full_node_test_client = make_test_client(full_node_port).await;
+
+    wait_for_l2_block(&full_node_test_client, 10, Some(Duration::from_secs(60))).await;
 
     let status = full_node_test_client.citrea_sync_status().await;
 

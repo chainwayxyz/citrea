@@ -142,6 +142,8 @@ async fn test_nonce_too_high() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_order_by_fee() {
+    // citrea::initialize_logging();
+
     let db_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = db_dir.path().join("DA").to_path_buf();
     let sequencer_db_dir = db_dir.path().join("sequencer").to_path_buf();
@@ -295,6 +297,8 @@ async fn test_tx_with_low_base_fee() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_same_nonce_tx_replacement() {
+    // citrea::initialize_logging();
+
     let db_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = db_dir.path().join("DA").to_path_buf();
     let sequencer_db_dir = db_dir.path().join("sequencer").to_path_buf();
