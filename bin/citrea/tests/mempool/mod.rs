@@ -9,7 +9,7 @@ use tokio::task::JoinHandle;
 
 use crate::evm::make_test_client;
 use crate::test_client::{TestClient, MAX_FEE_PER_GAS};
-use crate::test_helpers::{start_rollup, tempdir_with_children, NodeMode};
+use crate::test_helpers::{start_rollup, tempdir_with_children, wait_for_l2_block, NodeMode};
 use crate::{DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT};
 
 async fn initialize_test(
@@ -164,6 +164,7 @@ async fn test_order_by_fee() {
         .unwrap();
 
     test_client.send_publish_batch_request().await;
+    wait_for_l2_block(&test_client, 1, None).await;
 
     let block = test_client
         .eth_get_block_by_number(Some(BlockNumberOrTag::Latest))
@@ -195,6 +196,7 @@ async fn test_order_by_fee() {
         .unwrap();
 
     test_client.send_publish_batch_request().await;
+    wait_for_l2_block(&test_client, 1, None).await;
 
     // the rich tx should be in the block before the poor tx
     let block = test_client
@@ -229,6 +231,7 @@ async fn test_order_by_fee() {
         .unwrap();
 
     test_client.send_publish_batch_request().await;
+    wait_for_l2_block(&test_client, 3, None).await;
 
     // the rich tx should be in the block before the poor tx
     let block = test_client
@@ -443,6 +446,7 @@ async fn test_same_nonce_tx_replacement() {
     assert_ne!(tx_hash_25_bump.tx_hash(), tx_hash_ultra_bump.tx_hash());
 
     test_client.send_publish_batch_request().await;
+    wait_for_l2_block(&test_client, 1, None).await;
 
     let block = test_client
         .eth_get_block_by_number(Some(BlockNumberOrTag::Latest))

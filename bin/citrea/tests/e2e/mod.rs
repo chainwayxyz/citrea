@@ -2076,6 +2076,7 @@ async fn transaction_failing_on_l1_is_removed_from_mempool() -> Result<(), anyho
         .unwrap();
 
     seq_test_client.send_publish_batch_request().await;
+    wait_for_l2_block(&seq_test_client, 1, None).await;
 
     let random_test_client = TestClient::new(
         seq_test_client.chain_id,
@@ -2103,6 +2104,7 @@ async fn transaction_failing_on_l1_is_removed_from_mempool() -> Result<(), anyho
     assert!(tx_from_mempool.is_some());
 
     seq_test_client.send_publish_batch_request().await;
+    wait_for_l2_block(&seq_test_client, 2, None).await;
 
     let block = seq_test_client
         .eth_get_block_by_number_with_detail(Some(BlockNumberOrTag::Latest))
@@ -3050,7 +3052,6 @@ async fn test_gas_limit_too_high() {
     }
 
     seq_test_client.send_publish_batch_request().await;
-
     wait_for_l2_block(&full_node_test_client, 1, None).await;
 
     let block = full_node_test_client
