@@ -22,6 +22,6 @@ bind_host = "0.0.0.0"
 bind_port = 12346
 
 [runner]
-sequencer_client_url = ""
+sequencer_client_url = "https://rpc.devnet.citrea.xyz"
 # set this to true if you want to include soft confirmation tx bodies
 include_tx_body = false

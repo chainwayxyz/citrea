@@ -4,7 +4,7 @@ version = { workspace = true }
 edition = { workspace = true }
 authors = { workspace = true }
 license = { workspace = true }
-homepage = "sovereign.xyz"
+homepage = { workspace = true }
 publish = false
 resolver = "2"
 default-run = "citrea"
@@ -46,12 +46,12 @@ log-panics = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
 hex = { workspace = true, optional = true }
 tokio = { workspace = true }
 reth-primitives = { workspace = true }
 reth-transaction-pool = { workspace = true }
 reth-rpc-types = { workspace = true }
-tracing-subscriber = { version = "0.3.17", features = ["env-filter", "json"] }
 
 soft-confirmation-rule-enforcer = { path = "../../crates/soft-confirmation-rule-enforcer" }
 sov-db = { path = "../../crates/sovereign-sdk/full-node/db/sov-db" }

@@ -1,17 +1,17 @@
 # Citrea
 
-**The first rollup that enhances the capabilities of Bitcoin blockspace with zero-knowledge technology.**
+**The first rollup that enhances the capabilities of Bitcoin blockspace with zero-knowledge technology, now [live on Devnet](https://www.blog.citrea.xyz/citrea-public-devnet-live/)! 🎉🍊🍋**
 
 ![](assets/banner.png)
 
 > [!WARNING]
-> Citrea is still work-in-progress. It has not been audited and should not be used in production under any circumstances. Many key features are under heavy development, and its proper integration with [Bitcoin](https://github.com/bitcoin/bitcoin) and [Clementine](https://github.com/chainwayxyz/clementine) is still ongoing. \
-> \
-> Please note that Citrea has not been deployed to Bitcoin or any other network yet. \
+> Citrea is still work-in-progress as a public devnet. While it's launched as a public devnet (on top of a custom Bitcoin Signet), it has not been audited and many features are under heavy development. Citrea's proper integration with [Bitcoin](https://github.com/bitcoin/bitcoin) and [Clementine](https://github.com/chainwayxyz/clementine) is still ongoing. \
 > \
 > Follow our [website](https://citrea.xyz) & [social media accounts](https://twitter.com/citrea_xyz) for announcements regarding testnet & mainnet phases of Citrea. \
 > \
-> Citrea uses **BTC** as its native token. **There's no Citrea token**. Please beware of scams!
+> Citrea uses **BTC** as its native token. **There's no Citrea token**. Please beware of scams! \
+> \
+> Please also note that **BTC** and **cBTC** of Citrea Devnet does not carry any real value.
 
 ## What is Citrea?
 

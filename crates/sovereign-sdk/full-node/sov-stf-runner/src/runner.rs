@@ -427,7 +427,7 @@ where
                 // start fetching blocks from sequencer, when you see a soft batch with l1 height more than end_l1_height, stop
                 // while getting the blocks to all the same ops as full node
                 // after stopping call continue  and look for a new seq_commitment
-                // change the itemnumbers only after the sync is done so not for every da block
+                // change the item numbers only after the sync is done so not for every da block
 
                 loop {
                     let inner_client = &self.sequencer_client;
@@ -436,14 +436,9 @@ where
                             match inner_client.get_soft_batch::<Da::Spec>(l2_height).await {
                                 Ok(Some(soft_batch)) => Ok(soft_batch),
                                 Ok(None) => {
-                                    debug!(
-                                        "Soft Batch: no batch at height {}, retrying...",
-                                        l2_height
-                                    );
+                                    debug!("Soft Batch: no batch at height {}", l2_height);
 
-                                    // We wait for 2 seconds and then return a Permanent error so that we exit the retry.
-                                    // This should not backoff exponentially
-                                    sleep(Duration::from_secs(2)).await;
+                                    // Return a Permanent error so that we exit the retry.
                                     Err(backoff::Error::Permanent(
                                         "No soft batch published".to_owned(),
                                     ))
@@ -454,19 +449,23 @@ where
                                             "Soft Batch: connection error during RPC call: {:?}",
                                             e
                                         );
-                                        debug!(error_msg);
+                                        error!(error_msg);
                                         Err(backoff::Error::Transient {
                                             err: error_msg,
                                             retry_after: None,
                                         })
                                     }
-                                    _ => Err(backoff::Error::Transient {
-                                        err: format!(
+                                    _ => {
+                                        let error_msg = format!(
                                             "Soft Batch: unknown error from RPC call: {:?}",
                                             e
-                                        ),
-                                        retry_after: None,
-                                    }),
+                                        );
+                                        error!(error_msg);
+                                        Err(backoff::Error::Transient {
+                                            err: error_msg,
+                                            retry_after: None,
+                                        })
+                                    }
                                 },
                             }
                         })

@@ -3,6 +3,7 @@
 
 # include source files
 !/bin
+!/configs
 !/crates
 !/hive
 !/test-da-dbs
