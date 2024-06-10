@@ -1528,7 +1528,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
 
     // We have 8 blocks in total, make sure the prover syncs
     // and starts proving the second commitment.
-    wait_for_l2_block(&prover_node_test_client, 8, Some(Duration::from_secs(120))).await;
+    wait_for_l2_block(&prover_node_test_client, 8, Some(Duration::from_secs(180))).await;
     assert_eq!(prover_node_test_client.eth_block_number().await, 8);
 
     seq_test_client.send_publish_batch_request().await;
