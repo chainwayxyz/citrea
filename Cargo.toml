@@ -159,7 +159,7 @@ reth-provider = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-bet
 reth-tasks = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.7", default-features = false }
 reth-db = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.7", default-features = false }
 reth-trie = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.7", default-features = false }
-reth-rpc = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.7", default-features = false }
+reth-rpc = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.9", default-features = false }
 reth-stages = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.7", default-features = false }
 
 revm = { version = "8", features = ["serde"], default-features = false }
