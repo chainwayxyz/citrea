@@ -8,7 +8,7 @@ prover_da_pub_key = "03fc6fb2ef68368009c895d2d4351dcca4109ec2f5f327291a0553570ce
 node_url = ""
 # fill here
 node_username = ""
-# fill here                                       
+# fill here
 node_password = ""
 network = "signet"
 
