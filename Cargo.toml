@@ -5,11 +5,12 @@ members = [
     "bin/citrea",
     "bin/rollup-constants",
     "crates/bitcoin-da",
+    "crates/ethereum-rpc",
     "crates/evm",
+    "crates/prover",
     "crates/sequencer",
     "crates/sequencer-client",
     "crates/soft-confirmation-rule-enforcer",
-    "crates/ethereum-rpc",
     # Sovereign sdk
     "crates/sovereign-sdk/rollup-interface",
     "crates/sovereign-sdk/adapters/risc0",
