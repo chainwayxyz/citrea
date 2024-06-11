@@ -1526,6 +1526,10 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     let prover_node_port = prover_node_port_rx.await.unwrap();
     let prover_node_test_client = make_test_client(prover_node_port).await;
 
+    // Publish a DA to force prover to process new blocks
+    da_service.publish_test_block().await.unwrap();
+    wait_for_l1_block(&da_service, 6, None).await;
+
     // We have 8 blocks in total, make sure the prover syncs
     // and starts proving the second commitment.
     wait_for_l2_block(&prover_node_test_client, 8, Some(Duration::from_secs(300))).await;
@@ -1535,14 +1539,14 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     wait_for_l2_block(&seq_test_client, 9, None).await;
 
     da_service.publish_test_block().await.unwrap();
-    wait_for_l1_block(&da_service, 6, None).await;
-    // Commitment is sent
     wait_for_l1_block(&da_service, 7, None).await;
+    // Commitment is sent
+    wait_for_l1_block(&da_service, 8, None).await;
 
     // wait here until we see from prover's rpc that it finished proving
     wait_for_prover_l1_height(
         &prover_node_test_client,
-        8,
+        9,
         Some(Duration::from_secs(DEFAULT_PROOF_WAIT_DURATION)),
     )
     .await;
