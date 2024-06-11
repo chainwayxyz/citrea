@@ -14,6 +14,7 @@ resolver = "2"
 [dependencies]
 # Citrea deps
 bitcoin-da = { path = "../../crates/bitcoin-da", features = ["native"] }
+citrea-prover = { path = "../../crates/prover" }
 citrea-sequencer = { path = "../../crates/sequencer" }
 citrea-stf = { path = "../../crates/citrea-stf", features = ["native"] }
 ethereum-rpc = { path = "../../crates/ethereum-rpc" }

@@ -1737,6 +1737,7 @@ dependencies = [
  "bitcoin-da",
  "borsh",
  "citrea-evm",
+ "citrea-prover",
  "citrea-risc0-bonsai-adapter",
  "citrea-sequencer",
  "citrea-stf",
@@ -1832,6 +1833,28 @@ dependencies = [
  "thiserror",
  "tracing",
  "walkdir",
+]
+
+[[package]]
+name = "citrea-prover"
+version = "0.4.0-rc.3"
+dependencies = [
+ "anyhow",
+ "backoff",
+ "borsh",
+ "hex",
+ "jsonrpsee",
+ "rand 0.8.5",
+ "shared-backup-db",
+ "sov-db",
+ "sov-mock-da",
+ "sov-modules-api",
+ "sov-modules-rollup-blueprint",
+ "sov-modules-stf-blueprint",
+ "sov-rollup-interface",
+ "sov-stf-runner",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -6704,10 +6727,6 @@ checksum = "c7ac8852baeb3cc6fb83b93646fb93c0ffe5d14bf138c945ceb4b9948ee0e3c1"
 dependencies = [
  "autotools",
 ]
-
-[[package]]
-name = "prover"
-version = "0.4.0-rc.3"
 
 [[package]]
 name = "public-ip"
