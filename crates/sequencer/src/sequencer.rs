@@ -1114,19 +1114,19 @@ where
     let last_finalized_height = match da_service.get_last_finalized_block_header().await {
         Ok(header) => header.height(),
         Err(e) => {
-            return Err(anyhow!("Finalized height: {}", e));
+            return Err(anyhow!("Finalized L1 height: {}", e));
         }
     };
 
     let last_finalized_block = match da_service.get_block_at(last_finalized_height).await {
         Ok(block) => block,
         Err(e) => {
-            return Err(anyhow!("Finalized block: {}", e));
+            return Err(anyhow!("Finalized L1 block: {}", e));
         }
     };
 
     debug!(
-        "Sequencer: last finalized height: {:?}",
+        "Sequencer: last finalized L1 height: {:?}",
         last_finalized_height
     );
 
