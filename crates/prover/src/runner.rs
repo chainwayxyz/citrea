@@ -1,38 +1,71 @@
 use std::collections::VecDeque;
 use std::marker::PhantomData;
+use std::net::SocketAddr;
 use std::time::Duration;
 
 use anyhow::bail;
 use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoffBuilder;
 use borsh::de::BorshDeserialize;
+use borsh::BorshSerialize;
 use jsonrpsee::core::client::Error as JsonrpseeError;
+use jsonrpsee::RpcModule;
 use rand::Rng;
-use sov_db::ledger_db::SlotCommit;
+use sequencer_client::SequencerClient;
+use shared_backup_db::{PostgresConnector, ProofType};
+use sov_db::ledger_db::{LedgerDB, SlotCommit};
 use sov_db::schema::types::{BatchNumber, SlotNumber, StoredStateTransition};
-use sov_modules_api::SignedSoftConfirmationBatch;
-use sov_modules_rollup_blueprint::RollupBlueprint;
-use sov_rollup_interface::da::{DaData, DaSpec, SequencerCommitment};
+use sov_modules_api::storage::HierarchicalStorageManager;
+use sov_modules_api::{BlobReaderTrait, Context, SignedSoftConfirmationBatch, SlotData};
+use sov_modules_stf_blueprint::StfBlueprintTrait;
+use sov_rollup_interface::da::{BlockHeaderTrait, DaData, DaSpec, SequencerCommitment};
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
 use sov_rollup_interface::services::da::DaService;
-use sov_rollup_interface::stf::SoftBatchReceipt;
-use sov_rollup_interface::zk::{Proof, StateTransitionData};
+use sov_rollup_interface::stf::{SoftBatchReceipt, StateTransitionFunction};
+use sov_rollup_interface::zk::{Proof, StateTransitionData, ZkvmHost};
+use sov_stf_runner::{
+    InitVariant, ProverConfig, ProverService, RollupPublicKeys, RpcConfig, RunnerConfig,
+};
+use tokio::sync::oneshot;
 use tokio::time::sleep;
 use tracing::{debug, error, info, instrument, warn};
 
-pub struct CitreaProver<C, Da, Sm, Vm, Stf>
+type StateRoot<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::StateRoot;
+
+pub struct CitreaProver<C, Da, Sm, Vm, Stf, Ps>
 where
     C: Context,
     Da: DaService,
     Sm: HierarchicalStorageManager<Da::Spec>,
     Vm: ZkvmHost,
     Stf: StateTransitionFunction<Vm, Da::Spec, Condition = <Da::Spec as DaSpec>::ValidityCondition>
-        + StfBlueprintTrait<C, Da::Spec, Vm>, {}
+        + StfBlueprintTrait<C, Da::Spec, Vm>,
 
-impl<C, Da, Sm, Vm, Stf> CitreaProver<C, Da, Sm, Vm, Stf>
+    Ps: ProverService<Vm>,
+{
+    start_height: u64,
+    da_service: Da,
+    stf: Stf,
+    storage_manager: Sm,
+    /// made pub so that sequencer can clone it
+    pub ledger_db: LedgerDB,
+    state_root: StateRoot<Stf, Vm, Da::Spec>,
+    rpc_config: RpcConfig,
+    #[allow(dead_code)]
+    prover_service: Option<Ps>,
+    sequencer_client: SequencerClient,
+    sequencer_pub_key: Vec<u8>,
+    sequencer_da_pub_key: Vec<u8>,
+    prover_da_pub_key: Vec<u8>,
+    phantom: std::marker::PhantomData<C>,
+    prover_config: Option<ProverConfig>,
+    code_commitment: Vm::CodeCommitment,
+}
+
+impl<C, Da, Sm, Vm, Stf, Ps> CitreaProver<C, Da, Sm, Vm, Stf, Ps>
 where
     C: Context,
-    Da: DaService + Clone,
+    Da: DaService<Error = anyhow::Error> + Clone + Send + Sync + 'static,
     Sm: HierarchicalStorageManager<Da::Spec>,
     Vm: ZkvmHost,
     Stf: StateTransitionFunction<
@@ -42,7 +75,121 @@ where
             PreState = Sm::NativeStorage,
             ChangeSet = Sm::NativeChangeSet,
         > + StfBlueprintTrait<C, Da::Spec, Vm>,
+    Ps: ProverService<Vm, StateRoot = Stf::StateRoot, Witness = Stf::Witness, DaService = Da>,
 {
+    /// Creates a new `StateTransitionRunner`.
+    ///
+    /// If a previous state root is provided, uses that as the starting point
+    /// for execution. Otherwise, initializes the chain using the provided
+    /// genesis config.
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        runner_config: RunnerConfig,
+        public_keys: RollupPublicKeys,
+        rpc_config: RpcConfig,
+        da_service: Da,
+        ledger_db: LedgerDB,
+        stf: Stf,
+        mut storage_manager: Sm,
+        init_variant: InitVariant<Stf, Vm, Da::Spec>,
+        prover_service: Option<Ps>,
+        prover_config: Option<ProverConfig>,
+        code_commitment: Vm::CodeCommitment,
+    ) -> Result<Self, anyhow::Error> {
+        let prev_state_root = match init_variant {
+            InitVariant::Initialized(state_root) => {
+                debug!("Chain is already initialized. Skipping initialization.");
+                state_root
+            }
+            InitVariant::Genesis(params) => {
+                info!("No history detected. Initializing chain...");
+                let storage = storage_manager.create_storage_on_l2_height(0)?;
+                let (genesis_root, initialized_storage) = stf.init_chain(storage, params);
+                storage_manager.save_change_set_l2(0, initialized_storage)?;
+                storage_manager.finalize_l2(0)?;
+                info!(
+                    "Chain initialization is done. Genesis root: 0x{}",
+                    hex::encode(genesis_root.as_ref()),
+                );
+                genesis_root
+            }
+        };
+
+        // Start the main rollup loop
+        let item_numbers = ledger_db.get_next_items_numbers();
+        let last_soft_batch_processed_before_shutdown = item_numbers.soft_batch_number;
+
+        let start_height = last_soft_batch_processed_before_shutdown;
+
+        Ok(Self {
+            start_height,
+            da_service,
+            stf,
+            storage_manager,
+            ledger_db,
+            state_root: prev_state_root,
+            rpc_config,
+            prover_service,
+            sequencer_client: SequencerClient::new(runner_config.sequencer_client_url),
+            sequencer_pub_key: public_keys.sequencer_public_key,
+            sequencer_da_pub_key: public_keys.sequencer_da_pub_key,
+            prover_da_pub_key: public_keys.prover_da_pub_key,
+            phantom: std::marker::PhantomData,
+            prover_config,
+            code_commitment,
+        })
+    }
+
+    /// Starts a RPC server with provided rpc methods.
+    pub async fn start_rpc_server(
+        &self,
+        methods: RpcModule<()>,
+        channel: Option<oneshot::Sender<SocketAddr>>,
+    ) {
+        let bind_host = match self.rpc_config.bind_host.parse() {
+            Ok(bind_host) => bind_host,
+            Err(e) => {
+                error!("Failed to parse bind host: {}", e);
+                return;
+            }
+        };
+        let listen_address = SocketAddr::new(bind_host, self.rpc_config.bind_port);
+
+        let max_connections = self.rpc_config.max_connections;
+
+        let _handle = tokio::spawn(async move {
+            let server = jsonrpsee::server::ServerBuilder::default()
+                .max_connections(max_connections)
+                .build([listen_address].as_ref())
+                .await;
+
+            match server {
+                Ok(server) => {
+                    let bound_address = match server.local_addr() {
+                        Ok(address) => address,
+                        Err(e) => {
+                            error!("{}", e);
+                            return;
+                        }
+                    };
+                    if let Some(channel) = channel {
+                        if let Err(e) = channel.send(bound_address) {
+                            error!("Could not send bound_address {}: {}", bound_address, e);
+                            return;
+                        }
+                    }
+                    info!("Starting RPC server at {} ", &bound_address);
+
+                    let _server_handle = server.start(methods);
+                    futures::future::pending::<()>().await;
+                }
+                Err(e) => {
+                    error!("Could not start RPC server: {}", e);
+                }
+            }
+        });
+    }
+
     /// Runs the prover process.
     #[instrument(level = "trace", skip_all, err)]
     pub async fn run_prover_process(&mut self) -> Result<(), anyhow::Error> {
@@ -526,6 +673,19 @@ where
             self.ledger_db
                 .set_prover_last_scanned_l1_height(SlotNumber(l1_height))?;
             l1_height += 1;
+        }
+    }
+}
+
+async fn get_initial_slot_height<Da: DaSpec>(client: &SequencerClient) -> u64 {
+    loop {
+        match client.get_soft_batch::<Da>(1).await {
+            Ok(Some(batch)) => return batch.da_slot_height,
+            _ => {
+                // sleep 1
+                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                continue;
+            }
         }
     }
 }

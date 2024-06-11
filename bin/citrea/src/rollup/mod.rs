@@ -1,18 +1,17 @@
 use async_trait::async_trait;
-use citrea_prover::CitreaProver;
+pub use bitcoin::*;
+use citrea_prover::{CitreaProver, Prover};
+pub use mock::*;
 use sov_modules_api::storage::HierarchicalStorageManager;
 use sov_modules_api::Spec;
 use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_modules_stf_blueprint::{Runtime as RuntimeTrait, StfBlueprint};
 use sov_state::storage::NativeStorage;
-use sov_stf_runner::{InitVariant, ProverConfig, RollupConfig, StateTransitionRunner};
+use sov_stf_runner::{InitVariant, ProverConfig, RollupConfig};
 use tracing::instrument;
 
 mod bitcoin;
 mod mock;
-
-pub use bitcoin::*;
-pub use mock::*;
 
 /// Overrides RollupBlueprint methods
 #[async_trait]
@@ -27,7 +26,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         >>::GenesisPaths,
         rollup_config: RollupConfig<Self::DaConfig>,
         prover_config: ProverConfig,
-    ) -> Result<CitreaProver<Self>, anyhow::Error>
+    ) -> Result<Prover<Self>, anyhow::Error>
     where
         <Self::NativeContext as Spec>::Storage: NativeStorage,
     {
@@ -75,7 +74,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
 
         let code_commitment = self.get_code_commitment();
 
-        let runner = StateTransitionRunner::new(
+        let runner = CitreaProver::new(
             runner_config,
             rollup_config.public_keys,
             rollup_config.rpc,

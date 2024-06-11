@@ -1,23 +1,24 @@
 use std::net::SocketAddr;
 
 use sov_modules_rollup_blueprint::RollupBlueprint;
-use sov_stf_runner::StateTransitionRunner;
+use sov_modules_stf_blueprint::StfBlueprint;
 use tokio::sync::oneshot;
 use tracing::instrument;
 
 mod runner;
+pub use runner::*;
 
 /// Dependencies needed to run the rollup.
 pub struct Prover<S: RollupBlueprint> {
     /// The State Transition Runner.
     #[allow(clippy::type_complexity)]
-    pub runner: StateTransitionRunner<
-        StfBlueprint<S::NativeContext, S::DaSpec, S::Vm, S::NativeRuntime>,
-        S::StorageManager,
-        S::DaService,
-        S::Vm,
-        S::ProverService,
+    pub runner: CitreaProver<
         S::NativeContext,
+        S::DaService,
+        S::StorageManager,
+        S::Vm,
+        StfBlueprint<S::NativeContext, S::DaSpec, S::Vm, S::NativeRuntime>,
+        S::ProverService,
     >,
     /// Rpc methods for the rollup.
     pub rpc_methods: jsonrpsee::RpcModule<()>,

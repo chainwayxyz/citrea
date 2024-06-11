@@ -10,7 +10,8 @@ repository.workspace = true
 
 [dependencies]
 # Citrea Deps
-shared-backup-db = { path = "../shared-backup-db", optional = true }
+sequencer-client = { path = "../sequencer-client" }
+shared-backup-db = { path = "../shared-backup-db" }
 
 # Sov SDK deps
 sov-db = { path = "../sovereign-sdk/full-node/db/sov-db" }
@@ -25,6 +26,7 @@ sov-stf-runner = { path = "../sovereign-sdk/full-node/sov-stf-runner" }
 anyhow = { workspace = true }
 backoff = { workspace = true }
 borsh = { workspace = true }
+futures = { workspace = true }
 hex = { workspace = true }
 jsonrpsee = { workspace = true }
 rand = { workspace = true }
