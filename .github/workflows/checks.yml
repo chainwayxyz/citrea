@@ -92,6 +92,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
+      - name: Check TOML
+        uses: dprint/check@v2.2
       - name: Run lint
         run: |
           if ! SKIP_GUEST_BUILD=1 make lint ; then
