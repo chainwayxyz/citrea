@@ -1716,6 +1716,7 @@ dependencies = [
  "bitcoin-da",
  "borsh",
  "citrea-evm",
+ "citrea-prover",
  "citrea-risc0-bonsai-adapter",
  "citrea-sequencer",
  "citrea-stf",
@@ -1811,6 +1812,30 @@ dependencies = [
  "thiserror",
  "tracing",
  "walkdir",
+]
+
+[[package]]
+name = "citrea-prover"
+version = "0.4.0-rc.3"
+dependencies = [
+ "anyhow",
+ "backoff",
+ "borsh",
+ "futures",
+ "hex",
+ "jsonrpsee",
+ "rand 0.8.5",
+ "sequencer-client",
+ "shared-backup-db",
+ "sov-db",
+ "sov-mock-da",
+ "sov-modules-api",
+ "sov-modules-rollup-blueprint",
+ "sov-modules-stf-blueprint",
+ "sov-rollup-interface",
+ "sov-stf-runner",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]

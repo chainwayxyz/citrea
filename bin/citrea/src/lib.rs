@@ -4,16 +4,13 @@
 use std::env;
 use std::str::FromStr;
 
-mod mock_rollup;
-pub use mock_rollup::*;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{fmt, EnvFilter};
 
 mod eth;
-
-mod bitcoin_rollup;
-pub use bitcoin_rollup::*;
+mod rollup;
+pub use rollup::*;
 
 /// Default initialization of logging
 pub fn initialize_logging() {
