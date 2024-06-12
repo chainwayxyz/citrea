@@ -32,7 +32,6 @@ pub fn initialize_logging(level: Level) {
             "sov_prover_storage_manager=info".to_owned(),
             // Limit output as much as possible, use WARN.
             "tokio_postgres=warn".to_owned(),
-            format!("sov_mock_da::db_connector={}", level.as_str()),
         ];
         debug_components.join(",")
     }))

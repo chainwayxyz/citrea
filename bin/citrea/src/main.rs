@@ -47,6 +47,9 @@ struct Args {
     /// Logging verbosity
     #[arg(long, short = 'v', action = clap::ArgAction::Count, default_value = "2")]
     verbose: u8,
+    /// Logging verbosity
+    #[arg(long, short = 'q', action)]
+    quiet: bool,
 }
 
 #[derive(clap::ValueEnum, Clone, Debug)]
@@ -57,8 +60,11 @@ enum SupportedDaLayer {
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
-    let args = Args::parse();
+    let mut args = Args::parse();
 
+    if args.quiet {
+        args.verbose = 0;
+    }
     let logging_level = match args.verbose {
         0 => tracing::Level::ERROR,
         1 => tracing::Level::WARN,
