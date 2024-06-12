@@ -1,12 +1,19 @@
-use ethers_contract::BaseContract;
+use alloy_primitives::U256;
+use alloy_sol_types::{sol, SolCall};
 use ethers_core::types::Bytes;
 
-use super::{make_contract_from_abi, test_data_path};
+use super::test_data_path;
 
-/// CallerContract wrapper.
+// HiveContract wrapper.
+sol! {
+    #[sol(abi)]
+    Hive,
+    "./src/evm/test_data/HiveContract.abi"
+}
+
+/// HiveContract wrapper.
 pub struct HiveContract {
     bytecode: Bytes,
-    base_contract: BaseContract,
 }
 
 impl Default for HiveContract {
@@ -26,24 +33,19 @@ impl HiveContract {
             hex::decode(contract_data).unwrap()
         };
 
-        let base_contract = {
-            let mut path = test_data_path();
-            path.push("HiveContract.abi");
-
-            make_contract_from_abi(path)
-        };
         Self {
             bytecode: Bytes::from(contract_data),
-            base_contract,
         }
     }
     /// Calls ConstFunc of Hive Contract
     pub fn call_const_func(&self, a: u32, b: u32, c: u32) -> Bytes {
-        let arg_a = ethereum_types::U256::from(a);
-        let arg_b = ethereum_types::U256::from(b);
-        let arg_c = ethereum_types::U256::from(c);
-        let args = (arg_a, arg_b, arg_c);
-        self.base_contract.encode("constFunc", args).unwrap()
+        Hive::constFuncCall {
+            a: U256::from(a),
+            b: U256::from(b),
+            c: U256::from(c),
+        }
+        .abi_encode()
+        .into()
     }
 
     /// Bytecode of the Hive Contract.
