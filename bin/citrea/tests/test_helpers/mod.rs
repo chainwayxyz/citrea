@@ -18,7 +18,7 @@ use sov_stf_runner::{
 use tempfile::TempDir;
 use tokio::sync::oneshot;
 use tokio::time::sleep;
-use tracing::{debug, warn};
+use tracing::{debug, info_span, instrument, warn, Instrument};
 
 use crate::test_client::TestClient;
 
@@ -54,26 +54,32 @@ pub async fn start_rollup(
 
     match node_mode {
         NodeMode::FullNode(_) => {
+            let span = info_span!("FullNode");
             let rollup = mock_demo_rollup
                 .create_new_rollup(&rt_genesis_paths, rollup_config.clone())
+                .instrument(span.clone())
                 .await
                 .unwrap();
             rollup
                 .run_and_report_rpc_port(Some(rpc_reporting_channel))
+                .instrument(span)
                 .await
                 .unwrap();
         }
         NodeMode::Prover(_) => {
+            let span = info_span!("Prover");
             let rollup = CitreaRollupBlueprint::create_new_prover(
                 &mock_demo_rollup,
                 &rt_genesis_paths,
                 rollup_config,
                 rollup_prover_config.unwrap(),
             )
+            .instrument(span.clone())
             .await
             .unwrap();
             rollup
                 .run_and_report_rpc_port(Some(rpc_reporting_channel))
+                .instrument(span)
                 .await
                 .unwrap();
         }
@@ -92,12 +98,15 @@ pub async fn start_rollup(
                 )
             });
 
+            let span = info_span!("Sequencer");
             let sequencer_rollup = mock_demo_rollup
                 .create_new_sequencer(&rt_genesis_paths, rollup_config.clone(), sequencer_config)
+                .instrument(span.clone())
                 .await
                 .unwrap();
             sequencer_rollup
                 .run_and_report_rpc_port(Some(rpc_reporting_channel))
+                .instrument(span)
                 .await
                 .unwrap();
         }
@@ -175,6 +184,7 @@ pub fn tempdir_with_children(children: &[&str]) -> TempDir {
     db_dir
 }
 
+#[instrument(level = "debug", skip(sequencer_client))]
 pub async fn wait_for_l2_block(sequencer_client: &TestClient, num: u64, timeout: Option<Duration>) {
     let start = SystemTime::now();
     let timeout = timeout.unwrap_or(Duration::from_secs(30)); // Default 30 seconds timeout
@@ -196,6 +206,7 @@ pub async fn wait_for_l2_block(sequencer_client: &TestClient, num: u64, timeout:
     }
 }
 
+#[instrument(level = "debug", skip(prover_client))]
 pub async fn wait_for_prover_l1_height(
     prover_client: &TestClient,
     num: u64,
@@ -219,6 +230,7 @@ pub async fn wait_for_prover_l1_height(
     }
 }
 
+#[instrument(level = "debug", skip(da_service))]
 pub async fn wait_for_l1_block(da_service: &MockDaService, num: u64, timeout: Option<Duration>) {
     let start = SystemTime::now();
     let timeout = timeout.unwrap_or(Duration::from_secs(30)); // Default 30 seconds timeout
@@ -266,6 +278,7 @@ pub async fn wait_for_proof(test_client: &TestClient, slot_height: u64, timeout:
     sleep(Duration::from_secs(2)).await;
 }
 
+#[instrument(level = "debug", skip(db_test_client))]
 pub async fn wait_for_postgres_commitment(
     db_test_client: &PostgresConnector,
     num: usize,

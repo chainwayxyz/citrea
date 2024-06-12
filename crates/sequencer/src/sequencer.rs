@@ -44,7 +44,7 @@ use sov_stf_runner::{InitVariant, RollupPublicKeys, RpcConfig};
 use tokio::sync::oneshot::channel as oneshot_channel;
 use tokio::sync::{mpsc, Mutex};
 use tokio::time::{sleep, Instant};
-use tracing::{debug, error, info, instrument, warn};
+use tracing::{debug, error, info, instrument, trace, warn};
 
 use crate::commitment_controller;
 use crate::config::SequencerConfig;
@@ -324,7 +324,6 @@ where
         }
     }
 
-    #[instrument(level = "debug", skip_all, err, ret)]
     async fn produce_l2_block(
         &mut self,
         da_block: <Da as DaService>::FilteredBlock,
@@ -377,7 +376,7 @@ where
             .storage_manager
             .create_storage_on_l2_height(l2_height)
             .map_err(Into::<anyhow::Error>::into)?;
-        info!(
+        debug!(
             "Applying soft batch on DA block: {}",
             hex::encode(da_block.header().hash().into())
         );
@@ -416,6 +415,7 @@ where
             &mut signed_batch,
         ) {
             (Ok(()), mut batch_workspace) => {
+                let evm_txs_count = txs_to_run.len();
                 let call_txs = CallMessage { txs: txs_to_run };
                 let raw_message =
                     <Runtime<C, Da::Spec> as EncodeCall<citrea_evm::Evm<C>>>::encode_call(call_txs);
@@ -465,7 +465,7 @@ where
                     return Ok(last_used_l1_height);
                 }
 
-                info!(
+                trace!(
                     "State root after applying slot: {:?}",
                     slot_result.state_root
                 );
@@ -532,6 +532,13 @@ where
                     });
                 }
 
+                info!(
+                    "New block #{}, DA #{}, Tx count: #{}",
+                    l2_height,
+                    da_block.header().height(),
+                    evm_txs_count,
+                );
+
                 // connect L1 and L2 height
                 self.ledger_db.extend_l2_range_of_l1_slot(
                     SlotNumber(da_block.header().height()),
@@ -584,7 +591,7 @@ where
                 soft_confirmation_hashes,
             )?;
 
-            info!("Sequencer: submitting commitment: {:?}", commitment);
+            debug!("Sequencer: submitting commitment: {:?}", commitment);
 
             let blob = DaData::SequencerCommitment(commitment.clone())
                 .try_to_vec()
@@ -607,7 +614,7 @@ where
                     anyhow!("Sequencer: Failed to set last sequencer commitment L1 height")
                 })?;
 
-            warn!("Commitment info: {:?}", commitment_info);
+            debug!("Commitment info: {:?}", commitment_info);
             let l1_start_height = commitment_info.l1_height_range.start().0;
             let l1_end_height = commitment_info.l1_height_range.end().0;
             let l2_start = l2_range_to_submit.start().0 as u32;
@@ -637,6 +644,11 @@ where
                     }
                 }
             }
+
+            info!(
+                "New commitment. L2 range: #{}-{}, L1 Range #{}-{}",
+                l2_start, l2_end, l1_start_height, l1_end_height,
+            );
         }
         Ok(())
     }
@@ -655,13 +667,13 @@ where
             pg_pool = match PostgresConnector::new(db_config).await {
                 Ok(pg_connector) => {
                     match self.compare_commitments_from_db(pg_connector.clone()).await {
-                        Ok(()) => info!("Sequencer: Commitments are in sync"),
+                        Ok(()) => debug!("Sequencer: Commitments are in sync"),
                         Err(e) => {
                             warn!("Sequencer: Offchain db error: {:?}", e);
                         }
                     }
                     match self.restore_mempool(pg_connector.clone()).await {
-                        Ok(()) => info!("Sequencer: Mempool restored"),
+                        Ok(()) => debug!("Sequencer: Mempool restored"),
                         Err(e) => {
                             warn!("Sequencer: Mempool restore error: {:?}", e);
                         }

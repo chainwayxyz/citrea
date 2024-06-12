@@ -43,6 +43,13 @@ struct Args {
     /// The path to the prover config. If set, runs the node in prover mode, otherwise in full node mode.
     #[arg(long, conflicts_with = "sequencer_config_path")]
     prover_config_path: Option<String>,
+
+    /// Logging verbosity
+    #[arg(long, short = 'v', action = clap::ArgAction::Count, default_value = "2")]
+    verbose: u8,
+    /// Logging verbosity
+    #[arg(long, short = 'q', action)]
+    quiet: bool,
 }
 
 #[derive(clap::ValueEnum, Clone, Debug)]
@@ -53,9 +60,21 @@ enum SupportedDaLayer {
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
-    initialize_logging();
+    let mut args = Args::parse();
 
-    let args = Args::parse();
+    if args.quiet {
+        args.verbose = 0;
+    }
+    let logging_level = match args.verbose {
+        0 => tracing::Level::ERROR,
+        1 => tracing::Level::WARN,
+        2 => tracing::Level::INFO,
+        3 => tracing::Level::DEBUG,
+        4 => tracing::Level::TRACE,
+        _ => tracing::Level::INFO,
+    };
+    initialize_logging(logging_level);
+
     let rollup_config_path = args.rollup_config_path.as_str();
 
     let sequencer_config: Option<SequencerConfig> =
