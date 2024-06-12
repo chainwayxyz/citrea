@@ -318,7 +318,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             }
             _ => {
                 return Err(EthApiError::InvalidParams(
-                    "Please provide a number or earliest/latest/pending tag".to_string(),
+                    "Please provide a number or earliest/latest tag".to_string(),
                 )
                 .into())
             }
@@ -366,7 +366,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             }
             _ => {
                 return Err(EthApiError::InvalidParams(
-                    "Please provide a number or earliest/latest/pending tag".to_string(),
+                    "Please provide a number or earliest/latest tag".to_string(),
                 )
                 .into())
             }
@@ -413,7 +413,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             }
             _ => {
                 return Err(EthApiError::InvalidParams(
-                    "Please provide a number or earliest/latest/pending tag".to_string(),
+                    "Please provide a number or earliest/latest tag".to_string(),
                 )
                 .into())
             }
@@ -461,7 +461,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             // Note that reth works for all types of BlockNumberOrTag
             _ => {
                 return Err(EthApiError::InvalidParams(
-                    "Please provide a number or earliest/latest/pending tag".to_string(),
+                    "Please provide a number or earliest/latest tag".to_string(),
                 )
                 .into())
             }
@@ -537,8 +537,9 @@ impl<C: sov_modules_api::Context> Evm<C> {
         info!("evm module: eth_getTransactionByBlockNumberAndIndex");
 
         let block_number = match self.block_number_for_id(&block_number, working_set) {
-            Some(block_number) => block_number,
-            None => return Ok(None),
+            Ok(block_number) => block_number,
+            Err(EthApiError::UnknownBlockNumber) => return Ok(None),
+            Err(err) => return Err(err.into()),
         };
 
         let block = self
@@ -1565,23 +1566,24 @@ impl<C: sov_modules_api::Context> Evm<C> {
         &self,
         block_id: &BlockNumberOrTag,
         working_set: &mut WorkingSet<C>,
-    ) -> Option<u64> {
+    ) -> Result<u64, EthApiError> {
         match block_id {
-            BlockNumberOrTag::Earliest => Some(0),
-            BlockNumberOrTag::Latest => self
+            BlockNumberOrTag::Earliest => Ok(0),
+            BlockNumberOrTag::Latest => Ok(self
                 .blocks
                 .last(&mut working_set.accessory_state())
-                .map(|block| block.header.number),
+                .map(|block| block.header.number)
+                .expect("Head block must be set")),
             BlockNumberOrTag::Number(block_number) => {
                 if *block_number < self.blocks.len(&mut working_set.accessory_state()) as u64 {
-                    Some(*block_number)
+                    Ok(*block_number)
                 } else {
-                    None
+                    Err(EthApiError::UnknownBlockNumber)
                 }
             }
-            _ => {
-                todo!();
-            }
+            _ => Err(EthApiError::InvalidParams(
+                "Please provide a number or earliest/latest tag".to_string(),
+            )),
         }
     }
 
@@ -1613,7 +1615,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     .expect("Head block must be set"),
             )),
             _ => Err(EthApiError::InvalidParams(
-                "pending block not supported".to_string(),
+                "pending/safe/finalized block not supported".to_string(),
             )),
         }
     }
