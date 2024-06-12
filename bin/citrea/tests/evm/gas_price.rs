@@ -1,4 +1,5 @@
 use std::net::SocketAddr;
+use std::time::Duration;
 
 use citrea_evm::smart_contracts::SimpleStorageContract;
 use citrea_stf::genesis_config::GenesisPaths;
@@ -101,7 +102,7 @@ async fn execute(
 
         if i % tx_count_from_single_address == 0 {
             client.send_publish_batch_request().await;
-            wait_for_l2_block(client, block_index, None).await;
+            wait_for_l2_block(client, block_index, Some(Duration::from_secs(60))).await;
             block_index += 1;
         }
     }
