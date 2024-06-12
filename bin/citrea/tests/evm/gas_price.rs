@@ -10,10 +10,10 @@ use reth_primitives::BlockNumberOrTag;
 
 use crate::evm::init_test_rollup;
 use crate::test_client::TestClient;
-use crate::test_helpers::{start_rollup, tempdir_with_children, NodeMode};
+use crate::test_helpers::{start_rollup, tempdir_with_children, wait_for_l2_block, NodeMode};
 use crate::{DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT};
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_gas_price_increase() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging();
 
@@ -82,6 +82,8 @@ async fn execute(
         .await;
     assert_eq!(initial_fee_history.oldest_block, U256::zero());
 
+    let mut block_index = 2;
+
     // Create 100 wallets and send them some eth
     let wallets_count = 100u32;
     let tx_count_from_single_address = 15u32;
@@ -99,9 +101,13 @@ async fn execute(
 
         if i % tx_count_from_single_address == 0 {
             client.send_publish_batch_request().await;
+            wait_for_l2_block(client, block_index, None).await;
+            block_index += 1;
         }
     }
     client.send_publish_batch_request().await;
+    wait_for_l2_block(client, block_index, None).await;
+    block_index += 1;
 
     // send 15 transactions from each wallet
     for wallet in wallets {
@@ -114,6 +120,9 @@ async fn execute(
         }
     }
     client.send_publish_batch_request().await;
+    wait_for_l2_block(client, block_index, None).await;
+    block_index += 1;
+
     let block = client.eth_get_block_by_number(None).await;
     assert!(
         block.gas_used.as_u64() <= reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT,
@@ -128,6 +137,7 @@ async fn execute(
     let initial_gas_price = client.eth_gas_price().await;
 
     client.send_publish_batch_request().await;
+    wait_for_l2_block(client, block_index, None).await;
 
     // get new gas price after the transactions that was adjusted in the last block
     let latest_gas_price = client.eth_gas_price().await;

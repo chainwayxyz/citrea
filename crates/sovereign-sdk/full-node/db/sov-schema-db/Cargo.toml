@@ -21,6 +21,7 @@ prometheus = { workspace = true }
 proptest = { workspace = true, optional = true, default-features = true }
 proptest-derive = { workspace = true, optional = true }
 rocksdb = { workspace = true }
+tokio = { workspace = true }
 tracing = { workspace = true, default-features = true }
 thiserror = { workspace = true }
 
