@@ -161,10 +161,13 @@ where
             error!("Error: {}", e);
         }
     } else {
-        let rollup = rollup_blueprint
-            .create_new_rollup(rt_genesis_paths, rollup_config)
-            .await
-            .unwrap();
+        let rollup = CitreaRollupBlueprint::create_new_rollup(
+            &rollup_blueprint,
+            rt_genesis_paths,
+            rollup_config,
+        )
+        .await
+        .unwrap();
         if let Err(e) = rollup.run().await {
             error!("Error: {}", e);
         }
