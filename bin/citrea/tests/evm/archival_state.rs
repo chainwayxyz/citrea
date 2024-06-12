@@ -126,7 +126,7 @@ async fn run_archival_valid_tests(addr: Address, seq_test_client: &TestClient) {
             .await;
         seq_test_client.send_publish_batch_request().await;
     }
-    wait_for_l2_block(&seq_test_client, 8, None).await;
+    wait_for_l2_block(seq_test_client, 8, None).await;
 
     assert_eq!(
         seq_test_client
@@ -218,7 +218,7 @@ async fn run_archival_valid_tests(addr: Address, seq_test_client: &TestClient) {
             .unwrap();
 
         seq_test_client.send_publish_batch_request().await;
-        wait_for_l2_block(&seq_test_client, 9, None).await;
+        wait_for_l2_block(seq_test_client, 9, None).await;
 
         let contract_address = deploy_contract_req
             .await
@@ -232,7 +232,7 @@ async fn run_archival_valid_tests(addr: Address, seq_test_client: &TestClient) {
 
     seq_test_client.send_publish_batch_request().await;
     seq_test_client.send_publish_batch_request().await;
-    wait_for_l2_block(&seq_test_client, 11, None).await;
+    wait_for_l2_block(seq_test_client, 11, None).await;
 
     let code = seq_test_client
         .eth_get_code(contract_address, Some(BlockNumberOrTag::Number(9)))
@@ -254,7 +254,7 @@ async fn run_archival_valid_tests(addr: Address, seq_test_client: &TestClient) {
 
     seq_test_client.send_publish_batch_request().await;
     seq_test_client.send_publish_batch_request().await;
-    wait_for_l2_block(&seq_test_client, 13, None).await;
+    wait_for_l2_block(seq_test_client, 13, None).await;
 
     let storage_slot = 0x0;
     let storage_value = seq_test_client

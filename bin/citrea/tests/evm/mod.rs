@@ -255,7 +255,7 @@ async fn test_getlogs(client: &Box<TestClient>) -> Result<(), Box<dyn std::error
         )
         .await;
     client.send_publish_batch_request().await;
-    wait_for_l2_block(&client, 1, None).await;
+    wait_for_l2_block(client, 1, None).await;
 
     let empty_filter = serde_json::json!({});
     // supposed to get all the logs
@@ -285,7 +285,7 @@ async fn test_getlogs(client: &Box<TestClient>) -> Result<(), Box<dyn std::error
     let contract_address2 = {
         let deploy_contract_req = client.deploy_contract(contract.byte_code(), None).await?;
         client.send_publish_batch_request().await;
-        wait_for_l2_block(&client, 2, None).await;
+        wait_for_l2_block(client, 2, None).await;
 
         deploy_contract_req
             .await?
@@ -303,7 +303,7 @@ async fn test_getlogs(client: &Box<TestClient>) -> Result<(), Box<dyn std::error
         )
         .await;
     client.send_publish_batch_request().await;
-    wait_for_l2_block(&client, 3, None).await;
+    wait_for_l2_block(client, 3, None).await;
 
     // make sure the two contracts have different addresses
     assert_ne!(contract_address, contract_address2);
