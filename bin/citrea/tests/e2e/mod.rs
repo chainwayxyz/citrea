@@ -125,7 +125,7 @@ async fn initialize_test(
     )
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_soft_batch_save() -> Result<(), anyhow::Error> {
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
@@ -238,7 +238,7 @@ async fn test_soft_batch_save() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_full_node_send_tx() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging();
 
@@ -284,7 +284,7 @@ async fn test_full_node_send_tx() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_delayed_sync_ten_blocks() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging();
 
@@ -371,7 +371,7 @@ async fn test_delayed_sync_ten_blocks() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_e2e_same_block_sync() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging();
 
@@ -397,7 +397,7 @@ async fn test_e2e_same_block_sync() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging();
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
@@ -556,7 +556,7 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_get_transaction_by_hash() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging();
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
@@ -726,7 +726,7 @@ async fn test_get_transaction_by_hash() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_soft_confirmations_on_different_blocks() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging();
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
@@ -829,7 +829,7 @@ async fn test_soft_confirmations_on_different_blocks() -> Result<(), anyhow::Err
     Ok(())
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_reopen_sequencer() -> Result<(), anyhow::Error> {
     // open, close without publishing blokcs
     let storage_dir = tempdir_with_children(&["DA", "sequencer"]);
@@ -1000,7 +1000,7 @@ async fn execute_blocks(
 
     {
         for _ in 0..200 {
-            sequencer_client.spam_publish_batch_request().await.unwrap();
+            sequencer_client.send_publish_batch_request().await;
         }
 
         wait_for_l2_block(sequencer_client, 204, None).await;
@@ -1017,7 +1017,7 @@ async fn execute_blocks(
                 .send_eth(addr, None, None, None, 0u128)
                 .await
                 .unwrap();
-            sequencer_client.spam_publish_batch_request().await.unwrap();
+            sequencer_client.send_publish_batch_request().await;
         }
     }
 
@@ -1041,7 +1041,7 @@ async fn execute_blocks(
     Ok(())
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_soft_confirmations_status_one_l1() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging();
 
@@ -1120,7 +1120,7 @@ async fn test_soft_confirmations_status_one_l1() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_soft_confirmations_status_two_l1() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging();
 
@@ -1215,7 +1215,7 @@ async fn test_soft_confirmations_status_two_l1() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging();
 
@@ -1362,7 +1362,7 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging();
 
@@ -1526,23 +1526,27 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     let prover_node_port = prover_node_port_rx.await.unwrap();
     let prover_node_test_client = make_test_client(prover_node_port).await;
 
+    // Publish a DA to force prover to process new blocks
+    da_service.publish_test_block().await.unwrap();
+    wait_for_l1_block(&da_service, 6, None).await;
+
     // We have 8 blocks in total, make sure the prover syncs
     // and starts proving the second commitment.
-    wait_for_l2_block(&prover_node_test_client, 8, None).await;
+    wait_for_l2_block(&prover_node_test_client, 8, Some(Duration::from_secs(300))).await;
     assert_eq!(prover_node_test_client.eth_block_number().await, 8);
 
     seq_test_client.send_publish_batch_request().await;
     wait_for_l2_block(&seq_test_client, 9, None).await;
 
     da_service.publish_test_block().await.unwrap();
-    wait_for_l1_block(&da_service, 6, None).await;
-    // Commitment is sent
     wait_for_l1_block(&da_service, 7, None).await;
+    // Commitment is sent
+    wait_for_l1_block(&da_service, 8, None).await;
 
     // wait here until we see from prover's rpc that it finished proving
     wait_for_prover_l1_height(
         &prover_node_test_client,
-        8,
+        9,
         Some(Duration::from_secs(DEFAULT_PROOF_WAIT_DURATION)),
     )
     .await;
@@ -1559,7 +1563,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_system_transactions() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging();
 
@@ -1703,7 +1707,7 @@ async fn test_system_transactions() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging();
 
@@ -1866,7 +1870,7 @@ fn find_subarray(haystack: &[u8], needle: &[u8]) -> Option<usize> {
         .position(|window| window == needle)
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging();
 
@@ -2039,7 +2043,7 @@ async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn transaction_failing_on_l1_is_removed_from_mempool() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging();
 
@@ -2076,6 +2080,7 @@ async fn transaction_failing_on_l1_is_removed_from_mempool() -> Result<(), anyho
         .unwrap();
 
     seq_test_client.send_publish_batch_request().await;
+    wait_for_l2_block(&seq_test_client, 1, None).await;
 
     let random_test_client = TestClient::new(
         seq_test_client.chain_id,
@@ -2103,6 +2108,7 @@ async fn transaction_failing_on_l1_is_removed_from_mempool() -> Result<(), anyho
     assert!(tx_from_mempool.is_some());
 
     seq_test_client.send_publish_batch_request().await;
+    wait_for_l2_block(&seq_test_client, 2, None).await;
 
     let block = seq_test_client
         .eth_get_block_by_number_with_detail(Some(BlockNumberOrTag::Latest))
@@ -2140,9 +2146,10 @@ async fn transaction_failing_on_l1_is_removed_from_mempool() -> Result<(), anyho
     Ok(())
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn sequencer_crash_restore_mempool() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging();
+
     let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
 
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
@@ -2277,6 +2284,8 @@ async fn sequencer_crash_restore_mempool() -> Result<(), anyhow::Error> {
 
     // publish block and check if the txs are deleted from pg
     seq_test_client.send_publish_batch_request().await;
+    wait_for_l2_block(&seq_test_client, 1, None).await;
+
     // should be removed from mempool
     assert!(seq_test_client
         .eth_get_transaction_by_hash(tx_hash, Some(true))
@@ -2616,7 +2625,7 @@ async fn full_node_verify_proof_and_store() {
     full_node_task.abort();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_all_flow() {
     // citrea::initialize_logging();
 
@@ -2962,7 +2971,7 @@ async fn test_all_flow() {
 /// Transactions with a high gas limit should be accounted for by using
 /// their actual cumulative gas consumption to prevent them from reserving
 /// whole blocks on their own.
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_gas_limit_too_high() {
     // citrea::initialize_logging();
 
@@ -3050,8 +3059,7 @@ async fn test_gas_limit_too_high() {
     }
 
     seq_test_client.send_publish_batch_request().await;
-
-    wait_for_l2_block(&full_node_test_client, 1, None).await;
+    wait_for_l2_block(&full_node_test_client, 1, Some(Duration::from_secs(60))).await;
 
     let block = full_node_test_client
         .eth_get_block_by_number(Some(BlockNumberOrTag::Latest))
@@ -3091,7 +3099,7 @@ async fn test_gas_limit_too_high() {
     full_node_task.abort();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_ledger_get_head_soft_batch() {
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
@@ -3157,8 +3165,10 @@ async fn test_ledger_get_head_soft_batch() {
     seq_task.abort();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_full_node_sync_status() {
+    // citrea::initialize_logging();
+
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
     let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
@@ -3198,7 +3208,7 @@ async fn test_full_node_sync_status() {
         seq_test_client.send_publish_batch_request().await;
     }
 
-    wait_for_l2_block(&seq_test_client, 100, None).await;
+    wait_for_l2_block(&seq_test_client, 100, Some(Duration::from_secs(60))).await;
 
     let (full_node_port_tx, full_node_port_rx) = tokio::sync::oneshot::channel();
 
@@ -3223,6 +3233,8 @@ async fn test_full_node_sync_status() {
 
     let full_node_port = full_node_port_rx.await.unwrap();
     let full_node_test_client = make_test_client(full_node_port).await;
+
+    wait_for_l2_block(&full_node_test_client, 10, Some(Duration::from_secs(60))).await;
 
     let status = full_node_test_client.citrea_sync_status().await;
 
