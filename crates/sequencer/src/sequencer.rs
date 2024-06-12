@@ -1012,21 +1012,18 @@ where
 
         let commitment = pg_connector.get_last_commitment().await?;
         // check if last commitment in db matches sequencer's last commitment
-        match commitment {
-            Some(db_commitment) => {
-                // this means that the last commitment in the db is not the same as the sequencer's last commitment
-                if db_commitment.l1_end_height as u64
-                    > ledger_commitment_l1_height.unwrap_or(SlotNumber(0)).0
-                {
-                    self.ledger_db
-                        .set_last_sequencer_commitment_l1_height(SlotNumber(
-                            db_commitment.l1_end_height as u64,
-                        ))?
-                }
-                Ok(())
+        if let Some(db_commitment) = commitment {
+            // this means that the last commitment in the db is not the same as the sequencer's last commitment
+            if db_commitment.l1_end_height as u64
+                > ledger_commitment_l1_height.unwrap_or(SlotNumber(0)).0
+            {
+                self.ledger_db
+                    .set_last_sequencer_commitment_l1_height(SlotNumber(
+                        db_commitment.l1_end_height as u64,
+                    ))?
             }
-            None => Ok(()),
         }
+        Ok(())
     }
 
     async fn maybe_submit_commitment(
@@ -1126,19 +1123,19 @@ where
     let last_finalized_height = match da_service.get_last_finalized_block_header().await {
         Ok(header) => header.height(),
         Err(e) => {
-            return Err(anyhow!("Finalized height: {}", e));
+            return Err(anyhow!("Finalized L1 height: {}", e));
         }
     };
 
     let last_finalized_block = match da_service.get_block_at(last_finalized_height).await {
         Ok(block) => block,
         Err(e) => {
-            return Err(anyhow!("Finalized block: {}", e));
+            return Err(anyhow!("Finalized L1 block: {}", e));
         }
     };
 
     debug!(
-        "Sequencer: last finalized height: {:?}",
+        "Sequencer: last finalized L1 height: {:?}",
         last_finalized_height
     );
 

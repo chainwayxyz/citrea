@@ -298,7 +298,6 @@ where
                 .unwrap();
 
             let mut sequencer_commitments = Vec::<SequencerCommitment>::new();
-            let mut zk_proofs = Vec::<Proof>::new();
 
             self.da_service
                 .extract_relevant_blobs(&filtered_block)
@@ -324,32 +323,13 @@ where
                             }
                         }
                     } else if tx.sender().as_ref() == self.prover_da_pub_key.as_slice() {
-                        match data {
-                            Ok(DaData::ZKProof(proof)) => {
-                                zk_proofs.push(proof);
-                            }
-                            Ok(_) => { // We don't care about other types here
-                                 // Skip
-                            }
-                            Err(ref e) => {
-                                tracing::error!(
-                                    "Found broken DA data in block 0x{}: {:?}. Error: {}",
-                                    hex::encode(filtered_block.hash()),
-                                    data,
-                                    e
-                                );
-                            }
-                        }
+                        // The prover doesn't really care about proofs in DA blocks.
+                        // They've already been proven so we can skip here.
                     } else {
                         warn!("Force transactions are not implemented yet");
                         // TODO: This is where force transactions will land - try to parse DA data force transaction
                     }
                 });
-
-            if !zk_proofs.is_empty() {
-                warn!("ZK proofs are not empty");
-                // TODO: Implement this
-            }
 
             if sequencer_commitments.is_empty() {
                 tracing::debug!("No sequencer commitment found at height {}", l1_height,);

@@ -121,6 +121,10 @@ impl DB {
         &self,
         schema_key: &impl KeyCodec<S>,
     ) -> anyhow::Result<Option<S::Value>> {
+        tokio::task::block_in_place(|| self._get(schema_key))
+    }
+
+    fn _get<S: Schema>(&self, schema_key: &impl KeyCodec<S>) -> anyhow::Result<Option<S::Value>> {
         let _timer = SCHEMADB_GET_LATENCY_SECONDS
             .with_label_values(&[S::COLUMN_FAMILY_NAME])
             .start_timer();
@@ -145,6 +149,14 @@ impl DB {
         key: &impl KeyCodec<S>,
         value: &impl ValueCodec<S>,
     ) -> anyhow::Result<()> {
+        tokio::task::block_in_place(|| self._put(key, value))
+    }
+
+    fn _put<S: Schema>(
+        &self,
+        key: &impl KeyCodec<S>,
+        value: &impl ValueCodec<S>,
+    ) -> anyhow::Result<()> {
         // Not necessary to use a batch, but we'd like a central place to bump counters.
         // Used in tests only anyway.
         let mut batch = SchemaBatch::new();
@@ -154,6 +166,10 @@ impl DB {
 
     /// Delete a single key from the database.
     pub fn delete<S: Schema>(&self, key: &impl KeyCodec<S>) -> anyhow::Result<()> {
+        tokio::task::block_in_place(|| self._delete(key))
+    }
+
+    fn _delete<S: Schema>(&self, key: &impl KeyCodec<S>) -> anyhow::Result<()> {
         // Not necessary to use a batch, but we'd like a central place to bump counters.
         // Used in tests only anyway.
         let mut batch = SchemaBatch::new();
@@ -167,6 +183,14 @@ impl DB {
     /// up to the table creator to ensure that the lexicographic ordering of the encoded seek keys matches the
     /// logical ordering of the type.
     pub fn delete_range<S: Schema>(
+        &self,
+        from: &impl SeekKeyEncoder<S>,
+        to: &impl SeekKeyEncoder<S>,
+    ) -> anyhow::Result<()> {
+        tokio::task::block_in_place(|| self._delete_range(from, to))
+    }
+
+    fn _delete_range<S: Schema>(
         &self,
         from: &impl SeekKeyEncoder<S>,
         to: &impl SeekKeyEncoder<S>,
@@ -192,7 +216,9 @@ impl DB {
 
     /// Returns a forward [`SchemaIterator`] on a certain schema with the default read options.
     pub fn iter<S: Schema>(&self) -> anyhow::Result<SchemaIterator<S>> {
-        self.iter_with_direction::<S>(Default::default(), ScanDirection::Forward)
+        let mut read_options = ReadOptions::default();
+        read_options.set_async_io(true);
+        self.iter_with_direction::<S>(read_options, ScanDirection::Forward)
     }
 
     /// Returns a [`RawDbReverseIterator`] which allows to iterate over raw values, backwards
@@ -214,6 +240,10 @@ impl DB {
 
     /// Writes a group of records wrapped in a [`SchemaBatch`].
     pub fn write_schemas(&self, batch: SchemaBatch) -> anyhow::Result<()> {
+        tokio::task::block_in_place(|| self._write_schemas(batch))
+    }
+
+    fn _write_schemas(&self, batch: SchemaBatch) -> anyhow::Result<()> {
         let _timer = SCHEMADB_BATCH_COMMIT_LATENCY_SECONDS
             .with_label_values(&[self.name])
             .start_timer();
@@ -284,6 +314,10 @@ impl DB {
 
     /// Creates new physical DB checkpoint in directory specified by `path`.
     pub fn create_checkpoint<P: AsRef<Path>>(&self, path: P) -> anyhow::Result<()> {
+        tokio::task::block_in_place(|| self._create_checkpoint(path))
+    }
+
+    fn _create_checkpoint<P: AsRef<Path>>(&self, path: P) -> anyhow::Result<()> {
         rocksdb::checkpoint::Checkpoint::new(&self.inner)?.create_checkpoint(path)?;
         Ok(())
     }

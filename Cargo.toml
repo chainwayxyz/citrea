@@ -111,7 +111,7 @@ reqwest = { version = "0.12", features = [
     "json",
     "http2",
 ], default-features = false }
-rocksdb = { version = "0.21.0", features = ["lz4"] }
+rocksdb = { version = "0.22.0", features = ["lz4"] }
 serde = { version = "1.0.192", default-features = false, features = [
     "alloc",
     "derive",
