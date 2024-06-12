@@ -1,5 +1,4 @@
 use std::collections::BTreeMap;
-use std::str::FromStr;
 
 use alloy_primitives::FixedBytes;
 use hex::FromHex;
@@ -296,7 +295,7 @@ fn call_test() {
     working_set.unset_archival_version();
 
     let contract = SimpleStorageContract::default();
-    let call_data = contract.get_call_data().to_string();
+    let call_data = contract.get_call_data();
 
     let nonce_too_low_result = evm.get_call(
         TransactionRequest {
@@ -309,7 +308,7 @@ fn call_test() {
             max_fee_per_gas: None,
             max_priority_fee_per_gas: None,
             value: Some(U256::from(100000000)),
-            input: TransactionInput::new(alloy_primitives::Bytes::from_str(&call_data).unwrap()),
+            input: TransactionInput::new(call_data.clone().into()),
             nonce: Some(7u64),
             chain_id: Some(1u64),
             access_list: None,
@@ -339,9 +338,7 @@ fn call_test() {
                 max_fee_per_gas: None,
                 max_priority_fee_per_gas: None,
                 value: None,
-                input: TransactionInput::new(
-                    alloy_primitives::Bytes::from_str(&call_data).unwrap(),
-                ),
+                input: TransactionInput::new(call_data.clone().into()),
                 nonce: None,
                 chain_id: Some(1u64),
                 access_list: None,
@@ -376,9 +373,7 @@ fn call_test() {
                 max_fee_per_gas: None,
                 max_priority_fee_per_gas: None,
                 value: None,
-                input: TransactionInput::new(
-                    alloy_primitives::Bytes::from_str(&call_data).unwrap(),
-                ),
+                input: TransactionInput::new(call_data.into()),
                 nonce: None,
                 chain_id: None,
                 access_list: None,

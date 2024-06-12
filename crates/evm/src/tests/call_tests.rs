@@ -43,11 +43,7 @@ fn call_multiple_test() {
 
     let (evm, mut working_set) = get_evm(&config);
 
-    let contract_addr: Address = Address::from_slice(
-        hex::decode("819c5497b157177315e1204f52e588b393771719")
-            .unwrap()
-            .as_slice(),
-    );
+    let contract_addr = address!("819c5497b157177315e1204f52e588b393771719");
 
     let l1_fee_rate = 0;
 
@@ -288,11 +284,7 @@ fn self_destruct_test() {
     let contract_balance: u64 = 1000000000000000;
 
     // address used in selfdestruct
-    let die_to_address = Address::from_slice(
-        hex::decode("11115497b157177315e1204f52e588b393111111")
-            .unwrap()
-            .as_slice(),
-    );
+    let die_to_address = address!("11115497b157177315e1204f52e588b393111111");
 
     let (config, dev_signer, contract_addr) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
@@ -511,12 +503,7 @@ fn test_block_hash_in_evm() {
         gas: None,
         input: TransactionInput {
             data: None,
-            input: Some(
-                BlockHashContract::default()
-                    .get_block_hash(0)
-                    .to_vec()
-                    .into(),
-            ),
+            input: Some(BlockHashContract::default().get_block_hash(0).into()),
         },
         nonce: Some(0u64),
         chain_id: Some(DEFAULT_CHAIN_ID),
@@ -528,12 +515,7 @@ fn test_block_hash_in_evm() {
     };
 
     for i in 0..=1000 {
-        request.input.input = Some(
-            BlockHashContract::default()
-                .get_block_hash(i)
-                .to_vec()
-                .into(),
-        );
+        request.input.input = Some(BlockHashContract::default().get_block_hash(i).into());
         let resp = evm.get_call(request.clone(), None, None, None, &mut working_set);
         if !(260..=515).contains(&i) {
             // Should be 0, there is more than 256 blocks between the last block and the block number
@@ -668,7 +650,7 @@ fn set_selfdestruct_arg_message(
     dev_signer
         .sign_default_transaction(
             TxKind::Call(contract_addr),
-            hex::decode(hex::encode(&contract.set_call_data(set_arg))).unwrap(),
+            contract.set_call_data(set_arg),
             nonce,
             0,
         )
@@ -686,7 +668,7 @@ pub(crate) fn set_arg_message(
     dev_signer
         .sign_default_transaction(
             TxKind::Call(contract_addr),
-            hex::decode(hex::encode(&contract.set_call_data(set_arg))).unwrap(),
+            contract.set_call_data(set_arg),
             nonce,
             0,
         )
@@ -704,7 +686,7 @@ fn set_arg_transaction(
     dev_signer
         .sign_default_transaction(
             TxKind::Call(contract_addr),
-            hex::decode(hex::encode(&contract.set_call_data(set_arg))).unwrap(),
+            contract.set_call_data(set_arg),
             nonce,
             0,
         )
@@ -733,7 +715,7 @@ fn selfdestruct_message(
     dev_signer
         .sign_default_transaction(
             TxKind::Call(contract_addr),
-            hex::decode(hex::encode(&contract.selfdestruct(to_address))).unwrap(),
+            contract.selfdestruct(to_address),
             nonce,
             0,
         )
@@ -751,7 +733,7 @@ pub(crate) fn publish_event_message(
     signer
         .sign_default_transaction(
             TxKind::Call(contract_addr),
-            hex::decode(hex::encode(&contract.publish_event(message))).unwrap(),
+            contract.publish_event(message),
             nonce,
             0,
         )
@@ -764,11 +746,7 @@ pub(crate) fn get_evm_config(
 ) -> (EvmConfig, TestSigner, Address) {
     let dev_signer: TestSigner = TestSigner::new_random();
 
-    let contract_addr: Address = Address::from_slice(
-        hex::decode("819c5497b157177315e1204f52e588b393771719")
-            .unwrap()
-            .as_slice(),
-    );
+    let contract_addr = address!("819c5497b157177315e1204f52e588b393771719");
     let config = EvmConfig {
         data: vec![AccountData {
             address: dev_signer.address(),
@@ -792,11 +770,7 @@ pub(crate) fn get_evm_config_starting_base_fee(
 ) -> (EvmConfig, TestSigner, Address) {
     let dev_signer: TestSigner = TestSigner::new_random();
 
-    let contract_addr: Address = Address::from_slice(
-        hex::decode("819c5497b157177315e1204f52e588b393771719")
-            .unwrap()
-            .as_slice(),
-    );
+    let contract_addr = address!("819c5497b157177315e1204f52e588b393771719");
     let config = EvmConfig {
         data: vec![AccountData {
             address: dev_signer.address(),

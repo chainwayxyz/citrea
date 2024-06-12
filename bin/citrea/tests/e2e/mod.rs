@@ -1671,7 +1671,7 @@ async fn test_system_transactions() -> Result<(), anyhow::Error> {
         let hash_on_chain: String = full_node_test_client
             .contract_call(
                 system_contract_address,
-                ethers::types::Bytes::from(BitcoinLightClient::get_block_hash(i).to_vec()),
+                BitcoinLightClient::get_block_hash(i).to_vec(),
                 None,
             )
             .await

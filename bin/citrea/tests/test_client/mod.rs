@@ -159,7 +159,7 @@ impl TestClient {
     pub(crate) async fn contract_transaction(
         &self,
         contract_address: H160,
-        data: Bytes,
+        data: Vec<u8>,
         nonce: Option<u64>,
     ) -> PendingTransaction<'_, Http> {
         let nonce = match nonce {
@@ -194,7 +194,7 @@ impl TestClient {
     pub(crate) async fn contract_transaction_with_custom_fee(
         &self,
         contract_address: H160,
-        data: Bytes,
+        data: Vec<u8>,
         max_priority_fee_per_gas: u64,
         max_fee_per_gas: u64,
         value: Option<u64>,
@@ -232,7 +232,7 @@ impl TestClient {
     pub(crate) async fn contract_call<T: FromStr>(
         &self,
         contract_address: H160,
-        data: Bytes,
+        data: Vec<u8>,
         _nonce: Option<u64>,
     ) -> Result<T, Box<dyn std::error::Error>> {
         let req = Eip1559TransactionRequest::new()

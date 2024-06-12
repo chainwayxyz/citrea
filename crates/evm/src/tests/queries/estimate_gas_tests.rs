@@ -3,10 +3,7 @@ use std::str::FromStr;
 use alloy_primitives::{FixedBytes, Uint};
 use hex::FromHex;
 use jsonrpsee::core::RpcResult;
-use reth_primitives::hex::ToHexExt;
-use reth_primitives::{
-    address, AccessList, AccessListItem, Address, BlockNumberOrTag, Bytes, TxKind,
-};
+use reth_primitives::{address, AccessList, AccessListItem, Address, BlockNumberOrTag, TxKind};
 use reth_rpc::eth::error::RpcInvalidTransactionError;
 use reth_rpc_types::request::{TransactionInput, TransactionRequest};
 use reth_rpc_types::AccessListWithGasUsed;
@@ -286,13 +283,9 @@ fn test_access_list() {
     let (evm, mut working_set, signer) = init_evm_with_caller_contract();
 
     let caller = CallerContract::default();
-    let input_data = Bytes::from(
-        caller
-            .call_set_call_data(
-                Address::from_str("0x819c5497b157177315e1204f52e588b393771719").unwrap(),
-                42,
-            )
-            .to_vec(),
+    let input_data = caller.call_set_call_data(
+        Address::from_str("0x819c5497b157177315e1204f52e588b393771719").unwrap(),
+        42,
     );
 
     let tx_req_contract_call = TransactionRequest {
@@ -305,7 +298,7 @@ fn test_access_list() {
         max_fee_per_gas: None,
         max_priority_fee_per_gas: None,
         value: None,
-        input: TransactionInput::new(input_data),
+        input: TransactionInput::new(input_data.into()),
         nonce: Some(3u64),
         chain_id: Some(1u64),
         access_list: None,
@@ -382,16 +375,14 @@ fn test_estimate_gas_with_input(
     signer: &TestSigner,
     input_data: u32,
 ) -> RpcResult<U256> {
-    let input_data = SimpleStorageContract::default()
-        .set_call_data(input_data)
-        .encode_hex();
+    let input_data = SimpleStorageContract::default().set_call_data(input_data);
     let tx_req = TransactionRequest {
         from: Some(signer.address()),
         to: Some(TxKind::Call(address!(
             "eeb03d20dae810f52111b853b31c8be6f30f4cd3"
         ))),
         gas: Some(100_000),
-        input: TransactionInput::new(Bytes::from_hex(input_data).unwrap()),
+        input: TransactionInput::new(input_data.into()),
         ..Default::default()
     };
 
