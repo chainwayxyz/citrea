@@ -8,7 +8,7 @@ use reth_primitives::BlockNumberOrTag;
 
 use crate::evm::init_test_rollup;
 use crate::test_client::TestClient;
-use crate::test_helpers::{start_rollup, tempdir_with_children, NodeMode};
+use crate::test_helpers::{start_rollup, tempdir_with_children, wait_for_l2_block, NodeMode};
 use crate::{DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT};
 
 #[tokio::test(flavor = "multi_thread")]
