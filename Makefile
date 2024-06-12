@@ -27,6 +27,7 @@ test: $(EF_TESTS_DIR) ## Runs test suite using next test
 	@cargo nextest run --workspace --all-features --no-fail-fast $(filter-out $@,$(MAKECMDGOALS))
 
 install-dev-tools:  ## Installs all necessary cargo helpers
+	cargo install --locked dprint
 	cargo install cargo-llvm-cov
 	cargo install cargo-hack
 	cargo install cargo-udeps
