@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 
 use citrea_evm::system_contracts::Bridge;
 use citrea_evm::SYSTEM_SIGNER;
-use reth_primitives::{address, TxKind};
+use reth_primitives::TxKind;
 use reth_rpc_types::{TransactionInput, TransactionRequest};
 use tracing::instrument;
 
