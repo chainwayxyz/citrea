@@ -367,7 +367,7 @@ where
                 continue;
             }
 
-            tracing::debug!(
+            tracing::info!(
                 "Processing {} sequencer commitments at height {}",
                 sequencer_commitments.len(),
                 filtered_block.header().height(),
@@ -583,8 +583,6 @@ where
                 da_block_headers_of_soft_confirmations.push_back(da_block_headers_to_push);
             }
 
-            tracing::debug!("Sending for proving");
-
             let hash = da_block_header_of_commitments.hash();
 
             let transition_data: StateTransitionData<Stf::StateRoot, Stf::Witness, Da::Spec> =
@@ -616,6 +614,8 @@ where
 
             // Skip submission until l1 height
             if l1_height >= skip_submission_until_l1 && should_prove {
+                tracing::info!("Sending for proving");
+
                 let prover_service = self
                     .prover_service
                     .as_ref()
@@ -1034,7 +1034,7 @@ where
                 }
 
                 for sequencer_commitment in sequencer_commitments.iter() {
-                    tracing::debug!(
+                    tracing::info!(
                         "Processing sequencer commitment: {:?}",
                         sequencer_commitment
                     );

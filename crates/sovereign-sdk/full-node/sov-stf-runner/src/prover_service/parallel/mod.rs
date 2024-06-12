@@ -64,16 +64,16 @@ where
         // output config
         match config {
             ProofGenConfig::Skip => {
-                tracing::debug!("Prover is configured to skip proving");
+                tracing::info!("Prover is configured to skip proving");
             }
             ProofGenConfig::Simulate(_) => {
-                tracing::debug!("Prover is configured to simulate proving");
+                tracing::info!("Prover is configured to simulate proving");
             }
             ProofGenConfig::Execute => {
-                tracing::debug!("Prover is configured to execute proving");
+                tracing::info!("Prover is configured to execute proving");
             }
             ProofGenConfig::Prover => {
-                tracing::debug!("Prover is configured to prove");
+                tracing::info!("Prover is configured to prove");
             }
         }
 
@@ -177,7 +177,7 @@ where
                     break Ok((tx_id, proof));
                 }
                 ProverStatus::ProvingInProgress => {
-                    tracing::trace!("Proof generation is in progress");
+                    tracing::info!("Proof generation is in progress");
                     tokio::time::sleep(std::time::Duration::from_secs(5)).await;
                 }
                 _ => {
