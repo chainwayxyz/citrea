@@ -21,7 +21,7 @@ mod archival_state;
 mod gas_price;
 mod tracing;
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn web3_rpc_tests() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging();
 
@@ -76,7 +76,7 @@ async fn web3_rpc_tests() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn evm_tx_tests() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging();
 
@@ -117,7 +117,7 @@ async fn send_tx_test_to_eth(rpc_address: SocketAddr) -> Result<(), Box<dyn std:
     execute(&test_client).await
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_eth_get_logs() -> Result<(), anyhow::Error> {
     use crate::test_helpers::start_rollup;
 
@@ -157,7 +157,7 @@ async fn test_eth_get_logs() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_genesis_contract_call() -> Result<(), Box<dyn std::error::Error>> {
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
