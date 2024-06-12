@@ -52,6 +52,7 @@ members = [
   "crates/sovereign-sdk/module-system/module-implementations/integration-tests",
   # Offchain
   "crates/shared-backup-db",
+  "crates/fullnode",
 ]
 
 [workspace.package]
