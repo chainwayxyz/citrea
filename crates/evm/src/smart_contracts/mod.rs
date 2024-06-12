@@ -39,11 +39,7 @@ fn make_contract_from_abi(path: PathBuf) -> BaseContract {
 }
 
 /// Trait for testing smart contracts.
-pub trait TestContract {
+pub trait TestContract: Default {
     /// Common method of all smart contracts. Returns bytecode
     fn byte_code(&self) -> Bytes;
-    /// Create the default instance of the smart contract.
-    fn default_(&self) -> Self
-    where
-        Self: Sized;
 }

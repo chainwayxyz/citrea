@@ -37,12 +37,6 @@ impl TestContract for SimplePayableContract {
     fn byte_code(&self) -> Bytes {
         self.bytecode.clone()
     }
-    fn default_(&self) -> Self
-    where
-        Self: Sized,
-    {
-        Self::default()
-    }
 }
 
 impl SimplePayableContract {

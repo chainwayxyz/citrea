@@ -39,13 +39,6 @@ impl TestContract for CallerContract {
     fn byte_code(&self) -> Bytes {
         self.byte_code()
     }
-    /// Create the default instance of the smart contract.
-    fn default_(&self) -> Self
-    where
-        Self: Sized,
-    {
-        Self::default()
-    }
 }
 
 impl CallerContract {

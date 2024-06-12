@@ -39,13 +39,6 @@ impl TestContract for SelfDestructorContract {
     fn byte_code(&self) -> Bytes {
         self.bytecode.clone()
     }
-    /// Create the default instance of the smart contract.
-    fn default_(&self) -> Self
-    where
-        Self: Sized,
-    {
-        Self::default()
-    }
 }
 
 impl SelfDestructorContract {
