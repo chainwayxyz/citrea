@@ -8,7 +8,7 @@ prover_da_pub_key = ""
 node_url = ""
 # fill here
 node_username = ""
-# fill here                                       
+# fill here
 node_password = ""
 network = "regtest"
 da_private_key = "E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67FC233AA33262"
