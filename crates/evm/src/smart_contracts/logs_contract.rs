@@ -12,24 +12,22 @@ sol! {
 
 /// Logs wrapper.
 pub struct LogsContract {
-    bytecode: Bytes,
+    bytecode: Vec<u8>,
 }
 
 impl Default for LogsContract {
     fn default() -> Self {
-        let contract_data = {
+        let bytecode = {
             let bytecode_hex = include_str!("../../../evm/src/evm/test_data/Logs.bin");
             hex::decode(bytecode_hex).unwrap()
         };
 
-        Self {
-            bytecode: Bytes::from(contract_data),
-        }
+        Self { bytecode }
     }
 }
 
 impl TestContract for LogsContract {
-    fn byte_code(&self) -> Bytes {
+    fn byte_code(&self) -> Vec<u8> {
         self.bytecode.clone()
     }
 }

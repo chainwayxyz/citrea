@@ -94,7 +94,7 @@ impl TestClient {
 
     pub(crate) async fn deploy_contract(
         &self,
-        byte_code: Bytes,
+        byte_code: Vec<u8>,
         nonce: Option<u64>,
     ) -> Result<PendingTransaction<'_, Http>, Box<dyn std::error::Error>> {
         let nonce = match nonce {
@@ -127,7 +127,7 @@ impl TestClient {
 
     pub(crate) async fn deploy_contract_call(
         &self,
-        byte_code: Bytes,
+        byte_code: Vec<u8>,
         nonce: Option<u64>,
     ) -> Result<Bytes, Box<dyn std::error::Error>> {
         let nonce = match nonce {

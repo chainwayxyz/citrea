@@ -12,24 +12,22 @@ sol! {
 
 /// SimplePayableContract wrapper.
 pub struct SimplePayableContract {
-    bytecode: Bytes,
+    bytecode: Vec<u8>,
 }
 
 impl Default for SimplePayableContract {
     fn default() -> Self {
-        let contract_data = {
+        let bytecode = {
             let bytecode_hex = include_str!("../../../evm/src/evm/test_data/Payable.bin");
             hex::decode(bytecode_hex).unwrap()
         };
 
-        Self {
-            bytecode: Bytes::from(contract_data),
-        }
+        Self { bytecode }
     }
 }
 
 impl TestContract for SimplePayableContract {
-    fn byte_code(&self) -> Bytes {
+    fn byte_code(&self) -> Vec<u8> {
         self.bytecode.clone()
     }
 }

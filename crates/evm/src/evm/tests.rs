@@ -57,7 +57,7 @@ fn simple_contract_execution<DB: Database<Error = DBError> + DatabaseCommit + In
 
     let contract_address: Address = {
         let tx = dev_signer
-            .sign_default_transaction(TxKind::Create, contract.byte_code().to_vec(), 1, 0)
+            .sign_default_transaction(TxKind::Create, contract.byte_code(), 1, 0)
             .unwrap();
 
         let tx = &tx.try_into().unwrap();

@@ -13,24 +13,22 @@ sol! {
 
 /// Blockhash wrapper.
 pub struct BlockHashContract {
-    bytecode: Bytes,
+    bytecode: Vec<u8>,
 }
 
 impl Default for BlockHashContract {
     fn default() -> Self {
-        let contract_data = {
+        let bytecode = {
             let bytecode_hex = include_str!("../../../evm/src/evm/test_data/BlockHash.bin");
             hex::decode(bytecode_hex).unwrap()
         };
 
-        Self {
-            bytecode: Bytes::from(contract_data),
-        }
+        Self { bytecode }
     }
 }
 
 impl TestContract for BlockHashContract {
-    fn byte_code(&self) -> Bytes {
+    fn byte_code(&self) -> Vec<u8> {
         self.bytecode.clone()
     }
 }

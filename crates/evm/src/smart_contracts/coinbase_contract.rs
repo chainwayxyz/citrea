@@ -12,31 +12,29 @@ sol! {
 
 /// CoinbaseContract wrapper.
 pub struct CoinbaseContract {
-    bytecode: Bytes,
+    bytecode: Vec<u8>,
 }
 
 impl Default for CoinbaseContract {
     fn default() -> Self {
-        let contract_data = {
+        let bytecode = {
             let bytecode_hex = include_str!("../../../evm/src/evm/test_data/Coinbase.bin");
             hex::decode(bytecode_hex).unwrap()
         };
 
-        Self {
-            bytecode: Bytes::from(contract_data),
-        }
+        Self { bytecode }
     }
 }
 
 impl TestContract for CoinbaseContract {
-    fn byte_code(&self) -> Bytes {
+    fn byte_code(&self) -> Vec<u8> {
         self.byte_code()
     }
 }
 
 impl CoinbaseContract {
     /// Coinbase bytecode.
-    pub fn byte_code(&self) -> Bytes {
+    pub fn byte_code(&self) -> Vec<u8> {
         self.bytecode.clone()
     }
 

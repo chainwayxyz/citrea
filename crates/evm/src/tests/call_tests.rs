@@ -626,7 +626,7 @@ pub fn create_contract_message<T: TestContract>(
     contract: T,
 ) -> RlpEvmTransaction {
     dev_signer
-        .sign_default_transaction(TxKind::Create, contract.byte_code().to_vec(), nonce, 0)
+        .sign_default_transaction(TxKind::Create, contract.byte_code(), nonce, 0)
         .unwrap()
 }
 
@@ -639,7 +639,7 @@ pub(crate) fn create_contract_message_with_fee<T: TestContract>(
     dev_signer
         .sign_default_transaction_with_fee(
             TxKind::Create,
-            contract.byte_code().to_vec(),
+            contract.byte_code(),
             nonce,
             0,
             max_fee_per_gas,
@@ -653,7 +653,7 @@ pub(crate) fn create_contract_transaction<T: TestContract>(
     contract: T,
 ) -> RlpEvmTransaction {
     dev_signer
-        .sign_default_transaction(TxKind::Create, contract.byte_code().to_vec(), nonce, 0)
+        .sign_default_transaction(TxKind::Create, contract.byte_code(), nonce, 0)
         .unwrap()
 }
 

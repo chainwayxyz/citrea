@@ -13,7 +13,6 @@ mod simple_storage_contract;
 pub use blockhash_contract::BlockHashContract;
 pub use caller_contract::CallerContract;
 pub use coinbase_contract::CoinbaseContract;
-use ethers_core::types::Bytes;
 pub use hive_contract::HiveContract;
 pub use infinite_loop_contract::InfiniteLoopContract;
 pub use logs_contract::LogsContract;
@@ -24,5 +23,5 @@ pub use simple_storage_contract::SimpleStorageContract;
 /// Trait for testing smart contracts.
 pub trait TestContract: Default {
     /// Common method of all smart contracts. Returns bytecode
-    fn byte_code(&self) -> Bytes;
+    fn byte_code(&self) -> Vec<u8>;
 }

@@ -11,7 +11,7 @@ sol! {
 
 /// HiveContract wrapper.
 pub struct HiveContract {
-    bytecode: Bytes,
+    bytecode: Vec<u8>,
 }
 
 impl Default for HiveContract {
@@ -23,14 +23,12 @@ impl Default for HiveContract {
 impl HiveContract {
     /// Create a new instance of HiveContract.
     pub fn new() -> Self {
-        let contract_data = {
+        let bytecode = {
             let bytecode_hex = include_str!("../../../evm/src/evm/test_data/HiveContract.bin");
             hex::decode(bytecode_hex).unwrap()
         };
 
-        Self {
-            bytecode: Bytes::from(contract_data),
-        }
+        Self { bytecode }
     }
     /// Calls ConstFunc of Hive Contract
     pub fn call_const_func(&self, a: u32, b: u32, c: u32) -> Bytes {
@@ -44,7 +42,7 @@ impl HiveContract {
     }
 
     /// Bytecode of the Hive Contract.
-    pub fn byte_code(&self) -> Bytes {
+    pub fn byte_code(&self) -> Vec<u8> {
         self.bytecode.clone()
     }
 }
