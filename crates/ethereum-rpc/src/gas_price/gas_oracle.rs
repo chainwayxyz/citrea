@@ -5,7 +5,7 @@
 
 use std::sync::Arc;
 
-use citrea_evm::Evm;
+use citrea_evm::{Evm, SYSTEM_SIGNER};
 use reth_primitives::basefee::calc_next_block_base_fee;
 use reth_primitives::constants::GWEI_TO_WEI;
 use reth_primitives::{address, BlockNumberOrTag, B256, U256};
@@ -362,8 +362,7 @@ impl<C: sov_modules_api::Context> GasPriceOracle<C> {
 
                 // check if coinbase
                 let sender = tx.from;
-                sender != block.header.miner
-                    && sender != address!("deaddeaddeaddeaddeaddeaddeaddeaddeaddead")
+                sender != block.header.miner && sender != SYSTEM_SIGNER
             })
             // map all values to effective_gas_tip because we will be returning those values
             // anyways
