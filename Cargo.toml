@@ -19,7 +19,6 @@ members = [
   # Examples
   "crates/sovereign-sdk/examples/const-rollup-config",
   "crates/sovereign-sdk/examples/demo-simple-stf",
-  "crates/sovereign-sdk/examples/simple-nft-module",
   "crates/sovereign-sdk/examples/demo-stf",
   # Full Node
   "crates/sovereign-sdk/full-node/db/sov-db",
