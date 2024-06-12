@@ -2527,7 +2527,6 @@ dependencies = [
  "sov-bank",
  "sov-modules-api",
  "sov-modules-stf-blueprint",
- "sov-nft-module",
  "sov-prover-storage-manager",
  "sov-rollup-interface",
  "sov-sequencer-registry",
@@ -6388,20 +6387,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7170ef9988bc169ba16dd36a7fa041e5c4cbeb6a35b76d4c03daded371eae7c0"
 
 [[package]]
-name = "postgres"
-version = "0.19.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7915b33ed60abc46040cbcaa25ffa1c7ec240668e0477c4f3070786f5916d451"
-dependencies = [
- "bytes",
- "fallible-iterator 0.2.0",
- "futures-util",
- "log",
- "tokio",
- "tokio-postgres",
-]
-
-[[package]]
 name = "postgres-protocol"
 version = "0.6.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9752,27 +9737,6 @@ dependencies = [
  "sov-zk-cycle-macros",
  "sov-zk-cycle-utils",
  "thiserror",
- "tracing",
-]
-
-[[package]]
-name = "sov-nft-module"
-version = "0.4.0-rc.3"
-dependencies = [
- "anyhow",
- "borsh",
- "jsonrpsee",
- "postgres",
- "schemars",
- "serde",
- "serde_json",
- "sov-modules-api",
- "sov-modules-macros",
- "sov-nft-module",
- "sov-prover-storage-manager",
- "sov-state",
- "tempfile",
- "tokio",
  "tracing",
 ]
 

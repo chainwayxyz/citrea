@@ -31,7 +31,6 @@ sov-stf-runner = { path = "../../../sovereign-sdk/full-node/sov-stf-runner" }
 sov-rollup-interface = { path = "../../../sovereign-sdk/rollup-interface" }
 sov-sequencer-registry = { path = "../../../sovereign-sdk/module-system/module-implementations/sov-sequencer-registry" }
 sov-bank = { path = "../../../sovereign-sdk/module-system/module-implementations/sov-bank" }
-sov-nft-module = { path = "../../../sovereign-sdk/module-system/module-implementations/sov-nft-module" }
 
 sov-modules-stf-blueprint = { path = "../../../sovereign-sdk/module-system/sov-modules-stf-blueprint" }
 sov-value-setter = { path = "../../../sovereign-sdk/module-system/module-implementations/examples/sov-value-setter", default-features = false }
@@ -52,11 +51,9 @@ sov-prover-storage-manager = { path = "../../../sovereign-sdk/full-node/sov-prov
 
 [features]
 default = ["native"]
-offchain = ["sov-nft-module/offchain"]
 native = [
     "sov-stf-runner/native",
     "sov-bank/native",
-    "sov-nft-module/native",
     "sov-accounts/native",
     "sov-sequencer-registry/native",
     "sov-value-setter/native",
@@ -75,7 +72,6 @@ serde = [
     "sov-sequencer-registry/serde",
     "sov-value-setter/serde",
     "sov-accounts/serde",
-    "sov-nft-module/serde",
     "citrea-evm/serde",
     "soft-confirmation-rule-enforcer/serde",
 ]

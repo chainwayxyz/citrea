@@ -13,7 +13,6 @@ use sov_bank::BankConfig;
 pub use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::Context;
 use sov_modules_stf_blueprint::Runtime as RuntimeTrait;
-use sov_nft_module::NonFungibleTokenConfig;
 use sov_rollup_interface::da::DaSpec;
 use sov_sequencer_registry::SequencerConfig;
 pub use sov_state::config::Config as StorageConfig;
@@ -109,8 +108,6 @@ fn create_genesis_config<C: Context, Da: DaSpec>(
 
     let accounts_config: AccountConfig<C> = read_json_file(&genesis_paths.accounts_genesis_path)?;
 
-    let nft_config: NonFungibleTokenConfig = read_json_file(&genesis_paths.nft_path)?;
-
     let evm_config: EvmConfig = read_json_file(&genesis_paths.evm_genesis_path)?;
 
     let soft_confirmation_rule_enforcer_config: SoftConfirmationRuleEnforcerConfig<C> =
@@ -121,7 +118,6 @@ fn create_genesis_config<C: Context, Da: DaSpec>(
         sequencer_registry_config,
         value_setter_config,
         accounts_config,
-        nft_config,
         evm_config,
         soft_confirmation_rule_enforcer_config,
     ))
