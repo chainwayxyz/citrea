@@ -1872,7 +1872,7 @@ fn find_subarray(haystack: &[u8], needle: &[u8]) -> Option<usize> {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
-    // citrea::initialize_logging(tracing::Level::INFO);
+    citrea::initialize_logging(tracing::Level::INFO);
 
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
@@ -1951,11 +1951,13 @@ async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
     seq_test_client.send_publish_batch_request().await;
     seq_test_client.send_publish_batch_request().await;
     seq_test_client.send_publish_batch_request().await;
+    wait_for_l2_block(&seq_test_client, 4, None).await;
 
     // second da block
     da_service.publish_test_block().await.unwrap();
     wait_for_l1_block(&da_service, 2, None).await;
     wait_for_l1_block(&da_service, 3, None).await;
+    wait_for_l2_block(&seq_test_client, 5, None).await;
 
     // before this the commitment will be sent
     // the commitment will be only in the first block so it is still not finalized
@@ -2016,10 +2018,12 @@ async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
     seq_test_client.send_publish_batch_request().await;
     seq_test_client.send_publish_batch_request().await;
     seq_test_client.send_publish_batch_request().await;
+    wait_for_l2_block(&seq_test_client, 9, None).await;
 
     da_service.publish_test_block().await.unwrap();
     wait_for_l1_block(&da_service, 4, None).await;
     wait_for_l1_block(&da_service, 5, None).await;
+    wait_for_l2_block(&seq_test_client, 10, None).await;
 
     // new commitment will be sent here, it should send between 2 and 3 should not include 1
     seq_test_client.send_publish_batch_request().await;
@@ -2378,12 +2382,15 @@ async fn test_db_get_proof() {
     test_client.send_publish_batch_request().await;
     test_client.send_publish_batch_request().await;
     test_client.send_publish_batch_request().await;
+    wait_for_l2_block(&test_client, 4, None).await;
 
     da_service.publish_test_block().await.unwrap();
     // Commitment
     wait_for_l1_block(&da_service, 3, None).await;
     // Proof
     wait_for_l1_block(&da_service, 4, None).await;
+
+    wait_for_l2_block(&test_client, 5, None).await;
 
     // wait here until we see from prover's rpc that it finished proving
     wait_for_prover_l1_height(
@@ -2724,6 +2731,7 @@ async fn test_all_flow() {
     wait_for_l1_block(&da_service, 2, None).await;
 
     test_client.send_publish_batch_request().await;
+    wait_for_l2_block(&test_client, 1, None).await;
 
     // send one ether to some address
     test_client
@@ -2737,12 +2745,15 @@ async fn test_all_flow() {
         .unwrap();
     test_client.send_publish_batch_request().await;
     test_client.send_publish_batch_request().await;
+    wait_for_l2_block(&test_client, 3, None).await;
+
     // send one ether to some address
     test_client
         .send_eth(addr, None, None, None, 1e18 as u128)
         .await
         .unwrap();
     test_client.send_publish_batch_request().await;
+    wait_for_l2_block(&test_client, 4, None).await;
 
     // Submit commitment
     da_service.publish_test_block().await.unwrap();
@@ -3139,6 +3150,7 @@ async fn test_ledger_get_head_soft_batch() {
 
     seq_test_client.send_publish_batch_request().await;
     seq_test_client.send_publish_batch_request().await;
+    wait_for_l2_block(&seq_test_client, 2, None).await;
 
     let latest_block = seq_test_client
         .eth_get_block_by_number(Some(BlockNumberOrTag::Latest))

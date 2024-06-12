@@ -250,6 +250,7 @@ async fn check_commitment_in_offchain_db() {
     for _ in 0..3 {
         test_client.send_publish_batch_request().await;
     }
+    wait_for_l2_block(&test_client, 3, None).await;
 
     da_service.publish_test_block().await.unwrap();
     wait_for_l1_block(&da_service, 3, None).await;
@@ -261,6 +262,7 @@ async fn check_commitment_in_offchain_db() {
     // commitment should be published with this call
     da_service.publish_test_block().await.unwrap();
     wait_for_l1_block(&da_service, 4, None).await;
+    wait_for_l1_block(&da_service, 5, None).await;
 
     wait_for_postgres_commitment(
         &db_test_client,
