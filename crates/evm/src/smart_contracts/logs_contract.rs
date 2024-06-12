@@ -1,7 +1,7 @@
 use alloy_sol_types::{sol, SolCall};
 use ethers_core::types::Bytes;
 
-use super::{test_data_path, TestContract};
+use super::TestContract;
 
 // Logs wrapper.
 sol! {
@@ -18,11 +18,8 @@ pub struct LogsContract {
 impl Default for LogsContract {
     fn default() -> Self {
         let contract_data = {
-            let mut path = test_data_path();
-            path.push("Logs.bin");
-
-            let contract_data = std::fs::read_to_string(path).unwrap();
-            hex::decode(contract_data).unwrap()
+            let bytecode_hex = include_str!("../../../evm/src/evm/test_data/Logs.bin");
+            hex::decode(bytecode_hex).unwrap()
         };
 
         Self {

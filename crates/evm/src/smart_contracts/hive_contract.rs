@@ -2,8 +2,6 @@ use alloy_primitives::U256;
 use alloy_sol_types::{sol, SolCall};
 use ethers_core::types::Bytes;
 
-use super::test_data_path;
-
 // HiveContract wrapper.
 sol! {
     #[sol(abi)]
@@ -26,11 +24,8 @@ impl HiveContract {
     /// Create a new instance of HiveContract.
     pub fn new() -> Self {
         let contract_data = {
-            let mut path = test_data_path();
-            path.push("HiveContract.bin");
-
-            let contract_data = std::fs::read_to_string(path).unwrap();
-            hex::decode(contract_data).unwrap()
+            let bytecode_hex = include_str!("../../../evm/src/evm/test_data/HiveContract.bin");
+            hex::decode(bytecode_hex).unwrap()
         };
 
         Self {

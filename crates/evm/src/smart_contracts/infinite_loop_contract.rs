@@ -1,7 +1,7 @@
 use alloy_sol_types::{sol, SolCall};
 use ethers_core::types::Bytes;
 
-use super::{test_data_path, TestContract};
+use super::TestContract;
 
 // InfiniteLoop wrapper.
 sol! {
@@ -18,11 +18,8 @@ pub struct InfiniteLoopContract {
 impl Default for InfiniteLoopContract {
     fn default() -> Self {
         let contract_data = {
-            let mut path = test_data_path();
-            path.push("InfiniteLoop.bin");
-
-            let contract_data = std::fs::read_to_string(path).unwrap();
-            hex::decode(contract_data).unwrap()
+            let bytecode_hex = include_str!("../../../evm/src/evm/test_data/InfiniteLoop.bin");
+            hex::decode(bytecode_hex).unwrap()
         };
 
         Self {

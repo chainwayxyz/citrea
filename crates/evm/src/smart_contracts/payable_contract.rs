@@ -1,7 +1,7 @@
 use alloy_sol_types::{sol, SolCall};
 use ethers::core::types::Bytes;
 
-use super::{test_data_path, TestContract};
+use super::TestContract;
 
 // Payable wrapper.
 sol! {
@@ -18,11 +18,8 @@ pub struct SimplePayableContract {
 impl Default for SimplePayableContract {
     fn default() -> Self {
         let contract_data = {
-            let mut path = test_data_path();
-            path.push("Payable.bin");
-
-            let contract_data = std::fs::read_to_string(path).unwrap();
-            hex::decode(contract_data).unwrap()
+            let bytecode_hex = include_str!("../../../evm/src/evm/test_data/Payable.bin");
+            hex::decode(bytecode_hex).unwrap()
         };
 
         Self {

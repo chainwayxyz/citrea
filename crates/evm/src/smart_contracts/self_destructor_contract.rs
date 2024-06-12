@@ -2,7 +2,7 @@ use alloy_primitives::{Address, U256};
 use alloy_sol_types::{sol, SolCall};
 use ethers_core::types::Bytes;
 
-use super::{test_data_path, TestContract};
+use super::TestContract;
 
 // SelfDestructor wrapper.
 sol! {
@@ -19,11 +19,8 @@ pub struct SelfDestructorContract {
 impl Default for SelfDestructorContract {
     fn default() -> Self {
         let contract_data = {
-            let mut path = test_data_path();
-            path.push("SelfDestructor.bin");
-
-            let contract_data = std::fs::read_to_string(path).unwrap();
-            hex::decode(contract_data).unwrap()
+            let bytecode_hex = include_str!("../../../evm/src/evm/test_data/SelfDestructor.bin");
+            hex::decode(bytecode_hex).unwrap()
         };
 
         Self {

@@ -3,7 +3,7 @@ use alloy_sol_types::{sol, SolCall};
 use ethers_core::types::Bytes;
 use reth_primitives::Address;
 
-use super::{test_data_path, TestContract};
+use super::TestContract;
 
 // CallerContract wrapper.
 sol! {
@@ -20,11 +20,8 @@ pub struct CallerContract {
 impl Default for CallerContract {
     fn default() -> Self {
         let contract_data = {
-            let mut path = test_data_path();
-            path.push("Caller.bin");
-
-            let contract_data = std::fs::read_to_string(path).unwrap();
-            hex::decode(contract_data).unwrap()
+            let bytecode_hex = include_str!("../../../evm/src/evm/test_data/Caller.bin");
+            hex::decode(bytecode_hex).unwrap()
         };
 
         Self {
