@@ -33,8 +33,6 @@ pub struct GenesisPaths {
     pub value_setter_genesis_path: PathBuf,
     /// Accounts genesis path.
     pub accounts_genesis_path: PathBuf,
-    /// NFT genesis path.
-    pub nft_path: PathBuf,
     /// EVM genesis path.
     pub evm_genesis_path: PathBuf,
     /// Soft Confirmation Rule Enforcer genesis path.
@@ -53,7 +51,6 @@ impl GenesisPaths {
             sequencer_genesis_path: dir.as_ref().join("sequencer_registry.json"),
             value_setter_genesis_path: dir.as_ref().join("value_setter.json"),
             accounts_genesis_path: dir.as_ref().join("accounts.json"),
-            nft_path: dir.as_ref().join("nft.json"),
             evm_genesis_path: dir.as_ref().join("evm.json"),
             soft_confirmation_rule_enforcer_genesis_path: dir
                 .as_ref()
