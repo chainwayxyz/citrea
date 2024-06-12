@@ -19,7 +19,6 @@ members = [
   # Examples
   "crates/sovereign-sdk/examples/const-rollup-config",
   "crates/sovereign-sdk/examples/demo-simple-stf",
-  "crates/sovereign-sdk/examples/simple-nft-module",
   "crates/sovereign-sdk/examples/demo-stf",
   # Full Node
   "crates/sovereign-sdk/full-node/db/sov-db",
@@ -44,7 +43,6 @@ members = [
   "crates/sovereign-sdk/module-system/utils/sov-data-generators",
   "crates/sovereign-sdk/module-system/module-implementations/sov-accounts",
   "crates/sovereign-sdk/module-system/module-implementations/sov-bank",
-  "crates/sovereign-sdk/module-system/module-implementations/sov-nft-module",
   "crates/sovereign-sdk/module-system/module-implementations/sov-prover-incentives",
   "crates/sovereign-sdk/module-system/module-implementations/sov-sequencer-registry",
   "crates/sovereign-sdk/module-system/module-implementations/module-template",
