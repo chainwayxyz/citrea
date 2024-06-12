@@ -5,6 +5,7 @@ use std::time::Duration;
 
 use citrea_evm::smart_contracts::SimpleStorageContract;
 use citrea_evm::system_contracts::BitcoinLightClient;
+use citrea_evm::SYSTEM_SIGNER;
 use citrea_sequencer::{SequencerConfig, SequencerMempoolConfig};
 use citrea_stf::genesis_config::GenesisPaths;
 use ethereum_rpc::CitreaStatus;
@@ -1569,8 +1570,7 @@ async fn test_system_transactions() -> Result<(), anyhow::Error> {
 
     let system_contract_address =
         Address::from_str("0x3100000000000000000000000000000000000001").unwrap();
-    let system_signer_address =
-        Address::from_str("0xdeaddeaddeaddeaddeaddeaddeaddeaddeaddead").unwrap();
+    let system_signer_address = Address::from_slice(SYSTEM_SIGNER.as_slice());
 
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
