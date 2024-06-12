@@ -415,12 +415,12 @@ where
             &mut signed_batch,
         ) {
             (Ok(()), mut batch_workspace) => {
+                let evm_txs_count = txs_to_run.len();
                 let call_txs = CallMessage { txs: txs_to_run };
                 let raw_message =
                     <Runtime<C, Da::Spec> as EncodeCall<citrea_evm::Evm<C>>>::encode_call(call_txs);
                 let signed_blob = self.make_blob(raw_message, &mut batch_workspace)?;
                 let txs = vec![signed_blob.clone()];
-                let txs_count = txs.len();
 
                 let (batch_workspace, tx_receipts) =
                     self.stf.apply_soft_batch_txs(txs.clone(), batch_workspace);
@@ -536,7 +536,7 @@ where
                     "New block #{}, DA #{}, Tx count: #{}",
                     l2_height,
                     da_block.header().height(),
-                    txs_count,
+                    evm_txs_count,
                 );
 
                 // connect L1 and L2 height
