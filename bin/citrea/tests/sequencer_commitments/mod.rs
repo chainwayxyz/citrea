@@ -57,6 +57,7 @@ async fn sequencer_sends_commitments_to_da_layer() {
     for _ in 0..3 {
         test_client.send_publish_batch_request().await;
     }
+    wait_for_l2_block(&test_client, 3, None).await;
 
     da_service.publish_test_block().await.unwrap();
     wait_for_l1_block(&da_service, 2, None).await;
@@ -85,6 +86,7 @@ async fn sequencer_sends_commitments_to_da_layer() {
 
     // Publish one more L2 block
     test_client.send_publish_batch_request().await;
+    wait_for_l2_block(&test_client, 4, None).await;
 
     // Trigger a commitment
     da_service.publish_test_block().await.unwrap();
@@ -110,9 +112,13 @@ async fn sequencer_sends_commitments_to_da_layer() {
     for _ in 0..4 {
         test_client.send_publish_batch_request().await;
     }
+    wait_for_l2_block(&test_client, 8, None).await;
+
     da_service.publish_test_block().await.unwrap();
     wait_for_l1_block(&da_service, 4, None).await;
     wait_for_l1_block(&da_service, 5, None).await;
+
+    wait_for_l2_block(&test_client, 9, None).await;
 
     let start_l2_block: u64 = end_l2_block + 1;
     let end_l2_block: u64 = end_l2_block + 5; // can only be the block before the one comitment landed in

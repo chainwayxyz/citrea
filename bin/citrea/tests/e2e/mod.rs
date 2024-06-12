@@ -1957,7 +1957,6 @@ async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
     da_service.publish_test_block().await.unwrap();
     wait_for_l1_block(&da_service, 2, None).await;
     wait_for_l1_block(&da_service, 3, None).await;
-    wait_for_l2_block(&seq_test_client, 5, None).await;
 
     // before this the commitment will be sent
     // the commitment will be only in the first block so it is still not finalized
@@ -2389,8 +2388,6 @@ async fn test_db_get_proof() {
     wait_for_l1_block(&da_service, 3, None).await;
     // Proof
     wait_for_l1_block(&da_service, 4, None).await;
-
-    wait_for_l2_block(&test_client, 5, None).await;
 
     // wait here until we see from prover's rpc that it finished proving
     wait_for_prover_l1_height(
