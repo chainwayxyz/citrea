@@ -2,7 +2,7 @@ use core::fmt::Debug as DebugTrait;
 
 use anyhow::Context as _;
 use bitcoin_da::service::DaServiceConfig;
-use citrea::{initialize_logging, BitcoinRollup, MockDemoRollup};
+use citrea::{initialize_logging, BitcoinRollup, CitreaRollupBlueprint, MockDemoRollup};
 use citrea_sequencer::SequencerConfig;
 use citrea_stf::genesis_config::GenesisPaths;
 use clap::Parser;
@@ -132,7 +132,7 @@ async fn start_rollup<S, DaC>(
 ) -> Result<(), anyhow::Error>
 where
     DaC: serde::de::DeserializeOwned + DebugTrait + Clone,
-    S: RollupBlueprint<DaConfig = DaC>,
+    S: CitreaRollupBlueprint<DaConfig = DaC>,
     <<S as RollupBlueprint>::NativeContext as Spec>::Storage: NativeStorage,
 {
     let rollup_config: RollupConfig<DaC> = from_toml_path(rollup_config_path)
@@ -149,10 +149,14 @@ where
             error!("Error: {}", e);
         }
     } else if let Some(prover_config) = prover_config {
-        let prover = rollup_blueprint
-            .create_new_prover(rt_genesis_paths, rollup_config, prover_config)
-            .await
-            .unwrap();
+        let prover = CitreaRollupBlueprint::create_new_prover(
+            &rollup_blueprint,
+            rt_genesis_paths,
+            rollup_config,
+            prover_config,
+        )
+        .await
+        .unwrap();
         if let Err(e) = prover.run().await {
             error!("Error: {}", e);
         }

@@ -2,7 +2,7 @@ use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
-use citrea::MockDemoRollup;
+use citrea::{CitreaRollupBlueprint, MockDemoRollup};
 use citrea_sequencer::SequencerConfig;
 use citrea_stf::genesis_config::GenesisPaths;
 use reth_rpc_types::BlockNumberOrTag;
@@ -68,15 +68,15 @@ pub async fn start_rollup(
         }
         NodeMode::Prover(_) => {
             let span = info_span!("Prover");
-            let rollup = mock_demo_rollup
-                .create_new_prover(
-                    &rt_genesis_paths,
-                    rollup_config.clone(),
-                    rollup_prover_config.unwrap(),
-                )
-                .instrument(span.clone())
-                .await
-                .unwrap();
+            let rollup = CitreaRollupBlueprint::create_new_prover(
+                &mock_demo_rollup,
+                &rt_genesis_paths,
+                rollup_config,
+                rollup_prover_config.unwrap(),
+            )
+            .instrument(span.clone())
+            .await
+            .unwrap();
             rollup
                 .run_and_report_rpc_port(Some(rpc_reporting_channel))
                 .instrument(span)

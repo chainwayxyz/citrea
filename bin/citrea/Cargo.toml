@@ -12,18 +12,34 @@ resolver = "2"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-# non-optional dependencies
+# Citrea deps
 bitcoin-da = { path = "../../crates/bitcoin-da", features = ["native"] }
+citrea-prover = { path = "../../crates/prover" }
+citrea-sequencer = { path = "../../crates/sequencer" }
+citrea-stf = { path = "../../crates/citrea-stf", features = ["native"] }
+ethereum-rpc = { path = "../../crates/ethereum-rpc" }
 rollup-constants = { path = "../rollup-constants" }
+sequencer-client = { path = "../../crates/sequencer-client" }
+
+# Sovereign-SDK deps
+citrea-risc0-bonsai-adapter = { path = "../../crates/sovereign-sdk/adapters/risc0-bonsai", features = ["native"] }
+soft-confirmation-rule-enforcer = { path = "../../crates/soft-confirmation-rule-enforcer" }
+sov-db = { path = "../../crates/sovereign-sdk/full-node/db/sov-db" }
+sov-ledger-rpc = { path = "../../crates/sovereign-sdk/full-node/sov-ledger-rpc", features = ["server"] }
 sov-mock-da = { path = "../../crates/sovereign-sdk/adapters/mock-da", features = ["native"] }
+sov-modules-api = { path = "../../crates/sovereign-sdk/module-system/sov-modules-api", features = ["native"] }
+sov-modules-rollup-blueprint = { path = "../../crates/sovereign-sdk/module-system/sov-modules-rollup-blueprint" }
+sov-modules-stf-blueprint = { path = "../../crates/sovereign-sdk/module-system/sov-modules-stf-blueprint", features = ["native"] }
 sov-prover-storage-manager = { path = "../../crates/sovereign-sdk/full-node/sov-prover-storage-manager" }
 sov-rollup-interface = { path = "../../crates/sovereign-sdk/rollup-interface", features = ["native"] }
+sov-state = { path = "../../crates/sovereign-sdk/module-system/sov-state", features = ["native"] }
 sov-stf-runner = { path = "../../crates/sovereign-sdk/full-node/sov-stf-runner", features = ["native"] }
 
+# 3rd-party deps
 anyhow = { workspace = true }
 async-trait = { workspace = true }
 borsh = { workspace = true, features = ["bytes"] }
-citrea-stf = { path = "../../crates/citrea-stf", features = ["native"] }
+clap = { workspace = true }
 hex = { workspace = true, optional = true }
 jsonrpsee = { workspace = true, features = ["http-client", "server"] }
 log-panics = { workspace = true }
@@ -31,25 +47,12 @@ reth-primitives = { workspace = true }
 reth-rpc-types = { workspace = true }
 reth-transaction-pool = { workspace = true }
 risc0 = { path = "./provers/risc0" }
+secp256k1 = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
-sov-ledger-rpc = { path = "../../crates/sovereign-sdk/full-node/sov-ledger-rpc", features = ["server"] }
-sov-modules-api = { path = "../../crates/sovereign-sdk/module-system/sov-modules-api", features = ["native"] }
-sov-modules-rollup-blueprint = { path = "../../crates/sovereign-sdk/module-system/sov-modules-rollup-blueprint" }
-sov-modules-stf-blueprint = { path = "../../crates/sovereign-sdk/module-system/sov-modules-stf-blueprint", features = ["native"] }
 tokio = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
-
-citrea-risc0-bonsai-adapter = { path = "../../crates/sovereign-sdk/adapters/risc0-bonsai", features = ["native"] }
-citrea-sequencer = { path = "../../crates/sequencer" }
-clap = { workspace = true }
-ethereum-rpc = { path = "../../crates/ethereum-rpc" }
-secp256k1 = { workspace = true }
-sequencer-client = { path = "../../crates/sequencer-client" }
-soft-confirmation-rule-enforcer = { path = "../../crates/soft-confirmation-rule-enforcer" }
-sov-db = { path = "../../crates/sovereign-sdk/full-node/db/sov-db" }
-sov-state = { path = "../../crates/sovereign-sdk/module-system/sov-state", features = ["native"] }
 
 [dev-dependencies]
 citrea-evm = { path = "../../crates/evm", features = ["smart_contracts"] }
@@ -84,9 +87,7 @@ regex = "1.10"
 rustc_version_runtime = { workspace = true }
 
 [features]
-default = [
-
-] # Deviate from convention by making the "native" feature active by default. This aligns with how this package is meant to be used (as a binary first, library second).
+default = [] # Deviate from convention by making the "native" feature active by default. This aligns with how this package is meant to be used (as a binary first, library second).
 
 bench = ["hex"] # "sov-risc0-adapter/bench", "risc0/bench"]
 
