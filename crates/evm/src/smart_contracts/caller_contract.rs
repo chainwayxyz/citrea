@@ -1,7 +1,5 @@
-use alloy_primitives::U256;
+use alloy_primitives::{Address, U256};
 use alloy_sol_types::{sol, SolCall};
-use ethers_core::types::Bytes;
-use reth_primitives::Address;
 
 use super::TestContract;
 
@@ -40,16 +38,15 @@ impl CallerContract {
         self.bytecode.clone()
     }
     /// Calls Getter of Caller Contract.
-    pub fn call_get_call_data(&self, address: Address) -> Bytes {
-        Caller::callgetCall { addr: address }.abi_encode().into()
+    pub fn call_get_call_data(&self, address: Address) -> Vec<u8> {
+        Caller::callgetCall { addr: address }.abi_encode()
     }
     /// Calls Setter of Caller Contract.
-    pub fn call_set_call_data(&self, address: Address, set_arg: u32) -> Bytes {
+    pub fn call_set_call_data(&self, address: Address, set_arg: u32) -> Vec<u8> {
         Caller::callsetCall {
             addr: address,
             num: U256::from(set_arg),
         }
         .abi_encode()
-        .into()
     }
 }

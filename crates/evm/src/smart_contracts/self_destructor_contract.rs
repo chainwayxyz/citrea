@@ -1,6 +1,5 @@
 use alloy_primitives::{Address, U256};
 use alloy_sol_types::{sol, SolCall};
-use ethers_core::types::Bytes;
 
 use super::TestContract;
 
@@ -35,15 +34,14 @@ impl TestContract for SelfDestructorContract {
 
 impl SelfDestructorContract {
     /// Setter of the smart contract.
-    pub fn set_call_data(&self, val: u32) -> Bytes {
+    pub fn set_call_data(&self, val: u32) -> Vec<u8> {
         SelfDestructor::setCall {
             _x: U256::from(val),
         }
         .abi_encode()
-        .into()
     }
     /// Selfdestructor of the smart contract.
-    pub fn selfdestruct(&self, to: Address) -> Bytes {
-        SelfDestructor::dieCall { to }.abi_encode().into()
+    pub fn selfdestruct(&self, to: Address) -> Vec<u8> {
+        SelfDestructor::dieCall { to }.abi_encode()
     }
 }

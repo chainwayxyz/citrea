@@ -1,6 +1,5 @@
 use alloy_primitives::U256;
 use alloy_sol_types::{sol, SolCall};
-use ethers_core::types::Bytes;
 
 use super::TestContract;
 
@@ -35,11 +34,10 @@ impl TestContract for BlockHashContract {
 
 impl BlockHashContract {
     /// Function to get block hash of given block number.
-    pub fn get_block_hash(&self, block_number: u64) -> Bytes {
+    pub fn get_block_hash(&self, block_number: u64) -> Vec<u8> {
         BlockHash::getBlockHashCall {
             num: U256::from(block_number),
         }
         .abi_encode()
-        .into()
     }
 }

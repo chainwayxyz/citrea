@@ -1,6 +1,5 @@
 use alloy_primitives::U256;
 use alloy_sol_types::{sol, SolCall};
-use ethers_core::types::Bytes;
 
 use super::TestContract;
 
@@ -40,20 +39,19 @@ impl SimpleStorageContract {
     }
 
     /// Getter for the smart contract.
-    pub fn get_call_data(&self) -> Bytes {
-        SimpleStorage::getCall {}.abi_encode().into()
+    pub fn get_call_data(&self) -> Vec<u8> {
+        SimpleStorage::getCall {}.abi_encode()
     }
     /// Setter for the smart contract.
-    pub fn set_call_data(&self, set_arg: u32) -> Bytes {
+    pub fn set_call_data(&self, set_arg: u32) -> Vec<u8> {
         SimpleStorage::setCall {
             _num: U256::from(set_arg),
         }
         .abi_encode()
-        .into()
     }
     /// Failing call data to test revert.
-    pub fn failing_function_call_data(&self) -> Bytes {
+    pub fn failing_function_call_data(&self) -> Vec<u8> {
         // Some random function signature.
-        hex::decode("a5643bf2").unwrap().into()
+        hex::decode("a5643bf2").unwrap()
     }
 }

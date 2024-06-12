@@ -1,5 +1,4 @@
 use alloy_sol_types::{sol, SolCall};
-use ethers_core::types::Bytes;
 
 use super::TestContract;
 
@@ -39,7 +38,7 @@ impl CoinbaseContract {
     }
 
     /// Getter for the smart contract.
-    pub fn reward_miner(&self) -> Bytes {
-        Coinbase::rewardMinerCall {}.abi_encode().into()
+    pub fn reward_miner(&self) -> Vec<u8> {
+        Coinbase::rewardMinerCall {}.abi_encode()
     }
 }

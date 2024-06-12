@@ -1,5 +1,4 @@
 use alloy_sol_types::{sol, SolCall};
-use ethers_core::types::Bytes;
 
 use super::TestContract;
 
@@ -38,7 +37,7 @@ impl InfiniteLoopContract {
         self.bytecode.clone()
     }
     /// Calls InfiniteLoop::infiniteLoop.
-    pub fn call_infinite_loop(&self) -> Bytes {
-        InfiniteLoop::infiniteLoopCall {}.abi_encode().into()
+    pub fn call_infinite_loop(&self) -> Vec<u8> {
+        InfiniteLoop::infiniteLoopCall {}.abi_encode()
     }
 }

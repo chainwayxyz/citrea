@@ -1,5 +1,4 @@
 use alloy_sol_types::{sol, SolCall};
-use ethers::core::types::Bytes;
 
 use super::TestContract;
 
@@ -34,12 +33,12 @@ impl TestContract for SimplePayableContract {
 
 impl SimplePayableContract {
     /// Getter for the contract's balance.
-    pub fn get_balance(&self) -> Bytes {
-        Payable::getBalanceCall {}.abi_encode().into()
+    pub fn get_balance(&self) -> Vec<u8> {
+        Payable::getBalanceCall {}.abi_encode()
     }
 
     /// Withdraw function call data.
-    pub fn withdraw(&self) -> Bytes {
-        Payable::withdrawCall {}.abi_encode().into()
+    pub fn withdraw(&self) -> Vec<u8> {
+        Payable::withdrawCall {}.abi_encode()
     }
 }

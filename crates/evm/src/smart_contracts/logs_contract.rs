@@ -1,5 +1,4 @@
 use alloy_sol_types::{sol, SolCall};
-use ethers_core::types::Bytes;
 
 use super::TestContract;
 
@@ -34,11 +33,10 @@ impl TestContract for LogsContract {
 
 impl LogsContract {
     /// Log publishing function of the smart contract.
-    pub fn publish_event(&self, message: String) -> Bytes {
+    pub fn publish_event(&self, message: String) -> Vec<u8> {
         Logs::publishEventCall {
             _senderMessage: message,
         }
         .abi_encode()
-        .into()
     }
 }
