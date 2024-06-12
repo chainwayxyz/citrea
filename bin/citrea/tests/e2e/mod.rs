@@ -2022,7 +2022,6 @@ async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
     da_service.publish_test_block().await.unwrap();
     wait_for_l1_block(&da_service, 4, None).await;
     wait_for_l1_block(&da_service, 5, None).await;
-    wait_for_l2_block(&seq_test_client, 10, None).await;
 
     // new commitment will be sent here, it should send between 2 and 3 should not include 1
     seq_test_client.send_publish_batch_request().await;
@@ -2288,6 +2287,10 @@ async fn sequencer_crash_restore_mempool() -> Result<(), anyhow::Error> {
     // publish block and check if the txs are deleted from pg
     seq_test_client.send_publish_batch_request().await;
     wait_for_l2_block(&seq_test_client, 1, None).await;
+
+    // Mempool removal is an async operation that happens in a different
+    // tokio task, wait for 2 seconds for this to execute.
+    sleep(Duration::from_secs(2)).await;
 
     // should be removed from mempool
     assert!(seq_test_client

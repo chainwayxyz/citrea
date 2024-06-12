@@ -1,10 +1,12 @@
 use std::str::FromStr;
+use std::time::Duration;
 
 use citrea_evm::smart_contracts::SimpleStorageContract;
 use citrea_stf::genesis_config::GenesisPaths;
 use ethers::abi::Address;
 use ethers_core::abi::Bytes;
 use reth_primitives::BlockNumberOrTag;
+use tokio::time::sleep;
 
 use crate::evm::init_test_rollup;
 use crate::test_client::TestClient;
@@ -127,6 +129,9 @@ async fn run_archival_valid_tests(addr: Address, seq_test_client: &TestClient) {
         seq_test_client.send_publish_batch_request().await;
     }
     wait_for_l2_block(seq_test_client, 8, None).await;
+
+    // Wait for changeset storage
+    sleep(Duration::from_secs(2)).await;
 
     assert_eq!(
         seq_test_client
