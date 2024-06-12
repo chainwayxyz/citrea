@@ -1,12 +1,18 @@
-use ethers::contract::BaseContract;
+use alloy_sol_types::{sol, SolCall};
 use ethers::core::types::Bytes;
 
-use super::{make_contract_from_abi, test_data_path, TestContract};
+use super::{test_data_path, TestContract};
+
+// Payable wrapper.
+sol! {
+    #[sol(abi)]
+    Payable,
+    "./src/evm/test_data/Payable.abi"
+}
 
 /// SimplePayableContract wrapper.
 pub struct SimplePayableContract {
     bytecode: Bytes,
-    base_contract: BaseContract,
 }
 
 impl Default for SimplePayableContract {
@@ -19,16 +25,8 @@ impl Default for SimplePayableContract {
             hex::decode(contract_data).unwrap()
         };
 
-        let contract = {
-            let mut path = test_data_path();
-            path.push("Payable.abi");
-
-            make_contract_from_abi(path)
-        };
-
         Self {
             bytecode: Bytes::from(contract_data),
-            base_contract: contract,
         }
     }
 }
@@ -42,11 +40,11 @@ impl TestContract for SimplePayableContract {
 impl SimplePayableContract {
     /// Getter for the contract's balance.
     pub fn get_balance(&self) -> Bytes {
-        self.base_contract.encode("getBalance", ()).unwrap()
+        Payable::getBalanceCall {}.abi_encode().into()
     }
 
     /// Withdraw function call data.
     pub fn withdraw(&self) -> Bytes {
-        self.base_contract.encode("withdraw", ()).unwrap()
+        Payable::withdrawCall {}.abi_encode().into()
     }
 }

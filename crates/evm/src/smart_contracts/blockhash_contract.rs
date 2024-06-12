@@ -1,12 +1,19 @@
-use ethers_contract::BaseContract;
+use alloy_primitives::U256;
+use alloy_sol_types::{sol, SolCall};
 use ethers_core::types::Bytes;
 
-use super::{make_contract_from_abi, test_data_path, TestContract};
+use super::{test_data_path, TestContract};
+
+// BlockHash wrapper.
+sol! {
+    #[sol(abi)]
+    BlockHash,
+    "./src/evm/test_data/BlockHash.abi"
+}
 
 /// Blockhash wrapper.
 pub struct BlockHashContract {
     bytecode: Bytes,
-    base_contract: BaseContract,
 }
 
 impl Default for BlockHashContract {
@@ -19,22 +26,13 @@ impl Default for BlockHashContract {
             hex::decode(contract_data).unwrap()
         };
 
-        let contract = {
-            let mut path = test_data_path();
-            path.push("BlockHash.abi");
-
-            make_contract_from_abi(path)
-        };
-
         Self {
             bytecode: Bytes::from(contract_data),
-            base_contract: contract,
         }
     }
 }
 
 impl TestContract for BlockHashContract {
-    /// BlockhashContract bytecode.
     fn byte_code(&self) -> Bytes {
         self.bytecode.clone()
     }
@@ -43,7 +41,10 @@ impl TestContract for BlockHashContract {
 impl BlockHashContract {
     /// Function to get block hash of given block number.
     pub fn get_block_hash(&self, block_number: u64) -> Bytes {
-        let get_arg = ethereum_types::U256::from(block_number);
-        self.base_contract.encode("getBlockHash", get_arg).unwrap()
+        BlockHash::getBlockHashCall {
+            num: U256::from(block_number),
+        }
+        .abi_encode()
+        .into()
     }
 }

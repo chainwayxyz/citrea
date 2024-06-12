@@ -1,13 +1,19 @@
-use ethers_contract::BaseContract;
+use alloy_primitives::{Address, U256};
+use alloy_sol_types::{sol, SolCall};
 use ethers_core::types::Bytes;
-use reth_primitives::Address;
 
-use super::{make_contract_from_abi, test_data_path, TestContract};
+use super::{test_data_path, TestContract};
+
+// SelfDestructor wrapper.
+sol! {
+    #[sol(abi)]
+    SelfDestructor,
+    "./src/evm/test_data/SelfDestructor.abi"
+}
 
 /// SelfDestructor wrapper.
 pub struct SelfDestructorContract {
     bytecode: Bytes,
-    base_contract: BaseContract,
 }
 
 impl Default for SelfDestructorContract {
@@ -20,22 +26,13 @@ impl Default for SelfDestructorContract {
             hex::decode(contract_data).unwrap()
         };
 
-        let contract = {
-            let mut path = test_data_path();
-            path.push("SelfDestructor.abi");
-
-            make_contract_from_abi(path)
-        };
-
         Self {
             bytecode: Bytes::from(contract_data),
-            base_contract: contract,
         }
     }
 }
 
 impl TestContract for SelfDestructorContract {
-    /// SimpleStorage bytecode.
     fn byte_code(&self) -> Bytes {
         self.bytecode.clone()
     }
@@ -44,12 +41,14 @@ impl TestContract for SelfDestructorContract {
 impl SelfDestructorContract {
     /// Setter of the smart contract.
     pub fn set_call_data(&self, val: u32) -> Bytes {
-        let set_arg = ethereum_types::U256::from(val);
-        self.base_contract.encode("set", set_arg).unwrap()
+        SelfDestructor::setCall {
+            _x: U256::from(val),
+        }
+        .abi_encode()
+        .into()
     }
     /// Selfdestructor of the smart contract.
     pub fn selfdestruct(&self, to: Address) -> Bytes {
-        let set_arg = ethereum_types::Address::from_slice(to.as_ref());
-        self.base_contract.encode("die", set_arg).unwrap()
+        SelfDestructor::dieCall { to }.abi_encode().into()
     }
 }

@@ -1,12 +1,18 @@
-use ethers_contract::BaseContract;
+use alloy_sol_types::{sol, SolCall};
 use ethers_core::types::Bytes;
 
-use super::{make_contract_from_abi, test_data_path, TestContract};
+use super::{test_data_path, TestContract};
+
+// Coinbase wrapper.
+sol! {
+    #[sol(abi)]
+    Coinbase,
+    "./src/evm/test_data/Coinbase.abi"
+}
 
 /// CoinbaseContract wrapper.
 pub struct CoinbaseContract {
     bytecode: Bytes,
-    base_contract: BaseContract,
 }
 
 impl Default for CoinbaseContract {
@@ -19,22 +25,13 @@ impl Default for CoinbaseContract {
             hex::decode(contract_data).unwrap()
         };
 
-        let contract = {
-            let mut path = test_data_path();
-            path.push("Coinbase.abi");
-
-            make_contract_from_abi(path)
-        };
-
         Self {
             bytecode: Bytes::from(contract_data),
-            base_contract: contract,
         }
     }
 }
 
 impl TestContract for CoinbaseContract {
-    /// Coinbase bytecode.
     fn byte_code(&self) -> Bytes {
         self.byte_code()
     }
@@ -48,6 +45,6 @@ impl CoinbaseContract {
 
     /// Getter for the smart contract.
     pub fn reward_miner(&self) -> Bytes {
-        self.base_contract.encode("rewardMiner", ()).unwrap()
+        Coinbase::rewardMinerCall {}.abi_encode().into()
     }
 }

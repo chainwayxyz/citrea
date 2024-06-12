@@ -1,12 +1,19 @@
-use ethers_contract::BaseContract;
+use alloy_primitives::U256;
+use alloy_sol_types::{sol, SolCall};
 use ethers_core::types::Bytes;
 
-use super::{make_contract_from_abi, test_data_path, TestContract};
+use super::{test_data_path, TestContract};
+
+// SimpleStorageContract wrapper.
+sol! {
+    #[sol(abi)]
+    SimpleStorage,
+    "./src/evm/test_data/SimpleStorage.abi"
+}
 
 /// SimpleStorageContract wrapper.
 pub struct SimpleStorageContract {
     bytecode: Bytes,
-    base_contract: BaseContract,
 }
 
 impl Default for SimpleStorageContract {
@@ -19,22 +26,13 @@ impl Default for SimpleStorageContract {
             hex::decode(contract_data).unwrap()
         };
 
-        let contract = {
-            let mut path = test_data_path();
-            path.push("SimpleStorage.abi");
-
-            make_contract_from_abi(path)
-        };
-
         Self {
             bytecode: Bytes::from(contract_data),
-            base_contract: contract,
         }
     }
 }
 
 impl TestContract for SimpleStorageContract {
-    /// SimpleStorage bytecode.
     fn byte_code(&self) -> Bytes {
         self.byte_code()
     }
@@ -48,17 +46,19 @@ impl SimpleStorageContract {
 
     /// Getter for the smart contract.
     pub fn get_call_data(&self) -> Bytes {
-        self.base_contract.encode("get", ()).unwrap()
+        SimpleStorage::getCall {}.abi_encode().into()
     }
     /// Setter for the smart contract.
     pub fn set_call_data(&self, set_arg: u32) -> Bytes {
-        let set_arg = ethereum_types::U256::from(set_arg);
-        self.base_contract.encode("set", set_arg).unwrap()
+        SimpleStorage::setCall {
+            _num: U256::from(set_arg),
+        }
+        .abi_encode()
+        .into()
     }
     /// Failing call data to test revert.
     pub fn failing_function_call_data(&self) -> Bytes {
         // Some random function signature.
-        let data = hex::decode("a5643bf2").unwrap();
-        Bytes::from(data)
+        hex::decode("a5643bf2").unwrap().into()
     }
 }

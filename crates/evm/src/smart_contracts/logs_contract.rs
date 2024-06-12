@@ -1,12 +1,18 @@
-use ethers_contract::BaseContract;
+use alloy_sol_types::{sol, SolCall};
 use ethers_core::types::Bytes;
 
-use super::{make_contract_from_abi, test_data_path, TestContract};
+use super::{test_data_path, TestContract};
+
+// Logs wrapper.
+sol! {
+    #[sol(abi)]
+    Logs,
+    "./src/evm/test_data/Logs.abi"
+}
 
 /// Logs wrapper.
 pub struct LogsContract {
     bytecode: Bytes,
-    base_contract: BaseContract,
 }
 
 impl Default for LogsContract {
@@ -19,22 +25,13 @@ impl Default for LogsContract {
             hex::decode(contract_data).unwrap()
         };
 
-        let contract = {
-            let mut path = test_data_path();
-            path.push("Logs.abi");
-
-            make_contract_from_abi(path)
-        };
-
         Self {
             bytecode: Bytes::from(contract_data),
-            base_contract: contract,
         }
     }
 }
 
 impl TestContract for LogsContract {
-    /// LogsContract bytecode.
     fn byte_code(&self) -> Bytes {
         self.bytecode.clone()
     }
@@ -43,6 +40,10 @@ impl TestContract for LogsContract {
 impl LogsContract {
     /// Log publishing function of the smart contract.
     pub fn publish_event(&self, message: String) -> Bytes {
-        self.base_contract.encode("publishEvent", message).unwrap()
+        Logs::publishEventCall {
+            _senderMessage: message,
+        }
+        .abi_encode()
+        .into()
     }
 }

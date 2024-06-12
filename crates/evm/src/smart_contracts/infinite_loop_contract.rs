@@ -1,12 +1,18 @@
-use ethers_contract::BaseContract;
+use alloy_sol_types::{sol, SolCall};
 use ethers_core::types::Bytes;
 
-use super::{make_contract_from_abi, test_data_path, TestContract};
+use super::{test_data_path, TestContract};
+
+// InfiniteLoop wrapper.
+sol! {
+    #[sol(abi)]
+    InfiniteLoop,
+    "./src/evm/test_data/InfiniteLoop.abi"
+}
 
 /// InfiniteLoopContract wrapper.
 pub struct InfiniteLoopContract {
     bytecode: Bytes,
-    base_contract: BaseContract,
 }
 
 impl Default for InfiniteLoopContract {
@@ -19,22 +25,13 @@ impl Default for InfiniteLoopContract {
             hex::decode(contract_data).unwrap()
         };
 
-        let contract = {
-            let mut path = test_data_path();
-            path.push("InfiniteLoop.abi");
-
-            make_contract_from_abi(path)
-        };
-
         Self {
             bytecode: Bytes::from(contract_data),
-            base_contract: contract,
         }
     }
 }
 
 impl TestContract for InfiniteLoopContract {
-    /// Caller bytecode.
     fn byte_code(&self) -> Bytes {
         self.byte_code()
     }
@@ -47,6 +44,6 @@ impl InfiniteLoopContract {
     }
     /// Calls InfiniteLoop::infiniteLoop.
     pub fn call_infinite_loop(&self) -> Bytes {
-        self.base_contract.encode("infiniteLoop", ()).unwrap()
+        InfiniteLoop::infiniteLoopCall {}.abi_encode().into()
     }
 }

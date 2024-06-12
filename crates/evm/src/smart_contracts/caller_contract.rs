@@ -1,13 +1,20 @@
-use ethers_contract::BaseContract;
+use alloy_primitives::U256;
+use alloy_sol_types::{sol, SolCall};
 use ethers_core::types::Bytes;
 use reth_primitives::Address;
 
-use super::{make_contract_from_abi, test_data_path, TestContract};
+use super::{test_data_path, TestContract};
+
+// CallerContract wrapper.
+sol! {
+    #[sol(abi)]
+    Caller,
+    "./src/evm/test_data/Caller.abi"
+}
 
 /// CallerContract wrapper.
 pub struct CallerContract {
     bytecode: Bytes,
-    base_contract: BaseContract,
 }
 
 impl Default for CallerContract {
@@ -20,22 +27,13 @@ impl Default for CallerContract {
             hex::decode(contract_data).unwrap()
         };
 
-        let contract = {
-            let mut path = test_data_path();
-            path.push("Caller.abi");
-
-            make_contract_from_abi(path)
-        };
-
         Self {
             bytecode: Bytes::from(contract_data),
-            base_contract: contract,
         }
     }
 }
 
 impl TestContract for CallerContract {
-    /// Caller bytecode.
     fn byte_code(&self) -> Bytes {
         self.byte_code()
     }
@@ -46,16 +44,17 @@ impl CallerContract {
     pub fn byte_code(&self) -> Bytes {
         self.bytecode.clone()
     }
-    /// Calls Getter of Simple Storage Contract.
+    /// Calls Getter of Caller Contract.
     pub fn call_get_call_data(&self, address: Address) -> Bytes {
-        let address = ethereum_types::Address::from_slice(address.as_ref());
-        self.base_contract.encode("callget", address).unwrap()
+        Caller::callgetCall { addr: address }.abi_encode().into()
     }
-    /// Calls Setter of Simple Storage Contract.
+    /// Calls Setter of Caller Contract.
     pub fn call_set_call_data(&self, address: Address, set_arg: u32) -> Bytes {
-        let set_arg = ethereum_types::U256::from(set_arg);
-        let address = ethereum_types::Address::from_slice(address.as_ref());
-        let args = (address, set_arg);
-        self.base_contract.encode("callset", args).unwrap()
+        Caller::callsetCall {
+            addr: address,
+            num: U256::from(set_arg),
+        }
+        .abi_encode()
+        .into()
     }
 }
