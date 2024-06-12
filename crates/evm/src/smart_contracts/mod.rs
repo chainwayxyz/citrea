@@ -1,5 +1,4 @@
 //! Includes the smart contracts used by the citrea-evm and the rollup itself, extensively for testing.
-use std::any::Any;
 use std::path::PathBuf;
 
 mod blockhash_contract;
@@ -43,8 +42,6 @@ fn make_contract_from_abi(path: PathBuf) -> BaseContract {
 pub trait TestContract {
     /// Common method of all smart contracts. Returns bytecode
     fn byte_code(&self) -> Bytes;
-    /// Dynamically dispatch from trait.
-    fn as_any(&self) -> &dyn Any;
     /// Create the default instance of the smart contract.
     fn default_(&self) -> Self
     where

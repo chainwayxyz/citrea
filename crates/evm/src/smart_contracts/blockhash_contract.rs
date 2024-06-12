@@ -1,5 +1,3 @@
-use std::any::Any;
-
 use ethers_contract::BaseContract;
 use ethers_core::types::Bytes;
 
@@ -39,10 +37,6 @@ impl TestContract for BlockHashContract {
     /// BlockhashContract bytecode.
     fn byte_code(&self) -> Bytes {
         self.bytecode.clone()
-    }
-    /// Dynamically dispatch from trait. Downcast to BlockHashContract.
-    fn as_any(&self) -> &dyn Any {
-        self
     }
     /// Create the default instance of the smart contract.
     fn default_(&self) -> Self

@@ -1,5 +1,3 @@
-use std::any::Any;
-
 use ethers::contract::BaseContract;
 use ethers::core::types::Bytes;
 
@@ -39,11 +37,6 @@ impl TestContract for SimplePayableContract {
     fn byte_code(&self) -> Bytes {
         self.bytecode.clone()
     }
-
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
     fn default_(&self) -> Self
     where
         Self: Sized,
