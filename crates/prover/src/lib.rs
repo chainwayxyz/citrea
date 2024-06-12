@@ -45,7 +45,7 @@ impl<S: RollupBlueprint> Prover<S> {
         let mut runner = self.runner;
         runner.start_rpc_server(self.rpc_methods, channel).await;
 
-        runner.run_prover_process().await?;
+        runner.run().await?;
         Ok(())
     }
 }

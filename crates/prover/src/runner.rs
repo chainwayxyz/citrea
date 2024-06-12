@@ -192,7 +192,7 @@ where
 
     /// Runs the prover process.
     #[instrument(level = "trace", skip_all, err)]
-    pub async fn run_prover_process(&mut self) -> Result<(), anyhow::Error> {
+    pub async fn run(&mut self) -> Result<(), anyhow::Error> {
         let skip_submission_until_l1 = std::env::var("SKIP_PROOF_SUBMISSION_UNTIL_L1")
             .map_or(0u64, |v| v.parse().unwrap_or(0));
 
