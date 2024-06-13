@@ -3,7 +3,6 @@ use std::net::SocketAddr;
 pub use runner::*;
 use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_modules_stf_blueprint::StfBlueprint;
-use sov_stf_runner::StateTransitionRunner;
 use tokio::sync::oneshot;
 use tracing::instrument;
 mod runner;
@@ -12,12 +11,11 @@ mod runner;
 pub struct FullNode<S: RollupBlueprint> {
     /// The State Transition Runner.
     #[allow(clippy::type_complexity)]
-    pub runner: StateTransitionRunner<
+    pub runner: CitreaFullnode<
         StfBlueprint<S::NativeContext, S::DaSpec, S::Vm, S::NativeRuntime>,
         S::StorageManager,
         S::DaService,
         S::Vm,
-        S::ProverService,
         S::NativeContext,
     >,
     /// Rpc methods for the rollup.
@@ -45,7 +43,7 @@ impl<S: RollupBlueprint> FullNode<S> {
         let mut runner = self.runner;
         runner.start_rpc_server(self.rpc_methods, channel).await;
 
-        runner.run_in_process().await?;
+        runner.run().await?;
         Ok(())
     }
 }

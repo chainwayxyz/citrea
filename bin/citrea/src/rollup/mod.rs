@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 pub use bitcoin::*;
+use citrea_fullnode::{CitreaFullnode, FullNode};
 use citrea_prover::{CitreaProver, Prover};
 pub use mock::*;
 use sov_modules_api::storage::HierarchicalStorageManager;
@@ -16,6 +17,77 @@ mod mock;
 /// Overrides RollupBlueprint methods
 #[async_trait]
 pub trait CitreaRollupBlueprint: RollupBlueprint {
+    /// Creates a new rollup.
+    #[instrument(level = "trace", skip_all)]
+    async fn create_new_rollup(
+        &self,
+        runtime_genesis_paths: &<Self::NativeRuntime as RuntimeTrait<
+            Self::NativeContext,
+            Self::DaSpec,
+        >>::GenesisPaths,
+        rollup_config: RollupConfig<Self::DaConfig>,
+    ) -> Result<FullNode<Self>, anyhow::Error>
+    where
+        <Self::NativeContext as Spec>::Storage: NativeStorage,
+    {
+        let da_service = self.create_da_service(&rollup_config).await;
+
+        // TODO: Double check what kind of storage needed here.
+        // Maybe whole "prev_root" can be initialized inside runner
+        // Getting block here, so prover_service doesn't have to be `Send`
+
+        let ledger_db = self.create_ledger_db(&rollup_config);
+        let genesis_config = self.create_genesis_config(runtime_genesis_paths, &rollup_config)?;
+
+        let mut storage_manager = self.create_storage_manager(&rollup_config)?;
+        let prover_storage = storage_manager.create_finalized_storage()?;
+
+        let prev_root = ledger_db
+            .get_head_soft_batch()?
+            .map(|(number, _)| prover_storage.get_root_hash(number.0 + 1))
+            .transpose()?;
+
+        let runner_config = rollup_config.runner.expect("Runner config is missing");
+        // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1218)
+        let rpc_methods = self.create_rpc_methods(
+            &prover_storage,
+            &ledger_db,
+            &da_service,
+            Some(runner_config.sequencer_client_url.clone()),
+        )?;
+
+        let native_stf = StfBlueprint::new();
+
+        let genesis_root = prover_storage.get_root_hash(1);
+
+        let init_variant = match prev_root {
+            Some(root_hash) => InitVariant::Initialized(root_hash),
+            None => match genesis_root {
+                Ok(root_hash) => InitVariant::Initialized(root_hash),
+                _ => InitVariant::Genesis(genesis_config),
+            },
+        };
+
+        let code_commitment = self.get_code_commitment();
+
+        let runner = CitreaFullnode::new(
+            runner_config,
+            rollup_config.public_keys,
+            rollup_config.rpc,
+            da_service,
+            ledger_db,
+            native_stf,
+            storage_manager,
+            init_variant,
+            code_commitment,
+        )?;
+
+        Ok(FullNode {
+            runner,
+            rpc_methods,
+        })
+    }
+
     /// Creates a new prover
     #[instrument(level = "trace", skip_all)]
     async fn create_new_prover(

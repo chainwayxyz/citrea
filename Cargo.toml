@@ -6,10 +6,12 @@ members = [
   "bin/rollup-constants",
   "crates/bitcoin-da",
   "crates/evm",
+  "crates/ethereum-rpc",
+  "crates/fullnode",
   "crates/sequencer",
   "crates/sequencer-client",
   "crates/soft-confirmation-rule-enforcer",
-  "crates/ethereum-rpc",
+  "crates/shared-backup-db",
   # Sovereign sdk
   "crates/sovereign-sdk/rollup-interface",
   "crates/sovereign-sdk/adapters/risc0",
@@ -50,9 +52,6 @@ members = [
   "crates/sovereign-sdk/module-system/module-implementations/examples/sov-vec-setter",
   "crates/sovereign-sdk/module-system/module-implementations/examples/sov-accessory-state",
   "crates/sovereign-sdk/module-system/module-implementations/integration-tests",
-  # Offchain
-  "crates/shared-backup-db",
-  "crates/fullnode",
 ]
 
 [workspace.package]
