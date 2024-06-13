@@ -15,7 +15,6 @@ shared-backup-db = { path = "../shared-backup-db" }
 
 # Sov SDK deps
 sov-db = { path = "../sovereign-sdk/full-node/db/sov-db" }
-sov-mock-da = { path = "../sovereign-sdk/adapters/mock-da", features = ["native"] }
 sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api", default-features = false }
 sov-modules-rollup-blueprint = { path = "../sovereign-sdk/module-system/sov-modules-rollup-blueprint" }
 sov-modules-stf-blueprint = { path = "../sovereign-sdk/module-system/sov-modules-stf-blueprint", features = ["native"] }

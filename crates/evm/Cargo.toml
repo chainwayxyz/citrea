@@ -54,7 +54,6 @@ rand = { workspace = true }
 rayon = { workspace = true }
 reth-db = { workspace = true }
 reth-provider = { workspace = true }
-reth-stages = { workspace = true }
 revm = { workspace = true, features = ["optional_block_gas_limit", "optional_eip3607", "optional_no_base_fee"] }
 sov-prover-storage-manager = { path = "../sovereign-sdk/full-node/sov-prover-storage-manager", features = ["test-utils"] }
 tempfile = { workspace = true }
