@@ -125,6 +125,7 @@ where
         stf: Stf,
         mut storage_manager: Sm,
         init_variant: InitVariant<Stf, Vm, Da::Spec>,
+        start_height: u64,
         prover_service: Option<Ps>,
         prover_config: Option<ProverConfig>,
         code_commitment: Vm::CodeCommitment,
@@ -147,12 +148,6 @@ where
                 genesis_root
             }
         };
-
-        // Start the main rollup loop
-        let item_numbers = ledger_db.get_next_items_numbers();
-        let last_soft_batch_processed_before_shutdown = item_numbers.soft_batch_number;
-
-        let start_height = last_soft_batch_processed_before_shutdown;
 
         Ok(Self {
             start_height,

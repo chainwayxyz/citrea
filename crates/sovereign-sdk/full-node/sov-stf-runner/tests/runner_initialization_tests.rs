@@ -118,6 +118,7 @@ fn initialize_runner(
         stf,
         storage_manager,
         init_variant,
+        0,
         None,
         None,
         MockCodeCommitment([1u8; 32]),

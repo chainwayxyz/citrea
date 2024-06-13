@@ -222,10 +222,30 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         let mut storage_manager = self.create_storage_manager(&rollup_config)?;
         let prover_storage = storage_manager.create_finalized_storage()?;
 
-        let prev_root = ledger_db
-            .get_head_soft_batch()?
-            .map(|(number, _)| prover_storage.get_root_hash(number.0 + 1))
-            .transpose()?;
+        let (prev_root, start_height) = {
+            let mut ret = (None, 1);
+
+            let head_soft_batch_num: u64 = ledger_db
+                .get_head_soft_batch()?
+                .map(|(n, _)| n.0 + 1)
+                .unwrap_or_default();
+
+            tracing::info!("head_soft_batch_num: {}", head_soft_batch_num);
+
+            if head_soft_batch_num == 0 {
+                ret = (None, 1)
+            }
+
+            for i in (1..=head_soft_batch_num).rev() {
+                let root_hash = prover_storage.get_root_hash(i);
+                if root_hash.is_ok() {
+                    ret = (Some(root_hash.unwrap()), i);
+                    break;
+                }
+            }
+
+            ret
+        };
 
         let runner_config = rollup_config.runner.expect("Runner config is missing");
         // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1218)
@@ -259,6 +279,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
             native_stf,
             storage_manager,
             init_variant,
+            start_height,
             Some(prover_service),
             Some(prover_config),
             code_commitment,
@@ -295,11 +316,33 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         let mut storage_manager = self.create_storage_manager(&rollup_config)?;
         let prover_storage = storage_manager.create_finalized_storage()?;
 
-        let prev_root = ledger_db
-            .get_head_soft_batch()?
-            .map(|(number, _)| prover_storage.get_root_hash(number.0 + 1))
-            .transpose()?;
+        let (prev_root, start_height) = {
+            let mut ret = (None, 1);
 
+            let head_soft_batch_num: u64 = ledger_db
+                .get_head_soft_batch()?
+                .map(|(n, _)| n.0 + 1)
+                .unwrap_or_default();
+
+            tracing::info!("head_soft_batch_num: {}", head_soft_batch_num);
+
+            if head_soft_batch_num == 0 {
+                ret = (None, 1)
+            }
+
+            for i in (1..=head_soft_batch_num).rev() {
+                let root_hash = prover_storage.get_root_hash(i);
+                if root_hash.is_ok() {
+                    ret = (Some(root_hash.unwrap()), i);
+                    break;
+                }
+            }
+
+            ret
+        };
+
+        tracing::info!("prev_root: {:?}", prev_root);
+        tracing::info!("start_height: {:?}", start_height);
         let runner_config = rollup_config.runner.expect("Runner config is missing");
         // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1218)
         let rpc_methods = self.create_rpc_methods(
@@ -332,6 +375,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
             native_stf,
             storage_manager,
             init_variant,
+            start_height,
             None,
             None,
             code_commitment,

@@ -180,6 +180,7 @@ async fn runner_execution(
             stf,
             storage_manager,
             init_variant,
+            0,
             Some(prover_service),
             None,
             MockCodeCommitment([1u8; 32]),
