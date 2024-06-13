@@ -56,7 +56,8 @@ pub async fn start_rollup(
         NodeMode::FullNode(_) => {
             let span = info_span!("FullNode");
             let rollup = CitreaRollupBlueprint::create_new_rollup(
-                &mock_demo_rollup & rt_genesis_paths,
+                &mock_demo_rollup,
+                &rt_genesis_paths,
                 rollup_config.clone(),
             )
             .instrument(span.clone())
@@ -101,11 +102,15 @@ pub async fn start_rollup(
             });
 
             let span = info_span!("Sequencer");
-            let sequencer_rollup = mock_demo_rollup
-                .create_new_sequencer(&rt_genesis_paths, rollup_config.clone(), sequencer_config)
-                .instrument(span.clone())
-                .await
-                .unwrap();
+            let sequencer_rollup = CitreaRollupBlueprint::create_new_sequencer(
+                &mock_demo_rollup,
+                &rt_genesis_paths,
+                rollup_config.clone(),
+                sequencer_config,
+            )
+            .instrument(span.clone())
+            .await
+            .unwrap();
             sequencer_rollup
                 .run_and_report_rpc_port(Some(rpc_reporting_channel))
                 .instrument(span)
