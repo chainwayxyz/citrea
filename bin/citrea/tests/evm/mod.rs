@@ -1,15 +1,14 @@
 use std::net::SocketAddr;
 use std::str::FromStr;
 
+use alloy::signers::wallet::LocalWallet;
+use alloy::signers::Signer;
 // use citrea::initialize_logging;
 use citrea_evm::smart_contracts::{
     HiveContract, LogsContract, SimpleStorageContract, TestContract,
 };
 use citrea_stf::genesis_config::GenesisPaths;
-use ethers_core::abi::Address;
-use ethers_core::types::{BlockId, Bytes, U256};
-use ethers_signers::{LocalWallet, Signer};
-use reth_primitives::BlockNumberOrTag;
+use reth_primitives::{Address, BlockId, BlockNumberOrTag, Bytes, U256};
 use sov_rollup_interface::CITREA_VERSION;
 
 // use sov_demo_rollup::initialize_logging;
@@ -211,10 +210,10 @@ async fn test_genesis_contract_call() -> Result<(), Box<dyn std::error::Error>> 
     assert_eq!(res, expected_res);
 
     let storage_value = seq_test_client
-        .eth_get_storage_at(contract_address, U256::zero(), None)
+        .eth_get_storage_at(contract_address, U256::from(0), None)
         .await
         .unwrap();
-    assert_eq!(storage_value, 4660.into());
+    assert_eq!(storage_value, U256::from(4660));
 
     let storage_value = seq_test_client
         .eth_get_storage_at(
@@ -225,7 +224,7 @@ async fn test_genesis_contract_call() -> Result<(), Box<dyn std::error::Error>> 
         )
         .await
         .unwrap();
-    assert_eq!(storage_value, 1.into());
+    assert_eq!(storage_value, U256::from(1));
     seq_task.abort();
     Ok(())
 }
@@ -239,15 +238,15 @@ async fn test_getlogs(client: &Box<TestClient>) -> Result<(), Box<dyn std::error
         client.send_publish_batch_request().await;
 
         let contract_address = deploy_contract_req
+            .get_receipt()
             .await?
-            .unwrap()
             .contract_address
             .unwrap();
 
         (contract_address, contract)
     };
 
-    client
+    let _pending_tx = client
         .contract_transaction(
             contract_address,
             contract.publish_event("hello".to_string()),
@@ -288,8 +287,8 @@ async fn test_getlogs(client: &Box<TestClient>) -> Result<(), Box<dyn std::error
         wait_for_l2_block(client, 2, None).await;
 
         deploy_contract_req
+            .get_receipt()
             .await?
-            .unwrap()
             .contract_address
             .unwrap()
     };
@@ -327,8 +326,8 @@ async fn test_getlogs(client: &Box<TestClient>) -> Result<(), Box<dyn std::error
     let logs = client.eth_get_logs(address_and_range_filter).await;
     assert_eq!(logs.len(), 2);
     // make sure the address is the old one and not the new one
-    assert_eq!(logs[0].address.as_slice(), contract_address.as_ref());
-    assert_eq!(logs[1].address.as_slice(), contract_address.as_ref());
+    assert_eq!(logs[0].address, contract_address);
+    assert_eq!(logs[1].address, contract_address);
 
     Ok(())
 }
@@ -347,7 +346,7 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
         .eth_get_balance(client.from_addr, None)
         .await
         .unwrap();
-    assert!(balance > U256::zero());
+    assert!(balance > U256::from(0));
 
     let (contract_address, contract, runtime_code) = {
         let contract = SimpleStorageContract::default();
@@ -359,8 +358,8 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
         client.send_publish_batch_request().await;
 
         let contract_address = deploy_contract_req
+            .get_receipt()
             .await?
-            .unwrap()
             .contract_address
             .unwrap();
 
@@ -384,7 +383,7 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
     let first_block = client
         .eth_get_block_by_number(Some(BlockNumberOrTag::Number(1)))
         .await;
-    assert_eq!(first_block.number.unwrap().as_u64(), 1);
+    assert_eq!(first_block.header.number.unwrap(), 1);
     assert_eq!(first_block.transactions.len(), 4);
 
     let set_arg = 923;
@@ -393,35 +392,26 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
             .contract_transaction(contract_address, contract.set_call_data(set_arg), None)
             .await;
         client.send_publish_batch_request().await;
-        set_value_req.await.unwrap().unwrap().transaction_hash
+        set_value_req.get_receipt().await.unwrap().transaction_hash
     };
     // Now we have a second block
     let second_block = client
         .eth_get_block_by_number(Some(BlockNumberOrTag::Number(2)))
         .await;
-    assert_eq!(second_block.number.unwrap().as_u64(), 2);
+    assert_eq!(second_block.header.number.unwrap(), 2);
 
     // Assert getTransactionByBlockHashAndIndex
     let tx_by_hash = client
-        .eth_get_tx_by_block_hash_and_index(
-            second_block.hash.unwrap(),
-            ethereum_types::U256::from(0),
-        )
+        .eth_get_tx_by_block_hash_and_index(second_block.header.hash.unwrap(), U256::from(0))
         .await;
     assert_eq!(tx_by_hash.hash, tx_hash);
 
     // Assert getTransactionByBlockNumberAndIndex
     let tx_by_number = client
-        .eth_get_tx_by_block_number_and_index(
-            BlockNumberOrTag::Number(2),
-            ethereum_types::U256::from(0),
-        )
+        .eth_get_tx_by_block_number_and_index(BlockNumberOrTag::Number(2), U256::from(0))
         .await;
     let tx_by_number_tag = client
-        .eth_get_tx_by_block_number_and_index(
-            BlockNumberOrTag::Latest,
-            ethereum_types::U256::from(0),
-        )
+        .eth_get_tx_by_block_number_and_index(BlockNumberOrTag::Latest, U256::from(0))
         .await;
     assert_eq!(tx_by_number.hash, tx_hash);
     assert_eq!(tx_by_number_tag.hash, tx_hash);
@@ -430,23 +420,24 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
         .contract_call(contract_address, contract.get_call_data(), None)
         .await?;
 
-    assert_eq!(set_arg, get_arg.as_u32());
+    assert_eq!(set_arg, get_arg.saturating_to::<u32>());
 
     // Assert storage slot is set
     let storage_slot = 0x0;
     let storage_value = client
-        .eth_get_storage_at(contract_address, storage_slot.into(), None)
+        .eth_get_storage_at(contract_address, U256::from(storage_slot), None)
         .await
         .unwrap();
-    assert_eq!(storage_value, ethereum_types::U256::from(set_arg));
+    assert_eq!(storage_value, U256::from(set_arg));
 
     // Check that the second block has published
     // None should return the latest block
     // It should have a single transaction, setting the value
     let latest_block = client.eth_get_block_by_number_with_detail(None).await;
-    assert_eq!(latest_block.number.unwrap().as_u64(), 2);
-    assert_eq!(latest_block.transactions.len(), 1);
-    assert_eq!(latest_block.transactions[0].hash, tx_hash);
+    let block_transactions: Vec<_> = latest_block.transactions.hashes().copied().collect();
+    assert_eq!(latest_block.header.number.unwrap(), 2);
+    assert_eq!(block_transactions.len(), 1);
+    assert_eq!(block_transactions[0], tx_hash);
 
     // This should just pass without error
     let _: Bytes = client
@@ -476,7 +467,7 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
     client.send_publish_batch_request().await;
     client.send_publish_batch_request().await;
     for req in requests {
-        req.await.unwrap();
+        req.watch().await.unwrap();
     }
 
     {
@@ -484,7 +475,7 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
             .contract_call(contract_address, contract.get_call_data(), None)
             .await?;
         // should be one of three values sent in a single block. 150, 151, or 152
-        assert!((150..=152).contains(&get_arg.as_u32()));
+        assert!((150..=152).contains(&get_arg.saturating_to()));
     }
 
     {
@@ -496,19 +487,20 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
                 .await;
 
             client.send_publish_batch_request().await;
-            set_value_req.await.unwrap().unwrap().transaction_hash
+            set_value_req.get_receipt().await.unwrap().transaction_hash
         };
 
         let latest_block = client.eth_get_block_by_number(None).await;
-        assert_eq!(latest_block.transactions.len(), 1);
-        assert_eq!(latest_block.transactions[0], tx_hash);
+        let block_transactions = latest_block.transactions.as_hashes().unwrap();
+        assert_eq!(block_transactions.len(), 1);
+        assert_eq!(block_transactions[0], tx_hash);
 
         let latest_block_receipts = client
-            .eth_get_block_receipts(BlockId::Number(ethers_core::types::BlockNumber::Latest))
+            .eth_get_block_receipts(BlockId::Number(BlockNumberOrTag::Latest))
             .await;
         let latest_block_receipt_by_number = client
-            .eth_get_block_receipts(BlockId::Number(ethers_core::types::BlockNumber::Number(
-                latest_block.number.unwrap(),
+            .eth_get_block_receipts(BlockId::Number(BlockNumberOrTag::Number(
+                latest_block.header.number.unwrap(),
             )))
             .await;
         assert_eq!(latest_block_receipts, latest_block_receipt_by_number);
@@ -517,11 +509,11 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
         let tx_receipt = client.eth_get_transaction_receipt(tx_hash).await.unwrap();
         assert_eq!(tx_receipt, latest_block_receipts[0]);
 
-        let get_arg: ethereum_types::U256 = client
+        let get_arg: U256 = client
             .contract_call(contract_address, contract.get_call_data(), None)
             .await?;
 
-        assert_eq!(value, get_arg.as_u32());
+        assert_eq!(value, get_arg.saturating_to::<u32>());
     }
 
     let first_block = client
@@ -533,8 +525,8 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
 
     // assert parent hash works correctly
     assert_eq!(
-        first_block.hash.unwrap(),
-        second_block.parent_hash,
+        first_block.header.hash.unwrap(),
+        second_block.header.parent_hash,
         "Parent hash should be the hash of the previous block"
     );
 
@@ -561,7 +553,7 @@ pub async fn init_test_rollup(rpc_address: SocketAddr) -> Box<TestClient> {
         .await;
 
     assert_eq!(latest_block, earliest_block);
-    assert_eq!(latest_block.number.unwrap().as_u64(), 0);
+    assert_eq!(latest_block.header.number.unwrap(), 0);
     test_client
 }
 
@@ -571,7 +563,7 @@ pub async fn make_test_client(rpc_address: SocketAddr) -> Box<TestClient> {
     let key = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
         .parse::<LocalWallet>()
         .unwrap()
-        .with_chain_id(chain_id);
+        .with_chain_id(Some(chain_id));
 
     let from_addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
 

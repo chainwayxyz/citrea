@@ -1,6 +1,5 @@
 use std::str::FromStr;
 
-use hex::FromHex;
 use jsonrpsee::core::RpcResult;
 use reth_primitives::{address, Address, BlockNumberOrTag, Bytes, TxKind};
 use reth_rpc::eth::error::RpcInvalidTransactionError;
@@ -395,7 +394,7 @@ fn gas_price_call_test() {
         &mut working_set,
     );
 
-    assert_eq!(result_only_gas, Ok(Bytes::from_hex("0x").unwrap()));
+    assert_eq!(result_only_gas, Ok(Bytes::new()));
     working_set.unset_archival_version();
 
     // Test with gas and gas_price specified - error
@@ -432,7 +431,7 @@ fn gas_price_call_test() {
         &mut working_set,
     );
 
-    assert_eq!(result_gas_and_gas_price, Ok(Bytes::from_hex("0x").unwrap()));
+    assert_eq!(result_gas_and_gas_price, Ok(Bytes::new()));
     working_set.unset_archival_version();
 
     // Test with max_fee_per_gas and max_priority_fee_per_gas specified

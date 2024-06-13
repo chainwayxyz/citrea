@@ -1,4 +1,5 @@
 use alloy_primitives::B256;
+use alloy_sol_types::SolType;
 use reth_primitives::{Bloom, Bytes, U256};
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::prelude::*;
@@ -9,6 +10,7 @@ use tracing::instrument;
 
 use crate::evm::primitive_types::{Block, BlockEnv};
 use crate::evm::system_events::SystemEvent;
+use crate::system_contracts::BridgeContract::DepositParams;
 use crate::{Evm, PendingTransaction};
 
 impl<C: sov_modules_api::Context> Evm<C>
@@ -62,38 +64,16 @@ where
                 soft_confirmation_info.da_slot_hash,
                 soft_confirmation_info.da_slot_txs_commitment,
             ));
-            system_events.push(SystemEvent::BridgeInitialize(
-                // couldn't figure out how encoding worked lol
-                vec![
-                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                    0, 0, 0, 0, 0, 128, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 96, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0,
-                    0, 0, 0, 0, 249, 114, 91, 99, 254, 20, 239, 175, 124, 199, 5, 186, 78, 92, 85,
-                    160, 61, 80, 233, 64, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 181, 210, 32, 93, 175, 87, 112, 72, 197,
-                    229, 169, 167, 93, 10, 146, 78, 208, 62, 34, 108, 51, 4, 244, 162, 240, 28,
-                    101, 202, 29, 171, 115, 82, 46, 107, 139, 173, 32, 98, 40, 235, 166, 83, 207,
-                    24, 25, 188, 252, 27, 200, 88, 99, 14, 90, 227, 115, 238, 193, 169, 146, 67,
-                    34, 165, 254, 132, 69, 197, 231, 96, 39, 173, 32, 21, 33, 214, 95, 100, 190,
-                    63, 113, 183, 28, 164, 98, 34, 15, 19, 199, 123, 37, 16, 39, 246, 202, 68, 58,
-                    72, 51, 83, 169, 111, 188, 226, 34, 173, 32, 15, 171, 238, 210, 105, 105, 78,
-                    232, 61, 155, 51, 67, 165, 113, 32, 46, 104, 175, 101, 208, 95, 237, 166, 29,
-                    190, 208, 196, 189, 178, 86, 166, 234, 173, 32, 0, 50, 109, 111, 114, 28, 3,
-                    220, 95, 29, 136, 23, 216, 248, 238, 137, 10, 149, 162, 238, 218, 13, 77, 154,
-                    1, 177, 204, 155, 123, 27, 114, 77, 172, 0, 99, 6, 99, 105, 116, 114, 101, 97,
-                    20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10, 8, 0, 0, 0, 0, 0, 15,
-                    66, 64, 104, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                ],
-            ));
+            system_events.push(SystemEvent::BridgeInitialize);
         }
 
         soft_confirmation_info
             .deposit_data
             .iter()
             .for_each(|deposit_data| {
-                system_events.push(SystemEvent::BridgeDeposit(deposit_data.clone()));
+                let params = DepositParams::abi_decode(deposit_data, false)
+                    .expect("Only valid DepositParams can be pass to soft confirmation; qed");
+                system_events.push(SystemEvent::BridgeDeposit(params));
             });
 
         let cfg = self

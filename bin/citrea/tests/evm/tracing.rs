@@ -3,8 +3,7 @@ use std::str::FromStr;
 // use citrea::initialize_logging;
 use citrea_evm::smart_contracts::{CallerContract, SimpleStorageContract};
 use citrea_stf::genesis_config::GenesisPaths;
-use ethers::abi::Address;
-use reth_primitives::BlockNumberOrTag;
+use reth_primitives::{Address, BlockNumberOrTag};
 use reth_rpc_types::trace::geth::GethTrace::{self, CallTracer, FourByteTracer};
 use reth_rpc_types::trace::geth::{
     CallConfig, CallFrame, FourByteFrame, GethDebugBuiltInTracerType, GethDebugTracerType,
@@ -64,14 +63,14 @@ async fn tracing_tests() -> Result<(), Box<dyn std::error::Error>> {
         test_client.send_publish_batch_request().await;
 
         let ss_contract_address = deploy_ss_contract_req
+            .get_receipt()
             .await?
-            .unwrap()
             .contract_address
             .unwrap();
 
         let caller_contract_address = deploy_caller_contract_req
+            .get_receipt()
             .await?
-            .unwrap()
             .contract_address
             .unwrap();
 
@@ -97,7 +96,11 @@ async fn tracing_tests() -> Result<(), Box<dyn std::error::Error>> {
             )
             .await;
         test_client.send_publish_batch_request().await;
-        call_set_value_req.await.unwrap().unwrap().transaction_hash
+        call_set_value_req
+            .get_receipt()
+            .await
+            .unwrap()
+            .transaction_hash
     };
 
     let json_res = test_client
@@ -157,8 +160,8 @@ async fn tracing_tests() -> Result<(), Box<dyn std::error::Error>> {
 
     test_client.send_publish_batch_request().await;
 
-    let call_tx_hash = call_get_value_req.await.unwrap().unwrap().transaction_hash;
-    let send_eth_tx_hash = send_eth_req.await.unwrap().unwrap().transaction_hash;
+    let call_tx_hash = call_get_value_req.watch().await.unwrap();
+    let send_eth_tx_hash = send_eth_req.watch().await.unwrap();
 
     // get the trace of send_eth_tx_hash and expect call_tx_hash trace to be in the cache
     let send_eth_trace = test_client
@@ -225,6 +228,7 @@ async fn tracing_tests() -> Result<(), Box<dyn std::error::Error>> {
     let block_hash = test_client
         .eth_get_block_by_number(Some(BlockNumberOrTag::Number(3)))
         .await
+        .header
         .hash
         .unwrap();
 

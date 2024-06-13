@@ -2,20 +2,19 @@ use std::str::FromStr;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
+use alloy::providers::network::{Ethereum, EthereumSigner};
+use alloy::providers::{PendingTransactionBuilder, Provider as AlloyProvider, ProviderBuilder};
+use alloy::rpc::types::eth::{Block, Transaction, TransactionReceipt, TransactionRequest};
+use alloy::signers::wallet::LocalWallet;
+use alloy::transports::http::Http;
 use citrea_evm::LogResponse;
 use ethereum_rpc::CitreaStatus;
-use ethereum_types::H160;
-use ethers_core::abi::Address;
-use ethers_core::k256::ecdsa::SigningKey;
-use ethers_core::types::transaction::eip2718::TypedTransaction;
-use ethers_core::types::{Block, BlockId, Bytes, Eip1559TransactionRequest, Transaction, TxHash};
-use ethers_middleware::SignerMiddleware;
-use ethers_providers::{Http, Middleware, PendingTransaction, Provider};
-use ethers_signers::Wallet;
 use jsonrpsee::core::client::ClientT;
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use jsonrpsee::rpc_params;
-use reth_primitives::BlockNumberOrTag;
+use reqwest::Client;
+use reth_primitives::{Address, BlockId, BlockNumberOrTag, Bytes, TxHash, TxKind, B256, U256, U64};
+// use reth_rpc_types::TransactionReceipt;
 use reth_rpc_types::trace::geth::{GethDebugTracingOptions, GethTrace};
 use sequencer_client::GetSoftBatchResponse;
 use sov_rollup_interface::rpc::{
@@ -23,12 +22,13 @@ use sov_rollup_interface::rpc::{
     VerifiedProofResponse,
 };
 
-pub const MAX_FEE_PER_GAS: u64 = 1000000001;
+pub const MAX_FEE_PER_GAS: u128 = 1000000001;
 
 pub struct TestClient {
     pub(crate) chain_id: u64,
     pub(crate) from_addr: Address,
-    client: SignerMiddleware<Provider<Http>, Wallet<SigningKey>>,
+    //client: SignerMiddleware<Provider<Http>, LocalWallet>,
+    client: Box<dyn AlloyProvider<Http<Client>>>,
     http_client: HttpClient,
     current_nonce: AtomicU64,
     pub(crate) rpc_addr: std::net::SocketAddr,
@@ -37,16 +37,18 @@ pub struct TestClient {
 impl TestClient {
     pub(crate) async fn new(
         chain_id: u64,
-        key: Wallet<SigningKey>,
+        key: LocalWallet,
         from_addr: Address,
         rpc_addr: std::net::SocketAddr,
     ) -> Self {
         let host = format!("http://localhost:{}", rpc_addr.port());
 
-        let provider = Provider::try_from(&host).unwrap();
-        let client = SignerMiddleware::new_with_provider_chain(provider, key)
-            .await
-            .unwrap();
+        let provider = ProviderBuilder::new()
+            // .with_recommended_fillers()
+            .with_chain_id(chain_id)
+            .signer(EthereumSigner::from(key))
+            .on_http(host.parse().unwrap());
+        let client: Box<dyn AlloyProvider<Http<Client>>> = Box::new(provider);
 
         let http_client = HttpClientBuilder::default()
             .request_timeout(Duration::from_secs(120))
@@ -96,32 +98,30 @@ impl TestClient {
         &self,
         byte_code: Vec<u8>,
         nonce: Option<u64>,
-    ) -> Result<PendingTransaction<'_, Http>, Box<dyn std::error::Error>> {
+    ) -> Result<PendingTransactionBuilder<'_, Http<Client>, Ethereum>, Box<dyn std::error::Error>>
+    {
         let nonce = match nonce {
             Some(nonce) => nonce,
             None => self.current_nonce.fetch_add(1, Ordering::Relaxed),
         };
-        let mut req = Eip1559TransactionRequest::new()
+
+        let mut req = TransactionRequest::default()
             .from(self.from_addr)
-            .chain_id(self.chain_id)
-            .data(byte_code);
-
+            .input(byte_code.into());
+        req.to = Some(TxKind::Create);
         let gas = self
-            .eth_estimate_gas(TypedTransaction::Eip1559(req.clone()), None)
-            .await;
+            .client
+            .estimate_gas(&req, BlockNumberOrTag::Latest.into())
+            .await
+            .unwrap();
 
-        req = req
-            .gas(gas)
+        let req = req
+            .gas_limit(gas)
             .nonce(nonce)
-            .max_priority_fee_per_gas(10u64)
+            .max_priority_fee_per_gas(10)
             .max_fee_per_gas(MAX_FEE_PER_GAS);
 
-        let typed_transaction = TypedTransaction::Eip1559(req);
-
-        let receipt_req = self
-            .client
-            .send_transaction(typed_transaction, None)
-            .await?;
+        let receipt_req = self.client.send_transaction(req).await?;
         Ok(receipt_req)
     }
 
@@ -134,116 +134,104 @@ impl TestClient {
             Some(nonce) => nonce,
             None => self.current_nonce.load(Ordering::Relaxed),
         };
-        let mut req = Eip1559TransactionRequest::new()
+
+        let req = TransactionRequest::default()
             .from(self.from_addr)
-            .chain_id(self.chain_id)
-            .nonce(nonce)
-            .data(byte_code);
-
+            .input(byte_code.into())
+            .nonce(nonce);
         let gas = self
-            .eth_estimate_gas(TypedTransaction::Eip1559(req.clone()), None)
-            .await;
+            .client
+            .estimate_gas(&req, BlockNumberOrTag::Latest.into())
+            .await
+            .unwrap();
 
-        req = req
-            .gas(gas)
-            .max_priority_fee_per_gas(10u64)
+        let req = req
+            .gas_limit(gas)
+            .max_priority_fee_per_gas(10)
             .max_fee_per_gas(MAX_FEE_PER_GAS);
 
-        let typed_transaction = TypedTransaction::Eip1559(req);
-
-        let receipt_req = self.eth_call(typed_transaction, None).await?;
+        let receipt_req = self.client.call(&req).await?;
 
         Ok(receipt_req)
     }
 
     pub(crate) async fn contract_transaction(
         &self,
-        contract_address: H160,
+        contract_address: Address,
         data: Vec<u8>,
         nonce: Option<u64>,
-    ) -> PendingTransaction<'_, Http> {
+    ) -> PendingTransactionBuilder<'_, Http<Client>, Ethereum> {
         let nonce = match nonce {
             Some(nonce) => nonce,
             None => self.current_nonce.fetch_add(1, Ordering::Relaxed),
         };
-        let mut req = Eip1559TransactionRequest::new()
+        let req = TransactionRequest::default()
             .from(self.from_addr)
             .to(contract_address)
-            .chain_id(self.chain_id)
-            .data(data);
+            .input(data.into());
 
         let gas = self
-            .eth_estimate_gas(TypedTransaction::Eip1559(req.clone()), None)
-            .await;
+            .client
+            .estimate_gas(&req, BlockNumberOrTag::Latest.into())
+            .await
+            .unwrap();
 
-        req = req
-            .gas(gas)
+        let req = req
+            .gas_limit(gas)
             .nonce(nonce)
-            .max_priority_fee_per_gas(10u64)
+            .max_priority_fee_per_gas(10)
             .max_fee_per_gas(MAX_FEE_PER_GAS);
 
-        let typed_transaction = TypedTransaction::Eip1559(req);
-
-        self.client
-            .send_transaction(typed_transaction, None)
-            .await
-            .unwrap()
+        self.client.send_transaction(req).await.unwrap()
     }
 
     #[allow(dead_code)]
     pub(crate) async fn contract_transaction_with_custom_fee(
         &self,
-        contract_address: H160,
+        contract_address: Address,
         data: Vec<u8>,
         max_priority_fee_per_gas: u64,
         max_fee_per_gas: u64,
         value: Option<u64>,
         nonce: Option<u64>,
-    ) -> PendingTransaction<'_, Http> {
+    ) -> PendingTransactionBuilder<'_, Http<Client>, Ethereum> {
         let nonce = match nonce {
             Some(nonce) => nonce,
             None => self.current_nonce.fetch_add(1, Ordering::Relaxed),
         };
-        let mut req = Eip1559TransactionRequest::new()
+        let req = TransactionRequest::default()
             .from(self.from_addr)
             .to(contract_address)
-            .chain_id(self.chain_id)
-            .data(data)
-            .value(value.unwrap_or(0u64));
+            .input(data.into())
+            .value(value.map(U256::from).unwrap_or_default());
 
         let gas = self
-            .eth_estimate_gas(TypedTransaction::Eip1559(req.clone()), None)
-            .await;
-
-        req = req
-            .gas(gas)
-            .nonce(nonce)
-            .max_priority_fee_per_gas(max_priority_fee_per_gas)
-            .max_fee_per_gas(max_fee_per_gas);
-
-        let typed_transaction = TypedTransaction::Eip1559(req);
-
-        self.client
-            .send_transaction(typed_transaction, None)
+            .client
+            .estimate_gas(&req, BlockNumberOrTag::Latest.into())
             .await
-            .unwrap()
+            .unwrap();
+
+        let req = req
+            .gas_limit(gas)
+            .nonce(nonce)
+            .max_priority_fee_per_gas(max_priority_fee_per_gas.into())
+            .max_fee_per_gas(max_fee_per_gas.into());
+
+        self.client.send_transaction(req).await.unwrap()
     }
 
     pub(crate) async fn contract_call<T: FromStr>(
         &self,
-        contract_address: H160,
+        contract_address: Address,
         data: Vec<u8>,
         _nonce: Option<u64>,
     ) -> Result<T, Box<dyn std::error::Error>> {
-        let req = Eip1559TransactionRequest::new()
+        let req = TransactionRequest::default()
             .from(self.from_addr)
             .to(contract_address)
-            .chain_id(self.chain_id)
-            .data(data);
+            .input(data.into());
 
-        let typed_transaction = TypedTransaction::Eip1559(req);
-
-        let receipt_req = self.client.call(&typed_transaction, None).await?;
+        let receipt_req = self.client.call(&req).await?;
 
         T::from_str(&receipt_req.to_string()).map_err(|_| "Failed to parse bytes".into())
     }
@@ -251,36 +239,35 @@ impl TestClient {
     pub(crate) async fn send_eth(
         &self,
         to_addr: Address,
-        max_priority_fee_per_gas: Option<u64>,
-        max_fee_per_gas: Option<u64>,
+        max_priority_fee_per_gas: Option<u128>,
+        max_fee_per_gas: Option<u128>,
         nonce: Option<u64>,
         value: u128,
-    ) -> Result<PendingTransaction<'_, Http>, anyhow::Error> {
+    ) -> Result<PendingTransactionBuilder<'_, Http<Client>, Ethereum>, anyhow::Error> {
         let nonce = match nonce {
             Some(nonce) => nonce,
             None => self.current_nonce.fetch_add(1, Ordering::Relaxed),
         };
 
-        let mut req = Eip1559TransactionRequest::new()
+        let req = TransactionRequest::default()
             .from(self.from_addr)
             .to(to_addr)
-            .chain_id(self.chain_id)
-            .value(value);
+            .value(U256::from(value));
 
         let gas = self
-            .eth_estimate_gas(TypedTransaction::Eip1559(req.clone()), None)
-            .await;
+            .client
+            .estimate_gas(&req, BlockNumberOrTag::Latest.into())
+            .await
+            .unwrap();
 
-        req = req
-            .gas(gas)
+        let req = req
+            .gas_limit(gas)
             .nonce(nonce)
-            .max_priority_fee_per_gas(max_priority_fee_per_gas.unwrap_or(10u64))
+            .max_priority_fee_per_gas(max_priority_fee_per_gas.unwrap_or(10))
             .max_fee_per_gas(max_fee_per_gas.unwrap_or(MAX_FEE_PER_GAS));
 
-        let typed_transaction = TypedTransaction::Eip1559(req);
-
         self.client
-            .send_transaction(typed_transaction, None)
+            .send_transaction(req)
             .await
             .map_err(|e| e.into())
     }
@@ -288,29 +275,24 @@ impl TestClient {
     pub(crate) async fn send_eth_with_gas(
         &self,
         to_addr: Address,
-        max_priority_fee_per_gas: Option<u64>,
-        max_fee_per_gas: Option<u64>,
-        gas: u64,
+        max_priority_fee_per_gas: Option<u128>,
+        max_fee_per_gas: Option<u128>,
+        gas: u128,
         value: u128,
-    ) -> Result<PendingTransaction<'_, Http>, anyhow::Error> {
+    ) -> Result<PendingTransactionBuilder<'_, Http<Client>, Ethereum>, anyhow::Error> {
         let nonce = self.current_nonce.fetch_add(1, Ordering::Relaxed);
 
-        let mut req = Eip1559TransactionRequest::new()
+        let req = TransactionRequest::default()
             .from(self.from_addr)
             .to(to_addr)
-            .chain_id(self.chain_id)
-            .value(value);
-
-        req = req
-            .gas(gas)
+            .value(U256::from(value))
+            .gas_limit(gas)
             .nonce(nonce)
-            .max_priority_fee_per_gas(max_priority_fee_per_gas.unwrap_or(10u64))
+            .max_priority_fee_per_gas(max_priority_fee_per_gas.unwrap_or(10))
             .max_fee_per_gas(max_fee_per_gas.unwrap_or(MAX_FEE_PER_GAS));
 
-        let typed_transaction = TypedTransaction::Eip1559(req);
-
         self.client
-            .send_transaction(typed_transaction, None)
+            .send_transaction(req)
             .await
             .map_err(|e| e.into())
     }
@@ -336,33 +318,15 @@ impl TestClient {
             .unwrap()
     }
 
-    #[allow(dead_code)]
-    pub(crate) async fn eth_send_transaction(
-        &self,
-        tx: TypedTransaction,
-    ) -> PendingTransaction<'_, Http> {
-        self.client
-            .provider()
-            .send_transaction(tx, None)
-            .await
-            .unwrap()
-    }
-
     pub(crate) async fn eth_chain_id(&self) -> u64 {
-        let chain_id: ethereum_types::U64 = self
-            .http_client
-            .request("eth_chainId", rpc_params![])
-            .await
-            .unwrap();
-
-        chain_id.as_u64()
+        self.client.get_chain_id().await.unwrap()
     }
 
     pub(crate) async fn eth_get_balance(
         &self,
         address: Address,
         block_number: Option<BlockNumberOrTag>,
-    ) -> Result<ethereum_types::U256, Box<dyn std::error::Error>> {
+    ) -> Result<U256, Box<dyn std::error::Error>> {
         let block_number = match block_number {
             Some(block_number) => block_number,
             None => BlockNumberOrTag::Latest,
@@ -376,9 +340,9 @@ impl TestClient {
     pub(crate) async fn eth_get_storage_at(
         &self,
         address: Address,
-        index: ethereum_types::U256,
+        index: U256,
         block_number: Option<BlockNumberOrTag>,
-    ) -> Result<ethereum_types::U256, Box<dyn std::error::Error>> {
+    ) -> Result<U256, Box<dyn std::error::Error>> {
         self.http_client
             .request(
                 "eth_getStorageAt",
@@ -406,13 +370,13 @@ impl TestClient {
     ) -> Result<u64, Box<dyn std::error::Error>> {
         match self
             .http_client
-            .request::<ethereum_types::U64, _>(
+            .request::<U64, _>(
                 "eth_getTransactionCount",
                 rpc_params![address, block_number],
             )
             .await
         {
-            Ok(count) => Ok(count.as_u64()),
+            Ok(count) => Ok(count.saturating_to()),
             Err(e) => Err(e.into()),
         }
     }
@@ -421,7 +385,7 @@ impl TestClient {
     //  be different from the current gas price (for the next block being committed).
     //  So because of that users can't fully rely on the returned value.
     //  A part of https://github.com/chainwayxyz/citrea/issues/150
-    pub(crate) async fn eth_gas_price(&self) -> ethereum_types::U256 {
+    pub(crate) async fn eth_gas_price(&self) -> U256 {
         self.http_client
             .request("eth_gasPrice", rpc_params![])
             .await
@@ -444,7 +408,7 @@ impl TestClient {
     pub(crate) async fn eth_get_block_by_number(
         &self,
         block_number: Option<BlockNumberOrTag>,
-    ) -> Block<TxHash> {
+    ) -> Block {
         self.http_client
             .request("eth_getBlockByNumber", rpc_params![block_number, false])
             .await
@@ -454,7 +418,7 @@ impl TestClient {
     pub(crate) async fn eth_get_block_by_number_with_detail(
         &self,
         block_number: Option<BlockNumberOrTag>,
-    ) -> Block<Transaction> {
+    ) -> Block {
         self.http_client
             .request("eth_getBlockByNumber", rpc_params![block_number, true])
             .await
@@ -479,7 +443,7 @@ impl TestClient {
     pub(crate) async fn eth_get_block_receipts(
         &self,
         block_number_or_hash: BlockId,
-    ) -> Vec<ethers_core::types::TransactionReceipt> {
+    ) -> Vec<TransactionReceipt> {
         self.http_client
             .request("eth_getBlockReceipts", rpc_params![block_number_or_hash])
             .await
@@ -489,7 +453,7 @@ impl TestClient {
     pub(crate) async fn eth_get_transaction_receipt(
         &self,
         tx_hash: TxHash,
-    ) -> Option<ethers_core::types::TransactionReceipt> {
+    ) -> Option<TransactionReceipt> {
         self.http_client
             .request("eth_getTransactionReceipt", rpc_params![tx_hash])
             .await
@@ -498,8 +462,8 @@ impl TestClient {
 
     pub(crate) async fn eth_get_tx_by_block_hash_and_index(
         &self,
-        block_hash: ethereum_types::H256,
-        index: ethereum_types::U256,
+        block_hash: B256,
+        index: U256,
     ) -> Transaction {
         self.http_client
             .request(
@@ -513,7 +477,7 @@ impl TestClient {
     pub(crate) async fn eth_get_tx_by_block_number_and_index(
         &self,
         block_number: BlockNumberOrTag,
-        index: ethereum_types::U256,
+        index: U256,
     ) -> Transaction {
         self.http_client
             .request(
@@ -522,32 +486,6 @@ impl TestClient {
             )
             .await
             .unwrap()
-    }
-
-    pub(crate) async fn eth_call(
-        &self,
-        tx: TypedTransaction,
-        block_number: Option<BlockNumberOrTag>,
-    ) -> Result<Bytes, Box<dyn std::error::Error>> {
-        self.http_client
-            .request("eth_call", rpc_params![tx, block_number])
-            .await
-            .map_err(|e| e.into())
-    }
-
-    #[allow(dead_code)]
-    pub(crate) async fn eth_estimate_gas(
-        &self,
-        tx: TypedTransaction,
-        block_number: Option<BlockNumberOrTag>,
-    ) -> u64 {
-        let gas: ethereum_types::U64 = self
-            .http_client
-            .request("eth_estimateGas", rpc_params![tx, block_number])
-            .await
-            .unwrap();
-
-        gas.as_u64()
     }
 
     /// params is a tuple of (fromBlock, toBlock, address, topics, blockHash)
@@ -693,7 +631,7 @@ impl TestClient {
 
     pub(crate) async fn debug_trace_block_by_hash(
         &self,
-        block_hash: ethereum_types::H256,
+        block_hash: B256,
         opts: Option<GethDebugTracingOptions>,
     ) -> Vec<GethTrace> {
         self.http_client
@@ -703,13 +641,13 @@ impl TestClient {
     }
 
     pub(crate) async fn eth_block_number(&self) -> u64 {
-        let block_number: ethereum_types::U256 = self
+        let block_number: U256 = self
             .http_client
             .request("eth_blockNumber", rpc_params![])
             .await
             .unwrap();
 
-        block_number.as_u64()
+        block_number.saturating_to()
     }
 
     pub(crate) async fn citrea_sync_status(&self) -> CitreaStatus {
@@ -724,9 +662,8 @@ impl TestClient {
 #[serde(rename_all = "camelCase")]
 // ethers version of FeeHistory doesn't accept None reward
 pub struct FeeHistory {
-    #[allow(dead_code)]
-    pub base_fee_per_gas: Vec<ethers::types::U256>,
+    pub base_fee_per_gas: Vec<U256>,
     pub gas_used_ratio: Vec<f64>,
-    pub oldest_block: ethers::types::U256,
-    pub reward: Option<Vec<Vec<ethers::types::U256>>>,
+    pub oldest_block: U256,
+    pub reward: Option<Vec<Vec<U256>>>,
 }

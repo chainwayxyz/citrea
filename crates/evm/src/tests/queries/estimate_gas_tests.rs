@@ -1,13 +1,12 @@
 use std::str::FromStr;
 
-use alloy_primitives::{FixedBytes, Uint};
-use hex::FromHex;
 use jsonrpsee::core::RpcResult;
-use reth_primitives::{address, AccessList, AccessListItem, Address, BlockNumberOrTag, TxKind};
+use reth_primitives::{
+    address, b256, AccessList, AccessListItem, Address, BlockNumberOrTag, TxKind, U256,
+};
 use reth_rpc::eth::error::RpcInvalidTransactionError;
 use reth_rpc_types::request::{TransactionInput, TransactionRequest};
 use reth_rpc_types::AccessListWithGasUsed;
-use revm::primitives::U256;
 use serde_json::json;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::WorkingSet;
@@ -48,7 +47,7 @@ fn payable_contract_value_test() {
     };
 
     let result = evm.eth_estimate_gas(tx_req, Some(BlockNumberOrTag::Latest), &mut working_set);
-    assert_eq!(result.unwrap(), Uint::from_str("0xab13").unwrap());
+    assert_eq!(result.unwrap(), U256::from_str("0xab13").unwrap());
 }
 
 #[test]
@@ -85,7 +84,7 @@ fn test_tx_request_fields_gas() {
     );
     assert_eq!(
         result_contract_call.unwrap(),
-        Uint::from_str("0x6602").unwrap()
+        U256::from_str("0x6602").unwrap()
     );
     let contract_diff_size = evm.eth_estimate_diff_size(
         tx_req_contract_call.clone(),
@@ -109,7 +108,7 @@ fn test_tx_request_fields_gas() {
         Some(BlockNumberOrTag::Latest),
         &mut working_set,
     );
-    assert_eq!(result_no_sender.unwrap(), Uint::from_str("0x6602").unwrap());
+    assert_eq!(result_no_sender.unwrap(), U256::from_str("0x6602").unwrap());
     working_set.unset_archival_version();
 
     let tx_req_no_recipient = TransactionRequest {
@@ -124,7 +123,7 @@ fn test_tx_request_fields_gas() {
     );
     assert_eq!(
         result_no_recipient.unwrap(),
-        Uint::from_str("0xd0ad").unwrap()
+        U256::from_str("0xd0ad").unwrap()
     );
     working_set.unset_archival_version();
 
@@ -138,7 +137,7 @@ fn test_tx_request_fields_gas() {
         Some(BlockNumberOrTag::Latest),
         &mut working_set,
     );
-    assert_eq!(result_no_gas.unwrap(), Uint::from_str("0x6602").unwrap());
+    assert_eq!(result_no_gas.unwrap(), U256::from_str("0x6602").unwrap());
     working_set.unset_archival_version();
 
     let tx_req_no_gas_price = TransactionRequest {
@@ -153,7 +152,7 @@ fn test_tx_request_fields_gas() {
     );
     assert_eq!(
         result_no_gas_price.unwrap(),
-        Uint::from_str("0x6602").unwrap()
+        U256::from_str("0x6602").unwrap()
     );
     working_set.unset_archival_version();
 
@@ -169,7 +168,7 @@ fn test_tx_request_fields_gas() {
     );
     assert_eq!(
         result_no_chain_id.unwrap(),
-        Uint::from_str("0x6602").unwrap()
+        U256::from_str("0x6602").unwrap()
     );
     working_set.unset_archival_version();
 
@@ -202,7 +201,7 @@ fn test_tx_request_fields_gas() {
     );
     assert_eq!(
         result_no_blob_versioned_hashes.unwrap(),
-        Uint::from_str("0x6602").unwrap()
+        U256::from_str("0x6602").unwrap()
     );
     working_set.unset_archival_version();
 
@@ -221,23 +220,21 @@ fn test_tx_request_fields_gas() {
         create_no_access_list_test.unwrap(),
         AccessListWithGasUsed {
             access_list: AccessList(vec![AccessListItem {
-                address: Address::from_str("0x819c5497b157177315e1204f52e588b393771719").unwrap(),
-                storage_keys: vec![FixedBytes::from_hex(
-                    "0xd17c80a661d193357ea7c5311e029471883989438c7bcae8362437311a764685"
-                )
-                .unwrap()]
+                address: address!("819c5497b157177315e1204f52e588b393771719"),
+                storage_keys: vec![b256!(
+                    "d17c80a661d193357ea7c5311e029471883989438c7bcae8362437311a764685"
+                )]
             }]),
-            gas_used: Uint::from_str("0x6e67").unwrap()
+            gas_used: U256::from_str("0x6e67").unwrap()
         }
     );
 
     let access_list_req = TransactionRequest {
         access_list: Some(AccessList(vec![AccessListItem {
-            address: Address::from_str("0x819c5497b157177315e1204f52e588b393771719").unwrap(),
-            storage_keys: vec![FixedBytes::from_hex(
-                "0xd17c80a661d193357ea7c5311e029471883989438c7bcae8362437311a764685",
-            )
-            .unwrap()],
+            address: address!("819c5497b157177315e1204f52e588b393771719"),
+            storage_keys: vec![b256!(
+                "d17c80a661d193357ea7c5311e029471883989438c7bcae8362437311a764685"
+            )],
         }])),
         ..tx_req_contract_call.clone()
     };
@@ -251,7 +248,7 @@ fn test_tx_request_fields_gas() {
     // Wrong access punishment.
     assert_eq!(
         access_list_gas_test.unwrap(),
-        Uint::from_str("0x6e67").unwrap()
+        U256::from_str("0x6e67").unwrap()
     );
 
     let already_formed_list = evm.create_access_list(
@@ -264,13 +261,12 @@ fn test_tx_request_fields_gas() {
         already_formed_list.unwrap(),
         AccessListWithGasUsed {
             access_list: AccessList(vec![AccessListItem {
-                address: Address::from_str("0x819c5497b157177315e1204f52e588b393771719").unwrap(),
-                storage_keys: vec![FixedBytes::from_hex(
-                    "0xd17c80a661d193357ea7c5311e029471883989438c7bcae8362437311a764685"
-                )
-                .unwrap()]
+                address: address!("819c5497b157177315e1204f52e588b393771719"),
+                storage_keys: vec![b256!(
+                    "d17c80a661d193357ea7c5311e029471883989438c7bcae8362437311a764685"
+                )]
             }]),
-            gas_used: Uint::from_str("0x6e67").unwrap()
+            gas_used: U256::from_str("0x6e67").unwrap()
         }
     );
 }
@@ -309,7 +305,7 @@ fn test_access_list() {
     };
 
     let no_access_list = evm.eth_estimate_gas(tx_req_contract_call.clone(), None, &mut working_set);
-    assert_eq!(no_access_list.unwrap(), Uint::from_str("0x788c").unwrap());
+    assert_eq!(no_access_list.unwrap(), U256::from_str("0x788c").unwrap());
 
     let form_access_list =
         evm.create_access_list(tx_req_contract_call.clone(), None, &mut working_set);
@@ -318,29 +314,27 @@ fn test_access_list() {
         form_access_list.unwrap(),
         AccessListWithGasUsed {
             access_list: AccessList(vec![AccessListItem {
-                address: Address::from_str("0x819c5497b157177315e1204f52e588b393771719").unwrap(),
-                storage_keys: vec![FixedBytes::from_hex(
-                    "0x0000000000000000000000000000000000000000000000000000000000000000"
-                )
-                .unwrap()]
+                address: address!("819c5497b157177315e1204f52e588b393771719"),
+                storage_keys: vec![b256!(
+                    "0000000000000000000000000000000000000000000000000000000000000000"
+                )]
             }]),
-            gas_used: Uint::from_str("0x775e").unwrap()
+            gas_used: U256::from_str("0x775e").unwrap()
         }
     );
 
     let tx_req_with_access_list = TransactionRequest {
         access_list: Some(AccessList(vec![AccessListItem {
-            address: Address::from_str("0x819c5497b157177315e1204f52e588b393771719").unwrap(),
-            storage_keys: vec![FixedBytes::from_hex(
-                "0x0000000000000000000000000000000000000000000000000000000000000000",
-            )
-            .unwrap()],
+            address: address!("819c5497b157177315e1204f52e588b393771719"),
+            storage_keys: vec![b256!(
+                "0000000000000000000000000000000000000000000000000000000000000000"
+            )],
         }])),
         ..tx_req_contract_call.clone()
     };
 
     let with_access_list = evm.eth_estimate_gas(tx_req_with_access_list, None, &mut working_set);
-    assert_eq!(with_access_list.unwrap(), Uint::from_str("0x775e").unwrap());
+    assert_eq!(with_access_list.unwrap(), U256::from_str("0x775e").unwrap());
 }
 
 #[test]
@@ -351,13 +345,13 @@ fn estimate_gas_with_varied_inputs_test() {
     let simple_result =
         test_estimate_gas_with_input(&evm, &mut working_set, &signer, simple_call_data);
 
-    assert_eq!(simple_result.unwrap(), Uint::from_str("0x684e").unwrap());
+    assert_eq!(simple_result.unwrap(), U256::from_str("0x684e").unwrap());
 
     let simple_call_data = 131;
     let simple_result =
         test_estimate_gas_with_input(&evm, &mut working_set, &signer, simple_call_data);
 
-    assert_eq!(simple_result.unwrap(), Uint::from_str("0x68cd").unwrap());
+    assert_eq!(simple_result.unwrap(), U256::from_str("0x68cd").unwrap());
 
     // Testing with non-zero value transfer EOA
     let value_transfer_result =
@@ -365,7 +359,7 @@ fn estimate_gas_with_varied_inputs_test() {
 
     assert_eq!(
         value_transfer_result.unwrap(),
-        Uint::from(MIN_TRANSACTION_GAS + 1)
+        U256::from(MIN_TRANSACTION_GAS + 1)
     );
 }
 

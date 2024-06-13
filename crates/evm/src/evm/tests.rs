@@ -111,10 +111,10 @@ fn simple_contract_execution<DB: Database<Error = DBError> + DatabaseCommit + In
         .unwrap();
 
         let out = output(result);
-        ethereum_types::U256::from(out.to_vec().as_slice())
+        U256::from_be_slice(out.to_vec().as_slice())
     };
 
-    assert_eq!(set_arg, get_res.as_u32());
+    assert_eq!(U256::from(set_arg), get_res);
 
     {
         let failing_call_data = contract.failing_function_call_data();
