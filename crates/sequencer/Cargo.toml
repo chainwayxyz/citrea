@@ -54,7 +54,6 @@ sov-modules-stf-blueprint = { path = "../sovereign-sdk/module-system/sov-modules
 citrea-stf = { path = "../citrea-stf", features = ["native"] }
 soft-confirmation-rule-enforcer = { path = "../soft-confirmation-rule-enforcer", features = ["native"] }
 sov-accounts = { path = "../sovereign-sdk/module-system/module-implementations/sov-accounts", default-features = false }
-sov-mock-da = { path = "../sovereign-sdk/adapters/mock-da", default-features = false }
 sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api", default-features = false }
 sov-state = { path = "../sovereign-sdk/module-system/sov-state" }
 
