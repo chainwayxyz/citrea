@@ -126,13 +126,6 @@ risc0-build = "0.21"
 bonsai-sdk = "0.7.0"
 
 # EVM dependencies
-# ethereum-types = "0.14.1"
-ethers = "2.0"
-ethers-core = { version = "2.0", default-features = false }
-# ethers-contract = "2.0"
-# ethers-providers = { version = "2.0", default-features = false }
-ethers-signers = { version = "2.0", default-features = false }
-# ethers-middleware = { version = "2.0", default-features = false }
 
 revm-inspectors = { git = "https://github.com/paradigmxyz/evm-inspectors", rev = "7168ac5", default-features = false }
 reth-primitives = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.7", default-features = false }
