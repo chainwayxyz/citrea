@@ -122,6 +122,8 @@ jobs:
           components: rustfmt, clippy
       - name: Install Rust
         run: rustup show && rustup install nightly && rustup component add rustfmt --toolchain nightly-x86_64-unknown-linux-gnu # Nightly is needed for our configuration of cargo fmt
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
       - name: Install cargo-risczero
         uses: taiki-e/install-action@v2
         with:
