@@ -9,7 +9,7 @@ use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_schema_db::snapshot::{DbSnapshot, ReadOnlyLock, SnapshotId};
 use sov_state::{MerkleProofSpec, ProverStorage};
-use tracing::{debug, instrument, trace};
+use tracing::{debug, trace};
 
 pub use crate::snapshot_manager::SnapshotManager;
 
@@ -107,7 +107,6 @@ where
         Ok(ProverStorage::with_db_handles(state_db, native_db))
     }
 
-    #[instrument(level = "info", skip(self), err, ret)]
     fn finalize_by_l2_height(&mut self, l2_block_height: u64) -> anyhow::Result<()> {
         let snapshot_id = self
             .block_height_to_snapshot_id
@@ -230,12 +229,10 @@ where
         self.get_storage_with_snapshot_id(snapshot_id)
     }
 
-    #[instrument(level = "info", skip(self), err, ret)]
     fn finalize_l2(&mut self, l2_block_height: u64) -> anyhow::Result<()> {
         self.finalize_by_l2_height(l2_block_height)
     }
 
-    #[instrument(level = "info", skip(self, change_set), err, ret)]
     fn save_change_set_l2(
         &mut self,
         l2_block_height: u64,

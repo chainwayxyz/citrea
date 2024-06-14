@@ -300,13 +300,13 @@ impl<'a> Risc0BonsaiHost<'a> {
         // handle error
         let image_id = compute_image_id(elf).unwrap();
 
-        tracing::info!("Calculated image id: {:?}", image_id.as_words());
+        tracing::trace!("Calculated image id: {:?}", image_id.as_words());
 
         // handle error
         let client = if !api_url.is_empty() && !api_key.is_empty() {
             let client = BonsaiClient::from_parts(api_url, api_key, risc0_zkvm::VERSION);
 
-            tracing::info!("Uploading image with id: {}", image_id);
+            tracing::debug!("Uploading image with id: {}", image_id);
             // handle error
 
             client.upload_img(hex::encode(image_id), elf.to_vec());

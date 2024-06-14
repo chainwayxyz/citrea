@@ -49,8 +49,6 @@ use sov_modules_api::macros::{expose_rpc, CliWallet};
 #[cfg(feature = "native")]
 use sov_modules_api::Spec;
 use sov_modules_api::{Context, DispatchCall, Genesis, MessageCodec};
-#[cfg(feature = "native")]
-use sov_nft_module::{NonFungibleTokenRpcImpl, NonFungibleTokenRpcServer};
 use sov_rollup_interface::da::DaSpec;
 #[cfg(feature = "native")]
 use sov_sequencer_registry::{SequencerRegistryRpcImpl, SequencerRegistryRpcServer};
@@ -74,8 +72,6 @@ pub struct Runtime<C: Context, Da: DaSpec> {
     pub value_setter: sov_value_setter::ValueSetter<C>,
     /// The Accounts module.
     pub accounts: sov_accounts::Accounts<C>,
-    /// The NFT module.
-    pub nft: sov_nft_module::NonFungibleToken<C>,
     #[cfg_attr(feature = "native", cli_skip)]
     /// The EVM module.
     pub evm: citrea_evm::Evm<C>,

@@ -621,11 +621,11 @@ impl TestClient {
     pub(crate) async fn ledger_get_verified_proofs_by_slot_height(
         &self,
         height: u64,
-    ) -> Vec<VerifiedProofResponse> {
+    ) -> Option<Vec<VerifiedProofResponse>> {
         self.http_client
             .request("ledger_getVerifiedProofsBySlotHeight", rpc_params![height])
             .await
-            .unwrap()
+            .ok()
     }
 
     pub(crate) async fn ledger_get_sequencer_commitments_on_slot_by_hash(

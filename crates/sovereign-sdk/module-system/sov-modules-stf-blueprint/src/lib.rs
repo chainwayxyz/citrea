@@ -16,9 +16,8 @@ use sov_modules_api::hooks::{
     SlotHooks, TxHooks,
 };
 use sov_modules_api::{
-    native_debug, native_info, native_warn, BasicAddress, BlobReaderTrait, Context, DaSpec,
-    DispatchCall, Genesis, Signature, Spec, StateCheckpoint, UnsignedSoftConfirmationBatch,
-    WorkingSet, Zkvm,
+    native_debug, native_warn, BasicAddress, BlobReaderTrait, Context, DaSpec, DispatchCall,
+    Genesis, Signature, Spec, StateCheckpoint, UnsignedSoftConfirmationBatch, WorkingSet, Zkvm,
 };
 use sov_rollup_interface::da::{DaData, SequencerCommitment};
 use sov_rollup_interface::digest::Digest;
@@ -286,8 +285,8 @@ where
         TxEffect,
         <<C as Spec>::Storage as Storage>::Witness,
     > {
-        native_info!(
-            "soft batch  with hash: {:?} from sequencer {:?} has been applied with #{} transactions.",
+        native_debug!(
+            "soft batch with hash: {:?} from sequencer {:?} has been applied with #{} transactions.",
             soft_batch.hash(),
             soft_batch.sequencer_pub_key(),
             batch_receipt.tx_receipts.len(),
@@ -296,7 +295,7 @@ where
         let mut batch_receipts = vec![];
 
         for (i, tx_receipt) in batch_receipt.tx_receipts.iter().enumerate() {
-            native_info!(
+            native_debug!(
                 "tx #{} hash: 0x{} result {:?}",
                 i,
                 hex::encode(tx_receipt.tx_hash),

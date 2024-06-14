@@ -92,6 +92,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
+      - name: Check TOML
+        uses: dprint/check@v2.2
       - name: Run lint
         run: |
           if ! SKIP_GUEST_BUILD=1 make lint ; then
@@ -400,6 +402,7 @@ jobs:
       - name: Run nextest
         run: make test
         env:
+          RUST_BACKTRACE: 1
           BONSAI_API_URL: ${{ secrets.BONSAI_API_URL }} # TODO: remove this once we don't use the client on tests
           BONSAI_API_KEY: ${{ secrets.BONSAI_API_KEY }} # TODO: remove this once we don't use the client on tests
 

@@ -7,8 +7,8 @@ license = { workspace = true }
 repository = { workspace = true }
 
 version = { workspace = true }
-readme = "README.md"
 publish = false
+readme = "README.md"
 resolver = "2"
 
 [dependencies]
@@ -24,50 +24,47 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 tracing = { workspace = true }
 
-reth-primitives = { workspace = true }
-reth-rpc-types = { workspace = true }
-reth-transaction-pool = { workspace = true }
-reth-provider = { workspace = true }
-reth-tasks = { workspace = true }
-reth-interfaces = { workspace = true }
 reth-db = { workspace = true }
-reth-trie = { workspace = true }
-reth-rpc-types-compat = { workspace = true }
+reth-interfaces = { workspace = true }
+reth-primitives = { workspace = true }
+reth-provider = { workspace = true }
 reth-rpc = { workspace = true }
+reth-rpc-types = { workspace = true }
+reth-rpc-types-compat = { workspace = true }
+reth-tasks = { workspace = true }
+reth-transaction-pool = { workspace = true }
+reth-trie = { workspace = true }
 
 revm = { workspace = true }
 
-ethers = { workspace = true }
-tokio = { workspace = true }
 deadpool-postgres = { workspace = true }
+ethers = { workspace = true }
 schnellru = "0.2.1"
+tokio = { workspace = true }
 
-sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface", features = [
-    "native",
-] }
 citrea-evm = { path = "../evm", features = ["native"] }
 sov-db = { path = "../sovereign-sdk/full-node/db/sov-db" }
+sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface", features = ["native"] }
 
 sov-stf-runner = { path = "../sovereign-sdk/full-node/sov-stf-runner" }
 
+sov-modules-rollup-blueprint = { path = "../sovereign-sdk/module-system/sov-modules-rollup-blueprint" }
 sov-modules-stf-blueprint = { path = "../sovereign-sdk/module-system/sov-modules-stf-blueprint" }
 
 citrea-stf = { path = "../citrea-stf", features = ["native"] }
-sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api", default-features = false }
+soft-confirmation-rule-enforcer = { path = "../soft-confirmation-rule-enforcer", features = ["native"] }
 sov-accounts = { path = "../sovereign-sdk/module-system/module-implementations/sov-accounts", default-features = false }
-sov-state = { path = "../sovereign-sdk/module-system/sov-state" }
 sov-mock-da = { path = "../sovereign-sdk/adapters/mock-da", default-features = false }
-soft-confirmation-rule-enforcer = { path = "../soft-confirmation-rule-enforcer", features = [
-    "native",
-] }
+sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api", default-features = false }
+sov-state = { path = "../sovereign-sdk/module-system/sov-state" }
 
 hex = { workspace = true }
 
 shared-backup-db = { path = "../shared-backup-db" }
 
 [dev-dependencies]
-tokio = { workspace = true }
 tempfile = { workspace = true }
+tokio = { workspace = true }
 
 [features]
 default = []
