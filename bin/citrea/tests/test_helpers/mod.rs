@@ -11,7 +11,6 @@ use shared_backup_db::PostgresConnector;
 use sov_mock_da::{MockAddress, MockDaConfig, MockDaService};
 use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
 use sov_modules_api::PrivateKey;
-use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_stf_runner::{
     ProverConfig, RollupConfig, RollupPublicKeys, RpcConfig, RunnerConfig, StorageConfig,
 };
@@ -55,11 +54,14 @@ pub async fn start_rollup(
     match node_mode {
         NodeMode::FullNode(_) => {
             let span = info_span!("FullNode");
-            let rollup = mock_demo_rollup
-                .create_new_rollup(&rt_genesis_paths, rollup_config.clone())
-                .instrument(span.clone())
-                .await
-                .unwrap();
+            let rollup = CitreaRollupBlueprint::create_new_rollup(
+                &mock_demo_rollup,
+                &rt_genesis_paths,
+                rollup_config.clone(),
+            )
+            .instrument(span.clone())
+            .await
+            .unwrap();
             rollup
                 .run_and_report_rpc_port(Some(rpc_reporting_channel))
                 .instrument(span)
@@ -99,11 +101,15 @@ pub async fn start_rollup(
             });
 
             let span = info_span!("Sequencer");
-            let sequencer_rollup = mock_demo_rollup
-                .create_new_sequencer(&rt_genesis_paths, rollup_config.clone(), sequencer_config)
-                .instrument(span.clone())
-                .await
-                .unwrap();
+            let sequencer_rollup = CitreaRollupBlueprint::create_new_sequencer(
+                &mock_demo_rollup,
+                &rt_genesis_paths,
+                rollup_config.clone(),
+                sequencer_config,
+            )
+            .instrument(span.clone())
+            .await
+            .unwrap();
             sequencer_rollup
                 .run_and_report_rpc_port(Some(rpc_reporting_channel))
                 .instrument(span)
