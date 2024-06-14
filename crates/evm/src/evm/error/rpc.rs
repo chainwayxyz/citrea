@@ -173,11 +173,11 @@ pub enum SignError {
     NoChainId,
 }
 
-impl From<SignError> for ErrorObject<'static> {
-    fn from(error: SignError) -> Self {
-        error.into()
-    }
-}
+// impl From<SignError> for ErrorObject<'static> {
+//     fn from(error: SignError) -> Self {
+//         error.into()
+//     }
+// }
 
 /// We have to implement these functions because they are private to the reth_rpc crate
 pub trait RpcInvalidTransactionErrorExt {

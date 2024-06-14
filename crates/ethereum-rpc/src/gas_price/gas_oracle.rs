@@ -167,12 +167,9 @@ impl<C: sov_modules_api::Context> GasPriceOracle<C> {
             block_count = max_fee_history
         }
 
-        let Some(end_block) = self
+        let end_block = self
             .provider
-            .block_number_for_id(&newest_block, working_set)
-        else {
-            return Err(EthApiError::UnknownBlockNumber);
-        };
+            .block_number_for_id(&newest_block, working_set)?;
 
         // need to add 1 to the end block to get the correct (inclusive) range
         let end_block_plus = end_block + 1;

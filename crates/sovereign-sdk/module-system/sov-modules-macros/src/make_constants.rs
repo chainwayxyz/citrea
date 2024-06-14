@@ -7,10 +7,15 @@ use crate::manifest::Manifest;
 pub struct PartialItemConst {
     pub attrs: Vec<Attribute>,
     pub vis: Visibility,
+    #[allow(dead_code)]
     pub const_token: Token![const],
+    #[allow(dead_code)]
     pub ident: Ident,
+    #[allow(dead_code)]
     pub colon_token: Token![:],
+    #[allow(dead_code)]
     pub ty: Type,
+    #[allow(dead_code)]
     pub semi_token: Token![;],
 }
 

@@ -462,9 +462,8 @@ note: the trait `sov_modules_api::Context` must be implemented
     | pub trait Context: Spec + Clone + Debug + PartialEq + 'static {
     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
     = help: items from traits can only be used if the trait is implemented and in scope
-    = note: the following traits define an item `default`, perhaps you need to implement one of them:
+    = note: the following trait defines an item `default`, perhaps you need to implement it:
             candidate #1: `std::default::Default`
-            candidate #2: `tinyvec::array::Array`
 
 error[E0277]: the trait bound `ZkDefaultContext: TestSpec` is not satisfied
    --> tests/rpc/expose_rpc_first_generic_not_context.rs:114:24

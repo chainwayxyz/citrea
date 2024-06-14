@@ -48,6 +48,7 @@ sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface", features = 
 
 sov-stf-runner = { path = "../sovereign-sdk/full-node/sov-stf-runner" }
 
+sov-modules-rollup-blueprint = { path = "../sovereign-sdk/module-system/sov-modules-rollup-blueprint" }
 sov-modules-stf-blueprint = { path = "../sovereign-sdk/module-system/sov-modules-stf-blueprint" }
 
 citrea-stf = { path = "../citrea-stf", features = ["native"] }

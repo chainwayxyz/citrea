@@ -249,8 +249,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                     reward_percentiles,
                     &mut working_set,
                 )
-                .await
-                .unwrap()
+                .await?
         };
 
         Ok::<FeeHistory, ErrorObjectOwned>(fee_history)
