@@ -10,6 +10,9 @@ help: ## Display this help message
 build: ## Build the the project
 	@cargo build
 
+build-release: ## Build the project in release mode
+	@cargo build --release
+
 clean: ## Cleans compiled
 	@cargo clean
 

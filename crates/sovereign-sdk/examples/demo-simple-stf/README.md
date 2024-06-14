@@ -167,7 +167,6 @@ use sov_mock_da::{MockAddress, MockBlob, MockBlock, MockValidityCond};
 use sov_mock_zkvm::MockZkvm;
 use sov_rollup_interface::stf::StateTransitionFunction;
 
-#[test]
 fn test_stf() {
     let address = MockAddress { addr: [1; 32] };
     let preimage = vec![0; 32];
