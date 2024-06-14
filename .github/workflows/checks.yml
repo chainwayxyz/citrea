@@ -189,6 +189,8 @@ jobs:
           path: crates/evm/ethereum-tests
       - name: Run coverage
         run: make coverage
+        env:
+          RUST_BACKTRACE: 1
       - name: Upload coverage
         uses: codecov/codecov-action@v4
         with:
