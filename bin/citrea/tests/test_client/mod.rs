@@ -6,13 +6,12 @@ use alloy::providers::network::{Ethereum, EthereumSigner};
 use alloy::providers::{PendingTransactionBuilder, Provider as AlloyProvider, ProviderBuilder};
 use alloy::rpc::types::eth::{Block, Transaction, TransactionReceipt, TransactionRequest};
 use alloy::signers::wallet::LocalWallet;
-use alloy::transports::http::Http;
+use alloy::transports::http::{Http, HyperClient};
 use citrea_evm::LogResponse;
 use ethereum_rpc::CitreaStatus;
 use jsonrpsee::core::client::ClientT;
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use jsonrpsee::rpc_params;
-use reqwest::Client;
 use reth_primitives::{Address, BlockId, BlockNumberOrTag, Bytes, TxHash, TxKind, B256, U256, U64};
 // use reth_rpc_types::TransactionReceipt;
 use reth_rpc_types::trace::geth::{GethDebugTracingOptions, GethTrace};
@@ -28,7 +27,7 @@ pub struct TestClient {
     pub(crate) chain_id: u64,
     pub(crate) from_addr: Address,
     //client: SignerMiddleware<Provider<Http>, LocalWallet>,
-    client: Box<dyn AlloyProvider<Http<Client>>>,
+    client: Box<dyn AlloyProvider<Http<HyperClient>>>,
     http_client: HttpClient,
     current_nonce: AtomicU64,
     pub(crate) rpc_addr: std::net::SocketAddr,
@@ -47,8 +46,8 @@ impl TestClient {
             // .with_recommended_fillers()
             .with_chain_id(chain_id)
             .signer(EthereumSigner::from(key))
-            .on_http(host.parse().unwrap());
-        let client: Box<dyn AlloyProvider<Http<Client>>> = Box::new(provider);
+            .on_hyper_http(host.parse().unwrap());
+        let client: Box<dyn AlloyProvider<Http<HyperClient>>> = Box::new(provider);
 
         let http_client = HttpClientBuilder::default()
             .request_timeout(Duration::from_secs(120))
@@ -98,8 +97,10 @@ impl TestClient {
         &self,
         byte_code: Vec<u8>,
         nonce: Option<u64>,
-    ) -> Result<PendingTransactionBuilder<'_, Http<Client>, Ethereum>, Box<dyn std::error::Error>>
-    {
+    ) -> Result<
+        PendingTransactionBuilder<'_, Http<HyperClient>, Ethereum>,
+        Box<dyn std::error::Error>,
+    > {
         let nonce = match nonce {
             Some(nonce) => nonce,
             None => self.current_nonce.fetch_add(1, Ordering::Relaxed),
@@ -160,7 +161,7 @@ impl TestClient {
         contract_address: Address,
         data: Vec<u8>,
         nonce: Option<u64>,
-    ) -> PendingTransactionBuilder<'_, Http<Client>, Ethereum> {
+    ) -> PendingTransactionBuilder<'_, Http<HyperClient>, Ethereum> {
         let nonce = match nonce {
             Some(nonce) => nonce,
             None => self.current_nonce.fetch_add(1, Ordering::Relaxed),
@@ -194,7 +195,7 @@ impl TestClient {
         max_fee_per_gas: u64,
         value: Option<u64>,
         nonce: Option<u64>,
-    ) -> PendingTransactionBuilder<'_, Http<Client>, Ethereum> {
+    ) -> PendingTransactionBuilder<'_, Http<HyperClient>, Ethereum> {
         let nonce = match nonce {
             Some(nonce) => nonce,
             None => self.current_nonce.fetch_add(1, Ordering::Relaxed),
@@ -243,7 +244,7 @@ impl TestClient {
         max_fee_per_gas: Option<u128>,
         nonce: Option<u64>,
         value: u128,
-    ) -> Result<PendingTransactionBuilder<'_, Http<Client>, Ethereum>, anyhow::Error> {
+    ) -> Result<PendingTransactionBuilder<'_, Http<HyperClient>, Ethereum>, anyhow::Error> {
         let nonce = match nonce {
             Some(nonce) => nonce,
             None => self.current_nonce.fetch_add(1, Ordering::Relaxed),
@@ -279,7 +280,7 @@ impl TestClient {
         max_fee_per_gas: Option<u128>,
         gas: u128,
         value: u128,
-    ) -> Result<PendingTransactionBuilder<'_, Http<Client>, Ethereum>, anyhow::Error> {
+    ) -> Result<PendingTransactionBuilder<'_, Http<HyperClient>, Ethereum>, anyhow::Error> {
         let nonce = self.current_nonce.fetch_add(1, Ordering::Relaxed);
 
         let req = TransactionRequest::default()

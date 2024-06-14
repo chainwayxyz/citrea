@@ -13,6 +13,8 @@ resolver = "2"
 
 [dependencies]
 alloy-rlp = { workspace = true }
+alloy-sol-types = { workspace = true }
+
 anyhow = { workspace = true }
 borsh = { workspace = true }
 chrono = { workspace = true }
@@ -38,7 +40,6 @@ reth-trie = { workspace = true }
 revm = { workspace = true }
 
 deadpool-postgres = { workspace = true }
-ethers = { workspace = true }
 schnellru = "0.2.1"
 tokio = { workspace = true }
 
