@@ -395,10 +395,10 @@ async fn test_ledger_get_commitments_on_slot() {
 async fn test_ledger_get_commitments_on_slot_prover() {
     // citrea::initialize_logging(tracing::Level::INFO);
 
-    let db_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
+    let db_dir = tempdir_with_children(&["DA", "sequencer", "prover"]);
     let da_db_dir = db_dir.path().join("DA").to_path_buf();
     let sequencer_db_dir = db_dir.path().join("sequencer").to_path_buf();
-    let fullnode_db_dir = db_dir.path().join("full-node").to_path_buf();
+    let prover_db_dir = db_dir.path().join("prover").to_path_buf();
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
@@ -437,7 +437,7 @@ async fn test_ledger_get_commitments_on_slot_prover() {
                 db_config: None,
             }),
             NodeMode::Prover(seq_port),
-            fullnode_db_dir,
+            prover_db_dir,
             da_db_dir,
             4,
             true,
@@ -459,6 +459,7 @@ async fn test_ledger_get_commitments_on_slot_prover() {
     test_client.send_publish_batch_request().await;
     test_client.send_publish_batch_request().await;
     test_client.send_publish_batch_request().await;
+    wait_for_l2_block(&test_client, 4, None).await;
 
     da_service.publish_test_block().await.unwrap();
     wait_for_l1_block(&da_service, 3, None).await;
