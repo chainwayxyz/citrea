@@ -108,7 +108,7 @@ thiserror = "1.0.50"
 tracing = { version = "0.1.40", default-features = false }
 tracing-subscriber = { version = "0.3.17", features = ["env-filter", "json", "fmt"] }
 bech32 = { version = "0.9.1", default-features = false }
-derive_more = { version = "0.99.11", default-features = false }
+derive_more = { version = "0.99.18", default-features = false }
 clap = { version = "4.4.10", features = ["derive"] }
 toml = "0.8.0"
 jsonrpsee = { version = "0.22.5", features = ["jsonrpsee-types"] }
