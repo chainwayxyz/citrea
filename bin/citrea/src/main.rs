@@ -10,7 +10,7 @@ use sov_mock_da::MockDaConfig;
 use sov_modules_api::Spec;
 use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_state::storage::NativeStorage;
-use sov_stf_runner::{from_toml_path, ProverConfig, RollupConfig};
+use sov_stf_runner::{from_toml_path, FullNodeConfig, ProverConfig};
 use tracing::{error, instrument};
 
 #[cfg(test)]
@@ -135,7 +135,7 @@ where
     S: CitreaRollupBlueprint<DaConfig = DaC>,
     <<S as RollupBlueprint>::NativeContext as Spec>::Storage: NativeStorage,
 {
-    let rollup_config: RollupConfig<DaC> = from_toml_path(rollup_config_path)
+    let rollup_config: FullNodeConfig<DaC> = from_toml_path(rollup_config_path)
         .context("Failed to read rollup configuration")
         .unwrap();
     let rollup_blueprint = S::new();
