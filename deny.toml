@@ -33,6 +33,7 @@ github = [
   "paradigmxyz",
   "alloy-rs",
   "penumbra-zone",
+  "risc0",
 ]
 
 [bans]
