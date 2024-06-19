@@ -366,10 +366,6 @@ where
         sequencer_commitments: Vec<SequencerCommitment>,
     ) -> anyhow::Result<()> {
         for sequencer_commitment in sequencer_commitments.iter() {
-            tracing::warn!(
-                "Processing sequencer commitment: {:?}",
-                sequencer_commitment
-            );
             let start_l1_height =
                 get_da_block_by_hash(&self.da_service, sequencer_commitment.l1_start_block_hash)
                     .await?
@@ -382,12 +378,6 @@ where
                     .header()
                     .height();
 
-            tracing::warn!(
-                "start height: {}, end height: {}",
-                start_l1_height,
-                end_l1_height
-            );
-
             let start_l2_height = match self
                 .ledger_db
                 .get_l2_range_by_l1_height(SlotNumber(start_l1_height))?
@@ -395,9 +385,9 @@ where
                 Some((start_l2_height, _)) => start_l2_height,
                 None => {
                     tracing::warn!(
-                            "Sequencer commitment verification: L1 L2 connection does not exist. L1 height = {}. Skipping commitment.",
-                            start_l1_height
-                            );
+                        "Sequencer commitment verification: L1 L2 connection does not exist. L1 height = {}. Skipping commitment.",
+                        start_l1_height
+                    );
                     continue;
                 }
             };
@@ -406,22 +396,29 @@ where
                 .ledger_db
                 .get_l2_range_by_l1_height(SlotNumber(end_l1_height))?
             {
-                Some((_, end_l2_height)) => end_l2_height,
+                Some((_, end_l2_height)) => BatchNumber(end_l2_height.0 + 1),
                 None => {
                     tracing::warn!(
-                            "Sequencer commitment verification: L1 L2 connection does not exist. L1 height = {}. Skipping commitment.",
-                            end_l1_height
-                            );
+                        "Sequencer commitment verification: L1 L2 connection does not exist. L1 height = {}. Skipping commitment.",
+                        end_l1_height
+                    );
                     continue;
                 }
             };
 
-            let range_end = BatchNumber(end_l2_height.0 + 1);
+            tracing::info!(
+                "Processing sequencer commitment. L2 Range = {:?} - {:?}. L1 Range = {} - {}",
+                start_l2_height,
+                end_l2_height,
+                start_l1_height,
+                end_l1_height
+            );
+
             // Traverse each item's field of vector of transactions, put them in merkle tree
             // and compare the root with the one from the ledger
             let stored_soft_batches: Vec<StoredSoftBatch> = self
                 .ledger_db
-                .get_soft_batch_range(&(start_l2_height..range_end))?;
+                .get_soft_batch_range(&(start_l2_height..end_l2_height))?;
 
             let soft_batches_tree = MerkleTree::<Sha256>::from_leaves(
                 stored_soft_batches
@@ -521,6 +518,7 @@ where
 
         self.ledger_db
             .commit_soft_batch(soft_batch_receipt, self.include_tx_body)?;
+
         self.ledger_db.extend_l2_range_of_l1_slot(
             SlotNumber(current_l1_block.header().height()),
             BatchNumber(l2_height),
@@ -690,7 +688,7 @@ async fn sync_l2<Da>(
 
                     // We wait for 2 seconds and then return a Permanent error so that we exit the retry.
                     // This should not backoff exponentially
-                    sleep(Duration::from_secs(2)).await;
+                    sleep(Duration::from_secs(1)).await;
                     Err(backoff::Error::Permanent(
                         "No soft batch published".to_owned(),
                     ))
@@ -724,7 +722,6 @@ async fn sync_l2<Da>(
             error!("Could not notify about L2 block: {}", e);
         }
         l2_height += 1;
-        sleep(Duration::from_secs(2)).await;
     }
 }
 
