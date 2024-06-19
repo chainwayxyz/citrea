@@ -44,4 +44,5 @@ deny = [{ name = "native-tls" }, { name = "openssl" }]
 [advisories]
 ignore = [
   "RUSTSEC-2023-0033", # borsh 0.10.3
+  "RUSTSEC-2024-0344", # curve25519-dalek 4.1.2
 ]

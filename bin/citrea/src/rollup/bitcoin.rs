@@ -16,7 +16,7 @@ use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::da::DaVerifier;
 use sov_rollup_interface::zk::{Zkvm, ZkvmHost};
 use sov_state::{DefaultStorageSpec, Storage, ZkStorage};
-use sov_stf_runner::{ParallelProverService, ProverConfig, RollupConfig};
+use sov_stf_runner::{FullNodeConfig, ParallelProverService, ProverConfig};
 use tracing::instrument;
 
 use crate::CitreaRollupBlueprint;
@@ -92,7 +92,7 @@ impl RollupBlueprint for BitcoinRollup {
     #[instrument(level = "trace", skip_all, err)]
     fn create_storage_manager(
         &self,
-        rollup_config: &sov_stf_runner::RollupConfig<Self::DaConfig>,
+        rollup_config: &sov_stf_runner::FullNodeConfig<Self::DaConfig>,
     ) -> Result<Self::StorageManager, anyhow::Error> {
         let storage_config = StorageConfig {
             path: rollup_config.storage.path.clone(),
@@ -103,7 +103,7 @@ impl RollupBlueprint for BitcoinRollup {
     #[instrument(level = "trace", skip_all)]
     async fn create_da_service(
         &self,
-        rollup_config: &RollupConfig<Self::DaConfig>,
+        rollup_config: &FullNodeConfig<Self::DaConfig>,
     ) -> Self::DaService {
         BitcoinService::new(
             rollup_config.da.clone(),
@@ -119,7 +119,7 @@ impl RollupBlueprint for BitcoinRollup {
     async fn create_prover_service(
         &self,
         prover_config: ProverConfig,
-        _rollup_config: &RollupConfig<Self::DaConfig>,
+        _rollup_config: &FullNodeConfig<Self::DaConfig>,
         _da_service: &Self::DaService,
     ) -> Self::ProverService {
         let vm = Risc0BonsaiHost::new(

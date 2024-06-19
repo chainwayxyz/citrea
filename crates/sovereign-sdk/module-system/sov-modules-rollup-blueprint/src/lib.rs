@@ -16,7 +16,7 @@ use sov_rollup_interface::zk::{Zkvm, ZkvmHost};
 use sov_state::storage::NativeStorage;
 use sov_state::Storage;
 use sov_stf_runner::{
-    InitVariant, ProverConfig, ProverService, RollupConfig, StateTransitionRunner,
+    FullNodeConfig, InitVariant, ProverConfig, ProverService, StateTransitionRunner,
 };
 use tokio::sync::oneshot;
 use tracing::{instrument, Instrument};
@@ -83,7 +83,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
             Self::NativeContext,
             Self::DaSpec,
         >>::GenesisPaths,
-        _rollup_config: &RollupConfig<Self::DaConfig>,
+        _rollup_config: &FullNodeConfig<Self::DaConfig>,
     ) -> anyhow::Result<
         GenesisParams<
             <Self::NativeRuntime as RuntimeTrait<Self::NativeContext, Self::DaSpec>>::GenesisConfig,
@@ -102,14 +102,14 @@ pub trait RollupBlueprint: Sized + Send + Sync {
     /// Creates instance of [`DaService`].
     async fn create_da_service(
         &self,
-        rollup_config: &RollupConfig<Self::DaConfig>,
+        rollup_config: &FullNodeConfig<Self::DaConfig>,
     ) -> Self::DaService;
 
     /// Creates instance of [`ProverService`].
     async fn create_prover_service(
         &self,
         prover_config: ProverConfig,
-        rollup_config: &RollupConfig<Self::DaConfig>,
+        rollup_config: &FullNodeConfig<Self::DaConfig>,
         da_service: &Self::DaService,
     ) -> Self::ProverService;
 
@@ -117,11 +117,11 @@ pub trait RollupBlueprint: Sized + Send + Sync {
     /// Panics if initialization fails.
     fn create_storage_manager(
         &self,
-        rollup_config: &RollupConfig<Self::DaConfig>,
+        rollup_config: &FullNodeConfig<Self::DaConfig>,
     ) -> Result<Self::StorageManager, anyhow::Error>;
 
     /// Creates instance of a LedgerDB.
-    fn create_ledger_db(&self, rollup_config: &RollupConfig<Self::DaConfig>) -> LedgerDB {
+    fn create_ledger_db(&self, rollup_config: &FullNodeConfig<Self::DaConfig>) -> LedgerDB {
         LedgerDB::with_path(&rollup_config.storage.path).expect("Ledger DB failed to open")
     }
 
@@ -133,7 +133,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
             Self::NativeContext,
             Self::DaSpec,
         >>::GenesisPaths,
-        rollup_config: RollupConfig<Self::DaConfig>,
+        rollup_config: FullNodeConfig<Self::DaConfig>,
     ) -> Result<FullNode<Self>, anyhow::Error>
     where
         <Self::NativeContext as Spec>::Storage: NativeStorage,

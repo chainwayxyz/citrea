@@ -12,7 +12,7 @@ use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::zk::{Zkvm, ZkvmHost};
 use sov_state::{DefaultStorageSpec, Storage, ZkStorage};
-use sov_stf_runner::{ParallelProverService, ProverConfig, RollupConfig};
+use sov_stf_runner::{FullNodeConfig, ParallelProverService, ProverConfig};
 
 use crate::CitreaRollupBlueprint;
 
@@ -81,7 +81,7 @@ impl RollupBlueprint for MockDemoRollup {
 
     async fn create_da_service(
         &self,
-        rollup_config: &RollupConfig<Self::DaConfig>,
+        rollup_config: &FullNodeConfig<Self::DaConfig>,
     ) -> Self::DaService {
         MockDaService::new(rollup_config.da.sender_address, &rollup_config.da.db_path)
     }
@@ -89,7 +89,7 @@ impl RollupBlueprint for MockDemoRollup {
     async fn create_prover_service(
         &self,
         prover_config: ProverConfig,
-        _rollup_config: &RollupConfig<Self::DaConfig>,
+        _rollup_config: &FullNodeConfig<Self::DaConfig>,
         _da_service: &Self::DaService,
     ) -> Self::ProverService {
         let vm = Risc0BonsaiHost::new(
@@ -113,7 +113,7 @@ impl RollupBlueprint for MockDemoRollup {
 
     fn create_storage_manager(
         &self,
-        rollup_config: &RollupConfig<Self::DaConfig>,
+        rollup_config: &FullNodeConfig<Self::DaConfig>,
     ) -> anyhow::Result<Self::StorageManager> {
         let storage_config = StorageConfig {
             path: rollup_config.storage.path.clone(),
