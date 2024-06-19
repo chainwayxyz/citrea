@@ -215,15 +215,15 @@ where
                             || proof_data.sequencer_public_key != self.sequencer_pub_key
                         {
                             tracing::warn!(
-                                        "Proof verification: Sequencer public key or sequencer da public key mismatch. Skipping proof."
-                                    );
+                                "Proof verification: Sequencer public key or sequencer da public key mismatch. Skipping proof."
+                            );
                             continue;
                         }
                         proof_data
                     } else {
                         tracing::warn!(
-                                    "Proof verification: SNARK verification failed. Skipping to next proof.."
-                                );
+                            "Proof verification: SNARK verification failed. Skipping to next proof.."
+                        );
                         continue;
                     }
                 }
@@ -258,9 +258,9 @@ where
                 Some(l1_height) => l1_height,
                 None => {
                     tracing::warn!(
-                                "Proof verification: L1 height not found for l1 hash: {:?}. Skipping proof.",
-                                l1_hash
-                            );
+                        "Proof verification: L1 height not found for l1 hash: {:?}. Skipping proof.",
+                        l1_hash
+                    );
                     continue;
                 }
             };
@@ -270,9 +270,9 @@ where
                 Some(commitments) => commitments,
                 None => {
                     tracing::warn!(
-                                    "Proof verification: No commitments found for l1 height: {}. Skipping proof.",
-                                    l1_height
-                                );
+                        "Proof verification: No commitments found for l1 height: {}. Skipping proof.",
+                        l1_height
+                    );
                     continue;
                 }
             };
@@ -282,9 +282,9 @@ where
                 Some(l1_height) => l1_height,
                 None => {
                     tracing::error!(
-                                    "Proof verification: For a known and verified sequencer commitment, L1 height not found for l1 hash: {:?}. Skipping proof.",
-                                    l1_hash
-                                );
+                        "Proof verification: For a known and verified sequencer commitment, L1 height not found for l1 hash: {:?}. Skipping proof.",
+                        l1_hash
+                    );
                     continue;
                 }
             };
@@ -303,18 +303,18 @@ where
                         != state_transition.initial_state_root.as_ref()
                     {
                         tracing::warn!(
-                                    "Proof verification: For a known and verified sequencer commitment. Pre state root mismatch - expected 0x{} but got 0x{}. Skipping proof.",
-                                    hex::encode(&soft_batch.pre_state_root),
-                                    hex::encode(&state_transition.initial_state_root)
-                                );
+                            "Proof verification: For a known and verified sequencer commitment. Pre state root mismatch - expected 0x{} but got 0x{}. Skipping proof.",
+                            hex::encode(&soft_batch.pre_state_root),
+                            hex::encode(&state_transition.initial_state_root)
+                        );
                         continue;
                     }
                 }
                 None => {
                     tracing::warn!(
-                                "Proof verification: For a known and verified sequencer commitment, L1 L2 connection does not exist. L1 height = {}. Skipping proof.",
-                                l1_height_start
-                            );
+                        "Proof verification: For a known and verified sequencer commitment, L1 L2 connection does not exist. L1 height = {}. Skipping proof.",
+                        l1_height_start
+                    );
                     continue;
                 }
             }
