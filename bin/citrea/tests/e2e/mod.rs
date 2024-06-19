@@ -1081,11 +1081,6 @@ async fn test_soft_confirmations_status_one_l1() -> Result<(), anyhow::Error> {
     // we wait until the block is actually received by the DA monitor.
     wait_for_l1_block(&da_service, 2, None).await;
 
-    // To make sure that we register one L2 block per L1 block,
-    // We have to submit an empty block for DA block #2.
-    // seq_test_client.send_publish_batch_request().await;
-    // wait_for_l2_block(&full_node_test_client, 7, None).await;
-
     // Wait for DA block #3 containing the commitment
     // submitted by sequencer.
     wait_for_l1_block(&da_service, 3, None).await;
