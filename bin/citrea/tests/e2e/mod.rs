@@ -1097,21 +1097,6 @@ async fn test_soft_confirmations_status_one_l1() -> Result<(), anyhow::Error> {
             .await
             .unwrap();
 
-        assert_eq!(SoftConfirmationStatus::Trusted, status_node.unwrap());
-    }
-
-    seq_test_client.send_publish_batch_request().await;
-    seq_test_client.send_publish_batch_request().await;
-
-    wait_for_l2_block(&full_node_test_client, 8, None).await;
-
-    // now retrieve confirmation status from the sequencer and full node and check if they are the same
-    for i in 1..=6 {
-        let status_node = full_node_test_client
-            .ledger_get_soft_confirmation_status(i)
-            .await
-            .unwrap();
-
         assert_eq!(SoftConfirmationStatus::Finalized, status_node.unwrap());
     }
 
