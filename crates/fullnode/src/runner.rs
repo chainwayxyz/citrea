@@ -365,34 +365,22 @@ where
         l1_block: Da::FilteredBlock,
         sequencer_commitments: Vec<SequencerCommitment>,
     ) -> anyhow::Result<()> {
-        let exponential_backoff = ExponentialBackoffBuilder::new()
-            .with_initial_interval(Duration::from_secs(1))
-            .with_max_elapsed_time(Some(Duration::from_secs(15 * 60)))
-            .build();
         for sequencer_commitment in sequencer_commitments.iter() {
             tracing::warn!(
                 "Processing sequencer commitment: {:?}",
                 sequencer_commitment
             );
-            let start_l1_height = retry_backoff(exponential_backoff.clone(), || async {
-                self.da_service
-                    .get_block_by_hash(sequencer_commitment.l1_start_block_hash)
-                    .await
-                    .map_err(backoff::Error::transient)
-            })
-            .await?
-            .header()
-            .height();
+            let start_l1_height =
+                get_da_block_by_hash(&self.da_service, sequencer_commitment.l1_start_block_hash)
+                    .await?
+                    .header()
+                    .height();
 
-            let end_l1_height = retry_backoff(exponential_backoff.clone(), || async {
-                self.da_service
-                    .get_block_by_hash(sequencer_commitment.l1_end_block_hash)
-                    .await
-                    .map_err(backoff::Error::transient)
-            })
-            .await?
-            .header()
-            .height();
+            let end_l1_height =
+                get_da_block_by_hash(&self.da_service, sequencer_commitment.l1_end_block_hash)
+                    .await?
+                    .header()
+                    .height();
 
             tracing::warn!(
                 "start height: {}, end height: {}",
@@ -757,4 +745,22 @@ async fn get_da_block_at_height<Da: DaService>(
     })
     .await
     .map_err(|e| anyhow!("Error while fetching L1 block: {}", e))
+}
+
+async fn get_da_block_by_hash<Da: DaService>(
+    da_service: &Da,
+    block_hash: [u8; 32],
+) -> anyhow::Result<Da::FilteredBlock> {
+    let exponential_backoff = ExponentialBackoffBuilder::new()
+        .with_initial_interval(Duration::from_secs(1))
+        .with_max_elapsed_time(Some(Duration::from_secs(15 * 60)))
+        .build();
+    retry_backoff(exponential_backoff.clone(), || async {
+        da_service
+            .get_block_by_hash(block_hash)
+            .await
+            .map_err(backoff::Error::transient)
+    })
+    .await
+    .map_err(|e| anyhow!("Could not fetch L1 block by hash: {}", e))
 }
