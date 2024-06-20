@@ -1,3 +1,5 @@
+use std::ops::Range;
+
 use ethers::types::{Bytes, H256};
 use jsonrpsee::core::client::{ClientT, Error};
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
@@ -34,6 +36,29 @@ impl SequencerClient {
         let res: Result<Option<GetSoftBatchResponse>, Error> = self
             .client
             .request("ledger_getSoftBatchByNumber", rpc_params![num])
+            .await;
+
+        match res {
+            Ok(res) => Ok(res),
+            Err(e) => match e {
+                Error::Transport(e) => anyhow::Result::Err(Error::Transport(e).into()),
+                _ => Err(anyhow::anyhow!(e)),
+            },
+        }
+    }
+
+    /// Gets l2 block given l2 height
+    #[instrument(level = "trace", skip(self), err, ret)]
+    pub async fn get_soft_batch_range<DaSpec: sov_rollup_interface::da::DaSpec>(
+        &self,
+        range: Range<u64>,
+    ) -> anyhow::Result<Vec<GetSoftBatchResponse>> {
+        let res: Result<Vec<GetSoftBatchResponse>, Error> = self
+            .client
+            .request(
+                "ledger_getSoftBatchRange",
+                rpc_params![range.start, range.end],
+            )
             .await;
 
         match res {
