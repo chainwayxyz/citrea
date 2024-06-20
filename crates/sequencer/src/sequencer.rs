@@ -45,6 +45,7 @@ use tokio::sync::oneshot::channel as oneshot_channel;
 use tokio::sync::Mutex;
 use tokio::time::sleep;
 use tracing::{debug, error, info, instrument, warn};
+use utility_server::spawn_utility_server;
 
 use crate::commitment_controller;
 use crate::config::SequencerConfig;
@@ -166,6 +167,14 @@ where
             rpc_config,
             soft_confirmation_rule_enforcer,
         })
+    }
+
+    pub async fn start_utility_server(
+        &self,
+        utility_channel: Option<tokio::sync::oneshot::Sender<SocketAddr>>,
+    ) -> anyhow::Result<()> {
+        let ledger_db: LedgerDB = self.ledger_db.clone();
+        Ok(())
     }
 
     pub async fn start_rpc_server(

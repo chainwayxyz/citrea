@@ -16,6 +16,11 @@ path = "full-node-db"
 bind_host = "127.0.0.1"
 bind_port = 12346
 
+[utility_server]
+# the host and port to bind the utility API http server for
+bind_host = "127.0.0.1"
+bind_port = 8071
+
 [runner]
 include_tx_body = false
 sequencer_client_url = "http://0.0.0.0:12345"

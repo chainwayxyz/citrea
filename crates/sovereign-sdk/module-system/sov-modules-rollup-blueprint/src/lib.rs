@@ -254,6 +254,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
             runner_config,
             rollup_config.public_keys,
             rollup_config.rpc,
+            rollup_config.utility_server,
             da_service,
             ledger_db,
             native_stf,
@@ -327,6 +328,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
             runner_config,
             rollup_config.public_keys,
             rollup_config.rpc,
+            rollup_config.utility_server,
             da_service,
             ledger_db,
             native_stf,
@@ -363,7 +365,7 @@ impl<S: RollupBlueprint> Sequencer<S> {
     /// Runs the sequencer.
     #[instrument(level = "trace", skip_all, err, ret(level = "error"))]
     pub async fn run(self) -> Result<(), anyhow::Error> {
-        self.run_and_report_rpc_port(None).await
+        self.run_and_report_ports(None, None).await
     }
 
     /// Runs the sequencer.
@@ -375,6 +377,21 @@ impl<S: RollupBlueprint> Sequencer<S> {
         seq.start_rpc_server(channel, self.rpc_methods)
             .await
             .unwrap();
+        seq.run().await?;
+        Ok(())
+    }
+
+    /// Runs the sequencer and reports rpc and utility server ports.
+    pub async fn run_and_report_ports(
+        self,
+        rpc_channel: Option<oneshot::Sender<SocketAddr>>,
+        utility_channel: Option<oneshot::Sender<SocketAddr>>,
+    ) -> Result<(), anyhow::Error> {
+        let mut seq = self.runner;
+        seq.start_rpc_server(rpc_channel, self.rpc_methods)
+            .await
+            .unwrap();
+        seq.start_utility_server(utility_channel).await.unwrap();
         seq.run().await?;
         Ok(())
     }
@@ -420,6 +437,20 @@ impl<S: RollupBlueprint> FullNode<S> {
         runner.run_in_process().await?;
         Ok(())
     }
+
+    /// Runs the rollup. Reports rpc and utility server port to the caller using the provided channel.
+    pub async fn run_and_report_ports(
+        self,
+        rpc_channel: Option<oneshot::Sender<SocketAddr>>,
+        utility_channel: Option<oneshot::Sender<SocketAddr>>,
+    ) -> Result<(), anyhow::Error> {
+        let mut runner = self.runner;
+        runner.start_rpc_server(self.rpc_methods, rpc_channel).await;
+        runner.start_utility_server(utility_channel).await;
+
+        runner.run_prover_process().await?;
+        Ok(())
+    }
 }
 
 /// Dependencies needed to run the rollup.
@@ -458,6 +489,20 @@ impl<S: RollupBlueprint> Prover<S> {
     ) -> Result<(), anyhow::Error> {
         let mut runner = self.runner;
         runner.start_rpc_server(self.rpc_methods, channel).await;
+
+        runner.run_prover_process().await?;
+        Ok(())
+    }
+
+    /// Runs the rollup. Reports rpc and utility server port to the caller using the provided channel.
+    pub async fn run_and_report_ports(
+        self,
+        rpc_channel: Option<oneshot::Sender<SocketAddr>>,
+        utility_channel: Option<oneshot::Sender<SocketAddr>>,
+    ) -> Result<(), anyhow::Error> {
+        let mut runner = self.runner;
+        runner.start_rpc_server(self.rpc_methods, rpc_channel).await;
+        runner.start_utility_server(utility_channel).await;
 
         runner.run_prover_process().await?;
         Ok(())

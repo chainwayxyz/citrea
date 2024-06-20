@@ -10,6 +10,7 @@ members = [
     "crates/sequencer-client",
     "crates/soft-confirmation-rule-enforcer",
     "crates/ethereum-rpc",
+    "crates/utility-server",
     # Sovereign sdk
     "crates/sovereign-sdk/rollup-interface",
     "crates/sovereign-sdk/adapters/risc0",
@@ -70,6 +71,7 @@ repository = "https://github.com/chainwayxyz/citrea"
 jmt = { git = "https://github.com/penumbra-zone/jmt.git", rev = "1d007e11cb68aa5ca13e9a5af4a12e6439d5f7b6" }
 
 # External dependencies
+axum = "0.7.5"
 async-trait = "0.1.71"
 anyhow = { version = "1.0.68", default-features = false }
 arbitrary = { version = "1.3.1", features = ["derive"] }

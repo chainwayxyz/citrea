@@ -1,0 +1,23 @@
+[package]
+name = "utility-server"
+authors = { workspace = true }
+edition = { workspace = true }
+homepage = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+
+version = { workspace = true }
+publish = false
+resolver = "2"
+
+[dependencies]
+axum = { workspace = true }
+tokio = { workspace = true }
+
+sov-db = { path = "../sovereign-sdk/full-node/db/sov-db" }
+serde = { workspace = true }
+
+[dev-dependencies]
+
+[features]
+native = []

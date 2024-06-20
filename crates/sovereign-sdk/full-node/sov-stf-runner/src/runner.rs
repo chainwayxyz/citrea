@@ -30,6 +30,7 @@ use sov_rollup_interface::zk::{Proof, StateTransitionData, Zkvm, ZkvmHost};
 use tokio::sync::oneshot;
 use tokio::time::{sleep, Duration};
 use tracing::{debug, error, info, instrument, warn};
+use utility_server::config::UtilityServerConfig;
 
 use crate::prover_helpers::get_initial_slot_height;
 use crate::verifier::StateTransitionVerifier;
@@ -57,6 +58,7 @@ where
     pub ledger_db: LedgerDB,
     state_root: StateRoot<Stf, Vm, Da::Spec>,
     rpc_config: RpcConfig,
+    utility_server_config: UtilityServerConfig,
     #[allow(dead_code)]
     prover_service: Option<Ps>,
     sequencer_client: SequencerClient,
@@ -120,6 +122,7 @@ where
         runner_config: RunnerConfig,
         public_keys: RollupPublicKeys,
         rpc_config: RpcConfig,
+        utility_server_config: UtilityServerConfig,
         da_service: Da,
         ledger_db: LedgerDB,
         stf: Stf,
@@ -162,6 +165,7 @@ where
             ledger_db,
             state_root: prev_state_root,
             rpc_config,
+            utility_server_config,
             prover_service,
             sequencer_client: SequencerClient::new(runner_config.sequencer_client_url),
             sequencer_pub_key: public_keys.sequencer_public_key,
@@ -175,6 +179,54 @@ where
                 .accept_public_input_as_proven
                 .unwrap_or(false),
         })
+    }
+
+    /// Starts utility http server
+    pub async fn start_utility_server(&self, utility_channel: Option<oneshot::Sender<SocketAddr>>) {
+        let ledger_db = self.ledger_db.clone();
+        let bind_host = match self.utility_server_config.bind_host.parse() {
+            Ok(bind_host) => bind_host,
+            Err(e) => {
+                error!("Failed to parse bind host: {}", e);
+                return;
+            }
+        };
+
+        let listen_address = SocketAddr::new(bind_host, self.rpc_config.bind_port);
+
+        // let _handle = tokio::spawn(async move {
+        //     let server = jsonrpsee::server::ServerBuilder::default()
+        //         .max_connections(max_connections)
+        //         .build([listen_address].as_ref())
+        //         .await;
+
+        //     match server {
+        //         Ok(server) => {
+        //             let bound_address = match server.local_addr() {
+        //                 Ok(address) => address,
+        //                 Err(e) => {
+        //                     error!("{}", e);
+        //                     return;
+        //                 }
+        //             };
+        //             if let Some(channel) = utility_channel {
+        //                 if let Err(e) = channel.send(bound_address) {
+        //                     error!("Could not send bound_address {}: {}", bound_address, e);
+        //                     return;
+        //                 }
+        //             }
+        //             info!("Starting RPC server at {} ", &bound_address);
+
+        //             let _server_handle = server.start(methods);
+        //             futures::future::pending::<()>().await;
+        //         }
+        //         Err(e) => {
+        //             error!("Could not start RPC server: {}", e);
+        //         }
+        //     }
+        // });
+
+        return ();
     }
 
     /// Starts a RPC server with provided rpc methods.

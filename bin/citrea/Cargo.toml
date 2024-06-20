@@ -67,6 +67,8 @@ sov-state = { path = "../../crates/sovereign-sdk/module-system/sov-state", featu
 clap = { workspace = true }
 secp256k1 = { workspace = true }
 
+utility-server = { path = "../../crates/utility-server" }
+
 [dev-dependencies]
 sov-rollup-interface = { path = "../../crates/sovereign-sdk/rollup-interface", features = [
     "fuzzing",

@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
 use shared_backup_db::SharedBackupDbConfig;
+use utility_server::config::UtilityServerConfig;
 
 use crate::ProverGuestRunConfig;
 
@@ -88,6 +89,8 @@ pub struct RollupPublicKeys {
 pub struct RollupConfig<DaServiceConfig> {
     /// RPC configuration
     pub rpc: RpcConfig,
+    /// Http server configuration
+    pub utility_server: UtilityServerConfig,
     /// Currently rollup config runner only supports storage path parameter
     pub storage: StorageConfig,
     /// Runner own configuration.
@@ -162,6 +165,10 @@ mod tests {
             bind_port = 12345
             max_connections = 500
 
+            [utility_server]
+            bind_host = "127.0.0.1"
+            bind_port = 8071
+
             [da]
             sender_address = "0000000000000000000000000000000000000000000000000000000000000000"
             db_path = "/tmp/da"
@@ -199,6 +206,10 @@ mod tests {
                 max_request_body_size: 10 * 1024 * 1024,
                 max_response_body_size: 10 * 1024 * 1024,
                 batch_requests_limit: 50,
+            },
+            utility_server: UtilityServerConfig {
+                bind_host: "127.0.0.1".to_string(),
+                bind_port: 8071,
             },
             public_keys: RollupPublicKeys {
                 sequencer_public_key: vec![0; 32],

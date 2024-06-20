@@ -19,6 +19,7 @@ use tempfile::TempDir;
 use tokio::sync::oneshot;
 use tokio::time::sleep;
 use tracing::{debug, warn};
+use utility_server::config::UtilityServerConfig;
 
 use crate::test_client::TestClient;
 
@@ -129,6 +130,10 @@ pub fn create_default_rollup_config(
             max_request_body_size: 10 * 1024 * 1024,
             max_response_body_size: 10 * 1024 * 1024,
             batch_requests_limit: 50,
+        },
+        utility_server: UtilityServerConfig {
+            bind_host: "127.0.0.1".into(),
+            bind_port: 0,
         },
         runner: match node_mode {
             NodeMode::FullNode(socket_addr) | NodeMode::Prover(socket_addr) => Some(RunnerConfig {

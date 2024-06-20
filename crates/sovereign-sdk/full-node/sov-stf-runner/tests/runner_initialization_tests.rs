@@ -7,6 +7,7 @@ use sov_stf_runner::{
     InitVariant, ParallelProverService, RollupConfig, RollupPublicKeys, RpcConfig, RunnerConfig,
     StateTransitionRunner, StorageConfig,
 };
+use utility_server::config::UtilityServerConfig;
 
 mod hash_stf;
 
@@ -79,6 +80,10 @@ fn initialize_runner(
             max_response_body_size: 10 * 1024 * 1024,
             batch_requests_limit: 50,
         },
+        utility_server: UtilityServerConfig {
+            bind_host: "127.0.0.1".to_string(),
+            bind_port: 0,
+        },
         runner: Some(RunnerConfig {
             sequencer_client_url: "http://127.0.0.1:4444".to_string(),
             include_tx_body: true,
@@ -113,6 +118,7 @@ fn initialize_runner(
         rollup_config.runner.unwrap(),
         rollup_config.public_keys,
         rollup_config.rpc,
+        rollup_config.utility_server,
         da_service,
         ledger_db,
         stf,

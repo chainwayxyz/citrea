@@ -40,6 +40,8 @@ sov-modules-api = { path = "../../module-system/sov-modules-api", default-featur
 
 shared-backup-db = { path = "../../../shared-backup-db", optional = true }
 
+utility-server = { path = "../../../utility-server", optional = true }
+
 [dev-dependencies]
 tempfile = { workspace = true }
 sha2 = { workspace = true }
@@ -80,4 +82,5 @@ native = [
     "shared-backup-db",
     "backoff",
     "rand",
+    "utility-server",
 ]
