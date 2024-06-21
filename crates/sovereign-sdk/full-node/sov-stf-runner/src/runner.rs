@@ -30,8 +30,7 @@ use sov_rollup_interface::zk::{Proof, StateTransitionData, Zkvm, ZkvmHost};
 use tokio::sync::oneshot;
 use tokio::time::{sleep, Duration};
 use tracing::{debug, error, info, instrument, warn};
-use utility_server::spawn_utility_server;
-use utility_server::UtilityServerConfig;
+use utility_server::{spawn_utility_server, UtilityServerConfig};
 
 use crate::prover_helpers::get_initial_slot_height;
 use crate::verifier::StateTransitionVerifier;

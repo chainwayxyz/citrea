@@ -1,9 +1,10 @@
 pub mod config;
-pub use config::UtilityServerConfig;
-
 use core::net::SocketAddr;
 
-use axum::{extract::Extension, routing::get, Router};
+use axum::extract::Extension;
+use axum::routing::get;
+use axum::Router;
+pub use config::UtilityServerConfig;
 use sov_db::ledger_db::LedgerDB;
 
 async fn health_check(Extension(_state): Extension<LedgerDB>) -> String {
