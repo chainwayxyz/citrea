@@ -735,36 +735,43 @@ where
                 .with_max_elapsed_time(Some(Duration::from_secs(15 * 60)))
                 .build();
             let inner_client = &self.sequencer_client;
-            let soft_batches = match retry_backoff(exponential_backoff.clone(), || async move {
-                match inner_client
-                    .get_soft_batch_range::<Da::Spec>(height..height + 10)
-                    .await
-                {
-                    Ok(soft_batches) => Ok(soft_batches),
-                    Err(e) => match e.downcast_ref::<JsonrpseeError>() {
-                        Some(JsonrpseeError::Transport(e)) => {
-                            let error_msg =
-                                format!("Soft Batch: connection error during RPC call: {:?}", e);
-                            debug!(error_msg);
-                            Err(backoff::Error::Transient {
-                                err: error_msg,
+            let soft_batches: Vec<GetSoftBatchResponse> =
+                match retry_backoff(exponential_backoff.clone(), || async move {
+                    match inner_client
+                        .get_soft_batch_range::<Da::Spec>(height..height + 10)
+                        .await
+                    {
+                        Ok(soft_batches) => Ok(soft_batches
+                            .into_iter()
+                            .filter(|sb| sb.is_some())
+                            .map(|v| v.unwrap())
+                            .collect::<Vec<_>>()),
+                        Err(e) => match e.downcast_ref::<JsonrpseeError>() {
+                            Some(JsonrpseeError::Transport(e)) => {
+                                let error_msg = format!(
+                                    "Soft Batch: connection error during RPC call: {:?}",
+                                    e
+                                );
+                                debug!(error_msg);
+                                Err(backoff::Error::Transient {
+                                    err: error_msg,
+                                    retry_after: None,
+                                })
+                            }
+                            _ => Err(backoff::Error::Transient {
+                                err: format!("Soft Batch: unknown error from RPC call: {:?}", e),
                                 retry_after: None,
-                            })
-                        }
-                        _ => Err(backoff::Error::Transient {
-                            err: format!("Soft Batch: unknown error from RPC call: {:?}", e),
-                            retry_after: None,
-                        }),
-                    },
-                }
-            })
-            .await
-            {
-                Ok(soft_batch) => soft_batch,
-                Err(_) => {
-                    continue;
-                }
-            };
+                            }),
+                        },
+                    }
+                })
+                .await
+                {
+                    Ok(soft_batches) => soft_batches,
+                    Err(_) => {
+                        continue;
+                    }
+                };
 
             if soft_batches.is_empty() {
                 debug!(
@@ -777,8 +784,6 @@ where
                 sleep(Duration::from_secs(2)).await;
                 continue;
             }
-
-            let soft_batches_count = soft_batches.len() as u64;
 
             for soft_batch in soft_batches {
                 if last_l1_height != soft_batch.da_slot_height || cur_l1_block.is_none() {
@@ -1192,9 +1197,9 @@ where
                 );
 
                 self.storage_manager.finalize_l2(height)?;
-            }
 
-            height += soft_batches_count;
+                height += 1;
+            }
         }
     }
 
