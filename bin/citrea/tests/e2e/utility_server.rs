@@ -1,19 +1,7 @@
-use std::str::FromStr;
-use std::time::Duration;
-
 use citrea_stf::genesis_config::GenesisPaths;
-use ethers::abi::Address;
-use reth_primitives::BlockNumberOrTag;
-use sov_mock_da::{MockAddress, MockDaService};
 use sov_stf_runner::ProverConfig;
-use tokio::time::sleep;
 
-use crate::evm::{init_test_rollup, make_test_client};
-use crate::test_client::TestClient;
-use crate::test_helpers::{
-    create_default_sequencer_config, start_rollup, tempdir_with_children, wait_for_l1_block,
-    wait_for_l2_block, wait_for_postgres_commitment, wait_for_prover_l1_height, NodeMode,
-};
+use crate::test_helpers::{start_rollup, tempdir_with_children, NodeMode};
 use crate::{
     DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
     DEFAULT_PROOF_WAIT_DURATION,
@@ -57,8 +45,8 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
     //create htttp client with seq_util_port and reqwest
     let health_endpoint = format!(
         "http://{}:{}/health",
-        seq_util_port.ip().to_string(),
-        seq_util_port.port().to_string(),
+        seq_util_port.ip(),
+        seq_util_port.port(),
     );
     let resp = reqwest::get(health_endpoint).await?;
     assert_eq!(resp.status(), 200);
@@ -94,8 +82,8 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
     //create htttp client with seq_util_port and reqwest
     let health_endpoint = format!(
         "http://{}:{}/health",
-        full_node_util_port.ip().to_string(),
-        full_node_util_port.port().to_string(),
+        full_node_util_port.ip(),
+        full_node_util_port.port(),
     );
     let resp = reqwest::get(health_endpoint).await?;
     assert_eq!(resp.status(), 200);
@@ -133,8 +121,8 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
     //create htttp client with seq_util_port and reqwest
     let health_endpoint = format!(
         "http://{}:{}/health",
-        prover_node_util_port.ip().to_string(),
-        prover_node_util_port.port().to_string(),
+        prover_node_util_port.ip(),
+        prover_node_util_port.port(),
     );
     let resp = reqwest::get(health_endpoint).await?;
     assert_eq!(resp.status(), 200);

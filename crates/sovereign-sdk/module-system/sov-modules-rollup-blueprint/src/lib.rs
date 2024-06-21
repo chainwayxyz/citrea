@@ -449,7 +449,7 @@ impl<S: RollupBlueprint> FullNode<S> {
         runner.start_rpc_server(self.rpc_methods, rpc_channel).await;
         runner.start_utility_server(utility_channel).await;
 
-        runner.run_prover_process().await?;
+        runner.run_in_process().await?;
         Ok(())
     }
 }
