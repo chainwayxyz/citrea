@@ -48,7 +48,7 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
     let resp = reqwest::get(health_endpoint).await?;
     assert_eq!(resp.status(), 200);
 
-    let (full_node_port_tx, full_node_port_rx) = tokio::sync::oneshot::channel();
+    let (full_node_port_tx, _) = tokio::sync::oneshot::channel();
     let (full_node_util_port_tx, full_node_util_port_rx) = tokio::sync::oneshot::channel();
 
     let da_db_dir_cloned = da_db_dir.clone();
@@ -84,7 +84,7 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
     let resp = reqwest::get(health_endpoint).await?;
     assert_eq!(resp.status(), 200);
 
-    let (prover_node_port_tx, prover_node_port_rx) = tokio::sync::oneshot::channel();
+    let (prover_node_port_tx, _) = tokio::sync::oneshot::channel();
     let (prover_node_util_port_tx, prover_node_util_port_rx) = tokio::sync::oneshot::channel();
 
     let da_db_dir_cloned = da_db_dir.clone();
