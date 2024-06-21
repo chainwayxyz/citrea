@@ -12,7 +12,7 @@ use jsonrpsee::RpcModule;
 use rand::Rng;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
-use sequencer_client::SequencerClient;
+use sequencer_client::{GetSoftBatchResponse, SequencerClient};
 use shared_backup_db::{PostgresConnector, ProofType};
 use sov_db::ledger_db::{LedgerDB, SlotCommit};
 use sov_db::schema::types::{BatchNumber, SlotNumber, StoredSoftBatch, StoredStateTransition};
