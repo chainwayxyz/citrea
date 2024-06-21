@@ -720,49 +720,56 @@ async fn sync_l2<Da>(
             .build();
 
         let inner_client = &sequencer_client;
-
-        let soft_batch = match retry_backoff(exponential_backoff.clone(), || async move {
-            match inner_client.get_soft_batch::<Da::Spec>(l2_height).await {
-                Ok(Some(soft_batch)) => Ok(soft_batch),
-                Ok(None) => {
-                    debug!("Soft Batch: no batch at height {}, retrying...", l2_height);
-
-                    // We wait for 2 seconds and then return a Permanent error so that we exit the retry.
-                    // This should not backoff exponentially
-                    sleep(Duration::from_secs(1)).await;
-                    Err(backoff::Error::Permanent(
-                        "No soft batch published".to_owned(),
-                    ))
-                }
-                Err(e) => match e.downcast_ref::<JsonrpseeError>() {
-                    Some(JsonrpseeError::Transport(e)) => {
-                        let error_msg =
-                            format!("Soft Batch: connection error during RPC call: {:?}", e);
-                        debug!(error_msg);
-                        Err(backoff::Error::Transient {
-                            err: error_msg,
+        let soft_batches: Vec<GetSoftBatchResponse> =
+            match retry_backoff(exponential_backoff.clone(), || async move {
+                match inner_client
+                    .get_soft_batch_range::<Da::Spec>(l2_height..l2_height + 10)
+                    .await
+                {
+                    Ok(soft_batches) => Ok(soft_batches.into_iter().flatten().collect::<Vec<_>>()),
+                    Err(e) => match e.downcast_ref::<JsonrpseeError>() {
+                        Some(JsonrpseeError::Transport(e)) => {
+                            let error_msg =
+                                format!("Soft Batch: connection error during RPC call: {:?}", e);
+                            debug!(error_msg);
+                            Err(backoff::Error::Transient {
+                                err: error_msg,
+                                retry_after: None,
+                            })
+                        }
+                        _ => Err(backoff::Error::Transient {
+                            err: format!("Soft Batch: unknown error from RPC call: {:?}", e),
                             retry_after: None,
-                        })
-                    }
-                    _ => Err(backoff::Error::Transient {
-                        err: format!("Soft Batch: unknown error from RPC call: {:?}", e),
-                        retry_after: None,
-                    }),
-                },
-            }
-        })
-        .await
-        {
-            Ok(soft_batch) => soft_batch,
-            Err(_) => {
-                continue;
-            }
-        };
+                        }),
+                    },
+                }
+            })
+            .await
+            {
+                Ok(soft_batches) => soft_batches,
+                Err(_) => {
+                    continue;
+                }
+            };
 
-        if let Err(e) = sender.send((l2_height, soft_batch)).await {
-            error!("Could not notify about L2 block: {}", e);
+        if soft_batches.is_empty() {
+            debug!(
+                "Soft Batch: no batch at starting height {}, retrying...",
+                l2_height
+            );
+
+            // We wait for 2 seconds and then return a Permanent error so that we exit the retry.
+            // This should not backoff exponentially
+            sleep(Duration::from_secs(2)).await;
+            continue;
         }
-        l2_height += 1;
+
+        for soft_batch in soft_batches {
+            if let Err(e) = sender.send((l2_height, soft_batch)).await {
+                error!("Could not notify about L2 block: {}", e);
+            }
+            l2_height += 1;
+        }
     }
 }
 
