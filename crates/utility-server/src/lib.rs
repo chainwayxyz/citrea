@@ -8,7 +8,7 @@ pub use config::UtilityServerConfig;
 use sov_db::ledger_db::LedgerDB;
 
 async fn health_check(Extension(_state): Extension<LedgerDB>) -> String {
-    format!("OK")
+    "OK".to_string()
 }
 
 pub async fn spawn_utility_server(

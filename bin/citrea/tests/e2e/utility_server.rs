@@ -2,10 +2,7 @@ use citrea_stf::genesis_config::GenesisPaths;
 use sov_stf_runner::ProverConfig;
 
 use crate::test_helpers::{start_rollup, tempdir_with_children, NodeMode};
-use crate::{
-    DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
-    DEFAULT_PROOF_WAIT_DURATION,
-};
+use crate::{DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT};
 
 #[tokio::test]
 async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
@@ -76,7 +73,6 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
         .await;
     });
 
-    let full_node_port = full_node_port_rx.await.unwrap();
     let full_node_util_port = full_node_util_port_rx.await.unwrap();
 
     //create htttp client with seq_util_port and reqwest
@@ -115,7 +111,6 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
         .await;
     });
 
-    let prover_node_port = prover_node_port_rx.await.unwrap();
     let prover_node_util_port = prover_node_util_port_rx.await.unwrap();
 
     //create htttp client with seq_util_port and reqwest
