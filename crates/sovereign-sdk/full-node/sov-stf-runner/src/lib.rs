@@ -3,7 +3,6 @@
 
 #[cfg(feature = "native")]
 mod config;
-#[cfg(feature = "mock")]
 /// Testing utilities.
 #[cfg(feature = "mock")]
 pub mod mock;

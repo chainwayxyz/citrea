@@ -741,11 +741,9 @@ where
                         .get_soft_batch_range::<Da::Spec>(height..height + 10)
                         .await
                     {
-                        Ok(soft_batches) => Ok(soft_batches
-                            .into_iter()
-                            .filter(|sb| sb.is_some())
-                            .map(|v| v.unwrap())
-                            .collect::<Vec<_>>()),
+                        Ok(soft_batches) => {
+                            Ok(soft_batches.into_iter().flatten().collect::<Vec<_>>())
+                        }
                         Err(e) => match e.downcast_ref::<JsonrpseeError>() {
                             Some(JsonrpseeError::Transport(e)) => {
                                 let error_msg = format!(
