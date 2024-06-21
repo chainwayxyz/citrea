@@ -225,6 +225,7 @@ pub(crate) fn calculate_reward_percentiles_for_block(
 
 /// A cached entry for a block's fee history.
 #[derive(Debug, Clone, Default)]
+#[allow(dead_code)]
 pub struct FeeHistoryEntry {
     /// The base fee per gas for this block.
     pub base_fee_per_gas: u64,

@@ -722,6 +722,7 @@ impl TestClient {
 
 #[derive(serde::Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
+#[allow(dead_code)]
 // ethers version of FeeHistory doesn't accept None reward
 pub struct FeeHistory {
     pub base_fee_per_gas: Vec<ethers::types::U256>,
