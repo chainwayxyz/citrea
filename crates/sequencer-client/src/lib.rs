@@ -52,8 +52,8 @@ impl SequencerClient {
     pub async fn get_soft_batch_range<DaSpec: sov_rollup_interface::da::DaSpec>(
         &self,
         range: Range<u64>,
-    ) -> anyhow::Result<Vec<GetSoftBatchResponse>> {
-        let res: Result<Vec<GetSoftBatchResponse>, Error> = self
+    ) -> anyhow::Result<Vec<Option<GetSoftBatchResponse>>> {
+        let res: Result<Vec<Option<GetSoftBatchResponse>>, Error> = self
             .client
             .request(
                 "ledger_getSoftBatchRange",
