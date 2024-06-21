@@ -183,6 +183,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
             rollup_config.public_keys,
             ledger_db,
             rollup_config.rpc,
+            rollup_config.utility_server,
         )
         .unwrap();
 

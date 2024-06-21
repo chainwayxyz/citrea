@@ -7,7 +7,7 @@ use sov_stf_runner::{
     InitVariant, ParallelProverService, RollupConfig, RollupPublicKeys, RpcConfig, RunnerConfig,
     StateTransitionRunner, StorageConfig,
 };
-use utility_server::config::UtilityServerConfig;
+use utility_server::UtilityServerConfig;
 
 mod hash_stf;
 

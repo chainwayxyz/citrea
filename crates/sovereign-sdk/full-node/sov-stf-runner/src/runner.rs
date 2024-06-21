@@ -30,7 +30,8 @@ use sov_rollup_interface::zk::{Proof, StateTransitionData, Zkvm, ZkvmHost};
 use tokio::sync::oneshot;
 use tokio::time::{sleep, Duration};
 use tracing::{debug, error, info, instrument, warn};
-use utility_server::config::UtilityServerConfig;
+use utility_server::spawn_utility_server;
+use utility_server::UtilityServerConfig;
 
 use crate::prover_helpers::get_initial_slot_height;
 use crate::verifier::StateTransitionVerifier;
@@ -193,40 +194,9 @@ where
         };
 
         let listen_address = SocketAddr::new(bind_host, self.rpc_config.bind_port);
+        println!("Listen address: {:?}", listen_address);
 
-        // let _handle = tokio::spawn(async move {
-        //     let server = jsonrpsee::server::ServerBuilder::default()
-        //         .max_connections(max_connections)
-        //         .build([listen_address].as_ref())
-        //         .await;
-
-        //     match server {
-        //         Ok(server) => {
-        //             let bound_address = match server.local_addr() {
-        //                 Ok(address) => address,
-        //                 Err(e) => {
-        //                     error!("{}", e);
-        //                     return;
-        //                 }
-        //             };
-        //             if let Some(channel) = utility_channel {
-        //                 if let Err(e) = channel.send(bound_address) {
-        //                     error!("Could not send bound_address {}: {}", bound_address, e);
-        //                     return;
-        //                 }
-        //             }
-        //             info!("Starting RPC server at {} ", &bound_address);
-
-        //             let _server_handle = server.start(methods);
-        //             futures::future::pending::<()>().await;
-        //         }
-        //         Err(e) => {
-        //             error!("Could not start RPC server: {}", e);
-        //         }
-        //     }
-        // });
-
-        return ();
+        spawn_utility_server(ledger_db, listen_address, utility_channel).await;
     }
 
     /// Starts a RPC server with provided rpc methods.

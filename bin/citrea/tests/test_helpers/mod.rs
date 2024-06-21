@@ -19,7 +19,7 @@ use tempfile::TempDir;
 use tokio::sync::oneshot;
 use tokio::time::sleep;
 use tracing::{debug, warn};
-use utility_server::config::UtilityServerConfig;
+use utility_server::UtilityServerConfig;
 
 use crate::test_client::TestClient;
 
@@ -34,6 +34,7 @@ pub enum NodeMode {
 #[allow(clippy::too_many_arguments)]
 pub async fn start_rollup(
     rpc_reporting_channel: oneshot::Sender<SocketAddr>,
+    utility_server_reporting_channel: oneshot::Sender<SocketAddr>,
     rt_genesis_paths: GenesisPaths,
     rollup_prover_config: Option<ProverConfig>,
     node_mode: NodeMode,
@@ -98,7 +99,10 @@ pub async fn start_rollup(
                 .await
                 .unwrap();
             sequencer_rollup
-                .run_and_report_rpc_port(Some(rpc_reporting_channel))
+                .run_and_report_ports(
+                    Some(rpc_reporting_channel),
+                    Some(utility_server_reporting_channel),
+                )
                 .await
                 .unwrap();
         }

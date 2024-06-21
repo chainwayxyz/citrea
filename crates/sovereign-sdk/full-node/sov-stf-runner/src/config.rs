@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
 use shared_backup_db::SharedBackupDbConfig;
-use utility_server::config::UtilityServerConfig;
+use utility_server::UtilityServerConfig;
 
 use crate::ProverGuestRunConfig;
 

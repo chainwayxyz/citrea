@@ -11275,6 +11275,7 @@ dependencies = [
  "serde",
  "sov-db",
  "tokio",
+ "tracing",
 ]
 
 [[package]]

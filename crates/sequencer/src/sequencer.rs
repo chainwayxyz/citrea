@@ -45,7 +45,7 @@ use tokio::sync::oneshot::channel as oneshot_channel;
 use tokio::sync::Mutex;
 use tokio::time::sleep;
 use tracing::{debug, error, info, instrument, warn};
-use utility_server::spawn_utility_server;
+use utility_server::{spawn_utility_server, UtilityServerConfig};
 
 use crate::commitment_controller;
 use crate::config::SequencerConfig;
@@ -81,6 +81,7 @@ where
     state_root: StateRoot<Stf, Vm, Da::Spec>,
     sequencer_pub_key: Vec<u8>,
     rpc_config: RpcConfig,
+    utility_server_config: UtilityServerConfig,
     soft_confirmation_rule_enforcer: SoftConfirmationRuleEnforcer<C, Da::Spec>,
 }
 
@@ -114,6 +115,7 @@ where
         public_keys: RollupPublicKeys,
         ledger_db: LedgerDB,
         rpc_config: RpcConfig,
+        utility_server_config: UtilityServerConfig,
     ) -> anyhow::Result<Self> {
         let (l2_force_block_tx, l2_force_block_rx) = unbounded();
 
@@ -165,6 +167,7 @@ where
             state_root: prev_state_root,
             sequencer_pub_key: public_keys.sequencer_public_key,
             rpc_config,
+            utility_server_config,
             soft_confirmation_rule_enforcer,
         })
     }
@@ -173,7 +176,17 @@ where
         &self,
         utility_channel: Option<tokio::sync::oneshot::Sender<SocketAddr>>,
     ) -> anyhow::Result<()> {
-        let ledger_db: LedgerDB = self.ledger_db.clone();
+        let ledger_db = self.ledger_db.clone();
+        let listen_address = SocketAddr::new(
+            self.utility_server_config
+                .bind_host
+                .parse()
+                .map_err(|e| anyhow!("Failed to parse bind host: {}", e))?,
+            self.utility_server_config.bind_port,
+        );
+        println!("Listen address: {:?}", listen_address);
+
+        spawn_utility_server(ledger_db, listen_address, utility_channel).await;
         Ok(())
     }
 
