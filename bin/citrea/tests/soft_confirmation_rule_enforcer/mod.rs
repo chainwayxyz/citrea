@@ -21,6 +21,7 @@ async fn too_many_l2_block_per_l1_block() {
     tokio::spawn(async move {
         start_rollup(
             seq_port_tx,
+            None,
             GenesisPaths::from_dir(
                 "../test-data/genesis/integration-tests-low-max-l2-blocks-per-l1",
             ),

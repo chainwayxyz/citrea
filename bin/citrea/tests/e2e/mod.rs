@@ -1,3 +1,5 @@
+mod utility_server;
+
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
@@ -73,6 +75,7 @@ async fn initialize_test(
     let seq_task = tokio::spawn(async move {
         start_rollup(
             seq_port_tx,
+            None,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             None,
             NodeMode::SequencerNode,
@@ -97,6 +100,7 @@ async fn initialize_test(
     let full_node_task = tokio::spawn(async move {
         start_rollup(
             full_node_port_tx,
+            None,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             None,
             NodeMode::FullNode(seq_port),
@@ -145,6 +149,7 @@ async fn test_soft_batch_save() -> Result<(), anyhow::Error> {
     let seq_task = tokio::spawn(async move {
         start_rollup(
             seq_port_tx,
+            None,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             None,
             NodeMode::SequencerNode,
@@ -169,6 +174,7 @@ async fn test_soft_batch_save() -> Result<(), anyhow::Error> {
     let full_node_task = tokio::spawn(async move {
         start_rollup(
             full_node_port_tx,
+            None,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             None,
             NodeMode::FullNode(seq_port),
@@ -193,6 +199,7 @@ async fn test_soft_batch_save() -> Result<(), anyhow::Error> {
     let full_node_task_2 = tokio::spawn(async move {
         start_rollup(
             full_node_port_tx_2,
+            None,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             None,
             NodeMode::FullNode(full_node_port),
@@ -298,6 +305,7 @@ async fn test_delayed_sync_ten_blocks() -> Result<(), anyhow::Error> {
     let seq_task = tokio::spawn(async {
         start_rollup(
             seq_port_tx,
+            None,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             None,
             NodeMode::SequencerNode,
@@ -334,6 +342,7 @@ async fn test_delayed_sync_ten_blocks() -> Result<(), anyhow::Error> {
     let full_node_task = tokio::spawn(async move {
         start_rollup(
             full_node_port_tx,
+            None,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             None,
             NodeMode::FullNode(seq_port),
@@ -410,6 +419,7 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
     let seq_task = tokio::spawn(async {
         start_rollup(
             seq_port_tx,
+            None,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             None,
             NodeMode::SequencerNode,
@@ -435,6 +445,7 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
     let rollup_task = tokio::spawn(async move {
         start_rollup(
             full_node_port_tx,
+            None,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             None,
             NodeMode::FullNode(seq_port),
@@ -512,6 +523,7 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
     let rollup_task = tokio::spawn(async move {
         start_rollup(
             full_node_port_tx,
+            None,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             None,
             NodeMode::FullNode(seq_port),
@@ -569,6 +581,7 @@ async fn test_get_transaction_by_hash() -> Result<(), anyhow::Error> {
     let seq_task = tokio::spawn(async {
         start_rollup(
             seq_port_tx,
+            None,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             None,
             NodeMode::SequencerNode,
@@ -592,6 +605,7 @@ async fn test_get_transaction_by_hash() -> Result<(), anyhow::Error> {
     let rollup_task = tokio::spawn(async move {
         start_rollup(
             full_node_port_tx,
+            None,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             None,
             NodeMode::FullNode(seq_port),
@@ -841,6 +855,7 @@ async fn test_reopen_sequencer() -> Result<(), anyhow::Error> {
     let seq_task = tokio::spawn(async {
         start_rollup(
             seq_port_tx,
+            None,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             None,
             NodeMode::SequencerNode,
@@ -887,6 +902,7 @@ async fn test_reopen_sequencer() -> Result<(), anyhow::Error> {
     let seq_task = tokio::spawn(async {
         start_rollup(
             seq_port_tx,
+            None,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             None,
             NodeMode::SequencerNode,
@@ -1201,6 +1217,7 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
     let seq_task = tokio::spawn(async move {
         start_rollup(
             seq_port_tx,
+            None,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             None,
             NodeMode::SequencerNode,
@@ -1225,6 +1242,7 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
     let prover_node_task = tokio::spawn(async move {
         start_rollup(
             prover_node_port_tx,
+            None,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             Some(ProverConfig {
                 proving_mode: sov_stf_runner::ProverGuestRunConfig::Execute,
@@ -1347,6 +1365,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     let seq_task = tokio::spawn(async move {
         start_rollup(
             seq_port_tx,
+            None,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             Some(ProverConfig::default()),
             NodeMode::SequencerNode,
@@ -1372,6 +1391,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     let prover_node_task = tokio::spawn(async move {
         start_rollup(
             prover_node_port_tx,
+            None,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             Some(ProverConfig::default()),
             NodeMode::Prover(seq_port),
@@ -1430,6 +1450,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     let prover_node_task = tokio::spawn(async move {
         start_rollup(
             prover_node_port_tx,
+            None,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             Some(ProverConfig::default()),
             NodeMode::Prover(seq_port),
@@ -1468,6 +1489,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     let prover_node_task = tokio::spawn(async move {
         start_rollup(
             prover_node_port_tx,
+            None,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             Some(ProverConfig::default()),
             NodeMode::Prover(seq_port),
@@ -1674,6 +1696,7 @@ async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error>
     let seq_task = tokio::spawn(async move {
         start_rollup(
             seq_port_tx,
+            None,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests-low-block-gas-limit"),
             None,
             NodeMode::SequencerNode,
@@ -1845,6 +1868,7 @@ async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
     let seq_task = tokio::spawn(async move {
         start_rollup(
             seq_port_tx,
+            None,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             None,
             NodeMode::SequencerNode,
@@ -1872,6 +1896,7 @@ async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
     let full_node_task = tokio::spawn(async move {
         start_rollup(
             full_node_port_tx,
+            None,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             None,
             NodeMode::FullNode(seq_port),
@@ -1931,6 +1956,7 @@ async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
     let seq_task = tokio::spawn(async move {
         start_rollup(
             seq_port_tx,
+            None,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             None,
             NodeMode::SequencerNode,
@@ -2117,6 +2143,7 @@ async fn sequencer_crash_restore_mempool() -> Result<(), anyhow::Error> {
     let seq_task = tokio::spawn(async move {
         start_rollup(
             seq_port_tx,
+            None,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             None,
             NodeMode::SequencerNode,
@@ -2183,6 +2210,7 @@ async fn sequencer_crash_restore_mempool() -> Result<(), anyhow::Error> {
     let seq_task = tokio::spawn(async move {
         start_rollup(
             seq_port_tx,
+            None,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             None,
             NodeMode::SequencerNode,
@@ -2257,6 +2285,7 @@ async fn test_db_get_proof() {
     let seq_task = tokio::spawn(async {
         start_rollup(
             seq_port_tx,
+            None,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             None,
             NodeMode::SequencerNode,
@@ -2282,6 +2311,7 @@ async fn test_db_get_proof() {
     let prover_node_task = tokio::spawn(async move {
         start_rollup(
             prover_node_port_tx,
+            None,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             Some(ProverConfig {
                 proving_mode: sov_stf_runner::ProverGuestRunConfig::Execute,
@@ -2376,6 +2406,7 @@ async fn full_node_verify_proof_and_store() {
     let seq_task = tokio::spawn(async {
         start_rollup(
             seq_port_tx,
+            None,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             None,
             NodeMode::SequencerNode,
@@ -2402,6 +2433,7 @@ async fn full_node_verify_proof_and_store() {
     let prover_node_task = tokio::spawn(async move {
         start_rollup(
             prover_node_port_tx,
+            None,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             Some(ProverConfig {
                 proving_mode: sov_stf_runner::ProverGuestRunConfig::Execute,
@@ -2431,6 +2463,7 @@ async fn full_node_verify_proof_and_store() {
     let full_node_task = tokio::spawn(async move {
         start_rollup(
             full_node_port_tx,
+            None,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             None,
             NodeMode::FullNode(seq_port),
@@ -2565,6 +2598,7 @@ async fn test_all_flow() {
     let seq_task = tokio::spawn(async {
         start_rollup(
             seq_port_tx,
+            None,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             None,
             NodeMode::SequencerNode,
@@ -2590,6 +2624,7 @@ async fn test_all_flow() {
     let prover_node_task = tokio::spawn(async move {
         start_rollup(
             prover_node_port_tx,
+            None,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             Some(ProverConfig {
                 proving_mode: sov_stf_runner::ProverGuestRunConfig::Execute,
@@ -2619,6 +2654,7 @@ async fn test_all_flow() {
     let full_node_task = tokio::spawn(async move {
         start_rollup(
             full_node_port_tx,
+            None,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             None,
             NodeMode::FullNode(seq_port),
@@ -2900,6 +2936,7 @@ async fn test_gas_limit_too_high() {
     let seq_task = tokio::spawn(async move {
         start_rollup(
             seq_port_tx,
+            None,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             None,
             NodeMode::SequencerNode,
@@ -2938,6 +2975,7 @@ async fn test_gas_limit_too_high() {
     let full_node_task = tokio::spawn(async move {
         start_rollup(
             full_node_port_tx,
+            None,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             None,
             NodeMode::FullNode(seq_port),
@@ -3029,6 +3067,7 @@ async fn test_ledger_get_head_soft_batch() {
     let seq_task = tokio::spawn(async move {
         start_rollup(
             seq_port_tx,
+            None,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             None,
             NodeMode::SequencerNode,
@@ -3088,6 +3127,7 @@ async fn test_full_node_sync_status() {
     let seq_task = tokio::spawn(async {
         start_rollup(
             seq_port_tx,
+            None,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             None,
             NodeMode::SequencerNode,
@@ -3124,6 +3164,7 @@ async fn test_full_node_sync_status() {
     let full_node_task = tokio::spawn(async move {
         start_rollup(
             full_node_port_tx,
+            None,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             None,
             NodeMode::FullNode(seq_port),

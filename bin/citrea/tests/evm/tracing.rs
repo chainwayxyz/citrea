@@ -28,6 +28,7 @@ async fn tracing_tests() -> Result<(), Box<dyn std::error::Error>> {
         // Don't provide a prover since the EVM is not currently provable
         start_rollup(
             port_tx,
+            None,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             None,
             NodeMode::SequencerNode,

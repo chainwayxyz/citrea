@@ -25,6 +25,7 @@ async fn test_archival_state() -> Result<(), anyhow::Error> {
     let seq_task = tokio::spawn(async {
         start_rollup(
             seq_port_tx,
+            None,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             None,
             NodeMode::SequencerNode,

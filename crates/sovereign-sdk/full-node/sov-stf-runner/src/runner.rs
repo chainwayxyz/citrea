@@ -194,7 +194,6 @@ where
         };
 
         let listen_address = SocketAddr::new(bind_host, self.rpc_config.bind_port);
-        println!("Listen address: {:?}", listen_address);
 
         spawn_utility_server(ledger_db, listen_address, utility_channel).await;
     }

@@ -21,6 +21,7 @@ async fn initialize_test(
     let seq_task = tokio::spawn(async {
         start_rollup(
             seq_port_tx,
+            None,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             None,
             NodeMode::SequencerNode,

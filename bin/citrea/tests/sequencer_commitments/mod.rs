@@ -33,6 +33,7 @@ async fn sequencer_sends_commitments_to_da_layer() {
     let seq_task = tokio::spawn(async move {
         start_rollup(
             seq_port_tx,
+            None,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             None,
             NodeMode::SequencerNode,
@@ -220,6 +221,7 @@ async fn check_commitment_in_offchain_db() {
     let seq_task = tokio::spawn(async move {
         start_rollup(
             seq_port_tx,
+            None,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             None,
             NodeMode::SequencerNode,
@@ -286,6 +288,7 @@ async fn test_ledger_get_commitments_on_slot() {
     let seq_task = tokio::spawn(async {
         start_rollup(
             seq_port_tx,
+            None,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             None,
             NodeMode::SequencerNode,
@@ -310,6 +313,7 @@ async fn test_ledger_get_commitments_on_slot() {
     let full_node_task = tokio::spawn(async move {
         start_rollup(
             full_node_port_tx,
+            None,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             None,
             NodeMode::FullNode(seq_port),
@@ -390,6 +394,7 @@ async fn test_ledger_get_commitments_on_slot_prover() {
     let seq_task = tokio::spawn(async {
         start_rollup(
             seq_port_tx,
+            None,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             None,
             NodeMode::SequencerNode,
@@ -414,6 +419,7 @@ async fn test_ledger_get_commitments_on_slot_prover() {
     let prover_node_task = tokio::spawn(async move {
         start_rollup(
             prover_node_port_tx,
+            None,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             Some(ProverConfig {
                 proving_mode: sov_stf_runner::ProverGuestRunConfig::Execute,

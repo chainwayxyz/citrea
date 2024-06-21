@@ -34,7 +34,7 @@ pub enum NodeMode {
 #[allow(clippy::too_many_arguments)]
 pub async fn start_rollup(
     rpc_reporting_channel: oneshot::Sender<SocketAddr>,
-    utility_server_reporting_channel: oneshot::Sender<SocketAddr>,
+    utility_server_reporting_channel: Option<oneshot::Sender<SocketAddr>>,
     rt_genesis_paths: GenesisPaths,
     rollup_prover_config: Option<ProverConfig>,
     node_mode: NodeMode,
@@ -61,7 +61,10 @@ pub async fn start_rollup(
                 .await
                 .unwrap();
             rollup
-                .run_and_report_rpc_port(Some(rpc_reporting_channel))
+                .run_and_report_ports(
+                    Some(rpc_reporting_channel),
+                    utility_server_reporting_channel,
+                )
                 .await
                 .unwrap();
         }
@@ -75,7 +78,10 @@ pub async fn start_rollup(
                 .await
                 .unwrap();
             rollup
-                .run_and_report_rpc_port(Some(rpc_reporting_channel))
+                .run_and_report_ports(
+                    Some(rpc_reporting_channel),
+                    utility_server_reporting_channel,
+                )
                 .await
                 .unwrap();
         }
@@ -101,7 +107,7 @@ pub async fn start_rollup(
             sequencer_rollup
                 .run_and_report_ports(
                     Some(rpc_reporting_channel),
-                    Some(utility_server_reporting_channel),
+                    utility_server_reporting_channel,
                 )
                 .await
                 .unwrap();

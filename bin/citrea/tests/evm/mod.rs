@@ -34,6 +34,7 @@ async fn web3_rpc_tests() -> Result<(), anyhow::Error> {
     let rollup_task = tokio::spawn(async {
         start_rollup(
             port_tx,
+            None,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             None,
             NodeMode::SequencerNode,
@@ -90,6 +91,7 @@ async fn evm_tx_tests() -> Result<(), anyhow::Error> {
     let rollup_task = tokio::spawn(async {
         start_rollup(
             port_tx,
+            None,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             None,
             NodeMode::SequencerNode,
@@ -131,6 +133,7 @@ async fn test_eth_get_logs() -> Result<(), anyhow::Error> {
     let rollup_task = tokio::spawn(async {
         start_rollup(
             port_tx,
+            None,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             None,
             NodeMode::SequencerNode,
@@ -169,6 +172,7 @@ async fn test_genesis_contract_call() -> Result<(), Box<dyn std::error::Error>> 
     let seq_task = tokio::spawn(async move {
         start_rollup(
             seq_port_tx,
+            None,
             GenesisPaths::from_dir("../../configs/mock-dockerized/genesis-files"),
             None,
             NodeMode::SequencerNode,
