@@ -390,7 +390,7 @@ sov-prover-storage-manager = { git = "https://github.com/Sovereign-Labs/sovereig
 
 Here is some boilerplate for NFT module integration tests:
 
-```rust
+```no_run
 use simple_nft_module::{CallMessage, NonFungibleToken, NonFungibleTokenConfig, OwnerResponse};
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::{Address, Context, Module, WorkingSet};
@@ -417,7 +417,7 @@ fn burn() {}
 
 Here's an example of setting up a module and calling its methods:
 
-```rust
+```no_run
 #[test]
 fn transfer() {
     // Preparation
