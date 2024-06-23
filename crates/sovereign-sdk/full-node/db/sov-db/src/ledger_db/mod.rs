@@ -525,6 +525,13 @@ impl LedgerDB {
         }
     }
 
+    /// Get the most recent committed soft batch, if any
+    #[instrument(level = "trace", skip(self), err)]
+    pub fn get_head_soft_batch_height(&self) -> anyhow::Result<u64> {
+        let next_ids = self.get_next_items_numbers();
+        Ok(next_ids.soft_batch_number.saturating_sub(1))
+    }
+
     /// Get the most recent committed batch
     /// Returns L1 height, which means the corresponding L2 heights
     /// were committed.

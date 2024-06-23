@@ -474,7 +474,7 @@ impl<S: RollupBlueprint> Prover<S> {
     /// Runs the rollup.
     #[instrument(level = "trace", skip_all, err, ret(level = "error"))]
     pub async fn run(self) -> Result<(), anyhow::Error> {
-        self.run_and_report_ports(None, None).await
+        self.run_and_report_rpc_port(None).await
     }
 
     /// Only run the rpc.

@@ -2,13 +2,30 @@ pub mod config;
 use core::net::SocketAddr;
 
 use axum::extract::Extension;
+use axum::http::StatusCode;
+use axum::response::IntoResponse;
 use axum::routing::get;
 use axum::Router;
 pub use config::UtilityServerConfig;
 use sov_db::ledger_db::LedgerDB;
 
-async fn health_check(Extension(_state): Extension<LedgerDB>) -> String {
-    "OK".to_string()
+async fn health_check(
+    Extension(state): Extension<LedgerDB>,
+) -> Result<impl IntoResponse, StatusCode> {
+    let current_height = state.get_head_soft_batch_height();
+
+    tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
+
+    // expect next head height to be more than current head height
+    let next_height = state.get_head_soft_batch_height();
+    if let (Ok(next_height), Ok(current_height)) = (next_height, current_height) {
+        if next_height <= current_height {
+            return Err(StatusCode::SERVICE_UNAVAILABLE);
+        }
+        Ok("OK".to_string())
+    } else {
+        return Err(StatusCode::SERVICE_UNAVAILABLE);
+    }
 }
 
 pub async fn spawn_utility_server(
