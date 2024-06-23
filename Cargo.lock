@@ -1640,6 +1640,7 @@ dependencies = [
  "borsh",
  "citrea-evm",
  "citrea-fullnode",
+ "citrea-primitives",
  "citrea-prover",
  "citrea-risc0-bonsai-adapter",
  "citrea-sequencer",
@@ -1666,7 +1667,6 @@ dependencies = [
  "reth-transaction-pool",
  "revm",
  "risc0",
- "rollup-constants",
  "rs_merkle",
  "rustc_version_runtime",
  "secp256k1",
@@ -1762,6 +1762,10 @@ dependencies = [
  "tokio",
  "tracing",
 ]
+
+[[package]]
+name = "citrea-primitives"
+version = "0.4.0-rc.3"
 
 [[package]]
 name = "citrea-prover"
@@ -8083,10 +8087,6 @@ checksum = "8395b4f860856b740f20a296ea2cd4d823e81a2658cf05ef61be22916026a906"
 dependencies = [
  "chrono",
 ]
-
-[[package]]
-name = "rollup-constants"
-version = "0.4.0-rc.3"
 
 [[package]]
 name = "route-recognizer"

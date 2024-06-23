@@ -15,11 +15,11 @@ resolver = "2"
 # Citrea deps
 bitcoin-da = { path = "../../crates/bitcoin-da", features = ["native"] }
 citrea-fullnode = { path = "../../crates/fullnode" }
+citrea-primitives = { path = "../../crates/primitives" }
 citrea-prover = { path = "../../crates/prover" }
 citrea-sequencer = { path = "../../crates/sequencer" }
 citrea-stf = { path = "../../crates/citrea-stf", features = ["native"] }
 ethereum-rpc = { path = "../../crates/ethereum-rpc" }
-rollup-constants = { path = "../rollup-constants" }
 sequencer-client = { path = "../../crates/sequencer-client" }
 
 # Sovereign-SDK deps

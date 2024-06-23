@@ -1,5 +1,5 @@
 [package]
-name = "rollup-constants"
+name = "citrea-primitives"
 version = { workspace = true }
 authors = { workspace = true }
 edition = { workspace = true }

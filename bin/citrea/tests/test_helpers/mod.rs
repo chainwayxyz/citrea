@@ -3,10 +3,10 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
 use citrea::{CitreaRollupBlueprint, MockDemoRollup};
+use citrea_primitives::TEST_PRIVATE_KEY;
 use citrea_sequencer::SequencerConfig;
 use citrea_stf::genesis_config::GenesisPaths;
 use reth_rpc_types::BlockNumberOrTag;
-use rollup_constants::TEST_PRIVATE_KEY;
 use shared_backup_db::PostgresConnector;
 use sov_mock_da::{MockAddress, MockDaConfig, MockDaService};
 use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
