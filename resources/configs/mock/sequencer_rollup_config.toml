@@ -5,11 +5,11 @@ prover_da_pub_key = ""
 
 [da]
 sender_address = "0000000000000000000000000000000000000000000000000000000000000000"
-db_path = "da-db"
+db_path = "resources/dbs/da-db"
 
 [storage]
 # The path to the rollup's data directory. Paths that do not begin with `/` are interpreted as relative paths.
-path = "sequencer-db"
+path = "resources/dbs/sequencer-db"
 
 [rpc]
 # the host and port to bind the rpc server for
