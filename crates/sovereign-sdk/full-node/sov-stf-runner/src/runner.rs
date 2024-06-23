@@ -29,6 +29,7 @@ use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::{Proof, StateTransitionData, Zkvm, ZkvmHost};
 use tokio::sync::oneshot;
 use tokio::time::{sleep, Duration};
+use tower_http::cors::{Any, CorsLayer};
 use tracing::{debug, error, info, instrument, warn};
 
 use crate::prover_helpers::get_initial_slot_height;
@@ -194,9 +195,16 @@ where
 
         let max_connections = self.rpc_config.max_connections;
 
+        let cors = CorsLayer::new()
+            .allow_methods(Any)
+            .allow_origin(Any)
+            .allow_headers(Any);
+        let middleware = tower::ServiceBuilder::new().layer(cors);
+
         let _handle = tokio::spawn(async move {
             let server = jsonrpsee::server::ServerBuilder::default()
                 .max_connections(max_connections)
+                .set_http_middleware(middleware)
                 .build([listen_address].as_ref())
                 .await;
 

@@ -178,6 +178,10 @@ secp256k1 = { version = "0.28.2", default-features = false, features = [
     "recovery",
 ] }
 
+tower-http = { version = "0.4.0", features = ["full"] }
+tower = { version = "0.4.13", features = ["full"] }
+hyper = "1.3.1"
+
 [patch.'https://github.com/eigerco/celestia-node-rs.git']
 # Uncomment to apply local changes
 # celestia-proto = { path = "../celestia-node-rs/proto" }
