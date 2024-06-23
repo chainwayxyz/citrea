@@ -24,7 +24,7 @@ async fn health_check(
         }
         Ok("OK".to_string())
     } else {
-        return Err(StatusCode::SERVICE_UNAVAILABLE);
+        Err(StatusCode::SERVICE_UNAVAILABLE)
     }
 }
 
