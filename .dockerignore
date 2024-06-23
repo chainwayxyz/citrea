@@ -5,7 +5,7 @@
 !/bin
 !/resources/configs
 !/crates
-!/hive
+!/resources/hive
 !Cargo.lock
 !Cargo.toml
 !deny.toml
