@@ -3,10 +3,9 @@
 
 # include source files
 !/bin
-!/configs
+!/resources/configs
 !/crates
 !/hive
-!/test-da-dbs
 !Cargo.lock
 !Cargo.toml
 !deny.toml

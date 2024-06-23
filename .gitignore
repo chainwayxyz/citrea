@@ -23,4 +23,4 @@ adapters/solana/libyellowstone_grpc_geyser.dylib
 
 adapters/bitcoin/reveal_*.tx
 
-data
+resources/dbs
