@@ -10,7 +10,10 @@ use tokio::task::JoinHandle;
 use crate::evm::make_test_client;
 use crate::test_client::{TestClient, MAX_FEE_PER_GAS};
 use crate::test_helpers::{start_rollup, tempdir_with_children, wait_for_l2_block, NodeMode};
-use crate::{DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT};
+use crate::{
+    DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
+    TEST_DATA_GENESIS_PATH,
+};
 
 async fn initialize_test(
     sequencer_path: PathBuf,
@@ -21,7 +24,7 @@ async fn initialize_test(
     let seq_task = tokio::spawn(async {
         start_rollup(
             seq_port_tx,
-            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
+            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
             None,
             NodeMode::SequencerNode,
             sequencer_path,

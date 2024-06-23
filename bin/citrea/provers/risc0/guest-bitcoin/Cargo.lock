@@ -802,11 +802,11 @@ dependencies = [
  "alloy-trie",
  "anyhow",
  "bitcoin-da",
+ "citrea-primitives",
  "citrea-stf",
  "reth-primitives",
  "risc0-zkvm",
  "risc0-zkvm-platform",
- "rollup-constants",
  "sov-modules-api",
  "sov-modules-stf-blueprint",
  "sov-risc0-adapter",
@@ -829,6 +829,10 @@ dependencies = [
  "sov-state",
  "thiserror",
 ]
+
+[[package]]
+name = "citrea-primitives"
+version = "0.4.0-rc.3"
 
 [[package]]
 name = "citrea-stf"
@@ -2479,10 +2483,6 @@ dependencies = [
  "bytemuck",
  "byteorder",
 ]
-
-[[package]]
-name = "rollup-constants"
-version = "0.4.0-rc.3"
 
 [[package]]
 name = "rrs-lib"

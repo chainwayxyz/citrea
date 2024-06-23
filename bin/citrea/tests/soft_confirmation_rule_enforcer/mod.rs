@@ -27,7 +27,7 @@ async fn too_many_l2_block_per_l1_block() {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir(
-                "../test-data/genesis/integration-tests-low-max-l2-blocks-per-l1",
+                "../../resources/genesis/integration-tests-low-max-l2-blocks-per-l1",
             ),
             None,
             NodeMode::SequencerNode,
