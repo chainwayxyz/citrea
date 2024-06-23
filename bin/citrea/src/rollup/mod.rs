@@ -4,6 +4,7 @@ use citrea_fullnode::{CitreaFullnode, FullNode};
 use citrea_prover::{CitreaProver, Prover};
 use citrea_sequencer::{CitreaSequencer, Sequencer, SequencerConfig};
 pub use mock::*;
+use rollup_constants::DEFAULT_ROLLUP_SYNC_BLOCKS_COUNT;
 use sov_modules_api::storage::HierarchicalStorageManager;
 use sov_modules_api::Spec;
 use sov_modules_rollup_blueprint::RollupBlueprint;
@@ -11,7 +12,6 @@ use sov_modules_stf_blueprint::{Runtime as RuntimeTrait, StfBlueprint};
 use sov_state::storage::NativeStorage;
 use sov_stf_runner::{FullNodeConfig, InitVariant, ProverConfig};
 use tracing::instrument;
-
 mod bitcoin;
 mod mock;
 
@@ -147,6 +147,9 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             storage_manager,
             init_variant,
             code_commitment,
+            rollup_config
+                .sync_blocks_count
+                .unwrap_or(DEFAULT_ROLLUP_SYNC_BLOCKS_COUNT),
         )?;
 
         Ok(FullNode {

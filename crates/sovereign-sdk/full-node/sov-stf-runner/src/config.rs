@@ -96,6 +96,8 @@ pub struct FullNodeConfig<DaServiceConfig> {
     pub da: DaServiceConfig,
     /// Important pubkeys
     pub public_keys: RollupPublicKeys,
+    /// Number of blocks to request during sync
+    pub sync_blocks_count: Option<u64>,
 }
 
 /// Prover configuration

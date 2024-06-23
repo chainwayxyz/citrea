@@ -61,6 +61,7 @@ where
     include_tx_body: bool,
     code_commitment: Vm::CodeCommitment,
     accept_public_input_as_proven: bool,
+    sync_blocks_count: u64,
 }
 
 impl<Stf, Sm, Da, Vm, C> CitreaFullnode<Stf, Sm, Da, Vm, C>
@@ -93,6 +94,7 @@ where
         mut storage_manager: Sm,
         init_variant: InitVariant<Stf, Vm, Da::Spec>,
         code_commitment: Vm::CodeCommitment,
+        sync_blocks_count: u64,
     ) -> Result<Self, anyhow::Error> {
         let prev_state_root = match init_variant {
             InitVariant::Initialized(state_root) => {
@@ -139,6 +141,7 @@ where
             accept_public_input_as_proven: runner_config
                 .accept_public_input_as_proven
                 .unwrap_or(false),
+            sync_blocks_count,
         })
     }
 
@@ -544,8 +547,12 @@ where
         tokio::pin!(l1_sync_worker);
 
         let (l2_tx, mut l2_rx) = mpsc::channel(1);
-        let l2_sync_worker =
-            sync_l2::<Da>(self.start_l2_height, self.sequencer_client.clone(), l2_tx);
+        let l2_sync_worker = sync_l2::<Da>(
+            self.start_l2_height,
+            self.sequencer_client.clone(),
+            l2_tx,
+            self.sync_blocks_count,
+        );
         tokio::pin!(l2_sync_worker);
 
         // Keep a list of commitments and proofs which have been attempted to process but failed,
@@ -708,6 +715,7 @@ async fn sync_l2<Da>(
     start_l2_height: u64,
     sequencer_client: SequencerClient,
     sender: mpsc::Sender<(u64, GetSoftBatchResponse)>,
+    sync_blocks_count: u64,
 ) where
     Da: DaService,
 {
@@ -723,7 +731,7 @@ async fn sync_l2<Da>(
         let soft_batches: Vec<GetSoftBatchResponse> =
             match retry_backoff(exponential_backoff.clone(), || async move {
                 match inner_client
-                    .get_soft_batch_range::<Da::Spec>(l2_height..l2_height + 10)
+                    .get_soft_batch_range::<Da::Spec>(l2_height..l2_height + sync_blocks_count)
                     .await
                 {
                     Ok(soft_batches) => Ok(soft_batches.into_iter().flatten().collect::<Vec<_>>()),
