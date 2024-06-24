@@ -695,7 +695,6 @@ where
                 },
                 Some(l2_blocks) = l2_rx.recv() => {
                     for (l2_height, l2_block) in l2_blocks {
-                        println!("Processing {} L2 block", l2_height);
                         let l1_block = get_da_block_at_height(&self.da_service, l2_block.da_slot_height, self.l1_block_cache.clone()).await?;
                         if let Err(e) = self.process_l2_block(l2_height, l2_block, l1_block).await {
                             error!("Could not process L2 block: {}", e);
