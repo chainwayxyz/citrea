@@ -207,6 +207,7 @@ mod tests {
                 sequencer_da_pub_key: vec![119; 32],
                 prover_da_pub_key: vec![],
             },
+            sync_blocks_count: None,
         };
         assert_eq!(config, expected);
     }

@@ -157,6 +157,7 @@ pub fn create_default_rollup_config(
             sender_address: MockAddress::from([0; 32]),
             db_path: da_path.to_path_buf(),
         },
+        sync_blocks_count: None,
     }
 }
 
