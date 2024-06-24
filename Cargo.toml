@@ -144,7 +144,7 @@ reth-transaction-pool = { git = "https://github.com/paradigmxyz/reth", tag = "v0
 reth-provider = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.7", default-features = false }
 reth-tasks = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.7", default-features = false }
 reth-db = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.7", default-features = false }
-reth-trie = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.7", default-features = false }
+reth-trie = { git = "https://github.com/paradigmxyz/reth", tag = "v1.0.0", default-features = false }
 reth-rpc = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.7", default-features = false }
 reth-stages = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.7", default-features = false }
 
