@@ -417,7 +417,7 @@ where
                     "Sequencer commitment verification: L1 L2 connection does not exist. Retrying later",
                     BatchNumber(start_l1_height),
                     BatchNumber(0),
-                ).into());
+                ));
             }
         };
 
@@ -431,7 +431,7 @@ where
                     "Sequencer commitment verification: L1 L2 connection does not exist. Retrying later",
                     BatchNumber(0),
                     BatchNumber(end_l1_height),
-                ).into());
+                ));
             }
         };
 
