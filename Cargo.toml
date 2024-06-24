@@ -125,7 +125,6 @@ risc0-circuit-rv32im = { version = "1.0.0" }
 risc0-build = { version = "1.0.0" }
 bonsai-sdk = { version = "0.8.0" }
 
-
 # EVM dependencies
 ethereum-types = "0.14.1"
 ethers = "2.0"
