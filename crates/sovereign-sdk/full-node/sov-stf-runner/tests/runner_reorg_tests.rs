@@ -144,6 +144,7 @@ async fn runner_execution(
             sequencer_da_pub_key: vec![],
             prover_da_pub_key: vec![],
         },
+        sync_blocks_count: 10,
     };
 
     let ledger_db = LedgerDB::with_path(rollup_storage_path.clone()).unwrap();
