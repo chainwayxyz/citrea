@@ -1,7 +1,5 @@
 use std::sync::Arc;
 
-use alloy_sol_types::SolType;
-use citrea_evm::system_contracts::BridgeContract::DepositParams;
 use citrea_evm::Evm;
 use futures::channel::mpsc::UnboundedSender;
 use jsonrpsee::types::error::{INTERNAL_ERROR_CODE, INTERNAL_ERROR_MSG};
@@ -119,21 +117,28 @@ pub(crate) fn create_rpc_module<C: sov_modules_api::Context>(
 
             debug!("Sequencer: citrea_sendRawDepositTransaction");
 
-            match DepositParams::abi_decode(&deposit, /* validate */ true) {
-                Ok(params) => {
-                    tracing::debug!("Deposit params parsed: {:?}", params);
+            let evm = Evm::<C>::default();
+            let mut working_set = WorkingSet::<C>::new(ctx.storage.clone());
+
+            let dep_tx = ctx
+                .deposit_mempool
+                .lock()
+                .await
+                .make_deposit_tx_from_data(deposit.clone().into());
+
+            let tx_res = evm.get_call(dep_tx, None, None, None, &mut working_set);
+
+            match tx_res {
+                Ok(hex_res) => {
+                    tracing::debug!("Deposit tx processed successfully {}", hex_res);
                     ctx.deposit_mempool
                         .lock()
                         .await
                         .add_deposit_tx(deposit.to_vec());
                 }
                 Err(e) => {
-                    error!("Error parsing deposit params: {:?}", e);
-                    return Err(ErrorObjectOwned::owned(
-                        jsonrpsee::types::error::INVALID_PARAMS_CODE,
-                        e.to_string(),
-                        Some(deposit),
-                    ));
+                    error!("Error processing deposit tx: {:?}", e);
+                    return Err(e);
                 }
             }
 

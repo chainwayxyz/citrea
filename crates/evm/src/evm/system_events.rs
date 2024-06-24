@@ -3,7 +3,6 @@ use reth_primitives::{
     TransactionSignedNoHash, TxEip1559, TxKind, U256,
 };
 
-use super::system_contracts::BridgeContract::DepositParams;
 use super::system_contracts::{BitcoinLightClient, Bridge};
 
 /// This is a special signature to force tx.signer to be set to SYSTEM_SIGNER
@@ -23,7 +22,7 @@ pub(crate) enum SystemEvent {
     BitcoinLightClientInitialize(/*block number*/ u64),
     BitcoinLightClientSetBlockInfo(/*hash*/ [u8; 32], /*merkle root*/ [u8; 32]),
     BridgeInitialize,
-    BridgeDeposit(DepositParams),
+    BridgeDeposit(Vec<u8>), // version, flag, vin, vout, witness, locktime, intermediate nodes, block height, index
 }
 
 fn system_event_to_transaction(event: SystemEvent, nonce: u64, chain_id: u64) -> Transaction {

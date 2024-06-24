@@ -1,5 +1,4 @@
 use alloy_primitives::B256;
-use alloy_sol_types::SolType;
 use reth_primitives::{Bloom, Bytes, U256};
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::prelude::*;
@@ -10,7 +9,6 @@ use tracing::instrument;
 
 use crate::evm::primitive_types::{Block, BlockEnv};
 use crate::evm::system_events::SystemEvent;
-use crate::system_contracts::BridgeContract::DepositParams;
 use crate::{Evm, PendingTransaction};
 
 impl<C: sov_modules_api::Context> Evm<C>
@@ -70,10 +68,8 @@ where
         soft_confirmation_info
             .deposit_data
             .iter()
-            .for_each(|deposit_data| {
-                let params = DepositParams::abi_decode(deposit_data, false)
-                    .expect("Only valid DepositParams can be pass to soft confirmation; qed");
-                system_events.push(SystemEvent::BridgeDeposit(params));
+            .for_each(|params| {
+                system_events.push(SystemEvent::BridgeDeposit(params.clone()));
             });
 
         let cfg = self

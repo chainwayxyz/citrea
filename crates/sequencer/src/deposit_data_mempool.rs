@@ -1,5 +1,9 @@
 use std::collections::VecDeque;
 
+use citrea_evm::system_contracts::Bridge;
+use citrea_evm::SYSTEM_SIGNER;
+use reth_primitives::TxKind;
+use reth_rpc_types::{TransactionInput, TransactionRequest};
 use tracing::instrument;
 
 #[derive(Clone, Debug)]
@@ -11,6 +15,15 @@ impl DepositDataMempool {
     pub fn new() -> Self {
         Self {
             accepted_deposit_txs: VecDeque::new(),
+        }
+    }
+
+    pub fn make_deposit_tx_from_data(&mut self, deposit_tx_data: Vec<u8>) -> TransactionRequest {
+        TransactionRequest {
+            from: Some(SYSTEM_SIGNER),
+            to: Some(TxKind::Call(Bridge::address())),
+            input: TransactionInput::new(Bridge::deposit(deposit_tx_data)),
+            ..Default::default()
         }
     }
 
