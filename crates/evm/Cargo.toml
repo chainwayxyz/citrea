@@ -49,7 +49,7 @@ secp256k1 = { workspace = true, optional = true }
 
 [dev-dependencies]
 bytes = { workspace = true }
-lazy_static = "1.4.0"
+lazy_static = "1.5.0"
 rand = { workspace = true }
 rayon = { workspace = true }
 reth-db = { workspace = true }
