@@ -414,8 +414,8 @@ where
             Some((start_l2_height, _)) => start_l2_height,
             None => {
                 return Err(anyhow!(
-                        "Sequencer commitment verification: L1 L2 connection does not exist. L1 height = {}. Skipping commitment.",
-                        start_l1_height
+                    "Sequencer commitment verification: L1 L2 connection does not exist. L1 height = {}. Skipping commitment.",
+                    start_l1_height
                 ).into());
             }
         };
@@ -661,7 +661,7 @@ where
                                     },
                                     SyncError::Error(e) => {
                                         error!("Could not process ZK proofs: {}...skipping", e);
-                                        pending_sequencer_commitments.remove(index);
+                                        pending_zk_proofs.remove(index);
                                     }
                                 }
                             }
@@ -687,10 +687,13 @@ where
                         }
                     }
                 },
-                Some((l2_height, l2_block)) = l2_rx.recv() => {
-                    let l1_block = get_da_block_at_height(&self.da_service, l2_block.da_slot_height, self.l1_block_cache.clone()).await?;
-                    if let Err(e) = self.process_l2_block(l2_height, l2_block, l1_block).await {
-                        error!("Could not process L2 block: {}", e);
+                Some(l2_blocks) = l2_rx.recv() => {
+                    for (l2_height, l2_block) in l2_blocks {
+                        println!("Processing {} L2 block", l2_height);
+                        let l1_block = get_da_block_at_height(&self.da_service, l2_block.da_slot_height, self.l1_block_cache.clone()).await?;
+                        if let Err(e) = self.process_l2_block(l2_height, l2_block, l1_block).await {
+                            error!("Could not process L2 block: {}", e);
+                        }
                     }
                 },
             }
@@ -753,7 +756,7 @@ async fn l1_sync<Da>(
 async fn sync_l2<Da>(
     start_l2_height: u64,
     sequencer_client: SequencerClient,
-    sender: mpsc::Sender<(u64, GetSoftBatchResponse)>,
+    sender: mpsc::Sender<Vec<(u64, GetSoftBatchResponse)>>,
     sync_blocks_count: u64,
 ) where
     Da: DaService,
@@ -807,15 +810,19 @@ async fn sync_l2<Da>(
 
             // We wait for 2 seconds and then return a Permanent error so that we exit the retry.
             // This should not backoff exponentially
-            sleep(Duration::from_secs(2)).await;
+            sleep(Duration::from_secs(1)).await;
             continue;
         }
 
-        for soft_batch in soft_batches {
-            if let Err(e) = sender.send((l2_height, soft_batch)).await {
-                error!("Could not notify about L2 block: {}", e);
-            }
-            l2_height += 1;
+        let soft_batches: Vec<(u64, GetSoftBatchResponse)> = (l2_height
+            ..l2_height + soft_batches.len() as u64)
+            .zip(soft_batches)
+            .collect();
+
+        l2_height += soft_batches.len() as u64;
+
+        if let Err(e) = sender.send(soft_batches).await {
+            error!("Could not notify about L2 block: {}", e);
         }
     }
 }
