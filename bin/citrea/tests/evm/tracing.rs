@@ -160,8 +160,8 @@ async fn tracing_tests() -> Result<(), Box<dyn std::error::Error>> {
 
     test_client.send_publish_batch_request().await;
 
-    let call_tx_hash = call_get_value_req.watch().await.unwrap();
-    let send_eth_tx_hash = send_eth_req.watch().await.unwrap();
+    let call_tx_hash = call_get_value_req.get_receipt().await.unwrap().transaction_hash;
+    let send_eth_tx_hash = send_eth_req.get_receipt().await.unwrap().transaction_hash;
 
     // get the trace of send_eth_tx_hash and expect call_tx_hash trace to be in the cache
     let send_eth_trace = test_client

@@ -467,7 +467,7 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
     client.send_publish_batch_request().await;
     client.send_publish_batch_request().await;
     for req in requests {
-        req.watch().await.unwrap();
+        req.get_receipt().await.unwrap();
     }
 
     {
