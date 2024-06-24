@@ -28,14 +28,14 @@ Run on a local da layer, sharable between nodes that run on your computer.
 
 Run sequencer on Mock DA:
 ```sh
-./target/debug/citrea --da-layer mock --rollup-config-path resources/configs/mock/sequencer_rollup_config.toml --sequencer-config-path resources/configs/mock/sequencer_config.toml --genesis-paths resources/configs/mock/genesis-files
+./target/debug/citrea --da-layer mock --rollup-config-path resources/configs/mock/sequencer_rollup_config.toml --sequencer-config-path resources/configs/mock/sequencer_config.toml --genesis-paths resources/genesis/mock/
 ```
 
 Sequencer RPC is accessible at `127.0.0.1:12345`
 
 _Optional_: Run full node on Mock DA:
 ```sh
-./target/debug/citrea --rollup-config-path resources/configs/mock/sequencer_rollup_config.toml --genesis-paths resources/test-data/genesis/demo-tests/mock
+./target/debug/citrea --rollup-config-path resources/configs/mock/sequencer_rollup_config.toml --genesis-paths resources/test-data/demo-tests/mock
 ```
 
 Full node RPC is accessible at `127.0.0.1:12346`
@@ -80,7 +80,7 @@ node_password = ""
 
 Run sequencer:
 ```sh
-./target/debug/citrea --da-layer bitcoin --rollup-config-path resources/configs/bitcoin-regtest/sequencer_rollup_config.toml --sequencer-config-path resources/configs/bitcoin-regtest/sequencer_config.toml --genesis-paths resources/configs/bitcoin-regtest/genesis-files
+./target/debug/citrea --da-layer bitcoin --rollup-config-path resources/configs/bitcoin-regtest/sequencer_rollup_config.toml --sequencer-config-path resources/configs/bitcoin-regtest/sequencer_config.toml --genesis-paths resources/genesis/bitcoin-regtest/
 ```
 
 Sequencer RPC is accessible at `127.0.0.1:12345`
@@ -89,7 +89,7 @@ _Optional_: Run full node
 
 Run full node:
 ```sh
-./target/debug/citrea --da-layer bitcoin --rollup-config-path resources/configs/bitcoin-regtest/rollup_config.toml --genesis-paths resources/configs/bitcoin-regtest/genesis-files
+./target/debug/citrea --da-layer bitcoin --rollup-config-path resources/configs/bitcoin-regtest/rollup_config.toml --genesis-paths resources/genesis/bitcoin-regtest/
 ```
 
 Full node RPC is accessible at `127.0.0.1:12346`

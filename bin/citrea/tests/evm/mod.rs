@@ -172,7 +172,7 @@ async fn test_genesis_contract_call() -> Result<(), Box<dyn std::error::Error>> 
     let seq_task = tokio::spawn(async move {
         start_rollup(
             seq_port_tx,
-            GenesisPaths::from_dir("../../resources/configs/mock-dockerized/genesis-files"),
+            GenesisPaths::from_dir("../../resources/genesis/mock-dockerized/"),
             None,
             NodeMode::SequencerNode,
             sequencer_db_dir,
