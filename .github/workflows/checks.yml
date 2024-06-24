@@ -75,13 +75,9 @@ jobs:
           version: "23.2"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Toolchain
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@nightly
         with:
-          toolchain: stable
-          override: true
           components: rustfmt, clippy
-      - name: Install Rust
-        run: rustup show && rustup install nightly && rustup component add rustfmt --toolchain nightly-x86_64-unknown-linux-gnu # Nightly is needed for our configuration of cargo fmt
       - name: Install cargo-risczero
         uses: taiki-e/install-action@v2
         with:
@@ -119,9 +115,6 @@ jobs:
         with:
           toolchain: nightly
           override: true
-          components: rustfmt, clippy
-      - name: Install Rust
-        run: rustup show && rustup install nightly && rustup component add rustfmt --toolchain nightly-x86_64-unknown-linux-gnu # Nightly is needed for our configuration of cargo fmt
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
       - name: Install cargo-risczero
@@ -379,13 +372,7 @@ jobs:
           version: "23.2"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          override: true
-          components: rustfmt, clippy
-      - name: Install Rust
-        run: rustup show && rustup install nightly && rustup component add rustfmt --toolchain nightly-x86_64-unknown-linux-gnu # Nightly is needed for our configuration of cargo fmt
+        uses: dtolnay/rust-toolchain@nightly
       - name: Install cargo-risczero
         uses: taiki-e/install-action@v2
         with:
