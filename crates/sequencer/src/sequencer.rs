@@ -14,6 +14,7 @@ use citrea_stf::runtime::Runtime;
 use digest::Digest;
 use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
 use futures::StreamExt;
+use hyper::Method;
 use jsonrpsee::server::{BatchRequestConfig, ServerBuilder};
 use jsonrpsee::RpcModule;
 use reth_primitives::{Address, FromRecoveredPooledTransaction, IntoRecoveredTransaction, TxHash};
@@ -190,7 +191,7 @@ where
         let batch_requests_limit = self.rpc_config.batch_requests_limit;
 
         let cors = CorsLayer::new()
-            .allow_methods(Any)
+            .allow_methods([Method::POST, Method::OPTIONS])
             .allow_origin(Any)
             .allow_headers(Any);
         let middleware = tower::ServiceBuilder::new().layer(cors);

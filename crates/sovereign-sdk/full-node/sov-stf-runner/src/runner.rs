@@ -7,6 +7,7 @@ use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoffBuilder;
 use borsh::de::BorshDeserialize;
 use borsh::BorshSerialize as _;
+use hyper::Method;
 use jsonrpsee::core::client::Error as JsonrpseeError;
 use jsonrpsee::RpcModule;
 use rand::Rng;
@@ -196,7 +197,7 @@ where
         let max_connections = self.rpc_config.max_connections;
 
         let cors = CorsLayer::new()
-            .allow_methods(Any)
+            .allow_methods([Method::POST, Method::OPTIONS])
             .allow_origin(Any)
             .allow_headers(Any);
         let middleware = tower::ServiceBuilder::new().layer(cors);
