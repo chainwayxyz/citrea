@@ -1728,7 +1728,7 @@ async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error>
     let seq_task = tokio::spawn(async move {
         start_rollup(
             seq_port_tx,
-            GenesisPaths::from_dir("../test-data/genesis/integration-tests-low-block-gas-limit"),
+            GenesisPaths::from_dir("../../resources/genesis/integration-tests-low-block-gas-limit"),
             None,
             NodeMode::SequencerNode,
             sequencer_db_dir,
