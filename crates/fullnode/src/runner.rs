@@ -26,13 +26,20 @@ use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::{Proof, Zkvm, ZkvmHost};
 use sov_stf_runner::{InitVariant, RollupPublicKeys, RpcConfig, RunnerConfig};
 use tokio::select;
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::{mpsc, oneshot, Mutex};
 use tokio::time::{sleep, Duration};
 use tracing::{debug, error, info, instrument, warn};
 
 use crate::error::SyncError;
 
 type StateRoot<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::StateRoot;
+
+lazy_static! {
+    static ref L1BlocksByNumber: Mutex<lru::LruCache> =
+        Mutex::new(LruCache::new(std::num::NonZeroUsize(10)));
+    static ref L1BlocksByHash: Mutex<lru::LruCache> =
+        Mutex::new(LruCache::new(std::num::NonZeroUsize(10)));
+}
 
 /// Citrea's own STF runner implementation.
 pub struct CitreaFullnode<Stf, Sm, Da, Vm, C>
@@ -785,6 +792,9 @@ async fn get_da_block_at_height<Da: DaService>(
     da_service: &Da,
     height: u64,
 ) -> anyhow::Result<Da::FilteredBlock> {
+    if let Some(l1_block) = L1BlocksByNumber.lock().await.get(height) {
+        return Ok(l1_block);
+    }
     let exponential_backoff = ExponentialBackoffBuilder::new()
         .with_initial_interval(Duration::from_secs(1))
         .with_max_elapsed_time(Some(Duration::from_secs(15 * 60)))
