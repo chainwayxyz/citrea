@@ -413,9 +413,10 @@ where
         {
             Some((start_l2_height, _)) => start_l2_height,
             None => {
-                return Err(anyhow!(
-                    "Sequencer commitment verification: L1 L2 connection does not exist. L1 height = {}. Skipping commitment.",
-                    start_l1_height
+                return Err(SyncError::MissingL2(
+                    "Sequencer commitment verification: L1 L2 connection does not exist. Retrying later",
+                    BatchNumber(start_l1_height),
+                    BatchNumber(0),
                 ).into());
             }
         };
@@ -426,9 +427,10 @@ where
         {
             Some((_, end_l2_height)) => BatchNumber(end_l2_height.0 + 1),
             None => {
-                return Err(anyhow!(
-                    "Sequencer commitment verification: L1 L2 connection does not exist. L1 height = {}. Skipping commitment.",
-                    end_l1_height
+                return Err(SyncError::MissingL2(
+                    "Sequencer commitment verification: L1 L2 connection does not exist. Retrying later",
+                    BatchNumber(0),
+                    BatchNumber(end_l1_height),
                 ).into());
             }
         };
@@ -451,7 +453,11 @@ where
         // Otherwise, if it is smaller, then we don't have some L2 blocks within the range
         // synced yet.
         if stored_soft_batches.len() < ((end_l2_height.0 - start_l2_height.0) as usize) {
-            return Err(SyncError::MissingL2(start_l2_height, end_l2_height));
+            return Err(SyncError::MissingL2(
+                "L2 range not synced yet",
+                start_l2_height,
+                end_l2_height,
+            ));
         }
 
         let soft_batches_tree = MerkleTree::<Sha256>::from_leaves(
@@ -656,8 +662,8 @@ where
                             },
                             Err(e) => {
                                 match e {
-                                    SyncError::MissingL2(start_l2_height, end_l2_height) => {
-                                        warn!("Could not completely process ZK proofs. Missing L2 blocks {:?} - {:?}", start_l2_height, end_l2_height);
+                                    SyncError::MissingL2(msg, start_l2_height, end_l2_height) => {
+                                        warn!("Could not completely process ZK proofs. Missing L2 blocks {:?} - {:?}. msg = {}", start_l2_height, end_l2_height, msg);
                                     },
                                     SyncError::Error(e) => {
                                         error!("Could not process ZK proofs: {}...skipping", e);
@@ -675,8 +681,8 @@ where
                             },
                             Err(e) => {
                                 match e {
-                                    SyncError::MissingL2(start_l2_height, end_l2_height) => {
-                                        warn!("Could not completely process sequencer commitments. Missing L2 blocks {:?} - {:?}", start_l2_height, end_l2_height);
+                                    SyncError::MissingL2(msg, start_l2_height, end_l2_height) => {
+                                        warn!("Could not completely process sequencer commitments. Missing L2 blocks {:?} - {:?}, msg = {}", start_l2_height, end_l2_height, msg);
                                     },
                                     SyncError::Error(e) => {
                                         error!("Could not process sequencer commitments: {}... skipping", e);
