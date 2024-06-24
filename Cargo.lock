@@ -1870,6 +1870,7 @@ dependencies = [
  "ethers",
  "futures",
  "hex",
+ "hyper 0.14.28",
  "jsonrpsee",
  "reth-db",
  "reth-interfaces",
@@ -1898,6 +1899,8 @@ dependencies = [
  "sov-stf-runner",
  "tempfile",
  "tokio",
+ "tower",
+ "tower-http",
  "tracing",
 ]
 
@@ -9998,6 +10001,7 @@ dependencies = [
  "borsh",
  "futures",
  "hex",
+ "hyper 0.14.28",
  "jsonrpsee",
  "num_cpus",
  "rand 0.8.5",
@@ -10021,6 +10025,8 @@ dependencies = [
  "thiserror",
  "tokio",
  "toml 0.8.13",
+ "tower",
+ "tower-http",
  "tracing",
 ]
 

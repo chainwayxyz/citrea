@@ -41,6 +41,9 @@ ethers = { workspace = true }
 tokio = { workspace = true }
 deadpool-postgres = { workspace = true }
 schnellru = "0.2.1"
+tower-http = { workspace = true }
+tower = { workspace = true }
+hyper = { workspace = true }
 
 sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface", features = [
     "native",
