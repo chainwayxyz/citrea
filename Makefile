@@ -17,10 +17,10 @@ clean: ## Cleans compiled
 	@cargo clean
 
 clean-node: ## Cleans local dbs needed for sequencer and nodes
-	sudo rm -rf data/postgres
-	rm -rf sequencer-db
-	rm -rf prover-db
-	rm -rf full-node-db
+	sudo rm -rf resources/dbs/postgres
+	rm -rf resources/dbs/sequencer-db
+	rm -rf resources/dbs/prover-db
+	rm -rf resources/dbs/full-node-db
 
 test-legacy: ## Runs test suite with output from tests printed
 	@cargo test -- --nocapture -Zunstable-options --report-time
