@@ -9,7 +9,7 @@ use sov_modules_api::Spec;
 use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_modules_stf_blueprint::{Runtime as RuntimeTrait, StfBlueprint};
 use sov_state::storage::NativeStorage;
-use sov_stf_runner::{InitVariant, ProverConfig, RollupConfig};
+use sov_stf_runner::{FullNodeConfig, InitVariant, ProverConfig};
 use tracing::instrument;
 
 mod bitcoin;
@@ -26,7 +26,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             Self::NativeContext,
             Self::DaSpec,
         >>::GenesisPaths,
-        rollup_config: RollupConfig<Self::DaConfig>,
+        rollup_config: FullNodeConfig<Self::DaConfig>,
         sequencer_config: SequencerConfig,
     ) -> Result<Sequencer<Self>, anyhow::Error>
     where
@@ -92,7 +92,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             Self::NativeContext,
             Self::DaSpec,
         >>::GenesisPaths,
-        rollup_config: RollupConfig<Self::DaConfig>,
+        rollup_config: FullNodeConfig<Self::DaConfig>,
     ) -> Result<FullNode<Self>, anyhow::Error>
     where
         <Self::NativeContext as Spec>::Storage: NativeStorage,
@@ -163,7 +163,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             Self::NativeContext,
             Self::DaSpec,
         >>::GenesisPaths,
-        rollup_config: RollupConfig<Self::DaConfig>,
+        rollup_config: FullNodeConfig<Self::DaConfig>,
         prover_config: ProverConfig,
     ) -> Result<Prover<Self>, anyhow::Error>
     where

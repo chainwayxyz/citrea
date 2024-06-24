@@ -2574,15 +2574,15 @@ async fn full_node_verify_proof_and_store() {
     test_client.send_publish_batch_request().await;
     test_client.send_publish_batch_request().await;
     test_client.send_publish_batch_request().await;
+    wait_for_l2_block(&full_node_test_client, 4, None).await;
+
     // submits with new da block, triggers commitment submission.
     da_service.publish_test_block().await.unwrap();
     // This is the above block created.
     wait_for_l1_block(&da_service, 3, None).await;
     // Commitment submitted
     wait_for_l1_block(&da_service, 4, None).await;
-    // Full node sync commitment block
-    test_client.send_publish_batch_request().await;
-    wait_for_l2_block(&full_node_test_client, 5, None).await;
+
     // Full node sync commitment block
     test_client.send_publish_batch_request().await;
     wait_for_l2_block(&full_node_test_client, 6, None).await;

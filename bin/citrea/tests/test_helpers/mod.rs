@@ -12,7 +12,7 @@ use sov_mock_da::{MockAddress, MockDaConfig, MockDaService};
 use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
 use sov_modules_api::PrivateKey;
 use sov_stf_runner::{
-    ProverConfig, RollupConfig, RollupPublicKeys, RpcConfig, RunnerConfig, StorageConfig,
+    FullNodeConfig, ProverConfig, RollupPublicKeys, RpcConfig, RunnerConfig, StorageConfig,
 };
 use tempfile::TempDir;
 use tokio::sync::oneshot;
@@ -39,7 +39,7 @@ pub async fn start_rollup(
     da_db_path: PathBuf,
     min_soft_confirmations_per_commitment: u64,
     include_tx_body: bool,
-    rollup_config: Option<RollupConfig<MockDaConfig>>,
+    rollup_config: Option<FullNodeConfig<MockDaConfig>>,
     sequencer_config: Option<SequencerConfig>,
     test_mode: Option<bool>,
     deposit_mempool_fetch_limit: usize,
@@ -124,8 +124,8 @@ pub fn create_default_rollup_config(
     rollup_path: &Path,
     da_path: &Path,
     node_mode: NodeMode,
-) -> RollupConfig<MockDaConfig> {
-    RollupConfig {
+) -> FullNodeConfig<MockDaConfig> {
+    FullNodeConfig {
         public_keys: RollupPublicKeys {
             sequencer_public_key: vec![
                 32, 64, 64, 227, 100, 193, 15, 43, 236, 156, 31, 229, 0, 161, 205, 76, 36, 124,
