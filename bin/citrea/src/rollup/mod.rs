@@ -11,7 +11,6 @@ use sov_modules_stf_blueprint::{Runtime as RuntimeTrait, StfBlueprint};
 use sov_state::storage::NativeStorage;
 use sov_stf_runner::{FullNodeConfig, InitVariant, ProverConfig};
 use tracing::instrument;
-
 mod bitcoin;
 mod mock;
 
@@ -147,6 +146,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             storage_manager,
             init_variant,
             code_commitment,
+            rollup_config.sync_blocks_count,
         )?;
 
         Ok(FullNode {
