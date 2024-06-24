@@ -1,0 +1,10 @@
+FROM ubuntu:22.04
+
+RUN apt update && apt -y install curl gcc cpp cmake clang llvm && apt -y autoremove && apt clean && rm -rf /var/lib/apt/lists/*
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain=1.78.0
+RUN /root/.cargo/bin/cargo +1.78.0 install --version 1.6.9 cargo-binstall
+RUN /root/.cargo/bin/cargo +1.78.0 binstall --version 0.21.0 -y cargo-risczero
+RUN /root/.cargo/bin/cargo +1.78.0 risczero install --version v2024-04-22.0
+COPY . .
+WORKDIR /citrea
+RUN /root/.cargo/bin/cargo +1.78.0 build --release
