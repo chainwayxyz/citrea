@@ -1747,7 +1747,6 @@ dependencies = [
  "futures",
  "hex",
  "jsonrpsee",
- "lazy_static",
  "lru",
  "rand 0.8.5",
  "rs_merkle",

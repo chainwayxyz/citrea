@@ -1,5 +1,7 @@
 use std::marker::PhantomData;
 use std::net::SocketAddr;
+use std::num::NonZeroUsize;
+use std::sync::Arc;
 
 use anyhow::{anyhow, bail};
 use backoff::future::retry as retry_backoff;
@@ -8,6 +10,7 @@ use borsh::de::BorshDeserialize;
 use borsh::BorshSerialize as _;
 use jsonrpsee::core::client::Error as JsonrpseeError;
 use jsonrpsee::RpcModule;
+use lru::LruCache;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 use sequencer_client::{GetSoftBatchResponse, SequencerClient};
@@ -34,11 +37,24 @@ use crate::error::SyncError;
 
 type StateRoot<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::StateRoot;
 
-lazy_static! {
-    static ref L1BlocksByNumber: Mutex<lru::LruCache> =
-        Mutex::new(LruCache::new(std::num::NonZeroUsize(10)));
-    static ref L1BlocksByHash: Mutex<lru::LruCache> =
-        Mutex::new(LruCache::new(std::num::NonZeroUsize(10)));
+struct L1BlockCache<Da>
+where
+    Da: DaService,
+{
+    pub(crate) by_number: LruCache<u64, Da::FilteredBlock>,
+    pub(crate) by_hash: LruCache<[u8; 32], Da::FilteredBlock>,
+}
+
+impl<Da> L1BlockCache<Da>
+where
+    Da: DaService,
+{
+    fn new() -> Self {
+        Self {
+            by_number: LruCache::new(NonZeroUsize::new(10).unwrap()),
+            by_hash: LruCache::new(NonZeroUsize::new(10).unwrap()),
+        }
+    }
 }
 
 /// Citrea's own STF runner implementation.
@@ -68,6 +84,7 @@ where
     include_tx_body: bool,
     code_commitment: Vm::CodeCommitment,
     accept_public_input_as_proven: bool,
+    l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
     sync_blocks_count: u64,
 }
 
@@ -149,6 +166,7 @@ where
                 .accept_public_input_as_proven
                 .unwrap_or(false),
             sync_blocks_count,
+            l1_block_cache: Arc::new(Mutex::new(L1BlockCache::new())),
         })
     }
 
@@ -371,17 +389,23 @@ where
         l1_block: Da::FilteredBlock,
         sequencer_commitment: SequencerCommitment,
     ) -> Result<(), SyncError> {
-        let start_l1_height =
-            get_da_block_by_hash(&self.da_service, sequencer_commitment.l1_start_block_hash)
-                .await?
-                .header()
-                .height();
+        let start_l1_height = get_da_block_by_hash(
+            &self.da_service,
+            sequencer_commitment.l1_start_block_hash,
+            self.l1_block_cache.clone(),
+        )
+        .await?
+        .header()
+        .height();
 
-        let end_l1_height =
-            get_da_block_by_hash(&self.da_service, sequencer_commitment.l1_end_block_hash)
-                .await?
-                .header()
-                .height();
+        let end_l1_height = get_da_block_by_hash(
+            &self.da_service,
+            sequencer_commitment.l1_end_block_hash,
+            self.l1_block_cache.clone(),
+        )
+        .await?
+        .header()
+        .height();
 
         let start_l2_height = match self
             .ledger_db
@@ -550,7 +574,12 @@ where
     #[instrument(level = "trace", skip_all, err)]
     pub async fn run(&mut self) -> Result<(), anyhow::Error> {
         let (l1_tx, mut l1_rx) = mpsc::channel(1);
-        let l1_sync_worker = sync_l1(self.start_l1_height, self.da_service.clone(), l1_tx);
+        let l1_sync_worker = l1_sync(
+            self.start_l1_height,
+            self.da_service.clone(),
+            l1_tx,
+            self.l1_block_cache.clone(),
+        );
         tokio::pin!(l1_sync_worker);
 
         let (l2_tx, mut l2_rx) = mpsc::channel(1);
@@ -578,10 +607,6 @@ where
                     self.ledger_db
                         .set_l1_height_of_l1_hash(l1_block.header().hash().into(), l1_block.header().height())
                         .unwrap();
-
-                    // Merkle root hash - L1 start height - L1 end height
-                    // TODO: How to confirm this is what we submit - use?
-                    // TODO: Add support for multiple commitments in a single block
 
                     let mut sequencer_commitments = Vec::<SequencerCommitment>::new();
                     let mut zk_proofs = Vec::<Proof>::new();
@@ -663,7 +688,7 @@ where
                     }
                 },
                 Some((l2_height, l2_block)) = l2_rx.recv() => {
-                    let l1_block = get_da_block_at_height(&self.da_service, l2_block.da_slot_height).await?;
+                    let l1_block = get_da_block_at_height(&self.da_service, l2_block.da_slot_height, self.l1_block_cache.clone()).await?;
                     if let Err(e) = self.process_l2_block(l2_height, l2_block, l1_block).await {
                         error!("Could not process L2 block: {}", e);
                     }
@@ -673,8 +698,12 @@ where
     }
 }
 
-async fn sync_l1<Da>(start_l1_height: u64, da_service: Da, sender: mpsc::Sender<Da::FilteredBlock>)
-where
+async fn l1_sync<Da>(
+    start_l1_height: u64,
+    da_service: Da,
+    sender: mpsc::Sender<Da::FilteredBlock>,
+    l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
+) where
     Da: DaService,
 {
     let mut l1_height = start_l1_height;
@@ -696,14 +725,17 @@ where
         let new_l1_height = last_finalized_l1_block_header.height();
 
         for block_number in l1_height + 1..=new_l1_height {
-            let l1_block = match get_da_block_at_height(&da_service, block_number).await {
-                Ok(block) => block,
-                Err(e) => {
-                    error!("Could not fetch last finalized L1 block: {}", e);
-                    sleep(Duration::from_secs(2)).await;
-                    continue 'block_sync;
-                }
-            };
+            let l1_block =
+                match get_da_block_at_height(&da_service, block_number, l1_block_cache.clone())
+                    .await
+                {
+                    Ok(block) => block,
+                    Err(e) => {
+                        error!("Could not fetch last finalized L1 block: {}", e);
+                        sleep(Duration::from_secs(2)).await;
+                        continue 'block_sync;
+                    }
+                };
 
             if block_number > l1_height {
                 l1_height = block_number;
@@ -791,39 +823,56 @@ async fn sync_l2<Da>(
 async fn get_da_block_at_height<Da: DaService>(
     da_service: &Da,
     height: u64,
+    l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
 ) -> anyhow::Result<Da::FilteredBlock> {
-    if let Some(l1_block) = L1BlocksByNumber.lock().await.get(height) {
-        return Ok(l1_block);
+    if let Some(l1_block) = l1_block_cache.lock().await.by_number.get(&height) {
+        return Ok(l1_block.clone());
     }
     let exponential_backoff = ExponentialBackoffBuilder::new()
         .with_initial_interval(Duration::from_secs(1))
         .with_max_elapsed_time(Some(Duration::from_secs(15 * 60)))
         .build();
 
-    retry_backoff(exponential_backoff.clone(), || async {
+    let l1_block = retry_backoff(exponential_backoff.clone(), || async {
         da_service
             .get_block_at(height)
             .await
             .map_err(backoff::Error::transient)
     })
     .await
-    .map_err(|e| anyhow!("Error while fetching L1 block: {}", e))
+    .map_err(|e| anyhow!("Error while fetching L1 block: {}", e))?;
+    l1_block_cache
+        .lock()
+        .await
+        .by_number
+        .put(l1_block.header().height(), l1_block.clone());
+    Ok(l1_block)
 }
 
 async fn get_da_block_by_hash<Da: DaService>(
     da_service: &Da,
     block_hash: [u8; 32],
+    l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
 ) -> anyhow::Result<Da::FilteredBlock> {
+    if let Some(l1_block) = l1_block_cache.lock().await.by_hash.get(&block_hash) {
+        return Ok(l1_block.clone());
+    }
     let exponential_backoff = ExponentialBackoffBuilder::new()
         .with_initial_interval(Duration::from_secs(1))
         .with_max_elapsed_time(Some(Duration::from_secs(15 * 60)))
         .build();
-    retry_backoff(exponential_backoff.clone(), || async {
+    let l1_block = retry_backoff(exponential_backoff.clone(), || async {
         da_service
             .get_block_by_hash(block_hash)
             .await
             .map_err(backoff::Error::transient)
     })
     .await
-    .map_err(|e| anyhow!("Could not fetch L1 block by hash: {}", e))
+    .map_err(|e| anyhow!("Could not fetch L1 block by hash: {}", e))?;
+    l1_block_cache
+        .lock()
+        .await
+        .by_hash
+        .put(l1_block.header().hash().into(), l1_block.clone());
+    Ok(l1_block)
 }
