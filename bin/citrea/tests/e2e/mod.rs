@@ -1070,6 +1070,16 @@ async fn test_soft_confirmations_status_one_l1() -> Result<(), anyhow::Error> {
 
     wait_for_l2_block(&full_node_test_client, 6, None).await;
 
+    // now retrieve confirmation status from the sequencer and full node and check if they are the same
+    for i in 1..=6 {
+        let status_node = full_node_test_client
+            .ledger_get_soft_confirmation_status(i)
+            .await
+            .unwrap();
+
+        assert_eq!(SoftConfirmationStatus::Trusted, status_node.unwrap());
+    }
+
     // publish new da block
     //
     // This will trigger the sequencer's DA monitor to see a newly published
