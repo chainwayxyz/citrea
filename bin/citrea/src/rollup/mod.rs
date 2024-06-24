@@ -4,7 +4,6 @@ use citrea_fullnode::{CitreaFullnode, FullNode};
 use citrea_prover::{CitreaProver, Prover};
 use citrea_sequencer::{CitreaSequencer, Sequencer, SequencerConfig};
 pub use mock::*;
-use rollup_constants::DEFAULT_ROLLUP_SYNC_BLOCKS_COUNT;
 use sov_modules_api::storage::HierarchicalStorageManager;
 use sov_modules_api::Spec;
 use sov_modules_rollup_blueprint::RollupBlueprint;
@@ -147,9 +146,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             storage_manager,
             init_variant,
             code_commitment,
-            rollup_config
-                .sync_blocks_count
-                .unwrap_or(DEFAULT_ROLLUP_SYNC_BLOCKS_COUNT),
+            rollup_config.sync_blocks_count,
         )?;
 
         Ok(FullNode {

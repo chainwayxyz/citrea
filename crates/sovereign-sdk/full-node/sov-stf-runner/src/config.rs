@@ -61,6 +61,11 @@ const fn default_batch_requests_limit() -> u32 {
     50
 }
 
+#[inline]
+const fn default_sync_blocks_count() -> u64 {
+    10
+}
+
 /// Simple storage configuration
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct StorageConfig {
@@ -83,6 +88,7 @@ pub struct RollupPublicKeys {
     #[serde(with = "hex::serde")]
     pub prover_da_pub_key: Vec<u8>,
 }
+
 /// Rollup Configuration
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct FullNodeConfig<DaServiceConfig> {
@@ -97,7 +103,8 @@ pub struct FullNodeConfig<DaServiceConfig> {
     /// Important pubkeys
     pub public_keys: RollupPublicKeys,
     /// Number of blocks to request during sync
-    pub sync_blocks_count: Option<u64>,
+    #[serde(default = "default_sync_blocks_count")]
+    pub sync_blocks_count: u64,
 }
 
 /// Prover configuration
@@ -207,7 +214,7 @@ mod tests {
                 sequencer_da_pub_key: vec![119; 32],
                 prover_da_pub_key: vec![],
             },
-            sync_blocks_count: None,
+            sync_blocks_count: 10,
         };
         assert_eq!(config, expected);
     }
