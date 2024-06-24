@@ -266,7 +266,7 @@ where
 
         let pg_client = match prover_config.db_config {
             Some(db_config) => {
-                tracing::info!("Connecting to postgres");
+                tracing::debug!("Connecting to postgres");
                 Some(PostgresConnector::new(db_config.clone()).await)
             }
             None => None,
@@ -307,7 +307,6 @@ where
                 .unwrap();
 
             let mut sequencer_commitments = Vec::<SequencerCommitment>::new();
-            let mut zk_proofs = Vec::<Proof>::new();
 
             self.da_service
                 .extract_relevant_blobs(&filtered_block)
@@ -316,38 +315,33 @@ where
                     let data = DaData::try_from_slice(tx.full_data());
 
                     if tx.sender().as_ref() == self.sequencer_da_pub_key.as_slice() {
-                        if let Ok(DaData::SequencerCommitment(seq_com)) = data {
-                            sequencer_commitments.push(seq_com);
-                        } else {
-                            tracing::warn!(
-                                "Found broken DA data in block 0x{}: {:?}",
-                                hex::encode(filtered_block.hash()),
-                                data
-                            );
+                        match data {
+                            Ok(DaData::SequencerCommitment(seq_com)) => {
+                                sequencer_commitments.push(seq_com);
+                            }
+                            Ok(_) => { // We don't care about other types here
+                                 // Skip
+                            }
+                            Err(ref e) => {
+                                tracing::error!(
+                                    "Found broken DA data in block 0x{}: {:?}. Error: {}",
+                                    hex::encode(filtered_block.hash()),
+                                    data,
+                                    e
+                                );
+                            }
                         }
                     } else if tx.sender().as_ref() == self.prover_da_pub_key.as_slice() {
-                        if let Ok(DaData::ZKProof(proof)) = data {
-                            zk_proofs.push(proof);
-                        } else {
-                            tracing::warn!(
-                                "Found broken DA data in block 0x{}: {:?}",
-                                hex::encode(filtered_block.hash()),
-                                data
-                            );
-                        }
+                        // The prover doesn't really care about proofs in DA blocks.
+                        // They've already been proven so we can skip here.
                     } else {
                         warn!("Force transactions are not implemented yet");
                         // TODO: This is where force transactions will land - try to parse DA data force transaction
                     }
                 });
 
-            if !zk_proofs.is_empty() {
-                warn!("ZK proofs are not empty");
-                // TODO: Implement this
-            }
-
             if sequencer_commitments.is_empty() {
-                tracing::info!("No sequencer commitment found at height {}", l1_height,);
+                tracing::debug!("No sequencer commitment found at height {}", l1_height,);
 
                 self.ledger_db
                     .set_prover_last_scanned_l1_height(SlotNumber(l1_height))
@@ -422,7 +416,7 @@ where
                 // start fetching blocks from sequencer, when you see a soft batch with l1 height more than end_l1_height, stop
                 // while getting the blocks to all the same ops as full node
                 // after stopping call continue  and look for a new seq_commitment
-                // change the itemnumbers only after the sync is done so not for every da block
+                // change the item numbers only after the sync is done so not for every da block
 
                 loop {
                     let inner_client = &self.sequencer_client;
@@ -431,14 +425,9 @@ where
                             match inner_client.get_soft_batch::<Da::Spec>(l2_height).await {
                                 Ok(Some(soft_batch)) => Ok(soft_batch),
                                 Ok(None) => {
-                                    debug!(
-                                        "Soft Batch: no batch at height {}, retrying...",
-                                        l2_height
-                                    );
+                                    debug!("Soft Batch: no batch at height {}", l2_height);
 
-                                    // We wait for 2 seconds and then return a Permanent error so that we exit the retry.
-                                    // This should not backoff exponentially
-                                    sleep(Duration::from_secs(2)).await;
+                                    // Return a Permanent error so that we exit the retry.
                                     Err(backoff::Error::Permanent(
                                         "No soft batch published".to_owned(),
                                     ))
@@ -449,19 +438,23 @@ where
                                             "Soft Batch: connection error during RPC call: {:?}",
                                             e
                                         );
-                                        debug!(error_msg);
+                                        error!(error_msg);
                                         Err(backoff::Error::Transient {
                                             err: error_msg,
                                             retry_after: None,
                                         })
                                     }
-                                    _ => Err(backoff::Error::Transient {
-                                        err: format!(
+                                    _ => {
+                                        let error_msg = format!(
                                             "Soft Batch: unknown error from RPC call: {:?}",
                                             e
-                                        ),
-                                        retry_after: None,
-                                    }),
+                                        );
+                                        error!(error_msg);
+                                        Err(backoff::Error::Transient {
+                                            err: error_msg,
+                                            retry_after: None,
+                                        })
+                                    }
                                 },
                             }
                         })
@@ -477,7 +470,7 @@ where
                         break;
                     }
 
-                    info!(
+                    debug!(
                         "Running soft confirmation batch #{} with hash: 0x{} on DA block #{}",
                         l2_height,
                         hex::encode(soft_batch.hash),
@@ -564,7 +557,7 @@ where
 
                     self.state_root = next_state_root;
 
-                    info!(
+                    debug!(
                         "New State Root after soft confirmation #{} is: {:?}",
                         l2_height, self.state_root
                     );
@@ -578,8 +571,6 @@ where
                 state_transition_witnesses.push_back(state_transition_witnesses_to_push);
                 da_block_headers_of_soft_confirmations.push_back(da_block_headers_to_push);
             }
-
-            tracing::info!("Sending for proving");
 
             let hash = da_block_header_of_commitments.hash();
 
@@ -612,6 +603,8 @@ where
 
             // Skip submission until l1 height
             if l1_height >= skip_submission_until_l1 && should_prove {
+                tracing::info!("Sending for proving");
+
                 let prover_service = self
                     .prover_service
                     .as_ref()
@@ -636,10 +629,10 @@ where
 
                 match proof {
                     Proof::PublicInput(_) => {
-                        tracing::warn!("Proof is public input, skipping");
+                        tracing::debug!("Proof is public input, skipping");
                     }
                     Proof::Full(ref proof) => {
-                        tracing::info!("Verifying proof!");
+                        tracing::debug!("Verifying proof!");
                         let transition_data_from_proof = Vm::verify_and_extract_output::<
                             <Da as DaService>::Spec,
                             Stf::StateRoot,
@@ -648,14 +641,14 @@ where
                         )
                         .expect("Proof should be verifiable");
 
-                        tracing::info!(
+                        tracing::debug!(
                             "transition data from proof: {:?}",
                             transition_data_from_proof
                         );
                     }
                 }
 
-                tracing::info!("transition data: {:?}", transition_data);
+                tracing::trace!("transition data: {:?}", transition_data);
 
                 let stored_state_transition = StoredStateTransition {
                     initial_state_root: transition_data.initial_state_root.as_ref().to_vec(),
@@ -669,7 +662,7 @@ where
 
                 match pg_client.as_ref() {
                     Some(Ok(pool)) => {
-                        tracing::info!("Inserting proof data into postgres");
+                        tracing::debug!("Inserting proof data into postgres");
                         let (proof_data, proof_type) = match proof.clone() {
                             Proof::Full(full_proof) => (full_proof, ProofType::Full),
                             Proof::PublicInput(public_input) => {
@@ -828,27 +821,41 @@ where
                             let data = DaData::try_from_slice(tx.full_data());
                             // Check for commitment
                             if tx.sender().as_ref() == self.sequencer_da_pub_key.as_slice() {
-                                if let Ok(DaData::SequencerCommitment(seq_com)) = data {
-                                    sequencer_commitments.push(seq_com);
-                                } else {
-                                    tracing::warn!(
-                                        "Found broken DA data in block 0x{}: {:?}",
-                                        hex::encode(filtered_block.hash()),
-                                        data
-                                    );
+                                match data {
+                                    Ok(DaData::SequencerCommitment(seq_com)) => {
+                                        sequencer_commitments.push(seq_com);
+                                    }
+                                    Ok(_) => { // We don't care about other types here
+                                         // Skip
+                                    }
+                                    Err(ref e) => {
+                                        tracing::error!(
+                                            "Found broken DA data in block 0x{}: {:?}. Error: {}",
+                                            hex::encode(filtered_block.hash()),
+                                            data,
+                                            e
+                                        );
+                                    }
                                 }
                             }
                             let data = DaData::try_from_slice(tx.full_data());
                             // Check for proof
                             if tx.sender().as_ref() == self.prover_da_pub_key.as_slice() {
-                                if let Ok(DaData::ZKProof(proof)) = data {
-                                    zk_proofs.push(proof);
-                                } else {
-                                    tracing::warn!(
-                                        "Found broken DA data in block 0x{}: {:?}",
-                                        hex::encode(filtered_block.hash()),
-                                        data
-                                    );
+                                match data {
+                                    Ok(DaData::ZKProof(proof)) => {
+                                        zk_proofs.push(proof);
+                                    }
+                                    Ok(_) => { // We don't care about other types here
+                                         // Skip
+                                    }
+                                    Err(ref e) => {
+                                        tracing::error!(
+                                            "Found broken DA data in block 0x{}: {:?}. Error: {}",
+                                            hex::encode(filtered_block.hash()),
+                                            data,
+                                            e
+                                        );
+                                    }
                                 }
                             } else {
                                 warn!("Force transactions are not implemented yet");
@@ -857,16 +864,15 @@ where
                         });
 
                     for proof in zk_proofs {
-                        tracing::warn!("Processing zk proof: {:?}", proof);
+                        tracing::trace!("Processing zk proof: {:?}", proof);
                         let state_transition = match proof.clone() {
                             Proof::Full(proof) => {
                                 let code_commitment = self.code_commitment.clone();
 
-                                tracing::warn!(
+                                tracing::trace!(
                                     "using code commitment: {:?}",
                                     serde_json::to_string(&code_commitment).unwrap()
                                 );
-
                                 if let Ok(proof_data) =
                                     Vm::verify_and_extract_output::<
                                         <Da as DaService>::Spec,
@@ -1031,7 +1037,7 @@ where
                     }
 
                     for sequencer_commitment in sequencer_commitments.iter() {
-                        tracing::warn!(
+                        tracing::info!(
                             "Processing sequencer commitment: {:?}",
                             sequencer_commitment
                         );
@@ -1056,7 +1062,7 @@ where
                         .header()
                         .height();
 
-                        tracing::warn!(
+                        tracing::debug!(
                             "start height: {}, end height: {}",
                             start_l1_height,
                             end_l1_height

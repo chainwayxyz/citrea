@@ -149,7 +149,7 @@ where
                     vm.add_hint(state_transition_data);
 
                     self.pool.spawn(move || {
-                        tracing::info_span!("guest_execution").in_scope(|| {
+                        tracing::debug_span!("guest_execution").in_scope(|| {
                             let proof = make_proof(vm, config, zk_storage);
 
                             let mut prover_state =

@@ -1,19 +1,21 @@
 use std::str::FromStr;
+use std::time::Duration;
 
 use citrea_evm::smart_contracts::SimpleStorageContract;
 use citrea_stf::genesis_config::GenesisPaths;
 use ethers::abi::Address;
 use ethers_core::abi::Bytes;
 use reth_primitives::BlockNumberOrTag;
+use tokio::time::sleep;
 
 use crate::evm::init_test_rollup;
 use crate::test_client::TestClient;
-use crate::test_helpers::{start_rollup, tempdir_with_children, NodeMode};
+use crate::test_helpers::{start_rollup, tempdir_with_children, wait_for_l2_block, NodeMode};
 use crate::{DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT};
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_archival_state() -> Result<(), anyhow::Error> {
-    // citrea::initialize_logging();
+    // citrea::initialize_logging(tracing::Level::INFO);
 
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
@@ -126,6 +128,10 @@ async fn run_archival_valid_tests(addr: Address, seq_test_client: &TestClient) {
             .await;
         seq_test_client.send_publish_batch_request().await;
     }
+    wait_for_l2_block(seq_test_client, 8, None).await;
+
+    // Wait for changeset storage
+    sleep(Duration::from_secs(2)).await;
 
     assert_eq!(
         seq_test_client
@@ -217,6 +223,7 @@ async fn run_archival_valid_tests(addr: Address, seq_test_client: &TestClient) {
             .unwrap();
 
         seq_test_client.send_publish_batch_request().await;
+        wait_for_l2_block(seq_test_client, 9, None).await;
 
         let contract_address = deploy_contract_req
             .await
@@ -230,6 +237,7 @@ async fn run_archival_valid_tests(addr: Address, seq_test_client: &TestClient) {
 
     seq_test_client.send_publish_batch_request().await;
     seq_test_client.send_publish_batch_request().await;
+    wait_for_l2_block(seq_test_client, 11, None).await;
 
     let code = seq_test_client
         .eth_get_code(contract_address, Some(BlockNumberOrTag::Number(9)))
@@ -251,6 +259,7 @@ async fn run_archival_valid_tests(addr: Address, seq_test_client: &TestClient) {
 
     seq_test_client.send_publish_batch_request().await;
     seq_test_client.send_publish_batch_request().await;
+    wait_for_l2_block(seq_test_client, 13, None).await;
 
     let storage_slot = 0x0;
     let storage_value = seq_test_client

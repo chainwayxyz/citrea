@@ -5,7 +5,7 @@ use revm::primitives::{
 use revm::{self, Context, Database, DatabaseCommit, EvmContext};
 use sov_modules_api::{native_error, native_trace};
 #[cfg(feature = "native")]
-use tracing::{instrument, trace_span};
+use tracing::trace_span;
 
 use super::conversions::create_tx_env;
 use super::handler::{citrea_handler, CitreaExternalExt};
@@ -47,7 +47,6 @@ where
 
     /// Runs a single transaction in the configured environment and proceeds
     /// to return the result and state diff (without applying it).
-    #[cfg_attr(feature = "native", instrument(level = "debug", skip_all))]
     fn transact(
         &mut self,
         tx: &TransactionSignedEcRecovered,
@@ -58,7 +57,6 @@ where
     }
 
     /// Commits the given state diff to the database.
-    #[cfg_attr(feature = "native", instrument(level = "debug", skip_all, ret))]
     fn commit(&mut self, state: State)
     where
         DB: DatabaseCommit,
@@ -79,7 +77,6 @@ pub(crate) fn execute_tx<DB: Database + DatabaseCommit, EXT: CitreaExternalExt>(
     evm.transact_commit(tx)
 }
 
-#[cfg_attr(feature = "native", instrument(level = "debug", skip_all))]
 pub(crate) fn execute_multiple_tx<
     DB: Database<Error = DBError> + DatabaseCommit,
     EXT: CitreaExternalExt,

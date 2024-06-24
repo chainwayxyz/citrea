@@ -85,7 +85,7 @@ pub struct RollupPublicKeys {
 }
 /// Rollup Configuration
 #[derive(Debug, Clone, PartialEq, Deserialize)]
-pub struct RollupConfig<DaServiceConfig> {
+pub struct FullNodeConfig<DaServiceConfig> {
     /// RPC configuration
     pub rpc: RpcConfig,
     /// Currently rollup config runner only supports storage path parameter
@@ -176,10 +176,10 @@ mod tests {
 
         let config_file = create_config_from(&config);
 
-        let config: RollupConfig<sov_mock_da::MockDaConfig> =
+        let config: FullNodeConfig<sov_mock_da::MockDaConfig> =
             from_toml_path(config_file.path()).unwrap();
 
-        let expected = RollupConfig {
+        let expected = FullNodeConfig {
             runner: Some(RunnerConfig {
                 sequencer_client_url: "http://0.0.0.0:12346".to_owned(),
                 include_tx_body: true,

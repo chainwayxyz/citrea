@@ -7,38 +7,27 @@ license = { workspace = true }
 repository = { workspace = true }
 
 version = { workspace = true }
-readme = "README.md"
 publish = false
+readme = "README.md"
 resolver = "2"
 
 [dependencies]
-sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api", default-features = false, features = [
-    "macros",
-] }
-sov-state = { path = "../sovereign-sdk/module-system/sov-state" }
+sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api", default-features = false, features = ["macros"] }
 sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
+sov-state = { path = "../sovereign-sdk/module-system/sov-state" }
 
-borsh = { workspace = true }
-serde = { workspace = true }
 anyhow = { workspace = true }
+borsh = { workspace = true }
+jsonrpsee = { workspace = true, features = ["macros", "client-core", "server"], optional = true }
+serde = { workspace = true }
 tracing = { workspace = true, optional = true }
-jsonrpsee = { workspace = true, features = [
-    "macros",
-    "client-core",
-    "server",
-], optional = true }
 
 [dev-dependencies]
-sov-mock-da = { path = "../sovereign-sdk/adapters/mock-da", features = [
-    "native",
-] }
-sov-prover-storage-manager = { path = "../sovereign-sdk/full-node/sov-prover-storage-manager", features = [
-    "test-utils",
-] }
 chrono = { workspace = true, default-features = true }
-tempfile = { workspace = true }
 lazy_static = "1.4.0"
-
+sov-mock-da = { path = "../sovereign-sdk/adapters/mock-da", features = ["native"] }
+sov-prover-storage-manager = { path = "../sovereign-sdk/full-node/sov-prover-storage-manager", features = ["test-utils"] }
+tempfile = { workspace = true }
 
 [features]
 default = []

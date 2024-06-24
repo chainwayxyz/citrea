@@ -4,7 +4,7 @@ use sov_mock_zkvm::{MockCodeCommitment, MockZkvm};
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_state::{ArrayWitness, DefaultStorageSpec};
 use sov_stf_runner::{
-    InitVariant, ParallelProverService, RollupConfig, RollupPublicKeys, RpcConfig, RunnerConfig,
+    FullNodeConfig, InitVariant, ParallelProverService, RollupPublicKeys, RpcConfig, RunnerConfig,
     StateTransitionRunner, StorageConfig,
 };
 
@@ -18,7 +18,7 @@ type MockInitVariant =
 type S = DefaultStorageSpec;
 type StorageManager = ProverStorageManager<MockDaSpec, S>;
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn init_and_restart() {
     let tmpdir = tempfile::tempdir().unwrap();
     let genesis_params = vec![1, 2, 3, 4, 5];
@@ -67,7 +67,7 @@ fn initialize_runner(
     }
 
     let address = MockAddress::new([11u8; 32]);
-    let rollup_config = RollupConfig::<MockDaConfig> {
+    let rollup_config = FullNodeConfig::<MockDaConfig> {
         storage: StorageConfig {
             path: rollup_storage_path.clone(),
         },

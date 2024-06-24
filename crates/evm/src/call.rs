@@ -5,8 +5,6 @@ use reth_primitives::TransactionSignedEcRecovered;
 use revm::primitives::{CfgEnv, CfgEnvWithHandlerCfg, EVMError, SpecId};
 use sov_modules_api::prelude::*;
 use sov_modules_api::{native_error, CallResponse, WorkingSet};
-#[cfg(feature = "native")]
-use tracing::instrument;
 
 use crate::evm::db::EvmDb;
 use crate::evm::executor::{self};
@@ -32,7 +30,6 @@ pub struct CallMessage {
 
 impl<C: sov_modules_api::Context> Evm<C> {
     /// Executes system events for the current block and push tx to pending_transactions.
-    #[cfg_attr(feature = "native", instrument(level = "debug", skip_all, ret))]
     pub(crate) fn execute_system_events(
         &self,
         system_events: Vec<SystemEvent>,
@@ -128,7 +125,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
     }
 
     /// Executes a call message.
-    #[cfg_attr(feature = "native", instrument(level = "debug", skip_all, ret, err))]
     pub(crate) fn execute_call(
         &self,
         txs: Vec<RlpEvmTransaction>,

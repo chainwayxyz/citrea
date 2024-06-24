@@ -14,16 +14,16 @@ use sov_rollup_interface::CITREA_VERSION;
 
 // use sov_demo_rollup::initialize_logging;
 use crate::test_client::TestClient;
-use crate::test_helpers::{start_rollup, tempdir_with_children, NodeMode};
+use crate::test_helpers::{start_rollup, tempdir_with_children, wait_for_l2_block, NodeMode};
 use crate::{DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT};
 
 mod archival_state;
 mod gas_price;
 mod tracing;
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn web3_rpc_tests() -> Result<(), anyhow::Error> {
-    // citrea::initialize_logging();
+    // citrea::initialize_logging(tracing::Level::INFO);
 
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
@@ -76,9 +76,9 @@ async fn web3_rpc_tests() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn evm_tx_tests() -> Result<(), anyhow::Error> {
-    // citrea::initialize_logging();
+    // citrea::initialize_logging(tracing::Level::INFO);
 
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
@@ -117,7 +117,7 @@ async fn send_tx_test_to_eth(rpc_address: SocketAddr) -> Result<(), Box<dyn std:
     execute(&test_client).await
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_eth_get_logs() -> Result<(), anyhow::Error> {
     use crate::test_helpers::start_rollup;
 
@@ -157,7 +157,7 @@ async fn test_eth_get_logs() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_genesis_contract_call() -> Result<(), Box<dyn std::error::Error>> {
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
@@ -255,6 +255,7 @@ async fn test_getlogs(client: &Box<TestClient>) -> Result<(), Box<dyn std::error
         )
         .await;
     client.send_publish_batch_request().await;
+    wait_for_l2_block(client, 1, None).await;
 
     let empty_filter = serde_json::json!({});
     // supposed to get all the logs
@@ -284,6 +285,7 @@ async fn test_getlogs(client: &Box<TestClient>) -> Result<(), Box<dyn std::error
     let contract_address2 = {
         let deploy_contract_req = client.deploy_contract(contract.byte_code(), None).await?;
         client.send_publish_batch_request().await;
+        wait_for_l2_block(client, 2, None).await;
 
         deploy_contract_req
             .await?
@@ -301,6 +303,7 @@ async fn test_getlogs(client: &Box<TestClient>) -> Result<(), Box<dyn std::error
         )
         .await;
     client.send_publish_batch_request().await;
+    wait_for_l2_block(client, 3, None).await;
 
     // make sure the two contracts have different addresses
     assert_ne!(contract_address, contract_address2);

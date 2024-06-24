@@ -16,6 +16,10 @@ pub struct SequencerConfig {
     pub mempool_conf: SequencerMempoolConfig,
     /// Offchain db config
     pub db_config: Option<SharedBackupDbConfig>,
+    /// DA layer update loop interval in ms
+    pub da_update_interval_ms: u64,
+    /// Block production interval in ms
+    pub block_production_interval_ms: u64,
 }
 
 /// Mempool Config for the sequencer
@@ -74,6 +78,8 @@ mod tests {
             min_soft_confirmations_per_commitment = 123
             test_mode = false
             deposit_mempool_fetch_limit = 10
+            da_update_interval_ms = 1000
+            block_production_interval_ms = 1000
             [mempool_conf]
             pending_tx_limit = 100000
             pending_tx_size = 200
@@ -110,6 +116,8 @@ mod tests {
                 max_account_slots: 16,
             },
             db_config: Some(SharedBackupDbConfig::default()),
+            da_update_interval_ms: 1000,
+            block_production_interval_ms: 1000,
         };
         assert_eq!(config, expected);
     }

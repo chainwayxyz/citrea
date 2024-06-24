@@ -4,24 +4,35 @@
 use std::env;
 use std::str::FromStr;
 
-mod mock_rollup;
-pub use mock_rollup::*;
+use tracing::Level;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{fmt, EnvFilter};
 
 mod eth;
-
-mod bitcoin_rollup;
-pub use bitcoin_rollup::*;
+mod rollup;
+pub use rollup::*;
 
 /// Default initialization of logging
-pub fn initialize_logging() {
-    let env_filter =
-        EnvFilter::from_str(&env::var("RUST_LOG").unwrap_or_else(|_| {
-            "debug,hyper=info,risc0_zkvm=info,guest_execution=debug".to_string()
-        }))
-        .unwrap();
+pub fn initialize_logging(level: Level) {
+    let env_filter = EnvFilter::from_str(&env::var("RUST_LOG").unwrap_or_else(|_| {
+        let debug_components = vec![
+            level.as_str().to_owned(),
+            "jmt=info".to_owned(),
+            "hyper=info".to_owned(),
+            // Limit output as much as possible, use WARN.
+            "risc0_zkvm=warn".to_owned(),
+            "guest_execution=info".to_owned(),
+            "jsonrpsee-server=info".to_owned(),
+            "reqwest=info".to_owned(),
+            "sov_schema_db=info".to_owned(),
+            "sov_prover_storage_manager=info".to_owned(),
+            // Limit output as much as possible, use WARN.
+            "tokio_postgres=warn".to_owned(),
+        ];
+        debug_components.join(",")
+    }))
+    .unwrap();
     if std::env::var("JSON_LOGS").is_ok() {
         tracing_subscriber::registry()
             .with(fmt::layer().json())
