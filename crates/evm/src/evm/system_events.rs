@@ -21,7 +21,7 @@ pub const SYSTEM_SIGNER: Address = address!("deaddeaddeaddeaddeaddeaddeaddeaddea
 pub(crate) enum SystemEvent {
     BitcoinLightClientInitialize(/*block number*/ u64),
     BitcoinLightClientSetBlockInfo(/*hash*/ [u8; 32], /*merkle root*/ [u8; 32]),
-    BridgeInitialize(Vec<u8>), // deposit script, script suffix, required sigs count
+    BridgeInitialize,
     BridgeDeposit(Vec<u8>), // version, flag, vin, vout, witness, locktime, intermediate nodes, block height, index
 }
 
@@ -47,9 +47,9 @@ fn system_event_to_transaction(event: SystemEvent, nonce: u64, chain_id: u64) ->
             max_fee_per_gas: u64::MAX as u128,
             ..Default::default()
         },
-        SystemEvent::BridgeInitialize(data) => TxEip1559 {
+        SystemEvent::BridgeInitialize => TxEip1559 {
             to: TxKind::Call(Bridge::address()),
-            input: Bridge::initialize(data),
+            input: Bridge::initialize(),
             nonce,
             chain_id,
             value: U256::ZERO,
@@ -57,9 +57,9 @@ fn system_event_to_transaction(event: SystemEvent, nonce: u64, chain_id: u64) ->
             max_fee_per_gas: u64::MAX as u128,
             ..Default::default()
         },
-        SystemEvent::BridgeDeposit(data) => TxEip1559 {
+        SystemEvent::BridgeDeposit(params) => TxEip1559 {
             to: TxKind::Call(Bridge::address()),
-            input: Bridge::deposit(data),
+            input: Bridge::deposit(params),
             nonce,
             chain_id,
             value: U256::ZERO,

@@ -1,9 +1,6 @@
 use std::collections::BTreeMap;
-use std::str::FromStr;
 
-use alloy_primitives::FixedBytes;
-use hex::FromHex;
-use reth_primitives::{address, BlockId, BlockNumberOrTag, TxKind, U64};
+use reth_primitives::{address, b256, BlockId, BlockNumberOrTag, TxKind, U64};
 use reth_rpc::eth::error::EthApiError;
 use reth_rpc_types::request::{TransactionInput, TransactionRequest};
 use reth_rpc_types::{AnyTransactionReceipt, Block, Rich};
@@ -24,10 +21,7 @@ fn get_block_by_hash_test() {
 
     let third_block = evm
         .get_block_by_hash(
-            FixedBytes::from_hex(
-                "0x2d7962c316685635252886d6801a553139e94e3b7d2b678f8c9d974a54e24ab9",
-            )
-            .unwrap(),
+            b256!("2d7962c316685635252886d6801a553139e94e3b7d2b678f8c9d974a54e24ab9"),
             None,
             &mut working_set,
         )
@@ -125,20 +119,17 @@ fn get_transaction_by_block_hash_and_index_test() {
     assert_eq!(result, Ok(None));
 
     let tx_hashes = [
-        "0x2ff3a833e99d5a97e26f912c2e855f95e2dda542c89131fea0d189889d384d99",
-        "0xa69485c543cd51dc1856619f3ddb179416af040da2835a10405c856cd5fb41b8",
-        "0x17fa953338b32b30795ccb62f050f1c9bcdd48f4793fb2d6d34290b444841271",
-        "0xd7e5b2bce65678b5e1a4430b1320b18a258fd5412e20bd5734f446124a9894e6",
+        b256!("2ff3a833e99d5a97e26f912c2e855f95e2dda542c89131fea0d189889d384d99"),
+        b256!("a69485c543cd51dc1856619f3ddb179416af040da2835a10405c856cd5fb41b8"),
+        b256!("17fa953338b32b30795ccb62f050f1c9bcdd48f4793fb2d6d34290b444841271"),
+        b256!("d7e5b2bce65678b5e1a4430b1320b18a258fd5412e20bd5734f446124a9894e6"),
     ];
 
     for (i, tx_hash) in tx_hashes.iter().enumerate() {
         let result =
             evm.get_transaction_by_block_hash_and_index(hash, U64::from(i), &mut working_set);
 
-        assert_eq!(
-            result.unwrap().unwrap().hash,
-            FixedBytes::from_hex(tx_hash).unwrap()
-        );
+        assert_eq!(result.unwrap().unwrap().hash, *tx_hash);
     }
 }
 
@@ -175,10 +166,10 @@ fn get_transaction_by_block_number_and_index_test() {
     }
 
     let tx_hashes = [
-        "0x2ff3a833e99d5a97e26f912c2e855f95e2dda542c89131fea0d189889d384d99",
-        "0xa69485c543cd51dc1856619f3ddb179416af040da2835a10405c856cd5fb41b8",
-        "0x17fa953338b32b30795ccb62f050f1c9bcdd48f4793fb2d6d34290b444841271",
-        "0xd7e5b2bce65678b5e1a4430b1320b18a258fd5412e20bd5734f446124a9894e6",
+        b256!("2ff3a833e99d5a97e26f912c2e855f95e2dda542c89131fea0d189889d384d99"),
+        b256!("a69485c543cd51dc1856619f3ddb179416af040da2835a10405c856cd5fb41b8"),
+        b256!("17fa953338b32b30795ccb62f050f1c9bcdd48f4793fb2d6d34290b444841271"),
+        b256!("d7e5b2bce65678b5e1a4430b1320b18a258fd5412e20bd5734f446124a9894e6"),
     ];
     for (i, tx_hash) in tx_hashes.iter().enumerate() {
         let result = evm.get_transaction_by_block_number_and_index(
@@ -187,10 +178,7 @@ fn get_transaction_by_block_number_and_index_test() {
             &mut working_set,
         );
 
-        assert_eq!(
-            result.unwrap().unwrap().hash,
-            FixedBytes::from_hex(tx_hash).unwrap()
-        );
+        assert_eq!(result.unwrap().unwrap().hash, *tx_hash);
     }
 }
 
@@ -296,7 +284,7 @@ fn call_test() {
     working_set.unset_archival_version();
 
     let contract = SimpleStorageContract::default();
-    let call_data = contract.get_call_data().to_string();
+    let call_data = contract.get_call_data();
 
     let nonce_too_low_result = evm.get_call(
         TransactionRequest {
@@ -309,7 +297,7 @@ fn call_test() {
             max_fee_per_gas: None,
             max_priority_fee_per_gas: None,
             value: Some(U256::from(100000000)),
-            input: TransactionInput::new(alloy_primitives::Bytes::from_str(&call_data).unwrap()),
+            input: TransactionInput::new(call_data.clone().into()),
             nonce: Some(7u64),
             chain_id: Some(1u64),
             access_list: None,
@@ -339,9 +327,7 @@ fn call_test() {
                 max_fee_per_gas: None,
                 max_priority_fee_per_gas: None,
                 value: None,
-                input: TransactionInput::new(
-                    alloy_primitives::Bytes::from_str(&call_data).unwrap(),
-                ),
+                input: TransactionInput::new(call_data.clone().into()),
                 nonce: None,
                 chain_id: Some(1u64),
                 access_list: None,
@@ -376,9 +362,7 @@ fn call_test() {
                 max_fee_per_gas: None,
                 max_priority_fee_per_gas: None,
                 value: None,
-                input: TransactionInput::new(
-                    alloy_primitives::Bytes::from_str(&call_data).unwrap(),
-                ),
+                input: TransactionInput::new(call_data.into()),
                 nonce: None,
                 chain_id: None,
                 access_list: None,
