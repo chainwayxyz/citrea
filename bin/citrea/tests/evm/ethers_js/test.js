@@ -121,7 +121,7 @@ describe("RpcTests", function() {
     it("getStorage returns the correct storage", async function() {
         // 2rd slot of Bridge is 'operator' and should be the system caller address on its own
         let storage = await provider.getStorage("0x3100000000000000000000000000000000000002", 1);
-        expect(storage).to.equal("0x000000000000000000000000deaddeaddeaddeaddeaddeaddeaddeaddeaddead");
+        expect(storage).to.equal("0x0000000000000000000000deaddeaddeaddeaddeaddeaddeaddeaddeaddead01");
     });
 
     it("getLogs returns the correct logs", async function() {
