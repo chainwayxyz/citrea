@@ -1,5 +1,5 @@
-use ethers_core::rand::rngs::StdRng;
-use ethers_core::rand::SeedableRng;
+use rand::rngs::StdRng;
+use rand::SeedableRng;
 use reth_primitives::{
     Address, Bytes as RethBytes, Transaction as RethTransaction, TxEip1559 as RethTxEip1559,
     TxKind, U256,

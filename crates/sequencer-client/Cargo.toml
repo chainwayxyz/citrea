@@ -22,7 +22,6 @@ hex = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 
-ethers = { workspace = true }
 tokio = { workspace = true }
 
 reth-primitives = { workspace = true }

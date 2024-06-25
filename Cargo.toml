@@ -86,6 +86,7 @@ chrono = { version = "0.4.37", default-features = false }
 digest = { version = "0.10.6", default-features = false, features = ["alloc"] }
 deadpool-postgres = "0.13.1"
 itertools = { version = "0.13.0", default-features = false }
+lru = "0.12.3"
 postgres-types = "0.2.6"
 rs_merkle = "1.4.2"
 futures = "0.3"
@@ -126,13 +127,6 @@ risc0-build = { version = "1.0.0" }
 bonsai-sdk = { version = "0.8.0" }
 
 # EVM dependencies
-ethereum-types = "0.14.1"
-ethers = "2.0"
-ethers-core = { version = "2.0", default-features = false }
-ethers-contract = "2.0"
-ethers-providers = { version = "2.0", default-features = false }
-ethers-signers = { version = "2.0", default-features = false }
-ethers-middleware = { version = "2.0", default-features = false }
 
 revm-inspectors = { git = "https://github.com/paradigmxyz/evm-inspectors", rev = "7168ac5", default-features = false }
 reth-primitives = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.7", default-features = false }
@@ -151,11 +145,11 @@ reth-stages = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.
 revm = { version = "8", features = ["serde"], default-features = false }
 # forcing cargo for this version or else chooses 3.1.1 and there is some dependency conflicts
 revm-primitives = { version = "3.1", default-features = false }
-# forcing cargo for this version or else chooses 0.3.1 and there is some dependency conflicts
-alloy-trie = { version = "=0.3.0", default-features = false }
+alloy-trie = { version = "0.3", default-features = false }
 alloy-rlp = { version = "0.3", default-features = false }
-alloy-primitives = { version = "0.7.4", default-features = false }
-alloy-sol-types = { version = "0.7.4", default-features = false }
+alloy-primitives = { version = "0.7.6", default-features = false }
+alloy-sol-types = { version = "0.7.6", default-features = false, features = ["json"] }
+alloy = { git = "https://github.com/alloy-rs/alloy", rev = "77c1240", default-features = false }
 
 ed25519-dalek = { version = "2", default-features = false, features = ["serde"] }
 secp256k1 = { version = "0.28.2", default-features = false, features = ["global-context", "recovery"] }
@@ -175,9 +169,7 @@ secp256k1 = { version = "0.28.2", default-features = false, features = ["global-
 #  surprisignly decreased cycle counts
 [patch.crates-io]
 sha2 = { git = "https://github.com/risc0/RustCrypto-hashes", tag = "sha2-v0.10.8-risczero.0" }
-# ed25519-dalek = { git = "https://github.com/risc0/curve25519-dalek", tag = "curve25519-4.1.0-risczero.1" }
-# crypto-bigint = { git = "https://github.com/risc0/RustCrypto-crypto-bigint", tag = "v0.5.2-risc0" }
+# ed25519-dalek = { git = "https://github.com/risc0/curve25519-dalek", tag = "curve25519-4.1.2-risczero.0" }
+# crypto-bigint = { git = "https://github.com/risc0/RustCrypto-crypto-bigint", tag = "v0.5.5-risczero.0" }
 secp256k1_v028 = { package = "secp256k1", version = "0.28", git = "https://github.com/Sovereign-Labs/rust-secp256k1.git", branch = "risc0-compatible-0-28-2" }
 k256 = { package = "k256", version = "0.13.3", git = "https://github.com/risc0/RustCrypto-elliptic-curves", tag = "k256/v0.13.3-risczero.0" }
-# tmp fix until alloy/core release a new version
-alloy-primitives = { git = "https://github.com/alloy-rs/core.git", rev = "7f17fe3" }

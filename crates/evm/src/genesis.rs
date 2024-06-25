@@ -265,9 +265,8 @@ mod tests {
     use std::collections::HashMap;
     use std::str::FromStr;
 
-    use hex::FromHex;
-    use reth_primitives::{keccak256, Bytes};
-    use revm::primitives::{Address, SpecId};
+    use reth_primitives::{hex, keccak256, Address, Bytes};
+    use revm::primitives::SpecId;
 
     use super::U256;
     use crate::{AccountData, EvmConfig};
@@ -334,13 +333,13 @@ mod tests {
         );
 
         let address = Address::from_str("0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266").unwrap();
-        let code = Bytes::from_hex("0x60606040526000357c0100000000000000000000000000000000000000000000000000000000900463ffffffff168063a223e05d1461006a578063").unwrap();
+        let code = hex!("60606040526000357c0100000000000000000000000000000000000000000000000000000000900463ffffffff168063a223e05d1461006a578063");
         let config = EvmConfig {
             data: vec![AccountData {
                 address,
                 balance: AccountData::balance(u64::MAX),
-                code_hash: keccak256(&code),
-                code,
+                code_hash: keccak256(code),
+                code: code.into(),
                 nonce: 1,
                 storage,
             }],
