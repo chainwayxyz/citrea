@@ -92,7 +92,7 @@ contract Bridge is UUPSUpgradeable, Ownable2StepUpgradeable {
         emit DepositScriptUpdate(_depositScript, _scriptSuffix, _requiredSigsCount);
     }
 
-    /// @notice Checks if funds 1 BTC is sent to the bridge multisig on Bitcoin, and if so, sends 1 cBTC to the receiver
+    /// @notice Checks if funds the deposit amount is sent to the bridge multisig on Bitcoin, and if so, sends the deposit amount to the receiver
     /// @param p The deposit parameters that contains the info of the deposit transaction on Bitcoin
     function deposit(
         DepositParams calldata p
