@@ -173,6 +173,14 @@ pub enum SignError {
     NoChainId,
 }
 
+// TODO: Fix https://github.com/chainwayxyz/citrea/issues/782
+// #[allow(clippy::unconditional_recursion)]
+// impl From<SignError> for ErrorObject<'static> {
+//     fn from(error: SignError) -> Self {
+//         error.into()
+//     }
+// }
+
 /// We have to implement these functions because they are private to the reth_rpc crate
 pub trait RpcInvalidTransactionErrorExt {
     /// Converts the out of gas error
