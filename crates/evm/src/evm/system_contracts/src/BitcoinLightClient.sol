@@ -4,8 +4,8 @@ pragma solidity ^0.8.13;
 import "../lib/Ownable.sol";
 import "./interfaces/IBitcoinLightClient.sol";
 import "bitcoin-spv/solidity/contracts/ValidateSPV.sol";
-import "openzeppelin-contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import "openzeppelin-contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
+import "openzeppelin-contracts-upgradeable/contracts/proxy/utils/UUPSUpgradeable.sol";
+import "openzeppelin-contracts-upgradeable/contracts/access/Ownable2StepUpgradeable.sol";
 
 /// @title A system contract that stores block hashes and witness root hashes of L1 blocks
 /// @author Citrea
@@ -93,5 +93,5 @@ contract BitcoinLightClient is UUPSUpgradeable, Ownable2StepUpgradeable, IBitcoi
         return ValidateSPV.prove(_wtxId, _witnessRoot, _proof, _index);
     }
 
-    function _authorizeUpgrade(address) internal onlyOwner {}
+    function _authorizeUpgrade(address) internal override onlyOwner {}
 }

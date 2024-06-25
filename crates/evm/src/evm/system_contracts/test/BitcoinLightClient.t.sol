@@ -3,16 +3,19 @@ pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
 import "../src/BitcoinLightClient.sol";
+import "openzeppelin-contracts/contracts/proxy/utils/UUPSUpgradeable.sol";
+
 
 contract BitcoinLightClientTest is Test {
-    BitcoinLightClient bitcoinLightClient;
+    BitcoinLightClient bitcoinLightClient = BitcoinLightClient(address(0x3100000000000000000000000000000000000001));
     bytes32 mockBlockHash = bytes32(keccak256("CITREA_TEST"));
     bytes32 mockWitnessRoot = bytes32(keccak256("CITREA"));
     uint256 constant INITIAL_BLOCK_NUMBER = 505050;
     address constant SYSTEM_CALLER = address(0xdeaDDeADDEaDdeaDdEAddEADDEAdDeadDEADDEaD);
 
     function setUp() public {
-        bitcoinLightClient = new BitcoinLightClient();
+        address lightClient_impl = address(new BitcoinLightClient());
+        vm.etch(address(bitcoinLightClient), lightClient_impl.code);
         vm.startPrank(SYSTEM_CALLER);
     }
 
