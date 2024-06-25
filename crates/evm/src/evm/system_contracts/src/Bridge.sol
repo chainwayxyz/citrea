@@ -8,7 +8,7 @@ import "./BitcoinLightClient.sol";
 import "openzeppelin-contracts-upgradeable/contracts/proxy/utils/UUPSUpgradeable.sol";
 import "openzeppelin-contracts-upgradeable/contracts/access/Ownable2StepUpgradeable.sol";
 
-/// @title Bridge contract of Clementine
+/// @title Bridge contract for the Citrea end of Citrea <> Bitcoin bridge
 /// @author Citrea
 
 contract Bridge is UUPSUpgradeable, Ownable2StepUpgradeable {
