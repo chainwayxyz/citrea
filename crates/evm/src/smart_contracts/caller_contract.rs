@@ -1,74 +1,52 @@
-use std::any::Any;
+use alloy_primitives::{Address, U256};
+use alloy_sol_types::{sol, SolCall};
 
-use ethers_contract::BaseContract;
-use ethers_core::types::Bytes;
-use reth_primitives::Address;
+use super::TestContract;
 
-use super::{make_contract_from_abi, test_data_path, TestContract};
+// CallerContract wrapper.
+sol! {
+    #[sol(abi)]
+    Caller,
+    "./src/evm/test_data/Caller.abi"
+}
 
 /// CallerContract wrapper.
 pub struct CallerContract {
-    bytecode: Bytes,
-    base_contract: BaseContract,
+    bytecode: Vec<u8>,
 }
 
 impl Default for CallerContract {
     fn default() -> Self {
-        let contract_data = {
-            let mut path = test_data_path();
-            path.push("Caller.bin");
-
-            let contract_data = std::fs::read_to_string(path).unwrap();
-            hex::decode(contract_data).unwrap()
+        let bytecode = {
+            let bytecode_hex = include_str!("../../../evm/src/evm/test_data/Caller.bin");
+            hex::decode(bytecode_hex).unwrap()
         };
 
-        let contract = {
-            let mut path = test_data_path();
-            path.push("Caller.abi");
-
-            make_contract_from_abi(path)
-        };
-
-        Self {
-            bytecode: Bytes::from(contract_data),
-            base_contract: contract,
-        }
+        Self { bytecode }
     }
 }
 
 impl TestContract for CallerContract {
-    /// Caller bytecode.
-    fn byte_code(&self) -> Bytes {
+    fn byte_code(&self) -> Vec<u8> {
         self.byte_code()
-    }
-    /// Dynamically dispatch from trait. Downcast to CallerContract.
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    /// Create the default instance of the smart contract.
-    fn default_(&self) -> Self
-    where
-        Self: Sized,
-    {
-        Self::default()
     }
 }
 
 impl CallerContract {
     /// Caller bytecode.
-    pub fn byte_code(&self) -> Bytes {
+    pub fn byte_code(&self) -> Vec<u8> {
         self.bytecode.clone()
     }
-    /// Calls Getter of Simple Storage Contract.
-    pub fn call_get_call_data(&self, address: Address) -> Bytes {
-        let address = ethereum_types::Address::from_slice(address.as_ref());
-        self.base_contract.encode("callget", address).unwrap()
+    /// Calls Getter of Caller Contract.
+    pub fn call_get_call_data(&self, address: Address) -> Vec<u8> {
+        Caller::callgetCall { addr: address }.abi_encode()
     }
-    /// Calls Setter of Simple Storage Contract.
-    pub fn call_set_call_data(&self, address: Address, set_arg: u32) -> Bytes {
-        let set_arg = ethereum_types::U256::from(set_arg);
-        let address = ethereum_types::Address::from_slice(address.as_ref());
-        let args = (address, set_arg);
-        self.base_contract.encode("callset", args).unwrap()
+    /// Calls Setter of Caller Contract.
+    pub fn call_set_call_data(&self, address: Address, set_arg: u32) -> Vec<u8> {
+        Caller::callsetCall {
+            addr: address,
+            num: U256::from(set_arg),
+        }
+        .abi_encode()
     }
 }

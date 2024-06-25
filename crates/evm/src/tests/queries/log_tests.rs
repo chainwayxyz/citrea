@@ -1,9 +1,7 @@
 use std::str::FromStr;
 
-use alloy_primitives::FixedBytes;
-use hex::FromHex;
 use reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT;
-use reth_primitives::BlockNumberOrTag;
+use reth_primitives::{b256, BlockNumberOrTag};
 use reth_rpc::eth::error::EthApiError;
 use revm::primitives::{B256, U256};
 use sov_modules_api::default_context::DefaultContext;
@@ -42,12 +40,9 @@ fn logs_for_filter_test() {
 
     let available_res = evm.eth_get_logs(
         Filter {
-            block_option: FilterBlockOption::AtBlockHash(
-                FixedBytes::from_hex(
-                    "0x2d7962c316685635252886d6801a553139e94e3b7d2b678f8c9d974a54e24ab9",
-                )
-                .unwrap(),
-            ),
+            block_option: FilterBlockOption::AtBlockHash(b256!(
+                "2d7962c316685635252886d6801a553139e94e3b7d2b678f8c9d974a54e24ab9"
+            )),
             address: FilterSet::default(),
             topics: [
                 FilterSet::default(),

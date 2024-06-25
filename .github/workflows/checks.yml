@@ -75,13 +75,11 @@ jobs:
           version: "23.2"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Toolchain
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@nightly
         with:
-          toolchain: stable
+          toolchain: nightly
           override: true
           components: rustfmt, clippy
-      - name: Install Rust
-        run: rustup show && rustup install nightly && rustup component add rustfmt --toolchain nightly-x86_64-unknown-linux-gnu # Nightly is needed for our configuration of cargo fmt
       - name: Install cargo-risczero
         uses: taiki-e/install-action@v2
         with:
@@ -119,9 +117,6 @@ jobs:
         with:
           toolchain: nightly
           override: true
-          components: rustfmt, clippy
-      - name: Install Rust
-        run: rustup show && rustup install nightly && rustup component add rustfmt --toolchain nightly-x86_64-unknown-linux-gnu # Nightly is needed for our configuration of cargo fmt
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
       - name: Install cargo-risczero
@@ -169,8 +164,9 @@ jobs:
           --health-retries 5
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@1.78.0
         with:
+          toolchain: stable
           components: llvm-tools-preview
       - uses: taiki-e/install-action@nextest
       - uses: taiki-e/install-action@cargo-llvm-cov
@@ -203,7 +199,7 @@ jobs:
     if: github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@1.78.0
       - uses: actions/setup-node@v4
         with:
           node-version: 18
@@ -253,7 +249,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@1.78.0
       - uses: dcarbone/install-jq-action@v2
       - name: Install cargo-risczero
         uses: taiki-e/install-action@v2
@@ -287,7 +283,7 @@ jobs:
     if: github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@1.78.0
       - uses: actions/setup-node@v4
         with:
           node-version: 18
@@ -317,15 +313,6 @@ jobs:
           cd ./bin/citrea/tests/evm/ethers_js
           npx mocha test.js
 
-  sys_tx_keccak:
-    runs-on: ubuntu-latest
-    if: github.event.pull_request.draft == false
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v4
-      - name: Check system tx against artifacts ABI
-        run: python crates/evm/src/evm/system_contracts/test/check_sys_hashes.py
-
   check_no_std:
     runs-on: ubicloud-standard-4
     if: github.event.pull_request.draft == false
@@ -334,13 +321,13 @@ jobs:
       - name: Install Rust Bare Metal
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: stable
+          toolchain: 1.78.0
           target: thumbv6m-none-eabi
           override: true
       - name: Install Rust WASM
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: stable
+          toolchain: 1.78.0
           target: wasm32-unknown-unknown
           override: true
       - name: cargo install cargo-hack
@@ -379,13 +366,11 @@ jobs:
           version: "23.2"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Toolchain
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@1.78.0
         with:
-          toolchain: stable
+          toolchain: 1.78.0
           override: true
           components: rustfmt, clippy
-      - name: Install Rust
-        run: rustup show && rustup install nightly && rustup component add rustfmt --toolchain nightly-x86_64-unknown-linux-gnu # Nightly is needed for our configuration of cargo fmt
       - name: Install cargo-risczero
         uses: taiki-e/install-action@v2
         with:

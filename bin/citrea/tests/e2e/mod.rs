@@ -3,6 +3,10 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::time::Duration;
 
+use alloy::consensus::{Signed, TxEip1559, TxEnvelope};
+use alloy::signers::wallet::LocalWallet;
+use alloy::signers::Signer;
+use alloy_rlp::{BytesMut, Decodable, Encodable};
 use citrea_evm::smart_contracts::SimpleStorageContract;
 use citrea_evm::system_contracts::BitcoinLightClient;
 use citrea_evm::SYSTEM_SIGNER;
@@ -10,11 +14,8 @@ use citrea_primitives::TEST_PRIVATE_KEY;
 use citrea_sequencer::{SequencerConfig, SequencerMempoolConfig};
 use citrea_stf::genesis_config::GenesisPaths;
 use ethereum_rpc::CitreaStatus;
-use ethereum_types::{H256, U256};
-use ethers::abi::Address;
-use ethers_signers::{LocalWallet, Signer};
-use reth_primitives::{BlockNumberOrTag, TxHash};
-use secp256k1::rand::thread_rng;
+use reth_primitives::{Address, BlockNumberOrTag, TxHash, U256};
+use rollup_constants::TEST_PRIVATE_KEY;
 use shared_backup_db::{PostgresConnector, ProofType, SharedBackupDbConfig};
 use sov_mock_da::{MockAddress, MockDaService, MockDaSpec, MockHash};
 use sov_rollup_interface::da::{DaData, DaSpec};
@@ -227,10 +228,16 @@ async fn test_soft_batch_save() -> Result<(), anyhow::Error> {
         .eth_get_block_by_number(Some(BlockNumberOrTag::Latest))
         .await;
 
-    assert_eq!(seq_block.state_root, full_node_block.state_root);
-    assert_eq!(full_node_block.state_root, full_node_block_2.state_root);
-    assert_eq!(seq_block.hash, full_node_block.hash);
-    assert_eq!(full_node_block.hash, full_node_block_2.hash);
+    assert_eq!(
+        seq_block.header.state_root,
+        full_node_block.header.state_root
+    );
+    assert_eq!(
+        full_node_block.header.state_root,
+        full_node_block_2.header.state_root
+    );
+    assert_eq!(seq_block.header.hash, full_node_block.header.hash);
+    assert_eq!(full_node_block.header.hash, full_node_block_2.header.hash);
 
     seq_task.abort();
     full_node_task.abort();
@@ -275,9 +282,14 @@ async fn test_full_node_send_tx() -> Result<(), anyhow::Error> {
         .eth_get_block_by_number(Some(BlockNumberOrTag::Latest))
         .await;
 
-    assert!(sq_block.transactions.contains(&tx_hash.tx_hash()));
-    assert!(full_node_block.transactions.contains(&tx_hash.tx_hash()));
-    assert_eq!(sq_block.state_root, full_node_block.state_root);
+    let sq_transactions = sq_block.transactions.as_hashes().unwrap();
+    let full_node_transactions = full_node_block.transactions.as_hashes().unwrap();
+    assert!(sq_transactions.contains(tx_hash.tx_hash()));
+    assert!(full_node_transactions.contains(tx_hash.tx_hash()));
+    assert_eq!(
+        sq_block.header.state_root,
+        full_node_block.header.state_root
+    );
 
     seq_task.abort();
     full_node_task.abort();
@@ -321,7 +333,7 @@ async fn test_delayed_sync_ten_blocks() -> Result<(), anyhow::Error> {
     let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
 
     for _ in 0..10 {
-        seq_test_client
+        let _pending = seq_test_client
             .send_eth(addr, None, None, None, 0u128)
             .await
             .unwrap();
@@ -363,8 +375,11 @@ async fn test_delayed_sync_ten_blocks() -> Result<(), anyhow::Error> {
         .eth_get_block_by_number(Some(BlockNumberOrTag::Number(10)))
         .await;
 
-    assert_eq!(seq_block.state_root, full_node_block.state_root);
-    assert_eq!(seq_block.hash, full_node_block.hash);
+    assert_eq!(
+        seq_block.header.state_root,
+        full_node_block.header.state_root
+    );
+    assert_eq!(seq_block.header.hash, full_node_block.header.hash);
 
     seq_task.abort();
     full_node_task.abort();
@@ -461,7 +476,7 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
 
     // create 10 blocks
     for _ in 0..10 {
-        seq_test_client
+        let _pending = seq_test_client
             .send_eth(addr, None, None, None, 0u128)
             .await
             .unwrap();
@@ -480,18 +495,21 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
         .eth_get_block_by_number_with_detail(Some(BlockNumberOrTag::Latest))
         .await;
 
-    assert_eq!(seq_last_block.number.unwrap().as_u64(), 10);
-    assert_eq!(full_node_last_block.number.unwrap().as_u64(), 10);
+    assert_eq!(seq_last_block.header.number.unwrap(), 10);
+    assert_eq!(full_node_last_block.header.number.unwrap(), 10);
 
-    assert_eq!(seq_last_block.state_root, full_node_last_block.state_root);
-    assert_eq!(seq_last_block.hash, full_node_last_block.hash);
+    assert_eq!(
+        seq_last_block.header.state_root,
+        full_node_last_block.header.state_root
+    );
+    assert_eq!(seq_last_block.header.hash, full_node_last_block.header.hash);
 
     // close full node
     rollup_task.abort();
 
     // create 100 more blocks
     for _ in 0..100 {
-        seq_test_client
+        let _pending = seq_test_client
             .send_eth(addr, None, None, None, 0u128)
             .await
             .unwrap();
@@ -545,11 +563,14 @@ async fn test_close_and_reopen_full_node() -> Result<(), anyhow::Error> {
         .eth_get_block_by_number_with_detail(Some(BlockNumberOrTag::Latest))
         .await;
 
-    assert_eq!(seq_last_block.number.unwrap().as_u64(), 110);
-    assert_eq!(full_node_last_block.number.unwrap().as_u64(), 110);
+    assert_eq!(seq_last_block.header.number.unwrap(), 110);
+    assert_eq!(full_node_last_block.header.number.unwrap(), 110);
 
-    assert_eq!(seq_last_block.state_root, full_node_last_block.state_root);
-    assert_eq!(seq_last_block.hash, full_node_last_block.hash);
+    assert_eq!(
+        seq_last_block.header.state_root,
+        full_node_last_block.header.state_root
+    );
+    assert_eq!(seq_last_block.header.hash, full_node_last_block.header.hash);
 
     seq_task.abort();
     rollup_task.abort();
@@ -629,33 +650,33 @@ async fn test_get_transaction_by_hash() -> Result<(), anyhow::Error> {
     // currently there are two txs in the pool, the full node should be able to get them
     // should get with mempool_only true
     let tx1 = full_node_test_client
-        .eth_get_transaction_by_hash(pending_tx1.tx_hash(), Some(true))
+        .eth_get_transaction_by_hash(*pending_tx1.tx_hash(), Some(true))
         .await
         .unwrap();
     // Should get with mempool_only false/none
     let tx2 = full_node_test_client
-        .eth_get_transaction_by_hash(pending_tx2.tx_hash(), None)
+        .eth_get_transaction_by_hash(*pending_tx2.tx_hash(), None)
         .await
         .unwrap();
     assert!(tx1.block_hash.is_none());
     assert!(tx2.block_hash.is_none());
-    assert_eq!(tx1.hash, pending_tx1.tx_hash());
-    assert_eq!(tx2.hash, pending_tx2.tx_hash());
+    assert_eq!(tx1.hash, *pending_tx1.tx_hash());
+    assert_eq!(tx2.hash, *pending_tx2.tx_hash());
 
     // sequencer should also be able to get them
     // Should get just by checking the pool
     let tx1 = seq_test_client
-        .eth_get_transaction_by_hash(pending_tx1.tx_hash(), Some(true))
+        .eth_get_transaction_by_hash(*pending_tx1.tx_hash(), Some(true))
         .await
         .unwrap();
     let tx2 = seq_test_client
-        .eth_get_transaction_by_hash(pending_tx2.tx_hash(), None)
+        .eth_get_transaction_by_hash(*pending_tx2.tx_hash(), None)
         .await
         .unwrap();
     assert!(tx1.block_hash.is_none());
     assert!(tx2.block_hash.is_none());
-    assert_eq!(tx1.hash, pending_tx1.tx_hash());
-    assert_eq!(tx2.hash, pending_tx2.tx_hash());
+    assert_eq!(tx1.hash, *pending_tx1.tx_hash());
+    assert_eq!(tx2.hash, *pending_tx2.tx_hash());
 
     seq_test_client.send_publish_batch_request().await;
 
@@ -666,59 +687,60 @@ async fn test_get_transaction_by_hash() -> Result<(), anyhow::Error> {
     let seq_block = seq_test_client
         .eth_get_block_by_number(Some(BlockNumberOrTag::Latest))
         .await;
-    assert!(seq_block.transactions.contains(&pending_tx1.tx_hash()));
-    assert!(seq_block.transactions.contains(&pending_tx2.tx_hash()));
+    let seq_block_transactions = seq_block.transactions.as_hashes().unwrap();
+    assert!(seq_block_transactions.contains(pending_tx1.tx_hash()));
+    assert!(seq_block_transactions.contains(pending_tx2.tx_hash()));
 
     // same operations after the block is published, both sequencer and full node should be able to get them.
     // should not get with mempool_only true because it checks the sequencer mempool only
     let non_existent_tx = full_node_test_client
-        .eth_get_transaction_by_hash(pending_tx1.tx_hash(), Some(true))
+        .eth_get_transaction_by_hash(*pending_tx1.tx_hash(), Some(true))
         .await;
     // this should be none because it is not in the mempool anymore
     assert!(non_existent_tx.is_none());
 
     let tx1 = full_node_test_client
-        .eth_get_transaction_by_hash(pending_tx1.tx_hash(), Some(false))
+        .eth_get_transaction_by_hash(*pending_tx1.tx_hash(), Some(false))
         .await
         .unwrap();
     let tx2 = full_node_test_client
-        .eth_get_transaction_by_hash(pending_tx2.tx_hash(), None)
+        .eth_get_transaction_by_hash(*pending_tx2.tx_hash(), None)
         .await
         .unwrap();
     assert!(tx1.block_hash.is_some());
     assert!(tx2.block_hash.is_some());
-    assert_eq!(tx1.hash, pending_tx1.tx_hash());
-    assert_eq!(tx2.hash, pending_tx2.tx_hash());
+    assert_eq!(tx1.hash, *pending_tx1.tx_hash());
+    assert_eq!(tx2.hash, *pending_tx2.tx_hash());
 
     // should not get with mempool_only true because it checks mempool only
     let none_existent_tx = seq_test_client
-        .eth_get_transaction_by_hash(pending_tx1.tx_hash(), Some(true))
+        .eth_get_transaction_by_hash(*pending_tx1.tx_hash(), Some(true))
         .await;
     // this should be none because it is not in the mempool anymore
     assert!(none_existent_tx.is_none());
 
     // In other cases should check the block and find the tx
     let tx1 = seq_test_client
-        .eth_get_transaction_by_hash(pending_tx1.tx_hash(), Some(false))
+        .eth_get_transaction_by_hash(*pending_tx1.tx_hash(), Some(false))
         .await
         .unwrap();
     let tx2 = seq_test_client
-        .eth_get_transaction_by_hash(pending_tx2.tx_hash(), None)
+        .eth_get_transaction_by_hash(*pending_tx2.tx_hash(), None)
         .await
         .unwrap();
     assert!(tx1.block_hash.is_some());
     assert!(tx2.block_hash.is_some());
-    assert_eq!(tx1.hash, pending_tx1.tx_hash());
-    assert_eq!(tx2.hash, pending_tx2.tx_hash());
+    assert_eq!(tx1.hash, *pending_tx1.tx_hash());
+    assert_eq!(tx2.hash, *pending_tx2.tx_hash());
 
     // create random tx hash and make sure it returns None
     let random_tx_hash: TxHash = TxHash::random();
     assert!(seq_test_client
-        .eth_get_transaction_by_hash(H256::from_slice(random_tx_hash.as_slice()), None)
+        .eth_get_transaction_by_hash(random_tx_hash, None)
         .await
         .is_none());
     assert!(full_node_test_client
-        .eth_get_transaction_by_hash(H256::from_slice(random_tx_hash.as_slice()), None)
+        .eth_get_transaction_by_hash(random_tx_hash, None)
         .await
         .is_none());
 
@@ -866,7 +888,7 @@ async fn test_reopen_sequencer() -> Result<(), anyhow::Error> {
     let block = seq_test_client
         .eth_get_block_by_number(Some(BlockNumberOrTag::Latest))
         .await;
-    assert_eq!(block.number.unwrap().as_u64(), 0);
+    assert_eq!(block.header.number.unwrap(), 0);
 
     // close sequencer
     seq_task.abort();
@@ -914,10 +936,10 @@ async fn test_reopen_sequencer() -> Result<(), anyhow::Error> {
         .await;
 
     // make sure the state roots are the same
-    assert_eq!(seq_last_block.state_root, block.state_root);
+    assert_eq!(seq_last_block.header.state_root, block.header.state_root);
     assert_eq!(
-        seq_last_block.number.unwrap().as_u64(),
-        block.number.unwrap().as_u64()
+        seq_last_block.header.number.unwrap(),
+        block.header.number.unwrap()
     );
 
     seq_test_client.send_publish_batch_request().await;
@@ -929,9 +951,9 @@ async fn test_reopen_sequencer() -> Result<(), anyhow::Error> {
         seq_test_client
             .eth_get_block_by_number(Some(BlockNumberOrTag::Latest))
             .await
+            .header
             .number
-            .unwrap()
-            .as_u64(),
+            .unwrap(),
         2
     );
 
@@ -972,8 +994,8 @@ async fn execute_blocks(
         sequencer_client.send_publish_batch_request().await;
 
         let contract_address = deploy_contract_req
+            .get_receipt()
             .await?
-            .unwrap()
             .contract_address
             .unwrap();
 
@@ -985,7 +1007,7 @@ async fn execute_blocks(
             .contract_transaction(contract_address, contract.set_call_data(42), None)
             .await;
         sequencer_client.send_publish_batch_request().await;
-        set_value_req.await.unwrap().unwrap();
+        set_value_req.watch().await.unwrap();
     }
 
     sequencer_client.send_publish_batch_request().await;
@@ -1014,7 +1036,7 @@ async fn execute_blocks(
         let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
 
         for _ in 0..300 {
-            sequencer_client
+            let _pending = sequencer_client
                 .send_eth(addr, None, None, None, 0u128)
                 .await
                 .unwrap();
@@ -1033,11 +1055,14 @@ async fn execute_blocks(
         .eth_get_block_by_number_with_detail(Some(BlockNumberOrTag::Latest))
         .await;
 
-    assert_eq!(seq_last_block.number.unwrap().as_u64(), 504);
-    assert_eq!(full_node_last_block.number.unwrap().as_u64(), 504);
+    assert_eq!(seq_last_block.header.number.unwrap(), 504);
+    assert_eq!(full_node_last_block.header.number.unwrap(), 504);
 
-    assert_eq!(seq_last_block.state_root, full_node_last_block.state_root);
-    assert_eq!(seq_last_block.hash, full_node_last_block.hash);
+    assert_eq!(
+        seq_last_block.header.state_root,
+        full_node_last_block.header.state_root
+    );
+    assert_eq!(seq_last_block.header.hash, full_node_last_block.header.hash);
 
     Ok(())
 }
@@ -1070,6 +1095,16 @@ async fn test_soft_confirmations_status_one_l1() -> Result<(), anyhow::Error> {
 
     wait_for_l2_block(&full_node_test_client, 6, None).await;
 
+    // now retrieve confirmation status from the sequencer and full node and check if they are the same
+    for i in 1..=6 {
+        let status_node = full_node_test_client
+            .ledger_get_soft_confirmation_status(i)
+            .await
+            .unwrap();
+
+        assert_eq!(SoftConfirmationStatus::Trusted, status_node.unwrap());
+    }
+
     // publish new da block
     //
     // This will trigger the sequencer's DA monitor to see a newly published
@@ -1081,29 +1116,9 @@ async fn test_soft_confirmations_status_one_l1() -> Result<(), anyhow::Error> {
     // we wait until the block is actually received by the DA monitor.
     wait_for_l1_block(&da_service, 2, None).await;
 
-    // To make sure that we register one L2 block per L1 block,
-    // We have to submit an empty block for DA block #2.
-    // seq_test_client.send_publish_batch_request().await;
-    // wait_for_l2_block(&full_node_test_client, 7, None).await;
-
     // Wait for DA block #3 containing the commitment
     // submitted by sequencer.
     wait_for_l1_block(&da_service, 3, None).await;
-
-    // now retrieve confirmation status from the sequencer and full node and check if they are the same
-    for i in 1..=6 {
-        let status_node = full_node_test_client
-            .ledger_get_soft_confirmation_status(i)
-            .await
-            .unwrap();
-
-        assert_eq!(SoftConfirmationStatus::Trusted, status_node.unwrap());
-    }
-
-    seq_test_client.send_publish_batch_request().await;
-    seq_test_client.send_publish_batch_request().await;
-
-    wait_for_l2_block(&full_node_test_client, 8, None).await;
 
     // now retrieve confirmation status from the sequencer and full node and check if they are the same
     for i in 1..=6 {
@@ -1618,10 +1633,11 @@ async fn test_system_transactions() -> Result<(), anyhow::Error> {
             .await;
 
         if block_num == 1 {
-            assert_eq!(block.transactions.len(), 3);
+            let block_transactions = block.transactions.as_transactions().unwrap();
+            assert_eq!(block_transactions.len(), 3);
 
-            let init_tx = &block.transactions[0];
-            let set_tx = &block.transactions[1];
+            let init_tx = &block_transactions[0];
+            let set_tx = &block_transactions[1];
 
             assert_eq!(init_tx.from, system_signer_address);
             assert_eq!(init_tx.to.unwrap(), system_contract_address);
@@ -1641,9 +1657,10 @@ async fn test_system_transactions() -> Result<(), anyhow::Error> {
                 *hex::decode("0e27bc11").unwrap().as_slice()
             );
         } else {
-            assert_eq!(block.transactions.len(), 1);
+            let block_transactions = block.transactions.as_transactions().unwrap();
+            assert_eq!(block_transactions.len(), 1);
 
-            let tx = &block.transactions[0];
+            let tx = &block_transactions[0];
 
             assert_eq!(tx.from, system_signer_address);
             assert_eq!(tx.to.unwrap(), system_contract_address);
@@ -1671,7 +1688,7 @@ async fn test_system_transactions() -> Result<(), anyhow::Error> {
         let hash_on_chain: String = full_node_test_client
             .contract_call(
                 system_contract_address,
-                ethers::types::Bytes::from(BitcoinLightClient::get_block_hash(i).to_vec()),
+                BitcoinLightClient::get_block_hash(i).to_vec(),
                 None,
             )
             .await
@@ -1770,7 +1787,7 @@ async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error>
     let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
 
     for _ in 0..50 {
-        seq_test_client
+        let _pending = seq_test_client
             .send_eth(addr, None, None, None, 0u128)
             .await
             .unwrap();
@@ -1790,7 +1807,7 @@ async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error>
 
     da_service.publish_test_block().await.unwrap();
 
-    let last_in_receipt = last_in_tx.unwrap().await.unwrap().unwrap();
+    let last_in_receipt = last_in_tx.unwrap().get_receipt().await.unwrap();
 
     wait_for_l2_block(&seq_test_client, 1, None).await;
 
@@ -1800,18 +1817,21 @@ async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error>
         .unwrap();
 
     let last_tx_hash = last_in_receipt.transaction_hash;
-    let last_tx_raw = seq_test_client
+    let last_tx = seq_test_client
         .eth_get_transaction_by_hash(last_tx_hash, Some(false))
         .await
-        .unwrap()
-        .rlp();
+        .unwrap();
+    let signed_tx = Signed::<TxEip1559>::try_from(last_tx).unwrap();
+    let envelope = TxEnvelope::Eip1559(signed_tx);
+    let mut last_tx_raw = BytesMut::new();
+    envelope.encode(&mut last_tx_raw);
 
     assert!(last_in_receipt.block_number.is_some());
 
     // last in tx byte array should be a subarray of txs[0]
     assert!(find_subarray(
         initial_soft_batch.clone().txs.unwrap()[0].tx.as_slice(),
-        &last_tx_raw
+        &last_tx_raw[2..]
     )
     .is_some());
 
@@ -1819,20 +1839,23 @@ async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error>
 
     da_service.publish_test_block().await.unwrap();
 
-    let not_in_receipt = not_in_tx.unwrap().await.unwrap().unwrap();
+    let not_in_receipt = not_in_tx.unwrap().get_receipt().await.unwrap();
 
     let not_in_hash = not_in_receipt.transaction_hash;
 
-    let not_in_raw = seq_test_client
+    let not_in_tx = seq_test_client
         .eth_get_transaction_by_hash(not_in_hash, Some(false))
         .await
-        .unwrap()
-        .rlp();
+        .unwrap();
+    let signed_tx = Signed::<TxEip1559>::try_from(not_in_tx).unwrap();
+    let envelope = TxEnvelope::Eip1559(signed_tx);
+    let mut not_in_raw = BytesMut::new();
+    envelope.encode(&mut not_in_raw);
 
     // not in tx byte array should not be a subarray of txs[0]
     assert!(find_subarray(
         initial_soft_batch.txs.unwrap()[0].tx.as_slice(),
-        &not_in_raw
+        &not_in_raw[2..]
     )
     .is_none());
 
@@ -1844,22 +1867,28 @@ async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error>
         .unwrap();
 
     // should be in tx byte array of the soft batch after
-    assert!(find_subarray(second_soft_batch.txs.unwrap()[0].tx.as_slice(), &not_in_raw).is_some());
+    assert!(find_subarray(
+        second_soft_batch.txs.unwrap()[0].tx.as_slice(),
+        &not_in_raw[2..]
+    )
+    .is_some());
 
     let block1 = seq_test_client
         .eth_get_block_by_number(Some(BlockNumberOrTag::Number(1)))
         .await;
 
     // the last in tx should be in the block
-    assert!(block1.transactions.iter().any(|tx| tx == &last_tx_hash));
+    let block1_transactions = block1.transactions.as_hashes().unwrap();
+    assert!(block1_transactions.iter().any(|tx| tx == &last_tx_hash));
     // and the other tx should not be in
-    assert!(!block1.transactions.iter().any(|tx| tx == &not_in_hash));
+    assert!(!block1_transactions.iter().any(|tx| tx == &not_in_hash));
 
     let block2 = seq_test_client
         .eth_get_block_by_number(Some(BlockNumberOrTag::Number(2)))
         .await;
     // the other tx should be in second block
-    assert!(block2.transactions.iter().any(|tx| tx == &not_in_hash));
+    let block2_transactions = block2.transactions.as_hashes().unwrap();
+    assert!(block2_transactions.iter().any(|tx| tx == &not_in_hash));
 
     seq_task.abort();
 
@@ -2065,20 +2094,20 @@ async fn transaction_failing_on_l1_is_removed_from_mempool() -> Result<(), anyho
         })
         .await;
 
-    let random_wallet = LocalWallet::new(&mut thread_rng()).with_chain_id(seq_test_client.chain_id);
+    let random_wallet = LocalWallet::random().with_chain_id(Some(seq_test_client.chain_id));
 
     let random_wallet_address = random_wallet.address();
 
-    let second_block_base_fee: u64 = 768810081;
+    let second_block_base_fee = 768810081;
 
-    seq_test_client
+    let _pending = seq_test_client
         .send_eth(
             random_wallet_address,
             None,
             None,
             None,
             // gas needed for transaction + 500 (to send) but this won't be enough for L1 fees
-            (21000 * second_block_base_fee + 500) as u128,
+            21000 * second_block_base_fee + 500,
         )
         .await
         .unwrap();
@@ -2106,7 +2135,7 @@ async fn transaction_failing_on_l1_is_removed_from_mempool() -> Result<(), anyho
         .unwrap();
 
     let tx_from_mempool = seq_test_client
-        .eth_get_transaction_by_hash(tx.tx_hash(), Some(true))
+        .eth_get_transaction_by_hash(*tx.tx_hash(), Some(true))
         .await;
 
     assert!(tx_from_mempool.is_some());
@@ -2119,16 +2148,16 @@ async fn transaction_failing_on_l1_is_removed_from_mempool() -> Result<(), anyho
         .await;
 
     assert_eq!(
-        block.base_fee_per_gas.unwrap(),
-        U256::from(second_block_base_fee)
+        block.header.base_fee_per_gas.unwrap(),
+        second_block_base_fee
     );
 
     let tx_from_mempool = seq_test_client
-        .eth_get_transaction_by_hash(tx.tx_hash(), Some(true))
+        .eth_get_transaction_by_hash(*tx.tx_hash(), Some(true))
         .await;
 
     let soft_confirmation = seq_test_client
-        .ledger_get_soft_batch_by_number::<MockDaSpec>(block.number.unwrap().as_u64())
+        .ledger_get_soft_batch_by_number::<MockDaSpec>(block.header.number.unwrap())
         .await
         .unwrap();
 
@@ -2136,7 +2165,7 @@ async fn transaction_failing_on_l1_is_removed_from_mempool() -> Result<(), anyho
     assert!(tx_from_mempool.is_none());
     assert_eq!(soft_confirmation.txs.unwrap().len(), 1); // TODO: if we can also remove the tx from soft confirmation, that'd be very efficient
 
-    wait_for_l2_block(&full_node_test_client, block.number.unwrap().as_u64(), None).await;
+    wait_for_l2_block(&full_node_test_client, block.header.number.unwrap(), None).await;
 
     let block_from_full_node = full_node_test_client
         .eth_get_block_by_number_with_detail(Some(BlockNumberOrTag::Latest))
@@ -2205,36 +2234,39 @@ async fn sequencer_crash_restore_mempool() -> Result<(), anyhow::Error> {
 
     let seq_test_client = init_test_rollup(seq_port).await;
 
-    let tx_hash = seq_test_client
+    let send_eth1 = seq_test_client
         .send_eth(addr, None, None, None, 0u128)
         .await
-        .unwrap()
-        .tx_hash();
+        .unwrap();
+    let tx_hash = send_eth1.tx_hash();
 
-    let tx_hash2 = seq_test_client
+    let send_eth2 = seq_test_client
         .send_eth(addr, None, None, None, 0u128)
         .await
-        .unwrap()
-        .tx_hash();
+        .unwrap();
+    let tx_hash2 = send_eth2.tx_hash();
 
     let tx_1 = seq_test_client
-        .eth_get_transaction_by_hash(tx_hash, Some(true))
+        .eth_get_transaction_by_hash(*tx_hash, Some(true))
         .await
         .unwrap();
     let tx_2 = seq_test_client
-        .eth_get_transaction_by_hash(tx_hash2, Some(true))
+        .eth_get_transaction_by_hash(*tx_hash2, Some(true))
         .await
         .unwrap();
 
-    assert_eq!(tx_1.hash, tx_hash);
-    assert_eq!(tx_2.hash, tx_hash2);
+    assert_eq!(tx_1.hash, *tx_hash);
+    assert_eq!(tx_2.hash, *tx_hash2);
 
     let txs = db_test_client.get_all_txs().await.unwrap();
     assert_eq!(txs.len(), 2);
-    assert_eq!(txs[0].tx_hash, tx_hash.as_bytes().to_vec());
-    assert_eq!(txs[1].tx_hash, tx_hash2.as_bytes().to_vec());
+    assert_eq!(txs[0].tx_hash, tx_hash.to_vec());
+    assert_eq!(txs[1].tx_hash, tx_hash2.to_vec());
 
-    assert_eq!(txs[0].tx, tx_1.rlp().to_vec());
+    let signed_tx = Signed::<TxEip1559>::try_from(tx_1.clone()).unwrap();
+    let envelope = TxEnvelope::Eip1559(signed_tx);
+    let decoded = TxEnvelope::decode(&mut txs[0].tx.as_ref()).unwrap();
+    assert_eq!(envelope, decoded);
 
     // crash and reopen and check if the txs are in the mempool
     seq_task.abort();
@@ -2275,11 +2307,11 @@ async fn sequencer_crash_restore_mempool() -> Result<(), anyhow::Error> {
     sleep(Duration::from_secs(2)).await;
 
     let tx_1_mempool = seq_test_client
-        .eth_get_transaction_by_hash(tx_hash, Some(true))
+        .eth_get_transaction_by_hash(*tx_hash, Some(true))
         .await
         .unwrap();
     let tx_2_mempool = seq_test_client
-        .eth_get_transaction_by_hash(tx_hash2, Some(true))
+        .eth_get_transaction_by_hash(*tx_hash2, Some(true))
         .await
         .unwrap();
 
@@ -2296,11 +2328,11 @@ async fn sequencer_crash_restore_mempool() -> Result<(), anyhow::Error> {
 
     // should be removed from mempool
     assert!(seq_test_client
-        .eth_get_transaction_by_hash(tx_hash, Some(true))
+        .eth_get_transaction_by_hash(*tx_hash, Some(true))
         .await
         .is_none());
     assert!(seq_test_client
-        .eth_get_transaction_by_hash(tx_hash2, Some(true))
+        .eth_get_transaction_by_hash(*tx_hash2, Some(true))
         .await
         .is_none());
 
@@ -2736,12 +2768,12 @@ async fn test_all_flow() {
     wait_for_l2_block(&test_client, 1, None).await;
 
     // send one ether to some address
-    test_client
+    let _pending = test_client
         .send_eth(addr, None, None, None, 1e18 as u128)
         .await
         .unwrap();
     // send one ether to some address
-    test_client
+    let _pending = test_client
         .send_eth(addr, None, None, None, 1e18 as u128)
         .await
         .unwrap();
@@ -2750,7 +2782,7 @@ async fn test_all_flow() {
     wait_for_l2_block(&test_client, 3, None).await;
 
     // send one ether to some address
-    test_client
+    let _pending = test_client
         .send_eth(addr, None, None, None, 1e18 as u128)
         .await
         .unwrap();
@@ -2873,12 +2905,12 @@ async fn test_all_flow() {
     assert_eq!(balance, U256::from(3e18 as u128));
 
     // send one ether to some address
-    test_client
+    let _pending = test_client
         .send_eth(addr, None, None, None, 1e18 as u128)
         .await
         .unwrap();
     // send one ether to some address
-    test_client
+    let _pending = test_client
         .send_eth(addr, None, None, None, 1e18 as u128)
         .await
         .unwrap();
@@ -3078,20 +3110,24 @@ async fn test_gas_limit_too_high() {
         .eth_get_block_by_number(Some(BlockNumberOrTag::Latest))
         .await;
 
+    let block_transactions = block.transactions.as_hashes().unwrap();
     // assert the block contains all txs apart from the last 5
     for tx_hash in tx_hashes[0..tx_hashes.len() - 5].iter() {
-        assert!(block.transactions.contains(&tx_hash.tx_hash()));
+        assert!(block_transactions.contains(tx_hash.tx_hash()));
     }
     for tx_hash in tx_hashes[tx_hashes.len() - 5..].iter() {
-        assert!(!block.transactions.contains(&tx_hash.tx_hash()));
+        assert!(!block_transactions.contains(tx_hash.tx_hash()));
     }
 
     let block_from_sequencer = seq_test_client
         .eth_get_block_by_number(Some(BlockNumberOrTag::Latest))
         .await;
 
-    assert_eq!(block_from_sequencer.state_root, block.state_root);
-    assert_eq!(block_from_sequencer.hash, block.hash);
+    assert_eq!(
+        block_from_sequencer.header.state_root,
+        block.header.state_root
+    );
+    assert_eq!(block_from_sequencer.header.hash, block.header.hash);
 
     seq_test_client.send_publish_batch_request().await;
     wait_for_l2_block(&full_node_test_client, 2, None).await;
@@ -3105,8 +3141,11 @@ async fn test_gas_limit_too_high() {
         .await;
 
     assert!(!block.transactions.is_empty());
-    assert_eq!(block_from_sequencer.state_root, block.state_root);
-    assert_eq!(block_from_sequencer.hash, block.hash);
+    assert_eq!(
+        block_from_sequencer.header.state_root,
+        block.header.state_root
+    );
+    assert_eq!(block_from_sequencer.header.hash, block.header.hash);
 
     seq_task.abort();
     full_node_task.abort();
@@ -3163,10 +3202,10 @@ async fn test_ledger_get_head_soft_batch() {
         .await
         .unwrap()
         .unwrap();
-    assert_eq!(latest_block.number.unwrap().as_u64(), 2);
+    assert_eq!(latest_block.header.number.unwrap(), 2);
     assert_eq!(
         head_soft_batch.post_state_root.as_slice(),
-        latest_block.state_root.as_ref()
+        latest_block.header.state_root.as_slice()
     );
 
     let head_soft_batch_height = seq_test_client
@@ -3215,7 +3254,7 @@ async fn test_full_node_sync_status() {
     let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
 
     for _ in 0..100 {
-        seq_test_client
+        let _pending = seq_test_client
             .send_eth(addr, None, None, None, 0u128)
             .await
             .unwrap();

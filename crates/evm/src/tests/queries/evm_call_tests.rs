@@ -1,6 +1,5 @@
 use std::str::FromStr;
 
-use hex::FromHex;
 use jsonrpsee::core::RpcResult;
 use reth_primitives::{address, Address, BlockNumberOrTag, Bytes, TxKind};
 use reth_rpc::eth::error::RpcInvalidTransactionError;
@@ -22,8 +21,6 @@ fn call_contract_without_value() {
     let contract = SimpleStorageContract::default();
     let contract_address = Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap();
 
-    let contract_call_data = Bytes::from(contract.set_call_data(5).to_vec());
-
     let call_result = evm.get_call(
         TransactionRequest {
             from: Some(signer.address()),
@@ -31,7 +28,7 @@ fn call_contract_without_value() {
             gas: Some(100000),
             gas_price: Some(100000000),
             value: None,
-            input: TransactionInput::new(contract_call_data),
+            input: TransactionInput::new(contract.set_call_data(5).into()),
             ..Default::default()
         },
         Some(BlockNumberOrTag::Latest),
@@ -49,7 +46,7 @@ fn call_contract_without_value() {
             gas: Some(100000),
             gas_price: Some(100000000),
             value: None,
-            input: TransactionInput::new(contract.get_call_data().to_vec().into()),
+            input: TransactionInput::new(contract.get_call_data().into()),
             ..Default::default()
         },
         Some(BlockNumberOrTag::Latest),
@@ -118,8 +115,6 @@ fn call_contract_with_value_transfer() {
     let contract = SimpleStorageContract::default();
     let contract_address = Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap();
 
-    let contract_call_data = Bytes::from(contract.set_call_data(5).to_vec());
-
     let call_result = evm.get_call(
         TransactionRequest {
             from: Some(signer.address()),
@@ -127,7 +122,7 @@ fn call_contract_with_value_transfer() {
             gas: Some(100000),
             gas_price: Some(100000000),
             value: Some(U256::from(100000000)), // reverts here.
-            input: TransactionInput::new(contract_call_data),
+            input: TransactionInput::new(contract.set_call_data(5).into()),
             ..Default::default()
         },
         Some(BlockNumberOrTag::Latest),
@@ -146,7 +141,7 @@ fn call_contract_with_invalid_nonce() {
     let contract = SimpleStorageContract::default();
     let contract_address = Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap();
 
-    let contract_call_data = Bytes::from(contract.set_call_data(5).to_vec());
+    let contract_call_data = contract.set_call_data(5);
 
     let invalid_nonce = 100u64;
 
@@ -157,7 +152,7 @@ fn call_contract_with_invalid_nonce() {
             gas: Some(100000),
             gas_price: Some(100000000),
             nonce: Some(invalid_nonce),
-            input: TransactionInput::new(contract_call_data.clone()),
+            input: TransactionInput::new(contract_call_data.clone().into()),
             ..Default::default()
         },
         Some(BlockNumberOrTag::Latest),
@@ -177,7 +172,7 @@ fn call_contract_with_invalid_nonce() {
             gas: Some(100000),
             gas_price: Some(100000000),
             nonce: Some(low_nonce),
-            input: TransactionInput::new(contract_call_data),
+            input: TransactionInput::new(contract_call_data.into()),
             ..Default::default()
         },
         Some(BlockNumberOrTag::Latest),
@@ -224,8 +219,6 @@ fn call_with_high_gas_price() {
     let contract = SimpleStorageContract::default();
     let contract_address = Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap();
 
-    let contract_call_data = Bytes::from(contract.set_call_data(5).to_vec());
-
     let high_gas_price = 1000u128 * 10_000_000_000_000_000_000_u128; // A very high gas price
 
     let call_result = evm.get_call(
@@ -234,7 +227,7 @@ fn call_with_high_gas_price() {
             to: Some(TxKind::Call(contract_address)),
             gas: Some(100000),
             gas_price: Some(high_gas_price),
-            input: TransactionInput::new(contract_call_data),
+            input: TransactionInput::new(contract.set_call_data(5).into()),
             ..Default::default()
         },
         Some(BlockNumberOrTag::Latest),
@@ -329,7 +322,7 @@ fn eth_call_eip1559(
         max_fee_per_gas,
         max_priority_fee_per_gas,
         value: None,
-        input: TransactionInput::new(contract.get_call_data().to_vec().into()),
+        input: TransactionInput::new(contract.get_call_data().into()),
         nonce: Some(9u64),
         chain_id: Some(1u64),
         ..Default::default()
@@ -401,7 +394,7 @@ fn gas_price_call_test() {
         &mut working_set,
     );
 
-    assert_eq!(result_only_gas, Ok(Bytes::from_hex("0x").unwrap()));
+    assert_eq!(result_only_gas, Ok(Bytes::new()));
     working_set.unset_archival_version();
 
     // Test with gas and gas_price specified - error
@@ -438,7 +431,7 @@ fn gas_price_call_test() {
         &mut working_set,
     );
 
-    assert_eq!(result_gas_and_gas_price, Ok(Bytes::from_hex("0x").unwrap()));
+    assert_eq!(result_gas_and_gas_price, Ok(Bytes::new()));
     working_set.unset_archival_version();
 
     // Test with max_fee_per_gas and max_priority_fee_per_gas specified

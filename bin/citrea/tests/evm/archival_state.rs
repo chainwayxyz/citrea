@@ -3,9 +3,7 @@ use std::time::Duration;
 
 use citrea_evm::smart_contracts::SimpleStorageContract;
 use citrea_stf::genesis_config::GenesisPaths;
-use ethers::abi::Address;
-use ethers_core::abi::Bytes;
-use reth_primitives::BlockNumberOrTag;
+use reth_primitives::{Address, BlockNumberOrTag, Bytes, U256};
 use tokio::time::sleep;
 
 use crate::evm::init_test_rollup;
@@ -68,7 +66,7 @@ async fn run_archival_fail_tests(addr: Address, seq_test_client: &TestClient) {
         .contains("unknown block number"));
 
     let invalid_block_storage = seq_test_client
-        .eth_get_storage_at(addr, 0u64.into(), Some(BlockNumberOrTag::Number(722)))
+        .eth_get_storage_at(addr, U256::from(0), Some(BlockNumberOrTag::Number(722)))
         .await
         .unwrap_err();
     assert!(invalid_block_storage
@@ -98,15 +96,15 @@ async fn run_archival_valid_tests(addr: Address, seq_test_client: &TestClient) {
             .eth_get_balance(addr, Some(BlockNumberOrTag::Latest))
             .await
             .unwrap(),
-        0u64.into()
+        U256::from(0)
     );
 
     assert_eq!(
         seq_test_client
-            .eth_get_storage_at(addr, 0u64.into(), Some(BlockNumberOrTag::Latest))
+            .eth_get_storage_at(addr, U256::from(0), Some(BlockNumberOrTag::Latest))
             .await
             .unwrap(),
-        0u64.into()
+        U256::from(0)
     );
 
     assert_eq!(
@@ -141,12 +139,12 @@ async fn run_archival_valid_tests(addr: Address, seq_test_client: &TestClient) {
             .eth_get_balance(addr, Some(BlockNumberOrTag::Latest))
             .await
             .unwrap(),
-        8u64.into()
+        U256::from(8)
     );
 
     assert_eq!(
         seq_test_client.eth_get_balance(addr, None).await.unwrap(),
-        8u64.into()
+        U256::from(8)
     );
 
     assert_eq!(
@@ -166,7 +164,7 @@ async fn run_archival_valid_tests(addr: Address, seq_test_client: &TestClient) {
                 .eth_get_balance(addr, Some(BlockNumberOrTag::Number(i)))
                 .await
                 .unwrap(),
-            i.into()
+            U256::from(i)
         );
 
         assert_eq!(
@@ -185,12 +183,12 @@ async fn run_archival_valid_tests(addr: Address, seq_test_client: &TestClient) {
         seq_test_client
             .eth_get_storage_at(
                 Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap(),
-                0u64.into(),
+                U256::from(0),
                 Some(BlockNumberOrTag::Latest)
             )
             .await
             .unwrap(),
-        0u64.into()
+        U256::from(0)
     );
 
     assert_eq!(
@@ -229,8 +227,8 @@ async fn run_archival_valid_tests(addr: Address, seq_test_client: &TestClient) {
         wait_for_l2_block(seq_test_client, 9, None).await;
 
         let contract_address = deploy_contract_req
+            .get_receipt()
             .await
-            .unwrap()
             .unwrap()
             .contract_address
             .unwrap();
@@ -256,7 +254,7 @@ async fn run_archival_valid_tests(addr: Address, seq_test_client: &TestClient) {
     assert_eq!(non_existent_code, Bytes::from(vec![]));
 
     let set_arg = 923;
-    seq_test_client
+    let _pending = seq_test_client
         .contract_transaction(contract_address, contract.set_call_data(set_arg), None)
         .await;
 
@@ -268,21 +266,21 @@ async fn run_archival_valid_tests(addr: Address, seq_test_client: &TestClient) {
     let storage_value = seq_test_client
         .eth_get_storage_at(
             contract_address,
-            storage_slot.into(),
+            U256::from(storage_slot),
             Some(BlockNumberOrTag::Latest),
         )
         .await
         .unwrap();
-    assert_eq!(storage_value, ethereum_types::U256::from(set_arg));
+    assert_eq!(storage_value, U256::from(set_arg));
 
     let previous_storage_value = seq_test_client
         .eth_get_storage_at(
             contract_address,
-            storage_slot.into(),
+            U256::from(storage_slot),
             Some(BlockNumberOrTag::Number(11)),
         )
         .await
         .unwrap();
 
-    assert_eq!(previous_storage_value, ethereum_types::U256::from(0));
+    assert_eq!(previous_storage_value, U256::from(0));
 }

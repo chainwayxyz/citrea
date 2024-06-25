@@ -157,6 +157,7 @@ pub fn create_default_rollup_config(
             sender_address: MockAddress::from([0; 32]),
             db_path: da_path.to_path_buf(),
         },
+        sync_blocks_count: 10,
     }
 }
 
@@ -199,13 +200,16 @@ pub async fn wait_for_l2_block(sequencer_client: &TestClient, num: u64, timeout:
         let latest_block = sequencer_client
             .eth_get_block_by_number_with_detail(Some(BlockNumberOrTag::Latest))
             .await;
-        if latest_block.number >= Some(num.into()) {
+        if latest_block.header.number >= Some(num) {
             break;
         }
 
         let now = SystemTime::now();
         if start + timeout <= now {
-            panic!("Timeout. Latest L2 block is {:?}", latest_block.number);
+            panic!(
+                "Timeout. Latest L2 block is {:?}",
+                latest_block.header.number
+            );
         }
 
         sleep(Duration::from_secs(1)).await;

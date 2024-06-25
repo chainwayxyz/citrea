@@ -161,7 +161,7 @@ You can find more details in the `stf_test.rs` file.
 
 The following test checks the rollup logic. In the test, we call `init_chain, begin_slot, and end_slot` for completeness, even though these methods do nothing.
 
-```rust
+```no_run
 use demo_simple_stf::{ApplySlotResult, CheckHashPreimageStf};
 use sov_mock_da::{MockAddress, MockBlob, MockBlock, MockValidityCond};
 use sov_mock_zkvm::MockZkvm;

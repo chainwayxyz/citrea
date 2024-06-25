@@ -1,13 +1,13 @@
 use std::collections::HashMap;
 
-use hex::FromHex;
 use lazy_static::lazy_static;
 use reth_primitives::constants::{EMPTY_RECEIPTS, EMPTY_TRANSACTIONS, ETHEREUM_BLOCK_GAS_LIMIT};
 use reth_primitives::hex_literal::hex;
 use reth_primitives::{
     Address, BaseFeeParams, Bloom, Bytes, Header, SealedHeader, B256, EMPTY_OMMER_ROOT_HASH,
+    KECCAK_EMPTY, U256,
 };
-use revm::primitives::{SpecId, KECCAK_EMPTY, U256};
+use revm::primitives::SpecId;
 use sov_modules_api::prelude::*;
 
 use crate::evm::primitive_types::SealedBlock;
@@ -29,14 +29,14 @@ lazy_static! {
             address:Address::from([2u8; 20]),
             balance: U256::checked_mul(U256::from(1000),
             U256::pow(U256::from(10), U256::from(18))).unwrap(), // 1000 ETH,
-            code_hash: B256::from_hex("0x4e8ee9adb469b245e3a5a8e58e9b733aaa857a9dce1982257531db8a2700aabf").unwrap(),
-            code: Bytes::from_hex("0x60606040526000357c0100000000000000000000000000000000000000000000000000000000900463ffffffff168063a223e05d1461006a578063").unwrap(),
+            code_hash: hex!("4e8ee9adb469b245e3a5a8e58e9b733aaa857a9dce1982257531db8a2700aabf").into(),
+            code: hex!("60606040526000357c0100000000000000000000000000000000000000000000000000000000900463ffffffff168063a223e05d1461006a578063").into(),
             storage: {
                 let mut storage = HashMap::new();
                 storage.insert(U256::from(0), U256::from(0x4321));
                 storage.insert(
                     U256::from_be_slice(
-                        &hex::decode("6661e9d6d8b923d5bbaab1b96e1dd51ff6ea2a93520fdc9eb75d059238b8c5e9").unwrap(),
+                        &hex!("6661e9d6d8b923d5bbaab1b96e1dd51ff6ea2a93520fdc9eb75d059238b8c5e9")[..],
                     ),
                     U256::from(8),
                 );

@@ -37,6 +37,8 @@ sov-state = { path = "../../crates/sovereign-sdk/module-system/sov-state", featu
 sov-stf-runner = { path = "../../crates/sovereign-sdk/full-node/sov-stf-runner", features = ["native"] }
 
 # 3rd-party deps
+alloy-primitives = { workspace = true }
+alloy-sol-types = { workspace = true }
 anyhow = { workspace = true }
 async-trait = { workspace = true }
 borsh = { workspace = true, features = ["bytes"] }
@@ -62,6 +64,8 @@ sov-mock-da = { path = "../../crates/sovereign-sdk/adapters/mock-da", default-fe
 sov-prover-storage-manager = { path = "../../crates/sovereign-sdk/full-node/sov-prover-storage-manager", features = ["test-utils"] }
 sov-rollup-interface = { path = "../../crates/sovereign-sdk/rollup-interface", features = ["fuzzing"] }
 
+alloy = { workspace = true, features = ["hyper", "rpc-types-eth", "provider-http", "signer-wallet", "signers"] }
+alloy-rlp = { workspace = true }
 bincode = { workspace = true }
 borsh = { workspace = true }
 hex = { workspace = true }
@@ -74,13 +78,6 @@ sha2 = { workspace = true }
 tempfile = { workspace = true }
 tokio = { workspace = true }
 
-ethereum-types = { workspace = true }
-ethers = { workspace = true }
-ethers-contract = { workspace = true }
-ethers-core = { workspace = true }
-ethers-middleware = { workspace = true }
-ethers-providers = { workspace = true }
-ethers-signers = { workspace = true }
 revm = { workspace = true }
 
 log = "0.4"
