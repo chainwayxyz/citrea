@@ -42,7 +42,7 @@ class TestWeb3(unittest.TestCase):
         self.assertGreaterEqual(balance, (21 * 10 ** 6) * 10 ** 18)
 
     def test_get_storage_at(self):
-        slot = self.web3.eth.get_storage_at("0x3100000000000000000000000000000000000002", 2)
+        slot = self.web3.eth.get_storage_at("0x3100000000000000000000000000000000000002", 1)
         self.assertEqual(slot, HexBytes('0x000000000000000000000000deaddeaddeaddeaddeaddeaddeaddeaddeaddead'))
 
     def test_get_code(self):
