@@ -77,7 +77,7 @@ jobs:
       - name: Toolchain
         uses: dtolnay/rust-toolchain@nightly
         with:
-          toolchain: 1.78.0
+          toolchain: nightly
           override: true
           components: rustfmt, clippy
       - name: Install cargo-risczero
