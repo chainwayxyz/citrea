@@ -15,7 +15,6 @@ use citrea_sequencer::{SequencerConfig, SequencerMempoolConfig};
 use citrea_stf::genesis_config::GenesisPaths;
 use ethereum_rpc::CitreaStatus;
 use reth_primitives::{Address, BlockNumberOrTag, TxHash, U256};
-use rollup_constants::TEST_PRIVATE_KEY;
 use shared_backup_db::{PostgresConnector, ProofType, SharedBackupDbConfig};
 use sov_mock_da::{MockAddress, MockDaService, MockDaSpec, MockHash};
 use sov_rollup_interface::da::{DaData, DaSpec};
