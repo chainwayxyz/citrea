@@ -799,6 +799,9 @@ where
                     })
                     .await?;
 
+                    let mut sequencer_commitments = Vec::<SequencerCommitment>::new();
+                    let mut zk_proofs = Vec::<Proof>::new();
+
                     self.da_service
                         .extract_relevant_blobs(&filtered_block)
                         .into_iter()
@@ -847,9 +850,6 @@ where
                                 // TODO: This is where force transactions will land - try to parse DA data force transaction
                             }
                         });
-
-                    let mut sequencer_commitments = Vec::<SequencerCommitment>::new();
-                    let mut zk_proofs = Vec::<Proof>::new();
 
                     for proof in zk_proofs {
                         tracing::warn!("Processing zk proof: {:?}", proof);

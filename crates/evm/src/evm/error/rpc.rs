@@ -173,7 +173,6 @@ pub enum SignError {
     NoChainId,
 }
 
-// TODO: Fix https://github.com/chainwayxyz/citrea/issues/782
 // #[allow(clippy::unconditional_recursion)]
 // impl From<SignError> for ErrorObject<'static> {
 //     fn from(error: SignError) -> Self {
