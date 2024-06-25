@@ -1,66 +1,44 @@
-use std::any::Any;
+use alloy_sol_types::{sol, SolCall};
 
-use ethers_contract::BaseContract;
-use ethers_core::types::Bytes;
+use super::TestContract;
 
-use super::{make_contract_from_abi, test_data_path, TestContract};
+// Coinbase wrapper.
+sol! {
+    #[sol(abi)]
+    Coinbase,
+    "./src/evm/test_data/Coinbase.abi"
+}
 
 /// CoinbaseContract wrapper.
 pub struct CoinbaseContract {
-    bytecode: Bytes,
-    base_contract: BaseContract,
+    bytecode: Vec<u8>,
 }
 
 impl Default for CoinbaseContract {
     fn default() -> Self {
-        let contract_data = {
-            let mut path = test_data_path();
-            path.push("Coinbase.bin");
-
-            let contract_data = std::fs::read_to_string(path).unwrap();
-            hex::decode(contract_data).unwrap()
+        let bytecode = {
+            let bytecode_hex = include_str!("../../../evm/src/evm/test_data/Coinbase.bin");
+            hex::decode(bytecode_hex).unwrap()
         };
 
-        let contract = {
-            let mut path = test_data_path();
-            path.push("Coinbase.abi");
-
-            make_contract_from_abi(path)
-        };
-
-        Self {
-            bytecode: Bytes::from(contract_data),
-            base_contract: contract,
-        }
+        Self { bytecode }
     }
 }
 
 impl TestContract for CoinbaseContract {
-    /// Coinbase bytecode.
-    fn byte_code(&self) -> Bytes {
+    fn byte_code(&self) -> Vec<u8> {
         self.byte_code()
-    }
-    /// Dynamically dispatch from trait. Downcast to CoinbaseContract.
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    /// Create the default instance of the smart contract.
-    fn default_(&self) -> Self
-    where
-        Self: Sized,
-    {
-        Self::default()
     }
 }
 
 impl CoinbaseContract {
     /// Coinbase bytecode.
-    pub fn byte_code(&self) -> Bytes {
+    pub fn byte_code(&self) -> Vec<u8> {
         self.bytecode.clone()
     }
 
     /// Getter for the smart contract.
-    pub fn reward_miner(&self) -> Bytes {
-        self.base_contract.encode("rewardMiner", ()).unwrap()
+    pub fn reward_miner(&self) -> Vec<u8> {
+        Coinbase::rewardMinerCall {}.abi_encode()
     }
 }

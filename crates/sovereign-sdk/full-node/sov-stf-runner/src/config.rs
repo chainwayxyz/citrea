@@ -61,6 +61,11 @@ const fn default_batch_requests_limit() -> u32 {
     50
 }
 
+#[inline]
+const fn default_sync_blocks_count() -> u64 {
+    10
+}
+
 /// Simple storage configuration
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct StorageConfig {
@@ -83,9 +88,10 @@ pub struct RollupPublicKeys {
     #[serde(with = "hex::serde")]
     pub prover_da_pub_key: Vec<u8>,
 }
+
 /// Rollup Configuration
 #[derive(Debug, Clone, PartialEq, Deserialize)]
-pub struct RollupConfig<DaServiceConfig> {
+pub struct FullNodeConfig<DaServiceConfig> {
     /// RPC configuration
     pub rpc: RpcConfig,
     /// Currently rollup config runner only supports storage path parameter
@@ -96,6 +102,9 @@ pub struct RollupConfig<DaServiceConfig> {
     pub da: DaServiceConfig,
     /// Important pubkeys
     pub public_keys: RollupPublicKeys,
+    /// Number of blocks to request during sync
+    #[serde(default = "default_sync_blocks_count")]
+    pub sync_blocks_count: u64,
 }
 
 /// Prover configuration
@@ -176,10 +185,10 @@ mod tests {
 
         let config_file = create_config_from(&config);
 
-        let config: RollupConfig<sov_mock_da::MockDaConfig> =
+        let config: FullNodeConfig<sov_mock_da::MockDaConfig> =
             from_toml_path(config_file.path()).unwrap();
 
-        let expected = RollupConfig {
+        let expected = FullNodeConfig {
             runner: Some(RunnerConfig {
                 sequencer_client_url: "http://0.0.0.0:12346".to_owned(),
                 include_tx_body: true,
@@ -205,6 +214,7 @@ mod tests {
                 sequencer_da_pub_key: vec![119; 32],
                 prover_da_pub_key: vec![],
             },
+            sync_blocks_count: 10,
         };
         assert_eq!(config, expected);
     }

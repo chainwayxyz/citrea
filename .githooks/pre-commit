@@ -1,7 +1,17 @@
 #!/bin/sh
 
+if ! command -v dprint &> /dev/null; then
+    echo "dprint is not installed. Please install it."
+    exit 1
+fi
+
 if ! command -v cargo-fmt &> /dev/null; then
     echo "cargo fmt is not installed. Please install it."
+    exit 1
+fi
+
+if ! dprint fmt; then
+    echo "Check the format of Cargo.toml files"
     exit 1
 fi
 

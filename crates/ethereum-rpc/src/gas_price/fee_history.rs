@@ -235,6 +235,7 @@ pub struct FeeHistoryEntry {
     pub gas_used: u64,
     /// Gas limit by this block.
     pub gas_limit: u64,
+    #[allow(dead_code)]
     /// Hash of the block.
     pub header_hash: B256,
     /// Approximated rewards for the configured percentiles.

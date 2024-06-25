@@ -57,7 +57,7 @@ fn simple_contract_execution<DB: Database<Error = DBError> + DatabaseCommit + In
 
     let contract_address: Address = {
         let tx = dev_signer
-            .sign_default_transaction(TxKind::Create, contract.byte_code().to_vec(), 1, 0)
+            .sign_default_transaction(TxKind::Create, contract.byte_code(), 1, 0)
             .unwrap();
 
         let tx = &tx.try_into().unwrap();
@@ -78,12 +78,7 @@ fn simple_contract_execution<DB: Database<Error = DBError> + DatabaseCommit + In
         let call_data = contract.set_call_data(set_arg);
 
         let tx = dev_signer
-            .sign_default_transaction(
-                TxKind::Call(contract_address),
-                hex::decode(hex::encode(&call_data)).unwrap(),
-                2,
-                0,
-            )
+            .sign_default_transaction(TxKind::Call(contract_address), call_data.clone(), 2, 0)
             .unwrap();
         let tx = &tx.try_into().unwrap();
 
@@ -101,12 +96,7 @@ fn simple_contract_execution<DB: Database<Error = DBError> + DatabaseCommit + In
         let call_data = contract.get_call_data();
 
         let tx = dev_signer
-            .sign_default_transaction(
-                TxKind::Call(contract_address),
-                hex::decode(hex::encode(&call_data)).unwrap(),
-                3,
-                0,
-            )
+            .sign_default_transaction(TxKind::Call(contract_address), call_data.clone(), 3, 0)
             .unwrap();
 
         let tx = &tx.try_into().unwrap();
@@ -121,21 +111,16 @@ fn simple_contract_execution<DB: Database<Error = DBError> + DatabaseCommit + In
         .unwrap();
 
         let out = output(result);
-        ethereum_types::U256::from(out.to_vec().as_slice())
+        U256::from_be_slice(out.to_vec().as_slice())
     };
 
-    assert_eq!(set_arg, get_res.as_u32());
+    assert_eq!(U256::from(set_arg), get_res);
 
     {
         let failing_call_data = contract.failing_function_call_data();
 
         let tx = dev_signer
-            .sign_default_transaction(
-                TxKind::Call(contract_address),
-                hex::decode(hex::encode(&failing_call_data)).unwrap(),
-                4,
-                0,
-            )
+            .sign_default_transaction(TxKind::Call(contract_address), failing_call_data, 4, 0)
             .unwrap();
         let tx = &tx.try_into().unwrap();
 

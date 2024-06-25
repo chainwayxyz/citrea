@@ -1,10 +1,13 @@
 use std::str::FromStr;
 
-use ethers_core::types::transaction::eip2718::TypedTransaction;
-use ethers_core::types::{Bytes, Eip1559TransactionRequest};
-use ethers_core::utils::rlp::Rlp;
-use ethers_signers::{LocalWallet, Signer};
-use reth_primitives::{Address, TransactionSignedEcRecovered, TxKind, U256};
+use alloy::consensus::{SignableTransaction, TxEnvelope};
+use alloy::providers::network::TxSignerSync;
+use alloy::signers::wallet::LocalWallet;
+use alloy_rlp::{Decodable, Encodable};
+use bytes::BytesMut;
+use reth_primitives::{
+    Address, Bytes, TransactionSigned, TransactionSignedEcRecovered, TxKind, U256,
+};
 use reth_rpc_types::request::{TransactionInput, TransactionRequest};
 use revm::primitives::{TransactTo, TxEnv};
 
@@ -19,39 +22,47 @@ fn tx_rlp_encoding_test() {
         .parse::<LocalWallet>()
         .unwrap();
     let from_addr = wallet.address();
-    let to_addr =
-        ethers_core::types::Address::from_str("0x0aa7420c43b8c1a7b165d216948870c8ecfe1ee1")
-            .unwrap();
+    let to_addr = Address::from_str("0x0aa7420c43b8c1a7b165d216948870c8ecfe1ee1").unwrap();
     let data: Bytes = Bytes::from_str(
         "0x6ecd23060000000000000000000000000000000000000000000000000000000000000002",
     )
     .unwrap();
 
-    let tx_request = Eip1559TransactionRequest::new()
+    let mut request = TransactionRequest::default()
         .from(from_addr)
-        .chain_id(DEFAULT_CHAIN_ID)
         .nonce(0u64)
-        .max_priority_fee_per_gas(413047990155u64)
-        .max_fee_per_gas(768658734568u64)
-        .gas(184156u64)
+        .max_priority_fee_per_gas(413047990155)
+        .max_fee_per_gas(768658734568)
+        .gas_limit(184156)
         .to(to_addr)
-        .value(2000000000000u64)
-        .data(data);
+        .value(U256::from(2000000000000u64))
+        .input(data.into());
+    request.chain_id = Some(DEFAULT_CHAIN_ID);
 
-    let tx = TypedTransaction::Eip1559(tx_request);
+    let typed_tx = request.build_typed_tx().unwrap();
+    let mut tx = typed_tx.eip1559().unwrap().clone();
 
-    let sig = wallet.sign_transaction_sync(&tx).unwrap();
-    sig.verify(tx.sighash(), wallet.address()).unwrap();
-
-    let rlp_bytes = tx.rlp_signed(&sig);
-    let rlp_encoded = Rlp::new(&rlp_bytes);
-
-    let (decoded_tx, decoded_sig) = TypedTransaction::decode_signed(&rlp_encoded).unwrap();
-    decoded_sig
-        .verify(decoded_tx.sighash(), wallet.address())
+    let sig = wallet.sign_transaction_sync(&mut tx).unwrap();
+    let addr = sig
+        .recover_address_from_prehash(&tx.signature_hash())
         .unwrap();
+    assert_eq!(addr, wallet.address());
 
-    assert_eq!(tx, decoded_tx);
+    let sig = sig.with_parity_bool(); // drop signature.v so the hash of tx is calculated correctly
+    let signed = tx.into_signed(sig);
+    let envelope: TxEnvelope = signed.into();
+
+    let mut bytes = BytesMut::new();
+    envelope.encode(&mut bytes);
+
+    let decoded = TransactionSigned::decode(&mut bytes.as_ref()).unwrap();
+
+    let decoded_signed = decoded.try_ecrecovered().unwrap();
+    let decoded_signer = decoded_signed.signer();
+    assert_eq!(decoded_signer, wallet.address());
+
+    let decoded_envelope = TxEnvelope::decode(&mut bytes.as_ref()).unwrap();
+    assert_eq!(envelope, decoded_envelope);
 }
 
 #[test]

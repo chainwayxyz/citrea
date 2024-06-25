@@ -1,15 +1,15 @@
 use std::path::PathBuf;
 use std::str::FromStr;
 
+use alloy::signers::wallet::LocalWallet;
+use alloy::signers::Signer;
 use citrea_stf::genesis_config::GenesisPaths;
-use ethers::abi::Address;
-use ethers_signers::{LocalWallet, Signer};
-use reth_primitives::BlockNumberOrTag;
+use reth_primitives::{Address, BlockNumberOrTag};
 use tokio::task::JoinHandle;
 
 use crate::evm::make_test_client;
 use crate::test_client::{TestClient, MAX_FEE_PER_GAS};
-use crate::test_helpers::{start_rollup, tempdir_with_children, NodeMode};
+use crate::test_helpers::{start_rollup, tempdir_with_children, wait_for_l2_block, NodeMode};
 use crate::{DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT};
 
 async fn initialize_test(
@@ -43,9 +43,9 @@ async fn initialize_test(
 }
 
 /// Transaction with equal nonce to last tx should not be accepted by mempool.
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_same_nonce_tx_should_panic() {
-    // citrea::initialize_logging();
+    // citrea::initialize_logging(tracing::Level::INFO);
 
     let db_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = db_dir.path().join("DA").to_path_buf();
@@ -55,12 +55,12 @@ async fn test_same_nonce_tx_should_panic() {
     let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
 
     // send tx with nonce 0
-    test_client
+    let _pending = test_client
         .send_eth(addr, None, None, Some(0), 0u128)
         .await
         .unwrap();
     // send tx with nonce 1
-    test_client
+    let _pending = test_client
         .send_eth(addr, None, None, Some(1), 0u128)
         .await
         .unwrap();
@@ -73,9 +73,9 @@ async fn test_same_nonce_tx_should_panic() {
 }
 
 ///  Transaction with nonce lower than account's nonce on state should not be accepted by mempool.
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_nonce_too_low() {
-    // citrea::initialize_logging();
+    // citrea::initialize_logging(tracing::Level::INFO);
 
     let db_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = db_dir.path().join("DA").to_path_buf();
@@ -85,12 +85,12 @@ async fn test_nonce_too_low() {
     let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
 
     // send tx with nonce 0
-    test_client
+    let _pending = test_client
         .send_eth(addr, None, None, Some(0), 0u128)
         .await
         .unwrap();
     // send tx with nonce 1
-    test_client
+    let _pending = test_client
         .send_eth(addr, None, None, Some(1), 0u128)
         .await
         .unwrap();
@@ -103,9 +103,9 @@ async fn test_nonce_too_low() {
 
 /// Transaction with nonce higher than account's nonce should be accepted by the mempool
 /// but shouldn't be received by the sequencer (so it doesn't end up in the block)
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_nonce_too_high() {
-    // citrea::initialize_logging();
+    // citrea::initialize_logging(tracing::Level::INFO);
 
     let db_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = db_dir.path().join("DA").to_path_buf();
@@ -136,12 +136,15 @@ async fn test_nonce_too_high() {
         .eth_get_block_by_number(Some(BlockNumberOrTag::Latest))
         .await;
     // assert the block does not contain the tx with nonce too high
-    assert!(!block.transactions.contains(&tx_hash2.tx_hash()));
+    let block_transactions = block.transactions.as_hashes().unwrap();
+    assert!(!block_transactions.contains(tx_hash2.tx_hash()));
     seq_task.abort();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_order_by_fee() {
+    // citrea::initialize_logging();
+
     let db_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = db_dir.path().join("DA").to_path_buf();
     let sequencer_db_dir = db_dir.path().join("sequencer").to_path_buf();
@@ -151,7 +154,7 @@ async fn test_order_by_fee() {
     let key = "0xdcf2cbdd171a21c480aa7f53d77f31bb102282b3ff099c78e3118b37348c72f7"
         .parse::<LocalWallet>()
         .unwrap()
-        .with_chain_id(chain_id);
+        .with_chain_id(Some(chain_id));
     let poor_addr = key.address();
 
     let poor_test_client = TestClient::new(chain_id, key, poor_addr, test_client.rpc_addr).await;
@@ -164,18 +167,20 @@ async fn test_order_by_fee() {
         .unwrap();
 
     test_client.send_publish_batch_request().await;
+    wait_for_l2_block(&test_client, 1, None).await;
 
     let block = test_client
         .eth_get_block_by_number(Some(BlockNumberOrTag::Latest))
         .await;
 
-    assert!(block.transactions.contains(&sent_tx_hash1.tx_hash()));
+    let block_transactions = block.transactions.as_hashes().unwrap();
+    assert!(block_transactions.contains(sent_tx_hash1.tx_hash()));
 
     // now make some txs  from different accounts with different fees and see which tx lands first in block
     let tx_hash_poor = poor_test_client
         .send_eth(
             test_client.from_addr,
-            Some(100u64),
+            Some(100),
             Some(MAX_FEE_PER_GAS),
             None,
             2_000_000_000_000_000_000u128,
@@ -186,7 +191,7 @@ async fn test_order_by_fee() {
     let tx_hash_rich = test_client
         .send_eth(
             poor_test_client.from_addr,
-            Some(1000u64),
+            Some(1000),
             Some(MAX_FEE_PER_GAS),
             None,
             2_000_000_000_000_000_000u128,
@@ -195,21 +200,23 @@ async fn test_order_by_fee() {
         .unwrap();
 
     test_client.send_publish_batch_request().await;
+    wait_for_l2_block(&test_client, 1, None).await;
 
     // the rich tx should be in the block before the poor tx
     let block = test_client
         .eth_get_block_by_number(Some(BlockNumberOrTag::Latest))
         .await;
 
-    assert!(block.transactions[0] == tx_hash_rich.tx_hash());
-    assert!(block.transactions[1] == tx_hash_poor.tx_hash());
+    let block_transactions = block.transactions.as_hashes().unwrap();
+    assert!(block_transactions[0] == *tx_hash_rich.tx_hash());
+    assert!(block_transactions[1] == *tx_hash_poor.tx_hash());
 
     // now change the order the txs are sent, the assertions should be the same
     let tx_hash_rich = test_client
         .send_eth(
             poor_test_client.from_addr,
-            Some(1000u64),
-            Some(1000000000001u64),
+            Some(1000),
+            Some(1000000000001),
             None,
             2_000_000_000_000_000_000u128,
         )
@@ -220,8 +227,8 @@ async fn test_order_by_fee() {
     let tx_hash_poor = poor_test_client
         .send_eth(
             test_client.from_addr,
-            Some(100u64),
-            Some(100000000001u64),
+            Some(100),
+            Some(100000000001),
             None,
             2_000_000_000_000_000_000u128,
         )
@@ -229,6 +236,7 @@ async fn test_order_by_fee() {
         .unwrap();
 
     test_client.send_publish_batch_request().await;
+    wait_for_l2_block(&test_client, 3, None).await;
 
     // the rich tx should be in the block before the poor tx
     let block = test_client
@@ -236,15 +244,16 @@ async fn test_order_by_fee() {
         .await;
 
     // first index tx should be rich tx
-    assert!(block.transactions[0] == tx_hash_rich.tx_hash());
-    assert!(block.transactions[1] == tx_hash_poor.tx_hash());
+    let block_transactions = block.transactions.as_hashes().unwrap();
+    assert!(block_transactions[0] == *tx_hash_rich.tx_hash());
+    assert!(block_transactions[1] == *tx_hash_poor.tx_hash());
 
     seq_task.abort();
 }
 
 /// Send a transaction that pays less base fee then required.
 /// Publish block, tx should not be in block but should still be in the mempool.
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_tx_with_low_base_fee() {
     let db_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = db_dir.path().join("DA").to_path_buf();
@@ -255,10 +264,10 @@ async fn test_tx_with_low_base_fee() {
     let key = "0xdcf2cbdd171a21c480aa7f53d77f31bb102282b3ff099c78e3118b37348c72f7"
         .parse::<LocalWallet>()
         .unwrap()
-        .with_chain_id(chain_id);
+        .with_chain_id(Some(chain_id));
     let poor_addr = key.address();
 
-    test_client
+    let _pending = test_client
         .send_eth(poor_addr, None, None, None, 5_000_000_000_000_000_000u128)
         .await
         .unwrap();
@@ -268,9 +277,9 @@ async fn test_tx_with_low_base_fee() {
     let tx_hash_low_fee = test_client
         .send_eth(
             poor_addr,
-            Some(1u64),
+            Some(1),
             // normally base fee is 875 000 000
-            Some(1_000_001u64),
+            Some(1_000_001),
             None,
             5_000_000_000_000_000_000u128,
         )
@@ -283,15 +292,18 @@ async fn test_tx_with_low_base_fee() {
         .eth_get_block_by_number(Some(BlockNumberOrTag::Latest))
         .await;
 
-    assert!(!block.transactions.contains(&tx_hash_low_fee.tx_hash()));
+    let block_transactions: Vec<_> = block.transactions.hashes().copied().collect();
+    assert!(!block_transactions.contains(tx_hash_low_fee.tx_hash()));
 
     // TODO: also check if tx is in the mempool after https://github.com/chainwayxyz/citrea/issues/83
 
     seq_task.abort();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_same_nonce_tx_replacement() {
+    // citrea::initialize_logging();
+
     let db_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = db_dir.path().join("DA").to_path_buf();
     let sequencer_db_dir = db_dir.path().join("sequencer").to_path_buf();
@@ -300,13 +312,13 @@ async fn test_same_nonce_tx_replacement() {
     let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
 
     let tx_hash = test_client
-        .send_eth(addr, Some(100u64), Some(MAX_FEE_PER_GAS), Some(0), 0u128)
+        .send_eth(addr, Some(100), Some(MAX_FEE_PER_GAS), Some(0), 0u128)
         .await
         .unwrap();
 
     // Replacement error with lower fee
     let err = test_client
-        .send_eth(addr, Some(90u64), Some(MAX_FEE_PER_GAS), Some(0), 0u128)
+        .send_eth(addr, Some(90), Some(MAX_FEE_PER_GAS), Some(0), 0u128)
         .await
         .unwrap_err();
 
@@ -316,7 +328,7 @@ async fn test_same_nonce_tx_replacement() {
 
     // Replacement error with equal fee
     let err = test_client
-        .send_eth(addr, Some(100u64), Some(MAX_FEE_PER_GAS), Some(0), 0u128)
+        .send_eth(addr, Some(100), Some(MAX_FEE_PER_GAS), Some(0), 0u128)
         .await
         .unwrap_err();
 
@@ -324,13 +336,7 @@ async fn test_same_nonce_tx_replacement() {
 
     // Replacement error with enough base fee but low priority fee
     let err = test_client
-        .send_eth(
-            addr,
-            Some(10u64),
-            Some(MAX_FEE_PER_GAS + 100u64),
-            Some(0),
-            0u128,
-        )
+        .send_eth(addr, Some(10), Some(MAX_FEE_PER_GAS + 100), Some(0), 0u128)
         .await
         .unwrap_err();
 
@@ -342,8 +348,8 @@ async fn test_same_nonce_tx_replacement() {
     let err = test_client
         .send_eth(
             addr,
-            Some(10u64),
-            Some(MAX_FEE_PER_GAS + 100000000000u64),
+            Some(10),
+            Some(MAX_FEE_PER_GAS + 100000000000),
             Some(0),
             0u128,
         )
@@ -358,7 +364,7 @@ async fn test_same_nonce_tx_replacement() {
     let err = test_client
         .send_eth(
             addr,
-            Some(105u64),
+            Some(105),
             Some(MAX_FEE_PER_GAS + 1000000000),
             Some(0),
             0u128,
@@ -374,7 +380,7 @@ async fn test_same_nonce_tx_replacement() {
     let err = test_client
         .send_eth(
             addr,
-            Some(110u64), // 10% increase
+            Some(110), // 10% increase
             Some(MAX_FEE_PER_GAS + 1000000000),
             Some(0),
             0u128,
@@ -389,7 +395,7 @@ async fn test_same_nonce_tx_replacement() {
     let err = test_client
         .send_eth(
             addr,
-            Some(111u64),                      // 11% increase
+            Some(111),                         // 11% increase
             Some(MAX_FEE_PER_GAS + 100000000), // Not increasing more than 10 percent - should fail.
             Some(0),
             0u128,
@@ -405,7 +411,7 @@ async fn test_same_nonce_tx_replacement() {
     let tx_hash_11_bump = test_client
         .send_eth(
             addr,
-            Some(111u64),                       // 11% increase
+            Some(111),                          // 11% increase
             Some(MAX_FEE_PER_GAS + 1000000000), // More than 10 percent - should succeed.
             Some(0),
             0u128,
@@ -419,7 +425,7 @@ async fn test_same_nonce_tx_replacement() {
     let tx_hash_25_bump = test_client
         .send_eth(
             addr,
-            Some(125u64),
+            Some(125),
             Some(MAX_FEE_PER_GAS + 100000000000),
             Some(0),
             0u128,
@@ -432,7 +438,7 @@ async fn test_same_nonce_tx_replacement() {
     let tx_hash_ultra_bump = test_client
         .send_eth(
             addr,
-            Some(1000u64),
+            Some(1000),
             Some(MAX_FEE_PER_GAS + 10000000000000),
             Some(0),
             0u128,
@@ -443,15 +449,17 @@ async fn test_same_nonce_tx_replacement() {
     assert_ne!(tx_hash_25_bump.tx_hash(), tx_hash_ultra_bump.tx_hash());
 
     test_client.send_publish_batch_request().await;
+    wait_for_l2_block(&test_client, 1, None).await;
 
     let block = test_client
         .eth_get_block_by_number(Some(BlockNumberOrTag::Latest))
         .await;
 
-    assert!(!block.transactions.contains(&tx_hash.tx_hash()));
-    assert!(!block.transactions.contains(&tx_hash_11_bump.tx_hash()));
-    assert!(!block.transactions.contains(&tx_hash_25_bump.tx_hash()));
-    assert!(block.transactions.contains(&tx_hash_ultra_bump.tx_hash()));
+    let block_transactions = block.transactions.as_hashes().unwrap();
+    assert!(!block_transactions.contains(tx_hash.tx_hash()));
+    assert!(!block_transactions.contains(tx_hash_11_bump.tx_hash()));
+    assert!(!block_transactions.contains(tx_hash_25_bump.tx_hash()));
+    assert!(block_transactions.contains(tx_hash_ultra_bump.tx_hash()));
 
     seq_task.abort();
 }

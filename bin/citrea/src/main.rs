@@ -2,7 +2,7 @@ use core::fmt::Debug as DebugTrait;
 
 use anyhow::Context as _;
 use bitcoin_da::service::DaServiceConfig;
-use citrea::{initialize_logging, BitcoinRollup, MockDemoRollup};
+use citrea::{initialize_logging, BitcoinRollup, CitreaRollupBlueprint, MockDemoRollup};
 use citrea_sequencer::SequencerConfig;
 use citrea_stf::genesis_config::GenesisPaths;
 use clap::Parser;
@@ -10,7 +10,7 @@ use sov_mock_da::MockDaConfig;
 use sov_modules_api::Spec;
 use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_state::storage::NativeStorage;
-use sov_stf_runner::{from_toml_path, ProverConfig, RollupConfig};
+use sov_stf_runner::{from_toml_path, FullNodeConfig, ProverConfig};
 use tracing::{error, instrument};
 
 #[cfg(test)]
@@ -43,6 +43,13 @@ struct Args {
     /// The path to the prover config. If set, runs the node in prover mode, otherwise in full node mode.
     #[arg(long, conflicts_with = "sequencer_config_path")]
     prover_config_path: Option<String>,
+
+    /// Logging verbosity
+    #[arg(long, short = 'v', action = clap::ArgAction::Count, default_value = "2")]
+    verbose: u8,
+    /// Logging verbosity
+    #[arg(long, short = 'q', action)]
+    quiet: bool,
 }
 
 #[derive(clap::ValueEnum, Clone, Debug)]
@@ -53,9 +60,21 @@ enum SupportedDaLayer {
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
-    initialize_logging();
+    let mut args = Args::parse();
 
-    let args = Args::parse();
+    if args.quiet {
+        args.verbose = 0;
+    }
+    let logging_level = match args.verbose {
+        0 => tracing::Level::ERROR,
+        1 => tracing::Level::WARN,
+        2 => tracing::Level::INFO,
+        3 => tracing::Level::DEBUG,
+        4 => tracing::Level::TRACE,
+        _ => tracing::Level::INFO,
+    };
+    initialize_logging(logging_level);
+
     let rollup_config_path = args.rollup_config_path.as_str();
 
     let sequencer_config: Option<SequencerConfig> =
@@ -113,10 +132,10 @@ async fn start_rollup<S, DaC>(
 ) -> Result<(), anyhow::Error>
 where
     DaC: serde::de::DeserializeOwned + DebugTrait + Clone,
-    S: RollupBlueprint<DaConfig = DaC>,
+    S: CitreaRollupBlueprint<DaConfig = DaC>,
     <<S as RollupBlueprint>::NativeContext as Spec>::Storage: NativeStorage,
 {
-    let rollup_config: RollupConfig<DaC> = from_toml_path(rollup_config_path)
+    let rollup_config: FullNodeConfig<DaC> = from_toml_path(rollup_config_path)
         .context("Failed to read rollup configuration")
         .unwrap();
     let rollup_blueprint = S::new();
@@ -130,18 +149,25 @@ where
             error!("Error: {}", e);
         }
     } else if let Some(prover_config) = prover_config {
-        let prover = rollup_blueprint
-            .create_new_prover(rt_genesis_paths, rollup_config, prover_config)
-            .await
-            .unwrap();
+        let prover = CitreaRollupBlueprint::create_new_prover(
+            &rollup_blueprint,
+            rt_genesis_paths,
+            rollup_config,
+            prover_config,
+        )
+        .await
+        .unwrap();
         if let Err(e) = prover.run().await {
             error!("Error: {}", e);
         }
     } else {
-        let rollup = rollup_blueprint
-            .create_new_rollup(rt_genesis_paths, rollup_config)
-            .await
-            .unwrap();
+        let rollup = CitreaRollupBlueprint::create_new_rollup(
+            &rollup_blueprint,
+            rt_genesis_paths,
+            rollup_config,
+        )
+        .await
+        .unwrap();
         if let Err(e) = rollup.run().await {
             error!("Error: {}", e);
         }

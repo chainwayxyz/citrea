@@ -1,21 +1,20 @@
 use std::net::SocketAddr;
+use std::time::Duration;
 
+use alloy::signers::wallet::LocalWallet;
+use alloy::signers::Signer;
 use citrea_evm::smart_contracts::SimpleStorageContract;
 use citrea_stf::genesis_config::GenesisPaths;
-use ethers_core::rand::thread_rng;
-use ethers_core::types::U256;
-use ethers_core::utils::Units::Ether;
-use ethers_signers::{LocalWallet, Signer};
-use reth_primitives::BlockNumberOrTag;
+use reth_primitives::{BlockNumberOrTag, U256};
 
 use crate::evm::init_test_rollup;
 use crate::test_client::TestClient;
-use crate::test_helpers::{start_rollup, tempdir_with_children, NodeMode};
+use crate::test_helpers::{start_rollup, tempdir_with_children, wait_for_l2_block, NodeMode};
 use crate::{DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT};
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_gas_price_increase() -> Result<(), anyhow::Error> {
-    // citrea::initialize_logging();
+    // citrea::initialize_logging(tracing::Level::INFO);
 
     let storage_dir = tempdir_with_children(&["DA", "sequencer"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
@@ -63,8 +62,8 @@ async fn execute(
         client.send_publish_batch_request().await;
 
         let contract_address = deploy_contract_req
+            .get_receipt()
             .await?
-            .unwrap()
             .contract_address
             .unwrap();
 
@@ -80,18 +79,20 @@ async fn execute(
             None,
         )
         .await;
-    assert_eq!(initial_fee_history.oldest_block, U256::zero());
+    assert_eq!(initial_fee_history.oldest_block, U256::from(0));
+
+    let mut block_index = 2;
 
     // Create 100 wallets and send them some eth
     let wallets_count = 100u32;
     let tx_count_from_single_address = 15u32;
-    let one_eth = u128::pow(10, Ether.as_num());
-    let mut rng = thread_rng();
+    let one_eth = u128::pow(10, 18);
     let mut wallets = Vec::with_capacity(wallets_count as usize);
     for i in 0..wallets_count {
-        let wallet = LocalWallet::new(&mut rng).with_chain_id(client.chain_id);
+        let mut wallet = LocalWallet::random();
+        wallet.set_chain_id(Some(client.chain_id));
         let address = wallet.address();
-        client
+        let _pending = client
             .send_eth(address, None, None, None, one_eth)
             .await
             .unwrap();
@@ -99,24 +100,31 @@ async fn execute(
 
         if i % tx_count_from_single_address == 0 {
             client.send_publish_batch_request().await;
+            wait_for_l2_block(client, block_index, Some(Duration::from_secs(60))).await;
+            block_index += 1;
         }
     }
     client.send_publish_batch_request().await;
+    wait_for_l2_block(client, block_index, None).await;
+    block_index += 1;
 
     // send 15 transactions from each wallet
     for wallet in wallets {
         let address = wallet.address();
         let wallet_client = TestClient::new(client.chain_id, wallet, address, port).await;
         for i in 0..tx_count_from_single_address {
-            wallet_client
+            let _pending = wallet_client
                 .contract_transaction(contract_address, contract.set_call_data(i), None)
                 .await;
         }
     }
     client.send_publish_batch_request().await;
+    wait_for_l2_block(client, block_index, None).await;
+    block_index += 1;
+
     let block = client.eth_get_block_by_number(None).await;
     assert!(
-        block.gas_used.as_u64() <= reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT,
+        block.header.gas_used as u64 <= reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT,
         "Block has gas limit"
     );
     assert!(
@@ -128,6 +136,7 @@ async fn execute(
     let initial_gas_price = client.eth_gas_price().await;
 
     client.send_publish_batch_request().await;
+    wait_for_l2_block(client, block_index, None).await;
 
     // get new gas price after the transactions that was adjusted in the last block
     let latest_gas_price = client.eth_gas_price().await;
@@ -148,7 +157,7 @@ async fn execute(
             None,
         )
         .await;
-    assert_eq!(latest_fee_history.oldest_block, U256::zero());
+    assert_eq!(latest_fee_history.oldest_block, U256::from(0));
 
     // there are 10 blocks in between
     assert_eq!(

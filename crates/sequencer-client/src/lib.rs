@@ -1,10 +1,9 @@
 use std::ops::Range;
 
-use ethers::types::{Bytes, H256};
 use jsonrpsee::core::client::{ClientT, Error};
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use jsonrpsee::rpc_params;
-use reth_primitives::B256;
+use reth_primitives::{Bytes, B256};
 use serde::Deserialize;
 use sov_rollup_interface::rpc::HexTx;
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
@@ -47,7 +46,7 @@ impl SequencerClient {
         }
     }
 
-    /// Gets l2 block given l2 height
+    /// Gets l2 blocks given a range
     #[instrument(level = "trace", skip(self), err, ret)]
     pub async fn get_soft_batch_range<DaSpec: sov_rollup_interface::da::DaSpec>(
         &self,
@@ -80,7 +79,7 @@ impl SequencerClient {
 
     /// Sends raw tx to sequencer
     #[instrument(level = "trace", skip_all, err, ret)]
-    pub async fn send_raw_tx(&self, tx: Bytes) -> Result<H256, Error> {
+    pub async fn send_raw_tx(&self, tx: Bytes) -> Result<B256, Error> {
         self.client
             .request("eth_sendRawTransaction", rpc_params![tx])
             .await

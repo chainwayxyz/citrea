@@ -5,7 +5,7 @@ use sov_mock_da::{
 use sov_mock_zkvm::MockZkvm;
 use sov_modules_api::default_context::DefaultContext;
 use sov_stf_runner::{
-    InitVariant, ParallelProverService, ProverGuestRunConfig, RollupConfig, RollupPublicKeys,
+    FullNodeConfig, InitVariant, ParallelProverService, ProverGuestRunConfig, RollupPublicKeys,
     RpcConfig, RunnerConfig, StateTransitionRunner, StorageConfig,
 };
 
@@ -118,7 +118,7 @@ async fn runner_execution(
     da_service: MockDaService,
 ) -> ([u8; 32], [u8; 32]) {
     let rollup_storage_path = storage_path.join("rollup").to_path_buf();
-    let rollup_config = RollupConfig::<MockDaConfig> {
+    let rollup_config = FullNodeConfig::<MockDaConfig> {
         storage: StorageConfig {
             path: rollup_storage_path.clone(),
         },
@@ -144,6 +144,7 @@ async fn runner_execution(
             sequencer_da_pub_key: vec![],
             prover_da_pub_key: vec![],
         },
+        sync_blocks_count: 10,
     };
 
     let ledger_db = LedgerDB::with_path(rollup_storage_path.clone()).unwrap();
