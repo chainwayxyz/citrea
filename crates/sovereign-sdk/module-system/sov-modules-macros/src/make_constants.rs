@@ -4,6 +4,7 @@ use syn::{Attribute, Ident, Token, Type, Visibility};
 use crate::manifest::Manifest;
 
 /// A partial const declaration: `const MAX: u16;`.
+#[allow(dead_code)]
 pub struct PartialItemConst {
     pub attrs: Vec<Attribute>,
     pub vis: Visibility,
