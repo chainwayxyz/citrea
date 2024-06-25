@@ -154,6 +154,10 @@ alloy = { git = "https://github.com/alloy-rs/alloy", rev = "77c1240", default-fe
 ed25519-dalek = { version = "2", default-features = false, features = ["serde"] }
 secp256k1 = { version = "0.28.2", default-features = false, features = ["global-context", "recovery"] }
 
+tower-http = { version = "0.4.0", features = ["full"] }
+tower = { version = "0.4.13", features = ["full"] }
+hyper = { version = "0.14" }
+
 [patch.'https://github.com/eigerco/celestia-node-rs.git']
 # Uncomment to apply local changes
 # celestia-proto = { path = "../celestia-node-rs/proto" }
