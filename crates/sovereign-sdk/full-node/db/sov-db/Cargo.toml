@@ -38,7 +38,7 @@ bincode = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
 hex = { workspace = true }
-libc = "0.2.155"
+rlimit = "0.10.1"
 
 
 [dev-dependencies]

@@ -1,7 +1,7 @@
 // Adapted from Aptos-Core.
 // Modified to remove serde dependency
 
-use libc::{getrlimit, rlimit, RLIMIT_NOFILE};
+use rlimit::{getrlimit, Resource};
 use rocksdb::Options;
 use tracing::warn;
 
@@ -23,25 +23,24 @@ pub struct RocksdbConfig {
 
 impl Default for RocksdbConfig {
     fn default() -> Self {
-        let mut rlim: rlimit = rlimit {
-            rlim_cur: 0,
-            rlim_max: 0,
-        };
-        let result = unsafe { getrlimit(RLIMIT_NOFILE, &mut rlim) };
-
-        let rlim_cur = if result != 0 {
-            warn!("Failed to retrieve max open file limit from the os, defaulting to 256.");
+        let (soft_limit, _) = getrlimit(Resource::NOFILE).unwrap_or_else(|err| {
+            warn!(
+                "Failed to retrieve max open file limit from the os, defaulting to 256. err={}",
+                err
+            );
             // Default is 256 due to it being the lowest default limit among operating systems, namely OSX.
-            256
-        } else if rlim.rlim_cur > (i32::MAX as u64) {
+            (256, 0)
+        });
+
+        let soft_limit = if soft_limit > (i32::MAX as u64) {
             i32::MAX
         } else {
-            rlim.rlim_cur as i32
+            soft_limit as i32
         };
 
         Self {
             // Allow db to close old sst files, saving memory.
-            max_open_files: rlim_cur * 8 / 10,
+            max_open_files: soft_limit * 8 / 10,
             // For now we set the max total WAL size to be 1G. This config can be useful when column
             // families are updated at non-uniform frequencies.
             max_total_wal_size: 1u64 << 30,
