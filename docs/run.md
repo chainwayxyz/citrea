@@ -3,10 +3,13 @@
 This document covers how to run Citrea sequencer and a full node locally using a mock DA layer and Bitcoin Regtest.
 
 ## Prerequisites
+
 Follow the instructions in [this document.](./dev-setup.md)
 
 ## Building and running
+
 Build citrea:
+
 ```sh
 make build
 ```
@@ -21,12 +24,15 @@ If running Postgres is prefered, you can execute the following command:
 docker compose -f docker-compose.postgres.yml up -d
 
 ```
+
 this will run postgres in a dockerized daemon mode.
 
 ### Run on Mock DA
+
 Run on a local da layer, sharable between nodes that run on your computer.
 
 Run sequencer on Mock DA:
+
 ```sh
 ./target/debug/citrea --da-layer mock --rollup-config-path configs/mock/sequencer_rollup_config.toml --sequencer-config-path configs/mock/sequencer_config.toml --genesis-paths configs/mock/genesis-files
 ```
@@ -34,13 +40,15 @@ Run sequencer on Mock DA:
 Sequencer RPC is accessible at `127.0.0.1:12345`
 
 _Optional_: Run full node on Mock DA:
+
 ```sh
-./target/debug/citrea --rollup-config-path configs/mock/sequencer_rollup_config.toml --genesis-paths bin/test-data/genesis/demo-tests/mock
+./target/debug/citrea --da-layer mock --rollup-config-path configs/mock/rollup_config.toml --genesis-paths bin/test-data/genesis/demo-tests/mock
 ```
 
 Full node RPC is accessible at `127.0.0.1:12346`
 
 If test_mode is set to false in the sequencer config, the sequencer will publish blocks every 2 seconds. To also publish mock DA blocks, run this script:
+
 ```sh
 ./configs/mock-dockerized/publish_da_block.sh
 ```
@@ -50,18 +58,22 @@ If test_mode is set to false in the sequencer config, the sequencer will publish
 Run on local Bitcoin network.
 
 Run Bitcoin Regtest:
+
 ```sh
 bitcoind -regtest -txindex=1
 ```
+
 Keep this terminal open.
 
 Create bitcoin wallet for Bitcoin DA adapter.
+
 ```sh
 bitcoin-cli -regtest createwallet citreatesting
 bitcoin-cli -regtest loadwallet citreatesting
 ```
 
 Mine blocks so that the wallet has BTC:
+
 ```sh
 bitcoin-cli -regtest -generate 201
 ```
@@ -74,11 +86,12 @@ Edit `configs/bitcoin-regtest/sequencer_rollup_config.toml` and `configs/bitcoin
 node_url = ""
 # fill here
 node_username = ""
-# fill here                                       
+# fill here
 node_password = ""
 ```
 
 Run sequencer:
+
 ```sh
 ./target/debug/citrea --da-layer bitcoin --rollup-config-path configs/bitcoin-regtest/sequencer_rollup_config.toml --sequencer-config-path configs/bitcoin-regtest/sequencer_config.toml --genesis-paths configs/bitcoin-regtest/genesis-files
 ```
@@ -88,6 +101,7 @@ Sequencer RPC is accessible at `127.0.0.1:12345`
 _Optional_: Run full node
 
 Run full node:
+
 ```sh
 ./target/debug/citrea --da-layer bitcoin --rollup-config-path configs/bitcoin-regtest/rollup_config.toml --genesis-paths configs/bitcoin-regtest/genesis-files
 ```
@@ -96,8 +110,8 @@ Full node RPC is accessible at `127.0.0.1:12346`
 
 To publish blocks on Bitcoin Regtest, run the sequencer with `test_mode` in sequencer config set to false and blocks will be published every two seconds.
 
-
 To delete sequencer or full nodes databases run:
+
 ```sh
 make clean-node
 ```
@@ -105,7 +119,9 @@ make clean-node
 ## Testing
 
 To run tests:
+
 ```sh
 make test
 ```
+
 This will run [`cargo nextest`](https://nexte.st).

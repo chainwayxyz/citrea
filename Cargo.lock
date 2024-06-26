@@ -9580,6 +9580,7 @@ dependencies = [
  "proptest",
  "proptest-derive 0.3.0",
  "rand 0.8.5",
+ "rlimit",
  "rocksdb",
  "serde",
  "sha2 0.10.8",
