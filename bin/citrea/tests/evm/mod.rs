@@ -14,7 +14,10 @@ use sov_rollup_interface::CITREA_VERSION;
 // use sov_demo_rollup::initialize_logging;
 use crate::test_client::TestClient;
 use crate::test_helpers::{start_rollup, tempdir_with_children, wait_for_l2_block, NodeMode};
-use crate::{DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT};
+use crate::{
+    DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
+    TEST_DATA_GENESIS_PATH,
+};
 
 mod archival_state;
 mod gas_price;
@@ -33,7 +36,7 @@ async fn web3_rpc_tests() -> Result<(), anyhow::Error> {
     let rollup_task = tokio::spawn(async {
         start_rollup(
             port_tx,
-            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
+            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
             None,
             NodeMode::SequencerNode,
             sequencer_db_dir,
@@ -89,7 +92,7 @@ async fn evm_tx_tests() -> Result<(), anyhow::Error> {
     let rollup_task = tokio::spawn(async {
         start_rollup(
             port_tx,
-            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
+            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
             None,
             NodeMode::SequencerNode,
             sequencer_db_dir,
@@ -130,7 +133,7 @@ async fn test_eth_get_logs() -> Result<(), anyhow::Error> {
     let rollup_task = tokio::spawn(async {
         start_rollup(
             port_tx,
-            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
+            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
             None,
             NodeMode::SequencerNode,
             sequencer_db_dir,
@@ -168,7 +171,7 @@ async fn test_genesis_contract_call() -> Result<(), Box<dyn std::error::Error>> 
     let seq_task = tokio::spawn(async move {
         start_rollup(
             seq_port_tx,
-            GenesisPaths::from_dir("../../configs/mock-dockerized/genesis-files"),
+            GenesisPaths::from_dir("../../resources/genesis/mock-dockerized/"),
             None,
             NodeMode::SequencerNode,
             sequencer_db_dir,

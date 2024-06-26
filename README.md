@@ -2,7 +2,7 @@
 
 **The first rollup that enhances the capabilities of Bitcoin blockspace with zero-knowledge technology, now [live on Devnet](https://www.blog.citrea.xyz/citrea-public-devnet-live/)! 🎉🍊🍋**
 
-![](assets/banner.png)
+![](resources/assets/banner.png)
 
 > [!WARNING]
 > Citrea is still work-in-progress as a public devnet. While it's launched as a public devnet (on top of a custom Bitcoin Signet), it has not been audited and many features are under heavy development. Citrea's proper integration with [Bitcoin](https://github.com/bitcoin/bitcoin) and [Clementine](https://github.com/chainwayxyz/clementine) is still ongoing. \
