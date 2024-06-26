@@ -41,7 +41,7 @@ impl Default for RocksdbConfig {
         Self {
             // Allow db to close old sst files, saving memory.
             // TODO: in case of multiple RocksDB instances, there is still a possibility of going over the limit, fix that.
-            max_open_files: soft_limit * 8 / 10,
+            max_open_files: soft_limit,
             // For now we set the max total WAL size to be 1G. This config can be useful when column
             // families are updated at non-uniform frequencies.
             max_total_wal_size: 1u64 << 30,
