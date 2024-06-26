@@ -14,7 +14,7 @@ network = "signet"
 
 [storage]
 # The path to the rollup's data directory. Paths that do not begin with `/` are interpreted as relative paths.
-path = "full-node-db"
+path = "resources/dbs/full-node-db"
 
 [rpc]
 # the host and port to bind the rpc server for
