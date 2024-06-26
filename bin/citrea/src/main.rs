@@ -33,7 +33,7 @@ struct Args {
     da_layer: SupportedDaLayer,
 
     /// The path to the rollup config.
-    #[arg(long, default_value = "configs/mock/rollup_config.toml")]
+    #[arg(long, default_value = "resources/configs/mock/rollup_config.toml")]
     rollup_config_path: String,
 
     /// The path to the sequencer config. If set, runs the node in sequencer mode, otherwise in full node mode.
@@ -144,7 +144,7 @@ where
         let sequencer_rollup = rollup_blueprint
             .create_new_sequencer(rt_genesis_paths, rollup_config.clone(), sequencer_config)
             .await
-            .unwrap();
+            .expect("Could not start sequencer");
         if let Err(e) = sequencer_rollup.run().await {
             error!("Error: {}", e);
         }
@@ -156,7 +156,7 @@ where
             prover_config,
         )
         .await
-        .unwrap();
+        .expect("Coult not start prover");
         if let Err(e) = prover.run().await {
             error!("Error: {}", e);
         }
@@ -167,7 +167,7 @@ where
             rollup_config,
         )
         .await
-        .unwrap();
+        .expect("Could not start full-node");
         if let Err(e) = rollup.run().await {
             error!("Error: {}", e);
         }

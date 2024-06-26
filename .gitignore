@@ -10,9 +10,9 @@ fuzz/Cargo.lock
 .DS_Store
 
 demo_data/
-sequencer-db/
-full-node-db/
-prover-db/
+resources/dbs/sequencer-db/
+resources/dbs/full-node-db/
+resources/dbs/prover-db/
 /.vscode/*
 
 /docker/credentials/*
@@ -22,5 +22,3 @@ prover-db/
 adapters/solana/libyellowstone_grpc_geyser.dylib
 
 adapters/bitcoin/reveal_*.tx
-
-data

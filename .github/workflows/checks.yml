@@ -78,6 +78,7 @@ jobs:
         uses: dtolnay/rust-toolchain@nightly
         with:
           toolchain: nightly
+          override: true
           components: rustfmt, clippy
       - name: Install cargo-risczero
         uses: taiki-e/install-action@v2
@@ -163,7 +164,7 @@ jobs:
           --health-retries 5
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@1.78.0
         with:
           toolchain: stable
           components: llvm-tools-preview
@@ -198,9 +199,7 @@ jobs:
     if: github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: stable
+      - uses: dtolnay/rust-toolchain@1.78.0
       - uses: actions/setup-node@v4
         with:
           node-version: 18
@@ -222,11 +221,11 @@ jobs:
         run: npm install
       - name: Run uniswap tests
         run: |
-          RUST_LOG=off ./target/debug/citrea --da-layer mock --rollup-config-path configs/mock/sequencer_rollup_config.toml --sequencer-config-path configs/mock/sequencer_config.toml --genesis-paths configs/mock/genesis-files &
+          RUST_LOG=off ./target/debug/citrea --da-layer mock --rollup-config-path resources/configs/mock/sequencer_rollup_config.toml --sequencer-config-path resources/configs/mock/sequencer_config.toml --genesis-paths resources/genesis/mock/ &
           sleep 2
-          RUST_LOG=off ./target/debug/citrea --rollup-config-path configs/mock/rollup_config.toml --genesis-paths configs/mock/genesis-files &
+          RUST_LOG=off ./target/debug/citrea --rollup-config-path resources/configs/mock/rollup_config.toml --genesis-paths resources/genesis/mock/ &
           sleep 2
-          ./configs/mock-dockerized/publish_da_block.sh &
+          ./resources/configs/mock-dockerized/publish_da_block.sh &
           cd ./bin/citrea/tests/evm/uniswap
           npx hardhat run --network citrea scripts/01_deploy.js
           npx hardhat run --network citrea scripts/02_swap.js
@@ -250,9 +249,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v4
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: stable
+      - uses: dtolnay/rust-toolchain@1.78.0
       - uses: dcarbone/install-jq-action@v2
       - name: Install cargo-risczero
         uses: taiki-e/install-action@v2
@@ -273,11 +270,11 @@ jobs:
         run: pip install -r requirements.txt
       - name: Run web3.py tests
         run: |
-          RUST_LOG=off ./target/debug/citrea --da-layer mock --rollup-config-path configs/mock/sequencer_rollup_config.toml --sequencer-config-path configs/mock/sequencer_config.toml --genesis-paths configs/mock/genesis-files &
+          RUST_LOG=off ./target/debug/citrea --da-layer mock --rollup-config-path resources/configs/mock/sequencer_rollup_config.toml --sequencer-config-path resources/configs/mock/sequencer_config.toml --genesis-paths resources/genesis/mock/ &
           sleep 2
-          RUST_LOG=off ./target/debug/citrea --rollup-config-path configs/mock/rollup_config.toml --genesis-paths configs/mock/genesis-files &
+          RUST_LOG=off ./target/debug/citrea --rollup-config-path resources/configs/mock/rollup_config.toml --genesis-paths resources/genesis/mock/ &
           sleep 2
-          ./configs/mock-dockerized/publish_da_block.sh &
+          ./resources/configs/mock-dockerized/publish_da_block.sh &
           cd ./bin/citrea/tests/evm/web3_py
           python test.py
 
@@ -286,9 +283,7 @@ jobs:
     if: github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: stable
+      - uses: dtolnay/rust-toolchain@1.78.0
       - uses: actions/setup-node@v4
         with:
           node-version: 18
@@ -310,11 +305,11 @@ jobs:
         run: npm install
       - name: Run ethers_js tests
         run: |
-          RUST_LOG=off ./target/debug/citrea --da-layer mock --rollup-config-path configs/mock/sequencer_rollup_config.toml --sequencer-config-path configs/mock/sequencer_config.toml --genesis-paths configs/mock/genesis-files &
+          RUST_LOG=off ./target/debug/citrea --da-layer mock --rollup-config-path resources/configs/mock/sequencer_rollup_config.toml --sequencer-config-path resources/configs/mock/sequencer_config.toml --genesis-paths resources/genesis/mock/ &
           sleep 2
-          RUST_LOG=off ./target/debug/citrea --rollup-config-path configs/mock/rollup_config.toml --genesis-paths configs/mock/genesis-files &
+          RUST_LOG=off ./target/debug/citrea --rollup-config-path resources/configs/mock/rollup_config.toml --genesis-paths resources/genesis/mock/ &
           sleep 2
-          ./configs/mock-dockerized/publish_da_block.sh &
+          ./resources/configs/mock-dockerized/publish_da_block.sh &
           cd ./bin/citrea/tests/evm/ethers_js
           npx mocha test.js
 
@@ -326,13 +321,13 @@ jobs:
       - name: Install Rust Bare Metal
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: stable
+          toolchain: 1.78.0
           target: thumbv6m-none-eabi
           override: true
       - name: Install Rust WASM
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: stable
+          toolchain: 1.78.0
           target: wasm32-unknown-unknown
           override: true
       - name: cargo install cargo-hack
@@ -371,9 +366,11 @@ jobs:
           version: "23.2"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.78.0
         with:
-          toolchain: stable
+          toolchain: 1.78.0
+          override: true
+          components: rustfmt, clippy
       - name: Install cargo-risczero
         uses: taiki-e/install-action@v2
         with:

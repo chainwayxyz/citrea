@@ -15,11 +15,11 @@ resolver = "2"
 # Citrea deps
 bitcoin-da = { path = "../../crates/bitcoin-da", features = ["native"] }
 citrea-fullnode = { path = "../../crates/fullnode" }
+citrea-primitives = { path = "../../crates/primitives" }
 citrea-prover = { path = "../../crates/prover" }
 citrea-sequencer = { path = "../../crates/sequencer" }
 citrea-stf = { path = "../../crates/citrea-stf", features = ["native"] }
 ethereum-rpc = { path = "../../crates/ethereum-rpc" }
-rollup-constants = { path = "../rollup-constants" }
 sequencer-client = { path = "../../crates/sequencer-client" }
 
 # Sovereign-SDK deps
@@ -64,7 +64,7 @@ sov-mock-da = { path = "../../crates/sovereign-sdk/adapters/mock-da", default-fe
 sov-prover-storage-manager = { path = "../../crates/sovereign-sdk/full-node/sov-prover-storage-manager", features = ["test-utils"] }
 sov-rollup-interface = { path = "../../crates/sovereign-sdk/rollup-interface", features = ["fuzzing"] }
 
-alloy = { workspace = true, features = ["hyper", "rpc-types-eth", "provider-http", "signer-wallet", "signers"] }
+alloy = { workspace = true, features = ["hyper", "consensus", "rpc-types-eth", "provider-http", "signer-wallet", "signers"] }
 alloy-rlp = { workspace = true }
 bincode = { workspace = true }
 borsh = { workspace = true }
