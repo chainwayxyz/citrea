@@ -6,6 +6,7 @@
 //! - The default db configuration is generated in the [`rocks_db_config`] module
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
+
 /// Implements a wrapper around RocksDB meant for storing rollup history ("the ledger").
 /// This wrapper implements helper traits for writing blocks to the ledger, and for
 /// serving historical data via RPC
