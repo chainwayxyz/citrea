@@ -9574,6 +9574,7 @@ dependencies = [
  "criterion",
  "hex",
  "jmt",
+ "libc",
  "proptest",
  "proptest-derive 0.3.0",
  "rand 0.8.5",

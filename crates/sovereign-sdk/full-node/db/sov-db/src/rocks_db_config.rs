@@ -1,7 +1,9 @@
 // Adapted from Aptos-Core.
 // Modified to remove serde dependency
 
+use libc::{getrlimit, rlimit, RLIMIT_NOFILE};
 use rocksdb::Options;
+use tracing::warn;
 
 /// Port selected RocksDB options for tuning underlying rocksdb instance of our state db.
 /// The current default values are taken from Aptos. TODO: tune rocksdb for our workload.
@@ -9,7 +11,8 @@ use rocksdb::Options;
 /// for detailed explanations.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct RocksdbConfig {
-    /// The maximum number of files that can be open concurrently. Defaults to 5000
+    /// The maximum number of files that can be open concurrently. Defaults to operating system limit.
+    /// In the case of not being able to read from the operating system, it defaults to 256.
     pub max_open_files: i32,
     /// Once write-ahead logs exceed this size, RocksDB will start forcing the flush of column
     /// families whose memtables are backed by the oldest live WAL file. Defaults to 1GB
@@ -20,9 +23,25 @@ pub struct RocksdbConfig {
 
 impl Default for RocksdbConfig {
     fn default() -> Self {
+        let mut rlim: rlimit = rlimit {
+            rlim_cur: 0,
+            rlim_max: 0,
+        };
+        let result = unsafe { getrlimit(RLIMIT_NOFILE, &mut rlim) };
+
+        let rlim_cur = if result != 0 {
+            warn!("Failed to retrieve max open file limit from the os, defaulting to 256.");
+            // Default is 256 due to it being the lowest default limit among operating systems, namely OSX.
+            256
+        } else if rlim.rlim_cur > (i32::MAX as u64) {
+            i32::MAX
+        } else {
+            rlim.rlim_cur as i32
+        };
+
         Self {
             // Allow db to close old sst files, saving memory.
-            max_open_files: 5000,
+            max_open_files: rlim_cur * 8 / 10,
             // For now we set the max total WAL size to be 1G. This config can be useful when column
             // families are updated at non-uniform frequencies.
             max_total_wal_size: 1u64 << 30,
