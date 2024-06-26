@@ -40,6 +40,10 @@ sov-modules-api = { path = "../../module-system/sov-modules-api", default-featur
 
 shared-backup-db = { path = "../../../shared-backup-db", optional = true }
 
+tower-http = { workspace = true, optional = true }
+tower = { workspace = true, optional = true }
+hyper = { workspace = true, optional = true }
+
 [dev-dependencies]
 tempfile = { workspace = true }
 sha2 = { workspace = true }
@@ -80,4 +84,7 @@ native = [
     "shared-backup-db",
     "backoff",
     "rand",
+    "tower-http",
+    "tower",
+    "hyper",
 ]

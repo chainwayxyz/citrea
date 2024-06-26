@@ -173,6 +173,7 @@ pub enum SignError {
     NoChainId,
 }
 
+// #[allow(clippy::unconditional_recursion)]
 // impl From<SignError> for ErrorObject<'static> {
 //     fn from(error: SignError) -> Self {
 //         error.into()
