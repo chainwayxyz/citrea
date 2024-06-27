@@ -4,6 +4,9 @@
 [submodule "crates/evm/src/evm/system_contracts/lib/bitcoin-spv"]
 	path = crates/evm/src/evm/system_contracts/lib/bitcoin-spv
 	url = https://github.com/keep-network/bitcoin-spv
+[submodule "crates/evm/src/evm/system_contracts/lib/openzeppelin-contracts"]
+	path = crates/evm/src/evm/system_contracts/lib/openzeppelin-contracts
+	url = https://github.com/OpenZeppelin/openzeppelin-contracts
 [submodule "crates/evm/src/evm/system_contracts/lib/openzeppelin-contracts-upgradeable"]
 	path = crates/evm/src/evm/system_contracts/lib/openzeppelin-contracts-upgradeable
 	url = https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable
