@@ -1,4 +1,3 @@
-use crate::REVEAL_OUTPUT_AMOUNT;
 use core::fmt;
 use core::result::Result::Ok;
 use core::str::FromStr;
@@ -29,6 +28,7 @@ use tracing::instrument;
 
 use crate::helpers::{BODY_TAG, PUBLICKEY_TAG, RANDOM_TAG, ROLLUP_NAME_TAG, SIGNATURE_TAG};
 use crate::spec::utxo::UTXO;
+use crate::REVEAL_OUTPUT_AMOUNT;
 
 pub fn compress_blob(blob: &[u8]) -> Vec<u8> {
     let mut writer = CompressorWriter::new(Vec::new(), 4096, 11, 22);
