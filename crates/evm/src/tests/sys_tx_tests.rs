@@ -362,9 +362,9 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
     assert_eq!(block.header.gas_limit, ETHEREUM_BLOCK_GAS_LIMIT as _);
     assert!(block.header.gas_used <= block.header.gas_limit);
 
-    // In total there should only be 1135 transactions 1 is system tx others are contract calls
+    // In total there should only be 1134 transactions 1 is system tx others are contract calls
     assert!(
-        block.transactions.hashes().len() == 1135,
+        block.transactions.hashes().len() == 1134,
         "Some transactions should be dropped because of gas limit"
     );
 }
