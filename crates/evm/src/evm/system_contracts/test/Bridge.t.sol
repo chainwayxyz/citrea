@@ -6,6 +6,8 @@ import "forge-std/console.sol";
 
 import "../src/Bridge.sol";
 import "bitcoin-spv/solidity/contracts/BTCUtils.sol";
+import "openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+
 
 // !!! WARNINGS:
 // !!! - Update `testDepositThenWithdraw` and `testBatchWithdraw` with proper testing of withdrawal tree root if this goes to production
@@ -18,9 +20,15 @@ contract BridgeHarness is Bridge {
     }
 }
 
+contract FalseBridge is Bridge {
+    function falseFunc() public pure returns (bytes32) {
+        return keccak256("false");
+    }
+}
+
 contract BridgeTest is Test {
     uint256 constant DEPOSIT_AMOUNT = 0.01 ether;
-    BridgeHarness public bridge;
+    BridgeHarness public bridge = BridgeHarness(address(0x3100000000000000000000000000000000000002));
     bytes2 flag = hex"0001";
     bytes4 version = hex"02000000";
     bytes vin = hex"01d4d6c5c94583a0505dd0c1eb64760ba2a6a391f6da3164094ed8bcac190b7d6c0000000000fdffffff";
@@ -44,9 +52,15 @@ contract BridgeTest is Test {
     BitcoinLightClient bitcoinLightClient;
 
     function setUp() public {
-        bridge = new BridgeHarness();
+        address bridgeImpl = address(new BridgeHarness());
+        address erc1967_impl = address(new ERC1967Proxy(bridgeImpl, ""));
+        vm.etch(address(bridge), erc1967_impl.code);
+        bytes32 IMPLEMENTATION_SLOT = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
+        bytes32 OWNER_SLOT = 0x9016d09d72d40fdae2fd8ceac6b6234c7706214fd39c1cd1e609a0528c199300;
+        vm.store(address(bridge), IMPLEMENTATION_SLOT, bytes32(uint256(uint160(bridgeImpl))));
+        vm.store(address(bridge), OWNER_SLOT, bytes32(uint256(uint160(owner))));
         vm.prank(SYSTEM_CALLER);
-        bridge.initialize(depositScript, scriptSuffix, 5, owner);
+        bridge.initialize(depositScript, scriptSuffix, 5);
         vm.deal(address(bridge), 21_000_000 ether);
         address lightClient_impl = address(new BitcoinLightClient());
         bitcoinLightClient = bridge.LIGHT_CLIENT();
@@ -54,7 +68,7 @@ contract BridgeTest is Test {
 
         vm.startPrank(SYSTEM_CALLER);
         bitcoinLightClient.initializeBlockNumber(INITIAL_BLOCK_NUMBER);
-        // Arbitrary blockhash as this is mock 
+        // Arbitrary blockhash as this is mock
         bitcoinLightClient.setBlockInfo(mockBlockhash, witnessRoot);
         vm.stopPrank();
 
@@ -185,7 +199,7 @@ contract BridgeTest is Test {
     function testCannotReinitialize() public {
         vm.expectRevert("Contract is already initialized");
         vm.prank(SYSTEM_CALLER);
-        bridge.initialize(depositScript, scriptSuffix, 5, owner);
+        bridge.initialize(depositScript, scriptSuffix, 5);
     }
 
     function testCanChangeOperatorAndDeposit() public {
@@ -231,6 +245,32 @@ contract BridgeTest is Test {
         assert(bridge.isBytesEqual_(depositScript, bridge.depositScript()));
         assert(bridge.isBytesEqual_(scriptSuffix, bridge.scriptSuffix()));
         assertEq(5, bridge.requiredSigsCount());
+    }
+
+    function testUpgrade() public {
+        address falseBridgeImpl = address(new FalseBridge());
+        vm.prank(owner);
+        bridge.upgradeToAndCall(falseBridgeImpl, "");
+        assertEq(FalseBridge(address(bridge)).falseFunc(), keccak256("false"));
+    }
+
+    function testNonOwnerCannotUpgrade() public {
+        address falseBridgeImpl = address(new FalseBridge());
+        vm.prank(user);
+        vm.expectRevert();
+        bridge.upgradeToAndCall(falseBridgeImpl, "");
+    }
+
+    function testOwnerCanChangeAndUpgrade() public {
+        address falseBridgeImpl = address(new FalseBridge());
+        vm.stopPrank();
+        address newOwner = makeAddr("citrea_new_owner");
+        vm.prank(owner);
+        bridge.transferOwnership(newOwner);
+        vm.startPrank(newOwner);
+        bridge.acceptOwnership();
+        bridge.upgradeToAndCall(falseBridgeImpl, "");
+        assertEq(FalseBridge(address(bridge)).falseFunc(), keccak256("false"));
     }
 
     function isKeccakEqual(bytes memory a, bytes memory b) public pure returns (bool result) {

@@ -119,9 +119,9 @@ describe("RpcTests", function() {
     });
 
     it("getStorage returns the correct storage", async function() {
-        // 3rd slot of Bridge is 'operator' and should be the system caller address on its own
-        let storage = await provider.getStorage("0x3100000000000000000000000000000000000002", 2);
-        expect(storage).to.equal("0x000000000000000000000000deaddeaddeaddeaddeaddeaddeaddeaddeaddead");
+        // 2rd slot of Bridge is 'operator' and should be the system caller address on its own
+        let storage = await provider.getStorage("0x3100000000000000000000000000000000000002", 0);
+        expect(storage).to.equal("0x0000000000000000000000deaddeaddeaddeaddeaddeaddeaddeaddeaddead01");
     });
 
     it("getLogs returns the correct logs", async function() {
@@ -238,7 +238,7 @@ describe("RpcTests", function() {
             tx_receipt = await tx_response.wait(1);
             expect.fail('Expected an error to be thrown');
         } catch (error) {
-            expect(error.message).to.match(/transaction execution reverted \(action="sendTransaction", data=null, reason=null, invocation=null, revert=null, transaction={ "data": "", "from": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266", "to": "0x3100000000000000000000000000000000000002" }, receipt={ "_type": "TransactionReceipt", "blobGasPrice": null, "blobGasUsed": null, "blockHash": "0x[0-9a-fA-F]+", "blockNumber": \d+, "contractAddress": null, "cumulativeGasUsed": "21883", "from": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266", "gasPrice": "1000000", "gasUsed": "21883", "hash": "0x[0-9a-fA-F]+", "index": 0, "logs": \[  ], "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000", "root": null, "status": 0, "to": "0x3100000000000000000000000000000000000002" }, code=CALL_EXCEPTION, version=6\.12\.1\)/);
+            expect(error.message).to.match(/transaction execution reverted \(action="sendTransaction", data=null, reason=null, invocation=null, revert=null, transaction={ "data": "", "from": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266", "to": "0x3100000000000000000000000000000000000002" }, receipt={ "_type": "TransactionReceipt", "blobGasPrice": null, "blobGasUsed": null, "blockHash": "0x[0-9a-fA-F]+", "blockNumber": \d+, "contractAddress": null, "cumulativeGasUsed": "26805", "from": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266", "gasPrice": "1000000", "gasUsed": "26805", "hash": "0x[0-9a-fA-F]+", "index": 0, "logs": \[  ], "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000", "root": null, "status": 0, "to": "0x3100000000000000000000000000000000000002" }, code=CALL_EXCEPTION, version=6\.12\.1\)/);
         }
     });
 
