@@ -61,7 +61,8 @@ impl<'a> Risc0Host<'a> {
     /// Run a computation in the zkvm and generate a receipt.
     pub fn run(&mut self) -> anyhow::Result<Receipt> {
         let session = self.run_without_proving()?;
-        session.prove()
+        let prove_info = session.prove()?;
+        Ok(prove_info.receipt)
     }
 }
 
