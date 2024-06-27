@@ -13,7 +13,10 @@ use serde_json::{self, json};
 
 use crate::evm::make_test_client;
 use crate::test_helpers::{start_rollup, tempdir_with_children, NodeMode};
-use crate::{DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT};
+use crate::{
+    DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
+    TEST_DATA_GENESIS_PATH,
+};
 
 #[tokio::test(flavor = "multi_thread")]
 async fn tracing_tests() -> Result<(), Box<dyn std::error::Error>> {
@@ -27,7 +30,7 @@ async fn tracing_tests() -> Result<(), Box<dyn std::error::Error>> {
         // Don't provide a prover since the EVM is not currently provable
         start_rollup(
             port_tx,
-            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
+            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
             None,
             NodeMode::SequencerNode,
             sequencer_db_dir,
