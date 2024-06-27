@@ -21,11 +21,12 @@ const LEDGER_RPC_ERROR: &str = "LEDGER_RPC_ERROR";
 /// use sov_ledger_rpc::server::rpc_module;
 /// use tempfile::tempdir;
 /// use sov_db::ledger_db::LedgerDB;
+/// use sov_db::rocks_db_config::RocksdbConfig;
 ///
 /// /// Creates a new [`LedgerDB`] and starts serving JSON-RPC requests.
 /// async fn rpc_server() -> jsonrpsee::server::ServerHandle {
 ///     let dir = tempdir().unwrap();
-///     let db = LedgerDB::with_path(dir).unwrap();
+///     let db = LedgerDB::with_config(&RocksdbConfig::new(dir.path(), None)).unwrap();
 ///     let rpc_module = rpc_module::<LedgerDB, u32, u32>(db).unwrap();
 ///
 ///     let server = jsonrpsee::server::ServerBuilder::default()

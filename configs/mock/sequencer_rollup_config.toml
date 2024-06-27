@@ -10,6 +10,7 @@ db_path = "da-db"
 [storage]
 # The path to the rollup's data directory. Paths that do not begin with `/` are interpreted as relative paths.
 path = "sequencer-db"
+db_max_open_files = 256
 
 [rpc]
 # the host and port to bind the rpc server for

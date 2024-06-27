@@ -13,6 +13,7 @@ mod hash_stf;
 
 use hash_stf::{get_result_from_blocks, HashStf, Q, S};
 use sov_db::ledger_db::LedgerDB;
+use sov_db::rocks_db_config::RocksdbConfig;
 use sov_mock_zkvm::MockCodeCommitment;
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::services::da::DaService;
@@ -121,6 +122,7 @@ async fn runner_execution(
     let rollup_config = RollupConfig::<MockDaConfig> {
         storage: StorageConfig {
             path: rollup_storage_path.clone(),
+            db_max_open_files: None,
         },
         rpc: RpcConfig {
             bind_host: "127.0.0.1".to_string(),
@@ -146,7 +148,8 @@ async fn runner_execution(
         },
     };
 
-    let ledger_db = LedgerDB::with_path(rollup_storage_path.clone()).unwrap();
+    let ledger_db =
+        LedgerDB::with_config(&RocksdbConfig::new(rollup_storage_path.as_path(), None)).unwrap();
 
     let stf = HashStf::<MockValidityCond>::new();
 
@@ -203,7 +206,7 @@ fn get_saved_root_hash(
     let mut storage_manager = ProverStorageManager::<MockDaSpec, S>::new(storage_config).unwrap();
     let finalized_storage = storage_manager.create_finalized_storage()?;
 
-    let ledger_db = LedgerDB::with_path(path).unwrap();
+    let ledger_db = LedgerDB::with_config(&RocksdbConfig::new(path, None)).unwrap();
 
     ledger_db
         .get_head_slot()?

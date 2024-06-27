@@ -9,6 +9,7 @@ use async_trait::async_trait;
 use citrea_sequencer::{CitreaSequencer, SequencerConfig};
 pub use runtime_rpc::*;
 use sov_db::ledger_db::LedgerDB;
+use sov_db::rocks_db_config::RocksdbConfig;
 use sov_modules_api::{Context, DaSpec, Spec};
 use sov_modules_stf_blueprint::{GenesisParams, Runtime as RuntimeTrait, StfBlueprint};
 use sov_rollup_interface::services::da::DaService;
@@ -123,7 +124,11 @@ pub trait RollupBlueprint: Sized + Send + Sync {
 
     /// Creates instance of a LedgerDB.
     fn create_ledger_db(&self, rollup_config: &RollupConfig<Self::DaConfig>) -> LedgerDB {
-        LedgerDB::with_path(&rollup_config.storage.path).expect("Ledger DB failed to open")
+        LedgerDB::with_config(&RocksdbConfig::new(
+            &rollup_config.storage.path,
+            rollup_config.storage.db_max_open_files,
+        ))
+        .expect("Ledger DB failed to open")
     }
 
     /// Creates a new sequencer

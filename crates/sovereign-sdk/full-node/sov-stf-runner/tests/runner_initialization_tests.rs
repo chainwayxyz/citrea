@@ -11,6 +11,7 @@ use sov_stf_runner::{
 mod hash_stf;
 
 use hash_stf::HashStf;
+use sov_db::rocks_db_config::RocksdbConfig;
 
 type MockInitVariant =
     InitVariant<HashStf<MockValidityCond>, MockZkvm<MockValidityCond>, MockDaSpec>;
@@ -70,6 +71,7 @@ fn initialize_runner(
     let rollup_config = RollupConfig::<MockDaConfig> {
         storage: StorageConfig {
             path: rollup_storage_path.clone(),
+            db_max_open_files: None,
         },
         rpc: RpcConfig {
             bind_host: "127.0.0.1".to_string(),
@@ -97,7 +99,8 @@ fn initialize_runner(
 
     let da_service = MockDaService::new(address, &da_storage_path);
 
-    let ledger_db = LedgerDB::with_path(rollup_storage_path.clone()).unwrap();
+    let ledger_db =
+        LedgerDB::with_config(&RocksdbConfig::new(rollup_storage_path.as_path(), None)).unwrap();
 
     let stf = HashStf::<MockValidityCond>::new();
 
