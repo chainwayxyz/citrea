@@ -464,7 +464,7 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
                         let inner = InnerReceipt::Groth16(Groth16Receipt::new(
                             snark_receipt.snark.to_vec(),
                             receipt.claim().expect("stark_2_snark error, receipt claim"),
-                            risc0_zkvm::Groth16ReceiptVerifierParameters::default().digest(), // FIXME
+                            risc0_zkvm::Groth16ReceiptVerifierParameters::default().digest(),
                         ));
 
                         let full_snark_receipt = Receipt::new(inner, snark_receipt.journal);
