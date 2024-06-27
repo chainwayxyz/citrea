@@ -207,7 +207,7 @@ fn test_sys_bitcoin_light_client() {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
-                    cumulative_gas_used: 192726,tes
+                    cumulative_gas_used: 192726,
                     logs: vec![]
                 },
                 gas_used: 114235,
