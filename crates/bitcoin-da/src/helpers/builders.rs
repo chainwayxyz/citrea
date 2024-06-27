@@ -559,6 +559,7 @@ mod tests {
     use crate::helpers::builders::{compress_blob, decompress_blob};
     use crate::helpers::parsers::parse_transaction;
     use crate::spec::utxo::UTXO;
+    use crate::REVEAL_OUTPUT_AMOUNT;
 
     #[test]
     fn compression_decompression() {
