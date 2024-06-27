@@ -1,9 +1,8 @@
 use risc0_zkvm_platform::syscall::SyscallName;
 
 pub fn get_syscall_name() -> SyscallName {
-    let cycle_string = "cycle_metrics\0";
-    let bytes = cycle_string.as_bytes();
-    SyscallName::from_bytes_with_nul(bytes.as_ptr())
+    let name = c"cycle_metrics".as_ptr();
+    unsafe { SyscallName::from_bytes_with_nul(name as _) }
 }
 
 #[cfg(feature = "native")]
@@ -19,9 +18,8 @@ pub fn cycle_count_callback(input: risc0_zkvm::Bytes) -> risc0_zkvm::Result<risc
 }
 
 pub fn get_syscall_name_cycles() -> SyscallName {
-    let cycle_string = "cycle_count\0";
-    let bytes = cycle_string.as_bytes();
-    SyscallName::from_bytes_with_nul(bytes.as_ptr())
+    let name = c"cycle_count".as_ptr();
+    unsafe { SyscallName::from_bytes_with_nul(name as _) }
 }
 
 pub fn print_cycle_count() {

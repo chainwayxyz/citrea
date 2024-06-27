@@ -119,12 +119,12 @@ tokio = { version = "1", features = ["full"] }
 num_cpus = "1.0"
 
 # Risc0 dependencies
-risc0-zkvm = { version = "0.21", default-features = false }
-risc0-zkvm-platform = { version = "0.21" }
-risc0-zkp = "0.21"
-risc0-circuit-rv32im = "0.21"
-risc0-build = "0.21"
-bonsai-sdk = "0.7.0"
+risc0-zkvm = { version = "1.0.0", default-features = false }
+risc0-zkvm-platform = { version = "1.0.0" }
+risc0-zkp = { version = "1.0.0" }
+risc0-circuit-rv32im = { version = "1.0.0" }
+risc0-build = { version = "1.0.0" }
+bonsai-sdk = { version = "0.8.0" }
 
 # EVM dependencies
 
@@ -173,7 +173,7 @@ hyper = { version = "0.14" }
 #  surprisignly decreased cycle counts
 [patch.crates-io]
 sha2 = { git = "https://github.com/risc0/RustCrypto-hashes", tag = "sha2-v0.10.8-risczero.0" }
-# ed25519-dalek = { git = "https://github.com/risc0/curve25519-dalek", tag = "curve25519-4.1.0-risczero.1" }
-# crypto-bigint = { git = "https://github.com/risc0/RustCrypto-crypto-bigint", tag = "v0.5.2-risc0" }
+# ed25519-dalek = { git = "https://github.com/risc0/curve25519-dalek", tag = "curve25519-4.1.2-risczero.0" }
+# crypto-bigint = { git = "https://github.com/risc0/RustCrypto-crypto-bigint", tag = "v0.5.5-risczero.0" }
 secp256k1_v028 = { package = "secp256k1", version = "0.28", git = "https://github.com/Sovereign-Labs/rust-secp256k1.git", branch = "risc0-compatible-0-28-2" }
 k256 = { package = "k256", version = "0.13.3", git = "https://github.com/risc0/RustCrypto-elliptic-curves", tag = "k256/v0.13.3-risczero.0" }

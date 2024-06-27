@@ -83,9 +83,9 @@ jobs:
       - name: Install cargo-risczero
         uses: taiki-e/install-action@v2
         with:
-          tool: cargo-risczero@0.19
+          tool: cargo-risczero@1.0.1
       - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-        run: cargo risczero install --version v2024-04-22.0
+        run: cargo risczero install --version r0.1.78.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Rust Cache
@@ -122,9 +122,9 @@ jobs:
       - name: Install cargo-risczero
         uses: taiki-e/install-action@v2
         with:
-          tool: cargo-risczero@0.19
+          tool: cargo-risczero@1.0.1
       - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-        run: cargo risczero install --version v2024-04-22.0
+        run: cargo risczero install --version r0.1.78.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Run cargo-udeps
@@ -173,9 +173,9 @@ jobs:
       - name: Install cargo-risczero
         uses: taiki-e/install-action@v2
         with:
-          tool: cargo-risczero@0.19
-      - name: Install risc0-zkvm toolchain
-        run: cargo risczero install --version v2024-04-22.0
+          tool: cargo-risczero@1.0.1
+      - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
+        run: cargo risczero install --version r0.1.78.0
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
       - name: Cache ethereum-tests
@@ -207,9 +207,9 @@ jobs:
       - name: Install cargo-risczero
         uses: taiki-e/install-action@v2
         with:
-          tool: cargo-risczero@0.19
+          tool: cargo-risczero@1.0.1
       - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-        run: cargo risczero install --version v2024-04-22.0
+        run: cargo risczero install --version r0.1.78.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Rust Cache
@@ -254,9 +254,9 @@ jobs:
       - name: Install cargo-risczero
         uses: taiki-e/install-action@v2
         with:
-          tool: cargo-risczero@0.19
+          tool: cargo-risczero@1.0.1
       - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-        run: cargo risczero install --version v2024-04-22.0
+        run: cargo risczero install --version r0.1.78.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: actions/cache@v3
@@ -291,9 +291,9 @@ jobs:
       - name: Install cargo-risczero
         uses: taiki-e/install-action@v2
         with:
-          tool: cargo-risczero@0.19
+          tool: cargo-risczero@1.0.1
       - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-        run: cargo risczero install --version v2024-04-22.0
+        run: cargo risczero install --version r0.1.78.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Rust Cache
@@ -307,7 +307,7 @@ jobs:
         run: |
           RUST_LOG=off ./target/debug/citrea --da-layer mock --rollup-config-path resources/configs/mock/sequencer_rollup_config.toml --sequencer-config-path resources/configs/mock/sequencer_config.toml --genesis-paths resources/genesis/mock/ &
           sleep 2
-          RUST_LOG=off ./target/debug/citrea --rollup-config-path resources/configs/mock/rollup_config.toml --genesis-paths resources/genesis/mock/ &
+          RUST_LOG=off ./target/debug/citrea --da-layer mock --rollup-config-path resources/configs/mock/rollup_config.toml --genesis-paths resources/genesis/mock/ &
           sleep 2
           ./resources/configs/mock-dockerized/publish_da_block.sh &
           cd ./bin/citrea/tests/evm/ethers_js
@@ -374,9 +374,9 @@ jobs:
       - name: Install cargo-risczero
         uses: taiki-e/install-action@v2
         with:
-          tool: cargo-risczero@0.19
+          tool: cargo-risczero@1.0.1
       - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-        run: cargo risczero install --version v2024-04-22.0
+        run: cargo risczero install --version r0.1.78.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         # `cargo-nextest` is much faster than standard `cargo test`.
