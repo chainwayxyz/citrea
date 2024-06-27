@@ -467,13 +467,7 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
                             risc0_zkvm::Groth16ReceiptVerifierParameters::default().digest(), // FIXME
                         ));
 
-                        let full_snark_receipt = Receipt {
-                            inner,
-                            journal: risc0_zkvm::Journal {
-                                bytes: snark_receipt.journal,
-                            },
-                            metadata: receipt.metadata,
-                        };
+                        let full_snark_receipt = Receipt::new(inner, snark_receipt.journal);
 
                         tracing::info!("Full snark proof!: {full_snark_receipt:?}");
 
