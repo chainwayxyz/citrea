@@ -913,14 +913,14 @@ mod tests {
         let block_c = MockBlockHeader::from_height(3);
 
         let storage_a = storage_manager.create_storage_on(&block_a).unwrap();
-        let mut witness = ArrayWitness::default();
+        let witness = ArrayWitness::default();
         {
             let mut state_operations = OrderedReadsAndWrites::default();
             state_operations.ordered_writes.push(write_op(1, 2));
             let mut native_operations = OrderedReadsAndWrites::default();
             native_operations.ordered_writes.push(write_op(30, 40));
             let (_, state_update, _) = storage_a
-                .compute_state_update(state_operations, &mut witness)
+                .compute_state_update(state_operations, &witness)
                 .unwrap();
             storage_a.commit(&state_update, &native_operations);
         }
@@ -935,7 +935,7 @@ mod tests {
             let mut native_operations = OrderedReadsAndWrites::default();
             native_operations.ordered_writes.push(write_op(50, 60));
             let (_, state_update, _) = storage_b
-                .compute_state_update(state_operations, &mut witness)
+                .compute_state_update(state_operations, &witness)
                 .unwrap();
             storage_b.commit(&state_update, &native_operations);
         }
@@ -949,11 +949,11 @@ mod tests {
 
         assert_eq!(
             Some(value_from(2).into()),
-            storage_c.get(&key_from(1).into(), None, &mut witness)
+            storage_c.get(&key_from(1).into(), None, &witness)
         );
         assert_eq!(
             Some(value_from(4).into()),
-            storage_c.get(&key_from(3).into(), None, &mut witness)
+            storage_c.get(&key_from(3).into(), None, &witness)
         );
         assert_eq!(
             Some(value_from(40).into()),
@@ -1087,7 +1087,7 @@ mod tests {
         // |     G |    aux |   2 |   write(9) |
         // |     L |  state |   1 |  write(10) |
 
-        let mut witness = ArrayWitness::default();
+        let witness = ArrayWitness::default();
         // A
         let storage_a = storage_manager.create_storage_on(&block_a).unwrap();
         {
@@ -1098,7 +1098,7 @@ mod tests {
             native_operations.ordered_writes.push(write_op(3, 40));
 
             let (_, state_update, _) = storage_a
-                .compute_state_update(state_operations, &mut witness)
+                .compute_state_update(state_operations, &witness)
                 .unwrap();
             storage_a.commit(&state_update, &native_operations);
         }
@@ -1114,7 +1114,7 @@ mod tests {
             let mut native_operations = OrderedReadsAndWrites::default();
             native_operations.ordered_writes.push(write_op(3, 50));
             let (_, state_update, _) = storage_b
-                .compute_state_update(state_operations, &mut witness)
+                .compute_state_update(state_operations, &witness)
                 .unwrap();
             storage_b.commit(&state_update, &native_operations);
         }
@@ -1130,7 +1130,7 @@ mod tests {
             let mut native_operations = OrderedReadsAndWrites::default();
             native_operations.ordered_writes.push(write_op(1, 60));
             let (_, state_update, _) = storage_c
-                .compute_state_update(state_operations, &mut witness)
+                .compute_state_update(state_operations, &witness)
                 .unwrap();
             storage_c.commit(&state_update, &native_operations);
         }
@@ -1143,7 +1143,7 @@ mod tests {
             let mut state_operations = OrderedReadsAndWrites::default();
             state_operations.ordered_writes.push(write_op(3, 6));
             let (_, state_update, _) = storage_d
-                .compute_state_update(state_operations, &mut witness)
+                .compute_state_update(state_operations, &witness)
                 .unwrap();
             storage_d.commit(&state_update, &OrderedReadsAndWrites::default());
         }
@@ -1160,7 +1160,7 @@ mod tests {
             native_operations.ordered_writes.push(delete_op(1));
             native_operations.ordered_writes.push(write_op(3, 70));
             let (_, state_update, _) = storage_f
-                .compute_state_update(state_operations, &mut witness)
+                .compute_state_update(state_operations, &witness)
                 .unwrap();
             storage_f.commit(&state_update, &native_operations);
         }
@@ -1175,7 +1175,7 @@ mod tests {
             let mut native_operations = OrderedReadsAndWrites::default();
             native_operations.ordered_writes.push(write_op(2, 9));
             let (_, state_update, _) = storage_g
-                .compute_state_update(state_operations, &mut witness)
+                .compute_state_update(state_operations, &witness)
                 .unwrap();
             storage_g.commit(&state_update, &native_operations);
         }
@@ -1188,7 +1188,7 @@ mod tests {
             let mut state_operations = OrderedReadsAndWrites::default();
             state_operations.ordered_writes.push(write_op(1, 10));
             let (_, state_update, _) = storage_l
-                .compute_state_update(state_operations, &mut witness)
+                .compute_state_update(state_operations, &witness)
                 .unwrap();
             storage_l.commit(&state_update, &OrderedReadsAndWrites::default());
         }
@@ -1232,16 +1232,16 @@ mod tests {
         let storage_h = storage_manager.create_storage_on(&block_h).unwrap();
         let storage_k = storage_manager.create_storage_on(&block_k).unwrap();
 
-        let assert_main_fork = |witness: &mut ArrayWitness| {
-            assert_eq!(None, storage_e.get(&key_from(1).into(), None, witness));
-            assert_eq!(None, storage_e.get(&key_from(2).into(), None, witness));
+        let assert_main_fork = || {
+            assert_eq!(None, storage_e.get(&key_from(1).into(), None, &witness));
+            assert_eq!(None, storage_e.get(&key_from(2).into(), None, &witness));
             assert_eq!(
                 Some(value_from(6).into()),
-                storage_e.get(&key_from(3).into(), None, witness)
+                storage_e.get(&key_from(3).into(), None, &witness)
             );
             assert_eq!(
                 Some(value_from(5).into()),
-                storage_e.get(&key_from(4).into(), None, witness)
+                storage_e.get(&key_from(4).into(), None, &witness)
             );
             assert_eq!(
                 Some(value_from(60).into()),
@@ -1254,17 +1254,17 @@ mod tests {
             );
         };
         // Storage M
-        let assert_storage_m = |witness: &mut ArrayWitness| {
+        let assert_storage_m = || {
             assert_eq!(
                 Some(value_from(10).into()),
-                storage_m.get(&key_from(1).into(), None, witness)
+                storage_m.get(&key_from(1).into(), None, &witness)
             );
-            assert_eq!(None, storage_m.get(&key_from(2).into(), None, witness));
+            assert_eq!(None, storage_m.get(&key_from(2).into(), None, &witness));
             assert_eq!(
                 Some(value_from(2).into()),
-                storage_m.get(&key_from(3).into(), None, witness)
+                storage_m.get(&key_from(3).into(), None, &witness)
             );
-            assert_eq!(None, storage_m.get(&key_from(4).into(), None, witness));
+            assert_eq!(None, storage_m.get(&key_from(4).into(), None, &witness));
             assert_eq!(None, storage_m.get_accessory(&key_from(1).into(), None));
             assert_eq!(None, storage_m.get_accessory(&key_from(2).into(), None));
             assert_eq!(
@@ -1273,17 +1273,17 @@ mod tests {
             );
         };
         // Storage H
-        let assert_storage_h = |witness: &mut ArrayWitness| {
+        let assert_storage_h = || {
             assert_eq!(
                 Some(value_from(8).into()),
-                storage_h.get(&key_from(1).into(), None, witness)
+                storage_h.get(&key_from(1).into(), None, &witness)
             );
-            assert_eq!(None, storage_h.get(&key_from(2).into(), None, witness));
+            assert_eq!(None, storage_h.get(&key_from(2).into(), None, &witness));
             assert_eq!(
                 Some(value_from(2).into()),
-                storage_h.get(&key_from(3).into(), None, witness)
+                storage_h.get(&key_from(3).into(), None, &witness)
             );
-            assert_eq!(None, storage_h.get(&key_from(4).into(), None, witness));
+            assert_eq!(None, storage_h.get(&key_from(4).into(), None, &witness));
             assert_eq!(None, storage_h.get_accessory(&key_from(1).into(), None));
             assert_eq!(
                 Some(value_from(9).into()),
@@ -1294,17 +1294,17 @@ mod tests {
                 storage_h.get_accessory(&key_from(3).into(), None)
             );
         };
-        assert_main_fork(&mut witness);
-        assert_storage_m(&mut witness);
-        assert_storage_h(&mut witness);
+        assert_main_fork();
+        assert_storage_m();
+        assert_storage_h();
         // Storage K
         assert_eq!(
             Some(value_from(7).into()),
-            storage_k.get(&key_from(1).into(), None, &mut witness)
+            storage_k.get(&key_from(1).into(), None, &witness)
         );
-        assert_eq!(None, storage_k.get(&key_from(2).into(), None, &mut witness));
-        assert_eq!(None, storage_k.get(&key_from(3).into(), None, &mut witness));
-        assert_eq!(None, storage_k.get(&key_from(4).into(), None, &mut witness));
+        assert_eq!(None, storage_k.get(&key_from(2).into(), None, &witness));
+        assert_eq!(None, storage_k.get(&key_from(3).into(), None, &witness));
+        assert_eq!(None, storage_k.get(&key_from(4).into(), None, &witness));
         assert_eq!(None, storage_k.get_accessory(&key_from(1).into(), None));
         assert_eq!(None, storage_k.get_accessory(&key_from(2).into(), None));
         assert_eq!(
@@ -1317,20 +1317,20 @@ mod tests {
             .unwrap();
         storage_manager.finalize(&block_a).unwrap();
         validate_internal_consistency(&storage_manager);
-        assert_main_fork(&mut witness);
-        assert_storage_m(&mut witness);
-        assert_storage_h(&mut witness);
+        assert_main_fork();
+        assert_storage_m();
+        assert_storage_h();
 
         // Finalizing the rest
         storage_manager.finalize(&block_b).unwrap();
         validate_internal_consistency(&storage_manager);
-        assert_main_fork(&mut witness);
+        assert_main_fork();
         storage_manager.finalize(&block_c).unwrap();
         validate_internal_consistency(&storage_manager);
-        assert_main_fork(&mut witness);
+        assert_main_fork();
         storage_manager.finalize(&block_d).unwrap();
         validate_internal_consistency(&storage_manager);
-        assert_main_fork(&mut witness);
+        assert_main_fork();
         storage_manager
             .save_change_set(&block_e, storage_e)
             .unwrap();
@@ -1351,7 +1351,7 @@ mod tests {
             .unwrap();
         assert_eq!(
             Some(value_from(6).into()),
-            storage_last.get(&key_from(3).into(), None, &mut witness)
+            storage_last.get(&key_from(3).into(), None, &witness)
         );
         assert_eq!(
             Some(value_from(50).into()),

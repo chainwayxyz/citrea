@@ -85,13 +85,13 @@ mod test {
                         WorkingSet::new(prover_storage.clone());
 
                     working_set.set(&test.key, test.value.clone());
-                    let (cache, mut witness) = working_set.checkpoint().freeze();
+                    let (cache, witness) = working_set.checkpoint().freeze();
                     prover_storage
-                        .validate_and_commit(cache, &mut witness)
+                        .validate_and_commit(cache, &witness)
                         .expect("storage is valid");
                     assert_eq!(
                         test.value,
-                        prover_storage.get(&test.key, None, &mut witness).unwrap()
+                        prover_storage.get(&test.key, None, &witness).unwrap()
                     );
                 }
             }
@@ -111,7 +111,7 @@ mod test {
                 assert_eq!(
                     test.value,
                     storage
-                        .get(&test.key, Some(test.version), &mut Default::default())
+                        .get(&test.key, Some(test.version), &Default::default())
                         .unwrap()
                 );
             }
@@ -145,9 +145,9 @@ mod test {
             assert!(prover_storage.is_empty());
             let mut storage: WorkingSet<DefaultContext> = WorkingSet::new(prover_storage.clone());
             storage.set(&key, value.clone());
-            let (cache, mut witness) = storage.checkpoint().freeze();
+            let (cache, witness) = storage.checkpoint().freeze();
             prover_storage
-                .validate_and_commit(cache, &mut witness)
+                .validate_and_commit(cache, &witness)
                 .expect("storage is valid");
             storage_manager
                 .save_change_set(&header, prover_storage)
@@ -164,9 +164,7 @@ mod test {
             assert!(!prover_storage.is_empty());
             assert_eq!(
                 value,
-                prover_storage
-                    .get(&key, None, &mut Default::default())
-                    .unwrap()
+                prover_storage.get(&key, None, &Default::default()).unwrap()
             );
         }
     }

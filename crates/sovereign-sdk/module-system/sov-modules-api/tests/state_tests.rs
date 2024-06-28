@@ -18,9 +18,9 @@ impl Operation {
         match self {
             Operation::Merge => working_set.checkpoint(),
             Operation::Finalize => {
-                let (cache_log, mut witness) = working_set.checkpoint().freeze();
+                let (cache_log, witness) = working_set.checkpoint().freeze();
 
-                db.validate_and_commit(cache_log, &mut witness)
+                db.validate_and_commit(cache_log, &witness)
                     .expect("JMT update is valid");
 
                 StateCheckpoint::new(db)
@@ -177,10 +177,10 @@ fn test_witness_round_trip() {
         state_value.set(&11, &mut working_set);
         let _ = state_value.get(&mut working_set);
         state_value.set(&22, &mut working_set);
-        let (cache_log, mut witness) = working_set.checkpoint().freeze();
+        let (cache_log, witness) = working_set.checkpoint().freeze();
 
         let _ = storage
-            .validate_and_commit(cache_log, &mut witness)
+            .validate_and_commit(cache_log, &witness)
             .expect("Native jmt validation should succeed");
         witness
     };
@@ -192,10 +192,10 @@ fn test_witness_round_trip() {
         state_value.set(&11, &mut working_set);
         let _ = state_value.get(&mut working_set);
         state_value.set(&22, &mut working_set);
-        let (cache_log, mut witness) = working_set.checkpoint().freeze();
+        let (cache_log, witness) = working_set.checkpoint().freeze();
 
         let _ = storage
-            .validate_and_commit(cache_log, &mut witness)
+            .validate_and_commit(cache_log, &witness)
             .expect("ZK validation should succeed");
     };
 }

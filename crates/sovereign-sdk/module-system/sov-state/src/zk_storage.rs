@@ -48,7 +48,7 @@ impl<S: MerkleProofSpec> Storage for ZkStorage<S> {
         &self,
         _key: &StorageKey,
         _version: Option<u64>,
-        witness: &mut Self::Witness,
+        witness: &Self::Witness,
     ) -> Option<StorageValue> {
         witness.get_hint()
     }
@@ -57,7 +57,7 @@ impl<S: MerkleProofSpec> Storage for ZkStorage<S> {
     fn compute_state_update(
         &self,
         state_accesses: OrderedReadsAndWrites,
-        witness: &mut Self::Witness,
+        witness: &Self::Witness,
     ) -> Result<(Self::Root, Self::StateUpdate, StateDiff), anyhow::Error> {
         let prev_state_root = witness.get_hint();
 

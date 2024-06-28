@@ -37,7 +37,7 @@ impl<Cond> HashStf<Cond> {
     fn save_from_hasher(
         hasher: sha2::Sha256,
         storage: ProverStorage<S, Q>,
-        witness: &mut ArrayWitness,
+        witness: &ArrayWitness,
     ) -> ([u8; 32], ProverStorage<S, Q>) {
         let result = hasher.finalize();
 
@@ -149,14 +149,14 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
         let mut hasher = sha2::Sha256::new();
         hasher.update(params);
 
-        HashStf::<Cond>::save_from_hasher(hasher, genesis_state, &mut ArrayWitness::default())
+        HashStf::<Cond>::save_from_hasher(hasher, genesis_state, &ArrayWitness::default())
     }
 
     fn apply_slot<'a, I>(
         &self,
         pre_state_root: &Self::StateRoot,
         storage: Self::PreState,
-        mut witness: Self::Witness,
+        witness: Self::Witness,
         slot_header: &Da::BlockHeader,
         _validity_condition: &Da::ValidityCondition,
         blobs: I,
@@ -177,7 +177,7 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
         let mut hasher = sha2::Sha256::new();
 
         let hash_key = HashStf::<Cond>::hash_key();
-        let existing_cache = storage.get(&hash_key, None, &mut witness).unwrap();
+        let existing_cache = storage.get(&hash_key, None, &witness).unwrap();
         tracing::debug!(
             "HashStf provided_state_root={:?}, saved={:?}",
             pre_state_root,
@@ -190,8 +190,7 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
             hasher.update(data);
         }
 
-        let (state_root, storage) =
-            HashStf::<Cond>::save_from_hasher(hasher, storage, &mut witness);
+        let (state_root, storage) = HashStf::<Cond>::save_from_hasher(hasher, storage, &witness);
 
         SlotResult {
             state_root,
