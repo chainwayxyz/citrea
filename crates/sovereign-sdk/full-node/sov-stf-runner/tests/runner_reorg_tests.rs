@@ -155,6 +155,7 @@ async fn runner_execution(
 
     let storage_config = sov_state::config::Config {
         path: rollup_storage_path,
+        db_max_open_files: None,
     };
     let mut storage_manager = ProverStorageManager::new(storage_config).unwrap();
 
@@ -202,6 +203,7 @@ fn get_saved_root_hash(
 ) -> anyhow::Result<Option<<ProverStorage<S, Q> as Storage>::Root>> {
     let storage_config = sov_state::config::Config {
         path: path.to_path_buf(),
+        db_max_open_files: None,
     };
     let mut storage_manager = ProverStorageManager::<MockDaSpec, S>::new(storage_config).unwrap();
     let finalized_storage = storage_manager.create_finalized_storage()?;

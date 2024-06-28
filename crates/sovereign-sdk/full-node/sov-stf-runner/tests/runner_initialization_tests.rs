@@ -106,6 +106,7 @@ fn initialize_runner(
 
     let storage_config = sov_state::config::Config {
         path: rollup_storage_path.to_path_buf(),
+        db_max_open_files: None,
     };
     let storage_manager = ProverStorageManager::new(storage_config).unwrap();
 

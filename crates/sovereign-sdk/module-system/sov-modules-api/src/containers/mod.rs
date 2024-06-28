@@ -72,6 +72,7 @@ mod test {
         let tests = create_tests();
         let storage_config = sov_state::config::Config {
             path: tempdir.path().to_path_buf(),
+            db_max_open_files: None,
         };
         {
             let mut storage_manager =
@@ -123,6 +124,7 @@ mod test {
         let tempdir = tempfile::tempdir().unwrap();
         let storage_config = sov_state::config::Config {
             path: tempdir.path().to_path_buf(),
+            db_max_open_files: None,
         };
         {
             let mut storage_manager =

@@ -71,13 +71,10 @@ where
 
     /// Create new [`ProverStorageManager`] from state config
     pub fn new(config: sov_state::config::Config) -> anyhow::Result<Self> {
-        let path = config.path;
+        let rocksdb_config = RocksdbConfig::new(config.path.as_path(), config.db_max_open_files);
         let state_db =
-            StateDB::<SnapshotManager>::setup_schema_db(&RocksdbConfig::new(path.as_path(), None))?;
-        let native_db = NativeDB::<SnapshotManager>::setup_schema_db(&RocksdbConfig::new(
-            path.as_path(),
-            None,
-        ))?;
+            StateDB::<SnapshotManager>::setup_schema_db(&rocksdb_config)?;
+        let native_db = NativeDB::<SnapshotManager>::setup_schema_db(&rocksdb_config)?;
 
         Ok(Self::with_db_handles(state_db, native_db))
     }

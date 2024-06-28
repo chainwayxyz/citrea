@@ -51,6 +51,7 @@ fn setup_storage(
 ) -> TestData {
     let config = sov_state::config::Config {
         path: path.to_path_buf(),
+        db_max_open_files: None,
     };
 
     let mut storage_manager = ProverStorageManager::<Da, S>::new(config).unwrap();
