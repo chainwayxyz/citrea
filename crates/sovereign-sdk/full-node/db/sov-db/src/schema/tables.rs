@@ -235,11 +235,6 @@ define_table_with_default_codec!(
     (CommitmentsByNumber) SlotNumber => Vec<SequencerCommitment>
 );
 
-define_table_with_default_codec!(
-    /// The primary source for witnesses
-    (WitnessesByNumber) SlotNumber => Vec<Vec< Vec<u8> >>
-);
-
 define_table_with_seek_key_codec!(
     /// The primary source for soft batch data
     (SoftBatchByNumber) BatchNumber => StoredSoftBatch
