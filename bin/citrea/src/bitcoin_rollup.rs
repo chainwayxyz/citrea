@@ -92,6 +92,7 @@ impl RollupBlueprint for BitcoinRollup {
     ) -> Result<Self::StorageManager, anyhow::Error> {
         let storage_config = StorageConfig {
             path: rollup_config.storage.path.clone(),
+            db_max_open_files: rollup_config.storage.db_max_open_files,
         };
         ProverStorageManager::new(storage_config)
     }

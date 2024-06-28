@@ -610,11 +610,13 @@ mod tests {
     use sov_rollup_interface::rpc::LedgerRpcProvider;
 
     use crate::ledger_db::{LedgerDB, SlotCommit};
+    use crate::rocks_db_config::RocksdbConfig;
+
     #[test]
     fn test_slot_subscription() {
         let temp_dir = tempfile::tempdir().unwrap();
-        let path = temp_dir.path();
-        let db = LedgerDB::with_path(path).unwrap();
+        // let path = temp_dir.path();
+        let db = LedgerDB::with_config(&RocksdbConfig::new(temp_dir.path(), None)).unwrap();
 
         let mut rx = db.subscribe_slots().unwrap();
         db.commit_slot(SlotCommit::<_, MockBlob, Vec<u8>>::new(MockBlock::default()))

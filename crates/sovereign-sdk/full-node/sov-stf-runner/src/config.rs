@@ -66,6 +66,8 @@ const fn default_batch_requests_limit() -> u32 {
 pub struct StorageConfig {
     /// Path that can be utilized by concrete rollup implementation
     pub path: PathBuf,
+    /// File descriptor limit for RocksDB
+    pub db_max_open_files: Option<i32>,
 }
 
 /// Important public keys for the rollup
@@ -191,6 +193,7 @@ mod tests {
             },
             storage: StorageConfig {
                 path: "/tmp/rollup".into(),
+                db_max_open_files: None,
             },
             rpc: RpcConfig {
                 bind_host: "127.0.0.1".to_string(),

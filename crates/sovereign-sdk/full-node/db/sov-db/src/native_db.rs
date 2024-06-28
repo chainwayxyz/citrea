@@ -1,10 +1,9 @@
-use std::path::Path;
 use std::sync::Arc;
 
 use sov_schema_db::snapshot::{DbSnapshot, QueryManager, ReadOnlyDbSnapshot};
 use sov_schema_db::SchemaBatch;
 
-use crate::rocks_db_config::gen_rocksdb_options;
+use crate::rocks_db_config::RocksdbConfig;
 use crate::schema::tables::{ModuleAccessoryState, NATIVE_TABLES};
 use crate::schema::types::AccessoryKey;
 
@@ -32,13 +31,13 @@ impl<Q> NativeDB<Q> {
     const DB_NAME: &'static str = "native";
 
     /// Initialize [`sov_schema_db::DB`] that matches tables and columns for NativeDB
-    pub fn setup_schema_db(path: impl AsRef<Path>) -> anyhow::Result<sov_schema_db::DB> {
-        let path = path.as_ref().join(Self::DB_PATH_SUFFIX);
+    pub fn setup_schema_db(cfg: &RocksdbConfig) -> anyhow::Result<sov_schema_db::DB> {
+        let path = cfg.path.join(Self::DB_PATH_SUFFIX);
         sov_schema_db::DB::open(
             path,
             Self::DB_NAME,
             NATIVE_TABLES.iter().copied(),
-            &gen_rocksdb_options(&Default::default(), false),
+            &cfg.as_rocksdb_options(false),
         )
     }
 

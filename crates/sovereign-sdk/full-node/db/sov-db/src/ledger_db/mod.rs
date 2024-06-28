@@ -1,4 +1,3 @@
-use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 use serde::Serialize;
@@ -9,7 +8,7 @@ use sov_rollup_interface::zk::Proof;
 use sov_schema_db::{Schema, SchemaBatch, SeekKeyEncoder, DB};
 use tracing::instrument;
 
-use crate::rocks_db_config::gen_rocksdb_options;
+use crate::rocks_db_config::RocksdbConfig;
 use crate::schema::tables::{
     BatchByHash, BatchByNumber, CommitmentsByNumber, EventByKey, EventByNumber, L2RangeByL1Height,
     LastSequencerCommitmentSent, ProofBySlotNumber, ProverLastScannedSlot, SlotByHash,
@@ -97,13 +96,13 @@ impl LedgerDB {
     /// Open a [`LedgerDB`] (backed by RocksDB) at the specified path.
     /// The returned instance will be at the path `{path}/ledger-db`.
     #[instrument(level = "trace", skip_all, err)]
-    pub fn with_path(path: impl AsRef<Path>) -> Result<Self, anyhow::Error> {
-        let path = path.as_ref().join(LEDGER_DB_PATH_SUFFIX);
+    pub fn with_config(cfg: &RocksdbConfig) -> Result<Self, anyhow::Error> {
+        let path = cfg.path.join(LEDGER_DB_PATH_SUFFIX);
         let inner = DB::open(
             path,
             "ledger-db",
             LEDGER_TABLES.iter().copied(),
-            &gen_rocksdb_options(&Default::default(), false),
+            &cfg.as_rocksdb_options(false),
         )?;
 
         let next_item_numbers = ItemNumbers {

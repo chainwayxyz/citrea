@@ -9,6 +9,7 @@ use async_trait::async_trait;
 use citrea_sequencer::{CitreaSequencer, SequencerConfig};
 pub use runtime_rpc::*;
 use sov_db::ledger_db::LedgerDB;
+use sov_db::rocks_db_config::RocksdbConfig;
 use sov_modules_api::{Context, DaSpec, Spec};
 use sov_modules_stf_blueprint::{GenesisParams, Runtime as RuntimeTrait, StfBlueprint};
 use sov_rollup_interface::services::da::DaService;
@@ -122,8 +123,8 @@ pub trait RollupBlueprint: Sized + Send + Sync {
     ) -> Result<Self::StorageManager, anyhow::Error>;
 
     /// Creates instance of a LedgerDB.
-    fn create_ledger_db(&self, rollup_config: &RollupConfig<Self::DaConfig>) -> LedgerDB {
-        LedgerDB::with_path(&rollup_config.storage.path).expect("Ledger DB failed to open")
+    fn create_ledger_db(&self, rocksdb_config: &RocksdbConfig) -> LedgerDB {
+        LedgerDB::with_config(rocksdb_config).expect("Ledger DB failed to open")
     }
 
     /// Creates a new sequencer
@@ -141,12 +142,15 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         <Self::NativeContext as Spec>::Storage: NativeStorage,
     {
         let da_service = self.create_da_service(&rollup_config).await;
-
         // TODO: Double check what kind of storage needed here.
         // Maybe whole "prev_root" can be initialized inside runner
         // Getting block here, so prover_service doesn't have to be `Send`
 
-        let ledger_db = self.create_ledger_db(&rollup_config);
+        let rocksdb_config = RocksdbConfig::new(
+            rollup_config.storage.path.as_path(),
+            rollup_config.storage.db_max_open_files,
+        );
+        let ledger_db = self.create_ledger_db(&rocksdb_config);
         let genesis_config = self.create_genesis_config(runtime_genesis_paths, &rollup_config)?;
 
         let mut storage_manager = self.create_storage_manager(&rollup_config)?;
@@ -216,7 +220,11 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         // Maybe whole "prev_root" can be initialized inside runner
         // Getting block here, so prover_service doesn't have to be `Send`
 
-        let ledger_db = self.create_ledger_db(&rollup_config);
+        let rocksdb_config = RocksdbConfig::new(
+            rollup_config.storage.path.as_path(),
+            rollup_config.storage.db_max_open_files,
+        );
+        let ledger_db = self.create_ledger_db(&rocksdb_config);
         let genesis_config = self.create_genesis_config(runtime_genesis_paths, &rollup_config)?;
 
         let mut storage_manager = self.create_storage_manager(&rollup_config)?;
@@ -289,7 +297,11 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         // Maybe whole "prev_root" can be initialized inside runner
         // Getting block here, so prover_service doesn't have to be `Send`
 
-        let ledger_db = self.create_ledger_db(&rollup_config);
+        let rocksdb_config = RocksdbConfig::new(
+            rollup_config.storage.path.as_path(),
+            rollup_config.storage.db_max_open_files,
+        );
+        let ledger_db = self.create_ledger_db(&rocksdb_config);
         let genesis_config = self.create_genesis_config(runtime_genesis_paths, &rollup_config)?;
 
         let mut storage_manager = self.create_storage_manager(&rollup_config)?;
