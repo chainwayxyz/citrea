@@ -385,7 +385,7 @@ impl StorageInternalCache {
         &mut self,
         key: &StorageKey,
         value_reader: &S,
-        witness: &S::Witness,
+        witness: &mut S::Witness,
     ) -> Option<StorageValue> {
         let cache_key = key.to_cache_key_version(self.version);
         let cache_value = self.get_value_from_cache(&cache_key);

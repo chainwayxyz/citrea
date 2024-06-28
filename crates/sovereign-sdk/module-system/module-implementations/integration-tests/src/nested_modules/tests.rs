@@ -28,9 +28,9 @@ fn nested_module_call_test() {
         ]
     );
 
-    let (log, witness) = working_set.checkpoint().freeze();
+    let (log, mut witness) = working_set.checkpoint().freeze();
     prover_storage
-        .validate_and_commit(log, &witness)
+        .validate_and_commit(log, &mut witness)
         .expect("State update is valid");
 
     // Test the `zk` execution.
