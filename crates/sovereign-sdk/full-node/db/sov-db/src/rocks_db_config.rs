@@ -27,7 +27,7 @@ pub struct RocksdbConfig<'a> {
 impl<'a> RocksdbConfig<'a> {
     /// Creates new instance of [`RocksdbConfig`]
     pub fn new(path: &'a Path, max_open_files: Option<i32>) -> Self {
-        let max_open_files = max_open_files.unwrap_or_else(|| get_fd_limit());
+        let max_open_files = max_open_files.unwrap_or_else(get_fd_limit);
         Self {
             path,
             // Allow db to close old sst files, saving memory.
