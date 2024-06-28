@@ -10,7 +10,7 @@ db_path = "da-db"
 [storage]
 # The path to the rollup's data directory. Paths that do not begin with `/` are interpreted as relative paths.
 path = "full-node-db"
-db_max_open_files = 256
+db_max_open_files = 5000
 
 [rpc]
 # the host and port to bind the rpc server for
