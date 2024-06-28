@@ -1,9 +1,10 @@
 // Adapted from Aptos-Core.
 // Modified to remove serde dependency
 
+use std::path::Path;
+
 use rlimit::{getrlimit, Resource};
 use rocksdb::Options;
-use std::path::Path;
 use tracing::warn;
 
 /// Port selected RocksDB options for tuning underlying rocksdb instance of our state db.
