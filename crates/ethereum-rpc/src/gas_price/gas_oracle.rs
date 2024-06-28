@@ -3,8 +3,6 @@
 
 // Adopted from: https://github.com/paradigmxyz/reth/blob/main/crates/rpc/rpc/src/eth/gas_oracle.rs
 
-use std::sync::Arc;
-
 use citrea_evm::{Evm, SYSTEM_SIGNER};
 use reth_primitives::basefee::calc_next_block_base_fee;
 use reth_primitives::constants::GWEI_TO_WEI;
@@ -105,8 +103,6 @@ pub struct GasPriceOracle<C: sov_modules_api::Context> {
     last_price: Mutex<GasPriceOracleResult>,
     /// Fee history cache with lifetime
     fee_history_cache: Mutex<FeeHistoryCache<C>>,
-    /// Block cache
-    cache: Arc<BlockCache<C>>,
 }
 
 impl<C: sov_modules_api::Context> GasPriceOracle<C> {
@@ -124,18 +120,14 @@ impl<C: sov_modules_api::Context> GasPriceOracle<C> {
 
         let max_header_history = oracle_config.max_header_history as u32;
 
-        let cache = BlockCache::new(max_header_history, provider.clone());
-
-        let arc_cache = Arc::new(cache);
-
-        let fee_history_cache = FeeHistoryCache::new(fee_history_config, arc_cache.clone());
+        let block_cache = BlockCache::new(max_header_history, provider.clone());
+        let fee_history_cache = FeeHistoryCache::new(fee_history_config, block_cache);
 
         Self {
             provider: provider.clone(),
             oracle_config,
             last_price: Default::default(),
             fee_history_cache: Mutex::new(fee_history_cache),
-            cache: arc_cache,
         }
     }
 
@@ -201,7 +193,7 @@ impl<C: sov_modules_api::Context> GasPriceOracle<C> {
         let mut rewards: Vec<Vec<u128>> = Vec::new();
 
         let (fee_entries, resolution) = {
-            let fee_history_cache = self.fee_history_cache.lock().await;
+            let mut fee_history_cache = self.fee_history_cache.lock().await;
 
             (
                 fee_history_cache.get_history(start_block, end_block, working_set),
@@ -336,7 +328,11 @@ impl<C: sov_modules_api::Context> GasPriceOracle<C> {
         working_set: &mut WorkingSet<C>,
     ) -> EthResult<Option<(B256, Vec<u128>)>> {
         // check the cache (this will hit the disk if the block is not cached)
-        let block = match self.cache.get_block(block_hash, working_set)? {
+        let block_hit = {
+            let mut cache = self.fee_history_cache.lock().await;
+            cache.block_cache.get_block(block_hash, working_set)?
+        };
+        let block = match block_hit {
             Some(block) => block,
             None => return Ok(None),
         };
