@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
-import "../lib/Ownable.sol";
 import "./interfaces/IBitcoinLightClient.sol";
 import "bitcoin-spv/solidity/contracts/ValidateSPV.sol";
 import "openzeppelin-contracts-upgradeable/contracts/proxy/utils/UUPSUpgradeable.sol";
