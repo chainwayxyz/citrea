@@ -8,8 +8,10 @@ use sov_modules_api::WorkingSet;
 
 /// Cache for gas oracle
 pub struct BlockCache<C: sov_modules_api::Context> {
-    // Assuming number_to_hash and cache are always in sync
+    /// Assuming number_to_hash and cache are always in sync
+    /// Acquire after `cache`
     number_to_hash: Mutex<LruMap<u64, B256, ByLength>>, // Number -> hash mapping
+    /// Acquire before `number_to_hash``
     cache: Mutex<LruMap<B256, Rich<Block>, ByLength>>,
     provider: citrea_evm::Evm<C>,
 }
@@ -62,8 +64,8 @@ impl<C: sov_modules_api::Context> BlockCache<C> {
         block_number: u64,
         working_set: &mut WorkingSet<C>,
     ) -> EthResult<Option<Rich<Block>>> {
-        let mut number_to_hash = self.number_to_hash.lock().unwrap();
         let mut cache = self.cache.lock().unwrap();
+        let mut number_to_hash = self.number_to_hash.lock().unwrap();
         // Check if block is in cache
         if let Some(block_hash) = number_to_hash.get(&block_number) {
             return Ok(Some(cache.get(block_hash).unwrap().clone()));

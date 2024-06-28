@@ -200,11 +200,14 @@ impl<C: sov_modules_api::Context> GasPriceOracle<C> {
         let mut gas_used_ratio: Vec<f64> = Vec::new();
         let mut rewards: Vec<Vec<u128>> = Vec::new();
 
-        let fee_history_cache = self.fee_history_cache.lock().await;
+        let (fee_entries, resolution) = {
+            let fee_history_cache = self.fee_history_cache.lock().await;
 
-        // Check if the requested range is within the cache bounds
-        let fee_entries = fee_history_cache.get_history(start_block, end_block, working_set);
-        let resolution = fee_history_cache.resolution();
+            (
+                fee_history_cache.get_history(start_block, end_block, working_set),
+                fee_history_cache.resolution(),
+            )
+        };
 
         if fee_entries.len() != block_count as usize {
             return Err(EthApiError::InvalidBlockRange);
