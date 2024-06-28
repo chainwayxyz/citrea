@@ -1,6 +1,7 @@
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
+use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_rollup_interface::da::{DaSpec, SequencerCommitment};
 use sov_rollup_interface::services::da::SlotData;
@@ -564,8 +565,22 @@ impl LedgerDB {
         Ok(())
     }
 
-    /// Set the last scanned slot by the prover
-    /// Called by the prover.
+    /// Get the witness by L2 height
+    #[instrument(level = "trace", skip_all, err)]
+    pub fn get_l2_witness<Witness: DeserializeOwned>(
+        &self,
+        l2_height: u64,
+    ) -> anyhow::Result<Option<Witness>> {
+        let buf = self.db.get::<L2Witness>(&BatchNumber(l2_height))?;
+        if let Some(buf) = buf {
+            let witness = bincode::deserialize(&buf)?;
+            Ok(Some(witness))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Set the witness by L2 height
     #[instrument(level = "trace", skip_all, err, ret)]
     pub fn set_l2_witness<Witness: Serialize>(
         &self,
