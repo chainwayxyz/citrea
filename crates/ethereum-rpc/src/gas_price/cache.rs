@@ -9,9 +9,9 @@ use sov_modules_api::WorkingSet;
 /// Cache for gas oracle
 pub struct BlockCache<C: sov_modules_api::Context> {
     /// Assuming number_to_hash and cache are always in sync
-    /// If to be acquired acquire after `cache`
+    /// Acquire after `cache`
     number_to_hash: Mutex<LruMap<u64, B256, ByLength>>, // Number -> hash mapping
-    /// If to be acquired, acquire before `number_to_hash``
+    /// Acquire before `number_to_hash``
     cache: Mutex<LruMap<B256, Rich<Block>, ByLength>>,
     provider: citrea_evm::Evm<C>,
 }
