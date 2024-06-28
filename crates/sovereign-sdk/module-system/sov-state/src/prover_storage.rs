@@ -84,7 +84,7 @@ impl<S: MerkleProofSpec, Q: QueryManager> Storage for ProverStorage<S, Q> {
         &self,
         key: &StorageKey,
         version: Option<Version>,
-        witness: &Self::Witness,
+        witness: &mut Self::Witness,
     ) -> Option<StorageValue> {
         let val = self.read_value(key, version);
         witness.add_hint(val.clone());
@@ -103,7 +103,7 @@ impl<S: MerkleProofSpec, Q: QueryManager> Storage for ProverStorage<S, Q> {
     fn compute_state_update(
         &self,
         state_accesses: OrderedReadsAndWrites,
-        witness: &Self::Witness,
+        witness: &mut Self::Witness,
     ) -> Result<(Self::Root, Self::StateUpdate, StateDiff), anyhow::Error> {
         let latest_version = self.db.get_next_version() - 1;
         let jmt = JellyfishMerkleTree::<_, S::Hasher>::new(&self.db);

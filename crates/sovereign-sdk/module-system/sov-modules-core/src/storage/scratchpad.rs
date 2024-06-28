@@ -188,7 +188,7 @@ impl<S: Storage> fmt::Debug for Delta<S> {
 
 impl<S: Storage> StateReaderAndWriter for Delta<S> {
     fn get(&mut self, key: &StorageKey) -> Option<StorageValue> {
-        self.cache.get_or_fetch(key, &self.inner, &self.witness)
+        self.cache.get_or_fetch(key, &self.inner, &mut self.witness)
     }
 
     fn set(&mut self, key: &StorageKey, value: StorageValue) {
