@@ -469,6 +469,8 @@ where
                         &mut signed_soft_confirmation,
                     );
 
+                    self.ledger_db
+                        .set_l2_witness(l2_height, &slot_result.witness)?;
                     state_transition_witnesses_to_push.push(slot_result.witness);
 
                     for receipt in slot_result.batch_receipts {
