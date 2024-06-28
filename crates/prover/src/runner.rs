@@ -332,7 +332,7 @@ where
 
             let mut soft_confirmations: VecDeque<Vec<SignedSoftConfirmationBatch>> =
                 VecDeque::new();
-            let mut state_transition_witnesses: VecDeque<Vec<Stf::Witness>> = VecDeque::new();
+            let mut commitments_l2_heights = vec![];
             let mut da_block_headers_of_soft_confirmations: VecDeque<
                 Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader>,
             > = VecDeque::new();
@@ -340,8 +340,8 @@ where
             let mut traversed_l1_tuples = vec![];
 
             for sequencer_commitment in sequencer_commitments.clone().into_iter() {
+                let mut commitment_l2_heights = vec![];
                 let mut sof_soft_confirmations_to_push = vec![];
-                let mut state_transition_witnesses_to_push = vec![];
                 let mut da_block_headers_to_push: Vec<
                     <<Da as DaService>::Spec as DaSpec>::BlockHeader,
                 > = vec![];
@@ -434,6 +434,7 @@ where
                     let mut signed_soft_confirmation: SignedSoftConfirmationBatch =
                         soft_batch.clone().into();
 
+                    commitment_l2_heights.push(l2_height);
                     sof_soft_confirmations_to_push.push(signed_soft_confirmation.clone());
 
                     // The filtered block of soft batch, which is the block at the da_slot_height of soft batch
@@ -471,7 +472,6 @@ where
 
                     self.ledger_db
                         .set_l2_witness(l2_height, &slot_result.witness)?;
-                    state_transition_witnesses_to_push.push(slot_result.witness);
 
                     for receipt in slot_result.batch_receipts {
                         data_to_commit.add_batch(receipt);
@@ -523,14 +523,27 @@ where
                     l2_height += 1;
                 }
 
+                commitments_l2_heights.push(commitment_l2_heights);
                 soft_confirmations.push_back(sof_soft_confirmations_to_push);
-                state_transition_witnesses.push_back(state_transition_witnesses_to_push);
                 da_block_headers_of_soft_confirmations.push_back(da_block_headers_to_push);
             }
 
             info!("Sending for proving");
 
             let hash = da_block_header_of_commitments.hash();
+
+            let mut state_transition_witnesses = VecDeque::new();
+            for l2_heights in commitments_l2_heights {
+                let mut witnesses = vec![];
+                for l2_height in l2_heights {
+                    let witness = self
+                        .ledger_db
+                        .get_l2_witness::<Stf::Witness>(l2_height)?
+                        .expect("A witness must be present");
+                    witnesses.push(witness);
+                }
+                state_transition_witnesses.push_back(witnesses);
+            }
 
             let transition_data: StateTransitionData<Stf::StateRoot, Stf::Witness, Da::Spec> =
                 StateTransitionData {
