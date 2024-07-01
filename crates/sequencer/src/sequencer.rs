@@ -5,7 +5,7 @@ use std::net::SocketAddr;
 use std::ops::RangeInclusive;
 use std::sync::Arc;
 use std::time::Duration;
-use std::vec;
+use std::{thread, vec};
 
 use anyhow::anyhow;
 use borsh::ser::BorshSerialize;
@@ -17,6 +17,7 @@ use futures::StreamExt;
 use hyper::Method;
 use jsonrpsee::server::middleware::http::ProxyGetRequestLayer;
 use jsonrpsee::server::{BatchRequestConfig, ServerBuilder};
+use jsonrpsee::types::error::{INTERNAL_ERROR_CODE, INTERNAL_ERROR_MSG};
 use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::RpcModule;
 use reth_primitives::{Address, FromRecoveredPooledTransaction, IntoRecoveredTransaction, TxHash};
@@ -921,17 +922,48 @@ where
     }
 
     /// Updates the given RpcModule with Sequencer methods.
-    pub async fn register_rpc_methods(
+    pub(crate) async fn register_rpc_methods(
         &self,
-        mut rpc_methods: jsonrpsee::RpcModule<()>,
-    ) -> Result<jsonrpsee::RpcModule<()>, jsonrpsee::core::RegisterMethodError> {
+        rpc_methods: jsonrpsee::RpcModule<()>,
+    ) -> Result<jsonrpsee::RpcModule<RpcContext<C>>, jsonrpsee::core::RegisterMethodError> {
         let rpc_context = self.create_rpc_context().await;
-        let rpc = create_rpc_module(rpc_context)?;
+        let mut rpc = create_rpc_module(rpc_context)?;
 
-        rpc_methods.register_method("health_check", |_, _| Ok::<(), ErrorObjectOwned>(()))?;
-        rpc_methods.merge(rpc)?;
+        let ledger_db = self.ledger_db.clone();
+        rpc.register_method("health_check", move |_, _| {
+            let next_soft_batch_num = ledger_db.get_next_items_numbers().soft_batch_number;
+            if next_soft_batch_num < 2 {
+                return Ok::<(), ErrorObjectOwned>(());
+            }
 
-        Ok(rpc_methods)
+            let soft_batches = ledger_db
+                .get_soft_batch_range(
+                    &(BatchNumber(next_soft_batch_num - 2)..BatchNumber(next_soft_batch_num)),
+                )
+                .map_err(|err| {
+                    ErrorObjectOwned::owned(
+                        INTERNAL_ERROR_CODE,
+                        INTERNAL_ERROR_MSG,
+                        Some(format!("Failed to get soft batch range: {}", err)),
+                    )
+                })?;
+            let block_time_s = soft_batches[1].timestamp - soft_batches[0].timestamp;
+            thread::sleep(Duration::from_millis(block_time_s * 1500));
+
+            let new_soft_batch_num = ledger_db.get_next_items_numbers().soft_batch_number;
+            if new_soft_batch_num <= next_soft_batch_num {
+                Err(ErrorObjectOwned::owned(
+                    INTERNAL_ERROR_CODE,
+                    INTERNAL_ERROR_MSG,
+                    Some("Block number is not increasing"),
+                ))
+            } else {
+                Ok::<(), ErrorObjectOwned>(())
+            }
+        })?;
+
+        rpc.merge(rpc_methods)?;
+        Ok(rpc)
     }
 
     pub async fn restore_mempool(
