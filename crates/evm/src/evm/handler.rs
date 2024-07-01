@@ -21,6 +21,7 @@ use sov_modules_api::{native_debug, native_error, native_warn};
 use tracing::instrument;
 
 use crate::system_events::SYSTEM_SIGNER;
+use crate::{BASE_FEE_VAULT, L1_FEE_VAULT, PRIORITY_FEE_VAULT};
 
 #[derive(Copy, Clone, Default, Debug)]
 pub struct TxInfo {
@@ -325,26 +326,17 @@ impl<SPEC: Spec, EXT: CitreaExternalExt, DB: Database> CitreaHandler<SPEC, EXT, 
             // System caller doesn't spend gas.
             return Ok(());
         }
+        let gas_used = U256::from(gas.spent() - gas.refunded() as u64);
+        // add priority fee to priority fee vault
+        let priority_fee_per_gas = context.evm.env.tx.gas_priority_fee.unwrap_or(U256::ZERO);
+        let priority_fee = priority_fee_per_gas * gas_used;
 
-        let beneficiary = context.evm.env.block.coinbase;
-        let effective_gas_price = context.evm.env.effective_gas_price();
-
-        // EIP-1559 discard basefee for coinbase transfer.
-        // ^ But we don't do that.
-        // We don't sub block.basefee from effective_gas_price.
-        let coinbase_gas_price = effective_gas_price;
-
-        let (coinbase_account, _) = context
-            .evm
-            .inner
-            .journaled_state
-            .load_account(beneficiary, &mut context.evm.inner.db)?;
-
-        coinbase_account.mark_touch();
-        coinbase_account.info.balance = coinbase_account
-            .info
-            .balance
-            .saturating_add(coinbase_gas_price * U256::from(gas.spent() - gas.refunded() as u64));
+        change_balance(context, priority_fee, true, PRIORITY_FEE_VAULT)?;
+        // add base fee to base fee vault
+        let base_fee_per_gas = context.evm.env.block.basefee;
+        let base_fee = base_fee_per_gas * gas_used;
+        change_balance(context, base_fee, true, BASE_FEE_VAULT)?;
+        println!("base_fee: {}, priority_fee: {}", base_fee, priority_fee);
 
         Ok(())
     }
@@ -366,7 +358,8 @@ impl<SPEC: Spec, EXT: CitreaExternalExt, DB: Database> CitreaHandler<SPEC, EXT, 
                     l1_fee
                 )));
             }
-            increase_coinbase_balance(context, l1_fee)?;
+            // add l1 fee to l1 fee vault
+            change_balance(context, l1_fee, true, L1_FEE_VAULT)?;
         }
 
         revm::handler::mainnet::output(context, result)
@@ -388,7 +381,7 @@ fn calc_diff_size<EXT, DB: Database>(
     let journal = journaled_state.journal.last().cloned().unwrap_or(vec![]);
     let state = &journaled_state.state;
 
-    #[derive(Default)]
+    #[derive(Default, Debug)]
     struct AccountChange<'a> {
         created: bool,
         destroyed: bool,
@@ -401,6 +394,7 @@ fn calc_diff_size<EXT, DB: Database>(
     let mut account_changes: HashMap<&Address, AccountChange<'_>> = HashMap::new();
 
     for entry in &journal {
+        println!("Entry: {:?}", entry);
         match entry {
             JournalEntry::NonceChange { address } => {
                 let account = account_changes.entry(address).or_default();
@@ -438,7 +432,9 @@ fn calc_diff_size<EXT, DB: Database>(
                     account.destroyed = true;
                 }
             }
-            _ => {}
+            _ => {
+                println!("Unsupported journal entry: {:?}", entry);
+            }
         }
     }
     native_debug!(
@@ -450,6 +446,7 @@ fn calc_diff_size<EXT, DB: Database>(
     let mut diff_size = 0usize;
 
     for (addr, account) in account_changes {
+        println!("Adr: {:?}, account: {:?}", addr, account);
         // Apply size of address of changed account
         diff_size += size_of::<Address>();
 
@@ -565,13 +562,4 @@ fn decrease_caller_balance<EXT, DB: Database>(
 ) -> Result<Option<InstructionResult>, EVMError<DB::Error>> {
     let address = context.evm.env.tx.caller;
     change_balance(context, amount, false, address)
-}
-
-fn increase_coinbase_balance<EXT, DB: Database>(
-    context: &mut Context<EXT, DB>,
-    amount: U256,
-) -> Result<(), EVMError<DB::Error>> {
-    let address = context.evm.env.block.coinbase;
-    change_balance(context, amount, true, address)?;
-    Ok(())
 }
