@@ -453,7 +453,7 @@ fn calc_diff_size<EXT, DB: Database>(
     // no matter the type of transaction or its fee rates, a tx must pay at least base fee and L1 fee
     // thus we increment the diff size by 20 (coinbase address) + 32 (coinbase balance change)
     // notice, we don't add to diff size when an address explicitly sends funds to coinbase
-    if account_changes.get(&env.block.coinbase).is_none() {
+    if !account_changes.contains_key(&env.block.coinbase) {
         diff_size += size_of::<Address>() + size_of::<U256>();
     }
 
