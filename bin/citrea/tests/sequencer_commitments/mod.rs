@@ -6,7 +6,7 @@ use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 use shared_backup_db::{PostgresConnector, SharedBackupDbConfig};
 use sov_mock_da::{MockAddress, MockDaService, MockDaSpec};
-use sov_modules_api::{BlobReaderTrait, SignedSoftConfirmationBatch};
+use sov_modules_api::BlobReaderTrait;
 use sov_rollup_interface::da::DaData;
 use sov_rollup_interface::services::da::DaService;
 use sov_stf_runner::ProverConfig;
@@ -99,14 +99,12 @@ async fn sequencer_sends_commitments_to_da_layer() {
 
     let start_l2_block: u64 = 1;
     let end_l2_block: u64 = 4; // can only be the block before the one comitment landed in
-    let start_l1_block = 1;
 
-    let end_l1_block = check_sequencer_commitment(
+    check_sequencer_commitment(
         test_client.as_ref(),
         &da_service,
         start_l2_block,
         end_l2_block,
-        start_l1_block,
     )
     .await;
 
@@ -124,14 +122,12 @@ async fn sequencer_sends_commitments_to_da_layer() {
 
     let start_l2_block: u64 = end_l2_block + 1;
     let end_l2_block: u64 = end_l2_block + 5; // can only be the block before the one comitment landed in
-    let start_l1_block = end_l1_block + 1;
 
     check_sequencer_commitment(
         test_client.as_ref(),
         &da_service,
         start_l2_block,
         end_l2_block,
-        start_l1_block,
     )
     .await;
 
@@ -143,9 +139,7 @@ async fn check_sequencer_commitment(
     da_service: &MockDaService,
     start_l2_block: u64,
     end_l2_block: u64,
-    start_l1_block: u64,
-    // end_l1_block: u64,
-) -> u64 {
+) {
     let last_finalized_height = da_service
         .get_last_finalized_block_header()
         .await
@@ -172,18 +166,6 @@ async fn check_sequencer_commitment(
         panic!("Expected SequencerCommitment, got {:?}", commitment);
     };
 
-    let commitments_last_soft_confirmation: SignedSoftConfirmationBatch = test_client
-        .ledger_get_soft_batch_by_number::<MockDaSpec>(end_l2_block) // after commitment is sent another block is published
-        .await
-        .unwrap()
-        .into();
-
-    let start_l1_block = da_service.get_block_at(start_l1_block).await.unwrap();
-    let end_l1_block = da_service
-        .get_block_at(commitments_last_soft_confirmation.da_slot_height())
-        .await
-        .unwrap();
-
     let mut batch_receipts = Vec::new();
 
     for i in start_l2_block..=end_l2_block {
@@ -204,11 +186,9 @@ async fn check_sequencer_commitment(
             .as_slice(),
     );
 
-    assert_eq!(commitment.l1_start_block_hash, start_l1_block.header.hash.0);
-    assert_eq!(commitment.l1_end_block_hash, end_l1_block.header.hash.0);
+    assert_eq!(commitment.l2_start_block_number, start_l2_block);
+    assert_eq!(commitment.l2_end_block_number, end_l2_block);
     assert_eq!(commitment.merkle_root, merkle_tree.root().unwrap());
-
-    end_l1_block.header.height
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -368,15 +348,8 @@ async fn test_ledger_get_commitments_on_slot() {
         .unwrap();
     assert_eq!(commitments.len(), 1);
 
-    let second_hash = da_service.get_block_at(2).await.unwrap().header.hash;
-    assert_eq!(
-        commitments[0].l1_start_block_hash.to_vec(),
-        second_hash.0.to_vec()
-    );
-    assert_eq!(
-        commitments[0].l1_end_block_hash.to_vec(),
-        second_hash.0.to_vec()
-    );
+    assert_eq!(commitments[0].l2_start_block_number, 1);
+    assert_eq!(commitments[0].l2_end_block_number, 4);
 
     assert_eq!(commitments[0].found_in_l1, 4);
 
@@ -483,15 +456,8 @@ async fn test_ledger_get_commitments_on_slot_prover() {
         .unwrap();
     assert_eq!(commitments.len(), 1);
 
-    let second_hash = da_service.get_block_at(2).await.unwrap().header.hash;
-    assert_eq!(
-        commitments[0].l1_start_block_hash.to_vec(),
-        second_hash.0.to_vec()
-    );
-    assert_eq!(
-        commitments[0].l1_end_block_hash.to_vec(),
-        second_hash.0.to_vec()
-    );
+    assert_eq!(commitments[0].l2_start_block_number, 1);
+    assert_eq!(commitments[0].l2_end_block_number, 4);
 
     assert_eq!(commitments[0].found_in_l1, 4);
 

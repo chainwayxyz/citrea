@@ -2594,15 +2594,8 @@ async fn full_node_verify_proof_and_store() {
         .unwrap();
     assert_eq!(commitments.len(), 1);
 
-    let second_hash = da_service.get_block_at(2).await.unwrap().header.hash;
-    assert_eq!(
-        commitments[0].l1_start_block_hash.to_vec(),
-        second_hash.0.to_vec()
-    );
-    assert_eq!(
-        commitments[0].l1_end_block_hash.to_vec(),
-        second_hash.0.to_vec()
-    );
+    assert_eq!(commitments[0].l2_start_block_number, 1);
+    assert_eq!(commitments[0].l2_end_block_number, 4);
 
     assert_eq!(commitments[0].found_in_l1, 4);
 
@@ -2816,15 +2809,8 @@ async fn test_all_flow() {
         .unwrap();
     assert_eq!(commitments.len(), 1);
 
-    let second_hash = da_service.get_block_at(2).await.unwrap().header.hash;
-    assert_eq!(
-        commitments[0].l1_start_block_hash.to_vec(),
-        second_hash.0.to_vec()
-    );
-    assert_eq!(
-        commitments[0].l1_end_block_hash.to_vec(),
-        second_hash.0.to_vec()
-    );
+    assert_eq!(commitments[0].l2_start_block_number, 1);
+    assert_eq!(commitments[0].l2_end_block_number, 4);
 
     assert_eq!(commitments[0].found_in_l1, 4);
 
