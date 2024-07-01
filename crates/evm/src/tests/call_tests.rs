@@ -1,6 +1,5 @@
 use std::str::FromStr;
 
-use alloy::providers::network::TxSignerSync;
 use reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT;
 use reth_primitives::{address, Address, BlockNumberOrTag, Bytes, TxKind};
 use reth_rpc_types::request::{TransactionInput, TransactionRequest};

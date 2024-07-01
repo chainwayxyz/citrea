@@ -336,7 +336,6 @@ impl<SPEC: Spec, EXT: CitreaExternalExt, DB: Database> CitreaHandler<SPEC, EXT, 
         let base_fee_per_gas = context.evm.env.block.basefee;
         let base_fee = base_fee_per_gas * gas_used;
         change_balance(context, base_fee, true, BASE_FEE_VAULT)?;
-        println!("base_fee: {}, priority_fee: {}", base_fee, priority_fee);
 
         Ok(())
     }
@@ -382,7 +381,7 @@ fn calc_diff_size<EXT, DB: Database>(
     let journal = journaled_state.journal.last().cloned().unwrap_or(vec![]);
     let state = &journaled_state.state;
 
-    #[derive(Default, Debug)]
+    #[derive(Default)]
     struct AccountChange<'a> {
         created: bool,
         destroyed: bool,
@@ -395,7 +394,6 @@ fn calc_diff_size<EXT, DB: Database>(
     let mut account_changes: HashMap<&Address, AccountChange<'_>> = HashMap::new();
 
     for entry in &journal {
-        println!("Entry: {:?}", entry);
         match entry {
             JournalEntry::NonceChange { address } => {
                 let account = account_changes.entry(address).or_default();
@@ -433,9 +431,7 @@ fn calc_diff_size<EXT, DB: Database>(
                     account.destroyed = true;
                 }
             }
-            _ => {
-                println!("Unsupported journal entry: {:?}", entry);
-            }
+            _ => {}
         }
     }
     native_debug!(
@@ -454,7 +450,6 @@ fn calc_diff_size<EXT, DB: Database>(
     }
 
     for (addr, account) in account_changes {
-        println!("Adr: {:?}, account: {:?}", addr, account);
         // Apply size of address of changed account
         diff_size += size_of::<Address>();
 

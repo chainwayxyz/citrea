@@ -29,6 +29,11 @@ use sov_state::codec::BcsCodec;
 #[cfg(test)]
 use crate::tests::DEFAULT_CHAIN_ID;
 
+/// Bitcoin light client contract address
+pub const BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS: Address =
+    address!("3100000000000000000000000000000000000001");
+/// Bridge contract address
+pub const BRIDGE_CONTRACT_ADDRESS: Address = address!("3100000000000000000000000000000000000002");
 /// Base fee vault address
 pub const BASE_FEE_VAULT: Address = address!("3100000000000000000000000000000000000003");
 /// L1 fee vault address
