@@ -78,4 +78,34 @@ impl TestSigner {
             rlp: signed.envelope_encoded().to_vec(),
         })
     }
+
+    /// Signs default Eip1559 transaction with to, data and nonce overridden.
+    pub(crate) fn sign_default_transaction_with_priority_fee(
+        &self,
+        to: TxKind,
+        data: Vec<u8>,
+        nonce: u64,
+        value: u128,
+        max_fee_per_gas: u128,
+        max_priority_fee_per_gas: u128,
+    ) -> Result<RlpEvmTransaction, SignError> {
+        let reth_tx = RethTxEip1559 {
+            to,
+            input: RethBytes::from(data),
+            nonce,
+            value: U256::from(value),
+            chain_id: DEFAULT_CHAIN_ID,
+            gas_limit: 1_000_000u64,
+            max_fee_per_gas,
+            max_priority_fee_per_gas,
+            ..Default::default()
+        };
+
+        let reth_tx = RethTransaction::Eip1559(reth_tx);
+        let signed = self.signer.sign_transaction(reth_tx, self.address)?;
+
+        Ok(RlpEvmTransaction {
+            rlp: signed.envelope_encoded().to_vec(),
+        })
+    }
 }
