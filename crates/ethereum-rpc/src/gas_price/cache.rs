@@ -1,5 +1,3 @@
-use std::sync::Mutex;
-
 use reth_primitives::{BlockNumberOrTag, B256};
 use reth_rpc::eth::error::EthResult;
 use reth_rpc_types::{AnyTransactionReceipt, Block, BlockTransactions, Rich};
@@ -8,34 +6,31 @@ use sov_modules_api::WorkingSet;
 
 /// Cache for gas oracle
 pub struct BlockCache<C: sov_modules_api::Context> {
-    // Assuming number_to_hash and cache are always in sync
-    number_to_hash: Mutex<LruMap<u64, B256, ByLength>>, // Number -> hash mapping
-    cache: Mutex<LruMap<B256, Rich<Block>, ByLength>>,
+    number_to_hash: LruMap<u64, B256, ByLength>, // Number -> hash mapping
+    cache: LruMap<B256, Rich<Block>, ByLength>,
     provider: citrea_evm::Evm<C>,
 }
 
 impl<C: sov_modules_api::Context> BlockCache<C> {
     pub fn new(max_size: u32, provider: citrea_evm::Evm<C>) -> Self {
         Self {
-            number_to_hash: Mutex::new(LruMap::new(ByLength::new(max_size))),
-            cache: Mutex::new(LruMap::new(ByLength::new(max_size))),
+            number_to_hash: LruMap::new(ByLength::new(max_size)),
+            cache: LruMap::new(ByLength::new(max_size)),
             provider,
         }
     }
 
     /// Gets block from cache or from provider
     pub fn get_block(
-        &self,
+        &mut self,
         block_hash: B256,
         working_set: &mut WorkingSet<C>,
     ) -> EthResult<Option<Rich<Block>>> {
         // Check if block is in cache
-        let mut cache = self.cache.lock().unwrap();
-        let mut number_to_hash = self.number_to_hash.lock().unwrap();
-        if let Some(block) = cache.get(&block_hash) {
+        if let Some(block) = self.cache.get(&block_hash) {
             // Even though block is in cache, ask number_to_hash to keep it in sync
             let number: u64 = block.header.number.unwrap_or_default();
-            number_to_hash.get(&number);
+            self.number_to_hash.get(&number);
             return Ok(Some(block.clone()));
         }
 
@@ -49,8 +44,8 @@ impl<C: sov_modules_api::Context> BlockCache<C> {
         if let Some(block) = &block {
             let number: u64 = block.header.number.unwrap_or_default();
 
-            number_to_hash.insert(number, block_hash);
-            cache.insert(block_hash, block.clone());
+            self.number_to_hash.insert(number, block_hash);
+            self.cache.insert(block_hash, block.clone());
         }
 
         Ok(block)
@@ -58,15 +53,13 @@ impl<C: sov_modules_api::Context> BlockCache<C> {
 
     /// Gets block from cache or from provider by block number
     pub fn get_block_by_number(
-        &self,
+        &mut self,
         block_number: u64,
         working_set: &mut WorkingSet<C>,
     ) -> EthResult<Option<Rich<Block>>> {
-        let mut number_to_hash = self.number_to_hash.lock().unwrap();
-        let mut cache = self.cache.lock().unwrap();
         // Check if block is in cache
-        if let Some(block_hash) = number_to_hash.get(&block_number) {
-            return Ok(Some(cache.get(block_hash).unwrap().clone()));
+        if let Some(block_hash) = self.number_to_hash.get(&block_number) {
+            return Ok(Some(self.cache.get(block_hash).unwrap().clone()));
         }
 
         // Get block from provider
@@ -84,15 +77,15 @@ impl<C: sov_modules_api::Context> BlockCache<C> {
             let number: u64 = block.header.number.unwrap_or_default();
             let hash = block.header.hash.unwrap_or_default();
 
-            number_to_hash.insert(number, hash);
-            cache.insert(hash, block.clone());
+            self.number_to_hash.insert(number, hash);
+            self.cache.insert(hash, block.clone());
         }
 
         Ok(block)
     }
 
     pub fn get_block_with_receipts(
-        &self,
+        &mut self,
         block_number: u64,
         working_set: &mut WorkingSet<C>,
     ) -> EthResult<Option<(Rich<Block>, Vec<AnyTransactionReceipt>)>> {

@@ -1,6 +1,5 @@
 //! Consist of types adjacent to the fee history cache and its configs
 use std::fmt::Debug;
-use std::sync::{Arc, Mutex};
 
 use reth_primitives::B256;
 use reth_rpc::eth::error::EthApiError;
@@ -44,18 +43,18 @@ pub struct FeeHistoryCache<C: sov_modules_api::Context> {
     /// and max number of blocks
     config: FeeHistoryCacheConfig,
     /// Stores the entries of the cache
-    entries: Mutex<LruMap<u64, FeeHistoryEntry, ByLength>>,
+    entries: LruMap<u64, FeeHistoryEntry, ByLength>,
     /// Block cache
-    block_cache: Arc<BlockCache<C>>,
+    pub(crate) block_cache: BlockCache<C>,
 }
 
 impl<C: sov_modules_api::Context> FeeHistoryCache<C> {
     /// Creates new FeeHistoryCache instance, initialize it with the mose recent data, set bounds
-    pub fn new(config: FeeHistoryCacheConfig, block_cache: Arc<BlockCache<C>>) -> Self {
+    pub fn new(config: FeeHistoryCacheConfig, block_cache: BlockCache<C>) -> Self {
         let max_blocks = config.max_blocks;
         Self {
             config,
-            entries: Mutex::new(LruMap::new(ByLength::new(max_blocks as u32))),
+            entries: LruMap::new(ByLength::new(max_blocks as u32)),
             block_cache,
         }
     }
@@ -73,10 +72,7 @@ impl<C: sov_modules_api::Context> FeeHistoryCache<C> {
     }
 
     /// Processing of the arriving blocks
-    pub fn insert_blocks<I>(&self, entries: &mut LruMap<u64, FeeHistoryEntry, ByLength>, blocks: I)
-    where
-        I: Iterator<Item = (Rich<Block>, Vec<AnyTransactionReceipt>)>,
-    {
+    pub fn insert_blocks(&mut self, blocks: Vec<(Rich<Block>, Vec<AnyTransactionReceipt>)>) {
         let percentiles = self.predefined_percentiles();
         // Insert all new blocks and calculate approximated rewards
         for (block, receipts) in blocks {
@@ -94,7 +90,7 @@ impl<C: sov_modules_api::Context> FeeHistoryCache<C> {
             )
             .unwrap_or_default();
             let block_number: u64 = block.header.number.unwrap_or_default();
-            entries.insert(block_number, fee_history_entry);
+            self.entries.insert(block_number, fee_history_entry);
         }
     }
 
@@ -105,17 +101,15 @@ impl<C: sov_modules_api::Context> FeeHistoryCache<C> {
     /// it returns the corresponding entries.
     /// Otherwise it returns None.
     pub fn get_history(
-        &self,
+        &mut self,
         start_block: u64,
         end_block: u64,
         working_set: &mut WorkingSet<C>,
     ) -> Vec<FeeHistoryEntry> {
-        let mut entries = self.entries.lock().unwrap();
-
         let mut result = Vec::new();
         let mut empty_blocks = Vec::new();
         for block_number in start_block..=end_block {
-            let entry = entries.get(&block_number);
+            let entry = self.entries.get(&block_number);
 
             // if entry, push to result
             if let Some(entry) = entry {
@@ -128,18 +122,22 @@ impl<C: sov_modules_api::Context> FeeHistoryCache<C> {
         }
 
         // Get blocks from cache (fallback rpc) and receipts from rpc
-        let blocks_with_receipts = empty_blocks.clone().into_iter().filter_map(|block_number| {
-            self.block_cache
-                .get_block_with_receipts(block_number, working_set)
-                .unwrap_or(None)
-        });
+        let blocks_with_receipts = empty_blocks
+            .clone()
+            .into_iter()
+            .filter_map(|block_number| {
+                self.block_cache
+                    .get_block_with_receipts(block_number, working_set)
+                    .unwrap_or(None)
+            })
+            .collect();
 
         // Insert blocks with receipts into cache
-        self.insert_blocks(&mut entries, blocks_with_receipts);
+        self.insert_blocks(blocks_with_receipts);
 
         // Get entries from cache for empty blocks
         for block_number in empty_blocks {
-            let entry = entries.get(&block_number);
+            let entry = self.entries.get(&block_number);
             if let Some(entry) = entry {
                 result[block_number as usize - start_block as usize] = entry.clone();
             }
