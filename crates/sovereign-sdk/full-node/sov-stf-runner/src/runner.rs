@@ -1,6 +1,7 @@
 use std::collections::VecDeque;
 use std::marker::PhantomData;
 use std::net::SocketAddr;
+use std::thread;
 
 use anyhow::{anyhow, bail};
 use backoff::future::retry as retry_backoff;
@@ -9,6 +10,9 @@ use borsh::de::BorshDeserialize;
 use borsh::BorshSerialize as _;
 use hyper::Method;
 use jsonrpsee::core::client::Error as JsonrpseeError;
+use jsonrpsee::server::middleware::http::ProxyGetRequestLayer;
+use jsonrpsee::types::error::{INTERNAL_ERROR_CODE, INTERNAL_ERROR_MSG};
+use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::RpcModule;
 use rand::Rng;
 use rs_merkle::algorithms::Sha256;
@@ -196,11 +200,16 @@ where
 
         let max_connections = self.rpc_config.max_connections;
 
+        let methods = self
+            .register_healthcheck_rpc(methods)
+            .expect("Failed to register healthcheck rpc");
+
         let cors = CorsLayer::new()
             .allow_methods([Method::POST, Method::OPTIONS])
             .allow_origin(Any)
             .allow_headers(Any);
-        let middleware = tower::ServiceBuilder::new().layer(cors);
+        let health_check = ProxyGetRequestLayer::new("/health", "health_check").unwrap();
+        let middleware = tower::ServiceBuilder::new().layer(cors).layer(health_check);
 
         let _handle = tokio::spawn(async move {
             let server = jsonrpsee::server::ServerBuilder::default()
@@ -234,6 +243,47 @@ where
                 }
             }
         });
+    }
+
+    /// Updates the given RpcModule with healthcheckk rpc.
+    fn register_healthcheck_rpc(
+        &self,
+        mut rpc_methods: RpcModule<()>,
+    ) -> Result<RpcModule<()>, jsonrpsee::core::RegisterMethodError> {
+        // TODO: create register_healthcheck_rpc helper function
+        let ledger_db = self.ledger_db.clone();
+        rpc_methods.register_method("health_check", move |_, _| {
+            let next_soft_batch_num = ledger_db.get_next_items_numbers().soft_batch_number;
+            if next_soft_batch_num < 2 {
+                return Ok::<(), ErrorObjectOwned>(());
+            }
+
+            let soft_batches = ledger_db
+                .get_soft_batch_range(
+                    &(BatchNumber(next_soft_batch_num - 2)..BatchNumber(next_soft_batch_num)),
+                )
+                .map_err(|err| {
+                    ErrorObjectOwned::owned(
+                        INTERNAL_ERROR_CODE,
+                        INTERNAL_ERROR_MSG,
+                        Some(format!("Failed to get soft batch range: {}", err)),
+                    )
+                })?;
+            let block_time_s = soft_batches[1].timestamp - soft_batches[0].timestamp;
+            thread::sleep(Duration::from_millis(block_time_s * 1500));
+
+            let new_soft_batch_num = ledger_db.get_next_items_numbers().soft_batch_number;
+            if new_soft_batch_num >= next_soft_batch_num {
+                Ok::<(), ErrorObjectOwned>(())
+            } else {
+                Err(ErrorObjectOwned::owned(
+                    INTERNAL_ERROR_CODE,
+                    INTERNAL_ERROR_MSG,
+                    Some("Block number is not increasing"),
+                ))
+            }
+        })?;
+        Ok(rpc_methods)
     }
 
     /// Returns the head soft batch

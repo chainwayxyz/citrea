@@ -60,7 +60,6 @@ impl RollupBlueprint for BitcoinRollup {
         // unused inside register RPC
         let sov_sequencer = Address::new([0; 32]);
 
-        #[allow(unused_mut)]
         let mut rpc_methods = sov_modules_rollup_blueprint::register_rpc::<
             Self::NativeRuntime,
             Self::NativeContext,
