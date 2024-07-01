@@ -10,6 +10,7 @@ use borsh::BorshSerialize as _;
 use hyper::Method;
 use jsonrpsee::core::client::Error as JsonrpseeError;
 use jsonrpsee::server::middleware::http::ProxyGetRequestLayer;
+use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::RpcModule;
 use rand::Rng;
 use rs_merkle::algorithms::Sha256;
@@ -197,6 +198,10 @@ where
 
         let max_connections = self.rpc_config.max_connections;
 
+        let methods = self
+            .register_healthcheck_rpc(methods)
+            .expect("Failed to register healthcheck rpc");
+
         let cors = CorsLayer::new()
             .allow_methods([Method::POST, Method::OPTIONS])
             .allow_origin(Any)
@@ -236,6 +241,15 @@ where
                 }
             }
         });
+    }
+
+    /// Updates the given RpcModule with healthcheckk rpc.
+    fn register_healthcheck_rpc(
+        &self,
+        mut rpc_methods: RpcModule<()>,
+    ) -> Result<RpcModule<()>, jsonrpsee::core::RegisterMethodError> {
+        rpc_methods.register_method("health_check", |_, _| Ok::<(), ErrorObjectOwned>(()))?;
+        Ok(rpc_methods)
     }
 
     /// Returns the head soft batch

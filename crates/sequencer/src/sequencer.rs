@@ -17,6 +17,7 @@ use futures::StreamExt;
 use hyper::Method;
 use jsonrpsee::server::middleware::http::ProxyGetRequestLayer;
 use jsonrpsee::server::{BatchRequestConfig, ServerBuilder};
+use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::RpcModule;
 use reth_primitives::{Address, FromRecoveredPooledTransaction, IntoRecoveredTransaction, TxHash};
 use reth_provider::{AccountReader, BlockReaderIdExt};
@@ -926,7 +927,10 @@ where
     ) -> Result<jsonrpsee::RpcModule<()>, jsonrpsee::core::RegisterMethodError> {
         let rpc_context = self.create_rpc_context().await;
         let rpc = create_rpc_module(rpc_context)?;
+
+        rpc_methods.register_method("health_check", |_, _| Ok::<(), ErrorObjectOwned>(()))?;
         rpc_methods.merge(rpc)?;
+
         Ok(rpc_methods)
     }
 
