@@ -68,14 +68,16 @@ pub struct DbSequencerCommitment {
     pub status: CommitmentStatus,
 }
 
+// Fields removed:
+//
+// l1_start_hash       BYTEA NOT NULL,
+// l1_end_hash         BYTEA NOT NULL,
+// l1_start_height     OID NOT NULL,
+// l1_end_height       OID NOT NULL,
 pub const SEQUENCER_COMMITMENT_TABLE_CREATE_QUERY: &str = "
 CREATE TABLE IF NOT EXISTS sequencer_commitments (
     id                  SERIAL PRIMARY KEY,
-    l1_start_height     OID NOT NULL,
-    l1_end_height       OID NOT NULL,
     l1_tx_id            BYTEA NOT NULL,
-    l1_start_hash       BYTEA NOT NULL,
-    l1_end_hash         BYTEA NOT NULL,
     l2_start_height     OID NOT NULL,
     l2_end_height       OID NOT NULL,
     merkle_root         BYTEA NOT NULL,
