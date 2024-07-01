@@ -122,7 +122,6 @@ impl ExposeRpcMacro {
                     storage: storage.clone(),
                     _phantom: ::std::marker::PhantomData
                 };
-                module.register_method("health_check", |_, _| Ok::<(), ErrorObjectOwned>(())).unwrap();
 
                 #merge_operations
                 module

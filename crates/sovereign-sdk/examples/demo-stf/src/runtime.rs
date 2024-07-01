@@ -33,7 +33,6 @@
 #![allow(unused_doc_comments)]
 #[cfg(feature = "native")]
 use citrea_evm::{EvmRpcImpl, EvmRpcServer};
-use jsonrpsee::types::ErrorObjectOwned;
 #[cfg(feature = "native")]
 use soft_confirmation_rule_enforcer::{
     SoftConfirmationRuleEnforcerRpcImpl, SoftConfirmationRuleEnforcerRpcServer,
