@@ -929,6 +929,7 @@ where
         let rpc_context = self.create_rpc_context().await;
         let mut rpc = create_rpc_module(rpc_context)?;
 
+        // TODO: create register_healthcheck_rpc helper function
         let ledger_db = self.ledger_db.clone();
         rpc.register_method("health_check", move |_, _| {
             let next_soft_batch_num = ledger_db.get_next_items_numbers().soft_batch_number;

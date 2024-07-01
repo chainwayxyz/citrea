@@ -1,6 +1,7 @@
 use std::collections::VecDeque;
 use std::marker::PhantomData;
 use std::net::SocketAddr;
+use std::thread;
 
 use anyhow::{anyhow, bail};
 use backoff::future::retry as retry_backoff;
@@ -10,6 +11,7 @@ use borsh::BorshSerialize as _;
 use hyper::Method;
 use jsonrpsee::core::client::Error as JsonrpseeError;
 use jsonrpsee::server::middleware::http::ProxyGetRequestLayer;
+use jsonrpsee::types::error::{INTERNAL_ERROR_CODE, INTERNAL_ERROR_MSG};
 use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::RpcModule;
 use rand::Rng;
@@ -248,7 +250,39 @@ where
         &self,
         mut rpc_methods: RpcModule<()>,
     ) -> Result<RpcModule<()>, jsonrpsee::core::RegisterMethodError> {
-        rpc_methods.register_method("health_check", |_, _| Ok::<(), ErrorObjectOwned>(()))?;
+        // TODO: create register_healthcheck_rpc helper function
+        let ledger_db = self.ledger_db.clone();
+        rpc_methods.register_method("health_check", move |_, _| {
+            let next_soft_batch_num = ledger_db.get_next_items_numbers().soft_batch_number;
+            if next_soft_batch_num < 2 {
+                return Ok::<(), ErrorObjectOwned>(());
+            }
+            
+            let soft_batches = ledger_db
+                .get_soft_batch_range(
+                    &(BatchNumber(next_soft_batch_num - 2)..BatchNumber(next_soft_batch_num)),
+                )
+                .map_err(|err| {
+                    ErrorObjectOwned::owned(
+                        INTERNAL_ERROR_CODE,
+                        INTERNAL_ERROR_MSG,
+                        Some(format!("Failed to get soft batch range: {}", err)),
+                    )
+                })?;
+            let block_time_s = soft_batches[1].timestamp - soft_batches[0].timestamp;
+            thread::sleep(Duration::from_millis(block_time_s * 1500));
+
+            let new_soft_batch_num = ledger_db.get_next_items_numbers().soft_batch_number;
+            if new_soft_batch_num <= next_soft_batch_num {
+                Err(ErrorObjectOwned::owned(
+                    INTERNAL_ERROR_CODE,
+                    INTERNAL_ERROR_MSG,
+                    Some("Block number is not increasing"),
+                ))
+            } else {
+                Ok::<(), ErrorObjectOwned>(())
+            }
+        })?;
         Ok(rpc_methods)
     }
 
