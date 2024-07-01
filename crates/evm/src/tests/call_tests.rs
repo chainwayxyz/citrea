@@ -895,7 +895,7 @@ fn test_l1_fee_success() {
                 },
                 gas_used: 114235,
                 log_index_start: 0,
-                diff_size: 425,
+                diff_size: 477,
             },]
         )
     }
@@ -911,10 +911,10 @@ fn test_l1_fee_success() {
     );
     run_tx(
         1,
-        U256::from(9771105),
+        U256::from(9771053),
         U256::from(gas_fee_paid),
         U256::from(gas_fee_paid),
-        U256::from(425),
+        U256::from(477),
     );
 }
 
@@ -1070,7 +1070,6 @@ fn test_l1_fee_halt() {
     let expenses = 1106947 + // evm gas
         445 + // l1 contract deploy fee
         52; // l1 contract call fee
-
     assert_eq!(
         db_account.info.balance,
         U256::from(
@@ -1079,10 +1078,14 @@ fn test_l1_fee_halt() {
         )
     );
 
-    let coinbase_account = evm
+    let base_fee_valut = evm.accounts.get(&BASE_FEE_VAULT, &mut working_set).unwrap();
+    let priority_fee_valut = evm
         .accounts
-        .get(&config.coinbase, &mut working_set)
+        .get(&PRIORITY_FEE_VAULT, &mut working_set)
         .unwrap();
+    let l1_fee_valut = evm.accounts.get(&L1_FEE_VAULT, &mut working_set).unwrap();
 
-    assert_eq!(coinbase_account.info.balance, U256::from(expenses));
+    assert_eq!(base_fee_valut.info.balance, U256::from(1106947));
+    assert_eq!(priority_fee_valut.info.balance, U256::from(0));
+    assert_eq!(l1_fee_valut.info.balance, U256::from(445 + 52));
 }
