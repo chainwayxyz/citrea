@@ -56,6 +56,7 @@ pub const LEDGER_TABLES: &[&str] = &[
     SoftBatchByNumber::table_name(),
     SoftBatchByHash::table_name(),
     L2RangeByL1Height::table_name(),
+    L2Witness::table_name(),
     LastSequencerCommitmentSent::table_name(),
     ProverLastScannedSlot::table_name(),
     BatchByHash::table_name(),
@@ -247,6 +248,11 @@ define_table_with_default_codec!(
 define_table_with_default_codec!(
     /// The primary source of reverse look-up L2 height ranges for L1 heights
     (L2RangeByL1Height) SlotNumber => L2HeightRange
+);
+
+define_table_with_default_codec!(
+    /// The primary source of witness by L2 height
+    (L2Witness) BatchNumber => Vec<u8>
 );
 
 define_table_with_seek_key_codec!(

@@ -1,6 +1,7 @@
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
+use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_rollup_interface::da::{DaSpec, SequencerCommitment};
 use sov_rollup_interface::services::da::SlotData;
@@ -12,7 +13,7 @@ use tracing::instrument;
 use crate::rocks_db_config::gen_rocksdb_options;
 use crate::schema::tables::{
     BatchByHash, BatchByNumber, CommitmentsByNumber, EventByKey, EventByNumber, L2RangeByL1Height,
-    LastSequencerCommitmentSent, ProofBySlotNumber, ProverLastScannedSlot, SlotByHash,
+    L2Witness, LastSequencerCommitmentSent, ProofBySlotNumber, ProverLastScannedSlot, SlotByHash,
     SlotByNumber, SoftBatchByHash, SoftBatchByNumber, SoftConfirmationStatus, TxByHash, TxByNumber,
     VerifiedProofsBySlotNumber, LEDGER_TABLES,
 };
@@ -559,6 +560,37 @@ impl LedgerDB {
         schema_batch
             .put::<ProverLastScannedSlot>(&(), &l1_height)
             .unwrap();
+        self.db.write_schemas(schema_batch)?;
+
+        Ok(())
+    }
+
+    /// Get the witness by L2 height
+    #[instrument(level = "trace", skip_all, err)]
+    pub fn get_l2_witness<Witness: DeserializeOwned>(
+        &self,
+        l2_height: u64,
+    ) -> anyhow::Result<Option<Witness>> {
+        let buf = self.db.get::<L2Witness>(&BatchNumber(l2_height))?;
+        if let Some(buf) = buf {
+            let witness = bincode::deserialize(&buf)?;
+            Ok(Some(witness))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Set the witness by L2 height
+    #[instrument(level = "trace", skip_all, err, ret)]
+    pub fn set_l2_witness<Witness: Serialize>(
+        &self,
+        l2_height: u64,
+        witness: &Witness,
+    ) -> anyhow::Result<()> {
+        let buf = bincode::serialize(witness)?;
+        let mut schema_batch = SchemaBatch::new();
+        schema_batch.put::<L2Witness>(&BatchNumber(l2_height), &buf)?;
+
         self.db.write_schemas(schema_batch)?;
 
         Ok(())

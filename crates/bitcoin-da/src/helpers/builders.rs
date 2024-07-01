@@ -28,6 +28,7 @@ use tracing::instrument;
 
 use crate::helpers::{BODY_TAG, PUBLICKEY_TAG, RANDOM_TAG, ROLLUP_NAME_TAG, SIGNATURE_TAG};
 use crate::spec::utxo::UTXO;
+use crate::REVEAL_OUTPUT_AMOUNT;
 
 pub fn compress_blob(blob: &[u8]) -> Vec<u8> {
     let mut writer = CompressorWriter::new(Vec::new(), 4096, 11, 22);
@@ -209,7 +210,7 @@ fn build_commit_transaction(
         let input_total = output_value + fee;
 
         let (chosen_utxos, sum) = choose_utxos(required_utxo.clone(), &utxos, input_total)?;
-        let has_change = (sum - input_total) >= 546;
+        let has_change = (sum - input_total) >= REVEAL_OUTPUT_AMOUNT;
         let direct_return = !has_change;
 
         let outputs = if !has_change {
@@ -302,7 +303,8 @@ fn build_reveal_transaction(
 
     let input_total = output_value + fee;
 
-    if input_utxo.value < Amount::from_sat(546) || input_utxo.value < Amount::from_sat(input_total)
+    if input_utxo.value < Amount::from_sat(REVEAL_OUTPUT_AMOUNT)
+        || input_utxo.value < Amount::from_sat(input_total)
     {
         return Err(anyhow::anyhow!("input UTXO not big enough"));
     }
@@ -557,6 +559,7 @@ mod tests {
     use crate::helpers::builders::{compress_blob, decompress_blob};
     use crate::helpers::parsers::parse_transaction;
     use crate::spec::utxo::UTXO;
+    use crate::REVEAL_OUTPUT_AMOUNT;
 
     #[test]
     fn compression_decompression() {
@@ -933,7 +936,7 @@ mod tests {
             utxo.tx_id,
             utxo.vout,
             address.clone(),
-            546,
+            REVEAL_OUTPUT_AMOUNT,
             8.0,
             &script,
             &control_block,
@@ -949,7 +952,7 @@ mod tests {
         assert_eq!(tx.input[0].previous_output.vout, utxo.vout);
 
         assert_eq!(tx.output.len(), 1);
-        assert_eq!(tx.output[0].value, Amount::from_sat(546));
+        assert_eq!(tx.output[0].value, Amount::from_sat(REVEAL_OUTPUT_AMOUNT));
         assert_eq!(tx.output[0].script_pubkey, address.script_pubkey());
 
         let utxo = utxos.get(2).unwrap();
@@ -962,7 +965,7 @@ mod tests {
             utxo.tx_id,
             utxo.vout,
             address.clone(),
-            546,
+            REVEAL_OUTPUT_AMOUNT,
             75.0,
             &script,
             &control_block,

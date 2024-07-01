@@ -7,34 +7,37 @@ import "forge-std/console.sol";
 import "../src/FeeVault.sol";
 abstract contract FeeVaultTest is Test {
     FeeVault feeVault;
+    address owner = makeAddr("citrea_owner");
+    address recipient = makeAddr("citrea_recipient");
 
     function testWithdraw() public {
         vm.deal(address(feeVault), 1 ether);
-        address recipient = vm.addr(0x1234);
-        feeVault.setRecipient(recipient);
+        vm.prank(owner);
         feeVault.withdraw();
         assertEq(address(recipient).balance, 1 ether);
     }
 
     function testCannotWithdrawLessThanMinWithdraw() public {
         vm.deal(address(feeVault), 0.1 ether);
-        address recipient = vm.addr(0x1234);
-        feeVault.setRecipient(recipient);
+        vm.startPrank(owner);
         vm.expectRevert("Withdrawal amount must be greater than minimum withdraw amount");
         feeVault.withdraw();
     }
 
     function testSetRecipient() public {
+        vm.prank(owner);
         feeVault.setRecipient(address(this));
         assertEq(feeVault.recipient(), address(this));
     }
 
     function testSetMinWithdraw() public {
+        vm.prank(owner);
         feeVault.setMinWithdraw(1.7 ether);
         assertEq(feeVault.minWithdraw(), 1.7 ether);
     }
 
     function testCanChangeOwnerAndSetState() public {
+        vm.startPrank(owner);
         feeVault.setRecipient(address(this));
         feeVault.setMinWithdraw(1.7 ether);
         assertEq(feeVault.recipient(), address(this));
@@ -42,6 +45,7 @@ abstract contract FeeVaultTest is Test {
 
         address newOwner = vm.addr(0x1234);
         feeVault.transferOwnership(newOwner);
+        vm.stopPrank();
         vm.startPrank(newOwner);
         feeVault.acceptOwnership();
         feeVault.setRecipient(address(1));
@@ -53,9 +57,9 @@ abstract contract FeeVaultTest is Test {
     function testNonOwnerCannotChangeState() public {
         address nonOwner = vm.addr(0x1234);
         vm.startPrank(nonOwner);
-        vm.expectRevert("Caller is not owner");
+        vm.expectRevert();
         feeVault.setRecipient(address(1));
-        vm.expectRevert("Caller is not owner");
+        vm.expectRevert();
         feeVault.setMinWithdraw(0.3 ether);
     }
 }

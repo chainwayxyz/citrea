@@ -1,14 +1,17 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import "../lib/Ownable.sol";
+import "openzeppelin-contracts-upgradeable/contracts/proxy/utils/UUPSUpgradeable.sol";
+import "openzeppelin-contracts-upgradeable/contracts/access/Ownable2StepUpgradeable.sol";
 
 /// @title Fee accumulator contract template
 /// @author Citrea
 
-abstract contract FeeVault is Ownable {
+abstract contract FeeVault is UUPSUpgradeable, Ownable2StepUpgradeable {
     address public recipient;
-    uint256 public minWithdraw = 0.5 ether;
+    uint256 public minWithdraw;
+
+    uint256[50] private __gap;
 
     event RecipientUpdated(address oldRecipient, address newRecipient);
     event MinWithdrawUpdated(uint256 oldMinWithdraw, uint256 newMinWithdraw);
@@ -37,4 +40,6 @@ abstract contract FeeVault is Ownable {
         minWithdraw = _minWithdraw;
         emit MinWithdrawUpdated(oldMinWithdraw, _minWithdraw);
     }
+
+    function _authorizeUpgrade(address) internal override onlyOwner {}
 }
