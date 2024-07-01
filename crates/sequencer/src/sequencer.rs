@@ -948,18 +948,19 @@ where
                         Some(format!("Failed to get soft batch range: {}", err)),
                     )
                 })?;
+
             let block_time_s = soft_batches[1].timestamp - soft_batches[0].timestamp;
             thread::sleep(Duration::from_millis(block_time_s * 1500));
-
+            
             let new_soft_batch_num = ledger_db.get_next_items_numbers().soft_batch_number;
-            if new_soft_batch_num <= next_soft_batch_num {
+            if new_soft_batch_num >= next_soft_batch_num {
+                Ok::<(), ErrorObjectOwned>(())
+            } else {
                 Err(ErrorObjectOwned::owned(
                     INTERNAL_ERROR_CODE,
                     INTERNAL_ERROR_MSG,
                     Some("Block number is not increasing"),
                 ))
-            } else {
-                Ok::<(), ErrorObjectOwned>(())
             }
         })?;
 
