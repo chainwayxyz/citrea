@@ -257,7 +257,7 @@ where
             if next_soft_batch_num < 2 {
                 return Ok::<(), ErrorObjectOwned>(());
             }
-            
+
             let soft_batches = ledger_db
                 .get_soft_batch_range(
                     &(BatchNumber(next_soft_batch_num - 2)..BatchNumber(next_soft_batch_num)),
