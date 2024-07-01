@@ -9,6 +9,7 @@ use borsh::de::BorshDeserialize;
 use borsh::BorshSerialize as _;
 use hyper::Method;
 use jsonrpsee::core::client::Error as JsonrpseeError;
+use jsonrpsee::server::middleware::http::ProxyGetRequestLayer;
 use jsonrpsee::RpcModule;
 use rand::Rng;
 use rs_merkle::algorithms::Sha256;
@@ -200,7 +201,8 @@ where
             .allow_methods([Method::POST, Method::OPTIONS])
             .allow_origin(Any)
             .allow_headers(Any);
-        let middleware = tower::ServiceBuilder::new().layer(cors);
+        let health_check = ProxyGetRequestLayer::new("/health", "health_check").unwrap();
+        let middleware = tower::ServiceBuilder::new().layer(cors).layer(health_check);
 
         let _handle = tokio::spawn(async move {
             let server = jsonrpsee::server::ServerBuilder::default()
