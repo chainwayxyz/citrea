@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
-import "../lib/Ownable.sol";
 import "./interfaces/IBitcoinLightClient.sol";
 import "bitcoin-spv/solidity/contracts/ValidateSPV.sol";
+import "openzeppelin-contracts-upgradeable/contracts/proxy/utils/UUPSUpgradeable.sol";
+import "openzeppelin-contracts-upgradeable/contracts/access/Ownable2StepUpgradeable.sol";
 
 /// @title A system contract that stores block hashes and witness root hashes of L1 blocks
 /// @author Citrea
@@ -12,7 +13,7 @@ import "bitcoin-spv/solidity/contracts/ValidateSPV.sol";
 // - Block hash getters returning 0 value means no such block is recorded
 // - Witness root getters returning 0 value doesn't necessarily mean no such block is recorded, as 0 is also a valid witness root hash in the case of a 1 transaction block
 
-contract BitcoinLightClient is IBitcoinLightClient {
+contract BitcoinLightClient is UUPSUpgradeable, Ownable2StepUpgradeable, IBitcoinLightClient {
     uint256 public blockNumber;
     address public constant SYSTEM_CALLER = address(0xdeaDDeADDEaDdeaDdEAddEADDEAdDeadDEADDEaD);
     mapping(uint256 => bytes32) public blockHashes;
@@ -90,4 +91,6 @@ contract BitcoinLightClient is IBitcoinLightClient {
         bytes32 _witnessRoot = witnessRoots[_blockHash];
         return ValidateSPV.prove(_wtxId, _witnessRoot, _proof, _index);
     }
+
+    function _authorizeUpgrade(address) internal override onlyOwner {}
 }

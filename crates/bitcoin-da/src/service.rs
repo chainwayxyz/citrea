@@ -203,7 +203,7 @@ impl BitcoinService {
 
         let utxos: Vec<UTXO> = utxos
             .into_iter()
-            .filter(|utxo| utxo.spendable && utxo.solvable && utxo.amount > 546)
+            .filter(|utxo| utxo.spendable && utxo.solvable && utxo.amount > REVEAL_OUTPUT_AMOUNT)
             .collect();
         if utxos.is_empty() {
             return Err(anyhow::anyhow!("There are no spendable UTXOs"));

@@ -4,13 +4,14 @@ pragma solidity ^0.8.13;
 import "bitcoin-spv/solidity/contracts/ValidateSPV.sol";
 import "bitcoin-spv/solidity/contracts/BTCUtils.sol";
 import "../lib/WitnessUtils.sol";
-import "../lib/Ownable.sol";
 import "./BitcoinLightClient.sol";
+import "openzeppelin-contracts-upgradeable/contracts/proxy/utils/UUPSUpgradeable.sol";
+import "openzeppelin-contracts-upgradeable/contracts/access/Ownable2StepUpgradeable.sol";
 
-/// @title Bridge contract of Clementine
+/// @title Bridge contract for the Citrea end of Citrea <> Bitcoin bridge
 /// @author Citrea
 
-contract Bridge is Ownable {
+contract Bridge is UUPSUpgradeable, Ownable2StepUpgradeable {
     using BTCUtils for bytes;
     using BytesLib for bytes;
 
@@ -58,7 +59,7 @@ contract Bridge is Ownable {
     /// @param _depositScript The deposit script expected in the witness field for all L1 deposits
     /// @param _scriptSuffix The suffix of the deposit script that follows the receiver address
     /// @param _requiredSigsCount The number of signatures that is contained in the deposit script
-    function initialize(bytes calldata _depositScript, bytes calldata _scriptSuffix, uint256 _requiredSigsCount, address _owner) external onlySystem {
+    function initialize(bytes calldata _depositScript, bytes calldata _scriptSuffix, uint256 _requiredSigsCount) external onlySystem {
         require(!initialized, "Contract is already initialized");
         require(_requiredSigsCount != 0, "Verifier count cannot be 0");
         require(_depositScript.length != 0, "Deposit script cannot be empty");
@@ -70,7 +71,6 @@ contract Bridge is Ownable {
         
         // Set initial operator to SYSTEM_CALLER so that Citrea can get operational by starting to process deposits
         operator = SYSTEM_CALLER;
-        owner = _owner;
 
         emit OperatorUpdated(address(0), SYSTEM_CALLER);
         emit DepositScriptUpdate(_depositScript, _scriptSuffix, _requiredSigsCount);
@@ -92,7 +92,7 @@ contract Bridge is Ownable {
         emit DepositScriptUpdate(_depositScript, _scriptSuffix, _requiredSigsCount);
     }
 
-    /// @notice Checks if funds 1 BTC is sent to the bridge multisig on Bitcoin, and if so, sends 1 cBTC to the receiver
+    /// @notice Checks if the deposit amount is sent to the bridge multisig on Bitcoin, and if so, sends the deposit amount to the receiver
     /// @param p The deposit parameters that contains the info of the deposit transaction on Bitcoin
     function deposit(
         DepositParams calldata p
@@ -190,4 +190,6 @@ contract Bridge is Ownable {
         bytes20 _addr = bytes20(_script.slice(offset, 20));
         return address(uint160(_addr));
     }
+
+    function _authorizeUpgrade(address) internal override onlyOwner {}
 }
