@@ -624,8 +624,8 @@ where
                 })?;
 
             debug!("Commitment info: {:?}", commitment_info);
-            let l1_start_height = commitment_info.l1_height_range.start().0;
-            let l1_end_height = commitment_info.l1_height_range.end().0;
+            // let l1_start_height = commitment_info.l1_height_range.start().0;
+            // let l1_end_height = commitment_info.l1_height_range.end().0;
             let l2_start = l2_range_to_submit.start().0 as u32;
             let l2_end = l2_range_to_submit.end().0 as u32;
             if let Some(db_config) = self.config.db_config.clone() {
@@ -633,11 +633,11 @@ where
                     Ok(pg_connector) => {
                         pg_connector
                             .insert_sequencer_commitment(
-                                l1_start_height as u32,
-                                l1_end_height as u32,
+                                // l1_start_height as u32,
+                                // l1_end_height as u32,
                                 Into::<[u8; 32]>::into(tx_id).to_vec(),
-                                commitment.l1_start_block_hash.to_vec(),
-                                commitment.l1_end_block_hash.to_vec(),
+                                // commitment.l1_start_block_hash.to_vec(),
+                                // commitment.l1_end_block_hash.to_vec(),
                                 l2_start,
                                 l2_end,
                                 commitment.merkle_root.to_vec(),
@@ -654,10 +654,7 @@ where
                 }
             }
 
-            info!(
-                "New commitment. L2 range: #{}-{}, L1 Range #{}-{}",
-                l2_start, l2_end, l1_start_height, l1_end_height,
-            );
+            info!("New commitment. L2 range: #{}-{}", l2_start, l2_end,);
         }
         Ok(())
     }

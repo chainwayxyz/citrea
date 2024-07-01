@@ -15,10 +15,18 @@ use crate::BasicAddress;
 pub struct SequencerCommitment {
     /// Merkle root of soft confirmation hashes
     pub merkle_root: [u8; 32],
-    /// Start L1 block's hash
-    pub l1_start_block_hash: [u8; 32],
-    /// End L1 block's hash
-    pub l1_end_block_hash: [u8; 32],
+    /// Start L2 block's number
+    pub l2_start_block_number: u64,
+    /// End L2 block's number
+    pub l2_end_block_number: u64,
+    // /// Start L1 block's number
+    // pub l1_start_block_number: u64,
+    // /// End L1 block's number
+    // pub l1_end_block_number: u64,
+    // /// Start L1 block's hash
+    // pub l1_start_block_hash: [u8; 32],
+    // /// End L1 block's hash
+    // pub l1_end_block_hash: [u8; 32],
 }
 
 /// Data written to DA can only be one of these two types

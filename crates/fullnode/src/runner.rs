@@ -42,7 +42,6 @@ where
     Da: DaService,
 {
     pub(crate) by_number: LruCache<u64, Da::FilteredBlock>,
-    pub(crate) by_hash: LruCache<[u8; 32], Da::FilteredBlock>,
 }
 
 impl<Da> L1BlockCache<Da>
@@ -52,7 +51,6 @@ where
     fn new() -> Self {
         Self {
             by_number: LruCache::new(NonZeroUsize::new(10).unwrap()),
-            by_hash: LruCache::new(NonZeroUsize::new(10).unwrap()),
         }
     }
 }
@@ -297,7 +295,6 @@ where
             }
         };
 
-        // TODO: Handle error
         let proven_commitments = match self.ledger_db.get_commitments_on_da_slot(l1_height)? {
             Some(commitments) => commitments,
             None => {
@@ -309,68 +306,25 @@ where
             }
         };
 
-        let first_slot_hash = proven_commitments[0].l1_start_block_hash;
-        let l1_height_start = match self.ledger_db.get_l1_height_of_l1_hash(first_slot_hash)? {
-            Some(l1_height) => l1_height,
-            None => {
-                return Err(anyhow!(
-                    "Proof verification: For a known and verified sequencer commitment, L1 height not found for l1 hash: {:?}. Skipping proof.",
-                    l1_hash
-                ).into());
-            }
-        };
-        match self
+        let l2_height = proven_commitments[0].l2_start_block_number;
+        let soft_batches = self
             .ledger_db
-            .get_l2_range_by_l1_height(SlotNumber(l1_height_start))?
-        {
-            Some((start, _)) => {
-                let l2_height = start.0;
-                let soft_batches = self
-                    .ledger_db
-                    .get_soft_batch_range(&(BatchNumber(l2_height)..BatchNumber(l2_height + 1)))?;
+            .get_soft_batch_range(&(BatchNumber(l2_height)..BatchNumber(l2_height + 1)))?;
 
-                let soft_batch = soft_batches.first().unwrap();
-                if soft_batch.pre_state_root.as_slice()
-                    != state_transition.initial_state_root.as_ref()
-                {
-                    return Err(anyhow!(
+        let soft_batch = soft_batches.first().unwrap();
+        if soft_batch.pre_state_root.as_slice() != state_transition.initial_state_root.as_ref() {
+            return Err(anyhow!(
                         "Proof verification: For a known and verified sequencer commitment. Pre state root mismatch - expected 0x{} but got 0x{}. Skipping proof.",
                         hex::encode(&soft_batch.pre_state_root),
                         hex::encode(&state_transition.initial_state_root)
                     ).into());
-                }
-            }
-            None => {
-                return Err(anyhow!(
-                    "Proof verification: For a known and verified sequencer commitment, L1 L2 connection does not exist. L1 height = {}. Skipping proof.",
-                    l1_height_start
-                ).into());
-            }
         }
 
         for commitment in proven_commitments {
-            let l1_height_start = match self
-                .ledger_db
-                .get_l1_height_of_l1_hash(commitment.l1_start_block_hash)?
-            {
-                Some(l1_height) => l1_height,
-                None => {
-                    return Err(anyhow!("Proof verification: For a known and verified sequencer commitment, L1 height not found for l1 hash: {:?}", l1_hash).into());
-                }
-            };
-
-            let l1_height_end = match self
-                .ledger_db
-                .get_l1_height_of_l1_hash(commitment.l1_end_block_hash)?
-            {
-                Some(l1_height) => l1_height,
-                None => {
-                    return Err(anyhow!("Proof verification: For a known and verified sequencer commitment, L1 height not found for l1 hash: {:?}", l1_hash).into());
-                }
-            };
-
-            // All soft confirmations in these blocks are now proven
-            for i in l1_height_start..=l1_height_end {
+            // TODO: put_soft_confirmation_status to use L2 range
+            let l2_start_height = commitment.l2_start_block_number;
+            let l2_end_height = commitment.l2_end_block_number;
+            for i in l2_start_height..=l2_end_height {
                 self.ledger_db
                     .put_soft_confirmation_status(SlotNumber(i), SoftConfirmationStatus::Proven)?;
             }
@@ -389,74 +343,29 @@ where
         l1_block: Da::FilteredBlock,
         sequencer_commitment: SequencerCommitment,
     ) -> Result<(), SyncError> {
-        let start_l1_height = get_da_block_by_hash(
-            &self.da_service,
-            sequencer_commitment.l1_start_block_hash,
-            self.l1_block_cache.clone(),
-        )
-        .await?
-        .header()
-        .height();
-
-        let end_l1_height = get_da_block_by_hash(
-            &self.da_service,
-            sequencer_commitment.l1_end_block_hash,
-            self.l1_block_cache.clone(),
-        )
-        .await?
-        .header()
-        .height();
-
-        let start_l2_height = match self
-            .ledger_db
-            .get_l2_range_by_l1_height(SlotNumber(start_l1_height))?
-        {
-            Some((start_l2_height, _)) => start_l2_height,
-            None => {
-                return Err(SyncError::MissingL2(
-                    "Sequencer commitment verification: L1 L2 connection does not exist. Retrying later",
-                    BatchNumber(start_l1_height),
-                    BatchNumber(0),
-                ));
-            }
-        };
-
-        let end_l2_height = match self
-            .ledger_db
-            .get_l2_range_by_l1_height(SlotNumber(end_l1_height))?
-        {
-            Some((_, end_l2_height)) => BatchNumber(end_l2_height.0 + 1),
-            None => {
-                return Err(SyncError::MissingL2(
-                    "Sequencer commitment verification: L1 L2 connection does not exist. Retrying later",
-                    BatchNumber(0),
-                    BatchNumber(end_l1_height),
-                ));
-            }
-        };
+        let start_l2_height = sequencer_commitment.l2_start_block_number;
+        let end_l2_height = sequencer_commitment.l2_end_block_number;
 
         tracing::info!(
-            "Processing sequencer commitment. L2 Range = {:?} - {:?}. L1 Range = {} - {}",
+            "Processing sequencer commitment. L2 Range = {:?} - {:?}.",
             start_l2_height,
             end_l2_height,
-            start_l1_height,
-            end_l1_height
         );
 
         // Traverse each item's field of vector of transactions, put them in merkle tree
         // and compare the root with the one from the ledger
         let stored_soft_batches: Vec<StoredSoftBatch> = self
             .ledger_db
-            .get_soft_batch_range(&(start_l2_height..end_l2_height))?;
+            .get_soft_batch_range(&(BatchNumber(start_l2_height)..BatchNumber(end_l2_height)))?;
 
         // Make sure that the number of stored soft batches is equal to the range's length.
         // Otherwise, if it is smaller, then we don't have some L2 blocks within the range
         // synced yet.
-        if stored_soft_batches.len() < ((end_l2_height.0 - start_l2_height.0) as usize) {
+        if stored_soft_batches.len() < ((end_l2_height - start_l2_height) as usize) {
             return Err(SyncError::MissingL2(
                 "L2 range not synced yet",
-                start_l2_height,
-                end_l2_height,
+                BatchNumber(start_l2_height),
+                BatchNumber(end_l2_height),
             ));
         }
 
@@ -485,7 +394,7 @@ where
                 sequencer_commitment.clone(),
             )?;
 
-            for i in start_l1_height..=end_l1_height {
+            for i in start_l2_height..=end_l2_height {
                 self.ledger_db.put_soft_confirmation_status(
                     SlotNumber(i),
                     SoftConfirmationStatus::Finalized,
@@ -858,33 +767,5 @@ async fn get_da_block_at_height<Da: DaService>(
         .await
         .by_number
         .put(l1_block.header().height(), l1_block.clone());
-    Ok(l1_block)
-}
-
-async fn get_da_block_by_hash<Da: DaService>(
-    da_service: &Da,
-    block_hash: [u8; 32],
-    l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
-) -> anyhow::Result<Da::FilteredBlock> {
-    if let Some(l1_block) = l1_block_cache.lock().await.by_hash.get(&block_hash) {
-        return Ok(l1_block.clone());
-    }
-    let exponential_backoff = ExponentialBackoffBuilder::new()
-        .with_initial_interval(Duration::from_secs(1))
-        .with_max_elapsed_time(Some(Duration::from_secs(15 * 60)))
-        .build();
-    let l1_block = retry_backoff(exponential_backoff.clone(), || async {
-        da_service
-            .get_block_by_hash(block_hash)
-            .await
-            .map_err(backoff::Error::transient)
-    })
-    .await
-    .map_err(|e| anyhow!("Could not fetch L1 block by hash: {}", e))?;
-    l1_block_cache
-        .lock()
-        .await
-        .by_hash
-        .put(l1_block.header().hash().into(), l1_block.clone());
     Ok(l1_block)
 }

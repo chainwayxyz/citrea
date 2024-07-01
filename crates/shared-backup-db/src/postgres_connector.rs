@@ -9,8 +9,8 @@ use tracing::{debug, instrument};
 use crate::config::SharedBackupDbConfig;
 use crate::tables::{
     CommitmentStatus, DbMempoolTx, DbProof, DbSequencerCommitment, ProofType, Tables,
-    INDEX_L1_END_HASH, INDEX_L1_END_HEIGHT, INDEX_L2_END_HEIGHT, MEMPOOL_TXS_TABLE_CREATE_QUERY,
-    PROOF_TABLE_CREATE_QUERY, SEQUENCER_COMMITMENT_TABLE_CREATE_QUERY,
+    INDEX_L2_END_HEIGHT, MEMPOOL_TXS_TABLE_CREATE_QUERY, PROOF_TABLE_CREATE_QUERY,
+    SEQUENCER_COMMITMENT_TABLE_CREATE_QUERY,
 };
 
 #[derive(Clone)]
@@ -74,8 +74,8 @@ impl PostgresConnector {
     #[instrument(level = "trace", skip(self), err, ret)]
     pub async fn create_indexes(&self) -> Result<(), PoolError> {
         let client = self.client().await?;
-        client.batch_execute(INDEX_L1_END_HEIGHT).await?;
-        client.batch_execute(INDEX_L1_END_HASH).await?;
+        // client.batch_execute(INDEX_L1_END_HEIGHT).await?;
+        // client.batch_execute(INDEX_L1_END_HASH).await?;
         client.batch_execute(INDEX_L2_END_HEIGHT).await?;
         Ok(())
     }
@@ -134,11 +134,11 @@ impl PostgresConnector {
     #[instrument(level = "trace", skip_all, fields(l1_start_height), err, ret)]
     pub async fn insert_sequencer_commitment(
         &self,
-        l1_start_height: u32,
-        l1_end_height: u32,
+        // l1_start_height: u32,
+        // l1_end_height: u32,
         l1_tx_id: Vec<u8>,
-        l1_start_hash: Vec<u8>,
-        l1_end_hash: Vec<u8>,
+        // l1_start_hash: Vec<u8>,
+        // l1_end_hash: Vec<u8>,
         l2_start_height: u32,
         l2_end_height: u32,
         merkle_root: Vec<u8>,
@@ -147,13 +147,13 @@ impl PostgresConnector {
         let client = self.client().await?;
         Ok(client
             .execute(
-                "INSERT INTO sequencer_commitments (l1_start_height, l1_end_height, l1_tx_id, l1_start_hash, l1_end_hash, l2_start_height, l2_end_height, merkle_root, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)", 
+                "INSERT INTO sequencer_commitments (l1_tx_id, l2_start_height, l2_end_height, merkle_root, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)", 
                 &[
-                    &l1_start_height,
-                    &l1_end_height,
+                    // &l1_start_height,
+                    // &l1_end_height,
                     &l1_tx_id,
-                    &l1_start_hash,
-                    &l1_end_hash,
+                    // &l1_start_hash,
+                    // &l1_end_hash,
                     &l2_start_height,
                     &l2_end_height,
                     &merkle_root,
@@ -321,10 +321,6 @@ mod tests {
 
         let inserted = client
             .insert_sequencer_commitment(
-                3,
-                4,
-                vec![0; 32],
-                vec![255; 32],
                 vec![0; 32],
                 10,
                 11,
@@ -339,8 +335,6 @@ mod tests {
         let rows = client.get_all_commitments().await.unwrap();
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].l1_tx_id, vec![0; 32]);
-        assert_eq!(rows[0].l1_start_hash, vec![255; 32]);
-        assert_eq!(rows[0].l1_end_hash, vec![0; 32]);
         assert_eq!(rows[0].l2_start_height, 10);
         assert_eq!(rows[0].l2_end_height, 11);
         assert!(matches!(rows[0].status, CommitmentStatus::Mempool));
