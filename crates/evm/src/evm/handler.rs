@@ -327,8 +327,6 @@ impl<SPEC: Spec, EXT: CitreaExternalExt, DB: Database> CitreaHandler<SPEC, EXT, 
             return Ok(());
         }
 
-        // send priority fee to coinbase using revm mainnet behaviour
-        revm::handler::mainnet::reward_beneficiary::<SPEC, EXT, DB>(context, gas)?;
         let gas_used = U256::from(gas.spent() - gas.refunded() as u64);
 
         // Only add base fee if eip-1559 is enabled
@@ -338,6 +336,9 @@ impl<SPEC: Spec, EXT: CitreaExternalExt, DB: Database> CitreaHandler<SPEC, EXT, 
             let base_fee = base_fee_per_gas * gas_used;
             change_balance(context, base_fee, true, BASE_FEE_VAULT)?;
         }
+
+        // send priority fee to coinbase using revm mainnet behaviour
+        revm::handler::mainnet::reward_beneficiary::<SPEC, EXT, DB>(context, gas)?;
 
         Ok(())
     }
