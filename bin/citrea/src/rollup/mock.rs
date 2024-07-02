@@ -76,7 +76,7 @@ impl RollupBlueprint for MockDemoRollup {
     }
 
     fn get_code_commitment(&self) -> <Self::Vm as Zkvm>::CodeCommitment {
-        Digest::new(risc0::MOCK_DA_ID)
+        Digest::new(citrea_risc0::MOCK_DA_ID)
     }
 
     async fn create_da_service(
@@ -93,7 +93,7 @@ impl RollupBlueprint for MockDemoRollup {
         _da_service: &Self::DaService,
     ) -> Self::ProverService {
         let vm = Risc0BonsaiHost::new(
-            risc0::MOCK_DA_ELF,
+            citrea_risc0::MOCK_DA_ELF,
             std::env::var("BONSAI_API_URL").unwrap_or("".to_string()),
             std::env::var("BONSAI_API_KEY").unwrap_or("".to_string()),
         );

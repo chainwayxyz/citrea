@@ -17,13 +17,14 @@ bitcoin-da = { path = "../../crates/bitcoin-da", features = ["native"] }
 citrea-fullnode = { path = "../../crates/fullnode" }
 citrea-primitives = { path = "../../crates/primitives" }
 citrea-prover = { path = "../../crates/prover" }
+citrea-risc0 = { package = "risc0", path = "./provers/risc0" }
+citrea-risc0-bonsai-adapter = { path = "../../crates/sovereign-sdk/adapters/risc0-bonsai", features = ["native"] }
 citrea-sequencer = { path = "../../crates/sequencer" }
 citrea-stf = { path = "../../crates/citrea-stf", features = ["native"] }
 ethereum-rpc = { path = "../../crates/ethereum-rpc" }
 sequencer-client = { path = "../../crates/sequencer-client" }
 
 # Sovereign-SDK deps
-citrea-risc0-bonsai-adapter = { path = "../../crates/sovereign-sdk/adapters/risc0-bonsai", features = ["native"] }
 soft-confirmation-rule-enforcer = { path = "../../crates/soft-confirmation-rule-enforcer" }
 sov-db = { path = "../../crates/sovereign-sdk/full-node/db/sov-db" }
 sov-ledger-rpc = { path = "../../crates/sovereign-sdk/full-node/sov-ledger-rpc", features = ["server"] }
@@ -49,7 +50,6 @@ log-panics = { workspace = true }
 reth-primitives = { workspace = true }
 reth-rpc-types = { workspace = true }
 reth-transaction-pool = { workspace = true }
-risc0 = { path = "./provers/risc0" }
 secp256k1 = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }

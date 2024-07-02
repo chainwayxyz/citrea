@@ -83,10 +83,7 @@ impl RollupBlueprint for BitcoinRollup {
 
     #[instrument(level = "trace", skip(self), ret)]
     fn get_code_commitment(&self) -> <Self::Vm as Zkvm>::CodeCommitment {
-        Digest::from([
-            581052143, 2275184185, 1715279787, 1149073804, 1128615771, 1332991789, 268524604,
-            982556413,
-        ])
+        Digest::new(citrea_risc0::BITCOIN_DA_ID)
     }
 
     #[instrument(level = "trace", skip_all, err)]
@@ -123,7 +120,7 @@ impl RollupBlueprint for BitcoinRollup {
         _da_service: &Self::DaService,
     ) -> Self::ProverService {
         let vm = Risc0BonsaiHost::new(
-            risc0::BITCOIN_DA_ELF,
+            citrea_risc0::BITCOIN_DA_ELF,
             std::env::var("BONSAI_API_URL").unwrap_or("".to_string()),
             std::env::var("BONSAI_API_KEY").unwrap_or("".to_string()),
         );
