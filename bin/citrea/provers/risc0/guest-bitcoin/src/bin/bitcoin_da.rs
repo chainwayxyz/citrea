@@ -24,9 +24,8 @@ fn report_bench_metrics(start_cycles: u64, end_cycles: u64) {
     serialized.extend(&size_bytes);
 
     // calculate the syscall name.
-    let name = c"cycle_metrics".as_ptr();
-    let metrics_syscall_name =
-        unsafe { risc0_zkvm_platform::syscall::SyscallName::from_bytes_with_nul(name as _) };
+    let name = c"cycle_metrics";
+    let metrics_syscall_name = risc0_zkvm_platform::syscall::SyscallName::from_c_str(name).unwrap();
 
     risc0_zkvm::guest::env::send_recv_slice::<u8, u8>(metrics_syscall_name, &serialized);
 }
