@@ -2037,6 +2037,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b6a852b24ab71dffc585bcb46eaf7959d175cb865a7152e35b348d1b2960422"
 
 [[package]]
+name = "common"
+version = "0.4.0-rc.3"
+dependencies = [
+ "hyper 0.14.28",
+ "jsonrpsee",
+ "sov-db",
+ "tokio",
+ "tower-http",
+]
+
+[[package]]
 name = "concat-kdf"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
