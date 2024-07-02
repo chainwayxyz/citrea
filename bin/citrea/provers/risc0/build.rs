@@ -3,6 +3,7 @@ use std::collections::HashMap;
 
 fn main() {
     println!("cargo:rerun-if-env-changed=SKIP_GUEST_BUILD");
+    println!("cargo:rerun-if-env-changed=GUEST_BUILD_NO_DOCKER");
     println!("cargo:rerun-if-env-changed=OUT_DIR");
 
     if std::env::var("SKIP_GUEST_BUILD").is_ok() {
@@ -32,20 +33,27 @@ fn get_guest_options() -> HashMap<&'static str, risc0_build::GuestOptions> {
     if cfg!(feature = "bench") {
         features.push("bench".to_string());
     }
+    let use_docker = if std::env::var("GUEST_BUILD_NO_DOCKER").is_ok() {
+        println!("Skipping guest build for CI run");
+        None
+    } else {
+        Some(DockerOptions {
+            root_dir: Some("../../../../".into()),
+        })
+    };
+
     guest_pkg_to_options.insert(
         "sov-demo-prover-guest-mock",
         GuestOptions {
-            features,
-            ..Default::default()
+            features: features.clone(),
+            use_docker: use_docker.clone(),
         },
     );
     guest_pkg_to_options.insert(
         "citrea-bitcoin-prover",
         GuestOptions {
-            features: vec![],
-            use_docker: Some(DockerOptions {
-                root_dir: Some("../../../../".into()),
-            }),
+            features: features.clone(),
+            use_docker: use_docker.clone(),
         },
     );
     guest_pkg_to_options
