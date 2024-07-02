@@ -21,7 +21,7 @@ use sov_modules_api::{native_debug, native_error, native_warn};
 use tracing::instrument;
 
 use crate::system_events::SYSTEM_SIGNER;
-use crate::{BASE_FEE_VAULT, L1_FEE_VAULT, PRIORITY_FEE_VAULT};
+use crate::{BASE_FEE_VAULT, L1_FEE_VAULT};
 
 #[derive(Copy, Clone, Default, Debug)]
 pub struct TxInfo {
@@ -326,16 +326,18 @@ impl<SPEC: Spec, EXT: CitreaExternalExt, DB: Database> CitreaHandler<SPEC, EXT, 
             // System caller doesn't spend gas.
             return Ok(());
         }
-        let gas_used = U256::from(gas.spent() - gas.refunded() as u64);
-        // add priority fee to priority fee vault
-        let priority_fee_per_gas = context.evm.env.tx.gas_priority_fee.unwrap_or(U256::ZERO);
-        let priority_fee = priority_fee_per_gas * gas_used;
 
-        change_balance(context, priority_fee, true, PRIORITY_FEE_VAULT)?;
-        // add base fee to base fee vault
-        let base_fee_per_gas = context.evm.env.block.basefee;
-        let base_fee = base_fee_per_gas * gas_used;
-        change_balance(context, base_fee, true, BASE_FEE_VAULT)?;
+        // send priority fee to coinbase using revm mainnet behaviour
+        revm::handler::mainnet::reward_beneficiary::<SPEC, EXT, DB>(context, gas)?;
+        let gas_used = U256::from(gas.spent() - gas.refunded() as u64);
+
+        // Only add base fee if eip-1559 is enabled
+        if SPEC::enabled(SpecId::LONDON) {
+            // add base fee to base fee vault
+            let base_fee_per_gas = context.evm.env.block.basefee;
+            let base_fee = base_fee_per_gas * gas_used;
+            change_balance(context, base_fee, true, BASE_FEE_VAULT)?;
+        }
 
         Ok(())
     }

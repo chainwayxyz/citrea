@@ -804,6 +804,7 @@ pub(crate) fn get_evm_config_starting_base_fee(
         spec: vec![(0, SpecId::SHANGHAI)].into_iter().collect(),
         block_gas_limit: block_gas_limit.unwrap_or(ETHEREUM_BLOCK_GAS_LIMIT),
         starting_base_fee,
+        coinbase: PRIORITY_FEE_VAULT,
         ..Default::default()
     };
     (config, dev_signer, contract_addr)
@@ -814,8 +815,8 @@ fn test_l1_fee_success() {
     fn run_tx(
         l1_fee_rate: u128,
         expected_balance: U256,
+        expected_coinbase_balance: U256,
         expected_base_fee_vault_balance: U256,
-        expected_priority_fee_vault_balance: U256,
         expected_l1_fee_vault_balance: U256,
     ) {
         let (config, dev_signer, _) =
@@ -867,18 +868,17 @@ fn test_l1_fee_success() {
             .unwrap();
 
         let base_fee_valut = evm.accounts.get(&BASE_FEE_VAULT, &mut working_set).unwrap();
-        let priority_fee_valut = evm
-            .accounts
-            .get(&PRIORITY_FEE_VAULT, &mut working_set)
-            .unwrap();
         let l1_fee_valut = evm.accounts.get(&L1_FEE_VAULT, &mut working_set).unwrap();
+
+        let coinbase_account = evm
+            .accounts
+            .get(&config.coinbase, &mut working_set)
+            .unwrap();
+        assert_eq!(config.coinbase, PRIORITY_FEE_VAULT);
 
         assert_eq!(db_account.info.balance, expected_balance);
         assert_eq!(base_fee_valut.info.balance, expected_base_fee_vault_balance);
-        assert_eq!(
-            priority_fee_valut.info.balance,
-            expected_priority_fee_vault_balance
-        );
+        assert_eq!(coinbase_account.info.balance, expected_coinbase_balance);
         assert_eq!(l1_fee_valut.info.balance, expected_l1_fee_vault_balance);
 
         assert_eq!(
@@ -904,6 +904,7 @@ fn test_l1_fee_success() {
     run_tx(
         0,
         U256::from(9771530),
+        // priority fee goes to coinbase
         U256::from(gas_fee_paid),
         U256::from(gas_fee_paid),
         U256::from(0),
@@ -911,6 +912,7 @@ fn test_l1_fee_success() {
     run_tx(
         1,
         U256::from(9771053),
+        // priority fee goes to coinbase
         U256::from(gas_fee_paid),
         U256::from(gas_fee_paid),
         U256::from(477),
@@ -1078,13 +1080,8 @@ fn test_l1_fee_halt() {
     );
 
     let base_fee_valut = evm.accounts.get(&BASE_FEE_VAULT, &mut working_set).unwrap();
-    let priority_fee_valut = evm
-        .accounts
-        .get(&PRIORITY_FEE_VAULT, &mut working_set)
-        .unwrap();
     let l1_fee_valut = evm.accounts.get(&L1_FEE_VAULT, &mut working_set).unwrap();
 
     assert_eq!(base_fee_valut.info.balance, U256::from(1106947));
-    assert_eq!(priority_fee_valut.info.balance, U256::from(0));
     assert_eq!(l1_fee_valut.info.balance, U256::from(445 + 52));
 }
