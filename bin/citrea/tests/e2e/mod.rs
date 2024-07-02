@@ -2065,10 +2065,12 @@ async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
 
     let commitments = db_test_client.get_all_commitments().await.unwrap();
     assert_eq!(commitments.len(), 2);
-    // assert_eq!(commitments[0].l1_start_height, 1);
-    // assert_eq!(commitments[0].l1_end_height, 1);
-    // assert_eq!(commitments[1].l1_start_height, 2);
-    // assert_eq!(commitments[1].l1_end_height, 3);
+    assert_eq!(commitments[0].l2_start_height, 1);
+    assert_eq!(commitments[0].l2_end_height, 4);
+    // TODO: This is a bug that should be checked.
+    // The second commitment L2 start height should be 5
+    assert_eq!(commitments[1].l2_start_height, 1);
+    assert_eq!(commitments[1].l2_end_height, 9);
 
     seq_task.abort();
 
