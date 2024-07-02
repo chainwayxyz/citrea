@@ -101,3 +101,8 @@ ef-tests: $(EF_TESTS_DIR) ## Runs Ethereum Foundation tests.
 
 %:
 	@:
+
+# Basic checks to do before opening a PR
+pr:
+	$(MAKE) lint
+	$(MAKE) test
