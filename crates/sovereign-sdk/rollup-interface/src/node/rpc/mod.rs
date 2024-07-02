@@ -227,12 +227,6 @@ pub struct SequencerCommitmentResponse {
     /// Hex encoded Merkle root of soft confirmation hashes
     #[serde(with = "hex::serde")]
     pub merkle_root: [u8; 32],
-    // /// Hex encoded Start L1 block's hash
-    // #[serde(with = "hex::serde")]
-    // pub l1_start_block_hash: [u8; 32],
-    // /// Hex encoded End L1 block's hash
-    // #[serde(with = "hex::serde")]
-    // pub l1_end_block_hash: [u8; 32],
     /// Hex encoded Start L2 block's number
     pub l2_start_block_number: u64,
     /// Hex encoded End L2 block's number
@@ -371,8 +365,6 @@ pub fn sequencer_commitment_to_response(
     SequencerCommitmentResponse {
         found_in_l1: l1_height,
         merkle_root: commitment.merkle_root,
-        // l1_start_block_hash: commitment.l1_start_block_hash,
-        // l1_end_block_hash: commitment.l1_end_block_hash,
         l2_start_block_number: commitment.l2_start_block_number,
         l2_end_block_number: commitment.l2_end_block_number,
     }

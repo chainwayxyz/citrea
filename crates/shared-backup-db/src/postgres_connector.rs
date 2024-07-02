@@ -134,11 +134,7 @@ impl PostgresConnector {
     #[instrument(level = "trace", skip_all, fields(l1_start_height), err, ret)]
     pub async fn insert_sequencer_commitment(
         &self,
-        // l1_start_height: u32,
-        // l1_end_height: u32,
         l1_tx_id: Vec<u8>,
-        // l1_start_hash: Vec<u8>,
-        // l1_end_hash: Vec<u8>,
         l2_start_height: u32,
         l2_end_height: u32,
         merkle_root: Vec<u8>,
@@ -149,11 +145,7 @@ impl PostgresConnector {
             .execute(
                 "INSERT INTO sequencer_commitments (l1_tx_id, l2_start_height, l2_end_height, merkle_root, status) VALUES ($1, $2, $3, $4, $5)", 
                 &[
-                    // &l1_start_height,
-                    // &l1_end_height,
                     &l1_tx_id,
-                    // &l1_start_hash,
-                    // &l1_end_hash,
                     &l2_start_height,
                     &l2_end_height,
                     &merkle_root,
@@ -278,10 +270,6 @@ impl PostgresConnector {
     fn row_to_sequencer_commitment(row: &Row) -> DbSequencerCommitment {
         DbSequencerCommitment {
             l1_tx_id: row.get("l1_tx_id"),
-            // l1_start_height: row.get("l1_start_height"),
-            // l1_end_height: row.get("l1_end_height"),
-            // l1_start_hash: row.get("l1_start_hash"),
-            // l1_end_hash: row.get("l1_end_hash"),
             // postgres does not support u64
             l2_start_height: row.get::<&str, u32>("l2_start_height") as u64,
             l2_end_height: row.get::<&str, u32>("l2_end_height") as u64,

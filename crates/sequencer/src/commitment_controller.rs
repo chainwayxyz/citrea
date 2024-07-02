@@ -16,10 +16,6 @@ pub struct CommitmentInfo {
     /// Respectfully, the L1 heights to commit.
     /// (L2 blocks were created with these L1 blocks.)
     pub l1_height_range: RangeInclusive<BatchNumber>,
-    // /// Corresponding L1 block hash
-    // pub l1_start_hash: [u8; 32],
-    // /// Corresponding L1 block hash
-    // pub l1_end_hash: [u8; 32],
 }
 
 /// Checks if the sequencer should commit
@@ -128,8 +124,6 @@ pub fn get_commitment_info(
     Ok(Some(CommitmentInfo {
         l2_height_range: l2_range_to_submit.0..=l2_range_to_submit.1,
         l1_height_range: BatchNumber(l1_height_range.0)..=BatchNumber(l1_height_range.1),
-        // l1_start_hash,
-        // l1_end_hash,
     }))
 }
 
@@ -153,7 +147,5 @@ pub fn get_commitment(
         merkle_root,
         l2_start_block_number: commitment_info.l2_height_range.start().0,
         l2_end_block_number: commitment_info.l2_height_range.end().0,
-        // l1_start_block_number: commitment_info.l1_height_range.start().0,
-        // l1_end_block_number: commitment_info.l1_height_range.end().0,
     })
 }
