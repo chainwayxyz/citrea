@@ -301,6 +301,8 @@ where
                 filtered_block.header().height(),
             );
 
+            let initial_state_root = self.state_root.clone();
+
             let mut da_data = self.da_service.extract_relevant_blobs(&filtered_block);
             // if we don't do this, the zk circuit can't read the sequencer commitments
             da_data.iter_mut().for_each(|blob| {
@@ -378,9 +380,8 @@ where
 
                 let mut signed_soft_confirmation: SignedSoftConfirmationBatch =
                     soft_batch.clone().into();
-
-                commitment_l2_heights.push(l2_height);
                 sof_soft_confirmations_to_push.push(signed_soft_confirmation.clone());
+                commitment_l2_heights.push(l2_height);
 
                 // The filtered block of soft batch, which is the block at the da_slot_height of soft batch
                 let filtered_block = retry_backoff(exponential_backoff.clone(), || async {
@@ -472,8 +473,6 @@ where
             da_block_headers_of_soft_confirmations.push_back(da_block_headers_to_push);
 
             info!("Sending for proving");
-
-            let initial_state_root = self.state_root.clone();
 
             let da_block_header_of_commitments = filtered_block.header().clone();
             let hash = da_block_header_of_commitments.hash();
