@@ -1,4 +1,4 @@
-use reth_primitives::{Address, BaseFeeParams, B256, KECCAK_EMPTY, U256};
+use reth_primitives::{address, Address, BaseFeeParams, B256, KECCAK_EMPTY, U256};
 use revm::primitives::specification::SpecId;
 use serde::{Deserialize, Serialize};
 use sov_modules_api::{StateMap, StateVec};
@@ -28,6 +28,18 @@ use sov_state::codec::BcsCodec;
 
 #[cfg(test)]
 use crate::tests::DEFAULT_CHAIN_ID;
+
+/// Bitcoin light client contract address
+pub const BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS: Address =
+    address!("3100000000000000000000000000000000000001");
+/// Bridge contract address
+pub const BRIDGE_CONTRACT_ADDRESS: Address = address!("3100000000000000000000000000000000000002");
+/// Base fee vault address
+pub const BASE_FEE_VAULT: Address = address!("3100000000000000000000000000000000000003");
+/// L1 fee vault address
+pub const L1_FEE_VAULT: Address = address!("3100000000000000000000000000000000000004");
+/// Priority fee vault address
+pub const PRIORITY_FEE_VAULT: Address = address!("3100000000000000000000000000000000000005");
 
 // Stores information about an EVM account
 #[derive(Deserialize, Serialize, Debug, PartialEq, Clone)]

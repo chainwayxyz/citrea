@@ -5,7 +5,7 @@ mod log_tests;
 
 use std::str::FromStr;
 
-use reth_primitives::{Address, Bytes};
+use reth_primitives::{address, Address, Bytes};
 use revm::primitives::{SpecId, KECCAK_EMPTY, U256};
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
@@ -188,14 +188,24 @@ pub fn init_evm_single_block() -> (Evm<C>, WorkingSet<C>, TestSigner) {
     let dev_signer: TestSigner = TestSigner::new_random();
 
     let config = EvmConfig {
-        data: vec![AccountData {
-            address: dev_signer.address(),
-            balance: U256::from_str("100000000000000000000").unwrap(), // Setting initial balance
-            code_hash: KECCAK_EMPTY,
-            code: Bytes::default(),
-            nonce: 0,
-            storage: Default::default(),
-        }],
+        data: vec![
+            AccountData {
+                address: dev_signer.address(),
+                balance: U256::from_str("100000000000000000000").unwrap(), // Setting initial balance
+                code_hash: KECCAK_EMPTY,
+                code: Bytes::default(),
+                nonce: 0,
+                storage: Default::default(),
+            },
+            AccountData {
+                address: address!("0000000000000000000000000000000000000000"),
+                balance: U256::from_str("100000000000000000000").unwrap(), // Setting initial balance
+                code_hash: KECCAK_EMPTY,
+                code: Bytes::default(),
+                nonce: 0,
+                storage: Default::default(),
+            },
+        ],
         spec: vec![(0, SpecId::SHANGHAI)].into_iter().collect(),
         ..Default::default()
     };

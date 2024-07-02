@@ -21,6 +21,7 @@ use sov_modules_api::{native_debug, native_error, native_warn};
 use tracing::instrument;
 
 use crate::system_events::SYSTEM_SIGNER;
+use crate::{BASE_FEE_VAULT, L1_FEE_VAULT};
 
 #[derive(Copy, Clone, Default, Debug)]
 pub struct TxInfo {
@@ -326,25 +327,18 @@ impl<SPEC: Spec, EXT: CitreaExternalExt, DB: Database> CitreaHandler<SPEC, EXT, 
             return Ok(());
         }
 
-        let beneficiary = context.evm.env.block.coinbase;
-        let effective_gas_price = context.evm.env.effective_gas_price();
+        let gas_used = U256::from(gas.spent() - gas.refunded() as u64);
 
-        // EIP-1559 discard basefee for coinbase transfer.
-        // ^ But we don't do that.
-        // We don't sub block.basefee from effective_gas_price.
-        let coinbase_gas_price = effective_gas_price;
+        // Only add base fee if eip-1559 is enabled
+        if SPEC::enabled(SpecId::LONDON) {
+            // add base fee to base fee vault
+            let base_fee_per_gas = context.evm.env.block.basefee;
+            let base_fee = base_fee_per_gas * gas_used;
+            change_balance(context, base_fee, true, BASE_FEE_VAULT)?;
+        }
 
-        let (coinbase_account, _) = context
-            .evm
-            .inner
-            .journaled_state
-            .load_account(beneficiary, &mut context.evm.inner.db)?;
-
-        coinbase_account.mark_touch();
-        coinbase_account.info.balance = coinbase_account
-            .info
-            .balance
-            .saturating_add(coinbase_gas_price * U256::from(gas.spent() - gas.refunded() as u64));
+        // send priority fee to coinbase using revm mainnet behaviour
+        revm::handler::mainnet::reward_beneficiary::<SPEC, EXT, DB>(context, gas)?;
 
         Ok(())
     }
@@ -366,7 +360,8 @@ impl<SPEC: Spec, EXT: CitreaExternalExt, DB: Database> CitreaHandler<SPEC, EXT, 
                     l1_fee
                 )));
             }
-            increase_coinbase_balance(context, l1_fee)?;
+            // add l1 fee to l1 fee vault
+            change_balance(context, l1_fee, true, L1_FEE_VAULT)?;
         }
 
         revm::handler::mainnet::output(context, result)
@@ -552,13 +547,4 @@ fn decrease_caller_balance<EXT, DB: Database>(
 ) -> Result<Option<InstructionResult>, EVMError<DB::Error>> {
     let address = context.evm.env.tx.caller;
     change_balance(context, amount, false, address)
-}
-
-fn increase_coinbase_balance<EXT, DB: Database>(
-    context: &mut Context<EXT, DB>,
-    amount: U256,
-) -> Result<(), EVMError<DB::Error>> {
-    let address = context.evm.env.block.coinbase;
-    change_balance(context, amount, true, address)?;
-    Ok(())
 }

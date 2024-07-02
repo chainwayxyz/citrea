@@ -18,7 +18,9 @@ use crate::smart_contracts::{
 use crate::tests::test_signer::TestSigner;
 use crate::tests::utils::get_evm;
 use crate::tests::DEFAULT_CHAIN_ID;
-use crate::{AccountData, EvmConfig, RlpEvmTransaction};
+use crate::{
+    AccountData, EvmConfig, RlpEvmTransaction, BASE_FEE_VAULT, L1_FEE_VAULT, PRIORITY_FEE_VAULT,
+};
 
 type C = DefaultContext;
 
@@ -629,6 +631,25 @@ pub(crate) fn create_contract_message_with_fee<T: TestContract>(
         .unwrap()
 }
 
+pub(crate) fn create_contract_message_with_priority_fee<T: TestContract>(
+    dev_signer: &TestSigner,
+    nonce: u64,
+    contract: T,
+    max_fee_per_gas: u128,
+    max_priority_fee_per_gas: u128,
+) -> RlpEvmTransaction {
+    dev_signer
+        .sign_default_transaction_with_priority_fee(
+            TxKind::Create,
+            contract.byte_code(),
+            nonce,
+            0,
+            max_fee_per_gas,
+            max_priority_fee_per_gas,
+        )
+        .unwrap()
+}
+
 pub(crate) fn create_contract_transaction<T: TestContract>(
     dev_signer: &TestSigner,
     nonce: u64,
@@ -783,6 +804,7 @@ pub(crate) fn get_evm_config_starting_base_fee(
         spec: vec![(0, SpecId::SHANGHAI)].into_iter().collect(),
         block_gas_limit: block_gas_limit.unwrap_or(ETHEREUM_BLOCK_GAS_LIMIT),
         starting_base_fee,
+        coinbase: PRIORITY_FEE_VAULT,
         ..Default::default()
     };
     (config, dev_signer, contract_addr)
@@ -790,9 +812,15 @@ pub(crate) fn get_evm_config_starting_base_fee(
 
 #[test]
 fn test_l1_fee_success() {
-    fn run_tx(l1_fee_rate: u128, expected_balance: U256, expected_coinbase_balance: U256) {
+    fn run_tx(
+        l1_fee_rate: u128,
+        expected_balance: U256,
+        expected_coinbase_balance: U256,
+        expected_base_fee_vault_balance: U256,
+        expected_l1_fee_vault_balance: U256,
+    ) {
         let (config, dev_signer, _) =
-            get_evm_config_starting_base_fee(U256::from_str("1000000").unwrap(), None, 1);
+            get_evm_config_starting_base_fee(U256::from_str("10000000").unwrap(), None, 1);
 
         let (evm, mut working_set) = get_evm(&config);
 
@@ -814,8 +842,13 @@ fn test_l1_fee_success() {
             let sequencer_address = generate_address::<C>("sequencer");
             let context = C::new(sender_address, sequencer_address, 1);
 
-            let deploy_message =
-                create_contract_message_with_fee(&dev_signer, 0, BlockHashContract::default(), 1);
+            let deploy_message = create_contract_message_with_priority_fee(
+                &dev_signer,
+                0,
+                BlockHashContract::default(),
+                2,
+                1,
+            );
 
             evm.call(
                 CallMessage {
@@ -834,13 +867,19 @@ fn test_l1_fee_success() {
             .get(&dev_signer.address(), &mut working_set)
             .unwrap();
 
+        let base_fee_valut = evm.accounts.get(&BASE_FEE_VAULT, &mut working_set).unwrap();
+        let l1_fee_valut = evm.accounts.get(&L1_FEE_VAULT, &mut working_set).unwrap();
+
         let coinbase_account = evm
             .accounts
             .get(&config.coinbase, &mut working_set)
             .unwrap();
+        assert_eq!(config.coinbase, PRIORITY_FEE_VAULT);
 
         assert_eq!(db_account.info.balance, expected_balance);
+        assert_eq!(base_fee_valut.info.balance, expected_base_fee_vault_balance);
         assert_eq!(coinbase_account.info.balance, expected_coinbase_balance);
+        assert_eq!(l1_fee_valut.info.balance, expected_l1_fee_vault_balance);
 
         assert_eq!(
             evm.receipts
@@ -862,8 +901,22 @@ fn test_l1_fee_success() {
 
     let gas_fee_paid = 114235;
 
-    run_tx(0, U256::from(885765), U256::from(gas_fee_paid));
-    run_tx(1, U256::from(885288), U256::from(gas_fee_paid + 477));
+    run_tx(
+        0,
+        U256::from(9771530),
+        // priority fee goes to coinbase
+        U256::from(gas_fee_paid),
+        U256::from(gas_fee_paid),
+        U256::from(0),
+    );
+    run_tx(
+        1,
+        U256::from(9771053),
+        // priority fee goes to coinbase
+        U256::from(gas_fee_paid),
+        U256::from(gas_fee_paid),
+        U256::from(477),
+    );
 }
 
 #[test]
@@ -1018,7 +1071,6 @@ fn test_l1_fee_halt() {
     let expenses = 1106947 + // evm gas
         445 + // l1 contract deploy fee
         52; // l1 contract call fee
-
     assert_eq!(
         db_account.info.balance,
         U256::from(
@@ -1027,10 +1079,9 @@ fn test_l1_fee_halt() {
         )
     );
 
-    let coinbase_account = evm
-        .accounts
-        .get(&config.coinbase, &mut working_set)
-        .unwrap();
+    let base_fee_valut = evm.accounts.get(&BASE_FEE_VAULT, &mut working_set).unwrap();
+    let l1_fee_valut = evm.accounts.get(&L1_FEE_VAULT, &mut working_set).unwrap();
 
-    assert_eq!(coinbase_account.info.balance, U256::from(expenses));
+    assert_eq!(base_fee_valut.info.balance, U256::from(1106947));
+    assert_eq!(l1_fee_valut.info.balance, U256::from(445 + 52));
 }

@@ -21,7 +21,7 @@ use crate::tests::call_tests::{
     publish_event_message,
 };
 use crate::tests::utils::get_evm;
-use crate::{AccountData, EvmConfig, SYSTEM_SIGNER};
+use crate::{AccountData, EvmConfig, BASE_FEE_VAULT, L1_FEE_VAULT, SYSTEM_SIGNER};
 
 type C = DefaultContext;
 
@@ -216,12 +216,11 @@ fn test_sys_bitcoin_light_client() {
             },
         ]
     );
+    let base_fee_vault = evm.accounts.get(&BASE_FEE_VAULT, &mut working_set).unwrap();
+    let l1_fee_vault = evm.accounts.get(&L1_FEE_VAULT, &mut working_set).unwrap();
 
-    let coinbase_account = evm
-        .accounts
-        .get(&config.coinbase, &mut working_set)
-        .unwrap();
-    assert_eq!(coinbase_account.info.balance, U256::from(114235 + 477));
+    assert_eq!(base_fee_vault.info.balance, U256::from(114235));
+    assert_eq!(l1_fee_vault.info.balance, U256::from(477));
 
     let hash = evm
         .get_call(
