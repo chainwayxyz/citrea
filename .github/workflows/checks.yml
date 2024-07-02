@@ -187,6 +187,7 @@ jobs:
         run: make coverage
         env:
           RUST_BACKTRACE: 1
+          GUEST_BUILD_NO_DOCKER: 1
       - name: Upload coverage
         uses: codecov/codecov-action@v4
         with:
