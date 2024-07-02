@@ -38,8 +38,10 @@ fn get_guest_options() -> HashMap<&'static str, risc0_build::GuestOptions> {
         println!("Skipping guest build for CI run");
         None
     } else {
+        let this_package_dir = std::env!("CARGO_MANIFEST_DIR");
+        let root_dir = format!("{this_package_dir}/../../../../");
         Some(DockerOptions {
-            root_dir: Some("../../../../".into()),
+            root_dir: Some(root_dir.into()),
         })
     };
 
