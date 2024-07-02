@@ -1,5 +1,5 @@
 use std::cmp::Ordering;
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet};
 use std::mem::size_of;
 use std::sync::Arc;
 
@@ -64,7 +64,7 @@ impl<T: CitreaExternalExt> CitreaExternalExt for &mut T {
 pub(crate) struct CitreaExternal {
     l1_fee_rate: u128,
     current_tx_hash: Option<B256>,
-    tx_infos: HashMap<B256, TxInfo>,
+    tx_infos: BTreeMap<B256, TxInfo>,
 }
 
 impl CitreaExternal {
@@ -391,10 +391,10 @@ fn calc_diff_size<EXT, DB: Database>(
         nonce_changed: bool,
         code_changed: bool,
         balance_changed: bool,
-        storage_changes: HashSet<&'a U256>,
+        storage_changes: BTreeSet<&'a U256>,
     }
 
-    let mut account_changes: HashMap<&Address, AccountChange<'_>> = HashMap::new();
+    let mut account_changes: BTreeMap<&Address, AccountChange<'_>> = BTreeMap::new();
 
     for entry in &journal {
         match entry {
