@@ -147,7 +147,7 @@ impl PostgresConnector {
         let client = self.client().await?;
         Ok(client
             .execute(
-                "INSERT INTO sequencer_commitments (l1_tx_id, l2_start_height, l2_end_height, merkle_root, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)", 
+                "INSERT INTO sequencer_commitments (l1_tx_id, l2_start_height, l2_end_height, merkle_root, status) VALUES ($1, $2, $3, $4, $5)", 
                 &[
                     // &l1_start_height,
                     // &l1_end_height,
@@ -278,10 +278,10 @@ impl PostgresConnector {
     fn row_to_sequencer_commitment(row: &Row) -> DbSequencerCommitment {
         DbSequencerCommitment {
             l1_tx_id: row.get("l1_tx_id"),
-            l1_start_height: row.get("l1_start_height"),
-            l1_end_height: row.get("l1_end_height"),
-            l1_start_hash: row.get("l1_start_hash"),
-            l1_end_hash: row.get("l1_end_hash"),
+            // l1_start_height: row.get("l1_start_height"),
+            // l1_end_height: row.get("l1_end_height"),
+            // l1_start_hash: row.get("l1_start_hash"),
+            // l1_end_hash: row.get("l1_end_hash"),
             // postgres does not support u64
             l2_start_height: row.get::<&str, u32>("l2_start_height") as u64,
             l2_end_height: row.get::<&str, u32>("l2_end_height") as u64,

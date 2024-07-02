@@ -55,12 +55,12 @@ impl std::str::FromStr for CommitmentStatus {
 pub struct DbSequencerCommitment {
     /// Hex encoded L1 transaction ID
     pub l1_tx_id: Vec<u8>,
-    pub l1_start_height: u32,
-    pub l1_end_height: u32,
-    /// Hex encoded L1 start hash
-    pub l1_start_hash: Vec<u8>,
-    /// Hex encoded L1 end hash
-    pub l1_end_hash: Vec<u8>,
+    // pub l1_start_height: u32,
+    // pub l1_end_height: u32,
+    // /// Hex encoded L1 start hash
+    // pub l1_start_hash: Vec<u8>,
+    // /// Hex encoded L1 end hash
+    // pub l1_end_hash: Vec<u8>,
     pub l2_start_height: u64,
     pub l2_end_height: u64,
     /// Hex encoded merkle root of soft confirmation hashes
@@ -83,9 +83,7 @@ CREATE TABLE IF NOT EXISTS sequencer_commitments (
     merkle_root         BYTEA NOT NULL,
     status              VARCHAR(15) NOT NULL,
 
-    UNIQUE (l2_start_height, l2_end_height),
-    UNIQUE (l1_start_height, l1_end_height),
-    UNIQUE (l1_start_hash, l1_end_hash)
+    UNIQUE (l2_start_height, l2_end_height)
 );
 ";
 

@@ -672,12 +672,12 @@ where
         if let Some(db_config) = self.config.db_config.clone() {
             pg_pool = match PostgresConnector::new(db_config).await {
                 Ok(pg_connector) => {
-                    match self.compare_commitments_from_db(pg_connector.clone()).await {
-                        Ok(()) => debug!("Sequencer: Commitments are in sync"),
-                        Err(e) => {
-                            warn!("Sequencer: Offchain db error: {:?}", e);
-                        }
-                    }
+                    // match self.compare_commitments_from_db(pg_connector.clone()).await {
+                    //     Ok(()) => debug!("Sequencer: Commitments are in sync"),
+                    //     Err(e) => {
+                    //         warn!("Sequencer: Offchain db error: {:?}", e);
+                    //     }
+                    // }
                     match self.restore_mempool(pg_connector.clone()).await {
                         Ok(()) => debug!("Sequencer: Mempool restored"),
                         Err(e) => {
@@ -1009,28 +1009,28 @@ where
         Ok(())
     }
 
-    pub async fn compare_commitments_from_db(
-        &self,
-        pg_connector: PostgresConnector,
-    ) -> Result<(), anyhow::Error> {
-        let ledger_commitment_l1_height =
-            self.ledger_db.get_last_sequencer_commitment_l1_height()?;
-
-        let commitment = pg_connector.get_last_commitment().await?;
-        // check if last commitment in db matches sequencer's last commitment
-        if let Some(db_commitment) = commitment {
-            // this means that the last commitment in the db is not the same as the sequencer's last commitment
-            if db_commitment.l1_end_height as u64
-                > ledger_commitment_l1_height.unwrap_or(SlotNumber(0)).0
-            {
-                self.ledger_db
-                    .set_last_sequencer_commitment_l1_height(SlotNumber(
-                        db_commitment.l1_end_height as u64,
-                    ))?
-            }
-        }
-        Ok(())
-    }
+    // pub async fn compare_commitments_from_db(
+    //     &self,
+    //     pg_connector: PostgresConnector,
+    // ) -> Result<(), anyhow::Error> {
+    //     let ledger_commitment_l1_height =
+    //         self.ledger_db.get_last_sequencer_commitment_l1_height()?;
+    //
+    //     let commitment = pg_connector.get_last_commitment().await?;
+    //     // check if last commitment in db matches sequencer's last commitment
+    //     if let Some(db_commitment) = commitment {
+    //         // this means that the last commitment in the db is not the same as the sequencer's last commitment
+    //         if db_commitment.l2_start_block_number as u64
+    //             > ledger_commitment_l1_height.unwrap_or(SlotNumber(0)).0
+    //         {
+    //             self.ledger_db
+    //                 .set_last_sequencer_commitment_l1_height(SlotNumber(
+    //                     db_commitment.l1_end_height as u64,
+    //                 ))?
+    //         }
+    //     }
+    //     Ok(())
+    // }
 
     async fn maybe_submit_commitment(
         &self,
