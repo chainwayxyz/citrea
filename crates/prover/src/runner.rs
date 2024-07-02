@@ -621,7 +621,7 @@ where
                 for i in l2_start_height..=l2_end_height {
                     self.ledger_db
                         .put_soft_confirmation_status(
-                            SlotNumber(i),
+                            BatchNumber(i),
                             SoftConfirmationStatus::Finalized,
                         )
                         .unwrap_or_else(|_| {

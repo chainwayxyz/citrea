@@ -326,7 +326,7 @@ where
             let l2_end_height = commitment.l2_end_block_number;
             for i in l2_start_height..=l2_end_height {
                 self.ledger_db
-                    .put_soft_confirmation_status(SlotNumber(i), SoftConfirmationStatus::Proven)?;
+                    .put_soft_confirmation_status(BatchNumber(i), SoftConfirmationStatus::Proven)?;
             }
         }
         // store in ledger db
@@ -396,7 +396,7 @@ where
 
             for i in start_l2_height..=end_l2_height {
                 self.ledger_db.put_soft_confirmation_status(
-                    SlotNumber(i),
+                    BatchNumber(i),
                     SoftConfirmationStatus::Finalized,
                 )?;
             }

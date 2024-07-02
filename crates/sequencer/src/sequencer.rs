@@ -616,8 +616,8 @@ where
                 .map_err(|_| anyhow!("Send transaction cannot fail"))?;
 
             self.ledger_db
-                .set_last_sequencer_commitment_l1_height(SlotNumber(
-                    commitment_info.l1_height_range.end().0,
+                .set_last_sequencer_commitment_l2_height(BatchNumber(
+                    commitment_info.l2_height_range.end().0,
                 ))
                 .map_err(|_| {
                     anyhow!("Sequencer: Failed to set last sequencer commitment L1 height")
@@ -1039,7 +1039,7 @@ where
             // this means that the last commitment in the db is not the same as the sequencer's last commitment
             if db_commitment.l2_start_height > ledger_commitment.l2_end_block_number {
                 self.ledger_db
-                    .set_last_sequencer_commitment_l1_height(SlotNumber(
+                    .set_last_sequencer_commitment_l2_height(BatchNumber(
                         db_commitment.l2_end_height,
                     ))?
             }

@@ -257,7 +257,7 @@ define_table_with_default_codec!(
 
 define_table_with_seek_key_codec!(
     /// Sequencer uses this table to store the last commitment it sent
-    (LastSequencerCommitmentSent) () => SlotNumber
+    (LastSequencerCommitmentSent) () => BatchNumber
 );
 
 define_table_with_seek_key_codec!(
@@ -272,7 +272,7 @@ define_table_with_seek_key_codec!(
 
 define_table_with_default_codec!(
     /// Check whether a block is finalized
-    (SoftConfirmationStatus) SlotNumber => sov_rollup_interface::rpc::SoftConfirmationStatus
+    (SoftConfirmationStatus) BatchNumber => sov_rollup_interface::rpc::SoftConfirmationStatus
 );
 
 define_table_with_default_codec!(

@@ -455,14 +455,14 @@ impl LedgerDB {
 
     /// Used by the sequencer to record that it has committed to soft confirmations on a given L1 height
     #[instrument(level = "trace", skip(self), err, ret)]
-    pub fn set_last_sequencer_commitment_l1_height(
+    pub fn set_last_sequencer_commitment_l2_height(
         &self,
-        l1_height: SlotNumber,
+        l2_height: BatchNumber,
     ) -> Result<(), anyhow::Error> {
         let mut schema_batch = SchemaBatch::new();
 
         schema_batch
-            .put::<LastSequencerCommitmentSent>(&(), &l1_height)
+            .put::<LastSequencerCommitmentSent>(&(), &l2_height)
             .unwrap();
         self.db.write_schemas(schema_batch)?;
 
@@ -473,7 +473,7 @@ impl LedgerDB {
     #[instrument(level = "trace", skip(self), err, ret)]
     pub fn put_soft_confirmation_status(
         &self,
-        height: SlotNumber,
+        height: BatchNumber,
         status: sov_rollup_interface::rpc::SoftConfirmationStatus,
     ) -> Result<(), anyhow::Error> {
         let mut schema_batch = SchemaBatch::new();
@@ -531,7 +531,7 @@ impl LedgerDB {
     /// were committed.
     /// Called by the sequencer.
     #[instrument(level = "trace", skip(self), err, ret)]
-    pub fn get_last_sequencer_commitment_l1_height(&self) -> anyhow::Result<Option<SlotNumber>> {
+    pub fn get_last_sequencer_commitment_l1_height(&self) -> anyhow::Result<Option<BatchNumber>> {
         self.db.get::<LastSequencerCommitmentSent>(&())
     }
 

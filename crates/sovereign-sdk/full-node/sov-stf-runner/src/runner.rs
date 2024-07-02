@@ -671,7 +671,7 @@ where
                 for i in l2_start_height..=l2_end_height {
                     self.ledger_db
                         .put_soft_confirmation_status(
-                            SlotNumber(i),
+                            BatchNumber(i),
                             SoftConfirmationStatus::Finalized,
                         )
                         .unwrap_or_else(|_| {
@@ -933,7 +933,7 @@ where
                             // All soft confirmations in these blocks are now proven
                             for i in l2_height_start..=l2_height_end {
                                 self.ledger_db.put_soft_confirmation_status(
-                                    SlotNumber(i),
+                                    BatchNumber(i),
                                     SoftConfirmationStatus::Proven,
                                 )?;
                             }
@@ -988,7 +988,7 @@ where
 
                             for i in start_l2_height..=end_l2_height {
                                 self.ledger_db.put_soft_confirmation_status(
-                                    SlotNumber(i),
+                                    BatchNumber(i),
                                     SoftConfirmationStatus::Finalized,
                                 )?;
                             }
