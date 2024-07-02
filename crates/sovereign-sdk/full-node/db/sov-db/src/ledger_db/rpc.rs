@@ -348,6 +348,19 @@ impl LedgerRpcProvider for LedgerDB {
         &self,
         l2_height: u64,
     ) -> Result<sov_rollup_interface::rpc::SoftConfirmationStatus, anyhow::Error> {
+        if self
+            .db
+            .get::<SoftBatchByNumber>(&BatchNumber(l2_height))
+            .ok()
+            .flatten()
+            .is_none()
+        {
+            return Err(anyhow::anyhow!(
+                "Soft confirmation at height {} not processed yet.",
+                l2_height
+            ));
+        }
+
         let status = self
             .db
             .get::<SoftConfirmationStatus>(&BatchNumber(l2_height))?;
