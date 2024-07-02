@@ -31,7 +31,8 @@ pub fn register_healthcheck_rpc<T: Send + Sync + 'static>(
                     Some((i, _)) => i.into(),
                     None => return Ok::<(), ErrorObjectOwned>(()),
                 };
-                if head_batch_num < 1 {
+                // TODO: if the first blocks are not being produced properly, this might cause healthcheck to always return Ok
+                if head_batch_num < 2 {
                     return Ok::<(), ErrorObjectOwned>(());
                 }
 
