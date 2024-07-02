@@ -354,9 +354,9 @@ where
 
         // Traverse each item's field of vector of transactions, put them in merkle tree
         // and compare the root with the one from the ledger
-        let stored_soft_batches: Vec<StoredSoftBatch> = self
-            .ledger_db
-            .get_soft_batch_range(&(BatchNumber(start_l2_height)..BatchNumber(end_l2_height)))?;
+        let stored_soft_batches: Vec<StoredSoftBatch> = self.ledger_db.get_soft_batch_range(
+            &(BatchNumber(start_l2_height)..BatchNumber(end_l2_height + 1)),
+        )?;
 
         // Make sure that the number of stored soft batches is equal to the range's length.
         // Otherwise, if it is smaller, then we don't have some L2 blocks within the range
