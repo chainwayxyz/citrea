@@ -1,5 +1,6 @@
-use risc0_build::{embed_methods_with_options, DockerOptions, GuestOptions};
 use std::collections::HashMap;
+
+use risc0_build::{embed_methods_with_options, DockerOptions, GuestOptions};
 
 fn main() {
     println!("cargo:rerun-if-env-changed=SKIP_GUEST_BUILD");
