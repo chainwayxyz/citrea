@@ -98,7 +98,7 @@ async fn sequencer_sends_commitments_to_da_layer() {
     wait_for_l1_block(&da_service, 4, None).await;
 
     let start_l2_block: u64 = 1;
-    let end_l2_block: u64 = 4; // can only be the block before the one comitment landed in
+    let end_l2_block: u64 = 4;
 
     check_sequencer_commitment(
         test_client.as_ref(),
@@ -261,8 +261,8 @@ async fn check_commitment_in_offchain_db() {
 
     let commitments = db_test_client.get_all_commitments().await.unwrap();
     assert_eq!(commitments.len(), 1);
-    // assert_eq!(commitments[0].l1_start_height, 2);
-    // assert_eq!(commitments[0].l1_end_height, 3);
+    assert_eq!(commitments[0].l2_start_height, 1);
+    assert_eq!(commitments[0].l2_end_height, 4);
 
     seq_task.abort();
 }
