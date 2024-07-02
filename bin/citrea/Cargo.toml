@@ -23,6 +23,7 @@ ethereum-rpc = { path = "../../crates/ethereum-rpc" }
 sequencer-client = { path = "../../crates/sequencer-client" }
 
 # Sovereign-SDK deps
+citrea-risc0 = { package = "risc0", path = "./provers/risc0" }
 citrea-risc0-bonsai-adapter = { path = "../../crates/sovereign-sdk/adapters/risc0-bonsai", features = ["native"] }
 soft-confirmation-rule-enforcer = { path = "../../crates/soft-confirmation-rule-enforcer" }
 sov-db = { path = "../../crates/sovereign-sdk/full-node/db/sov-db" }
@@ -49,7 +50,6 @@ log-panics = { workspace = true }
 reth-primitives = { workspace = true }
 reth-rpc-types = { workspace = true }
 reth-transaction-pool = { workspace = true }
-risc0 = { path = "./provers/risc0" }
 secp256k1 = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
