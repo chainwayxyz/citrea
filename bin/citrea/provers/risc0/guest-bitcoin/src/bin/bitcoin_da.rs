@@ -14,8 +14,8 @@ use sov_rollup_interface::da::DaVerifier;
 use sov_state::ZkStorage;
 
 #[cfg(feature = "bench")]
-fn report_bench_metrics(start_cycles: usize, end_cycles: usize) {
-    let cycles_per_block = (end_cycles - start_cycles) as u64;
+fn report_bench_metrics(start_cycles: u64, end_cycles: u64) {
+    let cycles_per_block = end_cycles - start_cycles;
     let tuple = ("Cycles per block".to_string(), cycles_per_block);
     let mut serialized = Vec::new();
     serialized.extend(tuple.0.as_bytes());
