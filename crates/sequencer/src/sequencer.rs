@@ -13,11 +13,7 @@ use citrea_stf::runtime::Runtime;
 use digest::Digest;
 use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
 use futures::StreamExt;
-use hyper::Method;
-use jsonrpsee::server::middleware::http::ProxyGetRequestLayer;
 use jsonrpsee::server::{BatchRequestConfig, ServerBuilder};
-use jsonrpsee::types::error::{INTERNAL_ERROR_CODE, INTERNAL_ERROR_MSG};
-use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::RpcModule;
 use reth_primitives::{Address, FromRecoveredPooledTransaction, IntoRecoveredTransaction, TxHash};
 use reth_provider::{AccountReader, BlockReaderIdExt};
@@ -47,7 +43,6 @@ use sov_stf_runner::{InitVariant, RollupPublicKeys, RpcConfig};
 use tokio::sync::oneshot::channel as oneshot_channel;
 use tokio::sync::Mutex;
 use tokio::time::sleep;
-use tower_http::cors::{Any, CorsLayer};
 use tracing::{debug, error, info, instrument, warn};
 
 use crate::commitment_controller;
@@ -192,12 +187,9 @@ where
         let max_response_body_size = self.rpc_config.max_response_body_size;
         let batch_requests_limit = self.rpc_config.batch_requests_limit;
 
-        let cors = CorsLayer::new()
-            .allow_methods([Method::POST, Method::OPTIONS])
-            .allow_origin(Any)
-            .allow_headers(Any);
-        let health_check = ProxyGetRequestLayer::new("/health", "health_check").unwrap();
-        let middleware = tower::ServiceBuilder::new().layer(cors).layer(health_check);
+        let middleware = tower::ServiceBuilder::new()
+            .layer(common::rpc::get_cors_layer())
+            .layer(common::rpc::get_healthcheck_proxy_layer());
 
         let _handle = tokio::spawn(async move {
             let server = ServerBuilder::default()
@@ -928,61 +920,7 @@ where
         let rpc_context = self.create_rpc_context().await;
         let mut rpc = create_rpc_module(rpc_context)?;
 
-        // TODO: create register_healthcheck_rpc helper function
-        let ledger_db = self.ledger_db.clone();
-        rpc.register_async_method("health_check", move |_, _| {
-            let ledger_db = ledger_db.clone();
-            async move {
-                let head_batch = ledger_db.get_head_soft_batch().map_err(|err| {
-                    ErrorObjectOwned::owned(
-                        INTERNAL_ERROR_CODE,
-                        INTERNAL_ERROR_MSG,
-                        Some(format!("Failed to get head soft batch: {}", err)),
-                    )
-                })?;
-                let head_batch_num: u64 = match head_batch {
-                    Some((i, _)) => i.into(),
-                    None => return Ok::<(), ErrorObjectOwned>(()),
-                };
-                if head_batch_num < 1 {
-                    return Ok::<(), ErrorObjectOwned>(());
-                }
-
-                let soft_batches = ledger_db
-                    .get_soft_batch_range(
-                        &(BatchNumber(head_batch_num - 1)..BatchNumber(head_batch_num + 1)),
-                    )
-                    .map_err(|err| {
-                        ErrorObjectOwned::owned(
-                            INTERNAL_ERROR_CODE,
-                            INTERNAL_ERROR_MSG,
-                            Some(format!("Failed to get soft batch range: {}", err)),
-                        )
-                    })?;
-                let block_time_s = soft_batches[1].timestamp - soft_batches[0].timestamp;
-                tokio::time::sleep(Duration::from_millis(block_time_s * 1500)).await;
-
-                let (new_head_batch_num, _) = ledger_db
-                    .get_head_soft_batch()
-                    .map_err(|err| {
-                        ErrorObjectOwned::owned(
-                            INTERNAL_ERROR_CODE,
-                            INTERNAL_ERROR_MSG,
-                            Some(format!("Failed to get head soft batch: {}", err)),
-                        )
-                    })?
-                    .unwrap();
-                if new_head_batch_num > BatchNumber(head_batch_num) {
-                    Ok::<(), ErrorObjectOwned>(())
-                } else {
-                    Err(ErrorObjectOwned::owned(
-                        INTERNAL_ERROR_CODE,
-                        INTERNAL_ERROR_MSG,
-                        Some("Block number is not increasing"),
-                    ))
-                }
-            }
-        })?;
+        common::rpc::register_healthcheck_rpc(&mut rpc, Some(self.ledger_db.clone())).unwrap();
 
         rpc.merge(rpc_methods)?;
         Ok(rpc)

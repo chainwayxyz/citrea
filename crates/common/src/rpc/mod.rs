@@ -13,9 +13,9 @@ use tower_http::cors::{Any, CorsLayer};
 
 /// Register the healthcheck rpc
 pub fn register_healthcheck_rpc<T: Send + Sync + 'static>(
-    mut rpc_methods: RpcModule<T>,
+    rpc_methods: &mut RpcModule<T>,
     ledger_db: Option<LedgerDB>,
-) -> Result<RpcModule<T>, RegisterMethodError> {
+) -> Result<(), RegisterMethodError> {
     if let Some(ledger_db) = ledger_db {
         rpc_methods.register_async_method("health_check", move |_, _| {
             let ledger_db = ledger_db.clone();
@@ -74,7 +74,7 @@ pub fn register_healthcheck_rpc<T: Send + Sync + 'static>(
         rpc_methods.register_method("health_check", |_, _| Ok::<(), ErrorObjectOwned>(()))?;
     }
 
-    Ok(rpc_methods)
+    Ok(())
 }
 
 /// Returns health check proxy layer to be used as http middleware
@@ -85,7 +85,7 @@ pub fn get_healthcheck_proxy_layer() -> ProxyGetRequestLayer {
 /// Returns cors layer to be used as http middleware
 pub fn get_cors_layer() -> CorsLayer {
     CorsLayer::new()
-        .allow_methods([Method::POST, Method::OPTIONS])
+        .allow_methods([Method::GET, Method::POST, Method::OPTIONS])
         .allow_origin(Any)
         .allow_headers(Any)
 }

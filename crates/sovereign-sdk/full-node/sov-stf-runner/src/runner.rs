@@ -7,11 +7,7 @@ use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoffBuilder;
 use borsh::de::BorshDeserialize;
 use borsh::BorshSerialize as _;
-use hyper::Method;
 use jsonrpsee::core::client::Error as JsonrpseeError;
-use jsonrpsee::server::middleware::http::ProxyGetRequestLayer;
-use jsonrpsee::types::error::{INTERNAL_ERROR_CODE, INTERNAL_ERROR_MSG};
-use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::RpcModule;
 use rand::Rng;
 use rs_merkle::algorithms::Sha256;
@@ -33,7 +29,6 @@ use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::{Proof, StateTransitionData, Zkvm, ZkvmHost};
 use tokio::sync::oneshot;
 use tokio::time::{sleep, Duration};
-use tower_http::cors::{Any, CorsLayer};
 use tracing::{debug, error, info, instrument, warn};
 
 use crate::prover_helpers::get_initial_slot_height;
@@ -185,7 +180,7 @@ where
     /// Starts a RPC server with provided rpc methods.
     pub async fn start_rpc_server(
         &self,
-        methods: RpcModule<()>,
+        mut methods: RpcModule<()>,
         channel: Option<oneshot::Sender<SocketAddr>>,
     ) {
         let bind_host = match self.rpc_config.bind_host.parse() {
@@ -199,16 +194,11 @@ where
 
         let max_connections = self.rpc_config.max_connections;
 
-        let methods = self
-            .register_healthcheck_rpc(methods)
-            .expect("Failed to register healthcheck rpc");
+        common::rpc::register_healthcheck_rpc(&mut methods, Some(self.ledger_db.clone())).unwrap();
 
-        let cors = CorsLayer::new()
-            .allow_methods([Method::POST, Method::OPTIONS])
-            .allow_origin(Any)
-            .allow_headers(Any);
-        let health_check = ProxyGetRequestLayer::new("/health", "health_check").unwrap();
-        let middleware = tower::ServiceBuilder::new().layer(cors).layer(health_check);
+        let middleware = tower::ServiceBuilder::new()
+            .layer(common::rpc::get_cors_layer())
+            .layer(common::rpc::get_healthcheck_proxy_layer());
 
         let _handle = tokio::spawn(async move {
             let server = jsonrpsee::server::ServerBuilder::default()
@@ -242,70 +232,6 @@ where
                 }
             }
         });
-    }
-
-    /// Updates the given RpcModule with healthcheckk rpc.
-    fn register_healthcheck_rpc(
-        &self,
-        mut rpc_methods: RpcModule<()>,
-    ) -> Result<RpcModule<()>, jsonrpsee::core::RegisterMethodError> {
-        // TODO: create register_healthcheck_rpc helper function
-        let ledger_db = self.ledger_db.clone();
-        rpc_methods.register_async_method("health_check", move |_, _| {
-            let ledger_db = ledger_db.clone();
-            async move {
-                let head_batch = ledger_db.get_head_soft_batch().map_err(|err| {
-                    ErrorObjectOwned::owned(
-                        INTERNAL_ERROR_CODE,
-                        INTERNAL_ERROR_MSG,
-                        Some(format!("Failed to get head soft batch: {}", err)),
-                    )
-                })?;
-                let head_batch_num: u64 = match head_batch {
-                    Some((i, _)) => i.into(),
-                    None => return Ok::<(), ErrorObjectOwned>(()),
-                };
-                if head_batch_num < 1 {
-                    return Ok::<(), ErrorObjectOwned>(());
-                }
-
-                let soft_batches = ledger_db
-                    .get_soft_batch_range(
-                        &(BatchNumber(head_batch_num - 1)..BatchNumber(head_batch_num + 1)),
-                    )
-                    .map_err(|err| {
-                        ErrorObjectOwned::owned(
-                            INTERNAL_ERROR_CODE,
-                            INTERNAL_ERROR_MSG,
-                            Some(format!("Failed to get soft batch range: {}", err)),
-                        )
-                    })?;
-                let block_time_s = soft_batches[1].timestamp - soft_batches[0].timestamp;
-                tokio::time::sleep(Duration::from_millis(block_time_s * 1500)).await;
-
-                let (new_head_batch_num, _) = ledger_db
-                    .get_head_soft_batch()
-                    .map_err(|err| {
-                        ErrorObjectOwned::owned(
-                            INTERNAL_ERROR_CODE,
-                            INTERNAL_ERROR_MSG,
-                            Some(format!("Failed to get head soft batch: {}", err)),
-                        )
-                    })?
-                    .unwrap();
-                if new_head_batch_num > BatchNumber(head_batch_num) {
-                    Ok::<(), ErrorObjectOwned>(())
-                } else {
-                    Err(ErrorObjectOwned::owned(
-                        INTERNAL_ERROR_CODE,
-                        INTERNAL_ERROR_MSG,
-                        Some("Block number is not increasing"),
-                    ))
-                }
-            }
-        })?;
-
-        Ok(rpc_methods)
     }
 
     /// Returns the head soft batch
