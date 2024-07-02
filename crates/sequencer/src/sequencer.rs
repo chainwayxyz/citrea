@@ -5,7 +5,6 @@ use std::net::SocketAddr;
 use std::ops::RangeInclusive;
 use std::sync::Arc;
 use std::time::Duration;
-use std::{thread, vec};
 
 use anyhow::anyhow;
 use borsh::ser::BorshSerialize;
@@ -931,36 +930,57 @@ where
 
         // TODO: create register_healthcheck_rpc helper function
         let ledger_db = self.ledger_db.clone();
-        rpc.register_method("health_check", move |_, _| {
-            let next_soft_batch_num = ledger_db.get_next_items_numbers().soft_batch_number;
-            if next_soft_batch_num < 2 {
-                return Ok::<(), ErrorObjectOwned>(());
-            }
-
-            let soft_batches = ledger_db
-                .get_soft_batch_range(
-                    &(BatchNumber(next_soft_batch_num - 2)..BatchNumber(next_soft_batch_num)),
-                )
-                .map_err(|err| {
+        rpc.register_async_method("health_check", move |_, _| {
+            let ledger_db = ledger_db.clone();
+            async move {
+                let head_batch = ledger_db.get_head_soft_batch().map_err(|err| {
                     ErrorObjectOwned::owned(
                         INTERNAL_ERROR_CODE,
                         INTERNAL_ERROR_MSG,
-                        Some(format!("Failed to get soft batch range: {}", err)),
+                        Some(format!("Failed to get head soft batch: {}", err)),
                     )
                 })?;
+                let head_batch_num: u64 = match head_batch {
+                    Some((i, _)) => i.into(),
+                    None => return Ok::<(), ErrorObjectOwned>(()),
+                };
+                if head_batch_num < 1 {
+                    return Ok::<(), ErrorObjectOwned>(());
+                }
 
-            let block_time_s = soft_batches[1].timestamp - soft_batches[0].timestamp;
-            thread::sleep(Duration::from_millis(block_time_s * 1500));
-            
-            let new_soft_batch_num = ledger_db.get_next_items_numbers().soft_batch_number;
-            if new_soft_batch_num >= next_soft_batch_num {
-                Ok::<(), ErrorObjectOwned>(())
-            } else {
-                Err(ErrorObjectOwned::owned(
-                    INTERNAL_ERROR_CODE,
-                    INTERNAL_ERROR_MSG,
-                    Some("Block number is not increasing"),
-                ))
+                let soft_batches = ledger_db
+                    .get_soft_batch_range(
+                        &(BatchNumber(head_batch_num - 1)..BatchNumber(head_batch_num + 1)),
+                    )
+                    .map_err(|err| {
+                        ErrorObjectOwned::owned(
+                            INTERNAL_ERROR_CODE,
+                            INTERNAL_ERROR_MSG,
+                            Some(format!("Failed to get soft batch range: {}", err)),
+                        )
+                    })?;
+                let block_time_s = soft_batches[1].timestamp - soft_batches[0].timestamp;
+                tokio::time::sleep(Duration::from_millis(block_time_s * 1500)).await;
+
+                let (new_head_batch_num, _) = ledger_db
+                    .get_head_soft_batch()
+                    .map_err(|err| {
+                        ErrorObjectOwned::owned(
+                            INTERNAL_ERROR_CODE,
+                            INTERNAL_ERROR_MSG,
+                            Some(format!("Failed to get head soft batch: {}", err)),
+                        )
+                    })?
+                    .unwrap();
+                if new_head_batch_num > BatchNumber(head_batch_num) {
+                    Ok::<(), ErrorObjectOwned>(())
+                } else {
+                    Err(ErrorObjectOwned::owned(
+                        INTERNAL_ERROR_CODE,
+                        INTERNAL_ERROR_MSG,
+                        Some("Block number is not increasing"),
+                    ))
+                }
             }
         })?;
 
