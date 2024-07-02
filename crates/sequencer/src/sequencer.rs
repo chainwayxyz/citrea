@@ -1037,10 +1037,10 @@ where
         // check if last commitment in db matches sequencer's last commitment
         if let Some(db_commitment) = db_commitment {
             // this means that the last commitment in the db is not the same as the sequencer's last commitment
-            if db_commitment.l2_start_height as u64 > ledger_commitment.l2_end_block_number {
+            if db_commitment.l2_start_height > ledger_commitment.l2_end_block_number {
                 self.ledger_db
                     .set_last_sequencer_commitment_l1_height(SlotNumber(
-                        db_commitment.l2_end_height as u64,
+                        db_commitment.l2_end_height,
                     ))?
             }
         }
