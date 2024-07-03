@@ -58,6 +58,7 @@ pub const LEDGER_TABLES: &[&str] = &[
     L2RangeByL1Height::table_name(),
     L2Witness::table_name(),
     LastSequencerCommitmentSent::table_name(),
+    LastSequencerCommitmentSentL2::table_name(),
     ProverLastScannedSlot::table_name(),
     BatchByHash::table_name(),
     BatchByNumber::table_name(),
@@ -261,6 +262,11 @@ define_table_with_seek_key_codec!(
 );
 
 define_table_with_seek_key_codec!(
+    /// Sequencer uses this table to store the last commitment it sent
+    (LastSequencerCommitmentSentL2) () => BatchNumber
+);
+
+define_table_with_seek_key_codec!(
     /// Prover uses this table to store the last slot it scanned
     (ProverLastScannedSlot) () => SlotNumber
 );
@@ -272,7 +278,7 @@ define_table_with_seek_key_codec!(
 
 define_table_with_default_codec!(
     /// Check whether a block is finalized
-    (SoftConfirmationStatus) SlotNumber => sov_rollup_interface::rpc::SoftConfirmationStatus
+    (SoftConfirmationStatus) BatchNumber => sov_rollup_interface::rpc::SoftConfirmationStatus
 );
 
 define_table_with_default_codec!(

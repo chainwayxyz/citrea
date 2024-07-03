@@ -616,6 +616,13 @@ where
                 .map_err(|_| anyhow!("Send transaction cannot fail"))?;
 
             self.ledger_db
+                .set_last_sequencer_commitment_l2_height(BatchNumber(
+                    commitment_info.l2_height_range.end().0,
+                ))
+                .map_err(|_| {
+                    anyhow!("Sequencer: Failed to set last sequencer commitment L2 height")
+                })?;
+            self.ledger_db
                 .set_last_sequencer_commitment_l1_height(SlotNumber(
                     commitment_info.l1_height_range.end().0,
                 ))
@@ -624,8 +631,8 @@ where
                 })?;
 
             debug!("Commitment info: {:?}", commitment_info);
-            let l1_start_height = commitment_info.l1_height_range.start().0;
-            let l1_end_height = commitment_info.l1_height_range.end().0;
+            // let l1_start_height = commitment_info.l1_height_range.start().0;
+            // let l1_end_height = commitment_info.l1_height_range.end().0;
             let l2_start = l2_range_to_submit.start().0 as u32;
             let l2_end = l2_range_to_submit.end().0 as u32;
             if let Some(db_config) = self.config.db_config.clone() {
@@ -633,11 +640,7 @@ where
                     Ok(pg_connector) => {
                         pg_connector
                             .insert_sequencer_commitment(
-                                l1_start_height as u32,
-                                l1_end_height as u32,
                                 Into::<[u8; 32]>::into(tx_id).to_vec(),
-                                commitment.l1_start_block_hash.to_vec(),
-                                commitment.l1_end_block_hash.to_vec(),
                                 l2_start,
                                 l2_end,
                                 commitment.merkle_root.to_vec(),
@@ -654,10 +657,7 @@ where
                 }
             }
 
-            info!(
-                "New commitment. L2 range: #{}-{}, L1 Range #{}-{}",
-                l2_start, l2_end, l1_start_height, l1_end_height,
-            );
+            info!("New commitment. L2 range: #{}-{}", l2_start, l2_end,);
         }
         Ok(())
     }
@@ -1016,19 +1016,19 @@ where
         &self,
         pg_connector: PostgresConnector,
     ) -> Result<(), anyhow::Error> {
-        let ledger_commitment_l1_height =
-            self.ledger_db.get_last_sequencer_commitment_l1_height()?;
+        let ledger_commitment_l2_height = self
+            .ledger_db
+            .get_last_sequencer_commitment_l2_height()?
+            .ok_or(anyhow!("No commitment exists"))?;
 
-        let commitment = pg_connector.get_last_commitment().await?;
+        let db_commitment = pg_connector.get_last_commitment().await?;
         // check if last commitment in db matches sequencer's last commitment
-        if let Some(db_commitment) = commitment {
+        if let Some(db_commitment) = db_commitment {
             // this means that the last commitment in the db is not the same as the sequencer's last commitment
-            if db_commitment.l1_end_height as u64
-                > ledger_commitment_l1_height.unwrap_or(SlotNumber(0)).0
-            {
+            if db_commitment.l2_start_height > ledger_commitment_l2_height.0 {
                 self.ledger_db
-                    .set_last_sequencer_commitment_l1_height(SlotNumber(
-                        db_commitment.l1_end_height as u64,
+                    .set_last_sequencer_commitment_l2_height(BatchNumber(
+                        db_commitment.l2_end_height,
                     ))?
             }
         }
