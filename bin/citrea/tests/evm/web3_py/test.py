@@ -4,7 +4,7 @@ from web3 import Web3
 
 class TestWeb3(unittest.TestCase):
     def setUp(self):
-        self.web3 = Web3(Web3.HTTPProvider('http://127.0.0.1:12345'))
+        self.web3 = Web3(Web3.HTTPProvider('http://127.0.0.1:12346'))
         transaction = {
             'from': "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
             'to': "0x0000000000000000000000000000000000000000",

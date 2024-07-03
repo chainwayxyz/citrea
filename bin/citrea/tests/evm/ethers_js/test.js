@@ -1,7 +1,7 @@
 import { ethers, JsonRpcProvider } from "ethers";
 import { expect } from 'chai';
 
-let provider = new JsonRpcProvider('http://127.0.0.1:12345');
+let provider = new JsonRpcProvider('http://127.0.0.1:12346');
 
 describe("RpcTests", function() {
     let first_tx_receipt;
