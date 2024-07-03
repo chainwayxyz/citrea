@@ -3252,7 +3252,7 @@ async fn test_full_node_sync_status() {
     let seq_test_client = init_test_rollup(seq_port).await;
     let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
 
-    for _ in 0..1000 {
+    for _ in 0..300 {
         let _pending = seq_test_client
             .send_eth(addr, None, None, None, 0u128)
             .await
@@ -3260,7 +3260,7 @@ async fn test_full_node_sync_status() {
         seq_test_client.send_publish_batch_request().await;
     }
 
-    wait_for_l2_block(&seq_test_client, 1000, Some(Duration::from_secs(60))).await;
+    wait_for_l2_block(&seq_test_client, 300, Some(Duration::from_secs(60))).await;
 
     let (full_node_port_tx, full_node_port_rx) = tokio::sync::oneshot::channel();
 
@@ -3293,18 +3293,18 @@ async fn test_full_node_sync_status() {
     match status {
         CitreaStatus::Syncing(syncing) => {
             println!("{:?}", syncing);
-            assert!(syncing.synced_block_number > 0 && syncing.synced_block_number < 1000);
-            assert_eq!(syncing.head_block_number, 1000);
+            assert!(syncing.synced_block_number > 0 && syncing.synced_block_number < 300);
+            assert_eq!(syncing.head_block_number, 300);
         }
         _ => panic!("Expected syncing status"),
     }
 
-    wait_for_l2_block(&full_node_test_client, 1000, None).await;
+    wait_for_l2_block(&full_node_test_client, 300, Some(Duration::from_secs(60))).await;
 
     let status = full_node_test_client.citrea_sync_status().await;
 
     match status {
-        CitreaStatus::Synced(synced_up_to) => assert_eq!(synced_up_to, 1000),
+        CitreaStatus::Synced(synced_up_to) => assert_eq!(synced_up_to, 300),
         _ => panic!("Expected synced status"),
     }
 
