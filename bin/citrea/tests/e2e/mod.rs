@@ -3226,16 +3226,14 @@ async fn test_healthcheck() {
 
     wait_for_l2_block(&full_node_test_client, 2, None).await;
 
-    let full_node_url = format!("http://localhost:{}/health", full_node_addr.port());
-    let resp = reqwest::get(&full_node_url).await.unwrap();
-    assert_eq!(resp.status().as_u16(), 200);
+    let status = full_node_test_client.healthcheck().await.unwrap();
+    assert_eq!(status, 200);
 
     wait_for_l2_block(&full_node_test_client, 4, None).await;
-
     seq_task.abort();
 
-    let resp = reqwest::get(&full_node_url).await.unwrap();
-    assert_eq!(resp.status().as_u16(), 500);
+    let status = full_node_test_client.healthcheck().await.unwrap();
+    assert_eq!(status, 500);
 
     full_node_task.abort();
 }
