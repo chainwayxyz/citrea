@@ -198,18 +198,18 @@ pub async fn wait_for_l2_block(sequencer_client: &TestClient, num: u64, timeout:
     loop {
         debug!("Waiting for soft batch {}", num);
         let latest_block = sequencer_client
-            .eth_get_block_by_number_with_detail(Some(BlockNumberOrTag::Latest))
-            .await;
-        if latest_block.header.number >= Some(num) {
+            .ledger_get_head_soft_batch_height()
+            .await
+            .unwrap()
+            .expect("Expected height to be Some");
+
+        if latest_block >= num {
             break;
         }
 
         let now = SystemTime::now();
         if start + timeout <= now {
-            panic!(
-                "Timeout. Latest L2 block is {:?}",
-                latest_block.header.number
-            );
+            panic!("Timeout. Latest L2 block is {:?}", latest_block);
         }
 
         sleep(Duration::from_secs(1)).await;
@@ -284,7 +284,7 @@ pub async fn wait_for_proof(test_client: &TestClient, slot_height: u64, timeout:
 
         sleep(Duration::from_secs(1)).await;
     }
-    // Let knowledgage of the new DA block propagate
+    // Let knowledge of the new DA block propagate
     sleep(Duration::from_secs(2)).await;
 }
 
