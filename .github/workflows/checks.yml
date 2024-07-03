@@ -187,7 +187,6 @@ jobs:
         run: make coverage
         env:
           RUST_BACKTRACE: 1
-          GUEST_BUILD_NO_DOCKER: 1
       - name: Upload coverage
         uses: codecov/codecov-action@v4
         with:
@@ -393,6 +392,7 @@ jobs:
         run: make test
         env:
           RUST_BACKTRACE: 1
+          REPR_GUEST_BUILD: 1
           BONSAI_API_URL: ${{ secrets.BONSAI_API_URL }} # TODO: remove this once we don't use the client on tests
           BONSAI_API_KEY: ${{ secrets.BONSAI_API_KEY }} # TODO: remove this once we don't use the client on tests
 
