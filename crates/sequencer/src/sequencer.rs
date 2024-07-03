@@ -188,8 +188,8 @@ where
         let batch_requests_limit = self.rpc_config.batch_requests_limit;
 
         let middleware = tower::ServiceBuilder::new()
-            .layer(common::rpc::get_cors_layer())
-            .layer(common::rpc::get_healthcheck_proxy_layer());
+            .layer(citrea_common::rpc::get_cors_layer())
+            .layer(citrea_common::rpc::get_healthcheck_proxy_layer());
 
         let _handle = tokio::spawn(async move {
             let server = ServerBuilder::default()
@@ -920,7 +920,8 @@ where
         let rpc_context = self.create_rpc_context().await;
         let mut rpc = create_rpc_module(rpc_context)?;
 
-        common::rpc::register_healthcheck_rpc(&mut rpc, Some(self.ledger_db.clone())).unwrap();
+        citrea_common::rpc::register_healthcheck_rpc(&mut rpc, Some(self.ledger_db.clone()))
+            .unwrap();
 
         rpc.merge(rpc_methods)?;
         Ok(rpc)

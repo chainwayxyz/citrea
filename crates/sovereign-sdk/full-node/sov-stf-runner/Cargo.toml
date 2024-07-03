@@ -31,7 +31,7 @@ tracing = { workspace = true, optional = true }
 futures = { workspace = true, optional = true }
 async-trait = { workspace = true, optional = true }
 rayon = { workspace = true, optional = true }
-common = { path = "../../../common", optional = true}
+citrea-common = { path = "../../../common", optional = true}
 sov-db = { path = "../db/sov-db", optional = true }
 sov-rollup-interface = { path = "../../rollup-interface" }
 sov-modules-stf-blueprint = { path = "../../module-system/sov-modules-stf-blueprint" }
@@ -84,7 +84,7 @@ native = [
     "thiserror",
     "shared-backup-db",
     "backoff",
-    "common",
+    "citrea-common",
     "rand",
     "tower-http",
     "tower",

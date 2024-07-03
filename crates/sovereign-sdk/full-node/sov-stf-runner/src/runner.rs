@@ -194,11 +194,12 @@ where
 
         let max_connections = self.rpc_config.max_connections;
 
-        common::rpc::register_healthcheck_rpc(&mut methods, Some(self.ledger_db.clone())).unwrap();
+        citrea_common::rpc::register_healthcheck_rpc(&mut methods, Some(self.ledger_db.clone()))
+            .unwrap();
 
         let middleware = tower::ServiceBuilder::new()
-            .layer(common::rpc::get_cors_layer())
-            .layer(common::rpc::get_healthcheck_proxy_layer());
+            .layer(citrea_common::rpc::get_cors_layer())
+            .layer(citrea_common::rpc::get_healthcheck_proxy_layer());
 
         let _handle = tokio::spawn(async move {
             let server = jsonrpsee::server::ServerBuilder::default()
