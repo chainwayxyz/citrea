@@ -7,7 +7,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use std::vec;
 
-use anyhow::{anyhow, bail};
+use anyhow::anyhow;
 use borsh::ser::BorshSerialize;
 use citrea_evm::{CallMessage, Evm, RlpEvmTransaction, MIN_TRANSACTION_GAS};
 use citrea_stf::runtime::Runtime;
@@ -620,6 +620,13 @@ where
                     commitment_info.l2_height_range.end().0,
                 ))
                 .map_err(|_| {
+                    anyhow!("Sequencer: Failed to set last sequencer commitment L2 height")
+                })?;
+            self.ledger_db
+                .set_last_sequencer_commitment_l1_height(SlotNumber(
+                    commitment_info.l1_height_range.end().0,
+                ))
+                .map_err(|_| {
                     anyhow!("Sequencer: Failed to set last sequencer commitment L1 height")
                 })?;
 
@@ -1013,31 +1020,16 @@ where
         &self,
         pg_connector: PostgresConnector,
     ) -> Result<(), anyhow::Error> {
-        let ledger_commitment_l1_height = self
+        let ledger_commitment_l2_height = self
             .ledger_db
-            .get_last_sequencer_commitment_l1_height()?
+            .get_last_sequencer_commitment_l2_height()?
             .ok_or(anyhow!("No commitment exists"))?;
-        let ledger_commitment = match self
-            .ledger_db
-            .get_commitments_on_da_slot(ledger_commitment_l1_height.0)?
-            .ok_or(anyhow!(
-                "No commitment found at last known L1 commitment height {}",
-                ledger_commitment_l1_height.0
-            ))?
-            .last()
-        {
-            Some(commitment) => commitment.clone(),
-            None => bail!(
-                "Fetching ledger commitment failed at height {}",
-                ledger_commitment_l1_height.0
-            ),
-        };
 
         let db_commitment = pg_connector.get_last_commitment().await?;
         // check if last commitment in db matches sequencer's last commitment
         if let Some(db_commitment) = db_commitment {
             // this means that the last commitment in the db is not the same as the sequencer's last commitment
-            if db_commitment.l2_start_height > ledger_commitment.l2_end_block_number {
+            if db_commitment.l2_start_height > ledger_commitment_l2_height.0 {
                 self.ledger_db
                     .set_last_sequencer_commitment_l2_height(BatchNumber(
                         db_commitment.l2_end_height,

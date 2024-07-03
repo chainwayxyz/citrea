@@ -13,9 +13,9 @@ use tracing::instrument;
 use crate::rocks_db_config::gen_rocksdb_options;
 use crate::schema::tables::{
     BatchByHash, BatchByNumber, CommitmentsByNumber, EventByKey, EventByNumber, L2RangeByL1Height,
-    L2Witness, LastSequencerCommitmentSent, ProofBySlotNumber, ProverLastScannedSlot, SlotByHash,
-    SlotByNumber, SoftBatchByHash, SoftBatchByNumber, SoftConfirmationStatus, TxByHash, TxByNumber,
-    VerifiedProofsBySlotNumber, LEDGER_TABLES,
+    L2Witness, LastSequencerCommitmentSent, LastSequencerCommitmentSentL2, ProofBySlotNumber,
+    ProverLastScannedSlot, SlotByHash, SlotByNumber, SoftBatchByHash, SoftBatchByNumber,
+    SoftConfirmationStatus, TxByHash, TxByNumber, VerifiedProofsBySlotNumber, LEDGER_TABLES,
 };
 use crate::schema::types::{
     split_tx_for_storage, BatchNumber, EventNumber, L2HeightRange, SlotNumber, StoredBatch,
@@ -453,7 +453,7 @@ impl LedgerDB {
         Ok(())
     }
 
-    /// Used by the sequencer to record that it has committed to soft confirmations on a given L1 height
+    /// Used by the sequencer to record that it has committed to soft confirmations on a given L2 height
     #[instrument(level = "trace", skip(self), err, ret)]
     pub fn set_last_sequencer_commitment_l2_height(
         &self,
@@ -462,7 +462,23 @@ impl LedgerDB {
         let mut schema_batch = SchemaBatch::new();
 
         schema_batch
-            .put::<LastSequencerCommitmentSent>(&(), &l2_height)
+            .put::<LastSequencerCommitmentSentL2>(&(), &l2_height)
+            .unwrap();
+        self.db.write_schemas(schema_batch)?;
+
+        Ok(())
+    }
+
+    /// Used by the sequencer to record that it has committed to soft confirmations on a given L2 height
+    #[instrument(level = "trace", skip(self), err, ret)]
+    pub fn set_last_sequencer_commitment_l1_height(
+        &self,
+        l1_height: SlotNumber,
+    ) -> Result<(), anyhow::Error> {
+        let mut schema_batch = SchemaBatch::new();
+
+        schema_batch
+            .put::<LastSequencerCommitmentSent>(&(), &l1_height)
             .unwrap();
         self.db.write_schemas(schema_batch)?;
 
@@ -531,8 +547,15 @@ impl LedgerDB {
     /// were committed.
     /// Called by the sequencer.
     #[instrument(level = "trace", skip(self), err, ret)]
-    pub fn get_last_sequencer_commitment_l1_height(&self) -> anyhow::Result<Option<BatchNumber>> {
+    pub fn get_last_sequencer_commitment_l1_height(&self) -> anyhow::Result<Option<SlotNumber>> {
         self.db.get::<LastSequencerCommitmentSent>(&())
+    }
+
+    /// Get the most recent committed batch
+    /// Returns L2 height.
+    #[instrument(level = "trace", skip(self), err, ret)]
+    pub fn get_last_sequencer_commitment_l2_height(&self) -> anyhow::Result<Option<BatchNumber>> {
+        self.db.get::<LastSequencerCommitmentSentL2>(&())
     }
 
     /// Get L2 height range for a given L1 height.
