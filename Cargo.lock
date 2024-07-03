@@ -1789,6 +1789,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "citrea-common"
+version = "0.4.0-rc.3"
+dependencies = [
+ "hyper 0.14.28",
+ "jsonrpsee",
+ "sov-db",
+ "tokio",
+ "tower-http",
+]
+
+[[package]]
 name = "citrea-evm"
 version = "0.4.0-rc.3"
 dependencies = [
@@ -1863,6 +1874,7 @@ dependencies = [
  "anyhow",
  "borsh",
  "chrono",
+ "citrea-common",
  "citrea-evm",
  "citrea-stf",
  "deadpool-postgres",
@@ -10000,6 +10012,7 @@ dependencies = [
  "async-trait",
  "backoff",
  "borsh",
+ "citrea-common",
  "futures",
  "hex",
  "hyper 0.14.28",

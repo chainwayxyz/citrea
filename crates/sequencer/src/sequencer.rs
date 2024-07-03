@@ -5,7 +5,6 @@ use std::net::SocketAddr;
 use std::ops::RangeInclusive;
 use std::sync::Arc;
 use std::time::Duration;
-use std::vec;
 
 use anyhow::anyhow;
 use borsh::ser::BorshSerialize;
@@ -14,7 +13,6 @@ use citrea_stf::runtime::Runtime;
 use digest::Digest;
 use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
 use futures::StreamExt;
-use hyper::Method;
 use jsonrpsee::server::{BatchRequestConfig, ServerBuilder};
 use jsonrpsee::RpcModule;
 use reth_primitives::{Address, FromRecoveredPooledTransaction, IntoRecoveredTransaction, TxHash};
@@ -45,7 +43,6 @@ use sov_stf_runner::{InitVariant, RollupPublicKeys, RpcConfig};
 use tokio::sync::oneshot::channel as oneshot_channel;
 use tokio::sync::Mutex;
 use tokio::time::sleep;
-use tower_http::cors::{Any, CorsLayer};
 use tracing::{debug, error, info, instrument, warn};
 
 use crate::commitment_controller;
@@ -190,11 +187,9 @@ where
         let max_response_body_size = self.rpc_config.max_response_body_size;
         let batch_requests_limit = self.rpc_config.batch_requests_limit;
 
-        let cors = CorsLayer::new()
-            .allow_methods([Method::POST, Method::OPTIONS])
-            .allow_origin(Any)
-            .allow_headers(Any);
-        let middleware = tower::ServiceBuilder::new().layer(cors);
+        let middleware = tower::ServiceBuilder::new()
+            .layer(citrea_common::rpc::get_cors_layer())
+            .layer(citrea_common::rpc::get_healthcheck_proxy_layer());
 
         let _handle = tokio::spawn(async move {
             let server = ServerBuilder::default()
@@ -918,14 +913,18 @@ where
     }
 
     /// Updates the given RpcModule with Sequencer methods.
-    pub async fn register_rpc_methods(
+    pub(crate) async fn register_rpc_methods(
         &self,
-        mut rpc_methods: jsonrpsee::RpcModule<()>,
-    ) -> Result<jsonrpsee::RpcModule<()>, jsonrpsee::core::RegisterMethodError> {
+        rpc_methods: jsonrpsee::RpcModule<()>,
+    ) -> Result<jsonrpsee::RpcModule<RpcContext<C>>, jsonrpsee::core::RegisterMethodError> {
         let rpc_context = self.create_rpc_context().await;
-        let rpc = create_rpc_module(rpc_context)?;
-        rpc_methods.merge(rpc)?;
-        Ok(rpc_methods)
+        let mut rpc = create_rpc_module(rpc_context)?;
+
+        citrea_common::rpc::register_healthcheck_rpc(&mut rpc, Some(self.ledger_db.clone()))
+            .unwrap();
+
+        rpc.merge(rpc_methods)?;
+        Ok(rpc)
     }
 
     pub async fn restore_mempool(

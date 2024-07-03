@@ -7,7 +7,6 @@ use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoffBuilder;
 use borsh::de::BorshDeserialize;
 use borsh::BorshSerialize as _;
-use hyper::Method;
 use jsonrpsee::core::client::Error as JsonrpseeError;
 use jsonrpsee::RpcModule;
 use rand::Rng;
@@ -30,7 +29,6 @@ use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::{Proof, StateTransitionData, Zkvm, ZkvmHost};
 use tokio::sync::oneshot;
 use tokio::time::{sleep, Duration};
-use tower_http::cors::{Any, CorsLayer};
 use tracing::{debug, error, info, instrument, warn};
 
 use crate::prover_helpers::get_initial_slot_height;
@@ -182,7 +180,7 @@ where
     /// Starts a RPC server with provided rpc methods.
     pub async fn start_rpc_server(
         &self,
-        methods: RpcModule<()>,
+        mut methods: RpcModule<()>,
         channel: Option<oneshot::Sender<SocketAddr>>,
     ) {
         let bind_host = match self.rpc_config.bind_host.parse() {
@@ -196,11 +194,12 @@ where
 
         let max_connections = self.rpc_config.max_connections;
 
-        let cors = CorsLayer::new()
-            .allow_methods([Method::POST, Method::OPTIONS])
-            .allow_origin(Any)
-            .allow_headers(Any);
-        let middleware = tower::ServiceBuilder::new().layer(cors);
+        citrea_common::rpc::register_healthcheck_rpc(&mut methods, Some(self.ledger_db.clone()))
+            .unwrap();
+
+        let middleware = tower::ServiceBuilder::new()
+            .layer(citrea_common::rpc::get_cors_layer())
+            .layer(citrea_common::rpc::get_healthcheck_proxy_layer());
 
         let _handle = tokio::spawn(async move {
             let server = jsonrpsee::server::ServerBuilder::default()
