@@ -13,12 +13,12 @@ fn test_hints_roundtrip() {
     let mut host = Risc0Host::new(&[]);
 
     let hint_a = TestStruct {
-        ints: vec![1, 2, 3, 4, 5],
+        ints: vec![0, 1, 2, 3, 4],
         string: "hello".to_string(),
     };
     let hint_b = TestStruct {
-        ints: vec![1, 2, 3, 4, 5],
-        string: "hello".to_string(),
+        ints: vec![5, 6, 7, 8, 9],
+        string: "world".to_string(),
     };
 
     host.add_hint(&hint_a);
