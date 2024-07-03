@@ -10,6 +10,7 @@ fuzz/Cargo.lock
 .DS_Store
 
 demo_data/
+resources/dbs/da-db/
 resources/dbs/sequencer-db/
 resources/dbs/full-node-db/
 resources/dbs/prover-db/
