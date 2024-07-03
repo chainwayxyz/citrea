@@ -190,13 +190,13 @@ pub fn tempdir_with_children(children: &[&str]) -> TempDir {
     db_dir
 }
 
-#[instrument(level = "debug", skip(sequencer_client))]
-pub async fn wait_for_l2_block(sequencer_client: &TestClient, num: u64, timeout: Option<Duration>) {
+#[instrument(level = "debug", skip(client))]
+pub async fn wait_for_l2_block(client: &TestClient, num: u64, timeout: Option<Duration>) {
     let start = SystemTime::now();
     let timeout = timeout.unwrap_or(Duration::from_secs(30)); // Default 30 seconds timeout
     loop {
         debug!("Waiting for soft batch {}", num);
-        let latest_block = sequencer_client
+        let latest_block = client
             .ledger_get_head_soft_batch_height()
             .await
             .unwrap()

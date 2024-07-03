@@ -477,9 +477,6 @@ where
                         data_to_commit.add_batch(receipt);
                     }
 
-                    self.storage_manager
-                        .save_change_set_l2(l2_height, slot_result.change_set)?;
-
                     let batch_receipt = data_to_commit.batch_receipts()[0].clone();
 
                     let next_state_root = slot_result.state_root;
@@ -505,11 +502,15 @@ where
                         timestamp: soft_batch.timestamp,
                     };
 
-                    self.ledger_db.commit_soft_batch(soft_batch_receipt, true)?;
+                    self.storage_manager
+                        .save_change_set_l2(l2_height, slot_result.change_set)?;
+                    self.storage_manager.finalize_l2(l2_height)?;
+
                     self.ledger_db.extend_l2_range_of_l1_slot(
                         SlotNumber(filtered_block.header().height()),
                         BatchNumber(l2_height),
                     )?;
+                    self.ledger_db.commit_soft_batch(soft_batch_receipt, true)?;
 
                     self.state_root = next_state_root;
 
@@ -517,8 +518,6 @@ where
                         "New State Root after soft confirmation #{} is: {:?}",
                         l2_height, self.state_root
                     );
-
-                    self.storage_manager.finalize_l2(l2_height)?;
 
                     l2_height += 1;
                 }

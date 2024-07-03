@@ -515,9 +515,22 @@ where
                 tracing::debug!("Finalizing l2 height: {:?}", l2_height);
                 self.storage_manager.finalize_l2(l2_height)?;
 
-                self.state_root = next_state_root;
+                // connect L1 and L2 height
+                self.ledger_db.extend_l2_range_of_l1_slot(
+                    SlotNumber(da_block.header().height()),
+                    BatchNumber(l2_height),
+                )?;
 
                 self.ledger_db.commit_soft_batch(soft_batch_receipt, true)?;
+
+                info!(
+                    "New block #{}, DA #{}, Tx count: #{}",
+                    l2_height,
+                    da_block.header().height(),
+                    evm_txs_count,
+                );
+
+                self.state_root = next_state_root;
 
                 let mut txs_to_remove = self.db_provider.last_block_tx_hashes()?;
                 txs_to_remove.extend(l1_fee_failed_txs);
@@ -540,19 +553,6 @@ where
                         }
                     });
                 }
-
-                info!(
-                    "New block #{}, DA #{}, Tx count: #{}",
-                    l2_height,
-                    da_block.header().height(),
-                    evm_txs_count,
-                );
-
-                // connect L1 and L2 height
-                self.ledger_db.extend_l2_range_of_l1_slot(
-                    SlotNumber(da_block.header().height()),
-                    BatchNumber(l2_height),
-                )?;
 
                 Ok(da_block.header().height())
             }
