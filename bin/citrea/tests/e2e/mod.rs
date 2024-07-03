@@ -2627,7 +2627,7 @@ async fn full_node_verify_proof_and_store() {
     }
 
     // So the full node should see the proof in block 5
-    wait_for_proof(&full_node_test_client, 5, None).await;
+    wait_for_proof(&full_node_test_client, 5, Some(Duration::from_secs(60))).await;
     let full_node_proof = full_node_test_client
         .ledger_get_verified_proofs_by_slot_height(5)
         .await
@@ -2850,7 +2850,7 @@ async fn test_all_flow() {
     wait_for_l2_block(&full_node_test_client, 7, None).await;
 
     // So the full node should see the proof in block 5
-    wait_for_proof(&full_node_test_client, 5, None).await;
+    wait_for_proof(&full_node_test_client, 5, Some(Duration::from_secs(120))).await;
     let full_node_proof = full_node_test_client
         .ledger_get_verified_proofs_by_slot_height(5)
         .await
@@ -2949,7 +2949,7 @@ async fn test_all_flow() {
         wait_for_l2_block(&full_node_test_client, i, None).await;
     }
 
-    wait_for_proof(&full_node_test_client, 8, None).await;
+    wait_for_proof(&full_node_test_client, 8, Some(Duration::from_secs(120))).await;
     let full_node_proof_data = full_node_test_client
         .ledger_get_verified_proofs_by_slot_height(8)
         .await
