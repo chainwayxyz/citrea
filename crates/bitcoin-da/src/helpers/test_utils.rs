@@ -7,7 +7,7 @@ use bitcoin::string::FromHexStr;
 use bitcoin::{BlockHash, CompactTarget};
 use sov_rollup_interface::da::{DaSpec, DaVerifier};
 
-use crate::helpers::builders::decompress_blob;
+use crate::helpers::compression::decompress_blob;
 use crate::helpers::parsers::{parse_hex_transaction, parse_transaction};
 use crate::spec::blob::BlobWithSender;
 use crate::spec::header::HeaderWrapper;

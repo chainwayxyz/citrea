@@ -10,6 +10,7 @@ pub struct InclusionMultiProof {
     pub coinbase_tx: Transaction,
 }
 
+#[cfg(feature = "native")]
 impl InclusionMultiProof {
     pub(crate) fn new(
         txids: Vec<[u8; 32]>,

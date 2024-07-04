@@ -9,7 +9,7 @@ use sov_rollup_interface::digest::Digest;
 use sov_rollup_interface::zk::ValidityCondition;
 use thiserror::Error;
 
-use crate::helpers::builders::decompress_blob;
+use crate::helpers::compression::decompress_blob;
 use crate::helpers::parsers::parse_transaction;
 use crate::spec::BitcoinSpec;
 

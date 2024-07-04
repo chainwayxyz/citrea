@@ -5,7 +5,9 @@ const PUBLICKEY_TAG: &[u8] = &[3];
 const RANDOM_TAG: &[u8] = &[4];
 const BODY_TAG: &[u8] = &[];
 
+#[cfg(feature = "native")]
 pub mod builders;
+pub mod compression;
 pub mod parsers;
 #[cfg(test)]
 pub mod test_utils;
