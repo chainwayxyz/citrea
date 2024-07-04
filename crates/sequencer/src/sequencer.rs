@@ -487,16 +487,15 @@ where
                     slot_result.state_root
                 );
 
-                // Merge state diffs
-                let new_state_diff = self.merge_state_diffs(
-                    self.last_state_diff.clone(),
-                    slot_result.state_diff.clone(),
-                );
-                self.last_state_diff = slot_result.state_diff.clone();
+                let mut new_state_diff = self.last_state_diff.clone();
+                new_state_diff.extend(slot_result.state_diff.clone());
+
                 // Serialize the state diff to check size later.
                 let serialized_state_diff = bincode::serialize(&new_state_diff)?;
                 // Store state diff.
-                self.ledger_db.set_state_diff(new_state_diff)?;
+                self.last_state_diff = new_state_diff;
+                self.ledger_db
+                    .set_state_diff(self.last_state_diff.clone())?;
 
                 let mut data_to_commit = SlotCommit::new(da_block.clone());
                 for receipt in slot_result.batch_receipts {
@@ -606,9 +605,6 @@ where
         let min_soft_confirmations_per_commitment =
             self.config.min_soft_confirmations_per_commitment;
 
-        // Clear state diff
-        self.ledger_db.set_state_diff(vec![])?;
-
         let commitment_info = commitment_controller::get_commitment_info(
             &self.ledger_db,
             min_soft_confirmations_per_commitment,
@@ -691,6 +687,10 @@ where
                     }
                 }
             }
+
+            // Clear state diff.
+            self.ledger_db.set_state_diff(vec![])?;
+            self.last_state_diff = vec![];
 
             info!("New commitment. L2 range: #{}-{}", l2_start, l2_end,);
         }
@@ -1126,13 +1126,6 @@ where
         }
 
         Ok(updates)
-    }
-
-    fn merge_state_diffs(&self, old_diff: StateDiff, new_diff: StateDiff) -> StateDiff {
-        let mut new_diff_map = HashMap::<Vec<u8>, Option<Vec<u8>>>::from_iter(old_diff);
-
-        new_diff_map.extend(new_diff.into_iter());
-        new_diff_map.into_iter().map(|(k, v)| (k, v)).collect()
     }
 }
 
