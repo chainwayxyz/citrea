@@ -5,3 +5,17 @@ authors = { workspace = true }
 edition = { workspace = true }
 license = { workspace = true }
 publish = false
+
+[dependencies]
+
+# Sov SDK deps
+sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
+sov-db = { path = "../sovereign-sdk/full-node/db/sov-db", optional = true }
+
+
+# 3rd-party deps
+lru = { workspace = true, optional = true }
+anyhow = { workspace = true }
+
+[features]
+native = ["dep:lru", "sov-rollup-interface/native", "sov-db"]

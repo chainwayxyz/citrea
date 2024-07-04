@@ -8,6 +8,7 @@ use sov_rollup_interface::rpc::{
     BatchResponse, HexTx, ProofResponse, ProofRpcResponse, SoftBatchResponse,
     StateTransitionRpcResponse, TxIdentifier, TxResponse, VerifiedProofResponse,
 };
+use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
 use sov_rollup_interface::stf::{Event, EventKey, TransactionReceipt};
 use sov_rollup_interface::zk::{CumulativeStateDiff, Proof};
 
@@ -157,7 +158,7 @@ pub fn convert_to_rpc_proof(stored_proof: Proof) -> ProofRpcResponse {
 
 /// The on-disk format for a batch. Stores the hash and identifies the range of transactions
 /// included in the batch.
-#[derive(Debug, PartialEq, BorshDeserialize, BorshSerialize)]
+#[derive(Clone, Debug, PartialEq, BorshDeserialize, BorshSerialize)]
 pub struct StoredSoftBatch {
     /// The number of the batch
     pub da_slot_height: u64,
@@ -185,6 +186,45 @@ pub struct StoredSoftBatch {
     pub l1_fee_rate: u128,
     /// Sequencer's block timestamp
     pub timestamp: u64,
+}
+
+/**
+*
+*
+*  pub fn new(
+       hash: [u8; 32],
+       da_slot_height: u64,
+       da_slot_hash: [u8; 32],
+       da_slot_txs_commitment: [u8; 32],
+       pre_state_root: Vec<u8>,
+       l1_fee_rate: u128,
+       txs: Vec<Vec<u8>>,
+       deposit_data: Vec<Vec<u8>>,
+       signature: Vec<u8>,
+       pub_key: Vec<u8>,
+       timestamp: u64,
+   ) -> SignedSoftConfirmat
+*/
+impl From<StoredSoftBatch> for SignedSoftConfirmationBatch {
+    fn from(value: StoredSoftBatch) -> Self {
+        SignedSoftConfirmationBatch::new(
+            value.hash,
+            value.da_slot_height,
+            value.da_slot_hash,
+            value.da_slot_txs_commitment,
+            value.pre_state_root,
+            value.l1_fee_rate,
+            value
+                .txs
+                .iter()
+                .map(|tx| tx.body.clone().unwrap())
+                .collect(),
+            value.deposit_data,
+            value.soft_confirmation_signature,
+            value.pub_key,
+            value.timestamp,
+        )
+    }
 }
 
 /// The range of L2 heights (soft confirmations) for a given L1 block

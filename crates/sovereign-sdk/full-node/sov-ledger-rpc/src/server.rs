@@ -153,9 +153,12 @@ where
     })?;
     rpc.register_async_method("ledger_getSoftBatchRange", |params, ledger| async move {
         let args: (u64, u64) = params.parse()?;
-        ledger
+        tracing::error!("sequencer got request for soft batch range: {:?}", args);
+        let res = ledger
             .get_soft_batches_range(args.0, args.1)
-            .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
+            .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e));
+        tracing::error!("Sequencer res: {:?}", res);
+        res
     })?;
     rpc.register_async_method("ledger_getTransactionsRange", |params, ledger| async move {
         let args: RangeArgs = params.parse()?;

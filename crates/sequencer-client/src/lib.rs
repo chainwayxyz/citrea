@@ -52,6 +52,7 @@ impl SequencerClient {
         &self,
         range: Range<u64>,
     ) -> anyhow::Result<Vec<Option<GetSoftBatchResponse>>> {
+        tracing::error!("sync l2: pre pre request");
         let res: Result<Vec<Option<GetSoftBatchResponse>>, Error> = self
             .client
             .request(
@@ -59,6 +60,10 @@ impl SequencerClient {
                 rpc_params![range.start, range.end],
             )
             .await;
+        panic!("sync panic");
+        tracing::error!("sync l2: weqrwer");
+        tracing::error!("sync l2: res: {:?}", res);
+        tracing::error!("sync l2: fsdfsadf");
 
         match res {
             Ok(res) => Ok(res),

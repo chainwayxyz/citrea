@@ -1230,10 +1230,10 @@ async fn test_soft_confirmations_status_two_l1() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[tokio::test(flavor = "multi_thread")]
+#[tokio::test(flavor = "multi_thread", worker_threads = 100)]
 async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
-    // citrea::initialize_logging(tracing::Level::INFO);
-
+    citrea::initialize_logging(tracing::Level::INFO);
+    tracing::error!("STARTING TEST");
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "prover"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
     let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
@@ -1297,19 +1297,25 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
     for _ in 0..3 {
         seq_test_client.send_publish_batch_request().await;
     }
-
+    tracing::error!("T1");
     // prover should not have any blocks saved
     assert_eq!(prover_node_test_client.eth_block_number().await, 0);
-
+    tracing::error!("T2");
     // start l1 height = 1, end = 2
     seq_test_client.send_publish_batch_request().await;
 
     // sequencer commitment should be sent
     da_service.publish_test_block().await.unwrap();
+    tracing::error!("T3");
     wait_for_l1_block(&da_service, 2, None).await;
+    tracing::error!("T4");
     wait_for_l1_block(&da_service, 3, None).await;
+    tracing::error!("T5");
 
     seq_test_client.send_publish_batch_request().await;
+    tracing::error!("T6");
+    sleep(Duration::from_secs(5)).await;
+    tracing::error!("T6.5");
 
     // wait here until we see from prover's rpc that it finished proving
     wait_for_prover_l1_height(
@@ -1318,6 +1324,7 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
         Some(Duration::from_secs(DEFAULT_PROOF_WAIT_DURATION)),
     )
     .await;
+    tracing::error!("T7");
 
     // prover should have synced all 4 l2 blocks
     wait_for_l2_block(&prover_node_test_client, 4, None).await;

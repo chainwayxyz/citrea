@@ -1,7 +1,7 @@
 use sov_db::schema::types::BatchNumber;
 
 #[derive(Debug)]
-pub(crate) enum SyncError {
+pub enum SyncError {
     MissingL2(&'static str, BatchNumber, BatchNumber),
     Error(anyhow::Error),
 }

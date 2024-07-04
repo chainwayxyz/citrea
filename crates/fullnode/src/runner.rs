@@ -1,6 +1,5 @@
 use std::marker::PhantomData;
 use std::net::SocketAddr;
-use std::num::NonZeroUsize;
 use std::sync::Arc;
 
 use anyhow::{anyhow, bail};
@@ -8,9 +7,9 @@ use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoffBuilder;
 use borsh::de::BorshDeserialize;
 use borsh::BorshSerialize as _;
+use citrea_primitives::{L1BlockCache, SyncError};
 use jsonrpsee::core::client::Error as JsonrpseeError;
 use jsonrpsee::RpcModule;
-use lru::LruCache;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 use sequencer_client::{GetSoftBatchResponse, SequencerClient};
@@ -33,27 +32,7 @@ use tokio::sync::{mpsc, oneshot, Mutex};
 use tokio::time::{sleep, Duration};
 use tracing::{debug, error, info, instrument, warn};
 
-use crate::error::SyncError;
-
 type StateRoot<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::StateRoot;
-
-struct L1BlockCache<Da>
-where
-    Da: DaService,
-{
-    pub(crate) by_number: LruCache<u64, Da::FilteredBlock>,
-}
-
-impl<Da> L1BlockCache<Da>
-where
-    Da: DaService,
-{
-    fn new() -> Self {
-        Self {
-            by_number: LruCache::new(NonZeroUsize::new(10).unwrap()),
-        }
-    }
-}
 
 /// Citrea's own STF runner implementation.
 pub struct CitreaFullnode<Stf, Sm, Da, Vm, C>

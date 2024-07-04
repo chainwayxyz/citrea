@@ -12,6 +12,7 @@ repository.workspace = true
 # Citrea Deps
 sequencer-client = { path = "../sequencer-client" }
 shared-backup-db = { path = "../shared-backup-db" }
+citrea-primitives = { path = "../primitives" }
 
 # Sov SDK deps
 sov-db = { path = "../sovereign-sdk/full-node/db/sov-db" }
@@ -31,3 +32,4 @@ jsonrpsee = { workspace = true }
 rand = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
+rs_merkle = { workspace = true }

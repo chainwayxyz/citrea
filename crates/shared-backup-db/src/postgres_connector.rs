@@ -13,6 +13,8 @@ use crate::tables::{
     SEQUENCER_COMMITMENT_TABLE_CREATE_QUERY,
 };
 
+pub type DbPoolError = PoolError;
+
 #[derive(Clone)]
 pub struct PostgresConnector {
     client: Pool,

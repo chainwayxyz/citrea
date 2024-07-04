@@ -12,12 +12,15 @@ repository.workspace = true
 # Citrea Deps
 sequencer-client = { path = "../sequencer-client" }
 shared-backup-db = { path = "../shared-backup-db" }
+citrea-primitives = { path = "../primitives", features = ["native"] }
 
 # Sov SDK deps
 sov-db = { path = "../sovereign-sdk/full-node/db/sov-db" }
 sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api", default-features = false }
 sov-modules-rollup-blueprint = { path = "../sovereign-sdk/module-system/sov-modules-rollup-blueprint" }
-sov-modules-stf-blueprint = { path = "../sovereign-sdk/module-system/sov-modules-stf-blueprint", features = ["native"] }
+sov-modules-stf-blueprint = { path = "../sovereign-sdk/module-system/sov-modules-stf-blueprint", features = [
+    "native",
+] }
 sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
 sov-stf-runner = { path = "../sovereign-sdk/full-node/sov-stf-runner" }
 
@@ -28,7 +31,6 @@ borsh = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true }
 jsonrpsee = { workspace = true }
-lru = { workspace = true }
 rand = { workspace = true }
 rs_merkle = { workspace = true }
 serde = { workspace = true }
