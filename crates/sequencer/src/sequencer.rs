@@ -56,7 +56,7 @@ use crate::mempool::CitreaMempool;
 use crate::rpc::{create_rpc_module, RpcContext};
 use crate::utils::recover_raw_transaction;
 
-const COMMITMENT_THRESHOLD: u64 = 300 * 1024;
+const STATEDIFF_SIZE_COMMITMENT_THRESHOLD: u64 = 300 * 1024;
 
 type StateRoot<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::StateRoot;
 /// Represents information about the current DA state.
@@ -561,7 +561,7 @@ where
 
                 // If we exceed the threshold, we should notify the commitment
                 // worker to initiate a commitment.
-                if serialized_state_diff.len() as u64 > COMMITMENT_THRESHOLD {
+                if serialized_state_diff.len() as u64 > STATEDIFF_SIZE_COMMITMENT_THRESHOLD {
                     if da_commitment_tx.unbounded_send(l1_height).is_err() {
                         error!("Commitment thread is dead!");
                     }
