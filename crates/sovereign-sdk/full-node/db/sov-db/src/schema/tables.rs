@@ -30,7 +30,7 @@ use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use jmt::storage::{NibblePath, Node, NodeKey};
 use jmt::Version;
 use sov_rollup_interface::da::SequencerCommitment;
-use sov_rollup_interface::stf::{Event, EventKey};
+use sov_rollup_interface::stf::{Event, EventKey, StateDiff};
 use sov_schema_db::schema::{KeyDecoder, KeyEncoder, ValueCodec};
 use sov_schema_db::{CodecError, SeekKeyEncoder};
 
@@ -220,6 +220,11 @@ macro_rules! define_table_with_seek_key_codec {
         impl_borsh_value_codec!($table_name, $value);
     };
 }
+
+define_table_with_seek_key_codec!(
+    /// The State diff storage
+    (LastStateDiff) () => StateDiff
+);
 
 define_table_with_seek_key_codec!(
     /// The primary source for slot data

@@ -5,7 +5,7 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_rollup_interface::da::{DaSpec, SequencerCommitment};
 use sov_rollup_interface::services::da::SlotData;
-use sov_rollup_interface::stf::{BatchReceipt, Event, SoftBatchReceipt};
+use sov_rollup_interface::stf::{BatchReceipt, Event, SoftBatchReceipt, StateDiff};
 use sov_rollup_interface::zk::Proof;
 use sov_schema_db::{Schema, SchemaBatch, SeekKeyEncoder, DB};
 use tracing::instrument;
@@ -13,9 +13,10 @@ use tracing::instrument;
 use crate::rocks_db_config::gen_rocksdb_options;
 use crate::schema::tables::{
     BatchByHash, BatchByNumber, CommitmentsByNumber, EventByKey, EventByNumber, L2RangeByL1Height,
-    L2Witness, LastSequencerCommitmentSent, LastSequencerCommitmentSentL2, ProofBySlotNumber,
-    ProverLastScannedSlot, SlotByHash, SlotByNumber, SoftBatchByHash, SoftBatchByNumber,
-    SoftConfirmationStatus, TxByHash, TxByNumber, VerifiedProofsBySlotNumber, LEDGER_TABLES,
+    L2Witness, LastSequencerCommitmentSent, LastSequencerCommitmentSentL2, LastStateDiff,
+    ProofBySlotNumber, ProverLastScannedSlot, SlotByHash, SlotByNumber, SoftBatchByHash,
+    SoftBatchByNumber, SoftConfirmationStatus, TxByHash, TxByNumber, VerifiedProofsBySlotNumber,
+    LEDGER_TABLES,
 };
 use crate::schema::types::{
     split_tx_for_storage, BatchNumber, EventNumber, L2HeightRange, SlotNumber, StoredBatch,
@@ -713,5 +714,24 @@ impl LedgerDB {
     #[instrument(level = "trace", skip(self), err, ret)]
     pub fn get_l1_height_of_l1_hash(&self, hash: [u8; 32]) -> Result<Option<u64>, anyhow::Error> {
         self.db.get::<SlotByHash>(&hash).map(|v| v.map(|a| a.0))
+    }
+
+    /// Sets the latest state diff
+    #[instrument(level = "trace", skip(self), err, ret)]
+    pub fn set_state_diff(&self, state_diff: StateDiff) -> anyhow::Result<()> {
+        let mut schema_batch = SchemaBatch::new();
+        schema_batch.put::<LastStateDiff>(&(), &state_diff)?;
+
+        self.db.write_schemas(schema_batch)?;
+
+        Ok(())
+    }
+
+    /// Gets l1 height of l1 hash
+    #[instrument(level = "trace", skip(self), err, ret)]
+    pub fn get_state_diff(&self) -> Result<StateDiff, anyhow::Error> {
+        self.db
+            .get::<LastStateDiff>(&())
+            .map(|diff| diff.unwrap_or_default())
     }
 }
