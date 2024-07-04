@@ -77,7 +77,6 @@ jobs:
       - name: Toolchain
         uses: dtolnay/rust-toolchain@nightly
         with:
-          toolchain: nightly
           override: true
           components: rustfmt, clippy
       - name: Rust Cache
@@ -166,7 +165,6 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@1.78.0
         with:
-          toolchain: stable
           components: llvm-tools-preview
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
@@ -368,7 +366,6 @@ jobs:
       - name: Toolchain
         uses: dtolnay/rust-toolchain@1.78.0
         with:
-          toolchain: 1.78.0
           override: true
           components: rustfmt, clippy
       - name: Rust Cache
