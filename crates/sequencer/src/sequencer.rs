@@ -1,5 +1,5 @@
 use std::cmp::Ordering;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::marker::PhantomData;
 use std::net::SocketAddr;
 use std::ops::RangeInclusive;
@@ -32,7 +32,7 @@ use sov_db::schema::types::{BatchNumber, SlotNumber};
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{
-    Context, EncodeCall, PrivateKey, SignedSoftConfirmationBatch, SlotData,
+    Context, EncodeCall, PrivateKey, SignedSoftConfirmationBatch, SlotData, StateDiff,
     UnsignedSoftConfirmationBatch, WorkingSet,
 };
 use sov_modules_stf_blueprint::StfBlueprintTrait;
@@ -55,6 +55,8 @@ use crate::deposit_data_mempool::DepositDataMempool;
 use crate::mempool::CitreaMempool;
 use crate::rpc::{create_rpc_module, RpcContext};
 use crate::utils::recover_raw_transaction;
+
+const COMMITMENT_THRESHOLD: u64 = 300 * 1024;
 
 type StateRoot<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::StateRoot;
 /// Represents information about the current DA state.
@@ -87,6 +89,7 @@ where
     sequencer_pub_key: Vec<u8>,
     rpc_config: RpcConfig,
     soft_confirmation_rule_enforcer: SoftConfirmationRuleEnforcer<C, Da::Spec>,
+    last_state_diff: StateDiff,
 }
 
 enum L2BlockMode {
@@ -153,6 +156,8 @@ where
         let soft_confirmation_rule_enforcer =
             SoftConfirmationRuleEnforcer::<C, <Da as DaService>::Spec>::default();
 
+        let last_state_diff = ledger_db.get_state_diff()?;
+
         Ok(Self {
             da_service,
             mempool: Arc::new(pool),
@@ -170,6 +175,7 @@ where
             sequencer_pub_key: public_keys.sequencer_public_key,
             rpc_config,
             soft_confirmation_rule_enforcer,
+            last_state_diff,
         })
     }
 
@@ -340,6 +346,7 @@ where
         l2_block_mode: L2BlockMode,
         pg_pool: &Option<PostgresConnector>,
         last_used_l1_height: u64,
+        da_commitment_tx: UnboundedSender<u64>,
     ) -> anyhow::Result<u64> {
         let da_height = da_block.header().height();
         let (l2_height, l1_height) = match self
@@ -479,6 +486,14 @@ where
                     slot_result.state_root
                 );
 
+                // Merge state diffs
+                let new_state_diff = self.merge_state_diffs(
+                    self.last_state_diff.clone(),
+                    slot_result.state_diff.clone(),
+                );
+                let serialized_state_diff = bincode::serialize(&new_state_diff)?;
+                self.ledger_db.set_state_diff(new_state_diff)?;
+
                 let mut data_to_commit = SlotCommit::new(da_block.clone());
                 for receipt in slot_result.batch_receipts {
                     data_to_commit.add_batch(receipt);
@@ -523,11 +538,10 @@ where
 
                 self.ledger_db.commit_soft_batch(soft_batch_receipt, true)?;
 
+                let l1_height = da_block.header().height();
                 info!(
                     "New block #{}, DA #{}, Tx count: #{}",
-                    l2_height,
-                    da_block.header().height(),
-                    evm_txs_count,
+                    l2_height, l1_height, evm_txs_count,
                 );
 
                 self.state_root = next_state_root;
@@ -540,6 +554,12 @@ where
                 let account_updates = self.get_account_updates()?;
 
                 self.mempool.update_accounts(account_updates);
+
+                if serialized_state_diff.len() as u64 > COMMITMENT_THRESHOLD {
+                    if da_commitment_tx.unbounded_send(l1_height).is_err() {
+                        error!("Commitment thread is dead!");
+                    }
+                }
 
                 if let Some(pg_pool) = pg_pool.clone() {
                     // TODO: Is this okay? I'm not sure because we have a loop in this and I can't do async in spawn_blocking
@@ -575,6 +595,10 @@ where
         let inscription_queue = self.da_service.get_send_transaction_queue();
         let min_soft_confirmations_per_commitment =
             self.config.min_soft_confirmations_per_commitment;
+
+        // Clear state diff
+        self.ledger_db.set_state_diff(vec![])?;
+
         let commitment_info = commitment_controller::get_commitment_info(
             &self.ledger_db,
             min_soft_confirmations_per_commitment,
@@ -798,7 +822,7 @@ where
                                 .map_err(|e| anyhow!(e))?;
 
                             debug!("Created an empty L2 for L1={}", needed_da_block_height);
-                            if let Err(e) = self.produce_l2_block(da_block, l1_fee_rate, L2BlockMode::Empty, &pg_pool, last_used_l1_height).await {
+                            if let Err(e) = self.produce_l2_block(da_block, l1_fee_rate, L2BlockMode::Empty, &pg_pool, last_used_l1_height, da_commitment_tx.clone()).await {
                                 error!("Sequencer error: {}", e);
                             }
                         }
@@ -814,7 +838,7 @@ where
                             }
                         };
                     let l1_fee_rate = l1_fee_rate.clamp(*l1_fee_rate_range.start(), *l1_fee_rate_range.end());
-                    match self.produce_l2_block(last_finalized_block.clone(), l1_fee_rate, L2BlockMode::NotEmpty, &pg_pool, last_used_l1_height).await {
+                    match self.produce_l2_block(last_finalized_block.clone(), l1_fee_rate, L2BlockMode::NotEmpty, &pg_pool, last_used_l1_height, da_commitment_tx.clone()).await {
                         Ok(l1_block_number) => {
                             last_used_l1_height = l1_block_number;
                         },
@@ -842,7 +866,7 @@ where
                                 .map_err(|e| anyhow!(e))?;
 
                             debug!("Created an empty L2 for L1={}", needed_da_block_height);
-                            if let Err(e) = self.produce_l2_block(da_block, l1_fee_rate, L2BlockMode::Empty, &pg_pool, last_used_l1_height).await {
+                            if let Err(e) = self.produce_l2_block(da_block, l1_fee_rate, L2BlockMode::Empty, &pg_pool, last_used_l1_height, da_commitment_tx.clone()).await {
                                 error!("Sequencer error: {}", e);
                             }
                         }
@@ -860,7 +884,7 @@ where
                     let l1_fee_rate = l1_fee_rate.clamp(*l1_fee_rate_range.start(), *l1_fee_rate_range.end());
 
                     let instant = Instant::now();
-                    match self.produce_l2_block(da_block, l1_fee_rate, L2BlockMode::NotEmpty, &pg_pool, last_used_l1_height).await {
+                    match self.produce_l2_block(da_block, l1_fee_rate, L2BlockMode::NotEmpty, &pg_pool, last_used_l1_height, da_commitment_tx.clone()).await {
                         Ok(l1_block_number) => {
                             // Set the next iteration's wait time to produce a block based on the
                             // previous block's execution time.
@@ -1088,6 +1112,13 @@ where
         }
 
         Ok(updates)
+    }
+
+    fn merge_state_diffs(&self, old_diff: StateDiff, new_diff: StateDiff) -> StateDiff {
+        let mut new_diff_map = HashMap::<Vec<u8>, Option<Vec<u8>>>::from_iter(old_diff);
+
+        new_diff_map.extend(new_diff.into_iter());
+        new_diff_map.into_iter().map(|(k, v)| (k, v)).collect()
     }
 }
 
