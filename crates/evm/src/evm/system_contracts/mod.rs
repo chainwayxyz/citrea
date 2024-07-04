@@ -45,6 +45,16 @@ impl BitcoinLightClient {
     }
 
     #[cfg(test)]
+    pub(crate) fn upgrade_to_and_call(new_contract: Address, data: Bytes) -> Bytes {
+        BitcoinLightClientContract::upgradeToAndCallCall {
+            newImplementation: new_contract,
+            data: data,
+        }
+        .abi_encode()
+        .into()
+    }
+
+    #[cfg(test)]
     pub(crate) fn get_witness_root_by_number(block_number: u64) -> Bytes {
         BitcoinLightClientContract::getWitnessRootByNumberCall {
             _blockNumber: U256::from(block_number),
