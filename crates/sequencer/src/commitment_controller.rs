@@ -26,6 +26,7 @@ pub fn get_commitment_info(
     ledger_db: &LedgerDB,
     min_soft_confirmations_per_commitment: u64,
     prev_l1_height: u64,
+    state_diff_threshold_reached: bool,
 ) -> anyhow::Result<Option<CommitmentInfo>> {
     // first get when the last merkle root of soft confirmations was submitted
     let last_commitment_l1_height = ledger_db
@@ -98,8 +99,9 @@ pub fn get_commitment_info(
     debug!("L2 range to submit: {:?}", l2_range_to_submit);
     debug!("L1 height range: {:?}", l1_height_range);
 
-    if (l2_range_to_submit.1 .0 + 1)
-        < min_soft_confirmations_per_commitment + l2_range_to_submit.0 .0
+    if !state_diff_threshold_reached
+        && (l2_range_to_submit.1 .0 + 1)
+            < min_soft_confirmations_per_commitment + l2_range_to_submit.0 .0
     {
         return Ok(None);
     }

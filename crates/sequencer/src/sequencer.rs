@@ -347,7 +347,7 @@ where
         l2_block_mode: L2BlockMode,
         pg_pool: &Option<PostgresConnector>,
         last_used_l1_height: u64,
-        da_commitment_tx: UnboundedSender<u64>,
+        da_commitment_tx: UnboundedSender<(u64, bool)>,
     ) -> anyhow::Result<u64> {
         let da_height = da_block.header().height();
         let (l2_height, l1_height) = match self
@@ -562,7 +562,7 @@ where
                 // If we exceed the threshold, we should notify the commitment
                 // worker to initiate a commitment.
                 if serialized_state_diff.len() as u64 > STATEDIFF_SIZE_COMMITMENT_THRESHOLD {
-                    if da_commitment_tx.unbounded_send(l1_height).is_err() {
+                    if da_commitment_tx.unbounded_send((l1_height, true)).is_err() {
                         error!("Commitment thread is dead!");
                     }
                 }
@@ -596,7 +596,11 @@ where
         }
     }
 
-    async fn submit_commitment(&self, prev_l1_height: u64) -> anyhow::Result<()> {
+    async fn submit_commitment(
+        &mut self,
+        prev_l1_height: u64,
+        state_diff_threshold_reached: bool,
+    ) -> anyhow::Result<()> {
         debug!("Sequencer: new L1 block, checking if commitment should be submitted");
         let inscription_queue = self.da_service.get_send_transaction_queue();
         let min_soft_confirmations_per_commitment =
@@ -609,6 +613,7 @@ where
             &self.ledger_db,
             min_soft_confirmations_per_commitment,
             prev_l1_height,
+            state_diff_threshold_reached,
         )?;
 
         if let Some(commitment_info) = commitment_info {
@@ -754,7 +759,7 @@ where
 
         // Setup required workers to update our knowledge of the DA layer every X seconds (configurable).
         let (da_height_update_tx, mut da_height_update_rx) = mpsc::channel(1);
-        let (da_commitment_tx, mut da_commitment_rx) = unbounded::<u64>();
+        let (da_commitment_tx, mut da_commitment_rx) = unbounded::<(u64, bool)>();
         let da_monitor = da_block_monitor(
             self.da_service.clone(),
             da_height_update_tx,
@@ -808,8 +813,8 @@ where
                         }
                     }
                 },
-                prev_l1_height = da_commitment_rx.select_next_some() => {
-                    if let Err(e) = self.submit_commitment(prev_l1_height).await {
+                (prev_l1_height, force) = da_commitment_rx.select_next_some() => {
+                    if let Err(e) = self.submit_commitment(prev_l1_height, force).await {
                         error!("Failed to submit commitment: {}", e);
                     }
                 },
@@ -1067,7 +1072,7 @@ where
 
     async fn maybe_submit_commitment(
         &self,
-        da_commitment_tx: UnboundedSender<u64>,
+        da_commitment_tx: UnboundedSender<(u64, bool)>,
         last_finalized_height: u64,
         last_used_l1_height: u64,
     ) -> anyhow::Result<()> {
@@ -1083,7 +1088,10 @@ where
         };
 
         if let Some(commit_up_to) = commit_up_to {
-            if da_commitment_tx.unbounded_send(commit_up_to).is_err() {
+            if da_commitment_tx
+                .unbounded_send((commit_up_to, false))
+                .is_err()
+            {
                 error!("Commitment thread is dead!");
             }
         }
