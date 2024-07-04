@@ -675,7 +675,7 @@ where
         if let Some(db_config) = self.config.db_config.clone() {
             pg_pool = match PostgresConnector::new(db_config).await {
                 Ok(pg_connector) => {
-                    match self.compare_commitments_from_db(pg_connector.clone()).await {
+                    match self.sync_commitments_from_db(pg_connector.clone()).await {
                         Ok(()) => debug!("Sequencer: Commitments are in sync"),
                         Err(e) => {
                             warn!("Sequencer: Offchain db error: {:?}", e);
@@ -1012,7 +1012,7 @@ where
         Ok(())
     }
 
-    pub async fn compare_commitments_from_db(
+    pub async fn sync_commitments_from_db(
         &self,
         pg_connector: PostgresConnector,
     ) -> Result<(), anyhow::Error> {
