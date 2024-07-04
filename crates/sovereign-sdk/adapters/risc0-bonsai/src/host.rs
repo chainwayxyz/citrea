@@ -6,6 +6,7 @@ use std::time::Duration;
 
 use anyhow::anyhow;
 use bonsai_sdk::alpha as bonsai_sdk;
+use borsh::BorshSerialize;
 use risc0_zkvm::serde::to_vec;
 use risc0_zkvm::sha::Digest;
 use risc0_zkvm::{
@@ -325,43 +326,45 @@ impl<'a> Risc0BonsaiHost<'a> {
         }
     }
 
-    fn add_hint_bonsai<T: serde::Serialize>(&mut self, item: T) {
-        // For running in "prove" mode.
+    fn add_hint_bonsai<T: BorshSerialize>(&mut self, item: T) {
+        unimplemented!()
+        // // For running in "prove" mode.
 
-        // Prepare input data and upload it.
-        let client = self.client.as_ref().unwrap();
+        // // Prepare input data and upload it.
+        // let client = self.client.as_ref().unwrap();
 
-        let input_data = to_vec(&item).unwrap();
-        let input_data = bytemuck::cast_slice(&input_data).to_vec();
-        // handle error
-        let input_id = client.upload_input(input_data);
-        tracing::info!("Uploaded input with id: {}", input_id);
-        self.last_input_id = Some(input_id);
+        // let input_data = to_vec(&item).unwrap();
+        // let input_data = bytemuck::cast_slice(&input_data).to_vec();
+        // // handle error
+        // let input_id = client.upload_input(input_data);
+        // tracing::info!("Uploaded input with id: {}", input_id);
+        // self.last_input_id = Some(input_id);
     }
 }
 
 impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
     type Guest = Risc0Guest;
 
-    fn add_hint<T: serde::Serialize>(&mut self, item: T) {
-        // For running in "execute" mode.
+    fn add_hint<T: BorshSerialize>(&mut self, item: T) {
+        unimplemented!()
+        // // For running in "execute" mode.
 
-        // We use the in-memory size of `item` as an indication of how much
-        // space to reserve. This is in no way guaranteed to be exact, but
-        // usually the in-memory size and serialized data size are quite close.
-        //
-        // Note: this is just an optimization to avoid frequent reallocations,
-        // it's not actually required.
-        self.env
-            .reserve(std::mem::size_of::<T>() / std::mem::size_of::<u32>());
+        // // We use the in-memory size of `item` as an indication of how much
+        // // space to reserve. This is in no way guaranteed to be exact, but
+        // // usually the in-memory size and serialized data size are quite close.
+        // //
+        // // Note: this is just an optimization to avoid frequent reallocations,
+        // // it's not actually required.
+        // self.env
+        //     .reserve(std::mem::size_of::<T>() / std::mem::size_of::<u32>());
 
-        let mut serializer = risc0_zkvm::serde::Serializer::new(&mut self.env);
-        item.serialize(&mut serializer)
-            .expect("Risc0 hint serialization is infallible");
+        // let mut serializer = risc0_zkvm::serde::Serializer::new(&mut self.env);
+        // item.serialize(&mut serializer)
+        //     .expect("Risc0 hint serialization is infallible");
 
-        if self.client.is_some() {
-            self.add_hint_bonsai(item)
-        }
+        // if self.client.is_some() {
+        //     self.add_hint_bonsai(item)
+        // }
     }
 
     /// Guest simulation (execute mode) is run inside the Risc0 VM locally

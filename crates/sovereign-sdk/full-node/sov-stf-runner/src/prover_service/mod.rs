@@ -1,5 +1,6 @@
 mod parallel;
 use async_trait::async_trait;
+use borsh::BorshSerialize;
 pub use parallel::ParallelProverService;
 use serde::{Deserialize, Serialize};
 use sov_modules_api::Zkvm;
@@ -85,9 +86,9 @@ pub enum ProverServiceError {
 #[async_trait]
 pub trait ProverService<Vm: Zkvm> {
     /// Ths root hash of state merkle tree.
-    type StateRoot: Serialize + Clone + AsRef<[u8]>;
+    type StateRoot: BorshSerialize + Serialize + Clone + AsRef<[u8]>;
     /// Data that is produced during batch execution.
-    type Witness: Serialize;
+    type Witness: BorshSerialize + Serialize;
     /// Data Availability service.
     type DaService: DaService;
 

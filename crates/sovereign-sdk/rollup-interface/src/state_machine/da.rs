@@ -49,13 +49,23 @@ pub trait DaSpec: 'static + Debug + PartialEq + Eq + Clone {
     type ValidityCondition: ValidityCondition + Send + Sync;
 
     /// A proof that each tx in a set of blob transactions is included in a given block.
-    type InclusionMultiProof: Serialize + DeserializeOwned + Send + Sync;
+    type InclusionMultiProof: BorshDeserialize
+        + BorshSerialize
+        + Serialize
+        + DeserializeOwned
+        + Send
+        + Sync;
 
     /// A proof that a claimed set of transactions is complete.
     /// For example, this could be a range proof demonstrating that
     /// the provided BlobTransactions represent the entire contents
     /// of Celestia namespace in a given block
-    type CompletenessProof: Serialize + DeserializeOwned + Send + Sync;
+    type CompletenessProof: BorshDeserialize
+        + BorshSerialize
+        + Serialize
+        + DeserializeOwned
+        + Send
+        + Sync;
 
     /// The parameters of the rollup which are baked into the state-transition function.
     /// For example, this could include the namespace of the rollup on Celestia.
@@ -157,7 +167,9 @@ impl<B: bytes::Buf> CountedBufReader<B> {
 /// will slash the sequencer and exit early - so it only cares about the content of the blob up to that point.
 ///
 /// This trait allows the DaVerifier to track which data was read by the rollup, and only verify the relevant data.
-pub trait BlobReaderTrait: Serialize + DeserializeOwned + Send + Sync + 'static {
+pub trait BlobReaderTrait:
+    BorshDeserialize + BorshSerialize + Serialize + DeserializeOwned + Send + Sync + 'static
+{
     /// The type used to represent addresses on the DA layer.
     type Address: BasicAddress;
 
@@ -202,12 +214,14 @@ pub trait BlobReaderTrait: Serialize + DeserializeOwned + Send + Sync + 'static 
 /// Trait with collection of trait bounds for a block hash.
 pub trait BlockHashTrait:
     // so it is compatible with StorageManager implementation?
-    Serialize + DeserializeOwned + PartialEq + Debug + Send + Sync + Clone + Eq + Into<[u8; 32]> + core::hash::Hash
+    BorshSerialize + Serialize + DeserializeOwned + PartialEq + Debug + Send + Sync + Clone + Eq + Into<[u8; 32]> + core::hash::Hash
 {
 }
 
 /// A block header, typically used in the context of an underlying DA blockchain.
-pub trait BlockHeaderTrait: PartialEq + Debug + Clone + Serialize + DeserializeOwned {
+pub trait BlockHeaderTrait:
+    PartialEq + Debug + Clone + BorshSerialize + BorshDeserialize + Serialize + DeserializeOwned
+{
     /// Each block header must have a unique canonical hash.
     type Hash: Clone + core::fmt::Display + Into<[u8; 32]>;
 

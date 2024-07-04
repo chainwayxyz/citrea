@@ -1,8 +1,8 @@
-use serde::{Deserialize, Serialize};
+use borsh::{BorshDeserialize, BorshSerialize};
 use sov_risc0_adapter::host::Risc0Host;
 use sov_rollup_interface::zk::{ZkvmGuest, ZkvmHost};
 
-#[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
 struct TestStruct {
     ints: Vec<i32>,
     string: String,

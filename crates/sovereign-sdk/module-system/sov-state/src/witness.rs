@@ -17,7 +17,7 @@ use sov_modules_core::Witness;
 /// assert_eq!(witness.get_hint::<u64>(), 1u64);
 /// assert_eq!(witness.get_hint::<u64>(), 2u64);
 /// ```
-#[derive(Default, Debug, Serialize, Deserialize)]
+#[derive(Default, BorshDeserialize, BorshSerialize, Debug, Serialize, Deserialize)]
 pub struct ArrayWitness {
     next_idx: usize,
     hints: Vec<Vec<u8>>,

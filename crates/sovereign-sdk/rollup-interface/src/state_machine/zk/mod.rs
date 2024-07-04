@@ -32,7 +32,7 @@ pub trait ZkvmHost: Zkvm + Clone {
     /// The associated guest type
     type Guest: ZkvmGuest;
     /// Give the guest a piece of advice non-deterministically
-    fn add_hint<T: Serialize>(&mut self, item: T);
+    fn add_hint<T: BorshSerialize>(&mut self, item: T);
 
     /// Simulate running the guest using the provided hints.
     ///
@@ -81,9 +81,9 @@ pub trait Zkvm: Send + Sync {
 /// A trait which is accessible from within a zkVM program.
 pub trait ZkvmGuest: Zkvm + Send + Sync {
     /// Obtain "advice" non-deterministically from the host
-    fn read_from_host<T: DeserializeOwned>(&self) -> T;
+    fn read_from_host<T: BorshDeserialize>(&self) -> T;
     /// Add a public output to the zkVM proof
-    fn commit<T: Serialize>(&self, item: &T);
+    fn commit<T: BorshSerialize>(&self, item: &T);
 }
 
 /// This trait is implemented on the struct/enum which expresses the validity condition
@@ -153,7 +153,7 @@ pub trait Matches<T> {
     fn matches(&self, other: &T) -> bool;
 }
 
-#[derive(Serialize, BorshDeserialize, BorshSerialize, Deserialize)]
+#[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
 // Prevent serde from generating spurious trait bounds. The correct serde bounds are already enforced by the
 // StateTransitionFunction, DA, and Zkvm traits.
 #[serde(bound = "StateRoot: Serialize + DeserializeOwned, Witness: Serialize + DeserializeOwned")]

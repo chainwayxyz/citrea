@@ -472,7 +472,7 @@ impl DaService for BitcoinService {
 
         (
             InclusionMultiProof::new(txids, wtxids, block.txdata[0].clone()),
-            completeness_proof,
+            vec![], // FIXME: completeness_proof,
         )
     }
 

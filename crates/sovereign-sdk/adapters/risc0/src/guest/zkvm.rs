@@ -1,4 +1,5 @@
 //! This module implements the `ZkvmGuest` trait for the RISC0 VM.
+use borsh::{BorshDeserialize, BorshSerialize};
 use risc0_zkvm::guest::env;
 use sov_rollup_interface::zk::ZkvmGuest;
 
@@ -15,11 +16,13 @@ impl Risc0Guest {
 }
 
 impl ZkvmGuest for Risc0Guest {
-    fn read_from_host<T: serde::de::DeserializeOwned>(&self) -> T {
-        env::read()
+    fn read_from_host<T: BorshDeserialize>(&self) -> T {
+        unimplemented!()
+        // FIXME: env::read()
     }
 
-    fn commit<T: serde::Serialize>(&self, item: &T) {
-        env::commit(item);
+    fn commit<T: BorshSerialize>(&self, item: &T) {
+        unimplemented!()
+        // FIXME: env::commit(item);
     }
 }

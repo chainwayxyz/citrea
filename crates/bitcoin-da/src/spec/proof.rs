@@ -1,9 +1,10 @@
-use bitcoin::absolute::{LockTime, Time};
-use bitcoin::Transaction;
+use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 
+use crate::spec::Transaction;
+
 // Set of proofs for inclusion of a transaction in a block
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
 pub struct InclusionMultiProof {
     pub txids: Vec<[u8; 32]>,
     pub wtxids: Vec<[u8; 32]>,
@@ -29,12 +30,7 @@ impl Default for InclusionMultiProof {
         InclusionMultiProof {
             txids: vec![],
             wtxids: vec![],
-            coinbase_tx: Transaction {
-                version: bitcoin::transaction::Version(0),
-                lock_time: LockTime::Seconds(Time::MIN),
-                input: vec![],
-                output: vec![],
-            },
+            coinbase_tx: Transaction::empty(),
         }
     }
 }

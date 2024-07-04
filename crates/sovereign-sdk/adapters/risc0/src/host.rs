@@ -1,5 +1,6 @@
 //! This module implements the [`ZkvmHost`] trait for the RISC0 VM.
 
+use borsh::BorshSerialize;
 use risc0_zkvm::{ExecutorEnvBuilder, ExecutorImpl, InnerReceipt, Journal, Receipt, Session};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -69,19 +70,20 @@ impl<'a> Risc0Host<'a> {
 impl<'a> ZkvmHost for Risc0Host<'a> {
     type Guest = Risc0Guest;
 
-    fn add_hint<T: serde::Serialize>(&mut self, item: T) {
-        // We use the in-memory size of `item` as an indication of how much
-        // space to reserve. This is in no way guaranteed to be exact, but
-        // usually the in-memory size and serialized data size are quite close.
-        //
-        // Note: this is just an optimization to avoid frequent reallocations,
-        // it's not actually required.
-        self.env
-            .reserve(std::mem::size_of::<T>() / std::mem::size_of::<u32>());
+    fn add_hint<T: BorshSerialize>(&mut self, item: T) {
+        unimplemented!()
+        // // We use the in-memory size of `item` as an indication of how much
+        // // space to reserve. This is in no way guaranteed to be exact, but
+        // // usually the in-memory size and serialized data size are quite close.
+        // //
+        // // Note: this is just an optimization to avoid frequent reallocations,
+        // // it's not actually required.
+        // self.env
+        //     .reserve(std::mem::size_of::<T>() / std::mem::size_of::<u32>());
 
-        let mut serializer = risc0_zkvm::serde::Serializer::new(&mut self.env);
-        item.serialize(&mut serializer)
-            .expect("Risc0 hint serialization is infallible");
+        // let mut serializer = risc0_zkvm::serde::Serializer::new(&mut self.env);
+        // item.serialize(&mut serializer)
+        //     .expect("Risc0 hint serialization is infallible");
     }
 
     fn simulate_with_hints(&mut self) -> Self::Guest {

@@ -1,7 +1,7 @@
 //! This module implements the `ZkvmGuest` trait for the RISC0 VM.
-use std::ops::DerefMut;
 
-use risc0_zkvm::serde::{Deserializer, WordRead};
+use borsh::{BorshDeserialize, BorshSerialize};
+use risc0_zkvm::serde::WordRead;
 use sov_rollup_interface::zk::ZkvmGuest;
 
 #[derive(Default)]
@@ -68,15 +68,17 @@ impl Risc0Guest {
 }
 
 impl ZkvmGuest for Risc0Guest {
-    fn read_from_host<T: serde::de::DeserializeOwned>(&self) -> T {
-        let mut hints = self.hints.lock().unwrap();
-        let mut hints = hints.deref_mut();
-        T::deserialize(&mut Deserializer::new(&mut hints)).unwrap()
+    fn read_from_host<T: BorshDeserialize>(&self) -> T {
+        unimplemented!("read_from_host")
+        // let mut hints = self.hints.lock().unwrap();
+        // let mut hints = hints.deref_mut();
+        // T::deserialize(&mut Deserializer::new(&mut hints)).unwrap()
     }
 
-    fn commit<T: serde::Serialize>(&self, item: &T) {
-        self.commits.lock().unwrap().extend_from_slice(
-            &risc0_zkvm::serde::to_vec(item).expect("Serialization to vec is infallible"),
-        );
+    fn commit<T: BorshSerialize>(&self, item: &T) {
+        unimplemented!("commit")
+        // self.commits.lock().unwrap().extend_from_slice(
+        //     &risc0_zkvm::serde::to_vec(item).expect("Serialization to vec is infallible"),
+        // );
     }
 }

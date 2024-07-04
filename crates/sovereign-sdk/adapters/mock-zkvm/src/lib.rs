@@ -152,15 +152,16 @@ impl<ValidityCond: ValidityCondition> sov_rollup_interface::zk::ZkvmHost
 {
     type Guest = MockZkGuest;
 
-    fn add_hint<T: Serialize>(&mut self, item: T) {
-        let hint = bincode::serialize(&item).unwrap();
-        let proof_info = ProofInfo {
-            hint,
-            validity_condition: self.validity_condition,
-        };
+    fn add_hint<T: BorshSerialize>(&mut self, item: T) {
+        unimplemented!()
+        // let hint = bincode::serialize(&item).unwrap();
+        // let proof_info = ProofInfo {
+        //     hint,
+        //     validity_condition: self.validity_condition,
+        // };
 
-        let data = bincode::serialize(&proof_info).unwrap();
-        self.committed_data.push_back(data)
+        // let data = bincode::serialize(&proof_info).unwrap();
+        // self.committed_data.push_back(data)
     }
 
     fn simulate_with_hints(&mut self) -> Self::Guest {
@@ -179,25 +180,26 @@ impl<ValidityCond: ValidityCondition> sov_rollup_interface::zk::ZkvmHost
     >(
         proof: &sov_rollup_interface::zk::Proof,
     ) -> Result<sov_rollup_interface::zk::StateTransition<Da, Root>, Self::Error> {
-        match proof {
-            sov_rollup_interface::zk::Proof::PublicInput(pub_input) => {
-                let data: ProofInfo<Da::ValidityCondition> = bincode::deserialize(pub_input)?;
-                let st: StateTransitionData<Root, (), Da> = bincode::deserialize(&data.hint)?;
+        unimplemented!()
+        // match proof {
+        //     sov_rollup_interface::zk::Proof::PublicInput(pub_input) => {
+        //         let data: ProofInfo<Da::ValidityCondition> = bincode::deserialize(pub_input)?;
+        //         let st: StateTransitionData<Root, (), Da> = bincode::deserialize(&data.hint)?;
 
-                Ok(sov_rollup_interface::zk::StateTransition {
-                    initial_state_root: st.initial_state_root,
-                    final_state_root: st.final_state_root,
-                    validity_condition: data.validity_condition,
-                    state_diff: Default::default(),
-                    da_slot_hash: st.da_block_header_of_commitments.hash(),
-                    sequencer_public_key: vec![],
-                    sequencer_da_public_key: vec![],
-                })
-            }
-            sov_rollup_interface::zk::Proof::Full(_) => {
-                panic!("Mock DA doesn't generate real proofs")
-            }
-        }
+        //         Ok(sov_rollup_interface::zk::StateTransition {
+        //             initial_state_root: st.initial_state_root,
+        //             final_state_root: st.final_state_root,
+        //             validity_condition: data.validity_condition,
+        //             state_diff: Default::default(),
+        //             da_slot_hash: st.da_block_header_of_commitments.hash(),
+        //             sequencer_public_key: vec![],
+        //             sequencer_da_public_key: vec![],
+        //         })
+        //     }
+        //     sov_rollup_interface::zk::Proof::Full(_) => {
+        //         panic!("Mock DA doesn't generate real proofs")
+        //     }
+        // }
     }
 }
 
@@ -228,11 +230,11 @@ impl sov_rollup_interface::zk::Zkvm for MockZkGuest {
 }
 
 impl sov_rollup_interface::zk::ZkvmGuest for MockZkGuest {
-    fn read_from_host<T: serde::de::DeserializeOwned>(&self) -> T {
+    fn read_from_host<T: BorshDeserialize>(&self) -> T {
         unimplemented!()
     }
 
-    fn commit<T: Serialize>(&self, _item: &T) {
+    fn commit<T: BorshSerialize>(&self, _item: &T) {
         unimplemented!()
     }
 }

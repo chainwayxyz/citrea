@@ -2,6 +2,7 @@ use std::fmt::Display;
 
 use bitcoin::hashes::Hash;
 use bitcoin::BlockHash;
+use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::BlockHashTrait;
 
@@ -10,6 +11,25 @@ use sov_rollup_interface::da::BlockHashTrait;
 pub struct BlockHashWrapper(pub BlockHash);
 
 impl BlockHashTrait for BlockHashWrapper {}
+
+impl BorshSerialize for BlockHashWrapper {
+    fn serialize<W: borsh::maybestd::io::Write>(
+        &self,
+        writer: &mut W,
+    ) -> borsh::maybestd::io::Result<()> {
+        // FIXME
+        unimplemented!()
+    }
+}
+
+impl BorshDeserialize for BlockHashWrapper {
+    fn deserialize_reader<R: borsh::maybestd::io::Read>(
+        reader: &mut R,
+    ) -> borsh::maybestd::io::Result<Self> {
+        // FIXME
+        unimplemented!()
+    }
+}
 
 impl From<BlockHashWrapper> for [u8; 32] {
     fn from(val: BlockHashWrapper) -> Self {

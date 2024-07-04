@@ -90,7 +90,7 @@ pub(crate) fn get_mock_data() -> (
             .iter()
             .map(|t| t.wtxid().to_byte_array())
             .collect(),
-        coinbase_tx: block_txs[0].clone(),
+        coinbase_tx: Default::default(), // FIXME: block_txs[0].clone(),
     };
 
     // Coinbase tx wtxid should be [0u8;32]

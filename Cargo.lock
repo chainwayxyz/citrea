@@ -1924,6 +1924,7 @@ dependencies = [
  "anyhow",
  "bincode",
  "bonsai-sdk",
+ "borsh",
  "bytemuck",
  "hex",
  "once_cell",
@@ -8765,6 +8766,7 @@ version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "bincode",
+ "borsh",
  "bytemuck",
  "once_cell",
  "parking_lot 0.12.3",
