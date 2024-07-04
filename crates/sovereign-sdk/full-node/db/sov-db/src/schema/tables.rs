@@ -57,6 +57,7 @@ pub const LEDGER_TABLES: &[&str] = &[
     SoftBatchByHash::table_name(),
     L2RangeByL1Height::table_name(),
     L2Witness::table_name(),
+    LastStateDiff::table_name(),
     LastSequencerCommitmentSent::table_name(),
     LastSequencerCommitmentSentL2::table_name(),
     ProverLastScannedSlot::table_name(),
