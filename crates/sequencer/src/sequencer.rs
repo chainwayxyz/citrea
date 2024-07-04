@@ -1031,12 +1031,10 @@ where
         self.ledger_db
             .set_last_sequencer_commitment_l2_height(BatchNumber(db_commitment.l2_end_height))?;
 
-        let batches = self
-            .ledger_db
-            .get_soft_batch_range(
-                &(BatchNumber(db_commitment.l2_start_height)
-                    ..BatchNumber(db_commitment.l2_start_height + 1)),
-            )?;
+        let batches = self.ledger_db.get_soft_batch_range(
+            &(BatchNumber(db_commitment.l2_start_height)
+                ..BatchNumber(db_commitment.l2_start_height + 1)),
+        )?;
         let start_batch = &batches[0];
         self.ledger_db
             .set_last_sequencer_commitment_l1_height(SlotNumber(start_batch.da_slot_height))?;
