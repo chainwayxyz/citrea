@@ -37,6 +37,7 @@ use sov_modules_api::{
 };
 use sov_modules_stf_blueprint::StfBlueprintTrait;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaData, DaSpec};
+use sov_rollup_interface::rpc::LedgerRpcProvider;
 use sov_rollup_interface::services::da::{BlobWithNotifier, DaService};
 use sov_rollup_interface::stf::{SoftBatchReceipt, StateTransitionFunction};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
@@ -675,7 +676,7 @@ where
         if let Some(db_config) = self.config.db_config.clone() {
             pg_pool = match PostgresConnector::new(db_config).await {
                 Ok(pg_connector) => {
-                    match self.compare_commitments_from_db(pg_connector.clone()).await {
+                    match self.sync_commitments_from_db(pg_connector.clone()).await {
                         Ok(()) => debug!("Sequencer: Commitments are in sync"),
                         Err(e) => {
                             warn!("Sequencer: Offchain db error: {:?}", e);
@@ -1012,26 +1013,33 @@ where
         Ok(())
     }
 
-    pub async fn compare_commitments_from_db(
+    pub async fn sync_commitments_from_db(
         &self,
         pg_connector: PostgresConnector,
     ) -> Result<(), anyhow::Error> {
+        let db_commitment = match pg_connector.get_last_commitment().await? {
+            Some(comm) => comm,
+            // ignore if postgres is out of sync
+            None => return Ok(()),
+        };
         let ledger_commitment_l2_height = self
             .ledger_db
             .get_last_sequencer_commitment_l2_height()?
-            .ok_or(anyhow!("No commitment exists"))?;
-
-        let db_commitment = pg_connector.get_last_commitment().await?;
-        // check if last commitment in db matches sequencer's last commitment
-        if let Some(db_commitment) = db_commitment {
-            // this means that the last commitment in the db is not the same as the sequencer's last commitment
-            if db_commitment.l2_start_height > ledger_commitment_l2_height.0 {
-                self.ledger_db
-                    .set_last_sequencer_commitment_l2_height(BatchNumber(
-                        db_commitment.l2_end_height,
-                    ))?
-            }
+            .unwrap_or_default();
+        if ledger_commitment_l2_height.0 >= db_commitment.l2_end_height {
+            return Ok(());
         }
+
+        self.ledger_db
+            .set_last_sequencer_commitment_l2_height(BatchNumber(db_commitment.l2_end_height))?;
+
+        let l2_end_batch = self
+            .ledger_db
+            .get_soft_batch_by_number::<()>(db_commitment.l2_end_height)?
+            .unwrap();
+        self.ledger_db
+            .set_last_sequencer_commitment_l1_height(SlotNumber(l2_end_batch.da_slot_height))?;
+
         Ok(())
     }
 
