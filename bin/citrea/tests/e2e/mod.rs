@@ -3298,3 +3298,89 @@ async fn test_full_node_sync_status() {
     seq_task.abort();
     full_node_task.abort();
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_sequencer_commitment_threshold() {
+    citrea::initialize_logging(tracing::Level::DEBUG);
+
+    let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
+    let da_db_dir = storage_dir.path().join("DA").to_path_buf();
+    let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
+
+    let psql_db_name = "test_sequencer_commitment_threshold".to_owned();
+
+    let db_test_client = PostgresConnector::new_test_client(psql_db_name.clone())
+        .await
+        .unwrap();
+
+    let mut sequencer_config = create_default_sequencer_config(4, Some(true), 10);
+
+    sequencer_config.db_config = Some(SharedBackupDbConfig::default().set_db_name(psql_db_name));
+    let psql_db_name = "sequencer_crash_and_replace_full_node".to_owned();
+
+    let db_test_client = PostgresConnector::new_test_client(psql_db_name.clone())
+        .await
+        .unwrap();
+
+    let mut sequencer_config = create_default_sequencer_config(4, Some(true), 10);
+
+    sequencer_config.db_config = Some(SharedBackupDbConfig::default().set_db_name(psql_db_name));
+    let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
+
+    let da_db_dir_cloned = da_db_dir.clone();
+    let seq_task = tokio::spawn(async {
+        start_rollup(
+            seq_port_tx,
+            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+            None,
+            NodeMode::SequencerNode,
+            sequencer_db_dir,
+            da_db_dir_cloned,
+            1_000_000, // Put a large number for commitment threshold
+            true,
+            None,
+            Some(sequencer_config),
+            Some(true),
+            DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
+        )
+        .await;
+    });
+
+    let seq_port = seq_port_rx.await.unwrap();
+
+    let seq_test_client = init_test_rollup(seq_port).await;
+    let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
+
+    for _ in 0..150 {
+        let _pending = seq_test_client
+            .send_eth(addr, None, None, None, 0u128)
+            .await
+            .unwrap();
+        seq_test_client.send_publish_batch_request().await;
+    }
+
+    wait_for_l2_block(&seq_test_client, 150, Some(Duration::from_secs(60))).await;
+
+    // At block 120, the state diff should be large enough to trigger a commitment.
+    wait_for_postgres_commitment(&db_test_client, 1, Some(Duration::from_secs(60))).await;
+    let commitments = db_test_client.get_all_commitments().await.unwrap();
+    assert_eq!(commitments.len(), 1);
+
+    for _ in 0..150 {
+        let _pending = seq_test_client
+            .send_eth(addr, None, None, None, 0u128)
+            .await
+            .unwrap();
+        seq_test_client.send_publish_batch_request().await;
+    }
+
+    wait_for_l2_block(&seq_test_client, 300, Some(Duration::from_secs(60))).await;
+
+    // At block 240, the state diff should be large enough to trigger a commitment.
+    // But the 60 remaining blocks state diff should NOT trigger a third.
+    wait_for_postgres_commitment(&db_test_client, 2, Some(Duration::from_secs(60))).await;
+    let commitments = db_test_client.get_all_commitments().await.unwrap();
+    assert_eq!(commitments.len(), 2);
+
+    seq_task.abort();
+}
