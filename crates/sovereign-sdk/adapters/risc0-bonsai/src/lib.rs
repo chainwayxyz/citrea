@@ -10,9 +10,6 @@ use sov_rollup_interface::zk::Matches;
 #[cfg(feature = "native")]
 pub mod host;
 
-#[cfg(feature = "bench")]
-pub mod metrics;
-
 /// Uniquely identifies a Risc0 binary. Roughly equivalent to
 /// the hash of the ELF file.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
