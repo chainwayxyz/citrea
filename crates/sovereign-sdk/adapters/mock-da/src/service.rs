@@ -13,7 +13,7 @@ use sov_rollup_interface::services::da::{BlobWithNotifier, DaService, SlotData};
 use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 use tokio::sync::{broadcast, Mutex as AsyncMutex, MutexGuard as AsyncMutexGuard};
 use tokio::time;
-use tracing::{instrument, Instrument};
+use tracing::instrument::Instrument;
 
 use crate::db_connector::DbConnector;
 use crate::types::{MockAddress, MockBlob, MockBlock, MockDaVerifier};
@@ -84,7 +84,7 @@ impl MockDaService {
     }
 
     /// Create a new [`MockDaService`] with given finality.
-    #[instrument(name = "MockDA")]
+    #[tracing::instrument(name = "MockDA")]
     pub fn with_finality(
         sequencer_da_address: MockAddress,
         blocks_to_finality: u32,
