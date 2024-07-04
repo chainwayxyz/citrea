@@ -156,6 +156,7 @@ where
         let soft_confirmation_rule_enforcer =
             SoftConfirmationRuleEnforcer::<C, <Da as DaService>::Spec>::default();
 
+        // Initialize the sequencer with the last state diff from DB.
         let last_state_diff = ledger_db.get_state_diff()?;
 
         Ok(Self {
@@ -491,7 +492,10 @@ where
                     self.last_state_diff.clone(),
                     slot_result.state_diff.clone(),
                 );
+                self.last_state_diff = slot_result.state_diff.clone();
+                // Serialize the state diff to check size later.
                 let serialized_state_diff = bincode::serialize(&new_state_diff)?;
+                // Store state diff.
                 self.ledger_db.set_state_diff(new_state_diff)?;
 
                 let mut data_to_commit = SlotCommit::new(da_block.clone());
@@ -555,6 +559,8 @@ where
 
                 self.mempool.update_accounts(account_updates);
 
+                // If we exceed the threshold, we should notify the commitment
+                // worker to initiate a commitment.
                 if serialized_state_diff.len() as u64 > COMMITMENT_THRESHOLD {
                     if da_commitment_tx.unbounded_send(l1_height).is_err() {
                         error!("Commitment thread is dead!");
