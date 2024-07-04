@@ -2627,7 +2627,7 @@ async fn full_node_verify_proof_and_store() {
     }
 
     // So the full node should see the proof in block 5
-    wait_for_proof(&full_node_test_client, 5, None).await;
+    wait_for_proof(&full_node_test_client, 5, Some(Duration::from_secs(60))).await;
     let full_node_proof = full_node_test_client
         .ledger_get_verified_proofs_by_slot_height(5)
         .await
@@ -2850,7 +2850,7 @@ async fn test_all_flow() {
     wait_for_l2_block(&full_node_test_client, 7, None).await;
 
     // So the full node should see the proof in block 5
-    wait_for_proof(&full_node_test_client, 5, None).await;
+    wait_for_proof(&full_node_test_client, 5, Some(Duration::from_secs(120))).await;
     let full_node_proof = full_node_test_client
         .ledger_get_verified_proofs_by_slot_height(5)
         .await
@@ -2949,7 +2949,7 @@ async fn test_all_flow() {
         wait_for_l2_block(&full_node_test_client, i, None).await;
     }
 
-    wait_for_proof(&full_node_test_client, 8, None).await;
+    wait_for_proof(&full_node_test_client, 8, Some(Duration::from_secs(120))).await;
     let full_node_proof_data = full_node_test_client
         .ledger_get_verified_proofs_by_slot_height(8)
         .await
@@ -3240,7 +3240,7 @@ async fn test_full_node_sync_status() {
     let seq_test_client = init_test_rollup(seq_port).await;
     let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
 
-    for _ in 0..100 {
+    for _ in 0..300 {
         let _pending = seq_test_client
             .send_eth(addr, None, None, None, 0u128)
             .await
@@ -3248,7 +3248,7 @@ async fn test_full_node_sync_status() {
         seq_test_client.send_publish_batch_request().await;
     }
 
-    wait_for_l2_block(&seq_test_client, 100, Some(Duration::from_secs(60))).await;
+    wait_for_l2_block(&seq_test_client, 300, Some(Duration::from_secs(60))).await;
 
     let (full_node_port_tx, full_node_port_rx) = tokio::sync::oneshot::channel();
 
@@ -3274,24 +3274,24 @@ async fn test_full_node_sync_status() {
     let full_node_port = full_node_port_rx.await.unwrap();
     let full_node_test_client = make_test_client(full_node_port).await;
 
-    wait_for_l2_block(&full_node_test_client, 10, Some(Duration::from_secs(60))).await;
+    wait_for_l2_block(&full_node_test_client, 5, Some(Duration::from_secs(60))).await;
 
     let status = full_node_test_client.citrea_sync_status().await;
 
     match status {
         CitreaStatus::Syncing(syncing) => {
-            assert!(syncing.synced_block_number > 0 && syncing.synced_block_number < 100);
-            assert_eq!(syncing.head_block_number, 100);
+            assert!(syncing.synced_block_number > 0 && syncing.synced_block_number < 300);
+            assert_eq!(syncing.head_block_number, 300);
         }
         _ => panic!("Expected syncing status"),
     }
 
-    wait_for_l2_block(&full_node_test_client, 100, None).await;
+    wait_for_l2_block(&full_node_test_client, 300, Some(Duration::from_secs(60))).await;
 
     let status = full_node_test_client.citrea_sync_status().await;
 
     match status {
-        CitreaStatus::Synced(synced_up_to) => assert_eq!(synced_up_to, 100),
+        CitreaStatus::Synced(synced_up_to) => assert_eq!(synced_up_to, 300),
         _ => panic!("Expected synced status"),
     }
 

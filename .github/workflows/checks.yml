@@ -272,9 +272,9 @@ jobs:
         run: |
           RUST_LOG=off ./target/debug/citrea --da-layer mock --rollup-config-path resources/configs/mock/sequencer_rollup_config.toml --sequencer-config-path resources/configs/mock/sequencer_config.toml --genesis-paths resources/genesis/mock/ &
           sleep 2
-          RUST_LOG=off ./target/debug/citrea --rollup-config-path resources/configs/mock/rollup_config.toml --genesis-paths resources/genesis/mock/ &
+          RUST_LOG=off ./target/debug/citrea --da-layer mock --rollup-config-path resources/configs/mock/rollup_config.toml --genesis-paths resources/genesis/mock/ &
           sleep 2
-          ./resources/configs/mock-dockerized/publish_da_block.sh &
+          # ./resources/configs/mock-dockerized/publish_da_block.sh &
           cd ./bin/citrea/tests/evm/web3_py
           python test.py
 
