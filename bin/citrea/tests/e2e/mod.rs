@@ -3280,7 +3280,6 @@ async fn test_full_node_sync_status() {
 
     match status {
         CitreaStatus::Syncing(syncing) => {
-            println!("{:?}", syncing);
             assert!(syncing.synced_block_number > 0 && syncing.synced_block_number < 300);
             assert_eq!(syncing.head_block_number, 300);
         }
