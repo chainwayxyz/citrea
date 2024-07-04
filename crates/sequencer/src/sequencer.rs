@@ -1016,22 +1016,32 @@ where
         &self,
         pg_connector: PostgresConnector,
     ) -> Result<(), anyhow::Error> {
+        let db_commitment = match pg_connector.get_last_commitment().await? {
+            Some(comm) => comm,
+            None => return Ok(()),
+        };
         let ledger_commitment_l2_height = self
             .ledger_db
             .get_last_sequencer_commitment_l2_height()?
-            .ok_or(anyhow!("No commitment exists"))?;
-
-        let db_commitment = pg_connector.get_last_commitment().await?;
-        // check if last commitment in db matches sequencer's last commitment
-        if let Some(db_commitment) = db_commitment {
-            // this means that the last commitment in the db is not the same as the sequencer's last commitment
-            if db_commitment.l2_start_height > ledger_commitment_l2_height.0 {
-                self.ledger_db
-                    .set_last_sequencer_commitment_l2_height(BatchNumber(
-                        db_commitment.l2_end_height,
-                    ))?
-            }
+            .unwrap_or_default();
+        if ledger_commitment_l2_height.0 >= db_commitment.l2_end_height {
+            return Ok(());
         }
+
+        self.ledger_db
+            .set_last_sequencer_commitment_l2_height(BatchNumber(db_commitment.l2_end_height))?;
+
+        let batches = self
+            .ledger_db
+            .get_soft_batch_range(
+                &(BatchNumber(db_commitment.l2_start_height)
+                    ..BatchNumber(db_commitment.l2_start_height + 1)),
+            )
+            .unwrap();
+        let start_batch = &batches[0];
+        self.ledger_db
+            .set_last_sequencer_commitment_l1_height(SlotNumber(start_batch.da_slot_height))?;
+
         Ok(())
     }
 

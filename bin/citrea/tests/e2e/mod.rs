@@ -1919,7 +1919,7 @@ async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
 
     sequencer_config.db_config = Some(SharedBackupDbConfig::default().set_db_name(psql_db_name));
 
-    let da_service = MockDaService::with_finality(MockAddress::from([0; 32]), 2, &da_db_dir);
+    let da_service = MockDaService::with_finality(MockAddress::from([0; 32]), 0, &da_db_dir);
     da_service.publish_test_block().await.unwrap();
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
@@ -2067,9 +2067,7 @@ async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
     assert_eq!(commitments.len(), 2);
     assert_eq!(commitments[0].l2_start_height, 1);
     assert_eq!(commitments[0].l2_end_height, 4);
-    // TODO: This is a bug that should be checked.
-    // The second commitment L2 start height should be 5
-    assert_eq!(commitments[1].l2_start_height, 1);
+    assert_eq!(commitments[1].l2_start_height, 5);
     assert_eq!(commitments[1].l2_end_height, 9);
 
     seq_task.abort();
