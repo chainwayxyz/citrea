@@ -37,6 +37,7 @@ use sov_modules_api::{
 };
 use sov_modules_stf_blueprint::StfBlueprintTrait;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaData, DaSpec};
+use sov_rollup_interface::rpc::LedgerRpcProvider;
 use sov_rollup_interface::services::da::{BlobWithNotifier, DaService};
 use sov_rollup_interface::stf::{SoftBatchReceipt, StateTransitionFunction};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
@@ -1018,6 +1019,7 @@ where
     ) -> Result<(), anyhow::Error> {
         let db_commitment = match pg_connector.get_last_commitment().await? {
             Some(comm) => comm,
+            // ignore if postgres is out of sync
             None => return Ok(()),
         };
         let ledger_commitment_l2_height = self
@@ -1031,11 +1033,10 @@ where
         self.ledger_db
             .set_last_sequencer_commitment_l2_height(BatchNumber(db_commitment.l2_end_height))?;
 
-        let batches = self.ledger_db.get_soft_batch_range(
-            &(BatchNumber(db_commitment.l2_end_height)
-                ..BatchNumber(db_commitment.l2_end_height + 1)),
-        )?;
-        let l2_end_batch = &batches[0];
+        let l2_end_batch = self
+            .ledger_db
+            .get_soft_batch_by_number::<()>(db_commitment.l2_end_height)?
+            .unwrap();
         self.ledger_db
             .set_last_sequencer_commitment_l1_height(SlotNumber(l2_end_batch.da_slot_height))?;
 
