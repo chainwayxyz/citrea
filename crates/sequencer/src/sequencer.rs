@@ -1,5 +1,5 @@
 use std::cmp::Ordering;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::marker::PhantomData;
 use std::net::SocketAddr;
 use std::ops::RangeInclusive;
@@ -560,6 +560,7 @@ where
 
                 // If we exceed the threshold, we should notify the commitment
                 // worker to initiate a commitment.
+                #[allow(clippy::collapsible_if)]
                 if serialized_state_diff.len() as u64 > STATEDIFF_SIZE_COMMITMENT_THRESHOLD {
                     if da_commitment_tx.unbounded_send((l1_height, true)).is_err() {
                         error!("Commitment thread is dead!");
