@@ -57,7 +57,7 @@ use crate::mempool::CitreaMempool;
 use crate::rpc::{create_rpc_module, RpcContext};
 use crate::utils::recover_raw_transaction;
 
-const STATEDIFF_SIZE_COMMITMENT_THRESHOLD: u64 = 300 * 1024;
+const MAX_STATEDIFF_SIZE_COMMITMENT_THRESHOLD: u64 = 300 * 1024;
 
 type StateRoot<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::StateRoot;
 /// Represents information about the current DA state.
@@ -488,18 +488,6 @@ where
                     slot_result.state_root
                 );
 
-                let new_state_diff = self.merge_state_diffs(
-                    self.last_state_diff.clone(),
-                    slot_result.state_diff.clone(),
-                );
-
-                // Serialize the state diff to check size later.
-                let serialized_state_diff = bincode::serialize(&new_state_diff)?;
-                // Store state diff.
-                self.last_state_diff = new_state_diff;
-                self.ledger_db
-                    .set_state_diff(self.last_state_diff.clone())?;
-
                 let mut data_to_commit = SlotCommit::new(da_block.clone());
                 for receipt in slot_result.batch_receipts {
                     data_to_commit.add_batch(receipt);
@@ -561,13 +549,27 @@ where
 
                 self.mempool.update_accounts(account_updates);
 
-                // If we exceed the threshold, we should notify the commitment
-                // worker to initiate a commitment.
-                #[allow(clippy::collapsible_if)]
-                if serialized_state_diff.len() as u64 > STATEDIFF_SIZE_COMMITMENT_THRESHOLD {
+                let merged_state_diff = self.merge_state_diffs(
+                    self.last_state_diff.clone(),
+                    slot_result.state_diff.clone(),
+                );
+                // Serialize the state diff to check size later.
+                let serialized_state_diff = bincode::serialize(&merged_state_diff)?;
+                println!("State diff: {}", serialized_state_diff.len());
+                if serialized_state_diff.len() as u64 > MAX_STATEDIFF_SIZE_COMMITMENT_THRESHOLD {
+                    // If we exceed the threshold, we should notify the commitment
+                    // worker to initiate a commitment.
                     if da_commitment_tx.unbounded_send((l1_height, true)).is_err() {
                         error!("Commitment thread is dead!");
                     }
+                    self.last_state_diff = slot_result.state_diff.clone();
+                    self.ledger_db
+                        .set_state_diff(self.last_state_diff.clone())?;
+                } else {
+                    // Store state diff.
+                    self.last_state_diff = merged_state_diff;
+                    self.ledger_db
+                        .set_state_diff(self.last_state_diff.clone())?;
                 }
 
                 if let Some(pg_pool) = pg_pool.clone() {
