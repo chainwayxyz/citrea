@@ -3351,7 +3351,7 @@ async fn test_sequencer_commitment_threshold() {
         seq_test_client.send_publish_batch_request().await;
     }
 
-    wait_for_l2_block(&seq_test_client, 150, Some(Duration::from_secs(60))).await;
+    wait_for_l2_block(&seq_test_client, 750, Some(Duration::from_secs(60))).await;
 
     // At block 725, the state diff should be large enough to trigger a commitment.
     wait_for_postgres_commitment(&db_test_client, 1, Some(Duration::from_secs(60))).await;
@@ -3367,7 +3367,7 @@ async fn test_sequencer_commitment_threshold() {
         seq_test_client.send_publish_batch_request().await;
     }
 
-    wait_for_l2_block(&seq_test_client, 300, Some(Duration::from_secs(60))).await;
+    wait_for_l2_block(&seq_test_client, 1500, Some(Duration::from_secs(60))).await;
 
     // At block 1450, the state diff should be large enough to trigger a commitment.
     // But the 50 remaining blocks state diff should NOT trigger a third.
