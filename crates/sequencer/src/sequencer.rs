@@ -1134,8 +1134,8 @@ where
     fn merge_state_diffs(&self, old_diff: StateDiff, new_diff: StateDiff) -> StateDiff {
         let mut new_diff_map = HashMap::<Vec<u8>, Option<Vec<u8>>>::from_iter(old_diff);
 
-        new_diff_map.extend(new_diff.into_iter());
-        new_diff_map.into_iter().map(|(k, v)| (k, v)).collect()
+        new_diff_map.extend(new_diff);
+        new_diff_map.into_iter().collect()
     }
 }
 
