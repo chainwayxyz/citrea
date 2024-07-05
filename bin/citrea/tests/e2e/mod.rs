@@ -3341,11 +3341,11 @@ async fn test_sequencer_commitment_threshold() {
     let seq_port = seq_port_rx.await.unwrap();
 
     let seq_test_client = init_test_rollup(seq_port).await;
-    let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
 
-    for _ in 0..150 {
-        let _pending = seq_test_client
-            .send_eth(addr, None, None, None, 0u128)
+    for _ in 0..750 {
+        let contract = SimpleStorageContract::default();
+        let _ = seq_test_client
+            .deploy_contract(contract.byte_code(), None)
             .await
             .unwrap();
         seq_test_client.send_publish_batch_request().await;
@@ -3353,14 +3353,15 @@ async fn test_sequencer_commitment_threshold() {
 
     wait_for_l2_block(&seq_test_client, 150, Some(Duration::from_secs(60))).await;
 
-    // At block 120, the state diff should be large enough to trigger a commitment.
+    // At block 725, the state diff should be large enough to trigger a commitment.
     wait_for_postgres_commitment(&db_test_client, 1, Some(Duration::from_secs(60))).await;
     let commitments = db_test_client.get_all_commitments().await.unwrap();
     assert_eq!(commitments.len(), 1);
 
-    for _ in 0..150 {
-        let _pending = seq_test_client
-            .send_eth(addr, None, None, None, 0u128)
+    for _ in 0..750 {
+        let contract = SimpleStorageContract::default();
+        let _ = seq_test_client
+            .deploy_contract(contract.byte_code(), None)
             .await
             .unwrap();
         seq_test_client.send_publish_batch_request().await;
@@ -3368,8 +3369,8 @@ async fn test_sequencer_commitment_threshold() {
 
     wait_for_l2_block(&seq_test_client, 300, Some(Duration::from_secs(60))).await;
 
-    // At block 240, the state diff should be large enough to trigger a commitment.
-    // But the 60 remaining blocks state diff should NOT trigger a third.
+    // At block 1450, the state diff should be large enough to trigger a commitment.
+    // But the 50 remaining blocks state diff should NOT trigger a third.
     wait_for_postgres_commitment(&db_test_client, 2, Some(Duration::from_secs(60))).await;
     let commitments = db_test_client.get_all_commitments().await.unwrap();
     assert_eq!(commitments.len(), 2);
