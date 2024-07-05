@@ -1,5 +1,5 @@
 use std::cmp::Ordering;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::marker::PhantomData;
 use std::net::SocketAddr;
 use std::ops::RangeInclusive;
@@ -487,8 +487,10 @@ where
                     slot_result.state_root
                 );
 
-                let mut new_state_diff = self.last_state_diff.clone();
-                new_state_diff.extend(slot_result.state_diff.clone());
+                let new_state_diff = self.merge_state_diffs(
+                    self.last_state_diff.clone(),
+                    slot_result.state_diff.clone(),
+                );
 
                 // Serialize the state diff to check size later.
                 let serialized_state_diff = bincode::serialize(&new_state_diff)?;
@@ -1127,6 +1129,13 @@ where
         }
 
         Ok(updates)
+    }
+
+    fn merge_state_diffs(&self, old_diff: StateDiff, new_diff: StateDiff) -> StateDiff {
+        let mut new_diff_map = HashMap::<Vec<u8>, Option<Vec<u8>>>::from_iter(old_diff);
+
+        new_diff_map.extend(new_diff.into_iter());
+        new_diff_map.into_iter().map(|(k, v)| (k, v)).collect()
     }
 }
 
