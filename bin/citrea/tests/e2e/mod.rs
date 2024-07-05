@@ -3316,6 +3316,10 @@ async fn test_sequencer_commitment_threshold() {
     let mut sequencer_config = create_default_sequencer_config(4, Some(true), 10);
 
     sequencer_config.db_config = Some(SharedBackupDbConfig::default().set_db_name(psql_db_name));
+    sequencer_config.mempool_conf = SequencerMempoolConfig {
+        max_account_slots: 1000,
+        ..Default::default()
+    };
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
@@ -3342,32 +3346,38 @@ async fn test_sequencer_commitment_threshold() {
 
     let seq_test_client = init_test_rollup(seq_port).await;
 
-    for _ in 0..750 {
-        let contract = InfiniteLoopContract::default();
-        let _ = seq_test_client
-            .deploy_contract(contract.byte_code(), None)
-            .await
-            .unwrap();
+    seq_test_client.send_publish_batch_request().await;
+
+    for _ in 0..10 {
+        for _ in 0..100 {
+            let address = Address::random();
+            let _pending = seq_test_client
+                .send_eth(address, None, None, None, 1u128)
+                .await
+                .unwrap();
+        }
         seq_test_client.send_publish_batch_request().await;
     }
 
-    wait_for_l2_block(&seq_test_client, 750, Some(Duration::from_secs(60))).await;
+    wait_for_l2_block(&seq_test_client, 11, Some(Duration::from_secs(60))).await;
 
     // At block 725, the state diff should be large enough to trigger a commitment.
     wait_for_postgres_commitment(&db_test_client, 1, Some(Duration::from_secs(60))).await;
     let commitments = db_test_client.get_all_commitments().await.unwrap();
     assert_eq!(commitments.len(), 1);
 
-    for _ in 0..750 {
-        let contract = SimpleStorageContract::default();
-        let _ = seq_test_client
-            .deploy_contract(contract.byte_code(), None)
-            .await
-            .unwrap();
+    for _ in 0..10 {
+        for _ in 0..100 {
+            let address = Address::random();
+            let _pending = seq_test_client
+                .send_eth(address, None, None, None, 1u128)
+                .await
+                .unwrap();
+        }
         seq_test_client.send_publish_batch_request().await;
     }
 
-    wait_for_l2_block(&seq_test_client, 1500, Some(Duration::from_secs(60))).await;
+    wait_for_l2_block(&seq_test_client, 21, Some(Duration::from_secs(60))).await;
 
     // At block 1450, the state diff should be large enough to trigger a commitment.
     // But the 50 remaining blocks state diff should NOT trigger a third.
