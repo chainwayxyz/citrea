@@ -555,14 +555,13 @@ where
                 );
                 // Serialize the state diff to check size later.
                 let serialized_state_diff = bincode::serialize(&merged_state_diff)?;
-                println!("State diff: {}", serialized_state_diff.len());
                 if serialized_state_diff.len() as u64 > MAX_STATEDIFF_SIZE_COMMITMENT_THRESHOLD {
                     // If we exceed the threshold, we should notify the commitment
                     // worker to initiate a commitment.
                     if da_commitment_tx.unbounded_send((l1_height, true)).is_err() {
                         error!("Commitment thread is dead!");
                     }
-                    self.last_state_diff = slot_result.state_diff.clone();
+                    self.last_state_diff.clone_from(&slot_result.state_diff);
                     self.ledger_db
                         .set_state_diff(self.last_state_diff.clone())?;
                 } else {
