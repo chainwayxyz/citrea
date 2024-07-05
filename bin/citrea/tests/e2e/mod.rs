@@ -7,7 +7,7 @@ use alloy::consensus::{Signed, TxEip1559, TxEnvelope};
 use alloy::signers::wallet::LocalWallet;
 use alloy::signers::Signer;
 use alloy_rlp::{BytesMut, Decodable, Encodable};
-use citrea_evm::smart_contracts::SimpleStorageContract;
+use citrea_evm::smart_contracts::{InfiniteLoopContract, SimpleStorageContract};
 use citrea_evm::system_contracts::BitcoinLightClient;
 use citrea_evm::SYSTEM_SIGNER;
 use citrea_primitives::TEST_PRIVATE_KEY;
@@ -3343,7 +3343,7 @@ async fn test_sequencer_commitment_threshold() {
     let seq_test_client = init_test_rollup(seq_port).await;
 
     for _ in 0..750 {
-        let contract = SimpleStorageContract::default();
+        let contract = InfiniteLoopContract::default();
         let _ = seq_test_client
             .deploy_contract(contract.byte_code(), None)
             .await
