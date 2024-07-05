@@ -7,7 +7,7 @@ use alloy::consensus::{Signed, TxEip1559, TxEnvelope};
 use alloy::signers::wallet::LocalWallet;
 use alloy::signers::Signer;
 use alloy_rlp::{BytesMut, Decodable, Encodable};
-use citrea_evm::smart_contracts::{InfiniteLoopContract, SimpleStorageContract};
+use citrea_evm::smart_contracts::SimpleStorageContract;
 use citrea_evm::system_contracts::BitcoinLightClient;
 use citrea_evm::SYSTEM_SIGNER;
 use citrea_primitives::TEST_PRIVATE_KEY;
