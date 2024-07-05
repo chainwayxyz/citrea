@@ -58,7 +58,7 @@ contract BridgeTest is Test {
     ProxyAdmin proxyAdmin = ProxyAdmin(0x31fFFfFfFFFffFFFFFFfFFffffFFffffFfFFfffF);
 
     function setUp() public {
-        proxyAdmin = new ProxyAdmin(address(1));
+        proxyAdmin = new ProxyAdmin();
         vm.etch(address(proxyAdmin), address(proxyAdmin).code);
         vm.store(address(proxyAdmin), bytes32(0), bytes32(uint256(uint160(owner))));
 
@@ -68,9 +68,11 @@ contract BridgeTest is Test {
         vm.etch(address(bridge), proxy_impl.code);
 
         bytes32 IMPLEMENTATION_SLOT = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
+        bytes32 ADMIN_SLOT = 0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103;
         bytes32 OWNER_SLOT = 0x9016d09d72d40fdae2fd8ceac6b6234c7706214fd39c1cd1e609a0528c199300;
 
         vm.store(address(bridge), IMPLEMENTATION_SLOT, bytes32(uint256(uint160(bridgeImpl))));
+        vm.store(address(bridge), ADMIN_SLOT, bytes32(uint256(uint160(address(proxyAdmin)))));
         vm.store(address(bridge), OWNER_SLOT, bytes32(uint256(uint160(owner))));
 
         vm.prank(SYSTEM_CALLER);
@@ -264,7 +266,7 @@ contract BridgeTest is Test {
     function testUpgrade() public {
         address falseBridgeImpl = address(new FalseBridge());
         vm.prank(owner);
-        proxyAdmin.upgradeAndCall(ITransparentUpgradeableProxy(payable(address(bridge))), falseBridgeImpl, "");
+        proxyAdmin.upgrade(ITransparentUpgradeableProxy(payable(address(bridge))), falseBridgeImpl);
         assertEq(FalseBridge(address(bridge)).falseFunc(), keccak256("false"));
     }
 
@@ -272,7 +274,7 @@ contract BridgeTest is Test {
         address falseBridgeImpl = address(new FalseBridge());
         vm.prank(user);
         vm.expectRevert();
-        proxyAdmin.upgradeAndCall(ITransparentUpgradeableProxy(payable(address(bridge))), falseBridgeImpl, "");
+        proxyAdmin.upgrade(ITransparentUpgradeableProxy(payable(address(bridge))), falseBridgeImpl);
     }
 
     function testOwnerCanChangeAndUpgrade() public {
@@ -282,7 +284,7 @@ contract BridgeTest is Test {
         vm.prank(owner);
         proxyAdmin.transferOwnership(newOwner);
         vm.startPrank(newOwner);
-        proxyAdmin.upgradeAndCall(ITransparentUpgradeableProxy(payable(address(bridge))), falseBridgeImpl, "");
+        proxyAdmin.upgrade(ITransparentUpgradeableProxy(payable(address(bridge))), falseBridgeImpl);
         assertEq(FalseBridge(address(bridge)).falseFunc(), keccak256("false"));
     }
 
