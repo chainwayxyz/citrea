@@ -603,8 +603,6 @@ where
         let min_soft_confirmations_per_commitment =
             self.config.min_soft_confirmations_per_commitment;
 
-        println!("MIN SOFT CONF: {}", min_soft_confirmations_per_commitment);
-
         let commitment_info = commitment_controller::get_commitment_info(
             &self.ledger_db,
             min_soft_confirmations_per_commitment,
