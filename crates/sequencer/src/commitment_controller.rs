@@ -27,7 +27,7 @@ pub fn get_commitment_info(
     // to commit.
     let last_committed_l2_height = ledger_db
         .get_last_sequencer_commitment_l2_height()?
-        .unwrap_or(BatchNumber(1));
+        .unwrap_or(BatchNumber(0));
 
     let Some((head_soft_batch_number, _)) = ledger_db.get_head_soft_batch()? else {
         // No soft batches have been created yet.
