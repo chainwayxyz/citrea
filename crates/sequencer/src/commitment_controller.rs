@@ -1,21 +1,17 @@
 use std::ops::RangeInclusive;
 
-use anyhow::{anyhow, bail};
+use anyhow::anyhow;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 use sov_db::ledger_db::LedgerDB;
-use sov_db::schema::types::{BatchNumber, SlotNumber};
+use sov_db::schema::types::BatchNumber;
 use sov_rollup_interface::da::SequencerCommitment;
-use sov_rollup_interface::rpc::LedgerRpcProvider;
 use tracing::{debug, instrument};
 
 #[derive(Clone, Debug)]
 pub struct CommitmentInfo {
     /// L2 heights to commit
     pub l2_height_range: RangeInclusive<BatchNumber>,
-    /// Respectfully, the L1 heights to commit.
-    /// (L2 blocks were created with these L1 blocks.)
-    pub l1_height_range: RangeInclusive<BatchNumber>,
 }
 
 /// Checks if the sequencer should commit
@@ -25,107 +21,38 @@ pub struct CommitmentInfo {
 pub fn get_commitment_info(
     ledger_db: &LedgerDB,
     min_soft_confirmations_per_commitment: u64,
-    prev_l1_height: u64,
     state_diff_threshold_reached: bool,
 ) -> anyhow::Result<Option<CommitmentInfo>> {
-    // first get when the last merkle root of soft confirmations was submitted
-    let last_commitment_l1_height = ledger_db
-        .get_last_sequencer_commitment_l1_height()
-        .map_err(|e| {
-            anyhow!(
-                "Sequencer: Failed to get last sequencer commitment L1 height: {}",
-                e
-            )
-        })?;
+    // Based on heights stored in ledger_db, decided which L2 blocks
+    // to commit.
+    let last_committed_l2_height = ledger_db
+        .get_last_sequencer_commitment_l2_height()?
+        .unwrap_or(BatchNumber(1));
 
-    debug!("Last commitment L1 height: {:?}", last_commitment_l1_height);
-
-    // if none then we never submitted a commitment, start from prev_l1_height and go back as far as you can go
-    // if there is a height then start from height + 1 and go to prev_l1_height
-    let (l2_range_to_submit, l1_height_range) = match last_commitment_l1_height {
-        Some(last_commitment_l1_height) => {
-            let l1_start = last_commitment_l1_height.0 + 1;
-            let mut l1_end = l1_start;
-
-            let Some((l2_start, mut l2_end)) =
-                ledger_db.get_l2_range_by_l1_height(SlotNumber(l1_start))?
-            else {
-                return Ok(None);
-            };
-
-            // Take while sum of l2 ranges <= min_soft_confirmations_per_commitment
-            for l1_i in l1_start..=prev_l1_height {
-                l1_end = l1_i;
-
-                let Some((_, l2_end_new)) =
-                    ledger_db.get_l2_range_by_l1_height(SlotNumber(l1_end))?
-                else {
-                    bail!("Sequencer: Failed to get L1 L2 connection");
-                };
-
-                l2_end = l2_end_new;
-
-                let l2_range_length = 1 + l2_end.0 - l2_start.0;
-                if l2_range_length >= min_soft_confirmations_per_commitment {
-                    break;
-                }
-            }
-            let l1_height_range = (l1_start, l1_end);
-
-            let l2_height_range = (l2_start, l2_end);
-
-            (l2_height_range, l1_height_range)
-        }
-        None => {
-            let first_soft_confirmation = match ledger_db.get_soft_batch_by_number::<()>(1)? {
-                Some(batch) => batch,
-                None => return Ok(None), // not even the first soft confirmation is there, shouldn't happen actually
-            };
-
-            let l1_height_range = (first_soft_confirmation.da_slot_height, prev_l1_height);
-
-            let Some((_, last_soft_confirmation_height)) =
-                ledger_db.get_l2_range_by_l1_height(SlotNumber(prev_l1_height))?
-            else {
-                bail!("Sequencer: Failed to get L1 L2 connection");
-            };
-
-            let l2_range_to_submit = (BatchNumber(1), last_soft_confirmation_height);
-
-            (l2_range_to_submit, l1_height_range)
-        }
+    let Some((head_soft_batch_number, _)) = ledger_db.get_head_soft_batch()? else {
+        // No soft batches have been created yet.
+        return Ok(None);
     };
 
-    debug!("L2 range to submit: {:?}", l2_range_to_submit);
-    debug!("L1 height range: {:?}", l1_height_range);
-
-    if !state_diff_threshold_reached
-        && (l2_range_to_submit.1 .0 + 1)
-            < min_soft_confirmations_per_commitment + l2_range_to_submit.0 .0
-    {
+    // If the last commitment made is on par with the head
+    // soft batch, we have already committed the latest block.
+    if last_committed_l2_height >= head_soft_batch_number {
+        // Already committed.
         return Ok(None);
     }
 
-    let Some(l1_start_hash) = ledger_db
-        .get_soft_batch_by_number::<()>(l2_range_to_submit.0 .0)?
-        .map(|s| s.da_slot_hash)
-    else {
-        bail!("Failed to get soft batch");
-    };
+    let l2_start = last_committed_l2_height.0 + 1;
+    let l2_end = head_soft_batch_number.0;
 
-    let Some(l1_end_hash) = ledger_db
-        .get_soft_batch_by_number::<()>(l2_range_to_submit.1 .0)?
-        .map(|s| s.da_slot_hash)
-    else {
-        bail!("Failed to get soft batch");
-    };
+    let l2_range_length = 1 + l2_end - l2_start;
+    if !state_diff_threshold_reached && (l2_range_length < min_soft_confirmations_per_commitment) {
+        return Ok(None);
+    }
 
-    debug!("L1 start hash: {:?}", l1_start_hash);
-    debug!("L1 end hash: {:?}", l1_end_hash);
+    debug!("L2 range to submit: {}..{}", l2_start, l2_end);
 
     Ok(Some(CommitmentInfo {
-        l2_height_range: l2_range_to_submit.0..=l2_range_to_submit.1,
-        l1_height_range: BatchNumber(l1_height_range.0)..=BatchNumber(l1_height_range.1),
+        l2_height_range: BatchNumber(l2_start)..=BatchNumber(l2_end),
     }))
 }
 
