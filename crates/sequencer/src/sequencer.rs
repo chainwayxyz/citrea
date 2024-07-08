@@ -603,6 +603,8 @@ where
         let min_soft_confirmations_per_commitment =
             self.config.min_soft_confirmations_per_commitment;
 
+        println!("MIN SOFT CONF: {}", min_soft_confirmations_per_commitment);
+
         let commitment_info = commitment_controller::get_commitment_info(
             &self.ledger_db,
             min_soft_confirmations_per_commitment,
@@ -610,7 +612,6 @@ where
         )?;
 
         if let Some(commitment_info) = commitment_info {
-            debug!("Sequencer: enough soft confirmations to submit commitment");
             let l2_range_to_submit = commitment_info.l2_height_range.clone();
 
             // calculate exclusive range end

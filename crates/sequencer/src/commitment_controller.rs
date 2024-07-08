@@ -49,6 +49,14 @@ pub fn get_commitment_info(
         return Ok(None);
     }
 
+    if l2_range_length >= min_soft_confirmations_per_commitment {
+        debug!("Enough soft confirmations to submit commitment");
+    }
+
+    if state_diff_threshold_reached {
+        debug!("State diff threshold reached. Committing...");
+    }
+
     debug!("L2 range to submit: {}..{}", l2_start, l2_end);
 
     Ok(Some(CommitmentInfo {
