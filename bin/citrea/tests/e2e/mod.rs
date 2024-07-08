@@ -1070,7 +1070,7 @@ async fn execute_blocks(
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_soft_confirmations_status_one_l1() -> Result<(), anyhow::Error> {
-    // citrea::initialize_logging(tracing::Level::DEBUG);
+    // citrea::initialize_logging(tracing::Level::INFO);
 
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
@@ -1139,7 +1139,7 @@ async fn test_soft_confirmations_status_one_l1() -> Result<(), anyhow::Error> {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_soft_confirmations_status_two_l1() -> Result<(), anyhow::Error> {
-    // citrea::initialize_logging(tracing::Level::DEBUG);
+    // citrea::initialize_logging(tracing::Level::INFO);
 
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
