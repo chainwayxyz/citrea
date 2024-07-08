@@ -2921,9 +2921,9 @@ async fn test_all_flow() {
         prover_proof_data.state_transition.sequencer_public_key
     );
 
-    wait_for_proof(&full_node_test_client, 5, Some(Duration::from_secs(120))).await;
+    wait_for_proof(&full_node_test_client, 6, Some(Duration::from_secs(120))).await;
     let full_node_proof_data = full_node_test_client
-        .ledger_get_verified_proofs_by_slot_height(5)
+        .ledger_get_verified_proofs_by_slot_height(6)
         .await
         .unwrap();
 
