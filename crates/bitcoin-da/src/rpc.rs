@@ -4,7 +4,7 @@ use core::str::FromStr;
 use bitcoin::block::{Header, Version};
 use bitcoin::hash_types::{TxMerkleNode, WitnessMerkleNode};
 use bitcoin::hashes::Hash;
-use bitcoin::{merkle_tree, BlockHash, CompactTarget, Wtxid};
+use bitcoin::{merkle_tree, BlockHash, CompactTarget, Transaction, Wtxid};
 use reqwest::header::HeaderMap;
 use serde::{Deserialize, Serialize};
 use serde_json::value::RawValue;
@@ -14,7 +14,7 @@ use tracing::{instrument, warn};
 use crate::helpers::parsers::parse_hex_transaction;
 use crate::spec::block::BitcoinBlock;
 use crate::spec::header::HeaderWrapper;
-use crate::spec::transaction::Transaction;
+// use crate::spec::transaction::Transaction;
 use crate::spec::utxo::UTXO;
 
 // RPCError is a struct that represents an error returned by the Bitcoin RPC
@@ -203,6 +203,7 @@ impl BitcoinNode {
 
                 parse_hex_transaction(tx_hex).unwrap() // hex from rpc cannot be invalid
             })
+            .map(Into::into)
             .collect();
 
         let witness_root =

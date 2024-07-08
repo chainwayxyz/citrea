@@ -454,7 +454,7 @@ impl DaService for BitcoinService {
         let coinbase_tx_hash = block.txdata[0].txid().to_raw_hash().to_byte_array();
         txids.push(coinbase_tx_hash);
         if coinbase_tx_hash.starts_with(self.reveal_tx_id_prefix.as_slice()) {
-            completeness_proof.push(block.txdata[0].clone());
+            completeness_proof.push(block.txdata[0].clone().into());
         }
 
         block.txdata[1..].iter().for_each(|tx| {
@@ -463,7 +463,7 @@ impl DaService for BitcoinService {
 
             // if tx_hash has two leading zeros, it is in the completeness proof
             if txid.starts_with(self.reveal_tx_id_prefix.as_slice()) {
-                completeness_proof.push(tx.clone());
+                completeness_proof.push(tx.into());
             }
 
             wtxids.push(wtxid);
@@ -471,8 +471,8 @@ impl DaService for BitcoinService {
         });
 
         (
-            InclusionMultiProof::new(txids, wtxids, block.txdata[0].clone()),
-            vec![], // FIXME: completeness_proof,
+            InclusionMultiProof::new(txids, wtxids, block.txdata[0].clone().into()),
+            completeness_proof,
         )
     }
 

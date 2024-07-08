@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use bitcoin::hashes::{sha256d, Hash};
-use bitcoin::{merkle_tree, Txid};
+use bitcoin::{merkle_tree, Transaction as BitTransaction, Txid};
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec, DaVerifier};
@@ -94,6 +94,11 @@ impl DaVerifier for BitcoinVerifier {
             block_hash: block_header.block_hash().to_byte_array(),
         };
 
+        let completeness_proof: Vec<_> = completeness_proof
+            .into_iter()
+            .map(bitcoin::Transaction::from)
+            .collect();
+
         // check that wtxid's of transactions in completeness proof are included in the InclusionMultiProof
         // and are in the same order as in the completeness proof
         let mut iter = inclusion_proof.wtxids.iter();
@@ -104,7 +109,7 @@ impl DaVerifier for BitcoinVerifier {
         // verify that one of the outputs of the coinbase transaction has script pub key starting with 0x6a24aa21a9ed,
         // and the rest of the script pub key is the commitment of witness data.
         if !completeness_proof.is_empty() {
-            let coinbase_tx = inclusion_proof.coinbase_tx.clone();
+            let coinbase_tx: BitTransaction = inclusion_proof.coinbase_tx.into();
             // If there are more than one scriptPubKey matching the pattern,
             // the one with highest output index is assumed to be the commitment.
             // That  is why the iterator is reversed.
@@ -178,7 +183,7 @@ impl DaVerifier for BitcoinVerifier {
         let mut completeness_tx_hashes = HashSet::new();
 
         for (index_completeness, tx) in completeness_proof.iter().enumerate() {
-            let txid = tx.txid().to_raw_hash().to_byte_array();
+            let txid = tx.txid().to_byte_array();
 
             // make sure it starts with the correct prefix
             if !txid.starts_with(prefix) {
@@ -196,7 +201,7 @@ impl DaVerifier for BitcoinVerifier {
             }
 
             // it must be parsed correctly
-            if let Ok(parsed_tx) = parse_transaction(tx, &self.rollup_name) {
+            if let Ok(parsed_tx) = parse_transaction(&tx, &self.rollup_name) {
                 if let Some(blob_hash) = parsed_tx.get_sig_verified_hash() {
                     let blob = blobs_iter.next();
 
@@ -374,7 +379,7 @@ mod tests {
                 .iter()
                 .map(|t| t.wtxid().to_byte_array())
                 .collect(),
-            coinbase_tx: block_txs[0].clone(),
+            coinbase_tx: block_txs[0].clone().into(),
         };
 
         // There should not be any blobs
@@ -429,12 +434,15 @@ mod tests {
         block_txs[0].input[0].witness = Witness::from_slice(&[vec![1u8; 32]]);
 
         // relevant txs are on 6, 8, 10, 12 indices
-        let completeness_proof = vec![
+        let completeness_proof = [
             block_txs[6].clone(),
             block_txs[8].clone(),
             block_txs[10].clone(),
             block_txs[12].clone(),
-        ];
+        ]
+        .into_iter()
+        .map(Into::into)
+        .collect();
 
         let mut inclusion_proof = InclusionMultiProof {
             txids: block_txs
@@ -445,7 +453,7 @@ mod tests {
                 .iter()
                 .map(|t| t.wtxid().to_byte_array())
                 .collect(),
-            coinbase_tx: block_txs[0].clone(),
+            coinbase_tx: block_txs[0].clone().into(),
         };
 
         // Coinbase tx wtxid should be [0u8;32]
@@ -520,12 +528,15 @@ mod tests {
         ]);
 
         // relevant txs are on 6, 8, 10, 12 indices
-        let completeness_proof = vec![
+        let completeness_proof = [
             block_txs[6].clone(),
             block_txs[8].clone(),
             block_txs[10].clone(),
             block_txs[12].clone(),
-        ];
+        ]
+        .into_iter()
+        .map(Into::into)
+        .collect();
 
         let mut inclusion_proof = InclusionMultiProof {
             txids: block_txs
@@ -536,7 +547,7 @@ mod tests {
                 .iter()
                 .map(|t| t.wtxid().to_byte_array())
                 .collect(),
-            coinbase_tx: block_txs[0].clone(),
+            coinbase_tx: block_txs[0].clone().into(),
         };
 
         // Coinbase tx wtxid should be [0u8;32]
@@ -631,12 +642,15 @@ mod tests {
 
         block_txs[6].input[0].witness = Witness::from_slice(&changed_witness);
         // relevant txs are on 6, 8, 10, 12 indices
-        let completeness_proof = vec![
+        let completeness_proof = [
             block_txs[6].clone(),
             block_txs[8].clone(),
             block_txs[10].clone(),
             block_txs[12].clone(),
-        ];
+        ]
+        .into_iter()
+        .map(Into::into)
+        .collect();
 
         let mut inclusion_proof = InclusionMultiProof {
             txids: block_txs
@@ -647,7 +661,7 @@ mod tests {
                 .iter()
                 .map(|t| t.wtxid().to_byte_array())
                 .collect(),
-            coinbase_tx: block_txs[0].clone(),
+            coinbase_tx: block_txs[0].clone().into(),
         };
 
         // Coinbase tx wtxid should be [0u8;32]
@@ -857,7 +871,7 @@ mod tests {
 
         let (block_header, inclusion_proof, mut completeness_proof, txs) = get_mock_data();
 
-        completeness_proof.push(get_mock_txs().get(1).unwrap().clone());
+        completeness_proof.push(get_mock_txs().get(1).unwrap().clone().into());
 
         assert_eq!(
             verifier.verify_relevant_tx_list(
@@ -969,11 +983,9 @@ mod tests {
         });
 
         let (block_header, inclusion_proof, completeness_proof, mut txs) = get_mock_data();
-
+        let tx1 = completeness_proof[1].clone().into();
         txs[1] = BlobWithSender::new(
-            parse_transaction(&completeness_proof[1], "sov-btc")
-                .unwrap()
-                .body,
+            parse_transaction(&tx1, "sov-btc").unwrap().body,
             vec![2; 33],
             txs[1].hash,
         );

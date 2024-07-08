@@ -17,8 +17,7 @@ impl BorshSerialize for BlockHashWrapper {
         &self,
         writer: &mut W,
     ) -> borsh::maybestd::io::Result<()> {
-        // FIXME
-        unimplemented!()
+        BorshSerialize::serialize(&self.0.to_byte_array(), writer)
     }
 }
 

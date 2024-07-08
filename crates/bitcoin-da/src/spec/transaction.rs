@@ -29,26 +29,6 @@ impl OurTransaction {
             output: vec![],
         }
     }
-    /// Computes the [`Txid`].
-    pub fn txid(&self) -> Txid {
-        unimplemented!()
-        // FIXME:
-        // let mut enc = Txid::engine();
-        // self.version.consensus_encode(&mut enc).expect("engines don't error");
-        // self.input.consensus_encode(&mut enc).expect("engines don't error");
-        // self.output.consensus_encode(&mut enc).expect("engines don't error");
-        // self.lock_time.consensus_encode(&mut enc).expect("engines don't error");
-        // Txid::from_engine(enc)
-    }
-
-    /// Computes the segwit version of the transaction id.
-    pub fn wtxid(&self) -> bitcoin::Wtxid {
-        unimplemented!()
-        // FIXME:
-        // let mut enc = Wtxid::engine();
-        // self.consensus_encode(&mut enc).expect("engines don't error");
-        // Wtxid::from_engine(enc)
-    }
 }
 
 /// The transaction version.
@@ -190,7 +170,7 @@ pub struct OutPoint {
     Serialize,
     Deserialize,
 )]
-struct Txid([u8; 32]);
+pub struct Txid([u8; 32]);
 
 /// An owned, growable script.
 #[derive(
@@ -290,23 +270,40 @@ pub struct TxOut {
 )]
 pub struct Amount(u64);
 
+// FIXME: try to use https://docs.rs/frunk/latest/frunk/#transmogrifying
+
 impl From<BitTransaction> for OurTransaction {
     fn from(value: BitTransaction) -> Self {
-        let version = Version(value.version.0);
-        let consensus_lock_time = value.lock_time.to_consensus_u32();
-        let lock_time = if value.lock_time.is_block_height() {
-            LockTime::Blocks(Height(consensus_lock_time))
-        } else {
-            LockTime::Seconds(Time(consensus_lock_time))
-        };
-        // FIXME
-        let input = vec![];
-        let output = vec![];
-        Self {
-            version,
-            lock_time,
-            input,
-            output,
-        }
+        // this is possible because their fields are equal
+        let json = serde_json::to_string(&value).unwrap();
+        let res = serde_json::from_str(&json).unwrap();
+        res
+    }
+}
+
+impl From<&BitTransaction> for OurTransaction {
+    fn from(value: &BitTransaction) -> Self {
+        // this is possible because their fields are equal
+        let json = serde_json::to_string(value).unwrap();
+        let res = serde_json::from_str(&json).unwrap();
+        res
+    }
+}
+
+impl From<OurTransaction> for BitTransaction {
+    fn from(value: OurTransaction) -> Self {
+        // this is possible because their fields are equal
+        let json = serde_json::to_string(&value).unwrap();
+        let res = serde_json::from_str(&json).unwrap();
+        res
+    }
+}
+
+impl From<&OurTransaction> for BitTransaction {
+    fn from(value: &OurTransaction) -> Self {
+        // this is possible because their fields are equal
+        let json = serde_json::to_string(value).unwrap();
+        let res = serde_json::from_str(&json).unwrap();
+        res
     }
 }
