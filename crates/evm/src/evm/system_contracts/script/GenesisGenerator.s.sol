@@ -47,19 +47,54 @@ contract GenesisGenerator is Script {
     bytes32 OWNER_SLOT = 0x9016d09d72d40fdae2fd8ceac6b6234c7706214fd39c1cd1e609a0528c199300; // from OwnableUpgradeable
     bytes32 FEE_RECIPIENT_SLOT = 0x0000000000000000000000000000000000000000000000000000000000000000;
     bytes32 MIN_WITHDRAW_SLOT = 0x0000000000000000000000000000000000000000000000000000000000000001;
-    uint160 proxyImplOffset = uint160(0x0100000000000000000000000000000000000000); // uint160(address(proxy)) - uint160(address(impl))
+    uint160 PROXY_IMPL_OFFSET = uint160(0x0100000000000000000000000000000000000000); // uint160(address(proxy)) - uint160(address(impl))
+
+    uint256 CHAIN_ID = 5655;
+    address COINBASE = address(0x3100000000000000000000000000000000000005);
+    uint256 STARTING_BASE_FEE = uint256(1000000000);
+    uint256 BLOCK_GAS_LIMIT = uint256(30000000);
+    uint256 MAX_CHANGE_DENOMINATOR = uint256(8);
+    uint256 ELASCTICITY_MULTIPLIER = uint256(2);
 
     // Owner of proxy admin
     //! CHANGE THIS IN PRODUCTION TO THE INITIAL EOA OWNER
     address internal owner = address(0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266);
     address internal feeRecipient = address(0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266);
 
+    address[] internal devAddresses = 
+    [
+        address(0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266),
+        address(0x70997970C51812dc3A010C7d01b50e0d17dc79C8),
+        address(0x66f68692c03eB9C0656D676f2F4bD13eba40D1B7),
+        address(0xaafB7442f7F00B64057C2e9EaE2815bb63Ee0EcE),
+        address(0x9fCDf8f60d3009656E50Bf805Cd53C7335b284Fb),
+        address(0xe756fdf89367EF428b48BCa2d272Ec8EcEC053fD),
+        address(0x3AEEb871F83C85E68fFD1868bef3425eD6649D39),
+        address(0xd44821f906E3909b8AE944F7060551c33b922cc9),
+        address(0x0f820f428AE436C1000b27577bF5bbf09BfeC8f2),
+        address(0xC2F8Eed77da1583f7bae0a3125Dc7BC426002dDE)
+    ];
+
+
     function run() public {
-        vm.chainId(5655);
+        vm.chainId(CHAIN_ID);
+        dealBalanceToDevAddrs();
         setProxyAdmin();
         setContracts();
-        vm.dumpState("./state.json");
-        sortJsonByKeys("./state.json");
+        vm.dumpState("./state/genesis.json");
+        generateEvmJson("./state/genesis.json", "./state/evm.json");
+    }
+
+    function dealBalanceToDevAddrs() internal {
+        for (uint i = 0; i < devAddresses.length; i++) {
+            vm.deal(devAddresses[i], type(uint120).max);
+        }
+    }
+
+    function  dealBalanceToBridge() internal {
+        address bridge = address(0x3100000000000000000000000000000000000002);
+        uint256 balance = 21_000_000 ether;
+        vm.deal(bridge, balance);
     }
 
     function setProxyAdmin() internal {
@@ -82,7 +117,7 @@ contract GenesisGenerator is Script {
 
     function deployContract(address initImpl, uint160 index) internal {
         address namespacedProxy = address(uint160(0x3100000000000000000000000000000000000000) + index);
-        address namespacedImpl = address(uint160(namespacedProxy) + proxyImplOffset);
+        address namespacedImpl = address(uint160(namespacedProxy) + PROXY_IMPL_OFFSET);
         vm.etch(namespacedImpl, initImpl.code);
 
         // Remove init impl code from genesis state as it is already copied
@@ -110,11 +145,11 @@ contract GenesisGenerator is Script {
         vm.resetNonce(initProxyImpl);
     }
 
-    function sortJsonByKeys(string memory _path) internal {
+    function generateEvmJson(string memory _genesisPath, string memory _evmPath) internal {
         string[] memory commands = new string[](3);
         commands[0] = "bash";
         commands[1] = "-c";
-        commands[2] = string.concat("cat <<< $(jq -S '.' ", _path, ") > ", _path);
+        commands[2] = string.concat("python3 ./script/GenesisToEvmJson.py ",  _genesisPath, " ", _evmPath );
         Process.run(commands, false);
     }
 }
