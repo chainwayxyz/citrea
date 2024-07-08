@@ -161,16 +161,7 @@ impl BitcoinNode {
     pub async fn get_block_header(&self, hash: String) -> Result<HeaderWrapper, anyhow::Error> {
         // The full block is requested here because txs_commitment is the witness root
         let full_block = self.get_block(hash).await?;
-        let witness_root = Self::calculate_witness_root(&full_block.txdata).unwrap();
-
-        let header_wrapper: HeaderWrapper = HeaderWrapper::new(
-            *full_block.header.header(),
-            full_block.txdata.len() as u32,
-            full_block.header.height,
-            witness_root,
-        );
-
-        Ok(header_wrapper)
+        Ok(full_block.header)
     }
 
     // get_block returns the block at the given hash

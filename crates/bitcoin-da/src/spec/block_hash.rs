@@ -25,14 +25,20 @@ impl BorshDeserialize for BlockHashWrapper {
     fn deserialize_reader<R: borsh::maybestd::io::Read>(
         reader: &mut R,
     ) -> borsh::maybestd::io::Result<Self> {
-        // FIXME
-        unimplemented!()
+        let hash = BorshDeserialize::deserialize_reader(reader)?;
+        Ok(BlockHashWrapper(BlockHash::from_byte_array(hash)))
     }
 }
 
 impl From<BlockHashWrapper> for [u8; 32] {
     fn from(val: BlockHashWrapper) -> Self {
         val.0.as_raw_hash().to_byte_array()
+    }
+}
+
+impl From<[u8; 32]> for BlockHashWrapper {
+    fn from(val: [u8; 32]) -> Self {
+        BlockHashWrapper(BlockHash::from_byte_array(val))
     }
 }
 
