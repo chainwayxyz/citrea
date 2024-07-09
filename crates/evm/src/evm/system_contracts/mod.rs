@@ -117,3 +117,30 @@ impl Bridge {
         func_selector.into()
     }
 }
+
+sol! {
+    #[sol(abi)]
+    #[allow(missing_docs)]
+    ProxyAdminContract,
+    "./src/evm/system_contracts/out/ProxyAdmin.sol/ProxyAdmin.json"
+}
+
+/// ProxyAdmin wrapper.
+pub struct ProxyAdmin {}
+
+impl ProxyAdmin {
+    /// Return the address of the ProxyAdmin contract.
+    pub fn address() -> Address {
+        address!("31ffffffffffffffffffffffffffffffffffffff")
+    }
+
+    /// Return data to upgrade the contract.
+    pub fn upgrade(proxy: Address, new_contract: Address) -> Bytes {
+        ProxyAdminContract::upgradeCall {
+            proxy: proxy,
+            implementation: new_contract,
+        }
+        .abi_encode()
+        .into()
+    }
+}
