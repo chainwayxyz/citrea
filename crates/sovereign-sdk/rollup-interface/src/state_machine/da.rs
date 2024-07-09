@@ -216,7 +216,7 @@ pub trait BlobReaderTrait:
 /// Trait with collection of trait bounds for a block hash.
 pub trait BlockHashTrait:
     // so it is compatible with StorageManager implementation?
-    BorshSerialize + Serialize + DeserializeOwned + PartialEq + Debug + Send + Sync + Clone + Eq + Into<[u8; 32]> + core::hash::Hash
+    BorshDeserialize + BorshSerialize + Serialize + DeserializeOwned + PartialEq + Debug + Send + Sync + Clone + Eq + Into<[u8; 32]> + core::hash::Hash
 {
 }
 

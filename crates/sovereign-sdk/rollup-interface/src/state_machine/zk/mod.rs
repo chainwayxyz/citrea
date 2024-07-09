@@ -51,7 +51,7 @@ pub trait ZkvmHost: Zkvm + Clone {
     fn run(&mut self, with_proof: bool) -> Result<Proof, anyhow::Error>;
 
     /// Extracts public input form the proof.
-    fn extract_output<Da: DaSpec, Root: Serialize + DeserializeOwned>(
+    fn extract_output<Da: DaSpec, Root: BorshDeserialize>(
         proof: &Proof,
     ) -> Result<StateTransition<Da, Root>, Self::Error>;
 }

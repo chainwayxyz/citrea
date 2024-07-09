@@ -1,6 +1,6 @@
 //! This module implements the [`ZkvmHost`] trait for the RISC0 VM.
 
-use borsh::BorshSerialize;
+use borsh::{BorshDeserialize, BorshSerialize};
 use risc0_zkvm::{ExecutorEnvBuilder, ExecutorImpl, InnerReceipt, Journal, Receipt, Session};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -71,19 +71,20 @@ impl<'a> ZkvmHost for Risc0Host<'a> {
     type Guest = Risc0Guest;
 
     fn add_hint<T: BorshSerialize>(&mut self, item: T) {
-        unimplemented!()
-        // // We use the in-memory size of `item` as an indication of how much
-        // // space to reserve. This is in no way guaranteed to be exact, but
-        // // usually the in-memory size and serialized data size are quite close.
-        // //
-        // // Note: this is just an optimization to avoid frequent reallocations,
-        // // it's not actually required.
-        // self.env
-        //     .reserve(std::mem::size_of::<T>() / std::mem::size_of::<u32>());
-
-        // let mut serializer = risc0_zkvm::serde::Serializer::new(&mut self.env);
-        // item.serialize(&mut serializer)
-        //     .expect("Risc0 hint serialization is infallible");
+        let mut buf = borsh::to_vec(&item).expect("Risc0 hint serialization is infallible");
+        // append [0..] alignment to cast &[u8] to &[u32]
+        let rem = buf.len() % 4;
+        if rem > 0 {
+            buf.extend(vec![0; 4 - rem]);
+        }
+        let buf: &[u32] = bytemuck::cast_slice(&buf);
+        // write len(u64) in LE
+        let len = buf.len() as u64;
+        let len_buf = &len.to_le_bytes()[..];
+        let len_buf: &[u32] = bytemuck::cast_slice(len_buf);
+        self.env.extend_from_slice(len_buf);
+        // write buf
+        self.env.extend_from_slice(buf);
     }
 
     fn simulate_with_hints(&mut self) -> Self::Guest {
@@ -102,19 +103,20 @@ impl<'a> ZkvmHost for Risc0Host<'a> {
         }
     }
 
-    fn extract_output<Da: sov_rollup_interface::da::DaSpec, Root: Serialize + DeserializeOwned>(
+    fn extract_output<Da: sov_rollup_interface::da::DaSpec, Root: BorshDeserialize>(
         proof: &Proof,
     ) -> Result<sov_rollup_interface::zk::StateTransition<Da, Root>, Self::Error> {
-        match proof {
+        let journal = match proof {
             Proof::PublicInput(journal) => {
                 let journal: Journal = bincode::deserialize(journal)?;
-                Ok(journal.decode()?)
+                journal
             }
             Proof::Full(data) => {
                 let receipt: Receipt = bincode::deserialize(data)?;
-                Ok(receipt.journal.decode()?)
+                receipt.journal
             }
-        }
+        };
+        Ok(BorshDeserialize::deserialize(&mut journal.bytes.as_ref())?)
     }
 }
 
