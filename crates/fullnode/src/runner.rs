@@ -497,89 +497,7 @@ where
                 _ = &mut l1_sync_worker => {},
                 _ = &mut l2_sync_worker => {},
                 Some(l1_block) = l1_rx.recv() => {
-                    // Set the l1 height of the l1 hash
-                    self.ledger_db
-                        .set_l1_height_of_l1_hash(l1_block.header().hash().into(), l1_block.header().height())
-                        .unwrap();
-
-                    let mut sequencer_commitments = Vec::<SequencerCommitment>::new();
-                    let mut zk_proofs = Vec::<Proof>::new();
-
-                    self.da_service
-                        .extract_relevant_blobs(&l1_block)
-                        .into_iter()
-                        .for_each(|mut tx| {
-                            let data = DaData::try_from_slice(tx.full_data());
-                            // Check for commitment
-                            if tx.sender().as_ref() == self.sequencer_da_pub_key.as_slice() {
-                                if let Ok(DaData::SequencerCommitment(seq_com)) = data {
-                                    sequencer_commitments.push(seq_com);
-                                } else {
-                                    tracing::warn!(
-                                        "Found broken DA data in block 0x{}: {:?}",
-                                        hex::encode(l1_block.hash()),
-                                        data
-                                    );
-                                }
-                            }
-                            let data = DaData::try_from_slice(tx.full_data());
-                            // Check for proof
-                            if tx.sender().as_ref() == self.prover_da_pub_key.as_slice() {
-                                if let Ok(DaData::ZKProof(proof)) = data {
-                                    zk_proofs.push(proof);
-                                } else {
-                                    tracing::warn!(
-                                        "Found broken DA data in block 0x{}: {:?}",
-                                        hex::encode(l1_block.hash()),
-                                        data
-                                    );
-                                }
-                            } else {
-                                warn!("Force transactions are not implemented yet");
-                                // TODO: This is where force transactions will land - try to parse DA data force transaction
-                            }
-                        });
-
-                    pending_zk_proofs.extend(zk_proofs);
-                    pending_sequencer_commitments.extend(sequencer_commitments);
-
-                    for (index, zk_proof) in pending_zk_proofs.clone().iter().enumerate() {
-                        match self.process_zk_proof(l1_block.clone(), zk_proof.clone()).await {
-                            Ok(()) => {
-                                pending_zk_proofs.remove(index);
-                            },
-                            Err(e) => {
-                                match e {
-                                    SyncError::MissingL2(msg, start_l2_height, end_l2_height) => {
-                                        warn!("Could not completely process ZK proofs. Missing L2 blocks {:?} - {:?}. msg = {}", start_l2_height, end_l2_height, msg);
-                                    },
-                                    SyncError::Error(e) => {
-                                        error!("Could not process ZK proofs: {}...skipping", e);
-                                        pending_zk_proofs.remove(index);
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    for (index, sequencer_commitment) in pending_sequencer_commitments.clone().iter().enumerate() {
-                        match self.process_sequencer_commitment(l1_block.clone(), sequencer_commitment.clone()).await {
-                            Ok(()) => {
-                                pending_sequencer_commitments.remove(index);
-                            },
-                            Err(e) => {
-                                match e {
-                                    SyncError::MissingL2(msg, start_l2_height, end_l2_height) => {
-                                        warn!("Could not completely process sequencer commitments. Missing L2 blocks {:?} - {:?}, msg = {}", start_l2_height, end_l2_height, msg);
-                                    },
-                                    SyncError::Error(e) => {
-                                        error!("Could not process sequencer commitments: {}... skipping", e);
-                                        pending_sequencer_commitments.remove(index);
-                                    }
-                                }
-                            }
-                        }
-                    }
+                   self.run_inner(&mut pending_sequencer_commitments,&mut pending_zk_proofs, l1_block).await;
                 },
                 Some(l2_blocks) = l2_rx.recv() => {
                     for (l2_height, l2_block) in l2_blocks {
@@ -587,6 +505,101 @@ where
                         if let Err(e) = self.process_l2_block(l2_height, l2_block, l1_block).await {
                             error!("Could not process L2 block: {}", e);
                         }
+                    }
+                },
+            }
+        }
+    }
+
+    pub async fn run_inner(
+        &self,
+        pending_sequencer_commitments: &mut Vec<SequencerCommitment>,
+        pending_zk_proofs: &mut Vec<Proof>,
+        l1_block: Da::FilteredBlock,
+    ) {
+        // Set the l1 height of the l1 hash
+        self.ledger_db
+            .set_l1_height_of_l1_hash(l1_block.header().hash().into(), l1_block.header().height())
+            .unwrap();
+
+        let mut sequencer_commitments = Vec::<SequencerCommitment>::new();
+        let mut zk_proofs = Vec::<Proof>::new();
+
+        self.da_service
+            .extract_relevant_blobs(&l1_block)
+            .into_iter()
+            .for_each(|mut tx| {
+                let data = DaData::try_from_slice(tx.full_data());
+                // Check for commitment
+                if tx.sender().as_ref() == self.sequencer_da_pub_key.as_slice() {
+                    if let Ok(DaData::SequencerCommitment(seq_com)) = data {
+                        sequencer_commitments.push(seq_com);
+                    } else {
+                        tracing::warn!(
+                            "Found broken DA data in block 0x{}: {:?}",
+                            hex::encode(l1_block.hash()),
+                            data
+                        );
+                    }
+                }
+                let data = DaData::try_from_slice(tx.full_data());
+                // Check for proof
+                if tx.sender().as_ref() == self.prover_da_pub_key.as_slice() {
+                    if let Ok(DaData::ZKProof(proof)) = data {
+                        zk_proofs.push(proof);
+                    } else {
+                        tracing::warn!(
+                            "Found broken DA data in block 0x{}: {:?}",
+                            hex::encode(l1_block.hash()),
+                            data
+                        );
+                    }
+                } else {
+                    warn!("Force transactions are not implemented yet");
+                    // TODO: This is where force transactions will land - try to parse DA data force transaction
+                }
+            });
+
+        pending_zk_proofs.extend(zk_proofs);
+        pending_sequencer_commitments.extend(sequencer_commitments);
+
+        for (index, zk_proof) in pending_zk_proofs.clone().iter().enumerate() {
+            match self
+                .process_zk_proof(l1_block.clone(), zk_proof.clone())
+                .await
+            {
+                Ok(()) => {
+                    pending_zk_proofs.remove(index);
+                }
+                Err(e) => match e {
+                    SyncError::MissingL2(msg, start_l2_height, end_l2_height) => {
+                        warn!("Could not completely process ZK proofs. Missing L2 blocks {:?} - {:?}. msg = {}", start_l2_height, end_l2_height, msg);
+                    }
+                    SyncError::Error(e) => {
+                        error!("Could not process ZK proofs: {}...skipping", e);
+                        pending_zk_proofs.remove(index);
+                    }
+                },
+            }
+        }
+
+        for (index, sequencer_commitment) in
+            pending_sequencer_commitments.clone().iter().enumerate()
+        {
+            match self
+                .process_sequencer_commitment(l1_block.clone(), sequencer_commitment.clone())
+                .await
+            {
+                Ok(()) => {
+                    pending_sequencer_commitments.remove(index);
+                }
+                Err(e) => match e {
+                    SyncError::MissingL2(msg, start_l2_height, end_l2_height) => {
+                        warn!("Could not completely process sequencer commitments. Missing L2 blocks {:?} - {:?}, msg = {}", start_l2_height, end_l2_height, msg);
+                    }
+                    SyncError::Error(e) => {
+                        error!("Could not process sequencer commitments: {}... skipping", e);
+                        pending_sequencer_commitments.remove(index);
                     }
                 },
             }
