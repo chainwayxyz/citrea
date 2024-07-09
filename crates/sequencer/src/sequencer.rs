@@ -813,7 +813,6 @@ where
                             }
                         }
 
-                        // TODO: should not submit commitment if there are skipped blocks
                         if let Err(e) = self.maybe_submit_commitment(da_commitment_tx.clone(), last_finalized_height, last_used_l1_height).await {
                             error!("Sequencer error: {}", e);
                         }
