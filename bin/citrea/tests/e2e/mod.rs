@@ -7,7 +7,6 @@ use alloy::consensus::{Signed, TxEip1559, TxEnvelope};
 use alloy::signers::wallet::LocalWallet;
 use alloy::signers::Signer;
 use alloy_rlp::{BytesMut, Decodable, Encodable};
-use anyhow::anyhow;
 use citrea_evm::smart_contracts::SimpleStorageContract;
 use citrea_evm::system_contracts::BitcoinLightClient;
 use citrea_evm::SYSTEM_SIGNER;
@@ -3391,7 +3390,7 @@ async fn test_sequencer_commitment_threshold() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_sequencer_fill_missing_da_blocks() -> Result<(), anyhow::Error> {
-    // citrea::initialize_logging(tracing::Level::INFO);
+    citrea::initialize_logging(tracing::Level::INFO);
 
     let storage_dir = tempdir_with_children(&["DA", "sequencer"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
@@ -3411,7 +3410,16 @@ async fn test_sequencer_fill_missing_da_blocks() -> Result<(), anyhow::Error> {
             DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             true,
             None,
-            None,
+            Some(SequencerConfig {
+                private_key: TEST_PRIVATE_KEY.to_string(),
+                min_soft_confirmations_per_commitment: 1000,
+                test_mode: true,
+                deposit_mempool_fetch_limit: 10,
+                mempool_conf: Default::default(),
+                db_config: Default::default(),
+                da_update_interval_ms: 500,
+                block_production_interval_ms: 500,
+            }),
             Some(true),
             DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
         )
@@ -3433,34 +3441,13 @@ async fn test_sequencer_fill_missing_da_blocks() -> Result<(), anyhow::Error> {
         da_service.publish_test_block().await.unwrap();
     }
     wait_for_l1_block(&da_service, latest_da_block, None).await;
+    sleep(Duration::from_secs(1)).await;
 
-    let mut first_filler_l2_block = 1;
-    // wait for sequencer to notice the gap with the da
-    let mut retry_limit = 5;
-    loop {
-        // publish a block
-        seq_test_client.send_publish_batch_request().await;
-        first_filler_l2_block += 1;
-        wait_for_l2_block(&seq_test_client, first_filler_l2_block, None).await;
+    // publish a block which will start filling of all missing da blocks
+    seq_test_client.send_publish_batch_request().await;
+    wait_for_l2_block(&seq_test_client, 2, None).await;
 
-        // check if this block caused filling of the missing blocks
-        let soft_batch = seq_test_client
-            .ledger_get_head_soft_batch()
-            .await
-            .unwrap()
-            .unwrap();
-        if soft_batch.da_slot_height > 1 {
-            // we found the first l2 block that is filled
-            break;
-        }
-
-        retry_limit -= 1;
-        if retry_limit == 0 {
-            return Err(anyhow!("reached the maximum retry limit"));
-        }
-
-        sleep(Duration::from_millis(500)).await;
-    }
+    let first_filler_l2_block = 2;
     let last_filler_l2_block = first_filler_l2_block + to_be_filled_da_block_count - 1;
     // wait for all corresponding da blocks to be filled by sequencer
     wait_for_l2_block(&seq_test_client, last_filler_l2_block, None).await;
