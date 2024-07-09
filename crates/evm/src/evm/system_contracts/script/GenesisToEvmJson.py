@@ -34,3 +34,19 @@ evm_json["nonce"] = 0
 
 with open(sys.argv[2], "w") as file:
     json.dump(evm_json, file, indent=2)
+
+# Copy evm.json to following paths
+paths = [
+    "../../../../../resources/genesis/bitcoin-regtest/evm.json",
+    "../../../../../resources/genesis/mock/evm.json",
+    "../../../../../resources/genesis/mock-dockerized/evm.json",
+    "../../../../../resources/test-data/demo-tests/bitcoin-regtest/evm.json",
+    "../../../../../resources/test-data/demo-tests/mock/evm.json",
+    "../../../../../resources/test-data/integration-tests/evm.json",
+    "../../../../../resources/test-data/integration-tests-low-block-gas-limit/evm.json",
+    "../../../../../resources/test-data/integration-tests-low-max-l2-blocks-per-l1/evm.json"
+]
+
+for path in paths:
+    with open(path, "w") as file:
+        json.dump(evm_json, file, indent=2)

@@ -18,6 +18,7 @@ import "../src/PriorityFeeVault.sol";
 import {VmSafe} from "forge-std/Vm.sol";
 
 // Taken from Optimism
+// https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/scripts/libraries/Process.sol
 library Process {
     error FfiFailed(string);
     VmSafe private constant vm = VmSafe(address(uint160(uint256(keccak256("hevm cheat code")))));
@@ -39,7 +40,8 @@ library Process {
     }
 }
 
-/// Inspired from Optimism's L2Genesis.s.sol
+// Inspired from Optimism's L2Genesis.s.sol
+// https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/scripts/L2Genesis.s.sol
 contract GenesisGenerator is Script {
     address internal proxyAdmin = address(0x31fFFfFfFFFffFFFFFFfFFffffFFffffFfFFfffF);
     bytes32 IMPLEMENTATION_SLOT = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
@@ -48,13 +50,6 @@ contract GenesisGenerator is Script {
     bytes32 FEE_RECIPIENT_SLOT = 0x0000000000000000000000000000000000000000000000000000000000000000;
     bytes32 MIN_WITHDRAW_SLOT = 0x0000000000000000000000000000000000000000000000000000000000000001;
     uint160 PROXY_IMPL_OFFSET = uint160(0x0100000000000000000000000000000000000000); // uint160(address(proxy)) - uint160(address(impl))
-
-    uint256 CHAIN_ID = 5655;
-    address COINBASE = address(0x3100000000000000000000000000000000000005);
-    uint256 STARTING_BASE_FEE = uint256(1000000000);
-    uint256 BLOCK_GAS_LIMIT = uint256(30000000);
-    uint256 MAX_CHANGE_DENOMINATOR = uint256(8);
-    uint256 ELASCTICITY_MULTIPLIER = uint256(2);
 
     // Owner of proxy admin
     //! CHANGE THIS IN PRODUCTION TO THE INITIAL EOA OWNER
@@ -77,8 +72,8 @@ contract GenesisGenerator is Script {
 
 
     function run() public {
-        vm.chainId(CHAIN_ID);
         dealBalanceToDevAddrs();
+        dealBalanceToBridge();
         setProxyAdmin();
         setContracts();
         vm.dumpState("./state/genesis.json");

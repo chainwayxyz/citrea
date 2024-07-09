@@ -8,7 +8,7 @@ import "openzeppelin-contracts/contracts/proxy/transparent/ProxyAdmin.sol";
 import "openzeppelin-contracts-upgradeable/contracts/access/Ownable2StepUpgradeable.sol";
 
 contract FalseClient is BitcoinLightClient {
-    function getBlockHashFalse(uint256 _blockNumber) public view returns (bytes32) {
+    function getBlockHashFalse(uint256 /* _blockNumber */) public pure returns (bytes32) {
         return keccak256("false");
     }
 }
