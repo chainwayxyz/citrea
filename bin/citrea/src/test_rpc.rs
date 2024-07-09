@@ -14,6 +14,7 @@ use sov_mock_da::MockDaSpec;
 use sov_mock_da::{MockBlock, MockBlockHeader, MockHash};
 use sov_modules_api::DaSpec;
 use sov_rollup_interface::da::Time;
+use sov_rollup_interface::rpc::HexTx;
 use sov_rollup_interface::services::da::SlotData;
 use sov_rollup_interface::stf::fuzzing::BatchReceiptStrategyArgs;
 use sov_rollup_interface::stf::{BatchReceipt, Event, SoftBatchReceipt, TransactionReceipt};
@@ -268,7 +269,7 @@ fn test_get_head() {
 fn test_get_transactions_offset_first_batch() {
     // Tests for different types of argument
     let payload = jsonrpc_req!("ledger_getTransactions", [[{"batchId": 1, "offset": 0}]]);
-    let expected = jsonrpc_result!([{"hash":"0x709b55bd3da0f5a838125bd0ee20c5bfdd7caba173912d4281cae816b79a201b","eventRange":{"start":1,"end":1},"body":"0x74783120626f6479"}]);
+    let expected = jsonrpc_result!([{"hash":"0x709b55bd3da0f5a838125bd0ee20c5bfdd7caba173912d4281cae816b79a201b","eventRange":{"start":1,"end":1},"body":"74783120626f6479"}]);
     regular_test_helper(payload, &expected);
 
     // Tests for flattened args
@@ -288,7 +289,7 @@ fn test_get_transactions_offset_first_batch() {
     regular_test_helper(payload, &expected);
 
     let payload = jsonrpc_req!("ledger_getTransactions", [[{ "batchId": 1, "offset": 1}]]);
-    let expected = jsonrpc_result!([{"hash":"0x27ca64c092a959c7edc525ed45e845b1de6a7590d173fd2fad9133c8a779a1e3","eventRange":{"start":1,"end":3},"body":"0x74783220626f6479"}]);
+    let expected = jsonrpc_result!([{"hash":"0x27ca64c092a959c7edc525ed45e845b1de6a7590d173fd2fad9133c8a779a1e3","eventRange":{"start":1,"end":3},"body":"74783220626f6479"}]);
     regular_test_helper(payload, &expected);
 }
 
@@ -314,7 +315,7 @@ fn test_get_batches() {
     regular_test_helper(payload, &expected);
 
     let payload = jsonrpc_req!("ledger_getBatches", [[1], "full"]);
-    let expected = jsonrpc_result!([{"hash":"0xb5515a80204963f7db40e98af11aedb49a394b1c7e3d8b5b7a33346b8627444f","txRange":{"start":1,"end":3},"txs":[{"hash":"0x709b55bd3da0f5a838125bd0ee20c5bfdd7caba173912d4281cae816b79a201b","eventRange":{"start":1,"end":1},"body":"0x74783120626f6479"},{"hash":"0x27ca64c092a959c7edc525ed45e845b1de6a7590d173fd2fad9133c8a779a1e3","eventRange":{"start":1,"end":3},"body":"0x74783220626f6479",}],}]);
+    let expected = jsonrpc_result!([{"hash":"0xb5515a80204963f7db40e98af11aedb49a394b1c7e3d8b5b7a33346b8627444f","txRange":{"start":1,"end":3},"txs":[{"hash":"0x709b55bd3da0f5a838125bd0ee20c5bfdd7caba173912d4281cae816b79a201b","eventRange":{"start":1,"end":1},"body":"74783120626f6479"},{"hash":"0x27ca64c092a959c7edc525ed45e845b1de6a7590d173fd2fad9133c8a779a1e3","eventRange":{"start":1,"end":3},"body":"74783220626f6479",}],}]);
     regular_test_helper(payload, &expected);
 
     let payload = jsonrpc_req!("ledger_getBatches", [[0], "compact"]);
@@ -503,7 +504,7 @@ fn full_tx_json(
                     "start": event_range_begin,
                     "end": event_range_end
                 },
-                "body": body,
+                "body": HexTx::from(body.clone()),
             })
         }
     }
@@ -583,7 +584,7 @@ proptest!(
                         jsonrpc_result!([{"hash":format!("0x{batch_hash}"),"txRange":{"start":first_tx_num,"end":last_tx_num},"txs":tx_hashes}])},
                     TestExpect{
                         payload:
-                        jsonrpc_req!("ledger_getBatches", [[random_batch_num], "Full"]),
+                        jsonrpc_req!("ledger_getBatches", [[random_batch_num], "full"]),
                         expected:
                         jsonrpc_result!([{"hash":format!("0x{batch_hash}"),"txRange":{"start":first_tx_num,"end":last_tx_num},"txs":full_txs}])},
                     ],

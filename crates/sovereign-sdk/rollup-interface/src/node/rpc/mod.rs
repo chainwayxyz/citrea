@@ -710,12 +710,6 @@ mod rpc_hex_tests {
         data: Vec<u8>,
     }
 
-    #[derive(Serialize, Deserialize, PartialEq, Debug)]
-    struct TestStructOptional {
-        #[serde(with = "super::utils::rpc_optional_hex")]
-        data: Option<Vec<u8>>,
-    }
-
     #[test]
     fn test_roundtrip() {
         let test_data = TestStruct {
@@ -735,28 +729,6 @@ mod rpc_hex_tests {
         };
 
         let deserialized: TestStruct = serde_json::from_str(r#"{"data": "01020304"}"#).unwrap();
-        assert_eq!(deserialized, test_data)
-    }
-
-    #[test]
-    fn test_optional_some_roundtrip() {
-        let test_data = TestStructOptional {
-            data: Some(vec![0x01, 0x02, 0x03, 0x04]),
-        };
-
-        let serialized = serde_json::to_string(&test_data).unwrap();
-        assert!(serialized.contains("0x01020304"));
-        let deserialized: TestStructOptional = serde_json::from_str(&serialized).unwrap();
-        assert_eq!(deserialized, test_data)
-    }
-
-    #[test]
-    fn test_optional_none_roundtrip() {
-        let test_data = TestStructOptional { data: None };
-
-        let serialized = serde_json::to_string(&test_data).unwrap();
-        assert!(serialized.contains("null"));
-        let deserialized: TestStructOptional = serde_json::from_str(&serialized).unwrap();
         assert_eq!(deserialized, test_data)
     }
 }
