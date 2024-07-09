@@ -43,6 +43,13 @@ impl BitcoinLightClient {
         .abi_encode()
         .into()
     }
+    
+    /// Return input data to get the system caller
+    pub fn get_system_caller() -> Bytes {
+        BitcoinLightClientContract::SYSTEM_CALLERCall {}
+        .abi_encode()
+        .into()
+    }
 
     #[cfg(test)]
     pub(crate) fn get_witness_root_by_number(block_number: u64) -> Bytes {
