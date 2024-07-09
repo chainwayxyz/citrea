@@ -13,18 +13,13 @@ pub struct BlockHashWrapper(pub BlockHash);
 impl BlockHashTrait for BlockHashWrapper {}
 
 impl BorshSerialize for BlockHashWrapper {
-    fn serialize<W: borsh::maybestd::io::Write>(
-        &self,
-        writer: &mut W,
-    ) -> borsh::maybestd::io::Result<()> {
+    fn serialize<W: borsh::io::Write>(&self, writer: &mut W) -> borsh::io::Result<()> {
         BorshSerialize::serialize(&self.0.to_byte_array(), writer)
     }
 }
 
 impl BorshDeserialize for BlockHashWrapper {
-    fn deserialize_reader<R: borsh::maybestd::io::Read>(
-        reader: &mut R,
-    ) -> borsh::maybestd::io::Result<Self> {
+    fn deserialize_reader<R: borsh::io::Read>(reader: &mut R) -> borsh::io::Result<Self> {
         let hash = BorshDeserialize::deserialize_reader(reader)?;
         Ok(BlockHashWrapper(BlockHash::from_byte_array(hash)))
     }

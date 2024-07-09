@@ -6,8 +6,6 @@ use core::fmt::Debug;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 
-use crate::maybestd::vec::Vec;
-
 /// Contains raw transactions and information about the soft confirmation block
 #[derive(Debug, PartialEq, Clone, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
 pub struct UnsignedSoftConfirmationBatch {
@@ -174,7 +172,7 @@ impl SignedSoftConfirmationBatch {
 
     /// Borsh serialized data
     pub fn full_data(&mut self) -> Vec<u8> {
-        self.try_to_vec().unwrap()
+        borsh::to_vec(self).unwrap()
     }
 
     /// L1 fee rate

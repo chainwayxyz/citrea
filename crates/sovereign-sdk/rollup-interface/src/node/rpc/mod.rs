@@ -1,5 +1,8 @@
 //! The rpc module defines types and traits for querying chain history
 //! via an RPC interface.
+
+extern crate alloc;
+
 use alloc::collections::BTreeMap;
 use core::marker::PhantomData;
 
@@ -9,8 +12,6 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 use crate::da::SequencerCommitment;
-use crate::maybestd::string::String;
-use crate::maybestd::vec::Vec;
 #[cfg(feature = "native")]
 use crate::stf::Event;
 use crate::stf::EventKey;
@@ -619,9 +620,6 @@ pub mod utils {
         use serde::de::{Error, Visitor};
         use serde::{Deserializer, Serializer};
 
-        use crate::maybestd::format;
-        use crate::maybestd::string::String;
-
         /// Serializes `data` as hex string using lowercase characters and prefixing with '0x'.
         ///
         /// Lowercase characters are used (e.g. `f9b4ca`). The resulting string's length
@@ -685,9 +683,6 @@ pub mod utils {
 #[cfg(test)]
 mod rpc_hex_tests {
     use serde::{Deserialize, Serialize};
-
-    use crate::maybestd::vec;
-    use crate::maybestd::vec::Vec;
 
     #[derive(Serialize, Deserialize, PartialEq, Debug)]
     struct TestStruct {

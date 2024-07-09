@@ -32,7 +32,9 @@ pub enum DaData {
 }
 
 /// A specification for the types used by a DA layer.
-pub trait DaSpec: 'static + Debug + PartialEq + Eq + Clone {
+pub trait DaSpec:
+    'static + BorshDeserialize + BorshSerialize + Debug + PartialEq + Eq + Clone
+{
     /// The hash of a DA layer block
     type SlotHash: BlockHashTrait;
 

@@ -1,12 +1,12 @@
 //! Module storage definitions.
 
+use alloc::sync::Arc;
 use alloc::vec::Vec;
 use core::fmt;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
-use serde::Serialize;
-use sov_rollup_interface::maybestd::RefCount;
+use serde::{Deserialize, Serialize};
 use sov_rollup_interface::stf::StateDiff;
 
 use crate::common::{AlignedVec, Prefix, Version, Witness};
@@ -24,10 +24,10 @@ pub use scratchpad::*;
 #[derive(Clone, PartialEq, Eq, Debug)]
 #[cfg_attr(
     feature = "sync",
-    derive(Serialize, serde::Deserialize, BorshDeserialize, BorshSerialize)
+    derive(Serialize, Deserialize, BorshDeserialize, BorshSerialize)
 )]
 pub struct StorageKey {
-    key: RefCount<Vec<u8>>,
+    key: Arc<Vec<u8>>,
 }
 
 impl From<CacheKey> for StorageKey {
@@ -37,8 +37,8 @@ impl From<CacheKey> for StorageKey {
 }
 
 impl StorageKey {
-    /// Returns a new [`RefCount`] reference to the bytes of this key.
-    pub fn key(&self) -> RefCount<Vec<u8>> {
+    /// Returns a new [`Arc`] reference to the bytes of this key.
+    pub fn key(&self) -> Arc<Vec<u8>> {
         self.key.clone()
     }
 
@@ -59,7 +59,7 @@ impl StorageKey {
                 let mut bytes = v.to_be_bytes().to_vec();
                 bytes.extend((*self.key).clone());
                 CacheKey {
-                    key: RefCount::new(bytes),
+                    key: Arc::new(bytes),
                 }
             }
         }
@@ -99,19 +99,19 @@ impl StorageKey {
         full_key.extend(&encoded_key);
 
         Self {
-            key: RefCount::new(full_key.into_inner()),
+            key: Arc::new(full_key.into_inner()),
         }
     }
 
     /// Creates a new [`StorageKey`] that combines a prefix and a key.
     pub fn singleton(prefix: &Prefix) -> Self {
         Self {
-            key: RefCount::new(prefix.as_aligned_vec().clone().into_inner()),
+            key: Arc::new(prefix.as_aligned_vec().clone().into_inner()),
         }
     }
 }
 
-/// A serialized value suitable for storing. Internally uses an [`RefCount<Vec<u8>>`]
+/// A serialized value suitable for storing. Internally uses an [`Arc<Vec<u8>>`]
 /// for cheap cloning.
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 #[cfg_attr(
@@ -119,7 +119,7 @@ impl StorageKey {
     derive(Serialize, serde::Deserialize, BorshDeserialize, BorshSerialize)
 )]
 pub struct StorageValue {
-    value: RefCount<Vec<u8>>,
+    value: Arc<Vec<u8>>,
 }
 
 impl From<CacheValue> for StorageValue {
@@ -133,7 +133,7 @@ impl From<CacheValue> for StorageValue {
 impl From<Vec<u8>> for StorageValue {
     fn from(value: Vec<u8>) -> Self {
         Self {
-            value: RefCount::new(value),
+            value: Arc::new(value),
         }
     }
 }
@@ -146,7 +146,7 @@ impl StorageValue {
     {
         let encoded_value = codec.encode_value(value);
         Self {
-            value: RefCount::new(encoded_value),
+            value: Arc::new(encoded_value),
         }
     }
 
@@ -291,7 +291,7 @@ pub trait Storage: Clone {
 impl From<&str> for StorageKey {
     fn from(key: &str) -> Self {
         Self {
-            key: RefCount::new(key.as_bytes().to_vec()),
+            key: Arc::new(key.as_bytes().to_vec()),
         }
     }
 }
@@ -300,7 +300,7 @@ impl From<&str> for StorageKey {
 impl From<&str> for StorageValue {
     fn from(value: &str) -> Self {
         Self {
-            value: RefCount::new(value.as_bytes().to_vec()),
+            value: Arc::new(value.as_bytes().to_vec()),
         }
     }
 }

@@ -25,7 +25,7 @@ pub struct ArrayWitness {
 
 impl Witness for ArrayWitness {
     fn add_hint<T: BorshSerialize>(&mut self, hint: T) {
-        self.hints.push(hint.try_to_vec().unwrap())
+        self.hints.push(borsh::to_vec(&hint).unwrap())
     }
 
     fn get_hint<T: BorshDeserialize>(&mut self) -> T {

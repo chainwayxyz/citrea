@@ -7,7 +7,6 @@ use std::time::Duration;
 use anyhow::anyhow;
 use bonsai_sdk::alpha as bonsai_sdk;
 use borsh::BorshSerialize;
-use risc0_zkvm::serde::to_vec;
 use risc0_zkvm::sha::Digest;
 use risc0_zkvm::{
     compute_image_id, ExecutorEnvBuilder, ExecutorImpl, Groth16Receipt, InnerReceipt, Journal,

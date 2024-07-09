@@ -1,6 +1,6 @@
 use std::path::Path;
 use std::pin::Pin;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll};
 use std::time::Duration;
 
@@ -8,7 +8,6 @@ use async_trait::async_trait;
 use pin_project::pin_project;
 use sha2::Digest;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec, Time};
-use sov_rollup_interface::maybestd::sync::Arc;
 use sov_rollup_interface::services::da::{BlobWithNotifier, DaService, SlotData};
 use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 use tokio::sync::{broadcast, Mutex as AsyncMutex, MutexGuard as AsyncMutexGuard};

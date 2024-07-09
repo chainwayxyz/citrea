@@ -187,7 +187,9 @@ where
 
                     let tx_id = da_service
                         .send_transaction(
-                            da_data.try_to_vec().expect("Should serialize").as_slice(),
+                            borsh::to_vec(&da_data)
+                                .expect("Should serialize")
+                                .as_slice(),
                         )
                         .await
                         .map_err(|e| anyhow::anyhow!(e))?;

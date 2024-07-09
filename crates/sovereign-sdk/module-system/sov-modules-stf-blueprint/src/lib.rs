@@ -6,7 +6,7 @@ mod stf_blueprint;
 mod tx_verifier;
 
 pub use batch::Batch;
-use borsh::{BorshDeserialize, BorshSerialize};
+use borsh::BorshDeserialize;
 use itertools::Itertools;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
@@ -246,7 +246,7 @@ where
             soft_batch.timestamp(),
         );
 
-        let unsigned_raw = unsigned.try_to_vec().unwrap();
+        let unsigned_raw = borsh::to_vec(&unsigned).unwrap();
 
         // check the claimed hash
         assert_eq!(
@@ -635,7 +635,7 @@ fn verify_soft_batch_signature<C: Context>(
     signature: &[u8],
     sequencer_public_key: &[u8],
 ) -> Result<(), anyhow::Error> {
-    let message = unsigned_soft_confirmation.try_to_vec().unwrap();
+    let message = borsh::to_vec(&unsigned_soft_confirmation).unwrap();
 
     let signature = C::Signature::try_from(signature)?;
 

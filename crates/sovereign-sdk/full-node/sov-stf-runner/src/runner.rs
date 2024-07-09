@@ -6,7 +6,6 @@ use anyhow::{anyhow, bail};
 use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoffBuilder;
 use borsh::de::BorshDeserialize;
-use borsh::BorshSerialize as _;
 use hyper::Method;
 use jsonrpsee::core::client::Error as JsonrpseeError;
 use jsonrpsee::RpcModule;
@@ -625,7 +624,7 @@ where
                     da_slot_hash: transition_data.da_slot_hash.into(),
                     sequencer_public_key: transition_data.sequencer_public_key,
                     sequencer_da_public_key: transition_data.sequencer_da_public_key,
-                    validity_condition: transition_data.validity_condition.try_to_vec().unwrap(),
+                    validity_condition: borsh::to_vec(&transition_data.validity_condition).unwrap(),
                 };
 
                 match pg_client.as_ref() {
@@ -874,9 +873,7 @@ where
                             da_slot_hash: state_transition.da_slot_hash.clone().into(),
                             sequencer_public_key: state_transition.sequencer_public_key,
                             sequencer_da_public_key: state_transition.sequencer_da_public_key,
-                            validity_condition: state_transition
-                                .validity_condition
-                                .try_to_vec()
+                            validity_condition: borsh::to_vec(&state_transition.validity_condition)
                                 .unwrap(),
                         };
 

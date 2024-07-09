@@ -27,7 +27,7 @@ impl SimpleClient {
 
     /// Sends a transaction to the sequencer for immediate publication.
     pub async fn send_transaction<Tx: BorshSerialize>(&self, tx: Tx) -> Result<(), anyhow::Error> {
-        let batch = vec![tx.try_to_vec()?];
+        let batch = vec![borsh::to_vec(&tx)?];
 
         let response: String = self
             .http_client
@@ -45,7 +45,7 @@ impl SimpleClient {
     ) -> Result<(), anyhow::Error> {
         let serialized_txs: Vec<Vec<u8>> = txs
             .into_iter()
-            .map(|tx| tx.try_to_vec())
+            .map(|tx| borsh::to_vec(&tx))
             .collect::<Result<_, _>>()?;
 
         match chunk_size {
