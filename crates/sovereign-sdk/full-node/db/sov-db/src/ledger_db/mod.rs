@@ -13,9 +13,10 @@ use tracing::instrument;
 use crate::rocks_db_config::gen_rocksdb_options;
 use crate::schema::tables::{
     BatchByHash, BatchByNumber, CommitmentsByNumber, EventByKey, EventByNumber, L2RangeByL1Height,
-    L2Witness, LastSequencerCommitmentSent, LastSequencerCommitmentSentL2, ProofBySlotNumber,
-    ProverLastScannedSlot, SlotByHash, SlotByNumber, SoftBatchByHash, SoftBatchByNumber,
-    SoftConfirmationStatus, TxByHash, TxByNumber, VerifiedProofsBySlotNumber, LEDGER_TABLES,
+    L2StateRoot, L2Witness, LastSequencerCommitmentSent, LastSequencerCommitmentSentL2,
+    ProofBySlotNumber, ProverLastScannedSlot, SlotByHash, SlotByNumber, SoftBatchByHash,
+    SoftBatchByNumber, SoftConfirmationStatus, TxByHash, TxByNumber, VerifiedProofsBySlotNumber,
+    LEDGER_TABLES,
 };
 use crate::schema::types::{
     split_tx_for_storage, BatchNumber, EventNumber, L2HeightRange, SlotNumber, StoredBatch,
@@ -613,6 +614,37 @@ impl LedgerDB {
         let buf = bincode::serialize(witness)?;
         let mut schema_batch = SchemaBatch::new();
         schema_batch.put::<L2Witness>(&BatchNumber(l2_height), &buf)?;
+
+        self.db.write_schemas(schema_batch)?;
+
+        Ok(())
+    }
+
+    /// Get the state root by L2 height
+    #[instrument(level = "trace", skip_all, err)]
+    pub fn get_l2_state_root<StateRoot: DeserializeOwned>(
+        &self,
+        l2_height: u64,
+    ) -> anyhow::Result<Option<StateRoot>> {
+        let buf = self.db.get::<L2StateRoot>(&BatchNumber(l2_height))?;
+        if let Some(buf) = buf {
+            let state_root = bincode::deserialize(&buf)?;
+            Ok(Some(state_root))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Set the state root created by applying L2 block
+    #[instrument(level = "trace", skip_all, err, ret)]
+    pub fn set_l2_state_root<StateRoot: Serialize>(
+        &self,
+        l2_height: u64,
+        state_root: &StateRoot,
+    ) -> anyhow::Result<()> {
+        let buf = bincode::serialize(state_root)?;
+        let mut schema_batch = SchemaBatch::new();
+        schema_batch.put::<L2StateRoot>(&BatchNumber(l2_height), &buf)?;
 
         self.db.write_schemas(schema_batch)?;
 

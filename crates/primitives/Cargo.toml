@@ -11,6 +11,7 @@ publish = false
 # Sov SDK deps
 sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
 sov-db = { path = "../sovereign-sdk/full-node/db/sov-db", optional = true }
+sov-stf-runner = { path = "../sovereign-sdk/full-node/sov-stf-runner" }
 
 
 # 3rd-party deps
