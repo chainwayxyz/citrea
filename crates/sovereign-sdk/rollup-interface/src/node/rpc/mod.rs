@@ -410,7 +410,10 @@ pub struct TxResponse<Tx> {
     /// The range of events occurring in this transaction.
     pub event_range: core::ops::Range<u64>,
     /// The transaction body, if stored by the rollup.
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        with = "utils::rpc_optional_hex"
+    )]
     pub body: Option<Vec<u8>>,
     /// The custom receipt specified by the rollup. This typically contains
     /// information about the outcome of the transaction.
@@ -695,6 +698,80 @@ pub mod utils {
             deserializer.deserialize_str(HexStrVisitor(PhantomData))
         }
     }
+
+    /// Serialization and deserialization logic for `0x`-prefixed hex strings that are wrapped with Option.
+    pub mod rpc_optional_hex {
+        use std::fmt;
+        use std::marker::PhantomData;
+
+        use hex::{FromHex, ToHex};
+        use serde::de::{self, Visitor};
+        use serde::{Deserialize, Deserializer, Serializer};
+
+        /// Serializes `data` as hex string using lowercase characters and prefixing with '0x' if Some, else null.
+        ///
+        /// Lowercase characters are used (e.g. `f9b4ca`). The resulting string's length
+        /// is always even, each byte in data is always encoded using two hex digits.
+        /// Thus, the resulting string contains exactly twice as many bytes as the input
+        /// data.
+        pub fn serialize<T, S>(data: &Option<T>, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            T: ToHex,
+            S: Serializer,
+        {
+            match data {
+                Some(data) => {
+                    let hex_string = format!("0x{}", data.encode_hex::<String>());
+                    serializer.serialize_str(&hex_string)
+                }
+                None => serializer.serialize_none(),
+            }
+        }
+
+        /// Deserializes an optional hex string into raw bytes or None.
+        ///
+        /// Both, upper and lower case characters are valid in the input string and can
+        /// even be mixed (e.g. `f9b4ca`, `F9B4CA` and `f9B4Ca` are all valid strings).
+        pub fn deserialize<'de, T, D>(deserializer: D) -> Result<Option<T>, D::Error>
+        where
+            T: FromHex,
+            <T as FromHex>::Error: fmt::Display,
+            D: Deserializer<'de>,
+        {
+            struct HexStringVisitor<T>(PhantomData<T>);
+
+            impl<'de, T> Visitor<'de> for HexStringVisitor<T>
+            where
+                T: FromHex,
+                <T as FromHex>::Error: fmt::Display,
+            {
+                type Value = Option<T>;
+
+                fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                    formatter.write_str("a hex string or none")
+                }
+
+                fn visit_none<E>(self) -> Result<Self::Value, E>
+                where
+                    E: de::Error,
+                {
+                    Ok(None)
+                }
+
+                fn visit_some<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
+                where
+                    D: Deserializer<'de>,
+                {
+                    let hex_str: String = Deserialize::deserialize(deserializer)?;
+                    FromHex::from_hex(hex_str.trim_start_matches("0x"))
+                        .map(|x| Some(x))
+                        .map_err(de::Error::custom)
+                }
+            }
+
+            deserializer.deserialize_option(HexStringVisitor(PhantomData))
+        }
+    }
 }
 
 #[cfg(test)]
@@ -708,6 +785,12 @@ mod rpc_hex_tests {
     struct TestStruct {
         #[serde(with = "super::utils::rpc_hex")]
         data: Vec<u8>,
+    }
+
+    #[derive(Serialize, Deserialize, PartialEq, Debug)]
+    struct TestStructOptional {
+        #[serde(with = "super::utils::rpc_optional_hex")]
+        data: Option<Vec<u8>>,
     }
 
     #[test]
@@ -729,6 +812,28 @@ mod rpc_hex_tests {
         };
 
         let deserialized: TestStruct = serde_json::from_str(r#"{"data": "01020304"}"#).unwrap();
+        assert_eq!(deserialized, test_data)
+    }
+
+    #[test]
+    fn test_optional_some_roundtrip() {
+        let test_data = TestStructOptional {
+            data: Some(vec![0x01, 0x02, 0x03, 0x04]),
+        };
+
+        let serialized = serde_json::to_string(&test_data).unwrap();
+        assert!(serialized.contains("0x01020304"));
+        let deserialized: TestStructOptional = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(deserialized, test_data)
+    }
+
+    #[test]
+    fn test_optional_none_roundtrip() {
+        let test_data = TestStructOptional { data: None };
+
+        let serialized = serde_json::to_string(&test_data).unwrap();
+        assert!(serialized.contains("null"));
+        let deserialized: TestStructOptional = serde_json::from_str(&serialized).unwrap();
         assert_eq!(deserialized, test_data)
     }
 }
