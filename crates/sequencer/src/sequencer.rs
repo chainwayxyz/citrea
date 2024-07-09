@@ -1,4 +1,3 @@
-use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 use std::marker::PhantomData;
 use std::net::SocketAddr;
@@ -37,7 +36,6 @@ use sov_modules_api::{
 };
 use sov_modules_stf_blueprint::StfBlueprintTrait;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaData, DaSpec};
-use sov_rollup_interface::rpc::LedgerRpcProvider;
 use sov_rollup_interface::services::da::{BlobWithNotifier, DaService};
 use sov_rollup_interface::stf::{SoftBatchReceipt, StateTransitionFunction};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
@@ -348,8 +346,7 @@ where
         l2_block_mode: L2BlockMode,
         pg_pool: &Option<PostgresConnector>,
         last_used_l1_height: u64,
-        da_commitment_tx: UnboundedSender<(u64, bool)>,
-    ) -> anyhow::Result<u64> {
+    ) -> anyhow::Result<(u64, bool)> {
         let da_height = da_block.header().height();
         let (l2_height, l1_height) = match self
             .ledger_db
@@ -480,7 +477,7 @@ where
 
                     tracing::debug!("Finalizing l2 height: {:?}", l2_height);
                     self.storage_manager.finalize_l2(l2_height)?;
-                    return Ok(last_used_l1_height);
+                    return Ok((last_used_l1_height, false));
                 }
 
                 trace!(
@@ -555,12 +552,9 @@ where
                 );
                 // Serialize the state diff to check size later.
                 let serialized_state_diff = bincode::serialize(&merged_state_diff)?;
-                if serialized_state_diff.len() as u64 > MAX_STATEDIFF_SIZE_COMMITMENT_THRESHOLD {
-                    // If we exceed the threshold, we should notify the commitment
-                    // worker to initiate a commitment.
-                    if da_commitment_tx.unbounded_send((l1_height, true)).is_err() {
-                        error!("Commitment thread is dead!");
-                    }
+                let state_diff_threshold_reached =
+                    serialized_state_diff.len() as u64 > MAX_STATEDIFF_SIZE_COMMITMENT_THRESHOLD;
+                if state_diff_threshold_reached {
                     self.last_state_diff.clone_from(&slot_result.state_diff);
                     self.ledger_db
                         .set_state_diff(self.last_state_diff.clone())?;
@@ -584,7 +578,7 @@ where
                     });
                 }
 
-                Ok(da_block.header().height())
+                Ok((da_block.header().height(), state_diff_threshold_reached))
             }
             (Err(err), batch_workspace) => {
                 warn!(
@@ -602,7 +596,6 @@ where
 
     async fn submit_commitment(
         &mut self,
-        prev_l1_height: u64,
         state_diff_threshold_reached: bool,
     ) -> anyhow::Result<()> {
         debug!("Sequencer: new L1 block, checking if commitment should be submitted");
@@ -613,12 +606,10 @@ where
         let commitment_info = commitment_controller::get_commitment_info(
             &self.ledger_db,
             min_soft_confirmations_per_commitment,
-            prev_l1_height,
             state_diff_threshold_reached,
         )?;
 
         if let Some(commitment_info) = commitment_info {
-            debug!("Sequencer: enough soft confirmations to submit commitment");
             let l2_range_to_submit = commitment_info.l2_height_range.clone();
 
             // calculate exclusive range end
@@ -658,17 +649,9 @@ where
                 .map_err(|_| {
                     anyhow!("Sequencer: Failed to set last sequencer commitment L2 height")
                 })?;
-            self.ledger_db
-                .set_last_sequencer_commitment_l1_height(SlotNumber(
-                    commitment_info.l1_height_range.end().0,
-                ))
-                .map_err(|_| {
-                    anyhow!("Sequencer: Failed to set last sequencer commitment L1 height")
-                })?;
 
             debug!("Commitment info: {:?}", commitment_info);
-            // let l1_start_height = commitment_info.l1_height_range.start().0;
-            // let l1_end_height = commitment_info.l1_height_range.end().0;
+
             let l2_start = l2_range_to_submit.start().0 as u32;
             let l2_end = l2_range_to_submit.end().0 as u32;
             if let Some(db_config) = self.config.db_config.clone() {
@@ -764,7 +747,7 @@ where
 
         // Setup required workers to update our knowledge of the DA layer every X seconds (configurable).
         let (da_height_update_tx, mut da_height_update_rx) = mpsc::channel(1);
-        let (da_commitment_tx, mut da_commitment_rx) = unbounded::<(u64, bool)>();
+        let (da_commitment_tx, mut da_commitment_rx) = unbounded::<bool>();
         let da_monitor = da_block_monitor(
             self.da_service.clone(),
             da_height_update_tx,
@@ -812,14 +795,10 @@ where
                                 missed_da_blocks_count = skipped_blocks;
                             }
                         }
-
-                        if let Err(e) = self.maybe_submit_commitment(da_commitment_tx.clone(), last_finalized_height, last_used_l1_height).await {
-                            error!("Sequencer error: {}", e);
-                        }
                     }
                 },
-                (prev_l1_height, force) = da_commitment_rx.select_next_some() => {
-                    if let Err(e) = self.submit_commitment(prev_l1_height, force).await {
+                force = da_commitment_rx.select_next_some() => {
+                    if let Err(e) = self.submit_commitment(force).await {
                         error!("Failed to submit commitment: {}", e);
                     }
                 },
@@ -838,7 +817,7 @@ where
                                 .map_err(|e| anyhow!(e))?;
 
                             debug!("Created an empty L2 for L1={}", needed_da_block_height);
-                            if let Err(e) = self.produce_l2_block(da_block, l1_fee_rate, L2BlockMode::Empty, &pg_pool, last_used_l1_height, da_commitment_tx.clone()).await {
+                            if let Err(e) = self.produce_l2_block(da_block, l1_fee_rate, L2BlockMode::Empty, &pg_pool, last_used_l1_height).await {
                                 error!("Sequencer error: {}", e);
                             }
                         }
@@ -854,9 +833,13 @@ where
                             }
                         };
                     let l1_fee_rate = l1_fee_rate.clamp(*l1_fee_rate_range.start(), *l1_fee_rate_range.end());
-                    match self.produce_l2_block(last_finalized_block.clone(), l1_fee_rate, L2BlockMode::NotEmpty, &pg_pool, last_used_l1_height, da_commitment_tx.clone()).await {
-                        Ok(l1_block_number) => {
+                    match self.produce_l2_block(last_finalized_block.clone(), l1_fee_rate, L2BlockMode::NotEmpty, &pg_pool, last_used_l1_height).await {
+                        Ok((l1_block_number, state_diff_threshold_reached)) => {
                             last_used_l1_height = l1_block_number;
+
+                            if da_commitment_tx.unbounded_send(state_diff_threshold_reached).is_err() {
+                                error!("Commitment thread is dead!");
+                            }
                         },
                         Err(e) => {
                             error!("Sequencer error: {}", e);
@@ -882,7 +865,7 @@ where
                                 .map_err(|e| anyhow!(e))?;
 
                             debug!("Created an empty L2 for L1={}", needed_da_block_height);
-                            if let Err(e) = self.produce_l2_block(da_block, l1_fee_rate, L2BlockMode::Empty, &pg_pool, last_used_l1_height, da_commitment_tx.clone()).await {
+                            if let Err(e) = self.produce_l2_block(da_block, l1_fee_rate, L2BlockMode::Empty, &pg_pool, last_used_l1_height).await {
                                 error!("Sequencer error: {}", e);
                             }
                         }
@@ -900,8 +883,8 @@ where
                     let l1_fee_rate = l1_fee_rate.clamp(*l1_fee_rate_range.start(), *l1_fee_rate_range.end());
 
                     let instant = Instant::now();
-                    match self.produce_l2_block(da_block, l1_fee_rate, L2BlockMode::NotEmpty, &pg_pool, last_used_l1_height, da_commitment_tx.clone()).await {
-                        Ok(l1_block_number) => {
+                    match self.produce_l2_block(da_block, l1_fee_rate, L2BlockMode::NotEmpty, &pg_pool, last_used_l1_height).await {
+                        Ok((l1_block_number, state_diff_threshold_reached)) => {
                             // Set the next iteration's wait time to produce a block based on the
                             // previous block's execution time.
                             // This is mainly to make sure we account for the execution time to
@@ -909,11 +892,15 @@ where
                             parent_block_exec_time = instant.elapsed();
 
                             last_used_l1_height = l1_block_number;
+
+                            if da_commitment_tx.unbounded_send(state_diff_threshold_reached).is_err() {
+                                error!("Commitment thread is dead!");
+                            }
                         },
                         Err(e) => {
                             error!("Sequencer error: {}", e);
                         }
-                    }
+                    };
                 }
             }
         }
@@ -1072,41 +1059,6 @@ where
         self.ledger_db
             .set_last_sequencer_commitment_l2_height(BatchNumber(db_commitment.l2_end_height))?;
 
-        let l2_end_batch = self
-            .ledger_db
-            .get_soft_batch_by_number::<()>(db_commitment.l2_end_height)?
-            .unwrap();
-        self.ledger_db
-            .set_last_sequencer_commitment_l1_height(SlotNumber(l2_end_batch.da_slot_height))?;
-
-        Ok(())
-    }
-
-    async fn maybe_submit_commitment(
-        &self,
-        da_commitment_tx: UnboundedSender<(u64, bool)>,
-        last_finalized_height: u64,
-        last_used_l1_height: u64,
-    ) -> anyhow::Result<()> {
-        let commit_up_to = match last_finalized_height.cmp(&last_used_l1_height) {
-            Ordering::Less => {
-                panic!("DA L1 height is less than Ledger finalized height. DA L1 height: {}, Finalized height: {}", last_finalized_height, last_used_l1_height);
-            }
-            Ordering::Equal => None,
-            Ordering::Greater => {
-                let commit_up_to = last_finalized_height - 1;
-                Some(commit_up_to)
-            }
-        };
-
-        if let Some(commit_up_to) = commit_up_to {
-            if da_commitment_tx
-                .unbounded_send((commit_up_to, false))
-                .is_err()
-            {
-                error!("Commitment thread is dead!");
-            }
-        }
         Ok(())
     }
 
