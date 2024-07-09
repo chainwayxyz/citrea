@@ -15,7 +15,6 @@ use crate::helpers::parsers::parse_hex_transaction;
 use crate::spec::block::BitcoinBlock;
 use crate::spec::header::HeaderWrapper;
 use crate::spec::transaction::TransactionWrapper;
-// use crate::spec::transaction::Transaction;
 use crate::spec::utxo::UTXO;
 
 // RPCError is a struct that represents an error returned by the Bitcoin RPC

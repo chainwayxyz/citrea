@@ -12,7 +12,6 @@ use crate::helpers::parsers::{parse_hex_transaction, parse_transaction};
 use crate::spec::blob::BlobWithSender;
 use crate::spec::header::HeaderWrapper;
 use crate::spec::proof::InclusionMultiProof;
-// use crate::spec::transaction::Transaction;
 use crate::verifier::BitcoinVerifier;
 
 pub(crate) fn get_mock_txs() -> Vec<Transaction> {
