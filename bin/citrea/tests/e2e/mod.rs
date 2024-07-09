@@ -3390,7 +3390,7 @@ async fn test_sequencer_commitment_threshold() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_sequencer_fill_missing_da_blocks() -> Result<(), anyhow::Error> {
-    citrea::initialize_logging(tracing::Level::INFO);
+    // citrea::initialize_logging(tracing::Level::INFO);
 
     let storage_dir = tempdir_with_children(&["DA", "sequencer"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
