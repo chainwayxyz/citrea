@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use bitcoin::hashes::{sha256d, Hash};
-use bitcoin::{merkle_tree, Transaction as BitTransaction, Txid};
+use bitcoin::{merkle_tree, Txid};
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec, DaVerifier};
@@ -94,11 +94,6 @@ impl DaVerifier for BitcoinVerifier {
             block_hash: block_header.block_hash().to_byte_array(),
         };
 
-        let completeness_proof: Vec<_> = completeness_proof
-            .into_iter()
-            .map(bitcoin::Transaction::from)
-            .collect();
-
         // check that wtxid's of transactions in completeness proof are included in the InclusionMultiProof
         // and are in the same order as in the completeness proof
         let mut iter = inclusion_proof.wtxids.iter();
@@ -109,7 +104,7 @@ impl DaVerifier for BitcoinVerifier {
         // verify that one of the outputs of the coinbase transaction has script pub key starting with 0x6a24aa21a9ed,
         // and the rest of the script pub key is the commitment of witness data.
         if !completeness_proof.is_empty() {
-            let coinbase_tx: BitTransaction = inclusion_proof.coinbase_tx.into();
+            let coinbase_tx = &inclusion_proof.coinbase_tx;
             // If there are more than one scriptPubKey matching the pattern,
             // the one with highest output index is assumed to be the commitment.
             // That  is why the iterator is reversed.
@@ -304,6 +299,7 @@ mod tests {
     use crate::spec::blob::BlobWithSender;
     use crate::spec::header::HeaderWrapper;
     use crate::spec::proof::InclusionMultiProof;
+    use crate::spec::transaction::TransactionWrapper;
     use crate::spec::RollupParams;
     use crate::verifier::{ChainValidityCondition, ValidationError};
 
@@ -356,6 +352,7 @@ mod tests {
         );
 
         let block_txs = get_non_segwit_mock_txs();
+        let block_txs: Vec<TransactionWrapper> = block_txs.into_iter().map(Into::into).collect();
 
         // block does not have any segwit txs
         let idx = block_txs[0].output.iter().position(|output| {
@@ -379,7 +376,7 @@ mod tests {
                 .iter()
                 .map(|t| t.wtxid().to_byte_array())
                 .collect(),
-            coinbase_tx: block_txs[0].clone().into(),
+            coinbase_tx: block_txs[0].clone(),
         };
 
         // There should not be any blobs
@@ -429,7 +426,9 @@ mod tests {
             .unwrap(),
         );
 
-        let mut block_txs = get_mock_txs();
+        let block_txs = get_mock_txs();
+        let mut block_txs: Vec<TransactionWrapper> =
+            block_txs.into_iter().map(Into::into).collect();
 
         block_txs[0].input[0].witness = Witness::from_slice(&[vec![1u8; 32]]);
 
@@ -453,7 +452,7 @@ mod tests {
                 .iter()
                 .map(|t| t.wtxid().to_byte_array())
                 .collect(),
-            coinbase_tx: block_txs[0].clone().into(),
+            coinbase_tx: block_txs[0].clone(),
         };
 
         // Coinbase tx wtxid should be [0u8;32]
@@ -507,7 +506,9 @@ mod tests {
             .unwrap(),
         );
 
-        let mut block_txs = get_mock_txs();
+        let block_txs = get_mock_txs();
+        let mut block_txs: Vec<TransactionWrapper> =
+            block_txs.into_iter().map(Into::into).collect();
 
         let idx = block_txs[0]
             .output
@@ -547,7 +548,7 @@ mod tests {
                 .iter()
                 .map(|t| t.wtxid().to_byte_array())
                 .collect(),
-            coinbase_tx: block_txs[0].clone().into(),
+            coinbase_tx: block_txs[0].clone(),
         };
 
         // Coinbase tx wtxid should be [0u8;32]
@@ -601,7 +602,9 @@ mod tests {
             .unwrap(),
         );
 
-        let mut block_txs = get_mock_txs();
+        let block_txs = get_mock_txs();
+        let mut block_txs: Vec<TransactionWrapper> =
+            block_txs.into_iter().map(Into::into).collect();
 
         // This is the changed witness of the 6th tx, the first byte of script is changed from 32 to 33
         // This creates a different wtxid, thus the verification should fail
@@ -661,7 +664,7 @@ mod tests {
                 .iter()
                 .map(|t| t.wtxid().to_byte_array())
                 .collect(),
-            coinbase_tx: block_txs[0].clone().into(),
+            coinbase_tx: block_txs[0].clone(),
         };
 
         // Coinbase tx wtxid should be [0u8;32]
@@ -983,7 +986,7 @@ mod tests {
         });
 
         let (block_header, inclusion_proof, completeness_proof, mut txs) = get_mock_data();
-        let tx1 = completeness_proof[1].clone().into();
+        let tx1 = completeness_proof[1].clone();
         txs[1] = BlobWithSender::new(
             parse_transaction(&tx1, "sov-btc").unwrap().body,
             vec![2; 33],

@@ -4,7 +4,7 @@ use core::str::FromStr;
 use bitcoin::block::{Header, Version};
 use bitcoin::hash_types::{TxMerkleNode, WitnessMerkleNode};
 use bitcoin::hashes::Hash;
-use bitcoin::{merkle_tree, BlockHash, CompactTarget, Transaction, Wtxid};
+use bitcoin::{merkle_tree, BlockHash, CompactTarget, Wtxid};
 use reqwest::header::HeaderMap;
 use serde::{Deserialize, Serialize};
 use serde_json::value::RawValue;
@@ -14,6 +14,7 @@ use tracing::{instrument, warn};
 use crate::helpers::parsers::parse_hex_transaction;
 use crate::spec::block::BitcoinBlock;
 use crate::spec::header::HeaderWrapper;
+use crate::spec::transaction::TransactionWrapper;
 // use crate::spec::transaction::Transaction;
 use crate::spec::utxo::UTXO;
 
@@ -145,7 +146,7 @@ impl BitcoinNode {
         self.call::<String>("getbestblockhash", vec![]).await
     }
 
-    fn calculate_witness_root(txdata: &[Transaction]) -> Option<WitnessMerkleNode> {
+    fn calculate_witness_root(txdata: &[TransactionWrapper]) -> Option<WitnessMerkleNode> {
         let hashes = txdata.iter().enumerate().map(|(i, t)| {
             if i == 0 {
                 // Replace the first hash with zeroes.
@@ -187,7 +188,7 @@ impl BitcoinNode {
 
         let txdata = full_block["tx"].as_array().unwrap();
 
-        let txs: Vec<Transaction> = txdata
+        let txs: Vec<TransactionWrapper> = txdata
             .iter()
             .map(|tx| {
                 let tx_hex = tx["hex"].as_str().unwrap();

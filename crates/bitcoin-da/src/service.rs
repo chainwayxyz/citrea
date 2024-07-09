@@ -454,7 +454,7 @@ impl DaService for BitcoinService {
         let coinbase_tx_hash = block.txdata[0].txid().to_raw_hash().to_byte_array();
         txids.push(coinbase_tx_hash);
         if coinbase_tx_hash.starts_with(self.reveal_tx_id_prefix.as_slice()) {
-            completeness_proof.push(block.txdata[0].clone().into());
+            completeness_proof.push(block.txdata[0].clone());
         }
 
         block.txdata[1..].iter().for_each(|tx| {
@@ -463,7 +463,7 @@ impl DaService for BitcoinService {
 
             // if tx_hash has two leading zeros, it is in the completeness proof
             if txid.starts_with(self.reveal_tx_id_prefix.as_slice()) {
-                completeness_proof.push(tx.into());
+                completeness_proof.push(tx.clone());
             }
 
             wtxids.push(wtxid);
@@ -471,7 +471,7 @@ impl DaService for BitcoinService {
         });
 
         (
-            InclusionMultiProof::new(txids, wtxids, block.txdata[0].clone().into()),
+            InclusionMultiProof::new(txids, wtxids, block.txdata[0].clone()),
             completeness_proof,
         )
     }
@@ -556,7 +556,7 @@ mod tests {
     use bitcoin::hash_types::{TxMerkleNode, WitnessMerkleNode};
     use bitcoin::secp256k1::Keypair;
     use bitcoin::string::FromHexStr;
-    use bitcoin::{BlockHash, CompactTarget, Transaction};
+    use bitcoin::{BlockHash, CompactTarget};
     use sov_rollup_interface::da::DaVerifier;
     use sov_rollup_interface::services::da::{DaService, SlotData};
 
@@ -566,6 +566,7 @@ mod tests {
     use crate::service::DaServiceConfig;
     use crate::spec::block::BitcoinBlock;
     use crate::spec::header::HeaderWrapper;
+    use crate::spec::transaction::TransactionWrapper;
     use crate::spec::RollupParams;
     use crate::verifier::BitcoinVerifier;
 
@@ -639,6 +640,7 @@ mod tests {
         let (header, _inclusion_proof, _completeness_proof, relevant_txs) = get_mock_data();
 
         let block_txs = get_mock_txs();
+        let block_txs = block_txs.into_iter().map(Into::into).collect();
 
         let block = BitcoinBlock {
             header,
@@ -660,6 +662,7 @@ mod tests {
         let da_service = get_service().await;
         let (header, _inclusion_proof, _completeness_proof, _relevant_txs) = get_mock_data();
         let block_txs = get_mock_txs();
+        let block_txs = block_txs.into_iter().map(Into::into).collect();
 
         let block = BitcoinBlock {
             header,
@@ -735,9 +738,10 @@ mod tests {
 
         let txs_str = std::fs::read_to_string("test_data/false_signature_txs.txt").unwrap();
 
-        let txdata: Vec<Transaction> = txs_str
+        let txdata: Vec<TransactionWrapper> = txs_str
             .lines()
             .map(|tx| parse_hex_transaction(tx).unwrap())
+            .map(Into::into)
             .collect();
 
         let block = BitcoinBlock { header, txdata };
@@ -795,9 +799,10 @@ mod tests {
 
         let txs_str = std::fs::read_to_string("test_data/mock_txs.txt").unwrap();
 
-        let txdata: Vec<Transaction> = txs_str
+        let txdata: Vec<TransactionWrapper> = txs_str
             .lines()
             .map(|tx| parse_hex_transaction(tx).unwrap())
+            .map(Into::into)
             .collect();
 
         let block = BitcoinBlock { header, txdata };
