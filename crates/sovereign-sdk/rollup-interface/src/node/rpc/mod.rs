@@ -701,12 +701,15 @@ pub mod utils {
 
     /// Serialization and deserialization logic for `0x`-prefixed hex strings that are wrapped with Option.
     pub mod rpc_optional_hex {
-        use std::fmt;
-        use std::marker::PhantomData;
+        use core::fmt;
+        use core::marker::PhantomData;
 
         use hex::{FromHex, ToHex};
         use serde::de::{self, Visitor};
         use serde::{Deserialize, Deserializer, Serializer};
+
+        use crate::maybestd::format;
+        use crate::maybestd::string::String;
 
         /// Serializes `data` as hex string using lowercase characters and prefixing with '0x' if Some, else null.
         ///
