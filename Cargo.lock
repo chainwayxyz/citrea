@@ -1834,11 +1834,13 @@ dependencies = [
  "anyhow",
  "borsh",
  "bytes",
+ "citrea-evm",
  "clap",
  "hex",
  "itertools 0.13.0",
  "jsonrpsee",
  "lazy_static",
+ "log-panics",
  "rand 0.8.5",
  "rayon",
  "reth-db",
@@ -1860,6 +1862,7 @@ dependencies = [
  "tempfile",
  "thiserror",
  "tracing",
+ "tracing-subscriber 0.3.18",
  "walkdir",
 ]
 
