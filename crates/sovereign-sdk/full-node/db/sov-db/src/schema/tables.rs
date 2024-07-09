@@ -59,7 +59,6 @@ pub const LEDGER_TABLES: &[&str] = &[
     L2Witness::table_name(),
     LastStateDiff::table_name(),
     LastSequencerCommitmentSent::table_name(),
-    LastSequencerCommitmentSentL2::table_name(),
     ProverLastScannedSlot::table_name(),
     BatchByHash::table_name(),
     BatchByNumber::table_name(),
@@ -264,12 +263,7 @@ define_table_with_default_codec!(
 
 define_table_with_seek_key_codec!(
     /// Sequencer uses this table to store the last commitment it sent
-    (LastSequencerCommitmentSent) () => SlotNumber
-);
-
-define_table_with_seek_key_codec!(
-    /// Sequencer uses this table to store the last commitment it sent
-    (LastSequencerCommitmentSentL2) () => BatchNumber
+    (LastSequencerCommitmentSent) () => BatchNumber
 );
 
 define_table_with_seek_key_codec!(

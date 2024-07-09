@@ -13,7 +13,7 @@ use tracing::instrument;
 use crate::rocks_db_config::gen_rocksdb_options;
 use crate::schema::tables::{
     BatchByHash, BatchByNumber, CommitmentsByNumber, EventByKey, EventByNumber, L2RangeByL1Height,
-    L2Witness, LastSequencerCommitmentSentL2, LastStateDiff, ProofBySlotNumber,
+    L2Witness, LastSequencerCommitmentSent, LastStateDiff, ProofBySlotNumber,
     ProverLastScannedSlot, SlotByHash, SlotByNumber, SoftBatchByHash, SoftBatchByNumber,
     SoftConfirmationStatus, TxByHash, TxByNumber, VerifiedProofsBySlotNumber, LEDGER_TABLES,
 };
@@ -462,7 +462,7 @@ impl LedgerDB {
         let mut schema_batch = SchemaBatch::new();
 
         schema_batch
-            .put::<LastSequencerCommitmentSentL2>(&(), &l2_height)
+            .put::<LastSequencerCommitmentSent>(&(), &l2_height)
             .unwrap();
         self.db.write_schemas(schema_batch)?;
 
@@ -530,7 +530,7 @@ impl LedgerDB {
     /// Returns L2 height.
     #[instrument(level = "trace", skip(self), err, ret)]
     pub fn get_last_sequencer_commitment_l2_height(&self) -> anyhow::Result<Option<BatchNumber>> {
-        self.db.get::<LastSequencerCommitmentSentL2>(&())
+        self.db.get::<LastSequencerCommitmentSent>(&())
     }
 
     /// Get L2 height range for a given L1 height.
