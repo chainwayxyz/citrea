@@ -1,10 +1,11 @@
 //! Cache key/value definitions
 
-use alloc::sync::Arc;
 use alloc::vec::Vec;
 use core::fmt;
-use std::collections::hash_map::Entry;
-use std::collections::HashMap;
+
+use hashbrown::hash_map::Entry;
+use hashbrown::HashMap;
+use sov_rollup_interface::RefCount;
 
 use crate::common::{MergeError, ReadError};
 use crate::storage::{Storage, StorageKey, StorageValue};
@@ -13,7 +14,7 @@ use crate::storage::{Storage, StorageKey, StorageValue};
 #[derive(Debug, Eq, PartialEq, Clone, Hash, PartialOrd, Ord)]
 pub struct CacheKey {
     /// The key of the cache entry.
-    pub key: Arc<Vec<u8>>,
+    pub key: RefCount<Vec<u8>>,
 }
 
 impl fmt::Display for CacheKey {
@@ -27,7 +28,7 @@ impl fmt::Display for CacheKey {
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct CacheValue {
     /// The value of the cache entry.
-    pub value: Arc<Vec<u8>>,
+    pub value: RefCount<Vec<u8>>,
 }
 
 impl fmt::Display for CacheValue {
@@ -473,21 +474,20 @@ impl From<StorageInternalCache> for OrderedReadsAndWrites {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-
     use proptest::prelude::*;
+    use sov_rollup_interface::RefCount;
 
     use super::*;
 
     pub fn create_key(key: u8) -> CacheKey {
         CacheKey {
-            key: Arc::new(alloc::vec![key]),
+            key: RefCount::new(alloc::vec![key]),
         }
     }
 
     pub fn create_value(v: u8) -> Option<CacheValue> {
         Some(CacheValue {
-            value: Arc::new(alloc::vec![v]),
+            value: RefCount::new(alloc::vec![v]),
         })
     }
 

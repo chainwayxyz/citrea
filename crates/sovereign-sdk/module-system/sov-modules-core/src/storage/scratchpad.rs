@@ -2,8 +2,8 @@
 
 use alloc::vec::Vec;
 use core::{fmt, mem};
-use std::collections::HashMap;
 
+use hashbrown::HashMap;
 pub use kernel_state::{KernelWorkingSet, VersionedWorkingSet};
 use sov_rollup_interface::stf::Event;
 

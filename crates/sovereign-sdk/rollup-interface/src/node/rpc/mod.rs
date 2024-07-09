@@ -4,6 +4,8 @@
 extern crate alloc;
 
 use alloc::collections::BTreeMap;
+use alloc::string::String;
+use alloc::vec::Vec;
 use core::marker::PhantomData;
 
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -613,6 +615,10 @@ pub trait LedgerRpcProvider {
 pub mod utils {
     /// Serialization and deserialization logic for `0x`-prefixed hex strings.
     pub mod rpc_hex {
+        extern crate alloc;
+
+        use alloc::format;
+        use alloc::string::String;
         use core::fmt;
         use core::marker::PhantomData;
 

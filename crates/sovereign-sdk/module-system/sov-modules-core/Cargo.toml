@@ -20,6 +20,7 @@ borsh = { workspace = true }
 derive_more = { workspace = true, features = ["display", "into"] }
 digest = { workspace = true }
 hex = { workspace = true }
+hashbrown = { workspace = true }
 jmt = { workspace = true, optional = true }
 proptest = { workspace = true, optional = true }
 proptest-derive = { workspace = true, optional = true }

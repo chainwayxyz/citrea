@@ -1,6 +1,9 @@
 //! Defines traits and types used by the rollup to verify claims about the
 //! soft confirmation
 
+extern crate alloc;
+
+use alloc::vec::Vec;
 use core::fmt::Debug;
 
 use borsh::{BorshDeserialize, BorshSerialize};

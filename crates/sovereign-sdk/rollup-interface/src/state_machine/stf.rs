@@ -7,6 +7,7 @@
 extern crate alloc;
 
 use alloc::collections::VecDeque;
+use alloc::vec::Vec;
 use core::fmt::Debug;
 use core::marker::PhantomData;
 

@@ -3077,6 +3077,7 @@ dependencies = [
  "borsh",
  "derive_more",
  "digest 0.10.7",
+ "hashbrown 0.14.5",
  "hex",
  "jmt",
  "schemars",

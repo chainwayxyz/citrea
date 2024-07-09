@@ -1,5 +1,9 @@
 //! This module defines the trait that is used to build batches of transactions.
 
+extern crate alloc;
+
+use alloc::vec::Vec;
+
 /// BlockBuilder trait is responsible for managing mempool and building batches.
 pub trait BatchBuilder {
     /// Accept a new transaction.

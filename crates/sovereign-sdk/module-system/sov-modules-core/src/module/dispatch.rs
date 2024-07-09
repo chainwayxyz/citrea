@@ -1,6 +1,6 @@
 //! Runtime call message definitions.
 
-use std::io;
+use borsh::io;
 
 use crate::common::ModuleError;
 use crate::module::{CallResponse, Context, Spec};

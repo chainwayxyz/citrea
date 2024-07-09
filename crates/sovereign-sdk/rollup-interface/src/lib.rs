@@ -6,7 +6,6 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 #![deny(missing_docs)]
 
-#[cfg(not(feature = "std"))]
 extern crate alloc;
 
 /// The current version of Citrea.
@@ -19,6 +18,11 @@ mod state_machine;
 pub use state_machine::*;
 
 mod node;
+
+#[cfg(not(target_has_atomic = "ptr"))]
+pub use alloc::rc::Rc as RefCount;
+#[cfg(target_has_atomic = "ptr")]
+pub use alloc::sync::Arc as RefCount;
 
 pub use node::*;
 pub use {anyhow, digest};
