@@ -61,8 +61,7 @@ pub struct TxIdAndKey {
 
 /// An identifier that specifies a single soft batch
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
-#[serde(untagged)]
-#[serde(rename_all = "camelCase")]
+#[serde(untagged, rename_all = "camelCase")]
 pub enum SoftBatchIdentifier {
     /// The monotonically increasing number of the soft batch
     Number(u64),
@@ -72,8 +71,7 @@ pub enum SoftBatchIdentifier {
 
 /// An identifier that specifies a single batch
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
-#[serde(untagged)]
-#[serde(rename_all = "camelCase")]
+#[serde(untagged, rename_all = "camelCase")]
 pub enum BatchIdentifier {
     /// The hex-encoded hash of the batch, as computed by the DA layer.
     Hash(#[serde(with = "utils::rpc_hex")] [u8; 32]),
@@ -87,8 +85,7 @@ pub enum BatchIdentifier {
 
 /// An identifier that specifies a single transaction.
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
-#[serde(untagged)]
-#[serde(rename_all = "camelCase")]
+#[serde(untagged, rename_all = "camelCase")]
 pub enum TxIdentifier {
     /// The hex encoded hash of the transaction.
     Hash(#[serde(with = "utils::rpc_hex")] [u8; 32]),
@@ -102,8 +99,7 @@ pub enum TxIdentifier {
 
 /// An identifier that specifies a single event.
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
-#[serde(untagged)]
-#[serde(rename_all = "camelCase")]
+#[serde(untagged, rename_all = "camelCase")]
 pub enum EventIdentifier {
     /// An offset into a particular transaction (i.e. the 3rd event in transaction number 5).
     TxIdAndOffset(TxIdAndOffset),
@@ -117,8 +113,7 @@ pub enum EventIdentifier {
 
 /// An identifier for a group of related events
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
-#[serde(untagged)]
-#[serde(rename_all = "camelCase")]
+#[serde(untagged, rename_all = "camelCase")]
 pub enum EventGroupIdentifier {
     /// Fetch all events from a particular transaction.
     TxId(TxIdentifier),
@@ -128,8 +123,7 @@ pub enum EventGroupIdentifier {
 
 /// An identifier that specifies a single slot.
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
-#[serde(untagged)]
-#[serde(rename_all = "camelCase")]
+#[serde(untagged, rename_all = "camelCase")]
 pub enum SlotIdentifier {
     /// The hex encoded hash of the slot (i.e. the da layer's block hash).
     Hash(#[serde(with = "utils::rpc_hex")] [u8; 32]),
@@ -179,8 +173,7 @@ pub struct SlotResponse<B, Tx> {
 
 /// A type that represents a transaction hash bytes.
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-#[serde(transparent)]
-#[serde(rename_all = "camelCase")]
+#[serde(transparent, rename_all = "camelCase")]
 pub struct HexTx {
     /// Transaction hash bytes
     #[serde(with = "hex::serde")]
@@ -427,8 +420,7 @@ pub struct TxResponse<Tx> {
 
 /// An RPC response which might contain a full item or just its hash.
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-#[serde(rename_all = "camelCase")]
+#[serde(untagged, rename_all = "camelCase")]
 pub enum ItemOrHash<T> {
     /// The hex encoded hash of the requested item.
     Hash(#[serde(with = "hex::serde")] [u8; 32]),
