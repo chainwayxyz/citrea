@@ -196,7 +196,7 @@ impl DaVerifier for BitcoinVerifier {
             }
 
             // it must be parsed correctly
-            if let Ok(parsed_tx) = parse_transaction(&tx, &self.rollup_name) {
+            if let Ok(parsed_tx) = parse_transaction(tx, &self.rollup_name) {
                 if let Some(blob_hash) = parsed_tx.get_sig_verified_hash() {
                     let blob = blobs_iter.next();
 
