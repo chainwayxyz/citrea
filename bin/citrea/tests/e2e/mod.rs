@@ -3387,3 +3387,99 @@ async fn test_sequencer_commitment_threshold() {
 
     seq_task.abort();
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_sequencer_fill_missing_da_blocks() -> Result<(), anyhow::Error> {
+    // citrea::initialize_logging(tracing::Level::INFO);
+
+    let storage_dir = tempdir_with_children(&["DA", "sequencer"]);
+    let da_db_dir = storage_dir.path().join("DA").to_path_buf();
+    let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
+
+    let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
+
+    let da_db_dir_cloned = da_db_dir.clone();
+    let seq_task = tokio::spawn(async {
+        start_rollup(
+            seq_port_tx,
+            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+            None,
+            NodeMode::SequencerNode,
+            sequencer_db_dir,
+            da_db_dir_cloned,
+            DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
+            true,
+            None,
+            Some(SequencerConfig {
+                private_key: TEST_PRIVATE_KEY.to_string(),
+                min_soft_confirmations_per_commitment: 1000,
+                test_mode: true,
+                deposit_mempool_fetch_limit: 10,
+                mempool_conf: Default::default(),
+                db_config: Default::default(),
+                da_update_interval_ms: 500,
+                block_production_interval_ms: 500,
+            }),
+            Some(true),
+            DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
+        )
+        .await;
+    });
+
+    let seq_port = seq_port_rx.await.unwrap();
+    let seq_test_client = init_test_rollup(seq_port).await;
+
+    seq_test_client.send_publish_batch_request().await;
+    wait_for_l2_block(&seq_test_client, 1, None).await;
+
+    let da_service = MockDaService::new(MockAddress::from([0; 32]), &da_db_dir);
+
+    let to_be_filled_da_block_count = 5;
+    let latest_da_block = 1 + to_be_filled_da_block_count;
+    // publish da blocks back to back
+    for _ in 0..to_be_filled_da_block_count {
+        da_service.publish_test_block().await.unwrap();
+    }
+    wait_for_l1_block(&da_service, latest_da_block, None).await;
+    sleep(Duration::from_secs(1)).await;
+
+    // publish a block which will start filling of all missing da blocks
+    seq_test_client.send_publish_batch_request().await;
+    wait_for_l2_block(&seq_test_client, 2, None).await;
+
+    let first_filler_l2_block = 2;
+    let last_filler_l2_block = first_filler_l2_block + to_be_filled_da_block_count - 1;
+    // wait for all corresponding da blocks to be filled by sequencer
+    wait_for_l2_block(&seq_test_client, last_filler_l2_block, None).await;
+
+    let mut next_da_block = 2;
+    // ensure that all the filled l2 blocks correspond to correct da blocks
+    for filler_l2_block in first_filler_l2_block..=last_filler_l2_block {
+        let soft_batch = seq_test_client
+            .ledger_get_soft_batch_by_number::<MockDaSpec>(filler_l2_block)
+            .await
+            .unwrap();
+        assert_eq!(soft_batch.da_slot_height, next_da_block);
+        next_da_block += 1;
+    }
+
+    // publish an extra l2 block
+    seq_test_client.send_publish_batch_request().await;
+    wait_for_l2_block(&seq_test_client, last_filler_l2_block + 1, None).await;
+    // ensure that the latest l2 block points to latest da block and has correct height
+    let head_soft_batch = seq_test_client
+        .ledger_get_head_soft_batch()
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(head_soft_batch.da_slot_height, latest_da_block);
+    let head_soft_batch_num = seq_test_client
+        .ledger_get_head_soft_batch_height()
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(head_soft_batch_num, last_filler_l2_block + 1);
+
+    seq_task.abort();
+    Ok(())
+}

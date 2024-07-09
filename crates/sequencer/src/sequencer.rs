@@ -829,8 +829,8 @@ where
                 _ = self.l2_force_block_rx.next(), if self.config.test_mode => {
                     if missed_da_blocks_count > 0 {
                         debug!("We have {} missed DA blocks", missed_da_blocks_count);
-                        for _ in 1..=missed_da_blocks_count {
-                            let needed_da_block_height = last_used_l1_height + 1;
+                        for i in 1..=missed_da_blocks_count {
+                            let needed_da_block_height = last_used_l1_height + i;
                             let da_block = self
                                 .da_service
                                 .get_block_at(needed_da_block_height)
@@ -873,8 +873,8 @@ where
 
                     if missed_da_blocks_count > 0 {
                         debug!("We have {} missed DA blocks", missed_da_blocks_count);
-                        for _ in 1..=missed_da_blocks_count {
-                            let needed_da_block_height = last_used_l1_height + 1;
+                        for i in 1..=missed_da_blocks_count {
+                            let needed_da_block_height = last_used_l1_height + i;
                             let da_block = self
                                 .da_service
                                 .get_block_at(needed_da_block_height)
