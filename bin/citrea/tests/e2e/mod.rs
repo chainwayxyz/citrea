@@ -128,6 +128,8 @@ async fn initialize_test(
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_soft_batch_save() -> Result<(), anyhow::Error> {
+    // citrea::initialize_logging(tracing::Level::DEBUG);
+
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
     let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
@@ -1104,20 +1106,9 @@ async fn test_soft_confirmations_status_one_l1() -> Result<(), anyhow::Error> {
         assert_eq!(SoftConfirmationStatus::Trusted, status_node.unwrap());
     }
 
-    // publish new da block
-    //
-    // This will trigger the sequencer's DA monitor to see a newly published
-    // block and will therefore initiate a commitment submission to the MockDA.
-    // Therefore, creating yet another DA block.
-    da_service.publish_test_block().await.unwrap();
-
-    // The above L1 block has been created,
-    // we wait until the block is actually received by the DA monitor.
-    wait_for_l1_block(&da_service, 2, None).await;
-
-    // Wait for DA block #3 containing the commitment
+    // Wait for DA block #2 containing the commitment
     // submitted by sequencer.
-    wait_for_l1_block(&da_service, 3, None).await;
+    wait_for_l1_block(&da_service, 2, None).await;
 
     // now retrieve confirmation status from the sequencer and full node and check if they are the same
     for i in 1..=6 {
@@ -1157,40 +1148,31 @@ async fn test_soft_confirmations_status_two_l1() -> Result<(), anyhow::Error> {
         .await;
 
     // first publish a few blocks fast make it land in the same da block
-    for _ in 1..=2 {
+    for _ in 1..=3 {
         seq_test_client.send_publish_batch_request().await;
     }
 
-    wait_for_l2_block(&seq_test_client, 2, None).await;
-
-    // publish new da block
-    da_service.publish_test_block().await.unwrap();
+    wait_for_l2_block(&seq_test_client, 3, None).await;
+    // L2 blocks 1-3 would create an L1 block with commitment
     wait_for_l1_block(&da_service, 2, None).await;
 
-    for _ in 2..=6 {
+    for _ in 4..=6 {
         seq_test_client.send_publish_batch_request().await;
     }
 
-    wait_for_l2_block(&full_node_test_client, 7, None).await;
+    wait_for_l2_block(&full_node_test_client, 6, None).await;
+    // L2 blocks 4-6 would create an L1 block with commitment
+    wait_for_l1_block(&da_service, 3, None).await;
 
     // now retrieve confirmation status from the sequencer and full node and check if they are the same
-    for i in 1..=2 {
+    for i in 1..=3 {
         let status_node = full_node_test_client
             .ledger_get_soft_confirmation_status(i)
             .await
             .unwrap();
 
-        assert_eq!(SoftConfirmationStatus::Trusted, status_node.unwrap());
+        assert_eq!(SoftConfirmationStatus::Finalized, status_node.unwrap());
     }
-
-    // publish new da block
-    da_service.publish_test_block().await.unwrap();
-    wait_for_l1_block(&da_service, 3, None).await;
-
-    seq_test_client.send_publish_batch_request().await;
-    seq_test_client.send_publish_batch_request().await;
-
-    wait_for_l2_block(&full_node_test_client, 9, None).await;
 
     // Check that these L2 blocks are bounded on different L1 block
     let mut batch_infos = vec![];
@@ -1201,10 +1183,16 @@ async fn test_soft_confirmations_status_two_l1() -> Result<(), anyhow::Error> {
             .unwrap();
         batch_infos.push(full_node_soft_conf);
     }
-    assert_eq!(batch_infos[0].da_slot_height, batch_infos[1].da_slot_height);
-    assert!(batch_infos[2..]
+
+    // First three blocks got created on L1 height 1.
+    assert!(batch_infos[0..3]
         .iter()
-        .all(|x| x.da_slot_height == batch_infos[2].da_slot_height));
+        .all(|x| { x.da_slot_height == batch_infos[0].da_slot_height }));
+
+    // Blocks 4, 5, 6 were created on L1 height 2
+    assert!(batch_infos[3..6]
+        .iter()
+        .all(|x| { x.da_slot_height == batch_infos[3].da_slot_height }));
     assert_ne!(batch_infos[0].da_slot_height, batch_infos[5].da_slot_height);
 
     // now retrieve confirmation status from the sequencer and full node and check if they are the same
@@ -1293,13 +1281,14 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
     let prover_node_port = prover_node_port_rx.await.unwrap();
     let prover_node_test_client = make_test_client(prover_node_port).await;
 
+    // prover should not have any blocks saved
+    assert_eq!(prover_node_test_client.eth_block_number().await, 0);
+
     // publish 3 soft confirmations, no commitment should be sent
     for _ in 0..3 {
         seq_test_client.send_publish_batch_request().await;
     }
 
-    // prover should not have any blocks saved
-    assert_eq!(prover_node_test_client.eth_block_number().await, 0);
     // start l1 height = 1, end = 2
     seq_test_client.send_publish_batch_request().await;
 
@@ -1307,6 +1296,7 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
     da_service.publish_test_block().await.unwrap();
     wait_for_l1_block(&da_service, 2, None).await;
     wait_for_l1_block(&da_service, 3, None).await;
+    tracing::error!("T1");
 
     seq_test_client.send_publish_batch_request().await;
 
@@ -1317,6 +1307,7 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
         Some(Duration::from_secs(DEFAULT_PROOF_WAIT_DURATION)),
     )
     .await;
+    tracing::error!("T2");
 
     // prover should have synced all 6 l2 blocks
     // ps there are 6 blocks because:
@@ -1324,10 +1315,12 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
     // and for every empty da block sequencer publishes a new empty soft confirmation in order to not skip a block
     wait_for_l2_block(&prover_node_test_client, 6, None).await;
     assert_eq!(prover_node_test_client.eth_block_number().await, 6);
+    tracing::error!("T3");
 
     seq_test_client.send_publish_batch_request().await;
     da_service.publish_test_block().await.unwrap();
     wait_for_l1_block(&da_service, 4, None).await;
+    tracing::error!("T4");
     // Still should have 4 blocks there are no commitments yet
     wait_for_prover_l1_height(
         &prover_node_test_client,
@@ -1335,9 +1328,9 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
         Some(Duration::from_secs(DEFAULT_PROOF_WAIT_DURATION)),
     )
     .await;
-
+    tracing::error!("T5");
     wait_for_l1_block(&da_service, 5, None).await;
-
+    tracing::error!("T6");
     seq_test_client.send_publish_batch_request().await;
 
     // wait here until we see from prover's rpc that it finished proving
@@ -1347,7 +1340,7 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
         Some(Duration::from_secs(DEFAULT_PROOF_WAIT_DURATION)),
     )
     .await;
-
+    tracing::error!("T7");
     wait_for_l2_block(&seq_test_client, 8, None).await;
     assert_eq!(seq_test_client.eth_block_number().await, 8);
     // Should now have 8 blocks = 2 commitments of blocks 1-4 and 5-9
@@ -1436,21 +1429,21 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     let prover_node_port = prover_node_port_rx.await.unwrap();
     let prover_node_test_client = make_test_client(prover_node_port).await;
 
+    // prover should not have any blocks saved
+    assert_eq!(prover_node_test_client.eth_block_number().await, 0);
     // publish 3 soft confirmations, no commitment should be sent
     for _ in 0..3 {
         seq_test_client.send_publish_batch_request().await;
     }
+    tracing::error!("T1");
     wait_for_l2_block(&seq_test_client, 3, None).await;
-
-    // prover should not have any blocks saved
-    assert_eq!(prover_node_test_client.eth_block_number().await, 0);
 
     da_service.publish_test_block().await.unwrap();
     wait_for_l1_block(&da_service, 2, None).await;
 
     seq_test_client.send_publish_batch_request().await;
     wait_for_l2_block(&seq_test_client, 4, None).await;
-
+    tracing::error!("T2");
     // sequencer commitment should be sent
     da_service.publish_test_block().await.unwrap();
     wait_for_l1_block(&da_service, 3, None).await;
@@ -1464,6 +1457,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
         Some(Duration::from_secs(DEFAULT_PROOF_WAIT_DURATION)),
     )
     .await;
+    tracing::error!("T3");
     // Contains the proof
     wait_for_l1_block(&da_service, 5, None).await;
 
@@ -1471,9 +1465,12 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     assert_eq!(prover_node_test_client.eth_block_number().await, 4);
 
     prover_node_task.abort();
+    sleep(Duration::from_secs(2)).await;
 
     let _ = copy_dir_recursive(&prover_db_dir, &storage_dir.path().join("prover_copy"));
+    sleep(Duration::from_secs(2)).await;
 
+    tracing::error!("reopening prover");
     // Reopen prover with the new path
     let (prover_node_port_tx, prover_node_port_rx) = tokio::sync::oneshot::channel();
 
@@ -1502,21 +1499,25 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
 
     seq_test_client.send_publish_batch_request().await;
     wait_for_l2_block(&seq_test_client, 6, None).await;
-
+    tracing::error!("T4");
     // Still should have 4 blocks there are no commitments yet
-    assert_eq!(prover_node_test_client.eth_block_number().await, 4);
-
+    wait_for_l2_block(&prover_node_test_client, 6, None).await;
+    assert_eq!(prover_node_test_client.eth_block_number().await, 6);
+    tracing::error!("T5.1");
     prover_node_task.abort();
+    sleep(Duration::from_secs(2)).await;
 
     seq_test_client.send_publish_batch_request().await;
     seq_test_client.send_publish_batch_request().await;
     wait_for_l2_block(&seq_test_client, 8, None).await;
-
+    tracing::error!("T5.15");
     let _ = copy_dir_recursive(&prover_db_dir, &storage_dir.path().join("prover_copy2"));
+
+    sleep(Duration::from_secs(2)).await;
 
     // Reopen prover with the new path
     let (prover_node_port_tx, prover_node_port_rx) = tokio::sync::oneshot::channel();
-
+    tracing::error!("T5.16");
     let prover_copy2_dir_cloned = storage_dir.path().join("prover_copy2");
     let da_db_dir_cloned = da_db_dir.clone();
     let prover_node_task = tokio::spawn(async move {
@@ -1539,7 +1540,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
 
     let prover_node_port = prover_node_port_rx.await.unwrap();
     let prover_node_test_client = make_test_client(prover_node_port).await;
-
+    tracing::error!("T5.2");
     // Publish a DA to force prover to process new blocks
     da_service.publish_test_block().await.unwrap();
     wait_for_l1_block(&da_service, 6, None).await;
@@ -1548,15 +1549,16 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     // and starts proving the second commitment.
     wait_for_l2_block(&prover_node_test_client, 8, Some(Duration::from_secs(300))).await;
     assert_eq!(prover_node_test_client.eth_block_number().await, 8);
-
+    tracing::error!("T6");
     seq_test_client.send_publish_batch_request().await;
     wait_for_l2_block(&seq_test_client, 9, None).await;
-
+    tracing::error!("T7");
     da_service.publish_test_block().await.unwrap();
     wait_for_l1_block(&da_service, 7, None).await;
     // Commitment is sent
+    tracing::error!("T7.5");
     wait_for_l1_block(&da_service, 8, None).await;
-
+    tracing::error!("T7.6");
     // wait here until we see from prover's rpc that it finished proving
     wait_for_prover_l1_height(
         &prover_node_test_client,
@@ -1564,6 +1566,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
         Some(Duration::from_secs(DEFAULT_PROOF_WAIT_DURATION)),
     )
     .await;
+    tracing::error!("T8");
 
     // Should now have 8 blocks = 2 commitments of blocks 1-4 and 5-8
     // there is an extra soft confirmation due to the prover publishing a proof. This causes
@@ -1918,7 +1921,7 @@ async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
 
     sequencer_config.db_config = Some(SharedBackupDbConfig::default().set_db_name(psql_db_name));
 
-    let da_service = MockDaService::with_finality(MockAddress::from([0; 32]), 2, &da_db_dir);
+    let da_service = MockDaService::with_finality(MockAddress::from([0; 32]), 0, &da_db_dir);
     da_service.publish_test_block().await.unwrap();
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
@@ -2066,10 +2069,8 @@ async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
     assert_eq!(commitments.len(), 2);
     assert_eq!(commitments[0].l2_start_height, 1);
     assert_eq!(commitments[0].l2_end_height, 4);
-    // TODO: This is a bug that should be checked.
-    // The second commitment L2 start height should be 5
-    assert_eq!(commitments[1].l2_start_height, 1);
-    assert_eq!(commitments[1].l2_end_height, 9);
+    assert_eq!(commitments[1].l2_start_height, 5);
+    assert_eq!(commitments[1].l2_end_height, 8);
 
     seq_task.abort();
 
@@ -2420,11 +2421,8 @@ async fn test_db_get_proof() {
     test_client.send_publish_batch_request().await;
     wait_for_l2_block(&test_client, 4, None).await;
 
-    da_service.publish_test_block().await.unwrap();
     // Commitment
     wait_for_l1_block(&da_service, 3, None).await;
-    // Proof
-    wait_for_l1_block(&da_service, 4, None).await;
 
     // wait here until we see from prover's rpc that it finished proving
     wait_for_prover_l1_height(
@@ -2437,7 +2435,7 @@ async fn test_db_get_proof() {
     wait_for_postgres_proofs(&db_test_client, 1, Some(Duration::from_secs(60))).await;
 
     let ledger_proof = prover_node_test_client
-        .ledger_get_proof_by_slot_height(4)
+        .ledger_get_proof_by_slot_height(3)
         .await;
 
     let db_proofs = db_test_client.get_all_proof_data().await.unwrap();
@@ -2569,27 +2567,23 @@ async fn full_node_verify_proof_and_store() {
     test_client.send_publish_batch_request().await;
     wait_for_l2_block(&full_node_test_client, 4, None).await;
 
-    // submits with new da block, triggers commitment submission.
-    da_service.publish_test_block().await.unwrap();
-    // This is the above block created.
-    wait_for_l1_block(&da_service, 3, None).await;
     // Commitment submitted
-    wait_for_l1_block(&da_service, 4, None).await;
+    wait_for_l1_block(&da_service, 3, None).await;
 
     // Full node sync commitment block
     test_client.send_publish_batch_request().await;
-    wait_for_l2_block(&full_node_test_client, 6, None).await;
+    wait_for_l2_block(&full_node_test_client, 5, None).await;
 
     // wait here until we see from prover's rpc that it finished proving
     wait_for_prover_l1_height(
         &prover_node_test_client,
-        5,
+        4,
         Some(Duration::from_secs(DEFAULT_PROOF_WAIT_DURATION)),
     )
     .await;
 
     let commitments = prover_node_test_client
-        .ledger_get_sequencer_commitments_on_slot_by_number(4)
+        .ledger_get_sequencer_commitments_on_slot_by_number(3)
         .await
         .unwrap()
         .unwrap();
@@ -2598,37 +2592,37 @@ async fn full_node_verify_proof_and_store() {
     assert_eq!(commitments[0].l2_start_block_number, 1);
     assert_eq!(commitments[0].l2_end_block_number, 4);
 
-    assert_eq!(commitments[0].found_in_l1, 4);
+    assert_eq!(commitments[0].found_in_l1, 3);
 
-    let fourth_block_hash = da_service.get_block_at(4).await.unwrap().header.hash;
+    let third_block_hash = da_service.get_block_at(3).await.unwrap().header.hash;
 
     let commitments_hash = prover_node_test_client
-        .ledger_get_sequencer_commitments_on_slot_by_hash(fourth_block_hash.0)
+        .ledger_get_sequencer_commitments_on_slot_by_hash(third_block_hash.0)
         .await
         .unwrap()
         .unwrap();
     assert_eq!(commitments_hash, commitments);
 
     let prover_proof = prover_node_test_client
-        .ledger_get_proof_by_slot_height(4)
+        .ledger_get_proof_by_slot_height(3)
         .await;
 
-    // The proof will be in l1 block #5 because prover publishes it after the commitment and
+    // The proof will be in l1 block #4 because prover publishes it after the commitment and
     // in mock da submitting proof and commitments creates a new block.
-    // For full node to see the proof, we publish another l2 block and now it will check #5 l1 block
-    wait_for_l1_block(&da_service, 5, None).await;
+    // For full node to see the proof, we publish another l2 block and now it will check #4 l1 block
+    wait_for_l1_block(&da_service, 4, None).await;
 
     // Up until this moment, Full node has only seen 2 DA blocks.
-    // We need to force it to sync up to 5th DA block.
-    for i in 7..=8 {
+    // We need to force it to sync up to 4th DA block.
+    for i in 6..=7 {
         test_client.send_publish_batch_request().await;
         wait_for_l2_block(&full_node_test_client, i, None).await;
     }
 
-    // So the full node should see the proof in block 5
-    wait_for_proof(&full_node_test_client, 5, None).await;
+    // So the full node should see the proof in block 4
+    wait_for_proof(&full_node_test_client, 4, Some(Duration::from_secs(60))).await;
     let full_node_proof = full_node_test_client
-        .ledger_get_verified_proofs_by_slot_height(5)
+        .ledger_get_verified_proofs_by_slot_height(4)
         .await
         .unwrap();
     assert_eq!(prover_proof.proof, full_node_proof[0].proof);
@@ -2782,18 +2776,8 @@ async fn test_all_flow() {
     test_client.send_publish_batch_request().await;
     wait_for_l2_block(&test_client, 4, None).await;
 
-    // Submit commitment
-    da_service.publish_test_block().await.unwrap();
     // Commitment
     wait_for_l1_block(&da_service, 3, None).await;
-    // Proof
-    wait_for_l1_block(&da_service, 4, None).await;
-    // Full node sync - commitment DA
-    test_client.send_publish_batch_request().await;
-    wait_for_l2_block(&full_node_test_client, 5, None).await;
-    // Full node sync - Proof DA
-    test_client.send_publish_batch_request().await;
-    wait_for_l2_block(&full_node_test_client, 6, None).await;
 
     // wait here until we see from prover's rpc that it finished proving
     wait_for_prover_l1_height(
@@ -2804,7 +2788,7 @@ async fn test_all_flow() {
     .await;
 
     let commitments = prover_node_test_client
-        .ledger_get_sequencer_commitments_on_slot_by_number(4)
+        .ledger_get_sequencer_commitments_on_slot_by_number(3)
         .await
         .unwrap()
         .unwrap();
@@ -2813,19 +2797,19 @@ async fn test_all_flow() {
     assert_eq!(commitments[0].l2_start_block_number, 1);
     assert_eq!(commitments[0].l2_end_block_number, 4);
 
-    assert_eq!(commitments[0].found_in_l1, 4);
+    assert_eq!(commitments[0].found_in_l1, 3);
 
-    let fourth_block_hash = da_service.get_block_at(4).await.unwrap().header.hash;
+    let third_block_hash = da_service.get_block_at(3).await.unwrap().header.hash;
 
     let commitments_hash = prover_node_test_client
-        .ledger_get_sequencer_commitments_on_slot_by_hash(fourth_block_hash.0)
+        .ledger_get_sequencer_commitments_on_slot_by_hash(third_block_hash.0)
         .await
         .unwrap()
         .unwrap();
     assert_eq!(commitments_hash, commitments);
 
     let prover_proof = prover_node_test_client
-        .ledger_get_proof_by_slot_height(4)
+        .ledger_get_proof_by_slot_height(3)
         .await;
 
     let db_proofs = db_test_client.get_all_proof_data().await.unwrap();
@@ -2841,17 +2825,17 @@ async fn test_all_flow() {
     );
     assert_eq!(db_proofs[0].l1_tx_id, prover_proof.l1_tx_id);
 
-    // the proof will be in l1 block #5 because prover publishes it after the commitment and in mock da submitting proof and commitments creates a new block
-    // For full node to see the proof, we publish another l2 block and now it will check #5 l1 block
-    // 7th soft batch
-    wait_for_l1_block(&da_service, 5, None).await;
+    // the proof will be in l1 block #4 because prover publishes it after the commitment and in mock da submitting proof and commitments creates a new block
+    // For full node to see the proof, we publish another l2 block and now it will check #4 l1 block
+    // 6th soft batch
+    wait_for_l1_block(&da_service, 4, None).await;
     test_client.send_publish_batch_request().await;
-    wait_for_l2_block(&full_node_test_client, 7, None).await;
+    wait_for_l2_block(&full_node_test_client, 6, None).await;
 
     // So the full node should see the proof in block 5
-    wait_for_proof(&full_node_test_client, 5, None).await;
+    wait_for_proof(&full_node_test_client, 4, Some(Duration::from_secs(120))).await;
     let full_node_proof = full_node_test_client
-        .ledger_get_verified_proofs_by_slot_height(5)
+        .ledger_get_verified_proofs_by_slot_height(4)
         .await
         .unwrap();
 
@@ -2900,34 +2884,32 @@ async fn test_all_flow() {
         .send_eth(addr, None, None, None, 1e18 as u128)
         .await
         .unwrap();
-    // 8th soft batch
-    test_client.send_publish_batch_request().await;
-    wait_for_l2_block(&full_node_test_client, 8, None).await;
 
-    // Submit a commitment
-    da_service.publish_test_block().await.unwrap();
+    for i in 7..=8 {
+        test_client.send_publish_batch_request().await;
+        wait_for_l2_block(&full_node_test_client, i, None).await;
+    }
+
     // Commitment
-    wait_for_l1_block(&da_service, 6, None).await;
-    // Proof
-    wait_for_l1_block(&da_service, 7, None).await;
+    wait_for_l1_block(&da_service, 5, None).await;
 
     // wait here until we see from prover's rpc that it finished proving
     wait_for_prover_l1_height(
         &prover_node_test_client,
-        7,
+        5,
         Some(Duration::from_secs(DEFAULT_PROOF_WAIT_DURATION)),
     )
     .await;
 
     let commitments = prover_node_test_client
-        .ledger_get_sequencer_commitments_on_slot_by_number(7)
+        .ledger_get_sequencer_commitments_on_slot_by_number(5)
         .await
         .unwrap()
         .unwrap();
     assert_eq!(commitments.len(), 1);
 
     let prover_proof_data = prover_node_test_client
-        .ledger_get_proof_by_slot_height(7)
+        .ledger_get_proof_by_slot_height(5)
         .await;
 
     let db_proofs = db_test_client.get_all_proof_data().await.unwrap();
@@ -2942,15 +2924,9 @@ async fn test_all_flow() {
         prover_proof_data.state_transition.sequencer_public_key
     );
 
-    // let full node see the proof
-    for i in 9..13 {
-        test_client.send_publish_batch_request().await;
-        wait_for_l2_block(&full_node_test_client, i, None).await;
-    }
-
-    wait_for_proof(&full_node_test_client, 8, None).await;
+    wait_for_proof(&full_node_test_client, 6, Some(Duration::from_secs(120))).await;
     let full_node_proof_data = full_node_test_client
-        .ledger_get_verified_proofs_by_slot_height(8)
+        .ledger_get_verified_proofs_by_slot_height(6)
         .await
         .unwrap();
 
@@ -2983,16 +2959,13 @@ async fn test_all_flow() {
         assert_eq!(status, SoftConfirmationStatus::Proven);
     }
 
-    wait_for_l2_block(&test_client, 14, None).await;
-    assert_eq!(test_client.eth_block_number().await, 14);
-
     // Synced up to the latest block
-    wait_for_l2_block(&full_node_test_client, 14, Some(Duration::from_secs(60))).await;
-    assert!(full_node_test_client.eth_block_number().await >= 14);
+    wait_for_l2_block(&full_node_test_client, 8, Some(Duration::from_secs(60))).await;
+    assert!(full_node_test_client.eth_block_number().await == 8);
 
     // Synced up to the latest commitment
-    wait_for_l2_block(&prover_node_test_client, 9, Some(Duration::from_secs(60))).await;
-    assert!(prover_node_test_client.eth_block_number().await >= 9);
+    wait_for_l2_block(&prover_node_test_client, 8, Some(Duration::from_secs(60))).await;
+    assert!(prover_node_test_client.eth_block_number().await == 8);
 
     seq_task.abort();
     prover_node_task.abort();
@@ -3239,7 +3212,7 @@ async fn test_full_node_sync_status() {
     let seq_test_client = init_test_rollup(seq_port).await;
     let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
 
-    for _ in 0..100 {
+    for _ in 0..300 {
         let _pending = seq_test_client
             .send_eth(addr, None, None, None, 0u128)
             .await
@@ -3247,7 +3220,7 @@ async fn test_full_node_sync_status() {
         seq_test_client.send_publish_batch_request().await;
     }
 
-    wait_for_l2_block(&seq_test_client, 100, Some(Duration::from_secs(60))).await;
+    wait_for_l2_block(&seq_test_client, 300, Some(Duration::from_secs(60))).await;
 
     let (full_node_port_tx, full_node_port_rx) = tokio::sync::oneshot::channel();
 
@@ -3273,27 +3246,215 @@ async fn test_full_node_sync_status() {
     let full_node_port = full_node_port_rx.await.unwrap();
     let full_node_test_client = make_test_client(full_node_port).await;
 
-    wait_for_l2_block(&full_node_test_client, 10, Some(Duration::from_secs(60))).await;
+    wait_for_l2_block(&full_node_test_client, 5, Some(Duration::from_secs(60))).await;
 
     let status = full_node_test_client.citrea_sync_status().await;
 
     match status {
         CitreaStatus::Syncing(syncing) => {
-            assert!(syncing.synced_block_number > 0 && syncing.synced_block_number < 100);
-            assert_eq!(syncing.head_block_number, 100);
+            assert!(syncing.synced_block_number > 0 && syncing.synced_block_number < 300);
+            assert_eq!(syncing.head_block_number, 300);
         }
         _ => panic!("Expected syncing status"),
     }
 
-    wait_for_l2_block(&full_node_test_client, 100, None).await;
+    wait_for_l2_block(&full_node_test_client, 300, Some(Duration::from_secs(60))).await;
 
     let status = full_node_test_client.citrea_sync_status().await;
 
     match status {
-        CitreaStatus::Synced(synced_up_to) => assert_eq!(synced_up_to, 100),
+        CitreaStatus::Synced(synced_up_to) => assert_eq!(synced_up_to, 300),
         _ => panic!("Expected synced status"),
     }
 
     seq_task.abort();
     full_node_task.abort();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_sequencer_commitment_threshold() {
+    citrea::initialize_logging(tracing::Level::DEBUG);
+
+    let storage_dir = tempdir_with_children(&["DA", "sequencer"]);
+    let da_db_dir = storage_dir.path().join("DA").to_path_buf();
+    let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
+
+    let psql_db_name = "test_sequencer_commitment_threshold".to_owned();
+
+    let db_test_client = PostgresConnector::new_test_client(psql_db_name.clone())
+        .await
+        .unwrap();
+
+    // Put a large number for commitment threshold
+    let min_soft_confirmations_per_commitment = 1_000_000;
+    let mut sequencer_config =
+        create_default_sequencer_config(min_soft_confirmations_per_commitment, Some(true), 10);
+
+    sequencer_config.db_config = Some(SharedBackupDbConfig::default().set_db_name(psql_db_name));
+    sequencer_config.mempool_conf = SequencerMempoolConfig {
+        max_account_slots: 1000,
+        ..Default::default()
+    };
+
+    let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
+
+    let da_db_dir_cloned = da_db_dir.clone();
+    let seq_task = tokio::spawn(async move {
+        start_rollup(
+            seq_port_tx,
+            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+            None,
+            NodeMode::SequencerNode,
+            sequencer_db_dir,
+            da_db_dir_cloned,
+            min_soft_confirmations_per_commitment,
+            true,
+            None,
+            Some(sequencer_config),
+            Some(true),
+            DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
+        )
+        .await;
+    });
+
+    let seq_port = seq_port_rx.await.unwrap();
+
+    let seq_test_client = init_test_rollup(seq_port).await;
+
+    seq_test_client.send_publish_batch_request().await;
+
+    for _ in 0..10 {
+        for _ in 0..100 {
+            let address = Address::random();
+            let _pending = seq_test_client
+                .send_eth(address, None, None, None, 1u128)
+                .await
+                .unwrap();
+        }
+        seq_test_client.send_publish_batch_request().await;
+    }
+
+    wait_for_l2_block(&seq_test_client, 11, Some(Duration::from_secs(60))).await;
+
+    // At block 725, the state diff should be large enough to trigger a commitment.
+    wait_for_postgres_commitment(&db_test_client, 1, Some(Duration::from_secs(60))).await;
+    let commitments = db_test_client.get_all_commitments().await.unwrap();
+    assert_eq!(commitments.len(), 1);
+
+    for _ in 0..10 {
+        for _ in 0..100 {
+            let address = Address::random();
+            let _pending = seq_test_client
+                .send_eth(address, None, None, None, 1u128)
+                .await
+                .unwrap();
+        }
+        seq_test_client.send_publish_batch_request().await;
+    }
+
+    wait_for_l2_block(&seq_test_client, 21, Some(Duration::from_secs(60))).await;
+
+    // At block 1450, the state diff should be large enough to trigger a commitment.
+    // But the 50 remaining blocks state diff should NOT trigger a third.
+    wait_for_postgres_commitment(&db_test_client, 2, Some(Duration::from_secs(60))).await;
+    let commitments = db_test_client.get_all_commitments().await.unwrap();
+    assert_eq!(commitments.len(), 2);
+
+    seq_task.abort();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_sequencer_fill_missing_da_blocks() -> Result<(), anyhow::Error> {
+    // citrea::initialize_logging(tracing::Level::INFO);
+
+    let storage_dir = tempdir_with_children(&["DA", "sequencer"]);
+    let da_db_dir = storage_dir.path().join("DA").to_path_buf();
+    let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
+
+    let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
+
+    let da_db_dir_cloned = da_db_dir.clone();
+    let seq_task = tokio::spawn(async {
+        start_rollup(
+            seq_port_tx,
+            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+            None,
+            NodeMode::SequencerNode,
+            sequencer_db_dir,
+            da_db_dir_cloned,
+            DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
+            true,
+            None,
+            Some(SequencerConfig {
+                private_key: TEST_PRIVATE_KEY.to_string(),
+                min_soft_confirmations_per_commitment: 1000,
+                test_mode: true,
+                deposit_mempool_fetch_limit: 10,
+                mempool_conf: Default::default(),
+                db_config: Default::default(),
+                da_update_interval_ms: 500,
+                block_production_interval_ms: 500,
+            }),
+            Some(true),
+            DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
+        )
+        .await;
+    });
+
+    let seq_port = seq_port_rx.await.unwrap();
+    let seq_test_client = init_test_rollup(seq_port).await;
+
+    seq_test_client.send_publish_batch_request().await;
+    wait_for_l2_block(&seq_test_client, 1, None).await;
+
+    let da_service = MockDaService::new(MockAddress::from([0; 32]), &da_db_dir);
+
+    let to_be_filled_da_block_count = 5;
+    let latest_da_block = 1 + to_be_filled_da_block_count;
+    // publish da blocks back to back
+    for _ in 0..to_be_filled_da_block_count {
+        da_service.publish_test_block().await.unwrap();
+    }
+    wait_for_l1_block(&da_service, latest_da_block, None).await;
+    sleep(Duration::from_secs(1)).await;
+
+    // publish a block which will start filling of all missing da blocks
+    seq_test_client.send_publish_batch_request().await;
+    wait_for_l2_block(&seq_test_client, 2, None).await;
+
+    let first_filler_l2_block = 2;
+    let last_filler_l2_block = first_filler_l2_block + to_be_filled_da_block_count - 1;
+    // wait for all corresponding da blocks to be filled by sequencer
+    wait_for_l2_block(&seq_test_client, last_filler_l2_block, None).await;
+
+    let mut next_da_block = 2;
+    // ensure that all the filled l2 blocks correspond to correct da blocks
+    for filler_l2_block in first_filler_l2_block..=last_filler_l2_block {
+        let soft_batch = seq_test_client
+            .ledger_get_soft_batch_by_number::<MockDaSpec>(filler_l2_block)
+            .await
+            .unwrap();
+        assert_eq!(soft_batch.da_slot_height, next_da_block);
+        next_da_block += 1;
+    }
+
+    // publish an extra l2 block
+    seq_test_client.send_publish_batch_request().await;
+    wait_for_l2_block(&seq_test_client, last_filler_l2_block + 1, None).await;
+    // ensure that the latest l2 block points to latest da block and has correct height
+    let head_soft_batch = seq_test_client
+        .ledger_get_head_soft_batch()
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(head_soft_batch.da_slot_height, latest_da_block);
+    let head_soft_batch_num = seq_test_client
+        .ledger_get_head_soft_batch_height()
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(head_soft_batch_num, last_filler_l2_block + 1);
+
+    seq_task.abort();
+    Ok(())
 }

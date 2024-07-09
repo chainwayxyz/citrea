@@ -432,9 +432,6 @@ where
                     data_to_commit.add_batch(receipt);
                 }
 
-                self.storage_manager
-                    .save_change_set_l2(l2_height, slot_result.change_set)?;
-
                 let batch_receipt = data_to_commit.batch_receipts()[0].clone();
 
                 let next_state_root = slot_result.state_root;
@@ -460,11 +457,15 @@ where
                     timestamp: soft_batch.timestamp,
                 };
 
-                self.ledger_db.commit_soft_batch(soft_batch_receipt, true)?;
+                self.storage_manager
+                    .save_change_set_l2(l2_height, slot_result.change_set)?;
+                self.storage_manager.finalize_l2(l2_height)?;
+
                 self.ledger_db.extend_l2_range_of_l1_slot(
                     SlotNumber(filtered_block.header().height()),
                     BatchNumber(l2_height),
                 )?;
+                self.ledger_db.commit_soft_batch(soft_batch_receipt, true)?;
 
                 self.state_root = next_state_root;
 
@@ -472,8 +473,6 @@ where
                     "New State Root after soft confirmation #{} is: {:?}",
                     l2_height, self.state_root
                 );
-
-                self.storage_manager.finalize_l2(l2_height)?;
 
                 l2_height += 1;
             }
@@ -807,18 +806,20 @@ where
         let l1_block_cache = self.l1_block_cache.clone();
         let mut pending_l1_blocks_: Vec<<Da as DaService>::FilteredBlock> =
             Vec::<Da::FilteredBlock>::new();
+        let pending_l1 = &mut pending_l1_blocks_;
         loop {
             select! {
                 _ = &mut l1_handle => {panic!("l1 sync handle exited unexpectedly");},
                 // _ = &mut l1_sync_worker => {},
                 _ = &mut l2_handle => {panic!("l2 sync handle exited unexpectedly");},
                 Some(l1_block) = l1_rx.recv() => {
-                    pending_l1_blocks_.push(l1_block);
+                    pending_l1.push(l1_block);
                  },
                 _ = sleep(Duration::from_secs(1)) => {
                     self.run_inner(
-                        pending_l1_blocks_.clone(),
-                        pending_l1_blocks.clone(), indexes_to_remove.clone(),
+                        pending_l1,
+                        // pending_l1_blocks.clone(),
+                        indexes_to_remove.clone(),
                         skip_submission_until_l1,
                         &pg_client, &prover_config,
                     ).await;
@@ -837,25 +838,25 @@ where
 
     async fn run_inner(
         &mut self,
-        pending_l1_blocks_: Vec<<Da as DaService>::FilteredBlock>,
-        pending_l1_blocks: Arc<Mutex<Vec<<Da as DaService>::FilteredBlock>>>,
+        pending_l1_blocks: &mut Vec<<Da as DaService>::FilteredBlock>,
+        // pending_l1_blocks: Arc<Mutex<Vec<<Da as DaService>::FilteredBlock>>>,
         indexes_to_remove: Arc<Mutex<Vec<usize>>>,
         skip_submission_until_l1: u64,
         pg_client: &Option<Result<PostgresConnector, DbPoolError>>,
         prover_config: &ProverConfig,
     ) {
-        println!("pending l1 blocks_: {:?}", pending_l1_blocks_);
-        for index in indexes_to_remove.lock().await.iter() {
-            pending_l1_blocks.lock().await.remove(*index);
-        }
-        indexes_to_remove.lock().await.clear();
+        // println!("pending l1 blocks_: {:?}", pending_l1_blocks_);
+        // for index in indexes_to_remove.lock().await.iter() {
+        //     pending_l1_blocks.lock().await.remove(*index);
+        // }
+        // indexes_to_remove.lock().await.clear();
 
-        if pending_l1_blocks.lock().await.is_empty() {
-            return;
-        }
-        println!("pending l1 blocks: {:?}", pending_l1_blocks.lock().await);
+        // if pending_l1_blocks.lock().await.is_empty() {
+        //     return;
+        // }
+        // println!("pending l1 blocks: {:?}", pending_l1_blocks.lock().await);
 
-        for (index, l1_block) in pending_l1_blocks.lock().await.iter().enumerate() {
+        for (index, l1_block) in pending_l1_blocks.clone().iter().enumerate() {
             // work on the first unprocessed l1 block
             let l1_height = l1_block.header().height();
 
@@ -919,9 +920,21 @@ where
                         )
                     });
 
-                // pending_l1_blocks.lock().await.remove(index);
-                indexes_to_remove.lock().await.push(index);
-                return;
+                let mut index_to_remove = 0;
+                for (index, l1_block_) in pending_l1_blocks.iter().enumerate() {
+                    if l1_block_.header().height() == l1_height {
+                        index_to_remove = index;
+                        break;
+                    }
+                }
+
+                pending_l1_blocks.remove(index_to_remove);
+                // indexes_to_remove.lock().await.push(index);
+                println!(
+                    "index: {:?} pushed to remove l1 with height {:?}",
+                    index, l1_height
+                );
+                continue;
             }
             info!(
                 "Processing {} sequencer commitments at height {}",
@@ -1217,8 +1230,16 @@ where
                 .set_prover_last_scanned_l1_height(SlotNumber(l1_height))
                 // Handle error
                 .unwrap();
-            // pending_l1_blocks.lock().await.remove(index);
-            indexes_to_remove.lock().await.push(index);
+            let mut index_to_remove = 0;
+            for (index, l1_block_) in pending_l1_blocks.iter().enumerate() {
+                if l1_block_.header().height() == l1_height {
+                    index_to_remove = index;
+                    break;
+                }
+            }
+
+            pending_l1_blocks.remove(index_to_remove);
+            // indexes_to_remove.lock().await.push(index);
             // *l1_height += 1;
         }
     }
@@ -1285,7 +1306,6 @@ async fn l1_sync<Da>(
         }
 
         sleep(Duration::from_secs(2)).await;
-        println!("\n\n\nOUT OF L1 SLEEP\n\n\n");
     }
 }
 

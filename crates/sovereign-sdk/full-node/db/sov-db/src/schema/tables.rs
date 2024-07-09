@@ -30,7 +30,7 @@ use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use jmt::storage::{NibblePath, Node, NodeKey};
 use jmt::Version;
 use sov_rollup_interface::da::SequencerCommitment;
-use sov_rollup_interface::stf::{Event, EventKey};
+use sov_rollup_interface::stf::{Event, EventKey, StateDiff};
 use sov_schema_db::schema::{KeyDecoder, KeyEncoder, ValueCodec};
 use sov_schema_db::{CodecError, SeekKeyEncoder};
 
@@ -58,8 +58,8 @@ pub const LEDGER_TABLES: &[&str] = &[
     L2RangeByL1Height::table_name(),
     L2Witness::table_name(),
     L2StateRoot::table_name(),
+    LastStateDiff::table_name(),
     LastSequencerCommitmentSent::table_name(),
-    LastSequencerCommitmentSentL2::table_name(),
     ProverLastScannedSlot::table_name(),
     BatchByHash::table_name(),
     BatchByNumber::table_name(),
@@ -223,6 +223,11 @@ macro_rules! define_table_with_seek_key_codec {
 }
 
 define_table_with_seek_key_codec!(
+    /// The State diff storage
+    (LastStateDiff) () => StateDiff
+);
+
+define_table_with_seek_key_codec!(
     /// The primary source for slot data
     (SlotByNumber) SlotNumber => StoredSlot
 );
@@ -264,12 +269,7 @@ define_table_with_default_codec!(
 
 define_table_with_seek_key_codec!(
     /// Sequencer uses this table to store the last commitment it sent
-    (LastSequencerCommitmentSent) () => SlotNumber
-);
-
-define_table_with_seek_key_codec!(
-    /// Sequencer uses this table to store the last commitment it sent
-    (LastSequencerCommitmentSentL2) () => BatchNumber
+    (LastSequencerCommitmentSent) () => BatchNumber
 );
 
 define_table_with_seek_key_codec!(

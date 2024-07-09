@@ -90,12 +90,9 @@ async fn sequencer_sends_commitments_to_da_layer() {
     test_client.send_publish_batch_request().await;
     wait_for_l2_block(&test_client, 4, None).await;
 
-    // Trigger a commitment
-    da_service.publish_test_block().await.unwrap();
+    // The previous L2 block triggers a commitment
+    // which will create new L1 block.
     wait_for_l1_block(&da_service, 3, None).await;
-    // The previous L1 block triggers a commitment
-    // which will create yet another L1 block.
-    wait_for_l1_block(&da_service, 4, None).await;
 
     let start_l2_block: u64 = 1;
     let end_l2_block: u64 = 4;
@@ -113,15 +110,10 @@ async fn sequencer_sends_commitments_to_da_layer() {
         test_client.send_publish_batch_request().await;
     }
     wait_for_l2_block(&test_client, 8, None).await;
-
-    da_service.publish_test_block().await.unwrap();
     wait_for_l1_block(&da_service, 4, None).await;
-    wait_for_l1_block(&da_service, 5, None).await;
-
-    wait_for_l2_block(&test_client, 9, None).await;
 
     let start_l2_block: u64 = end_l2_block + 1;
-    let end_l2_block: u64 = end_l2_block + 5; // can only be the block before the one comitment landed in
+    let end_l2_block: u64 = end_l2_block + 4; // can only be the block before the one comitment landed in
 
     check_sequencer_commitment(
         test_client.as_ref(),
@@ -331,18 +323,15 @@ async fn test_ledger_get_commitments_on_slot() {
     test_client.send_publish_batch_request().await;
     test_client.send_publish_batch_request().await;
     test_client.send_publish_batch_request().await;
-    da_service.publish_test_block().await.unwrap();
     wait_for_l1_block(&da_service, 3, None).await;
-    // Commit
-    wait_for_l1_block(&da_service, 4, None).await;
 
     // full node gets the commitment
     test_client.send_publish_batch_request().await;
 
-    wait_for_l2_block(&full_node_test_client, 6, None).await;
+    wait_for_l2_block(&full_node_test_client, 5, None).await;
 
     let commitments = full_node_test_client
-        .ledger_get_sequencer_commitments_on_slot_by_number(4)
+        .ledger_get_sequencer_commitments_on_slot_by_number(3)
         .await
         .unwrap()
         .unwrap();
@@ -351,12 +340,12 @@ async fn test_ledger_get_commitments_on_slot() {
     assert_eq!(commitments[0].l2_start_block_number, 1);
     assert_eq!(commitments[0].l2_end_block_number, 4);
 
-    assert_eq!(commitments[0].found_in_l1, 4);
+    assert_eq!(commitments[0].found_in_l1, 3);
 
-    let fourth_block_hash = da_service.get_block_at(4).await.unwrap().header.hash;
+    let third_block_hash = da_service.get_block_at(3).await.unwrap().header.hash;
 
     let commitments_hash = full_node_test_client
-        .ledger_get_sequencer_commitments_on_slot_by_hash(fourth_block_hash.0)
+        .ledger_get_sequencer_commitments_on_slot_by_hash(third_block_hash.0)
         .await
         .unwrap()
         .unwrap();
@@ -436,21 +425,19 @@ async fn test_ledger_get_commitments_on_slot_prover() {
     test_client.send_publish_batch_request().await;
     wait_for_l2_block(&test_client, 4, None).await;
 
-    da_service.publish_test_block().await.unwrap();
-    wait_for_l1_block(&da_service, 3, None).await;
     // Commitment
-    wait_for_l1_block(&da_service, 4, None).await;
+    wait_for_l1_block(&da_service, 3, None).await;
 
     // wait here until we see from prover's rpc that it finished proving
     wait_for_prover_l1_height(
         &prover_node_test_client,
-        5,
+        4,
         Some(Duration::from_secs(DEFAULT_PROOF_WAIT_DURATION)),
     )
     .await;
 
     let commitments = prover_node_test_client
-        .ledger_get_sequencer_commitments_on_slot_by_number(4)
+        .ledger_get_sequencer_commitments_on_slot_by_number(3)
         .await
         .unwrap()
         .unwrap();
@@ -459,12 +446,12 @@ async fn test_ledger_get_commitments_on_slot_prover() {
     assert_eq!(commitments[0].l2_start_block_number, 1);
     assert_eq!(commitments[0].l2_end_block_number, 4);
 
-    assert_eq!(commitments[0].found_in_l1, 4);
+    assert_eq!(commitments[0].found_in_l1, 3);
 
-    let fourth_block_hash = da_service.get_block_at(4).await.unwrap().header.hash;
+    let third_block_hash = da_service.get_block_at(3).await.unwrap().header.hash;
 
     let commitments_hash = prover_node_test_client
-        .ledger_get_sequencer_commitments_on_slot_by_hash(fourth_block_hash.0)
+        .ledger_get_sequencer_commitments_on_slot_by_hash(third_block_hash.0)
         .await
         .unwrap()
         .unwrap();

@@ -186,7 +186,7 @@ where
     ) -> Result<ProverStatus<StateRoot, Witness, Da::Spec>, anyhow::Error> {
         let mut prover_state = self.prover_state.write().unwrap();
         println!(
-            "\n\n\n\nget_prover_status_for_da_submission: {:?}\n\n\n",
+            "\nget_prover_status_for_da_submission: {:?}\n",
             block_header_hash.clone()
         );
         let status = prover_state.get_prover_status(block_header_hash.clone());
