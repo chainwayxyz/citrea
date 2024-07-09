@@ -259,7 +259,7 @@ macro_rules! jsonrpc_result {
 #[test]
 fn test_get_head() {
     let payload = jsonrpc_req!("ledger_getHead", []);
-    let expected = jsonrpc_result!({"number":1,"hash":"0xd1231a38586e68d0405dc55ae6775e219f29fff1f7e0c6410d0ac069201e550b","batch_range":{"start":1,"end":3}});
+    let expected = jsonrpc_result!({"number":1,"hash":"0xd1231a38586e68d0405dc55ae6775e219f29fff1f7e0c6410d0ac069201e550b","batchRange":{"start":1,"end":3}});
 
     regular_test_helper(payload, &expected);
 }
@@ -267,8 +267,8 @@ fn test_get_head() {
 #[test]
 fn test_get_transactions_offset_first_batch() {
     // Tests for different types of argument
-    let payload = jsonrpc_req!("ledger_getTransactions", [[{"batch_id": 1, "offset": 0}]]);
-    let expected = jsonrpc_result!([{"hash":"0x709b55bd3da0f5a838125bd0ee20c5bfdd7caba173912d4281cae816b79a201b","event_range":{"start":1,"end":1},"body":[116,120,49,32,98,111,100,121]}]);
+    let payload = jsonrpc_req!("ledger_getTransactions", [[{"batchId": 1, "offset": 0}]]);
+    let expected = jsonrpc_result!([{"hash":"0x709b55bd3da0f5a838125bd0ee20c5bfdd7caba173912d4281cae816b79a201b","eventRange":{"start":1,"end":1},"body":"0x74783120626f6479"}]);
     regular_test_helper(payload, &expected);
 
     // Tests for flattened args
@@ -278,26 +278,26 @@ fn test_get_transactions_offset_first_batch() {
     let payload = jsonrpc_req!("ledger_getTransactions", [[1]]);
     regular_test_helper(payload, &expected);
 
-    let payload = jsonrpc_req!("ledger_getTransactions", [[1], "Standard"]);
+    let payload = jsonrpc_req!("ledger_getTransactions", [[1], "standard"]);
     regular_test_helper(payload, &expected);
 
-    let payload = jsonrpc_req!("ledger_getTransactions", [[1], "Compact"]);
+    let payload = jsonrpc_req!("ledger_getTransactions", [[1], "compact"]);
     regular_test_helper(payload, &expected);
 
-    let payload = jsonrpc_req!("ledger_getTransactions", [[1], "Full"]);
+    let payload = jsonrpc_req!("ledger_getTransactions", [[1], "full"]);
     regular_test_helper(payload, &expected);
 
-    let payload = jsonrpc_req!("ledger_getTransactions", [[{ "batch_id": 1, "offset": 1}]]);
-    let expected = jsonrpc_result!([{"hash":"0x27ca64c092a959c7edc525ed45e845b1de6a7590d173fd2fad9133c8a779a1e3","event_range":{"start":1,"end":3},"body":[116,120,50,32,98,111,100,121],}]);
+    let payload = jsonrpc_req!("ledger_getTransactions", [[{ "batchId": 1, "offset": 1}]]);
+    let expected = jsonrpc_result!([{"hash":"0x27ca64c092a959c7edc525ed45e845b1de6a7590d173fd2fad9133c8a779a1e3","eventRange":{"start":1,"end":3},"body":"0x74783220626f6479"}]);
     regular_test_helper(payload, &expected);
 }
 
 #[test]
 fn test_get_batches() {
-    let payload = jsonrpc_req!("ledger_getBatches", [[2], "Standard"]);
+    let payload = jsonrpc_req!("ledger_getBatches", [[2], "standard"]);
     let expected = jsonrpc_result!([{
         "hash":"0xf85fe0cb36fdaeca571c896ed476b49bb3c8eff00d935293a8967e1e9a62071e",
-        "tx_range":{"start":3,"end":263},
+        "txRange":{"start":3,"end":263},
         "txs": batch2_tx_receipts().into_iter().map(|tx_receipt| hex::encode(tx_receipt.tx_hash) ).collect::<Vec<_>>(),
     }]);
 
@@ -309,15 +309,15 @@ fn test_get_batches() {
     let payload = jsonrpc_req!("ledger_getBatches", [2]);
     regular_test_helper(payload, &expected);
 
-    let payload = jsonrpc_req!("ledger_getBatches", [[1], "Compact"]);
-    let expected = jsonrpc_result!([{"hash":"0xb5515a80204963f7db40e98af11aedb49a394b1c7e3d8b5b7a33346b8627444f","tx_range":{"start":1,"end":3},}]);
+    let payload = jsonrpc_req!("ledger_getBatches", [[1], "compact"]);
+    let expected = jsonrpc_result!([{"hash":"0xb5515a80204963f7db40e98af11aedb49a394b1c7e3d8b5b7a33346b8627444f","txRange":{"start":1,"end":3},}]);
     regular_test_helper(payload, &expected);
 
-    let payload = jsonrpc_req!("ledger_getBatches", [[1], "Full"]);
-    let expected = jsonrpc_result!([{"hash":"0xb5515a80204963f7db40e98af11aedb49a394b1c7e3d8b5b7a33346b8627444f","tx_range":{"start":1,"end":3},"txs":[{"hash":"0x709b55bd3da0f5a838125bd0ee20c5bfdd7caba173912d4281cae816b79a201b","event_range":{"start":1,"end":1},"body":[116,120,49,32,98,111,100,121],},{"hash":"0x27ca64c092a959c7edc525ed45e845b1de6a7590d173fd2fad9133c8a779a1e3","event_range":{"start":1,"end":3},"body":[116,120,50,32,98,111,100,121],}],}]);
+    let payload = jsonrpc_req!("ledger_getBatches", [[1], "full"]);
+    let expected = jsonrpc_result!([{"hash":"0xb5515a80204963f7db40e98af11aedb49a394b1c7e3d8b5b7a33346b8627444f","txRange":{"start":1,"end":3},"txs":[{"hash":"0x709b55bd3da0f5a838125bd0ee20c5bfdd7caba173912d4281cae816b79a201b","eventRange":{"start":1,"end":1},"body":"0x74783120626f6479"},{"hash":"0x27ca64c092a959c7edc525ed45e845b1de6a7590d173fd2fad9133c8a779a1e3","eventRange":{"start":1,"end":3},"body":"0x74783220626f6479",}],}]);
     regular_test_helper(payload, &expected);
 
-    let payload = jsonrpc_req!("ledger_getBatches", [[0], "Compact"]);
+    let payload = jsonrpc_req!("ledger_getBatches", [[0], "compact"]);
     let expected = jsonrpc_result!([null]);
     regular_test_helper(payload, &expected);
 }
@@ -326,7 +326,7 @@ fn test_get_batches() {
 fn test_get_soft_batch() {
     // Get the first soft batch by number
     let payload = jsonrpc_req!("ledger_getSoftBatchByNumber", [1]);
-    let expected = jsonrpc_result!({"da_slot_height":0,"da_slot_hash":"0000000000000000000000000000000000000000000000000000000000000000","da_slot_txs_commitment":"0101010101010101010101010101010101010101010101010101010101010101","deposit_data": ["616161616162", "65656565656565656565"],"hash":"b5515a80204963f7db40e98af11aedb49a394b1c7e3d8b5b7a33346b8627444f","txs":["74783120626f6479", "74783220626f6479"],"pre_state_root":"","post_state_root":"","soft_confirmation_signature":"","pub_key":"", "l1_fee_rate":0, "timestamp": 0});
+    let expected = jsonrpc_result!({"daSlotHeight":0,"daSlotHash":"0000000000000000000000000000000000000000000000000000000000000000","daSlotTxsCommitment":"0101010101010101010101010101010101010101010101010101010101010101","depositData": ["616161616162", "65656565656565656565"],"hash":"b5515a80204963f7db40e98af11aedb49a394b1c7e3d8b5b7a33346b8627444f","txs":["74783120626f6479", "74783220626f6479"],"preStateRoot":"","postStateRoot":"","softConfirmationSignature":"","pubKey":"", "l1FeeRate":0, "timestamp": 0});
     regular_test_helper(payload, &expected);
 
     // Get the first soft batch by hash
@@ -343,7 +343,7 @@ fn test_get_soft_batch() {
         .map(|tx_receipt| tx_receipt.body_to_save.unwrap().encode_hex::<String>())
         .collect::<Vec<String>>();
     let expected = jsonrpc_result!(
-        {"da_slot_height":1,"da_slot_hash":"0202020202020202020202020202020202020202020202020202020202020202","da_slot_txs_commitment":"0303030303030303030303030303030303030303030303030303030303030303","deposit_data": ["633434343434"],"hash":"f85fe0cb36fdaeca571c896ed476b49bb3c8eff00d935293a8967e1e9a62071e","txs": txs, "pre_state_root":"","post_state_root":"","soft_confirmation_signature":"","pub_key":"","l1_fee_rate":0, "timestamp": 0}
+        {"daSlotHeight":1,"daSlotHash":"0202020202020202020202020202020202020202020202020202020202020202","daSlotTxsCommitment":"0303030303030303030303030303030303030303030303030303030303030303","depositData": ["633434343434"],"hash":"f85fe0cb36fdaeca571c896ed476b49bb3c8eff00d935293a8967e1e9a62071e","txs": txs, "preStateRoot":"","postStateRoot":"","softConfirmationSignature":"","pubKey":"","l1FeeRate":0, "timestamp": 0}
     );
     regular_test_helper(payload, &expected);
 
@@ -363,8 +363,8 @@ fn test_get_soft_batch() {
         .collect::<Vec<String>>();
     let expected = jsonrpc_result!(
         [
-            {"da_slot_height":0,"da_slot_hash":"0000000000000000000000000000000000000000000000000000000000000000","da_slot_txs_commitment":"0101010101010101010101010101010101010101010101010101010101010101","deposit_data": ["616161616162", "65656565656565656565"],"hash":"b5515a80204963f7db40e98af11aedb49a394b1c7e3d8b5b7a33346b8627444f","txs":["74783120626f6479", "74783220626f6479"],"pre_state_root":"","post_state_root":"","soft_confirmation_signature":"","pub_key":"","l1_fee_rate":0, "timestamp": 0},
-            {"da_slot_height":1,"da_slot_hash":"0202020202020202020202020202020202020202020202020202020202020202","da_slot_txs_commitment":"0303030303030303030303030303030303030303030303030303030303030303","deposit_data": ["633434343434"],"hash":"f85fe0cb36fdaeca571c896ed476b49bb3c8eff00d935293a8967e1e9a62071e","txs": txs, "pre_state_root":"","post_state_root":"","soft_confirmation_signature":"","pub_key":"","l1_fee_rate":0, "timestamp": 0}
+            {"daSlotHeight":0,"daSlotHash":"0000000000000000000000000000000000000000000000000000000000000000","daSlotTxsCommitment":"0101010101010101010101010101010101010101010101010101010101010101","depositData": ["616161616162", "65656565656565656565"],"hash":"b5515a80204963f7db40e98af11aedb49a394b1c7e3d8b5b7a33346b8627444f","txs":["74783120626f6479", "74783220626f6479"],"preStateRoot":"","postStateRoot":"","softConfirmationSignature":"","pubKey":"","l1FeeRate":0, "timestamp": 0},
+            {"daSlotHeight":1,"daSlotHash":"0202020202020202020202020202020202020202020202020202020202020202","daSlotTxsCommitment":"0303030303030303030303030303030303030303030303030303030303030303","depositData": ["633434343434"],"hash":"f85fe0cb36fdaeca571c896ed476b49bb3c8eff00d935293a8967e1e9a62071e","txs": txs, "preStateRoot":"","postStateRoot":"","softConfirmationSignature":"","pubKey":"","l1FeeRate":0, "timestamp": 0}
         ]
     );
     regular_test_helper(payload, &expected);
@@ -373,10 +373,10 @@ fn test_get_soft_batch() {
 #[test]
 fn test_get_soft_batch_status() {
     let payload = jsonrpc_req!("ledger_getSoftConfirmationStatus", [1]);
-    let expected = jsonrpc_result!("Trusted");
+    let expected = jsonrpc_result!("trusted");
     regular_test_helper(payload, &expected);
     let payload = jsonrpc_req!("ledger_getSoftConfirmationStatus", [1]);
-    let expected = jsonrpc_result!("Trusted");
+    let expected = jsonrpc_result!("trusted");
     regular_test_helper(payload, &expected);
 }
 
@@ -491,7 +491,7 @@ fn full_tx_json(
     match &tx.body_to_save {
         None => json!({
             "hash": format!("0x{tx_hash_hex}"),
-            "event_range": {
+            "eventRange": {
                 "start": event_range_begin,
                 "end": event_range_end
             },
@@ -499,7 +499,7 @@ fn full_tx_json(
         Some(body) => {
             json!({
                 "hash": format!("0x{tx_hash_hex}"),
-                "event_range": {
+                "eventRange": {
                     "start": event_range_begin,
                     "end": event_range_end
                 },
@@ -520,11 +520,11 @@ proptest!(
         let last_slot_start_batch = total_num_batches - last_slot_num_batches;
         let last_slot_end_batch = total_num_batches;
 
-        let payload = jsonrpc_req!("ledger_getHead", ["Compact"]);
+        let payload = jsonrpc_req!("ledger_getHead", ["compact"]);
         let expected = jsonrpc_result!({
             "number": slots.len(),
             "hash": format!("0x{}", hex::encode(last_slot.slot_data().hash())),
-            "batch_range": {
+            "batchRange": {
                 "start": last_slot_start_batch,
                 "end": last_slot_end_batch
             }
@@ -563,29 +563,29 @@ proptest!(
                 test_helper(
                     vec![TestExpect{
                         payload:
-                        jsonrpc_req!("ledger_getBatches", [[random_batch_num], "Compact"]),
+                        jsonrpc_req!("ledger_getBatches", [[random_batch_num], "compact"]),
                         expected:
-                        jsonrpc_result!([{"hash": format!("0x{batch_hash}"),"tx_range": {"start":first_tx_num,"end":last_tx_num}}])},
+                        jsonrpc_result!([{"hash": format!("0x{batch_hash}"),"txRange": {"start":first_tx_num,"end":last_tx_num}}])},
                     TestExpect{
                         payload:
-                        jsonrpc_req!("ledger_getBatches", [[random_batch_num], "Standard"]),
+                        jsonrpc_req!("ledger_getBatches", [[random_batch_num], "standard"]),
                         expected:
-                        jsonrpc_result!([{"hash":format!("0x{batch_hash}"),"tx_range":{"start":first_tx_num,"end":last_tx_num},"txs":tx_hashes}])},
+                        jsonrpc_result!([{"hash":format!("0x{batch_hash}"),"txRange":{"start":first_tx_num,"end":last_tx_num},"txs":tx_hashes}])},
                     TestExpect{
                         payload:
                         jsonrpc_req!("ledger_getBatches", [[random_batch_num]]),
                         expected:
-                        jsonrpc_result!([{"hash":format!("0x{batch_hash}"),"tx_range":{"start":first_tx_num,"end":last_tx_num},"txs":tx_hashes}])},
+                        jsonrpc_result!([{"hash":format!("0x{batch_hash}"),"txRange":{"start":first_tx_num,"end":last_tx_num},"txs":tx_hashes}])},
                     TestExpect{
                         payload:
                         jsonrpc_req!("ledger_getBatches", [random_batch_num]),
                         expected:
-                        jsonrpc_result!([{"hash":format!("0x{batch_hash}"),"tx_range":{"start":first_tx_num,"end":last_tx_num},"txs":tx_hashes}])},
+                        jsonrpc_result!([{"hash":format!("0x{batch_hash}"),"txRange":{"start":first_tx_num,"end":last_tx_num},"txs":tx_hashes}])},
                     TestExpect{
                         payload:
                         jsonrpc_req!("ledger_getBatches", [[random_batch_num], "Full"]),
                         expected:
-                        jsonrpc_result!([{"hash":format!("0x{batch_hash}"),"tx_range":{"start":first_tx_num,"end":last_tx_num},"txs":full_txs}])},
+                        jsonrpc_result!([{"hash":format!("0x{batch_hash}"),"txRange":{"start":first_tx_num,"end":last_tx_num},"txs":full_txs}])},
                     ],
                     slots, None);
                 return Ok(());
@@ -597,7 +597,7 @@ proptest!(
             }
         }
 
-        let payload = jsonrpc_req!("ledger_getBatches", [[random_batch_num], "Compact"]);
+        let payload = jsonrpc_req!("ledger_getBatches", [[random_batch_num], "compact"]);
         let expected = jsonrpc_result!([null]);
         test_helper(vec![TestExpect{payload, expected}], slots, None);
     }
@@ -632,17 +632,17 @@ proptest!(
                         jsonrpc_result!([tx_formatted])},
                         TestExpect{
                         payload:
-                        jsonrpc_req!("ledger_getTransactions", [[random_tx_num], "Compact"]),
+                        jsonrpc_req!("ledger_getTransactions", [[random_tx_num], "compact"]),
                         expected:
                         jsonrpc_result!([tx_formatted])},
                         TestExpect{
                         payload:
-                        jsonrpc_req!("ledger_getTransactions", [[random_tx_num], "Standard"]),
+                        jsonrpc_req!("ledger_getTransactions", [[random_tx_num], "standard"]),
                         expected:
                         jsonrpc_result!([tx_formatted])},
                         TestExpect{
                         payload:
-                        jsonrpc_req!("ledger_getTransactions", [[random_tx_num], "Full"]),
+                        jsonrpc_req!("ledger_getTransactions", [[random_tx_num], "full"]),
                         expected:
                         jsonrpc_result!([tx_formatted])},
                         ]
