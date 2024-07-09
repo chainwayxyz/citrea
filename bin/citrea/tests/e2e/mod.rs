@@ -1106,20 +1106,9 @@ async fn test_soft_confirmations_status_one_l1() -> Result<(), anyhow::Error> {
         assert_eq!(SoftConfirmationStatus::Trusted, status_node.unwrap());
     }
 
-    // publish new da block
-    //
-    // This will trigger the sequencer's DA monitor to see a newly published
-    // block and will therefore initiate a commitment submission to the MockDA.
-    // Therefore, creating yet another DA block.
-    da_service.publish_test_block().await.unwrap();
-
-    // The above L1 block has been created,
-    // we wait until the block is actually received by the DA monitor.
-    wait_for_l1_block(&da_service, 2, None).await;
-
-    // Wait for DA block #3 containing the commitment
+    // Wait for DA block #2 containing the commitment
     // submitted by sequencer.
-    wait_for_l1_block(&da_service, 3, None).await;
+    wait_for_l1_block(&da_service, 2, None).await;
 
     // now retrieve confirmation status from the sequencer and full node and check if they are the same
     for i in 1..=6 {
