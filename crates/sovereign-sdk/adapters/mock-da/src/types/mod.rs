@@ -68,7 +68,7 @@ impl std::hash::Hash for MockHash {
 impl BlockHashTrait for MockHash {}
 
 /// A mock block header used for testing.
-#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+#[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct MockBlockHeader {
     /// The hash of the previous block.
     pub prev_hash: MockHash,

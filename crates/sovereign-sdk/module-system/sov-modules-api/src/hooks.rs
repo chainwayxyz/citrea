@@ -189,7 +189,7 @@ impl HookSoftConfirmationInfo {
 
     /// Borsh serialized data
     pub fn full_data(&mut self) -> Vec<u8> {
-        self.try_to_vec().unwrap()
+        borsh::to_vec(self).unwrap()
     }
 
     pub fn deposit_data(&self) -> Vec<Vec<u8>> {

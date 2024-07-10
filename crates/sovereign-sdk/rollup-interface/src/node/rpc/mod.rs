@@ -1,6 +1,11 @@
 //! The rpc module defines types and traits for querying chain history
 //! via an RPC interface.
+
+extern crate alloc;
+
 use alloc::collections::BTreeMap;
+use alloc::string::String;
+use alloc::vec::Vec;
 use core::marker::PhantomData;
 
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -9,8 +14,6 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 use crate::da::SequencerCommitment;
-use crate::maybestd::string::String;
-use crate::maybestd::vec::Vec;
 #[cfg(feature = "native")]
 use crate::stf::Event;
 use crate::stf::EventKey;
@@ -18,6 +21,7 @@ use crate::zk::CumulativeStateDiff;
 
 /// A struct containing enough information to uniquely specify single batch.
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SlotIdAndOffset {
     /// The [`SlotIdentifier`] of the slot containing this batch.
     pub slot_id: SlotIdentifier,
@@ -28,6 +32,7 @@ pub struct SlotIdAndOffset {
 
 /// A struct containing enough information to uniquely specify single transaction.
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct BatchIdAndOffset {
     /// The [`BatchIdentifier`] of the batch containing this transaction.
     pub batch_id: BatchIdentifier,
@@ -38,6 +43,7 @@ pub struct BatchIdAndOffset {
 
 /// A struct containing enough information to uniquely specify single event.
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TxIdAndOffset {
     /// The [`TxIdentifier`] of the transaction containing this event.
     pub tx_id: TxIdentifier,
@@ -48,6 +54,7 @@ pub struct TxIdAndOffset {
 
 /// A struct containing enough information to uniquely specify single event.
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TxIdAndKey {
     /// The [`TxIdentifier`] of the transaction containing this event.
     pub tx_id: TxIdentifier,
@@ -57,7 +64,7 @@ pub struct TxIdAndKey {
 
 /// An identifier that specifies a single soft batch
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
-#[serde(untagged)]
+#[serde(untagged, rename_all = "camelCase")]
 pub enum SoftBatchIdentifier {
     /// The monotonically increasing number of the soft batch
     Number(u64),
@@ -67,7 +74,7 @@ pub enum SoftBatchIdentifier {
 
 /// An identifier that specifies a single batch
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
-#[serde(untagged)]
+#[serde(untagged, rename_all = "camelCase")]
 pub enum BatchIdentifier {
     /// The hex-encoded hash of the batch, as computed by the DA layer.
     Hash(#[serde(with = "utils::rpc_hex")] [u8; 32]),
@@ -81,7 +88,7 @@ pub enum BatchIdentifier {
 
 /// An identifier that specifies a single transaction.
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
-#[serde(untagged)]
+#[serde(untagged, rename_all = "camelCase")]
 pub enum TxIdentifier {
     /// The hex encoded hash of the transaction.
     Hash(#[serde(with = "utils::rpc_hex")] [u8; 32]),
@@ -95,7 +102,7 @@ pub enum TxIdentifier {
 
 /// An identifier that specifies a single event.
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
-#[serde(untagged)]
+#[serde(untagged, rename_all = "camelCase")]
 pub enum EventIdentifier {
     /// An offset into a particular transaction (i.e. the 3rd event in transaction number 5).
     TxIdAndOffset(TxIdAndOffset),
@@ -109,7 +116,7 @@ pub enum EventIdentifier {
 
 /// An identifier for a group of related events
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
-#[serde(untagged)]
+#[serde(untagged, rename_all = "camelCase")]
 pub enum EventGroupIdentifier {
     /// Fetch all events from a particular transaction.
     TxId(TxIdentifier),
@@ -119,7 +126,7 @@ pub enum EventGroupIdentifier {
 
 /// An identifier that specifies a single slot.
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
-#[serde(untagged)]
+#[serde(untagged, rename_all = "camelCase")]
 pub enum SlotIdentifier {
     /// The hex encoded hash of the slot (i.e. the da layer's block hash).
     Hash(#[serde(with = "utils::rpc_hex")] [u8; 32]),
@@ -130,6 +137,7 @@ pub enum SlotIdentifier {
 
 /// A QueryMode specifies how much information to return in response to an RPC query
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum QueryMode {
     /// Returns the parent struct but no details about its children.
     /// For example, a `Compact` "get_slots" response would simply state the range of batch
@@ -152,6 +160,7 @@ impl Default for QueryMode {
 
 /// The body of a response to a JSON-RPC request for a particular slot.
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SlotResponse<B, Tx> {
     /// The slot number.
     pub number: u64,
@@ -167,7 +176,7 @@ pub struct SlotResponse<B, Tx> {
 
 /// A type that represents a transaction hash bytes.
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-#[serde(transparent)]
+#[serde(transparent, rename_all = "camelCase")]
 pub struct HexTx {
     /// Transaction hash bytes
     #[serde(with = "hex::serde")]
@@ -182,6 +191,7 @@ impl From<Vec<u8>> for HexTx {
 
 /// The response to a JSON-RPC request for a particular soft batch.
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SoftBatchResponse {
     /// The DA height of the soft batch.
     pub da_slot_height: u64,
@@ -224,6 +234,7 @@ pub struct SoftBatchResponse {
 
 /// The response to a JSON-RPC request for sequencer commitments on a DA Slot.
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SequencerCommitmentResponse {
     /// L1 block hash the commitment was on
     pub found_in_l1: u64,
@@ -238,6 +249,7 @@ pub struct SequencerCommitmentResponse {
 
 /// The rpc response of proof by l1 slot height
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ProofResponse {
     /// l1 tx id of
     #[serde(with = "hex::serde")]
@@ -250,6 +262,7 @@ pub struct ProofResponse {
 
 /// The rpc response of proof by l1 slot height
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct VerifiedProofResponse {
     /// Proof
     pub proof: ProofRpcResponse,
@@ -259,6 +272,7 @@ pub struct VerifiedProofResponse {
 
 /// The ZK proof generated by the [`ZkvmHost::run`] method to be served by rpc.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum ProofRpcResponse {
     /// Only public input was generated.
     #[serde(with = "hex::serde")]
@@ -270,6 +284,7 @@ pub enum ProofRpcResponse {
 
 /// The state transition response of ledger proof data rpc
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct StateTransitionRpcResponse {
     /// The state of the rollup before the transition
     #[serde(with = "hex::serde")]
@@ -375,6 +390,7 @@ pub fn sequencer_commitment_to_response(
 
 /// The response to a JSON-RPC request for a particular batch.
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct BatchResponse<B, Tx> {
     /// The hex encoded batch hash.
     #[serde(with = "utils::rpc_hex")]
@@ -392,6 +408,7 @@ pub struct BatchResponse<B, Tx> {
 
 /// The response to a JSON-RPC request for a particular transaction.
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TxResponse<Tx> {
     /// The hex encoded transaction hash.
     #[serde(with = "utils::rpc_hex")]
@@ -400,7 +417,7 @@ pub struct TxResponse<Tx> {
     pub event_range: core::ops::Range<u64>,
     /// The transaction body, if stored by the rollup.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub body: Option<Vec<u8>>,
+    pub body: Option<HexTx>,
     /// The custom receipt specified by the rollup. This typically contains
     /// information about the outcome of the transaction.
     #[serde(skip_serializing)]
@@ -409,7 +426,7 @@ pub struct TxResponse<Tx> {
 
 /// An RPC response which might contain a full item or just its hash.
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
+#[serde(untagged, rename_all = "camelCase")]
 pub enum ItemOrHash<T> {
     /// The hex encoded hash of the requested item.
     Hash(#[serde(with = "hex::serde")] [u8; 32]),
@@ -419,6 +436,7 @@ pub enum ItemOrHash<T> {
 
 /// Statuses for soft confirmation
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum SoftConfirmationStatus {
     /// No confirmation yet, rely on the sequencer
     Trusted,
@@ -615,15 +633,16 @@ pub trait LedgerRpcProvider {
 pub mod utils {
     /// Serialization and deserialization logic for `0x`-prefixed hex strings.
     pub mod rpc_hex {
+        extern crate alloc;
+
+        use alloc::format;
+        use alloc::string::String;
         use core::fmt;
         use core::marker::PhantomData;
 
         use hex::{FromHex, ToHex};
         use serde::de::{Error, Visitor};
         use serde::{Deserializer, Serializer};
-
-        use crate::maybestd::format;
-        use crate::maybestd::string::String;
 
         /// Serializes `data` as hex string using lowercase characters and prefixing with '0x'.
         ///
@@ -688,9 +707,6 @@ pub mod utils {
 #[cfg(test)]
 mod rpc_hex_tests {
     use serde::{Deserialize, Serialize};
-
-    use crate::maybestd::vec;
-    use crate::maybestd::vec::Vec;
 
     #[derive(Serialize, Deserialize, PartialEq, Debug)]
     struct TestStruct {

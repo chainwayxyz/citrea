@@ -265,7 +265,7 @@ impl<R: DeserializeOwned> TryFrom<StoredTransaction> for TxResponse<R> {
         Ok(Self {
             hash: value.hash,
             event_range: value.events.start.into()..value.events.end.into(),
-            body: value.body,
+            body: value.body.map(HexTx::from),
             phantom_data: PhantomData,
         })
     }

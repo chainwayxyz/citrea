@@ -3,8 +3,8 @@
 use alloc::vec::Vec;
 use core::{fmt, mem};
 
+use hashbrown::HashMap;
 pub use kernel_state::{KernelWorkingSet, VersionedWorkingSet};
-use sov_rollup_interface::maybestd::collections::HashMap;
 use sov_rollup_interface::stf::Event;
 
 use crate::archival_state::{ArchivalAccessoryWorkingSet, ArchivalJmtWorkingSet};
@@ -188,7 +188,7 @@ impl<S: Storage> fmt::Debug for Delta<S> {
 
 impl<S: Storage> StateReaderAndWriter for Delta<S> {
     fn get(&mut self, key: &StorageKey) -> Option<StorageValue> {
-        self.cache.get_or_fetch(key, &self.inner, &self.witness)
+        self.cache.get_or_fetch(key, &self.inner, &mut self.witness)
     }
 
     fn set(&mut self, key: &StorageKey, value: StorageValue) {

@@ -7,7 +7,6 @@ use std::time::Duration;
 use std::vec;
 
 use anyhow::anyhow;
-use borsh::ser::BorshSerialize;
 use citrea_evm::{CallMessage, Evm, RlpEvmTransaction, MIN_TRANSACTION_GAS};
 use citrea_primitives::types::BatchHash;
 use citrea_stf::runtime::Runtime;
@@ -365,10 +364,7 @@ where
         );
 
         let timestamp = chrono::Local::now().timestamp() as u64;
-        let pub_key = self
-            .sov_tx_signer_priv_key
-            .pub_key()
-            .try_to_vec()
+        let pub_key = borsh::to_vec(&self.sov_tx_signer_priv_key.pub_key())
             .map_err(Into::<anyhow::Error>::into)?;
 
         let deposit_data = self
@@ -634,8 +630,7 @@ where
 
             debug!("Sequencer: submitting commitment: {:?}", commitment);
 
-            let blob = DaData::SequencerCommitment(commitment.clone())
-                .try_to_vec()
+            let blob = borsh::to_vec(&DaData::SequencerCommitment(commitment.clone()))
                 .map_err(|e| anyhow!(e))?;
             let (notify, rx) = oneshot_channel();
             let request = BlobWithNotifier { blob, notify };
@@ -948,9 +943,9 @@ where
         // TODO: figure out what to do with sov-tx fields
         // chain id gas tip and gas limit
 
-        Transaction::<C>::new_signed_tx(&self.sov_tx_signer_priv_key, raw_message, 0, nonce)
-            .try_to_vec()
-            .map_err(|e| anyhow!(e))
+        let transaction =
+            Transaction::<C>::new_signed_tx(&self.sov_tx_signer_priv_key, raw_message, 0, nonce);
+        borsh::to_vec(&transaction).map_err(|e| anyhow!(e))
     }
 
     /// Signs necessary info and returns a BlockTemplate
@@ -959,12 +954,12 @@ where
         soft_confirmation: UnsignedSoftConfirmationBatch,
         prev_soft_confirmation_hash: [u8; 32],
     ) -> anyhow::Result<SignedSoftConfirmationBatch> {
-        let raw = soft_confirmation.try_to_vec().map_err(|e| anyhow!(e))?;
+        let raw = borsh::to_vec(&soft_confirmation).map_err(|e| anyhow!(e))?;
 
         let hash = <C as sov_modules_api::Spec>::Hasher::digest(raw.as_slice()).into();
 
         let signature = self.sov_tx_signer_priv_key.sign(&raw);
-
+        let pub_key = self.sov_tx_signer_priv_key.pub_key();
         Ok(SignedSoftConfirmationBatch::new(
             hash,
             prev_soft_confirmation_hash,
@@ -974,11 +969,8 @@ where
             soft_confirmation.l1_fee_rate(),
             soft_confirmation.txs(),
             soft_confirmation.deposit_data(),
-            signature.try_to_vec().map_err(|e| anyhow!(e))?,
-            self.sov_tx_signer_priv_key
-                .pub_key()
-                .try_to_vec()
-                .map_err(|e| anyhow!(e))?,
+            borsh::to_vec(&signature).map_err(|e| anyhow!(e))?,
+            borsh::to_vec(&pub_key).map_err(|e| anyhow!(e))?,
             soft_confirmation.timestamp(),
         ))
     }

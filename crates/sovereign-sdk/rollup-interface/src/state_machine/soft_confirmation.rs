@@ -1,12 +1,13 @@
 //! Defines traits and types used by the rollup to verify claims about the
 //! soft confirmation
 
+extern crate alloc;
+
+use alloc::vec::Vec;
 use core::fmt::Debug;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
-
-use crate::maybestd::vec::Vec;
 
 /// Contains raw transactions and information about the soft confirmation block
 #[derive(Debug, PartialEq, Clone, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
@@ -167,7 +168,7 @@ impl SignedSoftConfirmationBatch {
 
     /// Borsh serialized data
     pub fn full_data(&mut self) -> Vec<u8> {
-        self.try_to_vec().unwrap()
+        borsh::to_vec(self).unwrap()
     }
 
     /// L1 fee rate
