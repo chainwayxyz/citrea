@@ -7,16 +7,14 @@ license = { workspace = true }
 publish = false
 
 [dependencies]
-
 # Sov SDK deps
-sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
 sov-db = { path = "../sovereign-sdk/full-node/db/sov-db", optional = true }
+sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
 sov-stf-runner = { path = "../sovereign-sdk/full-node/sov-stf-runner" }
 
-
 # 3rd-party deps
-lru = { workspace = true, optional = true }
 anyhow = { workspace = true }
+lru = { workspace = true, optional = true }
 
 [features]
 native = ["dep:lru", "sov-rollup-interface/native", "sov-db"]
