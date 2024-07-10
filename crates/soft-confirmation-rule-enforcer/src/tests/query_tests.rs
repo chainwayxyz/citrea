@@ -11,6 +11,7 @@ fn block_count_per_da_hash_must_be_correct() {
 
     let mut signed_soft_confirmation_batch = SignedSoftConfirmationBatch::new(
         [0; 32],
+        [0; 32],
         0,
         [0; 32],
         [0; 32],
@@ -73,6 +74,7 @@ fn get_max_l1_fee_rate_change_percentage_must_be_correct() {
 
     let signed_soft_confirmation_batch = SignedSoftConfirmationBatch::new(
         [0; 32],
+        [0; 32],
         0,
         [0; 32],
         [0; 32],
@@ -115,6 +117,7 @@ fn get_last_l1_fee_rate_must_be_correct() {
 
     let signed_soft_confirmation_batch = SignedSoftConfirmationBatch::new(
         [0; 32],
+        [0; 32],
         0,
         [0; 32],
         [0; 32],
@@ -156,6 +159,7 @@ fn get_last_timestamp_must_be_correct() {
 
     let timestamp = chrono::Local::now().timestamp() as u64;
     let signed_soft_confirmation_batch = SignedSoftConfirmationBatch::new(
+        [0; 32],
         [0; 32],
         0,
         [0; 32],

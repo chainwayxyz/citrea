@@ -152,6 +152,7 @@ impl From<HookSoftConfirmationInfo> for SignedSoftConfirmationBatch {
     fn from(val: HookSoftConfirmationInfo) -> Self {
         SignedSoftConfirmationBatch::new(
             [0u8; 32],
+            [0u8; 32],
             val.da_slot_height,
             val.da_slot_hash(),
             val.da_slot_txs_commitment(),

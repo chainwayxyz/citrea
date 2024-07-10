@@ -35,6 +35,7 @@ fn begin_soft_confirmation_hook_checks_max_l2_blocks_per_l1() {
 
     let signed_soft_confirmation_batch = SignedSoftConfirmationBatch::new(
         [0; 32],
+        [0; 32],
         0,
         [0; 32],
         [0; 32],
@@ -68,6 +69,7 @@ fn begin_soft_confirmation_hook_checks_l1_fee_rate() {
         get_soft_confirmation_rule_enforcer::<MockDaSpec>(&TEST_CONFIG);
 
     let mut signed_soft_confirmation_batch = SignedSoftConfirmationBatch::new(
+        [0; 32],
         [0; 32],
         0,
         [0; 32],
@@ -217,6 +219,7 @@ fn begin_soft_confirmation_hook_checks_timestamp() {
 
     let signed_soft_confirmation_batch = SignedSoftConfirmationBatch::new(
         [0; 32],
+        [0; 32],
         0,
         [0; 32],
         [0; 32],
@@ -240,6 +243,7 @@ fn begin_soft_confirmation_hook_checks_timestamp() {
     // now call with a timestamp before the original one.
     // should fail
     let signed_soft_confirmation_batch = SignedSoftConfirmationBatch::new(
+        [0; 32],
         [0; 32],
         0,
         [0; 32],
@@ -278,6 +282,7 @@ fn begin_soft_confirmation_hook_checks_timestamp() {
     // now call with a timestamp after the original one.
     // should fail
     let signed_soft_confirmation_batch = SignedSoftConfirmationBatch::new(
+        [0; 32],
         [0; 32],
         0,
         [0; 32],

@@ -91,7 +91,7 @@ where
 /// How [`StateTransitionRunner`] is initialized
 pub enum InitVariant<Stf: StateTransitionFunction<Vm, Da>, Vm: Zkvm, Da: DaSpec> {
     /// From give state root
-    Initialized(Stf::StateRoot),
+    Initialized((Stf::StateRoot, [u8; 32])),
     /// From empty state root
     /// Genesis params for Stf::init
     Genesis(GenesisParams<Stf, Vm, Da>),
@@ -131,10 +131,10 @@ where
         prover_config: Option<ProverConfig>,
         code_commitment: Vm::CodeCommitment,
     ) -> Result<Self, anyhow::Error> {
-        let prev_state_root = match init_variant {
-            InitVariant::Initialized(state_root) => {
+        let (prev_state_root, prev_batch_hash) = match init_variant {
+            InitVariant::Initialized((state_root, batch_hash)) => {
                 debug!("Chain is already initialized. Skipping initialization.");
-                state_root
+                (state_root, batch_hash)
             }
             InitVariant::Genesis(params) => {
                 info!("No history detected. Initializing chain...");
@@ -146,7 +146,7 @@ where
                     "Chain initialization is done. Genesis root: 0x{}",
                     hex::encode(genesis_root.as_ref()),
                 );
-                genesis_root
+                (genesis_root, [0; 32])
             }
         };
 

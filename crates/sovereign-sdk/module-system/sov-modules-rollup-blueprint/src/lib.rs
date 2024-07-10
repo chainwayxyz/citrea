@@ -154,6 +154,13 @@ pub trait RollupBlueprint: Sized + Send + Sync {
             .get_head_soft_batch()?
             .map(|(number, _)| prover_storage.get_root_hash(number.0 + 1))
             .transpose()?;
+        let head_soft_batch = ledger_db.get_head_soft_batch()?;
+        let prev_data = match head_soft_batch {
+            Some((number, soft_batch)) => {
+                Some((prover_storage.get_root_hash(number.0 + 1)?, soft_batch.hash))
+            }
+            None => None,
+        };
 
         let runner_config = rollup_config.runner.expect("Runner config is missing");
         // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1218)
@@ -168,10 +175,10 @@ pub trait RollupBlueprint: Sized + Send + Sync {
 
         let genesis_root = prover_storage.get_root_hash(1);
 
-        let init_variant = match prev_root {
-            Some(root_hash) => InitVariant::Initialized(root_hash),
+        let init_variant = match prev_data {
+            Some((root_hash, batch_hash)) => InitVariant::Initialized((root_hash, batch_hash)),
             None => match genesis_root {
-                Ok(root_hash) => InitVariant::Initialized(root_hash),
+                Ok(root_hash) => InitVariant::Initialized((root_hash, [0; 32])),
                 _ => InitVariant::Genesis(genesis_config),
             },
         };
