@@ -101,6 +101,7 @@ impl SequencerClient {
 }
 
 #[derive(Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct GetSoftBatchResponse {
     #[serde(with = "hex::serde")]
     pub hash: [u8; 32],

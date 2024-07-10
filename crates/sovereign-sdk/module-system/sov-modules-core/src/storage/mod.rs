@@ -6,8 +6,8 @@ use core::fmt;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
-use sov_rollup_interface::maybestd::RefCount;
 use sov_rollup_interface::stf::StateDiff;
+use sov_rollup_interface::RefCount;
 
 use crate::common::{AlignedVec, Prefix, Version, Witness};
 
@@ -214,7 +214,7 @@ pub trait Storage: Clone {
         &self,
         key: &StorageKey,
         version: Option<Version>,
-        witness: &Self::Witness,
+        witness: &mut Self::Witness,
     ) -> Option<StorageValue>;
 
     /// Returns the value corresponding to the key or None if key is absent.
@@ -232,7 +232,7 @@ pub trait Storage: Clone {
     fn compute_state_update(
         &self,
         state_accesses: OrderedReadsAndWrites,
-        witness: &Self::Witness,
+        witness: &mut Self::Witness,
     ) -> Result<
         (
             Self::Root,
@@ -249,7 +249,7 @@ pub trait Storage: Clone {
     fn validate_and_commit_with_accessory_update(
         &self,
         state_accesses: OrderedReadsAndWrites,
-        witness: &Self::Witness,
+        witness: &mut Self::Witness,
         accessory_update: &OrderedReadsAndWrites,
     ) -> Result<Self::Root, anyhow::Error> {
         let (root_hash, node_batch, _) = self.compute_state_update(state_accesses, witness)?;
@@ -265,7 +265,7 @@ pub trait Storage: Clone {
     fn validate_and_commit(
         &self,
         state_accesses: OrderedReadsAndWrites,
-        witness: &Self::Witness,
+        witness: &mut Self::Witness,
     ) -> Result<Self::Root, anyhow::Error> {
         Self::validate_and_commit_with_accessory_update(
             self,

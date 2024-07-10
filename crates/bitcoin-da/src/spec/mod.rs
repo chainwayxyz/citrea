@@ -1,4 +1,5 @@
-use bitcoin::Transaction;
+use borsh::{BorshDeserialize, BorshSerialize};
+use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::DaSpec;
 
 use self::address::AddressWrapper;
@@ -6,6 +7,7 @@ use self::blob::BlobWithSender;
 use self::block_hash::BlockHashWrapper;
 use self::header::HeaderWrapper;
 use self::proof::InclusionMultiProof;
+use self::transaction::TransactionWrapper;
 use crate::verifier::ChainValidityCondition;
 
 pub mod address;
@@ -19,7 +21,7 @@ pub mod proof;
 pub mod transaction;
 pub mod utxo;
 
-#[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, Eq, Clone)]
+#[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct BitcoinSpec;
 
 pub struct RollupParams {
@@ -40,7 +42,7 @@ impl DaSpec for BitcoinSpec {
 
     type InclusionMultiProof = InclusionMultiProof;
 
-    type CompletenessProof = Vec<Transaction>;
+    type CompletenessProof = Vec<TransactionWrapper>;
 
     type ValidityCondition = ChainValidityCondition;
 }

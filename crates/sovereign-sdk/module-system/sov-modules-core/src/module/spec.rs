@@ -19,7 +19,7 @@ use crate::storage::Storage;
 /// while a rollup running in an elliptic-curve based SNARK such as `Placeholder` from the =nil; foundation might
 /// prefer a Pedersen hash. By using a generic Context and Spec, a rollup developer can trivially customize their
 /// code for either (or both!) of these environments without touching their module implementations.
-pub trait Spec {
+pub trait Spec: BorshDeserialize + BorshSerialize {
     /// The Address type used on the rollup. Typically calculated as the hash of a public key.
     #[cfg(all(feature = "native", feature = "std"))]
     type Address: RollupAddress

@@ -110,9 +110,9 @@ fn setup_storage(
             ordered_writes,
         };
 
-        let witness = ArrayWitness::default();
+        let mut witness = ArrayWitness::default();
         let (_, state_update, _) = storage
-            .compute_state_update(state_operations, &witness)
+            .compute_state_update(state_operations, &mut witness)
             .unwrap();
         storage.commit(&state_update, &OrderedReadsAndWrites::default());
 
@@ -172,8 +172,8 @@ fn bench_random_read(
         |b, i| {
             b.iter(|| {
                 let (storage, random_key) = i;
-                let witness = ArrayWitness::default();
-                let result = black_box(storage.get(random_key, None, &witness));
+                let mut witness = ArrayWitness::default();
+                let result = black_box(storage.get(random_key, None, &mut witness));
                 assert!(result.is_some());
                 black_box(result);
             })
@@ -216,8 +216,8 @@ fn bench_not_found_read(
         |b, i| {
             b.iter(|| {
                 let (storage, random_key) = i;
-                let witness = ArrayWitness::default();
-                let result = black_box(storage.get(random_key, None, &witness));
+                let mut witness = ArrayWitness::default();
+                let result = black_box(storage.get(random_key, None, &mut witness));
                 assert!(result.is_none());
                 black_box(result);
             })

@@ -2,7 +2,7 @@ mod prover;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use borsh::BorshSerialize as _;
+use borsh::{BorshDeserialize, BorshSerialize};
 use prover::Prover;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -35,8 +35,17 @@ where
 
 impl<StateRoot, Witness, Da, Vm, V> ParallelProverService<StateRoot, Witness, Da, Vm, V>
 where
-    StateRoot: Serialize + DeserializeOwned + Clone + AsRef<[u8]> + Send + Sync + 'static,
-    Witness: Serialize + DeserializeOwned + Send + Sync + 'static,
+    StateRoot: BorshSerialize
+        + BorshDeserialize
+        + Serialize
+        + DeserializeOwned
+        + Clone
+        + AsRef<[u8]>
+        + Send
+        + Sync
+        + 'static,
+    Witness:
+        BorshSerialize + BorshDeserialize + Serialize + DeserializeOwned + Send + Sync + 'static,
     Da: DaService,
     Vm: ZkvmHost,
     V: StateTransitionFunction<Vm::Guest, Da::Spec> + Send + Sync,
@@ -113,8 +122,17 @@ where
 impl<StateRoot, Witness, Da, Vm, V> ProverService<Vm>
     for ParallelProverService<StateRoot, Witness, Da, Vm, V>
 where
-    StateRoot: Serialize + DeserializeOwned + Clone + AsRef<[u8]> + Send + Sync + 'static,
-    Witness: Serialize + DeserializeOwned + Send + Sync + 'static,
+    StateRoot: BorshSerialize
+        + BorshDeserialize
+        + Serialize
+        + DeserializeOwned
+        + Clone
+        + AsRef<[u8]>
+        + Send
+        + Sync
+        + 'static,
+    Witness:
+        BorshSerialize + BorshDeserialize + Serialize + DeserializeOwned + Send + Sync + 'static,
     Da: DaService,
     Vm: ZkvmHost + 'static,
     V: StateTransitionFunction<Vm::Guest, Da::Spec> + Send + Sync + 'static,
@@ -170,7 +188,9 @@ where
 
                     let tx_id = da_service
                         .send_transaction(
-                            da_data.try_to_vec().expect("Should serialize").as_slice(),
+                            borsh::to_vec(&da_data)
+                                .expect("Should serialize")
+                                .as_slice(),
                         )
                         .await
                         .map_err(|e| anyhow::anyhow!(e))?;

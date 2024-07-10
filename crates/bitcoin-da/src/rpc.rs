@@ -14,7 +14,7 @@ use tracing::{instrument, warn};
 use crate::helpers::parsers::parse_hex_transaction;
 use crate::spec::block::BitcoinBlock;
 use crate::spec::header::HeaderWrapper;
-use crate::spec::transaction::Transaction;
+use crate::spec::transaction::TransactionWrapper;
 use crate::spec::utxo::UTXO;
 
 // RPCError is a struct that represents an error returned by the Bitcoin RPC
@@ -145,7 +145,7 @@ impl BitcoinNode {
         self.call::<String>("getbestblockhash", vec![]).await
     }
 
-    fn calculate_witness_root(txdata: &[Transaction]) -> Option<WitnessMerkleNode> {
+    fn calculate_witness_root(txdata: &[TransactionWrapper]) -> Option<WitnessMerkleNode> {
         let hashes = txdata.iter().enumerate().map(|(i, t)| {
             if i == 0 {
                 // Replace the first hash with zeroes.
@@ -161,16 +161,7 @@ impl BitcoinNode {
     pub async fn get_block_header(&self, hash: String) -> Result<HeaderWrapper, anyhow::Error> {
         // The full block is requested here because txs_commitment is the witness root
         let full_block = self.get_block(hash).await?;
-        let witness_root = Self::calculate_witness_root(&full_block.txdata).unwrap();
-
-        let header_wrapper: HeaderWrapper = HeaderWrapper::new(
-            *full_block.header.header(),
-            full_block.txdata.len() as u32,
-            full_block.header.height,
-            witness_root,
-        );
-
-        Ok(header_wrapper)
+        Ok(full_block.header)
     }
 
     // get_block returns the block at the given hash
@@ -196,13 +187,14 @@ impl BitcoinNode {
 
         let txdata = full_block["tx"].as_array().unwrap();
 
-        let txs: Vec<Transaction> = txdata
+        let txs: Vec<TransactionWrapper> = txdata
             .iter()
             .map(|tx| {
                 let tx_hex = tx["hex"].as_str().unwrap();
 
                 parse_hex_transaction(tx_hex).unwrap() // hex from rpc cannot be invalid
             })
+            .map(Into::into)
             .collect();
 
         let witness_root =

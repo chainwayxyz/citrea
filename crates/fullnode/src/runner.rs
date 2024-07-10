@@ -256,7 +256,7 @@ where
             da_slot_hash: state_transition.da_slot_hash.clone().into(),
             sequencer_public_key: state_transition.sequencer_public_key,
             sequencer_da_public_key: state_transition.sequencer_da_public_key,
-            validity_condition: state_transition.validity_condition.try_to_vec().unwrap(),
+            validity_condition: borsh::to_vec(&state_transition.validity_condition).unwrap(),
         };
 
         let l1_hash = state_transition.da_slot_hash.into();

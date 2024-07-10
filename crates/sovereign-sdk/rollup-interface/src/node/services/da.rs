@@ -10,8 +10,6 @@ use tokio::sync::oneshot::Sender as OneshotSender;
 use crate::da::BlockHeaderTrait;
 #[cfg(feature = "native")]
 use crate::da::{DaSpec, DaVerifier};
-#[cfg(feature = "native")]
-use crate::maybestd::vec::Vec;
 use crate::zk::ValidityCondition;
 
 /// This type represents a queued request to send_transaction

@@ -4,6 +4,7 @@ use std::ops::Deref;
 use std::sync::{Arc, RwLock};
 
 use anyhow::anyhow;
+use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
@@ -84,8 +85,17 @@ pub(crate) struct Prover<StateRoot, Witness, Da: DaService> {
 impl<StateRoot, Witness, Da> Prover<StateRoot, Witness, Da>
 where
     Da: DaService,
-    StateRoot: Serialize + DeserializeOwned + Clone + AsRef<[u8]> + Send + Sync + 'static,
-    Witness: Serialize + DeserializeOwned + Send + Sync + 'static,
+    StateRoot: BorshSerialize
+        + BorshDeserialize
+        + Serialize
+        + DeserializeOwned
+        + Clone
+        + AsRef<[u8]>
+        + Send
+        + Sync
+        + 'static,
+    Witness:
+        BorshSerialize + BorshDeserialize + Serialize + DeserializeOwned + Send + Sync + 'static,
 {
     pub(crate) fn new(num_threads: usize) -> anyhow::Result<Self> {
         Ok(Self {

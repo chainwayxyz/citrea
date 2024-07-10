@@ -661,7 +661,7 @@ where
                     da_slot_hash: transition_data.da_slot_hash.into(),
                     sequencer_public_key: transition_data.sequencer_public_key,
                     sequencer_da_public_key: transition_data.sequencer_da_public_key,
-                    validity_condition: transition_data.validity_condition.try_to_vec().unwrap(),
+                    validity_condition: borsh::to_vec(&transition_data.validity_condition).unwrap(),
                 };
 
                 match pg_client.as_ref() {
