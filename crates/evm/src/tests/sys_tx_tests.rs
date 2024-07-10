@@ -473,8 +473,11 @@ fn test_bridge() {
 #[test]
 fn test_upgrade_light_client() {
     // initialize_logging(tracing::Level::INFO);
-    let (mut config, _, _) =
-        get_evm_config_starting_base_fee(U256::from_str("1000000000000000000000").unwrap(), None, 1);
+    let (mut config, _, _) = get_evm_config_starting_base_fee(
+        U256::from_str("1000000000000000000000").unwrap(),
+        None,
+        1,
+    );
 
     config_push_contracts(&mut config);
 
@@ -488,11 +491,14 @@ fn test_upgrade_light_client() {
     ));
 
     // secret key is 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
-    let contract_owner = TestSigner::new(secp256k1::SecretKey::from_slice(&[
-        0xac, 0x09, 0x74, 0xbe, 0xc3, 0x9a, 0x17, 0xe3, 0x6b, 0xa4, 0xa6, 0xb4, 0xd2, 0x38,
-        0xff, 0x94, 0x4b, 0xac, 0xb4, 0x78, 0xcb, 0xed, 0x5e, 0xfc, 0xae, 0x78, 0x4d, 0x7b,
-        0xf4, 0xf2, 0xff, 0x80,
-    ]).unwrap());
+    let contract_owner = TestSigner::new(
+        secp256k1::SecretKey::from_slice(&[
+            0xac, 0x09, 0x74, 0xbe, 0xc3, 0x9a, 0x17, 0xe3, 0x6b, 0xa4, 0xa6, 0xb4, 0xd2, 0x38,
+            0xff, 0x94, 0x4b, 0xac, 0xb4, 0x78, 0xcb, 0xed, 0x5e, 0xfc, 0xae, 0x78, 0x4d, 0x7b,
+            0xf4, 0xf2, 0xff, 0x80,
+        ])
+        .unwrap(),
+    );
 
     config.data.push(AccountData {
         address: contract_owner.address(),
@@ -523,14 +529,26 @@ fn test_upgrade_light_client() {
         &mut working_set,
     );
 
-    let upgrade_tx = contract_owner.sign_default_transaction(TxKind::Call(ProxyAdmin::address()), ProxyAdmin::upgrade(BitcoinLightClient::address(), address!("deAD00000000000000000000000000000000dEAd")).to_vec(), 0, 0).unwrap();
+    let upgrade_tx = contract_owner
+        .sign_default_transaction(
+            TxKind::Call(ProxyAdmin::address()),
+            ProxyAdmin::upgrade(
+                BitcoinLightClient::address(),
+                address!("deAD00000000000000000000000000000000dEAd"),
+            )
+            .to_vec(),
+            0,
+            0,
+        )
+        .unwrap();
     evm.call(
         CallMessage {
             txs: vec![upgrade_tx],
         },
         &context,
         &mut working_set,
-    ).unwrap();
+    )
+    .unwrap();
 
     evm.end_soft_confirmation_hook(&mut working_set);
     evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
@@ -550,8 +568,14 @@ fn test_upgrade_light_client() {
         .unwrap();
 
     // Assert if hash is equal to 0xdeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead
-    assert_eq!(hash, reth_primitives::Bytes::from_str("0xdeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead").unwrap());
-    }
+    assert_eq!(
+        hash,
+        reth_primitives::Bytes::from_str(
+            "0xdeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead"
+        )
+        .unwrap()
+    );
+}
 
 fn config_push_contracts(config: &mut EvmConfig) {
     config.data.push(AccountData::new(

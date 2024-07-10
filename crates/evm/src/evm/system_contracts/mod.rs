@@ -43,12 +43,12 @@ impl BitcoinLightClient {
         .abi_encode()
         .into()
     }
-    
+
     /// Return input data to get the system caller
     pub fn get_system_caller() -> Bytes {
         BitcoinLightClientContract::SYSTEM_CALLERCall {}
-        .abi_encode()
-        .into()
+            .abi_encode()
+            .into()
     }
 
     #[cfg(test)]

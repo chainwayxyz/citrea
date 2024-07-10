@@ -4,12 +4,10 @@ use std::str::FromStr;
 use alloy::signers::wallet::LocalWallet;
 use alloy::signers::Signer;
 // use citrea::initialize_logging;
-use citrea_evm::smart_contracts::{
-    LogsContract, SimpleStorageContract, TestContract,
-};
+use citrea_evm::smart_contracts::{LogsContract, SimpleStorageContract, TestContract};
 use citrea_evm::system_contracts::BitcoinLightClient;
 use citrea_stf::genesis_config::GenesisPaths;
-use reth_primitives::{Address, hex, BlockId, BlockNumberOrTag, Bytes, U256};
+use reth_primitives::{hex, Address, BlockId, BlockNumberOrTag, Bytes, U256};
 use sov_rollup_interface::CITREA_VERSION;
 
 // use sov_demo_rollup::initialize_logging;
@@ -212,10 +210,21 @@ async fn test_genesis_contract_call() -> Result<(), Box<dyn std::error::Error>> 
     assert_eq!(res, expected_res);
 
     let storage_value = seq_test_client
-        .eth_get_storage_at(contract_address, U256::from_be_slice(&hex!("360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc")), None)
+        .eth_get_storage_at(
+            contract_address,
+            U256::from_be_slice(&hex!(
+                "360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc"
+            )),
+            None,
+        )
         .await
         .unwrap();
-    assert_eq!(storage_value, U256::from_be_slice(&hex!("0000000000000000000000003200000000000000000000000000000000000001")));
+    assert_eq!(
+        storage_value,
+        U256::from_be_slice(&hex!(
+            "0000000000000000000000003200000000000000000000000000000000000001"
+        ))
+    );
 
     seq_task.abort();
     Ok(())
