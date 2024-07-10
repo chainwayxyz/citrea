@@ -504,8 +504,7 @@ where
                 }
 
                 let soft_batch_receipt = SoftBatchReceipt::<_, _, Da::Spec> {
-                    pre_state_root: self.state_root.as_ref().to_vec(),
-                    post_state_root: next_state_root.as_ref().to_vec(),
+                    state_root: next_state_root.as_ref().to_vec(),
                     phantom_data: PhantomData::<u64>,
                     batch_hash: batch_receipt.batch_hash,
                     da_slot_hash: filtered_block.header().hash(),
@@ -1040,8 +1039,7 @@ where
                 let batch_receipt = data_to_commit.batch_receipts()[0].clone();
 
                 let soft_batch_receipt = SoftBatchReceipt::<_, _, Da::Spec> {
-                    pre_state_root: self.state_root.as_ref().to_vec(),
-                    post_state_root: next_state_root.as_ref().to_vec(),
+                    state_root: next_state_root.as_ref().to_vec(),
                     phantom_data: PhantomData::<u64>,
                     batch_hash: soft_batch.hash,
                     da_slot_hash: cur_l1_block.header().hash(),

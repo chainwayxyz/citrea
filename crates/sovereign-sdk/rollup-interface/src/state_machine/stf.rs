@@ -95,10 +95,8 @@ pub struct SoftBatchReceipt<BatchReceiptContents, TxReceiptContents, DS: DaSpec>
     pub tx_receipts: Vec<TransactionReceipt<TxReceiptContents>>,
     /// Any additional structured data to be saved in the database and served over RPC
     pub phantom_data: PhantomData<BatchReceiptContents>,
-    /// Pre state root
-    pub pre_state_root: Vec<u8>,
-    /// Post state root
-    pub post_state_root: Vec<u8>,
+    /// state root
+    pub state_root: Vec<u8>,
     /// Soft confirmation signature computed from borsh serialization of da_slot_height, da_slot_hash, pre_state_root, txs
     pub soft_confirmation_signature: Vec<u8>,
     /// Sequencer public key

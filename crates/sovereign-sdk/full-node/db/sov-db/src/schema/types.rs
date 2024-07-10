@@ -175,10 +175,8 @@ pub struct StoredSoftBatch {
     pub txs: Vec<StoredTransaction>,
     /// Deposit data coming from the L1 chain
     pub deposit_data: Vec<Vec<u8>>,
-    /// Pre state root
-    pub pre_state_root: Vec<u8>,
-    /// Post state root
-    pub post_state_root: Vec<u8>,
+    /// State root
+    pub state_root: Vec<u8>,
     /// Sequencer signature
     pub soft_confirmation_signature: Vec<u8>,
     /// Sequencer public key
@@ -209,8 +207,7 @@ impl TryFrom<StoredSoftBatch> for SoftBatchResponse {
                     .filter_map(|tx| tx.body.map(Into::into))
                     .collect(),
             ), // Rollup full nodes don't store tx bodies
-            pre_state_root: value.pre_state_root,
-            post_state_root: value.post_state_root,
+            state_root: value.state_root,
             soft_confirmation_signature: value.soft_confirmation_signature,
             pub_key: value.pub_key,
             deposit_data: value

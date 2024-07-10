@@ -434,8 +434,7 @@ where
                 }
 
                 let soft_batch_receipt = SoftBatchReceipt::<_, _, Da::Spec> {
-                    pre_state_root: self.state_root.as_ref().to_vec(),
-                    post_state_root: next_state_root.as_ref().to_vec(),
+                    state_root: next_state_root.as_ref().to_vec(),
                     phantom_data: PhantomData::<u64>,
                     batch_hash: signed_soft_confirmation.hash(),
                     da_slot_hash: filtered_block.header().hash(),
