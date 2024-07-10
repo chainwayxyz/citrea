@@ -1,9 +1,9 @@
 use core::ops::Deref;
-use std::ops::DerefMut;
+use core::ops::DerefMut;
 
 use bitcoin::absolute::{LockTime, Time};
 use bitcoin::consensus::{Decodable, Encodable};
-use bitcoin::Transaction as BitTransaction;
+use bitcoin::Transaction as BitcoinTransaction;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 
@@ -12,12 +12,12 @@ use serde::{Deserialize, Serialize};
 #[repr(transparent)]
 #[serde(transparent)]
 pub struct TransactionWrapper {
-    tx: BitTransaction,
+    tx: BitcoinTransaction,
 }
 
 impl TransactionWrapper {
     pub fn empty() -> Self {
-        let tx = BitTransaction {
+        let tx = BitcoinTransaction {
             version: bitcoin::transaction::Version(0),
             lock_time: LockTime::Seconds(Time::MIN),
             input: vec![],
@@ -46,7 +46,7 @@ impl BorshDeserialize for TransactionWrapper {
 }
 
 impl Deref for TransactionWrapper {
-    type Target = BitTransaction;
+    type Target = BitcoinTransaction;
     fn deref(&self) -> &Self::Target {
         &self.tx
     }
@@ -58,8 +58,8 @@ impl DerefMut for TransactionWrapper {
     }
 }
 
-impl From<BitTransaction> for TransactionWrapper {
-    fn from(value: BitTransaction) -> Self {
-        Self { tx: value }
+impl From<BitcoinTransaction> for TransactionWrapper {
+    fn from(tx: BitcoinTransaction) -> Self {
+        Self { tx }
     }
 }
