@@ -5,7 +5,7 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_rollup_interface::da::{DaSpec, SequencerCommitment};
 use sov_rollup_interface::services::da::SlotData;
-use sov_rollup_interface::stf::{BatchReceipt, Event, SoftBatchReceipt};
+use sov_rollup_interface::stf::{BatchReceipt, Event, SoftBatchReceipt, StateDiff};
 use sov_rollup_interface::zk::Proof;
 use sov_schema_db::{Schema, SchemaBatch, SeekKeyEncoder, DB};
 use tracing::instrument;
@@ -13,7 +13,7 @@ use tracing::instrument;
 use crate::rocks_db_config::gen_rocksdb_options;
 use crate::schema::tables::{
     BatchByHash, BatchByNumber, CommitmentsByNumber, EventByKey, EventByNumber, L2RangeByL1Height,
-    L2Witness, LastSequencerCommitmentSent, LastSequencerCommitmentSentL2, ProofBySlotNumber,
+    L2Witness, LastSequencerCommitmentSent, LastStateDiff, ProofBySlotNumber,
     ProverLastScannedSlot, SlotByHash, SlotByNumber, SoftBatchByHash, SoftBatchByNumber,
     SoftConfirmationStatus, TxByHash, TxByNumber, VerifiedProofsBySlotNumber, LEDGER_TABLES,
 };
@@ -462,23 +462,7 @@ impl LedgerDB {
         let mut schema_batch = SchemaBatch::new();
 
         schema_batch
-            .put::<LastSequencerCommitmentSentL2>(&(), &l2_height)
-            .unwrap();
-        self.db.write_schemas(schema_batch)?;
-
-        Ok(())
-    }
-
-    /// Used by the sequencer to record that it has committed to soft confirmations on a given L2 height
-    #[instrument(level = "trace", skip(self), err, ret)]
-    pub fn set_last_sequencer_commitment_l1_height(
-        &self,
-        l1_height: SlotNumber,
-    ) -> Result<(), anyhow::Error> {
-        let mut schema_batch = SchemaBatch::new();
-
-        schema_batch
-            .put::<LastSequencerCommitmentSent>(&(), &l1_height)
+            .put::<LastSequencerCommitmentSent>(&(), &l2_height)
             .unwrap();
         self.db.write_schemas(schema_batch)?;
 
@@ -543,19 +527,10 @@ impl LedgerDB {
     }
 
     /// Get the most recent committed batch
-    /// Returns L1 height, which means the corresponding L2 heights
-    /// were committed.
-    /// Called by the sequencer.
-    #[instrument(level = "trace", skip(self), err, ret)]
-    pub fn get_last_sequencer_commitment_l1_height(&self) -> anyhow::Result<Option<SlotNumber>> {
-        self.db.get::<LastSequencerCommitmentSent>(&())
-    }
-
-    /// Get the most recent committed batch
     /// Returns L2 height.
     #[instrument(level = "trace", skip(self), err, ret)]
     pub fn get_last_sequencer_commitment_l2_height(&self) -> anyhow::Result<Option<BatchNumber>> {
-        self.db.get::<LastSequencerCommitmentSentL2>(&())
+        self.db.get::<LastSequencerCommitmentSent>(&())
     }
 
     /// Get L2 height range for a given L1 height.
@@ -713,5 +688,24 @@ impl LedgerDB {
     #[instrument(level = "trace", skip(self), err, ret)]
     pub fn get_l1_height_of_l1_hash(&self, hash: [u8; 32]) -> Result<Option<u64>, anyhow::Error> {
         self.db.get::<SlotByHash>(&hash).map(|v| v.map(|a| a.0))
+    }
+
+    /// Sets the latest state diff
+    #[instrument(level = "trace", skip(self), err, ret)]
+    pub fn set_state_diff(&self, state_diff: StateDiff) -> anyhow::Result<()> {
+        let mut schema_batch = SchemaBatch::new();
+        schema_batch.put::<LastStateDiff>(&(), &state_diff)?;
+
+        self.db.write_schemas(schema_batch)?;
+
+        Ok(())
+    }
+
+    /// Gets l1 height of l1 hash
+    #[instrument(level = "trace", skip(self), err, ret)]
+    pub fn get_state_diff(&self) -> Result<StateDiff, anyhow::Error> {
+        self.db
+            .get::<LastStateDiff>(&())
+            .map(|diff| diff.unwrap_or_default())
     }
 }

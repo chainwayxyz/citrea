@@ -77,9 +77,10 @@ jobs:
       - name: Toolchain
         uses: dtolnay/rust-toolchain@nightly
         with:
-          toolchain: nightly
           override: true
           components: rustfmt, clippy
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
       - name: Install cargo-risczero
         uses: taiki-e/install-action@v2
         with:
@@ -88,8 +89,6 @@ jobs:
         run: cargo risczero install --version r0.1.78.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
       - name: Check TOML
         uses: dprint/check@v2.2
       - name: Run lint
@@ -166,8 +165,9 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@1.78.0
         with:
-          toolchain: stable
           components: llvm-tools-preview
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
       - uses: taiki-e/install-action@nextest
       - uses: taiki-e/install-action@cargo-llvm-cov
       - name: Install cargo-risczero
@@ -176,8 +176,6 @@ jobs:
           tool: cargo-risczero@1.0.1
       - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
         run: cargo risczero install --version r0.1.78.0
-      - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
       - name: Cache ethereum-tests
         uses: actions/cache@v3
         with:
@@ -203,6 +201,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 18
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
       - uses: dcarbone/install-jq-action@v2
       - name: Install cargo-risczero
         uses: taiki-e/install-action@v2
@@ -212,8 +212,6 @@ jobs:
         run: cargo risczero install --version r0.1.78.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
       - name: Build citrea
         run: make build
       - name: Install node dependencies
@@ -287,6 +285,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 18
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
       - uses: dcarbone/install-jq-action@v2
       - name: Install cargo-risczero
         uses: taiki-e/install-action@v2
@@ -296,8 +296,6 @@ jobs:
         run: cargo risczero install --version r0.1.78.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
       - name: Build citrea
         run: make build
       - name: Install node dependencies
@@ -368,9 +366,10 @@ jobs:
       - name: Toolchain
         uses: dtolnay/rust-toolchain@1.78.0
         with:
-          toolchain: 1.78.0
           override: true
           components: rustfmt, clippy
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
       - name: Install cargo-risczero
         uses: taiki-e/install-action@v2
         with:
@@ -386,8 +385,6 @@ jobs:
         with:
           key: "eth-tests-1c23e3c"
           path: crates/evm/ethereum-tests
-      - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
       - name: Run nextest
         run: make test
         env:
