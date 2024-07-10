@@ -31,7 +31,6 @@ tracing = { workspace = true }
 # we are going to use its guest
 sov-risc0-adapter = { path = "../sovereign-sdk/adapters/risc0", optional = true }
 
-
 [features]
 default = []
 native = [
