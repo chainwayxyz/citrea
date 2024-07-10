@@ -986,9 +986,9 @@ mod tests {
         });
 
         let (block_header, inclusion_proof, completeness_proof, mut txs) = get_mock_data();
-        let tx1 = completeness_proof[1].clone();
+        let tx1 = &completeness_proof[1];
         txs[1] = BlobWithSender::new(
-            parse_transaction(&tx1, "sov-btc").unwrap().body,
+            parse_transaction(tx1, "sov-btc").unwrap().body,
             vec![2; 33],
             txs[1].hash,
         );
