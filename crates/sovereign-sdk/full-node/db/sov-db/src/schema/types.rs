@@ -188,23 +188,6 @@ pub struct StoredSoftBatch {
     pub timestamp: u64,
 }
 
-/**
-*
-*
-*  pub fn new(
-       hash: [u8; 32],
-       da_slot_height: u64,
-       da_slot_hash: [u8; 32],
-       da_slot_txs_commitment: [u8; 32],
-       pre_state_root: Vec<u8>,
-       l1_fee_rate: u128,
-       txs: Vec<Vec<u8>>,
-       deposit_data: Vec<Vec<u8>>,
-       signature: Vec<u8>,
-       pub_key: Vec<u8>,
-       timestamp: u64,
-   ) -> SignedSoftConfirmat
-*/
 impl From<StoredSoftBatch> for SignedSoftConfirmationBatch {
     fn from(value: StoredSoftBatch) -> Self {
         SignedSoftConfirmationBatch::new(

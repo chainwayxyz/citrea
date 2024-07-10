@@ -184,7 +184,6 @@ where
             match status {
                 ProverStatus::Proved(proof) => {
                     let da_data = DaData::ZKProof(proof.clone());
-                    tracing::error!("\n\n\nProof generation is complete\n\n\n");
 
                     let tx_id = da_service
                         .send_transaction(
@@ -194,11 +193,9 @@ where
                         )
                         .await
                         .map_err(|e| anyhow::anyhow!(e))?;
-                    tracing::error!("\n\n\nSent  proof data to da  complete\n\n\n");
                     break Ok((tx_id, proof));
                 }
                 ProverStatus::ProvingInProgress => {
-                    tracing::info!("\nProof generation is in progress\n");
                     tokio::time::sleep(std::time::Duration::from_secs(5)).await;
                 }
                 _ => {

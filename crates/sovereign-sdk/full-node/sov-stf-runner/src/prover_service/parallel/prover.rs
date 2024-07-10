@@ -155,7 +155,6 @@ where
                 let start_prover = prover_state.inc_task_count_if_not_busy(self.num_threads);
                 // Initiate a new proving job only if the prover is not busy.
                 if start_prover {
-                    println!("Starting proving for da block: {:?}", block_header_hash);
                     prover_state.set_to_proving(block_header_hash.clone());
                     vm.add_hint(state_transition_data);
 
@@ -195,10 +194,7 @@ where
         block_header_hash: <Da::Spec as DaSpec>::SlotHash,
     ) -> Result<ProverStatus<StateRoot, Witness, Da::Spec>, anyhow::Error> {
         let mut prover_state = self.prover_state.write().unwrap();
-        println!(
-            "\nget_prover_status_for_da_submission: {:?}\n",
-            block_header_hash.clone()
-        );
+
         let status = prover_state.get_prover_status(block_header_hash.clone());
 
         match status {

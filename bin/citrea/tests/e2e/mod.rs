@@ -1297,7 +1297,6 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
     da_service.publish_test_block().await.unwrap();
     wait_for_l1_block(&da_service, 2, None).await;
     wait_for_l1_block(&da_service, 3, None).await;
-    tracing::error!("T1");
 
     seq_test_client.send_publish_batch_request().await;
 
@@ -1308,7 +1307,6 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
         Some(Duration::from_secs(DEFAULT_PROOF_WAIT_DURATION)),
     )
     .await;
-    tracing::error!("T2");
 
     // prover should have synced all 6 l2 blocks
     // ps there are 6 blocks because:
@@ -1316,12 +1314,10 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
     // and for every empty da block sequencer publishes a new empty soft confirmation in order to not skip a block
     wait_for_l2_block(&prover_node_test_client, 6, None).await;
     assert_eq!(prover_node_test_client.eth_block_number().await, 6);
-    tracing::error!("T3");
 
     seq_test_client.send_publish_batch_request().await;
     da_service.publish_test_block().await.unwrap();
     wait_for_l1_block(&da_service, 4, None).await;
-    tracing::error!("T4");
     // Still should have 4 blocks there are no commitments yet
     wait_for_prover_l1_height(
         &prover_node_test_client,
@@ -1329,9 +1325,7 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
         Some(Duration::from_secs(DEFAULT_PROOF_WAIT_DURATION)),
     )
     .await;
-    tracing::error!("T5");
     wait_for_l1_block(&da_service, 5, None).await;
-    tracing::error!("T6");
     seq_test_client.send_publish_batch_request().await;
 
     // wait here until we see from prover's rpc that it finished proving
@@ -1341,7 +1335,6 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
         Some(Duration::from_secs(DEFAULT_PROOF_WAIT_DURATION)),
     )
     .await;
-    tracing::error!("T7");
     wait_for_l2_block(&seq_test_client, 8, None).await;
     assert_eq!(seq_test_client.eth_block_number().await, 8);
     // Should now have 8 blocks = 2 commitments of blocks 1-4 and 5-9

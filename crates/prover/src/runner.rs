@@ -344,7 +344,6 @@ where
         loop {
             select! {
                 _ = &mut l1_handle => {panic!("l1 sync handle exited unexpectedly");},
-                // _ = &mut l1_sync_worker => {},
                 _ = &mut l2_handle => {panic!("l2 sync handle exited unexpectedly");},
                 Some(l1_block) = l1_rx.recv() => {
                     pending_l1.push(l1_block);
