@@ -304,7 +304,7 @@ where
             );
 
             let initial_state_root = self.state_root.clone();
-            let initial_batch_hash = self.batch_hash.clone();
+            let initial_batch_hash = self.batch_hash;
 
             let mut da_data = self.da_service.extract_relevant_blobs(&filtered_block);
             // if we don't do this, the zk circuit can't read the sequencer commitments
