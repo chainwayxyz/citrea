@@ -41,21 +41,21 @@ revm-inspectors = { workspace = true, optional = true }
 secp256k1 = { workspace = true, optional = true }
 
 [dev-dependencies]
-sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api", features = ["macros"] }
 alloy = { workspace = true, features = ["consensus", "signer-wallet", "signers", "providers"] }
 bytes = { workspace = true }
+citrea-evm = { path = ".", features = ["smart_contracts"] }
 lazy_static = "1.4.0"
+log-panics = { workspace = true }
 rand = { workspace = true }
 rayon = { workspace = true }
 reth-db = { workspace = true }
 reth-provider = { workspace = true }
 revm = { workspace = true, features = ["optional_block_gas_limit", "optional_eip3607", "optional_no_base_fee"] }
 sov-prover-storage-manager = { path = "../sovereign-sdk/full-node/sov-prover-storage-manager", features = ["test-utils"] }
+sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api", features = ["macros"] }
 tempfile = { workspace = true }
-walkdir = "2.3.3"
-log-panics = { workspace = true }
 tracing-subscriber = { workspace = true }
-citrea-evm = { path = ".", features = ["smart_contracts"] }
+walkdir = "2.3.3"
 
 [features]
 default = []
