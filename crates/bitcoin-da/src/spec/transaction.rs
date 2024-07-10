@@ -1,5 +1,4 @@
-use core::ops::Deref;
-use core::ops::DerefMut;
+use core::ops::{Deref, DerefMut};
 
 use bitcoin::absolute::{LockTime, Time};
 use bitcoin::consensus::{Decodable, Encodable};
