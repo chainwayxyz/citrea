@@ -53,6 +53,7 @@ where
                 data.sequencer_public_key.as_ref(),
                 data.sequencer_da_public_key.as_ref(),
                 &data.initial_state_root,
+                data.initial_batch_hash,
                 pre_state,
                 data.da_data,
                 data.state_transition_witnesses,

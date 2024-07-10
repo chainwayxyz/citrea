@@ -304,6 +304,7 @@ where
             );
 
             let initial_state_root = self.state_root.clone();
+            let initial_batch_hash = self.batch_hash.clone();
 
             let mut da_data = self.da_service.extract_relevant_blobs(&filtered_block);
             // if we don't do this, the zk circuit can't read the sequencer commitments
@@ -500,6 +501,7 @@ where
                 StateTransitionData {
                     initial_state_root,
                     final_state_root: self.state_root.clone(),
+                    initial_batch_hash,
                     da_data,
                     da_block_header_of_commitments,
                     inclusion_proof,

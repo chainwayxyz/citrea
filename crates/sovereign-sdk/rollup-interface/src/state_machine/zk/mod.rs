@@ -166,6 +166,8 @@ pub struct StateTransitionData<StateRoot, Witness, Da: DaSpec> {
     pub initial_state_root: StateRoot,
     /// The state root after the state transition
     pub final_state_root: StateRoot,
+    /// The hash before the state transition
+    pub initial_batch_hash: [u8; 32],
     /// The `crate::da::DaData` that are being processed as blobs. Everything that's not `crate::da::DaData::SequencerCommitment` will be ignored.
     pub da_data: Vec<Da::BlobTransaction>,
     /// DA block header that the sequencer commitments were found in.

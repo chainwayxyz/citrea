@@ -209,6 +209,7 @@ fn make_transition_data(
     StateTransitionData {
         initial_state_root: [],
         final_state_root: [],
+        initial_batch_hash: [0; 32],
         inclusion_proof: [0; 32],
         completeness_proof: (),
         da_data: vec![],

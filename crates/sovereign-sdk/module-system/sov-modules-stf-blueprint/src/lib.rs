@@ -461,6 +461,7 @@ where
         sequencer_public_key: &[u8],
         sequencer_da_public_key: &[u8],
         initial_state_root: &Self::StateRoot,
+        initial_batch_hash: [u8; 32],
         pre_state: Self::PreState,
         da_data: Vec<<Da as DaSpec>::BlobTransaction>,
         witnesses: std::collections::VecDeque<Vec<Self::Witness>>,
@@ -487,6 +488,7 @@ where
         // Then verify these soft confirmations.
 
         let mut current_state_root = initial_state_root.clone();
+        let mut previous_batch_hash = initial_batch_hash;
 
         // should panic if number of sequencer commitments, soft confirmations, slot headers and witnesses don't match
         for (((sequencer_commitment, soft_confirmations), da_block_headers), witnesses) in
@@ -502,6 +504,12 @@ where
             let mut current_da_height = da_block_headers[index_headers].height();
 
             assert_eq!(
+                soft_confirmations[index_soft_confirmation].prev_hash(),
+                previous_batch_hash,
+                "Soft confirmation previous hash must match the hash of the block before"
+            );
+
+            assert_eq!(
                 soft_confirmations[index_soft_confirmation].da_slot_hash(),
                 da_block_headers[index_headers].hash().into(),
                 "Soft confirmation DA slot hash must match DA block header hash"
@@ -513,6 +521,7 @@ where
                 "Soft confirmation DA slot height must match DA block header height"
             );
 
+            previous_batch_hash = soft_confirmations[index_soft_confirmation].hash();
             index_soft_confirmation += 1;
 
             while index_soft_confirmation < soft_confirmations.len() {
@@ -526,6 +535,12 @@ where
                         soft_confirmations[index_soft_confirmation].da_slot_height(),
                         da_block_headers[index_headers].height(),
                         "Soft confirmation DA slot height must match DA block header height"
+                    );
+
+                    assert_eq!(
+                        soft_confirmations[index_soft_confirmation].prev_hash(),
+                        previous_batch_hash,
+                        "Soft confirmation previous hash must match the hash of the block before"
                     );
 
                     index_soft_confirmation += 1;
@@ -560,8 +575,16 @@ where
                         "Soft confirmation DA slot height must match DA block header height"
                     );
 
+                    assert_eq!(
+                        soft_confirmations[index_soft_confirmation].prev_hash(),
+                        previous_batch_hash,
+                        "Soft confirmation previous hash must match the hash of the block before"
+                    );
+
                     index_soft_confirmation += 1;
                 }
+
+                previous_batch_hash = soft_confirmations[index_soft_confirmation].hash();
             }
 
             // final da header was checked against
