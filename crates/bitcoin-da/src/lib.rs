@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 mod helpers;
 #[cfg(feature = "native")]
 mod rpc;
