@@ -500,7 +500,7 @@ where
                 let next_state_root = slot_result.state_root;
 
                 // Check if post state root is the same as the one in the soft batch
-                if next_state_root.as_ref().to_vec() != soft_batch.post_state_root {
+                if next_state_root.as_ref().to_vec() != soft_batch.state_root {
                     bail!("Post state root mismatch")
                 }
 
@@ -1026,7 +1026,7 @@ where
 
                 let next_state_root = slot_result.state_root;
                 // Check if post state root is the same as the one in the soft batch
-                if next_state_root.as_ref().to_vec() != soft_batch.post_state_root {
+                if next_state_root.as_ref().to_vec() != soft_batch.state_root {
                     warn!("Post state root mismatch at height: {}", height);
                     continue;
                 }

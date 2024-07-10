@@ -115,9 +115,7 @@ pub struct GetSoftBatchResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub txs: Option<Vec<HexTx>>,
     #[serde(with = "hex::serde")]
-    pub pre_state_root: Vec<u8>,
-    #[serde(with = "hex::serde")]
-    pub post_state_root: Vec<u8>,
+    pub state_root: Vec<u8>,
     #[serde(with = "hex::serde")]
     pub soft_confirmation_signature: Vec<u8>,
     pub deposit_data: Vec<HexTx>, // Vec<u8> wrapper around deposit data
