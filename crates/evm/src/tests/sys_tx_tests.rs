@@ -48,7 +48,7 @@ fn test_sys_bitcoin_light_client() {
                 },
                 gas_used: 48522,
                 log_index_start: 0,
-                diff_size: 168,
+                l1_diff_size: 168,
             },
             Receipt { // BitcoinLightClient::setBlockInfo(U256, U256)
                 receipt: reth_primitives::Receipt {
@@ -67,7 +67,7 @@ fn test_sys_bitcoin_light_client() {
                 },
                 gas_used: 78491,
                 log_index_start: 0,
-                diff_size: 296,
+                l1_diff_size: 296,
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
@@ -93,7 +93,7 @@ fn test_sys_bitcoin_light_client() {
                 },
                 gas_used: 258971,
                 log_index_start: 1,
-                diff_size: 744,
+                l1_diff_size: 744,
             }
         ]
     );
@@ -201,7 +201,7 @@ fn test_sys_bitcoin_light_client() {
                 },
                 gas_used: 78491,
                 log_index_start: 0,
-                diff_size: 296,
+                l1_diff_size: 296,
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
@@ -212,7 +212,7 @@ fn test_sys_bitcoin_light_client() {
                 },
                 gas_used: 114235,
                 log_index_start: 1,
-                diff_size: 477,
+                l1_diff_size: 477,
             },
         ]
     );
