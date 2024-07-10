@@ -7,7 +7,6 @@ use anyhow::bail;
 use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoffBuilder;
 use borsh::de::BorshDeserialize;
-use borsh::BorshSerialize;
 use jsonrpsee::core::client::Error as JsonrpseeError;
 use jsonrpsee::RpcModule;
 use rand::Rng;
@@ -573,7 +572,7 @@ where
                     da_slot_hash: transition_data.da_slot_hash.into(),
                     sequencer_public_key: transition_data.sequencer_public_key,
                     sequencer_da_public_key: transition_data.sequencer_da_public_key,
-                    validity_condition: transition_data.validity_condition.try_to_vec().unwrap(),
+                    validity_condition: borsh::to_vec(&transition_data.validity_condition).unwrap(),
                 };
 
                 match pg_client.as_ref() {

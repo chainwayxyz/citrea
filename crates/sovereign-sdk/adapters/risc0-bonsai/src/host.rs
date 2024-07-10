@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use anyhow::anyhow;
 use bonsai_sdk::alpha as bonsai_sdk;
-use risc0_zkvm::serde::to_vec;
+use borsh::{BorshDeserialize, BorshSerialize};
 use risc0_zkvm::sha::Digest;
 use risc0_zkvm::{
     compute_image_id, ExecutorEnvBuilder, ExecutorImpl, Groth16Receipt, InnerReceipt, Journal,
@@ -142,7 +142,7 @@ impl BonsaiClient {
                             let _ = notify.send(res);
                         }
                         BonsaiRequest::Download { url, notify } => {
-                            debug!(%url, "Bonsai:upload_input");
+                            debug!(%url, "Bonsai:download");
                             let res = client.download(&url);
                             let res = unwrap_bonsai_response!(res, 'client, 'queue);
                             let _ = notify.send(res);
@@ -325,14 +325,26 @@ impl<'a> Risc0BonsaiHost<'a> {
         }
     }
 
-    fn add_hint_bonsai<T: serde::Serialize>(&mut self, item: T) {
+    fn add_hint_bonsai<T: BorshSerialize>(&mut self, item: T) {
         // For running in "prove" mode.
 
         // Prepare input data and upload it.
         let client = self.client.as_ref().unwrap();
 
-        let input_data = to_vec(&item).unwrap();
-        let input_data = bytemuck::cast_slice(&input_data).to_vec();
+        let mut input_data = vec![];
+        let mut buf = borsh::to_vec(&item).unwrap();
+        // append [0..] alignment
+        let rem = buf.len() % 4;
+        if rem > 0 {
+            buf.extend(vec![0; 4 - rem]);
+        }
+        let buf_u32: &[u32] = bytemuck::cast_slice(&buf);
+        // write len(u64) in LE
+        let len = buf_u32.len() as u64;
+        input_data.extend(len.to_le_bytes());
+        // write buf
+        input_data.extend(buf);
+
         // handle error
         let input_id = client.upload_input(input_data);
         tracing::info!("Uploaded input with id: {}", input_id);
@@ -343,21 +355,23 @@ impl<'a> Risc0BonsaiHost<'a> {
 impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
     type Guest = Risc0Guest;
 
-    fn add_hint<T: serde::Serialize>(&mut self, item: T) {
+    fn add_hint<T: BorshSerialize>(&mut self, item: T) {
         // For running in "execute" mode.
 
-        // We use the in-memory size of `item` as an indication of how much
-        // space to reserve. This is in no way guaranteed to be exact, but
-        // usually the in-memory size and serialized data size are quite close.
-        //
-        // Note: this is just an optimization to avoid frequent reallocations,
-        // it's not actually required.
-        self.env
-            .reserve(std::mem::size_of::<T>() / std::mem::size_of::<u32>());
-
-        let mut serializer = risc0_zkvm::serde::Serializer::new(&mut self.env);
-        item.serialize(&mut serializer)
-            .expect("Risc0 hint serialization is infallible");
+        let mut buf = borsh::to_vec(&item).expect("Risc0 hint serialization is infallible");
+        // append [0..] alignment to cast &[u8] to &[u32]
+        let rem = buf.len() % 4;
+        if rem > 0 {
+            buf.extend(vec![0; 4 - rem]);
+        }
+        let buf: &[u32] = bytemuck::cast_slice(&buf);
+        // write len(u64) in LE
+        let len = buf.len() as u64;
+        let len_buf = &len.to_le_bytes()[..];
+        let len_buf: &[u32] = bytemuck::cast_slice(len_buf);
+        self.env.extend_from_slice(len_buf);
+        // write buf
+        self.env.extend_from_slice(buf);
 
         if self.client.is_some() {
             self.add_hint_bonsai(item)
@@ -494,19 +508,20 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
         }
     }
 
-    fn extract_output<Da: sov_rollup_interface::da::DaSpec, Root: Serialize + DeserializeOwned>(
+    fn extract_output<Da: sov_rollup_interface::da::DaSpec, Root: BorshDeserialize>(
         proof: &Proof,
     ) -> Result<sov_rollup_interface::zk::StateTransition<Da, Root>, Self::Error> {
-        match proof {
+        let journal = match proof {
             Proof::PublicInput(journal) => {
                 let journal: Journal = bincode::deserialize(journal)?;
-                Ok(journal.decode()?)
+                journal
             }
             Proof::Full(data) => {
                 let receipt: Receipt = bincode::deserialize(data)?;
-                Ok(receipt.journal.decode()?)
+                receipt.journal
             }
-        }
+        };
+        Ok(BorshDeserialize::try_from_slice(&journal.bytes)?)
     }
 }
 

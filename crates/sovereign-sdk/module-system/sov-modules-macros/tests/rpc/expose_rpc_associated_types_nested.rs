@@ -1,3 +1,4 @@
+use borsh::{BorshDeserialize, BorshSerialize};
 use jsonrpsee::core::RpcResult;
 use sov_modules_api::default_context::ZkDefaultContext;
 use sov_modules_api::macros::{expose_rpc, rpc_gen, DefaultRuntime};
@@ -11,7 +12,7 @@ pub trait Message: 'static {
     type Caller: std::fmt::Display;
     type Data: Data;
 }
-pub trait TestSpec: 'static {
+pub trait TestSpec: 'static + BorshDeserialize + BorshSerialize {
     type Message: Message;
 }
 
@@ -101,7 +102,7 @@ use my_module::query::{QueryModuleRpcImpl, QueryModuleRpcServer};
 
 #[expose_rpc]
 #[derive(Genesis, DispatchCall, MessageCodec, DefaultRuntime)]
-#[serialization(borsh::BorshDeserialize, borsh::BorshSerialize)]
+#[serialization(BorshDeserialize, BorshSerialize)]
 struct Runtime<C: Context, S: TestSpec> {
     pub first: my_module::QueryModule<C, <<S as TestSpec>::Message as Message>::Data>,
 }
@@ -113,6 +114,7 @@ impl Message for ActualMessage {
     type Data = u32;
 }
 
+#[derive(BorshDeserialize, BorshSerialize)]
 struct ActualSpec;
 
 impl TestSpec for ActualSpec {

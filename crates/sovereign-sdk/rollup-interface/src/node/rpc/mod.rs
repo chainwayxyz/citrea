@@ -1,6 +1,11 @@
 //! The rpc module defines types and traits for querying chain history
 //! via an RPC interface.
+
+extern crate alloc;
+
 use alloc::collections::BTreeMap;
+use alloc::string::String;
+use alloc::vec::Vec;
 use core::marker::PhantomData;
 
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -9,8 +14,6 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 use crate::da::SequencerCommitment;
-use crate::maybestd::string::String;
-use crate::maybestd::vec::Vec;
 #[cfg(feature = "native")]
 use crate::stf::Event;
 use crate::stf::EventKey;
@@ -627,15 +630,16 @@ pub trait LedgerRpcProvider {
 pub mod utils {
     /// Serialization and deserialization logic for `0x`-prefixed hex strings.
     pub mod rpc_hex {
+        extern crate alloc;
+
+        use alloc::format;
+        use alloc::string::String;
         use core::fmt;
         use core::marker::PhantomData;
 
         use hex::{FromHex, ToHex};
         use serde::de::{Error, Visitor};
         use serde::{Deserializer, Serializer};
-
-        use crate::maybestd::format;
-        use crate::maybestd::string::String;
 
         /// Serializes `data` as hex string using lowercase characters and prefixing with '0x'.
         ///
@@ -700,9 +704,6 @@ pub mod utils {
 #[cfg(test)]
 mod rpc_hex_tests {
     use serde::{Deserialize, Serialize};
-
-    use crate::maybestd::vec;
-    use crate::maybestd::vec::Vec;
 
     #[derive(Serialize, Deserialize, PartialEq, Debug)]
     struct TestStruct {

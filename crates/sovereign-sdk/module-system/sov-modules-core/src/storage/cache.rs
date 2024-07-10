@@ -3,9 +3,9 @@
 use alloc::vec::Vec;
 use core::fmt;
 
-use sov_rollup_interface::maybestd::collections::hash_map::Entry;
-use sov_rollup_interface::maybestd::collections::HashMap;
-use sov_rollup_interface::maybestd::RefCount;
+use hashbrown::hash_map::Entry;
+use hashbrown::HashMap;
+use sov_rollup_interface::RefCount;
 
 use crate::common::{MergeError, ReadError};
 use crate::storage::{Storage, StorageKey, StorageValue};
@@ -385,7 +385,7 @@ impl StorageInternalCache {
         &mut self,
         key: &StorageKey,
         value_reader: &S,
-        witness: &S::Witness,
+        witness: &mut S::Witness,
     ) -> Option<StorageValue> {
         let cache_key = key.to_cache_key_version(self.version);
         let cache_value = self.get_value_from_cache(&cache_key);
@@ -475,7 +475,7 @@ impl From<StorageInternalCache> for OrderedReadsAndWrites {
 #[cfg(test)]
 mod tests {
     use proptest::prelude::*;
-    use sov_rollup_interface::maybestd::RefCount;
+    use sov_rollup_interface::RefCount;
 
     use super::*;
 
