@@ -134,7 +134,6 @@ impl From<GetSoftBatchResponse> for SignedSoftConfirmationBatch {
             val.da_slot_height,
             val.da_slot_hash,
             val.da_slot_txs_commitment,
-            val.pre_state_root,
             val.l1_fee_rate,
             val.txs
                 .unwrap_or_default()

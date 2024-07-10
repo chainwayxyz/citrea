@@ -14,7 +14,6 @@ pub struct UnsignedSoftConfirmationBatch {
     da_slot_height: u64,
     da_slot_hash: [u8; 32],
     da_slot_txs_commitment: [u8; 32],
-    pre_state_root: Vec<u8>,
     txs: Vec<Vec<u8>>,
     deposit_data: Vec<Vec<u8>>,
     l1_fee_rate: u128,
@@ -28,7 +27,6 @@ impl UnsignedSoftConfirmationBatch {
         da_slot_height: u64,
         da_slot_hash: [u8; 32],
         da_slot_txs_commitment: [u8; 32],
-        pre_state_root: Vec<u8>,
         txs: Vec<Vec<u8>>,
         deposit_data: Vec<Vec<u8>>,
         l1_fee_rate: u128,
@@ -38,7 +36,6 @@ impl UnsignedSoftConfirmationBatch {
             da_slot_height,
             da_slot_hash,
             da_slot_txs_commitment,
-            pre_state_root,
             txs,
             deposit_data,
             l1_fee_rate,
@@ -56,10 +53,6 @@ impl UnsignedSoftConfirmationBatch {
     /// DA block transactions commitment
     pub fn da_slot_txs_commitment(&self) -> [u8; 32] {
         self.da_slot_txs_commitment
-    }
-    /// Previous batch's pre state root
-    pub fn pre_state_root(&self) -> Vec<u8> {
-        self.pre_state_root.clone()
     }
     /// Raw transactions.
     pub fn txs(&self) -> Vec<Vec<u8>> {
@@ -88,7 +81,6 @@ pub struct SignedSoftConfirmationBatch {
     da_slot_height: u64,
     da_slot_hash: [u8; 32],
     da_slot_txs_commitment: [u8; 32],
-    pre_state_root: Vec<u8>,
     l1_fee_rate: u128,
     txs: Vec<Vec<u8>>,
     signature: Vec<u8>,
@@ -106,7 +98,6 @@ impl SignedSoftConfirmationBatch {
         da_slot_height: u64,
         da_slot_hash: [u8; 32],
         da_slot_txs_commitment: [u8; 32],
-        pre_state_root: Vec<u8>,
         l1_fee_rate: u128,
         txs: Vec<Vec<u8>>,
         deposit_data: Vec<Vec<u8>>,
@@ -120,7 +111,6 @@ impl SignedSoftConfirmationBatch {
             da_slot_height,
             da_slot_hash,
             da_slot_txs_commitment,
-            pre_state_root,
             l1_fee_rate,
             txs,
             deposit_data,
@@ -153,11 +143,6 @@ impl SignedSoftConfirmationBatch {
     /// DA block transactions commitment
     pub fn da_slot_txs_commitment(&self) -> [u8; 32] {
         self.da_slot_txs_commitment
-    }
-
-    /// Previous batch's pre state root
-    pub fn pre_state_root(&self) -> Vec<u8> {
-        self.pre_state_root.clone()
     }
 
     /// Public key of signer

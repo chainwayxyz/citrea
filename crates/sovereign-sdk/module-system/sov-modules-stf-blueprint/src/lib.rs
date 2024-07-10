@@ -208,13 +208,6 @@ where
             "DA slot hashes must match"
         );
 
-        // then verify pre state root matches
-        assert_eq!(
-            soft_batch.pre_state_root(),
-            pre_state_root.as_ref(),
-            "pre state roots must match"
-        );
-
         let checkpoint = StateCheckpoint::with_witness(pre_state, witness);
 
         self.begin_soft_confirmation_inner(checkpoint, soft_batch)
@@ -239,7 +232,6 @@ where
             soft_batch.da_slot_height(),
             soft_batch.da_slot_hash(),
             soft_batch.da_slot_txs_commitment(),
-            soft_batch.pre_state_root(),
             soft_batch.txs(),
             soft_batch.deposit_data(),
             soft_batch.l1_fee_rate(),
