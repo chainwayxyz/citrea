@@ -21,6 +21,7 @@ use sov_rollup_interface::da::{DaData, DaSpec};
 use sov_rollup_interface::rpc::{ProofRpcResponse, SoftConfirmationStatus};
 use sov_rollup_interface::services::da::DaService;
 use sov_stf_runner::ProverConfig;
+use tokio::runtime::Runtime;
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
 
@@ -1405,25 +1406,33 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     let seq_test_client = make_test_client(seq_port).await;
 
     let (prover_node_port_tx, prover_node_port_rx) = tokio::sync::oneshot::channel();
+    let (thread_kill_sender, thread_kill_receiver) = std::sync::mpsc::channel();
 
     let da_db_dir_cloned = da_db_dir.clone();
     let prover_db_dir_cloned = prover_db_dir.clone();
-    let prover_node_task = tokio::spawn(async move {
-        start_rollup(
-            prover_node_port_tx,
-            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            Some(ProverConfig::default()),
-            NodeMode::Prover(seq_port),
-            prover_db_dir_cloned,
-            da_db_dir_cloned,
-            4,
-            true,
-            None,
-            None,
-            Some(true),
-            DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
-        )
-        .await;
+
+    let _handle = std::thread::spawn(move || {
+        let rt = Runtime::new().unwrap();
+        rt.block_on(async {
+            let prover_node_task = tokio::spawn(async move {
+                start_rollup(
+                    prover_node_port_tx,
+                    GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+                    Some(ProverConfig::default()),
+                    NodeMode::Prover(seq_port),
+                    prover_db_dir_cloned,
+                    da_db_dir_cloned,
+                    4,
+                    true,
+                    None,
+                    None,
+                    Some(true),
+                    DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
+                )
+                .await;
+            });
+        });
+        thread_kill_receiver.recv().unwrap();
     });
 
     let prover_node_port = prover_node_port_rx.await.unwrap();
@@ -1435,7 +1444,6 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     for _ in 0..3 {
         seq_test_client.send_publish_batch_request().await;
     }
-    tracing::error!("T1");
     wait_for_l2_block(&seq_test_client, 3, None).await;
 
     da_service.publish_test_block().await.unwrap();
@@ -1443,7 +1451,6 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
 
     seq_test_client.send_publish_batch_request().await;
     wait_for_l2_block(&seq_test_client, 4, None).await;
-    tracing::error!("T2");
     // sequencer commitment should be sent
     da_service.publish_test_block().await.unwrap();
     wait_for_l1_block(&da_service, 3, None).await;
@@ -1457,41 +1464,50 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
         Some(Duration::from_secs(DEFAULT_PROOF_WAIT_DURATION)),
     )
     .await;
-    tracing::error!("T3");
     // Contains the proof
     wait_for_l1_block(&da_service, 5, None).await;
 
     // prover should have synced all 4 l2 blocks
     assert_eq!(prover_node_test_client.eth_block_number().await, 4);
 
-    prover_node_task.abort();
-    sleep(Duration::from_secs(2)).await;
+    // prover_node_task.abort();
+    thread_kill_sender.send("kill").unwrap();
+
+    sleep(Duration::from_secs(1)).await;
 
     let _ = copy_dir_recursive(&prover_db_dir, &storage_dir.path().join("prover_copy"));
-    sleep(Duration::from_secs(2)).await;
+    sleep(Duration::from_secs(1)).await;
 
-    tracing::error!("reopening prover");
     // Reopen prover with the new path
     let (prover_node_port_tx, prover_node_port_rx) = tokio::sync::oneshot::channel();
+    let (thread_kill_sender, thread_kill_receiver) = std::sync::mpsc::channel();
 
     let prover_copy_db_dir = storage_dir.path().join("prover_copy");
     let da_db_dir_cloned = da_db_dir.clone();
-    let prover_node_task = tokio::spawn(async move {
-        start_rollup(
-            prover_node_port_tx,
-            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            Some(ProverConfig::default()),
-            NodeMode::Prover(seq_port),
-            prover_copy_db_dir,
-            da_db_dir_cloned,
-            4,
-            true,
-            None,
-            None,
-            Some(true),
-            DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
-        )
-        .await;
+
+    let _handle = std::thread::spawn(move || {
+        let rt = Runtime::new().unwrap();
+        rt.block_on(async {
+            let prover_node_task = tokio::spawn(async move {
+                start_rollup(
+                    prover_node_port_tx,
+                    GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+                    Some(ProverConfig::default()),
+                    NodeMode::Prover(seq_port),
+                    prover_copy_db_dir,
+                    da_db_dir_cloned,
+                    4,
+                    true,
+                    None,
+                    None,
+                    Some(true),
+                    DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
+                )
+                .await;
+            });
+        });
+
+        thread_kill_receiver.recv().unwrap();
     });
 
     let prover_node_port = prover_node_port_rx.await.unwrap();
@@ -1499,48 +1515,53 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
 
     seq_test_client.send_publish_batch_request().await;
     wait_for_l2_block(&seq_test_client, 6, None).await;
-    tracing::error!("T4");
     // Still should have 4 blocks there are no commitments yet
     wait_for_l2_block(&prover_node_test_client, 6, None).await;
     assert_eq!(prover_node_test_client.eth_block_number().await, 6);
-    tracing::error!("T5.1");
-    prover_node_task.abort();
+
+    thread_kill_sender.send("kill").unwrap();
     sleep(Duration::from_secs(2)).await;
 
     seq_test_client.send_publish_batch_request().await;
     seq_test_client.send_publish_batch_request().await;
     wait_for_l2_block(&seq_test_client, 8, None).await;
-    tracing::error!("T5.15");
     let _ = copy_dir_recursive(&prover_db_dir, &storage_dir.path().join("prover_copy2"));
 
     sleep(Duration::from_secs(2)).await;
-
     // Reopen prover with the new path
     let (prover_node_port_tx, prover_node_port_rx) = tokio::sync::oneshot::channel();
-    tracing::error!("T5.16");
+    let (thread_kill_sender, thread_kill_receiver) = std::sync::mpsc::channel();
     let prover_copy2_dir_cloned = storage_dir.path().join("prover_copy2");
     let da_db_dir_cloned = da_db_dir.clone();
-    let prover_node_task = tokio::spawn(async move {
-        start_rollup(
-            prover_node_port_tx,
-            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            Some(ProverConfig::default()),
-            NodeMode::Prover(seq_port),
-            prover_copy2_dir_cloned,
-            da_db_dir_cloned,
-            4,
-            true,
-            None,
-            None,
-            Some(true),
-            DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
-        )
-        .await;
+
+    let _handle = std::thread::spawn(move || {
+        let rt = Runtime::new().unwrap();
+        rt.block_on(async {
+            let _prover_node_task = tokio::spawn(async move {
+                start_rollup(
+                    prover_node_port_tx,
+                    GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+                    Some(ProverConfig::default()),
+                    NodeMode::Prover(seq_port),
+                    prover_copy2_dir_cloned,
+                    da_db_dir_cloned,
+                    4,
+                    true,
+                    None,
+                    None,
+                    Some(true),
+                    DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
+                )
+                .await;
+            });
+        });
+
+        thread_kill_receiver.recv().unwrap();
     });
 
     let prover_node_port = prover_node_port_rx.await.unwrap();
     let prover_node_test_client = make_test_client(prover_node_port).await;
-    tracing::error!("T5.2");
+    sleep(Duration::from_secs(2)).await;
     // Publish a DA to force prover to process new blocks
     da_service.publish_test_block().await.unwrap();
     wait_for_l1_block(&da_service, 6, None).await;
@@ -1549,16 +1570,14 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     // and starts proving the second commitment.
     wait_for_l2_block(&prover_node_test_client, 8, Some(Duration::from_secs(300))).await;
     assert_eq!(prover_node_test_client.eth_block_number().await, 8);
-    tracing::error!("T6");
+    sleep(Duration::from_secs(1)).await;
     seq_test_client.send_publish_batch_request().await;
     wait_for_l2_block(&seq_test_client, 9, None).await;
-    tracing::error!("T7");
     da_service.publish_test_block().await.unwrap();
     wait_for_l1_block(&da_service, 7, None).await;
+    sleep(Duration::from_secs(1)).await;
     // Commitment is sent
-    tracing::error!("T7.5");
     wait_for_l1_block(&da_service, 8, None).await;
-    tracing::error!("T7.6");
     // wait here until we see from prover's rpc that it finished proving
     wait_for_prover_l1_height(
         &prover_node_test_client,
@@ -1566,7 +1585,6 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
         Some(Duration::from_secs(DEFAULT_PROOF_WAIT_DURATION)),
     )
     .await;
-    tracing::error!("T8");
 
     // Should now have 8 blocks = 2 commitments of blocks 1-4 and 5-8
     // there is an extra soft confirmation due to the prover publishing a proof. This causes
@@ -1576,7 +1594,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     assert!(prover_node_test_client.eth_block_number().await >= 8);
     // TODO: Also test with multiple commitments in single Mock DA Block
     seq_task.abort();
-    prover_node_task.abort();
+    thread_kill_sender.send("kill").unwrap();
     Ok(())
 }
 

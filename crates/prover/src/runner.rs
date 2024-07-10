@@ -742,8 +742,6 @@ where
         let skip_submission_until_l1 = std::env::var("SKIP_PROOF_SUBMISSION_UNTIL_L1")
             .map_or(0u64, |v| v.parse().unwrap_or(0));
 
-        error!("\nsync block count: {:?}\n", self.sync_blocks_count);
-
         // Prover node should sync when a new sequencer commitment arrives
         // Check da block get and sync up to the latest block in the latest commitment
         let last_scanned_l1_height = self
@@ -752,11 +750,9 @@ where
             .unwrap_or_else(|_| panic!("Failed to get last scanned l1 height from the ledger db"));
 
         let start_l1_height = match last_scanned_l1_height {
-            Some(height) => height.0 + 1,
+            Some(height) => height.0,
             None => get_initial_slot_height::<Da::Spec>(&self.sequencer_client).await,
         };
-
-        let mut l1_height = start_l1_height;
 
         let prover_config = self.prover_config.clone().unwrap();
 
@@ -774,23 +770,11 @@ where
                 .set_l2_state_root(0, &self.state_root.clone())?;
         }
 
-        let pending_l1_blocks: Arc<Mutex<Vec<<Da as DaService>::FilteredBlock>>> =
-            Arc::new(Mutex::new(Vec::<Da::FilteredBlock>::new()));
-        let indexes_to_remove = Arc::new(Mutex::new(Vec::<usize>::new()));
-
         let (l1_tx, mut l1_rx) = mpsc::channel(1);
-        let pending_l1_blocks_clone = pending_l1_blocks.clone();
         let da_service = self.da_service.clone();
         let l1_block_cache = self.l1_block_cache.clone();
         let l1_handle = tokio::spawn(async move {
-            l1_sync(
-                start_l1_height,
-                da_service,
-                l1_tx,
-                l1_block_cache,
-                pending_l1_blocks_clone,
-            )
-            .await;
+            l1_sync(start_l1_height, da_service, l1_tx, l1_block_cache).await;
         });
         tokio::pin!(l1_handle);
 
@@ -804,9 +788,9 @@ where
         tokio::pin!(l2_handle);
         let da_service = self.da_service.clone();
         let l1_block_cache = self.l1_block_cache.clone();
-        let mut pending_l1_blocks_: Vec<<Da as DaService>::FilteredBlock> =
+        let mut pending_l1_blocks: Vec<<Da as DaService>::FilteredBlock> =
             Vec::<Da::FilteredBlock>::new();
-        let pending_l1 = &mut pending_l1_blocks_;
+        let pending_l1 = &mut pending_l1_blocks;
         loop {
             select! {
                 _ = &mut l1_handle => {panic!("l1 sync handle exited unexpectedly");},
@@ -818,8 +802,6 @@ where
                 _ = sleep(Duration::from_secs(1)) => {
                     self.run_inner(
                         pending_l1,
-                        // pending_l1_blocks.clone(),
-                        indexes_to_remove.clone(),
                         skip_submission_until_l1,
                         &pg_client, &prover_config,
                     ).await;
@@ -839,23 +821,10 @@ where
     async fn run_inner(
         &mut self,
         pending_l1_blocks: &mut Vec<<Da as DaService>::FilteredBlock>,
-        // pending_l1_blocks: Arc<Mutex<Vec<<Da as DaService>::FilteredBlock>>>,
-        indexes_to_remove: Arc<Mutex<Vec<usize>>>,
         skip_submission_until_l1: u64,
         pg_client: &Option<Result<PostgresConnector, DbPoolError>>,
         prover_config: &ProverConfig,
     ) {
-        // println!("pending l1 blocks_: {:?}", pending_l1_blocks_);
-        // for index in indexes_to_remove.lock().await.iter() {
-        //     pending_l1_blocks.lock().await.remove(*index);
-        // }
-        // indexes_to_remove.lock().await.clear();
-
-        // if pending_l1_blocks.lock().await.is_empty() {
-        //     return;
-        // }
-        // println!("pending l1 blocks: {:?}", pending_l1_blocks.lock().await);
-
         for (index, l1_block) in pending_l1_blocks.clone().iter().enumerate() {
             // work on the first unprocessed l1 block
             let l1_height = l1_block.header().height();
@@ -929,11 +898,6 @@ where
                 }
 
                 pending_l1_blocks.remove(index_to_remove);
-                // indexes_to_remove.lock().await.push(index);
-                println!(
-                    "index: {:?} pushed to remove l1 with height {:?}",
-                    index, l1_height
-                );
                 continue;
             }
             info!(
@@ -959,9 +923,6 @@ where
 
             let ledger_db = &self.ledger_db.clone();
             match retry_backoff(exponential_backoff.clone(), || async move {
-                let res = ledger_db.clone().get_soft_batch_range(
-                    &(BatchNumber(first_l2_height_of_l1)..BatchNumber(last_l2_height_of_l1 + 1)),
-                );
                 let res = match ledger_db.clone().get_soft_batch_range(
                     &(BatchNumber(first_l2_height_of_l1)..BatchNumber(last_l2_height_of_l1 + 1)),
                 ) {
@@ -970,13 +931,13 @@ where
                             < (last_l2_height_of_l1 - first_l2_height_of_l1 + 1) =>
                     {
                         Err(backoff::Error::Transient {
-                            err: "error_msg".to_string(),
+                            err: "L2 range is not synced yet".to_string(),
                             retry_after: None,
                         })
                     }
                     Ok(_) => Ok(()),
-                    Err(e) => Err(backoff::Error::Transient {
-                        err: "error_msg".to_string(),
+                    Err(_) => Err(backoff::Error::Transient {
+                        err: "L2 range is not synced yet".to_string(),
                         retry_after: None,
                     }),
                 };
@@ -998,7 +959,7 @@ where
             let mut da_block_headers_of_soft_confirmations: VecDeque<
                 Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader>,
             > = VecDeque::new();
-            for (index, sequencer_commitment) in sequencer_commitments.clone().iter().enumerate() {
+            for sequencer_commitment in sequencer_commitments.clone().iter() {
                 // get the l2 height ranges of each seq_commitments
                 let mut witnesses = vec![];
                 let start_l2 = sequencer_commitment.l2_start_block_number;
@@ -1032,11 +993,6 @@ where
                         soft_batch.clone().into();
                     commitment_soft_confirmations.push(signed_soft_confirmation.clone());
                 }
-                warn!(
-                    "commitment_soft_confirmations:{:?}",
-                    commitment_soft_confirmations
-                );
-                warn!("da_block_headers_to_push:{:?}", da_block_headers_to_push);
                 soft_confirmations.push_back(commitment_soft_confirmations);
 
                 da_block_headers_of_soft_confirmations.push_back(da_block_headers_to_push);
@@ -1048,7 +1004,6 @@ where
                         .get_l2_witness::<Stf::Witness>(l2_height)
                         // Handle error
                         .unwrap();
-                    println!("\n\n\nwitness: pushed\n\n\n");
                     witnesses.push(witness.expect("A witness must be present"));
                 }
                 state_transition_witnesses.push_back(witnesses);
@@ -1056,8 +1011,6 @@ where
 
             let da_block_header_of_commitments = l1_block.header().clone();
             let hash = da_block_header_of_commitments.hash();
-            println!("first l2 height of l1: {}", first_l2_height_of_l1);
-            println!("last l2 height of l1: {}", last_l2_height_of_l1);
             let initial_state_root = self
                 .ledger_db
                 .get_l2_state_root::<Stf::StateRoot>(first_l2_height_of_l1 - 1)
@@ -1068,18 +1021,6 @@ where
                 .get_l2_state_root::<Stf::StateRoot>(last_l2_height_of_l1)
                 .unwrap()
                 .unwrap();
-            println!(
-                "\n\n\nda block headers of soft confs: {:?}",
-                da_block_headers_of_soft_confirmations
-            );
-            println!(
-                "\n\n\n state transition witnesses: {:?} \n\n\n",
-                state_transition_witnesses.len()
-            );
-            println!(
-                "\n\n\nda block header of commitments: {:?}",
-                da_block_header_of_commitments
-            );
             let (inclusion_proof, completeness_proof) = self
                 .da_service
                 .get_extraction_proof(&l1_block, &da_data)
@@ -1225,7 +1166,6 @@ where
                 }
             }
 
-            println!("\n\n\n\nl1 height scanned: {:?}\n\n\n\n", l1_height);
             self.ledger_db
                 .set_prover_last_scanned_l1_height(SlotNumber(l1_height))
                 // Handle error
@@ -1239,8 +1179,6 @@ where
             }
 
             pending_l1_blocks.remove(index_to_remove);
-            // indexes_to_remove.lock().await.push(index);
-            // *l1_height += 1;
         }
     }
 }
@@ -1250,7 +1188,6 @@ async fn l1_sync<Da>(
     da_service: Da,
     sender: mpsc::Sender<Da::FilteredBlock>,
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
-    pending_l1_blocks: Arc<Mutex<Vec<<Da as DaService>::FilteredBlock>>>,
 ) where
     Da: DaService,
 {
@@ -1258,7 +1195,6 @@ async fn l1_sync<Da>(
     info!("Starting to sync from L1 height {}", l1_height);
 
     'block_sync: loop {
-        println!("l1 sync: 1");
         // TODO: for a node, the da block at slot_height might not have been finalized yet
         // should wait for it to be finalized
         let last_finalized_l1_block_header =
@@ -1272,7 +1208,6 @@ async fn l1_sync<Da>(
             };
 
         let new_l1_height = last_finalized_l1_block_header.height();
-        println!("l1 sync: 2: new_l1_height: {:?}", new_l1_height);
 
         for block_number in l1_height + 1..=new_l1_height {
             let l1_block =
@@ -1286,18 +1221,8 @@ async fn l1_sync<Da>(
                         continue 'block_sync;
                     }
                 };
-            println!(
-                "l1 sync: 3: l1 block height: {:?}",
-                l1_block.header().height()
-            );
             if block_number > l1_height {
                 l1_height = block_number;
-                // push the new l1 block to the unprocessed l1 blocks queue
-                pending_l1_blocks.lock().await.push(l1_block.clone());
-                println!(
-                    "l1 sync: 4: l1 block pushed to pending with height: {:?}",
-                    l1_block.header().height()
-                );
                 if let Err(e) = sender.send(l1_block).await {
                     error!("Could not notify about L1 block: {}", e);
                     continue 'block_sync;
@@ -1320,23 +1245,18 @@ async fn sync_l2<Da>(
     let mut l2_height = start_l2_height;
     info!("Starting to sync from L2 height {}", l2_height);
     loop {
-        tracing::error!("sync_l2: l2_height:{:?}", l2_height);
-
         let exponential_backoff = ExponentialBackoffBuilder::new()
             .with_initial_interval(Duration::from_secs(1))
             .with_max_elapsed_time(Some(Duration::from_secs(15 * 60)))
             .build();
 
         let inner_client = &sequencer_client;
-        // tracing::error!("sync_l2: wtf");
         let soft_batches: Vec<GetSoftBatchResponse> =
             match retry_backoff(exponential_backoff.clone(), || async move {
-                // tracing::error!("sync_l2: pre request");
                 let soft_batches = inner_client
                     .get_soft_batch_range::<Da::Spec>(l2_height..l2_height + sync_blocks_count)
                     .await;
 
-                // tracing::error!("sync_l2: soft_batches:{:?}", soft_batches);
                 match soft_batches {
                     Ok(soft_batches) => Ok(soft_batches.into_iter().flatten().collect::<Vec<_>>()),
                     Err(e) => match e.downcast_ref::<JsonrpseeError>() {
@@ -1375,12 +1295,6 @@ async fn sync_l2<Da>(
             sleep(Duration::from_secs(1)).await;
             continue;
         }
-        println!(
-            "\n\nSYNC L2 soft_batches: {:?}..{:?} \n{:?}\n\n",
-            l2_height,
-            l2_height + sync_blocks_count,
-            soft_batches
-        );
 
         let soft_batches: Vec<(u64, GetSoftBatchResponse)> = (l2_height
             ..l2_height + soft_batches.len() as u64)
@@ -1434,33 +1348,5 @@ async fn get_da_block_at_height<Da: DaService>(
         .await
         .by_number
         .put(l1_block.header().height(), l1_block.clone());
-    Ok(l1_block)
-}
-
-async fn get_da_block_by_hash<Da: DaService>(
-    da_service: &Da,
-    block_hash: [u8; 32],
-    l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
-) -> anyhow::Result<Da::FilteredBlock> {
-    if let Some(l1_block) = l1_block_cache.lock().await.by_hash.get(&block_hash) {
-        return Ok(l1_block.clone());
-    }
-    let exponential_backoff = ExponentialBackoffBuilder::new()
-        .with_initial_interval(Duration::from_secs(1))
-        .with_max_elapsed_time(Some(Duration::from_secs(15 * 60)))
-        .build();
-    let l1_block = retry_backoff(exponential_backoff.clone(), || async {
-        da_service
-            .get_block_by_hash(block_hash)
-            .await
-            .map_err(backoff::Error::transient)
-    })
-    .await
-    .map_err(|e| anyhow!("Could not fetch L1 block by hash: {}", e))?;
-    l1_block_cache
-        .lock()
-        .await
-        .by_hash
-        .put(l1_block.header().hash().into(), l1_block.clone());
     Ok(l1_block)
 }
