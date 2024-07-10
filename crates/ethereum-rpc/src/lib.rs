@@ -40,12 +40,14 @@ pub struct EthRpcConfig {
 }
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct SyncStatus {
     pub head_block_number: u64,
     pub synced_block_number: u64,
 }
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub enum CitreaStatus {
     Synced(u64),
     Syncing(SyncStatus),
