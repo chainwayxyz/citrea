@@ -1,4 +1,7 @@
-use bitcoin::block::Header as BitHeader;
+use core::ops::Deref;
+
+use bitcoin::block::Header as BitcoinHeader;
+use bitcoin::consensus::{Decodable, Encodable};
 use bitcoin::hash_types::WitnessMerkleNode;
 use bitcoin::hashes::Hash;
 use bitcoin::BlockHash;
@@ -13,7 +16,7 @@ use super::block_hash::BlockHashWrapper;
     Clone, Debug, PartialEq, Eq, Hash, BorshDeserialize, BorshSerialize, Serialize, Deserialize,
 )]
 pub struct HeaderWrapper {
-    header: OurHeader, // not pub to prevent uses like block.header.header.merkle_root
+    header: BitcoinHeaderWrapper, // not pub to prevent uses like block.header.header.merkle_root
     pub tx_count: u32,
     pub height: u64,
     txs_commitment: [u8; 32],
@@ -23,13 +26,11 @@ impl BlockHeaderTrait for HeaderWrapper {
     type Hash = BlockHashWrapper;
 
     fn prev_hash(&self) -> Self::Hash {
-        BlockHashWrapper::from(self.header.prev_blockhash)
+        BlockHashWrapper::from(self.header.prev_blockhash.to_byte_array())
     }
 
     fn hash(&self) -> Self::Hash {
-        let bit_header = BitHeader::from(&self.header);
-        let block_hash = bit_header.block_hash();
-        BlockHashWrapper::from(block_hash.to_byte_array())
+        BlockHashWrapper::from(self.header.block_hash().to_byte_array())
     }
 
     fn txs_commitment(&self) -> Self::Hash {
@@ -47,7 +48,7 @@ impl BlockHeaderTrait for HeaderWrapper {
 
 impl HeaderWrapper {
     pub fn new(
-        header: BitHeader,
+        header: BitcoinHeader,
         tx_count: u32,
         height: u64,
         txs_commitment: WitnessMerkleNode,
@@ -61,99 +62,49 @@ impl HeaderWrapper {
     }
 
     pub fn block_hash(&self) -> BlockHash {
-        let bit_header = BitHeader::from(&self.header);
-        bit_header.block_hash()
+        self.header.block_hash()
     }
 
     pub fn merkle_root(&self) -> [u8; 32] {
-        self.header.merkle_root
+        self.header.merkle_root.to_byte_array()
     }
 }
 
-#[derive(
-    Copy,
-    Debug,
-    PartialEq,
-    Eq,
-    Clone,
-    PartialOrd,
-    Ord,
-    Hash,
-    BorshDeserialize,
-    BorshSerialize,
-    Serialize,
-    Deserialize,
-)]
-pub struct OurHeader {
-    /// Block version, now repurposed for soft fork signalling.
-    pub version: Version,
-    /// Reference to the previous block in the chain.
-    pub prev_blockhash: [u8; 32],
-    /// The root hash of the merkle tree of transactions in the block.
-    pub merkle_root: [u8; 32],
-    /// The timestamp of the block, as claimed by the miner.
-    pub time: u32,
-    /// The target value below which the blockhash must lie.
-    pub bits: CompactTarget,
-    /// The nonce, selected to obtain a low enough blockhash.
-    pub nonce: u32,
+/// BitcoinHeaderWrapper is a wrapper around BitcoinHeaderWrapper to implement borsh serde
+#[derive(Clone, PartialEq, Eq, Debug, Hash, Deserialize, Serialize)]
+#[repr(transparent)]
+#[serde(transparent)]
+pub struct BitcoinHeaderWrapper {
+    header: BitcoinHeader,
 }
 
-#[derive(
-    Copy,
-    PartialEq,
-    Eq,
-    Clone,
-    Debug,
-    PartialOrd,
-    Ord,
-    Hash,
-    BorshDeserialize,
-    BorshSerialize,
-    Serialize,
-    Deserialize,
-)]
-pub struct Version(i32);
-
-#[derive(
-    Copy,
-    Clone,
-    Debug,
-    Default,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    BorshDeserialize,
-    BorshSerialize,
-    Serialize,
-    Deserialize,
-)]
-pub struct CompactTarget(u32);
-
-impl From<BitHeader> for OurHeader {
-    fn from(value: BitHeader) -> Self {
-        Self {
-            version: Version(value.version.to_consensus()),
-            prev_blockhash: value.prev_blockhash.to_byte_array(),
-            merkle_root: value.merkle_root.to_byte_array(),
-            time: value.time,
-            bits: CompactTarget(value.bits.to_consensus()),
-            nonce: value.nonce,
-        }
+impl BorshSerialize for BitcoinHeaderWrapper {
+    #[inline]
+    fn serialize<W: borsh::io::Write>(&self, writer: &mut W) -> borsh::io::Result<()> {
+        Encodable::consensus_encode(&self.header, writer)
+            .expect("Bitcoin Header serialization cannot fail");
+        Ok(())
     }
 }
 
-impl From<&OurHeader> for BitHeader {
-    fn from(value: &OurHeader) -> Self {
-        Self {
-            version: bitcoin::block::Version::from_consensus(value.version.0),
-            prev_blockhash: Hash::from_byte_array(value.prev_blockhash),
-            merkle_root: Hash::from_byte_array(value.merkle_root),
-            time: value.time,
-            bits: bitcoin::CompactTarget::from_consensus(value.bits.0),
-            nonce: value.nonce,
-        }
+impl BorshDeserialize for BitcoinHeaderWrapper {
+    #[inline]
+    fn deserialize_reader<R: borsh::io::Read>(reader: &mut R) -> borsh::io::Result<Self> {
+        let header = Decodable::consensus_decode(reader)
+            .expect("Bitcoin Header deserialization cannot fail");
+        Ok(Self { header })
+    }
+}
+
+impl Deref for BitcoinHeaderWrapper {
+    type Target = BitcoinHeader;
+    fn deref(&self) -> &Self::Target {
+        &self.header
+    }
+}
+
+impl From<BitcoinHeader> for BitcoinHeaderWrapper {
+    fn from(header: BitcoinHeader) -> Self {
+        Self { header }
     }
 }
