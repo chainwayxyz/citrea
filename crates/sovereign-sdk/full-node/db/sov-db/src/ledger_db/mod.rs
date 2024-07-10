@@ -156,6 +156,15 @@ impl LedgerDB {
         self.get_data_range::<BatchByNumber, _, _>(range)
     }
 
+    /// Gets all soft confirmations by numbers
+    #[instrument(level = "trace", skip(self), err)]
+    pub fn get_soft_batch_by_number(
+        &self,
+        number: &BatchNumber,
+    ) -> Result<Option<StoredSoftBatch>, anyhow::Error> {
+        self.db.get::<SoftBatchByNumber>(number)
+    }
+
     /// Gets all soft confirmations with numbers `range.start` to `range.end`. If `range.end` is outside
     /// the range of the database, the result will smaller than the requested range.
     /// Note that this method blindly preallocates for the requested range, so it should not be exposed
