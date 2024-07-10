@@ -543,6 +543,7 @@ where
                         "Soft confirmation previous hash must match the hash of the block before"
                     );
 
+                    previous_batch_hash = soft_confirmations[index_soft_confirmation].hash();
                     index_soft_confirmation += 1;
                 } else {
                     index_headers += 1;
@@ -581,10 +582,9 @@ where
                         "Soft confirmation previous hash must match the hash of the block before"
                     );
 
+                    previous_batch_hash = soft_confirmations[index_soft_confirmation].hash();
                     index_soft_confirmation += 1;
                 }
-
-                previous_batch_hash = soft_confirmations[index_soft_confirmation].hash();
             }
 
             // final da header was checked against
