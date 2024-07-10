@@ -39,10 +39,6 @@ pub struct ChallengeContents<Address, Da: DaSpec, Root> {
     /// The rollup address of the originator of this challenge
     pub challenger_address: Address,
     /// The state transition that was proven
-    #[borsh(bound(
-        serialize = "Root: borsh::ser::BorshSerialize, Da::SlotHash: borsh::ser::BorshSerialize",
-        deserialize = "Root: borsh::de::BorshDeserialize, Da::SlotHash: borsh::de::BorshDeserialize"
-    ))]
     pub state_transition: StateTransition<Da, Root>,
 }
 

@@ -21,7 +21,7 @@ use crate::{ProofGenConfig, ProofProcessingStatus, ProverGuestRunConfig, Witness
 pub struct ParallelProverService<StateRoot, Witness, Da, Vm, V>
 where
     StateRoot: Serialize + DeserializeOwned + Clone + AsRef<[u8]>,
-    Witness: BorshSerialize + BorshDeserialize + Serialize + DeserializeOwned,
+    Witness: Serialize + DeserializeOwned,
     Da: DaService,
     Vm: ZkvmHost,
     V: StateTransitionFunction<Vm::Guest, Da::Spec> + Send + Sync,
