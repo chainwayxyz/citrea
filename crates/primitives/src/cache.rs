@@ -11,6 +11,15 @@ where
     pub by_hash: LruCache<[u8; 32], Da::FilteredBlock>,
 }
 
+impl<Da> Default for L1BlockCache<Da>
+where
+    Da: DaService,
+ {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<Da> L1BlockCache<Da>
 where
     Da: DaService,

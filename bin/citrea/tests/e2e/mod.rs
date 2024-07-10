@@ -1414,7 +1414,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     let _handle = std::thread::spawn(move || {
         let rt = Runtime::new().unwrap();
         rt.block_on(async {
-            let prover_node_task = tokio::spawn(async move {
+            let _prover_node_task = tokio::spawn(async move {
                 start_rollup(
                     prover_node_port_tx,
                     GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
@@ -1488,7 +1488,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     let _handle = std::thread::spawn(move || {
         let rt = Runtime::new().unwrap();
         rt.block_on(async {
-            let prover_node_task = tokio::spawn(async move {
+            let _prover_node_task = tokio::spawn(async move {
                 start_rollup(
                     prover_node_port_tx,
                     GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),

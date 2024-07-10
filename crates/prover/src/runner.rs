@@ -9,7 +9,6 @@ use anyhow::{anyhow, bail};
 use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoffBuilder;
 use borsh::de::BorshDeserialize;
-use borsh::BorshSerialize;
 use citrea_primitives::L1BlockCache;
 use jsonrpsee::core::client::Error as JsonrpseeError;
 use jsonrpsee::RpcModule;
@@ -330,9 +329,9 @@ where
         tokio::pin!(l1_handle);
 
         let (l2_tx, mut l2_rx) = mpsc::channel(1);
-        let start_l2_height = self.start_l2_height.clone();
+        let start_l2_height = self.start_l2_height;
         let sequencer_client = self.sequencer_client.clone();
-        let sync_blocks_count = self.sync_blocks_count.clone();
+        let sync_blocks_count = self.sync_blocks_count;
         let l2_handle = tokio::spawn(async move {
             sync_l2::<Da>(start_l2_height, sequencer_client, l2_tx, sync_blocks_count).await;
         });
@@ -376,7 +375,7 @@ where
         pg_client: &Option<Result<PostgresConnector, DbPoolError>>,
         prover_config: &ProverConfig,
     ) {
-        for (index, l1_block) in pending_l1_blocks.clone().iter().enumerate() {
+        for l1_block in pending_l1_blocks.clone().iter() {
             // work on the first unprocessed l1 block
             let l1_height = l1_block.header().height();
 
@@ -392,7 +391,7 @@ where
             let mut zk_proofs = Vec::<Proof>::new();
 
             self.da_service
-                .extract_relevant_blobs(&l1_block)
+                .extract_relevant_blobs(l1_block)
                 .into_iter()
                 .for_each(|mut tx| {
                     let data = DaData::try_from_slice(tx.full_data());
@@ -457,7 +456,7 @@ where
                 l1_block.header().height(),
             );
 
-            let mut da_data = self.da_service.extract_relevant_blobs(&l1_block);
+            let mut da_data = self.da_service.extract_relevant_blobs(l1_block);
             // if we don't do this, the zk circuit can't read the sequencer commitments
             da_data.iter_mut().for_each(|blob| {
                 blob.full_data();
@@ -474,7 +473,7 @@ where
 
             let ledger_db = &self.ledger_db.clone();
             match retry_backoff(exponential_backoff.clone(), || async move {
-                let res = match ledger_db.clone().get_soft_batch_range(
+                match ledger_db.clone().get_soft_batch_range(
                     &(BatchNumber(first_l2_height_of_l1)..BatchNumber(last_l2_height_of_l1 + 1)),
                 ) {
                     Ok(range)
@@ -491,8 +490,7 @@ where
                         err: "L2 range is not synced yet".to_string(),
                         retry_after: None,
                     }),
-                };
-                res
+                }
             })
             .await
             {
@@ -574,7 +572,7 @@ where
                 .unwrap();
             let (inclusion_proof, completeness_proof) = self
                 .da_service
-                .get_extraction_proof(&l1_block, &da_data)
+                .get_extraction_proof(l1_block, &da_data)
                 .await;
 
             let transition_data: StateTransitionData<Stf::StateRoot, Stf::Witness, Da::Spec> =
