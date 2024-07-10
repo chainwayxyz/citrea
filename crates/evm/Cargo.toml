@@ -43,9 +43,7 @@ secp256k1 = { workspace = true, optional = true }
 [dev-dependencies]
 alloy = { workspace = true, features = ["consensus", "signer-wallet", "signers", "providers"] }
 bytes = { workspace = true }
-citrea-evm = { path = ".", features = ["smart_contracts"] }
 lazy_static = "1.4.0"
-log-panics = { workspace = true }
 rand = { workspace = true }
 rayon = { workspace = true }
 reth-db = { workspace = true }
