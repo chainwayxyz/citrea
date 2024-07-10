@@ -144,7 +144,7 @@ impl ProxyAdmin {
     /// Return data to upgrade the contract.
     pub fn upgrade(proxy: Address, new_contract: Address) -> Bytes {
         ProxyAdminContract::upgradeCall {
-            proxy: proxy,
+            proxy,
             implementation: new_contract,
         }
         .abi_encode()

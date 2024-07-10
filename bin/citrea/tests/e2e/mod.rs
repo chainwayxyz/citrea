@@ -1776,11 +1776,11 @@ async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error>
 
     let seq_port = seq_port_rx.await.unwrap();
     let seq_test_client = make_test_client(seq_port).await;
-    // sys tx use L1BlockHash(50751 + 80720) + Bridge(258963) = 390434 gas
+    // sys tx use L1BlockHash(50751 + 80720) + Bridge(261215) = 392686 gas
     // the block gas limit is 1_500_000 because the system txs gas limit is 1_500_000 (decided with @eyusufatik and @okkothejawa as bridge init takes 1M gas)
 
-    // 1500000 - 390434 = 1109566 gas left in block
-    // 1109566 / 21000 = 52,83... so 52 ether transfer transactions can be included in the block
+    // 1500000 - 392686 = 1107314 gas left in block
+    // 1107314 / 21000 = 52,72... so 52 ether transfer transactions can be included in the block
 
     // send 52 ether transfer transactions
     let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();

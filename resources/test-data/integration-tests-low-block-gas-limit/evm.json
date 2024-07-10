@@ -146,7 +146,7 @@
   },
   "coinbase": "0x3100000000000000000000000000000000000005",
   "starting_base_fee": 1000000000,
-  "block_gas_limit": 30000000,
+  "block_gas_limit": 1500000,
   "base_fee_params": {
     "max_change_denominator": 8,
     "elasticity_multiplier": 2

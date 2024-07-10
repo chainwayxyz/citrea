@@ -49,4 +49,9 @@ paths = [
 
 for path in paths:
     with open(path, "w") as file:
+        if path == "../../../../../resources/test-data/integration-tests-low-block-gas-limit/evm.json":
+            new_evm_json = evm_json.copy()
+            new_evm_json["block_gas_limit"] = 1500000
+            json.dump(new_evm_json, file, indent=2)
+            continue
         json.dump(evm_json, file, indent=2)
