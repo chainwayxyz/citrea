@@ -3149,7 +3149,7 @@ async fn test_ledger_get_head_soft_batch() {
         .unwrap();
     assert_eq!(latest_block.header.number.unwrap(), 2);
     assert_eq!(
-        head_soft_batch.post_state_root.as_slice(),
+        head_soft_batch.state_root.as_slice(),
         latest_block.header.state_root.as_slice()
     );
 

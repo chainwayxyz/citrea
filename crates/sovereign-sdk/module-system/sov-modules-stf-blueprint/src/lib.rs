@@ -130,7 +130,6 @@ pub trait StfBlueprintTrait<C: Context, Da: DaSpec, Vm: Zkvm>:
     fn begin_soft_batch(
         &self,
         sequencer_public_key: &[u8],
-        pre_state_root: &Self::StateRoot,
         pre_state: Self::PreState,
         witness: <<C as Spec>::Storage as Storage>::Witness,
         slot_header: &<Da as DaSpec>::BlockHeader,
@@ -179,7 +178,6 @@ where
     fn begin_soft_batch(
         &self,
         sequencer_public_key: &[u8],
-        pre_state_root: &<C::Storage as Storage>::Root,
         pre_state: <C>::Storage,
         witness: <<C as Spec>::Storage as Storage>::Witness,
         slot_header: &<Da as DaSpec>::BlockHeader,
@@ -423,7 +421,6 @@ where
     > {
         match self.begin_soft_batch(
             sequencer_public_key,
-            pre_state_root,
             pre_state.clone(),
             witness,
             slot_header,

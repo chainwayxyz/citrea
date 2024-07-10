@@ -309,17 +309,17 @@ where
         };
 
         let l2_height = proven_commitments[0].l2_start_block_number;
-        let soft_batches = self
+        // Fetch the block prior to the one at l2_height so compare state roots
+        let prior_soft_batches = self
             .ledger_db
-            .get_soft_batch_range(&(BatchNumber(l2_height)..BatchNumber(l2_height + 1)))?;
-
-        let soft_batch = soft_batches.first().unwrap();
-        if soft_batch.pre_state_root.as_slice() != state_transition.initial_state_root.as_ref() {
+            .get_soft_batch_range(&(BatchNumber(l2_height - 1)..BatchNumber(l2_height)))?;
+        let prior_soft_batch = prior_soft_batches.first().unwrap();
+        if prior_soft_batch.state_root.as_slice() != state_transition.initial_state_root.as_ref() {
             return Err(anyhow!(
-                        "Proof verification: For a known and verified sequencer commitment. Pre state root mismatch - expected 0x{} but got 0x{}. Skipping proof.",
-                        hex::encode(&soft_batch.pre_state_root),
-                        hex::encode(&state_transition.initial_state_root)
-                    ).into());
+                "Proof verification: For a known and verified sequencer commitment. Pre state root mismatch - expected 0x{} but got 0x{}. Skipping proof.",
+                hex::encode(&prior_soft_batch.state_root),
+                hex::encode(&state_transition.initial_state_root)
+            ).into());
         }
 
         for commitment in proven_commitments {

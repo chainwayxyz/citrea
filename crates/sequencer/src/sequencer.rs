@@ -252,7 +252,6 @@ where
             dyn BestTransactions<Item = Arc<ValidPoolTransaction<EthPooledTransaction>>>,
         >,
         pub_key: &[u8],
-        state_root: <Stf as StateTransitionFunction<Vm, <Da as DaService>::Spec>>::StateRoot,
         prestate: <Sm as HierarchicalStorageManager<<Da as DaService>::Spec>>::NativeStorage,
         da_block_header: <<Da as DaService>::Spec as DaSpec>::BlockHeader,
         mut signed_batch: SignedSoftConfirmationBatch,
@@ -260,7 +259,6 @@ where
     ) -> anyhow::Result<(Vec<RlpEvmTransaction>, Vec<TxHash>)> {
         match self.stf.begin_soft_batch(
             pub_key,
-            &state_root,
             prestate.clone(),
             Default::default(),
             &da_block_header,
@@ -406,7 +404,6 @@ where
             .dry_run_transactions(
                 evm_txs,
                 &pub_key,
-                self.state_root.clone(),
                 prestate.clone(),
                 da_block.header().clone(),
                 signed_batch.clone(),
@@ -422,7 +419,6 @@ where
         // Execute the selected transactions
         match self.stf.begin_soft_batch(
             &pub_key,
-            &self.state_root,
             prestate.clone(),
             Default::default(),
             da_block.header(),
