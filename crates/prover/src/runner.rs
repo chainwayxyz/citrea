@@ -8,6 +8,7 @@ use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoffBuilder;
 use borsh::de::BorshDeserialize;
 use borsh::BorshSerialize;
+use citrea_primitives::types::BatchHash;
 use jsonrpsee::core::client::Error as JsonrpseeError;
 use jsonrpsee::RpcModule;
 use rand::Rng;
@@ -50,6 +51,7 @@ where
     /// made pub so that sequencer can clone it
     pub ledger_db: LedgerDB,
     state_root: StateRoot<Stf, Vm, Da::Spec>,
+    batch_hash: BatchHash,
     rpc_config: RpcConfig,
     #[allow(dead_code)]
     prover_service: Option<Ps>,
@@ -96,10 +98,10 @@ where
         prover_config: Option<ProverConfig>,
         code_commitment: Vm::CodeCommitment,
     ) -> Result<Self, anyhow::Error> {
-        let prev_state_root = match init_variant {
-            InitVariant::Initialized(state_root) => {
+        let (prev_state_root, prev_batch_hash) = match init_variant {
+            InitVariant::Initialized((state_root, batch_hash)) => {
                 debug!("Chain is already initialized. Skipping initialization.");
-                state_root
+                (state_root, batch_hash)
             }
             InitVariant::Genesis(params) => {
                 info!("No history detected. Initializing chain...");
@@ -111,7 +113,7 @@ where
                     "Chain initialization is done. Genesis root: 0x{}",
                     hex::encode(genesis_root.as_ref()),
                 );
-                genesis_root
+                (genesis_root, [0; 32])
             }
         };
 
@@ -128,6 +130,7 @@ where
             storage_manager,
             ledger_db,
             state_root: prev_state_root,
+            batch_hash: prev_batch_hash,
             rpc_config,
             prover_service,
             sequencer_client: SequencerClient::new(runner_config.sequencer_client_url),
@@ -458,6 +461,7 @@ where
                 self.ledger_db.commit_soft_batch(soft_batch_receipt, true)?;
 
                 self.state_root = next_state_root;
+                self.batch_hash = soft_batch.hash();
 
                 info!(
                     "New State Root after soft confirmation #{} is: {:?}",

@@ -9,6 +9,7 @@ use std::vec;
 use anyhow::anyhow;
 use borsh::ser::BorshSerialize;
 use citrea_evm::{CallMessage, Evm, RlpEvmTransaction, MIN_TRANSACTION_GAS};
+use citrea_primitives::types::BatchHash;
 use citrea_stf::runtime::Runtime;
 use digest::Digest;
 use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
@@ -85,6 +86,7 @@ where
     deposit_mempool: Arc<Mutex<DepositDataMempool>>,
     storage_manager: Sm,
     state_root: StateRoot<Stf, Vm, Da::Spec>,
+    batch_hash: BatchHash,
     sequencer_pub_key: Vec<u8>,
     rpc_config: RpcConfig,
     soft_confirmation_rule_enforcer: SoftConfirmationRuleEnforcer<C, Da::Spec>,
@@ -124,10 +126,10 @@ where
     ) -> anyhow::Result<Self> {
         let (l2_force_block_tx, l2_force_block_rx) = unbounded();
 
-        let prev_state_root = match init_variant {
-            InitVariant::Initialized(state_root) => {
+        let (prev_state_root, prev_batch_hash) = match init_variant {
+            InitVariant::Initialized((state_root, batch_hash)) => {
                 debug!("Chain is already initialized. Skipping initialization.");
-                state_root
+                (state_root, batch_hash)
             }
             InitVariant::Genesis(params) => {
                 info!("No history detected. Initializing chain...",);
@@ -139,7 +141,7 @@ where
                     "Chain initialization is done. Genesis root: 0x{}",
                     hex::encode(genesis_root.as_ref()),
                 );
-                genesis_root
+                (genesis_root, [0; 32])
             }
         };
 
@@ -172,6 +174,7 @@ where
             deposit_mempool,
             storage_manager,
             state_root: prev_state_root,
+            batch_hash: prev_batch_hash,
             sequencer_pub_key: public_keys.sequencer_public_key,
             rpc_config,
             soft_confirmation_rule_enforcer,
@@ -452,7 +455,8 @@ where
                     timestamp,
                 );
 
-                let mut signed_soft_batch = self.sign_soft_confirmation_batch(unsigned_batch)?;
+                let mut signed_soft_batch =
+                    self.sign_soft_confirmation_batch(unsigned_batch, self.batch_hash)?;
 
                 let (batch_receipt, checkpoint) = self.stf.end_soft_batch(
                     self.sequencer_pub_key.as_ref(),
@@ -499,7 +503,7 @@ where
                     pre_state_root: self.state_root.as_ref().to_vec(),
                     post_state_root: next_state_root.as_ref().to_vec(),
                     phantom_data: PhantomData::<u64>,
-                    batch_hash: batch_receipt.batch_hash,
+                    batch_hash: signed_soft_batch.hash(),
                     da_slot_hash: da_block.header().hash(),
                     da_slot_height: da_block.header().height(),
                     da_slot_txs_commitment: da_block.header().txs_commitment(),
@@ -527,7 +531,8 @@ where
                     BatchNumber(l2_height),
                 )?;
 
-                self.ledger_db.commit_soft_batch(soft_batch_receipt, true)?;
+                self.ledger_db
+                    .commit_soft_batch(soft_batch_receipt, self.batch_hash, true)?;
 
                 let l1_height = da_block.header().height();
                 info!(
@@ -536,6 +541,7 @@ where
                 );
 
                 self.state_root = next_state_root;
+                self.batch_hash = signed_soft_batch.hash();
 
                 let mut txs_to_remove = self.db_provider.last_block_tx_hashes()?;
                 txs_to_remove.extend(l1_fee_failed_txs);
@@ -952,6 +958,7 @@ where
     fn sign_soft_confirmation_batch(
         &mut self,
         soft_confirmation: UnsignedSoftConfirmationBatch,
+        prev_soft_confirmation_hash: [u8; 32],
     ) -> anyhow::Result<SignedSoftConfirmationBatch> {
         let raw = soft_confirmation.try_to_vec().map_err(|e| anyhow!(e))?;
 
@@ -961,6 +968,7 @@ where
 
         Ok(SignedSoftConfirmationBatch::new(
             hash,
+            prev_soft_confirmation_hash,
             soft_confirmation.da_slot_height(),
             soft_confirmation.da_slot_hash(),
             soft_confirmation.da_slot_txs_commitment(),

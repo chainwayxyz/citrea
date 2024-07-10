@@ -8,6 +8,7 @@ use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoffBuilder;
 use borsh::de::BorshDeserialize;
 use borsh::BorshSerialize as _;
+use citrea_primitives::types::BatchHash;
 use jsonrpsee::core::client::Error as JsonrpseeError;
 use jsonrpsee::RpcModule;
 use lru::LruCache;
@@ -73,6 +74,7 @@ where
     /// made pub so that sequencer can clone it
     pub ledger_db: LedgerDB,
     state_root: StateRoot<Stf, Vm, Da::Spec>,
+    batch_hash: BatchHash,
     rpc_config: RpcConfig,
     sequencer_client: SequencerClient,
     sequencer_pub_key: Vec<u8>,
@@ -118,10 +120,10 @@ where
         code_commitment: Vm::CodeCommitment,
         sync_blocks_count: u64,
     ) -> Result<Self, anyhow::Error> {
-        let prev_state_root = match init_variant {
-            InitVariant::Initialized(state_root) => {
+        let (prev_state_root, prev_batch_hash) = match init_variant {
+            InitVariant::Initialized((state_root, batch_hash)) => {
                 debug!("Chain is already initialized. Skipping initialization.");
-                state_root
+                (state_root, batch_hash)
             }
             InitVariant::Genesis(params) => {
                 info!("No history detected. Initializing chain...");
@@ -133,7 +135,7 @@ where
                     "Chain initialization is done. Genesis root: 0x{}",
                     hex::encode(genesis_root.as_ref()),
                 );
-                genesis_root
+                (genesis_root, [0; 32])
             }
         };
 
@@ -152,6 +154,7 @@ where
             storage_manager,
             ledger_db,
             state_root: prev_state_root,
+            batch_hash: prev_batch_hash,
             rpc_config,
             sequencer_client: SequencerClient::new(runner_config.sequencer_client_url),
             sequencer_pub_key: public_keys.sequencer_public_key,

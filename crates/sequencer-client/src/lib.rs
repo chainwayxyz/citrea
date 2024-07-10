@@ -104,6 +104,8 @@ impl SequencerClient {
 pub struct GetSoftBatchResponse {
     #[serde(with = "hex::serde")]
     pub hash: [u8; 32],
+    #[serde(with = "hex::serde")]
+    pub prev_hash: [u8; 32],
     pub da_slot_height: u64,
     #[serde(with = "hex::serde")]
     pub da_slot_hash: [u8; 32],
@@ -128,6 +130,7 @@ impl From<GetSoftBatchResponse> for SignedSoftConfirmationBatch {
     fn from(val: GetSoftBatchResponse) -> Self {
         SignedSoftConfirmationBatch::new(
             val.hash,
+            val.prev_hash,
             val.da_slot_height,
             val.da_slot_hash,
             val.da_slot_txs_commitment,

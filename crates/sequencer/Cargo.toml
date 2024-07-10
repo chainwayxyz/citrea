@@ -59,6 +59,7 @@ sov-stf-runner = { path = "../sovereign-sdk/full-node/sov-stf-runner" }
 
 # Citrea Deps
 citrea-evm = { path = "../evm", features = ["native"] }
+citrea-primitives = { path = "../primitives" }
 citrea-stf = { path = "../citrea-stf", features = ["native"] }
 shared-backup-db = { path = "../shared-backup-db" }
 
