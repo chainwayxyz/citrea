@@ -14,7 +14,7 @@ where
 impl<Da> Default for L1BlockCache<Da>
 where
     Da: DaService,
- {
+{
     fn default() -> Self {
         Self::new()
     }
