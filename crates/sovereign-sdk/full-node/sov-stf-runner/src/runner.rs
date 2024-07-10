@@ -57,6 +57,7 @@ where
     /// made pub so that sequencer can clone it
     pub ledger_db: LedgerDB,
     state_root: StateRoot<Stf, Vm, Da::Spec>,
+    batch_hash: [u8; 32],
     rpc_config: RpcConfig,
     #[allow(dead_code)]
     prover_service: Option<Ps>,
@@ -162,6 +163,7 @@ where
             storage_manager,
             ledger_db,
             state_root: prev_state_root,
+            batch_hash: prev_batch_hash,
             rpc_config,
             prover_service,
             sequencer_client: SequencerClient::new(runner_config.sequencer_client_url),
@@ -517,13 +519,15 @@ where
                     timestamp: soft_batch.timestamp,
                 };
 
-                self.ledger_db.commit_soft_batch(soft_batch_receipt, true)?;
+                self.ledger_db
+                    .commit_soft_batch(soft_batch_receipt, self.batch_hash, true)?;
                 self.ledger_db.extend_l2_range_of_l1_slot(
                     SlotNumber(filtered_block.header().height()),
                     BatchNumber(l2_height),
                 )?;
 
                 self.state_root = next_state_root;
+                self.batch_hash = soft_batch.hash;
 
                 debug!(
                     "New State Root after soft confirmation #{} is: {:?}",
@@ -1039,7 +1043,7 @@ where
                     pre_state_root: self.state_root.as_ref().to_vec(),
                     post_state_root: next_state_root.as_ref().to_vec(),
                     phantom_data: PhantomData::<u64>,
-                    batch_hash: batch_receipt.batch_hash,
+                    batch_hash: soft_batch.hash,
                     da_slot_hash: cur_l1_block.header().hash(),
                     da_slot_height: cur_l1_block.header().height(),
                     da_slot_txs_commitment: cur_l1_block.header().txs_commitment(),
@@ -1051,14 +1055,18 @@ where
                     timestamp: soft_batch.timestamp,
                 };
 
-                self.ledger_db
-                    .commit_soft_batch(soft_batch_receipt, self.include_tx_body)?;
+                self.ledger_db.commit_soft_batch(
+                    soft_batch_receipt,
+                    self.batch_hash,
+                    self.include_tx_body,
+                )?;
                 self.ledger_db.extend_l2_range_of_l1_slot(
                     SlotNumber(cur_l1_block.header().height()),
                     BatchNumber(height),
                 )?;
 
                 self.state_root = next_state_root;
+                self.batch_hash = soft_batch.hash;
 
                 info!(
                     "New State Root after soft confirmation #{} is: {:?}",

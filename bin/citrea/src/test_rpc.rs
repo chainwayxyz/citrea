@@ -58,10 +58,12 @@ fn populate_ledger(
     for slot in slots {
         ledger_db.commit_slot(slot).unwrap();
     }
+    let mut prev_soft_batch_hash = [0; 32];
     if let Some(soft_batch_receipts) = soft_batch_receipts {
         for soft_batch_receipt in soft_batch_receipts {
+            prev_soft_batch_hash = soft_batch_receipt.batch_hash;
             ledger_db
-                .commit_soft_batch(soft_batch_receipt, true)
+                .commit_soft_batch(soft_batch_receipt, prev_soft_batch_hash, true)
                 .unwrap();
         }
     }

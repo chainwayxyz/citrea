@@ -29,7 +29,8 @@ async fn init_and_restart() {
         *runner.get_state_root()
     };
 
-    let init_variant_2: MockInitVariant = InitVariant::Initialized(state_root_after_genesis);
+    let init_variant_2: MockInitVariant =
+        InitVariant::Initialized((state_root_after_genesis, [0; 32]));
 
     let runner_2 = initialize_runner(tmpdir.path(), init_variant_2);
 

@@ -437,7 +437,7 @@ where
                     pre_state_root: self.state_root.as_ref().to_vec(),
                     post_state_root: next_state_root.as_ref().to_vec(),
                     phantom_data: PhantomData::<u64>,
-                    batch_hash: batch_receipt.batch_hash,
+                    batch_hash: signed_soft_confirmation.hash(),
                     da_slot_hash: filtered_block.header().hash(),
                     da_slot_height: filtered_block.header().height(),
                     da_slot_txs_commitment: filtered_block.header().txs_commitment(),
@@ -457,10 +457,11 @@ where
                     SlotNumber(filtered_block.header().height()),
                     BatchNumber(l2_height),
                 )?;
-                self.ledger_db.commit_soft_batch(soft_batch_receipt, true)?;
+                self.ledger_db
+                    .commit_soft_batch(soft_batch_receipt, self.batch_hash, true)?;
 
                 self.state_root = next_state_root;
-                self.batch_hash = soft_batch.hash();
+                self.batch_hash = soft_batch.hash;
 
                 info!(
                     "New State Root after soft confirmation #{} is: {:?}",
