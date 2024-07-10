@@ -88,7 +88,7 @@ class TestWeb3(unittest.TestCase):
         self.assertEqual(receipt['transactionHash'], self.first_tx_hash)
         self.assertEqual(receipt['from'], "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266")
         self.assertEqual(receipt['to'], "0x0000000000000000000000000000000000000000")
-        self.assertGreater(int(receipt['diffSize'], 16), 0)
+        self.assertGreater(int(receipt['l1DiffSize'], 16), 0)
         self.assertGreater(int(receipt['l1FeeRate'], 16), 0)
 
     def test_get_transaction_count(self):

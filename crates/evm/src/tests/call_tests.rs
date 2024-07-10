@@ -110,7 +110,7 @@ fn call_multiple_test() {
                 },
                 gas_used: 132943,
                 log_index_start: 0,
-                diff_size: 565,
+                l1_diff_size: 565,
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
@@ -121,7 +121,7 @@ fn call_multiple_test() {
                 },
                 gas_used: 43730,
                 log_index_start: 0,
-                diff_size: 220,
+                l1_diff_size: 220,
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
@@ -132,7 +132,7 @@ fn call_multiple_test() {
                 },
                 gas_used: 26630,
                 log_index_start: 0,
-                diff_size: 220,
+                l1_diff_size: 220,
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
@@ -143,7 +143,7 @@ fn call_multiple_test() {
                 },
                 gas_used: 26630,
                 log_index_start: 0,
-                diff_size: 220,
+                l1_diff_size: 220,
             }
         ]
     )
@@ -212,7 +212,7 @@ fn call_test() {
                 },
                 gas_used: 132943,
                 log_index_start: 0,
-                diff_size: 565,
+                l1_diff_size: 565,
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
@@ -223,7 +223,7 @@ fn call_test() {
                 },
                 gas_used: 43730,
                 log_index_start: 0,
-                diff_size: 220,
+                l1_diff_size: 220,
             }
         ]
     )
@@ -894,7 +894,7 @@ fn test_l1_fee_success() {
                 },
                 gas_used: 114235,
                 log_index_start: 0,
-                diff_size: 477,
+                l1_diff_size: 477,
             },]
         )
     }
@@ -1047,7 +1047,7 @@ fn test_l1_fee_halt() {
                 },
                 gas_used: 106947,
                 log_index_start: 0,
-                diff_size: 445,
+                l1_diff_size: 445,
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
@@ -1058,7 +1058,7 @@ fn test_l1_fee_halt() {
                 },
                 gas_used: 1000000,
                 log_index_start: 0,
-                diff_size: 52,
+                l1_diff_size: 52,
             },
         ]
     );

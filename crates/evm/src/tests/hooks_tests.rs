@@ -221,7 +221,7 @@ fn create_pending_transaction(hash: B256, index: u64) -> PendingTransaction {
             },
             gas_used: 100,
             log_index_start: 0,
-            diff_size: 0,
+            l1_diff_size: 0,
         },
     }
 }

@@ -25,7 +25,7 @@ use crate::{BASE_FEE_VAULT, L1_FEE_VAULT};
 
 #[derive(Copy, Clone, Default, Debug)]
 pub struct TxInfo {
-    pub diff_size: u64,
+    pub l1_diff_size: u64,
     pub l1_fee: U256,
 }
 
@@ -350,7 +350,10 @@ impl<SPEC: Spec, EXT: CitreaExternalExt, DB: Database> CitreaHandler<SPEC, EXT, 
         let diff_size = calc_diff_size(context).map_err(EVMError::Database)? as u64;
         let l1_fee_rate = context.external.l1_fee_rate();
         let l1_fee = U256::from(diff_size) * U256::from(l1_fee_rate);
-        context.external.set_tx_info(TxInfo { diff_size, l1_fee });
+        context.external.set_tx_info(TxInfo {
+            l1_diff_size: diff_size,
+            l1_fee,
+        });
         if context.is_system_caller() {
             // System caller doesn't pay L1 fee.
         } else {
