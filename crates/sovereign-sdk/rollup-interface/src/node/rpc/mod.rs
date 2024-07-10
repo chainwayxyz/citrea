@@ -196,6 +196,9 @@ pub struct SoftBatchResponse {
     /// The hash of the soft batch.
     #[serde(with = "hex::serde")]
     pub hash: [u8; 32],
+    /// The hash of the previous soft batch.
+    #[serde(with = "hex::serde")]
+    pub prev_hash: [u8; 32],
     /// The transactions in this batch.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub txs: Option<Vec<HexTx>>,

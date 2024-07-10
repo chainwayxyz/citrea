@@ -167,6 +167,8 @@ pub struct StoredSoftBatch {
     pub da_slot_txs_commitment: [u8; 32],
     /// The hash of the batch
     pub hash: DbHash,
+    /// The hash of the previous batch
+    pub prev_hash: DbHash,
     /// The range of transactions which occurred in this batch.
     pub tx_range: std::ops::Range<TxNumber>,
     /// The transactions which occurred in this batch.
@@ -199,6 +201,7 @@ impl TryFrom<StoredSoftBatch> for SoftBatchResponse {
             da_slot_height: value.da_slot_height,
             da_slot_txs_commitment: value.da_slot_txs_commitment,
             hash: value.hash,
+            prev_hash: value.prev_hash,
             txs: Some(
                 value
                     .txs

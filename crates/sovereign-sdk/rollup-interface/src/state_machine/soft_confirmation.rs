@@ -84,6 +84,7 @@ impl UnsignedSoftConfirmationBatch {
 #[derive(Debug, PartialEq, Clone, BorshDeserialize, BorshSerialize, Serialize, Deserialize, Eq)]
 pub struct SignedSoftConfirmationBatch {
     hash: [u8; 32],
+    prev_hash: [u8; 32],
     da_slot_height: u64,
     da_slot_hash: [u8; 32],
     da_slot_txs_commitment: [u8; 32],
@@ -101,6 +102,7 @@ impl SignedSoftConfirmationBatch {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         hash: [u8; 32],
+        prev_hash: [u8; 32],
         da_slot_height: u64,
         da_slot_hash: [u8; 32],
         da_slot_txs_commitment: [u8; 32],
@@ -114,6 +116,7 @@ impl SignedSoftConfirmationBatch {
     ) -> SignedSoftConfirmationBatch {
         Self {
             hash,
+            prev_hash,
             da_slot_height,
             da_slot_hash,
             da_slot_txs_commitment,
@@ -127,9 +130,14 @@ impl SignedSoftConfirmationBatch {
         }
     }
 
-    /// Hash of the unsigned batch
+    /// Hash of the signed batch
     pub fn hash(&self) -> [u8; 32] {
         self.hash
+    }
+
+    /// Hash of the previous signed batch
+    pub fn prev_hash(&self) -> [u8; 32] {
+        self.prev_hash
     }
 
     /// DA block this soft confirmation was given for
