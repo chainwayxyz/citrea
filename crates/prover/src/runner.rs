@@ -338,15 +338,15 @@ where
         tokio::pin!(l2_handle);
         let da_service = self.da_service.clone();
         let l1_block_cache = self.l1_block_cache.clone();
-        let mut pending_l1_blocks: Vec<<Da as DaService>::FilteredBlock> =
-            Vec::<Da::FilteredBlock>::new();
+        let mut pending_l1_blocks: VecDeque<<Da as DaService>::FilteredBlock> =
+            VecDeque::<Da::FilteredBlock>::new();
         let pending_l1 = &mut pending_l1_blocks;
         loop {
             select! {
                 _ = &mut l1_handle => {panic!("l1 sync handle exited unexpectedly");},
                 _ = &mut l2_handle => {panic!("l2 sync handle exited unexpectedly");},
                 Some(l1_block) = l1_rx.recv() => {
-                    pending_l1.push(l1_block);
+                    pending_l1.push_back(l1_block);
                  },
                 _ = sleep(Duration::from_secs(1)) => {
                     self.run_inner(
@@ -369,7 +369,7 @@ where
 
     async fn run_inner(
         &mut self,
-        pending_l1_blocks: &mut Vec<<Da as DaService>::FilteredBlock>,
+        pending_l1_blocks: &mut VecDeque<<Da as DaService>::FilteredBlock>,
         skip_submission_until_l1: u64,
         pg_client: &Option<Result<PostgresConnector, DbPoolError>>,
         prover_config: &ProverConfig,
@@ -438,15 +438,7 @@ where
                         )
                     });
 
-                let mut index_to_remove = 0;
-                for (index, l1_block_) in pending_l1_blocks.iter().enumerate() {
-                    if l1_block_.header().height() == l1_height {
-                        index_to_remove = index;
-                        break;
-                    }
-                }
-
-                pending_l1_blocks.remove(index_to_remove);
+                pending_l1_blocks.pop_front();
                 continue;
             }
             info!(
@@ -718,15 +710,8 @@ where
                 .set_prover_last_scanned_l1_height(SlotNumber(l1_height))
                 // Handle error
                 .unwrap();
-            let mut index_to_remove = 0;
-            for (index, l1_block_) in pending_l1_blocks.iter().enumerate() {
-                if l1_block_.header().height() == l1_height {
-                    index_to_remove = index;
-                    break;
-                }
-            }
 
-            pending_l1_blocks.remove(index_to_remove);
+            pending_l1_blocks.pop_front();
         }
     }
 }
