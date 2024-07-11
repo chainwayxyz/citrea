@@ -8,6 +8,7 @@ members = [
   "crates/evm",
   "crates/ethereum-rpc",
   "crates/fullnode",
+  "crates/risc0-bonsai",
   "crates/sequencer",
   "crates/sequencer-client",
   "crates/soft-confirmation-rule-enforcer",
@@ -15,7 +16,6 @@ members = [
   # Sovereign sdk
   "crates/sovereign-sdk/rollup-interface",
   "crates/sovereign-sdk/adapters/risc0",
-  "crates/sovereign-sdk/adapters/risc0-bonsai",
   "crates/sovereign-sdk/adapters/mock-da",
   "crates/sovereign-sdk/adapters/mock-zkvm",
   # Examples
