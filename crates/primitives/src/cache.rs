@@ -3,13 +3,9 @@ use std::num::NonZeroUsize;
 use lru::LruCache;
 use sov_rollup_interface::services::da::DaService;
 
-pub struct L1BlockCache<Da>
+pub struct L1BlockCache<Da>(pub LruCache<u64, Da::FilteredBlock>)
 where
-    Da: DaService,
-{
-    pub by_number: LruCache<u64, Da::FilteredBlock>,
-    pub by_hash: LruCache<[u8; 32], Da::FilteredBlock>,
-}
+    Da: DaService;
 
 impl<Da> Default for L1BlockCache<Da>
 where
@@ -25,9 +21,14 @@ where
     Da: DaService,
 {
     pub fn new() -> Self {
-        Self {
-            by_number: LruCache::new(NonZeroUsize::new(10).unwrap()),
-            by_hash: LruCache::new(NonZeroUsize::new(10).unwrap()),
-        }
+        Self(LruCache::new(NonZeroUsize::new(10).unwrap()))
+    }
+
+    pub fn get(&mut self, height: &u64) -> Option<&Da::FilteredBlock> {
+        self.0.get(height)
+    }
+
+    pub fn put(&mut self, height: u64, block: Da::FilteredBlock) {
+        self.0.put(height, block);
     }
 }
