@@ -600,13 +600,10 @@ impl LedgerDB {
         &self,
         l2_height: u64,
     ) -> anyhow::Result<Option<StateRoot>> {
-        let buf = self.db.get::<L2StateRoot>(&BatchNumber(l2_height))?;
-        if let Some(buf) = buf {
-            let state_root = bincode::deserialize(&buf)?;
-            Ok(Some(state_root))
-        } else {
-            Ok(None)
-        }
+        self.db
+            .get::<L2StateRoot>(&BatchNumber(l2_height))?
+            .map(|state_root| bincode::deserialize(&state_root).map_err(Into::into))
+            .transpose()
     }
 
     /// Set the state root created by applying L2 block

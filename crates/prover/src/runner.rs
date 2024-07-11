@@ -5,11 +5,11 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
 
-use anyhow::{anyhow, bail};
+use anyhow::bail;
 use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoffBuilder;
 use borsh::de::BorshDeserialize;
-use citrea_primitives::L1BlockCache;
+use citrea_primitives::{get_da_block_at_height, L1BlockCache};
 use jsonrpsee::core::client::Error as JsonrpseeError;
 use jsonrpsee::RpcModule;
 use rand::Rng;
@@ -349,7 +349,7 @@ where
                     pending_l1.push_back(l1_block);
                  },
                 _ = sleep(Duration::from_secs(1)) => {
-                    self.run_inner(
+                    self.process_l1_block_and_generate_proof(
                         pending_l1,
                         skip_submission_until_l1,
                         &pg_client, &prover_config,
@@ -367,7 +367,7 @@ where
         }
     }
 
-    async fn run_inner(
+    async fn process_l1_block_and_generate_proof(
         &mut self,
         pending_l1_blocks: &mut VecDeque<<Da as DaService>::FilteredBlock>,
         skip_submission_until_l1: u64,
@@ -863,8 +863,6 @@ async fn sync_l2<Da>(
                 l2_height
             );
 
-            // We wait for 2 seconds and then return a Permanent error so that we exit the retry.
-            // This should not backoff exponentially
             sleep(Duration::from_secs(1)).await;
             continue;
         }
@@ -893,33 +891,4 @@ async fn get_initial_slot_height<Da: DaSpec>(client: &SequencerClient) -> u64 {
             }
         }
     }
-}
-
-async fn get_da_block_at_height<Da: DaService>(
-    da_service: &Da,
-    height: u64,
-    l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
-) -> anyhow::Result<Da::FilteredBlock> {
-    if let Some(l1_block) = l1_block_cache.lock().await.by_number.get(&height) {
-        return Ok(l1_block.clone());
-    }
-    let exponential_backoff = ExponentialBackoffBuilder::new()
-        .with_initial_interval(Duration::from_secs(1))
-        .with_max_elapsed_time(Some(Duration::from_secs(15 * 60)))
-        .build();
-
-    let l1_block = retry_backoff(exponential_backoff.clone(), || async {
-        da_service
-            .get_block_at(height)
-            .await
-            .map_err(backoff::Error::transient)
-    })
-    .await
-    .map_err(|e| anyhow!("Error while fetching L1 block: {}", e))?;
-    l1_block_cache
-        .lock()
-        .await
-        .by_number
-        .put(l1_block.header().height(), l1_block.clone());
-    Ok(l1_block)
 }

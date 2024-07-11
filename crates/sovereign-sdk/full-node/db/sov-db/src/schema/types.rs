@@ -197,11 +197,7 @@ impl From<StoredSoftBatch> for SignedSoftConfirmationBatch {
             value.da_slot_txs_commitment,
             value.pre_state_root,
             value.l1_fee_rate,
-            value
-                .txs
-                .iter()
-                .map(|tx| tx.body.clone().unwrap())
-                .collect(),
+            value.txs.into_iter().map(|tx| tx.body.unwrap()).collect(),
             value.deposit_data,
             value.soft_confirmation_signature,
             value.pub_key,

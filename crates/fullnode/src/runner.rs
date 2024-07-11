@@ -6,7 +6,7 @@ use anyhow::{anyhow, bail};
 use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoffBuilder;
 use borsh::de::BorshDeserialize;
-use citrea_primitives::{L1BlockCache, SyncError};
+use citrea_primitives::{L1BlockCache, SyncError, get_da_block_at_height};
 use jsonrpsee::core::client::Error as JsonrpseeError;
 use jsonrpsee::RpcModule;
 use rs_merkle::algorithms::Sha256;
@@ -496,7 +496,7 @@ where
                 _ = &mut l1_sync_worker => {},
                 _ = &mut l2_sync_worker => {},
                 Some(l1_block) = l1_rx.recv() => {
-                   self.run_inner(&mut pending_sequencer_commitments,&mut pending_zk_proofs, l1_block).await;
+                   self.process_l1_block(&mut pending_sequencer_commitments,&mut pending_zk_proofs, l1_block).await;
                 },
                 Some(l2_blocks) = l2_rx.recv() => {
                     for (l2_height, l2_block) in l2_blocks {
@@ -510,7 +510,7 @@ where
         }
     }
 
-    pub async fn run_inner(
+    pub async fn process_l1_block(
         &self,
         pending_sequencer_commitments: &mut Vec<SequencerCommitment>,
         pending_zk_proofs: &mut Vec<Proof>,
@@ -713,8 +713,6 @@ async fn sync_l2<Da>(
                 l2_height
             );
 
-            // We wait for 2 seconds and then return a Permanent error so that we exit the retry.
-            // This should not backoff exponentially
             sleep(Duration::from_secs(1)).await;
             continue;
         }
@@ -730,33 +728,4 @@ async fn sync_l2<Da>(
             error!("Could not notify about L2 block: {}", e);
         }
     }
-}
-
-async fn get_da_block_at_height<Da: DaService>(
-    da_service: &Da,
-    height: u64,
-    l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
-) -> anyhow::Result<Da::FilteredBlock> {
-    if let Some(l1_block) = l1_block_cache.lock().await.by_number.get(&height) {
-        return Ok(l1_block.clone());
-    }
-    let exponential_backoff = ExponentialBackoffBuilder::new()
-        .with_initial_interval(Duration::from_secs(1))
-        .with_max_elapsed_time(Some(Duration::from_secs(15 * 60)))
-        .build();
-
-    let l1_block = retry_backoff(exponential_backoff.clone(), || async {
-        da_service
-            .get_block_at(height)
-            .await
-            .map_err(backoff::Error::transient)
-    })
-    .await
-    .map_err(|e| anyhow!("Error while fetching L1 block: {}", e))?;
-    l1_block_cache
-        .lock()
-        .await
-        .by_number
-        .put(l1_block.header().height(), l1_block.clone());
-    Ok(l1_block)
 }
