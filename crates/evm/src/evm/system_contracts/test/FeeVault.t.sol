@@ -3,12 +3,19 @@ pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
 import "forge-std/console.sol";
-
+import "openzeppelin-contracts/contracts/proxy/transparent/ProxyAdmin.sol";
 import "../src/FeeVault.sol";
 abstract contract FeeVaultTest is Test {
     FeeVault feeVault;
+    ProxyAdmin proxyAdmin = ProxyAdmin(0x31fFFfFfFFFffFFFFFFfFFffffFFffffFfFFfffF);
     address owner = makeAddr("citrea_owner");
     address recipient = makeAddr("citrea_recipient");
+
+    function setUp() public virtual {
+        proxyAdmin = new ProxyAdmin();
+        vm.etch(address(proxyAdmin), address(proxyAdmin).code);
+        vm.store(address(proxyAdmin), bytes32(0), bytes32(uint256(uint160(owner))));
+    }
 
     function testWithdraw() public {
         vm.deal(address(feeVault), 1 ether);
