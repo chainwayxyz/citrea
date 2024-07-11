@@ -635,7 +635,6 @@ dependencies = [
  "rand",
  "serde",
  "serde_json",
- "sov-modules-api",
  "sov-rollup-interface",
  "thiserror",
 ]

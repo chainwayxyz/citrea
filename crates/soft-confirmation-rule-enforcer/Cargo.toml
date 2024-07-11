@@ -26,6 +26,7 @@ tracing = { workspace = true, optional = true }
 chrono = { workspace = true, default-features = true }
 lazy_static = "1.4.0"
 sov-mock-da = { path = "../sovereign-sdk/adapters/mock-da", features = ["native"] }
+sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api", features = ["native"] }
 sov-prover-storage-manager = { path = "../sovereign-sdk/full-node/sov-prover-storage-manager", features = ["test-utils"] }
 tempfile = { workspace = true }
 

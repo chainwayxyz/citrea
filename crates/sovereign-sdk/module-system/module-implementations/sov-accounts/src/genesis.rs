@@ -60,7 +60,7 @@ impl<C: sov_modules_api::Context> Accounts<C> {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "native"))]
 mod tests {
     use std::str::FromStr;
 

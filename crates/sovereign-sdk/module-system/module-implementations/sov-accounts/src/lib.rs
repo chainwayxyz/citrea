@@ -7,7 +7,7 @@ pub use genesis::*;
 mod query;
 #[cfg(feature = "native")]
 pub use query::*;
-#[cfg(test)]
+#[cfg(all(test, feature = "native"))]
 mod tests;
 
 pub use hooks::AccountsTxHook;

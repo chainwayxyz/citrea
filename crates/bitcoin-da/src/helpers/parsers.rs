@@ -2,7 +2,6 @@ use core::iter::Peekable;
 
 use bitcoin::blockdata::opcodes::all::{OP_ENDIF, OP_IF};
 use bitcoin::blockdata::script::{Instruction, Instructions};
-use bitcoin::consensus::Decodable;
 use bitcoin::hashes::{sha256d, Hash};
 use bitcoin::opcodes::all::{
     OP_PUSHNUM_1, OP_PUSHNUM_10, OP_PUSHNUM_11, OP_PUSHNUM_12, OP_PUSHNUM_13, OP_PUSHNUM_14,
@@ -184,9 +183,12 @@ fn parse_relevant_inscriptions(
     })
 }
 
+#[cfg(any(feature = "native", test))]
 pub fn parse_hex_transaction(
     tx_hex: &str,
 ) -> Result<Transaction, bitcoin::consensus::encode::Error> {
+    use bitcoin::consensus::Decodable;
+
     if let Ok(reader) = hex::decode(tx_hex) {
         Transaction::consensus_decode(&mut &reader[..])
     } else {

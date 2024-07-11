@@ -295,7 +295,7 @@ impl PostgresConnector {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "test-utils"))]
 mod tests {
     use super::*;
     use crate::tables::Tables;

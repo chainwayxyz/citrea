@@ -3,7 +3,7 @@
 mod call;
 mod genesis;
 
-#[cfg(test)]
+#[cfg(all(test, feature = "native"))]
 mod tests;
 
 #[cfg(feature = "native")]
