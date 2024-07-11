@@ -374,7 +374,10 @@ where
         pg_client: &Option<Result<PostgresConnector, DbPoolError>>,
         prover_config: &ProverConfig,
     ) {
-        for l1_block in pending_l1_blocks.clone().iter() {
+        while !pending_l1_blocks.is_empty() {
+            let l1_block = pending_l1_blocks
+                .front()
+                .expect("Pending l1 blocks cannot be empty");
             // work on the first unprocessed l1 block
             let l1_height = l1_block.header().height();
 
