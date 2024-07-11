@@ -20,13 +20,13 @@ pub(crate) mod call;
 #[cfg(feature = "native")]
 pub(crate) mod error;
 
-#[cfg(test)]
+#[cfg(all(test, feature = "native"))]
 mod tests;
 
 pub use primitive_types::RlpEvmTransaction;
 use sov_state::codec::BcsCodec;
 
-#[cfg(test)]
+#[cfg(all(test, feature = "native"))]
 use crate::tests::DEFAULT_CHAIN_ID;
 
 /// Bitcoin light client contract address
@@ -121,7 +121,7 @@ pub struct EvmChainConfig {
     pub base_fee_params: BaseFeeParams,
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "native"))]
 impl Default for EvmChainConfig {
     fn default() -> EvmChainConfig {
         EvmChainConfig {

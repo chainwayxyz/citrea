@@ -58,7 +58,7 @@ tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 
 [dev-dependencies]
-citrea-evm = { path = "../../crates/evm", features = ["smart_contracts"] }
+citrea-evm = { path = "../../crates/evm", features = ["native"] }
 shared-backup-db = { path = "../../crates/shared-backup-db", features = ["test-utils"] }
 sov-mock-da = { path = "../../crates/sovereign-sdk/adapters/mock-da", default-features = false }
 sov-prover-storage-manager = { path = "../../crates/sovereign-sdk/full-node/sov-prover-storage-manager", features = ["test-utils"] }

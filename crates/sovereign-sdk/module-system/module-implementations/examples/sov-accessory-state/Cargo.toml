@@ -13,7 +13,7 @@ resolver = "2"
 
 [dependencies]
 jsonrpsee = { workspace = true, features = ["macros", "client-core", "server"], optional = true }
-sov-modules-api = { path = "../../../sov-modules-api", default-features = false }
+sov-modules-api = { path = "../../../sov-modules-api", default-features = false, features = ["macros"] }
 sov-state = { path = "../../../sov-state" }
 serde = { workspace = true, optional = true }
 borsh = { workspace = true, features = ["rc"] }

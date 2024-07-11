@@ -44,7 +44,7 @@ impl BitcoinLightClient {
         .into()
     }
 
-    #[cfg(test)]
+    #[cfg(all(test, feature = "native"))]
     pub(crate) fn get_witness_root_by_number(block_number: u64) -> Bytes {
         BitcoinLightClientContract::getWitnessRootByNumberCall {
             _blockNumber: U256::from(block_number),

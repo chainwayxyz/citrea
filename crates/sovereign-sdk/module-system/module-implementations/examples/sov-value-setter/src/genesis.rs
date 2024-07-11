@@ -23,7 +23,7 @@ impl<C: sov_modules_api::Context> ValueSetter<C> {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "native"))]
 mod tests {
     use sov_modules_api::default_context::DefaultContext;
     use sov_modules_api::Address;
