@@ -435,10 +435,6 @@ where
                 blob.full_data();
             });
 
-            // This makes sure the commitments are sorted by l2 height so the newest and latest l2 heights are correct
-            sequencer_commitments
-                .sort_by(|a, b| a.l2_start_block_number.cmp(&b.l2_start_block_number));
-
             let first_l2_height_of_l1 = sequencer_commitments[0].l2_start_block_number;
             let last_l2_height_of_l1 =
                 sequencer_commitments[sequencer_commitments.len() - 1].l2_end_block_number;
