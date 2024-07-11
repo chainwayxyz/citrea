@@ -212,7 +212,7 @@ async fn test_genesis_contract_call() -> Result<(), Box<dyn std::error::Error>> 
     let storage_value = seq_test_client
         .eth_get_storage_at(
             contract_address,
-            U256::from_str("360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc")
+            U256::from_str("0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc")
                 .unwrap(),
             None,
         )
@@ -220,7 +220,7 @@ async fn test_genesis_contract_call() -> Result<(), Box<dyn std::error::Error>> 
         .unwrap();
     assert_eq!(
         storage_value,
-        U256::from_str("0000000000000000000000003200000000000000000000000000000000000001").unwrap()
+        U256::from_str("0x0000000000000000000000003200000000000000000000000000000000000001").unwrap()
     );
 
     seq_task.abort();
