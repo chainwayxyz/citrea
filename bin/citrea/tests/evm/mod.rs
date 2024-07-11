@@ -220,7 +220,8 @@ async fn test_genesis_contract_call() -> Result<(), Box<dyn std::error::Error>> 
         .unwrap();
     assert_eq!(
         storage_value,
-        U256::from_str("0x0000000000000000000000003200000000000000000000000000000000000001").unwrap()
+        U256::from_str("0x0000000000000000000000003200000000000000000000000000000000000001")
+            .unwrap()
     );
 
     seq_task.abort();
