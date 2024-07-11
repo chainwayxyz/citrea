@@ -341,6 +341,8 @@ where
         let mut pending_l1_blocks: VecDeque<<Da as DaService>::FilteredBlock> =
             VecDeque::<Da::FilteredBlock>::new();
         let pending_l1 = &mut pending_l1_blocks;
+        let mut interval = tokio::time::interval(Duration::from_secs(1));
+        interval.tick().await;
         loop {
             select! {
                 _ = &mut l1_handle => {panic!("l1 sync handle exited unexpectedly");},
@@ -348,7 +350,7 @@ where
                 Some(l1_block) = l1_rx.recv() => {
                     pending_l1.push_back(l1_block);
                  },
-                _ = sleep(Duration::from_secs(1)) => {
+                _ = interval.tick() => {
                     self.process_l1_block_and_generate_proof(
                         pending_l1,
                         skip_submission_until_l1,
