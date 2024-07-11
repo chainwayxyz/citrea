@@ -705,6 +705,7 @@ pub mod utils {
 mod rpc_hex_tests {
     use alloc::vec;
     use alloc::vec::Vec;
+
     use serde::{Deserialize, Serialize};
 
     #[derive(Serialize, Deserialize, PartialEq, Debug)]
