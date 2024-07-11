@@ -504,11 +504,16 @@ where
                 let mut witnesses = vec![];
                 let start_l2 = sequencer_commitment.l2_start_block_number;
                 let end_l2 = sequencer_commitment.l2_end_block_number;
-                let soft_batches_in_commitment = self
+                let soft_batches_in_commitment = match self
                     .ledger_db
                     .get_soft_batch_range(&(BatchNumber(start_l2)..BatchNumber(end_l2 + 1)))
-                    // Handle error
-                    .unwrap();
+                {
+                    Ok(soft_batches) => soft_batches,
+                    Err(e) => {
+                        error!("Failed to get soft batches from the ledger db: {}", e);
+                        return;
+                    }
+                };
                 let mut commitment_soft_confirmations = vec![];
                 let mut da_block_headers_to_push: Vec<
                     <<Da as DaService>::Spec as DaSpec>::BlockHeader,
@@ -518,15 +523,20 @@ where
                         || da_block_headers_to_push.last().unwrap().height()
                             != soft_batch.da_slot_height
                     {
-                        let filtered_block = retry_backoff(exponential_backoff.clone(), || async {
-                            da_service
-                                .get_block_at(soft_batch.da_slot_height)
-                                .await
-                                .map_err(backoff::Error::transient)
-                        })
-                        // Handle error
-                        .await
-                        .unwrap();
+                        let filtered_block =
+                            match retry_backoff(exponential_backoff.clone(), || async {
+                                da_service
+                                    .get_block_at(soft_batch.da_slot_height)
+                                    .await
+                                    .map_err(backoff::Error::transient)
+                            })
+                            .await
+                            {
+                                Ok(block) => block,
+                                Err(_) => {
+                                    return;
+                                }
+                            };
                         da_block_headers_to_push.push(filtered_block.header().clone());
                     }
                     let signed_soft_confirmation: SignedSoftConfirmationBatch =
@@ -539,11 +549,14 @@ where
                 for l2_height in sequencer_commitment.l2_start_block_number
                     ..=sequencer_commitment.l2_end_block_number
                 {
-                    let witness = self
-                        .ledger_db
-                        .get_l2_witness::<Stf::Witness>(l2_height)
-                        // Handle error
-                        .unwrap();
+                    let witness = match self.ledger_db.get_l2_witness::<Stf::Witness>(l2_height) {
+                        Ok(witness) => witness,
+                        Err(e) => {
+                            error!("Failed to get witness from the ledger db: {}", e);
+                            return;
+                        }
+                    };
+
                     witnesses.push(witness.expect("A witness must be present"));
                 }
                 state_transition_witnesses.push_back(witnesses);
@@ -551,16 +564,27 @@ where
 
             let da_block_header_of_commitments = l1_block.header().clone();
             let hash = da_block_header_of_commitments.hash();
-            let initial_state_root = self
+            let initial_state_root = match self
                 .ledger_db
                 .get_l2_state_root::<Stf::StateRoot>(first_l2_height_of_l1 - 1)
-                .unwrap()
-                .unwrap();
-            let final_state_root = self
+            {
+                Ok(state_root) => state_root.expect("There should be a state root"),
+                Err(e) => {
+                    error!("Failed to get state root from the ledger db: {}", e);
+                    return;
+                }
+            };
+
+            let final_state_root = match self
                 .ledger_db
                 .get_l2_state_root::<Stf::StateRoot>(last_l2_height_of_l1)
-                .unwrap()
-                .unwrap();
+            {
+                Ok(state_root) => state_root.expect("There should be a state root"),
+                Err(e) => {
+                    error!("Failed to get state root from the ledger db: {}", e);
+                    return;
+                }
+            };
             let (inclusion_proof, completeness_proof) = self
                 .da_service
                 .get_extraction_proof(l1_block, &da_data)
@@ -597,19 +621,23 @@ where
                 let prover_service = self
                     .prover_service
                     .as_ref()
-                    // Handle err
-                    .unwrap();
+                    .expect("Prover service should be present");
 
                 prover_service.submit_witness(transition_data).await;
 
                 let _ = prover_service.prove(hash.clone()).await;
                 // Handle error and return
 
-                let (tx_id, proof) = prover_service
+                let (tx_id, proof) = match prover_service
                     .wait_for_proving_and_send_to_da(hash.clone(), &self.da_service)
                     .await
-                    // Handle error and return or retry
-                    .unwrap();
+                {
+                    Ok((tx_id, proof)) => (tx_id, proof),
+                    Err(e) => {
+                        error!("Failed to prove and send to DA: {}", e);
+                        return;
+                    }
+                };
 
                 let tx_id_u8 = tx_id.into();
 
@@ -676,10 +704,14 @@ where
                     }
                 }
 
-                self.ledger_db
-                    .put_proof_data(l1_height, tx_id_u8, proof, stored_state_transition)
-                    // Handle error
-                    .unwrap();
+                if let Err(e) = self.ledger_db.put_proof_data(
+                    l1_height,
+                    tx_id_u8,
+                    proof,
+                    stored_state_transition,
+                ) {
+                    panic!("Failed to put proof data in the ledger db: {}", e);
+                }
             } else {
                 info!("Skipping proving for l1 height {}", l1_height);
             }
@@ -706,10 +738,15 @@ where
                 }
             }
 
-            self.ledger_db
+            if let Err(e) = self
+                .ledger_db
                 .set_prover_last_scanned_l1_height(SlotNumber(l1_height))
-                // Handle error
-                .unwrap();
+            {
+                panic!(
+                    "Failed to put prover last scanned l1 height in the ledger db: {}",
+                    e
+                );
+            }
 
             pending_l1_blocks.pop_front();
         }
