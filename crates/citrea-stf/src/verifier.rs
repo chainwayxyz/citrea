@@ -72,6 +72,7 @@ where
         let out: StateTransition<Da::Spec, _> = StateTransition {
             initial_state_root: data.initial_state_root,
             final_state_root,
+            initial_batch_hash: data.initial_batch_hash,
             validity_condition, // TODO: not sure about what to do with this yet
             state_diff,
             da_slot_hash: data.da_block_header_of_commitments.hash(),
