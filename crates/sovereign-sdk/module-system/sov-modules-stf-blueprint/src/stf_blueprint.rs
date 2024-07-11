@@ -6,6 +6,7 @@ use sov_modules_api::{
 };
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
 use sov_rollup_interface::stf::{BatchReceipt, TransactionReceipt};
+use sov_state::Storage;
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 use sov_zk_cycle_macros::cycle_tracker;
 #[cfg(feature = "native")]
@@ -154,6 +155,7 @@ where
         &self,
         checkpoint: StateCheckpoint<C>,
         soft_batch: &mut SignedSoftConfirmationBatch,
+        pre_state_root: &<C::Storage as Storage>::Root,
     ) -> (Result<(), ApplySoftConfirmationError>, WorkingSet<C>) {
         native_debug!(
             "Beginning soft batch 0x{} from sequencer: 0x{}",
@@ -165,7 +167,10 @@ where
 
         // ApplySoftConfirmationHook: begin
         if let Err(e) = self.runtime.begin_soft_confirmation_hook(
-            &mut HookSoftConfirmationInfo::from(soft_batch.clone()),
+            &mut HookSoftConfirmationInfo::new(
+                soft_batch.clone(),
+                pre_state_root.as_ref().to_vec(),
+            ),
             &mut batch_workspace,
         ) {
             native_error!(
@@ -223,8 +228,9 @@ where
         &self,
         checkpoint: StateCheckpoint<C>,
         soft_batch: &mut SignedSoftConfirmationBatch,
+        pre_state_root: &<C::Storage as Storage>::Root,
     ) -> (ApplySoftConfirmationResult, StateCheckpoint<C>) {
-        match self.begin_soft_confirmation_inner(checkpoint, soft_batch) {
+        match self.begin_soft_confirmation_inner(checkpoint, soft_batch, pre_state_root) {
             (Ok(()), batch_workspace) => {
                 // TODO: wait for txs here, apply_sov_txs can be called multiple times
                 let (batch_workspace, tx_receipts) =

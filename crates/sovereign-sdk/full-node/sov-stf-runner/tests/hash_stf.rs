@@ -71,6 +71,7 @@ impl<C: Context, Da: DaSpec, Vm: Zkvm, Cond: ValidityCondition> StfBlueprintTrai
     fn begin_soft_batch(
         &self,
         _sequencer_public_key: &[u8],
+        _pre_state_root: &Self::StateRoot,
         _pre_state: Self::PreState,
         _witness: <<C as sov_modules_api::Spec>::Storage as Storage>::Witness,
         _slot_header: &<Da as DaSpec>::BlockHeader,

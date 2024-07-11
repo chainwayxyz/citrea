@@ -259,6 +259,7 @@ where
     ) -> anyhow::Result<(Vec<RlpEvmTransaction>, Vec<TxHash>)> {
         match self.stf.begin_soft_batch(
             pub_key,
+            &self.state_root,
             prestate.clone(),
             Default::default(),
             &da_block_header,
@@ -419,6 +420,7 @@ where
         // Execute the selected transactions
         match self.stf.begin_soft_batch(
             &pub_key,
+            &self.state_root,
             prestate.clone(),
             Default::default(),
             da_block.header(),
