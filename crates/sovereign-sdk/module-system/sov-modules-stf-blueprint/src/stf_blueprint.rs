@@ -1,6 +1,5 @@
 use std::marker::PhantomData;
 
-use borsh::BorshSerialize;
 use sov_modules_api::hooks::{ApplySoftConfirmationError, HookSoftConfirmationInfo};
 use sov_modules_api::{
     native_debug, native_error, Context, DaSpec, DispatchCall, StateCheckpoint, WorkingSet,
@@ -130,7 +129,7 @@ where
 
             let receipt = TransactionReceipt {
                 tx_hash: raw_tx_hash,
-                body_to_save: Some(tx.clone().try_to_vec().unwrap()),
+                body_to_save: Some(borsh::to_vec(&tx).unwrap()),
                 events,
                 receipt: tx_effect,
             };

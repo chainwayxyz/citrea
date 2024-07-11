@@ -112,5 +112,5 @@ pub(crate) struct Receipt {
     pub(crate) receipt: reth_primitives::Receipt,
     pub(crate) gas_used: u128,
     pub(crate) log_index_start: u64,
-    pub(crate) diff_size: u64,
+    pub(crate) l1_diff_size: u64,
 }

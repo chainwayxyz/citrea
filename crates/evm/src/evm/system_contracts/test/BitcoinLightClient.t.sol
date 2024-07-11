@@ -3,15 +3,12 @@ pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
 import "../src/BitcoinLightClient.sol";
-import "openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-
-
-contract Placeholder is UUPSUpgradeable { 
-    function _authorizeUpgrade(address newImplementation) internal override {} 
-}
+import "openzeppelin-contracts/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+import "openzeppelin-contracts/contracts/proxy/transparent/ProxyAdmin.sol";
+import "openzeppelin-contracts-upgradeable/contracts/access/Ownable2StepUpgradeable.sol";
 
 contract FalseClient is BitcoinLightClient {
-    function getBlockHashFalse(uint256 _blockNumber) public view returns (bytes32) {
+    function getBlockHashFalse(uint256 /* _blockNumber */) public pure returns (bytes32) {
         return keccak256("false");
     }
 }
@@ -19,22 +16,25 @@ contract FalseClient is BitcoinLightClient {
 
 contract BitcoinLightClientTest is Test {
     BitcoinLightClient bitcoinLightClient = BitcoinLightClient(address(0x3100000000000000000000000000000000000001));
+    ProxyAdmin proxyAdmin = ProxyAdmin(0x31fFFfFfFFFffFFFFFFfFFffffFFffffFfFFfffF);
     bytes32 mockBlockHash = bytes32(keccak256("CITREA_TEST"));
     bytes32 mockWitnessRoot = bytes32(keccak256("CITREA"));
     uint256 constant INITIAL_BLOCK_NUMBER = 505050;
     address constant SYSTEM_CALLER = address(0xdeaDDeADDEaDdeaDdEAddEADDEAdDeadDEADDEaD);
-    address owner = address(0x013);
+    address owner = makeAddr("owner");
 
 
     function setUp() public {
+        proxyAdmin = new ProxyAdmin();
+        vm.etch(address(proxyAdmin), address(proxyAdmin).code);
+        vm.store(address(proxyAdmin), bytes32(0), bytes32(uint256(uint160(owner))));
         address lightClient_impl = address(new BitcoinLightClient());
-        address placeholder = address(new Placeholder());
-        address erc1967_impl = address(new ERC1967Proxy(placeholder, ""));
-        vm.etch(address(bitcoinLightClient), erc1967_impl.code);
+        address proxy_impl = address(new TransparentUpgradeableProxy(lightClient_impl, address(proxyAdmin), ""));
+        vm.etch(address(bitcoinLightClient), proxy_impl.code);
         bytes32 IMPLEMENTATION_SLOT = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
-        bytes32 OWNER_SLOT = 0x9016d09d72d40fdae2fd8ceac6b6234c7706214fd39c1cd1e609a0528c199300;
+        bytes32 ADMIN_SLOT = 0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103;
         vm.store(address(bitcoinLightClient), IMPLEMENTATION_SLOT, bytes32(uint256(uint160(lightClient_impl))));
-        vm.store(address(bitcoinLightClient), OWNER_SLOT, bytes32(uint256(uint160(owner))));
+        vm.store(address(bitcoinLightClient), ADMIN_SLOT, bytes32(uint256(uint160(address(proxyAdmin)))));
         vm.startPrank(SYSTEM_CALLER);
     }
 
@@ -111,7 +111,7 @@ contract BitcoinLightClientTest is Test {
         address newImpl = address(new FalseClient());
         vm.stopPrank();
         vm.prank(owner);
-        bitcoinLightClient.upgradeToAndCall(newImpl, "");
+        proxyAdmin.upgrade(ITransparentUpgradeableProxy(payable(address(bitcoinLightClient))), newImpl);
         assertEq(FalseClient(address(bitcoinLightClient)).getBlockHashFalse(0), keccak256("false"));
     }
 
@@ -120,18 +120,17 @@ contract BitcoinLightClientTest is Test {
         vm.prank(address(0x1));
         address newImpl = address(new FalseClient());
         vm.expectRevert();
-        bitcoinLightClient.upgradeToAndCall(newImpl, "");
+        proxyAdmin.upgrade(ITransparentUpgradeableProxy(payable(address(bitcoinLightClient))), newImpl);
     }
 
     function testOwnerCanChangeAndUpgrade() public {
         address newImpl = address(new FalseClient());
         vm.stopPrank();
-        address newOwner = address(0x051323242);
+        address newOwner = makeAddr("newOwner");
         vm.prank(owner);
-        bitcoinLightClient.transferOwnership(newOwner);
+        proxyAdmin.transferOwnership(newOwner);
         vm.startPrank(newOwner);
-        bitcoinLightClient.acceptOwnership();
-        bitcoinLightClient.upgradeToAndCall(newImpl, "");
+        proxyAdmin.upgrade(ITransparentUpgradeableProxy(payable(address(bitcoinLightClient))), newImpl);
         assertEq(FalseClient(address(bitcoinLightClient)).getBlockHashFalse(0), keccak256("false"));
     }
 }

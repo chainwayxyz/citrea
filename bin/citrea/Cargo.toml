@@ -18,7 +18,7 @@ citrea-fullnode = { path = "../../crates/fullnode" }
 citrea-primitives = { path = "../../crates/primitives" }
 citrea-prover = { path = "../../crates/prover" }
 citrea-risc0 = { package = "risc0", path = "./provers/risc0" }
-citrea-risc0-bonsai-adapter = { path = "../../crates/sovereign-sdk/adapters/risc0-bonsai", features = ["native"] }
+citrea-risc0-bonsai-adapter = { path = "../../crates/risc0-bonsai", features = ["native"] }
 citrea-sequencer = { path = "../../crates/sequencer" }
 citrea-stf = { path = "../../crates/citrea-stf", features = ["native"] }
 ethereum-rpc = { path = "../../crates/ethereum-rpc" }

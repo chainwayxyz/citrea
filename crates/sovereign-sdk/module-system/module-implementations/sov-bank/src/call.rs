@@ -1,4 +1,5 @@
 use anyhow::{bail, Context, Result};
+use borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(feature = "native")]
 use sov_modules_api::macros::CliWalletArg;
 use sov_modules_api::{CallResponse, StateMapAccessor, WorkingSet};
@@ -17,7 +18,7 @@ use crate::{Amount, Bank, Coins, Token};
     derive(serde::Serialize),
     derive(serde::Deserialize)
 )]
-#[derive(borsh::BorshDeserialize, borsh::BorshSerialize, Debug, PartialEq, Clone)]
+#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq, Clone)]
 pub enum CallMessage<C: sov_modules_api::Context> {
     /// Creates a new token with the specified name and initial balance.
     CreateToken {

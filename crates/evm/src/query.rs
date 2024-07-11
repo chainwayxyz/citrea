@@ -63,7 +63,7 @@ pub(crate) struct EstimatedTxExpenses {
     /// L1 fee.
     l1_fee: U256,
     /// L1 diff size.
-    diff_size: u64,
+    l1_diff_size: u64,
 }
 
 impl EstimatedTxExpenses {
@@ -83,7 +83,7 @@ pub struct EstimatedDiffSize {
     /// Gas used.
     pub gas: U64,
     /// Diff size.
-    pub diff_size: U64,
+    pub l1_diff_size: U64,
 }
 
 #[rpc_gen(client, server)]
@@ -929,7 +929,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         Ok(EstimatedDiffSize {
             gas: estimated.gas_used,
-            diff_size: U64::from(estimated.diff_size),
+            l1_diff_size: U64::from(estimated.l1_diff_size),
         })
     }
 
@@ -1024,7 +1024,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                                 gas_used: U64::from(MIN_TRANSACTION_GAS),
                                 base_fee: env_base_fee,
                                 l1_fee: tx_info.l1_fee,
-                                diff_size: tx_info.diff_size,
+                                l1_diff_size: tx_info.l1_diff_size,
                             });
                         }
                     }
@@ -1080,7 +1080,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let (result, mut l1_fee, mut diff_size) = match result {
             Ok((result, tx_info)) => match result.result {
                 ExecutionResult::Success { .. } => {
-                    (result.result, tx_info.l1_fee, tx_info.diff_size)
+                    (result.result, tx_info.l1_fee, tx_info.l1_diff_size)
                 }
                 ExecutionResult::Halt { reason, gas_used } => {
                     return Err(RpcInvalidTransactionError::halt(reason, gas_used).into())
@@ -1211,7 +1211,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             gas_used: U64::from(highest_gas_limit),
             base_fee: env_base_fee,
             l1_fee,
-            diff_size,
+            l1_diff_size: diff_size,
         })
     }
 
@@ -1666,8 +1666,8 @@ pub(crate) fn build_rpc_receipt(
                 format!("{:#x}", block.l1_fee_rate).into(),
             ),
             (
-                "diffSize".into(),
-                format!("{:#x}", receipt.diff_size).into(),
+                "l1DiffSize".into(),
+                format!("{:#x}", receipt.l1_diff_size).into(),
             ),
         ]
         .into_iter()
@@ -1788,14 +1788,14 @@ fn update_estimated_gas_range(
             // cap the highest gas limit with succeeding gas limit
             *highest_gas_limit = tx_gas_limit;
             *l1_fee = tx_info.l1_fee;
-            *diff_size = tx_info.diff_size;
+            *diff_size = tx_info.l1_diff_size;
         }
         ExecutionResult::Revert { .. } => {
             // increase the lowest gas limit
             *lowest_gas_limit = tx_gas_limit;
 
             *l1_fee = tx_info.l1_fee;
-            *diff_size = tx_info.diff_size;
+            *diff_size = tx_info.l1_diff_size;
         }
         ExecutionResult::Halt { reason, .. } => {
             match reason {

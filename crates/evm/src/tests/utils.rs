@@ -87,10 +87,10 @@ pub(crate) fn commit(
     // Save checkpoint
     let mut checkpoint = working_set.checkpoint();
 
-    let (cache_log, witness) = checkpoint.freeze();
+    let (cache_log, mut witness) = checkpoint.freeze();
 
     let (root, authenticated_node_batch, _) = storage
-        .compute_state_update(cache_log, &witness)
+        .compute_state_update(cache_log, &mut witness)
         .expect("jellyfish merkle tree update must succeed");
 
     let working_set = checkpoint.to_revertable();

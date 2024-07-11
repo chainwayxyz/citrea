@@ -84,7 +84,7 @@ impl<S: MerkleProofSpec, Q: QueryManager> Storage for ProverStorage<S, Q> {
         &self,
         key: &StorageKey,
         version: Option<Version>,
-        witness: &Self::Witness,
+        witness: &mut Self::Witness,
     ) -> Option<StorageValue> {
         let val = self.read_value(key, version);
         witness.add_hint(val.clone());
@@ -103,7 +103,7 @@ impl<S: MerkleProofSpec, Q: QueryManager> Storage for ProverStorage<S, Q> {
     fn compute_state_update(
         &self,
         state_accesses: OrderedReadsAndWrites,
-        witness: &Self::Witness,
+        witness: &mut Self::Witness,
     ) -> Result<(Self::Root, Self::StateUpdate, StateDiff), anyhow::Error> {
         let latest_version = self.db.get_next_version() - 1;
         let jmt = JellyfishMerkleTree::<_, S::Hasher>::new(&self.db);
@@ -139,17 +139,24 @@ impl<S: MerkleProofSpec, Q: QueryManager> Storage for ProverStorage<S, Q> {
 
         let mut key_preimages = Vec::with_capacity(state_accesses.ordered_writes.len());
 
+        let mut diff = vec![];
+
         // Compute the jmt update from the write batch
         let batch = state_accesses
             .ordered_writes
             .into_iter()
             .map(|(key, value)| {
                 let key_hash = KeyHash::with::<S::Hasher>(key.key.as_ref());
+
+                let key_bytes =
+                    Arc::try_unwrap(key.key.clone()).unwrap_or_else(|arc| (*arc).clone());
+                let value_bytes =
+                    value.map(|v| Arc::try_unwrap(v.value).unwrap_or_else(|arc| (*arc).clone()));
+
+                diff.push((key_bytes, value_bytes.clone()));
                 key_preimages.push((key_hash, key));
-                (
-                    key_hash,
-                    value.map(|v| Arc::try_unwrap(v.value).unwrap_or_else(|arc| (*arc).clone())),
-                )
+
+                (key_hash, value_bytes)
             });
 
         let next_version = self.db.get_next_version();
@@ -169,7 +176,7 @@ impl<S: MerkleProofSpec, Q: QueryManager> Storage for ProverStorage<S, Q> {
         // We need the state diff to be calculated only inside zk context.
         // The diff then can be used by special nodes to construct the state of the rollup by verifying the zk proof.
         // And constructing the tree from the diff.
-        Ok((new_root, state_update, vec![]))
+        Ok((new_root, state_update, diff))
     }
 
     fn commit(&self, state_update: &Self::StateUpdate, accessory_writes: &OrderedReadsAndWrites) {

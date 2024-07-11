@@ -4,7 +4,7 @@ use bitcoin::block::{Header, Version};
 use bitcoin::hash_types::{TxMerkleNode, WitnessMerkleNode};
 use bitcoin::hashes::{sha256d, Hash};
 use bitcoin::string::FromHexStr;
-use bitcoin::{BlockHash, CompactTarget};
+use bitcoin::{BlockHash, CompactTarget, Transaction};
 use sov_rollup_interface::da::{DaSpec, DaVerifier};
 
 use crate::helpers::compression::decompress_blob;
@@ -12,7 +12,6 @@ use crate::helpers::parsers::{parse_hex_transaction, parse_transaction};
 use crate::spec::blob::BlobWithSender;
 use crate::spec::header::HeaderWrapper;
 use crate::spec::proof::InclusionMultiProof;
-use crate::spec::transaction::Transaction;
 use crate::verifier::BitcoinVerifier;
 
 pub(crate) fn get_mock_txs() -> Vec<Transaction> {
@@ -74,12 +73,15 @@ pub(crate) fn get_mock_data() -> (
     let block_txs = get_mock_txs();
 
     // relevant txs are on 6, 8, 10, 12 indices
-    let completeness_proof = vec![
+    let completeness_proof = [
         block_txs[6].clone(),
         block_txs[8].clone(),
         block_txs[10].clone(),
         block_txs[12].clone(),
-    ];
+    ]
+    .into_iter()
+    .map(Into::into)
+    .collect();
 
     let mut inclusion_proof = InclusionMultiProof {
         txids: block_txs
@@ -90,7 +92,7 @@ pub(crate) fn get_mock_data() -> (
             .iter()
             .map(|t| t.wtxid().to_byte_array())
             .collect(),
-        coinbase_tx: block_txs[0].clone(),
+        coinbase_tx: block_txs[0].clone().into(),
     };
 
     // Coinbase tx wtxid should be [0u8;32]

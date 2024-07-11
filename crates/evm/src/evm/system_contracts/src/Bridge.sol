@@ -1,17 +1,16 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.13;
+pragma solidity ^0.8.26;
 
 import "bitcoin-spv/solidity/contracts/ValidateSPV.sol";
 import "bitcoin-spv/solidity/contracts/BTCUtils.sol";
 import "../lib/WitnessUtils.sol";
 import "./BitcoinLightClient.sol";
-import "openzeppelin-contracts-upgradeable/contracts/proxy/utils/UUPSUpgradeable.sol";
 import "openzeppelin-contracts-upgradeable/contracts/access/Ownable2StepUpgradeable.sol";
 
 /// @title Bridge contract for the Citrea end of Citrea <> Bitcoin bridge
 /// @author Citrea
 
-contract Bridge is UUPSUpgradeable, Ownable2StepUpgradeable {
+contract Bridge is Ownable2StepUpgradeable {
     using BTCUtils for bytes;
     using BytesLib for bytes;
 
@@ -190,6 +189,4 @@ contract Bridge is UUPSUpgradeable, Ownable2StepUpgradeable {
         bytes20 _addr = bytes20(_script.slice(offset, 20));
         return address(uint160(_addr));
     }
-
-    function _authorizeUpgrade(address) internal override onlyOwner {}
 }

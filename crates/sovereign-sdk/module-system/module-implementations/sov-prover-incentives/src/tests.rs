@@ -96,7 +96,7 @@ fn test_burn_on_invalid_proof() {
         let proof = MockProof {
             program_id: MOCK_CODE_COMMITMENT,
             is_valid: false,
-            log: &[],
+            log: vec![],
         };
         module
             .process_proof(proof.encode_to_vec().as_ref(), &context, &mut working_set)
@@ -132,7 +132,7 @@ fn test_valid_proof() {
         let proof = MockProof {
             program_id: MOCK_CODE_COMMITMENT,
             is_valid: true,
-            log: &[],
+            log: vec![],
         };
         module
             .process_proof(proof.encode_to_vec().as_ref(), &context, &mut working_set)
@@ -224,7 +224,7 @@ fn test_prover_not_bonded() {
         let proof = MockProof {
             program_id: MOCK_CODE_COMMITMENT,
             is_valid: true,
-            log: &[],
+            log: vec![],
         };
         // Assert that processing a valid proof fails
         assert!(module
