@@ -381,6 +381,10 @@ where
                     soft_batch.da_slot_height
                 );
 
+                if self.batch_hash != soft_batch.prev_hash {
+                    bail!("Previous hash mismatch at height: {}", l2_height);
+                }
+
                 let mut signed_soft_confirmation: SignedSoftConfirmationBatch =
                     soft_batch.clone().into();
                 sof_soft_confirmations_to_push.push(signed_soft_confirmation.clone());

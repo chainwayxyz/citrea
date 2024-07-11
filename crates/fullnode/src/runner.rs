@@ -422,6 +422,10 @@ where
             current_l1_block.header().height()
         );
 
+        if self.batch_hash != soft_batch.prev_hash {
+            bail!("Previous hash mismatch at height: {}", l2_height);
+        }
+
         let mut data_to_commit = SlotCommit::new(current_l1_block.clone());
 
         let pre_state = self
