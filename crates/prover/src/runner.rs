@@ -6,8 +6,9 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::{anyhow, bail};
+use backoff::exponential::ExponentialBackoffBuilder;
 use backoff::future::retry as retry_backoff;
-use backoff::{ExponentialBackoff, ExponentialBackoffBuilder};
+use backoff::ExponentialBackoff;
 use borsh::de::BorshDeserialize;
 use citrea_primitives::{get_da_block_at_height, L1BlockCache};
 use jsonrpsee::core::client::Error as JsonrpseeError;
@@ -34,6 +35,12 @@ use tokio::time::sleep;
 use tracing::{debug, error, info, instrument, warn};
 
 type StateRoot<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::StateRoot;
+
+type CommitmentStateTransitionData<Stf, Vm, Da> = (
+    VecDeque<Vec<<Stf as StateTransitionFunction<Vm, <Da as DaService>::Spec>>::Witness>>,
+    VecDeque<Vec<SignedSoftConfirmationBatch>>,
+    VecDeque<Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader>>,
+);
 
 pub struct CitreaProver<C, Da, Sm, Vm, Stf, Ps>
 where
@@ -444,26 +451,20 @@ where
                 .with_max_elapsed_time(Some(Duration::from_secs(5 * 60)))
                 .build();
 
-            self.l2_synced_enough(
-                &exponential_backoff,
-                first_l2_height_of_l1,
-                last_l2_height_of_l1,
-            )
-            .await?;
+            self.wait_for_l2_sync(first_l2_height_of_l1, last_l2_height_of_l1)
+                .await?;
 
-            let mut state_transition_witnesses = VecDeque::new();
-            let mut soft_confirmations = VecDeque::new();
-            let mut da_block_headers_of_soft_confirmations = VecDeque::new();
-
-            self.fill_state_transition_data_from_commitments(
-                &sequencer_commitments,
-                &self.da_service,
-                &mut soft_confirmations,
-                &mut da_block_headers_of_soft_confirmations,
-                &mut state_transition_witnesses,
-                exponential_backoff.clone(),
-            )
-            .await?;
+            let (
+                state_transition_witnesses,
+                soft_confirmations,
+                da_block_headers_of_soft_confirmations,
+            ) = self
+                .fill_state_transition_data_from_commitments(
+                    &sequencer_commitments,
+                    &self.da_service,
+                    exponential_backoff.clone(),
+                )
+                .await?;
 
             let da_block_header_of_commitments = l1_block.header().clone();
             let hash = da_block_header_of_commitments.hash();
@@ -536,13 +537,15 @@ where
         &self,
         sequencer_commitments: &[SequencerCommitment],
         da_service: &Da,
-        soft_confirmations: &mut VecDeque<Vec<SignedSoftConfirmationBatch>>,
-        da_block_headers_of_soft_confirmations: &mut VecDeque<
-            Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader>,
-        >,
-        state_transition_witnesses: &mut VecDeque<Vec<Stf::Witness>>,
         exponential_backoff: ExponentialBackoff,
-    ) -> Result<(), anyhow::Error> {
+    ) -> Result<CommitmentStateTransitionData<Stf, Vm, Da>, anyhow::Error> {
+        let mut state_transition_witnesses: VecDeque<
+            Vec<<Stf as StateTransitionFunction<Vm, <Da as DaService>::Spec>>::Witness>,
+        > = VecDeque::new();
+        let mut soft_confirmations: VecDeque<Vec<SignedSoftConfirmationBatch>> = VecDeque::new();
+        let mut da_block_headers_of_soft_confirmations: VecDeque<
+            Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader>,
+        > = VecDeque::new();
         for sequencer_commitment in sequencer_commitments.to_owned().iter() {
             // get the l2 height ranges of each seq_commitments
             let mut witnesses = vec![];
@@ -609,7 +612,11 @@ where
             }
             state_transition_witnesses.push_back(witnesses);
         }
-        Ok(())
+        Ok((
+            state_transition_witnesses,
+            soft_confirmations,
+            da_block_headers_of_soft_confirmations,
+        ))
     }
 
     fn extract_relevant_l1_data(
@@ -654,14 +661,18 @@ where
             });
     }
 
-    async fn l2_synced_enough(
+    async fn wait_for_l2_sync(
         &self,
-        exponential_backoff: &ExponentialBackoff,
         first_l2_height_of_l1: u64,
         last_l2_height_of_l1: u64,
     ) -> Result<(), anyhow::Error> {
         let ledger_db = &self.ledger_db.clone();
-        match retry_backoff(exponential_backoff.clone(), || async move {
+        let constant_backoff = ExponentialBackoffBuilder::<backoff::SystemClock>::new()
+            .with_initial_interval(Duration::from_secs(1))
+            .with_max_elapsed_time(Some(Duration::from_secs(5 * 60)))
+            .with_multiplier(1.0)
+            .build();
+        match retry_backoff(constant_backoff.clone(), || async move {
             match ledger_db.clone().get_soft_batch_range(
                 &(BatchNumber(first_l2_height_of_l1)..BatchNumber(last_l2_height_of_l1 + 1)),
             ) {
@@ -874,9 +885,10 @@ async fn sync_l2<Da>(
     let mut l2_height = start_l2_height;
     info!("Starting to sync from L2 height {}", l2_height);
     loop {
-        let exponential_backoff = ExponentialBackoffBuilder::new()
+        let exponential_backoff = ExponentialBackoffBuilder::<backoff::SystemClock>::new()
             .with_initial_interval(Duration::from_secs(1))
             .with_max_elapsed_time(Some(Duration::from_secs(15 * 60)))
+            .with_multiplier(1.0)
             .build();
 
         let inner_client = &sequencer_client;
