@@ -328,7 +328,7 @@ fn test_get_batches() {
 fn test_get_soft_batch() {
     // Get the first soft batch by number
     let payload = jsonrpc_req!("ledger_getSoftBatchByNumber", [1]);
-    let expected = jsonrpc_result!({"daSlotHeight":0,"daSlotHash":"0000000000000000000000000000000000000000000000000000000000000000","daSlotTxsCommitment":"0101010101010101010101010101010101010101010101010101010101010101","depositData": ["616161616162", "65656565656565656565"],"hash":"b5515a80204963f7db40e98af11aedb49a394b1c7e3d8b5b7a33346b8627444f","txs":["74783120626f6479", "74783220626f6479"],"preStateRoot":"","postStateRoot":"","softConfirmationSignature":"","pubKey":"", "l1FeeRate":0, "timestamp": 0});
+    let expected = jsonrpc_result!({"daSlotHeight":0,"daSlotHash":"0000000000000000000000000000000000000000000000000000000000000000","daSlotTxsCommitment":"0101010101010101010101010101010101010101010101010101010101010101","depositData": ["616161616162", "65656565656565656565"],"hash":"b5515a80204963f7db40e98af11aedb49a394b1c7e3d8b5b7a33346b8627444f","txs":["74783120626f6479", "74783220626f6479"],"prevHash":"0000000000000000000000000000000000000000000000000000000000000000","stateRoot":"","softConfirmationSignature":"","pubKey":"", "l1FeeRate":0, "timestamp": 0});
     regular_test_helper(payload, &expected);
 
     // Get the first soft batch by hash
@@ -345,7 +345,7 @@ fn test_get_soft_batch() {
         .map(|tx_receipt| tx_receipt.body_to_save.unwrap().encode_hex::<String>())
         .collect::<Vec<String>>();
     let expected = jsonrpc_result!(
-        {"daSlotHeight":1,"daSlotHash":"0202020202020202020202020202020202020202020202020202020202020202","daSlotTxsCommitment":"0303030303030303030303030303030303030303030303030303030303030303","depositData": ["633434343434"],"hash":"f85fe0cb36fdaeca571c896ed476b49bb3c8eff00d935293a8967e1e9a62071e","txs": txs, "preStateRoot":"","postStateRoot":"","softConfirmationSignature":"","pubKey":"","l1FeeRate":0, "timestamp": 0}
+        {"daSlotHeight":1,"daSlotHash":"0202020202020202020202020202020202020202020202020202020202020202","daSlotTxsCommitment":"0303030303030303030303030303030303030303030303030303030303030303","depositData": ["633434343434"],"hash":"f85fe0cb36fdaeca571c896ed476b49bb3c8eff00d935293a8967e1e9a62071e","txs": txs, "prevHash":"b5515a80204963f7db40e98af11aedb49a394b1c7e3d8b5b7a33346b8627444f","stateRoot":"","softConfirmationSignature":"","pubKey":"","l1FeeRate":0, "timestamp": 0}
     );
     regular_test_helper(payload, &expected);
 
@@ -365,8 +365,8 @@ fn test_get_soft_batch() {
         .collect::<Vec<String>>();
     let expected = jsonrpc_result!(
         [
-            {"daSlotHeight":0,"daSlotHash":"0000000000000000000000000000000000000000000000000000000000000000","daSlotTxsCommitment":"0101010101010101010101010101010101010101010101010101010101010101","depositData": ["616161616162", "65656565656565656565"],"hash":"b5515a80204963f7db40e98af11aedb49a394b1c7e3d8b5b7a33346b8627444f","txs":["74783120626f6479", "74783220626f6479"],"preStateRoot":"","postStateRoot":"","softConfirmationSignature":"","pubKey":"","l1FeeRate":0, "timestamp": 0},
-            {"daSlotHeight":1,"daSlotHash":"0202020202020202020202020202020202020202020202020202020202020202","daSlotTxsCommitment":"0303030303030303030303030303030303030303030303030303030303030303","depositData": ["633434343434"],"hash":"f85fe0cb36fdaeca571c896ed476b49bb3c8eff00d935293a8967e1e9a62071e","txs": txs, "preStateRoot":"","postStateRoot":"","softConfirmationSignature":"","pubKey":"","l1FeeRate":0, "timestamp": 0}
+            {"daSlotHeight":0,"daSlotHash":"0000000000000000000000000000000000000000000000000000000000000000","daSlotTxsCommitment":"0101010101010101010101010101010101010101010101010101010101010101","depositData": ["616161616162", "65656565656565656565"],"hash":"b5515a80204963f7db40e98af11aedb49a394b1c7e3d8b5b7a33346b8627444f","txs":["74783120626f6479", "74783220626f6479"],"prevHash":"0000000000000000000000000000000000000000000000000000000000000000", "stateRoot":"","softConfirmationSignature":"","pubKey":"","l1FeeRate":0, "timestamp": 0},
+            {"daSlotHeight":1,"daSlotHash":"0202020202020202020202020202020202020202020202020202020202020202","daSlotTxsCommitment":"0303030303030303030303030303030303030303030303030303030303030303","depositData": ["633434343434"],"hash":"f85fe0cb36fdaeca571c896ed476b49bb3c8eff00d935293a8967e1e9a62071e","txs": txs,"prevHash": "b5515a80204963f7db40e98af11aedb49a394b1c7e3d8b5b7a33346b8627444f", "stateRoot":"","softConfirmationSignature":"","pubKey":"","l1FeeRate":0, "timestamp": 0}
         ]
     );
     regular_test_helper(payload, &expected);
