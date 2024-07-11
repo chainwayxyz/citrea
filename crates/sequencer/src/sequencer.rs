@@ -8,7 +8,7 @@ use std::vec;
 
 use anyhow::anyhow;
 use citrea_evm::{CallMessage, Evm, RlpEvmTransaction, MIN_TRANSACTION_GAS};
-use citrea_primitives::types::BatchHash;
+use citrea_primitives::types::SoftConfirmationHash;
 use citrea_stf::runtime::Runtime;
 use digest::Digest;
 use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
@@ -85,7 +85,7 @@ where
     deposit_mempool: Arc<Mutex<DepositDataMempool>>,
     storage_manager: Sm,
     state_root: StateRoot<Stf, Vm, Da::Spec>,
-    batch_hash: BatchHash,
+    batch_hash: SoftConfirmationHash,
     sequencer_pub_key: Vec<u8>,
     rpc_config: RpcConfig,
     soft_confirmation_rule_enforcer: SoftConfirmationRuleEnforcer<C, Da::Spec>,
@@ -495,7 +495,8 @@ where
                 let soft_batch_receipt = SoftBatchReceipt::<_, _, Da::Spec> {
                     state_root: next_state_root.as_ref().to_vec(),
                     phantom_data: PhantomData::<u64>,
-                    batch_hash: signed_soft_batch.hash(),
+                    hash: signed_soft_batch.hash(),
+                    prev_hash: signed_soft_batch.prev_hash(),
                     da_slot_hash: da_block.header().hash(),
                     da_slot_height: da_block.header().height(),
                     da_slot_txs_commitment: da_block.header().txs_commitment(),
@@ -523,8 +524,7 @@ where
                     BatchNumber(l2_height),
                 )?;
 
-                self.ledger_db
-                    .commit_soft_batch(soft_batch_receipt, self.batch_hash, true)?;
+                self.ledger_db.commit_soft_batch(soft_batch_receipt, true)?;
 
                 let l1_height = da_block.header().height();
                 info!(

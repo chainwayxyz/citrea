@@ -215,7 +215,8 @@ where
 
         (
             Ok(BatchReceipt {
-                batch_hash: soft_batch.hash(),
+                hash: soft_batch.hash(),
+                prev_hash: soft_batch.prev_hash(),
                 tx_receipts,
                 phantom_data: PhantomData,
             }),

@@ -73,7 +73,9 @@ pub struct TransactionReceipt<R> {
 /// A receipt giving the outcome of a batch of transactions
 pub struct BatchReceipt<BatchReceiptContents, TxReceiptContents> {
     /// The canonical hash of this batch
-    pub batch_hash: [u8; 32],
+    pub hash: [u8; 32],
+    /// The canonical hash of previous batch
+    pub prev_hash: [u8; 32],
     /// The receipts of all the transactions in this batch.
     pub tx_receipts: Vec<TransactionReceipt<TxReceiptContents>>,
     /// Any additional structured data to be saved in the database and served over RPC
@@ -90,7 +92,9 @@ pub struct SoftBatchReceipt<BatchReceiptContents, TxReceiptContents, DS: DaSpec>
     /// DA layer transactions commitment
     pub da_slot_txs_commitment: <DS as DaSpec>::SlotHash,
     /// The canonical hash of this batch
-    pub batch_hash: [u8; 32],
+    pub hash: [u8; 32],
+    /// The canonical hash of the previous batch
+    pub prev_hash: [u8; 32],
     /// The receipts of all the transactions in this batch.
     pub tx_receipts: Vec<TransactionReceipt<TxReceiptContents>>,
     /// Any additional structured data to be saved in the database and served over RPC

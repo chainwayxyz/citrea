@@ -7,7 +7,7 @@ use anyhow::{anyhow, bail};
 use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoffBuilder;
 use borsh::de::BorshDeserialize;
-use citrea_primitives::types::BatchHash;
+use citrea_primitives::types::SoftConfirmationHash;
 use jsonrpsee::core::client::Error as JsonrpseeError;
 use jsonrpsee::RpcModule;
 use lru::LruCache;
@@ -73,7 +73,7 @@ where
     /// made pub so that sequencer can clone it
     pub ledger_db: LedgerDB,
     state_root: StateRoot<Stf, Vm, Da::Spec>,
-    batch_hash: BatchHash,
+    batch_hash: SoftConfirmationHash,
     rpc_config: RpcConfig,
     sequencer_client: SequencerClient,
     sequencer_pub_key: Vec<u8>,
@@ -454,7 +454,8 @@ where
         let soft_batch_receipt = SoftBatchReceipt::<_, _, Da::Spec> {
             state_root: next_state_root.as_ref().to_vec(),
             phantom_data: PhantomData::<u64>,
-            batch_hash: soft_batch.hash,
+            hash: soft_batch.hash,
+            prev_hash: soft_batch.prev_hash,
             da_slot_hash: current_l1_block.header().hash(),
             da_slot_height: current_l1_block.header().height(),
             da_slot_txs_commitment: current_l1_block.header().txs_commitment(),
@@ -476,11 +477,8 @@ where
             BatchNumber(l2_height),
         )?;
 
-        self.ledger_db.commit_soft_batch(
-            soft_batch_receipt,
-            self.batch_hash,
-            self.include_tx_body,
-        )?;
+        self.ledger_db
+            .commit_soft_batch(soft_batch_receipt, self.include_tx_body)?;
 
         self.state_root = next_state_root;
         self.batch_hash = soft_batch.hash;

@@ -80,6 +80,7 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
 
             // Check if the sender submitted the preimage of the hash.
             let hash = sha2::Sha256::digest(data).into();
+            let prev_hash = sha2::Sha256::digest(data).into();
             let desired_hash = [
                 102, 104, 122, 173, 248, 98, 189, 119, 108, 143, 193, 139, 142, 159, 142, 32, 8,
                 151, 20, 133, 110, 226, 51, 179, 144, 42, 89, 29, 13, 95, 41, 37,
@@ -93,7 +94,8 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
 
             // Return the `BatchReceipt`
             receipts.push(BatchReceipt::<ApplySlotResult, _> {
-                batch_hash: hash,
+                hash,
+                prev_hash,
                 tx_receipts: vec![],
                 phantom_data: PhantomData,
             });

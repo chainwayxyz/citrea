@@ -271,7 +271,6 @@ impl LedgerDB {
     pub fn commit_soft_batch<B: Serialize, T: Serialize, DS: DaSpec>(
         &self,
         batch_receipt: SoftBatchReceipt<B, T, DS>,
-        prev_soft_batch_hash: [u8; 32],
         include_tx_body: bool,
     ) -> Result<(), anyhow::Error> {
         let mut batch_receipt = batch_receipt;
@@ -332,8 +331,8 @@ impl LedgerDB {
             da_slot_height: batch_receipt.da_slot_height,
             da_slot_hash: batch_receipt.da_slot_hash.into(),
             da_slot_txs_commitment: batch_receipt.da_slot_txs_commitment.into(),
-            hash: batch_receipt.batch_hash,
-            prev_hash: prev_soft_batch_hash,
+            hash: batch_receipt.hash,
+            prev_hash: batch_receipt.prev_hash,
             tx_range: TxNumber(first_tx_number)..TxNumber(last_tx_number),
             txs,
             state_root: batch_receipt.state_root,
@@ -405,7 +404,7 @@ impl LedgerDB {
 
             // Insert batch
             let batch_to_store = StoredBatch {
-                hash: batch_receipt.batch_hash,
+                hash: batch_receipt.hash,
                 txs: TxNumber(first_tx_number)..TxNumber(last_tx_number),
             };
             self.put_batch(

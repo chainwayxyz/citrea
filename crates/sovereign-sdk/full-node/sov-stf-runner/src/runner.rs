@@ -507,7 +507,8 @@ where
                 let soft_batch_receipt = SoftBatchReceipt::<_, _, Da::Spec> {
                     state_root: next_state_root.as_ref().to_vec(),
                     phantom_data: PhantomData::<u64>,
-                    batch_hash: batch_receipt.batch_hash,
+                    hash: batch_receipt.hash,
+                    prev_hash: batch_receipt.prev_hash,
                     da_slot_hash: filtered_block.header().hash(),
                     da_slot_height: filtered_block.header().height(),
                     da_slot_txs_commitment: filtered_block.header().txs_commitment(),
@@ -519,8 +520,7 @@ where
                     timestamp: soft_batch.timestamp,
                 };
 
-                self.ledger_db
-                    .commit_soft_batch(soft_batch_receipt, self.batch_hash, true)?;
+                self.ledger_db.commit_soft_batch(soft_batch_receipt, true)?;
                 self.ledger_db.extend_l2_range_of_l1_slot(
                     SlotNumber(filtered_block.header().height()),
                     BatchNumber(l2_height),
@@ -1043,7 +1043,8 @@ where
                 let soft_batch_receipt = SoftBatchReceipt::<_, _, Da::Spec> {
                     state_root: next_state_root.as_ref().to_vec(),
                     phantom_data: PhantomData::<u64>,
-                    batch_hash: soft_batch.hash,
+                    hash: soft_batch.hash,
+                    prev_hash: soft_batch.prev_hash,
                     da_slot_hash: cur_l1_block.header().hash(),
                     da_slot_height: cur_l1_block.header().height(),
                     da_slot_txs_commitment: cur_l1_block.header().txs_commitment(),
@@ -1055,11 +1056,8 @@ where
                     timestamp: soft_batch.timestamp,
                 };
 
-                self.ledger_db.commit_soft_batch(
-                    soft_batch_receipt,
-                    self.batch_hash,
-                    self.include_tx_body,
-                )?;
+                self.ledger_db
+                    .commit_soft_batch(soft_batch_receipt, self.include_tx_body)?;
                 self.ledger_db.extend_l2_range_of_l1_slot(
                     SlotNumber(cur_l1_block.header().height()),
                     BatchNumber(height),

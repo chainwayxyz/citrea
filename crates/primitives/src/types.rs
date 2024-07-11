@@ -1,1 +1,1 @@
-pub type BatchHash = [u8; 32];
+pub type SoftConfirmationHash = [u8; 32];

@@ -58,14 +58,11 @@ fn populate_ledger(
     for slot in slots {
         ledger_db.commit_slot(slot).unwrap();
     }
-    let mut prev_soft_batch_hash = [0; 32];
     if let Some(soft_batch_receipts) = soft_batch_receipts {
         for soft_batch_receipt in soft_batch_receipts {
-            let current_hash = soft_batch_receipt.batch_hash;
             ledger_db
-                .commit_soft_batch(soft_batch_receipt, prev_soft_batch_hash, true)
+                .commit_soft_batch(soft_batch_receipt, true)
                 .unwrap();
-            prev_soft_batch_hash = current_hash;
         }
     }
 }
@@ -139,7 +136,8 @@ fn regular_test_helper(payload: serde_json::Value, expected: &serde_json::Value)
             da_slot_txs_commitment: <MockDaSpec as DaSpec>::SlotHash::from([1u8; 32]),
             state_root: vec![],
             soft_confirmation_signature: vec![],
-            batch_hash: ::sha2::Sha256::digest(b"batch_receipt").into(),
+            hash: ::sha2::Sha256::digest(b"batch_receipt").into(),
+            prev_hash: ::sha2::Sha256::digest(b"prev_batch_receipt").into(),
             tx_receipts: vec![
                 TransactionReceipt::<u32> {
                     tx_hash: ::sha2::Sha256::digest(b"tx1").into(),
@@ -172,7 +170,8 @@ fn regular_test_helper(payload: serde_json::Value, expected: &serde_json::Value)
             da_slot_txs_commitment: <MockDaSpec as DaSpec>::SlotHash::from([3; 32]),
             state_root: vec![],
             soft_confirmation_signature: vec![],
-            batch_hash: ::sha2::Sha256::digest(b"batch_receipt2").into(),
+            hash: ::sha2::Sha256::digest(b"batch_receipt2").into(),
+            prev_hash: ::sha2::Sha256::digest(b"prev_batch_receipt2").into(),
             tx_receipts: batch2_tx_receipts(),
             phantom_data: PhantomData,
             pub_key: vec![],
@@ -184,7 +183,8 @@ fn regular_test_helper(payload: serde_json::Value, expected: &serde_json::Value)
 
     let batches = vec![
         BatchReceipt {
-            batch_hash: ::sha2::Sha256::digest(b"batch_receipt").into(),
+            hash: ::sha2::Sha256::digest(b"batch_receipt").into(),
+            prev_hash: ::sha2::Sha256::digest(b"prev_batch_receipt").into(),
             tx_receipts: vec![
                 TransactionReceipt::<u32> {
                     tx_hash: ::sha2::Sha256::digest(b"tx1").into(),
@@ -205,7 +205,8 @@ fn regular_test_helper(payload: serde_json::Value, expected: &serde_json::Value)
             phantom_data: PhantomData,
         },
         BatchReceipt {
-            batch_hash: ::sha2::Sha256::digest(b"batch_receipt2").into(),
+            hash: ::sha2::Sha256::digest(b"batch_receipt2").into(),
+            prev_hash: ::sha2::Sha256::digest(b"prev_batch_receipt2").into(),
             tx_receipts: batch2_tx_receipts(),
             phantom_data: PhantomData,
         },
@@ -328,7 +329,7 @@ fn test_get_batches() {
 fn test_get_soft_batch() {
     // Get the first soft batch by number
     let payload = jsonrpc_req!("ledger_getSoftBatchByNumber", [1]);
-    let expected = jsonrpc_result!({"daSlotHeight":0,"daSlotHash":"0000000000000000000000000000000000000000000000000000000000000000","daSlotTxsCommitment":"0101010101010101010101010101010101010101010101010101010101010101","depositData": ["616161616162", "65656565656565656565"],"hash":"b5515a80204963f7db40e98af11aedb49a394b1c7e3d8b5b7a33346b8627444f","txs":["74783120626f6479", "74783220626f6479"],"prevHash":"0000000000000000000000000000000000000000000000000000000000000000","stateRoot":"","softConfirmationSignature":"","pubKey":"", "l1FeeRate":0, "timestamp": 0});
+    let expected = jsonrpc_result!({"daSlotHeight":0,"daSlotHash":"0000000000000000000000000000000000000000000000000000000000000000","daSlotTxsCommitment":"0101010101010101010101010101010101010101010101010101010101010101","depositData": ["616161616162", "65656565656565656565"],"hash":"b5515a80204963f7db40e98af11aedb49a394b1c7e3d8b5b7a33346b8627444f","txs":["74783120626f6479", "74783220626f6479"],"prevHash":"0209d4aa08c40ed0fcb2bb6eb276481f2ad045914c3065e13e4f1657e97638b1","stateRoot":"","softConfirmationSignature":"","pubKey":"", "l1FeeRate":0, "timestamp": 0});
     regular_test_helper(payload, &expected);
 
     // Get the first soft batch by hash
@@ -345,7 +346,7 @@ fn test_get_soft_batch() {
         .map(|tx_receipt| tx_receipt.body_to_save.unwrap().encode_hex::<String>())
         .collect::<Vec<String>>();
     let expected = jsonrpc_result!(
-        {"daSlotHeight":1,"daSlotHash":"0202020202020202020202020202020202020202020202020202020202020202","daSlotTxsCommitment":"0303030303030303030303030303030303030303030303030303030303030303","depositData": ["633434343434"],"hash":"f85fe0cb36fdaeca571c896ed476b49bb3c8eff00d935293a8967e1e9a62071e","txs": txs, "prevHash":"b5515a80204963f7db40e98af11aedb49a394b1c7e3d8b5b7a33346b8627444f","stateRoot":"","softConfirmationSignature":"","pubKey":"","l1FeeRate":0, "timestamp": 0}
+        {"daSlotHeight":1,"daSlotHash":"0202020202020202020202020202020202020202020202020202020202020202","daSlotTxsCommitment":"0303030303030303030303030303030303030303030303030303030303030303","depositData": ["633434343434"],"hash":"f85fe0cb36fdaeca571c896ed476b49bb3c8eff00d935293a8967e1e9a62071e","txs": txs, "prevHash":"11ec8b9896aa1f400cc1dbd1b0ab3dcc97f2025b3d309b70ec249f687a807d1d","stateRoot":"","softConfirmationSignature":"","pubKey":"","l1FeeRate":0, "timestamp": 0}
     );
     regular_test_helper(payload, &expected);
 
@@ -365,8 +366,8 @@ fn test_get_soft_batch() {
         .collect::<Vec<String>>();
     let expected = jsonrpc_result!(
         [
-            {"daSlotHeight":0,"daSlotHash":"0000000000000000000000000000000000000000000000000000000000000000","daSlotTxsCommitment":"0101010101010101010101010101010101010101010101010101010101010101","depositData": ["616161616162", "65656565656565656565"],"hash":"b5515a80204963f7db40e98af11aedb49a394b1c7e3d8b5b7a33346b8627444f","txs":["74783120626f6479", "74783220626f6479"],"prevHash":"0000000000000000000000000000000000000000000000000000000000000000", "stateRoot":"","softConfirmationSignature":"","pubKey":"","l1FeeRate":0, "timestamp": 0},
-            {"daSlotHeight":1,"daSlotHash":"0202020202020202020202020202020202020202020202020202020202020202","daSlotTxsCommitment":"0303030303030303030303030303030303030303030303030303030303030303","depositData": ["633434343434"],"hash":"f85fe0cb36fdaeca571c896ed476b49bb3c8eff00d935293a8967e1e9a62071e","txs": txs,"prevHash": "b5515a80204963f7db40e98af11aedb49a394b1c7e3d8b5b7a33346b8627444f", "stateRoot":"","softConfirmationSignature":"","pubKey":"","l1FeeRate":0, "timestamp": 0}
+            {"daSlotHeight":0,"daSlotHash":"0000000000000000000000000000000000000000000000000000000000000000","daSlotTxsCommitment":"0101010101010101010101010101010101010101010101010101010101010101","depositData": ["616161616162", "65656565656565656565"],"hash":"b5515a80204963f7db40e98af11aedb49a394b1c7e3d8b5b7a33346b8627444f","txs":["74783120626f6479", "74783220626f6479"],"prevHash":"0209d4aa08c40ed0fcb2bb6eb276481f2ad045914c3065e13e4f1657e97638b1", "stateRoot":"","softConfirmationSignature":"","pubKey":"","l1FeeRate":0, "timestamp": 0},
+            {"daSlotHeight":1,"daSlotHash":"0202020202020202020202020202020202020202020202020202020202020202","daSlotTxsCommitment":"0303030303030303030303030303030303030303030303030303030303030303","depositData": ["633434343434"],"hash":"f85fe0cb36fdaeca571c896ed476b49bb3c8eff00d935293a8967e1e9a62071e","txs": txs,"prevHash": "11ec8b9896aa1f400cc1dbd1b0ab3dcc97f2025b3d309b70ec249f687a807d1d", "stateRoot":"","softConfirmationSignature":"","pubKey":"","l1FeeRate":0, "timestamp": 0}
         ]
     );
     regular_test_helper(payload, &expected);
@@ -554,7 +555,7 @@ proptest!(
                 let first_tx_num = curr_tx_num;
                 let curr_batch = curr_slot_batches.get(batch_index).unwrap();
                 let last_tx_num = first_tx_num + curr_batch.tx_receipts.len();
-                let batch_hash = hex::encode(curr_batch.batch_hash);
+                let batch_hash = hex::encode(curr_batch.hash);
                 let _batch_receipt= 0;
                 let tx_hashes: Vec<String> = curr_batch.tx_receipts.iter().map(|tx| {
                     hex::encode(tx.tx_hash)
