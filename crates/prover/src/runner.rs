@@ -515,7 +515,7 @@ where
             } else {
                 info!("Skipping proving for l1 height {}", l1_height);
             }
-            self.process_commitments(sequencer_commitments, l1_height);
+            self.save_commitments(sequencer_commitments, l1_height);
 
             if let Err(e) = self
                 .ledger_db
@@ -789,7 +789,7 @@ where
         Ok(())
     }
 
-    fn process_commitments(&self, sequencer_commitments: Vec<SequencerCommitment>, l1_height: u64) {
+    fn save_commitments(&self, sequencer_commitments: Vec<SequencerCommitment>, l1_height: u64) {
         for sequencer_commitment in sequencer_commitments.into_iter() {
             // Save commitments on prover ledger db
             self.ledger_db
