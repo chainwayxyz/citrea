@@ -1855,10 +1855,10 @@ dependencies = [
  "anyhow",
  "backoff",
  "borsh",
+ "citrea-primitives",
  "futures",
  "hex",
  "jsonrpsee",
- "lru",
  "rand 0.8.5",
  "rs_merkle",
  "sequencer-client",
@@ -1878,6 +1878,15 @@ dependencies = [
 [[package]]
 name = "citrea-primitives"
 version = "0.4.0-rc.3"
+dependencies = [
+ "anyhow",
+ "backoff",
+ "lru",
+ "sov-db",
+ "sov-rollup-interface",
+ "sov-stf-runner",
+ "tokio",
+]
 
 [[package]]
 name = "citrea-prover"
@@ -1886,10 +1895,12 @@ dependencies = [
  "anyhow",
  "backoff",
  "borsh",
+ "citrea-primitives",
  "futures",
  "hex",
  "jsonrpsee",
  "rand 0.8.5",
+ "rs_merkle",
  "sequencer-client",
  "shared-backup-db",
  "sov-db",

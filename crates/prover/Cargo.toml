@@ -10,6 +10,7 @@ repository.workspace = true
 
 [dependencies]
 # Citrea Deps
+citrea-primitives = { path = "../primitives" }
 sequencer-client = { path = "../sequencer-client" }
 shared-backup-db = { path = "../shared-backup-db" }
 
@@ -29,5 +30,6 @@ futures = { workspace = true }
 hex = { workspace = true }
 jsonrpsee = { workspace = true }
 rand = { workspace = true }
+rs_merkle = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }

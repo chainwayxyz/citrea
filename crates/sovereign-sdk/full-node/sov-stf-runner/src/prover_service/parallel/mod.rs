@@ -193,11 +193,9 @@ where
                         )
                         .await
                         .map_err(|e| anyhow::anyhow!(e))?;
-
                     break Ok((tx_id, proof));
                 }
                 ProverStatus::ProvingInProgress => {
-                    tracing::info!("Proof generation is in progress");
                     tokio::time::sleep(std::time::Duration::from_secs(5)).await;
                 }
                 _ => {

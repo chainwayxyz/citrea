@@ -13,7 +13,7 @@ use tracing::instrument;
 use crate::rocks_db_config::gen_rocksdb_options;
 use crate::schema::tables::{
     BatchByHash, BatchByNumber, CommitmentsByNumber, EventByKey, EventByNumber, L2RangeByL1Height,
-    L2Witness, LastSequencerCommitmentSent, LastStateDiff, ProofBySlotNumber,
+    L2StateRoot, L2Witness, LastSequencerCommitmentSent, LastStateDiff, ProofBySlotNumber,
     ProverLastScannedSlot, SlotByHash, SlotByNumber, SoftBatchByHash, SoftBatchByNumber,
     SoftConfirmationStatus, TxByHash, TxByNumber, VerifiedProofsBySlotNumber, LEDGER_TABLES,
 };
@@ -588,6 +588,34 @@ impl LedgerDB {
         let buf = bincode::serialize(witness)?;
         let mut schema_batch = SchemaBatch::new();
         schema_batch.put::<L2Witness>(&BatchNumber(l2_height), &buf)?;
+
+        self.db.write_schemas(schema_batch)?;
+
+        Ok(())
+    }
+
+    /// Get the state root by L2 height
+    #[instrument(level = "trace", skip_all, err)]
+    pub fn get_l2_state_root<StateRoot: DeserializeOwned>(
+        &self,
+        l2_height: u64,
+    ) -> anyhow::Result<Option<StateRoot>> {
+        self.db
+            .get::<L2StateRoot>(&BatchNumber(l2_height))?
+            .map(|state_root| bincode::deserialize(&state_root).map_err(Into::into))
+            .transpose()
+    }
+
+    /// Set the state root created by applying L2 block
+    #[instrument(level = "trace", skip_all, err, ret)]
+    pub fn set_l2_state_root<StateRoot: Serialize>(
+        &self,
+        l2_height: u64,
+        state_root: &StateRoot,
+    ) -> anyhow::Result<()> {
+        let buf = bincode::serialize(state_root)?;
+        let mut schema_batch = SchemaBatch::new();
+        schema_batch.put::<L2StateRoot>(&BatchNumber(l2_height), &buf)?;
 
         self.db.write_schemas(schema_batch)?;
 
