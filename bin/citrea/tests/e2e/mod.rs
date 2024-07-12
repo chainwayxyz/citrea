@@ -3177,6 +3177,7 @@ async fn test_ledger_get_head_soft_batch() {
         head_soft_batch.post_state_root.as_slice(),
         latest_block.header.state_root.as_slice()
     );
+    assert_eq!(head_soft_batch.l2_height, 2);
 
     let head_soft_batch_height = seq_test_client
         .ledger_get_head_soft_batch_height()
