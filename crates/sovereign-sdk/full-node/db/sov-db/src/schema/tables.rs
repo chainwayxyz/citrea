@@ -264,6 +264,11 @@ define_table_with_default_codec!(
     (L2StateRoot) BatchNumber => Vec<u8>
 );
 
+define_table_with_default_codec!(
+    /// The primary source for in progress sequencer commitments
+    (PendingSequencerCommitmentL2Range) () => Vec<L2HeightRange>
+);
+
 define_table_with_seek_key_codec!(
     /// Sequencer uses this table to store the last commitment it sent
     (LastSequencerCommitmentSent) () => BatchNumber
