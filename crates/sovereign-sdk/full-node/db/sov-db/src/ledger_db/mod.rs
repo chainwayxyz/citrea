@@ -536,7 +536,7 @@ impl LedgerDB {
     /// Gets all pending commitments' l2 ranges.
     /// Returns start-end L2 heights. 
     #[instrument(level = "trace", skip(self), err)]
-    pub fn get_pending_commitments_l2_range(&self) -> Result<Option<Vec<L2HeightRange>>, anyhow::Error> {
+    pub fn get_pending_commitments_l2_range(&self) -> anyhow::Result<Option<Vec<L2HeightRange>>> {
         self.db.get::<PendingSequencerCommitmentL2Range>(&())
     }
 
