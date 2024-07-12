@@ -412,8 +412,8 @@ where
             da_data.iter_mut().for_each(|blob| {
                 blob.full_data();
             });
-            let mut sequencer_commitments: Vec<SequencerCommitment> =
-                self.extract_sequencer_commitments(l1_block.header().hash(), da_data);
+            let sequencer_commitments: Vec<SequencerCommitment> =
+                self.extract_sequencer_commitments(l1_block.header().hash().into(), &mut da_data);
 
             if sequencer_commitments.is_empty() {
                 info!("No sequencer commitment found at height {}", l1_height,);
@@ -527,9 +527,9 @@ where
 
     fn extract_sequencer_commitments(
         &self,
-        l1_block_hash: &[u8; 32],
-        da_data: Vec<<<Da as DaService>::Spec as DaSpec>::BlobTransaction>,
-    ) -> Vec<SequencerCommitments> {
+        l1_block_hash: [u8; 32],
+        da_data: &mut [<<Da as DaService>::Spec as DaSpec>::BlobTransaction],
+    ) -> Vec<SequencerCommitment> {
         let mut sequencer_commitments = vec![];
         // if we don't do this, the zk circuit can't read the sequencer commitments
         da_data.iter_mut().for_each(|blob| {
