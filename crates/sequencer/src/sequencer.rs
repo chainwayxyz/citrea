@@ -90,6 +90,7 @@ where
     rpc_config: RpcConfig,
     soft_confirmation_rule_enforcer: SoftConfirmationRuleEnforcer<C, Da::Spec>,
     last_state_diff: StateDiff,
+    last_committed_l2_height: Option<BatchNumber>,
 }
 
 enum L2BlockMode {
@@ -159,6 +160,9 @@ where
         // Initialize the sequencer with the last state diff from DB.
         let last_state_diff = ledger_db.get_state_diff()?;
 
+        let last_committed_l2_height = ledger_db
+            .get_last_sequencer_commitment_l2_height()?;
+
         Ok(Self {
             da_service,
             mempool: Arc::new(pool),
@@ -178,6 +182,7 @@ where
             rpc_config,
             soft_confirmation_rule_enforcer,
             last_state_diff,
+            last_committed_l2_height,
         })
     }
 
@@ -601,6 +606,7 @@ where
             &self.ledger_db,
             self.config.min_soft_confirmations_per_commitment,
             state_diff_threshold_reached,
+            self.last_committed_l2_height,
         )?;
         if let Some(commitment_info) = commitment_info {
             let l2_range_to_submit = commitment_info.l2_height_range.clone();
@@ -636,48 +642,70 @@ where
 
             info!("Sent commitment to DA queue");
 
-            let tx_id = rx
-                .await
-                .map_err(|_| anyhow!("DA service is dead!"))?
-                .map_err(|_| anyhow!("Send transaction cannot fail"))?;
-
-            self.ledger_db
-                .set_last_sequencer_commitment_l2_height(BatchNumber(
-                    commitment_info.l2_height_range.end().0,
-                ))
-                .map_err(|_| {
-                    anyhow!("Sequencer: Failed to set last sequencer commitment L2 height")
-                })?;
-
-            let l2_start = l2_range_to_submit.start().0 as u32;
-            let l2_end = l2_range_to_submit.end().0 as u32;
-            if let Some(db_config) = self.config.db_config.clone() {
-                match PostgresConnector::new(db_config).await {
-                    Ok(pg_connector) => {
-                        pg_connector
-                            .insert_sequencer_commitment(
-                                Into::<[u8; 32]>::into(tx_id).to_vec(),
-                                l2_start,
-                                l2_end,
-                                commitment.merkle_root.to_vec(),
-                                CommitmentStatus::Mempool,
-                            )
-                            .await
-                            .map_err(|_| {
-                                anyhow!("Sequencer: Failed to insert sequencer commitment")
-                            })?;
-                    }
-                    Err(e) => {
-                        warn!("Failed to connect to postgres: {:?}", e);
-                    }
-                }
-            }
-
-            // Clear state diff.
+            // TODO: this causes state diff to be lost on restart/error, fix that
             self.ledger_db.set_state_diff(vec![])?;
             self.last_state_diff = vec![];
 
-            info!("New commitment. L2 range: #{}-{}", l2_start, l2_end,);
+            // Store this only in memory to indicate there is an in-progress
+            // commitment process happenning
+            self.last_committed_l2_height = Some(*commitment_info.l2_height_range.end());
+
+            let ledger_db = self.ledger_db.clone();
+            let db_config = self.config.db_config.clone();
+            // Handle DA response asynchronously
+            tokio::spawn(async move {
+                let result: anyhow::Result<()> = async move {
+                    let tx_id = rx
+                        .await
+                        .map_err(|_| anyhow!("DA service is dead!"))?
+                        .map_err(|_| anyhow!("Send transaction cannot fail"))?;
+
+                    ledger_db
+                        .set_last_sequencer_commitment_l2_height(BatchNumber(
+                            commitment_info.l2_height_range.end().0,
+                        ))
+                        .map_err(|_| {
+                            anyhow!("Sequencer: Failed to set last sequencer commitment L2 height")
+                        })?;
+
+                    debug!("Commitment info: {:?}", commitment_info);
+
+                    let l2_start = l2_range_to_submit.start().0 as u32;
+                    let l2_end = l2_range_to_submit.end().0 as u32;
+                    if let Some(db_config) = db_config {
+                        match PostgresConnector::new(db_config).await {
+                            Ok(pg_connector) => {
+                                pg_connector
+                                    .insert_sequencer_commitment(
+                                        Into::<[u8; 32]>::into(tx_id).to_vec(),
+                                        l2_start,
+                                        l2_end,
+                                        commitment.merkle_root.to_vec(),
+                                        CommitmentStatus::Mempool,
+                                    )
+                                    .await
+                                    .map_err(|_| {
+                                        anyhow!("Sequencer: Failed to insert sequencer commitment")
+                                    })?;
+                            }
+                            Err(e) => {
+                                warn!("Failed to connect to postgres: {:?}", e);
+                            }
+                        }
+                    }
+
+                    info!("New commitment. L2 range: #{}-{}", l2_start, l2_end);
+                    Ok(())
+                }
+                .await;
+
+                if let Err(err) = result {
+                    error!(
+                        "Error in spawned task for handling commitment result: {}",
+                        err
+                    );
+                }
+            });
         }
         Ok(())
     }

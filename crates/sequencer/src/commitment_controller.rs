@@ -22,12 +22,15 @@ pub fn get_commitment_info(
     ledger_db: &LedgerDB,
     min_soft_confirmations_per_commitment: u64,
     state_diff_threshold_reached: bool,
+    last_committed_l2_height: Option<BatchNumber>,
 ) -> anyhow::Result<Option<CommitmentInfo>> {
-    // Based on heights stored in ledger_db, decided which L2 blocks
-    // to commit.
-    let last_committed_l2_height = ledger_db
-        .get_last_sequencer_commitment_l2_height()?
-        .unwrap_or(BatchNumber(0));
+    // If last commited l2 height is not passed, query it from ledger db
+    // to calculate l2 block range to commit
+    let last_committed_l2_height = if let Some(l2_height) = last_committed_l2_height {
+        l2_height
+    } else {
+        ledger_db.get_last_sequencer_commitment_l2_height()?.unwrap_or(BatchNumber(0))
+    };
 
     let Some((head_soft_batch_number, _)) = ledger_db.get_head_soft_batch()? else {
         // No soft batches have been created yet.
