@@ -8,7 +8,6 @@ use std::time::Duration;
 use anyhow::{anyhow, bail};
 use backoff::exponential::ExponentialBackoffBuilder;
 use backoff::future::retry as retry_backoff;
-use backoff::ExponentialBackoff;
 use borsh::de::BorshDeserialize;
 use citrea_primitives::{get_da_block_at_height, L1BlockCache};
 use jsonrpsee::core::client::Error as JsonrpseeError;
@@ -66,7 +65,6 @@ where
     sequencer_client: SequencerClient,
     sequencer_pub_key: Vec<u8>,
     sequencer_da_pub_key: Vec<u8>,
-    prover_da_pub_key: Vec<u8>,
     phantom: std::marker::PhantomData<C>,
     prover_config: Option<ProverConfig>,
     code_commitment: Vm::CodeCommitment,
@@ -146,7 +144,6 @@ where
             sequencer_client: SequencerClient::new(runner_config.sequencer_client_url),
             sequencer_pub_key: public_keys.sequencer_public_key,
             sequencer_da_pub_key: public_keys.sequencer_da_pub_key,
-            prover_da_pub_key: public_keys.prover_da_pub_key,
             phantom: std::marker::PhantomData,
             prover_config,
             code_commitment,
@@ -203,6 +200,101 @@ where
                 }
             }
         });
+    }
+
+    /// Runs the rollup.
+    #[instrument(level = "trace", skip_all, err)]
+    pub async fn run(&mut self) -> Result<(), anyhow::Error> {
+        let skip_submission_until_l1 = std::env::var("SKIP_PROOF_SUBMISSION_UNTIL_L1")
+            .map_or(0u64, |v| v.parse().unwrap_or(0));
+
+        // Prover node should sync when a new sequencer commitment arrives
+        // Check da block get and sync up to the latest block in the latest commitment
+        let last_scanned_l1_height = self
+            .ledger_db
+            .get_prover_last_scanned_l1_height()
+            .unwrap_or_else(|_| panic!("Failed to get last scanned l1 height from the ledger db"));
+
+        let start_l1_height = match last_scanned_l1_height {
+            Some(height) => height.0,
+            None => get_initial_slot_height::<Da::Spec>(&self.sequencer_client).await,
+        };
+
+        let prover_config = self.prover_config.clone().unwrap();
+
+        let pg_client = match prover_config.clone().db_config {
+            Some(db_config) => {
+                info!("Connecting to postgres");
+                Some(PostgresConnector::new(db_config.clone()).await)
+            }
+            None => None,
+        };
+
+        // Save the genesis state root to ledger db
+        if self.start_l2_height == 1 {
+            self.ledger_db
+                .set_l2_state_root(0, &self.state_root.clone())?;
+        }
+
+        // Create l1 sync worker task
+        let (l1_tx, mut l1_rx) = mpsc::channel(1);
+
+        let da_service = self.da_service.clone();
+        let l1_block_cache = self.l1_block_cache.clone();
+
+        let l1_handle = tokio::spawn(async move {
+            l1_sync(start_l1_height, da_service, l1_tx, l1_block_cache).await;
+        });
+        tokio::pin!(l1_handle);
+
+        // Create l2 sync worker task
+        let (l2_tx, mut l2_rx) = mpsc::channel(1);
+
+        let start_l2_height = self.start_l2_height;
+        let sequencer_client = self.sequencer_client.clone();
+        let sync_blocks_count = self.sync_blocks_count;
+
+        let l2_handle = tokio::spawn(async move {
+            sync_l2::<Da>(start_l2_height, sequencer_client, l2_tx, sync_blocks_count).await;
+        });
+        tokio::pin!(l2_handle);
+
+        let da_service = self.da_service.clone();
+        let l1_block_cache = self.l1_block_cache.clone();
+
+        let mut pending_l1_blocks: VecDeque<<Da as DaService>::FilteredBlock> =
+            VecDeque::<Da::FilteredBlock>::new();
+        let pending_l1 = &mut pending_l1_blocks;
+
+        let mut interval = tokio::time::interval(Duration::from_secs(1));
+        interval.tick().await;
+
+        loop {
+            select! {
+                _ = &mut l1_handle => {panic!("l1 sync handle exited unexpectedly");},
+                _ = &mut l2_handle => {panic!("l2 sync handle exited unexpectedly");},
+                Some(l1_block) = l1_rx.recv() => {
+                    pending_l1.push_back(l1_block);
+                 },
+                _ = interval.tick() => {
+                    if let Err(e) = self.process_l1_block(
+                        pending_l1,
+                        skip_submission_until_l1,
+                        &pg_client, &prover_config,
+                    ).await {
+                        error!("Could not process L1 block and generate proof: {:?}", e);
+                    }
+                },
+                Some(l2_blocks) = l2_rx.recv() => {
+                    for (l2_height, l2_block) in l2_blocks {
+                        let l1_block = get_da_block_at_height(&da_service, l2_block.da_slot_height, l1_block_cache.clone()).await?;
+                        if let Err(e) = self.process_l2_block(l2_height, l2_block, l1_block).await {
+                            error!("Could not process L2 block: {}", e);
+                        }
+                    }
+                },
+            }
+        }
     }
 
     async fn process_l2_block(
@@ -293,102 +385,7 @@ where
         Ok(())
     }
 
-    /// Runs the rollup.
-    #[instrument(level = "trace", skip_all, err)]
-    pub async fn run(&mut self) -> Result<(), anyhow::Error> {
-        let skip_submission_until_l1 = std::env::var("SKIP_PROOF_SUBMISSION_UNTIL_L1")
-            .map_or(0u64, |v| v.parse().unwrap_or(0));
-
-        // Prover node should sync when a new sequencer commitment arrives
-        // Check da block get and sync up to the latest block in the latest commitment
-        let last_scanned_l1_height = self
-            .ledger_db
-            .get_prover_last_scanned_l1_height()
-            .unwrap_or_else(|_| panic!("Failed to get last scanned l1 height from the ledger db"));
-
-        let start_l1_height = match last_scanned_l1_height {
-            Some(height) => height.0,
-            None => get_initial_slot_height::<Da::Spec>(&self.sequencer_client).await,
-        };
-
-        let prover_config = self.prover_config.clone().unwrap();
-
-        let pg_client = match prover_config.clone().db_config {
-            Some(db_config) => {
-                info!("Connecting to postgres");
-                Some(PostgresConnector::new(db_config.clone()).await)
-            }
-            None => None,
-        };
-
-        // Save the genesis state root to ledger db
-        if self.start_l2_height == 1 {
-            self.ledger_db
-                .set_l2_state_root(0, &self.state_root.clone())?;
-        }
-
-        // Create l1 sync worker task
-        let (l1_tx, mut l1_rx) = mpsc::channel(1);
-
-        let da_service = self.da_service.clone();
-        let l1_block_cache = self.l1_block_cache.clone();
-
-        let l1_handle = tokio::spawn(async move {
-            l1_sync(start_l1_height, da_service, l1_tx, l1_block_cache).await;
-        });
-        tokio::pin!(l1_handle);
-
-        // Create l2 sync worker task
-        let (l2_tx, mut l2_rx) = mpsc::channel(1);
-
-        let start_l2_height = self.start_l2_height;
-        let sequencer_client = self.sequencer_client.clone();
-        let sync_blocks_count = self.sync_blocks_count;
-
-        let l2_handle = tokio::spawn(async move {
-            sync_l2::<Da>(start_l2_height, sequencer_client, l2_tx, sync_blocks_count).await;
-        });
-        tokio::pin!(l2_handle);
-
-        let da_service = self.da_service.clone();
-        let l1_block_cache = self.l1_block_cache.clone();
-
-        let mut pending_l1_blocks: VecDeque<<Da as DaService>::FilteredBlock> =
-            VecDeque::<Da::FilteredBlock>::new();
-        let pending_l1 = &mut pending_l1_blocks;
-
-        let mut interval = tokio::time::interval(Duration::from_secs(1));
-        interval.tick().await;
-
-        loop {
-            select! {
-                _ = &mut l1_handle => {panic!("l1 sync handle exited unexpectedly");},
-                _ = &mut l2_handle => {panic!("l2 sync handle exited unexpectedly");},
-                Some(l1_block) = l1_rx.recv() => {
-                    pending_l1.push_back(l1_block);
-                 },
-                _ = interval.tick() => {
-                    if let Err(e) = self.process_l1_block_and_generate_proof(
-                        pending_l1,
-                        skip_submission_until_l1,
-                        &pg_client, &prover_config,
-                    ).await {
-                        error!("Could not process L1 block and generate proof: {:?}", e);
-                    }
-                },
-                Some(l2_blocks) = l2_rx.recv() => {
-                    for (l2_height, l2_block) in l2_blocks {
-                        let l1_block = get_da_block_at_height(&da_service, l2_block.da_slot_height, l1_block_cache.clone()).await?;
-                        if let Err(e) = self.process_l2_block(l2_height, l2_block, l1_block).await {
-                            error!("Could not process L2 block: {}", e);
-                        }
-                    }
-                },
-            }
-        }
-    }
-
-    async fn process_l1_block_and_generate_proof(
+    async fn process_l1_block(
         &mut self,
         pending_l1_blocks: &mut VecDeque<<Da as DaService>::FilteredBlock>,
         skip_submission_until_l1: u64,
@@ -411,9 +408,27 @@ where
                 .unwrap();
 
             let mut sequencer_commitments = Vec::<SequencerCommitment>::new();
-            let mut zk_proofs = Vec::<Proof>::new();
 
-            self.extract_relevant_l1_data(l1_block, &mut sequencer_commitments, &mut zk_proofs);
+            let mut da_data = self.da_service.extract_relevant_blobs(l1_block);
+            // if we don't do this, the zk circuit can't read the sequencer commitments
+            da_data.iter_mut().for_each(|blob| {
+                blob.full_data();
+            });
+            da_data.iter_mut().for_each(|tx| {
+                let data = DaData::try_from_slice(tx.full_data());
+                // Check for commitment
+                if tx.sender().as_ref() == self.sequencer_da_pub_key.as_slice() {
+                    if let Ok(DaData::SequencerCommitment(seq_com)) = data {
+                        sequencer_commitments.push(seq_com);
+                    } else {
+                        tracing::warn!(
+                            "Found broken DA data in block 0x{}: {:?}",
+                            hex::encode(l1_block.hash()),
+                            data
+                        );
+                    }
+                }
+            });
 
             if sequencer_commitments.is_empty() {
                 info!("No sequencer commitment found at height {}", l1_height,);
@@ -436,33 +451,25 @@ where
                 l1_block.header().height(),
             );
 
-            let mut da_data = self.da_service.extract_relevant_blobs(l1_block);
-            // if we don't do this, the zk circuit can't read the sequencer commitments
-            da_data.iter_mut().for_each(|blob| {
-                blob.full_data();
-            });
-
             let first_l2_height_of_l1 = sequencer_commitments[0].l2_start_block_number;
             let last_l2_height_of_l1 =
                 sequencer_commitments[sequencer_commitments.len() - 1].l2_end_block_number;
 
-            let exponential_backoff = ExponentialBackoffBuilder::new()
-                .with_initial_interval(Duration::from_secs(1))
-                .with_max_elapsed_time(Some(Duration::from_secs(5 * 60)))
-                .build();
-
-            self.wait_for_l2_sync(first_l2_height_of_l1, last_l2_height_of_l1)
-                .await?;
+            // If the L2 range does not exist, we break off the local loop getting back to to
+            // the outer loop / select to make room for other tasks to run.
+            // We retry the L1 block there as well.
+            if !self.check_l2_range_exists(first_l2_height_of_l1, last_l2_height_of_l1) {
+                break;
+            }
 
             let (
                 state_transition_witnesses,
                 soft_confirmations,
                 da_block_headers_of_soft_confirmations,
             ) = self
-                .fill_state_transition_data_from_commitments(
+                .get_state_transition_data_from_commitments(
                     &sequencer_commitments,
                     &self.da_service,
-                    exponential_backoff.clone(),
                 )
                 .await?;
 
@@ -533,11 +540,10 @@ where
         Ok(())
     }
 
-    async fn fill_state_transition_data_from_commitments(
+    async fn get_state_transition_data_from_commitments(
         &self,
         sequencer_commitments: &[SequencerCommitment],
         da_service: &Da,
-        exponential_backoff: ExponentialBackoff,
     ) -> Result<CommitmentStateTransitionData<Stf, Vm, Da>, anyhow::Error> {
         let mut state_transition_witnesses: VecDeque<
             Vec<<Stf as StateTransitionFunction<Vm, <Da as DaService>::Spec>>::Witness>,
@@ -572,23 +578,21 @@ where
                     || da_block_headers_to_push.last().unwrap().height()
                         != soft_batch.da_slot_height
                 {
-                    let filtered_block =
-                        match retry_backoff(exponential_backoff.clone(), || async {
-                            da_service
-                                .get_block_at(soft_batch.da_slot_height)
-                                .await
-                                .map_err(backoff::Error::transient)
-                        })
-                        .await
-                        {
-                            Ok(block) => block,
-                            Err(_) => {
-                                return Err(anyhow!(
-                                    "Error while fetching DA block at height: {}",
-                                    soft_batch.da_slot_height
-                                ));
-                            }
-                        };
+                    let filtered_block = match get_da_block_at_height(
+                        da_service,
+                        soft_batch.da_slot_height,
+                        self.l1_block_cache.clone(),
+                    )
+                    .await
+                    {
+                        Ok(block) => block,
+                        Err(_) => {
+                            return Err(anyhow!(
+                                "Error while fetching DA block at height: {}",
+                                soft_batch.da_slot_height
+                            ));
+                        }
+                    };
                     da_block_headers_to_push.push(filtered_block.header().clone());
                 }
                 let signed_soft_confirmation: SignedSoftConfirmationBatch =
@@ -619,88 +623,16 @@ where
         ))
     }
 
-    fn extract_relevant_l1_data(
-        &self,
-        l1_block: &Da::FilteredBlock,
-        sequencer_commitments: &mut Vec<SequencerCommitment>,
-        zk_proofs: &mut Vec<Proof>,
-    ) {
-        self.da_service
-            .extract_relevant_blobs(l1_block)
-            .into_iter()
-            .for_each(|mut tx| {
-                let data = DaData::try_from_slice(tx.full_data());
-                // Check for commitment
-                if tx.sender().as_ref() == self.sequencer_da_pub_key.as_slice() {
-                    if let Ok(DaData::SequencerCommitment(seq_com)) = data {
-                        sequencer_commitments.push(seq_com);
-                    } else {
-                        tracing::warn!(
-                            "Found broken DA data in block 0x{}: {:?}",
-                            hex::encode(l1_block.hash()),
-                            data
-                        );
-                    }
-                }
-                let data = DaData::try_from_slice(tx.full_data());
-                // Check for proof
-                if tx.sender().as_ref() == self.prover_da_pub_key.as_slice() {
-                    if let Ok(DaData::ZKProof(proof)) = data {
-                        zk_proofs.push(proof);
-                    } else {
-                        tracing::warn!(
-                            "Found broken DA data in block 0x{}: {:?}",
-                            hex::encode(l1_block.hash()),
-                            data
-                        );
-                    }
-                } else {
-                    warn!("Force transactions are not implemented yet");
-                    // TODO: This is where force transactions will land - try to parse DA data force transaction
-                }
-            });
-    }
-
-    async fn wait_for_l2_sync(
-        &self,
-        first_l2_height_of_l1: u64,
-        last_l2_height_of_l1: u64,
-    ) -> Result<(), anyhow::Error> {
+    fn check_l2_range_exists(&self, first_l2_height_of_l1: u64, last_l2_height_of_l1: u64) -> bool {
         let ledger_db = &self.ledger_db.clone();
-        let constant_backoff = ExponentialBackoffBuilder::<backoff::SystemClock>::new()
-            .with_initial_interval(Duration::from_secs(1))
-            .with_max_elapsed_time(Some(Duration::from_secs(5 * 60)))
-            .with_multiplier(1.0)
-            .build();
-        match retry_backoff(constant_backoff.clone(), || async move {
-            match ledger_db.clone().get_soft_batch_range(
-                &(BatchNumber(first_l2_height_of_l1)..BatchNumber(last_l2_height_of_l1 + 1)),
-            ) {
-                Ok(range)
-                    if (range.len() as u64)
-                        < (last_l2_height_of_l1 - first_l2_height_of_l1 + 1) =>
-                {
-                    Err(backoff::Error::Transient {
-                        err: "L2 range is not synced yet".to_string(),
-                        retry_after: None,
-                    })
-                }
-                Ok(_) => Ok(()),
-                Err(_) => Err(backoff::Error::Transient {
-                    err: "L2 range is not synced yet".to_string(),
-                    retry_after: None,
-                }),
+        if let Ok(range) = ledger_db.clone().get_soft_batch_range(
+            &(BatchNumber(first_l2_height_of_l1)..BatchNumber(last_l2_height_of_l1 + 1)),
+        ) {
+            if (range.len() as u64) >= (last_l2_height_of_l1 - first_l2_height_of_l1 + 1) {
+                return true;
             }
-        })
-        .await
-        {
-            Ok(()) => Ok(()),
-            Err(_) => Err(anyhow!(
-                "L2 range is not synced yet for range {}..{}",
-                first_l2_height_of_l1,
-                last_l2_height_of_l1
-            )),
         }
+        false
     }
 
     async fn generate_and_submit_proof(
