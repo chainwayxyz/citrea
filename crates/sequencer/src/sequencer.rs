@@ -90,7 +90,6 @@ where
     rpc_config: RpcConfig,
     soft_confirmation_rule_enforcer: SoftConfirmationRuleEnforcer<C, Da::Spec>,
     last_state_diff: StateDiff,
-    last_committed_l2_height: Option<BatchNumber>,
 }
 
 enum L2BlockMode {
@@ -160,8 +159,6 @@ where
         // Initialize the sequencer with the last state diff from DB.
         let last_state_diff = ledger_db.get_state_diff()?;
 
-        let last_committed_l2_height = ledger_db.get_last_sequencer_commitment_l2_height()?;
-
         Ok(Self {
             da_service,
             mempool: Arc::new(pool),
@@ -181,7 +178,6 @@ where
             rpc_config,
             soft_confirmation_rule_enforcer,
             last_state_diff,
-            last_committed_l2_height,
         })
     }
 
@@ -605,7 +601,6 @@ where
             &self.ledger_db,
             self.config.min_soft_confirmations_per_commitment,
             state_diff_threshold_reached,
-            self.last_committed_l2_height,
         )?;
         if let Some(commitment_info) = commitment_info {
             let l2_range_to_submit = commitment_info.l2_height_range.clone();
@@ -644,10 +639,6 @@ where
             // TODO: this causes state diff to be lost on restart/error, fix that
             self.ledger_db.set_state_diff(vec![])?;
             self.last_state_diff = vec![];
-
-            // Store this only in memory to indicate there is an in-progress
-            // commitment process happenning
-            self.last_committed_l2_height = Some(*commitment_info.l2_height_range.end());
 
             let ledger_db = self.ledger_db.clone();
             let db_config = self.config.db_config.clone();
