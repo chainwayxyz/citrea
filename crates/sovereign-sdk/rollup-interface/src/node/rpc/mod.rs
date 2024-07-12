@@ -195,6 +195,8 @@ impl From<Vec<u8>> for HexTx {
 pub struct SoftBatchResponse {
     /// The DA height of the soft batch.
     pub da_slot_height: u64,
+    /// The L2 height of the soft batch.
+    pub l2_height: u64,
     /// The DA slothash of the soft batch.
     // TODO: find a way to hex serialize this and then
     // deserialize in `SequencerClient`
