@@ -407,28 +407,13 @@ where
                 )
                 .unwrap();
 
-            let mut sequencer_commitments = Vec::<SequencerCommitment>::new();
-
             let mut da_data = self.da_service.extract_relevant_blobs(l1_block);
             // if we don't do this, the zk circuit can't read the sequencer commitments
             da_data.iter_mut().for_each(|blob| {
                 blob.full_data();
             });
-            da_data.iter_mut().for_each(|tx| {
-                let data = DaData::try_from_slice(tx.full_data());
-                // Check for commitment
-                if tx.sender().as_ref() == self.sequencer_da_pub_key.as_slice() {
-                    if let Ok(DaData::SequencerCommitment(seq_com)) = data {
-                        sequencer_commitments.push(seq_com);
-                    } else {
-                        tracing::warn!(
-                            "Found broken DA data in block 0x{}: {:?}",
-                            hex::encode(l1_block.hash()),
-                            data
-                        );
-                    }
-                }
-            });
+            let mut sequencer_commitments: Vec<SequencerCommitment> =
+                self.extract_sequencer_commitments(l1_block.header().hash(), da_data);
 
             if sequencer_commitments.is_empty() {
                 info!("No sequencer commitment found at height {}", l1_height,);
@@ -538,6 +523,34 @@ where
             pending_l1_blocks.pop_front();
         }
         Ok(())
+    }
+
+    fn extract_sequencer_commitments(
+        &self,
+        l1_block_hash: &[u8; 32],
+        da_data: Vec<<<Da as DaService>::Spec as DaSpec>::BlobTransaction>,
+    ) -> Vec<SequencerCommitments> {
+        let mut sequencer_commitments = vec![];
+        // if we don't do this, the zk circuit can't read the sequencer commitments
+        da_data.iter_mut().for_each(|blob| {
+            blob.full_data();
+        });
+        da_data.iter_mut().for_each(|tx| {
+            let data = DaData::try_from_slice(tx.full_data());
+            // Check for commitment
+            if tx.sender().as_ref() == self.sequencer_da_pub_key.as_slice() {
+                if let Ok(DaData::SequencerCommitment(seq_com)) = data {
+                    sequencer_commitments.push(seq_com);
+                } else {
+                    tracing::warn!(
+                        "Found broken DA data in block 0x{}: {:?}",
+                        hex::encode(l1_block_hash),
+                        data
+                    );
+                }
+            }
+        });
+        sequencer_commitments
     }
 
     async fn get_state_transition_data_from_commitments(
