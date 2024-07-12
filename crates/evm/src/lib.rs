@@ -25,10 +25,10 @@ pub use query::*;
 mod signer;
 #[cfg(feature = "native")]
 pub use signer::DevSigner;
-#[cfg(feature = "smart_contracts")]
+#[cfg(feature = "native")]
 pub mod smart_contracts;
 
-#[cfg(test)]
+#[cfg(all(test, feature = "native"))]
 mod tests;
 
 use evm::db::EvmDb;

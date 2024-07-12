@@ -7,4 +7,5 @@ pub mod spec;
 pub mod service;
 pub mod verifier;
 
+#[cfg(feature = "native")]
 const REVEAL_OUTPUT_AMOUNT: u64 = 546;

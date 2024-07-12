@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.13;
+pragma solidity ^0.8.26;
 
-import "openzeppelin-contracts-upgradeable/contracts/proxy/utils/UUPSUpgradeable.sol";
 import "openzeppelin-contracts-upgradeable/contracts/access/Ownable2StepUpgradeable.sol";
 
 /// @title Fee accumulator contract template
 /// @author Citrea
 
-abstract contract FeeVault is UUPSUpgradeable, Ownable2StepUpgradeable {
+abstract contract FeeVault is Ownable2StepUpgradeable {
     address public recipient;
     uint256 public minWithdraw;
 
@@ -40,6 +39,4 @@ abstract contract FeeVault is UUPSUpgradeable, Ownable2StepUpgradeable {
         minWithdraw = _minWithdraw;
         emit MinWithdrawUpdated(oldMinWithdraw, _minWithdraw);
     }
-
-    function _authorizeUpgrade(address) internal override onlyOwner {}
 }

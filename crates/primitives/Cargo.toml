@@ -5,3 +5,24 @@ authors = { workspace = true }
 edition = { workspace = true }
 license = { workspace = true }
 publish = false
+
+[dependencies]
+# Sov SDK deps
+sov-db = { path = "../sovereign-sdk/full-node/db/sov-db", optional = true }
+sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
+sov-stf-runner = { path = "../sovereign-sdk/full-node/sov-stf-runner" }
+
+# 3rd-party deps
+anyhow = { workspace = true }
+backoff = { workspace = true, optional = true }
+lru = { workspace = true, optional = true }
+tokio = { workspace = true, optional = true }
+
+[features]
+native = [
+  "dep:lru",
+  "sov-rollup-interface/native",
+  "sov-db",
+  "dep:tokio",
+  "dep:backoff",
+]

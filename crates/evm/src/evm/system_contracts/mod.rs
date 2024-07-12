@@ -44,7 +44,14 @@ impl BitcoinLightClient {
         .into()
     }
 
-    #[cfg(test)]
+    /// Return input data to get the system caller
+    pub fn get_system_caller() -> Bytes {
+        BitcoinLightClientContract::SYSTEM_CALLERCall {}
+            .abi_encode()
+            .into()
+    }
+
+    #[cfg(all(test, feature = "native"))]
     pub(crate) fn get_witness_root_by_number(block_number: u64) -> Bytes {
         BitcoinLightClientContract::getWitnessRootByNumberCall {
             _blockNumber: U256::from(block_number),
@@ -115,5 +122,32 @@ impl Bridge {
         func_selector.extend(BridgeContract::depositCall::SELECTOR);
         func_selector.extend(params);
         func_selector.into()
+    }
+}
+
+sol! {
+    #[sol(abi)]
+    #[allow(missing_docs)]
+    ProxyAdminContract,
+    "./src/evm/system_contracts/out/ProxyAdmin.sol/ProxyAdmin.json"
+}
+
+/// ProxyAdmin wrapper.
+pub struct ProxyAdmin {}
+
+impl ProxyAdmin {
+    /// Return the address of the ProxyAdmin contract.
+    pub fn address() -> Address {
+        address!("31ffffffffffffffffffffffffffffffffffffff")
+    }
+
+    /// Return data to upgrade the contract.
+    pub fn upgrade(proxy: Address, new_contract: Address) -> Bytes {
+        ProxyAdminContract::upgradeCall {
+            proxy,
+            implementation: new_contract,
+        }
+        .abi_encode()
+        .into()
     }
 }

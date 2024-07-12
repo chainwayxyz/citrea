@@ -30,5 +30,6 @@ futures = { workspace = true }
 hex = { workspace = true }
 jsonrpsee = { workspace = true }
 rand = { workspace = true }
+rs_merkle = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }

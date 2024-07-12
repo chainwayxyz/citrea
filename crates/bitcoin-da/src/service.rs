@@ -20,9 +20,9 @@ use tokio::sync::oneshot::channel as oneshot_channel;
 use tracing::{error, info, instrument, trace};
 
 use crate::helpers::builders::{
-    compress_blob, create_inscription_transactions, decompress_blob, sign_blob_with_private_key,
-    write_reveal_tx, TxWithId,
+    create_inscription_transactions, sign_blob_with_private_key, write_reveal_tx, TxWithId,
 };
+use crate::helpers::compression::{compress_blob, decompress_blob};
 use crate::helpers::parsers::parse_transaction;
 use crate::rpc::{BitcoinNode, RPCError};
 use crate::spec::blob::BlobWithSender;

@@ -21,6 +21,7 @@ use sov_rollup_interface::da::{DaData, DaSpec};
 use sov_rollup_interface::rpc::{ProofRpcResponse, SoftConfirmationStatus};
 use sov_rollup_interface::services::da::DaService;
 use sov_stf_runner::ProverConfig;
+use tokio::runtime::Runtime;
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
 
@@ -1281,13 +1282,13 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
     let prover_node_port = prover_node_port_rx.await.unwrap();
     let prover_node_test_client = make_test_client(prover_node_port).await;
 
+    // prover should not have any blocks saved
+    assert_eq!(prover_node_test_client.eth_block_number().await, 0);
+
     // publish 3 soft confirmations, no commitment should be sent
     for _ in 0..3 {
         seq_test_client.send_publish_batch_request().await;
     }
-
-    // prover should not have any blocks saved
-    assert_eq!(prover_node_test_client.eth_block_number().await, 0);
 
     // start l1 height = 1, end = 2
     seq_test_client.send_publish_batch_request().await;
@@ -1307,12 +1308,16 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
     )
     .await;
 
-    // prover should have synced all 4 l2 blocks
-    wait_for_l2_block(&prover_node_test_client, 4, None).await;
-    assert_eq!(prover_node_test_client.eth_block_number().await, 4);
+    // prover should have synced all 6 l2 blocks
+    // ps there are 6 blocks because:
+    // when a new proof is submitted in mock da a new empty da block is published
+    // and for every empty da block sequencer publishes a new empty soft confirmation in order to not skip a block
+    wait_for_l2_block(&prover_node_test_client, 6, None).await;
+    assert_eq!(prover_node_test_client.eth_block_number().await, 6);
 
     seq_test_client.send_publish_batch_request().await;
-
+    da_service.publish_test_block().await.unwrap();
+    wait_for_l1_block(&da_service, 4, None).await;
     // Still should have 4 blocks there are no commitments yet
     wait_for_prover_l1_height(
         &prover_node_test_client,
@@ -1320,15 +1325,7 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
         Some(Duration::from_secs(DEFAULT_PROOF_WAIT_DURATION)),
     )
     .await;
-    assert_eq!(prover_node_test_client.eth_block_number().await, 4);
-
-    // Still should have 4 blocks there are no commitments yet
-    assert_eq!(prover_node_test_client.eth_block_number().await, 4);
-
-    da_service.publish_test_block().await.unwrap();
-    wait_for_l1_block(&da_service, 4, None).await;
     wait_for_l1_block(&da_service, 5, None).await;
-
     seq_test_client.send_publish_batch_request().await;
 
     // wait here until we see from prover's rpc that it finished proving
@@ -1338,13 +1335,14 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
         Some(Duration::from_secs(DEFAULT_PROOF_WAIT_DURATION)),
     )
     .await;
-
+    wait_for_l2_block(&seq_test_client, 8, None).await;
+    assert_eq!(seq_test_client.eth_block_number().await, 8);
     // Should now have 8 blocks = 2 commitments of blocks 1-4 and 5-9
     // there is an extra soft confirmation due to the prover publishing a proof. This causes
     // a new MockDa block, which in turn causes the sequencer to publish an extra soft confirmation
     // becase it must not skip blocks.
-    assert_eq!(prover_node_test_client.eth_block_number().await, 4);
-
+    wait_for_l2_block(&prover_node_test_client, 8, None).await;
+    assert_eq!(prover_node_test_client.eth_block_number().await, 8);
     // on the 8th DA block, we should have a proof
     let mut blobs = da_service.get_block_at(4).await.unwrap().blobs;
 
@@ -1401,45 +1399,51 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     let seq_test_client = make_test_client(seq_port).await;
 
     let (prover_node_port_tx, prover_node_port_rx) = tokio::sync::oneshot::channel();
+    let (thread_kill_sender, thread_kill_receiver) = std::sync::mpsc::channel();
 
     let da_db_dir_cloned = da_db_dir.clone();
     let prover_db_dir_cloned = prover_db_dir.clone();
-    let prover_node_task = tokio::spawn(async move {
-        start_rollup(
-            prover_node_port_tx,
-            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            Some(ProverConfig::default()),
-            NodeMode::Prover(seq_port),
-            prover_db_dir_cloned,
-            da_db_dir_cloned,
-            4,
-            true,
-            None,
-            None,
-            Some(true),
-            DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
-        )
-        .await;
+
+    let _handle = std::thread::spawn(move || {
+        let rt = Runtime::new().unwrap();
+        rt.block_on(async {
+            let _prover_node_task = tokio::spawn(async move {
+                start_rollup(
+                    prover_node_port_tx,
+                    GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+                    Some(ProverConfig::default()),
+                    NodeMode::Prover(seq_port),
+                    prover_db_dir_cloned,
+                    da_db_dir_cloned,
+                    4,
+                    true,
+                    None,
+                    None,
+                    Some(true),
+                    DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
+                )
+                .await;
+            });
+        });
+        thread_kill_receiver.recv().unwrap();
     });
 
     let prover_node_port = prover_node_port_rx.await.unwrap();
     let prover_node_test_client = make_test_client(prover_node_port).await;
 
+    // prover should not have any blocks saved
+    assert_eq!(prover_node_test_client.eth_block_number().await, 0);
     // publish 3 soft confirmations, no commitment should be sent
     for _ in 0..3 {
         seq_test_client.send_publish_batch_request().await;
     }
     wait_for_l2_block(&seq_test_client, 3, None).await;
 
-    // prover should not have any blocks saved
-    assert_eq!(prover_node_test_client.eth_block_number().await, 0);
-
     da_service.publish_test_block().await.unwrap();
     wait_for_l1_block(&da_service, 2, None).await;
 
     seq_test_client.send_publish_batch_request().await;
     wait_for_l2_block(&seq_test_client, 4, None).await;
-
     // sequencer commitment should be sent
     da_service.publish_test_block().await.unwrap();
     wait_for_l1_block(&da_service, 3, None).await;
@@ -1459,31 +1463,44 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     // prover should have synced all 4 l2 blocks
     assert_eq!(prover_node_test_client.eth_block_number().await, 4);
 
-    prover_node_task.abort();
+    // prover_node_task.abort();
+    thread_kill_sender.send("kill").unwrap();
+
+    sleep(Duration::from_secs(1)).await;
 
     let _ = copy_dir_recursive(&prover_db_dir, &storage_dir.path().join("prover_copy"));
+    sleep(Duration::from_secs(1)).await;
 
     // Reopen prover with the new path
     let (prover_node_port_tx, prover_node_port_rx) = tokio::sync::oneshot::channel();
+    let (thread_kill_sender, thread_kill_receiver) = std::sync::mpsc::channel();
 
     let prover_copy_db_dir = storage_dir.path().join("prover_copy");
     let da_db_dir_cloned = da_db_dir.clone();
-    let prover_node_task = tokio::spawn(async move {
-        start_rollup(
-            prover_node_port_tx,
-            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            Some(ProverConfig::default()),
-            NodeMode::Prover(seq_port),
-            prover_copy_db_dir,
-            da_db_dir_cloned,
-            4,
-            true,
-            None,
-            None,
-            Some(true),
-            DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
-        )
-        .await;
+
+    let _handle = std::thread::spawn(move || {
+        let rt = Runtime::new().unwrap();
+        rt.block_on(async {
+            let _prover_node_task = tokio::spawn(async move {
+                start_rollup(
+                    prover_node_port_tx,
+                    GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+                    Some(ProverConfig::default()),
+                    NodeMode::Prover(seq_port),
+                    prover_copy_db_dir,
+                    da_db_dir_cloned,
+                    4,
+                    true,
+                    None,
+                    None,
+                    Some(true),
+                    DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
+                )
+                .await;
+            });
+        });
+
+        thread_kill_receiver.recv().unwrap();
     });
 
     let prover_node_port = prover_node_port_rx.await.unwrap();
@@ -1491,44 +1508,53 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
 
     seq_test_client.send_publish_batch_request().await;
     wait_for_l2_block(&seq_test_client, 6, None).await;
-
     // Still should have 4 blocks there are no commitments yet
-    assert_eq!(prover_node_test_client.eth_block_number().await, 4);
+    wait_for_l2_block(&prover_node_test_client, 6, None).await;
+    assert_eq!(prover_node_test_client.eth_block_number().await, 6);
 
-    prover_node_task.abort();
+    thread_kill_sender.send("kill").unwrap();
+    sleep(Duration::from_secs(2)).await;
 
     seq_test_client.send_publish_batch_request().await;
     seq_test_client.send_publish_batch_request().await;
     wait_for_l2_block(&seq_test_client, 8, None).await;
-
     let _ = copy_dir_recursive(&prover_db_dir, &storage_dir.path().join("prover_copy2"));
 
+    sleep(Duration::from_secs(2)).await;
     // Reopen prover with the new path
     let (prover_node_port_tx, prover_node_port_rx) = tokio::sync::oneshot::channel();
-
+    let (thread_kill_sender, thread_kill_receiver) = std::sync::mpsc::channel();
     let prover_copy2_dir_cloned = storage_dir.path().join("prover_copy2");
     let da_db_dir_cloned = da_db_dir.clone();
-    let prover_node_task = tokio::spawn(async move {
-        start_rollup(
-            prover_node_port_tx,
-            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            Some(ProverConfig::default()),
-            NodeMode::Prover(seq_port),
-            prover_copy2_dir_cloned,
-            da_db_dir_cloned,
-            4,
-            true,
-            None,
-            None,
-            Some(true),
-            DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
-        )
-        .await;
+
+    let _handle = std::thread::spawn(move || {
+        let rt = Runtime::new().unwrap();
+        rt.block_on(async {
+            let _prover_node_task = tokio::spawn(async move {
+                start_rollup(
+                    prover_node_port_tx,
+                    GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+                    Some(ProverConfig::default()),
+                    NodeMode::Prover(seq_port),
+                    prover_copy2_dir_cloned,
+                    da_db_dir_cloned,
+                    4,
+                    true,
+                    None,
+                    None,
+                    Some(true),
+                    DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
+                )
+                .await;
+            });
+        });
+
+        thread_kill_receiver.recv().unwrap();
     });
 
     let prover_node_port = prover_node_port_rx.await.unwrap();
     let prover_node_test_client = make_test_client(prover_node_port).await;
-
+    sleep(Duration::from_secs(2)).await;
     // Publish a DA to force prover to process new blocks
     da_service.publish_test_block().await.unwrap();
     wait_for_l1_block(&da_service, 6, None).await;
@@ -1537,15 +1563,14 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     // and starts proving the second commitment.
     wait_for_l2_block(&prover_node_test_client, 8, Some(Duration::from_secs(300))).await;
     assert_eq!(prover_node_test_client.eth_block_number().await, 8);
-
+    sleep(Duration::from_secs(1)).await;
     seq_test_client.send_publish_batch_request().await;
     wait_for_l2_block(&seq_test_client, 9, None).await;
-
     da_service.publish_test_block().await.unwrap();
     wait_for_l1_block(&da_service, 7, None).await;
+    sleep(Duration::from_secs(1)).await;
     // Commitment is sent
     wait_for_l1_block(&da_service, 8, None).await;
-
     // wait here until we see from prover's rpc that it finished proving
     wait_for_prover_l1_height(
         &prover_node_test_client,
@@ -1562,7 +1587,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     assert!(prover_node_test_client.eth_block_number().await >= 8);
     // TODO: Also test with multiple commitments in single Mock DA Block
     seq_task.abort();
-    prover_node_task.abort();
+    thread_kill_sender.send("kill").unwrap();
     Ok(())
 }
 
@@ -1764,28 +1789,28 @@ async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error>
 
     let seq_port = seq_port_rx.await.unwrap();
     let seq_test_client = make_test_client(seq_port).await;
-    // sys tx use L1BlockHash(48522 + 78491) + Bridge(258971) = 385984 gas
+    // sys tx use L1BlockHash(50751 + 80720) + Bridge(261215) = 392686 gas
     // the block gas limit is 1_500_000 because the system txs gas limit is 1_500_000 (decided with @eyusufatik and @okkothejawa as bridge init takes 1M gas)
 
-    // 1500000 - 385984 = 1114016 gas left in block
-    // 1114016 / 21000 = 53,04... so 53 ether transfer transactions can be included in the block
+    // 1500000 - 392686 = 1107314 gas left in block
+    // 1107314 / 21000 = 52,72... so 52 ether transfer transactions can be included in the block
 
-    // send 53 ether transfer transactions
+    // send 52 ether transfer transactions
     let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
 
-    for _ in 0..52 {
+    for _ in 0..51 {
         let _pending = seq_test_client
             .send_eth(addr, None, None, None, 0u128)
             .await
             .unwrap();
     }
 
-    // 53th tx should be the last tx in the soft batch
+    // 52th tx should be the last tx in the soft batch
     let last_in_tx = seq_test_client
         .send_eth(addr, None, None, None, 0u128)
         .await;
 
-    // 54th tx should not be in soft batch
+    // 53th tx should not be in soft batch
     let not_in_tx = seq_test_client
         .send_eth(addr, None, None, None, 0u128)
         .await;
@@ -2085,7 +2110,7 @@ async fn transaction_failing_on_l1_is_removed_from_mempool() -> Result<(), anyho
 
     let random_wallet_address = random_wallet.address();
 
-    let second_block_base_fee = 768592592;
+    let second_block_base_fee = 768641461;
 
     let _pending = seq_test_client
         .send_eth(
@@ -2974,7 +2999,7 @@ async fn test_gas_limit_too_high() {
 
     let target_gas_limit: u64 = 30_000_000;
     let transfer_gas_limit = 21_000;
-    let system_txs_gas_used = 385984;
+    let system_txs_gas_used = 390434;
     let tx_count = (target_gas_limit - system_txs_gas_used).div_ceil(transfer_gas_limit);
     let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
 

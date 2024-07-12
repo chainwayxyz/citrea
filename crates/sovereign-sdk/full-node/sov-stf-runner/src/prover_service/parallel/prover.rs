@@ -194,6 +194,7 @@ where
         block_header_hash: <Da::Spec as DaSpec>::SlotHash,
     ) -> Result<ProverStatus<StateRoot, Witness, Da::Spec>, anyhow::Error> {
         let mut prover_state = self.prover_state.write().unwrap();
+
         let status = prover_state.get_prover_status(block_header_hash.clone());
 
         match status {

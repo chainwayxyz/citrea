@@ -228,6 +228,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             Some(prover_service),
             Some(prover_config),
             code_commitment,
+            rollup_config.sync_blocks_count,
         )?;
 
         Ok(Prover {

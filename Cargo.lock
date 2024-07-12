@@ -1228,7 +1228,6 @@ dependencies = [
  "reqwest 0.12.4",
  "serde",
  "serde_json",
- "sov-modules-api",
  "sov-rollup-interface",
  "thiserror",
  "tokio",
@@ -1845,6 +1844,7 @@ dependencies = [
  "tempfile",
  "thiserror",
  "tracing",
+ "tracing-subscriber 0.3.18",
  "walkdir",
 ]
 
@@ -1859,7 +1859,6 @@ dependencies = [
  "futures",
  "hex",
  "jsonrpsee",
- "lru",
  "rand 0.8.5",
  "rs_merkle",
  "sequencer-client",
@@ -1879,6 +1878,15 @@ dependencies = [
 [[package]]
 name = "citrea-primitives"
 version = "0.4.0-rc.3"
+dependencies = [
+ "anyhow",
+ "backoff",
+ "lru",
+ "sov-db",
+ "sov-rollup-interface",
+ "sov-stf-runner",
+ "tokio",
+]
 
 [[package]]
 name = "citrea-prover"
@@ -1892,6 +1900,7 @@ dependencies = [
  "hex",
  "jsonrpsee",
  "rand 0.8.5",
+ "rs_merkle",
  "sequencer-client",
  "shared-backup-db",
  "sov-db",

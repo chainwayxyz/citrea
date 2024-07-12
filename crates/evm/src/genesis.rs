@@ -11,7 +11,7 @@ use sov_modules_api::WorkingSet;
 use crate::evm::db_init::InitEvmDb;
 use crate::evm::primitive_types::Block;
 use crate::evm::{AccountInfo, EvmChainConfig};
-#[cfg(test)]
+#[cfg(all(test, feature = "native"))]
 use crate::tests::DEFAULT_CHAIN_ID;
 use crate::Evm;
 
@@ -135,7 +135,7 @@ pub struct EvmConfig {
     pub difficulty: U256,
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "native"))]
 impl Default for EvmConfig {
     fn default() -> Self {
         Self {
@@ -260,7 +260,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "native"))]
 mod tests {
     use std::collections::HashMap;
     use std::str::FromStr;

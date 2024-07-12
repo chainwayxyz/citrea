@@ -21,26 +21,11 @@ use bitcoin::{
     Address, Amount, Network, OutPoint, ScriptBuf, Sequence, Transaction, TxIn, TxOut, Txid,
     Witness,
 };
-use brotli::{CompressorWriter, DecompressorWriter};
-use sov_modules_api::{native_trace, native_warn};
-#[cfg(feature = "native")]
-use tracing::instrument;
+use tracing::{instrument, trace, warn};
 
 use crate::helpers::{BODY_TAG, PUBLICKEY_TAG, RANDOM_TAG, ROLLUP_NAME_TAG, SIGNATURE_TAG};
 use crate::spec::utxo::UTXO;
 use crate::REVEAL_OUTPUT_AMOUNT;
-
-pub fn compress_blob(blob: &[u8]) -> Vec<u8> {
-    let mut writer = CompressorWriter::new(Vec::new(), 4096, 11, 22);
-    writer.write_all(blob).unwrap();
-    writer.into_inner()
-}
-
-pub fn decompress_blob(blob: &[u8]) -> Vec<u8> {
-    let mut writer = DecompressorWriter::new(Vec::new(), 4096);
-    writer.write_all(blob).unwrap();
-    writer.into_inner().expect("decompression failed")
-}
 
 // Signs a message with a private key
 pub fn sign_blob_with_private_key(
@@ -145,7 +130,7 @@ fn choose_utxos(
     }
 }
 
-#[cfg_attr(feature = "native", instrument(level = "trace", skip(utxos), err))]
+#[instrument(level = "trace", skip(utxos), err)]
 fn build_commit_transaction(
     prev_tx: Option<TxWithId>, // reuse outputs to add commit tx order
     mut utxos: Vec<UTXO>,
@@ -200,9 +185,9 @@ fn build_commit_transaction(
 
     let tx = loop {
         if iteration % 10 == 0 {
-            native_trace!(iteration, "Trying to find commitment size");
+            trace!(iteration, "Trying to find commitment size");
             if iteration > 100 {
-                native_warn!("Too many iterations choosing UTXOs");
+                warn!("Too many iterations choosing UTXOs");
             }
         }
         let fee = ((last_size as f64) * fee_rate).ceil() as u64;
@@ -341,7 +326,7 @@ impl fmt::Debug for TxWithId {
 // so tests are easier
 // Creates the inscription transactions (commit and reveal)
 #[allow(clippy::too_many_arguments)]
-#[cfg_attr(feature = "native", instrument(level = "trace", skip_all, err))]
+#[instrument(level = "trace", skip_all, err)]
 pub fn create_inscription_transactions(
     rollup_name: &str,
     body: Vec<u8>,
@@ -389,9 +374,9 @@ pub fn create_inscription_transactions(
     let mut nonce: i64 = 0;
     loop {
         if nonce % 10000 == 0 {
-            native_trace!(nonce, "Trying to find commit & reveal nonce");
+            trace!(nonce, "Trying to find commit & reveal nonce");
             if nonce > 65536 {
-                native_warn!("Too many iterations finding nonce");
+                warn!("Too many iterations finding nonce");
             }
         }
         let utxos = utxos.clone();
@@ -556,7 +541,7 @@ mod tests {
     use bitcoin::taproot::ControlBlock;
     use bitcoin::{Address, Amount, ScriptBuf, TxOut, Txid};
 
-    use crate::helpers::builders::{compress_blob, decompress_blob};
+    use crate::helpers::compression::{compress_blob, decompress_blob};
     use crate::helpers::parsers::parse_transaction;
     use crate::spec::utxo::UTXO;
     use crate::REVEAL_OUTPUT_AMOUNT;

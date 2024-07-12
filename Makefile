@@ -106,3 +106,7 @@ ef-tests: $(EF_TESTS_DIR) ## Runs Ethereum Foundation tests.
 pr:
 	$(MAKE) lint
 	$(MAKE) test
+
+# Set genesis from system contract source files
+genesis:
+	$(MAKE) -C crates/evm/src/evm/system_contracts genesis
