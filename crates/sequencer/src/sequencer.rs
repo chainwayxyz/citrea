@@ -591,21 +591,17 @@ where
         }
     }
 
-    async fn submit_commitment(
+    async fn try_submit_commitment(
         &mut self,
         state_diff_threshold_reached: bool,
     ) -> anyhow::Result<()> {
         debug!("Sequencer: Checking if commitment should be submitted");
-        let inscription_queue = self.da_service.get_send_transaction_queue();
-        let min_soft_confirmations_per_commitment =
-            self.config.min_soft_confirmations_per_commitment;
 
         let commitment_info = commitment_controller::get_commitment_info(
             &self.ledger_db,
-            min_soft_confirmations_per_commitment,
+            self.config.min_soft_confirmations_per_commitment,
             state_diff_threshold_reached,
         )?;
-
         if let Some(commitment_info) = commitment_info {
             let l2_range_to_submit = commitment_info.l2_height_range.clone();
 
@@ -633,9 +629,13 @@ where
                 .map_err(|e| anyhow!(e))?;
             let (notify, rx) = oneshot_channel();
             let request = BlobWithNotifier { blob, notify };
-            inscription_queue
+            self.da_service
+                .get_send_transaction_queue()
                 .send(request)
                 .map_err(|_| anyhow!("Bitcoin service already stopped!"))?;
+
+            info!("Sent commitment to DA queue");
+
             let tx_id = rx
                 .await
                 .map_err(|_| anyhow!("DA service is dead!"))?
@@ -795,7 +795,7 @@ where
                     }
                 },
                 force = da_commitment_rx.select_next_some() => {
-                    if let Err(e) = self.submit_commitment(force).await {
+                    if let Err(e) = self.try_submit_commitment(force).await {
                         error!("Failed to submit commitment: {}", e);
                     }
                 },
