@@ -160,8 +160,7 @@ where
         // Initialize the sequencer with the last state diff from DB.
         let last_state_diff = ledger_db.get_state_diff()?;
 
-        let last_committed_l2_height = ledger_db
-            .get_last_sequencer_commitment_l2_height()?;
+        let last_committed_l2_height = ledger_db.get_last_sequencer_commitment_l2_height()?;
 
         Ok(Self {
             da_service,

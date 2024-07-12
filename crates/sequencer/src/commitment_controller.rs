@@ -29,7 +29,9 @@ pub fn get_commitment_info(
     let last_committed_l2_height = if let Some(l2_height) = last_committed_l2_height {
         l2_height
     } else {
-        ledger_db.get_last_sequencer_commitment_l2_height()?.unwrap_or(BatchNumber(0))
+        ledger_db
+            .get_last_sequencer_commitment_l2_height()?
+            .unwrap_or(BatchNumber(0))
     };
 
     let Some((head_soft_batch_number, _)) = ledger_db.get_head_soft_batch()? else {
