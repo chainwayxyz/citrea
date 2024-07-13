@@ -38,6 +38,7 @@ use crate::{ProverConfig, ProverService, RollupPublicKeys, RpcConfig, RunnerConf
 
 type StateRoot<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::StateRoot;
 type GenesisParams<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::GenesisParams;
+type SoftConfirmationHash = [u8; 32];
 
 /// Combines `DaService` with `StateTransitionFunction` and "runs" the rollup.
 pub struct StateTransitionRunner<Stf, Sm, Da, Vm, Ps, C>
@@ -57,7 +58,7 @@ where
     /// made pub so that sequencer can clone it
     pub ledger_db: LedgerDB,
     state_root: StateRoot<Stf, Vm, Da::Spec>,
-    batch_hash: [u8; 32],
+    batch_hash: SoftConfirmationHash,
     rpc_config: RpcConfig,
     #[allow(dead_code)]
     prover_service: Option<Ps>,
@@ -90,8 +91,8 @@ where
 
 /// How [`StateTransitionRunner`] is initialized
 pub enum InitVariant<Stf: StateTransitionFunction<Vm, Da>, Vm: Zkvm, Da: DaSpec> {
-    /// From give state root
-    Initialized((Stf::StateRoot, [u8; 32])),
+    /// From given state root and soft confirmation hash
+    Initialized((Stf::StateRoot, SoftConfirmationHash)),
     /// From empty state root
     /// Genesis params for Stf::init
     Genesis(GenesisParams<Stf, Vm, Da>),
