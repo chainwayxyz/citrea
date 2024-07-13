@@ -1884,7 +1884,6 @@ dependencies = [
  "lru",
  "sov-db",
  "sov-rollup-interface",
- "sov-stf-runner",
  "tokio",
 ]
 
@@ -8082,6 +8081,7 @@ name = "sequencer-client"
 version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
+ "citrea-primitives",
  "hex",
  "jsonrpsee",
  "reth-primitives",

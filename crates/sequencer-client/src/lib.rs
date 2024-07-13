@@ -1,5 +1,6 @@
 use std::ops::Range;
 
+use citrea_primitives::types::SoftConfirmationHash;
 use jsonrpsee::core::client::{ClientT, Error};
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use jsonrpsee::rpc_params;
@@ -104,9 +105,9 @@ impl SequencerClient {
 #[serde(rename_all = "camelCase")]
 pub struct GetSoftBatchResponse {
     #[serde(with = "hex::serde")]
-    pub hash: [u8; 32],
+    pub hash: SoftConfirmationHash,
     #[serde(with = "hex::serde")]
-    pub prev_hash: [u8; 32],
+    pub prev_hash: SoftConfirmationHash,
     pub da_slot_height: u64,
     #[serde(with = "hex::serde")]
     pub da_slot_hash: [u8; 32],
