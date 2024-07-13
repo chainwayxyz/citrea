@@ -1292,12 +1292,10 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
 
     // start l1 height = 1, end = 2
     seq_test_client.send_publish_batch_request().await;
-
     // sequencer commitment should be sent
-    da_service.publish_test_block().await.unwrap();
     wait_for_l1_block(&da_service, 2, None).await;
-    wait_for_l1_block(&da_service, 3, None).await;
 
+    // Submit an L2 block to prevent sequencer from falling behind.
     seq_test_client.send_publish_batch_request().await;
 
     // wait here until we see from prover's rpc that it finished proving
@@ -1308,39 +1306,37 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
     )
     .await;
 
+    // Submit an L2 block to prevent sequencer from falling behind.
+    seq_test_client.send_publish_batch_request().await;
+
     // prover should have synced all 6 l2 blocks
     // ps there are 6 blocks because:
     // when a new proof is submitted in mock da a new empty da block is published
     // and for every empty da block sequencer publishes a new empty soft confirmation in order to not skip a block
     wait_for_l2_block(&prover_node_test_client, 6, None).await;
+    sleep(Duration::from_secs(1)).await;
     assert_eq!(prover_node_test_client.eth_block_number().await, 6);
 
-    seq_test_client.send_publish_batch_request().await;
-    da_service.publish_test_block().await.unwrap();
-    wait_for_l1_block(&da_service, 4, None).await;
-    // Still should have 4 blocks there are no commitments yet
-    wait_for_prover_l1_height(
-        &prover_node_test_client,
-        4,
-        Some(Duration::from_secs(DEFAULT_PROOF_WAIT_DURATION)),
-    )
-    .await;
-    wait_for_l1_block(&da_service, 5, None).await;
-    seq_test_client.send_publish_batch_request().await;
-
-    // wait here until we see from prover's rpc that it finished proving
-    wait_for_prover_l1_height(
-        &prover_node_test_client,
-        5,
-        Some(Duration::from_secs(DEFAULT_PROOF_WAIT_DURATION)),
-    )
-    .await;
+    // Trigger another commitment
+    for _ in 7..=8 {
+        seq_test_client.send_publish_batch_request().await;
+    }
     wait_for_l2_block(&seq_test_client, 8, None).await;
     // Allow for the L2 block to be commited and stored
     // Otherwise, the L2 block height might be registered but it hasn't
     // been processed inside the EVM yet.
     sleep(Duration::from_secs(1)).await;
     assert_eq!(seq_test_client.eth_block_number().await, 8);
+    wait_for_l1_block(&da_service, 4, None).await;
+
+    // wait here until we see from prover's rpc that it finished proving
+    wait_for_prover_l1_height(
+        &prover_node_test_client,
+        4,
+        Some(Duration::from_secs(DEFAULT_PROOF_WAIT_DURATION)),
+    )
+    .await;
+
     // Should now have 8 blocks = 2 commitments of blocks 1-4 and 5-9
     // there is an extra soft confirmation due to the prover publishing a proof. This causes
     // a new MockDa block, which in turn causes the sequencer to publish an extra soft confirmation
@@ -1352,7 +1348,7 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
     sleep(Duration::from_secs(1)).await;
     assert_eq!(prover_node_test_client.eth_block_number().await, 8);
     // on the 8th DA block, we should have a proof
-    let mut blobs = da_service.get_block_at(4).await.unwrap().blobs;
+    let mut blobs = da_service.get_block_at(3).await.unwrap().blobs;
 
     assert_eq!(blobs.len(), 1);
 
