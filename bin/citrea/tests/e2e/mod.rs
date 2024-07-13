@@ -1221,7 +1221,7 @@ async fn test_soft_confirmations_status_two_l1() -> Result<(), anyhow::Error> {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
-    // citrea::initialize_logging(tracing::Level::INFO);
+    citrea::initialize_logging(tracing::Level::DEBUG);
 
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "prover"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
