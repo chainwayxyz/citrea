@@ -162,6 +162,8 @@ pub fn convert_to_rpc_proof(stored_proof: Proof) -> ProofRpcResponse {
 pub struct StoredSoftBatch {
     /// The number of the batch
     pub da_slot_height: u64,
+    /// The l2 height of the soft batch
+    pub l2_height: u64,
     /// The da hash of the batch
     pub da_slot_hash: [u8; 32],
     /// The da transactions commitment of the batch
@@ -215,6 +217,7 @@ impl TryFrom<StoredSoftBatch> for SoftBatchResponse {
     fn try_from(value: StoredSoftBatch) -> Result<Self, Self::Error> {
         Ok(Self {
             da_slot_hash: value.da_slot_hash,
+            l2_height: value.l2_height,
             da_slot_height: value.da_slot_height,
             da_slot_txs_commitment: value.da_slot_txs_commitment,
             hash: value.hash,
