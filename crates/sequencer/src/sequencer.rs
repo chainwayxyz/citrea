@@ -514,7 +514,6 @@ where
                 self.storage_manager
                     .save_change_set_l2(l2_height, slot_result.change_set)?;
 
-                tracing::debug!("Finalizing l2 height: {:?}", l2_height);
                 self.storage_manager.finalize_l2(l2_height)?;
 
                 // connect L1 and L2 height
@@ -594,7 +593,7 @@ where
         &mut self,
         state_diff_threshold_reached: bool,
     ) -> anyhow::Result<()> {
-        debug!("Sequencer: new L1 block, checking if commitment should be submitted");
+        debug!("Sequencer: Checking if commitment should be submitted");
         let inscription_queue = self.da_service.get_send_transaction_queue();
         let min_soft_confirmations_per_commitment =
             self.config.min_soft_confirmations_per_commitment;
@@ -623,7 +622,10 @@ where
                 soft_confirmation_hashes,
             )?;
 
-            debug!("Sequencer: submitting commitment: {:?}", commitment);
+            debug!(
+                "Sequencer: submitting commitment for L2 range {}-{}",
+                commitment.l2_start_block_number, commitment.l2_end_block_number
+            );
 
             let blob = borsh::to_vec(&DaData::SequencerCommitment(commitment.clone()))
                 .map_err(|e| anyhow!(e))?;
@@ -644,8 +646,6 @@ where
                 .map_err(|_| {
                     anyhow!("Sequencer: Failed to set last sequencer commitment L2 height")
                 })?;
-
-            debug!("Commitment info: {:?}", commitment_info);
 
             let l2_start = l2_range_to_submit.start().0 as u32;
             let l2_end = l2_range_to_submit.end().0 as u32;

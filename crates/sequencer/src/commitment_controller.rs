@@ -57,8 +57,6 @@ pub fn get_commitment_info(
         debug!("State diff threshold reached. Committing...");
     }
 
-    debug!("L2 range to submit: {}..{}", l2_start, l2_end);
-
     Ok(Some(CommitmentInfo {
         l2_height_range: BatchNumber(l2_start)..=BatchNumber(l2_end),
     }))
