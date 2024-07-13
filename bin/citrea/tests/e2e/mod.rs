@@ -1923,7 +1923,7 @@ fn find_subarray(haystack: &[u8], needle: &[u8]) -> Option<usize> {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
-    // citrea::initialize_logging(tracing::Level::INFO);
+    citrea::initialize_logging(tracing::Level::DEBUG);
 
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
@@ -2005,20 +2005,18 @@ async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
     wait_for_l2_block(&seq_test_client, 4, None).await;
 
     // second da block
-    da_service.publish_test_block().await.unwrap();
     wait_for_l1_block(&da_service, 2, None).await;
-    wait_for_l1_block(&da_service, 3, None).await;
 
-    // before this the commitment will be sent
-    // the commitment will be only in the first block so it is still not finalized
-    // so the full node won't see the commitment
+    // Push a new L2 block into the new L1 block(2) to prevent
+    // sequencer from falling behind and creating automatic empty block.
+    // This makes the process a bit more deterministic on the test's end.
     seq_test_client.send_publish_batch_request().await;
-
-    // wait for sync
-    wait_for_l2_block(&full_node_test_client, 6, None).await;
-
-    // should be synced
-    assert_eq!(full_node_test_client.eth_block_number().await, 6);
+    wait_for_l2_block(&full_node_test_client, 5, None).await;
+    // Allow for the L2 block to be commited and stored
+    // Otherwise, the L2 block height might be registered but it hasn't
+    // been processed inside the EVM yet.
+    sleep(Duration::from_secs(1)).await;
+    assert_eq!(full_node_test_client.eth_block_number().await, 5);
 
     // assume sequencer craashed
     seq_task.abort();
@@ -2061,21 +2059,14 @@ async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
 
     let seq_test_client = make_test_client(seq_port).await;
 
-    wait_for_l2_block(&seq_test_client, 6, None).await;
-
-    assert_eq!(seq_test_client.eth_block_number().await as u64, 6);
+    assert_eq!(seq_test_client.eth_block_number().await as u64, 5);
 
     seq_test_client.send_publish_batch_request().await;
     seq_test_client.send_publish_batch_request().await;
     seq_test_client.send_publish_batch_request().await;
-    wait_for_l2_block(&seq_test_client, 9, None).await;
+    wait_for_l2_block(&seq_test_client, 8, None).await;
 
-    da_service.publish_test_block().await.unwrap();
-    wait_for_l1_block(&da_service, 4, None).await;
-    wait_for_l1_block(&da_service, 5, None).await;
-
-    // new commitment will be sent here, it should send between 2 and 3 should not include 1
-    seq_test_client.send_publish_batch_request().await;
+    wait_for_l1_block(&da_service, 3, None).await;
 
     wait_for_postgres_commitment(
         &db_test_client,
