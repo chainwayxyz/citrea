@@ -12,7 +12,11 @@ use tracing::instrument;
 
 use crate::rocks_db_config::gen_rocksdb_options;
 use crate::schema::tables::{
-    BatchByHash, BatchByNumber, CommitmentsByNumber, EventByKey, EventByNumber, L2RangeByL1Height, L2StateRoot, L2Witness, LastSequencerCommitmentSent, LastStateDiff, PendingSequencerCommitmentL2Range, ProofBySlotNumber, ProverLastScannedSlot, SlotByHash, SlotByNumber, SoftBatchByHash, SoftBatchByNumber, SoftConfirmationStatus, TxByHash, TxByNumber, VerifiedProofsBySlotNumber, LEDGER_TABLES
+    BatchByHash, BatchByNumber, CommitmentsByNumber, EventByKey, EventByNumber, L2RangeByL1Height,
+    L2StateRoot, L2Witness, LastSequencerCommitmentSent, LastStateDiff, PendingSequencerCommitmentL2Range,
+    ProofBySlotNumber, ProverLastScannedSlot, SlotByHash, SlotByNumber, SoftBatchByHash,
+    SoftBatchByNumber, SoftConfirmationStatus, TxByHash, TxByNumber, VerifiedProofsBySlotNumber,
+    LEDGER_TABLES,
 };
 use crate::schema::types::{
     split_tx_for_storage, BatchNumber, EventNumber, L2HeightRange, SlotNumber, StoredBatch,
@@ -534,7 +538,7 @@ impl LedgerDB {
     }
 
     /// Gets all pending commitments' l2 ranges.
-    /// Returns start-end L2 heights. 
+    /// Returns start-end L2 heights.
     #[instrument(level = "trace", skip(self), err)]
     pub fn get_pending_commitments_l2_range(&self) -> anyhow::Result<Option<Vec<L2HeightRange>>> {
         self.db.get::<PendingSequencerCommitmentL2Range>(&())
@@ -542,8 +546,12 @@ impl LedgerDB {
 
     /// Set pending commitments' l2 ranges
     #[instrument(level = "trace", skip(self), err)]
-    pub fn set_pending_commitments_l2_range(&self, range_list: &Vec<L2HeightRange>) -> anyhow::Result<()> {
-        self.db.put::<PendingSequencerCommitmentL2Range>(&(), range_list)
+    pub fn set_pending_commitments_l2_range(
+        &self,
+        range_list: &Vec<L2HeightRange>,
+    ) -> anyhow::Result<()> {
+        self.db
+            .put::<PendingSequencerCommitmentL2Range>(&(), range_list)
     }
 
     /// Get the most recent committed batch

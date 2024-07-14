@@ -31,8 +31,8 @@ pub fn get_commitment_info(
     // If last commited l2 height is not passed, query it from ledger db
     // to calculate l2 block range to commit
     let last_committed_l2_height = ledger_db
-            .get_last_sequencer_commitment_l2_height()?
-            .unwrap_or(BatchNumber(0));
+        .get_last_sequencer_commitment_l2_height()?
+        .unwrap_or(BatchNumber(0));
 
     // If the last commitment made is on par with the head
     // soft batch, we have already committed the latest block.
