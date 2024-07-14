@@ -23,17 +23,23 @@ pub fn get_commitment_info(
     min_soft_confirmations_per_commitment: u64,
     state_diff_threshold_reached: bool,
 ) -> anyhow::Result<Option<CommitmentInfo>> {
-    // TODO: take pending commitments into account as well
     let Some((head_soft_batch_number, _)) = ledger_db.get_head_soft_batch()? else {
         // No soft batches have been created yet.
         return Ok(None);
     };
 
-    // If last commited l2 height is not passed, query it from ledger db
+    // If last committed l2 height is not passed, query it from ledger db
     // to calculate l2 block range to commit
-    let last_committed_l2_height = ledger_db
-        .get_last_sequencer_commitment_l2_height()?
-        .unwrap_or(BatchNumber(0));
+    let last_committed_l2_height = match ledger_db.get_pending_commitments_l2_range()? {
+        Some(pending_commitments) if !pending_commitments.is_empty() => *pending_commitments
+            .iter()
+            .map(|(_, end)| end)
+            .max()
+            .unwrap(),
+        _ => ledger_db
+            .get_last_sequencer_commitment_l2_height()?
+            .unwrap_or(BatchNumber(0)),
+    };
 
     // If the last commitment made is on par with the head
     // soft batch, we have already committed the latest block.
