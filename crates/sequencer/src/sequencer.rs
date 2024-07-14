@@ -90,6 +90,7 @@ where
     rpc_config: RpcConfig,
     soft_confirmation_rule_enforcer: SoftConfirmationRuleEnforcer<C, Da::Spec>,
     last_state_diff: StateDiff,
+    pending_commitments_l2_range: Arc<Mutex<Vec<(BatchNumber, BatchNumber)>>>,
 }
 
 enum L2BlockMode {
@@ -159,6 +160,11 @@ where
         // Initialize the sequencer with the last state diff from DB.
         let last_state_diff = ledger_db.get_state_diff()?;
 
+        let pending_commitments_l2_range = ledger_db
+            .get_pending_commitments_l2_range()?
+            .unwrap_or_default();
+        // TODO: recommit pending commitments
+
         Ok(Self {
             da_service,
             mempool: Arc::new(pool),
@@ -178,6 +184,7 @@ where
             rpc_config,
             soft_confirmation_rule_enforcer,
             last_state_diff,
+            pending_commitments_l2_range: Arc::new(Mutex::new(pending_commitments_l2_range)),
         })
     }
 
@@ -640,8 +647,15 @@ where
             self.ledger_db.set_state_diff(vec![])?;
             self.last_state_diff = vec![];
 
+            // Add commitment pending commitments
+            let mut pending_commitments = self.pending_commitments_l2_range.lock().await;
+            pending_commitments.push((*l2_range_to_submit.start(), *l2_range_to_submit.end()));
+            self.ledger_db
+                .set_pending_commitments_l2_range(&pending_commitments)?;
+
             let ledger_db = self.ledger_db.clone();
             let db_config = self.config.db_config.clone();
+            let pending_commitments_l2_range = self.pending_commitments_l2_range.clone();
             // Handle DA response asynchronously
             tokio::spawn(async move {
                 let result: anyhow::Result<()> = async move {
@@ -683,6 +697,13 @@ where
                             }
                         }
                     }
+
+                    // Remove commitment from pending commitments
+                    let mut pending_commitments = pending_commitments_l2_range.lock().await;
+                    pending_commitments.retain(|&(start, end)| {
+                        start != *l2_range_to_submit.start() || end != *l2_range_to_submit.end()
+                    });
+                    ledger_db.set_pending_commitments_l2_range(&pending_commitments)?;
 
                     info!("New commitment. L2 range: #{}-{}", l2_start, l2_end);
                     Ok(())

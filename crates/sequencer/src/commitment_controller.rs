@@ -23,6 +23,7 @@ pub fn get_commitment_info(
     min_soft_confirmations_per_commitment: u64,
     state_diff_threshold_reached: bool,
 ) -> anyhow::Result<Option<CommitmentInfo>> {
+    // TODO: take pending commitments into account as well
     let Some((head_soft_batch_number, _)) = ledger_db.get_head_soft_batch()? else {
         // No soft batches have been created yet.
         return Ok(None);
