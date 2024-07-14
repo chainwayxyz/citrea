@@ -7,6 +7,7 @@ use anyhow::{anyhow, bail};
 use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoffBuilder;
 use borsh::de::BorshDeserialize;
+use citrea_primitives::types::SoftConfirmationHash;
 use citrea_primitives::{get_da_block_at_height, L1BlockCache, SyncError};
 use jsonrpsee::core::client::Error as JsonrpseeError;
 use jsonrpsee::RpcModule;
@@ -52,6 +53,7 @@ where
     /// made pub so that sequencer can clone it
     pub ledger_db: LedgerDB,
     state_root: StateRoot<Stf, Vm, Da::Spec>,
+    batch_hash: SoftConfirmationHash,
     rpc_config: RpcConfig,
     sequencer_client: SequencerClient,
     sequencer_pub_key: Vec<u8>,
@@ -97,10 +99,10 @@ where
         code_commitment: Vm::CodeCommitment,
         sync_blocks_count: u64,
     ) -> Result<Self, anyhow::Error> {
-        let prev_state_root = match init_variant {
-            InitVariant::Initialized(state_root) => {
+        let (prev_state_root, prev_batch_hash) = match init_variant {
+            InitVariant::Initialized((state_root, batch_hash)) => {
                 debug!("Chain is already initialized. Skipping initialization.");
-                state_root
+                (state_root, batch_hash)
             }
             InitVariant::Genesis(params) => {
                 info!("No history detected. Initializing chain...");
@@ -112,7 +114,7 @@ where
                     "Chain initialization is done. Genesis root: 0x{}",
                     hex::encode(genesis_root.as_ref()),
                 );
-                genesis_root
+                (genesis_root, [0; 32])
             }
         };
 
@@ -131,6 +133,7 @@ where
             storage_manager,
             ledger_db,
             state_root: prev_state_root,
+            batch_hash: prev_batch_hash,
             rpc_config,
             sequencer_client: SequencerClient::new(runner_config.sequencer_client_url),
             sequencer_pub_key: public_keys.sequencer_public_key,
@@ -286,17 +289,20 @@ where
         };
 
         let l2_height = proven_commitments[0].l2_start_block_number;
-        let soft_batches = self
+        // Fetch the block prior to the one at l2_height so compare state roots
+        let prior_soft_batch = self
             .ledger_db
-            .get_soft_batch_range(&(BatchNumber(l2_height)..BatchNumber(l2_height + 1)))?;
-
-        let soft_batch = soft_batches.first().unwrap();
-        if soft_batch.pre_state_root.as_slice() != state_transition.initial_state_root.as_ref() {
-            return Err(anyhow!(
-                        "Proof verification: For a known and verified sequencer commitment. Pre state root mismatch - expected 0x{} but got 0x{}. Skipping proof.",
-                        hex::encode(&soft_batch.pre_state_root),
-                        hex::encode(&state_transition.initial_state_root)
-                    ).into());
+            .get_soft_batch_by_number(&(BatchNumber(l2_height - 1)))?;
+        if let Some(prior_soft_batch) = prior_soft_batch {
+            if prior_soft_batch.state_root.as_slice()
+                != state_transition.initial_state_root.as_ref()
+            {
+                return Err(anyhow!(
+                    "Proof verification: For a known and verified sequencer commitment. Pre state root mismatch - expected 0x{} but got 0x{}. Skipping proof.",
+                    hex::encode(&prior_soft_batch.state_root),
+                    hex::encode(&state_transition.initial_state_root)
+                ).into());
+            }
         }
 
         for commitment in proven_commitments {
@@ -396,6 +402,10 @@ where
             current_l1_block.header().height()
         );
 
+        if self.batch_hash != soft_batch.prev_hash {
+            bail!("Previous hash mismatch at height: {}", l2_height);
+        }
+
         let mut data_to_commit = SlotCommit::new(current_l1_block.clone());
 
         let pre_state = self
@@ -415,7 +425,7 @@ where
 
         let next_state_root = slot_result.state_root;
         // Check if post state root is the same as the one in the soft batch
-        if next_state_root.as_ref().to_vec() != soft_batch.post_state_root {
+        if next_state_root.as_ref().to_vec() != soft_batch.state_root {
             bail!("Post state root mismatch at height: {}", l2_height)
         }
 
@@ -426,10 +436,10 @@ where
         let batch_receipt = data_to_commit.batch_receipts()[0].clone();
 
         let soft_batch_receipt = SoftBatchReceipt::<_, _, Da::Spec> {
-            pre_state_root: self.state_root.as_ref().to_vec(),
-            post_state_root: next_state_root.as_ref().to_vec(),
+            state_root: next_state_root.as_ref().to_vec(),
             phantom_data: PhantomData::<u64>,
-            batch_hash: batch_receipt.batch_hash,
+            hash: soft_batch.hash,
+            prev_hash: soft_batch.prev_hash,
             da_slot_hash: current_l1_block.header().hash(),
             da_slot_height: current_l1_block.header().height(),
             da_slot_txs_commitment: current_l1_block.header().txs_commitment(),
@@ -455,6 +465,7 @@ where
             .commit_soft_batch(soft_batch_receipt, self.include_tx_body)?;
 
         self.state_root = next_state_root;
+        self.batch_hash = soft_batch.hash;
 
         info!(
             "New State Root after soft confirmation #{} is: {:?}",

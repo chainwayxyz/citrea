@@ -2355,7 +2355,7 @@ async fn sequencer_crash_restore_mempool() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_db_get_proof() {
     // citrea::initialize_logging(tracing::Level::INFO);
 
@@ -2479,7 +2479,7 @@ async fn test_db_get_proof() {
     prover_node_task.abort();
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 3)]
+#[tokio::test(flavor = "multi_thread")]
 async fn full_node_verify_proof_and_store() {
     // citrea::initialize_logging(tracing::Level::INFO);
 
@@ -3173,7 +3173,7 @@ async fn test_ledger_get_head_soft_batch() {
         .unwrap();
     assert_eq!(latest_block.header.number.unwrap(), 2);
     assert_eq!(
-        head_soft_batch.post_state_root.as_slice(),
+        head_soft_batch.state_root.as_slice(),
         latest_block.header.state_root.as_slice()
     );
     assert_eq!(head_soft_batch.l2_height, 2);

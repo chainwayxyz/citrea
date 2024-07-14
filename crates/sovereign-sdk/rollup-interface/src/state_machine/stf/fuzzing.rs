@@ -191,7 +191,8 @@ impl<B: Arbitrary + 'static, R: Arbitrary + 'static> Arbitrary for BatchReceipt<
                         None => batch_hash,
                     };
                     Self {
-                        batch_hash,
+                        hash: batch_hash,
+                        prev_hash: batch_hash,
                         tx_receipts: txs,
                         phantom_data: PhantomData,
                     }

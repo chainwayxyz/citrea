@@ -9,6 +9,7 @@ use anyhow::{anyhow, bail};
 use backoff::exponential::ExponentialBackoffBuilder;
 use backoff::future::retry as retry_backoff;
 use borsh::de::BorshDeserialize;
+use citrea_primitives::types::SoftConfirmationHash;
 use citrea_primitives::{get_da_block_at_height, L1BlockCache};
 use jsonrpsee::core::client::Error as JsonrpseeError;
 use jsonrpsee::RpcModule;
@@ -59,6 +60,7 @@ where
     /// made pub so that sequencer can clone it
     pub ledger_db: LedgerDB,
     state_root: StateRoot<Stf, Vm, Da::Spec>,
+    batch_hash: SoftConfirmationHash,
     rpc_config: RpcConfig,
     #[allow(dead_code)]
     prover_service: Option<Ps>,
@@ -107,10 +109,10 @@ where
         code_commitment: Vm::CodeCommitment,
         sync_blocks_count: u64,
     ) -> Result<Self, anyhow::Error> {
-        let prev_state_root = match init_variant {
-            InitVariant::Initialized(state_root) => {
+        let (prev_state_root, prev_batch_hash) = match init_variant {
+            InitVariant::Initialized((state_root, batch_hash)) => {
                 debug!("Chain is already initialized. Skipping initialization.");
-                state_root
+                (state_root, batch_hash)
             }
             InitVariant::Genesis(params) => {
                 info!("No history detected. Initializing chain...");
@@ -122,7 +124,7 @@ where
                     "Chain initialization is done. Genesis root: 0x{}",
                     hex::encode(genesis_root.as_ref()),
                 );
-                genesis_root
+                (genesis_root, [0; 32])
             }
         };
 
@@ -139,6 +141,7 @@ where
             storage_manager,
             ledger_db,
             state_root: prev_state_root,
+            batch_hash: prev_batch_hash,
             rpc_config,
             prover_service,
             sequencer_client: SequencerClient::new(runner_config.sequencer_client_url),
@@ -310,6 +313,10 @@ where
             current_l1_block.header().height()
         );
 
+        if self.batch_hash != soft_batch.prev_hash {
+            bail!("Previous hash mismatch at height: {}", l2_height);
+        }
+
         let mut data_to_commit = SlotCommit::new(current_l1_block.clone());
 
         let pre_state = self
@@ -329,7 +336,7 @@ where
 
         let next_state_root = slot_result.state_root;
         // Check if post state root is the same as the one in the soft batch
-        if next_state_root.as_ref().to_vec() != soft_batch.post_state_root {
+        if next_state_root.as_ref().to_vec() != soft_batch.state_root {
             bail!("Post state root mismatch at height: {}", l2_height)
         }
 
@@ -347,10 +354,10 @@ where
         let batch_receipt = data_to_commit.batch_receipts()[0].clone();
 
         let soft_batch_receipt = SoftBatchReceipt::<_, _, Da::Spec> {
-            pre_state_root: self.state_root.as_ref().to_vec(),
-            post_state_root: next_state_root.as_ref().to_vec(),
+            state_root: next_state_root.as_ref().to_vec(),
             phantom_data: PhantomData::<u64>,
-            batch_hash: batch_receipt.batch_hash,
+            hash: soft_batch.hash,
+            prev_hash: soft_batch.prev_hash,
             da_slot_hash: current_l1_block.header().hash(),
             da_slot_height: current_l1_block.header().height(),
             da_slot_txs_commitment: current_l1_block.header().txs_commitment(),
@@ -370,6 +377,7 @@ where
         )?;
 
         self.state_root = next_state_root;
+        self.batch_hash = soft_batch.hash;
 
         // save state root after applying l2 with l2_height
         self.ledger_db
@@ -459,11 +467,20 @@ where
                 .await?;
 
             let da_block_header_of_commitments = l1_block.header().clone();
+
             let hash = da_block_header_of_commitments.hash();
             let initial_state_root = self
                 .ledger_db
                 .get_l2_state_root::<Stf::StateRoot>(first_l2_height_of_l1 - 1)?
                 .expect("There should be a state root");
+            let initial_batch_hash = self
+                .ledger_db
+                .get_soft_batch_by_number(&BatchNumber(first_l2_height_of_l1))?
+                .ok_or(anyhow!(
+                    "Could not find soft batch at height {}",
+                    first_l2_height_of_l1
+                ))?
+                .prev_hash;
 
             let final_state_root = self
                 .ledger_db
@@ -479,6 +496,7 @@ where
                 StateTransitionData {
                     initial_state_root,
                     final_state_root,
+                    initial_batch_hash,
                     da_data,
                     da_block_header_of_commitments,
                     inclusion_proof,

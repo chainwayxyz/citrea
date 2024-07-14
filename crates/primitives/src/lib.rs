@@ -5,6 +5,7 @@ mod constants;
 mod da;
 #[cfg(feature = "native")]
 mod error;
+pub mod types;
 
 #[cfg(feature = "native")]
 pub use cache::*;

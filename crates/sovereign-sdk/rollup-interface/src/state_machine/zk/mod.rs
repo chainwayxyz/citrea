@@ -124,6 +124,8 @@ pub struct StateTransition<Da: DaSpec, Root> {
     pub initial_state_root: Root,
     /// The state of the rollup after the transition
     pub final_state_root: Root,
+    /// The hash before the state transition
+    pub initial_batch_hash: [u8; 32],
     /// State diff of L2 blocks in the processed sequencer commitments.
     pub state_diff: CumulativeStateDiff,
     /// The DA slot hash that the sequencer commitments causing this state transition were found in.
@@ -132,7 +134,6 @@ pub struct StateTransition<Da: DaSpec, Root> {
     pub sequencer_public_key: Vec<u8>,
     /// Sequencer DA public key.
     pub sequencer_da_public_key: Vec<u8>,
-
     /// An additional validity condition for the state transition which needs
     /// to be checked outside of the zkVM circuit. This typically corresponds to
     /// some claim about the DA layer history, such as (X) is a valid block on the DA layer
@@ -166,6 +167,8 @@ pub struct StateTransitionData<StateRoot, Witness, Da: DaSpec> {
     pub initial_state_root: StateRoot,
     /// The state root after the state transition
     pub final_state_root: StateRoot,
+    /// The hash before the state transition
+    pub initial_batch_hash: [u8; 32],
     /// The `crate::da::DaData` that are being processed as blobs. Everything that's not `crate::da::DaData::SequencerCommitment` will be ignored.
     pub da_data: Vec<Da::BlobTransaction>,
     /// DA block header that the sequencer commitments were found in.

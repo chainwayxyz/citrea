@@ -133,17 +133,20 @@ pub struct HookSoftConfirmationInfo {
     pub timestamp: u64,
 }
 
-impl From<SignedSoftConfirmationBatch> for HookSoftConfirmationInfo {
-    fn from(signed_soft_confirmation_batch: SignedSoftConfirmationBatch) -> Self {
+impl HookSoftConfirmationInfo {
+    pub fn new(
+        signed_soft_confirmation: SignedSoftConfirmationBatch,
+        pre_state_root: Vec<u8>,
+    ) -> Self {
         HookSoftConfirmationInfo {
-            da_slot_height: signed_soft_confirmation_batch.da_slot_height(),
-            da_slot_hash: signed_soft_confirmation_batch.da_slot_hash(),
-            da_slot_txs_commitment: signed_soft_confirmation_batch.da_slot_txs_commitment(),
-            pre_state_root: signed_soft_confirmation_batch.pre_state_root(),
-            pub_key: signed_soft_confirmation_batch.sequencer_pub_key().to_vec(),
-            deposit_data: signed_soft_confirmation_batch.deposit_data(),
-            l1_fee_rate: signed_soft_confirmation_batch.l1_fee_rate(),
-            timestamp: signed_soft_confirmation_batch.timestamp(),
+            da_slot_height: signed_soft_confirmation.da_slot_height(),
+            da_slot_hash: signed_soft_confirmation.da_slot_hash(),
+            da_slot_txs_commitment: signed_soft_confirmation.da_slot_txs_commitment(),
+            pre_state_root: pre_state_root.to_vec(),
+            pub_key: signed_soft_confirmation.sequencer_pub_key().to_vec(),
+            deposit_data: signed_soft_confirmation.deposit_data(),
+            l1_fee_rate: signed_soft_confirmation.l1_fee_rate(),
+            timestamp: signed_soft_confirmation.timestamp(),
         }
     }
 }
@@ -152,10 +155,10 @@ impl From<HookSoftConfirmationInfo> for SignedSoftConfirmationBatch {
     fn from(val: HookSoftConfirmationInfo) -> Self {
         SignedSoftConfirmationBatch::new(
             [0u8; 32],
+            [0u8; 32],
             val.da_slot_height,
             val.da_slot_hash(),
             val.da_slot_txs_commitment(),
-            val.pre_state_root(),
             val.l1_fee_rate,
             vec![],
             val.deposit_data,

@@ -38,6 +38,7 @@ use crate::{ProverConfig, ProverService, RollupPublicKeys, RpcConfig, RunnerConf
 
 type StateRoot<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::StateRoot;
 type GenesisParams<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::GenesisParams;
+type SoftConfirmationHash = [u8; 32];
 
 /// Combines `DaService` with `StateTransitionFunction` and "runs" the rollup.
 pub struct StateTransitionRunner<Stf, Sm, Da, Vm, Ps, C>
@@ -57,6 +58,7 @@ where
     /// made pub so that sequencer can clone it
     pub ledger_db: LedgerDB,
     state_root: StateRoot<Stf, Vm, Da::Spec>,
+    batch_hash: SoftConfirmationHash,
     rpc_config: RpcConfig,
     #[allow(dead_code)]
     prover_service: Option<Ps>,
@@ -89,8 +91,8 @@ where
 
 /// How [`StateTransitionRunner`] is initialized
 pub enum InitVariant<Stf: StateTransitionFunction<Vm, Da>, Vm: Zkvm, Da: DaSpec> {
-    /// From give state root
-    Initialized(Stf::StateRoot),
+    /// From given state root and soft confirmation hash
+    Initialized((Stf::StateRoot, SoftConfirmationHash)),
     /// From empty state root
     /// Genesis params for Stf::init
     Genesis(GenesisParams<Stf, Vm, Da>),
@@ -130,10 +132,10 @@ where
         prover_config: Option<ProverConfig>,
         code_commitment: Vm::CodeCommitment,
     ) -> Result<Self, anyhow::Error> {
-        let prev_state_root = match init_variant {
-            InitVariant::Initialized(state_root) => {
+        let (prev_state_root, prev_batch_hash) = match init_variant {
+            InitVariant::Initialized((state_root, batch_hash)) => {
                 debug!("Chain is already initialized. Skipping initialization.");
-                state_root
+                (state_root, batch_hash)
             }
             InitVariant::Genesis(params) => {
                 info!("No history detected. Initializing chain...");
@@ -145,7 +147,7 @@ where
                     "Chain initialization is done. Genesis root: 0x{}",
                     hex::encode(genesis_root.as_ref()),
                 );
-                genesis_root
+                (genesis_root, [0; 32])
             }
         };
 
@@ -162,6 +164,7 @@ where
             storage_manager,
             ledger_db,
             state_root: prev_state_root,
+            batch_hash: prev_batch_hash,
             rpc_config,
             prover_service,
             sequencer_client: SequencerClient::new(runner_config.sequencer_client_url),
@@ -362,6 +365,7 @@ where
             );
 
             let initial_state_root = self.state_root.clone();
+            let initial_batch_hash = self.batch_hash;
 
             let mut da_data = self.da_service.extract_relevant_blobs(&filtered_block);
             let da_block_header_of_commitments = filtered_block.header().clone();
@@ -497,15 +501,15 @@ where
                 let next_state_root = slot_result.state_root;
 
                 // Check if post state root is the same as the one in the soft batch
-                if next_state_root.as_ref().to_vec() != soft_batch.post_state_root {
+                if next_state_root.as_ref().to_vec() != soft_batch.state_root {
                     bail!("Post state root mismatch")
                 }
 
                 let soft_batch_receipt = SoftBatchReceipt::<_, _, Da::Spec> {
-                    pre_state_root: self.state_root.as_ref().to_vec(),
-                    post_state_root: next_state_root.as_ref().to_vec(),
+                    state_root: next_state_root.as_ref().to_vec(),
                     phantom_data: PhantomData::<u64>,
-                    batch_hash: batch_receipt.batch_hash,
+                    hash: batch_receipt.hash,
+                    prev_hash: batch_receipt.prev_hash,
                     da_slot_hash: filtered_block.header().hash(),
                     da_slot_height: filtered_block.header().height(),
                     da_slot_txs_commitment: filtered_block.header().txs_commitment(),
@@ -524,6 +528,7 @@ where
                 )?;
 
                 self.state_root = next_state_root;
+                self.batch_hash = soft_batch.hash;
 
                 debug!(
                     "New State Root after soft confirmation #{} is: {:?}",
@@ -545,6 +550,7 @@ where
                 StateTransitionData {
                     initial_state_root,
                     final_state_root: self.state_root.clone(),
+                    initial_batch_hash,
                     da_data,
                     da_block_header_of_commitments,
                     inclusion_proof,
@@ -907,17 +913,17 @@ where
                         };
 
                         let l2_height = proven_commitments[0].l2_start_block_number;
-                        let soft_batches = self.ledger_db.get_soft_batch_range(
-                            &(BatchNumber(l2_height)..BatchNumber(l2_height + 1)),
+                        let prior_soft_batches = self.ledger_db.get_soft_batch_range(
+                            &(BatchNumber(l2_height - 1)..BatchNumber(l2_height)),
                         )?;
 
-                        let soft_batch = soft_batches.first().unwrap();
-                        if soft_batch.pre_state_root.as_slice()
+                        let prior_soft_batch = prior_soft_batches.first().unwrap();
+                        if prior_soft_batch.state_root.as_slice()
                             != state_transition.initial_state_root.as_ref()
                         {
                             tracing::warn!(
                                 "Proof verification: For a known and verified sequencer commitment. Pre state root mismatch - expected 0x{} but got 0x{}. Skipping proof.",
-                                hex::encode(&soft_batch.pre_state_root),
+                                hex::encode(&prior_soft_batch.state_root),
                                 hex::encode(&state_transition.initial_state_root)
                             );
                             continue;
@@ -1021,7 +1027,7 @@ where
 
                 let next_state_root = slot_result.state_root;
                 // Check if post state root is the same as the one in the soft batch
-                if next_state_root.as_ref().to_vec() != soft_batch.post_state_root {
+                if next_state_root.as_ref().to_vec() != soft_batch.state_root {
                     warn!("Post state root mismatch at height: {}", height);
                     continue;
                 }
@@ -1036,10 +1042,10 @@ where
                 let batch_receipt = data_to_commit.batch_receipts()[0].clone();
 
                 let soft_batch_receipt = SoftBatchReceipt::<_, _, Da::Spec> {
-                    pre_state_root: self.state_root.as_ref().to_vec(),
-                    post_state_root: next_state_root.as_ref().to_vec(),
+                    state_root: next_state_root.as_ref().to_vec(),
                     phantom_data: PhantomData::<u64>,
-                    batch_hash: batch_receipt.batch_hash,
+                    hash: soft_batch.hash,
+                    prev_hash: soft_batch.prev_hash,
                     da_slot_hash: cur_l1_block.header().hash(),
                     da_slot_height: cur_l1_block.header().height(),
                     da_slot_txs_commitment: cur_l1_block.header().txs_commitment(),
@@ -1059,6 +1065,7 @@ where
                 )?;
 
                 self.state_root = next_state_root;
+                self.batch_hash = soft_batch.hash;
 
                 info!(
                     "New State Root after soft confirmation #{} is: {:?}",

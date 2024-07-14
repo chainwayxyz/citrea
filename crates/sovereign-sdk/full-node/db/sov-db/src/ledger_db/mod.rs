@@ -156,6 +156,15 @@ impl LedgerDB {
         self.get_data_range::<BatchByNumber, _, _>(range)
     }
 
+    /// Gets all soft confirmations by numbers
+    #[instrument(level = "trace", skip(self), err)]
+    pub fn get_soft_batch_by_number(
+        &self,
+        number: &BatchNumber,
+    ) -> Result<Option<StoredSoftBatch>, anyhow::Error> {
+        self.db.get::<SoftBatchByNumber>(number)
+    }
+
     /// Gets all soft confirmations with numbers `range.start` to `range.end`. If `range.end` is outside
     /// the range of the database, the result will smaller than the requested range.
     /// Note that this method blindly preallocates for the requested range, so it should not be exposed
@@ -323,11 +332,11 @@ impl LedgerDB {
             l2_height: current_item_numbers.soft_batch_number,
             da_slot_hash: batch_receipt.da_slot_hash.into(),
             da_slot_txs_commitment: batch_receipt.da_slot_txs_commitment.into(),
-            hash: batch_receipt.batch_hash,
+            hash: batch_receipt.hash,
+            prev_hash: batch_receipt.prev_hash,
             tx_range: TxNumber(first_tx_number)..TxNumber(last_tx_number),
             txs,
-            pre_state_root: batch_receipt.pre_state_root,
-            post_state_root: batch_receipt.post_state_root,
+            state_root: batch_receipt.state_root,
             soft_confirmation_signature: batch_receipt.soft_confirmation_signature,
             pub_key: batch_receipt.pub_key,
             deposit_data: batch_receipt.deposit_data,
@@ -396,7 +405,7 @@ impl LedgerDB {
 
             // Insert batch
             let batch_to_store = StoredBatch {
-                hash: batch_receipt.batch_hash,
+                hash: batch_receipt.hash,
                 txs: TxNumber(first_tx_number)..TxNumber(last_tx_number),
             };
             self.put_batch(

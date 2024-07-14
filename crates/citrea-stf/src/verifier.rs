@@ -46,18 +46,6 @@ where
             data.completeness_proof,
         )?;
 
-        assert_eq!(
-            data.initial_state_root.as_ref(),
-            data.soft_confirmations
-                .front()
-                .expect("At least one set of soft confirmations")
-                .first()
-                .expect("At least one soft confirmation")
-                .pre_state_root()
-                .as_slice(),
-            "Invalid initial state root"
-        );
-
         println!("going into apply_soft_confirmations_from_sequencer_commitments");
         let (final_state_root, state_diff) = self
             .app
@@ -65,6 +53,7 @@ where
                 data.sequencer_public_key.as_ref(),
                 data.sequencer_da_public_key.as_ref(),
                 &data.initial_state_root,
+                data.initial_batch_hash,
                 pre_state,
                 data.da_data,
                 data.state_transition_witnesses,
@@ -83,6 +72,7 @@ where
         let out: StateTransition<Da::Spec, _> = StateTransition {
             initial_state_root: data.initial_state_root,
             final_state_root,
+            initial_batch_hash: data.initial_batch_hash,
             validity_condition, // TODO: not sure about what to do with this yet
             state_diff,
             da_slot_hash: data.da_block_header_of_commitments.hash(),

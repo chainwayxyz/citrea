@@ -1,5 +1,6 @@
 use std::ops::Range;
 
+use citrea_primitives::types::SoftConfirmationHash;
 use jsonrpsee::core::client::{ClientT, Error};
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use jsonrpsee::rpc_params;
@@ -104,7 +105,9 @@ impl SequencerClient {
 #[serde(rename_all = "camelCase")]
 pub struct GetSoftBatchResponse {
     #[serde(with = "hex::serde")]
-    pub hash: [u8; 32],
+    pub hash: SoftConfirmationHash,
+    #[serde(with = "hex::serde")]
+    pub prev_hash: SoftConfirmationHash,
     pub da_slot_height: u64,
     #[serde(with = "hex::serde")]
     pub da_slot_hash: [u8; 32],
@@ -113,9 +116,7 @@ pub struct GetSoftBatchResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub txs: Option<Vec<HexTx>>,
     #[serde(with = "hex::serde")]
-    pub pre_state_root: Vec<u8>,
-    #[serde(with = "hex::serde")]
-    pub post_state_root: Vec<u8>,
+    pub state_root: Vec<u8>,
     #[serde(with = "hex::serde")]
     pub soft_confirmation_signature: Vec<u8>,
     pub deposit_data: Vec<HexTx>, // Vec<u8> wrapper around deposit data
@@ -129,10 +130,10 @@ impl From<GetSoftBatchResponse> for SignedSoftConfirmationBatch {
     fn from(val: GetSoftBatchResponse) -> Self {
         SignedSoftConfirmationBatch::new(
             val.hash,
+            val.prev_hash,
             val.da_slot_height,
             val.da_slot_hash,
             val.da_slot_txs_commitment,
-            val.pre_state_root,
             val.l1_fee_rate,
             val.txs
                 .unwrap_or_default()

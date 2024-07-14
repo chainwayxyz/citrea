@@ -73,7 +73,9 @@ pub struct TransactionReceipt<R> {
 /// A receipt giving the outcome of a batch of transactions
 pub struct BatchReceipt<BatchReceiptContents, TxReceiptContents> {
     /// The canonical hash of this batch
-    pub batch_hash: [u8; 32],
+    pub hash: [u8; 32],
+    /// The canonical hash of previous batch
+    pub prev_hash: [u8; 32],
     /// The receipts of all the transactions in this batch.
     pub tx_receipts: Vec<TransactionReceipt<TxReceiptContents>>,
     /// Any additional structured data to be saved in the database and served over RPC
@@ -90,15 +92,15 @@ pub struct SoftBatchReceipt<BatchReceiptContents, TxReceiptContents, DS: DaSpec>
     /// DA layer transactions commitment
     pub da_slot_txs_commitment: <DS as DaSpec>::SlotHash,
     /// The canonical hash of this batch
-    pub batch_hash: [u8; 32],
+    pub hash: [u8; 32],
+    /// The canonical hash of the previous batch
+    pub prev_hash: [u8; 32],
     /// The receipts of all the transactions in this batch.
     pub tx_receipts: Vec<TransactionReceipt<TxReceiptContents>>,
     /// Any additional structured data to be saved in the database and served over RPC
     pub phantom_data: PhantomData<BatchReceiptContents>,
-    /// Pre state root
-    pub pre_state_root: Vec<u8>,
-    /// Post state root
-    pub post_state_root: Vec<u8>,
+    /// state root
+    pub state_root: Vec<u8>,
     /// Soft confirmation signature computed from borsh serialization of da_slot_height, da_slot_hash, pre_state_root, txs
     pub soft_confirmation_signature: Vec<u8>,
     /// Sequencer public key
@@ -253,6 +255,7 @@ pub trait StateTransitionFunction<Vm: Zkvm, Da: DaSpec> {
         sequencer_public_key: &[u8],
         sequencer_da_public_key: &[u8],
         initial_state_root: &Self::StateRoot,
+        initial_batch_hash: [u8; 32],
         pre_state: Self::PreState,
         da_data: Vec<<Da as DaSpec>::BlobTransaction>,
         witnesses: VecDeque<Vec<Self::Witness>>,

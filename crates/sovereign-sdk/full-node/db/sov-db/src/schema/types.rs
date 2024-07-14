@@ -170,16 +170,16 @@ pub struct StoredSoftBatch {
     pub da_slot_txs_commitment: [u8; 32],
     /// The hash of the batch
     pub hash: DbHash,
+    /// The hash of the previous batch
+    pub prev_hash: DbHash,
     /// The range of transactions which occurred in this batch.
     pub tx_range: std::ops::Range<TxNumber>,
     /// The transactions which occurred in this batch.
     pub txs: Vec<StoredTransaction>,
     /// Deposit data coming from the L1 chain
     pub deposit_data: Vec<Vec<u8>>,
-    /// Pre state root
-    pub pre_state_root: Vec<u8>,
-    /// Post state root
-    pub post_state_root: Vec<u8>,
+    /// State root
+    pub state_root: Vec<u8>,
     /// Sequencer signature
     pub soft_confirmation_signature: Vec<u8>,
     /// Sequencer public key
@@ -194,10 +194,10 @@ impl From<StoredSoftBatch> for SignedSoftConfirmationBatch {
     fn from(value: StoredSoftBatch) -> Self {
         SignedSoftConfirmationBatch::new(
             value.hash,
+            value.prev_hash,
             value.da_slot_height,
             value.da_slot_hash,
             value.da_slot_txs_commitment,
-            value.pre_state_root,
             value.l1_fee_rate,
             value.txs.into_iter().map(|tx| tx.body.unwrap()).collect(),
             value.deposit_data,
@@ -221,6 +221,7 @@ impl TryFrom<StoredSoftBatch> for SoftBatchResponse {
             da_slot_height: value.da_slot_height,
             da_slot_txs_commitment: value.da_slot_txs_commitment,
             hash: value.hash,
+            prev_hash: value.prev_hash,
             txs: Some(
                 value
                     .txs
@@ -228,8 +229,7 @@ impl TryFrom<StoredSoftBatch> for SoftBatchResponse {
                     .filter_map(|tx| tx.body.map(Into::into))
                     .collect(),
             ), // Rollup full nodes don't store tx bodies
-            pre_state_root: value.pre_state_root,
-            post_state_root: value.post_state_root,
+            state_root: value.state_root,
             soft_confirmation_signature: value.soft_confirmation_signature,
             pub_key: value.pub_key,
             deposit_data: value
