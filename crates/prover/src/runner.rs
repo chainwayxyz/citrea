@@ -353,13 +353,11 @@ where
 
         let batch_receipt = data_to_commit.batch_receipts()[0].clone();
 
-        let signed_soft_confirmation: SignedSoftConfirmationBatch = soft_batch.clone().into();
-
         let soft_batch_receipt = SoftBatchReceipt::<_, _, Da::Spec> {
             state_root: next_state_root.as_ref().to_vec(),
             phantom_data: PhantomData::<u64>,
-            hash: signed_soft_confirmation.hash(),
-            prev_hash: signed_soft_confirmation.prev_hash(),
+            hash: soft_batch.hash,
+            prev_hash: soft_batch.prev_hash,
             da_slot_hash: current_l1_block.header().hash(),
             da_slot_height: current_l1_block.header().height(),
             da_slot_txs_commitment: current_l1_block.header().txs_commitment(),
@@ -475,7 +473,14 @@ where
                 .ledger_db
                 .get_l2_state_root::<Stf::StateRoot>(first_l2_height_of_l1 - 1)?
                 .expect("There should be a state root");
-            let initial_batch_hash = self.batch_hash;
+            let initial_batch_hash = self
+                .ledger_db
+                .get_soft_batch_by_number(&BatchNumber(first_l2_height_of_l1))?
+                .ok_or(anyhow!(
+                    "Could not find soft batch at height {}",
+                    first_l2_height_of_l1
+                ))?
+                .prev_hash;
 
             let final_state_root = self
                 .ledger_db
