@@ -749,6 +749,9 @@ where
 
     #[instrument(level = "trace", skip(self), err, ret)]
     pub async fn run(&mut self) -> Result<(), anyhow::Error> {
+        // Resubmit if there were pending commitments on restart
+        self.resubmit_pending_commitments().await?;
+
         // TODO: hotfix for mock da
         self.da_service
             .get_block_at(1)

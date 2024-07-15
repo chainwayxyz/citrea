@@ -65,7 +65,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             },
         };
 
-        let mut seq = CitreaSequencer::new(
+        let seq = CitreaSequencer::new(
             da_service,
             prover_storage,
             sequencer_config,
@@ -77,7 +77,6 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             rollup_config.rpc,
         )
         .unwrap();
-        seq.resubmit_pending_commitments().await?;
 
         Ok(Sequencer {
             runner: seq,
