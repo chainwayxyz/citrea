@@ -642,14 +642,14 @@ where
 
             info!("Sent commitment to DA queue");
 
-            self.ledger_db.set_state_diff(vec![])?;
-            self.last_state_diff = vec![];
-
-            // Add commitment pending commitments
+            // Add commitment to pending commitments
             let mut pending_commitments = self.pending_commitments_l2_range.lock().await;
             pending_commitments.push((*l2_range_to_submit.start(), *l2_range_to_submit.end()));
             self.ledger_db
                 .set_pending_commitments_l2_range(&pending_commitments)?;
+
+            self.ledger_db.set_state_diff(vec![])?;
+            self.last_state_diff = vec![];
 
             let ledger_db = self.ledger_db.clone();
             let db_config = self.config.db_config.clone();
