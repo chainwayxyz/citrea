@@ -42,10 +42,10 @@ pub trait RollupBlueprint: Sized + Send + Sync {
 
     /// Manager for the native storage lifecycle.
     type StorageManager: HierarchicalStorageManager<
-        Self::DaSpec,
-        NativeStorage = <Self::NativeContext as Spec>::Storage,
-        NativeChangeSet = <Self::NativeContext as Spec>::Storage,
-    > + Send;
+            Self::DaSpec,
+            NativeStorage = <Self::NativeContext as Spec>::Storage,
+            NativeChangeSet = <Self::NativeContext as Spec>::Storage,
+        > + Send;
 
     /// Runtime for the Zero Knowledge environment.
     type ZkRuntime: RuntimeTrait<Self::ZkContext, Self::DaSpec> + Default;

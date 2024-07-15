@@ -1,3 +1,4 @@
+use std::cmp;
 use std::ops::RangeInclusive;
 
 use anyhow::anyhow;
@@ -28,18 +29,21 @@ pub fn get_commitment_info(
         return Ok(None);
     };
 
-    // First check if there are any pending commitments and use that,
-    // if there are none, use last finalized commitment height
-    let last_committed_l2_height = match ledger_db.get_pending_commitments_l2_range()? {
-        Some(pending_commitments) if !pending_commitments.is_empty() => *pending_commitments
-            .iter()
-            .map(|(_, end)| end)
-            .max()
-            .unwrap(),
-        _ => ledger_db
-            .get_last_sequencer_commitment_l2_height()?
-            .unwrap_or(BatchNumber(0)),
-    };
+    // Get latest finalized and pending commitments and find the max height
+    let last_finalized_l2_height = ledger_db
+        .get_last_sequencer_commitment_l2_height()?
+        .unwrap_or(BatchNumber(0));
+    let last_pending_l2_height = ledger_db
+        .get_pending_commitments_l2_range()?
+        .map(|comms| {
+            comms
+                .iter()
+                .map(|(_, end)| *end)
+                .max()
+                .unwrap_or(BatchNumber(0))
+        })
+        .unwrap_or(BatchNumber(0));
+    let last_committed_l2_height = cmp::max(last_finalized_l2_height, last_pending_l2_height);
 
     // If the last commitment made is on par with the head
     // soft batch, we have already committed the latest block.

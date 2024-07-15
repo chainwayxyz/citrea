@@ -642,7 +642,6 @@ where
 
             info!("Sent commitment to DA queue");
 
-            // TODO: this causes state diff to be lost on restart/error, fix that
             self.ledger_db.set_state_diff(vec![])?;
             self.last_state_diff = vec![];
 
