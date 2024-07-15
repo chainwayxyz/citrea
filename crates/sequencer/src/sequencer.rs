@@ -665,49 +665,35 @@ where
             commitment.l2_start_block_number, commitment.l2_end_block_number
         );
 
-        if !resubmit {
-            // Add commitment to pending commitments
-            let mut pending_commitments = self.pending_commitments_l2_range.lock().await;
-            pending_commitments.push((*l2_range_to_submit.start(), *l2_range_to_submit.end()));
-            self.ledger_db
-                .set_pending_commitments_l2_range(&pending_commitments)?;
-
-            // Clear state diff
-            self.ledger_db.set_state_diff(vec![])?;
-            self.last_state_diff = vec![];
-        }
-
         let ledger_db = self.ledger_db.clone();
         let db_config = self.config.db_config.clone();
         let pending_commitments_l2_range = self.pending_commitments_l2_range.clone();
-        // Handle DA response asynchronously
-        tokio::spawn(async move {
+        let handle_da_response = async move {
             let result: anyhow::Result<()> = async move {
+                let l2_start = *commitment_info.l2_height_range.start();
+                let l2_end = *commitment_info.l2_height_range.end();
+
                 let tx_id = rx
                     .await
                     .map_err(|_| anyhow!("DA service is dead!"))?
                     .map_err(|_| anyhow!("Send transaction cannot fail"))?;
 
                 ledger_db
-                    .set_last_sequencer_commitment_l2_height(BatchNumber(
-                        commitment_info.l2_height_range.end().0,
-                    ))
+                    .set_last_sequencer_commitment_l2_height(l2_end)
                     .map_err(|_| {
                         anyhow!("Sequencer: Failed to set last sequencer commitment L2 height")
                     })?;
 
                 debug!("Commitment info: {:?}", commitment_info);
 
-                let l2_start = l2_range_to_submit.start().0 as u32;
-                let l2_end = l2_range_to_submit.end().0 as u32;
                 if let Some(db_config) = db_config {
                     match PostgresConnector::new(db_config).await {
                         Ok(pg_connector) => {
                             pg_connector
                                 .insert_sequencer_commitment(
                                     Into::<[u8; 32]>::into(tx_id).to_vec(),
-                                    l2_start,
-                                    l2_end,
+                                    l2_start.0 as u32,
+                                    l2_end.0 as u32,
                                     commitment.merkle_root.to_vec(),
                                     CommitmentStatus::Mempool,
                                 )
@@ -724,12 +710,10 @@ where
 
                 // Remove commitment from pending commitments
                 let mut pending_commitments = pending_commitments_l2_range.lock().await;
-                pending_commitments.retain(|&(start, end)| {
-                    start != *l2_range_to_submit.start() || end != *l2_range_to_submit.end()
-                });
+                pending_commitments.retain(|&(start, end)| start != l2_start || end != l2_end);
                 ledger_db.set_pending_commitments_l2_range(&pending_commitments)?;
 
-                info!("New commitment. L2 range: #{}-{}", l2_start, l2_end);
+                info!("New commitment. L2 range: #{}-{}", l2_start.0, l2_end.0);
                 Ok(())
             }
             .await;
@@ -740,7 +724,25 @@ where
                     err
                 );
             }
-        });
+        };
+
+        if !resubmit {
+            // Add commitment to pending commitments
+            let mut pending_commitments = self.pending_commitments_l2_range.lock().await;
+            pending_commitments.push((*l2_range_to_submit.start(), *l2_range_to_submit.end()));
+            self.ledger_db
+                .set_pending_commitments_l2_range(&pending_commitments)?;
+
+            // Clear state diff
+            self.ledger_db.set_state_diff(vec![])?;
+            self.last_state_diff = vec![];
+
+            // Handle DA response asynchronously
+            tokio::spawn(handle_da_response);
+        } else {
+            // Handle DA response synchronously
+            handle_da_response.await;
+        }
 
         Ok(())
     }
