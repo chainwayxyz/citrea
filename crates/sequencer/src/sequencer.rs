@@ -640,7 +640,7 @@ where
                 .send(request)
                 .map_err(|_| anyhow!("Bitcoin service already stopped!"))?;
 
-            info!("Sent commitment to DA queue");
+            info!("Sent commitment to DA queue. L2 range: #{}-{}", commitment.l2_start_block_number, commitment.l2_end_block_number);
 
             // Add commitment to pending commitments
             let mut pending_commitments = self.pending_commitments_l2_range.lock().await;
@@ -754,7 +754,7 @@ where
                 .send(request)
                 .map_err(|_| anyhow!("Bitcoin service already stopped!"))?;
 
-            info!("Sent commitment to DA queue");
+            info!("Sent commitment to DA queue. L2 range: #{}-{}", commitment.l2_start_block_number, commitment.l2_end_block_number);
 
             let ledger_db = self.ledger_db.clone();
             let db_config = self.config.db_config.clone();
