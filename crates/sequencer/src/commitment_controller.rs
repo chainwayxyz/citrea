@@ -28,8 +28,8 @@ pub fn get_commitment_info(
         return Ok(None);
     };
 
-    // If last committed l2 height is not passed, query it from ledger db
-    // to calculate l2 block range to commit
+    // First check if there are any pending commitments and use that,
+    // if there are none, use last finalized commitment height
     let last_committed_l2_height = match ledger_db.get_pending_commitments_l2_range()? {
         Some(pending_commitments) if !pending_commitments.is_empty() => *pending_commitments
             .iter()
