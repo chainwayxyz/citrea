@@ -1,6 +1,5 @@
 use core::fmt;
 use core::result::Result::Ok;
-use core::str::FromStr;
 use std::fs::File;
 use std::io::{BufWriter, Write};
 
@@ -143,10 +142,7 @@ fn build_commit_transaction(
     let size = get_size(
         &[TxIn {
             previous_output: OutPoint {
-                txid: Txid::from_str(
-                    "0000000000000000000000000000000000000000000000000000000000000000",
-                )
-                .unwrap(),
+                txid: Txid::from_byte_array([0; 32]),
                 vout: 0,
             },
             script_sig: script::Builder::new().into_script(),
@@ -352,22 +348,18 @@ pub fn create_inscription_transactions(
         .push_opcode(OP_CHECKSIG)
         .push_opcode(OP_FALSE)
         .push_opcode(OP_IF)
-        .push_slice(PushBytesBuf::try_from(ROLLUP_NAME_TAG.to_vec()).expect("Cannot push tag"))
+        .push_slice(PushBytesBuf::from(ROLLUP_NAME_TAG))
         .push_slice(
             PushBytesBuf::try_from(rollup_name.as_bytes().to_vec())
                 .expect("Cannot push rollup name"),
         )
-        .push_slice(
-            PushBytesBuf::try_from(SIGNATURE_TAG.to_vec()).expect("Cannot push signature tag"),
-        )
+        .push_slice(PushBytesBuf::from(SIGNATURE_TAG))
         .push_slice(PushBytesBuf::try_from(signature).expect("Cannot push signature"))
-        .push_slice(
-            PushBytesBuf::try_from(PUBLICKEY_TAG.to_vec()).expect("Cannot push public key tag"),
-        )
+        .push_slice(PushBytesBuf::from(PUBLICKEY_TAG))
         .push_slice(
             PushBytesBuf::try_from(sequencer_public_key).expect("Cannot push sequencer public key"),
         )
-        .push_slice(PushBytesBuf::try_from(RANDOM_TAG.to_vec()).expect("Cannot push random tag"));
+        .push_slice(PushBytesBuf::from(RANDOM_TAG));
     // This envelope is not finished yet. The random number will be added later and followed by the body
 
     // Start loop to find a 'nonce' i.e. random number that makes the reveal tx hash starting with zeros given length
@@ -387,7 +379,7 @@ pub fn create_inscription_transactions(
         // push first random number and body tag
         reveal_script_builder = reveal_script_builder
             .push_int(nonce)
-            .push_slice(PushBytesBuf::try_from(BODY_TAG.to_vec()).expect("Cannot push body tag"));
+            .push_slice(PushBytesBuf::from(BODY_TAG));
 
         // push body in chunks of 520 bytes
         for chunk in body.chunks(520) {
@@ -424,10 +416,7 @@ pub fn create_inscription_transactions(
         let commit_value = (get_size(
             &[TxIn {
                 previous_output: OutPoint {
-                    txid: Txid::from_str(
-                        "0000000000000000000000000000000000000000000000000000000000000000",
-                    )
-                    .unwrap(),
+                    txid: Txid::from_byte_array([0; 32]),
                     vout: 0,
                 },
                 script_sig: script::Builder::new().into_script(),

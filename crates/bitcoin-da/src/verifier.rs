@@ -133,27 +133,19 @@ impl DaVerifier for BitcoinVerifier {
                     }
                 }
                 Some(mut commitment_idx) => {
-                    commitment_idx = coinbase_tx.output.len() - commitment_idx - 1; // The index is reversed
-                    let script_pubkey = coinbase_tx.output[commitment_idx].script_pubkey.clone();
-
                     let wtxids = inclusion_proof
                         .wtxids
-                        .clone()
-                        .into_iter()
-                        .map(|wtxid| Txid::from_slice(&wtxid).unwrap());
+                        .iter()
+                        .copied()
+                        .map(Txid::from_byte_array);
 
-                    let merkle_root = merkle_tree::calculate_root(wtxids.into_iter()).unwrap();
+                    let merkle_root = merkle_tree::calculate_root(wtxids).unwrap();
 
-                    let input_witness_value = coinbase_tx.input[0]
-                        .witness
-                        .into_iter()
-                        .next()
-                        .unwrap()
-                        .to_vec();
+                    let input_witness_value = coinbase_tx.input[0].witness.iter().next().unwrap();
 
                     let mut vec_merkle = merkle_root.to_byte_array().to_vec();
 
-                    vec_merkle.extend(input_witness_value);
+                    vec_merkle.extend_from_slice(input_witness_value);
 
                     // check with sha256(sha256(<merkle root><witness value>))
                     let commitment = sha256d::Hash::hash(&vec_merkle);
@@ -161,7 +153,9 @@ impl DaVerifier for BitcoinVerifier {
                     // check if the commitment is correct
                     // on signet there is an additional commitment after the segwit commitment
                     // so we check only the first 32 bytes after commitment header (bytes [2, 5])
-                    if script_pubkey.to_bytes()[6..38] != *commitment.as_byte_array() {
+                    commitment_idx = coinbase_tx.output.len() - commitment_idx - 1; // The index is reversed
+                    let script_pubkey = coinbase_tx.output[commitment_idx].script_pubkey.to_bytes();
+                    if script_pubkey[6..38] != *commitment.as_byte_array() {
                         return Err(ValidationError::NonMatchingScript);
                     }
                 }

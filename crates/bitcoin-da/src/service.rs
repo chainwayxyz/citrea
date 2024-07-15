@@ -492,8 +492,7 @@ impl DaService for BitcoinService {
         );
 
         let txs = self.extract_relevant_blobs(block);
-        let (inclusion_proof, completeness_proof) =
-            self.get_extraction_proof(block, txs.as_slice()).await;
+        let (inclusion_proof, completeness_proof) = self.get_extraction_proof(block, &txs).await;
 
         (txs, inclusion_proof, completeness_proof)
     }
