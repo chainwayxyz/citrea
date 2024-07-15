@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use citrea_prover::prover_service::ParallelProverService;
 use citrea_risc0_bonsai_adapter::host::Risc0BonsaiHost;
 use citrea_risc0_bonsai_adapter::Digest;
 use citrea_stf::genesis_config::StorageConfig;
@@ -12,7 +13,7 @@ use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::zk::{Zkvm, ZkvmHost};
 use sov_state::{DefaultStorageSpec, Storage, ZkStorage};
-use sov_stf_runner::{FullNodeConfig, ParallelProverService, ProverConfig};
+use sov_stf_runner::{FullNodeConfig, ProverConfig};
 
 use crate::CitreaRollupBlueprint;
 

@@ -5,6 +5,7 @@ use sov_modules_stf_blueprint::StfBlueprint;
 use tokio::sync::oneshot;
 use tracing::instrument;
 
+pub mod prover_service;
 mod runner;
 pub use runner::*;
 

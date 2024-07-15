@@ -1,3 +1,5 @@
+use citrea_prover::prover_service::ParallelProverService;
+use citrea_prover::CitreaProver;
 use sov_mock_da::{
     MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaConfig, MockDaService, MockDaSpec,
     MockDaVerifier, MockValidityCond, PlannedFork,
@@ -5,8 +7,8 @@ use sov_mock_da::{
 use sov_mock_zkvm::MockZkvm;
 use sov_modules_api::default_context::DefaultContext;
 use sov_stf_runner::{
-    FullNodeConfig, InitVariant, ParallelProverService, ProverGuestRunConfig, RollupPublicKeys,
-    RpcConfig, RunnerConfig, StateTransitionRunner, StorageConfig,
+    FullNodeConfig, InitVariant, ProverGuestRunConfig, RollupPublicKeys, RpcConfig, RunnerConfig,
+    StorageConfig,
 };
 
 mod hash_stf;
@@ -171,21 +173,20 @@ async fn runner_execution(
     )
     .expect("Should be able to instiate prover service");
 
-    let mut runner: StateTransitionRunner<_, _, _, _, _, DefaultContext> =
-        StateTransitionRunner::new(
-            rollup_config.runner.unwrap(),
-            rollup_config.public_keys,
-            rollup_config.rpc,
-            da_service,
-            ledger_db,
-            stf,
-            storage_manager,
-            init_variant,
-            Some(prover_service),
-            None,
-            MockCodeCommitment([1u8; 32]),
-        )
-        .unwrap();
+    let mut runner: CitreaProver<_, _, _, _, _, DefaultContext> = CitreaProver::new(
+        rollup_config.runner.unwrap(),
+        rollup_config.public_keys,
+        rollup_config.rpc,
+        da_service,
+        ledger_db,
+        stf,
+        storage_manager,
+        init_variant,
+        Some(prover_service),
+        None,
+        MockCodeCommitment([1u8; 32]),
+    )
+    .unwrap();
 
     let before = *runner.get_state_root();
     let end = runner.run_in_process().await;

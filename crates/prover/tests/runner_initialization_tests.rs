@@ -1,11 +1,12 @@
+use citrea_prover::prover_service::ParallelProverService;
+use citrea_prover::CitreaProver;
 use sov_db::ledger_db::LedgerDB;
 use sov_mock_da::{MockAddress, MockDaConfig, MockDaService, MockDaSpec, MockValidityCond};
 use sov_mock_zkvm::{MockCodeCommitment, MockZkvm};
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_state::{ArrayWitness, DefaultStorageSpec};
 use sov_stf_runner::{
-    FullNodeConfig, InitVariant, ParallelProverService, RollupPublicKeys, RpcConfig, RunnerConfig,
-    StateTransitionRunner, StorageConfig,
+    FullNodeConfig, InitVariant, RollupPublicKeys, RpcConfig, RunnerConfig, StorageConfig,
 };
 
 mod hash_stf;
@@ -49,7 +50,7 @@ type MockProverService = ParallelProverService<
 fn initialize_runner(
     storage_path: &std::path::Path,
     init_variant: MockInitVariant,
-) -> StateTransitionRunner<
+) -> CitreaProver<
     HashStf<MockValidityCond>,
     StorageManager,
     MockDaService,

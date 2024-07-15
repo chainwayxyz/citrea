@@ -2,12 +2,11 @@
 #![doc = include_str!("../README.md")]
 
 #[cfg(feature = "native")]
-mod config;
+/// Config
+pub mod config;
 /// Testing utilities.
 #[cfg(feature = "mock")]
 pub mod mock;
-#[cfg(feature = "native")]
-mod prover_helpers;
 #[cfg(feature = "native")]
 mod prover_service;
 
@@ -20,13 +19,14 @@ use anyhow::Context;
 pub use config::*;
 #[cfg(feature = "native")]
 pub use prover_service::*;
+#[cfg(feature = "native")]
 use sov_modules_api::{DaSpec, Zkvm};
+#[cfg(feature = "native")]
 use sov_rollup_interface::stf::StateTransitionFunction;
 
-/// Implements the `StateTransitionVerifier` type for checking the validity of a state transition
-pub mod verifier;
-
+#[cfg(feature = "native")]
 type GenesisParams<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::GenesisParams;
+#[cfg(feature = "native")]
 type SoftConfirmationHash = [u8; 32];
 
 #[cfg(feature = "native")]
