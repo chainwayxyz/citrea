@@ -59,6 +59,7 @@ pub const LEDGER_TABLES: &[&str] = &[
     L2Witness::table_name(),
     L2StateRoot::table_name(),
     LastStateDiff::table_name(),
+    PendingSequencerCommitmentL2Range::table_name(),
     LastSequencerCommitmentSent::table_name(),
     ProverLastScannedSlot::table_name(),
     BatchByHash::table_name(),
