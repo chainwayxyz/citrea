@@ -737,10 +737,10 @@ where
             self.ledger_db.set_state_diff(vec![])?;
             self.last_state_diff = vec![];
 
-            // Handle DA response asynchronously
+            // Handle DA response non-blocking
             tokio::spawn(handle_da_response);
         } else {
-            // Handle DA response synchronously
+            // Handle DA response blocking
             handle_da_response.await;
         }
 
