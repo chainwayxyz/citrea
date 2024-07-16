@@ -544,10 +544,9 @@ impl LedgerDB {
         let mut iter = self.db.iter::<PendingSequencerCommitmentL2Range>()?;
         iter.seek_to_first();
 
-        let mut l2_ranges = vec![];
-        for item in iter {
-            l2_ranges.push(item?.key);
-        }
+        let mut l2_ranges = iter
+            .map(|item| item.map(|item| item.key))
+            .collect::<Result<Vec<_>, _>>()?;
         // Sort ascending
         l2_ranges.sort();
 
