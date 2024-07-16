@@ -267,7 +267,7 @@ define_table_with_default_codec!(
 
 define_table_with_default_codec!(
     /// The primary source for in progress sequencer commitments
-    (PendingSequencerCommitmentL2Range) () => Vec<L2HeightRange>
+    (PendingSequencerCommitmentL2Range) L2HeightRange => ()
 );
 
 define_table_with_seek_key_codec!(

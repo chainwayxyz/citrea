@@ -540,18 +540,33 @@ impl LedgerDB {
     /// Gets all pending commitments' l2 ranges.
     /// Returns start-end L2 heights.
     #[instrument(level = "trace", skip(self), err)]
-    pub fn get_pending_commitments_l2_range(&self) -> anyhow::Result<Option<Vec<L2HeightRange>>> {
-        self.db.get::<PendingSequencerCommitmentL2Range>(&())
+    pub fn get_pending_commitments_l2_range(&self) -> anyhow::Result<Vec<L2HeightRange>> {
+        let mut iter = self.db.iter::<PendingSequencerCommitmentL2Range>()?;
+        iter.seek_to_first();
+
+        let mut l2_ranges = vec![];
+        for item in iter {
+            l2_ranges.push(item?.key);
+        }
+
+        Ok(l2_ranges)
     }
 
-    /// Set pending commitments' l2 ranges
+    /// Put a pending commitment l2 range
     #[instrument(level = "trace", skip(self), err)]
-    pub fn set_pending_commitments_l2_range(
+    pub fn put_pending_commitment_l2_range(&self, l2_range: &L2HeightRange) -> anyhow::Result<()> {
+        self.db
+            .put::<PendingSequencerCommitmentL2Range>(l2_range, &())
+    }
+
+    /// Delete a pending commitment l2 range
+    #[instrument(level = "trace", skip(self), err)]
+    pub fn delete_pending_commitment_l2_range(
         &self,
-        range_list: &Vec<L2HeightRange>,
+        l2_range: &L2HeightRange,
     ) -> anyhow::Result<()> {
         self.db
-            .put::<PendingSequencerCommitmentL2Range>(&(), range_list)
+            .delete::<PendingSequencerCommitmentL2Range>(l2_range)
     }
 
     /// Get the most recent committed batch

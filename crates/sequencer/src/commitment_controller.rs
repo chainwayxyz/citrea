@@ -35,13 +35,9 @@ pub fn get_commitment_info(
         .unwrap_or(BatchNumber(0));
     let last_pending_l2_height = ledger_db
         .get_pending_commitments_l2_range()?
-        .map(|comms| {
-            comms
-                .iter()
-                .map(|(_, end)| *end)
-                .max()
-                .unwrap_or(BatchNumber(0))
-        })
+        .iter()
+        .map(|(_, end)| *end)
+        .max()
         .unwrap_or(BatchNumber(0));
     let last_committed_l2_height = cmp::max(last_finalized_l2_height, last_pending_l2_height);
 
