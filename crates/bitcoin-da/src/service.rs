@@ -11,8 +11,7 @@ use async_trait::async_trait;
 use bitcoin::consensus::encode;
 use bitcoin::hashes::{sha256d, Hash};
 use bitcoin::secp256k1::SecretKey;
-use bitcoin::Transaction;
-use bitcoin::{Address, BlockHash, Txid};
+use bitcoin::{Address, BlockHash, Transaction, Txid};
 use hex::ToHex;
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::DaSpec;
@@ -25,8 +24,7 @@ use crate::helpers::builders::{
     create_inscription_transactions, sign_blob_with_private_key, write_reveal_tx, TxWithId,
 };
 use crate::helpers::compression::{compress_blob, decompress_blob};
-use crate::helpers::parsers::parse_hex_transaction;
-use crate::helpers::parsers::parse_transaction;
+use crate::helpers::parsers::{parse_hex_transaction, parse_transaction};
 use crate::rpc::{BitcoinNode, RPCError};
 use crate::spec::blob::BlobWithSender;
 use crate::spec::block::BitcoinBlock;
@@ -233,7 +231,7 @@ impl BitcoinService {
     async fn get_pending_transactions(&self) -> Result<Vec<Transaction>, anyhow::Error> {
         let mut pending_utxos = self.client.get_pending_utxos().await?;
         // Sorted by ancestor count, the tx with the most ancestors is the latest tx
-        pending_utxos.sort_unstable_by_key(|utxo| utxo.ancestor_count.unwrap_or(0) as i64 * -1);
+        pending_utxos.sort_unstable_by_key(|utxo| -(utxo.ancestor_count.unwrap_or(0) as i64));
 
         let mut pending_transactions = Vec::new();
         let mut scanned_txids = HashSet::new();
