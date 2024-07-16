@@ -7,6 +7,7 @@ use std::time::Duration;
 use std::vec;
 
 use anyhow::anyhow;
+use borsh::de::BorshDeserialize;
 use citrea_evm::{CallMessage, Evm, RlpEvmTransaction, MIN_TRANSACTION_GAS};
 use citrea_primitives::types::SoftConfirmationHash;
 use citrea_stf::runtime::Runtime;
@@ -22,7 +23,7 @@ use reth_transaction_pool::{
     BestTransactions, BestTransactionsAttributes, ChangedAccount, EthPooledTransaction,
     ValidPoolTransaction,
 };
-use shared_backup_db::{CommitmentStatus, PostgresConnector};
+use shared_backup_db::{CommitmentStatus, PostgresConnector, SharedBackupDbConfig};
 use soft_confirmation_rule_enforcer::SoftConfirmationRuleEnforcer;
 use sov_accounts::Accounts;
 use sov_accounts::Response::{AccountEmpty, AccountExists};
@@ -35,7 +36,9 @@ use sov_modules_api::{
     UnsignedSoftConfirmationBatch, WorkingSet,
 };
 use sov_modules_stf_blueprint::StfBlueprintTrait;
-use sov_rollup_interface::da::{BlockHeaderTrait, DaData, DaSpec};
+use sov_rollup_interface::da::{
+    BlobReaderTrait, BlockHeaderTrait, DaData, DaSpec, SequencerCommitment,
+};
 use sov_rollup_interface::services::da::{BlobWithNotifier, DaService};
 use sov_rollup_interface::stf::{SoftBatchReceipt, StateTransitionFunction};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
@@ -596,7 +599,6 @@ where
         state_diff_threshold_reached: bool,
     ) -> anyhow::Result<()> {
         debug!("Sequencer: Checking if commitment should be submitted");
-
         let commitment_info = commitment_controller::get_commitment_info(
             &self.ledger_db,
             self.config.min_soft_confirmations_per_commitment,
@@ -658,8 +660,8 @@ where
             l2_start.0, l2_end.0,
         );
 
-        let ledger_db = self.ledger_db.clone();
         let db_config = self.config.db_config.clone();
+
         let handle_da_response = async move {
             let result: anyhow::Result<()> = async move {
                 let tx_id = rx
@@ -667,37 +669,18 @@ where
                     .map_err(|_| anyhow!("DA service is dead!"))?
                     .map_err(|_| anyhow!("Send transaction cannot fail"))?;
 
-                ledger_db
-                    .set_last_sequencer_commitment_l2_height(l2_end)
-                    .map_err(|_| {
-                        anyhow!("Sequencer: Failed to set last sequencer commitment L2 height")
-                    })?;
-
                 if let Some(db_config) = db_config {
-                    match PostgresConnector::new(db_config).await {
-                        Ok(pg_connector) => {
-                            pg_connector
-                                .insert_sequencer_commitment(
-                                    Into::<[u8; 32]>::into(tx_id).to_vec(),
-                                    l2_start.0 as u32,
-                                    l2_end.0 as u32,
-                                    commitment.merkle_root.to_vec(),
-                                    CommitmentStatus::Mempool,
-                                )
-                                .await
-                                .map_err(|_| {
-                                    anyhow!("Sequencer: Failed to insert sequencer commitment")
-                                })?;
-                        }
-                        Err(e) => {
-                            warn!("Failed to connect to postgres: {:?}", e);
-                        }
-                    }
+                    insert_pgdb_commitment_info::<Da>(
+                        db_config,
+                        tx_id,
+                        l2_start.0,
+                        l2_end.0,
+                        commitment.merkle_root,
+                        CommitmentStatus::Mempool,
+                    )
+                    .await?;
                 }
 
-                ledger_db.delete_pending_commitment_l2_range(&(l2_start, l2_end))?;
-
-                info!("New commitment. L2 range: #{}-{}", l2_start.0, l2_end.0);
                 Ok(())
             }
             .await;
@@ -1277,4 +1260,59 @@ where
     };
 
     Ok((last_finalized_block, l1_fee_rate))
+}
+
+async fn insert_pgdb_commitment_info<Da>(
+    db_config: SharedBackupDbConfig,
+    tx_id: <Da as DaService>::TransactionId,
+    l2_start: u64,
+    l2_end: u64,
+    merkle_root: [u8; 32],
+    commitment_status: CommitmentStatus,
+) -> anyhow::Result<()>
+where
+    Da: DaService,
+{
+    let pg_connector = match PostgresConnector::new(db_config).await {
+        Ok(connector) => connector,
+        Err(e) => {
+            error!("Failed to connect to postgres: {:?}", e);
+            return Ok(());
+        }
+    };
+    // Insert or update commitment in Postgres
+    pg_connector
+        .insert_sequencer_commitment(
+            Into::<[u8; 32]>::into(tx_id).to_vec(),
+            l2_start as u32,
+            l2_end as u32,
+            merkle_root.to_vec(),
+            commitment_status,
+        )
+        .await
+        .map_err(|_| anyhow!("Sequencer: Failed to insert sequencer commitment"))?;
+
+    Ok(())
+}
+
+async fn update_pgdb_commitment_status_by_range(
+    db_config: SharedBackupDbConfig,
+    l2_start: u64,
+    l2_end: u64,
+    commitment_status: CommitmentStatus,
+) -> anyhow::Result<()> {
+    let pg_connector = match PostgresConnector::new(db_config).await {
+        Ok(connector) => connector,
+        Err(e) => {
+            error!("Failed to connect to postgres: {:?}", e);
+            return Ok(());
+        }
+    };
+    // Insert or update commitment in Postgres
+    pg_connector
+        .update_sequencer_commitment_by_range(l2_start as u32, l2_end as u32, commitment_status)
+        .await
+        .map_err(|_| anyhow!("Sequencer: Failed to update sequencer commitment status"))?;
+
+    Ok(())
 }

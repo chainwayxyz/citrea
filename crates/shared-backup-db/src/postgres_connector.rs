@@ -156,6 +156,26 @@ impl PostgresConnector {
             ).await?)
     }
 
+    #[allow(clippy::too_many_arguments)]
+    #[instrument(level = "trace", skip_all, fields(l1_start_height), err, ret)]
+    pub async fn update_sequencer_commitment_by_range(
+        &self,
+        l2_start_height: u32,
+        l2_end_height: u32,
+        status: CommitmentStatus,
+    ) -> Result<u64, PoolError> {
+        let client = self.client().await?;
+        Ok(client
+            .execute(
+                "UPDATE sequencer_commitments SET status=$1 WHERE l2_start_height=$2 AND l2_end_height=$3",
+                &[
+                    &status.to_string(),
+                    &l2_start_height,
+                    &l2_end_height,
+                ],
+            ).await?)
+    }
+
     #[instrument(level = "trace", skip(self, tx), err, ret)]
     pub async fn insert_mempool_tx(&self, tx_hash: Vec<u8>, tx: Vec<u8>) -> Result<u64, PoolError> {
         let client = self.client().await?;
