@@ -829,6 +829,11 @@ where
                         (last_finalized_block, l1_fee_rate) = l1_data;
                         last_finalized_height = last_finalized_block.header().height();
 
+                        // An L1 block could contain a commitment that we can clear out of the pending list
+                        if let Err(e) = self.process_l1_block(last_finalized_block.clone()).await {
+                            error!("Could not process L1 block data: {}", e);
+                        }
+
                         if last_finalized_block.header().height() > last_used_l1_height {
                             let skipped_blocks = last_finalized_height - last_used_l1_height - 1;
                             if skipped_blocks > 0 {
@@ -951,6 +956,68 @@ where
                 }
             }
         }
+    }
+
+    async fn process_l1_block(
+        &self,
+        l1_block: <Da as DaService>::FilteredBlock,
+    ) -> anyhow::Result<()> {
+        let mut sequencer_commitments = Vec::<SequencerCommitment>::new();
+
+        self.da_service
+            .extract_relevant_blobs(&l1_block)
+            .into_iter()
+            .for_each(|mut tx| {
+                let data = DaData::try_from_slice(tx.full_data());
+                // Check for commitment
+                if tx.sender().as_ref() == self.sequencer_pub_key.as_slice() {
+                    if let Ok(DaData::SequencerCommitment(seq_com)) = data {
+                        sequencer_commitments.push(seq_com);
+                    } else {
+                        tracing::warn!(
+                            "Found broken DA data in block 0x{}: {:?}",
+                            hex::encode(l1_block.hash()),
+                            data
+                        );
+                    }
+                }
+            });
+
+        let db_config = self.config.db_config.clone();
+
+        for sequencer_commitment in sequencer_commitments {
+            let l2_start = sequencer_commitment.l2_start_block_number;
+            let l2_end = sequencer_commitment.l2_end_block_number;
+
+            self.ledger_db
+                .set_last_sequencer_commitment_l2_height(BatchNumber(l2_end))
+                .map_err(|_| {
+                    anyhow!("Sequencer: Failed to set last sequencer commitment L2 height")
+                })?;
+
+            self.ledger_db.delete_pending_commitment_l2_range(&(
+                BatchNumber(l2_start),
+                BatchNumber(l2_end),
+            ))?;
+
+            if let Some(db_config) = db_config.clone() {
+                /*
+                 * This would update the commitment status for this commitment
+                 * Since it has already been included in a DA block.
+                 */
+                update_pgdb_commitment_status_by_range(
+                    db_config,
+                    l2_start,
+                    l2_end,
+                    CommitmentStatus::Mined,
+                )
+                .await?;
+            }
+
+            info!("Commitment confirmed. L2 range: #{}-{}", l2_start, l2_end);
+        }
+
+        Ok(())
     }
 
     fn get_best_transactions(
