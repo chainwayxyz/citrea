@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use borsh::{BorshDeserialize, BorshSerialize};
+use citrea_stf::verifier::StateTransitionVerifier;
 use prover::Prover;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -10,12 +11,14 @@ use sov_rollup_interface::da::{DaData, DaSpec};
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::zk::{Proof, StateTransitionData, ZkvmHost};
+use sov_stf_runner::config::ProverConfig;
+use sov_stf_runner::{
+    ProofProcessingStatus, ProverGuestRunConfig, ProverService, ProverServiceError,
+    WitnessSubmissionStatus,
+};
 
 use self::prover::ProverStatus;
-use super::{ProverService, ProverServiceError};
-use crate::config::ProverConfig;
-use crate::verifier::StateTransitionVerifier;
-use crate::{ProofGenConfig, ProofProcessingStatus, ProverGuestRunConfig, WitnessSubmissionStatus};
+use crate::prover_service::ProofGenConfig;
 
 /// Prover service that generates proofs in parallel.
 pub struct ParallelProverService<StateRoot, Witness, Da, Vm, V>

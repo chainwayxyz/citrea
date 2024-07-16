@@ -11,6 +11,7 @@ repository.workspace = true
 [dependencies]
 # Citrea Deps
 citrea-primitives = { path = "../primitives", features = ["native"] }
+citrea-stf = { path = "../citrea-stf" }
 sequencer-client = { path = "../sequencer-client" }
 shared-backup-db = { path = "../shared-backup-db" }
 
@@ -24,12 +25,26 @@ sov-stf-runner = { path = "../sovereign-sdk/full-node/sov-stf-runner" }
 
 # 3rd-party deps
 anyhow = { workspace = true }
+async-trait = { workspace = true }
 backoff = { workspace = true }
 borsh = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true }
 jsonrpsee = { workspace = true }
+num_cpus = { workspace = true }
 rand = { workspace = true }
+rayon = { workspace = true }
 rs_merkle = { workspace = true }
+serde = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
+
+[dev-dependencies]
+sha2 = { workspace = true }
+tempfile = { workspace = true }
+
+sov-mock-da = { path = "../sovereign-sdk/adapters/mock-da", features = ["native"] }
+sov-mock-zkvm = { path = "../sovereign-sdk/adapters/mock-zkvm" }
+sov-stf-runner = { path = "../sovereign-sdk/full-node/sov-stf-runner", features = ["mock"] }
+
+citrea-stf = { path = "../citrea-stf", features = ["native"] }

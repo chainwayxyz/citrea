@@ -35,3 +35,12 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
+
+[dev-dependencies]
+sha2 = { workspace = true }
+tempfile = { workspace = true }
+
+sov-mock-da = { path = "../sovereign-sdk/adapters/mock-da", features = ["native"] }
+sov-mock-zkvm = { path = "../sovereign-sdk/adapters/mock-zkvm" }
+sov-prover-storage-manager = { path = "../sovereign-sdk/full-node/sov-prover-storage-manager", features = ["test-utils"] }
+sov-state = { path = "../sovereign-sdk/module-system/sov-state", features = ["native"] }

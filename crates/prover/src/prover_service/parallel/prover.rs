@@ -11,9 +11,9 @@ use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::zk::{Proof, StateTransitionData, ZkvmHost};
+use sov_stf_runner::{ProofProcessingStatus, ProverServiceError, WitnessSubmissionStatus};
 
-use super::ProverServiceError;
-use crate::{ProofGenConfig, ProofProcessingStatus, WitnessSubmissionStatus};
+use crate::prover_service::ProofGenConfig;
 
 pub(crate) enum ProverStatus<StateRoot, Witness, Da: DaSpec> {
     WitnessSubmitted(StateTransitionData<StateRoot, Witness, Da>),

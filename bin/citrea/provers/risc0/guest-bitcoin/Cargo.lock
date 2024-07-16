@@ -3180,11 +3180,9 @@ dependencies = [
  "borsh",
  "hex",
  "num_cpus",
- "rs_merkle",
  "serde",
  "serde_json",
  "sov-modules-api",
- "sov-modules-stf-blueprint",
  "sov-rollup-interface",
 ]
 

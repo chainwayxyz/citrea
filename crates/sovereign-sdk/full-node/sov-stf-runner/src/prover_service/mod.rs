@@ -1,6 +1,4 @@
-mod parallel;
 use async_trait::async_trait;
-pub use parallel::ParallelProverService;
 use serde::{Deserialize, Serialize};
 use sov_modules_api::Zkvm;
 use sov_rollup_interface::da::DaSpec;
