@@ -662,6 +662,9 @@ where
 
         let db_config = self.config.db_config.clone();
 
+        // Wait for the DA to include our commitment submission in it's mempool and
+        // receive the transaction ID.
+        // Store the commitment info along with the transaction ID into postgres.
         let handle_da_response = async move {
             let result: anyhow::Result<()> = async move {
                 let tx_id = rx
@@ -693,6 +696,12 @@ where
             }
         };
 
+        // If a commitment is submitted for the first time, we want to wait for
+        // the transaction ID to be received. Otherwise, if a commitment is being
+        // resubmitted, the sequencer should just asynchronously submit it.
+        // Bitcoin DA adapter handles the ordering of commitment to be sequential
+        // using the L2 range by having the previous commitment utxo be the input
+        // to the next commitment utxo.
         if wait_for_da_response {
             // Handle DA response blocking
             handle_da_response.await;
