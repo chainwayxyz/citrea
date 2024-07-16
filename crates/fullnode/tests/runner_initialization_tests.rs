@@ -1,10 +1,9 @@
-use citrea_prover::prover_service::ParallelProverService;
-use citrea_prover::CitreaProver;
+use citrea_fullnode::CitreaFullnode;
 use sov_db::ledger_db::LedgerDB;
 use sov_mock_da::{MockAddress, MockDaConfig, MockDaService, MockDaSpec, MockValidityCond};
 use sov_mock_zkvm::{MockCodeCommitment, MockZkvm};
 use sov_prover_storage_manager::ProverStorageManager;
-use sov_state::{ArrayWitness, DefaultStorageSpec};
+use sov_state::DefaultStorageSpec;
 use sov_stf_runner::{
     FullNodeConfig, InitVariant, RollupPublicKeys, RpcConfig, RunnerConfig, StorageConfig,
 };
@@ -40,22 +39,14 @@ async fn init_and_restart() {
     assert_eq!(state_root_after_genesis, state_root_2);
 }
 
-type MockProverService = ParallelProverService<
-    [u8; 32],
-    ArrayWitness,
-    MockDaService,
-    MockZkvm<MockValidityCond>,
-    HashStf<MockValidityCond>,
->;
 fn initialize_runner(
     storage_path: &std::path::Path,
     init_variant: MockInitVariant,
-) -> CitreaProver<
+) -> CitreaFullnode<
     HashStf<MockValidityCond>,
     StorageManager,
     MockDaService,
     MockZkvm<MockValidityCond>,
-    MockProverService,
     sov_modules_api::default_context::DefaultContext,
 > {
     let da_storage_path = storage_path.join("da").to_path_buf();
@@ -112,7 +103,7 @@ fn initialize_runner(
     // let vm = MockZkvm::new(MockValidityCond::default());
     // let verifier = MockDaVerifier::default();
 
-    StateTransitionRunner::new(
+    CitreaFullnode::new(
         rollup_config.runner.unwrap(),
         rollup_config.public_keys,
         rollup_config.rpc,
@@ -121,9 +112,8 @@ fn initialize_runner(
         stf,
         storage_manager,
         init_variant,
-        None,
-        None,
         MockCodeCommitment([1u8; 32]),
+        10,
     )
     .unwrap()
 }

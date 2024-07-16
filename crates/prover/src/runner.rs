@@ -784,6 +784,11 @@ where
             }
         }
     }
+
+    /// Allows to read current state root
+    pub fn get_state_root(&self) -> &Stf::StateRoot {
+        &self.state_root
+    }
 }
 
 async fn l1_sync<Da>(

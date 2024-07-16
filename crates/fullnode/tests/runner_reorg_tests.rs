@@ -1,14 +1,12 @@
-use citrea_prover::prover_service::ParallelProverService;
-use citrea_prover::CitreaProver;
+use citrea_fullnode::CitreaFullnode;
 use sov_mock_da::{
     MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaConfig, MockDaService, MockDaSpec,
-    MockDaVerifier, MockValidityCond, PlannedFork,
+    MockValidityCond, PlannedFork,
 };
 use sov_mock_zkvm::MockZkvm;
 use sov_modules_api::default_context::DefaultContext;
 use sov_stf_runner::{
-    FullNodeConfig, InitVariant, ProverGuestRunConfig, RollupPublicKeys, RpcConfig, RunnerConfig,
-    StorageConfig,
+    FullNodeConfig, InitVariant, RollupPublicKeys, RpcConfig, RunnerConfig, StorageConfig,
 };
 
 mod hash_stf;
@@ -156,24 +154,9 @@ async fn runner_execution(
     let storage_config = sov_state::config::Config {
         path: rollup_storage_path,
     };
-    let mut storage_manager = ProverStorageManager::new(storage_config).unwrap();
+    let storage_manager = ProverStorageManager::new(storage_config).unwrap();
 
-    let vm = MockZkvm::new(MockValidityCond::default());
-    let verifier = MockDaVerifier::default();
-    let prover_config = ProverGuestRunConfig::Skip;
-
-    let prover_service = ParallelProverService::new(
-        vm,
-        stf.clone(),
-        verifier,
-        prover_config,
-        // Should be ZkStorage, but we don't need it for this test
-        storage_manager.create_finalized_storage().unwrap(),
-        1,
-    )
-    .expect("Should be able to instiate prover service");
-
-    let mut runner: CitreaProver<_, _, _, _, _, DefaultContext> = CitreaProver::new(
+    let mut runner: CitreaFullnode<_, _, _, _, DefaultContext> = CitreaFullnode::new(
         rollup_config.runner.unwrap(),
         rollup_config.public_keys,
         rollup_config.rpc,
@@ -182,14 +165,13 @@ async fn runner_execution(
         stf,
         storage_manager,
         init_variant,
-        Some(prover_service),
-        None,
         MockCodeCommitment([1u8; 32]),
+        10,
     )
     .unwrap();
 
     let before = *runner.get_state_root();
-    let end = runner.run_in_process().await;
+    let end = runner.run().await;
     assert!(end.is_err());
     let after = *runner.get_state_root();
 
