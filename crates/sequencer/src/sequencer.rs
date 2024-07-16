@@ -611,6 +611,7 @@ where
     #[instrument(level = "trace", skip(self), err, ret)]
     pub async fn resubmit_pending_commitments(&mut self) -> anyhow::Result<()> {
         let pending_commitments = self.ledger_db.get_pending_commitments_l2_range()?;
+        debug!("Pending commitments: {:?}", pending_commitments);
         for (l2_start, l2_end) in pending_commitments {
             let commitment_info = commitment_controller::CommitmentInfo {
                 l2_height_range: l2_start..=l2_end,
