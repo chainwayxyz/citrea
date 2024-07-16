@@ -12,7 +12,7 @@ use tracing::instrument;
 
 use crate::rocks_db_config::gen_rocksdb_options;
 use crate::schema::tables::{
-    BatchByHash, BatchByNumber, CommitmentsByNumber, EventByKey, EventByNumber, L2RangeByL1Height,
+    BatchByHash, BatchByNumber, CommitmentsByNumber, EventByKey, EventByNumber, L2GenesisStateRoot, L2RangeByL1Height,
     L2Witness, LastSequencerCommitmentSent, LastStateDiff, PendingSequencerCommitmentL2Range,
     ProofBySlotNumber, ProverLastScannedSlot, SlotByHash, SlotByNumber, SoftBatchByHash,
     SoftBatchByNumber, SoftConfirmationStatus, TxByHash, TxByNumber, VerifiedProofsBySlotNumber,
@@ -638,16 +638,38 @@ impl LedgerDB {
         Ok(())
     }
 
+    /// Set the genesis state root
+    #[instrument(level = "trace", skip_all, err, ret)]
+    pub fn set_l2_genesis_state_root<StateRoot: Serialize>(
+        &self,
+        state_root: &StateRoot,
+    ) -> anyhow::Result<()> {
+        let buf = bincode::serialize(state_root)?;
+        let mut schema_batch = SchemaBatch::new();
+        schema_batch.put::<L2GenesisStateRoot>(&(), &buf)?;
+
+        self.db.write_schemas(schema_batch)?;
+
+        Ok(())
+    }
+
     /// Get the state root by L2 height
     #[instrument(level = "trace", skip_all, err)]
     pub fn get_l2_state_root<StateRoot: DeserializeOwned>(
         &self,
         l2_height: u64,
     ) -> anyhow::Result<Option<StateRoot>> {
-        self.db
-            .get::<SoftBatchByNumber>(&BatchNumber(l2_height))?
-            .map(|soft_batch| bincode::deserialize(&soft_batch.state_root).map_err(Into::into))
-            .transpose()
+        if l2_height == 0 {
+            self.db
+                .get::<L2GenesisStateRoot>(&())?
+                .map(|state_root| bincode::deserialize(&state_root).map_err(Into::into))
+                .transpose()
+        } else {
+            self.db
+                .get::<SoftBatchByNumber>(&BatchNumber(l2_height))?
+                .map(|soft_batch| bincode::deserialize(&soft_batch.state_root).map_err(Into::into))
+                .transpose()
+        }
     }
 
     /// Gets the commitments in the da slot with given height if any

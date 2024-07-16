@@ -136,6 +136,7 @@ where
                 let (genesis_root, initialized_storage) = stf.init_chain(storage, params);
                 storage_manager.save_change_set_l2(0, initialized_storage)?;
                 storage_manager.finalize_l2(0)?;
+                ledger_db.set_l2_genesis_state_root(&genesis_root)?;
                 info!(
                     "Chain initialization is done. Genesis root: 0x{}",
                     hex::encode(genesis_root.as_ref()),
