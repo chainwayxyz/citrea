@@ -612,10 +612,28 @@ where
 
     #[instrument(level = "trace", skip(self), err, ret)]
     pub async fn resubmit_pending_commitments(&mut self) -> anyhow::Result<()> {
+        // Query the DA layer about transactions in the mempool.
+        // Note that we want to collect the L2 range and NOT delete the pending commitment
+        // from ledger DB since we only remove the range from pending commitments
+        // If and only if it has been included in a DA block.
+        let pending_commitment_transactions: Vec<SequencerCommitment> = vec![]; // Do query here
+        let resubmission_skippable_commitments: Vec<(BatchNumber, BatchNumber)> =
+            pending_commitment_transactions
+                .into_iter()
+                .map(|commitment| {
+                    let l2_start = BatchNumber(commitment.l2_start_block_number);
+                    let l2_end = BatchNumber(commitment.l2_end_block_number);
+                    (l2_start, l2_end)
+                })
+                .collect();
+
         let pending_commitments = self.ledger_db.get_pending_commitments_l2_range()?;
-        for (l2_start, l2_end) in pending_commitments {
+        for l2_range in pending_commitments {
+            if resubmission_skippable_commitments.contains(&l2_range) {
+                continue;
+            }
             let commitment_info = commitment_controller::CommitmentInfo {
-                l2_height_range: l2_start..=l2_end,
+                l2_height_range: l2_range.0..=l2_range.1,
             };
             self.submit_commitment(commitment_info, true).await?;
         }
