@@ -437,43 +437,13 @@ impl DaService for BitcoinService {
         &self,
         block: &Self::FilteredBlock,
     ) -> Vec<<Self::Spec as sov_rollup_interface::da::DaSpec>::BlobTransaction> {
-        let mut txs = Vec::new();
-
         info!(
             "Extracting relevant txs from block {:?}",
             block.header.block_hash()
         );
 
-        // iterate over all transactions in the block
-        for tx in block.txdata.iter() {
-            if !tx
-                .txid()
-                .to_byte_array()
-                .as_slice()
-                .starts_with(self.reveal_tx_id_prefix.as_slice())
-            {
-                continue;
-            }
-
-            // check if the inscription in script is relevant to the rollup
-            let parsed_inscription = parse_transaction(tx, &self.rollup_name);
-
-            if let Ok(inscription) = parsed_inscription {
-                if inscription.get_sig_verified_hash().is_some() {
-                    // Decompress the blob
-                    let decompressed_blob = decompress_blob(&inscription.body);
-
-                    let relevant_tx = BlobWithSender::new(
-                        decompressed_blob,
-                        inscription.public_key,
-                        sha256d::Hash::hash(&inscription.body).to_byte_array(),
-                    );
-
-                    txs.push(relevant_tx);
-                }
-            }
-        }
-        txs
+        let txs = block.txdata.iter().map(|tx| tx.inner().clone()).collect();
+        get_relevant_blobs_from_txs(txs, &self.rollup_name, self.reveal_tx_id_prefix.as_slice())
     }
 
     #[instrument(level = "trace", skip_all)]
@@ -595,28 +565,49 @@ impl DaService for BitcoinService {
         &self,
     ) -> Vec<<Self::Spec as sov_rollup_interface::da::DaSpec>::BlobTransaction> {
         let pending_txs = self.get_pending_transactions().await.unwrap();
-        let mut relevant_txs = Vec::new();
+        get_relevant_blobs_from_txs(
+            pending_txs,
+            &self.rollup_name,
+            self.reveal_tx_id_prefix.as_slice(),
+        )
+    }
+}
 
-        for tx in pending_txs {
-            let parsed_inscription = parse_transaction(&tx, &self.rollup_name);
+fn get_relevant_blobs_from_txs(
+    txs: Vec<Transaction>,
+    rollup_name: &str,
+    reveal_tx_id_prefix: &[u8],
+) -> Vec<BlobWithSender> {
+    let mut relevant_txs = Vec::new();
 
-            if let Ok(inscription) = parsed_inscription {
-                if inscription.get_sig_verified_hash().is_some() {
-                    // Decompress the blob
-                    let decompressed_blob = decompress_blob(&inscription.body);
+    for tx in txs {
+        if !tx
+            .txid()
+            .to_byte_array()
+            .as_slice()
+            .starts_with(reveal_tx_id_prefix)
+        {
+            continue;
+        }
 
-                    let relevant_tx = BlobWithSender::new(
-                        decompressed_blob,
-                        inscription.public_key,
-                        sha256d::Hash::hash(&inscription.body).to_byte_array(),
-                    );
+        let parsed_inscription = parse_transaction(&tx, rollup_name);
 
-                    relevant_txs.push(relevant_tx);
-                }
+        if let Ok(inscription) = parsed_inscription {
+            if inscription.get_sig_verified_hash().is_some() {
+                // Decompress the blob
+                let decompressed_blob = decompress_blob(&inscription.body);
+
+                let relevant_tx = BlobWithSender::new(
+                    decompressed_blob,
+                    inscription.public_key,
+                    sha256d::Hash::hash(&inscription.body).to_byte_array(),
+                );
+
+                relevant_txs.push(relevant_tx);
             }
         }
-        relevant_txs
     }
+    relevant_txs
 }
 
 #[cfg(test)]
