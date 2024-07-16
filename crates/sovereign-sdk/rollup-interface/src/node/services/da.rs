@@ -140,6 +140,11 @@ pub trait DaService: Send + Sync + 'static {
 
     /// Returns fee rate per byte on DA layer.
     async fn get_fee_rate(&self) -> Result<u128, Self::Error>;
+
+    /// Returns the relevant blobs of pending transactions (transactions that are not yet included in a block).
+    async fn get_relevant_blobs_of_pending_transactions(
+        &self,
+    ) -> Vec<<Self::Spec as DaSpec>::BlobTransaction>;
 }
 
 /// `SlotData` is the subset of a DA layer block which is stored in the rollup's database.

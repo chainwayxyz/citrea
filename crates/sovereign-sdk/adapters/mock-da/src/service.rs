@@ -433,6 +433,12 @@ impl DaService for MockDaService {
             .get_by_hash(hash)
             .ok_or_else(|| anyhow::anyhow!("Block with hash {:?} not found", hash))
     }
+
+    async fn get_relevant_blobs_of_pending_transactions(
+        &self,
+    ) -> Vec<<Self::Spec as DaSpec>::BlobTransaction> {
+        vec![]
+    }
 }
 
 fn hash_to_array(bytes: &[u8]) -> [u8; 32] {

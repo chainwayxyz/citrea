@@ -4,12 +4,14 @@
 use core::result::Result::Ok;
 use core::str::FromStr;
 use core::time::Duration;
+use std::collections::HashSet;
 
 // use std::sync::Arc;
 use async_trait::async_trait;
 use bitcoin::consensus::encode;
 use bitcoin::hashes::{sha256d, Hash};
 use bitcoin::secp256k1::SecretKey;
+use bitcoin::Transaction;
 use bitcoin::{Address, BlockHash, Txid};
 use hex::ToHex;
 use serde::{Deserialize, Serialize};
@@ -23,6 +25,7 @@ use crate::helpers::builders::{
     create_inscription_transactions, sign_blob_with_private_key, write_reveal_tx, TxWithId,
 };
 use crate::helpers::compression::{compress_blob, decompress_blob};
+use crate::helpers::parsers::parse_hex_transaction;
 use crate::helpers::parsers::parse_transaction;
 use crate::rpc::{BitcoinNode, RPCError};
 use crate::spec::blob::BlobWithSender;
@@ -98,7 +101,21 @@ impl BitcoinService {
             tokio::runtime::Handle::current().block_on(async move {
                 // TODO https://github.com/chainwayxyz/citrea/issues/537
                 // TODO find last tx by utxo chain
-                let mut prev_tx = None;
+                let mut prev_tx = match this.get_pending_transactions().await {
+                    Ok(pending_txs) => {
+                        if !pending_txs.is_empty() {
+                            let tx = pending_txs.first().unwrap().clone();
+                            let txid = tx.txid();
+                            Some(TxWithId { tx, id: txid })
+                        } else {
+                            None
+                        }
+                    }
+                    Err(e) => {
+                        error!(?e, "Failed to get pending transactions");
+                        None
+                    }
+                };
 
                 trace!("BitcoinDA queue is initialized. Waiting for the first request...");
 
@@ -210,6 +227,35 @@ impl BitcoinService {
         }
 
         Ok(utxos)
+    }
+
+    #[instrument(level = "trace", skip_all, ret)]
+    async fn get_pending_transactions(&self) -> Result<Vec<Transaction>, anyhow::Error> {
+        let mut pending_utxos = self.client.get_pending_utxos().await?;
+        // Sorted by ancestor count, the tx with the most ancestors is the latest tx
+        pending_utxos.sort_unstable_by_key(|utxo| utxo.ancestor_count.unwrap_or(0) as i64 * -1);
+
+        let mut pending_transactions = Vec::new();
+        let mut scanned_txids = HashSet::new();
+
+        for utxo in pending_utxos.iter() {
+            let txid = utxo.txid.clone();
+            // Check if tx is already in the pending transactions vector
+            if scanned_txids.contains(&txid) {
+                continue;
+            }
+
+            let raw_tx = self
+                .client
+                .get_raw_transaction(txid.clone())
+                .await
+                .expect("Transaction should exist with existing utxo");
+            let parsed_tx = parse_hex_transaction(&raw_tx).expect("Rpc tx should be parsable");
+            pending_transactions.push(parsed_tx);
+            scanned_txids.insert(txid);
+        }
+
+        Ok(pending_transactions)
     }
 
     #[instrument(level = "trace", fields(prev_tx), ret, err)]
@@ -544,6 +590,34 @@ impl DaService for BitcoinService {
 
         let block = self.client.get_block(hash.to_string()).await?;
         Ok(block)
+    }
+
+    #[instrument(level = "trace", skip(self))]
+    async fn get_relevant_blobs_of_pending_transactions(
+        &self,
+    ) -> Vec<<Self::Spec as sov_rollup_interface::da::DaSpec>::BlobTransaction> {
+        let pending_txs = self.get_pending_transactions().await.unwrap();
+        let mut relevant_txs = Vec::new();
+
+        for tx in pending_txs {
+            let parsed_inscription = parse_transaction(&tx, &self.rollup_name);
+
+            if let Ok(inscription) = parsed_inscription {
+                if inscription.get_sig_verified_hash().is_some() {
+                    // Decompress the blob
+                    let decompressed_blob = decompress_blob(&inscription.body);
+
+                    let relevant_tx = BlobWithSender::new(
+                        decompressed_blob,
+                        inscription.public_key,
+                        sha256d::Hash::hash(&inscription.body).to_byte_array(),
+                    );
+
+                    relevant_txs.push(relevant_tx);
+                }
+            }
+        }
+        relevant_txs
     }
 }
 
