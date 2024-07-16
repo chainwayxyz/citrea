@@ -548,6 +548,8 @@ impl LedgerDB {
         for item in iter {
             l2_ranges.push(item?.key);
         }
+        // Sort ascending
+        l2_ranges.sort();
 
         Ok(l2_ranges)
     }

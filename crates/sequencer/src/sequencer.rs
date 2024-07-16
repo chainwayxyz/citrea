@@ -628,6 +628,7 @@ where
                 .collect();
 
         let pending_commitments = self.ledger_db.get_pending_commitments_l2_range()?;
+        debug!("Pending commitments: {:?}", pending_commitments);
         for l2_range in pending_commitments {
             if resubmission_skippable_commitments.contains(&l2_range) {
                 continue;
