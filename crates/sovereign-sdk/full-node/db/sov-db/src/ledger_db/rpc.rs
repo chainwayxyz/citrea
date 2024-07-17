@@ -1,8 +1,8 @@
 use serde::de::DeserializeOwned;
 use sov_rollup_interface::rpc::{
     sequencer_commitment_to_response, BatchIdAndOffset, BatchIdentifier, BatchResponse,
-    EventIdentifier, ItemOrHash, LedgerRpcProvider, ProofResponse, QueryMode,
-    SequencerCommitmentResponse, SlotIdAndOffset, SlotIdentifier, SlotResponse,
+    EventIdentifier, ItemOrHash, LastVerifiedProofResponse, LedgerRpcProvider, ProofResponse,
+    QueryMode, SequencerCommitmentResponse, SlotIdAndOffset, SlotIdentifier, SlotResponse,
     SoftBatchIdentifier, SoftBatchResponse, TxIdAndOffset, TxIdentifier, TxResponse,
     VerifiedProofResponse,
 };
@@ -425,6 +425,19 @@ impl LedgerRpcProvider for LedgerDB {
                     .collect(),
             )),
             None => Ok(None),
+        }
+    }
+
+    fn get_last_verified_proof(&self) -> Result<Option<LastVerifiedProofResponse>, anyhow::Error> {
+        let mut iter = self.db.iter::<VerifiedProofsBySlotNumber>()?;
+        iter.seek_to_last();
+        match iter.next() {
+            Some(Ok(item)) => Ok(Some(LastVerifiedProofResponse {
+                proof: item.value[0].clone().into(),
+                height: item.key.0,
+            })),
+            Some(Err(e)) => Err(e),
+            _ => Ok(None),
         }
     }
 

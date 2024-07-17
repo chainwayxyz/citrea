@@ -95,7 +95,7 @@ impl From<StoredProof> for ProofResponse {
 }
 
 /// The on-disk format for a proof verified by full node. Stores proof data and state transition
-#[derive(Debug, PartialEq, BorshDeserialize, BorshSerialize)]
+#[derive(Clone, Debug, PartialEq, BorshDeserialize, BorshSerialize)]
 pub struct StoredVerifiedProof {
     /// Verified Proof
     pub proof: Proof,

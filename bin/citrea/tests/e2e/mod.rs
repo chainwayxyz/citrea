@@ -18,7 +18,9 @@ use reth_primitives::{Address, BlockNumberOrTag, TxHash, U256};
 use shared_backup_db::{PostgresConnector, ProofType, SharedBackupDbConfig};
 use sov_mock_da::{MockAddress, MockDaService, MockDaSpec, MockHash};
 use sov_rollup_interface::da::{DaData, DaSpec};
-use sov_rollup_interface::rpc::{ProofRpcResponse, SoftConfirmationStatus};
+use sov_rollup_interface::rpc::{
+    LastVerifiedProofResponse, ProofRpcResponse, SoftConfirmationStatus,
+};
 use sov_rollup_interface::services::da::DaService;
 use sov_stf_runner::ProverConfig;
 use tokio::runtime::Runtime;
@@ -2851,7 +2853,22 @@ async fn test_all_flow() {
         .await
         .unwrap();
 
+    let LastVerifiedProofResponse {
+        proof: last_proof,
+        height: proof_l1_height,
+    } = full_node_test_client
+        .ledger_get_last_verified_proof()
+        .await
+        .unwrap();
+
     assert_eq!(prover_proof.proof, full_node_proof[0].proof);
+
+    assert_eq!(proof_l1_height, 4);
+    assert_eq!(last_proof.proof, full_node_proof[0].proof);
+    assert_eq!(
+        last_proof.state_transition,
+        full_node_proof[0].state_transition
+    );
 
     assert_eq!(
         prover_proof.state_transition,
@@ -2941,6 +2958,20 @@ async fn test_all_flow() {
         .ledger_get_verified_proofs_by_slot_height(6)
         .await
         .unwrap();
+
+    let LastVerifiedProofResponse {
+        proof: last_proof,
+        height: proof_l1_height,
+    } = full_node_test_client
+        .ledger_get_last_verified_proof()
+        .await
+        .unwrap();
+    assert_eq!(proof_l1_height, 6);
+    assert_eq!(last_proof.proof, full_node_proof_data[0].proof);
+    assert_eq!(
+        last_proof.state_transition,
+        full_node_proof_data[0].state_transition
+    );
 
     assert_eq!(prover_proof_data.proof, full_node_proof_data[0].proof);
     assert_eq!(

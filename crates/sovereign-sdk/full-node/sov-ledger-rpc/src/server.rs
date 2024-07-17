@@ -240,6 +240,13 @@ where
         },
     )?;
 
+    rpc.register_async_method("ledger_getLastVerifiedProof", |_, ledger| async move {
+        // Returns latest proof data
+        ledger
+            .get_last_verified_proof()
+            .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
+    })?;
+
     rpc.register_subscription(
         "ledger_subscribeSlots",
         "ledger_slotProcessed",
