@@ -15,7 +15,7 @@ use crate::helpers::parsers::parse_hex_transaction;
 use crate::spec::block::BitcoinBlock;
 use crate::spec::header::HeaderWrapper;
 use crate::spec::transaction::TransactionWrapper;
-use crate::spec::utxo::UTXO;
+use crate::spec::utxo::{ListUnspentEntry, UTXO};
 
 // RPCError is a struct that represents an error returned by the Bitcoin RPC
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
@@ -265,5 +265,20 @@ impl BitcoinNode {
             Ok(wallets) => Ok(wallets),
             Err(_) => Ok(vec![]),
         }
+    }
+
+    /// Get unconfirmed utxos
+    pub async fn get_pending_utxos(&self) -> Result<Vec<ListUnspentEntry>, anyhow::Error> {
+        let utxos = self
+            .call::<Vec<ListUnspentEntry>>("listunspent", vec![to_value(0)?, to_value(0)?])
+            .await?;
+
+        Ok(utxos)
+    }
+
+    /// Get a raw transaction by its txid
+    pub async fn get_raw_transaction(&self, txid: String) -> Result<String, anyhow::Error> {
+        self.call::<String>("getrawtransaction", vec![to_value(txid)?])
+            .await
     }
 }

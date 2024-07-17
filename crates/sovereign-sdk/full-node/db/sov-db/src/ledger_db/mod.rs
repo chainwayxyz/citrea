@@ -12,11 +12,11 @@ use tracing::instrument;
 
 use crate::rocks_db_config::gen_rocksdb_options;
 use crate::schema::tables::{
-    BatchByHash, BatchByNumber, CommitmentsByNumber, EventByKey, EventByNumber, L2RangeByL1Height,
-    L2StateRoot, L2Witness, LastSequencerCommitmentSent, LastStateDiff, LastVerifiedSlot,
-    ProofBySlotNumber, ProverLastScannedSlot, SlotByHash, SlotByNumber, SoftBatchByHash,
-    SoftBatchByNumber, SoftConfirmationStatus, TxByHash, TxByNumber, VerifiedProofsBySlotNumber,
-    LEDGER_TABLES,
+    BatchByHash, BatchByNumber, CommitmentsByNumber, EventByKey, EventByNumber, L2GenesisStateRoot,
+    L2RangeByL1Height, L2Witness, LastSequencerCommitmentSent, LastStateDiff, LastVerifiedSlot,
+    PendingSequencerCommitmentL2Range, ProofBySlotNumber, ProverLastScannedSlot, SlotByHash,
+    SlotByNumber, SoftBatchByHash, SoftBatchByNumber, SoftConfirmationStatus, TxByHash, TxByNumber,
+    VerifiedProofsBySlotNumber, LEDGER_TABLES,
 };
 use crate::schema::types::{
     split_tx_for_storage, BatchNumber, EventNumber, L2HeightRange, SlotNumber, StoredBatch,
@@ -537,6 +537,39 @@ impl LedgerDB {
         }
     }
 
+    /// Gets all pending commitments' l2 ranges.
+    /// Returns start-end L2 heights.
+    #[instrument(level = "trace", skip(self), err)]
+    pub fn get_pending_commitments_l2_range(&self) -> anyhow::Result<Vec<L2HeightRange>> {
+        let mut iter = self.db.iter::<PendingSequencerCommitmentL2Range>()?;
+        iter.seek_to_first();
+
+        let mut l2_ranges = iter
+            .map(|item| item.map(|item| item.key))
+            .collect::<Result<Vec<_>, _>>()?;
+        // Sort ascending
+        l2_ranges.sort();
+
+        Ok(l2_ranges)
+    }
+
+    /// Put a pending commitment l2 range
+    #[instrument(level = "trace", skip(self), err)]
+    pub fn put_pending_commitment_l2_range(&self, l2_range: &L2HeightRange) -> anyhow::Result<()> {
+        self.db
+            .put::<PendingSequencerCommitmentL2Range>(l2_range, &())
+    }
+
+    /// Delete a pending commitment l2 range
+    #[instrument(level = "trace", skip(self), err)]
+    pub fn delete_pending_commitment_l2_range(
+        &self,
+        l2_range: &L2HeightRange,
+    ) -> anyhow::Result<()> {
+        self.db
+            .delete::<PendingSequencerCommitmentL2Range>(l2_range)
+    }
+
     /// Get the most recent committed batch
     /// Returns L2 height.
     #[instrument(level = "trace", skip(self), err, ret)]
@@ -625,32 +658,38 @@ impl LedgerDB {
         Ok(())
     }
 
+    /// Set the genesis state root
+    #[instrument(level = "trace", skip_all, err, ret)]
+    pub fn set_l2_genesis_state_root<StateRoot: Serialize>(
+        &self,
+        state_root: &StateRoot,
+    ) -> anyhow::Result<()> {
+        let buf = bincode::serialize(state_root)?;
+        let mut schema_batch = SchemaBatch::new();
+        schema_batch.put::<L2GenesisStateRoot>(&(), &buf)?;
+
+        self.db.write_schemas(schema_batch)?;
+
+        Ok(())
+    }
+
     /// Get the state root by L2 height
     #[instrument(level = "trace", skip_all, err)]
     pub fn get_l2_state_root<StateRoot: DeserializeOwned>(
         &self,
         l2_height: u64,
     ) -> anyhow::Result<Option<StateRoot>> {
-        self.db
-            .get::<L2StateRoot>(&BatchNumber(l2_height))?
-            .map(|state_root| bincode::deserialize(&state_root).map_err(Into::into))
-            .transpose()
-    }
-
-    /// Set the state root created by applying L2 block
-    #[instrument(level = "trace", skip_all, err, ret)]
-    pub fn set_l2_state_root<StateRoot: Serialize>(
-        &self,
-        l2_height: u64,
-        state_root: &StateRoot,
-    ) -> anyhow::Result<()> {
-        let buf = bincode::serialize(state_root)?;
-        let mut schema_batch = SchemaBatch::new();
-        schema_batch.put::<L2StateRoot>(&BatchNumber(l2_height), &buf)?;
-
-        self.db.write_schemas(schema_batch)?;
-
-        Ok(())
+        if l2_height == 0 {
+            self.db
+                .get::<L2GenesisStateRoot>(&())?
+                .map(|state_root| bincode::deserialize(&state_root).map_err(Into::into))
+                .transpose()
+        } else {
+            self.db
+                .get::<SoftBatchByNumber>(&BatchNumber(l2_height))?
+                .map(|soft_batch| bincode::deserialize(&soft_batch.state_root).map_err(Into::into))
+                .transpose()
+        }
     }
 
     /// Gets the commitments in the da slot with given height if any

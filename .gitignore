@@ -23,4 +23,4 @@ resources/dbs/prover-db/
 
 adapters/solana/libyellowstone_grpc_geyser.dylib
 
-adapters/bitcoin/reveal_*.tx
+reveal_*.tx

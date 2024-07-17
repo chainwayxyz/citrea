@@ -120,6 +120,7 @@ where
                 let (genesis_root, initialized_storage) = stf.init_chain(storage, params);
                 storage_manager.save_change_set_l2(0, initialized_storage)?;
                 storage_manager.finalize_l2(0)?;
+                ledger_db.set_l2_genesis_state_root(&genesis_root)?;
                 info!(
                     "Chain initialization is done. Genesis root: 0x{}",
                     hex::encode(genesis_root.as_ref()),
@@ -232,12 +233,6 @@ where
             }
             None => None,
         };
-
-        // Save the genesis state root to ledger db
-        if self.start_l2_height == 1 {
-            self.ledger_db
-                .set_l2_state_root(0, &self.state_root.clone())?;
-        }
 
         // Create l1 sync worker task
         let (l1_tx, mut l1_rx) = mpsc::channel(1);
@@ -378,10 +373,6 @@ where
 
         self.state_root = next_state_root;
         self.batch_hash = soft_batch.hash;
-
-        // save state root after applying l2 with l2_height
-        self.ledger_db
-            .set_l2_state_root(l2_height, &self.state_root.clone())?;
 
         info!(
             "New State Root after soft confirmation #{} is: {:?}",

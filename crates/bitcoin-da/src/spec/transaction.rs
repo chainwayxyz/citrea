@@ -24,6 +24,10 @@ impl TransactionWrapper {
         };
         Self { tx }
     }
+
+    pub fn inner(&self) -> &BitcoinTransaction {
+        &self.tx
+    }
 }
 
 impl BorshSerialize for TransactionWrapper {

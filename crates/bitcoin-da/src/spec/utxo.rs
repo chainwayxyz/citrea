@@ -46,3 +46,26 @@ impl<'de> serde::Deserialize<'de> for UTXO {
         })
     }
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ListUnspentEntry {
+    pub txid: String,
+    pub vout: u64,
+    pub address: String,
+    pub label: Option<String>,
+    #[serde(rename = "scriptPubKey")]
+    pub script_pub_key: String,
+    pub amount: f64,
+    pub confirmations: u64,
+    #[serde(rename = "ancestorcount")]
+    pub ancestor_count: Option<u64>,
+    #[serde(rename = "ancestorsize")]
+    pub ancestor_size: Option<u64>,
+    #[serde(rename = "ancestorfees")]
+    pub ancestor_fees: Option<u64>,
+    pub spendable: bool,
+    pub solvable: bool,
+    pub desc: String,
+    pub parent_descs: Option<Vec<String>>,
+    pub safe: bool,
+}

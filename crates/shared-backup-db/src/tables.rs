@@ -82,6 +82,7 @@ CREATE TABLE IF NOT EXISTS sequencer_commitments (
     l2_end_height       OID NOT NULL,
     merkle_root         BYTEA NOT NULL,
     status              VARCHAR(15) NOT NULL,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
     UNIQUE (l2_start_height, l2_end_height)
 );
@@ -116,7 +117,8 @@ CREATE TABLE IF NOT EXISTS proof (
     l1_tx_id                    BYTEA NOT NULL,
     proof_data                  BYTEA NOT NULL,
     state_transition            JSON NOT NULL,
-    proof_type                  VARCHAR(20) NOT NULL
+    proof_type                  VARCHAR(20) NOT NULL,
+    created_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 ";
 
