@@ -18,7 +18,7 @@ use reth_rpc_types::trace::geth::{GethDebugTracingOptions, GethTrace};
 use sequencer_client::GetSoftBatchResponse;
 use sov_rollup_interface::rpc::{
     ProofResponse, SequencerCommitmentResponse, SoftBatchResponse, SoftConfirmationStatus,
-    VerifiedProofResponse,
+    VerifiedProofResponse,LastVerifiedProofResponse
 };
 
 pub const MAX_FEE_PER_GAS: u128 = 1000000001;
@@ -569,7 +569,7 @@ impl TestClient {
 
     pub(crate) async fn ledger_get_last_verified_proof(
         &self,
-    ) -> Option<(VerifiedProofResponse, u64)> {
+    ) -> Option<LastVerifiedProofResponse> {
         self.http_client
             .request("ledger_getLastVerifiedProof", rpc_params![])
             .await
