@@ -428,11 +428,13 @@ impl LedgerRpcProvider for LedgerDB {
         }
     }
 
-    fn get_last_verified_proof(&self) -> Result<Option<VerifiedProofResponse>, anyhow::Error> {
+    fn get_last_verified_proof(
+        &self,
+    ) -> Result<Option<(VerifiedProofResponse, u64)>, anyhow::Error> {
         let mut iter = self.db.iter::<VerifiedProofsBySlotNumber>()?;
         iter.seek_to_last();
         match iter.next() {
-            Some(Ok(item)) => Ok(Some(item.value[0].clone().into())),
+            Some(Ok(item)) => Ok(Some((item.value[0].clone().into(), item.key.0))),
             Some(Err(e)) => Err(e),
             _ => Ok(None),
         }

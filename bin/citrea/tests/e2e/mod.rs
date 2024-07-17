@@ -2849,13 +2849,14 @@ async fn test_all_flow() {
         .await
         .unwrap();
 
-    let last_proof = full_node_test_client
+    let (last_proof, proof_l1_height) = full_node_test_client
         .ledger_get_last_verified_proof()
         .await
         .unwrap();
 
     assert_eq!(prover_proof.proof, full_node_proof[0].proof);
 
+    assert_eq!(proof_l1_height, 4);
     assert_eq!(last_proof.proof, full_node_proof[0].proof);
     assert_eq!(
         last_proof.state_transition,
@@ -2951,10 +2952,11 @@ async fn test_all_flow() {
         .await
         .unwrap();
 
-    let last_proof = full_node_test_client
+    let (last_proof, proof_l1_height) = full_node_test_client
         .ledger_get_last_verified_proof()
         .await
         .unwrap();
+    assert_eq!(proof_l1_height, 6);
     assert_eq!(last_proof.proof, full_node_proof_data[0].proof);
     assert_eq!(
         last_proof.state_transition,

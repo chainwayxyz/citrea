@@ -567,7 +567,9 @@ impl TestClient {
             .ok()
     }
 
-    pub(crate) async fn ledger_get_last_verified_proof(&self) -> Option<VerifiedProofResponse> {
+    pub(crate) async fn ledger_get_last_verified_proof(
+        &self,
+    ) -> Option<(VerifiedProofResponse, u64)> {
         self.http_client
             .request("ledger_getLastVerifiedProof", rpc_params![])
             .await
