@@ -1925,7 +1925,7 @@ fn find_subarray(haystack: &[u8], needle: &[u8]) -> Option<usize> {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
-    citrea::initialize_logging(tracing::Level::DEBUG);
+    // citrea::initialize_logging(tracing::Level::DEBUG);
 
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
@@ -3286,7 +3286,7 @@ async fn test_full_node_sync_status() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_sequencer_commitment_threshold() {
-    citrea::initialize_logging(tracing::Level::DEBUG);
+    // citrea::initialize_logging(tracing::Level::DEBUG);
 
     let storage_dir = tempdir_with_children(&["DA", "sequencer"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
