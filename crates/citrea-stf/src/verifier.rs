@@ -56,6 +56,7 @@ where
                 data.initial_batch_hash,
                 pre_state,
                 data.da_data,
+                data.sequencer_commitments_range,
                 data.state_transition_witnesses,
                 data.da_block_headers_of_soft_confirmations,
                 &validity_condition,
@@ -78,6 +79,7 @@ where
             da_slot_hash: data.da_block_header_of_commitments.hash(),
             sequencer_public_key: data.sequencer_public_key,
             sequencer_da_public_key: data.sequencer_da_public_key,
+            sequencer_commitments_range: data.sequencer_commitments_range,
         };
 
         zkvm.commit(&out);

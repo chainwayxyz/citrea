@@ -191,6 +191,7 @@ impl<ValidityCond: ValidityCondition> sov_rollup_interface::zk::ZkvmHost
                     da_slot_hash: st.da_block_header_of_commitments.hash(),
                     sequencer_public_key: vec![],
                     sequencer_da_public_key: vec![],
+                    sequencer_commitments_range: (0, 0),
                 })
             }
             sov_rollup_interface::zk::Proof::Full(_) => {

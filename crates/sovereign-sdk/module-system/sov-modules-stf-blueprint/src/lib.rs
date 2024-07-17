@@ -467,6 +467,7 @@ where
         initial_batch_hash: [u8; 32],
         pre_state: Self::PreState,
         da_data: Vec<<Da as DaSpec>::BlobTransaction>,
+        sequencer_commitments_range: (u32, u32),
         witnesses: std::collections::VecDeque<Vec<Self::Witness>>,
         slot_headers: std::collections::VecDeque<Vec<<Da as DaSpec>::BlockHeader>>,
         validity_condition: &<Da as DaSpec>::ValidityCondition,
