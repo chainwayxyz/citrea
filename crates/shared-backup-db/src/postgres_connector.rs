@@ -400,6 +400,7 @@ mod tests {
                         .into_iter()
                         .collect(),
                     da_slot_hash: [2; 32],
+                    sequencer_commitments_range: (0, 5),
                     sequencer_public_key: [3; 32].to_vec(),
                     sequencer_da_public_key: [4; 32].to_vec(),
                     validity_condition: [5; 32].to_vec(),
@@ -425,6 +426,7 @@ mod tests {
                         .into_iter()
                         .collect(),
                     da_slot_hash: [2; 32],
+                    sequencer_commitments_range: (0, 5),
                     sequencer_public_key: [3; 32].to_vec(),
                     sequencer_da_public_key: [4; 32].to_vec(),
                     validity_condition: [5; 32].to_vec(),

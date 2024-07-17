@@ -495,6 +495,12 @@ where
                     soft_confirmations,
                     state_transition_witnesses,
                     da_block_headers_of_soft_confirmations,
+                    sequencer_commitments_range: (
+                        0,
+                        (sequencer_commitments.len() - 1)
+                            .try_into()
+                            .expect("cant be more than 4 billion commitments in a da block; qed"),
+                    ), // for now process all commitments
                     sequencer_public_key: self.sequencer_pub_key.clone(),
                     sequencer_da_public_key: self.sequencer_da_pub_key.clone(),
                 };
@@ -719,6 +725,7 @@ where
             final_state_root: transition_data.final_state_root.as_ref().to_vec(),
             state_diff: transition_data.state_diff,
             da_slot_hash: transition_data.da_slot_hash.into(),
+            sequencer_commitments_range: transition_data.sequencer_commitments_range,
             sequencer_public_key: transition_data.sequencer_public_key,
             sequencer_da_public_key: transition_data.sequencer_da_public_key,
             validity_condition: borsh::to_vec(&transition_data.validity_condition).unwrap(),

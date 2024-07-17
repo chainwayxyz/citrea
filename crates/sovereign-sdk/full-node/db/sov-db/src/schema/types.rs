@@ -123,6 +123,9 @@ pub struct StoredStateTransition {
     pub state_diff: CumulativeStateDiff,
     /// The DA slot hash that the sequencer commitments causing this state transition were found in.
     pub da_slot_hash: [u8; 32],
+    /// The range of sequencer commitments in the DA slot that were processed.
+    /// The range is inclusive.
+    pub sequencer_commitments_range: (u32, u32),
     /// Sequencer public key.
     pub sequencer_public_key: Vec<u8>,
     /// Sequencer DA public key.
@@ -144,6 +147,7 @@ impl From<StoredStateTransition> for StateTransitionRpcResponse {
             sequencer_da_public_key: value.sequencer_da_public_key,
             sequencer_public_key: value.sequencer_public_key,
             validity_condition: value.validity_condition,
+            sequencer_commitments_range: value.sequencer_commitments_range,
         }
     }
 }
