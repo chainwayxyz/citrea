@@ -616,11 +616,21 @@ where
         debug!("Pending db commitments: {:?}", pending_db_commitments);
         let pending_da_commitments = self.get_pending_da_commitments().await;
         debug!("Pending da commitments: {:?}", pending_db_commitments);
+        // TODO: also take mined DA blocks into account
         for (l2_start, l2_end) in pending_db_commitments {
             if pending_da_commitments.iter().any(|commitment| {
                 commitment.l2_start_block_number == l2_start.0
                     && commitment.l2_end_block_number == l2_end.0
             }) {
+                // Update last sequencer commitment l2 height
+                match self.ledger_db.get_last_sequencer_commitment_l2_height()? {
+                    Some(last_commitment_l2_height) if last_commitment_l2_height >= l2_end => {}
+                    _ => {
+                        self.ledger_db
+                            .set_last_sequencer_commitment_l2_height(l2_end)?;
+                    }
+                };
+
                 // Delete from pending db if it is already in DA mempool
                 self.ledger_db
                     .delete_pending_commitment_l2_range(&(l2_start, l2_end))?;
