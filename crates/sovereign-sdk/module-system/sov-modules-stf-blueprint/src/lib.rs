@@ -493,6 +493,7 @@ where
 
         let mut current_state_root = initial_state_root.clone();
         let mut previous_batch_hash = initial_batch_hash;
+        let mut last_commitment_end_height: Option<u64> = None;
 
         // should panic if number of sequencer commitments, soft confirmations, slot headers and witnesses don't match
         for (((sequencer_commitment, soft_confirmations), da_block_headers), witnesses) in
@@ -507,6 +508,19 @@ where
                 .zip_eq(slot_headers)
                 .zip_eq(witnesses)
         {
+            // if the commitment is not sequential, then the proof is invalid.
+            if let Some(end_height) = last_commitment_end_height {
+                assert_eq!(
+                    end_height + 1,
+                    sequencer_commitment.l2_start_block_number,
+                    "Sequencer commitments must be sequential"
+                );
+
+                last_commitment_end_height = Some(sequencer_commitment.l2_end_block_number);
+            } else {
+                last_commitment_end_height = Some(sequencer_commitment.l2_end_block_number);
+            }
+
             // we must verify given DA headers match the commitments
             let mut index_headers = 0;
             let mut index_soft_confirmation = 0;
