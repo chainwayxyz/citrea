@@ -190,6 +190,12 @@ impl DaService for RngDaService {
     async fn get_fee_rate(&self) -> Result<u128, Self::Error> {
         unimplemented!()
     }
+
+    async fn get_relevant_blobs_of_pending_transactions(
+        &self,
+    ) -> Vec<<Self::Spec as DaSpec>::BlobTransaction> {
+        vec![]
+    }
 }
 
 pub struct RngDaVerifier;
