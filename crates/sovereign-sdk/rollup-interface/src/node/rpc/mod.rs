@@ -270,6 +270,8 @@ pub struct VerifiedProofResponse {
 }
 
 /// The rpc response of the last verified proof
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct LastVerifiedProofResponse {
     /// Proof data
     pub proof: VerifiedProofResponse,
