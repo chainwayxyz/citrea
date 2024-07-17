@@ -11,6 +11,7 @@ use core::marker::PhantomData;
 use borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(feature = "native")]
 use serde::de::DeserializeOwned;
+use serde::ser::SerializeTuple;
 use serde::{Deserialize, Serialize};
 
 use crate::da::SequencerCommitment;
@@ -300,6 +301,10 @@ pub struct StateTransitionRpcResponse {
     /// The DA slot hash that the sequencer commitments causing this state transition were found in.
     #[serde(with = "hex::serde")]
     pub da_slot_hash: [u8; 32],
+    /// The range of sequencer commitments in the DA slot that were processed.
+    /// The range is inclusive.
+    pub sequencer_commitments_range: (usize, usize),
+
     /// Sequencer public key.
     #[serde(with = "hex::serde")]
     pub sequencer_public_key: Vec<u8>,
