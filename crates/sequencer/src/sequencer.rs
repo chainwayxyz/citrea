@@ -591,99 +591,150 @@ where
         }
     }
 
-    async fn submit_commitment(
+    async fn try_submit_commitment(
         &mut self,
         state_diff_threshold_reached: bool,
     ) -> anyhow::Result<()> {
         debug!("Sequencer: Checking if commitment should be submitted");
-        let inscription_queue = self.da_service.get_send_transaction_queue();
-        let min_soft_confirmations_per_commitment =
-            self.config.min_soft_confirmations_per_commitment;
 
         let commitment_info = commitment_controller::get_commitment_info(
             &self.ledger_db,
-            min_soft_confirmations_per_commitment,
+            self.config.min_soft_confirmations_per_commitment,
             state_diff_threshold_reached,
         )?;
-
         if let Some(commitment_info) = commitment_info {
-            let l2_range_to_submit = commitment_info.l2_height_range.clone();
-
-            // calculate exclusive range end
-            let range_end = BatchNumber(l2_range_to_submit.end().0 + 1); // cannnot add u64 to BatchNumber directly
-
-            let soft_confirmation_hashes = self
-                .ledger_db
-                .get_soft_batch_range(&(*l2_range_to_submit.start()..range_end))?
-                .iter()
-                .map(|sb| sb.hash)
-                .collect::<Vec<[u8; 32]>>();
-
-            let commitment = commitment_controller::get_commitment(
-                commitment_info.clone(),
-                soft_confirmation_hashes,
-            )?;
-
-            debug!(
-                "Sequencer: submitting commitment for L2 range {}-{}",
-                commitment.l2_start_block_number, commitment.l2_end_block_number
-            );
-
-            let blob = borsh::to_vec(&DaData::SequencerCommitment(commitment.clone()))
-                .map_err(|e| anyhow!(e))?;
-            let (notify, rx) = oneshot_channel();
-            let request = BlobWithNotifier { blob, notify };
-            inscription_queue
-                .send(request)
-                .map_err(|_| anyhow!("Bitcoin service already stopped!"))?;
-            let tx_id = rx
-                .await
-                .map_err(|_| anyhow!("DA service is dead!"))?
-                .map_err(|_| anyhow!("Send transaction cannot fail"))?;
-
-            self.ledger_db
-                .set_last_sequencer_commitment_l2_height(BatchNumber(
-                    commitment_info.l2_height_range.end().0,
-                ))
-                .map_err(|_| {
-                    anyhow!("Sequencer: Failed to set last sequencer commitment L2 height")
-                })?;
-
-            let l2_start = l2_range_to_submit.start().0 as u32;
-            let l2_end = l2_range_to_submit.end().0 as u32;
-            if let Some(db_config) = self.config.db_config.clone() {
-                match PostgresConnector::new(db_config).await {
-                    Ok(pg_connector) => {
-                        pg_connector
-                            .insert_sequencer_commitment(
-                                Into::<[u8; 32]>::into(tx_id).to_vec(),
-                                l2_start,
-                                l2_end,
-                                commitment.merkle_root.to_vec(),
-                                CommitmentStatus::Mempool,
-                            )
-                            .await
-                            .map_err(|_| {
-                                anyhow!("Sequencer: Failed to insert sequencer commitment")
-                            })?;
-                    }
-                    Err(e) => {
-                        warn!("Failed to connect to postgres: {:?}", e);
-                    }
-                }
-            }
-
-            // Clear state diff.
-            self.ledger_db.set_state_diff(vec![])?;
-            self.last_state_diff = vec![];
-
-            info!("New commitment. L2 range: #{}-{}", l2_start, l2_end,);
+            self.submit_commitment(commitment_info, false).await?;
         }
         Ok(())
     }
 
     #[instrument(level = "trace", skip(self), err, ret)]
+    pub async fn resubmit_pending_commitments(&mut self) -> anyhow::Result<()> {
+        let pending_commitments = self.ledger_db.get_pending_commitments_l2_range()?;
+        debug!("Pending commitments: {:?}", pending_commitments);
+        for (l2_start, l2_end) in pending_commitments {
+            let commitment_info = commitment_controller::CommitmentInfo {
+                l2_height_range: l2_start..=l2_end,
+            };
+            self.submit_commitment(commitment_info, true).await?;
+        }
+
+        Ok(())
+    }
+
+    async fn submit_commitment(
+        &mut self,
+        commitment_info: commitment_controller::CommitmentInfo,
+        resubmit: bool,
+    ) -> anyhow::Result<()> {
+        let l2_start = *commitment_info.l2_height_range.start();
+        let l2_end = *commitment_info.l2_height_range.end();
+
+        // calculate exclusive range end
+        let range_end = BatchNumber(l2_end.0 + 1); // cannnot add u64 to BatchNumber directly
+
+        let soft_confirmation_hashes = self
+            .ledger_db
+            .get_soft_batch_range(&(l2_start..range_end))?
+            .iter()
+            .map(|sb| sb.hash)
+            .collect::<Vec<[u8; 32]>>();
+
+        let commitment =
+            commitment_controller::get_commitment(commitment_info, soft_confirmation_hashes)?;
+
+        debug!("Sequencer: submitting commitment: {:?}", commitment);
+
+        let blob = borsh::to_vec(&DaData::SequencerCommitment(commitment.clone()))
+            .map_err(|e| anyhow!(e))?;
+        let (notify, rx) = oneshot_channel();
+        let request = BlobWithNotifier { blob, notify };
+        self.da_service
+            .get_send_transaction_queue()
+            .send(request)
+            .map_err(|_| anyhow!("Bitcoin service already stopped!"))?;
+
+        info!(
+            "Sent commitment to DA queue. L2 range: #{}-{}",
+            l2_start.0, l2_end.0,
+        );
+
+        let ledger_db = self.ledger_db.clone();
+        let db_config = self.config.db_config.clone();
+        let handle_da_response = async move {
+            let result: anyhow::Result<()> = async move {
+                let tx_id = rx
+                    .await
+                    .map_err(|_| anyhow!("DA service is dead!"))?
+                    .map_err(|_| anyhow!("Send transaction cannot fail"))?;
+
+                ledger_db
+                    .set_last_sequencer_commitment_l2_height(l2_end)
+                    .map_err(|_| {
+                        anyhow!("Sequencer: Failed to set last sequencer commitment L2 height")
+                    })?;
+
+                if let Some(db_config) = db_config {
+                    match PostgresConnector::new(db_config).await {
+                        Ok(pg_connector) => {
+                            pg_connector
+                                .insert_sequencer_commitment(
+                                    Into::<[u8; 32]>::into(tx_id).to_vec(),
+                                    l2_start.0 as u32,
+                                    l2_end.0 as u32,
+                                    commitment.merkle_root.to_vec(),
+                                    CommitmentStatus::Mempool,
+                                )
+                                .await
+                                .map_err(|_| {
+                                    anyhow!("Sequencer: Failed to insert sequencer commitment")
+                                })?;
+                        }
+                        Err(e) => {
+                            warn!("Failed to connect to postgres: {:?}", e);
+                        }
+                    }
+                }
+
+                ledger_db.delete_pending_commitment_l2_range(&(l2_start, l2_end))?;
+
+                info!("New commitment. L2 range: #{}-{}", l2_start.0, l2_end.0);
+                Ok(())
+            }
+            .await;
+
+            if let Err(err) = result {
+                error!(
+                    "Error in spawned task for handling commitment result: {}",
+                    err
+                );
+            }
+        };
+
+        if !resubmit {
+            // Add commitment to pending commitments
+            self.ledger_db
+                .put_pending_commitment_l2_range(&(l2_start, l2_end))?;
+
+            // Clear state diff
+            self.ledger_db.set_state_diff(vec![])?;
+            self.last_state_diff = vec![];
+
+            // Handle DA response non-blocking
+            tokio::spawn(handle_da_response);
+        } else {
+            // Handle DA response blocking
+            handle_da_response.await;
+        }
+
+        Ok(())
+    }
+
+    #[instrument(level = "trace", skip(self), err, ret)]
     pub async fn run(&mut self) -> Result<(), anyhow::Error> {
+        // Resubmit if there were pending commitments on restart
+        self.resubmit_pending_commitments().await?;
+
         // TODO: hotfix for mock da
         self.da_service
             .get_block_at(1)
@@ -795,7 +846,7 @@ where
                     }
                 },
                 force = da_commitment_rx.select_next_some() => {
-                    if let Err(e) = self.submit_commitment(force).await {
+                    if let Err(e) = self.try_submit_commitment(force).await {
                         error!("Failed to submit commitment: {}", e);
                     }
                 },

@@ -1,3 +1,4 @@
+use std::cmp;
 use std::ops::RangeInclusive;
 
 use anyhow::anyhow;
@@ -23,16 +24,22 @@ pub fn get_commitment_info(
     min_soft_confirmations_per_commitment: u64,
     state_diff_threshold_reached: bool,
 ) -> anyhow::Result<Option<CommitmentInfo>> {
-    // Based on heights stored in ledger_db, decided which L2 blocks
-    // to commit.
-    let last_committed_l2_height = ledger_db
-        .get_last_sequencer_commitment_l2_height()?
-        .unwrap_or(BatchNumber(0));
-
     let Some((head_soft_batch_number, _)) = ledger_db.get_head_soft_batch()? else {
         // No soft batches have been created yet.
         return Ok(None);
     };
+
+    // Get latest finalized and pending commitments and find the max height
+    let last_finalized_l2_height = ledger_db
+        .get_last_sequencer_commitment_l2_height()?
+        .unwrap_or(BatchNumber(0));
+    let last_pending_l2_height = ledger_db
+        .get_pending_commitments_l2_range()?
+        .iter()
+        .map(|(_, end)| *end)
+        .max()
+        .unwrap_or(BatchNumber(0));
+    let last_committed_l2_height = cmp::max(last_finalized_l2_height, last_pending_l2_height);
 
     // If the last commitment made is on par with the head
     // soft batch, we have already committed the latest block.

@@ -13,9 +13,10 @@ use tracing::instrument;
 use crate::rocks_db_config::gen_rocksdb_options;
 use crate::schema::tables::{
     BatchByHash, BatchByNumber, CommitmentsByNumber, EventByKey, EventByNumber, L2RangeByL1Height,
-    L2StateRoot, L2Witness, LastSequencerCommitmentSent, LastStateDiff, ProofBySlotNumber,
-    ProverLastScannedSlot, SlotByHash, SlotByNumber, SoftBatchByHash, SoftBatchByNumber,
-    SoftConfirmationStatus, TxByHash, TxByNumber, VerifiedProofsBySlotNumber, LEDGER_TABLES,
+    L2StateRoot, L2Witness, LastSequencerCommitmentSent, LastStateDiff,
+    PendingSequencerCommitmentL2Range, ProofBySlotNumber, ProverLastScannedSlot, SlotByHash,
+    SlotByNumber, SoftBatchByHash, SoftBatchByNumber, SoftConfirmationStatus, TxByHash, TxByNumber,
+    VerifiedProofsBySlotNumber, LEDGER_TABLES,
 };
 use crate::schema::types::{
     split_tx_for_storage, BatchNumber, EventNumber, L2HeightRange, SlotNumber, StoredBatch,
@@ -534,6 +535,39 @@ impl LedgerDB {
             Some(Err(e)) => Err(e),
             _ => Ok(None),
         }
+    }
+
+    /// Gets all pending commitments' l2 ranges.
+    /// Returns start-end L2 heights.
+    #[instrument(level = "trace", skip(self), err)]
+    pub fn get_pending_commitments_l2_range(&self) -> anyhow::Result<Vec<L2HeightRange>> {
+        let mut iter = self.db.iter::<PendingSequencerCommitmentL2Range>()?;
+        iter.seek_to_first();
+
+        let mut l2_ranges = iter
+            .map(|item| item.map(|item| item.key))
+            .collect::<Result<Vec<_>, _>>()?;
+        // Sort ascending
+        l2_ranges.sort();
+
+        Ok(l2_ranges)
+    }
+
+    /// Put a pending commitment l2 range
+    #[instrument(level = "trace", skip(self), err)]
+    pub fn put_pending_commitment_l2_range(&self, l2_range: &L2HeightRange) -> anyhow::Result<()> {
+        self.db
+            .put::<PendingSequencerCommitmentL2Range>(l2_range, &())
+    }
+
+    /// Delete a pending commitment l2 range
+    #[instrument(level = "trace", skip(self), err)]
+    pub fn delete_pending_commitment_l2_range(
+        &self,
+        l2_range: &L2HeightRange,
+    ) -> anyhow::Result<()> {
+        self.db
+            .delete::<PendingSequencerCommitmentL2Range>(l2_range)
     }
 
     /// Get the most recent committed batch
