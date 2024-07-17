@@ -625,10 +625,14 @@ where
     async fn submit_commitment(
         &mut self,
         commitment_info: commitment_controller::CommitmentInfo,
-        resubmit: bool,
+        wait_for_da_response: bool,
     ) -> anyhow::Result<()> {
         let l2_start = *commitment_info.l2_height_range.start();
         let l2_end = *commitment_info.l2_height_range.end();
+
+        // Clear state diff early
+        self.ledger_db.set_state_diff(vec![])?;
+        self.last_state_diff = vec![];
 
         // calculate exclusive range end
         let range_end = BatchNumber(l2_end.0 + 1); // cannnot add u64 to BatchNumber directly
@@ -711,22 +715,17 @@ where
             }
         };
 
-        if !resubmit {
+        if wait_for_da_response {
+            // Handle DA response blocking
+            handle_da_response.await;
+        } else {
             // Add commitment to pending commitments
             self.ledger_db
                 .put_pending_commitment_l2_range(&(l2_start, l2_end))?;
 
-            // Clear state diff
-            self.ledger_db.set_state_diff(vec![])?;
-            self.last_state_diff = vec![];
-
             // Handle DA response non-blocking
             tokio::spawn(handle_da_response);
-        } else {
-            // Handle DA response blocking
-            handle_da_response.await;
         }
-
         Ok(())
     }
 
@@ -845,8 +844,8 @@ where
                         }
                     }
                 },
-                force = da_commitment_rx.select_next_some() => {
-                    if let Err(e) = self.try_submit_commitment(force).await {
+                commitment_threshold_reached = da_commitment_rx.select_next_some() => {
+                    if let Err(e) = self.try_submit_commitment(commitment_threshold_reached).await {
                         error!("Failed to submit commitment: {}", e);
                     }
                 },
