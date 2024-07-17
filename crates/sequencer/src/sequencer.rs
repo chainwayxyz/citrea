@@ -615,7 +615,7 @@ where
         let pending_db_commitments = self.ledger_db.get_pending_commitments_l2_range()?;
         debug!("Pending db commitments: {:?}", pending_db_commitments);
         let pending_da_commitments = self.get_pending_da_commitments().await;
-        debug!("Pending da commitments: {:?}", pending_db_commitments);
+        debug!("Pending da commitments: {:?}", pending_da_commitments);
         // TODO: also take mined DA blocks into account
         for (l2_start, l2_end) in pending_db_commitments {
             if pending_da_commitments.iter().any(|commitment| {
