@@ -1830,6 +1830,8 @@ async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error>
     let last_in_receipt = last_in_tx.unwrap().get_receipt().await.unwrap();
 
     wait_for_l2_block(&seq_test_client, 1, None).await;
+    // Wait for storage
+    sleep(Duration::from_secs(1)).await;
 
     let initial_soft_batch = seq_test_client
         .ledger_get_soft_batch_by_number::<MockDaSpec>(1)
@@ -1923,7 +1925,7 @@ fn find_subarray(haystack: &[u8], needle: &[u8]) -> Option<usize> {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
-    citrea::initialize_logging(tracing::Level::DEBUG);
+    // citrea::initialize_logging(tracing::Level::DEBUG);
 
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
@@ -3452,6 +3454,10 @@ async fn test_sequencer_fill_missing_da_blocks() -> Result<(), anyhow::Error> {
     // publish an extra l2 block
     seq_test_client.send_publish_batch_request().await;
     wait_for_l2_block(&seq_test_client, last_filler_l2_block + 1, None).await;
+
+    // Wait for storage
+    sleep(Duration::from_secs(1)).await;
+
     // ensure that the latest l2 block points to latest da block and has correct height
     let head_soft_batch = seq_test_client
         .ledger_get_head_soft_batch()
