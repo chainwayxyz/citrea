@@ -495,7 +495,12 @@ where
                     soft_confirmations,
                     state_transition_witnesses,
                     da_block_headers_of_soft_confirmations,
-                    sequencer_commitments_range: (0, sequencer_commitments.len() - 1), // for now process all commitments
+                    sequencer_commitments_range: (
+                        0,
+                        (sequencer_commitments.len() - 1)
+                            .try_into()
+                            .expect("cant be more than 4 billion commitments in a da block; qed"),
+                    ), // for now process all commitments
                     sequencer_public_key: self.sequencer_pub_key.clone(),
                     sequencer_da_public_key: self.sequencer_da_pub_key.clone(),
                 };

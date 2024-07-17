@@ -125,7 +125,7 @@ pub struct StoredStateTransition {
     pub da_slot_hash: [u8; 32],
     /// The range of sequencer commitments in the DA slot that were processed.
     /// The range is inclusive.
-    pub sequencer_commitments_range: (usize, usize),
+    pub sequencer_commitments_range: (u32, u32),
     /// Sequencer public key.
     pub sequencer_public_key: Vec<u8>,
     /// Sequencer DA public key.

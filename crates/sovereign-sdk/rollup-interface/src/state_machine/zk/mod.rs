@@ -132,7 +132,7 @@ pub struct StateTransition<Da: DaSpec, Root> {
     pub da_slot_hash: Da::SlotHash,
     /// The range of sequencer commitments in the DA slot that were processed.
     /// The range is inclusive.
-    pub sequencer_commitments_range: (usize, usize),
+    pub sequencer_commitments_range: (u32, u32),
     /// Sequencer public key.
     pub sequencer_public_key: Vec<u8>,
     /// Sequencer DA public key.
@@ -195,5 +195,5 @@ pub struct StateTransitionData<StateRoot, Witness, Da: DaSpec> {
 
     /// The range of sequencer commitments that are being processed.
     /// The range is inclusive.
-    pub sequencer_commitments_range: (usize, usize),
+    pub sequencer_commitments_range: (u32, u32),
 }

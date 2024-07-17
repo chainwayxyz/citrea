@@ -258,7 +258,7 @@ pub trait StateTransitionFunction<Vm: Zkvm, Da: DaSpec> {
         initial_batch_hash: [u8; 32],
         pre_state: Self::PreState,
         da_data: Vec<<Da as DaSpec>::BlobTransaction>,
-        sequencer_commitments_range: (usize, usize),
+        sequencer_commitments_range: (u32, u32),
         witnesses: VecDeque<Vec<Self::Witness>>,
         slot_headers: VecDeque<Vec<Da::BlockHeader>>,
         validity_condition: &Da::ValidityCondition,
