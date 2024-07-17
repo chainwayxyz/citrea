@@ -18,7 +18,9 @@ use reth_primitives::{Address, BlockNumberOrTag, TxHash, U256};
 use shared_backup_db::{PostgresConnector, ProofType, SharedBackupDbConfig};
 use sov_mock_da::{MockAddress, MockDaService, MockDaSpec, MockHash};
 use sov_rollup_interface::da::{DaData, DaSpec};
-use sov_rollup_interface::rpc::{ProofRpcResponse, SoftConfirmationStatus};
+use sov_rollup_interface::rpc::{
+    LastVerifiedProofResponse, ProofRpcResponse, SoftConfirmationStatus,
+};
 use sov_rollup_interface::services::da::DaService;
 use sov_stf_runner::ProverConfig;
 use tokio::runtime::Runtime;
@@ -2849,7 +2851,10 @@ async fn test_all_flow() {
         .await
         .unwrap();
 
-    let (last_proof, proof_l1_height) = full_node_test_client
+    let LastVerifiedProofResponse {
+        proof: last_proof,
+        height: proof_l1_height,
+    } = full_node_test_client
         .ledger_get_last_verified_proof()
         .await
         .unwrap();
@@ -2952,7 +2957,10 @@ async fn test_all_flow() {
         .await
         .unwrap();
 
-    let (last_proof, proof_l1_height) = full_node_test_client
+    let LastVerifiedProofResponse {
+        proof: last_proof,
+        height: proof_l1_height,
+    } = full_node_test_client
         .ledger_get_last_verified_proof()
         .await
         .unwrap();
