@@ -214,6 +214,7 @@ fn make_transition_data(
         inclusion_proof: [0; 32],
         completeness_proof: (),
         da_data: vec![],
+        sequencer_commitments_range: (0, 0),
         da_block_header_of_commitments: MockBlockHeader {
             prev_hash: [0; 32].into(),
             hash: header_hash,

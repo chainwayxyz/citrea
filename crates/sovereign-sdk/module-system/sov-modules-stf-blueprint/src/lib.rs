@@ -467,7 +467,7 @@ where
         initial_batch_hash: [u8; 32],
         pre_state: Self::PreState,
         da_data: Vec<<Da as DaSpec>::BlobTransaction>,
-        sequencer_commitments_range: (u32, u32),
+        sequencer_commitments_range: (usize, usize),
         witnesses: std::collections::VecDeque<Vec<Self::Witness>>,
         slot_headers: std::collections::VecDeque<Vec<<Da as DaSpec>::BlockHeader>>,
         validity_condition: &<Da as DaSpec>::ValidityCondition,
@@ -498,6 +498,8 @@ where
         for (((sequencer_commitment, soft_confirmations), da_block_headers), witnesses) in
             sequencer_commitments
                 .into_iter()
+                .skip(sequencer_commitments_range.0)
+                .take(sequencer_commitments_range.1 - sequencer_commitments_range.0 + 1)
                 .zip_eq(soft_confirmations)
                 .zip_eq(slot_headers)
                 .zip_eq(witnesses)
