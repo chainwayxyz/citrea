@@ -321,10 +321,6 @@ where
             proof.clone(),
             stored_state_transition,
         )?;
-
-        // Set the l1 height of last verified proof
-        self.ledger_db
-            .set_last_verified_l1_height(SlotNumber(l1_block.header().height()))?;
         Ok(())
     }
 

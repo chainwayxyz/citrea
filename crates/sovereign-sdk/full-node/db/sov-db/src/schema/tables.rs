@@ -72,7 +72,6 @@ pub const LEDGER_TABLES: &[&str] = &[
     CommitmentsByNumber::table_name(),
     ProofBySlotNumber::table_name(),
     VerifiedProofsBySlotNumber::table_name(),
-    LastVerifiedSlot::table_name(),
 ];
 
 /// A list of all tables used by the NativeDB. These tables store
@@ -279,11 +278,6 @@ define_table_with_seek_key_codec!(
 define_table_with_seek_key_codec!(
     /// Prover uses this table to store the last slot it scanned
     (ProverLastScannedSlot) () => SlotNumber
-);
-
-define_table_with_seek_key_codec!(
-    /// Prover uses this table to store the last slot it proved
-    (LastVerifiedSlot) () => SlotNumber
 );
 
 define_table_with_seek_key_codec!(

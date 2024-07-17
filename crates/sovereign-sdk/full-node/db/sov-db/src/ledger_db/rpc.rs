@@ -429,10 +429,12 @@ impl LedgerRpcProvider for LedgerDB {
     }
 
     fn get_last_verified_proof(&self) -> Result<Option<VerifiedProofResponse>, anyhow::Error> {
-        let last_height = self.get_last_verified_l1_height()?;
-        match self.get_verified_proof_data_by_l1_height(last_height.unwrap_or(SlotNumber(0)).0)? {
-            Some(proofs) => Ok(proofs.last().cloned()),
-            None => Ok(None),
+        let mut iter = self.db.iter::<VerifiedProofsBySlotNumber>()?;
+        iter.seek_to_last();
+        match iter.next() {
+            Some(Ok(item)) => Ok(Some(item.value[0].clone().into())),
+            Some(Err(e)) => Err(e),
+            _ => Ok(None),
         }
     }
 
