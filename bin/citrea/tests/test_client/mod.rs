@@ -567,6 +567,13 @@ impl TestClient {
             .ok()
     }
 
+    pub(crate) async fn ledger_get_last_verified_proof(&self) -> Option<VerifiedProofResponse> {
+        self.http_client
+            .request("ledger_getLastVerifiedProof", rpc_params![])
+            .await
+            .ok()
+    }
+
     pub(crate) async fn ledger_get_sequencer_commitments_on_slot_by_hash(
         &self,
         hash: [u8; 32],

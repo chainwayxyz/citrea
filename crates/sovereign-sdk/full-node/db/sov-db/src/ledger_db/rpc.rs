@@ -428,6 +428,14 @@ impl LedgerRpcProvider for LedgerDB {
         }
     }
 
+    fn get_last_verified_proof(&self) -> Result<Option<VerifiedProofResponse>, anyhow::Error> {
+        let last_height = self.get_last_verified_l1_height()?;
+        match self.get_verified_proof_data_by_l1_height(last_height.unwrap_or(SlotNumber(0)).0)? {
+            Some(proofs) => Ok(proofs.last().cloned()),
+            None => Ok(None),
+        }
+    }
+
     fn get_head_soft_batch(&self) -> Result<Option<SoftBatchResponse>, anyhow::Error> {
         let next_ids = self.get_next_items_numbers();
 

@@ -13,9 +13,10 @@ use tracing::instrument;
 use crate::rocks_db_config::gen_rocksdb_options;
 use crate::schema::tables::{
     BatchByHash, BatchByNumber, CommitmentsByNumber, EventByKey, EventByNumber, L2RangeByL1Height,
-    L2StateRoot, L2Witness, LastSequencerCommitmentSent, LastStateDiff, ProofBySlotNumber,
-    ProverLastScannedSlot, SlotByHash, SlotByNumber, SoftBatchByHash, SoftBatchByNumber,
-    SoftConfirmationStatus, TxByHash, TxByNumber, VerifiedProofsBySlotNumber, LEDGER_TABLES,
+    L2StateRoot, L2Witness, LastSequencerCommitmentSent, LastStateDiff, LastVerifiedSlot,
+    ProofBySlotNumber, ProverLastScannedSlot, SlotByHash, SlotByNumber, SoftBatchByHash,
+    SoftBatchByNumber, SoftConfirmationStatus, TxByHash, TxByNumber, VerifiedProofsBySlotNumber,
+    LEDGER_TABLES,
 };
 use crate::schema::types::{
     split_tx_for_storage, BatchNumber, EventNumber, L2HeightRange, SlotNumber, StoredBatch,
@@ -559,6 +560,12 @@ impl LedgerDB {
         self.db.get::<ProverLastScannedSlot>(&())
     }
 
+    /// Get the last proven slot by the prover
+    #[instrument(level = "trace", skip(self), err, ret)]
+    pub fn get_last_verified_l1_height(&self) -> anyhow::Result<Option<SlotNumber>> {
+        self.db.get::<LastVerifiedSlot>(&())
+    }
+
     /// Set the last scanned slot by the prover
     /// Called by the prover.
     #[instrument(level = "trace", skip(self), err, ret)]
@@ -567,6 +574,20 @@ impl LedgerDB {
 
         schema_batch
             .put::<ProverLastScannedSlot>(&(), &l1_height)
+            .unwrap();
+        self.db.write_schemas(schema_batch)?;
+
+        Ok(())
+    }
+
+    /// Set the last slot height that is proven by prover and verified by full node
+    /// Called by the full node.
+    #[instrument(level = "trace", skip(self), err, ret)]
+    pub fn set_last_verified_l1_height(&self, l1_height: SlotNumber) -> anyhow::Result<()> {
+        let mut schema_batch = SchemaBatch::new();
+
+        schema_batch
+            .put::<LastVerifiedSlot>(&(), &l1_height)
             .unwrap();
         self.db.write_schemas(schema_batch)?;
 

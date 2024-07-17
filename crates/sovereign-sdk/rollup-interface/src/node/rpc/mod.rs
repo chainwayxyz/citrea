@@ -620,6 +620,9 @@ pub trait LedgerRpcProvider {
         height: u64,
     ) -> Result<Option<Vec<VerifiedProofResponse>>, anyhow::Error>;
 
+    /// Get last verified proof
+    fn get_last_verified_proof(&self) -> Result<Option<VerifiedProofResponse>, anyhow::Error>;
+
     /// Get head soft batch
     fn get_head_soft_batch(&self) -> Result<Option<SoftBatchResponse>, anyhow::Error>;
 
