@@ -3284,7 +3284,7 @@ async fn test_full_node_sync_status() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_sequencer_commitment_threshold() {
-    // citrea::initialize_logging(tracing::Level::DEBUG);
+    citrea::initialize_logging(tracing::Level::DEBUG);
 
     let storage_dir = tempdir_with_children(&["DA", "sequencer"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
