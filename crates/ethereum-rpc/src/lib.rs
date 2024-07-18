@@ -11,7 +11,7 @@ pub use gas_price::fee_history::FeeHistoryCacheConfig;
 use gas_price::gas_oracle::GasPriceOracle;
 pub use gas_price::gas_oracle::GasPriceOracleConfig;
 use jsonrpsee::types::ErrorObjectOwned;
-use jsonrpsee::RpcModule;
+use jsonrpsee::{RpcModule, SubscriptionMessage};
 use reth_primitives::{keccak256, BlockNumberOrTag, Bytes, B256, U256};
 use reth_rpc::eth::error::EthApiError;
 use reth_rpc_types::trace::geth::{
@@ -489,10 +489,10 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
 
     rpc.register_async_method::<Result<Vec<GethTrace>, ErrorObjectOwned>, _, _>(
         "debug_traceBlockByHash",
-        |parmaeters, ethereum| async move {
+        |parameters, ethereum| async move {
             info!("eth module: debug_traceBlockByHash");
 
-            let mut params = parmaeters.sequence();
+            let mut params = parameters.sequence();
 
             let block_hash: B256 = params.next()?;
             let evm = Evm::<C>::default();
@@ -720,31 +720,57 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
 
                     // start block is exclusive, hence latest is not supported
                     let BlockNumberOrTag::Number(start_block) = start_block else {
-                        sink.reject(EthApiError::Unsupported("Latest, earliest, pending, safe and finalized are not supported for traceChain start block")).await;
+                        sink.reject(EthApiError::Unsupported(
+                            "Latest, earliest, pending, safe and finalized are not supported for traceChain start block",
+                        )).await;
                         return Ok(());
                     };
 
                     let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
                     let evm = Evm::<C>::default();
+                    let latest_block_number: u64 = evm.block_number(&mut working_set)?.saturating_to();
                     let end_block = match end_block {
-                        BlockNumberOrTag::Number(end_block) => end_block,
-                        BlockNumberOrTag::Latest => evm.block_number(&mut working_set)?.saturating_to(),
+                        BlockNumberOrTag::Number(end_block) => {
+                            if end_block > latest_block_number {
+                                sink.reject(EthApiError::UnknownBlockNumber).await;
+                                return Ok(());
+                            }
+                            end_block
+                        },
+                        BlockNumberOrTag::Latest => latest_block_number,
                         _ => {
-                            sink.reject(EthApiError::Unsupported("Earliest, pending, safe and finalized are not supported for traceChain end block")).await;
+                            sink.reject(EthApiError::Unsupported(
+                                "Earliest, pending, safe and finalized are not supported for traceChain end block",
+                            )).await;
                             return Ok(());
                         }
                     };
 
-                    let opts: Option<GethDebugTracingOptions> = match params.optional_next() {
+                    if start_block >= end_block {
+                        sink.reject(EthApiError::InvalidBlockRange).await;
+                        return Ok(());
+                    }
+
+                    let _opts: Option<GethDebugTracingOptions> = match params.optional_next() {
                         Ok(v) => v,
                         Err(err) => {
                             sink.reject(err).await;
                             return Ok(());
                         }
                     };
-                    println!("{} {} {:?}", start_block, end_block, opts);
 
-                    // let sub = sink.accept().await.map_err(|err| to_jsonrpsee_error_object("", err))?;
+                    let subscription = sink.accept().await?;
+                    tokio::spawn(async move {
+                        for _ in start_block+1..=end_block {
+                            let msg = SubscriptionMessage::new(
+                                subscription.method_name(),
+                                subscription.subscription_id(),
+                                &"hello",
+                            )
+                            .unwrap();
+                            let Ok(_) = subscription.send(msg).await else { return; };
+                        }
+                    });
                 }
                 _ => {
                     sink.reject(EthApiError::Unsupported("Unsupported subscription topic")).await;
