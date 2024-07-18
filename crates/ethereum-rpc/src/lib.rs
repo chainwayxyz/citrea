@@ -687,6 +687,75 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
         },
     )?;
 
+    rpc.register_subscription(
+        "debug_subscribe",
+        "debug_subscription",
+        "debug_unsubscribe",
+        |parameters, sink, ethereum| async move {
+            let mut params = parameters.sequence();
+
+            let topic: String = match params.next() {
+                Ok(v) => v,
+                Err(err) => {
+                    sink.reject(err).await;
+                    return Ok(());
+                }
+            };
+            match topic.as_str() {
+                "traceChain" => {
+                    let start_block: BlockNumberOrTag = match params.next() {
+                        Ok(v) => v,
+                        Err(err) => {
+                            sink.reject(err).await;
+                            return Ok(());
+                        }
+                    };
+                    let end_block: BlockNumberOrTag = match params.next() {
+                        Ok(v) => v,
+                        Err(err) => {
+                            sink.reject(err).await;
+                            return Ok(());
+                        }
+                    };
+
+                    // start block is exclusive, hence latest is not supported
+                    let BlockNumberOrTag::Number(start_block) = start_block else {
+                        sink.reject(EthApiError::Unsupported("Latest, earliest, pending, safe and finalized are not supported for traceChain start block")).await;
+                        return Ok(());
+                    };
+
+                    let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
+                    let evm = Evm::<C>::default();
+                    let end_block = match end_block {
+                        BlockNumberOrTag::Number(end_block) => end_block,
+                        BlockNumberOrTag::Latest => evm.block_number(&mut working_set)?.saturating_to(),
+                        _ => {
+                            sink.reject(EthApiError::Unsupported("Earliest, pending, safe and finalized are not supported for traceChain end block")).await;
+                            return Ok(());
+                        }
+                    };
+
+                    let opts: Option<GethDebugTracingOptions> = match params.optional_next() {
+                        Ok(v) => v,
+                        Err(err) => {
+                            sink.reject(err).await;
+                            return Ok(());
+                        }
+                    };
+                    println!("{} {} {:?}", start_block, end_block, opts);
+
+                    // let sub = sink.accept().await.map_err(|err| to_jsonrpsee_error_object("", err))?;
+                }
+                _ => {
+                    sink.reject(EthApiError::Unsupported("Unsupported subscription topic")).await;
+                    return Ok(());
+                }
+            };
+
+            Ok(())
+        },
+    )?;
+
     rpc.register_async_method("txpool_content", |_, _| async move {
         info!("eth module: txpool_content");
 
