@@ -346,6 +346,8 @@ where
         self.storage_manager
             .save_change_set_l2(l2_height, slot_result.change_set)?;
 
+        self.storage_manager.finalize_l2(l2_height)?;
+
         let batch_receipt = data_to_commit.batch_receipts()[0].clone();
 
         let soft_batch_receipt = SoftBatchReceipt::<_, _, Da::Spec> {
@@ -378,8 +380,6 @@ where
             "New State Root after soft confirmation #{} is: {:?}",
             l2_height, self.state_root
         );
-
-        self.storage_manager.finalize_l2(l2_height)?;
 
         Ok(())
     }

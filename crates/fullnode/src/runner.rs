@@ -458,13 +458,13 @@ where
 
         self.storage_manager.finalize_l2(l2_height)?;
 
+        self.ledger_db
+            .commit_soft_batch(soft_batch_receipt, self.include_tx_body)?;
+
         self.ledger_db.extend_l2_range_of_l1_slot(
             SlotNumber(current_l1_block.header().height()),
             BatchNumber(l2_height),
         )?;
-
-        self.ledger_db
-            .commit_soft_batch(soft_batch_receipt, self.include_tx_body)?;
 
         self.state_root = next_state_root;
         self.batch_hash = soft_batch.hash;
