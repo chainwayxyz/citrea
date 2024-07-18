@@ -510,22 +510,22 @@ where
                     timestamp: signed_soft_batch.timestamp(),
                 };
 
+                self.storage_manager
+                    .save_change_set_l2(l2_height, slot_result.change_set)?;
+
                 // TODO: this will only work for mock da
                 // when https://github.com/Sovereign-Labs/sovereign-sdk/issues/1218
                 // is merged, rpc will access up to date storage then we won't need to finalize rigth away.
                 // however we need much better DA + finalization logic here
-                self.storage_manager
-                    .save_change_set_l2(l2_height, slot_result.change_set)?;
-
                 self.storage_manager.finalize_l2(l2_height)?;
+
+                self.ledger_db.commit_soft_batch(soft_batch_receipt, true)?;
 
                 // connect L1 and L2 height
                 self.ledger_db.extend_l2_range_of_l1_slot(
                     SlotNumber(da_block.header().height()),
                     BatchNumber(l2_height),
                 )?;
-
-                self.ledger_db.commit_soft_batch(soft_batch_receipt, true)?;
 
                 let l1_height = da_block.header().height();
                 info!(
