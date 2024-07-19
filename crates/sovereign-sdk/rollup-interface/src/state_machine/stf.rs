@@ -84,7 +84,7 @@ pub struct BatchReceipt<BatchReceiptContents, TxReceiptContents> {
 
 /// A receipt for a soft batch of transactions. These receipts are stored in the rollup's database
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SoftBatchReceipt<BatchReceiptContents, TxReceiptContents, DS: DaSpec> {
+pub struct SoftConfirmationReceipt<BatchReceiptContents, TxReceiptContents, DS: DaSpec> {
     /// DA layer block number
     pub da_slot_height: u64,
     /// DA layer block hash

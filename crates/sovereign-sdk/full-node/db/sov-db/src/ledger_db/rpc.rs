@@ -1,12 +1,13 @@
 use serde::de::DeserializeOwned;
 use sov_rollup_interface::rpc::{
     sequencer_commitment_to_response, LastVerifiedProofResponse, LedgerRpcProvider, ProofResponse,
-    SequencerCommitmentResponse, SoftBatchIdentifier, SoftBatchResponse, VerifiedProofResponse,
+    SequencerCommitmentResponse, SoftConfirmationIdentifier, SoftConfirmationResponse,
+    VerifiedProofResponse,
 };
 
 use crate::schema::tables::{
-    CommitmentsByNumber, ProofBySlotNumber, SlotByHash, SoftBatchByHash, SoftBatchByNumber,
-    SoftConfirmationStatus, VerifiedProofsBySlotNumber,
+    CommitmentsByNumber, ProofBySlotNumber, SlotByHash, SoftConfirmationByHash,
+    SoftConfirmationByNumber, SoftConfirmationStatus, VerifiedProofsBySlotNumber,
 };
 use crate::schema::types::{BatchNumber, SlotNumber};
 
@@ -20,12 +21,12 @@ use super::LedgerDB;
 impl LedgerRpcProvider for LedgerDB {
     fn get_soft_batch(
         &self,
-        batch_id: &SoftBatchIdentifier,
-    ) -> Result<Option<SoftBatchResponse>, anyhow::Error> {
+        batch_id: &SoftConfirmationIdentifier,
+    ) -> Result<Option<SoftConfirmationResponse>, anyhow::Error> {
         let batch_num = self.resolve_soft_batch_identifier(batch_id)?;
         Ok(match batch_num {
             Some(num) => {
-                if let Some(stored_batch) = self.db.get::<SoftBatchByNumber>(&num)? {
+                if let Some(stored_batch) = self.db.get::<SoftConfirmationByNumber>(&num)? {
                     Some(stored_batch.try_into()?)
                 } else {
                     None
@@ -38,21 +39,21 @@ impl LedgerRpcProvider for LedgerDB {
     fn get_soft_batch_by_hash<T: DeserializeOwned>(
         &self,
         hash: &[u8; 32],
-    ) -> Result<Option<SoftBatchResponse>, anyhow::Error> {
-        self.get_soft_batch(&SoftBatchIdentifier::Hash(*hash))
+    ) -> Result<Option<SoftConfirmationResponse>, anyhow::Error> {
+        self.get_soft_batch(&SoftConfirmationIdentifier::Hash(*hash))
     }
 
     fn get_soft_batch_by_number<T: DeserializeOwned>(
         &self,
         number: u64,
-    ) -> Result<Option<SoftBatchResponse>, anyhow::Error> {
-        self.get_soft_batch(&SoftBatchIdentifier::Number(number))
+    ) -> Result<Option<SoftConfirmationResponse>, anyhow::Error> {
+        self.get_soft_batch(&SoftConfirmationIdentifier::Number(number))
     }
 
     fn get_soft_batches(
         &self,
-        soft_batch_ids: &[SoftBatchIdentifier],
-    ) -> Result<Vec<Option<SoftBatchResponse>>, anyhow::Error> {
+        soft_batch_ids: &[SoftConfirmationIdentifier],
+    ) -> Result<Vec<Option<SoftConfirmationResponse>>, anyhow::Error> {
         anyhow::ensure!(
             soft_batch_ids.len() <= MAX_SOFT_BATCHES_PER_REQUEST as usize,
             "requested too many soft batches. Requested: {}. Max: {}",
@@ -75,14 +76,16 @@ impl LedgerRpcProvider for LedgerDB {
         &self,
         start: u64,
         end: u64,
-    ) -> Result<Vec<Option<SoftBatchResponse>>, anyhow::Error> {
+    ) -> Result<Vec<Option<SoftConfirmationResponse>>, anyhow::Error> {
         anyhow::ensure!(start <= end, "start must be <= end");
         anyhow::ensure!(
             end - start < MAX_BATCHES_PER_REQUEST,
             "requested batch range too large. Max: {}",
             MAX_BATCHES_PER_REQUEST
         );
-        let ids: Vec<_> = (start..=end).map(SoftBatchIdentifier::Number).collect();
+        let ids: Vec<_> = (start..=end)
+            .map(SoftConfirmationIdentifier::Number)
+            .collect();
         self.get_soft_batches(&ids)
     }
 
@@ -92,7 +95,7 @@ impl LedgerRpcProvider for LedgerDB {
     ) -> Result<sov_rollup_interface::rpc::SoftConfirmationStatus, anyhow::Error> {
         if self
             .db
-            .get::<SoftBatchByNumber>(&BatchNumber(l2_height))
+            .get::<SoftConfirmationByNumber>(&BatchNumber(l2_height))
             .ok()
             .flatten()
             .is_none()
@@ -179,13 +182,12 @@ impl LedgerRpcProvider for LedgerDB {
         }
     }
 
-    fn get_head_soft_batch(&self) -> Result<Option<SoftBatchResponse>, anyhow::Error> {
+    fn get_head_soft_batch(&self) -> Result<Option<SoftConfirmationResponse>, anyhow::Error> {
         let next_ids = self.get_next_items_numbers();
 
-        if let Some(stored_soft_batch) = self
-            .db
-            .get::<SoftBatchByNumber>(&BatchNumber(next_ids.soft_batch_number.saturating_sub(1)))?
-        {
+        if let Some(stored_soft_batch) = self.db.get::<SoftConfirmationByNumber>(&BatchNumber(
+            next_ids.soft_batch_number.saturating_sub(1),
+        ))? {
             return Ok(Some(stored_soft_batch.try_into()?));
         }
         Ok(None)
@@ -200,11 +202,11 @@ impl LedgerRpcProvider for LedgerDB {
 impl LedgerDB {
     fn resolve_soft_batch_identifier(
         &self,
-        batch_id: &SoftBatchIdentifier,
+        batch_id: &SoftConfirmationIdentifier,
     ) -> Result<Option<BatchNumber>, anyhow::Error> {
         match batch_id {
-            SoftBatchIdentifier::Hash(hash) => self.db.get::<SoftBatchByHash>(hash),
-            SoftBatchIdentifier::Number(num) => Ok(Some(BatchNumber(*num))),
+            SoftConfirmationIdentifier::Hash(hash) => self.db.get::<SoftConfirmationByHash>(hash),
+            SoftConfirmationIdentifier::Number(num) => Ok(Some(BatchNumber(*num))),
         }
     }
 }

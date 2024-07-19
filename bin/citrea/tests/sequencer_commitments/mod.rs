@@ -163,7 +163,7 @@ async fn check_sequencer_commitment(
     for i in start_l2_block..=end_l2_block {
         batch_receipts.push(
             test_client
-                .ledger_get_soft_batch_by_number::<MockDaSpec>(i)
+                .ledger_get_soft_confirmation_by_number::<MockDaSpec>(i)
                 .await
                 .unwrap(),
         );

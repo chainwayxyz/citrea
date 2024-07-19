@@ -38,7 +38,7 @@ use sov_modules_api::{
 use sov_modules_stf_blueprint::StfBlueprintTrait;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaData, DaSpec, SequencerCommitment};
 use sov_rollup_interface::services::da::{BlobWithNotifier, DaService};
-use sov_rollup_interface::stf::{SoftBatchReceipt, StateTransitionFunction};
+use sov_rollup_interface::stf::{SoftConfirmationReceipt, StateTransitionFunction};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::ZkvmHost;
 use sov_stf_runner::{InitVariant, RollupPublicKeys, RpcConfig};
@@ -494,7 +494,7 @@ where
 
                 let next_state_root = slot_result.state_root;
 
-                let soft_batch_receipt = SoftBatchReceipt::<_, _, Da::Spec> {
+                let soft_confirmation_receipt = SoftConfirmationReceipt::<_, _, Da::Spec> {
                     state_root: next_state_root.as_ref().to_vec(),
                     phantom_data: PhantomData::<u64>,
                     hash: signed_soft_batch.hash(),
@@ -519,7 +519,8 @@ where
                 // however we need much better DA + finalization logic here
                 self.storage_manager.finalize_l2(l2_height)?;
 
-                self.ledger_db.commit_soft_batch(soft_batch_receipt, true)?;
+                self.ledger_db
+                    .commit_soft_batch(soft_confirmation_receipt, true)?;
 
                 // connect L1 and L2 height
                 self.ledger_db.extend_l2_range_of_l1_slot(

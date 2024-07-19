@@ -64,7 +64,7 @@ pub struct TxIdAndKey {
 /// An identifier that specifies a single soft batch
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 #[serde(untagged, rename_all = "camelCase")]
-pub enum SoftBatchIdentifier {
+pub enum SoftConfirmationIdentifier {
     /// The monotonically increasing number of the soft batch
     Number(u64),
     /// The hex-encoded hash of the soft batch
@@ -152,7 +152,7 @@ impl From<Vec<u8>> for HexTx {
 /// The response to a JSON-RPC request for a particular soft batch.
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SoftBatchResponse {
+pub struct SoftConfirmationResponse {
     /// The DA height of the soft batch.
     pub da_slot_height: u64,
     /// The L2 height of the soft batch.
@@ -407,33 +407,33 @@ pub trait LedgerRpcProvider {
     /// Get a list of soft batches by id. The IDs need not be ordered.
     fn get_soft_batches(
         &self,
-        batch_ids: &[SoftBatchIdentifier],
-    ) -> Result<Vec<Option<SoftBatchResponse>>, anyhow::Error>;
+        batch_ids: &[SoftConfirmationIdentifier],
+    ) -> Result<Vec<Option<SoftConfirmationResponse>>, anyhow::Error>;
 
     /// Get soft batch
     fn get_soft_batch(
         &self,
-        batch_id: &SoftBatchIdentifier,
-    ) -> Result<Option<SoftBatchResponse>, anyhow::Error>;
+        batch_id: &SoftConfirmationIdentifier,
+    ) -> Result<Option<SoftConfirmationResponse>, anyhow::Error>;
 
     /// Get a single soft batch by hash.
     fn get_soft_batch_by_hash<T: DeserializeOwned>(
         &self,
         hash: &[u8; 32],
-    ) -> Result<Option<SoftBatchResponse>, anyhow::Error>;
+    ) -> Result<Option<SoftConfirmationResponse>, anyhow::Error>;
 
     /// Get a single soft batch by number.
     fn get_soft_batch_by_number<T: DeserializeOwned>(
         &self,
         number: u64,
-    ) -> Result<Option<SoftBatchResponse>, anyhow::Error>;
+    ) -> Result<Option<SoftConfirmationResponse>, anyhow::Error>;
 
     /// Get a range of soft batches.
     fn get_soft_batches_range(
         &self,
         start: u64,
         end: u64,
-    ) -> Result<Vec<Option<SoftBatchResponse>>, anyhow::Error>;
+    ) -> Result<Vec<Option<SoftConfirmationResponse>>, anyhow::Error>;
 
     /// Takes an L2 Height and and returns the soft confirmation status of the soft batch
     fn get_soft_confirmation_status(
@@ -469,7 +469,7 @@ pub trait LedgerRpcProvider {
     fn get_last_verified_proof(&self) -> Result<Option<LastVerifiedProofResponse>, anyhow::Error>;
 
     /// Get head soft batch
-    fn get_head_soft_batch(&self) -> Result<Option<SoftBatchResponse>, anyhow::Error>;
+    fn get_head_soft_batch(&self) -> Result<Option<SoftConfirmationResponse>, anyhow::Error>;
 
     /// Get head soft batch height
     fn get_head_soft_batch_height(&self) -> Result<u64, anyhow::Error>;

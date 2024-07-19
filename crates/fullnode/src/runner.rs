@@ -13,9 +13,11 @@ use jsonrpsee::core::client::Error as JsonrpseeError;
 use jsonrpsee::RpcModule;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
-use sequencer_client::{GetSoftBatchResponse, SequencerClient};
+use sequencer_client::{GetSoftConfirmationResponse, SequencerClient};
 use sov_db::ledger_db::{LedgerDB, SlotCommit};
-use sov_db::schema::types::{BatchNumber, SlotNumber, StoredSoftBatch, StoredStateTransition};
+use sov_db::schema::types::{
+    BatchNumber, SlotNumber, StoredSoftConfirmation, StoredStateTransition,
+};
 use sov_modules_api::Context;
 use sov_modules_stf_blueprint::StfBlueprintTrait;
 use sov_rollup_interface::da::{
@@ -24,7 +26,7 @@ use sov_rollup_interface::da::{
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
 use sov_rollup_interface::services::da::{DaService, SlotData};
 pub use sov_rollup_interface::stf::BatchReceipt;
-use sov_rollup_interface::stf::{SoftBatchReceipt, StateTransitionFunction};
+use sov_rollup_interface::stf::{SoftConfirmationReceipt, StateTransitionFunction};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::{Proof, Zkvm, ZkvmHost};
 use sov_stf_runner::{InitVariant, RollupPublicKeys, RpcConfig, RunnerConfig};
@@ -341,14 +343,15 @@ where
 
         // Traverse each item's field of vector of transactions, put them in merkle tree
         // and compare the root with the one from the ledger
-        let stored_soft_batches: Vec<StoredSoftBatch> = self.ledger_db.get_soft_batch_range(
-            &(BatchNumber(start_l2_height)..BatchNumber(end_l2_height + 1)),
-        )?;
+        let stored_soft_confirmations: Vec<StoredSoftConfirmation> =
+            self.ledger_db.get_soft_batch_range(
+                &(BatchNumber(start_l2_height)..BatchNumber(end_l2_height + 1)),
+            )?;
 
         // Make sure that the number of stored soft batches is equal to the range's length.
         // Otherwise, if it is smaller, then we don't have some L2 blocks within the range
         // synced yet.
-        if stored_soft_batches.len() < ((end_l2_height - start_l2_height) as usize) {
+        if stored_soft_confirmations.len() < ((end_l2_height - start_l2_height) as usize) {
             return Err(SyncError::MissingL2(
                 "L2 range not synced yet",
                 BatchNumber(start_l2_height),
@@ -356,19 +359,19 @@ where
             ));
         }
 
-        let soft_batches_tree = MerkleTree::<Sha256>::from_leaves(
-            stored_soft_batches
+        let soft_confirmations_tree = MerkleTree::<Sha256>::from_leaves(
+            stored_soft_confirmations
                 .iter()
                 .map(|x| x.hash)
                 .collect::<Vec<_>>()
                 .as_slice(),
         );
 
-        if soft_batches_tree.root() != Some(sequencer_commitment.merkle_root) {
+        if soft_confirmations_tree.root() != Some(sequencer_commitment.merkle_root) {
             return Err(anyhow!(
                 "Merkle root mismatch - expected 0x{} but got 0x{}. Skipping commitment.",
                 hex::encode(
-                    soft_batches_tree
+                    soft_confirmations_tree
                         .root()
                         .ok_or(anyhow!("Could not calculate soft batch tree root"))?
                 ),
@@ -394,7 +397,7 @@ where
     async fn process_l2_block(
         &mut self,
         l2_height: u64,
-        soft_batch: GetSoftBatchResponse,
+        soft_batch: GetSoftConfirmationResponse,
         current_l1_block: Da::FilteredBlock,
     ) -> anyhow::Result<()> {
         info!(
@@ -437,7 +440,7 @@ where
 
         let batch_receipt = data_to_commit.batch_receipts()[0].clone();
 
-        let soft_batch_receipt = SoftBatchReceipt::<_, _, Da::Spec> {
+        let soft_confirmation_receipt = SoftConfirmationReceipt::<_, _, Da::Spec> {
             state_root: next_state_root.as_ref().to_vec(),
             phantom_data: PhantomData::<u64>,
             hash: soft_batch.hash,
@@ -459,7 +462,7 @@ where
         self.storage_manager.finalize_l2(l2_height)?;
 
         self.ledger_db
-            .commit_soft_batch(soft_batch_receipt, self.include_tx_body)?;
+            .commit_soft_batch(soft_confirmation_receipt, self.include_tx_body)?;
 
         self.ledger_db.extend_l2_range_of_l1_slot(
             SlotNumber(current_l1_block.header().height()),
@@ -689,7 +692,7 @@ async fn l1_sync<Da>(
 async fn sync_l2<Da>(
     start_l2_height: u64,
     sequencer_client: SequencerClient,
-    sender: mpsc::Sender<Vec<(u64, GetSoftBatchResponse)>>,
+    sender: mpsc::Sender<Vec<(u64, GetSoftConfirmationResponse)>>,
     sync_blocks_count: u64,
 ) where
     Da: DaService,
@@ -703,13 +706,15 @@ async fn sync_l2<Da>(
             .build();
 
         let inner_client = &sequencer_client;
-        let soft_batches: Vec<GetSoftBatchResponse> =
+        let soft_confirmations: Vec<GetSoftConfirmationResponse> =
             match retry_backoff(exponential_backoff.clone(), || async move {
                 match inner_client
                     .get_soft_batch_range::<Da::Spec>(l2_height..l2_height + sync_blocks_count)
                     .await
                 {
-                    Ok(soft_batches) => Ok(soft_batches.into_iter().flatten().collect::<Vec<_>>()),
+                    Ok(soft_confirmations) => {
+                        Ok(soft_confirmations.into_iter().flatten().collect::<Vec<_>>())
+                    }
                     Err(e) => match e.downcast_ref::<JsonrpseeError>() {
                         Some(JsonrpseeError::Transport(e)) => {
                             let error_msg =
@@ -729,13 +734,13 @@ async fn sync_l2<Da>(
             })
             .await
             {
-                Ok(soft_batches) => soft_batches,
+                Ok(soft_confirmations) => soft_confirmations,
                 Err(_) => {
                     continue;
                 }
             };
 
-        if soft_batches.is_empty() {
+        if soft_confirmations.is_empty() {
             debug!(
                 "Soft Batch: no batch at starting height {}, retrying...",
                 l2_height
@@ -745,14 +750,14 @@ async fn sync_l2<Da>(
             continue;
         }
 
-        let soft_batches: Vec<(u64, GetSoftBatchResponse)> = (l2_height
-            ..l2_height + soft_batches.len() as u64)
-            .zip(soft_batches)
+        let soft_confirmations: Vec<(u64, GetSoftConfirmationResponse)> = (l2_height
+            ..l2_height + soft_confirmations.len() as u64)
+            .zip(soft_confirmations)
             .collect();
 
-        l2_height += soft_batches.len() as u64;
+        l2_height += soft_confirmations.len() as u64;
 
-        if let Err(e) = sender.send(soft_batches).await {
+        if let Err(e) = sender.send(soft_confirmations).await {
             error!("Could not notify about L2 block: {}", e);
         }
     }

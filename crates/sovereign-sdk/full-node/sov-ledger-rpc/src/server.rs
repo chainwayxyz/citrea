@@ -39,24 +39,33 @@ where
 {
     let mut rpc = RpcModule::new(ledger);
 
-    rpc.register_async_method("ledger_getSoftBatchByHash", |params, ledger| async move {
-        let args: HexHash = params.one()?;
-        ledger
-            .get_soft_batch_by_hash::<Tx>(&args.0)
-            .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
-    })?;
-    rpc.register_async_method("ledger_getSoftBatchByNumber", |params, ledger| async move {
-        let args: u64 = params.one()?;
-        ledger
-            .get_soft_batch_by_number::<Tx>(args)
-            .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
-    })?;
-    rpc.register_async_method("ledger_getSoftBatchRange", |params, ledger| async move {
-        let args: (u64, u64) = params.parse()?;
-        ledger
-            .get_soft_batches_range(args.0, args.1)
-            .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
-    })?;
+    rpc.register_async_method(
+        "ledger_getSoftConfirmationByHash",
+        |params, ledger| async move {
+            let args: HexHash = params.one()?;
+            ledger
+                .get_soft_batch_by_hash::<Tx>(&args.0)
+                .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
+        },
+    )?;
+    rpc.register_async_method(
+        "ledger_getSoftConfirmationByNumber",
+        |params, ledger| async move {
+            let args: u64 = params.one()?;
+            ledger
+                .get_soft_batch_by_number::<Tx>(args)
+                .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
+        },
+    )?;
+    rpc.register_async_method(
+        "ledger_getSoftConfirmationRange",
+        |params, ledger| async move {
+            let args: (u64, u64) = params.parse()?;
+            ledger
+                .get_soft_batches_range(args.0, args.1)
+                .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
+        },
+    )?;
     rpc.register_async_method(
         "ledger_getSoftConfirmationStatus",
         |params, ledger| async move {
@@ -141,17 +150,20 @@ where
             .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
     })?;
 
-    rpc.register_async_method("ledger_getHeadSoftBatch", |_, ledger| async move {
+    rpc.register_async_method("ledger_getHeadSoftConfirmation", |_, ledger| async move {
         ledger
             .get_head_soft_batch()
             .map_err(|e: anyhow::Error| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
     })?;
 
-    rpc.register_async_method("ledger_getHeadSoftBatchHeight", |_, ledger| async move {
-        ledger
-            .get_head_soft_batch_height()
-            .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
-    })?;
+    rpc.register_async_method(
+        "ledger_getHeadSoftConfirmationHeight",
+        |_, ledger| async move {
+            ledger
+                .get_head_soft_batch_height()
+                .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
+        },
+    )?;
 
     Ok(rpc)
 }

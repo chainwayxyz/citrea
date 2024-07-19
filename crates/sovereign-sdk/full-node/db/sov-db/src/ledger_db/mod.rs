@@ -5,7 +5,7 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_rollup_interface::da::{DaSpec, SequencerCommitment};
 use sov_rollup_interface::services::da::SlotData;
-use sov_rollup_interface::stf::{BatchReceipt, Event, SoftBatchReceipt, StateDiff};
+use sov_rollup_interface::stf::{BatchReceipt, Event, SoftConfirmationReceipt, StateDiff};
 use sov_rollup_interface::zk::Proof;
 use sov_schema_db::{Schema, SchemaBatch, SeekKeyEncoder, DB};
 use tracing::instrument;
@@ -15,12 +15,12 @@ use crate::schema::tables::{
     BatchByHash, BatchByNumber, CommitmentsByNumber, EventByKey, EventByNumber, L2GenesisStateRoot,
     L2RangeByL1Height, L2Witness, LastSequencerCommitmentSent, LastStateDiff,
     PendingSequencerCommitmentL2Range, ProofBySlotNumber, ProverLastScannedSlot, SlotByHash,
-    SlotByNumber, SoftBatchByHash, SoftBatchByNumber, SoftConfirmationStatus, TxByHash, TxByNumber,
+    SlotByNumber, SoftConfirmationByHash, SoftConfirmationByNumber, SoftConfirmationStatus, TxByHash, TxByNumber,
     VerifiedProofsBySlotNumber, LEDGER_TABLES,
 };
 use crate::schema::types::{
     split_tx_for_storage, BatchNumber, EventNumber, L2HeightRange, SlotNumber, StoredBatch,
-    StoredProof, StoredSlot, StoredSoftBatch, StoredStateTransition, StoredTransaction,
+    StoredProof, StoredSlot, StoredSoftConfirmation, StoredStateTransition, StoredTransaction,
     StoredVerifiedProof, TxNumber,
 };
 
@@ -110,7 +110,7 @@ impl LedgerDB {
 
         let next_item_numbers = ItemNumbers {
             slot_number: Self::last_version_written(&inner, SlotByNumber)?.unwrap_or_default() + 1,
-            soft_batch_number: Self::last_version_written(&inner, SoftBatchByNumber)?
+            soft_batch_number: Self::last_version_written(&inner, SoftConfirmationByNumber)?
                 .unwrap_or_default()
                 + 1,
             batch_number: Self::last_version_written(&inner, BatchByNumber)?.unwrap_or_default()
@@ -162,8 +162,8 @@ impl LedgerDB {
     pub fn get_soft_batch_by_number(
         &self,
         number: &BatchNumber,
-    ) -> Result<Option<StoredSoftBatch>, anyhow::Error> {
-        self.db.get::<SoftBatchByNumber>(number)
+    ) -> Result<Option<StoredSoftConfirmation>, anyhow::Error> {
+        self.db.get::<SoftConfirmationByNumber>(number)
     }
 
     /// Gets all soft confirmations with numbers `range.start` to `range.end`. If `range.end` is outside
@@ -174,8 +174,8 @@ impl LedgerDB {
     pub fn get_soft_batch_range(
         &self,
         range: &std::ops::Range<BatchNumber>,
-    ) -> Result<Vec<StoredSoftBatch>, anyhow::Error> {
-        self.get_data_range::<SoftBatchByNumber, _, _>(range)
+    ) -> Result<Vec<StoredSoftConfirmation>, anyhow::Error> {
+        self.get_data_range::<SoftConfirmationByNumber, _, _>(range)
     }
 
     /// Gets all transactions with numbers `range.start` to `range.end`. If `range.end` is outside
@@ -226,12 +226,12 @@ impl LedgerDB {
     #[instrument(level = "trace", skip(self, schema_batch), err, ret)]
     fn put_soft_batch(
         &self,
-        batch: &StoredSoftBatch,
+        batch: &StoredSoftConfirmation,
         batch_number: &BatchNumber,
         schema_batch: &mut SchemaBatch,
     ) -> Result<(), anyhow::Error> {
-        schema_batch.put::<SoftBatchByNumber>(batch_number, batch)?;
-        schema_batch.put::<SoftBatchByHash>(&batch.hash, batch_number)
+        schema_batch.put::<SoftConfirmationByNumber>(batch_number, batch)?;
+        schema_batch.put::<SoftConfirmationByHash>(&batch.hash, batch_number)
     }
 
     #[instrument(level = "trace", skip(self, schema_batch), err, ret)]
@@ -271,7 +271,7 @@ impl LedgerDB {
     /// Commits a soft batch to the database by inserting its transactions and batches before
     pub fn commit_soft_batch<B: Serialize, T: Serialize, DS: DaSpec>(
         &self,
-        batch_receipt: SoftBatchReceipt<B, T, DS>,
+        batch_receipt: SoftConfirmationReceipt<B, T, DS>,
         include_tx_body: bool,
     ) -> Result<(), anyhow::Error> {
         let mut batch_receipt = batch_receipt;
@@ -328,7 +328,7 @@ impl LedgerDB {
         }
 
         // Insert batch
-        let batch_to_store = StoredSoftBatch {
+        let batch_to_store = StoredSoftConfirmation {
             da_slot_height: batch_receipt.da_slot_height,
             l2_height: current_item_numbers.soft_batch_number,
             da_slot_hash: batch_receipt.da_slot_hash.into(),
@@ -513,8 +513,8 @@ impl LedgerDB {
 
     /// Get the most recent committed soft batch, if any
     #[instrument(level = "trace", skip(self), err)]
-    pub fn get_head_soft_batch(&self) -> anyhow::Result<Option<(BatchNumber, StoredSoftBatch)>> {
-        let mut iter = self.db.iter::<SoftBatchByNumber>()?;
+    pub fn get_head_soft_batch(&self) -> anyhow::Result<Option<(BatchNumber, StoredSoftConfirmation)>> {
+        let mut iter = self.db.iter::<SoftConfirmationByNumber>()?;
         iter.seek_to_last();
 
         match iter.next() {
@@ -653,7 +653,7 @@ impl LedgerDB {
                 .transpose()
         } else {
             self.db
-                .get::<SoftBatchByNumber>(&BatchNumber(l2_height))?
+                .get::<SoftConfirmationByNumber>(&BatchNumber(l2_height))?
                 .map(|soft_batch| bincode::deserialize(&soft_batch.state_root).map_err(Into::into))
                 .transpose()
         }

@@ -36,7 +36,7 @@ use sov_schema_db::{CodecError, SeekKeyEncoder};
 
 use super::types::{
     AccessoryKey, AccessoryStateValue, BatchNumber, DbHash, EventNumber, JmtValue, L2HeightRange,
-    SlotNumber, StateKey, StoredBatch, StoredProof, StoredSlot, StoredSoftBatch, StoredTransaction,
+    SlotNumber, StateKey, StoredBatch, StoredProof, StoredSlot, StoredSoftConfirmation, StoredTransaction,
     StoredVerifiedProof, TxNumber,
 };
 
@@ -53,8 +53,8 @@ pub const STATE_TABLES: &[&str] = &[
 pub const LEDGER_TABLES: &[&str] = &[
     SlotByNumber::table_name(),
     SlotByHash::table_name(),
-    SoftBatchByNumber::table_name(),
-    SoftBatchByHash::table_name(),
+    SoftConfirmationByNumber::table_name(),
+    SoftConfirmationByHash::table_name(),
     L2RangeByL1Height::table_name(),
     L2Witness::table_name(),
     L2GenesisStateRoot::table_name(),
@@ -242,12 +242,12 @@ define_table_with_default_codec!(
 
 define_table_with_seek_key_codec!(
     /// The primary source for soft batch data
-    (SoftBatchByNumber) BatchNumber => StoredSoftBatch
+    (SoftConfirmationByNumber) BatchNumber => StoredSoftConfirmation
 );
 
 define_table_with_default_codec!(
     /// A "secondary index" for soft batch data by hash
-    (SoftBatchByHash) DbHash => BatchNumber
+    (SoftConfirmationByHash) DbHash => BatchNumber
 );
 
 define_table_with_default_codec!(

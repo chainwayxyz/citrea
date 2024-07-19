@@ -9,7 +9,7 @@ use sov_mock_da::MockDaSpec;
 use sov_mock_da::{MockBlock, MockBlockHeader, MockHash};
 use sov_modules_api::DaSpec;
 use sov_rollup_interface::da::Time;
-use sov_rollup_interface::stf::{BatchReceipt, Event, SoftBatchReceipt, TransactionReceipt};
+use sov_rollup_interface::stf::{BatchReceipt, Event, SoftConfirmationReceipt, TransactionReceipt};
 #[cfg(test)]
 use sov_stf_runner::RpcConfig;
 
@@ -45,7 +45,7 @@ async fn queries_test_runner(test_queries: Vec<TestExpect>, rpc_config: RpcConfi
 fn populate_ledger(
     ledger_db: &mut LedgerDB,
     slots: Vec<SlotCommit<MockBlock, u32, u32>>,
-    soft_batch_receipts: Option<Vec<SoftBatchReceipt<u64, u32, MockDaSpec>>>,
+    soft_batch_receipts: Option<Vec<SoftConfirmationReceipt<u64, u32, MockDaSpec>>>,
 ) {
     for slot in slots {
         ledger_db.commit_slot(slot).unwrap();
@@ -62,7 +62,7 @@ fn populate_ledger(
 fn test_helper(
     test_queries: Vec<TestExpect>,
     slots: Vec<SlotCommit<MockBlock, u32, u32>>,
-    soft_batch_receipts: Option<Vec<SoftBatchReceipt<u64, u32, MockDaSpec>>>,
+    soft_batch_receipts: Option<Vec<SoftConfirmationReceipt<u64, u32, MockDaSpec>>>,
 ) {
     let rt = tokio::runtime::Builder::new_multi_thread()
         .enable_io()
@@ -122,7 +122,7 @@ fn regular_test_helper(payload: serde_json::Value, expected: &serde_json::Value)
     })];
 
     let soft_batch_receipts = vec![
-        SoftBatchReceipt {
+        SoftConfirmationReceipt {
             da_slot_height: 0,
             da_slot_hash: <MockDaSpec as DaSpec>::SlotHash::from([0u8; 32]),
             da_slot_txs_commitment: <MockDaSpec as DaSpec>::SlotHash::from([1u8; 32]),
@@ -156,7 +156,7 @@ fn regular_test_helper(payload: serde_json::Value, expected: &serde_json::Value)
             l1_fee_rate: 0,
             timestamp: 0,
         },
-        SoftBatchReceipt {
+        SoftConfirmationReceipt {
             da_slot_height: 1,
             da_slot_hash: <MockDaSpec as DaSpec>::SlotHash::from([2; 32]),
             da_slot_txs_commitment: <MockDaSpec as DaSpec>::SlotHash::from([3; 32]),
@@ -248,21 +248,21 @@ macro_rules! jsonrpc_result {
 }
 
 #[test]
-fn test_get_soft_batch() {
+fn test_get_soft_confirmation() {
     // Get the first soft batch by number
-    let payload = jsonrpc_req!("ledger_getSoftBatchByNumber", [1]);
+    let payload = jsonrpc_req!("ledger_getSoftConfirmationByNumber", [1]);
     let expected = jsonrpc_result!({"daSlotHeight":0,"daSlotHash":"0000000000000000000000000000000000000000000000000000000000000000","daSlotTxsCommitment":"0101010101010101010101010101010101010101010101010101010101010101","depositData": ["616161616162", "65656565656565656565"],"hash":"b5515a80204963f7db40e98af11aedb49a394b1c7e3d8b5b7a33346b8627444f","l2Height":1, "txs":["74783120626f6479", "74783220626f6479"],"prevHash":"0209d4aa08c40ed0fcb2bb6eb276481f2ad045914c3065e13e4f1657e97638b1","stateRoot":"","softConfirmationSignature":"","pubKey":"", "l1FeeRate":0, "timestamp": 0});
     regular_test_helper(payload, &expected);
 
     // Get the first soft batch by hash
     let payload = jsonrpc_req!(
-        "ledger_getSoftBatchByHash",
+        "ledger_getSoftConfirmationByHash",
         ["b5515a80204963f7db40e98af11aedb49a394b1c7e3d8b5b7a33346b8627444f"]
     );
     regular_test_helper(payload, &expected);
 
     // Get the second soft batch by number
-    let payload = jsonrpc_req!("ledger_getSoftBatchByNumber", [2]);
+    let payload = jsonrpc_req!("ledger_getSoftConfirmationByNumber", [2]);
     let txs = batch2_tx_receipts()
         .into_iter()
         .map(|tx_receipt| tx_receipt.body_to_save.unwrap().encode_hex::<String>())
@@ -274,13 +274,13 @@ fn test_get_soft_batch() {
 
     //  Get the second soft batch by hash
     let payload = jsonrpc_req!(
-        "ledger_getSoftBatchByHash",
+        "ledger_getSoftConfirmationByHash",
         ["f85fe0cb36fdaeca571c896ed476b49bb3c8eff00d935293a8967e1e9a62071e"]
     );
     regular_test_helper(payload, &expected);
 
     // Get range of soft batches
-    let payload = jsonrpc_req!("ledger_getSoftBatchRange", [1, 2]);
+    let payload = jsonrpc_req!("ledger_getSoftConfirmationRange", [1, 2]);
 
     let txs = batch2_tx_receipts()
         .into_iter()

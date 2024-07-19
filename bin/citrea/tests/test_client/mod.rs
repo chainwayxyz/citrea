@@ -15,10 +15,10 @@ use jsonrpsee::rpc_params;
 use reth_primitives::{Address, BlockId, BlockNumberOrTag, Bytes, TxHash, TxKind, B256, U256, U64};
 // use reth_rpc_types::TransactionReceipt;
 use reth_rpc_types::trace::geth::{GethDebugTracingOptions, GethTrace};
-use sequencer_client::GetSoftBatchResponse;
+use sequencer_client::GetSoftConfirmationResponse;
 use sov_rollup_interface::rpc::{
-    LastVerifiedProofResponse, ProofResponse, SequencerCommitmentResponse, SoftBatchResponse,
-    SoftConfirmationStatus, VerifiedProofResponse,
+    LastVerifiedProofResponse, ProofResponse, SequencerCommitmentResponse,
+    SoftConfirmationResponse, SoftConfirmationStatus, VerifiedProofResponse,
 };
 
 pub const MAX_FEE_PER_GAS: u128 = 1000000001;
@@ -505,14 +505,14 @@ impl TestClient {
     }
 
     #[allow(clippy::extra_unused_type_parameters)]
-    pub(crate) async fn ledger_get_soft_batch_by_number<
+    pub(crate) async fn ledger_get_soft_confirmation_by_number<
         DaSpec: sov_rollup_interface::da::DaSpec,
     >(
         &self,
         num: u64,
-    ) -> Option<GetSoftBatchResponse> {
+    ) -> Option<GetSoftConfirmationResponse> {
         self.http_client
-            .request("ledger_getSoftBatchByNumber", rpc_params![num])
+            .request("ledger_getSoftConfirmationByNumber", rpc_params![num])
             .await
             .unwrap()
     }
@@ -587,20 +587,20 @@ impl TestClient {
             .map_err(|e| e.into())
     }
 
-    pub(crate) async fn ledger_get_head_soft_batch(
+    pub(crate) async fn ledger_get_head_soft_confirmation(
         &self,
-    ) -> Result<Option<SoftBatchResponse>, Box<dyn std::error::Error>> {
+    ) -> Result<Option<SoftConfirmationResponse>, Box<dyn std::error::Error>> {
         self.http_client
-            .request("ledger_getHeadSoftBatch", rpc_params![])
+            .request("ledger_getHeadSoftConfirmation", rpc_params![])
             .await
             .map_err(|e| e.into())
     }
 
-    pub(crate) async fn ledger_get_head_soft_batch_height(
+    pub(crate) async fn ledger_get_head_soft_confirmation_height(
         &self,
     ) -> Result<Option<u64>, Box<dyn std::error::Error>> {
         self.http_client
-            .request("ledger_getHeadSoftBatchHeight", rpc_params![])
+            .request("ledger_getHeadSoftConfirmationHeight", rpc_params![])
             .await
             .map_err(|e| e.into())
     }

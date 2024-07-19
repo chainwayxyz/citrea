@@ -786,11 +786,11 @@ async fn test_soft_confirmations_on_different_blocks() -> Result<(), anyhow::Err
     // now retrieve soft confirmations from the sequencer and full node and check if they are the same
     for i in 1..=6 {
         let seq_soft_conf = seq_test_client
-            .ledger_get_soft_batch_by_number::<MockDaSpec>(i)
+            .ledger_get_soft_confirmation_by_number::<MockDaSpec>(i)
             .await
             .unwrap();
         let full_node_soft_conf = full_node_test_client
-            .ledger_get_soft_batch_by_number::<MockDaSpec>(i)
+            .ledger_get_soft_confirmation_by_number::<MockDaSpec>(i)
             .await
             .unwrap();
 
@@ -823,11 +823,11 @@ async fn test_soft_confirmations_on_different_blocks() -> Result<(), anyhow::Err
 
     for i in 7..=12 {
         let seq_soft_conf = seq_test_client
-            .ledger_get_soft_batch_by_number::<MockDaSpec>(i)
+            .ledger_get_soft_confirmation_by_number::<MockDaSpec>(i)
             .await
             .unwrap();
         let full_node_soft_conf = full_node_test_client
-            .ledger_get_soft_batch_by_number::<MockDaSpec>(i)
+            .ledger_get_soft_confirmation_by_number::<MockDaSpec>(i)
             .await
             .unwrap();
 
@@ -1181,7 +1181,7 @@ async fn test_soft_confirmations_status_two_l1() -> Result<(), anyhow::Error> {
     let mut batch_infos = vec![];
     for i in 1..=6 {
         let full_node_soft_conf = full_node_test_client
-            .ledger_get_soft_batch_by_number::<MockDaSpec>(i)
+            .ledger_get_soft_confirmation_by_number::<MockDaSpec>(i)
             .await
             .unwrap();
         batch_infos.push(full_node_soft_conf);
@@ -1836,7 +1836,7 @@ async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error>
     sleep(Duration::from_secs(1)).await;
 
     let initial_soft_batch = seq_test_client
-        .ledger_get_soft_batch_by_number::<MockDaSpec>(1)
+        .ledger_get_soft_confirmation_by_number::<MockDaSpec>(1)
         .await
         .unwrap();
 
@@ -1886,7 +1886,7 @@ async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error>
     seq_test_client.send_publish_batch_request().await;
 
     let second_soft_batch = seq_test_client
-        .ledger_get_soft_batch_by_number::<MockDaSpec>(2)
+        .ledger_get_soft_confirmation_by_number::<MockDaSpec>(2)
         .await
         .unwrap();
 
@@ -2172,7 +2172,7 @@ async fn transaction_failing_on_l1_is_removed_from_mempool() -> Result<(), anyho
         .await;
 
     let soft_confirmation = seq_test_client
-        .ledger_get_soft_batch_by_number::<MockDaSpec>(block.header.number.unwrap())
+        .ledger_get_soft_confirmation_by_number::<MockDaSpec>(block.header.number.unwrap())
         .await
         .unwrap();
 
@@ -3154,7 +3154,7 @@ async fn test_gas_limit_too_high() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn test_ledger_get_head_soft_batch() {
+async fn test_ledger_get_head_soft_confirmation() {
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
     let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
@@ -3200,7 +3200,7 @@ async fn test_ledger_get_head_soft_batch() {
         .await;
 
     let head_soft_batch = seq_test_client
-        .ledger_get_head_soft_batch()
+        .ledger_get_head_soft_confirmation()
         .await
         .unwrap()
         .unwrap();
@@ -3212,7 +3212,7 @@ async fn test_ledger_get_head_soft_batch() {
     assert_eq!(head_soft_batch.l2_height, 2);
 
     let head_soft_batch_height = seq_test_client
-        .ledger_get_head_soft_batch_height()
+        .ledger_get_head_soft_confirmation_height()
         .await
         .unwrap()
         .unwrap();
@@ -3475,7 +3475,7 @@ async fn test_sequencer_fill_missing_da_blocks() -> Result<(), anyhow::Error> {
     // ensure that all the filled l2 blocks correspond to correct da blocks
     for filler_l2_block in first_filler_l2_block..=last_filler_l2_block {
         let soft_batch = seq_test_client
-            .ledger_get_soft_batch_by_number::<MockDaSpec>(filler_l2_block)
+            .ledger_get_soft_confirmation_by_number::<MockDaSpec>(filler_l2_block)
             .await
             .unwrap();
         assert_eq!(soft_batch.da_slot_height, next_da_block);
@@ -3491,13 +3491,13 @@ async fn test_sequencer_fill_missing_da_blocks() -> Result<(), anyhow::Error> {
 
     // ensure that the latest l2 block points to latest da block and has correct height
     let head_soft_batch = seq_test_client
-        .ledger_get_head_soft_batch()
+        .ledger_get_head_soft_confirmation()
         .await
         .unwrap()
         .unwrap();
     assert_eq!(head_soft_batch.da_slot_height, latest_da_block);
     let head_soft_batch_num = seq_test_client
-        .ledger_get_head_soft_batch_height()
+        .ledger_get_head_soft_confirmation_height()
         .await
         .unwrap()
         .unwrap();

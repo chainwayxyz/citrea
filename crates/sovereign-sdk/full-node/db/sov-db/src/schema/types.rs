@@ -5,7 +5,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::rpc::{
-    HexTx, ProofResponse, ProofRpcResponse, SoftBatchResponse, StateTransitionRpcResponse,
+    HexTx, ProofResponse, ProofRpcResponse, SoftConfirmationResponse, StateTransitionRpcResponse,
     TxIdentifier, TxResponse, VerifiedProofResponse,
 };
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
@@ -163,7 +163,7 @@ pub fn convert_to_rpc_proof(stored_proof: Proof) -> ProofRpcResponse {
 /// The on-disk format for a batch. Stores the hash and identifies the range of transactions
 /// included in the batch.
 #[derive(Clone, Debug, PartialEq, BorshDeserialize, BorshSerialize)]
-pub struct StoredSoftBatch {
+pub struct StoredSoftConfirmation {
     /// The number of the batch
     pub da_slot_height: u64,
     /// The l2 height of the soft batch
@@ -194,8 +194,8 @@ pub struct StoredSoftBatch {
     pub timestamp: u64,
 }
 
-impl From<StoredSoftBatch> for SignedSoftConfirmationBatch {
-    fn from(value: StoredSoftBatch) -> Self {
+impl From<StoredSoftConfirmation> for SignedSoftConfirmationBatch {
+    fn from(value: StoredSoftConfirmation) -> Self {
         SignedSoftConfirmationBatch::new(
             value.hash,
             value.prev_hash,
@@ -216,9 +216,9 @@ impl From<StoredSoftBatch> for SignedSoftConfirmationBatch {
 /// (start, end) inclusive
 pub type L2HeightRange = (BatchNumber, BatchNumber);
 
-impl TryFrom<StoredSoftBatch> for SoftBatchResponse {
+impl TryFrom<StoredSoftConfirmation> for SoftConfirmationResponse {
     type Error = anyhow::Error;
-    fn try_from(value: StoredSoftBatch) -> Result<Self, Self::Error> {
+    fn try_from(value: StoredSoftConfirmation) -> Result<Self, Self::Error> {
         Ok(Self {
             da_slot_hash: value.da_slot_hash,
             l2_height: value.l2_height,
