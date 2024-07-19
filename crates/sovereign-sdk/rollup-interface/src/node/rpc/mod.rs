@@ -462,25 +462,12 @@ pub enum SoftConfirmationStatus {
 /// A LedgerRpcProvider provides a way to query the ledger for information about slots, batches, transactions, and events.
 #[cfg(feature = "native")]
 pub trait LedgerRpcProvider {
-    /// Get the latest slot in the ledger.
-    fn get_head<B: DeserializeOwned + Clone, T: DeserializeOwned>(
-        &self,
-        query_mode: QueryMode,
-    ) -> Result<Option<SlotResponse<B, T>>, anyhow::Error>;
-
     /// Get a list of slots by id. The IDs need not be ordered.
     fn get_slots<B: DeserializeOwned, T: DeserializeOwned>(
         &self,
         slot_ids: &[SlotIdentifier],
         query_mode: QueryMode,
     ) -> Result<Vec<Option<SlotResponse<B, T>>>, anyhow::Error>;
-
-    /// Get a list of batches by id. The IDs need not be ordered.
-    fn get_batches<B: DeserializeOwned, T: DeserializeOwned>(
-        &self,
-        batch_ids: &[BatchIdentifier],
-        query_mode: QueryMode,
-    ) -> Result<Vec<Option<BatchResponse<B, T>>>, anyhow::Error>;
 
     /// Get a list of soft batches by id. The IDs need not be ordered.
     fn get_soft_batches(
@@ -507,25 +494,11 @@ pub trait LedgerRpcProvider {
         event_ids: &[EventIdentifier],
     ) -> Result<Vec<Option<Event>>, anyhow::Error>;
 
-    /// Get a single slot by hash.
-    fn get_slot_by_hash<B: DeserializeOwned, T: DeserializeOwned>(
-        &self,
-        hash: &[u8; 32],
-        query_mode: QueryMode,
-    ) -> Result<Option<SlotResponse<B, T>>, anyhow::Error>;
-
     /// Get a single soft batch by hash.
     fn get_soft_batch_by_hash<T: DeserializeOwned>(
         &self,
         hash: &[u8; 32],
     ) -> Result<Option<SoftBatchResponse>, anyhow::Error>;
-
-    /// Get a single batch by hash.
-    fn get_batch_by_hash<B: DeserializeOwned, T: DeserializeOwned>(
-        &self,
-        hash: &[u8; 32],
-        query_mode: QueryMode,
-    ) -> Result<Option<BatchResponse<B, T>>, anyhow::Error>;
 
     /// Get a single transaction by hash.
     fn get_tx_by_hash<T: DeserializeOwned>(
@@ -534,25 +507,11 @@ pub trait LedgerRpcProvider {
         query_mode: QueryMode,
     ) -> Result<Option<TxResponse<T>>, anyhow::Error>;
 
-    /// Get a single slot by number.
-    fn get_slot_by_number<B: DeserializeOwned, T: DeserializeOwned>(
-        &self,
-        number: u64,
-        query_mode: QueryMode,
-    ) -> Result<Option<SlotResponse<B, T>>, anyhow::Error>;
-
     /// Get a single soft batch by number.
     fn get_soft_batch_by_number<T: DeserializeOwned>(
         &self,
         number: u64,
     ) -> Result<Option<SoftBatchResponse>, anyhow::Error>;
-
-    /// Get a single batch by number.
-    fn get_batch_by_number<B: DeserializeOwned, T: DeserializeOwned>(
-        &self,
-        number: u64,
-        query_mode: QueryMode,
-    ) -> Result<Option<BatchResponse<B, T>>, anyhow::Error>;
 
     /// Get a single event by number.
     fn get_event_by_number(&self, number: u64) -> Result<Option<Event>, anyhow::Error>;
@@ -563,26 +522,6 @@ pub trait LedgerRpcProvider {
         number: u64,
         query_mode: QueryMode,
     ) -> Result<Option<TxResponse<T>>, anyhow::Error>;
-
-    /// Get a range of slots. This query is the most efficient way to
-    /// fetch large numbers of slots, since it allows for easy batching of
-    /// db queries for adjacent items.
-    fn get_slots_range<B: DeserializeOwned, T: DeserializeOwned>(
-        &self,
-        start: u64,
-        end: u64,
-        query_mode: QueryMode,
-    ) -> Result<Vec<Option<SlotResponse<B, T>>>, anyhow::Error>;
-
-    /// Get a range of batches. This query is the most efficient way to
-    /// fetch large numbers of batches, since it allows for easy batching of
-    /// db queries for adjacent items.
-    fn get_batches_range<B: DeserializeOwned, T: DeserializeOwned>(
-        &self,
-        start: u64,
-        end: u64,
-        query_mode: QueryMode,
-    ) -> Result<Vec<Option<BatchResponse<B, T>>>, anyhow::Error>;
 
     /// Get a range of soft batches.
     fn get_soft_batches_range(
@@ -618,9 +557,6 @@ pub trait LedgerRpcProvider {
         &self,
         height: u64,
     ) -> Result<Option<Vec<SequencerCommitmentResponse>>, anyhow::Error>;
-
-    /// Get a notification each time a slot is processed
-    fn subscribe_slots(&self) -> Result<tokio::sync::broadcast::Receiver<u64>, anyhow::Error>;
 
     /// Get proof by l1 height
     fn get_proof_data_by_l1_height(

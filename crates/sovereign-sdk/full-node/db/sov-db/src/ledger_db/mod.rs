@@ -511,19 +511,6 @@ impl LedgerDB {
         }
     }
 
-    /// Get the most recent committed slot, if any
-    #[instrument(level = "trace", skip(self), err)]
-    pub fn get_head_slot(&self) -> anyhow::Result<Option<(SlotNumber, StoredSlot)>> {
-        let mut iter = self.db.iter::<SlotByNumber>()?;
-        iter.seek_to_last();
-
-        match iter.next() {
-            Some(Ok(item)) => Ok(Some(item.into_tuple())),
-            Some(Err(e)) => Err(e),
-            _ => Ok(None),
-        }
-    }
-
     /// Get the most recent committed soft batch, if any
     #[instrument(level = "trace", skip(self), err)]
     pub fn get_head_soft_batch(&self) -> anyhow::Result<Option<(BatchNumber, StoredSoftBatch)>> {

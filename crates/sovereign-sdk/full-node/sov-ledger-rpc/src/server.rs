@@ -1,12 +1,10 @@
 //! A JSON-RPC server implementation for any [`LedgerRpcProvider`].
 
-use futures::future::Either;
 use jsonrpsee::types::ErrorObjectOwned;
-use jsonrpsee::{RpcModule, SubscriptionMessage};
+use jsonrpsee::{RpcModule};
 use serde::de::DeserializeOwned;
 use sov_modules_api::utils::to_jsonrpsee_error_object;
-use sov_rollup_interface::rpc::{
-    BatchIdentifier, EventIdentifier, LedgerRpcProvider, QueryMode, SlotIdentifier, TxIdentifier,
+use sov_rollup_interface::rpc::{ EventIdentifier, LedgerRpcProvider, QueryMode, TxIdentifier,
 };
 
 use crate::HexHash;
@@ -43,27 +41,6 @@ where
 {
     let mut rpc = RpcModule::new(ledger);
 
-    rpc.register_async_method("ledger_getHead", |params, ledger| async move {
-        let mut params = params.sequence();
-        let query_mode = params.optional_next()?.unwrap_or(QueryMode::Compact);
-        ledger
-            .get_head::<B, Tx>(query_mode)
-            .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
-    })?;
-
-    // Primary getters.
-    rpc.register_async_method("ledger_getSlots", |params, ledger| async move {
-        let args: QueryArgs<Vec<SlotIdentifier>> = extract_query_args(params)?;
-        ledger
-            .get_slots::<B, Tx>(&args.0, args.1)
-            .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
-    })?;
-    rpc.register_async_method("ledger_getBatches", |params, ledger| async move {
-        let args: QueryArgs<Vec<BatchIdentifier>> = extract_query_args(params)?;
-        ledger
-            .get_batches::<B, Tx>(&args.0, args.1)
-            .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
-    })?;
     rpc.register_async_method("ledger_getTransactions", |params, ledger| async move {
         let args: QueryArgs<Vec<TxIdentifier>> = extract_query_args(params)?;
         ledger
@@ -76,24 +53,10 @@ where
             .get_events(&ids)
             .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
     })?;
-
-    // By-hash getters.
-    rpc.register_async_method("ledger_getSlotByHash", |params, ledger| async move {
-        let args: QueryArgs<HexHash> = extract_query_args(params)?;
-        ledger
-            .get_slot_by_hash::<B, Tx>(&args.0 .0, args.1)
-            .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
-    })?;
     rpc.register_async_method("ledger_getSoftBatchByHash", |params, ledger| async move {
         let args: QueryArgs<HexHash> = extract_query_args(params)?;
         ledger
             .get_soft_batch_by_hash::<Tx>(&args.0 .0)
-            .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
-    })?;
-    rpc.register_async_method("ledger_getBatchByHash", |params, ledger| async move {
-        let args: QueryArgs<HexHash> = extract_query_args(params)?;
-        ledger
-            .get_batch_by_hash::<B, Tx>(&args.0 .0, args.1)
             .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
     })?;
     rpc.register_async_method("ledger_getTransactionByHash", |params, ledger| async move {
@@ -102,24 +65,10 @@ where
             .get_tx_by_hash::<Tx>(&args.0 .0, args.1)
             .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
     })?;
-
-    // By-number getters.
-    rpc.register_async_method("ledger_getSlotByNumber", |params, ledger| async move {
-        let args: QueryArgs<u64> = extract_query_args(params)?;
-        ledger
-            .get_slot_by_number::<B, Tx>(args.0, args.1)
-            .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
-    })?;
     rpc.register_async_method("ledger_getSoftBatchByNumber", |params, ledger| async move {
         let args: QueryArgs<u64> = extract_query_args(params)?;
         ledger
             .get_soft_batch_by_number::<Tx>(args.0)
-            .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
-    })?;
-    rpc.register_async_method("ledger_getBatchByNumber", |params, ledger| async move {
-        let args: QueryArgs<u64> = extract_query_args(params)?;
-        ledger
-            .get_batch_by_number::<B, Tx>(args.0, args.1)
             .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
     })?;
     rpc.register_async_method(
@@ -135,20 +84,6 @@ where
         let args: u64 = params.one()?;
         ledger
             .get_event_by_number(args)
-            .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
-    })?;
-
-    // Range getters.
-    rpc.register_async_method("ledger_getSlotsRange", |params, ledger| async move {
-        let args: RangeArgs = params.parse()?;
-        ledger
-            .get_slots_range::<B, Tx>(args.0, args.1, args.2)
-            .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
-    })?;
-    rpc.register_async_method("ledger_getBatchesRange", |params, ledger| async move {
-        let args: RangeArgs = params.parse()?;
-        ledger
-            .get_batches_range::<B, Tx>(args.0, args.1, args.2)
             .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
     })?;
     rpc.register_async_method("ledger_getSoftBatchRange", |params, ledger| async move {
@@ -246,42 +181,6 @@ where
             .get_last_verified_proof()
             .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
     })?;
-
-    rpc.register_subscription(
-        "ledger_subscribeSlots",
-        "ledger_slotProcessed",
-        "ledger_unsubscribeSlots",
-        |_, pending_subscription, db| async move {
-            // Register with the ledgerDB to receive callbacks
-            let mut rx = db
-                .subscribe_slots()
-                .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))?;
-
-            // Accept the subscription. This message is sent immediately
-            let subscription = pending_subscription.accept().await?;
-            let closed = subscription.closed();
-            futures::pin_mut!(closed);
-
-            // This loop continues running until the subscription ends.
-            loop {
-                let next_msg = rx.recv();
-                futures::pin_mut!(next_msg);
-                match futures::future::select(closed, next_msg).await {
-                    // If the subscription closed, we're done
-                    Either::Left(_) => break Ok(()),
-                    // Otherwise, we need to send the message
-                    Either::Right((outcome, channel_closing_future)) => {
-                        let msg = SubscriptionMessage::from_json(&outcome?)?;
-                        // Sending only fails if the subscriber has canceled, so we can stop sending messages
-                        if subscription.send(msg).await.is_err() {
-                            break Ok(());
-                        }
-                        closed = channel_closing_future;
-                    }
-                }
-            }
-        },
-    )?;
 
     rpc.register_async_method("ledger_getHeadSoftBatch", |_, ledger| async move {
         ledger

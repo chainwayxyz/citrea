@@ -7,7 +7,6 @@ use sov_rollup_interface::rpc::{
     VerifiedProofResponse,
 };
 use sov_rollup_interface::stf::Event;
-use tokio::sync::broadcast::Receiver;
 
 use crate::schema::tables::{
     BatchByHash, BatchByNumber, CommitmentsByNumber, EventByNumber, ProofBySlotNumber, SlotByHash,
@@ -79,36 +78,6 @@ impl LedgerRpcProvider for LedgerDB {
         })
     }
 
-    fn get_batches<B: DeserializeOwned, T: DeserializeOwned>(
-        &self,
-        batch_ids: &[sov_rollup_interface::rpc::BatchIdentifier],
-        query_mode: QueryMode,
-    ) -> Result<Vec<Option<BatchResponse<B, T>>>, anyhow::Error> {
-        anyhow::ensure!(
-            batch_ids.len() <= MAX_BATCHES_PER_REQUEST as usize,
-            "requested too many batches. Requested: {}. Max: {}",
-            batch_ids.len(),
-            MAX_BATCHES_PER_REQUEST
-        );
-        // TODO: https://github.com/Sovereign-Labs/sovereign-sdk/issues/191 Sort the input
-        //      and use an iterator instead of querying for each slot individually
-        let mut out = Vec::with_capacity(batch_ids.len());
-        for batch_id in batch_ids {
-            let batch_num = self.resolve_batch_identifier(batch_id)?;
-            out.push(match batch_num {
-                Some(num) => {
-                    if let Some(stored_batch) = self.db.get::<BatchByNumber>(&num)? {
-                        Some(self.populate_batch_response(stored_batch, query_mode)?)
-                    } else {
-                        None
-                    }
-                }
-                None => None,
-            })
-        }
-        Ok(out)
-    }
-
     fn get_transactions<T: DeserializeOwned>(
         &self,
         tx_ids: &[sov_rollup_interface::rpc::TxIdentifier],
@@ -162,52 +131,11 @@ impl LedgerRpcProvider for LedgerDB {
         Ok(out)
     }
 
-    fn get_head<B: DeserializeOwned, T: DeserializeOwned>(
-        &self,
-        query_mode: QueryMode,
-    ) -> Result<Option<SlotResponse<B, T>>, anyhow::Error> {
-        let next_ids = self.get_next_items_numbers();
-        let next_slot = next_ids.slot_number;
-
-        let head_number = next_slot.saturating_sub(1);
-
-        if let Some(stored_slot) = self
-            .db
-            .get::<SlotByNumber>(&SlotNumber(next_slot.saturating_sub(1)))?
-        {
-            return Ok(Some(self.populate_slot_response(
-                head_number,
-                stored_slot,
-                query_mode,
-            )?));
-        }
-        Ok(None)
-    }
-
-    // Get X by hash
-    fn get_slot_by_hash<B: DeserializeOwned, T: DeserializeOwned>(
-        &self,
-        hash: &[u8; 32],
-        query_mode: QueryMode,
-    ) -> Result<Option<SlotResponse<B, T>>, anyhow::Error> {
-        self.get_slots(&[SlotIdentifier::Hash(*hash)], query_mode)
-            .map(|mut batches: Vec<Option<SlotResponse<B, T>>>| batches.pop().unwrap_or(None))
-    }
-
     fn get_soft_batch_by_hash<T: DeserializeOwned>(
         &self,
         hash: &[u8; 32],
     ) -> Result<Option<SoftBatchResponse>, anyhow::Error> {
         self.get_soft_batch(&SoftBatchIdentifier::Hash(*hash))
-    }
-
-    fn get_batch_by_hash<B: DeserializeOwned, T: DeserializeOwned>(
-        &self,
-        hash: &[u8; 32],
-        query_mode: QueryMode,
-    ) -> Result<Option<BatchResponse<B, T>>, anyhow::Error> {
-        self.get_batches(&[BatchIdentifier::Hash(*hash)], query_mode)
-            .map(|mut batches: Vec<Option<BatchResponse<B, T>>>| batches.pop().unwrap_or(None))
     }
 
     fn get_tx_by_hash<T: DeserializeOwned>(
@@ -219,30 +147,11 @@ impl LedgerRpcProvider for LedgerDB {
             .map(|mut txs: Vec<Option<TxResponse<T>>>| txs.pop().unwrap_or(None))
     }
 
-    // Get X by number
-    fn get_slot_by_number<B: DeserializeOwned, T: DeserializeOwned>(
-        &self,
-        number: u64,
-        query_mode: QueryMode,
-    ) -> Result<Option<SlotResponse<B, T>>, anyhow::Error> {
-        self.get_slots(&[SlotIdentifier::Number(number)], query_mode)
-            .map(|mut slots: Vec<Option<SlotResponse<B, T>>>| slots.pop().unwrap_or(None))
-    }
-
     fn get_soft_batch_by_number<T: DeserializeOwned>(
         &self,
         number: u64,
     ) -> Result<Option<SoftBatchResponse>, anyhow::Error> {
         self.get_soft_batch(&SoftBatchIdentifier::Number(number))
-    }
-
-    fn get_batch_by_number<B: DeserializeOwned, T: DeserializeOwned>(
-        &self,
-        number: u64,
-        query_mode: QueryMode,
-    ) -> Result<Option<BatchResponse<B, T>>, anyhow::Error> {
-        self.get_batches(&[BatchIdentifier::Number(number)], query_mode)
-            .map(|mut slots| slots.pop().unwrap_or(None))
     }
 
     fn get_tx_by_number<T: DeserializeOwned>(
@@ -257,38 +166,6 @@ impl LedgerRpcProvider for LedgerDB {
     fn get_event_by_number(&self, number: u64) -> Result<Option<Event>, anyhow::Error> {
         self.get_events(&[EventIdentifier::Number(number)])
             .map(|mut events| events.pop().unwrap_or(None))
-    }
-
-    fn get_slots_range<B: DeserializeOwned, T: DeserializeOwned>(
-        &self,
-        start: u64,
-        end: u64,
-        query_mode: QueryMode,
-    ) -> Result<Vec<Option<SlotResponse<B, T>>>, anyhow::Error> {
-        anyhow::ensure!(start <= end, "start must be <= end");
-        anyhow::ensure!(
-            end - start <= MAX_SLOTS_PER_REQUEST,
-            "requested slot range too large. Max: {}",
-            MAX_SLOTS_PER_REQUEST
-        );
-        let ids: Vec<_> = (start..=end).map(SlotIdentifier::Number).collect();
-        self.get_slots(&ids, query_mode)
-    }
-
-    fn get_batches_range<B: DeserializeOwned, T: DeserializeOwned>(
-        &self,
-        start: u64,
-        end: u64,
-        query_mode: QueryMode,
-    ) -> Result<Vec<Option<BatchResponse<B, T>>>, anyhow::Error> {
-        anyhow::ensure!(start <= end, "start must be <= end");
-        anyhow::ensure!(
-            end - start <= MAX_BATCHES_PER_REQUEST,
-            "requested batch range too large. Max: {}",
-            MAX_BATCHES_PER_REQUEST
-        );
-        let ids: Vec<_> = (start..=end).map(BatchIdentifier::Number).collect();
-        self.get_batches(&ids, query_mode)
     }
 
     fn get_soft_batches(
@@ -387,10 +264,6 @@ impl LedgerRpcProvider for LedgerDB {
             )),
             None => Ok(None),
         }
-    }
-
-    fn subscribe_slots(&self) -> Result<Receiver<u64>, anyhow::Error> {
-        Ok(self.slot_subscriptions.subscribe())
     }
 
     fn get_prover_last_scanned_l1_height(&self) -> Result<u64, anyhow::Error> {
@@ -617,25 +490,5 @@ impl LedgerDB {
                 batch_response
             }
         })
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use sov_mock_da::{MockBlob, MockBlock};
-    use sov_rollup_interface::rpc::LedgerRpcProvider;
-
-    use crate::ledger_db::{LedgerDB, SlotCommit};
-    #[test]
-    fn test_slot_subscription() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let path = temp_dir.path();
-        let db = LedgerDB::with_path(path).unwrap();
-
-        let mut rx = db.subscribe_slots().unwrap();
-        db.commit_slot(SlotCommit::<_, MockBlob, Vec<u8>>::new(MockBlock::default()))
-            .unwrap();
-
-        assert_eq!(rx.blocking_recv().unwrap(), 1);
     }
 }
