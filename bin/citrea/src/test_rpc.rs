@@ -1,10 +1,6 @@
-use std::collections::HashMap;
 use std::marker::PhantomData;
 
 use hex::ToHex;
-use proptest::prelude::any_with;
-use proptest::prop_compose;
-use proptest::strategy::Strategy;
 use reqwest::header::CONTENT_TYPE;
 use sha2::Digest;
 use sov_db::ledger_db::{LedgerDB, SlotCommit};
@@ -13,7 +9,6 @@ use sov_mock_da::MockDaSpec;
 use sov_mock_da::{MockBlock, MockBlockHeader, MockHash};
 use sov_modules_api::DaSpec;
 use sov_rollup_interface::da::Time;
-use sov_rollup_interface::stf::fuzzing::BatchReceiptStrategyArgs;
 use sov_rollup_interface::stf::{BatchReceipt, Event, SoftBatchReceipt, TransactionReceipt};
 #[cfg(test)]
 use sov_stf_runner::RpcConfig;
@@ -308,63 +303,4 @@ fn test_get_soft_batch_status() {
     let payload = jsonrpc_req!("ledger_getSoftConfirmationStatus", [1]);
     let expected = jsonrpc_result!("trusted");
     regular_test_helper(payload, &expected);
-}
-
-prop_compose! {
-    fn arb_batches_and_slot_hash(max_batches : usize)
-     (slot_hash in proptest::array::uniform32(0_u8..), batches in proptest::collection::vec(batch_receipt_without_hasher(), 1..max_batches)) ->
-       (Vec<BatchReceipt<u32, u32>>, [u8;32]) {
-        (batches, slot_hash)
-    }
-}
-
-prop_compose! {
-    fn arb_slots(max_slots: usize, max_batches: usize)
-    (batches_and_hashes in proptest::collection::vec(arb_batches_and_slot_hash(max_batches), 1..max_slots)) -> (Vec<SlotCommit<MockBlock, u32, u32>>, HashMap<usize, (usize, usize)>, usize)
-    {
-        let mut slots = std::vec::Vec::with_capacity(max_slots);
-
-        let mut total_num_batches = 1;
-
-        let mut prev_hash = MockHash::from([0;32]);
-
-        let mut curr_tx_id = 1;
-        let mut curr_event_id = 1;
-
-        let mut tx_id_to_event_range = HashMap::new();
-
-        for (batches, hash) in batches_and_hashes{
-            let mut new_slot = SlotCommit::new(MockBlock {
-                header: MockBlockHeader {
-                    hash: hash.into(),
-                    txs_commitment: hash.into(),
-                    prev_hash,
-                    height: 0,
-                    time: Time::now(),
-                },
-                validity_cond: Default::default(),
-                blobs: Default::default()
-            });
-
-            total_num_batches += batches.len();
-
-            for batch in batches {
-                for tx in &batch.tx_receipts{
-                    tx_id_to_event_range.insert(curr_tx_id, (curr_event_id, curr_event_id + tx.events.len()));
-
-                    curr_event_id += tx.events.len();
-                    curr_tx_id += 1;
-                }
-
-                new_slot.add_batch(batch);
-            }
-
-
-            slots.push(new_slot);
-
-            prev_hash = MockHash::from(hash);
-        }
-
-        (slots, tx_id_to_event_range, total_num_batches)
-    }
 }
