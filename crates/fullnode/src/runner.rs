@@ -451,7 +451,11 @@ where
             tx_receipts: batch_receipt.tx_receipts,
             soft_confirmation_signature: soft_confirmation.soft_confirmation_signature,
             pub_key: soft_confirmation.pub_key,
-            deposit_data: soft_confirmation.deposit_data.into_iter().map(|x| x.tx).collect(),
+            deposit_data: soft_confirmation
+                .deposit_data
+                .into_iter()
+                .map(|x| x.tx)
+                .collect(),
             l1_fee_rate: soft_confirmation.l1_fee_rate,
             timestamp: soft_confirmation.timestamp,
         };
@@ -709,7 +713,9 @@ async fn sync_l2<Da>(
         let soft_confirmations: Vec<GetSoftConfirmationResponse> =
             match retry_backoff(exponential_backoff.clone(), || async move {
                 match inner_client
-                    .get_soft_confirmation_range::<Da::Spec>(l2_height..l2_height + sync_blocks_count)
+                    .get_soft_confirmation_range::<Da::Spec>(
+                        l2_height..l2_height + sync_blocks_count,
+                    )
                     .await
                 {
                     Ok(soft_confirmations) => {
@@ -717,8 +723,10 @@ async fn sync_l2<Da>(
                     }
                     Err(e) => match e.downcast_ref::<JsonrpseeError>() {
                         Some(JsonrpseeError::Transport(e)) => {
-                            let error_msg =
-                                format!("Soft Batch: connection error during RPC call: {:?}", e);
+                            let error_msg = format!(
+                                "Soft Confirmation: connection error during RPC call: {:?}",
+                                e
+                            );
                             debug!(error_msg);
                             Err(backoff::Error::Transient {
                                 err: error_msg,
@@ -726,7 +734,7 @@ async fn sync_l2<Da>(
                             })
                         }
                         _ => Err(backoff::Error::Transient {
-                            err: format!("Soft Batch: unknown error from RPC call: {:?}", e),
+                            err: format!("Soft Confirmation: unknown error from RPC call: {:?}", e),
                             retry_after: None,
                         }),
                     },
@@ -742,7 +750,7 @@ async fn sync_l2<Da>(
 
         if soft_confirmations.is_empty() {
             debug!(
-                "Soft Batch: no batch at starting height {}, retrying...",
+                "Soft Confirmation: no batch at starting height {}, retrying...",
                 l2_height
             );
 
