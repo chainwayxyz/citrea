@@ -1,7 +1,8 @@
 # Compiler files
 cache/
 out/
-state/
+state/*.json
+
 
 # Ignores development broadcast logs
 !/broadcast
