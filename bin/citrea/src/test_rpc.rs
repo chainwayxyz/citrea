@@ -3,10 +3,9 @@ use std::marker::PhantomData;
 
 use hex::ToHex;
 use proptest::prelude::any_with;
+use proptest::prop_compose;
 use proptest::strategy::Strategy;
-use proptest::{prop_compose, proptest};
 use reqwest::header::CONTENT_TYPE;
-use serde_json::json;
 use sha2::Digest;
 use sov_db::ledger_db::{LedgerDB, SlotCommit};
 use sov_mock_da::MockDaSpec;
@@ -14,7 +13,6 @@ use sov_mock_da::MockDaSpec;
 use sov_mock_da::{MockBlock, MockBlockHeader, MockHash};
 use sov_modules_api::DaSpec;
 use sov_rollup_interface::da::Time;
-use sov_rollup_interface::rpc::HexTx;
 use sov_rollup_interface::stf::fuzzing::BatchReceiptStrategyArgs;
 use sov_rollup_interface::stf::{BatchReceipt, Event, SoftBatchReceipt, TransactionReceipt};
 #[cfg(test)]
@@ -312,48 +310,6 @@ fn test_get_soft_batch_status() {
     regular_test_helper(payload, &expected);
 }
 
-#[test]
-fn test_get_events() {
-    let payload = jsonrpc_req!("ledger_getEvents", [1]);
-    let expected = jsonrpc_result!([{
-        "key":[101,118,101,110,116,49,95,107,101,121],
-        "value":[101,118,101,110,116,49,95,118,97,108,117,101]
-    }]);
-    regular_test_helper(payload, &expected);
-
-    let payload = jsonrpc_req!("ledger_getEvents", [2]);
-    let expected = jsonrpc_result!([{
-        "key":[101,118,101,110,116,50,95,107,101,121],
-        "value":[101,118,101,110,116,50,95,118,97,108,117,101]
-    }]);
-    regular_test_helper(payload, &expected);
-    let payload = jsonrpc_req!("ledger_getEvents", [3]);
-    let expected = jsonrpc_result!([{
-        "key":[101,118,101,110,116,49,95,107,101,121],
-        "value":[101,118,101,110,116,49,95,118,97,108,117,101]
-    }]);
-    regular_test_helper(payload, &expected);
-    let payload = jsonrpc_req!("ledger_getEvents", [4]);
-    let expected = jsonrpc_result!([{
-        "key":[101,118,101,110,116,50,95,107,101,121],
-        "value":[101,118,101,110,116,50,95,118,97,108,117,101]
-    }]);
-    regular_test_helper(payload, &expected);
-
-    let payload = jsonrpc_req!("ledger_getEvents", [5]);
-    let expected = jsonrpc_result!([null]);
-    regular_test_helper(payload, &expected);
-}
-
-fn batch_receipt_without_hasher() -> impl Strategy<Value = BatchReceipt<u32, u32>> {
-    let mut args = BatchReceiptStrategyArgs {
-        hasher: None,
-        ..Default::default()
-    };
-    args.transaction_strategy_args.hasher = None;
-    any_with::<BatchReceipt<u32, u32>>(args)
-}
-
 prop_compose! {
     fn arb_batches_and_slot_hash(max_batches : usize)
      (slot_hash in proptest::array::uniform32(0_u8..), batches in proptest::collection::vec(batch_receipt_without_hasher(), 1..max_batches)) ->
@@ -412,46 +368,3 @@ prop_compose! {
         (slots, tx_id_to_event_range, total_num_batches)
     }
 }
-
-proptest!(
-    #[test]
-    fn proptest_get_events((slots, tx_id_to_event_range, _total_num_batches) in arb_slots(10, 10), random_event_num in 1..10000){
-        let mut curr_tx_num = 1;
-
-        let random_event_num_usize = usize::try_from(random_event_num).unwrap();
-
-        for slot in &slots {
-            for batch in slot.batch_receipts(){
-                for tx in &batch.tx_receipts{
-                    let (start_event_range, end_event_range) = tx_id_to_event_range.get(&curr_tx_num).unwrap();
-                    if *start_event_range > random_event_num_usize {
-                        break;
-                    }
-
-                    if random_event_num_usize < *end_event_range {
-                        let event_index = random_event_num_usize - *start_event_range;
-                        let event: &Event = tx.events.get(event_index).unwrap();
-                        let event_json = json!({
-                            "key": event.key().inner(),
-                            "value": event.value().inner(),
-                        });
-
-                        test_helper(vec![TestExpect{
-                            payload:
-                            jsonrpc_req!("ledger_getEvents", [random_event_num_usize]),
-                            expected:
-                            jsonrpc_result!([event_json])}]
-                            , slots, None);
-
-                        return Ok(());
-                    }
-                    curr_tx_num += 1;
-                }
-            }
-        }
-
-        let payload = jsonrpc_req!("ledger_getEvents", [random_event_num]);
-        let expected = jsonrpc_result!([null]);
-        test_helper(vec![TestExpect{payload, expected}], slots, None);
-    }
-);

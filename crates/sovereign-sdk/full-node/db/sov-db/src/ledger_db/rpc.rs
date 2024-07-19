@@ -1,28 +1,19 @@
 use serde::de::DeserializeOwned;
 use sov_rollup_interface::rpc::{
-    sequencer_commitment_to_response, BatchIdAndOffset, BatchIdentifier, BatchResponse,
-    EventIdentifier, ItemOrHash, LastVerifiedProofResponse, LedgerRpcProvider, ProofResponse,
-    QueryMode, SequencerCommitmentResponse, SlotIdAndOffset, SlotIdentifier, SlotResponse,
-    SoftBatchIdentifier, SoftBatchResponse, TxIdAndOffset, TxIdentifier, TxResponse,
-    VerifiedProofResponse,
+    sequencer_commitment_to_response, LastVerifiedProofResponse, LedgerRpcProvider, ProofResponse,
+    SequencerCommitmentResponse, SoftBatchIdentifier, SoftBatchResponse, VerifiedProofResponse,
 };
-use sov_rollup_interface::stf::Event;
 
 use crate::schema::tables::{
-    BatchByHash, BatchByNumber, CommitmentsByNumber, EventByNumber, ProofBySlotNumber, SlotByHash,
-    SlotByNumber, SoftBatchByHash, SoftBatchByNumber, SoftConfirmationStatus, TxByHash, TxByNumber,
-    VerifiedProofsBySlotNumber,
+    CommitmentsByNumber, ProofBySlotNumber, SlotByHash, SoftBatchByHash, SoftBatchByNumber,
+    SoftConfirmationStatus, VerifiedProofsBySlotNumber,
 };
-use crate::schema::types::{
-    BatchNumber, EventNumber, SlotNumber, StoredBatch, StoredSlot, TxNumber,
-};
+use crate::schema::types::{BatchNumber, SlotNumber};
 
 /// The maximum number of batches that can be requested in a single RPC range query
 const MAX_BATCHES_PER_REQUEST: u64 = 20;
 /// The maximum number of soft batches that can be requested in a single RPC range query
 const MAX_SOFT_BATCHES_PER_REQUEST: u64 = 20;
-/// The maximum number of events that can be requested in a single RPC range query
-const MAX_EVENTS_PER_REQUEST: u64 = 500;
 
 use super::LedgerDB;
 
@@ -44,29 +35,6 @@ impl LedgerRpcProvider for LedgerDB {
         })
     }
 
-    fn get_events(
-        &self,
-        event_ids: &[sov_rollup_interface::rpc::EventIdentifier],
-    ) -> Result<Vec<Option<Event>>, anyhow::Error> {
-        anyhow::ensure!(
-            event_ids.len() <= MAX_EVENTS_PER_REQUEST as usize,
-            "requested too many events. Requested: {}. Max: {}",
-            event_ids.len(),
-            MAX_EVENTS_PER_REQUEST
-        );
-        // TODO: Sort the input and use an iterator instead of querying for each slot individually
-        // https://github.com/Sovereign-Labs/sovereign-sdk/issues/191
-        let mut out = Vec::with_capacity(event_ids.len());
-        for id in event_ids {
-            let num = self.resolve_event_identifier(id)?;
-            out.push(match num {
-                Some(num) => self.db.get::<EventByNumber>(&num)?,
-                None => None,
-            })
-        }
-        Ok(out)
-    }
-
     fn get_soft_batch_by_hash<T: DeserializeOwned>(
         &self,
         hash: &[u8; 32],
@@ -79,11 +47,6 @@ impl LedgerRpcProvider for LedgerDB {
         number: u64,
     ) -> Result<Option<SoftBatchResponse>, anyhow::Error> {
         self.get_soft_batch(&SoftBatchIdentifier::Number(number))
-    }
-
-    fn get_event_by_number(&self, number: u64) -> Result<Option<Event>, anyhow::Error> {
-        self.get_events(&[EventIdentifier::Number(number)])
-            .map(|mut events| events.pop().unwrap_or(None))
     }
 
     fn get_soft_batches(
@@ -235,16 +198,6 @@ impl LedgerRpcProvider for LedgerDB {
 }
 
 impl LedgerDB {
-    fn resolve_slot_identifier(
-        &self,
-        slot_id: &SlotIdentifier,
-    ) -> Result<Option<SlotNumber>, anyhow::Error> {
-        match slot_id {
-            SlotIdentifier::Hash(hash) => self.db.get::<SlotByHash>(hash),
-            SlotIdentifier::Number(num) => Ok(Some(SlotNumber(*num))),
-        }
-    }
-
     fn resolve_soft_batch_identifier(
         &self,
         batch_id: &SoftBatchIdentifier,
@@ -252,66 +205,6 @@ impl LedgerDB {
         match batch_id {
             SoftBatchIdentifier::Hash(hash) => self.db.get::<SoftBatchByHash>(hash),
             SoftBatchIdentifier::Number(num) => Ok(Some(BatchNumber(*num))),
-        }
-    }
-
-    fn resolve_batch_identifier(
-        &self,
-        batch_id: &BatchIdentifier,
-    ) -> Result<Option<BatchNumber>, anyhow::Error> {
-        match batch_id {
-            BatchIdentifier::Hash(hash) => self.db.get::<BatchByHash>(hash),
-            BatchIdentifier::Number(num) => Ok(Some(BatchNumber(*num))),
-            BatchIdentifier::SlotIdAndOffset(SlotIdAndOffset { slot_id, offset }) => {
-                if let Some(slot_num) = self.resolve_slot_identifier(slot_id)? {
-                    Ok(self
-                        .db
-                        .get::<SlotByNumber>(&slot_num)?
-                        .map(|slot: StoredSlot| BatchNumber(slot.batches.start.0 + offset)))
-                } else {
-                    Ok(None)
-                }
-            }
-        }
-    }
-
-    fn resolve_tx_identifier(
-        &self,
-        tx_id: &TxIdentifier,
-    ) -> Result<Option<TxNumber>, anyhow::Error> {
-        match tx_id {
-            TxIdentifier::Hash(hash) => self.db.get::<TxByHash>(hash),
-            TxIdentifier::Number(num) => Ok(Some(TxNumber(*num))),
-            TxIdentifier::BatchIdAndOffset(BatchIdAndOffset { batch_id, offset }) => {
-                if let Some(batch_num) = self.resolve_batch_identifier(batch_id)? {
-                    Ok(self
-                        .db
-                        .get::<BatchByNumber>(&batch_num)?
-                        .map(|batch: StoredBatch| TxNumber(batch.txs.start.0 + offset)))
-                } else {
-                    Ok(None)
-                }
-            }
-        }
-    }
-
-    fn resolve_event_identifier(
-        &self,
-        event_id: &EventIdentifier,
-    ) -> Result<Option<EventNumber>, anyhow::Error> {
-        match event_id {
-            EventIdentifier::TxIdAndOffset(TxIdAndOffset { tx_id, offset }) => {
-                if let Some(tx_num) = self.resolve_tx_identifier(tx_id)? {
-                    Ok(self
-                        .db
-                        .get::<TxByNumber>(&tx_num)?
-                        .map(|tx| EventNumber(tx.events.start.0 + offset)))
-                } else {
-                    Ok(None)
-                }
-            }
-            EventIdentifier::Number(num) => Ok(Some(EventNumber(*num))),
-            EventIdentifier::TxIdAndKey(_) => todo!(),
         }
     }
 }

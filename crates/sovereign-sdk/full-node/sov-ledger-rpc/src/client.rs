@@ -4,8 +4,7 @@
 //! See [`RpcClient`].
 
 use jsonrpsee::proc_macros::rpc;
-use sov_rollup_interface::rpc::{EventIdentifier, QueryMode, SoftConfirmationStatus};
-use sov_rollup_interface::stf::Event;
+use sov_rollup_interface::rpc::{QueryMode, SoftConfirmationStatus};
 
 use crate::HexHash;
 
@@ -23,18 +22,6 @@ where
     Batch: serde::Serialize,
     Tx: serde::Serialize,
 {
-    /// Gets a list of events by ID. The IDs need not be ordered.
-    #[method(name = "getEvents")]
-    async fn get_events(&self, event_ids: Vec<EventIdentifier>) -> RpcResult<Vec<Option<Event>>>;
-
-    /// Gets a single batch by hash.
-    #[method(name = "getBatchByHash")]
-    async fn get_batch_by_hash(
-        &self,
-        hex_hash: HexHash,
-        query_mode: QueryMode,
-    ) -> RpcResult<Option<Batch>>;
-
     /// Gets a single transaction by hash.
     #[method(name = "getTransactionByHash")]
     async fn get_tx_by_hash(
@@ -42,29 +29,6 @@ where
         hex_hash: HexHash,
         query_mode: QueryMode,
     ) -> RpcResult<Option<Tx>>;
-
-    /// Gets a single batch by number.
-    #[method(name = "getBatchByNumber")]
-    async fn get_batch_by_number(
-        &self,
-        number: u64,
-        query_mode: QueryMode,
-    ) -> RpcResult<Option<Batch>>;
-
-    /// Gets a single event by number.
-    #[method(name = "getEventByNumber")]
-    async fn get_event_by_number(&self, number: u64) -> RpcResult<Option<Event>>;
-
-    /// Gets a range of transactions. This query is the most efficient way to
-    /// fetch large numbers of transactions, since it allows for easy batching of
-    /// db queries for adjacent items.
-    #[method(name = "getTransactionsRange")]
-    async fn get_txs_range(
-        &self,
-        start: u64,
-        end: u64,
-        query_mode: QueryMode,
-    ) -> RpcResult<Vec<Option<Tx>>>;
 
     /// Gets a single event by number.
     #[method(name = "getSoftConfirmationStatus")]

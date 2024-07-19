@@ -4,7 +4,7 @@ use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::RpcModule;
 use serde::de::DeserializeOwned;
 use sov_modules_api::utils::to_jsonrpsee_error_object;
-use sov_rollup_interface::rpc::{EventIdentifier, LedgerRpcProvider, QueryMode};
+use sov_rollup_interface::rpc::{LedgerRpcProvider, QueryMode};
 
 use crate::HexHash;
 
@@ -40,12 +40,6 @@ where
 {
     let mut rpc = RpcModule::new(ledger);
 
-    rpc.register_async_method("ledger_getEvents", |params, ledger| async move {
-        let ids: Vec<EventIdentifier> = params.parse().or_else(|_| params.one())?;
-        ledger
-            .get_events(&ids)
-            .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
-    })?;
     rpc.register_async_method("ledger_getSoftBatchByHash", |params, ledger| async move {
         let args: QueryArgs<HexHash> = extract_query_args(params)?;
         ledger
@@ -56,12 +50,6 @@ where
         let args: QueryArgs<u64> = extract_query_args(params)?;
         ledger
             .get_soft_batch_by_number::<Tx>(args.0)
-            .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
-    })?;
-    rpc.register_async_method("ledger_getEventByNumber", |params, ledger| async move {
-        let args: u64 = params.one()?;
-        ledger
-            .get_event_by_number(args)
             .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
     })?;
     rpc.register_async_method("ledger_getSoftBatchRange", |params, ledger| async move {
@@ -169,11 +157,9 @@ where
     Ok(rpc)
 }
 
-#[derive(serde::Deserialize)]
-struct RangeArgs(u64, u64, #[serde(default)] QueryMode);
-
 /// A structure containing serialized query arguments for RPC queries.
 #[derive(serde::Deserialize)]
+#[allow(dead_code)]
 struct QueryArgs<T>(T, #[serde(default)] QueryMode);
 
 /// Extract the args from an RPC query, being liberal in what is accepted.

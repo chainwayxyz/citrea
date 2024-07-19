@@ -15,7 +15,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::da::SequencerCommitment;
 #[cfg(feature = "native")]
-use crate::stf::Event;
 use crate::stf::EventKey;
 use crate::zk::CumulativeStateDiff;
 
@@ -474,12 +473,6 @@ pub trait LedgerRpcProvider {
         batch_id: &SoftBatchIdentifier,
     ) -> Result<Option<SoftBatchResponse>, anyhow::Error>;
 
-    /// Get events by id. The IDs need not be ordered.
-    fn get_events(
-        &self,
-        event_ids: &[EventIdentifier],
-    ) -> Result<Vec<Option<Event>>, anyhow::Error>;
-
     /// Get a single soft batch by hash.
     fn get_soft_batch_by_hash<T: DeserializeOwned>(
         &self,
@@ -491,9 +484,6 @@ pub trait LedgerRpcProvider {
         &self,
         number: u64,
     ) -> Result<Option<SoftBatchResponse>, anyhow::Error>;
-
-    /// Get a single event by number.
-    fn get_event_by_number(&self, number: u64) -> Result<Option<Event>, anyhow::Error>;
 
     /// Get a range of soft batches.
     fn get_soft_batches_range(
