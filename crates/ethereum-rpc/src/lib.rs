@@ -651,7 +651,9 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
 
                     let subscription = sink.accept().await?;
                     tokio::spawn(async move {
+                        info!("start: {} end: {}", start_block, end_block);
                         for block_number in start_block+1..=end_block {
+                            info!("block number: {}", block_number);
                             let traces = debug_trace_by_block_number(
                                 block_number,
                                 None,
@@ -671,7 +673,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                                     let Ok(_) = subscription.send(msg).await else { return; };
                                 }
                                 Err(err) => {
-                                    error!("Failed to get block traces in debug_traceChain: {}", err);
+                                    error!("Failed to get traces of block {} in debug_traceChain: {}", block_number, err);
 
                                     let msg = SubscriptionMessage::new(
                                         subscription.method_name(),
