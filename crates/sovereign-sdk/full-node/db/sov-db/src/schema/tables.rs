@@ -36,8 +36,8 @@ use sov_schema_db::{CodecError, SeekKeyEncoder};
 
 use super::types::{
     AccessoryKey, AccessoryStateValue, BatchNumber, DbHash, EventNumber, JmtValue, L2HeightRange,
-    SlotNumber, StateKey, StoredBatch, StoredProof, StoredSlot, StoredSoftConfirmation, StoredTransaction,
-    StoredVerifiedProof, TxNumber,
+    SlotNumber, StateKey, StoredBatch, StoredProof, StoredSlot, StoredSoftConfirmation,
+    StoredTransaction, StoredVerifiedProof, TxNumber,
 };
 
 /// A list of all tables used by the StateDB. These tables store rollup state - meaning
@@ -241,12 +241,12 @@ define_table_with_default_codec!(
 );
 
 define_table_with_seek_key_codec!(
-    /// The primary source for soft batch data
+    /// The primary source for soft confirmation data
     (SoftConfirmationByNumber) BatchNumber => StoredSoftConfirmation
 );
 
 define_table_with_default_codec!(
-    /// A "secondary index" for soft batch data by hash
+    /// A "secondary index" for soft confirmation data by hash
     (SoftConfirmationByHash) DbHash => BatchNumber
 );
 

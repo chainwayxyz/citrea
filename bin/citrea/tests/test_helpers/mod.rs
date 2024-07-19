@@ -195,7 +195,7 @@ pub async fn wait_for_l2_block(client: &TestClient, num: u64, timeout: Option<Du
     let start = SystemTime::now();
     let timeout = timeout.unwrap_or(Duration::from_secs(30)); // Default 30 seconds timeout
     loop {
-        debug!("Waiting for soft batch {}", num);
+        debug!("Waiting for soft confirmation {}", num);
         let latest_block = client
             .ledger_get_head_soft_confirmation_height()
             .await

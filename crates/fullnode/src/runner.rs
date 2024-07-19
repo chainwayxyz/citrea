@@ -373,7 +373,7 @@ where
                 hex::encode(
                     soft_confirmations_tree
                         .root()
-                        .ok_or(anyhow!("Could not calculate soft batch tree root"))?
+                        .ok_or(anyhow!("Could not calculate soft confirmation tree root"))?
                 ),
                 hex::encode(sequencer_commitment.merkle_root)
             )
@@ -429,7 +429,7 @@ where
         );
 
         let next_state_root = slot_result.state_root;
-        // Check if post state root is the same as the one in the soft batch
+        // Check if post state root is the same as the one in the soft confirmation
         if next_state_root.as_ref().to_vec() != soft_confirmation.state_root {
             bail!("Post state root mismatch at height: {}", l2_height)
         }

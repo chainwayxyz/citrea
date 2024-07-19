@@ -166,7 +166,7 @@ pub fn convert_to_rpc_proof(stored_proof: Proof) -> ProofRpcResponse {
 pub struct StoredSoftConfirmation {
     /// The number of the batch
     pub da_slot_height: u64,
-    /// The l2 height of the soft batch
+    /// The l2 height of the soft confirmation
     pub l2_height: u64,
     /// The da hash of the batch
     pub da_slot_hash: [u8; 32],

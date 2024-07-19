@@ -126,7 +126,7 @@ pub enum SlashingReason {
 pub trait StfBlueprintTrait<C: Context, Da: DaSpec, Vm: Zkvm>:
     StateTransitionFunction<Vm, Da>
 {
-    /// Begin a soft batch
+    /// Begin a soft confirmation
     fn begin_soft_confirmation(
         &self,
         sequencer_public_key: &[u8],
@@ -137,14 +137,14 @@ pub trait StfBlueprintTrait<C: Context, Da: DaSpec, Vm: Zkvm>:
         soft_confirmation: &mut SignedSoftConfirmationBatch,
     ) -> (Result<(), ApplySoftConfirmationError>, WorkingSet<C>);
 
-    /// Apply soft batch transactions
+    /// Apply soft confirmation transactions
     fn apply_soft_confirmation_txs(
         &self,
         txs: Vec<Vec<u8>>,
         batch_workspace: WorkingSet<C>,
     ) -> (WorkingSet<C>, Vec<TransactionReceipt<TxEffect>>);
 
-    /// End a soft batch
+    /// End a soft confirmation
     fn end_soft_confirmation(
         &self,
         sequencer_public_key: &[u8],
@@ -153,7 +153,7 @@ pub trait StfBlueprintTrait<C: Context, Da: DaSpec, Vm: Zkvm>:
         batch_workspace: WorkingSet<C>,
     ) -> (BatchReceipt<(), TxEffect>, StateCheckpoint<C>);
 
-    /// Finalizes a soft batch
+    /// Finalizes a soft confirmation
     fn finalize_soft_confirmation(
         &self,
         batch_receipt: BatchReceipt<(), TxEffect>,
@@ -185,7 +185,7 @@ where
         slot_header: &<Da as DaSpec>::BlockHeader,
         soft_confirmation: &mut SignedSoftConfirmationBatch,
     ) -> (Result<(), ApplySoftConfirmationError>, WorkingSet<C>) {
-        native_debug!("Applying soft batch in STF Blueprint");
+        native_debug!("Applying soft confirmation in STF Blueprint");
 
         // check if soft confirmation is coming from our sequencer
         assert_eq!(
@@ -278,7 +278,7 @@ where
         <<C as Spec>::Storage as Storage>::Witness,
     > {
         native_debug!(
-            "soft batch with hash: {:?} from sequencer {:?} has been applied with #{} transactions.",
+            "soft confirmation with hash: {:?} from sequencer {:?} has been applied with #{} transactions.",
             soft_confirmation.hash(),
             soft_confirmation.sequencer_pub_key(),
             batch_receipt.tx_receipts.len(),
@@ -440,11 +440,16 @@ where
                     batch_workspace,
                 );
 
-                self.finalize_soft_confirmation(batch_receipt, checkpoint, pre_state, soft_confirmation)
+                self.finalize_soft_confirmation(
+                    batch_receipt,
+                    checkpoint,
+                    pre_state,
+                    soft_confirmation,
+                )
             }
             (Err(err), batch_workspace) => {
                 native_warn!(
-                    "Error applying soft batch: {:?} \n reverting batch workspace",
+                    "Error applying soft confirmation: {:?} \n reverting batch workspace",
                     err
                 );
                 batch_workspace.revert();

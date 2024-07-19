@@ -61,13 +61,13 @@ pub struct TxIdAndKey {
     pub key: EventKey,
 }
 
-/// An identifier that specifies a single soft batch
+/// An identifier that specifies a single soft confirmation
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 #[serde(untagged, rename_all = "camelCase")]
 pub enum SoftConfirmationIdentifier {
-    /// The monotonically increasing number of the soft batch
+    /// The monotonically increasing number of the soft confirmation
     Number(u64),
-    /// The hex-encoded hash of the soft batch
+    /// The hex-encoded hash of the soft confirmation
     Hash(#[serde(with = "utils::rpc_hex")] [u8; 32]),
 }
 
@@ -149,32 +149,32 @@ impl From<Vec<u8>> for HexTx {
     }
 }
 
-/// The response to a JSON-RPC request for a particular soft batch.
+/// The response to a JSON-RPC request for a particular soft confirmation.
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SoftConfirmationResponse {
-    /// The DA height of the soft batch.
+    /// The DA height of the soft confirmation.
     pub da_slot_height: u64,
-    /// The L2 height of the soft batch.
+    /// The L2 height of the soft confirmation.
     pub l2_height: u64,
-    /// The DA slothash of the soft batch.
+    /// The DA slothash of the soft confirmation.
     // TODO: find a way to hex serialize this and then
     // deserialize in `SequencerClient`
     #[serde(with = "hex::serde")]
     pub da_slot_hash: [u8; 32],
     #[serde(with = "hex::serde")]
-    /// The DA slot transactions commitment of the soft batch.
+    /// The DA slot transactions commitment of the soft confirmation.
     pub da_slot_txs_commitment: [u8; 32],
-    /// The hash of the soft batch.
+    /// The hash of the soft confirmation.
     #[serde(with = "hex::serde")]
     pub hash: [u8; 32],
-    /// The hash of the previous soft batch.
+    /// The hash of the previous soft confirmation.
     #[serde(with = "hex::serde")]
     pub prev_hash: [u8; 32],
     /// The transactions in this batch.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub txs: Option<Vec<HexTx>>,
-    /// State root of the soft batch.
+    /// State root of the soft confirmation.
     #[serde(with = "hex::serde")]
     pub state_root: Vec<u8>,
     /// Signature of the batch
@@ -397,7 +397,7 @@ pub enum SoftConfirmationStatus {
     Trusted,
     /// The soft confirmation has been finalized with a sequencer commitment
     Finalized,
-    /// The soft batch has been ZK-proven
+    /// The soft confirmation has been ZK-proven
     Proven,
 }
 
@@ -410,19 +410,19 @@ pub trait LedgerRpcProvider {
         batch_ids: &[SoftConfirmationIdentifier],
     ) -> Result<Vec<Option<SoftConfirmationResponse>>, anyhow::Error>;
 
-    /// Get soft batch
+    /// Get soft confirmation
     fn get_soft_confirmation(
         &self,
         batch_id: &SoftConfirmationIdentifier,
     ) -> Result<Option<SoftConfirmationResponse>, anyhow::Error>;
 
-    /// Get a single soft batch by hash.
+    /// Get a single soft confirmation by hash.
     fn get_soft_confirmation_by_hash<T: DeserializeOwned>(
         &self,
         hash: &[u8; 32],
     ) -> Result<Option<SoftConfirmationResponse>, anyhow::Error>;
 
-    /// Get a single soft batch by number.
+    /// Get a single soft confirmation by number.
     fn get_soft_confirmation_by_number<T: DeserializeOwned>(
         &self,
         number: u64,
@@ -435,7 +435,7 @@ pub trait LedgerRpcProvider {
         end: u64,
     ) -> Result<Vec<Option<SoftConfirmationResponse>>, anyhow::Error>;
 
-    /// Takes an L2 Height and and returns the soft confirmation status of the soft batch
+    /// Takes an L2 Height and and returns the soft confirmation status of the soft confirmation
     fn get_soft_confirmation_status(
         &self,
         soft_confirmation_receipt: u64,
@@ -468,11 +468,11 @@ pub trait LedgerRpcProvider {
     /// Get last verified proof
     fn get_last_verified_proof(&self) -> Result<Option<LastVerifiedProofResponse>, anyhow::Error>;
 
-    /// Get head soft batch
+    /// Get head soft confirmation
     fn get_head_soft_confirmation(&self)
         -> Result<Option<SoftConfirmationResponse>, anyhow::Error>;
 
-    /// Get head soft batch height
+    /// Get head soft confirmation height
     fn get_head_soft_confirmation_height(&self) -> Result<u64, anyhow::Error>;
 }
 

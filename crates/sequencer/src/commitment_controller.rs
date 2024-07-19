@@ -42,7 +42,7 @@ pub fn get_commitment_info(
     let last_committed_l2_height = cmp::max(last_finalized_l2_height, last_pending_l2_height);
 
     // If the last commitment made is on par with the head
-    // soft batch, we have already committed the latest block.
+    // soft confirmation, we have already committed the latest block.
     if last_committed_l2_height >= head_soft_confirmation_number {
         // Already committed.
         return Ok(None);

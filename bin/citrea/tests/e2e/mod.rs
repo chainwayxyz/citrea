@@ -1815,12 +1815,12 @@ async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error>
             .unwrap();
     }
 
-    // 52th tx should be the last tx in the soft batch
+    // 52th tx should be the last tx in the soft confirmation
     let last_in_tx = seq_test_client
         .send_eth(addr, None, None, None, 0u128)
         .await;
 
-    // 53th tx should not be in soft batch
+    // 53th tx should not be in soft confirmation
     let not_in_tx = seq_test_client
         .send_eth(addr, None, None, None, 0u128)
         .await;
@@ -1890,7 +1890,7 @@ async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error>
         .await
         .unwrap();
 
-    // should be in tx byte array of the soft batch after
+    // should be in tx byte array of the soft confirmation after
     assert!(find_subarray(
         second_soft_confirmation.txs.unwrap()[0].tx.as_slice(),
         &not_in_raw[2..]
@@ -2841,7 +2841,7 @@ async fn test_all_flow() {
 
     // the proof will be in l1 block #4 because prover publishes it after the commitment and in mock da submitting proof and commitments creates a new block
     // For full node to see the proof, we publish another l2 block and now it will check #4 l1 block
-    // 6th soft batch
+    // 6th soft confirmation
     wait_for_l1_block(&da_service, 4, None).await;
     test_client.send_publish_batch_request().await;
     wait_for_l2_block(&full_node_test_client, 6, None).await;

@@ -158,7 +158,7 @@ where
         pre_state_root: &<C::Storage as Storage>::Root,
     ) -> (Result<(), ApplySoftConfirmationError>, WorkingSet<C>) {
         native_debug!(
-            "Beginning soft batch 0x{} from sequencer: 0x{}",
+            "Beginning soft confirmation 0x{} from sequencer: 0x{}",
             hex::encode(soft_confirmation.hash()),
             hex::encode(soft_confirmation.sequencer_pub_key())
         );

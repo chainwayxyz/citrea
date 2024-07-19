@@ -354,7 +354,7 @@ where
         let (l2_height, l1_height) = match self
             .ledger_db
             .get_head_soft_confirmation()
-            .map_err(|e| anyhow!("Failed to get head soft batch: {}", e))?
+            .map_err(|e| anyhow!("Failed to get head soft confirmation: {}", e))?
         {
             Some((l2_height, sb)) => (l2_height.0 + 1, sb.da_slot_height),
             None => (0, da_height),
@@ -392,7 +392,7 @@ where
             .create_storage_on_l2_height(l2_height)
             .map_err(Into::<anyhow::Error>::into)?;
         debug!(
-            "Applying soft batch on DA block: {}",
+            "Applying soft confirmation on DA block: {}",
             hex::encode(da_block.header().hash().into())
         );
 

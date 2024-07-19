@@ -331,7 +331,7 @@ where
         );
 
         let next_state_root = slot_result.state_root;
-        // Check if post state root is the same as the one in the soft batch
+        // Check if post state root is the same as the one in the soft confirmation
         if next_state_root.as_ref().to_vec() != soft_confirmation.state_root {
             bail!("Post state root mismatch at height: {}", l2_height)
         }
@@ -474,7 +474,7 @@ where
                 .ledger_db
                 .get_soft_confirmation_by_number(&BatchNumber(first_l2_height_of_l1))?
                 .ok_or(anyhow!(
-                    "Could not find soft batch at height {}",
+                    "Could not find soft confirmation at height {}",
                     first_l2_height_of_l1
                 ))?
                 .prev_hash;

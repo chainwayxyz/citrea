@@ -82,7 +82,7 @@ pub struct BatchReceipt<BatchReceiptContents, TxReceiptContents> {
     pub phantom_data: PhantomData<BatchReceiptContents>,
 }
 
-/// A receipt for a soft batch of transactions. These receipts are stored in the rollup's database
+/// A receipt for a soft confirmation of transactions. These receipts are stored in the rollup's database
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SoftConfirmationReceipt<BatchReceiptContents, TxReceiptContents, DS: DaSpec> {
     /// DA layer block number

@@ -47,7 +47,7 @@ pub struct LedgerDB {
 pub struct ItemNumbers {
     /// The slot number
     pub slot_number: u64,
-    /// The soft batch number
+    /// The soft confirmation number
     pub soft_confirmation_number: u64,
     /// The batch number
     pub batch_number: u64,
@@ -268,7 +268,7 @@ impl LedgerDB {
         schema_batch.put::<EventByKey>(&(event.key().clone(), tx_number, *event_number), &())
     }
 
-    /// Commits a soft batch to the database by inserting its transactions and batches before
+    /// Commits a soft confirmation to the database by inserting its transactions and batches before
     pub fn commit_soft_confirmation<B: Serialize, T: Serialize, DS: DaSpec>(
         &self,
         batch_receipt: SoftConfirmationReceipt<B, T, DS>,
@@ -511,7 +511,7 @@ impl LedgerDB {
         }
     }
 
-    /// Get the most recent committed soft batch, if any
+    /// Get the most recent committed soft confirmation, if any
     #[instrument(level = "trace", skip(self), err)]
     pub fn get_head_soft_confirmation(
         &self,
