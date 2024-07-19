@@ -1,6 +1,5 @@
 //! A JSON-RPC server implementation for any [`LedgerRpcProvider`].
 
-use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::RpcModule;
 use serde::de::DeserializeOwned;
 use sov_modules_api::utils::to_jsonrpsee_error_object;
@@ -41,15 +40,15 @@ where
     let mut rpc = RpcModule::new(ledger);
 
     rpc.register_async_method("ledger_getSoftBatchByHash", |params, ledger| async move {
-        let args: QueryArgs<HexHash> = extract_query_args(params)?;
+        let args: HexHash = params.one()?;
         ledger
-            .get_soft_batch_by_hash::<Tx>(&args.0 .0)
+            .get_soft_batch_by_hash::<Tx>(&args.0)
             .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
     })?;
     rpc.register_async_method("ledger_getSoftBatchByNumber", |params, ledger| async move {
-        let args: QueryArgs<u64> = extract_query_args(params)?;
+        let args: u64 = params.one()?;
         ledger
-            .get_soft_batch_by_number::<Tx>(args.0)
+            .get_soft_batch_by_number::<Tx>(args)
             .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
     })?;
     rpc.register_async_method("ledger_getSoftBatchRange", |params, ledger| async move {
@@ -61,9 +60,9 @@ where
     rpc.register_async_method(
         "ledger_getSoftConfirmationStatus",
         |params, ledger| async move {
-            let args: QueryArgs<u64> = extract_query_args(params)?;
+            let args: u64 = params.one()?;
             ledger
-                .get_soft_confirmation_status(args.0)
+                .get_soft_confirmation_status(args)
                 .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
         },
     )?;
@@ -155,20 +154,4 @@ where
     })?;
 
     Ok(rpc)
-}
-
-/// A structure containing serialized query arguments for RPC queries.
-#[derive(serde::Deserialize)]
-struct QueryArgs<T>(T);
-
-/// Extract the args from an RPC query, being liberal in what is accepted.
-/// To query for a list of items, users can either pass a list of ids, or tuple containing a list of ids and a query mode
-fn extract_query_args<T: DeserializeOwned>(
-    params: jsonrpsee::types::Params,
-) -> Result<QueryArgs<T>, ErrorObjectOwned> {
-    if let Ok(args) = params.parse() {
-        return Ok(args);
-    }
-    let ids: T = params.parse()?;
-    Ok(QueryArgs(ids))
 }
