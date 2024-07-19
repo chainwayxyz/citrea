@@ -110,7 +110,7 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
         }
     }
 
-    fn apply_soft_batch(
+    fn apply_soft_confirmation(
         &self,
         _sequencer_public_key: &[u8],
         _pre_state_root: &Self::StateRoot,
@@ -118,7 +118,7 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
         _witness: Self::Witness,
         _slot_header: &<Da as DaSpec>::BlockHeader,
         _validity_condition: &<Da as DaSpec>::ValidityCondition,
-        _soft_batch: &mut SignedSoftConfirmationBatch,
+        _soft_confirmation: &mut SignedSoftConfirmationBatch,
     ) -> SlotResult<
         Self::StateRoot,
         Self::ChangeSet,
@@ -141,7 +141,7 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
         _witnesses: std::collections::VecDeque<Vec<Self::Witness>>,
         _slot_headers: std::collections::VecDeque<Vec<<Da as DaSpec>::BlockHeader>>,
         _validity_condition: &<Da as DaSpec>::ValidityCondition,
-        _soft_batch: std::collections::VecDeque<Vec<SignedSoftConfirmationBatch>>,
+        _soft_confirmation: std::collections::VecDeque<Vec<SignedSoftConfirmationBatch>>,
     ) -> (Self::StateRoot, CumulativeStateDiff) {
         todo!()
     }

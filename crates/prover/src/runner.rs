@@ -131,9 +131,9 @@ where
 
         // Start the main rollup loop
         let item_numbers = ledger_db.get_next_items_numbers();
-        let last_soft_batch_processed_before_shutdown = item_numbers.soft_batch_number;
+        let last_soft_confirmation_processed_before_shutdown = item_numbers.soft_confirmation_number;
         // Last L1/L2 height before shutdown.
-        let start_l2_height = last_soft_batch_processed_before_shutdown;
+        let start_l2_height = last_soft_confirmation_processed_before_shutdown;
 
         Ok(Self {
             start_l2_height,
@@ -298,17 +298,17 @@ where
     async fn process_l2_block(
         &mut self,
         l2_height: u64,
-        soft_batch: GetSoftConfirmationResponse,
+        soft_confirmation: GetSoftConfirmationResponse,
         current_l1_block: Da::FilteredBlock,
     ) -> anyhow::Result<()> {
         info!(
             "Running soft confirmation batch #{} with hash: 0x{} on DA block #{}",
             l2_height,
-            hex::encode(soft_batch.hash),
+            hex::encode(soft_confirmation.hash),
             current_l1_block.header().height()
         );
 
-        if self.batch_hash != soft_batch.prev_hash {
+        if self.batch_hash != soft_confirmation.prev_hash {
             bail!("Previous hash mismatch at height: {}", l2_height);
         }
 
@@ -318,7 +318,7 @@ where
             .storage_manager
             .create_storage_on_l2_height(l2_height)?;
 
-        let slot_result = self.stf.apply_soft_batch(
+        let slot_result = self.stf.apply_soft_confirmation(
             self.sequencer_pub_key.as_slice(),
             // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1247): incorrect pre-state root in case of re-org
             &self.state_root,
@@ -326,12 +326,12 @@ where
             Default::default(),
             current_l1_block.header(),
             &current_l1_block.validity_condition(),
-            &mut soft_batch.clone().into(),
+            &mut soft_confirmation.clone().into(),
         );
 
         let next_state_root = slot_result.state_root;
         // Check if post state root is the same as the one in the soft batch
-        if next_state_root.as_ref().to_vec() != soft_batch.state_root {
+        if next_state_root.as_ref().to_vec() != soft_confirmation.state_root {
             bail!("Post state root mismatch at height: {}", l2_height)
         }
 
@@ -353,20 +353,20 @@ where
         let soft_confirmation_receipt = SoftConfirmationReceipt::<_, _, Da::Spec> {
             state_root: next_state_root.as_ref().to_vec(),
             phantom_data: PhantomData::<u64>,
-            hash: soft_batch.hash,
-            prev_hash: soft_batch.prev_hash,
+            hash: soft_confirmation.hash,
+            prev_hash: soft_confirmation.prev_hash,
             da_slot_hash: current_l1_block.header().hash(),
             da_slot_height: current_l1_block.header().height(),
             da_slot_txs_commitment: current_l1_block.header().txs_commitment(),
             tx_receipts: batch_receipt.tx_receipts,
-            soft_confirmation_signature: soft_batch.soft_confirmation_signature,
-            pub_key: soft_batch.pub_key,
-            deposit_data: soft_batch.deposit_data.into_iter().map(|x| x.tx).collect(),
-            l1_fee_rate: soft_batch.l1_fee_rate,
-            timestamp: soft_batch.timestamp,
+            soft_confirmation_signature: soft_confirmation.soft_confirmation_signature,
+            pub_key: soft_confirmation.pub_key,
+            deposit_data: soft_confirmation.deposit_data.into_iter().map(|x| x.tx).collect(),
+            l1_fee_rate: soft_confirmation.l1_fee_rate,
+            timestamp: soft_confirmation.timestamp,
         };
 
-        self.ledger_db.commit_soft_batch(soft_confirmation_receipt, true)?;
+        self.ledger_db.commit_soft_confirmation(soft_confirmation_receipt, true)?;
 
         self.ledger_db.extend_l2_range_of_l1_slot(
             SlotNumber(current_l1_block.header().height()),
@@ -374,7 +374,7 @@ where
         )?;
 
         self.state_root = next_state_root;
-        self.batch_hash = soft_batch.hash;
+        self.batch_hash = soft_confirmation.hash;
 
         info!(
             "New State Root after soft confirmation #{} is: {:?}",
@@ -466,7 +466,7 @@ where
                 .expect("There should be a state root");
             let initial_batch_hash = self
                 .ledger_db
-                .get_soft_batch_by_number(&BatchNumber(first_l2_height_of_l1))?
+                .get_soft_confirmation_by_number(&BatchNumber(first_l2_height_of_l1))?
                 .ok_or(anyhow!(
                     "Could not find soft batch at height {}",
                     first_l2_height_of_l1
@@ -587,7 +587,7 @@ where
             let end_l2 = sequencer_commitment.l2_end_block_number;
             let soft_confirmations_in_commitment = match self
                 .ledger_db
-                .get_soft_batch_range(&(BatchNumber(start_l2)..BatchNumber(end_l2 + 1)))
+                .get_soft_confirmation_range(&(BatchNumber(start_l2)..BatchNumber(end_l2 + 1)))
             {
                 Ok(soft_confirmations) => soft_confirmations,
                 Err(e) => {
@@ -601,14 +601,14 @@ where
             let mut da_block_headers_to_push: Vec<
                 <<Da as DaService>::Spec as DaSpec>::BlockHeader,
             > = vec![];
-            for soft_batch in soft_confirmations_in_commitment {
+            for soft_confirmation in soft_confirmations_in_commitment {
                 if da_block_headers_to_push.is_empty()
                     || da_block_headers_to_push.last().unwrap().height()
-                        != soft_batch.da_slot_height
+                        != soft_confirmation.da_slot_height
                 {
                     let filtered_block = match get_da_block_at_height(
                         da_service,
-                        soft_batch.da_slot_height,
+                        soft_confirmation.da_slot_height,
                         self.l1_block_cache.clone(),
                     )
                     .await
@@ -617,14 +617,14 @@ where
                         Err(_) => {
                             return Err(anyhow!(
                                 "Error while fetching DA block at height: {}",
-                                soft_batch.da_slot_height
+                                soft_confirmation.da_slot_height
                             ));
                         }
                     };
                     da_block_headers_to_push.push(filtered_block.header().clone());
                 }
                 let signed_soft_confirmation: SignedSoftConfirmationBatch =
-                    soft_batch.clone().into();
+                    soft_confirmation.clone().into();
                 commitment_soft_confirmations.push(signed_soft_confirmation.clone());
             }
             soft_confirmations.push_back(commitment_soft_confirmations);
@@ -653,7 +653,7 @@ where
 
     fn check_l2_range_exists(&self, first_l2_height_of_l1: u64, last_l2_height_of_l1: u64) -> bool {
         let ledger_db = &self.ledger_db.clone();
-        if let Ok(range) = ledger_db.clone().get_soft_batch_range(
+        if let Ok(range) = ledger_db.clone().get_soft_confirmation_range(
             &(BatchNumber(first_l2_height_of_l1)..BatchNumber(last_l2_height_of_l1 + 1)),
         ) {
             if (range.len() as u64) >= (last_l2_height_of_l1 - first_l2_height_of_l1 + 1) {
@@ -861,7 +861,7 @@ async fn sync_l2<Da>(
         let soft_confirmations: Vec<GetSoftConfirmationResponse> =
             match retry_backoff(exponential_backoff.clone(), || async move {
                 let soft_confirmations = inner_client
-                    .get_soft_batch_range::<Da::Spec>(l2_height..l2_height + sync_blocks_count)
+                    .get_soft_confirmation_range::<Da::Spec>(l2_height..l2_height + sync_blocks_count)
                     .await;
 
                 match soft_confirmations {
@@ -916,7 +916,7 @@ async fn sync_l2<Da>(
 
 async fn get_initial_slot_height<Da: DaSpec>(client: &SequencerClient) -> u64 {
     loop {
-        match client.get_soft_batch::<Da>(1).await {
+        match client.get_soft_confirmation::<Da>(1).await {
             Ok(Some(batch)) => return batch.da_slot_height,
             _ => {
                 // sleep 1

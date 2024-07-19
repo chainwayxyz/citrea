@@ -24,6 +24,6 @@ where
     #[method(name = "getSoftConfirmationStatus")]
     async fn get_soft_confirmation_status(
         &self,
-        soft_batch_receipt: u64,
+        soft_confirmation_receipt: u64,
     ) -> RpcResult<SoftConfirmationStatus>;
 }

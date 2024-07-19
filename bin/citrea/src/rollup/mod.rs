@@ -51,9 +51,9 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
 
         let genesis_root = prover_storage.get_root_hash(1);
 
-        let prev_data = match ledger_db.get_head_soft_batch()? {
-            Some((number, soft_batch)) => {
-                Some((prover_storage.get_root_hash(number.0 + 1)?, soft_batch.hash))
+        let prev_data = match ledger_db.get_head_soft_confirmation()? {
+            Some((number, soft_confirmation)) => {
+                Some((prover_storage.get_root_hash(number.0 + 1)?, soft_confirmation.hash))
             }
             None => None,
         };
@@ -122,9 +122,9 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
 
         let genesis_root = prover_storage.get_root_hash(1);
 
-        let prev_data = match ledger_db.get_head_soft_batch()? {
-            Some((number, soft_batch)) => {
-                Some((prover_storage.get_root_hash(number.0 + 1)?, soft_batch.hash))
+        let prev_data = match ledger_db.get_head_soft_confirmation()? {
+            Some((number, soft_confirmation)) => {
+                Some((prover_storage.get_root_hash(number.0 + 1)?, soft_confirmation.hash))
             }
             None => None,
         };
@@ -200,9 +200,9 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
 
         let genesis_root = prover_storage.get_root_hash(1);
 
-        let prev_data = match ledger_db.get_head_soft_batch()? {
-            Some((number, soft_batch)) => {
-                Some((prover_storage.get_root_hash(number.0 + 1)?, soft_batch.hash))
+        let prev_data = match ledger_db.get_head_soft_confirmation()? {
+            Some((number, soft_confirmation)) => {
+                Some((prover_storage.get_root_hash(number.0 + 1)?, soft_confirmation.hash))
             }
             None => None,
         };

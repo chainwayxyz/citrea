@@ -126,7 +126,7 @@ where
 
         // Last L1/L2 height before shutdown.
         let start_l1_height = item_numbers.slot_number;
-        let start_l2_height = item_numbers.soft_batch_number;
+        let start_l2_height = item_numbers.soft_confirmation_number;
 
         Ok(Self {
             start_l1_height,
@@ -294,16 +294,16 @@ where
 
         let l2_height = proven_commitments[0].l2_start_block_number;
         // Fetch the block prior to the one at l2_height so compare state roots
-        let prior_soft_batch = self
+        let prior_soft_confirmation = self
             .ledger_db
-            .get_soft_batch_by_number(&(BatchNumber(l2_height - 1)))?;
-        if let Some(prior_soft_batch) = prior_soft_batch {
-            if prior_soft_batch.state_root.as_slice()
+            .get_soft_confirmation_by_number(&(BatchNumber(l2_height - 1)))?;
+        if let Some(prior_soft_confirmation) = prior_soft_confirmation {
+            if prior_soft_confirmation.state_root.as_slice()
                 != state_transition.initial_state_root.as_ref()
             {
                 return Err(anyhow!(
                     "Proof verification: For a known and verified sequencer commitment. Pre state root mismatch - expected 0x{} but got 0x{}. Skipping proof.",
-                    hex::encode(&prior_soft_batch.state_root),
+                    hex::encode(&prior_soft_confirmation.state_root),
                     hex::encode(&state_transition.initial_state_root)
                 ).into());
             }
@@ -344,7 +344,7 @@ where
         // Traverse each item's field of vector of transactions, put them in merkle tree
         // and compare the root with the one from the ledger
         let stored_soft_confirmations: Vec<StoredSoftConfirmation> =
-            self.ledger_db.get_soft_batch_range(
+            self.ledger_db.get_soft_confirmation_range(
                 &(BatchNumber(start_l2_height)..BatchNumber(end_l2_height + 1)),
             )?;
 
@@ -397,17 +397,17 @@ where
     async fn process_l2_block(
         &mut self,
         l2_height: u64,
-        soft_batch: GetSoftConfirmationResponse,
+        soft_confirmation: GetSoftConfirmationResponse,
         current_l1_block: Da::FilteredBlock,
     ) -> anyhow::Result<()> {
         info!(
             "Running soft confirmation batch #{} with hash: 0x{} on DA block #{}",
             l2_height,
-            hex::encode(soft_batch.hash),
+            hex::encode(soft_confirmation.hash),
             current_l1_block.header().height()
         );
 
-        if self.batch_hash != soft_batch.prev_hash {
+        if self.batch_hash != soft_confirmation.prev_hash {
             bail!("Previous hash mismatch at height: {}", l2_height);
         }
 
@@ -417,7 +417,7 @@ where
             .storage_manager
             .create_storage_on_l2_height(l2_height)?;
 
-        let slot_result = self.stf.apply_soft_batch(
+        let slot_result = self.stf.apply_soft_confirmation(
             self.sequencer_pub_key.as_slice(),
             // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1247): incorrect pre-state root in case of re-org
             &self.state_root,
@@ -425,12 +425,12 @@ where
             Default::default(),
             current_l1_block.header(),
             &current_l1_block.validity_condition(),
-            &mut soft_batch.clone().into(),
+            &mut soft_confirmation.clone().into(),
         );
 
         let next_state_root = slot_result.state_root;
         // Check if post state root is the same as the one in the soft batch
-        if next_state_root.as_ref().to_vec() != soft_batch.state_root {
+        if next_state_root.as_ref().to_vec() != soft_confirmation.state_root {
             bail!("Post state root mismatch at height: {}", l2_height)
         }
 
@@ -443,17 +443,17 @@ where
         let soft_confirmation_receipt = SoftConfirmationReceipt::<_, _, Da::Spec> {
             state_root: next_state_root.as_ref().to_vec(),
             phantom_data: PhantomData::<u64>,
-            hash: soft_batch.hash,
-            prev_hash: soft_batch.prev_hash,
+            hash: soft_confirmation.hash,
+            prev_hash: soft_confirmation.prev_hash,
             da_slot_hash: current_l1_block.header().hash(),
             da_slot_height: current_l1_block.header().height(),
             da_slot_txs_commitment: current_l1_block.header().txs_commitment(),
             tx_receipts: batch_receipt.tx_receipts,
-            soft_confirmation_signature: soft_batch.soft_confirmation_signature,
-            pub_key: soft_batch.pub_key,
-            deposit_data: soft_batch.deposit_data.into_iter().map(|x| x.tx).collect(),
-            l1_fee_rate: soft_batch.l1_fee_rate,
-            timestamp: soft_batch.timestamp,
+            soft_confirmation_signature: soft_confirmation.soft_confirmation_signature,
+            pub_key: soft_confirmation.pub_key,
+            deposit_data: soft_confirmation.deposit_data.into_iter().map(|x| x.tx).collect(),
+            l1_fee_rate: soft_confirmation.l1_fee_rate,
+            timestamp: soft_confirmation.timestamp,
         };
 
         self.storage_manager
@@ -462,7 +462,7 @@ where
         self.storage_manager.finalize_l2(l2_height)?;
 
         self.ledger_db
-            .commit_soft_batch(soft_confirmation_receipt, self.include_tx_body)?;
+            .commit_soft_confirmation(soft_confirmation_receipt, self.include_tx_body)?;
 
         self.ledger_db.extend_l2_range_of_l1_slot(
             SlotNumber(current_l1_block.header().height()),
@@ -470,7 +470,7 @@ where
         )?;
 
         self.state_root = next_state_root;
-        self.batch_hash = soft_batch.hash;
+        self.batch_hash = soft_confirmation.hash;
 
         info!(
             "New State Root after soft confirmation #{} is: {:?}",
@@ -709,7 +709,7 @@ async fn sync_l2<Da>(
         let soft_confirmations: Vec<GetSoftConfirmationResponse> =
             match retry_backoff(exponential_backoff.clone(), || async move {
                 match inner_client
-                    .get_soft_batch_range::<Da::Spec>(l2_height..l2_height + sync_blocks_count)
+                    .get_soft_confirmation_range::<Da::Spec>(l2_height..l2_height + sync_blocks_count)
                     .await
                 {
                     Ok(soft_confirmations) => {

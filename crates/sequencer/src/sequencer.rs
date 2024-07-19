@@ -259,7 +259,7 @@ where
         mut signed_batch: SignedSoftConfirmationBatch,
         l2_block_mode: L2BlockMode,
     ) -> anyhow::Result<(Vec<RlpEvmTransaction>, Vec<TxHash>)> {
-        match self.stf.begin_soft_batch(
+        match self.stf.begin_soft_confirmation(
             pub_key,
             &self.state_root,
             prestate.clone(),
@@ -298,7 +298,7 @@ where
 
                             let (batch_workspace, _) = self
                                 .stf
-                                .apply_soft_batch_txs(txs.clone(), working_set_to_discard);
+                                .apply_soft_confirmation_txs(txs.clone(), working_set_to_discard);
 
                             working_set_to_discard = batch_workspace;
 
@@ -353,7 +353,7 @@ where
         let da_height = da_block.header().height();
         let (l2_height, l1_height) = match self
             .ledger_db
-            .get_head_soft_batch()
+            .get_head_soft_confirmation()
             .map_err(|e| anyhow!("Failed to get head soft batch: {}", e))?
         {
             Some((l2_height, sb)) => (l2_height.0 + 1, sb.da_slot_height),
@@ -420,7 +420,7 @@ where
             .map_err(Into::<anyhow::Error>::into)?;
 
         // Execute the selected transactions
-        match self.stf.begin_soft_batch(
+        match self.stf.begin_soft_confirmation(
             &pub_key,
             &self.state_root,
             prestate.clone(),
@@ -437,7 +437,7 @@ where
                 let txs = vec![signed_blob.clone()];
 
                 let (batch_workspace, tx_receipts) =
-                    self.stf.apply_soft_batch_txs(txs.clone(), batch_workspace);
+                    self.stf.apply_soft_confirmation_txs(txs.clone(), batch_workspace);
 
                 // create the unsigned batch with the txs then sign th sc
                 let unsigned_batch = UnsignedSoftConfirmationBatch::new(
@@ -450,22 +450,22 @@ where
                     timestamp,
                 );
 
-                let mut signed_soft_batch =
+                let mut signed_soft_confirmation =
                     self.sign_soft_confirmation_batch(unsigned_batch, self.batch_hash)?;
 
-                let (batch_receipt, checkpoint) = self.stf.end_soft_batch(
+                let (batch_receipt, checkpoint) = self.stf.end_soft_confirmation(
                     self.sequencer_pub_key.as_ref(),
-                    &mut signed_soft_batch,
+                    &mut signed_soft_confirmation,
                     tx_receipts,
                     batch_workspace,
                 );
 
                 // Finalize soft confirmation
-                let slot_result = self.stf.finalize_soft_batch(
+                let slot_result = self.stf.finalize_soft_confirmation(
                     batch_receipt,
                     checkpoint,
                     prestate,
-                    &mut signed_soft_batch,
+                    &mut signed_soft_confirmation,
                 );
 
                 if slot_result.state_root.as_ref() == self.state_root.as_ref() {
@@ -489,7 +489,7 @@ where
                     data_to_commit.add_batch(receipt);
                 }
 
-                // TODO: This will be a single receipt once we have apply_soft_batch.
+                // TODO: This will be a single receipt once we have apply_soft_confirmation.
                 let batch_receipt = data_to_commit.batch_receipts()[0].clone();
 
                 let next_state_root = slot_result.state_root;
@@ -497,17 +497,17 @@ where
                 let soft_confirmation_receipt = SoftConfirmationReceipt::<_, _, Da::Spec> {
                     state_root: next_state_root.as_ref().to_vec(),
                     phantom_data: PhantomData::<u64>,
-                    hash: signed_soft_batch.hash(),
-                    prev_hash: signed_soft_batch.prev_hash(),
+                    hash: signed_soft_confirmation.hash(),
+                    prev_hash: signed_soft_confirmation.prev_hash(),
                     da_slot_hash: da_block.header().hash(),
                     da_slot_height: da_block.header().height(),
                     da_slot_txs_commitment: da_block.header().txs_commitment(),
                     tx_receipts: batch_receipt.tx_receipts,
-                    soft_confirmation_signature: signed_soft_batch.signature().to_vec(),
-                    pub_key: signed_soft_batch.pub_key().to_vec(),
+                    soft_confirmation_signature: signed_soft_confirmation.signature().to_vec(),
+                    pub_key: signed_soft_confirmation.pub_key().to_vec(),
                     deposit_data,
-                    l1_fee_rate: signed_soft_batch.l1_fee_rate(),
-                    timestamp: signed_soft_batch.timestamp(),
+                    l1_fee_rate: signed_soft_confirmation.l1_fee_rate(),
+                    timestamp: signed_soft_confirmation.timestamp(),
                 };
 
                 self.storage_manager
@@ -520,7 +520,7 @@ where
                 self.storage_manager.finalize_l2(l2_height)?;
 
                 self.ledger_db
-                    .commit_soft_batch(soft_confirmation_receipt, true)?;
+                    .commit_soft_confirmation(soft_confirmation_receipt, true)?;
 
                 // connect L1 and L2 height
                 self.ledger_db.extend_l2_range_of_l1_slot(
@@ -535,7 +535,7 @@ where
                 );
 
                 self.state_root = next_state_root;
-                self.batch_hash = signed_soft_batch.hash();
+                self.batch_hash = signed_soft_confirmation.hash();
 
                 let mut txs_to_remove = self.db_provider.last_block_tx_hashes()?;
                 txs_to_remove.extend(l1_fee_failed_txs);
@@ -664,7 +664,7 @@ where
 
         let soft_confirmation_hashes = self
             .ledger_db
-            .get_soft_batch_range(&(l2_start..range_end))?
+            .get_soft_confirmation_range(&(l2_start..range_end))?
             .iter()
             .map(|sb| sb.hash)
             .collect::<Vec<[u8; 32]>>();
@@ -825,7 +825,7 @@ where
         let mut l1_fee_rate = l1_fee_rate.clamp(*fee_rate_range.start(), *fee_rate_range.end());
         let mut last_finalized_height = last_finalized_block.header().height();
 
-        let mut last_used_l1_height = match self.ledger_db.get_head_soft_batch() {
+        let mut last_used_l1_height = match self.ledger_db.get_head_soft_confirmation() {
             Ok(Some((_, sb))) => sb.da_slot_height,
             Ok(None) => last_finalized_height, // starting for the first time
             Err(e) => {

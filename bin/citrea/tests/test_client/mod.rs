@@ -519,12 +519,12 @@ impl TestClient {
 
     pub(crate) async fn ledger_get_soft_confirmation_status(
         &self,
-        soft_batch_receipt: u64,
+        soft_confirmation_receipt: u64,
     ) -> Result<Option<SoftConfirmationStatus>, Box<dyn std::error::Error>> {
         self.http_client
             .request(
                 "ledger_getSoftConfirmationStatus",
-                rpc_params![soft_batch_receipt],
+                rpc_params![soft_confirmation_receipt],
             )
             .await
             .map_err(|e| e.into())

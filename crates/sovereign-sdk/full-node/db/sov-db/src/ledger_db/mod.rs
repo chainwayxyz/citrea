@@ -15,8 +15,8 @@ use crate::schema::tables::{
     BatchByHash, BatchByNumber, CommitmentsByNumber, EventByKey, EventByNumber, L2GenesisStateRoot,
     L2RangeByL1Height, L2Witness, LastSequencerCommitmentSent, LastStateDiff,
     PendingSequencerCommitmentL2Range, ProofBySlotNumber, ProverLastScannedSlot, SlotByHash,
-    SlotByNumber, SoftConfirmationByHash, SoftConfirmationByNumber, SoftConfirmationStatus, TxByHash, TxByNumber,
-    VerifiedProofsBySlotNumber, LEDGER_TABLES,
+    SlotByNumber, SoftConfirmationByHash, SoftConfirmationByNumber, SoftConfirmationStatus,
+    TxByHash, TxByNumber, VerifiedProofsBySlotNumber, LEDGER_TABLES,
 };
 use crate::schema::types::{
     split_tx_for_storage, BatchNumber, EventNumber, L2HeightRange, SlotNumber, StoredBatch,
@@ -48,7 +48,7 @@ pub struct ItemNumbers {
     /// The slot number
     pub slot_number: u64,
     /// The soft batch number
-    pub soft_batch_number: u64,
+    pub soft_confirmation_number: u64,
     /// The batch number
     pub batch_number: u64,
     /// The transaction number
@@ -110,7 +110,7 @@ impl LedgerDB {
 
         let next_item_numbers = ItemNumbers {
             slot_number: Self::last_version_written(&inner, SlotByNumber)?.unwrap_or_default() + 1,
-            soft_batch_number: Self::last_version_written(&inner, SoftConfirmationByNumber)?
+            soft_confirmation_number: Self::last_version_written(&inner, SoftConfirmationByNumber)?
                 .unwrap_or_default()
                 + 1,
             batch_number: Self::last_version_written(&inner, BatchByNumber)?.unwrap_or_default()
@@ -159,7 +159,7 @@ impl LedgerDB {
 
     /// Gets all soft confirmations by numbers
     #[instrument(level = "trace", skip(self), err)]
-    pub fn get_soft_batch_by_number(
+    pub fn get_soft_confirmation_by_number(
         &self,
         number: &BatchNumber,
     ) -> Result<Option<StoredSoftConfirmation>, anyhow::Error> {
@@ -171,7 +171,7 @@ impl LedgerDB {
     /// Note that this method blindly preallocates for the requested range, so it should not be exposed
     /// directly via rpc.
     #[instrument(level = "trace", skip(self), err)]
-    pub fn get_soft_batch_range(
+    pub fn get_soft_confirmation_range(
         &self,
         range: &std::ops::Range<BatchNumber>,
     ) -> Result<Vec<StoredSoftConfirmation>, anyhow::Error> {
@@ -224,7 +224,7 @@ impl LedgerDB {
     }
 
     #[instrument(level = "trace", skip(self, schema_batch), err, ret)]
-    fn put_soft_batch(
+    fn put_soft_confirmation(
         &self,
         batch: &StoredSoftConfirmation,
         batch_number: &BatchNumber,
@@ -269,7 +269,7 @@ impl LedgerDB {
     }
 
     /// Commits a soft batch to the database by inserting its transactions and batches before
-    pub fn commit_soft_batch<B: Serialize, T: Serialize, DS: DaSpec>(
+    pub fn commit_soft_confirmation<B: Serialize, T: Serialize, DS: DaSpec>(
         &self,
         batch_receipt: SoftConfirmationReceipt<B, T, DS>,
         include_tx_body: bool,
@@ -281,7 +281,7 @@ impl LedgerDB {
             let mut next_item_numbers = self.next_item_numbers.lock().unwrap();
             let item_numbers = next_item_numbers.clone();
             next_item_numbers.tx_number += batch_receipt.tx_receipts.len() as u64;
-            next_item_numbers.soft_batch_number += 1;
+            next_item_numbers.soft_confirmation_number += 1;
             next_item_numbers.event_number += batch_receipt
                 .tx_receipts
                 .iter()
@@ -330,7 +330,7 @@ impl LedgerDB {
         // Insert batch
         let batch_to_store = StoredSoftConfirmation {
             da_slot_height: batch_receipt.da_slot_height,
-            l2_height: current_item_numbers.soft_batch_number,
+            l2_height: current_item_numbers.soft_confirmation_number,
             da_slot_hash: batch_receipt.da_slot_hash.into(),
             da_slot_txs_commitment: batch_receipt.da_slot_txs_commitment.into(),
             hash: batch_receipt.hash,
@@ -344,12 +344,12 @@ impl LedgerDB {
             l1_fee_rate: batch_receipt.l1_fee_rate,
             timestamp: batch_receipt.timestamp,
         };
-        self.put_soft_batch(
+        self.put_soft_confirmation(
             &batch_to_store,
-            &BatchNumber(current_item_numbers.soft_batch_number),
+            &BatchNumber(current_item_numbers.soft_confirmation_number),
             &mut schema_batch,
         )?;
-        current_item_numbers.soft_batch_number += 1;
+        current_item_numbers.soft_confirmation_number += 1;
 
         self.db.write_schemas(schema_batch)?;
 
@@ -513,7 +513,9 @@ impl LedgerDB {
 
     /// Get the most recent committed soft batch, if any
     #[instrument(level = "trace", skip(self), err)]
-    pub fn get_head_soft_batch(&self) -> anyhow::Result<Option<(BatchNumber, StoredSoftConfirmation)>> {
+    pub fn get_head_soft_confirmation(
+        &self,
+    ) -> anyhow::Result<Option<(BatchNumber, StoredSoftConfirmation)>> {
         let mut iter = self.db.iter::<SoftConfirmationByNumber>()?;
         iter.seek_to_last();
 
@@ -654,7 +656,9 @@ impl LedgerDB {
         } else {
             self.db
                 .get::<SoftConfirmationByNumber>(&BatchNumber(l2_height))?
-                .map(|soft_batch| bincode::deserialize(&soft_batch.state_root).map_err(Into::into))
+                .map(|soft_confirmation| {
+                    bincode::deserialize(&soft_confirmation.state_root).map_err(Into::into)
+                })
                 .transpose()
         }
     }

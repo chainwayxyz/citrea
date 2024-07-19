@@ -19,11 +19,11 @@ const MAX_SOFT_CONFIRMATIONS_PER_REQUEST: u64 = 20;
 use super::LedgerDB;
 
 impl LedgerRpcProvider for LedgerDB {
-    fn get_soft_batch(
+    fn get_soft_confirmation(
         &self,
         batch_id: &SoftConfirmationIdentifier,
     ) -> Result<Option<SoftConfirmationResponse>, anyhow::Error> {
-        let batch_num = self.resolve_soft_batch_identifier(batch_id)?;
+        let batch_num = self.resolve_soft_confirmation_identifier(batch_id)?;
         Ok(match batch_num {
             Some(num) => {
                 if let Some(stored_batch) = self.db.get::<SoftConfirmationByNumber>(&num)? {
@@ -36,35 +36,35 @@ impl LedgerRpcProvider for LedgerDB {
         })
     }
 
-    fn get_soft_batch_by_hash<T: DeserializeOwned>(
+    fn get_soft_confirmation_by_hash<T: DeserializeOwned>(
         &self,
         hash: &[u8; 32],
     ) -> Result<Option<SoftConfirmationResponse>, anyhow::Error> {
-        self.get_soft_batch(&SoftConfirmationIdentifier::Hash(*hash))
+        self.get_soft_confirmation(&SoftConfirmationIdentifier::Hash(*hash))
     }
 
-    fn get_soft_batch_by_number<T: DeserializeOwned>(
+    fn get_soft_confirmation_by_number<T: DeserializeOwned>(
         &self,
         number: u64,
     ) -> Result<Option<SoftConfirmationResponse>, anyhow::Error> {
-        self.get_soft_batch(&SoftConfirmationIdentifier::Number(number))
+        self.get_soft_confirmation(&SoftConfirmationIdentifier::Number(number))
     }
 
     fn get_soft_confirmations(
         &self,
-        soft_batch_ids: &[SoftConfirmationIdentifier],
+        soft_confirmation_ids: &[SoftConfirmationIdentifier],
     ) -> Result<Vec<Option<SoftConfirmationResponse>>, anyhow::Error> {
         anyhow::ensure!(
-            soft_batch_ids.len() <= MAX_SOFT_CONFIRMATIONS_PER_REQUEST as usize,
+            soft_confirmation_ids.len() <= MAX_SOFT_CONFIRMATIONS_PER_REQUEST as usize,
             "requested too many soft batches. Requested: {}. Max: {}",
-            soft_batch_ids.len(),
+            soft_confirmation_ids.len(),
             MAX_BATCHES_PER_REQUEST
         );
 
-        let mut out = Vec::with_capacity(soft_batch_ids.len());
-        for soft_batch_id in soft_batch_ids {
-            if let Some(soft_batch) = self.get_soft_batch(soft_batch_id)? {
-                out.push(Some(soft_batch));
+        let mut out = Vec::with_capacity(soft_confirmation_ids.len());
+        for soft_confirmation_id in soft_confirmation_ids {
+            if let Some(soft_confirmation) = self.get_soft_confirmation(soft_confirmation_id)? {
+                out.push(Some(soft_confirmation));
             } else {
                 out.push(None);
             }
@@ -182,25 +182,27 @@ impl LedgerRpcProvider for LedgerDB {
         }
     }
 
-    fn get_head_soft_batch(&self) -> Result<Option<SoftConfirmationResponse>, anyhow::Error> {
+    fn get_head_soft_confirmation(
+        &self,
+    ) -> Result<Option<SoftConfirmationResponse>, anyhow::Error> {
         let next_ids = self.get_next_items_numbers();
 
-        if let Some(stored_soft_batch) = self.db.get::<SoftConfirmationByNumber>(&BatchNumber(
-            next_ids.soft_batch_number.saturating_sub(1),
-        ))? {
-            return Ok(Some(stored_soft_batch.try_into()?));
+        if let Some(stored_soft_confirmation) = self.db.get::<SoftConfirmationByNumber>(
+            &BatchNumber(next_ids.soft_confirmation_number.saturating_sub(1)),
+        )? {
+            return Ok(Some(stored_soft_confirmation.try_into()?));
         }
         Ok(None)
     }
 
-    fn get_head_soft_batch_height(&self) -> Result<u64, anyhow::Error> {
+    fn get_head_soft_confirmation_height(&self) -> Result<u64, anyhow::Error> {
         let next_ids = self.get_next_items_numbers();
-        Ok(next_ids.soft_batch_number.saturating_sub(1))
+        Ok(next_ids.soft_confirmation_number.saturating_sub(1))
     }
 }
 
 impl LedgerDB {
-    fn resolve_soft_batch_identifier(
+    fn resolve_soft_confirmation_identifier(
         &self,
         batch_id: &SoftConfirmationIdentifier,
     ) -> Result<Option<BatchNumber>, anyhow::Error> {

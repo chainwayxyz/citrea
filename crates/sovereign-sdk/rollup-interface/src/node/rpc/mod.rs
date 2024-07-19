@@ -411,19 +411,19 @@ pub trait LedgerRpcProvider {
     ) -> Result<Vec<Option<SoftConfirmationResponse>>, anyhow::Error>;
 
     /// Get soft batch
-    fn get_soft_batch(
+    fn get_soft_confirmation(
         &self,
         batch_id: &SoftConfirmationIdentifier,
     ) -> Result<Option<SoftConfirmationResponse>, anyhow::Error>;
 
     /// Get a single soft batch by hash.
-    fn get_soft_batch_by_hash<T: DeserializeOwned>(
+    fn get_soft_confirmation_by_hash<T: DeserializeOwned>(
         &self,
         hash: &[u8; 32],
     ) -> Result<Option<SoftConfirmationResponse>, anyhow::Error>;
 
     /// Get a single soft batch by number.
-    fn get_soft_batch_by_number<T: DeserializeOwned>(
+    fn get_soft_confirmation_by_number<T: DeserializeOwned>(
         &self,
         number: u64,
     ) -> Result<Option<SoftConfirmationResponse>, anyhow::Error>;
@@ -438,7 +438,7 @@ pub trait LedgerRpcProvider {
     /// Takes an L2 Height and and returns the soft confirmation status of the soft batch
     fn get_soft_confirmation_status(
         &self,
-        soft_batch_receipt: u64,
+        soft_confirmation_receipt: u64,
     ) -> Result<SoftConfirmationStatus, anyhow::Error>;
 
     /// (Prover) returns the last scanned L1 height (for sequencer commitments)
@@ -469,10 +469,10 @@ pub trait LedgerRpcProvider {
     fn get_last_verified_proof(&self) -> Result<Option<LastVerifiedProofResponse>, anyhow::Error>;
 
     /// Get head soft batch
-    fn get_head_soft_batch(&self) -> Result<Option<SoftConfirmationResponse>, anyhow::Error>;
+    fn get_head_soft_confirmation(&self) -> Result<Option<SoftConfirmationResponse>, anyhow::Error>;
 
     /// Get head soft batch height
-    fn get_head_soft_batch_height(&self) -> Result<u64, anyhow::Error>;
+    fn get_head_soft_confirmation_height(&self) -> Result<u64, anyhow::Error>;
 }
 
 /// JSON-RPC -related utilities. Occasionally useful but unimportant for most

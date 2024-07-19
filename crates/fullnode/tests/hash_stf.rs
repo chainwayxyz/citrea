@@ -68,14 +68,14 @@ impl<Cond> HashStf<Cond> {
 impl<C: Context, Da: DaSpec, Vm: Zkvm, Cond: ValidityCondition> StfBlueprintTrait<C, Da, Vm>
     for HashStf<Cond>
 {
-    fn begin_soft_batch(
+    fn begin_soft_confirmation(
         &self,
         _sequencer_public_key: &[u8],
         _pre_state_root: &Self::StateRoot,
         _pre_state: Self::PreState,
         _witness: <<C as sov_modules_api::Spec>::Storage as Storage>::Witness,
         _slot_header: &<Da as DaSpec>::BlockHeader,
-        _soft_batch: &mut sov_modules_api::SignedSoftConfirmationBatch,
+        _soft_confirmation: &mut sov_modules_api::SignedSoftConfirmationBatch,
     ) -> (
         Result<(), sov_modules_api::hooks::ApplySoftConfirmationError>,
         sov_modules_api::WorkingSet<C>,
@@ -83,7 +83,7 @@ impl<C: Context, Da: DaSpec, Vm: Zkvm, Cond: ValidityCondition> StfBlueprintTrai
         unimplemented!()
     }
 
-    fn apply_soft_batch_txs(
+    fn apply_soft_confirmation_txs(
         &self,
         _txs: Vec<Vec<u8>>,
         _batch_workspace: sov_modules_api::WorkingSet<C>,
@@ -94,10 +94,10 @@ impl<C: Context, Da: DaSpec, Vm: Zkvm, Cond: ValidityCondition> StfBlueprintTrai
         unimplemented!()
     }
 
-    fn end_soft_batch(
+    fn end_soft_confirmation(
         &self,
         _sequencer_public_key: &[u8],
-        _soft_batch: &mut sov_modules_api::SignedSoftConfirmationBatch,
+        _soft_confirmation: &mut sov_modules_api::SignedSoftConfirmationBatch,
         _tx_receipts: Vec<
             sov_modules_stf_blueprint::TransactionReceipt<sov_modules_stf_blueprint::TxEffect>,
         >,
@@ -109,7 +109,7 @@ impl<C: Context, Da: DaSpec, Vm: Zkvm, Cond: ValidityCondition> StfBlueprintTrai
         unimplemented!()
     }
 
-    fn finalize_soft_batch(
+    fn finalize_soft_confirmation(
         &self,
         _batch_receipt: sov_modules_stf_blueprint::BatchReceipt<
             (),
@@ -117,7 +117,7 @@ impl<C: Context, Da: DaSpec, Vm: Zkvm, Cond: ValidityCondition> StfBlueprintTrai
         >,
         _checkpoint: sov_modules_api::StateCheckpoint<C>,
         _pre_state: Self::PreState,
-        _soft_batch: &mut sov_modules_api::SignedSoftConfirmationBatch,
+        _soft_confirmation: &mut sov_modules_api::SignedSoftConfirmationBatch,
     ) -> SlotResult<
         Self::StateRoot,
         Self::ChangeSet,
@@ -203,7 +203,7 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
         }
     }
 
-    fn apply_soft_batch(
+    fn apply_soft_confirmation(
         &self,
         _sequencer_public_key: &[u8],
         _pre_state_root: &Self::StateRoot,
@@ -211,7 +211,7 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
         _witness: Self::Witness,
         _slot_header: &<Da as DaSpec>::BlockHeader,
         _validity_condition: &<Da as DaSpec>::ValidityCondition,
-        _soft_batch: &mut sov_modules_api::SignedSoftConfirmationBatch,
+        _soft_confirmation: &mut sov_modules_api::SignedSoftConfirmationBatch,
     ) -> SlotResult<
         Self::StateRoot,
         Self::ChangeSet,

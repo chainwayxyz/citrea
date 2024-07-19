@@ -228,7 +228,7 @@ pub trait StateTransitionFunction<Vm: Zkvm, Da: DaSpec> {
     /// Commits state changes to the database
     #[allow(clippy::type_complexity)]
     #[allow(clippy::too_many_arguments)]
-    fn apply_soft_batch(
+    fn apply_soft_confirmation(
         &self,
         sequencer_public_key: &[u8],
         pre_state_root: &Self::StateRoot,
@@ -236,7 +236,7 @@ pub trait StateTransitionFunction<Vm: Zkvm, Da: DaSpec> {
         witness: Self::Witness,
         slot_header: &Da::BlockHeader,
         validity_condition: &Da::ValidityCondition,
-        soft_batch: &mut SignedSoftConfirmationBatch,
+        soft_confirmation: &mut SignedSoftConfirmationBatch,
     ) -> SlotResult<
         Self::StateRoot,
         Self::ChangeSet,

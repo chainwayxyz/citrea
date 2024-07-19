@@ -45,15 +45,15 @@ async fn queries_test_runner(test_queries: Vec<TestExpect>, rpc_config: RpcConfi
 fn populate_ledger(
     ledger_db: &mut LedgerDB,
     slots: Vec<SlotCommit<MockBlock, u32, u32>>,
-    soft_batch_receipts: Option<Vec<SoftConfirmationReceipt<u64, u32, MockDaSpec>>>,
+    soft_confirmation_receipts: Option<Vec<SoftConfirmationReceipt<u64, u32, MockDaSpec>>>,
 ) {
     for slot in slots {
         ledger_db.commit_slot(slot).unwrap();
     }
-    if let Some(soft_batch_receipts) = soft_batch_receipts {
-        for soft_batch_receipt in soft_batch_receipts {
+    if let Some(soft_confirmation_receipts) = soft_confirmation_receipts {
+        for soft_confirmation_receipt in soft_confirmation_receipts {
             ledger_db
-                .commit_soft_batch(soft_batch_receipt, true)
+                .commit_soft_confirmation(soft_confirmation_receipt, true)
                 .unwrap();
         }
     }
@@ -62,7 +62,7 @@ fn populate_ledger(
 fn test_helper(
     test_queries: Vec<TestExpect>,
     slots: Vec<SlotCommit<MockBlock, u32, u32>>,
-    soft_batch_receipts: Option<Vec<SoftConfirmationReceipt<u64, u32, MockDaSpec>>>,
+    soft_confirmation_receipts: Option<Vec<SoftConfirmationReceipt<u64, u32, MockDaSpec>>>,
 ) {
     let rt = tokio::runtime::Builder::new_multi_thread()
         .enable_io()
@@ -74,7 +74,7 @@ fn test_helper(
         // Initialize the ledger database, which stores blocks, transactions, events, etc.
         let tmpdir = tempfile::tempdir().unwrap();
         let mut ledger_db = LedgerDB::with_path(tmpdir.path()).unwrap();
-        populate_ledger(&mut ledger_db, slots, soft_batch_receipts);
+        populate_ledger(&mut ledger_db, slots, soft_confirmation_receipts);
         let server = jsonrpsee::server::ServerBuilder::default()
             .build("127.0.0.1:0")
             .await
@@ -121,7 +121,7 @@ fn regular_test_helper(payload: serde_json::Value, expected: &serde_json::Value)
         blobs: Default::default(),
     })];
 
-    let soft_batch_receipts = vec![
+    let soft_confirmation_receipts = vec![
         SoftConfirmationReceipt {
             da_slot_height: 0,
             da_slot_hash: <MockDaSpec as DaSpec>::SlotHash::from([0u8; 32]),
@@ -214,7 +214,7 @@ fn regular_test_helper(payload: serde_json::Value, expected: &serde_json::Value)
             expected: expected.clone(),
         }],
         slots,
-        Some(soft_batch_receipts),
+        Some(soft_confirmation_receipts),
     )
 }
 
@@ -296,7 +296,7 @@ fn test_get_soft_confirmation() {
 }
 
 #[test]
-fn test_get_soft_batch_status() {
+fn test_get_soft_confirmation_status() {
     let payload = jsonrpc_req!("ledger_getSoftConfirmationStatus", [1]);
     let expected = jsonrpc_result!("trusted");
     regular_test_helper(payload, &expected);

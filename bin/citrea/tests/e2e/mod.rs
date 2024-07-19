@@ -130,7 +130,7 @@ async fn initialize_test(
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn test_soft_batch_save() -> Result<(), anyhow::Error> {
+async fn test_soft_confirmation_save() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging(tracing::Level::DEBUG);
 
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
@@ -1835,7 +1835,7 @@ async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error>
     // Wait for storage
     sleep(Duration::from_secs(1)).await;
 
-    let initial_soft_batch = seq_test_client
+    let initial_soft_confirmation = seq_test_client
         .ledger_get_soft_confirmation_by_number::<MockDaSpec>(1)
         .await
         .unwrap();
@@ -1854,7 +1854,7 @@ async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error>
 
     // last in tx byte array should be a subarray of txs[0]
     assert!(find_subarray(
-        initial_soft_batch.clone().txs.unwrap()[0].tx.as_slice(),
+        initial_soft_confirmation.clone().txs.unwrap()[0].tx.as_slice(),
         &last_tx_raw[2..]
     )
     .is_some());
@@ -1878,21 +1878,21 @@ async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error>
 
     // not in tx byte array should not be a subarray of txs[0]
     assert!(find_subarray(
-        initial_soft_batch.txs.unwrap()[0].tx.as_slice(),
+        initial_soft_confirmation.txs.unwrap()[0].tx.as_slice(),
         &not_in_raw[2..]
     )
     .is_none());
 
     seq_test_client.send_publish_batch_request().await;
 
-    let second_soft_batch = seq_test_client
+    let second_soft_confirmation = seq_test_client
         .ledger_get_soft_confirmation_by_number::<MockDaSpec>(2)
         .await
         .unwrap();
 
     // should be in tx byte array of the soft batch after
     assert!(find_subarray(
-        second_soft_batch.txs.unwrap()[0].tx.as_slice(),
+        second_soft_confirmation.txs.unwrap()[0].tx.as_slice(),
         &not_in_raw[2..]
     )
     .is_some());
@@ -3199,24 +3199,24 @@ async fn test_ledger_get_head_soft_confirmation() {
         .eth_get_block_by_number(Some(BlockNumberOrTag::Latest))
         .await;
 
-    let head_soft_batch = seq_test_client
+    let head_soft_confirmation = seq_test_client
         .ledger_get_head_soft_confirmation()
         .await
         .unwrap()
         .unwrap();
     assert_eq!(latest_block.header.number.unwrap(), 2);
     assert_eq!(
-        head_soft_batch.state_root.as_slice(),
+        head_soft_confirmation.state_root.as_slice(),
         latest_block.header.state_root.as_slice()
     );
-    assert_eq!(head_soft_batch.l2_height, 2);
+    assert_eq!(head_soft_confirmation.l2_height, 2);
 
-    let head_soft_batch_height = seq_test_client
+    let head_soft_confirmation_height = seq_test_client
         .ledger_get_head_soft_confirmation_height()
         .await
         .unwrap()
         .unwrap();
-    assert_eq!(head_soft_batch_height, 2);
+    assert_eq!(head_soft_confirmation_height, 2);
 
     seq_task.abort();
 }
@@ -3474,11 +3474,11 @@ async fn test_sequencer_fill_missing_da_blocks() -> Result<(), anyhow::Error> {
     let mut next_da_block = 2;
     // ensure that all the filled l2 blocks correspond to correct da blocks
     for filler_l2_block in first_filler_l2_block..=last_filler_l2_block {
-        let soft_batch = seq_test_client
+        let soft_confirmation = seq_test_client
             .ledger_get_soft_confirmation_by_number::<MockDaSpec>(filler_l2_block)
             .await
             .unwrap();
-        assert_eq!(soft_batch.da_slot_height, next_da_block);
+        assert_eq!(soft_confirmation.da_slot_height, next_da_block);
         next_da_block += 1;
     }
 
@@ -3490,18 +3490,18 @@ async fn test_sequencer_fill_missing_da_blocks() -> Result<(), anyhow::Error> {
     sleep(Duration::from_secs(1)).await;
 
     // ensure that the latest l2 block points to latest da block and has correct height
-    let head_soft_batch = seq_test_client
+    let head_soft_confirmation = seq_test_client
         .ledger_get_head_soft_confirmation()
         .await
         .unwrap()
         .unwrap();
-    assert_eq!(head_soft_batch.da_slot_height, latest_da_block);
-    let head_soft_batch_num = seq_test_client
+    assert_eq!(head_soft_confirmation.da_slot_height, latest_da_block);
+    let head_soft_confirmation_num = seq_test_client
         .ledger_get_head_soft_confirmation_height()
         .await
         .unwrap()
         .unwrap();
-    assert_eq!(head_soft_batch_num, last_filler_l2_block + 1);
+    assert_eq!(head_soft_confirmation_num, last_filler_l2_block + 1);
 
     seq_task.abort();
     Ok(())

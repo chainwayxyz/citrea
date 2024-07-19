@@ -44,7 +44,7 @@ where
         |params, ledger| async move {
             let args: HexHash = params.one()?;
             ledger
-                .get_soft_batch_by_hash::<Tx>(&args.0)
+                .get_soft_confirmation_by_hash::<Tx>(&args.0)
                 .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
         },
     )?;
@@ -53,7 +53,7 @@ where
         |params, ledger| async move {
             let args: u64 = params.one()?;
             ledger
-                .get_soft_batch_by_number::<Tx>(args)
+                .get_soft_confirmation_by_number::<Tx>(args)
                 .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
         },
     )?;
@@ -152,7 +152,7 @@ where
 
     rpc.register_async_method("ledger_getHeadSoftConfirmation", |_, ledger| async move {
         ledger
-            .get_head_soft_batch()
+            .get_head_soft_confirmation()
             .map_err(|e: anyhow::Error| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
     })?;
 
@@ -160,7 +160,7 @@ where
         "ledger_getHeadSoftConfirmationHeight",
         |_, ledger| async move {
             ledger
-                .get_head_soft_batch_height()
+                .get_head_soft_confirmation_height()
                 .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
         },
     )?;

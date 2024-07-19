@@ -29,7 +29,7 @@ impl SequencerClient {
 
     /// Gets l2 block given l2 height
     #[instrument(level = "trace", skip(self), err, ret)]
-    pub async fn get_soft_batch<DaSpec: sov_rollup_interface::da::DaSpec>(
+    pub async fn get_soft_confirmation<DaSpec: sov_rollup_interface::da::DaSpec>(
         &self,
         num: u64,
     ) -> anyhow::Result<Option<GetSoftConfirmationResponse>> {
@@ -49,7 +49,7 @@ impl SequencerClient {
 
     /// Gets l2 blocks given a range
     #[instrument(level = "trace", skip(self), err, ret)]
-    pub async fn get_soft_batch_range<DaSpec: sov_rollup_interface::da::DaSpec>(
+    pub async fn get_soft_confirmation_range<DaSpec: sov_rollup_interface::da::DaSpec>(
         &self,
         range: Range<u64>,
     ) -> anyhow::Result<Vec<Option<GetSoftConfirmationResponse>>> {
