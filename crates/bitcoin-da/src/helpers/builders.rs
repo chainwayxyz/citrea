@@ -5,7 +5,7 @@ use std::io::{BufWriter, Write};
 
 use anyhow::anyhow;
 use bitcoin::absolute::LockTime;
-use bitcoin::blockdata::opcodes::all::{OP_CHECKSIG, OP_ENDIF, OP_IF};
+use bitcoin::blockdata::opcodes::all::{OP_CHECKSIG, OP_DROP, OP_ENDIF, OP_IF};
 use bitcoin::blockdata::opcodes::OP_FALSE;
 use bitcoin::blockdata::script;
 use bitcoin::hashes::{sha256d, Hash};
@@ -22,7 +22,7 @@ use bitcoin::{
 };
 use tracing::{instrument, trace, warn};
 
-use crate::helpers::{BODY_TAG, PUBLICKEY_TAG, RANDOM_TAG, ROLLUP_NAME_TAG, SIGNATURE_TAG};
+use super::{TransactionHeader, TransactionType};
 use crate::spec::utxo::UTXO;
 use crate::REVEAL_OUTPUT_AMOUNT;
 
@@ -337,33 +337,75 @@ pub fn create_inscription_transactions(
     network: Network,
     reveal_tx_prefix: &[u8],
 ) -> Result<(Transaction, TxWithId), anyhow::Error> {
+    // Assume body size < 400kb:
+    create_inscription_type_0(
+        rollup_name.as_bytes(),
+        body,
+        signature,
+        sequencer_public_key,
+        prev_tx,
+        utxos,
+        recipient,
+        reveal_value,
+        commit_fee_rate,
+        reveal_fee_rate,
+        network,
+        reveal_tx_prefix,
+    )
+}
+
+// TODO: parametrize hardness
+// so tests are easier
+// Creates the inscription transactions (commit and reveal) Type 0
+#[allow(clippy::too_many_arguments)]
+#[instrument(level = "trace", skip_all, err)]
+pub fn create_inscription_type_0(
+    rollup_name: &[u8],
+    body: Vec<u8>,
+    signature: Vec<u8>,
+    sequencer_public_key: Vec<u8>,
+    prev_tx: Option<TxWithId>,
+    utxos: Vec<UTXO>,
+    recipient: Address,
+    reveal_value: u64,
+    commit_fee_rate: f64,
+    reveal_fee_rate: f64,
+    network: Network,
+    reveal_tx_prefix: &[u8],
+) -> Result<(Transaction, TxWithId), anyhow::Error> {
     // Create commit key
     let secp256k1 = Secp256k1::new();
     let key_pair = UntweakedKeypair::new(&secp256k1, &mut rand::thread_rng());
     let (public_key, _parity) = XOnlyPublicKey::from_keypair(&key_pair);
 
+    let header = TransactionHeader {
+        rollup_name,
+        typ: TransactionType::Inscribed,
+    };
+
     // start creating inscription content
-    let reveal_script_builder = script::Builder::new()
+    let mut reveal_script_builder = script::Builder::new()
+        .push_slice(PushBytesBuf::try_from(header.to_bytes()).expect("Cannot push header"))
         .push_x_only_key(&public_key)
         .push_opcode(OP_CHECKSIG)
         .push_opcode(OP_FALSE)
         .push_opcode(OP_IF)
-        .push_slice(PushBytesBuf::from(ROLLUP_NAME_TAG))
-        .push_slice(
-            PushBytesBuf::try_from(rollup_name.as_bytes().to_vec())
-                .expect("Cannot push rollup name"),
-        )
-        .push_slice(PushBytesBuf::from(SIGNATURE_TAG))
         .push_slice(PushBytesBuf::try_from(signature).expect("Cannot push signature"))
-        .push_slice(PushBytesBuf::from(PUBLICKEY_TAG))
         .push_slice(
             PushBytesBuf::try_from(sequencer_public_key).expect("Cannot push sequencer public key"),
-        )
-        .push_slice(PushBytesBuf::from(RANDOM_TAG));
-    // This envelope is not finished yet. The random number will be added later and followed by the body
+        );
+    // push body in chunks of 520 bytes
+    for chunk in body.chunks(520) {
+        reveal_script_builder = reveal_script_builder
+            .push_slice(PushBytesBuf::try_from(chunk.to_vec()).expect("Cannot push body chunk"));
+    }
+    // push end if
+    reveal_script_builder = reveal_script_builder.push_opcode(OP_ENDIF);
+
+    // This envelope is not finished yet. The random number will be added later
 
     // Start loop to find a 'nonce' i.e. random number that makes the reveal tx hash starting with zeros given length
-    let mut nonce: i64 = 0;
+    let mut nonce: i64 = 16;
     loop {
         if nonce % 10000 == 0 {
             trace!(nonce, "Trying to find commit & reveal nonce");
@@ -378,17 +420,8 @@ pub fn create_inscription_transactions(
 
         // push first random number and body tag
         reveal_script_builder = reveal_script_builder
-            .push_int(nonce)
-            .push_slice(PushBytesBuf::from(BODY_TAG));
-
-        // push body in chunks of 520 bytes
-        for chunk in body.chunks(520) {
-            reveal_script_builder = reveal_script_builder.push_slice(
-                PushBytesBuf::try_from(chunk.to_vec()).expect("Cannot push body chunk"),
-            );
-        }
-        // push end if
-        reveal_script_builder = reveal_script_builder.push_opcode(OP_ENDIF);
+            .push_slice(nonce.to_le_bytes())
+            .push_opcode(OP_DROP);
 
         // finalize reveal script
         let reveal_script = reveal_script_builder.into_script();
