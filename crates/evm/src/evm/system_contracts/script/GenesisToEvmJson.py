@@ -1,8 +1,11 @@
 import json
 import sys
+import os
 
 with open(sys.argv[1], "r") as file:
     data = json.load(file)
+
+isProd = True if (sys.argv[3] == "true") else False
 
 # Sort the data by key
 data = {k: data[k] for k in sorted(data)}
@@ -20,7 +23,12 @@ for key in data:
 
 evm_json = {}
 evm_json["data"] = new_data
-evm_json["chain_id"] = 5655
+if not isProd:
+    evm_json["chain_id"] = 5655
+else:
+    if os.environ.get("CHAIN_ID") is None:
+        raise Exception("CHAIN_ID environment variable is not set")
+    evm_json["chain_id"] = os.getenv("CHAIN_ID")
 evm_json["limit_contract_code_size"] = None
 evm_json["spec"] = {"0": "SHANGHAI"}
 evm_json["coinbase"] = "0x3100000000000000000000000000000000000005"
@@ -47,11 +55,12 @@ paths = [
     "../../../../../resources/test-data/integration-tests-low-max-l2-blocks-per-l1/evm.json"
 ]
 
-for path in paths:
-    with open(path, "w") as file:
-        if path == "../../../../../resources/test-data/integration-tests-low-block-gas-limit/evm.json":
-            new_evm_json = evm_json.copy()
-            new_evm_json["block_gas_limit"] = 1500000
-            json.dump(new_evm_json, file, indent=2)
-            continue
-        json.dump(evm_json, file, indent=2)
+if not isProd:
+    for path in paths:
+        with open(path, "w") as file:
+            if path == "../../../../../resources/test-data/integration-tests-low-block-gas-limit/evm.json":
+                new_evm_json = evm_json.copy()
+                new_evm_json["block_gas_limit"] = 1500000
+                json.dump(new_evm_json, file, indent=2)
+                continue
+            json.dump(evm_json, file, indent=2)

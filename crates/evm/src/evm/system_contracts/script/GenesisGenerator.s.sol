@@ -52,9 +52,8 @@ contract GenesisGenerator is Script {
     uint160 PROXY_IMPL_OFFSET = uint160(0x0100000000000000000000000000000000000000); // uint160(address(proxy)) - uint160(address(impl))
 
     // Owner of proxy admin
-    //! CHANGE THIS IN PRODUCTION TO THE INITIAL EOA OWNER
-    address internal owner = address(0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266);
-    address internal feeRecipient = address(0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266);
+    address internal owner;
+    address internal feeRecipient;
 
     address[] internal devAddresses = 
     [
@@ -72,12 +71,26 @@ contract GenesisGenerator is Script {
 
 
     function run() public {
+        owner = address(0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266);
+        feeRecipient = address(0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266);
         dealBalanceToDevAddrs();
         dealBalanceToBridge();
         setProxyAdmin();
         setContracts();
         vm.dumpState("./state/genesis.json");
-        generateEvmJson("./state/genesis.json", "./state/evm.json");
+        generateEvmJson("./state/genesis.json", "./state/evm.json", false);
+    }
+
+    function runProd() public {
+        owner = vm.envAddress("OWNER");
+        feeRecipient = vm.envAddress("FEE_RECIPIENT");
+        string memory defaultPath = "./state/evmProd.json";
+        string memory copyPath = vm.envOr("PROD_JSON_PATH", defaultPath);
+        dealBalanceToBridge();
+        setProxyAdmin();
+        setContracts();
+        vm.dumpState("./state/genesisProd.json");
+        generateEvmJson("./state/genesisProd.json", copyPath, true);
     }
 
     function dealBalanceToDevAddrs() internal {
@@ -140,11 +153,11 @@ contract GenesisGenerator is Script {
         vm.resetNonce(initProxyImpl);
     }
 
-    function generateEvmJson(string memory _genesisPath, string memory _evmPath) internal {
+    function generateEvmJson(string memory _genesisPath, string memory _evmPath, bool _isProd) internal {
         string[] memory commands = new string[](3);
         commands[0] = "bash";
         commands[1] = "-c";
-        commands[2] = string.concat("python3 ./script/GenesisToEvmJson.py ",  _genesisPath, " ", _evmPath );
+        commands[2] = string.concat("python3 ./script/GenesisToEvmJson.py ",  _genesisPath, " ", _evmPath, " ", _isProd ? "true" : "false");
         Process.run(commands, false);
     }
 }

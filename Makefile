@@ -110,3 +110,7 @@ pr:
 # Set genesis from system contract source files
 genesis:
 	$(MAKE) -C crates/evm/src/evm/system_contracts genesis
+
+# Set production genesis from system contract source files
+genesis-prod:
+	$(MAKE) -C crates/evm/src/evm/system_contracts genesis-prod
