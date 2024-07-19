@@ -27,7 +27,7 @@ do
     cp -r "$path" "${path}_tmp"
 done
 
-sleep 5
+sleep 1
 
 # Run make command
 make genesis
