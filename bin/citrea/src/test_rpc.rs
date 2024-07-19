@@ -255,34 +255,6 @@ macro_rules! jsonrpc_result {
 }
 
 #[test]
-fn test_get_transactions_offset_first_batch() {
-    // Tests for different types of argument
-    let payload = jsonrpc_req!("ledger_getTransactions", [[{"batchId": 1, "offset": 0}]]);
-    let expected = jsonrpc_result!([{"hash":"0x709b55bd3da0f5a838125bd0ee20c5bfdd7caba173912d4281cae816b79a201b","eventRange":{"start":1,"end":1},"body":"74783120626f6479"}]);
-    regular_test_helper(payload, &expected);
-
-    // Tests for flattened args
-    let payload = jsonrpc_req!("ledger_getTransactions", [1]);
-    regular_test_helper(payload, &expected);
-
-    let payload = jsonrpc_req!("ledger_getTransactions", [[1]]);
-    regular_test_helper(payload, &expected);
-
-    let payload = jsonrpc_req!("ledger_getTransactions", [[1], "standard"]);
-    regular_test_helper(payload, &expected);
-
-    let payload = jsonrpc_req!("ledger_getTransactions", [[1], "compact"]);
-    regular_test_helper(payload, &expected);
-
-    let payload = jsonrpc_req!("ledger_getTransactions", [[1], "full"]);
-    regular_test_helper(payload, &expected);
-
-    let payload = jsonrpc_req!("ledger_getTransactions", [[{ "batchId": 1, "offset": 1}]]);
-    let expected = jsonrpc_result!([{"hash":"0x27ca64c092a959c7edc525ed45e845b1de6a7590d173fd2fad9133c8a779a1e3","eventRange":{"start":1,"end":3},"body":"74783220626f6479"}]);
-    regular_test_helper(payload, &expected);
-}
-
-#[test]
 fn test_get_soft_batch() {
     // Get the first soft batch by number
     let payload = jsonrpc_req!("ledger_getSoftBatchByNumber", [1]);
@@ -441,94 +413,7 @@ prop_compose! {
     }
 }
 
-fn full_tx_json(
-    tx_id: usize,
-    tx: &TransactionReceipt<u32>,
-    tx_id_to_event_range: &HashMap<usize, (usize, usize)>,
-) -> serde_json::Value {
-    let (event_range_begin, event_range_end) = tx_id_to_event_range.get(&tx_id).unwrap();
-    let tx_hash_hex = hex::encode(tx.tx_hash);
-    match &tx.body_to_save {
-        None => json!({
-            "hash": format!("0x{tx_hash_hex}"),
-            "eventRange": {
-                "start": event_range_begin,
-                "end": event_range_end
-            },
-        }),
-        Some(body) => {
-            json!({
-                "hash": format!("0x{tx_hash_hex}"),
-                "eventRange": {
-                    "start": event_range_begin,
-                    "end": event_range_end
-                },
-                "body": HexTx::from(body.clone()),
-            })
-        }
-    }
-}
-
 proptest!(
-    #[test]
-    fn proptest_get_transactions((slots, tx_id_to_event_range, _total_num_batches) in arb_slots(10, 10), random_tx_num in 1..1000){
-        let mut curr_tx_num = 1;
-
-        let random_tx_num_usize = usize::try_from(random_tx_num).unwrap();
-
-        for slot in &slots{
-            for batch in slot.batch_receipts(){
-                if curr_tx_num > random_tx_num_usize {
-                    break;
-                }
-
-                if curr_tx_num + batch.tx_receipts.len() > random_tx_num_usize {
-                    let tx_index = random_tx_num_usize - curr_tx_num;
-                    let tx = batch.tx_receipts.get(tx_index).unwrap();
-
-                    let tx_formatted = full_tx_json(curr_tx_num + tx_index, tx, &tx_id_to_event_range);
-
-                    test_helper(vec![TestExpect{
-                        payload:
-                        jsonrpc_req!("ledger_getTransactions", [[random_tx_num]]),
-                        expected:
-                        jsonrpc_result!([tx_formatted])},
-                        TestExpect{
-                        payload:
-                        jsonrpc_req!("ledger_getTransactions", [random_tx_num]),
-                        expected:
-                        jsonrpc_result!([tx_formatted])},
-                        TestExpect{
-                        payload:
-                        jsonrpc_req!("ledger_getTransactions", [[random_tx_num], "compact"]),
-                        expected:
-                        jsonrpc_result!([tx_formatted])},
-                        TestExpect{
-                        payload:
-                        jsonrpc_req!("ledger_getTransactions", [[random_tx_num], "standard"]),
-                        expected:
-                        jsonrpc_result!([tx_formatted])},
-                        TestExpect{
-                        payload:
-                        jsonrpc_req!("ledger_getTransactions", [[random_tx_num], "full"]),
-                        expected:
-                        jsonrpc_result!([tx_formatted])},
-                        ]
-                        , slots, None);
-
-                    return Ok(());
-                }
-
-                curr_tx_num += batch.tx_receipts.len();
-            }
-        }
-
-        let payload = jsonrpc_req!("ledger_getTransactions", [[random_tx_num]]);
-        let expected = jsonrpc_result!([null]);
-        test_helper(vec![TestExpect{payload, expected}], slots, None);
-
-    }
-
     #[test]
     fn proptest_get_events((slots, tx_id_to_event_range, _total_num_batches) in arb_slots(10, 10), random_event_num in 1..10000){
         let mut curr_tx_num = 1;

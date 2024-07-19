@@ -17,50 +17,16 @@ use crate::schema::types::{
     BatchNumber, EventNumber, SlotNumber, StoredBatch, StoredSlot, TxNumber,
 };
 
-/// The maximum number of slots that can be requested in a single RPC range query
-const MAX_SLOTS_PER_REQUEST: u64 = 10;
 /// The maximum number of batches that can be requested in a single RPC range query
 const MAX_BATCHES_PER_REQUEST: u64 = 20;
 /// The maximum number of soft batches that can be requested in a single RPC range query
 const MAX_SOFT_BATCHES_PER_REQUEST: u64 = 20;
-/// The maximum number of transactions that can be requested in a single RPC range query
-const MAX_TRANSACTIONS_PER_REQUEST: u64 = 100;
 /// The maximum number of events that can be requested in a single RPC range query
 const MAX_EVENTS_PER_REQUEST: u64 = 500;
 
 use super::LedgerDB;
 
 impl LedgerRpcProvider for LedgerDB {
-    fn get_slots<B: DeserializeOwned, T: DeserializeOwned>(
-        &self,
-        slot_ids: &[sov_rollup_interface::rpc::SlotIdentifier],
-        query_mode: QueryMode,
-    ) -> Result<Vec<Option<SlotResponse<B, T>>>, anyhow::Error> {
-        anyhow::ensure!(
-            slot_ids.len() <= MAX_SLOTS_PER_REQUEST as usize,
-            "requested too many slots. Requested: {}. Max: {}",
-            slot_ids.len(),
-            MAX_SLOTS_PER_REQUEST
-        );
-        // TODO: https://github.com/Sovereign-Labs/sovereign-sdk/issues/191 Sort the input
-        //      and use an iterator instead of querying for each slot individually
-        let mut out = Vec::with_capacity(slot_ids.len());
-        for slot_id in slot_ids {
-            let slot_num = self.resolve_slot_identifier(slot_id)?;
-            out.push(match slot_num {
-                Some(num) => {
-                    if let Some(stored_slot) = self.db.get::<SlotByNumber>(&num)? {
-                        Some(self.populate_slot_response(num.into(), stored_slot, query_mode)?)
-                    } else {
-                        None
-                    }
-                }
-                None => None,
-            })
-        }
-        Ok(out)
-    }
-
     fn get_soft_batch(
         &self,
         batch_id: &SoftBatchIdentifier,
@@ -76,36 +42,6 @@ impl LedgerRpcProvider for LedgerDB {
             }
             None => None,
         })
-    }
-
-    fn get_transactions<T: DeserializeOwned>(
-        &self,
-        tx_ids: &[sov_rollup_interface::rpc::TxIdentifier],
-        _query_mode: QueryMode,
-    ) -> Result<Vec<Option<TxResponse<T>>>, anyhow::Error> {
-        anyhow::ensure!(
-            tx_ids.len() <= MAX_TRANSACTIONS_PER_REQUEST as usize,
-            "requested too many transactions. Requested: {}. Max: {}",
-            tx_ids.len(),
-            MAX_TRANSACTIONS_PER_REQUEST
-        );
-        // TODO: https://github.com/Sovereign-Labs/sovereign-sdk/issues/191 Sort the input
-        //      and use an iterator instead of querying for each slot individually
-        let mut out: Vec<Option<TxResponse<T>>> = Vec::with_capacity(tx_ids.len());
-        for id in tx_ids {
-            let num = self.resolve_tx_identifier(id)?;
-            out.push(match num {
-                Some(num) => {
-                    if let Some(tx) = self.db.get::<TxByNumber>(&num)? {
-                        Some(tx.try_into()?)
-                    } else {
-                        None
-                    }
-                }
-                None => None,
-            })
-        }
-        Ok(out)
     }
 
     fn get_events(
@@ -138,29 +74,11 @@ impl LedgerRpcProvider for LedgerDB {
         self.get_soft_batch(&SoftBatchIdentifier::Hash(*hash))
     }
 
-    fn get_tx_by_hash<T: DeserializeOwned>(
-        &self,
-        hash: &[u8; 32],
-        query_mode: QueryMode,
-    ) -> Result<Option<TxResponse<T>>, anyhow::Error> {
-        self.get_transactions(&[TxIdentifier::Hash(*hash)], query_mode)
-            .map(|mut txs: Vec<Option<TxResponse<T>>>| txs.pop().unwrap_or(None))
-    }
-
     fn get_soft_batch_by_number<T: DeserializeOwned>(
         &self,
         number: u64,
     ) -> Result<Option<SoftBatchResponse>, anyhow::Error> {
         self.get_soft_batch(&SoftBatchIdentifier::Number(number))
-    }
-
-    fn get_tx_by_number<T: DeserializeOwned>(
-        &self,
-        number: u64,
-        query_mode: QueryMode,
-    ) -> Result<Option<TxResponse<T>>, anyhow::Error> {
-        self.get_transactions(&[TxIdentifier::Number(number)], query_mode)
-            .map(|mut txs| txs.pop().unwrap_or(None))
     }
 
     fn get_event_by_number(&self, number: u64) -> Result<Option<Event>, anyhow::Error> {
@@ -203,22 +121,6 @@ impl LedgerRpcProvider for LedgerDB {
         );
         let ids: Vec<_> = (start..=end).map(SoftBatchIdentifier::Number).collect();
         self.get_soft_batches(&ids)
-    }
-
-    fn get_transactions_range<T: DeserializeOwned>(
-        &self,
-        start: u64,
-        end: u64,
-        query_mode: QueryMode,
-    ) -> Result<Vec<Option<TxResponse<T>>>, anyhow::Error> {
-        anyhow::ensure!(start <= end, "start must be <= end");
-        anyhow::ensure!(
-            end - start <= MAX_TRANSACTIONS_PER_REQUEST,
-            "requested transaction range too large. Max: {}",
-            MAX_TRANSACTIONS_PER_REQUEST
-        );
-        let ids: Vec<_> = (start..=end).map(TxIdentifier::Number).collect();
-        self.get_transactions(&ids, query_mode)
     }
 
     fn get_soft_confirmation_status(
@@ -411,84 +313,5 @@ impl LedgerDB {
             EventIdentifier::Number(num) => Ok(Some(EventNumber(*num))),
             EventIdentifier::TxIdAndKey(_) => todo!(),
         }
-    }
-
-    fn populate_slot_response<B: DeserializeOwned, T: DeserializeOwned>(
-        &self,
-        number: u64,
-        slot: StoredSlot,
-        mode: QueryMode,
-    ) -> Result<SlotResponse<B, T>, anyhow::Error> {
-        Ok(match mode {
-            QueryMode::Compact => SlotResponse {
-                number,
-                hash: slot.hash,
-                batch_range: slot.batches.start.into()..slot.batches.end.into(),
-                batches: None,
-            },
-            QueryMode::Standard => {
-                let batches = self.get_batch_range(&slot.batches)?;
-                let batch_hashes = Some(
-                    batches
-                        .into_iter()
-                        .map(|batch| ItemOrHash::Hash(batch.hash))
-                        .collect(),
-                );
-                SlotResponse {
-                    number,
-                    hash: slot.hash,
-                    batch_range: slot.batches.start.into()..slot.batches.end.into(),
-                    batches: batch_hashes,
-                }
-            }
-            QueryMode::Full => {
-                let num_batches = (slot.batches.end.0 - slot.batches.start.0) as usize;
-                let mut batches = Vec::with_capacity(num_batches);
-                for batch in self.get_batch_range(&slot.batches)? {
-                    batches.push(ItemOrHash::Full(self.populate_batch_response(batch, mode)?));
-                }
-
-                SlotResponse {
-                    number,
-                    hash: slot.hash,
-                    batch_range: slot.batches.start.into()..slot.batches.end.into(),
-                    batches: Some(batches),
-                }
-            }
-        })
-    }
-
-    fn populate_batch_response<B: DeserializeOwned, T: DeserializeOwned>(
-        &self,
-        batch: StoredBatch,
-        mode: QueryMode,
-    ) -> Result<BatchResponse<B, T>, anyhow::Error> {
-        Ok(match mode {
-            QueryMode::Compact => batch.try_into()?,
-
-            QueryMode::Standard => {
-                let txs = self.get_tx_range(&batch.txs)?;
-                let tx_hashes = Some(
-                    txs.into_iter()
-                        .map(|tx| ItemOrHash::Hash(tx.hash))
-                        .collect(),
-                );
-
-                let mut batch_response: BatchResponse<B, T> = batch.try_into()?;
-                batch_response.txs = tx_hashes;
-                batch_response
-            }
-            QueryMode::Full => {
-                let num_txs = (batch.txs.end.0 - batch.txs.start.0) as usize;
-                let mut txs = Vec::with_capacity(num_txs);
-                for tx in self.get_tx_range(&batch.txs)? {
-                    txs.push(ItemOrHash::Full(tx.try_into()?));
-                }
-
-                let mut batch_response: BatchResponse<B, T> = batch.try_into()?;
-                batch_response.txs = Some(txs);
-                batch_response
-            }
-        })
     }
 }
