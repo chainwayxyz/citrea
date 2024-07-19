@@ -27,7 +27,7 @@ use sov_modules_api::utils::to_jsonrpsee_error_object;
 use sov_modules_api::{Context, WorkingSet};
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::CITREA_VERSION;
-use tracing::{info, instrument};
+use tracing::{error, info, instrument};
 
 const MAX_TRACE_BLOCK: u32 = 1000;
 
@@ -641,7 +641,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                         return Ok(());
                     }
 
-                    let _opts: Option<GethDebugTracingOptions> = match params.optional_next() {
+                    let opts: Option<GethDebugTracingOptions> = match params.optional_next() {
                         Ok(v) => v,
                         Err(err) => {
                             sink.reject(err).await;
@@ -651,14 +651,38 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
 
                     let subscription = sink.accept().await?;
                     tokio::spawn(async move {
-                        for _ in start_block+1..=end_block {
-                            let msg = SubscriptionMessage::new(
-                                subscription.method_name(),
-                                subscription.subscription_id(),
-                                &"hello",
-                            )
-                            .unwrap();
-                            let Ok(_) = subscription.send(msg).await else { return; };
+                        for block_number in start_block+1..=end_block {
+                            let traces = debug_trace_by_block_number(
+                                block_number,
+                                None,
+                                &ethereum,
+                                &evm,
+                                &mut working_set,
+                                opts.clone(),
+                            );
+                            match traces {
+                                Ok(traces) => {
+                                    let msg = SubscriptionMessage::new(
+                                        subscription.method_name(),
+                                        subscription.subscription_id(),
+                                        &traces,
+                                    )
+                                    .unwrap();
+                                    let Ok(_) = subscription.send(msg).await else { return; };
+                                }
+                                Err(err) => {
+                                    error!("Failed to get block traces in debug_traceChain: {}", err);
+
+                                    let msg = SubscriptionMessage::new(
+                                        subscription.method_name(),
+                                        subscription.subscription_id(),
+                                        &"Internal error",
+                                    )
+                                    .unwrap();
+                                    let _ = subscription.send(msg).await;
+                                    return;
+                                }
+                            };
                         }
                     });
                 }
