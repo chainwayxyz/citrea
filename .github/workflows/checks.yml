@@ -61,368 +61,368 @@ concurrency:
   cancel-in-progress: ${{ (github.ref != 'refs/heads/nightly') && (github.ref != 'refs/heads/main') }}
 
 jobs:
-  # check:
-  #   name: check
-  #   runs-on: ubicloud-standard-16
-  #   timeout-minutes: 60
-  #   if: github.event.pull_request.draft == false
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - uses: rui314/setup-mold@v1
-  #     - name: Install Protoc
-  #       uses: arduino/setup-protoc@v2
-  #       with:
-  #         version: "23.2"
-  #         repo-token: ${{ secrets.GITHUB_TOKEN }}
-  #     - name: Toolchain
-  #       uses: dtolnay/rust-toolchain@nightly
-  #       with:
-  #         override: true
-  #         components: rustfmt, clippy
-  #     - name: Rust Cache
-  #       uses: Swatinem/rust-cache@v2
-  #     - name: Install cargo-risczero
-  #       uses: taiki-e/install-action@v2
-  #       with:
-  #         tool: cargo-risczero@1.0.1
-  #     - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-  #       run: cargo risczero install --version r0.1.78.0
-  #       env:
-  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  #     - name: Check TOML
-  #       uses: dprint/check@v2.2
-  #     - name: Run lint
-  #       run: |
-  #         if ! SKIP_GUEST_BUILD=1 make lint ; then
-  #           echo "Linting or formatting errors detected, please run 'make lint-fix' to fix it";
-  #           exit 1
-  #         fi
+  check:
+    name: check
+    runs-on: ubicloud-standard-16
+    timeout-minutes: 60
+    if: github.event.pull_request.draft == false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: rui314/setup-mold@v1
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v2
+        with:
+          version: "23.2"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Toolchain
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          override: true
+          components: rustfmt, clippy
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+      - name: Install cargo-risczero
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-risczero@1.0.1
+      - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
+        run: cargo risczero install --version r0.1.78.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Check TOML
+        uses: dprint/check@v2.2
+      - name: Run lint
+        run: |
+          if ! SKIP_GUEST_BUILD=1 make lint ; then
+            echo "Linting or formatting errors detected, please run 'make lint-fix' to fix it";
+            exit 1
+          fi
 
-  # udeps:
-  #   name: udeps
-  #   runs-on: ubicloud-standard-8
-  #   timeout-minutes: 60
-  #   if: github.event.pull_request.draft == false
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - uses: rui314/setup-mold@v1
-  #     - name: Install Protoc
-  #       uses: arduino/setup-protoc@v2
-  #       with:
-  #         version: "23.2"
-  #         repo-token: ${{ secrets.GITHUB_TOKEN }}
-  #     - name: Toolchain
-  #       uses: actions-rs/toolchain@v1
-  #       with:
-  #         toolchain: nightly
-  #         override: true
-  #     - name: Rust Cache
-  #       uses: Swatinem/rust-cache@v2
-  #     - name: Install cargo-risczero
-  #       uses: taiki-e/install-action@v2
-  #       with:
-  #         tool: cargo-risczero@1.0.1
-  #     - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-  #       run: cargo risczero install --version r0.1.78.0
-  #       env:
-  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  #     - name: Run cargo-udeps
-  #       env:
-  #         RUSTFLAGS: -A warnings
-  #       uses: aig787/cargo-udeps-action@v1
-  #       with:
-  #         version: 'latest'
-  #         args: '--workspace --all-features --all-targets'
+  udeps:
+    name: udeps
+    runs-on: ubicloud-standard-8
+    timeout-minutes: 60
+    if: github.event.pull_request.draft == false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: rui314/setup-mold@v1
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v2
+        with:
+          version: "23.2"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          override: true
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+      - name: Install cargo-risczero
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-risczero@1.0.1
+      - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
+        run: cargo risczero install --version r0.1.78.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Run cargo-udeps
+        env:
+          RUSTFLAGS: -A warnings
+        uses: aig787/cargo-udeps-action@v1
+        with:
+          version: 'latest'
+          args: '--workspace --all-features --all-targets'
 
-  # deny:
-  #   runs-on: ubuntu-latest
-  #   if: github.event.pull_request.draft == false
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - name: Run cargo-deny
-  #       uses: EmbarkStudios/cargo-deny-action@v1
-  #       with:
-  #         command: check
+  deny:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run cargo-deny
+        uses: EmbarkStudios/cargo-deny-action@v1
+        with:
+          command: check
 
-  # coverage:
-  #   runs-on: ubicloud-standard-16
-  #   if: github.event.pull_request.draft == false
-  #   services:
-  #     postgres:
-  #       image: postgres:latest
-  #       env:
-  #         POSTGRES_USER: postgres
-  #         POSTGRES_PASSWORD: postgres
-  #         POSTGRES_DB: postgres
-  #       ports:
-  #         - 5432:5432
-  #       options: >-
-  #         --health-cmd pg_isready
-  #         --health-interval 10s
-  #         --health-timeout 5s
-  #         --health-retries 5
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - uses: dtolnay/rust-toolchain@1.78.0
-  #       with:
-  #         components: llvm-tools-preview
-  #     - name: Rust Cache
-  #       uses: Swatinem/rust-cache@v2
-  #     - uses: taiki-e/install-action@nextest
-  #     - uses: taiki-e/install-action@cargo-llvm-cov
-  #     - name: Install cargo-risczero
-  #       uses: taiki-e/install-action@v2
-  #       with:
-  #         tool: cargo-risczero@1.0.1
-  #     - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-  #       run: cargo risczero install --version r0.1.78.0
-  #     - name: Cache ethereum-tests
-  #       uses: actions/cache@v3
-  #       with:
-  #         key: "eth-tests-1c23e3c"
-  #         path: crates/evm/ethereum-tests
-  #     - name: Run coverage
-  #       run: make coverage
-  #       env:
-  #         RUST_BACKTRACE: 1
-  #     - name: Upload coverage
-  #       uses: codecov/codecov-action@v4
-  #       with:
-  #         fail_ci_if_error: true # optional (default = false)
-  #         files: ./lcov.info
-  #         token: ${{ secrets.CODECOV_TOKEN }}
+  coverage:
+    runs-on: ubicloud-standard-16
+    if: github.event.pull_request.draft == false
+    services:
+      postgres:
+        image: postgres:latest
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.78.0
+        with:
+          components: llvm-tools-preview
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@nextest
+      - uses: taiki-e/install-action@cargo-llvm-cov
+      - name: Install cargo-risczero
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-risczero@1.0.1
+      - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
+        run: cargo risczero install --version r0.1.78.0
+      - name: Cache ethereum-tests
+        uses: actions/cache@v3
+        with:
+          key: "eth-tests-1c23e3c"
+          path: crates/evm/ethereum-tests
+      - name: Run coverage
+        run: make coverage
+        env:
+          RUST_BACKTRACE: 1
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          fail_ci_if_error: true # optional (default = false)
+          files: ./lcov.info
+          token: ${{ secrets.CODECOV_TOKEN }}
 
-  # uniswap:
-  #   runs-on: ubicloud-standard-16
-  #   if: github.event.pull_request.draft == false
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - uses: dtolnay/rust-toolchain@1.78.0
-  #     - uses: actions/setup-node@v4
-  #       with:
-  #         node-version: 18
-  #     - name: Rust Cache
-  #       uses: Swatinem/rust-cache@v2
-  #     - uses: dcarbone/install-jq-action@v2
-  #     - name: Install cargo-risczero
-  #       uses: taiki-e/install-action@v2
-  #       with:
-  #         tool: cargo-risczero@1.0.1
-  #     - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-  #       run: cargo risczero install --version r0.1.78.0
-  #       env:
-  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  #     - name: Build citrea
-  #       run: make build
-  #     - name: Install node dependencies
-  #       working-directory: ./bin/citrea/tests/evm/uniswap
-  #       run: npm install
-  #     - name: Run uniswap tests
-  #       run: |
-  #         RUST_LOG=off ./target/debug/citrea --da-layer mock --rollup-config-path resources/configs/mock/sequencer_rollup_config.toml --sequencer-config-path resources/configs/mock/sequencer_config.toml --genesis-paths resources/genesis/mock/ &
-  #         sleep 2
-  #         RUST_LOG=off ./target/debug/citrea --rollup-config-path resources/configs/mock/rollup_config.toml --genesis-paths resources/genesis/mock/ &
-  #         sleep 2
-  #         ./resources/configs/mock-dockerized/publish_da_block.sh &
-  #         cd ./bin/citrea/tests/evm/uniswap
-  #         npx hardhat run --network citrea scripts/01_deploy.js
-  #         npx hardhat run --network citrea scripts/02_swap.js
-  #         seqnHeight=$(curl -s 0.0.0.0:12345/ -H "Content-Type: application/json" --data '{"method":"eth_getBlockByNumber","params":["latest"],"id":1,"jsonrpc":"2.0"}' | jq -e .result.number) || (echo "Couldn't get sequencer block"; exit 1)
-  #         nodeHeight=$(curl -s 0.0.0.0:12346/ -H "Content-Type: application/json" --data '{"method":"eth_getBlockByNumber","params":["latest"],"id":1,"jsonrpc":"2.0"}' | jq -e .result.number) || (echo "Couldn't get full node block"; exit 1)
-  #         echo seqnHeight: $seqnHeight
-  #         echo nodeHeight: $nodeHeight
-  #         sleep 10
-  #         seqnRoot=$(curl -s 0.0.0.0:12345/ -H "Content-Type: application/json" --data '{"method":"eth_getBlockByNumber","params":['${seqnHeight}'],"id":1,"jsonrpc":"2.0"}' | jq -e .result.stateRoot) || (echo "Couldn't get sequencer state root"; exit 1)
-  #         nodeRoot=$(curl -s 0.0.0.0:12346/ -H "Content-Type: application/json" --data '{"method":"eth_getBlockByNumber","params":['${seqnHeight}'],"id":1,"jsonrpc":"2.0"}' | jq -e .result.stateRoot) || (echo "Couldn't get full node state root"; exit 1)
-  #         echo seqnRoot: $seqnRoot
-  #         echo nodeRoot: $nodeRoot
-  #         if [ "$seqnRoot" != "$nodeRoot" ]; then
-  #           echo "State root mismatch";
-  #           exit 1
-  #         fi
+  uniswap:
+    runs-on: ubicloud-standard-16
+    if: github.event.pull_request.draft == false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.78.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 18
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+      - uses: dcarbone/install-jq-action@v2
+      - name: Install cargo-risczero
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-risczero@1.0.1
+      - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
+        run: cargo risczero install --version r0.1.78.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build citrea
+        run: make build
+      - name: Install node dependencies
+        working-directory: ./bin/citrea/tests/evm/uniswap
+        run: npm install
+      - name: Run uniswap tests
+        run: |
+          RUST_LOG=off ./target/debug/citrea --da-layer mock --rollup-config-path resources/configs/mock/sequencer_rollup_config.toml --sequencer-config-path resources/configs/mock/sequencer_config.toml --genesis-paths resources/genesis/mock/ &
+          sleep 2
+          RUST_LOG=off ./target/debug/citrea --rollup-config-path resources/configs/mock/rollup_config.toml --genesis-paths resources/genesis/mock/ &
+          sleep 2
+          ./resources/configs/mock-dockerized/publish_da_block.sh &
+          cd ./bin/citrea/tests/evm/uniswap
+          npx hardhat run --network citrea scripts/01_deploy.js
+          npx hardhat run --network citrea scripts/02_swap.js
+          seqnHeight=$(curl -s 0.0.0.0:12345/ -H "Content-Type: application/json" --data '{"method":"eth_getBlockByNumber","params":["latest"],"id":1,"jsonrpc":"2.0"}' | jq -e .result.number) || (echo "Couldn't get sequencer block"; exit 1)
+          nodeHeight=$(curl -s 0.0.0.0:12346/ -H "Content-Type: application/json" --data '{"method":"eth_getBlockByNumber","params":["latest"],"id":1,"jsonrpc":"2.0"}' | jq -e .result.number) || (echo "Couldn't get full node block"; exit 1)
+          echo seqnHeight: $seqnHeight
+          echo nodeHeight: $nodeHeight
+          sleep 10
+          seqnRoot=$(curl -s 0.0.0.0:12345/ -H "Content-Type: application/json" --data '{"method":"eth_getBlockByNumber","params":['${seqnHeight}'],"id":1,"jsonrpc":"2.0"}' | jq -e .result.stateRoot) || (echo "Couldn't get sequencer state root"; exit 1)
+          nodeRoot=$(curl -s 0.0.0.0:12346/ -H "Content-Type: application/json" --data '{"method":"eth_getBlockByNumber","params":['${seqnHeight}'],"id":1,"jsonrpc":"2.0"}' | jq -e .result.stateRoot) || (echo "Couldn't get full node state root"; exit 1)
+          echo seqnRoot: $seqnRoot
+          echo nodeRoot: $nodeRoot
+          if [ "$seqnRoot" != "$nodeRoot" ]; then
+            echo "State root mismatch";
+            exit 1
+          fi
 
-  # web3_py:
-  #   runs-on: ubicloud-standard-16
-  #   if: github.event.pull_request.draft == false
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - uses: actions/setup-python@v4
-  #     - uses: dtolnay/rust-toolchain@1.78.0
-  #     - uses: dcarbone/install-jq-action@v2
-  #     - name: Install cargo-risczero
-  #       uses: taiki-e/install-action@v2
-  #       with:
-  #         tool: cargo-risczero@1.0.1
-  #     - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-  #       run: cargo risczero install --version r0.1.78.0
-  #       env:
-  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  #     - uses: actions/cache@v3
-  #       with:
-  #         key: ${{ runner.os }}-${{ github.job }}-${{ github.head_ref }}
-  #         path: ./target
-  #     - name: Build citrea
-  #       run: make build
-  #     - name: Install dependencies
-  #       working-directory: ./bin/citrea/tests/evm/web3_py
-  #       run: pip install -r requirements.txt
-  #     - name: Run web3.py tests
-  #       run: |
-  #         RUST_LOG=off ./target/debug/citrea --da-layer mock --rollup-config-path resources/configs/mock/sequencer_rollup_config.toml --sequencer-config-path resources/configs/mock/sequencer_config.toml --genesis-paths resources/genesis/mock/ &
-  #         sleep 2
-  #         RUST_LOG=off ./target/debug/citrea --da-layer mock --rollup-config-path resources/configs/mock/rollup_config.toml --genesis-paths resources/genesis/mock/ &
-  #         sleep 2
-  #         # ./resources/configs/mock-dockerized/publish_da_block.sh &
-  #         cd ./bin/citrea/tests/evm/web3_py
-  #         python test.py
+  web3_py:
+    runs-on: ubicloud-standard-16
+    if: github.event.pull_request.draft == false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
+      - uses: dtolnay/rust-toolchain@1.78.0
+      - uses: dcarbone/install-jq-action@v2
+      - name: Install cargo-risczero
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-risczero@1.0.1
+      - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
+        run: cargo risczero install --version r0.1.78.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/cache@v3
+        with:
+          key: ${{ runner.os }}-${{ github.job }}-${{ github.head_ref }}
+          path: ./target
+      - name: Build citrea
+        run: make build
+      - name: Install dependencies
+        working-directory: ./bin/citrea/tests/evm/web3_py
+        run: pip install -r requirements.txt
+      - name: Run web3.py tests
+        run: |
+          RUST_LOG=off ./target/debug/citrea --da-layer mock --rollup-config-path resources/configs/mock/sequencer_rollup_config.toml --sequencer-config-path resources/configs/mock/sequencer_config.toml --genesis-paths resources/genesis/mock/ &
+          sleep 2
+          RUST_LOG=off ./target/debug/citrea --da-layer mock --rollup-config-path resources/configs/mock/rollup_config.toml --genesis-paths resources/genesis/mock/ &
+          sleep 2
+          # ./resources/configs/mock-dockerized/publish_da_block.sh &
+          cd ./bin/citrea/tests/evm/web3_py
+          python test.py
 
-  # ethers_js:
-  #   runs-on: ubicloud-standard-16
-  #   if: github.event.pull_request.draft == false
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - uses: dtolnay/rust-toolchain@1.78.0
-  #     - uses: actions/setup-node@v4
-  #       with:
-  #         node-version: 18
-  #     - name: Rust Cache
-  #       uses: Swatinem/rust-cache@v2
-  #     - uses: dcarbone/install-jq-action@v2
-  #     - name: Install cargo-risczero
-  #       uses: taiki-e/install-action@v2
-  #       with:
-  #         tool: cargo-risczero@1.0.1
-  #     - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-  #       run: cargo risczero install --version r0.1.78.0
-  #       env:
-  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  #     - name: Build citrea
-  #       run: make build
-  #     - name: Install node dependencies
-  #       working-directory: ./bin/citrea/tests/evm/ethers_js
-  #       run: npm install
-  #     - name: Run ethers_js tests
-  #       run: |
-  #         RUST_LOG=off ./target/debug/citrea --da-layer mock --rollup-config-path resources/configs/mock/sequencer_rollup_config.toml --sequencer-config-path resources/configs/mock/sequencer_config.toml --genesis-paths resources/genesis/mock/ &
-  #         sleep 2
-  #         RUST_LOG=off ./target/debug/citrea --da-layer mock --rollup-config-path resources/configs/mock/rollup_config.toml --genesis-paths resources/genesis/mock/ &
-  #         sleep 2
-  #         ./resources/configs/mock-dockerized/publish_da_block.sh &
-  #         cd ./bin/citrea/tests/evm/ethers_js
-  #         npx mocha test.js
+  ethers_js:
+    runs-on: ubicloud-standard-16
+    if: github.event.pull_request.draft == false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.78.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 18
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+      - uses: dcarbone/install-jq-action@v2
+      - name: Install cargo-risczero
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-risczero@1.0.1
+      - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
+        run: cargo risczero install --version r0.1.78.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build citrea
+        run: make build
+      - name: Install node dependencies
+        working-directory: ./bin/citrea/tests/evm/ethers_js
+        run: npm install
+      - name: Run ethers_js tests
+        run: |
+          RUST_LOG=off ./target/debug/citrea --da-layer mock --rollup-config-path resources/configs/mock/sequencer_rollup_config.toml --sequencer-config-path resources/configs/mock/sequencer_config.toml --genesis-paths resources/genesis/mock/ &
+          sleep 2
+          RUST_LOG=off ./target/debug/citrea --da-layer mock --rollup-config-path resources/configs/mock/rollup_config.toml --genesis-paths resources/genesis/mock/ &
+          sleep 2
+          ./resources/configs/mock-dockerized/publish_da_block.sh &
+          cd ./bin/citrea/tests/evm/ethers_js
+          npx mocha test.js
 
-  # check_no_std:
-  #   runs-on: ubicloud-standard-4
-  #   if: github.event.pull_request.draft == false
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - name: Install Rust Bare Metal
-  #       uses: actions-rs/toolchain@v1
-  #       with:
-  #         toolchain: 1.78.0
-  #         target: thumbv6m-none-eabi
-  #         override: true
-  #     - name: Install Rust WASM
-  #       uses: actions-rs/toolchain@v1
-  #       with:
-  #         toolchain: 1.78.0
-  #         target: wasm32-unknown-unknown
-  #         override: true
-  #     - name: cargo install cargo-hack
-  #       uses: taiki-e/install-action@cargo-hack
-  #     - uses: Swatinem/rust-cache@v2
-  #       with:
-  #         save-if: ${{ github.ref == 'refs/heads/nightly' }}
-  #     - name: Run check
-  #       run: make check-no-std
+  check_no_std:
+    runs-on: ubicloud-standard-4
+    if: github.event.pull_request.draft == false
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust Bare Metal
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: 1.78.0
+          target: thumbv6m-none-eabi
+          override: true
+      - name: Install Rust WASM
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: 1.78.0
+          target: wasm32-unknown-unknown
+          override: true
+      - name: cargo install cargo-hack
+        uses: taiki-e/install-action@cargo-hack
+      - uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/nightly' }}
+      - name: Run check
+        run: make check-no-std
 
-  # nextest:
-  #   name: nextest
-  #   runs-on: ubicloud-standard-16
-  #   timeout-minutes: 60
-  #   if: github.event.pull_request.draft == false
-  #   services:
-  #     postgres:
-  #       image: postgres:latest
-  #       env:
-  #         POSTGRES_USER: postgres
-  #         POSTGRES_PASSWORD: postgres
-  #         POSTGRES_DB: postgres
-  #       ports:
-  #         - 5432:5432
-  #       options: >-
-  #         --health-cmd pg_isready
-  #         --health-interval 10s
-  #         --health-timeout 5s
-  #         --health-retries 5
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - uses: rui314/setup-mold@v1
-  #     - name: Install Protoc
-  #       uses: arduino/setup-protoc@v2
-  #       with:
-  #         version: "23.2"
-  #         repo-token: ${{ secrets.GITHUB_TOKEN }}
-  #     - name: Toolchain
-  #       uses: dtolnay/rust-toolchain@1.78.0
-  #       with:
-  #         override: true
-  #         components: rustfmt, clippy
-  #     - name: Rust Cache
-  #       uses: Swatinem/rust-cache@v2
-  #     - name: Install cargo-risczero
-  #       uses: taiki-e/install-action@v2
-  #       with:
-  #         tool: cargo-risczero@1.0.1
-  #     - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-  #       run: cargo risczero install --version r0.1.78.0
-  #       env:
-  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  #       # `cargo-nextest` is much faster than standard `cargo test`.
-  #     - uses: taiki-e/install-action@nextest
-  #     - name: Cache ethereum-tests
-  #       uses: actions/cache@v3
-  #       with:
-  #         key: "eth-tests-1c23e3c"
-  #         path: crates/evm/ethereum-tests
-  #     - name: Run nextest
-  #       run: make test
-  #       env:
-  #         RUST_BACKTRACE: 1
-  #         REPR_GUEST_BUILD: 1
-  #         BONSAI_API_URL: ${{ secrets.BONSAI_API_URL }} # TODO: remove this once we don't use the client on tests
-  #         BONSAI_API_KEY: ${{ secrets.BONSAI_API_KEY }} # TODO: remove this once we don't use the client on tests
+  nextest:
+    name: nextest
+    runs-on: ubicloud-standard-16
+    timeout-minutes: 60
+    if: github.event.pull_request.draft == false
+    services:
+      postgres:
+        image: postgres:latest
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: rui314/setup-mold@v1
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v2
+        with:
+          version: "23.2"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Toolchain
+        uses: dtolnay/rust-toolchain@1.78.0
+        with:
+          override: true
+          components: rustfmt, clippy
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+      - name: Install cargo-risczero
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-risczero@1.0.1
+      - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
+        run: cargo risczero install --version r0.1.78.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # `cargo-nextest` is much faster than standard `cargo test`.
+      - uses: taiki-e/install-action@nextest
+      - name: Cache ethereum-tests
+        uses: actions/cache@v3
+        with:
+          key: "eth-tests-1c23e3c"
+          path: crates/evm/ethereum-tests
+      - name: Run nextest
+        run: make test
+        env:
+          RUST_BACKTRACE: 1
+          REPR_GUEST_BUILD: 1
+          BONSAI_API_URL: ${{ secrets.BONSAI_API_URL }} # TODO: remove this once we don't use the client on tests
+          BONSAI_API_KEY: ${{ secrets.BONSAI_API_KEY }} # TODO: remove this once we don't use the client on tests
 
 
-  # system-contracts:
-  #   strategy:
-  #     fail-fast: true
+  system-contracts:
+    strategy:
+      fail-fast: true
 
-  #   name: Foundry project
-  #   runs-on: ubicloud-standard-2
-  #   if: github.event.pull_request.draft == false
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #       with:
-  #         submodules: recursive
+    name: Foundry project
+    runs-on: ubicloud-standard-2
+    if: github.event.pull_request.draft == false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
-  #     - name: Install Foundry
-  #       uses: foundry-rs/foundry-toolchain@v1
-  #       with:
-  #         version: nightly
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly
 
-  #     - name: Run Forge build
-  #       run: |
-  #         cd crates/evm/src/evm/system_contracts
-  #         forge --version
-  #         forge build --sizes
-  #       id: build
+      - name: Run Forge build
+        run: |
+          cd crates/evm/src/evm/system_contracts
+          forge --version
+          forge build --sizes
+        id: build
 
-  #     - name: Run Forge tests
-  #       run: |
-  #         cd crates/evm/src/evm/system_contracts
-  #         forge test -vvv
-  #       id: test
+      - name: Run Forge tests
+        run: |
+          cd crates/evm/src/evm/system_contracts
+          forge test -vvv
+        id: test
   check_genesis_files:
     strategy:
       fail-fast: true
