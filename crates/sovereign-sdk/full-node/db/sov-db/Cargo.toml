@@ -41,7 +41,6 @@ hex = { workspace = true }
 
 
 [dev-dependencies]
-sov-mock-da = { path = "../../../adapters/mock-da", features = ["native"] }
 tempfile = { workspace = true }
 criterion = "0.5.1"
 rand = { workspace = true }
