@@ -4,9 +4,7 @@
 //! See [`RpcClient`].
 
 use jsonrpsee::proc_macros::rpc;
-use sov_rollup_interface::rpc::{QueryMode, SoftConfirmationStatus};
-
-use crate::HexHash;
+use sov_rollup_interface::rpc::SoftConfirmationStatus;
 
 /// A [`jsonrpsee`] trait for interacting with the ledger JSON-RPC API.
 ///
@@ -22,14 +20,6 @@ where
     Batch: serde::Serialize,
     Tx: serde::Serialize,
 {
-    /// Gets a single transaction by hash.
-    #[method(name = "getTransactionByHash")]
-    async fn get_tx_by_hash(
-        &self,
-        hex_hash: HexHash,
-        query_mode: QueryMode,
-    ) -> RpcResult<Option<Tx>>;
-
     /// Gets a single event by number.
     #[method(name = "getSoftConfirmationStatus")]
     async fn get_soft_confirmation_status(

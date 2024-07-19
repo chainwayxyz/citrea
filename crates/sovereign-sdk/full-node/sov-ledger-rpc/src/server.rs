@@ -4,7 +4,7 @@ use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::RpcModule;
 use serde::de::DeserializeOwned;
 use sov_modules_api::utils::to_jsonrpsee_error_object;
-use sov_rollup_interface::rpc::{LedgerRpcProvider, QueryMode};
+use sov_rollup_interface::rpc::LedgerRpcProvider;
 
 use crate::HexHash;
 
@@ -159,8 +159,7 @@ where
 
 /// A structure containing serialized query arguments for RPC queries.
 #[derive(serde::Deserialize)]
-#[allow(dead_code)]
-struct QueryArgs<T>(T, #[serde(default)] QueryMode);
+struct QueryArgs<T>(T);
 
 /// Extract the args from an RPC query, being liberal in what is accepted.
 /// To query for a list of items, users can either pass a list of ids, or tuple containing a list of ids and a query mode
@@ -171,5 +170,5 @@ fn extract_query_args<T: DeserializeOwned>(
         return Ok(args);
     }
     let ids: T = params.parse()?;
-    Ok(QueryArgs(ids, Default::default()))
+    Ok(QueryArgs(ids))
 }

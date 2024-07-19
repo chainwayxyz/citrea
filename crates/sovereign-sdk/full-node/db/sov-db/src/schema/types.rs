@@ -5,8 +5,8 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::rpc::{
-    BatchResponse, HexTx, ProofResponse, ProofRpcResponse, SoftBatchResponse,
-    StateTransitionRpcResponse, TxIdentifier, TxResponse, VerifiedProofResponse,
+    HexTx, ProofResponse, ProofRpcResponse, SoftBatchResponse, StateTransitionRpcResponse,
+    TxIdentifier, TxResponse, VerifiedProofResponse,
 };
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
 use sov_rollup_interface::stf::{Event, EventKey, TransactionReceipt};
@@ -256,18 +256,6 @@ pub struct StoredBatch {
     pub hash: DbHash,
     /// The range of transactions which occurred in this batch.
     pub txs: std::ops::Range<TxNumber>,
-}
-
-impl<B: DeserializeOwned, T> TryFrom<StoredBatch> for BatchResponse<B, T> {
-    type Error = anyhow::Error;
-    fn try_from(value: StoredBatch) -> Result<Self, Self::Error> {
-        Ok(Self {
-            hash: value.hash,
-            phantom_data: PhantomData,
-            tx_range: value.txs.start.into()..value.txs.end.into(),
-            txs: None,
-        })
-    }
 }
 
 /// The on-disk format of a transaction. Includes the txhash, the serialized tx data,

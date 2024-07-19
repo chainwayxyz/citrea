@@ -134,45 +134,6 @@ pub enum SlotIdentifier {
     Number(u64),
 }
 
-/// A QueryMode specifies how much information to return in response to an RPC query
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum QueryMode {
-    /// Returns the parent struct but no details about its children.
-    /// For example, a `Compact` "get_slots" response would simply state the range of batch
-    /// numbers which occurred in the slot, but not the hashes of the batches themselves.
-    Compact,
-    /// Returns the parent struct and the hashes of all its children.
-    Standard,
-    /// Returns the parent struct and all its children, recursively fetching its children
-    /// in `Full` mode. For example, a `Full` "get_batch" response would include the `Full`
-    /// details of all the transactions in the batch, and those would in turn return the event bodies
-    /// which had occurred in those transactions.
-    Full,
-}
-
-impl Default for QueryMode {
-    fn default() -> Self {
-        Self::Standard
-    }
-}
-
-/// The body of a response to a JSON-RPC request for a particular slot.
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SlotResponse<B, Tx> {
-    /// The slot number.
-    pub number: u64,
-    /// The hex encoded slot hash.
-    #[serde(with = "utils::rpc_hex")]
-    pub hash: [u8; 32],
-    /// The range of batches in this slot.
-    pub batch_range: core::ops::Range<u64>,
-    /// The batches in this slot, if the [`QueryMode`] of the request is not `Compact`
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub batches: Option<Vec<ItemOrHash<BatchResponse<B, Tx>>>>,
-}
-
 /// A type that represents a transaction hash bytes.
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 #[serde(transparent, rename_all = "camelCase")]
@@ -398,24 +359,6 @@ pub fn sequencer_commitment_to_response(
         l2_start_block_number: commitment.l2_start_block_number,
         l2_end_block_number: commitment.l2_end_block_number,
     }
-}
-
-/// The response to a JSON-RPC request for a particular batch.
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct BatchResponse<B, Tx> {
-    /// The hex encoded batch hash.
-    #[serde(with = "utils::rpc_hex")]
-    pub hash: [u8; 32],
-    /// The range of transactions in this batch.
-    pub tx_range: core::ops::Range<u64>,
-    /// The transactions in this batch, if the [`QueryMode`] of the request is not `Compact`.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub txs: Option<Vec<ItemOrHash<TxResponse<Tx>>>>,
-    /// The custom receipt specified by the rollup. This typically contains
-    /// information about the outcome of the batch.
-    #[serde(skip_serializing)]
-    pub phantom_data: PhantomData<B>,
 }
 
 /// The response to a JSON-RPC request for a particular transaction.
