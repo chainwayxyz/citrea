@@ -443,7 +443,6 @@ jobs:
       - name: Run Foundry Setup
         run: |
           export FOUNDRY_HOME="$HOME/.foundry"
-          curl -L https://foundry.paradigm.xyz | bash
           source $HOME/.bashrc
           foundryup
           foundry --version
