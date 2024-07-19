@@ -1,3 +1,4 @@
+/// Tests that check the full node's ability to send a transaction to the sequencer.
 use std::str::FromStr;
 
 use citrea_stf::genesis_config::GenesisPaths;
@@ -10,6 +11,11 @@ use crate::{
     DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
     TEST_DATA_GENESIS_PATH,
 };
+
+/// Full node receives transaction from RPC.
+/// Sends it to the sequencer.
+/// Wait for the sequencer to publish a block.
+/// We check if the tx is included in the block.
 #[tokio::test(flavor = "multi_thread")]
 async fn test_full_node_send_tx() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging(tracing::Level::INFO);
@@ -61,6 +67,11 @@ async fn test_full_node_send_tx() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
+/// Full node receives transaction from RPC.
+/// Sends it to the sequencer.
+/// We send eth_getTransactionByHash RPC to the full node.
+/// The full node checks state then asks to sequencer, then returns the result.
+/// We check if the tx is included in the response.
 #[tokio::test(flavor = "multi_thread")]
 async fn test_get_transaction_by_hash() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging(tracing::Level::INFO);

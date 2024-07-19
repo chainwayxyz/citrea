@@ -1,3 +1,4 @@
+/// Testing specific features of the sequencer
 use std::str::FromStr;
 use std::time::Duration;
 
@@ -25,6 +26,10 @@ use crate::{
     TEST_DATA_GENESIS_PATH,
 };
 
+/// Run the sequencer.
+/// Create some blocks.
+/// Create more than one da blocks consecutively.
+/// Check if the sequencer fills the missing DA blocks (don't skip any DA block. create an empty L2 block if needed)
 #[tokio::test(flavor = "multi_thread")]
 async fn test_sequencer_fill_missing_da_blocks() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging(tracing::Level::INFO);
@@ -125,6 +130,9 @@ async fn test_sequencer_fill_missing_da_blocks() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
+/// Run the sequencer.
+/// Send spam transactions.
+/// Check if the sequencer triggers a commitment after a certain state diff size since it's last commitment.
 #[tokio::test(flavor = "multi_thread")]
 async fn test_sequencer_commitment_threshold() {
     // citrea::initialize_logging(tracing::Level::DEBUG);
@@ -217,6 +225,9 @@ async fn test_sequencer_commitment_threshold() {
     seq_task.abort();
 }
 
+/// Run the sequencer.
+/// Send a traensaction that can cover base fee and prioiity fee but not the L1 fee.
+/// Check if the transaction is removed from the mempool and not included in the block.
 #[tokio::test(flavor = "multi_thread")]
 async fn test_transaction_failing_on_l1_is_removed_from_mempool() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging(tracing::Level::INFO);
@@ -458,6 +469,11 @@ async fn test_gas_limit_too_high() {
     full_node_task.abort();
 }
 
+/// Run the sequencer.
+/// Fill the mempool with transactions.
+/// Create a block with a system transaction.
+/// Check if the sequencer selects the correct amount of transactions to fill the
+/// gas limit left from the system transaction(s).
 #[tokio::test(flavor = "multi_thread")]
 async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging(tracing::Level::INFO);

@@ -1,3 +1,6 @@
+/// In case of a sequencer crash, the runner of the sequencer can replace it one of the full nodes they also run.
+/// This feature is useful for high availability.
+/// However, there is certain problems that come with it and this feature is subject to be removed in the future.
 use std::str::FromStr;
 use std::time::Duration;
 
@@ -21,6 +24,10 @@ use crate::{
     TEST_DATA_GENESIS_PATH,
 };
 
+/// Run the sequencer and the full node.
+/// After publishing some blocks, the sequencer crashes.
+/// The full node is then closed down and reopened as a sequencer.
+/// Check if the full node can continue block production.
 #[tokio::test(flavor = "multi_thread")]
 async fn test_sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging(tracing::Level::DEBUG);
@@ -187,6 +194,10 @@ async fn test_sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Erro
     Ok(())
 }
 
+/// Run the sequencer and the full node.
+/// After publishing some blocks, the sequencer crashes.
+/// The sequencer is reopened.
+/// Check if the mempool is restored by checking the txs in the mempool.
 #[tokio::test(flavor = "multi_thread")]
 async fn test_sequencer_crash_restore_mempool() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging(tracing::Level::INFO);
@@ -352,6 +363,9 @@ async fn test_sequencer_crash_restore_mempool() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
+/// Run the sequencer and the full node.
+/// Check if the full node saves and serves the soft batches by
+/// starting a new full node that syncs from the first full node.
 #[tokio::test(flavor = "multi_thread")]
 async fn test_soft_batch_save() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging(tracing::Level::DEBUG);

@@ -1,7 +1,9 @@
+/// Testing sycning behaviour of the full nodes and the prover node.
 use std::str::FromStr;
 use std::time::Duration;
 
 use citrea_stf::genesis_config::GenesisPaths;
+use ethereum_rpc::CitreaStatus;
 use reth_primitives::{Address, BlockNumberOrTag};
 use shared_backup_db::SharedBackupDbConfig;
 use sov_mock_da::{MockAddress, MockDaService, MockDaSpec, MockHash};
@@ -21,6 +23,10 @@ use crate::{
     DEFAULT_PROOF_WAIT_DURATION, TEST_DATA_GENESIS_PATH,
 };
 
+/// Run the sequencer.
+/// Publish blocks.
+/// Run the full node.
+/// Check if the full node has the same state as the sequencer.
 #[tokio::test(flavor = "multi_thread")]
 async fn test_delayed_sync_ten_blocks() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging(tracing::Level::INFO);
@@ -111,6 +117,10 @@ async fn test_delayed_sync_ten_blocks() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
+/// Run the sequencer.
+/// Run the full node.
+/// Publish blocks.
+/// Check if the full node has the same state as the sequencer.
 #[tokio::test(flavor = "multi_thread")]
 async fn test_same_block_sync() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging(tracing::Level::INFO);
@@ -137,6 +147,10 @@ async fn test_same_block_sync() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
+/// Run the sequencer.
+/// Run the full node.
+/// Publish blocks. But make sure that the soft confirmations are built on different DA blocks.
+/// Check if the full node has the same values as the sequencer.
 #[tokio::test(flavor = "multi_thread")]
 async fn test_soft_confirmations_on_different_blocks() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging(tracing::Level::INFO);
@@ -240,6 +254,12 @@ async fn test_soft_confirmations_on_different_blocks() -> Result<(), anyhow::Err
     Ok(())
 }
 
+/// Run the sequencer.
+/// Run the prover.
+/// Trigger sequencer commitments
+/// Check if the prover syncs when it encounters a sequencer commmitment on DA.
+///
+/// Note: This test now obsolote, I don't know how it works.
 #[tokio::test(flavor = "multi_thread")]
 async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging(tracing::Level::DEBUG);
@@ -386,4 +406,99 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
     seq_task.abort();
     prover_node_task.abort();
     Ok(())
+}
+
+/// Checks `citre_syncStatus` RPC call.
+#[tokio::test(flavor = "multi_thread")]
+async fn test_full_node_sync_status() {
+    // citrea::initialize_logging();
+
+    let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
+    let da_db_dir = storage_dir.path().join("DA").to_path_buf();
+    let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
+    let fullnode_db_dir = storage_dir.path().join("full-node").to_path_buf();
+
+    let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
+
+    let da_db_dir_cloned = da_db_dir.clone();
+    let seq_task = tokio::spawn(async {
+        start_rollup(
+            seq_port_tx,
+            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+            None,
+            NodeMode::SequencerNode,
+            sequencer_db_dir,
+            da_db_dir_cloned,
+            DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
+            true,
+            None,
+            None,
+            Some(true),
+            DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
+        )
+        .await;
+    });
+
+    let seq_port = seq_port_rx.await.unwrap();
+
+    let seq_test_client = init_test_rollup(seq_port).await;
+    let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
+
+    for _ in 0..300 {
+        let _pending = seq_test_client
+            .send_eth(addr, None, None, None, 0u128)
+            .await
+            .unwrap();
+        seq_test_client.send_publish_batch_request().await;
+    }
+
+    wait_for_l2_block(&seq_test_client, 300, Some(Duration::from_secs(60))).await;
+
+    let (full_node_port_tx, full_node_port_rx) = tokio::sync::oneshot::channel();
+
+    let da_db_dir_cloned = da_db_dir.clone();
+    let full_node_task = tokio::spawn(async move {
+        start_rollup(
+            full_node_port_tx,
+            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+            None,
+            NodeMode::FullNode(seq_port),
+            fullnode_db_dir,
+            da_db_dir_cloned,
+            DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
+            true,
+            None,
+            None,
+            Some(true),
+            DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
+        )
+        .await;
+    });
+
+    let full_node_port = full_node_port_rx.await.unwrap();
+    let full_node_test_client = make_test_client(full_node_port).await;
+
+    wait_for_l2_block(&full_node_test_client, 5, Some(Duration::from_secs(60))).await;
+
+    let status = full_node_test_client.citrea_sync_status().await;
+
+    match status {
+        CitreaStatus::Syncing(syncing) => {
+            assert!(syncing.synced_block_number > 0 && syncing.synced_block_number < 300);
+            assert_eq!(syncing.head_block_number, 300);
+        }
+        _ => panic!("Expected syncing status"),
+    }
+
+    wait_for_l2_block(&full_node_test_client, 300, Some(Duration::from_secs(60))).await;
+
+    let status = full_node_test_client.citrea_sync_status().await;
+
+    match status {
+        CitreaStatus::Synced(synced_up_to) => assert_eq!(synced_up_to, 300),
+        _ => panic!("Expected synced status"),
+    }
+
+    seq_task.abort();
+    full_node_task.abort();
 }

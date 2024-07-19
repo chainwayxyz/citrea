@@ -1,3 +1,6 @@
+/// Tests for closing down and reopening nodes with the same data
+/// to make sure the nodes can continue from where they left off
+/// In the past we had problems with this scenario.
 use std::str::FromStr;
 use std::time::Duration;
 

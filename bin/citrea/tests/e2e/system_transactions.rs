@@ -1,3 +1,4 @@
+/// Testing if the sequencer and full node can handle system transactions correctly (the full node should have the same system transactions as the sequencer)
 use std::str::FromStr;
 
 use citrea_evm::system_contracts::BitcoinLightClient;
@@ -9,6 +10,9 @@ use sov_rollup_interface::services::da::DaService;
 use crate::e2e::{initialize_test, TestConfig};
 use crate::test_helpers::{tempdir_with_children, wait_for_l1_block, wait_for_l2_block};
 
+/// Trigger system transactions.
+/// Ask the sequencer and the full node for blocks.
+/// Check if the system transactions are included in the blocks.
 #[tokio::test(flavor = "multi_thread")]
 async fn test_system_transactions() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging(tracing::Level::INFO);

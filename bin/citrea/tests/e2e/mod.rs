@@ -401,6 +401,7 @@ async fn test_all_flow() {
     full_node_task.abort();
 }
 
+/// Test RPC `ledger_getHeadSoftBatch`
 #[tokio::test(flavor = "multi_thread")]
 async fn test_ledger_get_head_soft_batch() {
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);

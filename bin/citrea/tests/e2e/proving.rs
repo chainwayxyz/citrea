@@ -1,3 +1,4 @@
+/// Prover node, proving and full node proof verification related tests
 use std::time::Duration;
 
 use citrea_stf::genesis_config::GenesisPaths;
@@ -16,6 +17,9 @@ use crate::{
     DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_PROOF_WAIT_DURATION, TEST_DATA_GENESIS_PATH,
 };
 
+/// Run the sequencer and the prover node.
+/// Trigger proof production.
+/// Check if the proof can be queried from the prover node and the database.
 #[tokio::test(flavor = "multi_thread")]
 async fn test_db_get_proof() {
     // citrea::initialize_logging(tracing::Level::INFO);
@@ -140,6 +144,9 @@ async fn test_db_get_proof() {
     prover_node_task.abort();
 }
 
+/// Run the sequencer, prover and full node.
+/// Trigger proof production.
+/// Check if the verified proof can be queried from the full node.
 #[tokio::test(flavor = "multi_thread")]
 async fn full_node_verify_proof_and_store() {
     // citrea::initialize_logging(tracing::Level::INFO);
