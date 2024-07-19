@@ -1854,7 +1854,9 @@ async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error>
 
     // last in tx byte array should be a subarray of txs[0]
     assert!(find_subarray(
-        initial_soft_confirmation.clone().txs.unwrap()[0].tx.as_slice(),
+        initial_soft_confirmation.clone().txs.unwrap()[0]
+            .tx
+            .as_slice(),
         &last_tx_raw[2..]
     )
     .is_some());

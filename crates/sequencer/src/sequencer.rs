@@ -436,8 +436,9 @@ where
                 let signed_blob = self.make_blob(raw_message, &mut batch_workspace)?;
                 let txs = vec![signed_blob.clone()];
 
-                let (batch_workspace, tx_receipts) =
-                    self.stf.apply_soft_confirmation_txs(txs.clone(), batch_workspace);
+                let (batch_workspace, tx_receipts) = self
+                    .stf
+                    .apply_soft_confirmation_txs(txs.clone(), batch_workspace);
 
                 // create the unsigned batch with the txs then sign th sc
                 let unsigned_batch = UnsignedSoftConfirmationBatch::new(
