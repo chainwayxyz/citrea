@@ -404,7 +404,7 @@ pub enum SoftConfirmationStatus {
 /// A LedgerRpcProvider provides a way to query the ledger for information about slots, batches, transactions, and events.
 #[cfg(feature = "native")]
 pub trait LedgerRpcProvider {
-    /// Get a list of soft batches by id. The IDs need not be ordered.
+    /// Get a list of soft confirmations by id. The IDs need not be ordered.
     fn get_soft_confirmations(
         &self,
         batch_ids: &[SoftConfirmationIdentifier],
@@ -428,7 +428,7 @@ pub trait LedgerRpcProvider {
         number: u64,
     ) -> Result<Option<SoftConfirmationResponse>, anyhow::Error>;
 
-    /// Get a range of soft batches.
+    /// Get a range of soft confirmations.
     fn get_soft_confirmations_range(
         &self,
         start: u64,
@@ -469,7 +469,8 @@ pub trait LedgerRpcProvider {
     fn get_last_verified_proof(&self) -> Result<Option<LastVerifiedProofResponse>, anyhow::Error>;
 
     /// Get head soft batch
-    fn get_head_soft_confirmation(&self) -> Result<Option<SoftConfirmationResponse>, anyhow::Error>;
+    fn get_head_soft_confirmation(&self)
+        -> Result<Option<SoftConfirmationResponse>, anyhow::Error>;
 
     /// Get head soft batch height
     fn get_head_soft_confirmation_height(&self) -> Result<u64, anyhow::Error>;

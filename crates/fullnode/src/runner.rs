@@ -348,7 +348,7 @@ where
                 &(BatchNumber(start_l2_height)..BatchNumber(end_l2_height + 1)),
             )?;
 
-        // Make sure that the number of stored soft batches is equal to the range's length.
+        // Make sure that the number of stored soft confirmations is equal to the range's length.
         // Otherwise, if it is smaller, then we don't have some L2 blocks within the range
         // synced yet.
         if stored_soft_confirmations.len() < ((end_l2_height - start_l2_height) as usize) {

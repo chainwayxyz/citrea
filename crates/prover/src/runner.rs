@@ -592,7 +592,7 @@ where
                 Ok(soft_confirmations) => soft_confirmations,
                 Err(e) => {
                     return Err(anyhow!(
-                        "Failed to get soft batches from the ledger db: {}",
+                        "Failed to get soft confirmations from the ledger db: {}",
                         e
                     ));
                 }

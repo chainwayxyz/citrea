@@ -13,7 +13,7 @@ use crate::schema::types::{BatchNumber, SlotNumber};
 
 /// The maximum number of batches that can be requested in a single RPC range query
 const MAX_BATCHES_PER_REQUEST: u64 = 20;
-/// The maximum number of soft batches that can be requested in a single RPC range query
+/// The maximum number of soft confirmations that can be requested in a single RPC range query
 const MAX_SOFT_CONFIRMATIONS_PER_REQUEST: u64 = 20;
 
 use super::LedgerDB;
@@ -56,7 +56,7 @@ impl LedgerRpcProvider for LedgerDB {
     ) -> Result<Vec<Option<SoftConfirmationResponse>>, anyhow::Error> {
         anyhow::ensure!(
             soft_confirmation_ids.len() <= MAX_SOFT_CONFIRMATIONS_PER_REQUEST as usize,
-            "requested too many soft batches. Requested: {}. Max: {}",
+            "requested too many soft confirmations. Requested: {}. Max: {}",
             soft_confirmation_ids.len(),
             MAX_BATCHES_PER_REQUEST
         );

@@ -25,7 +25,7 @@ pub fn get_commitment_info(
     state_diff_threshold_reached: bool,
 ) -> anyhow::Result<Option<CommitmentInfo>> {
     let Some((head_soft_confirmation_number, _)) = ledger_db.get_head_soft_confirmation()? else {
-        // No soft batches have been created yet.
+        // No soft confirmations have been created yet.
         return Ok(None);
     };
 
