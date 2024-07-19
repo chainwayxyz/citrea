@@ -444,6 +444,10 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: '3.x'
+      
+      - name: Install Git
+        run: sudo apt-get update && sudo apt-get install -y git
+        shell: bash
 
       - name: Run check_genesis.sh
         run: ./.github/scripts/check_genesis.sh
