@@ -405,7 +405,7 @@ pub enum SoftConfirmationStatus {
 #[cfg(feature = "native")]
 pub trait LedgerRpcProvider {
     /// Get a list of soft batches by id. The IDs need not be ordered.
-    fn get_soft_batches(
+    fn get_soft_confirmations(
         &self,
         batch_ids: &[SoftConfirmationIdentifier],
     ) -> Result<Vec<Option<SoftConfirmationResponse>>, anyhow::Error>;
@@ -429,7 +429,7 @@ pub trait LedgerRpcProvider {
     ) -> Result<Option<SoftConfirmationResponse>, anyhow::Error>;
 
     /// Get a range of soft batches.
-    fn get_soft_batches_range(
+    fn get_soft_confirmations_range(
         &self,
         start: u64,
         end: u64,

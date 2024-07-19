@@ -62,7 +62,7 @@ where
         |params, ledger| async move {
             let args: (u64, u64) = params.parse()?;
             ledger
-                .get_soft_batches_range(args.0, args.1)
+                .get_soft_confirmations_range(args.0, args.1)
                 .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
         },
     )?;
