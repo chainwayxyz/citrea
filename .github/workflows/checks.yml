@@ -440,14 +440,6 @@ jobs:
         with:
           version: nightly
 
-      - name: Run Foundry Setup
-        run: |
-          export FOUNDRY_HOME="$HOME/.foundry"
-          source $HOME/.bashrc
-          foundryup
-          foundry --version
-        shell: bash
-      
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
