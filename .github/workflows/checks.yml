@@ -423,7 +423,6 @@ jobs:
   #         cd crates/evm/src/evm/system_contracts
   #         forge test -vvv
   #       id: test
-  
   check_genesis_files:
     strategy:
       fail-fast: true
@@ -441,18 +440,14 @@ jobs:
         with:
           version: nightly
 
-      - name: Run Forge install
+      - name: Run Foundry Setup
         run: |
-          cd crates/evm/src/evm/system_contracts
-          forge --version
-          forge install
-        id: forgeInstall
-      
-      - name: Foundryup
-        run: |
-          cd crates/evm/src/evm/system_contracts
+          export FOUNDRY_HOME="$HOME/.foundry"
+          curl -L https://foundry.paradigm.xyz | bash
+          source $HOME/.bashrc
           foundryup
-        id: foundryup
+          foundry --version
+        shell: bash
       
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -461,4 +456,5 @@ jobs:
 
       - name: Run check_genesis.sh
         run: ./.github/scripts/check_genesis.sh
+        shell: bash
 
