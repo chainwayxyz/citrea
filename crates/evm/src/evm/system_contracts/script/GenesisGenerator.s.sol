@@ -51,10 +51,14 @@ contract GenesisGenerator is Script {
     bytes32 MIN_WITHDRAW_SLOT = 0x0000000000000000000000000000000000000000000000000000000000000001;
     uint160 PROXY_IMPL_OFFSET = uint160(0x0100000000000000000000000000000000000000); // uint160(address(proxy)) - uint160(address(impl))
 
-    // Owner of proxy admin
-    //! CHANGE THIS IN PRODUCTION TO THE INITIAL EOA OWNER
-    address internal owner = address(0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266);
-    address internal feeRecipient = address(0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266);
+    // Owner of proxy admin, can update contracts
+    address internal upgradeOwner;
+    // Owner of bridge
+    address internal bridgeOwner;
+    // Owner of fee vaults
+    address internal feeVaultOwner;
+
+    address internal feeRecipient;
 
     address[] internal devAddresses = 
     [
@@ -72,12 +76,30 @@ contract GenesisGenerator is Script {
 
 
     function run() public {
+        upgradeOwner = address(0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266);
+        bridgeOwner = address(0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266);
+        feeVaultOwner = address(0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266);
+        feeRecipient = address(0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266);
         dealBalanceToDevAddrs();
         dealBalanceToBridge();
         setProxyAdmin();
         setContracts();
         vm.dumpState("./state/genesis.json");
-        generateEvmJson("./state/genesis.json", "./state/evm.json");
+        generateEvmJson("./state/genesis.json", "./state/evm.json", false);
+    }
+
+    function runProd() public {
+        upgradeOwner = vm.envAddress("UPGRADE_OWNER");
+        bridgeOwner = vm.envAddress("BRIDGE_OWNER");
+        feeVaultOwner = vm.envAddress("FEE_VAULT_OWNER");
+        feeRecipient = vm.envAddress("FEE_RECIPIENT");
+        string memory defaultPath = "./state/evmProd.json";
+        string memory copyPath = vm.envOr("PROD_JSON_PATH", defaultPath);
+        dealBalanceToBridge();
+        setProxyAdmin();
+        setContracts();
+        vm.dumpState("./state/genesisProd.json");
+        generateEvmJson("./state/genesisProd.json", copyPath, true);
     }
 
     function dealBalanceToDevAddrs() internal {
@@ -95,7 +117,7 @@ contract GenesisGenerator is Script {
     function setProxyAdmin() internal {
         address proxyAdminImpl = address(new ProxyAdmin());
         vm.etch(proxyAdmin, proxyAdminImpl.code);
-        vm.store(proxyAdmin, bytes32(0), bytes32(uint256(uint160(owner))));
+        vm.store(proxyAdmin, bytes32(0), bytes32(uint256(uint160(upgradeOwner))));
         // Remove init proxy impl code from genesis state as it is already copied
         vm.etch(proxyAdminImpl, "");
         vm.resetNonce(proxyAdminImpl);
@@ -124,13 +146,14 @@ contract GenesisGenerator is Script {
         vm.store(namespacedProxy, IMPLEMENTATION_SLOT, bytes32(uint256(uint160(namespacedImpl))));
         vm.store(namespacedProxy, ADMIN_SLOT, bytes32(uint256(uint160(proxyAdmin))));
 
-        // First contract is BitcoinLightClient, and it is the only one that doesn't have an owner, thus everything else's owner slot is set
-        if (index != 1) {
-            vm.store(namespacedProxy, OWNER_SLOT, bytes32(uint256(uint160(owner))));
+        // Set owner for bridge contract
+        if (index == 2) {
+            vm.store(namespacedProxy, OWNER_SLOT, bytes32(uint256(uint160(bridgeOwner))));
         }
 
         // Fee vault contracts have a fee recipient and min withdraw amount
         if ((index >= 3) && (index <= 5)) {
+            vm.store(namespacedProxy, OWNER_SLOT, bytes32(uint256(uint160(feeVaultOwner))));
             vm.store(namespacedProxy, FEE_RECIPIENT_SLOT, bytes32(uint256(uint160(feeRecipient))));
             vm.store(namespacedProxy, MIN_WITHDRAW_SLOT, bytes32(uint256(0.5 ether)));
         } 
@@ -140,11 +163,11 @@ contract GenesisGenerator is Script {
         vm.resetNonce(initProxyImpl);
     }
 
-    function generateEvmJson(string memory _genesisPath, string memory _evmPath) internal {
+    function generateEvmJson(string memory _genesisPath, string memory _evmPath, bool _isProd) internal {
         string[] memory commands = new string[](3);
         commands[0] = "bash";
         commands[1] = "-c";
-        commands[2] = string.concat("python3 ./script/GenesisToEvmJson.py ",  _genesisPath, " ", _evmPath );
+        commands[2] = string.concat("python3 ./script/GenesisToEvmJson.py ",  _genesisPath, " ", _evmPath, " ", _isProd ? "true" : "false");
         Process.run(commands, false);
     }
 }
