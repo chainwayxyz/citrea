@@ -9,7 +9,7 @@ use alloy::signers::wallet::LocalWallet;
 use alloy::transports::http::{Http, HyperClient};
 use citrea_evm::LogResponse;
 use ethereum_rpc::CitreaStatus;
-use jsonrpsee::core::client::{ClientT, Subscription, SubscriptionClientT};
+use jsonrpsee::core::client::{ClientT, SubscriptionClientT};
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use jsonrpsee::rpc_params;
 use jsonrpsee::ws_client::{PingConfig, WsClient, WsClientBuilder};
