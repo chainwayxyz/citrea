@@ -581,13 +581,13 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
         "debug_subscribe",
         "debug_subscription",
         "debug_unsubscribe",
-        |parameters, sink, ethereum| async move {
+        |parameters, pending, ethereum| async move {
             let mut params = parameters.sequence();
 
             let topic: String = match params.next() {
                 Ok(v) => v,
                 Err(err) => {
-                    sink.reject(err).await;
+                    pending.reject(err).await;
                     return Ok(());
                 }
             };
@@ -596,21 +596,21 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                     let start_block: BlockNumberOrTag = match params.next() {
                         Ok(v) => v,
                         Err(err) => {
-                            sink.reject(err).await;
+                            pending.reject(err).await;
                             return Ok(());
                         }
                     };
                     let end_block: BlockNumberOrTag = match params.next() {
                         Ok(v) => v,
                         Err(err) => {
-                            sink.reject(err).await;
+                            pending.reject(err).await;
                             return Ok(());
                         }
                     };
 
                     // start block is exclusive, hence latest is not supported
                     let BlockNumberOrTag::Number(start_block) = start_block else {
-                        sink.reject(EthApiError::Unsupported(
+                        pending.reject(EthApiError::Unsupported(
                             "Latest, earliest, pending, safe and finalized are not supported for traceChain start block",
                         )).await;
                         return Ok(());
@@ -622,14 +622,14 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                     let end_block = match end_block {
                         BlockNumberOrTag::Number(end_block) => {
                             if end_block > latest_block_number {
-                                sink.reject(EthApiError::UnknownBlockNumber).await;
+                                pending.reject(EthApiError::UnknownBlockNumber).await;
                                 return Ok(());
                             }
                             end_block
                         },
                         BlockNumberOrTag::Latest => latest_block_number,
                         _ => {
-                            sink.reject(EthApiError::Unsupported(
+                            pending.reject(EthApiError::Unsupported(
                                 "Earliest, pending, safe and finalized are not supported for traceChain end block",
                             )).await;
                             return Ok(());
@@ -637,19 +637,19 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                     };
 
                     if start_block >= end_block {
-                        sink.reject(EthApiError::InvalidBlockRange).await;
+                        pending.reject(EthApiError::InvalidBlockRange).await;
                         return Ok(());
                     }
 
                     let opts: Option<GethDebugTracingOptions> = match params.optional_next() {
                         Ok(v) => v,
                         Err(err) => {
-                            sink.reject(err).await;
+                            pending.reject(err).await;
                             return Ok(());
                         }
                     };
 
-                    let subscription = sink.accept().await?;
+                    let subscription = pending.accept().await?;
                     tokio::spawn(async move {
                         for block_number in start_block+1..=end_block {
                             let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
@@ -688,7 +688,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                     });
                 }
                 _ => {
-                    sink.reject(EthApiError::Unsupported("Unsupported subscription topic")).await;
+                    pending.reject(EthApiError::Unsupported("Unsupported subscription topic")).await;
                     return Ok(());
                 }
             };
