@@ -664,14 +664,22 @@ impl TestClient {
         end_block: BlockNumberOrTag,
         opts: Option<GethDebugTracingOptions>,
     ) -> Vec<GethTrace> {
-        let mut subscription = self.ws_client.subscribe("debug_subscribe", rpc_params!["traceChain", start_block, end_block, opts], "debug_unsubscribe").await.unwrap();
+        let mut subscription = self
+            .ws_client
+            .subscribe(
+                "debug_subscribe",
+                rpc_params!["traceChain", start_block, end_block, opts],
+                "debug_unsubscribe",
+            )
+            .await
+            .unwrap();
         let mut traces = vec![];
         while let Some(trace) = subscription.next().await {
             match trace {
                 Ok(trace) => traces.push(trace),
                 Err(e) => panic!("Error receiving notification: {:?}", e),
             }
-        }    
+        }
         traces
     }
 
