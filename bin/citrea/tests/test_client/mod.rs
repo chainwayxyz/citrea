@@ -673,14 +673,16 @@ impl TestClient {
             )
             .await
             .unwrap();
-        let mut traces = vec![];
-        while let Some(trace) = subscription.next().await {
-            match trace {
-                Ok(trace) => traces.push(trace),
+
+        let mut traces: Vec<Vec<GethTrace>> = vec![];
+        while let Some(block_traces) = subscription.next().await {
+            match block_traces {
+                Ok(block_traces) => traces.push(block_traces),
                 Err(e) => panic!("Error receiving notification: {:?}", e),
             }
         }
-        traces
+
+        traces.into_iter().flatten().collect()
     }
 
     pub(crate) async fn eth_block_number(&self) -> u64 {

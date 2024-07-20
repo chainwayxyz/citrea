@@ -309,6 +309,17 @@ async fn tracing_tests() -> Result<(), Box<dyn std::error::Error>> {
         CallTracer(expected_top_call_only_call_get_trace)
     );
 
+    let traces = test_client
+        .debug_trace_chain(
+            BlockNumberOrTag::Number(0),
+            BlockNumberOrTag::Latest,
+            Some(GethDebugTracingOptions::default().with_tracer(
+                GethDebugTracerType::BuiltInTracer(GethDebugBuiltInTracerType::CallTracer),
+            )),
+        )
+        .await;
+    println!("traces: {:?}", traces);
+
     rollup_task.abort();
     Ok(())
 }
