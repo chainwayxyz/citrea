@@ -58,7 +58,7 @@ impl TestClient {
             .unwrap();
 
         let ws_client = WsClientBuilder::default()
-            .enable_ws_ping(PingConfig::default().inactive_limit(Duration::from_secs(10)))
+            .enable_ws_ping(PingConfig::default().inactive_limit(Duration::from_secs(5)))
             .build(ws_host)
             .await
             .unwrap();
