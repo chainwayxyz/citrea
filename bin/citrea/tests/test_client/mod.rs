@@ -58,7 +58,7 @@ impl TestClient {
             .unwrap();
 
         let ws_client = WsClientBuilder::default()
-            .enable_ws_ping(PingConfig::default().inactive_limit(Duration::from_secs(5)))
+            .enable_ws_ping(PingConfig::default().inactive_limit(Duration::from_secs(10)))
             .build(ws_host)
             .await
             .unwrap();
@@ -674,12 +674,18 @@ impl TestClient {
             .await
             .unwrap();
 
+        let BlockNumberOrTag::Number(start_block) = start_block else {
+            panic!("Only numbers for start block");
+        };
+        let end_block = match end_block {
+            BlockNumberOrTag::Number(b) => b,
+            BlockNumberOrTag::Latest => self.eth_block_number().await,
+            _ => panic!("Only number and latest"),
+        };
         let mut traces: Vec<Vec<GethTrace>> = vec![];
-        while let Some(block_traces) = subscription.next().await {
-            match block_traces {
-                Ok(block_traces) => traces.push(block_traces),
-                Err(e) => panic!("Error receiving notification: {:?}", e),
-            }
+        for _ in start_block..end_block {
+            let block_traces = subscription.next().await.unwrap().unwrap();
+            traces.push(block_traces);
         }
 
         traces.into_iter().flatten().collect()
