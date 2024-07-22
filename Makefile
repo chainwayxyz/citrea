@@ -35,7 +35,7 @@ install-dev-tools:  ## Installs all necessary cargo helpers
 	cargo install cargo-udeps
 	cargo install flaky-finder
 	cargo install cargo-nextest --locked
-	cargo install cargo-binstall
+	cargo install --version 1.6.9 cargo-binstall
 	cargo binstall cargo-risczero
 ifeq ($(shell uname -ms), Darwin x86_64)
 	cargo risczero build-toolchain
