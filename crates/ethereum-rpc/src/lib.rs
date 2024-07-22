@@ -476,34 +476,6 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
         },
     )?;
 
-    rpc.register_subscription(
-        "debug_subscribe",
-        "debug_subscription",
-        "debug_unsubscribe",
-        |parameters, pending, ethereum| async move {
-            let mut params = parameters.sequence();
-
-            let topic: String = match params.next() {
-                Ok(v) => v,
-                Err(err) => {
-                    pending.reject(err).await;
-                    return Ok(());
-                }
-            };
-            match topic.as_str() {
-                "traceChain" => handle_debug_trace_chain(params, pending, ethereum).await,
-                _ => {
-                    pending
-                        .reject(EthApiError::Unsupported("Unsupported subscription topic"))
-                        .await;
-                    return Ok(());
-                }
-            };
-
-            Ok(())
-        },
-    )?;
-
     rpc.register_async_method("txpool_content", |_, _| async move {
         info!("eth module: txpool_content");
 
@@ -665,6 +637,34 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
             },
         )?;
     }
+
+    rpc.register_subscription(
+        "debug_subscribe",
+        "debug_subscription",
+        "debug_unsubscribe",
+        |parameters, pending, ethereum| async move {
+            let mut params = parameters.sequence();
+
+            let topic: String = match params.next() {
+                Ok(v) => v,
+                Err(err) => {
+                    pending.reject(err).await;
+                    return Ok(());
+                }
+            };
+            match topic.as_str() {
+                "traceChain" => handle_debug_trace_chain(params, pending, ethereum).await,
+                _ => {
+                    pending
+                        .reject(EthApiError::Unsupported("Unsupported subscription topic"))
+                        .await;
+                    return Ok(());
+                }
+            };
+
+            Ok(())
+        },
+    )?;
 
     Ok(())
 }
