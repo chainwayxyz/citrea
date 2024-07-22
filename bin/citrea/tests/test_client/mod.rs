@@ -1,5 +1,6 @@
 use std::str::FromStr;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::mpsc;
 use std::time::Duration;
 
 use alloy::providers::network::{Ethereum, EthereumSigner};
@@ -16,6 +17,7 @@ use jsonrpsee::ws_client::{PingConfig, WsClient, WsClientBuilder};
 use reth_primitives::{Address, BlockId, BlockNumberOrTag, Bytes, TxHash, TxKind, B256, U256, U64};
 // use reth_rpc_types::TransactionReceipt;
 use reth_rpc_types::trace::geth::{GethDebugTracingOptions, GethTrace};
+use reth_rpc_types::RichBlock;
 use sequencer_client::GetSoftBatchResponse;
 use sov_rollup_interface::rpc::{
     LastVerifiedProofResponse, ProofResponse, SequencerCommitmentResponse, SoftBatchResponse,
@@ -689,6 +691,26 @@ impl TestClient {
         }
 
         traces.into_iter().flatten().collect()
+    }
+
+    pub(crate) async fn subscribe_new_heads(&self) -> mpsc::Receiver<RichBlock> {
+        let (tx, rx) = mpsc::channel();
+        let mut subscription = self
+            .ws_client
+            .subscribe("eth_subscribe", rpc_params!["newHeads"], "eth_unsubscribe")
+            .await
+            .unwrap();
+
+        tokio::spawn(async move {
+            loop {
+                let Some(Ok(block)) = subscription.next().await else {
+                    return;
+                };
+                tx.send(block).unwrap();
+            }
+        });
+
+        rx
     }
 
     pub(crate) async fn eth_block_number(&self) -> u64 {
