@@ -359,6 +359,9 @@ impl LedgerDB {
 
         self.db.write_schemas(schema_batch)?;
 
+        // Error can be ignored becaue it only errors when there are no receivers
+        let _ = self.soft_confirmation_tx.send(batch_to_store.l2_height);
+
         Ok(())
     }
 
