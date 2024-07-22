@@ -17,7 +17,10 @@ pub async fn handle_new_heads_subscription<C: sov_modules_api::Context, Da: DaSe
     let subscription = pending.accept().await.unwrap();
     tokio::spawn(async move {
         loop {
-            let block_number = rx.recv().await.unwrap();
+            let Ok(block_number) = rx.recv().await else {
+                // Connection closed
+                return;
+            };
             let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
             let block = evm
                 .get_block_by_number(
@@ -25,8 +28,8 @@ pub async fn handle_new_heads_subscription<C: sov_modules_api::Context, Da: DaSe
                     None,
                     &mut working_set,
                 )
-                .unwrap()
-                .unwrap();
+                .expect("Error querying block from evm")
+                .expect("Received signal but evm block is not found");
 
             let msg = SubscriptionMessage::new(
                 subscription.method_name(),
@@ -34,7 +37,10 @@ pub async fn handle_new_heads_subscription<C: sov_modules_api::Context, Da: DaSe
                 &block,
             )
             .unwrap();
-            let _ = subscription.send(msg).await;
+            let Ok(_) = subscription.send(msg).await else {
+                // Connection closed
+                return;
+            };
         }
     });
 }
