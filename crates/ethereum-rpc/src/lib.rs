@@ -2,7 +2,7 @@ mod gas_price;
 
 use std::collections::BTreeMap;
 use std::process::Command;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 #[cfg(feature = "local")]
 pub use citrea_evm::DevSigner;
@@ -10,8 +10,8 @@ use citrea_evm::Evm;
 pub use gas_price::fee_history::FeeHistoryCacheConfig;
 use gas_price::gas_oracle::GasPriceOracle;
 pub use gas_price::gas_oracle::GasPriceOracleConfig;
-use jsonrpsee::types::ErrorObjectOwned;
-use jsonrpsee::RpcModule;
+use jsonrpsee::types::{ErrorObjectOwned, ParamsSequence};
+use jsonrpsee::{PendingSubscriptionSink, RpcModule, SubscriptionMessage};
 use reth_primitives::{keccak256, BlockNumberOrTag, Bytes, B256, U256};
 use reth_rpc::eth::error::EthApiError;
 use reth_rpc_types::trace::geth::{
@@ -24,10 +24,10 @@ use schnellru::{ByLength, LruMap};
 use sequencer_client::SequencerClient;
 use serde_json::json;
 use sov_modules_api::utils::to_jsonrpsee_error_object;
-use sov_modules_api::WorkingSet;
+use sov_modules_api::{Context, WorkingSet};
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::CITREA_VERSION;
-use tracing::{info, instrument};
+use tracing::{error, info, instrument};
 
 const MAX_TRACE_BLOCK: u32 = 1000;
 
@@ -489,10 +489,10 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
 
     rpc.register_async_method::<Result<Vec<GethTrace>, ErrorObjectOwned>, _, _>(
         "debug_traceBlockByHash",
-        |parmaeters, ethereum| async move {
+        |parameters, ethereum| async move {
             info!("eth module: debug_traceBlockByHash");
 
-            let mut params = parmaeters.sequence();
+            let mut params = parameters.sequence();
 
             let block_hash: B256 = params.next()?;
             let evm = Evm::<C>::default();
@@ -507,48 +507,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                     }
                 };
 
-            // If opts is None or if opts.tracer is None, then do not check cache or insert cache, just perform the operation
-            if opts.as_ref().map_or(true, |o| o.tracer.is_none()) {
-                return evm.trace_block_transactions_by_number(
-                    block_number,
-                    opts.clone(),
-                    None,
-                    &mut working_set,
-                );
-            }
-
-            if let Some(traces) = ethereum.trace_cache.lock().unwrap().get(&block_number) {
-                // If traces are found in cache convert them to specified opts and then return
-                let requested_opts = opts.clone().unwrap();
-                let traces = get_traces_with_reuqested_tracer_and_config(
-                    traces.clone(),
-                    requested_opts.tracer.unwrap(),
-                    requested_opts.tracer_config,
-                )?;
-                return Ok(traces);
-            }
-            let cache_options = create_trace_cache_opts();
-            let traces = evm.trace_block_transactions_by_number(
-                block_number,
-                Some(cache_options),
-                None,
-                &mut working_set,
-            )?;
-            ethereum
-                .trace_cache
-                .lock()
-                .unwrap()
-                .insert(block_number, traces.clone());
-            // Convert the traces to the requested tracer and config
-            let requested_opts = opts.clone().unwrap();
-            let tracer_config = requested_opts.tracer_config;
-            let traces = get_traces_with_reuqested_tracer_and_config(
-                traces.clone(),
-                requested_opts.tracer.unwrap(),
-                tracer_config,
-            )?;
-
-            Ok(traces)
+            debug_trace_by_block_number(block_number, None, &ethereum, &evm, &mut working_set, opts)
         },
     )?;
 
@@ -570,39 +529,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                 _ => return Err(EthApiError::Unsupported("Earliest, pending, safe and finalized are not supported for debug_traceBlockByNumber").into()),
             };
 
-            // If opts is None or if opts.tracer is None, then do not check cache or insert cache, just perform the operation
-            if opts.as_ref().map_or(true, |o| o.tracer.is_none()) {
-                return evm.trace_block_transactions_by_number(block_number, opts.clone(), None, &mut working_set);
-            }
-
-            if let Some(traces) = ethereum.trace_cache.lock().unwrap().get(&block_number) {
-                // If traces are found in cache convert them to specified opts and then return
-                let requested_opts = opts.clone().unwrap();
-                let tracer_config = requested_opts.tracer_config;
-                let traces = get_traces_with_reuqested_tracer_and_config(traces.clone(), requested_opts.tracer.unwrap(), tracer_config)?;
-                return Ok::<Vec<GethTrace>, ErrorObjectOwned>(traces);
-            }
-
-            let cache_options = create_trace_cache_opts();
-            let traces = evm
-                .trace_block_transactions_by_number(
-                    block_number,
-                    Some(cache_options),
-                    None,
-                    &mut working_set,
-                )?;
-                ethereum
-                    .trace_cache
-                    .lock()
-                    .unwrap()
-                    .insert(block_number, traces.clone());
-
-            // Convert the traces to the requested tracer and config
-            let requested_opts = opts.clone().unwrap();
-            let tracer_config = requested_opts.tracer_config;
-            let traces = get_traces_with_reuqested_tracer_and_config(traces.clone(), requested_opts.tracer.unwrap(), tracer_config)?;
-
-            Ok(traces)
+            debug_trace_by_block_number(block_number, None, &ethereum, &evm, &mut working_set, opts)
         },
     )?;
 
@@ -628,7 +555,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                 .get_transaction_by_hash(tx_hash, &mut working_set)
                 .unwrap()
                 .ok_or_else(|| EthApiError::UnknownBlockOrTxIndex)?;
-            let trace_index: u64 = tx
+            let trace_idx: u64 = tx
                 .transaction_index
                 .expect("Tx index must be set for tx inside block");
 
@@ -638,52 +565,43 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
 
             let opts: Option<GethDebugTracingOptions> = params.optional_next()?;
 
-            // If opts is None or if opts.tracer is None, then do not check cache or insert cache, just perform the operation
-            // also since this is not cached we need to stop at somewhere, so we add param stop_at
-            if opts.as_ref().map_or(true, |o| o.tracer.is_none()) {
-                let traces = evm.trace_block_transactions_by_number(
-                    block_number,
-                    opts.clone(),
-                    Some(trace_index as usize),
-                    &mut working_set,
-                )?;
-                return Ok(traces[trace_index as usize].clone());
-            }
-
-            // check cache if found convert to requested tracer and config and return
-            if let Some(traces) = ethereum.trace_cache.lock().unwrap().get(&block_number) {
-                let requested_opts = opts.clone().unwrap();
-                let tracer_config = requested_opts.tracer_config;
-                let traces = get_traces_with_reuqested_tracer_and_config(
-                    vec![traces[trace_index as usize].clone()],
-                    requested_opts.tracer.unwrap(),
-                    tracer_config,
-                )?;
-                return Ok(traces.into_iter().next().unwrap());
-            }
-
-            let cache_options = create_trace_cache_opts();
-            let traces = evm.trace_block_transactions_by_number(
+            let traces = debug_trace_by_block_number(
                 block_number,
-                Some(cache_options),
-                None,
+                Some(trace_idx as usize),
+                &ethereum,
+                &evm,
                 &mut working_set,
+                opts,
             )?;
-            ethereum
-                .trace_cache
-                .lock()
-                .unwrap()
-                .insert(block_number, traces.clone());
-            // Convert the traces to the requested tracer and config
-            let requested_opts = opts.clone().unwrap();
-            let tracer_config = requested_opts.tracer_config;
-            let traces = get_traces_with_reuqested_tracer_and_config(
-                vec![traces[trace_index as usize].clone()],
-                requested_opts.tracer.unwrap(),
-                tracer_config,
-            )?;
+            Ok(traces[0].clone())
+        },
+    )?;
 
-            Ok(traces.into_iter().next().unwrap())
+    rpc.register_subscription(
+        "debug_subscribe",
+        "debug_subscription",
+        "debug_unsubscribe",
+        |parameters, pending, ethereum| async move {
+            let mut params = parameters.sequence();
+
+            let topic: String = match params.next() {
+                Ok(v) => v,
+                Err(err) => {
+                    pending.reject(err).await;
+                    return Ok(());
+                }
+            };
+            match topic.as_str() {
+                "traceChain" => handle_debug_trace_chain(params, pending, ethereum).await,
+                _ => {
+                    pending
+                        .reject(EthApiError::Unsupported("Unsupported subscription topic"))
+                        .await;
+                    return Ok(());
+                }
+            };
+
+            Ok(())
         },
     )?;
 
@@ -939,7 +857,171 @@ fn remove_logs_from_call_frame(call_frame: &mut Vec<CallFrame>) {
     }
 }
 
-fn get_traces_with_reuqested_tracer_and_config(
+async fn handle_debug_trace_chain<C: Context, Da: DaService>(
+    mut params: ParamsSequence<'_>,
+    pending: PendingSubscriptionSink,
+    ethereum: Arc<Ethereum<C, Da>>,
+) {
+    let start_block: BlockNumberOrTag = match params.next() {
+        Ok(v) => v,
+        Err(err) => {
+            pending.reject(err).await;
+            return;
+        }
+    };
+    let end_block: BlockNumberOrTag = match params.next() {
+        Ok(v) => v,
+        Err(err) => {
+            pending.reject(err).await;
+            return;
+        }
+    };
+
+    // start block is exclusive, hence latest is not supported
+    let BlockNumberOrTag::Number(start_block) = start_block else {
+        pending.reject(EthApiError::Unsupported(
+            "Latest, earliest, pending, safe and finalized are not supported for traceChain start block",
+        )).await;
+        return;
+    };
+
+    let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
+    let evm = Evm::<C>::default();
+    let latest_block_number: u64 = evm
+        .block_number(&mut working_set)
+        .expect("Expected at least one block")
+        .saturating_to();
+    let end_block = match end_block {
+        BlockNumberOrTag::Number(end_block) => {
+            if end_block > latest_block_number {
+                pending.reject(EthApiError::UnknownBlockNumber).await;
+                return;
+            }
+            end_block
+        }
+        BlockNumberOrTag::Latest => latest_block_number,
+        _ => {
+            pending.reject(EthApiError::Unsupported(
+                "Earliest, pending, safe and finalized are not supported for traceChain end block",
+            )).await;
+            return;
+        }
+    };
+
+    if start_block >= end_block {
+        pending.reject(EthApiError::InvalidBlockRange).await;
+        return;
+    }
+
+    let opts: Option<GethDebugTracingOptions> = match params.optional_next() {
+        Ok(v) => v,
+        Err(err) => {
+            pending.reject(err).await;
+            return;
+        }
+    };
+
+    let subscription = pending.accept().await.unwrap();
+    tokio::spawn(async move {
+        for block_number in start_block + 1..=end_block {
+            let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
+            let traces = debug_trace_by_block_number(
+                block_number,
+                None,
+                &ethereum,
+                &evm,
+                &mut working_set,
+                opts.clone(),
+            );
+            match traces {
+                Ok(traces) => {
+                    let msg = SubscriptionMessage::new(
+                        subscription.method_name(),
+                        subscription.subscription_id(),
+                        &traces,
+                    )
+                    .unwrap();
+                    let Ok(_) = subscription.send(msg).await else {
+                        return;
+                    };
+                }
+                Err(err) => {
+                    error!(
+                        "Failed to get traces of block {} in traceChain: {}",
+                        block_number, err
+                    );
+
+                    let msg = SubscriptionMessage::new(
+                        subscription.method_name(),
+                        subscription.subscription_id(),
+                        &"Internal error",
+                    )
+                    .unwrap();
+                    let _ = subscription.send(msg).await;
+                    return;
+                }
+            };
+        }
+    });
+}
+
+fn debug_trace_by_block_number<C: Context, Da: DaService>(
+    block_number: u64,
+    trace_idx: Option<usize>,
+    ethereum: &Ethereum<C, Da>,
+    evm: &Evm<C>,
+    working_set: &mut WorkingSet<C>,
+    opts: Option<GethDebugTracingOptions>,
+) -> Result<Vec<GethTrace>, ErrorObjectOwned> {
+    // If opts is None or if opts.tracer is None, then do not check cache or insert cache, just perform the operation
+    if opts.as_ref().map_or(true, |o| o.tracer.is_none()) {
+        let traces =
+            evm.trace_block_transactions_by_number(block_number, opts, trace_idx, working_set)?;
+        return match trace_idx {
+            Some(idx) => Ok(vec![traces[idx].clone()]),
+            None => Ok(traces),
+        };
+    }
+
+    let requested_opts = opts.unwrap();
+    let tracer_type = requested_opts.tracer.unwrap();
+    let tracer_config = requested_opts.tracer_config;
+
+    if let Some(traces) = ethereum.trace_cache.lock().unwrap().get(&block_number) {
+        // If traces are found in cache convert them to specified opts and then return
+        let traces = match trace_idx {
+            Some(idx) => vec![traces[idx].clone()],
+            None => traces.to_vec(),
+        };
+        let traces =
+            get_traces_with_requested_tracer_and_config(traces, tracer_type, tracer_config)?;
+        return Ok(traces);
+    }
+
+    let cache_options = create_trace_cache_opts();
+    let traces = evm.trace_block_transactions_by_number(
+        block_number,
+        Some(cache_options),
+        None,
+        working_set,
+    )?;
+    ethereum
+        .trace_cache
+        .lock()
+        .unwrap()
+        .insert(block_number, traces.clone());
+
+    // Convert the traces to the requested tracer and config
+    let traces = match trace_idx {
+        Some(idx) => vec![traces[idx].clone()],
+        None => traces,
+    };
+    let traces = get_traces_with_requested_tracer_and_config(traces, tracer_type, tracer_config)?;
+
+    Ok(traces)
+}
+
+fn get_traces_with_requested_tracer_and_config(
     traces: Vec<GethTrace>,
     tracer: GethDebugTracerType,
     tracer_config: GethDebugTracerConfig,

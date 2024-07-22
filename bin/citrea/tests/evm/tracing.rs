@@ -141,7 +141,7 @@ async fn tracing_tests() -> Result<(), Box<dyn std::error::Error>> {
     // now let's check if the traces are correct
     assert!(matches!(json_res, GethTrace::CallTracer(_)));
 
-    assert_eq!(json_res, CallTracer(reth_json));
+    assert_eq!(json_res, CallTracer(reth_json.clone()));
 
     // Create multiple txs in the same block to test the if tracing works with cache enabled
     let call_get_value_req = test_client
@@ -250,7 +250,7 @@ async fn tracing_tests() -> Result<(), Box<dyn std::error::Error>> {
 
     assert_eq!(traces.len(), 2);
     assert_eq!(traces[1], CallTracer(expected_send_eth_trace.clone()));
-    assert_eq!(traces[0], CallTracer(expected_call_get_trace));
+    assert_eq!(traces[0], CallTracer(expected_call_get_trace.clone()));
 
     let four_byte_traces = test_client
         .debug_trace_block_by_hash(
@@ -301,13 +301,29 @@ async fn tracing_tests() -> Result<(), Box<dyn std::error::Error>> {
                 "value":"0x0","type":"CALL"}],
     ).unwrap();
 
-    println!("{:?}", traces_top_call_only);
     assert_eq!(traces_top_call_only.len(), 2);
-    assert_eq!(traces_top_call_only[1], CallTracer(expected_send_eth_trace));
+    assert_eq!(
+        traces_top_call_only[1],
+        CallTracer(expected_send_eth_trace.clone())
+    );
     assert_eq!(
         traces_top_call_only[0],
         CallTracer(expected_top_call_only_call_get_trace)
     );
+
+    let traces = test_client
+        .debug_trace_chain(
+            BlockNumberOrTag::Number(0),
+            BlockNumberOrTag::Latest,
+            Some(GethDebugTracingOptions::default().with_tracer(
+                GethDebugTracerType::BuiltInTracer(GethDebugBuiltInTracerType::CallTracer),
+            )),
+        )
+        .await;
+    assert_eq!(traces.len(), 8);
+    assert_eq!(traces[5], CallTracer(reth_json));
+    assert_eq!(traces[6], CallTracer(expected_call_get_trace));
+    assert_eq!(traces[7], CallTracer(expected_send_eth_trace));
 
     rollup_task.abort();
     Ok(())
