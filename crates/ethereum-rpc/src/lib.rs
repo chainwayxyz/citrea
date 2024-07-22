@@ -1,11 +1,12 @@
-mod debug_trace;
+mod eth_subscription;
 mod ethereum;
 mod gas_price;
+mod trace;
 
 #[cfg(feature = "local")]
 pub use citrea_evm::DevSigner;
 use citrea_evm::Evm;
-use debug_trace::{debug_trace_by_block_number, handle_debug_trace_chain};
+use eth_subscription::handle_new_heads_subscription;
 pub use ethereum::{EthRpcConfig, Ethereum};
 pub use gas_price::fee_history::FeeHistoryCacheConfig;
 pub use gas_price::gas_oracle::GasPriceOracleConfig;
@@ -20,6 +21,7 @@ use serde_json::json;
 use sov_modules_api::utils::to_jsonrpsee_error_object;
 use sov_modules_api::WorkingSet;
 use sov_rollup_interface::services::da::DaService;
+use trace::{debug_trace_by_block_number, handle_debug_trace_chain};
 use tracing::info;
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, PartialEq)]
@@ -654,6 +656,34 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
             };
             match topic.as_str() {
                 "traceChain" => handle_debug_trace_chain(params, pending, ethereum).await,
+                _ => {
+                    pending
+                        .reject(EthApiError::Unsupported("Unsupported subscription topic"))
+                        .await;
+                    return Ok(());
+                }
+            };
+
+            Ok(())
+        },
+    )?;
+
+    rpc.register_subscription(
+        "eth_subscribe",
+        "eth_subscription",
+        "eth_unsubscribe",
+        |parameters, pending, ethereum| async move {
+            let mut params = parameters.sequence();
+
+            let topic: String = match params.next() {
+                Ok(v) => v,
+                Err(err) => {
+                    pending.reject(err).await;
+                    return Ok(());
+                }
+            };
+            match topic.as_str() {
+                "newHeads" => handle_new_heads_subscription(params, pending, ethereum).await,
                 _ => {
                     pending
                         .reject(EthApiError::Unsupported("Unsupported subscription topic"))
