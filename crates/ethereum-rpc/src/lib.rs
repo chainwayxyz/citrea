@@ -2,7 +2,7 @@ mod gas_price;
 
 use std::collections::BTreeMap;
 use std::process::Command;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 #[cfg(feature = "local")]
 pub use citrea_evm::DevSigner;
@@ -10,8 +10,8 @@ use citrea_evm::Evm;
 pub use gas_price::fee_history::FeeHistoryCacheConfig;
 use gas_price::gas_oracle::GasPriceOracle;
 pub use gas_price::gas_oracle::GasPriceOracleConfig;
-use jsonrpsee::types::ErrorObjectOwned;
-use jsonrpsee::{RpcModule, SubscriptionMessage};
+use jsonrpsee::types::{ErrorObjectOwned, ParamsSequence};
+use jsonrpsee::{PendingSubscriptionSink, RpcModule, SubscriptionMessage};
 use reth_primitives::{keccak256, BlockNumberOrTag, Bytes, B256, U256};
 use reth_rpc::eth::error::EthApiError;
 use reth_rpc_types::trace::geth::{
@@ -592,103 +592,11 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                 }
             };
             match topic.as_str() {
-                "traceChain" => {
-                    let start_block: BlockNumberOrTag = match params.next() {
-                        Ok(v) => v,
-                        Err(err) => {
-                            pending.reject(err).await;
-                            return Ok(());
-                        }
-                    };
-                    let end_block: BlockNumberOrTag = match params.next() {
-                        Ok(v) => v,
-                        Err(err) => {
-                            pending.reject(err).await;
-                            return Ok(());
-                        }
-                    };
-
-                    // start block is exclusive, hence latest is not supported
-                    let BlockNumberOrTag::Number(start_block) = start_block else {
-                        pending.reject(EthApiError::Unsupported(
-                            "Latest, earliest, pending, safe and finalized are not supported for traceChain start block",
-                        )).await;
-                        return Ok(());
-                    };
-
-                    let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
-                    let evm = Evm::<C>::default();
-                    let latest_block_number: u64 = evm.block_number(&mut working_set)?.saturating_to();
-                    let end_block = match end_block {
-                        BlockNumberOrTag::Number(end_block) => {
-                            if end_block > latest_block_number {
-                                pending.reject(EthApiError::UnknownBlockNumber).await;
-                                return Ok(());
-                            }
-                            end_block
-                        },
-                        BlockNumberOrTag::Latest => latest_block_number,
-                        _ => {
-                            pending.reject(EthApiError::Unsupported(
-                                "Earliest, pending, safe and finalized are not supported for traceChain end block",
-                            )).await;
-                            return Ok(());
-                        }
-                    };
-
-                    if start_block >= end_block {
-                        pending.reject(EthApiError::InvalidBlockRange).await;
-                        return Ok(());
-                    }
-
-                    let opts: Option<GethDebugTracingOptions> = match params.optional_next() {
-                        Ok(v) => v,
-                        Err(err) => {
-                            pending.reject(err).await;
-                            return Ok(());
-                        }
-                    };
-
-                    let subscription = pending.accept().await?;
-                    tokio::spawn(async move {
-                        for block_number in start_block+1..=end_block {
-                            let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
-                            let traces = debug_trace_by_block_number(
-                                block_number,
-                                None,
-                                &ethereum,
-                                &evm,
-                                &mut working_set,
-                                opts.clone(),
-                            );
-                            match traces {
-                                Ok(traces) => {
-                                    let msg = SubscriptionMessage::new(
-                                        subscription.method_name(),
-                                        subscription.subscription_id(),
-                                        &traces,
-                                    )
-                                    .unwrap();
-                                    let Ok(_) = subscription.send(msg).await else { return; };
-                                }
-                                Err(err) => {
-                                    error!("Failed to get traces of block {} in traceChain: {}", block_number, err);
-
-                                    let msg = SubscriptionMessage::new(
-                                        subscription.method_name(),
-                                        subscription.subscription_id(),
-                                        &"Internal error",
-                                    )
-                                    .unwrap();
-                                    let _ = subscription.send(msg).await;
-                                    return;
-                                }
-                            };
-                        }
-                    });
-                }
+                "traceChain" => handle_debug_trace_chain(params, pending, ethereum).await,
                 _ => {
-                    pending.reject(EthApiError::Unsupported("Unsupported subscription topic")).await;
+                    pending
+                        .reject(EthApiError::Unsupported("Unsupported subscription topic"))
+                        .await;
                     return Ok(());
                 }
             };
@@ -949,18 +857,122 @@ fn remove_logs_from_call_frame(call_frame: &mut Vec<CallFrame>) {
     }
 }
 
-fn debug_trace_by_block_number<C, Da>(
+async fn handle_debug_trace_chain<C: Context, Da: DaService>(
+    mut params: ParamsSequence<'_>,
+    pending: PendingSubscriptionSink,
+    ethereum: Arc<Ethereum<C, Da>>,
+) {
+    let start_block: BlockNumberOrTag = match params.next() {
+        Ok(v) => v,
+        Err(err) => {
+            pending.reject(err).await;
+            return;
+        }
+    };
+    let end_block: BlockNumberOrTag = match params.next() {
+        Ok(v) => v,
+        Err(err) => {
+            pending.reject(err).await;
+            return;
+        }
+    };
+
+    // start block is exclusive, hence latest is not supported
+    let BlockNumberOrTag::Number(start_block) = start_block else {
+        pending.reject(EthApiError::Unsupported(
+            "Latest, earliest, pending, safe and finalized are not supported for traceChain start block",
+        )).await;
+        return;
+    };
+
+    let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
+    let evm = Evm::<C>::default();
+    let latest_block_number: u64 = evm
+        .block_number(&mut working_set)
+        .expect("Expected at least one block")
+        .saturating_to();
+    let end_block = match end_block {
+        BlockNumberOrTag::Number(end_block) => {
+            if end_block > latest_block_number {
+                pending.reject(EthApiError::UnknownBlockNumber).await;
+                return;
+            }
+            end_block
+        }
+        BlockNumberOrTag::Latest => latest_block_number,
+        _ => {
+            pending.reject(EthApiError::Unsupported(
+                "Earliest, pending, safe and finalized are not supported for traceChain end block",
+            )).await;
+            return;
+        }
+    };
+
+    if start_block >= end_block {
+        pending.reject(EthApiError::InvalidBlockRange).await;
+        return;
+    }
+
+    let opts: Option<GethDebugTracingOptions> = match params.optional_next() {
+        Ok(v) => v,
+        Err(err) => {
+            pending.reject(err).await;
+            return;
+        }
+    };
+
+    let subscription = pending.accept().await.unwrap();
+    tokio::spawn(async move {
+        for block_number in start_block + 1..=end_block {
+            let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
+            let traces = debug_trace_by_block_number(
+                block_number,
+                None,
+                &ethereum,
+                &evm,
+                &mut working_set,
+                opts.clone(),
+            );
+            match traces {
+                Ok(traces) => {
+                    let msg = SubscriptionMessage::new(
+                        subscription.method_name(),
+                        subscription.subscription_id(),
+                        &traces,
+                    )
+                    .unwrap();
+                    let Ok(_) = subscription.send(msg).await else {
+                        return;
+                    };
+                }
+                Err(err) => {
+                    error!(
+                        "Failed to get traces of block {} in traceChain: {}",
+                        block_number, err
+                    );
+
+                    let msg = SubscriptionMessage::new(
+                        subscription.method_name(),
+                        subscription.subscription_id(),
+                        &"Internal error",
+                    )
+                    .unwrap();
+                    let _ = subscription.send(msg).await;
+                    return;
+                }
+            };
+        }
+    });
+}
+
+fn debug_trace_by_block_number<C: Context, Da: DaService>(
     block_number: u64,
     trace_idx: Option<usize>,
     ethereum: &Ethereum<C, Da>,
     evm: &Evm<C>,
     working_set: &mut WorkingSet<C>,
     opts: Option<GethDebugTracingOptions>,
-) -> Result<Vec<GethTrace>, ErrorObjectOwned>
-where
-    C: Context,
-    Da: DaService,
-{
+) -> Result<Vec<GethTrace>, ErrorObjectOwned> {
     // If opts is None or if opts.tracer is None, then do not check cache or insert cache, just perform the operation
     if opts.as_ref().map_or(true, |o| o.tracer.is_none()) {
         let traces =
