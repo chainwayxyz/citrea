@@ -676,9 +676,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
         "eth_subscription",
         "eth_unsubscribe",
         |parameters, pending, ethereum| async move {
-            let mut params = parameters.sequence();
-
-            let topic: String = match params.next() {
+            let topic: String = match parameters.one() {
                 Ok(v) => v,
                 Err(err) => {
                     pending.reject(err).await;
@@ -686,7 +684,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                 }
             };
             match topic.as_str() {
-                "newHeads" => handle_new_heads_subscription(params, pending, ethereum).await,
+                "newHeads" => handle_new_heads_subscription(pending, ethereum).await,
                 _ => {
                     pending
                         .reject(EthApiError::Unsupported("Unsupported subscription topic"))
