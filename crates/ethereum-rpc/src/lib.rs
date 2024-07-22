@@ -1,14 +1,14 @@
+mod ethereum;
 mod gas_price;
 
 use std::collections::BTreeMap;
-use std::process::Command;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 #[cfg(feature = "local")]
 pub use citrea_evm::DevSigner;
 use citrea_evm::Evm;
+pub use ethereum::{EthRpcConfig, Ethereum};
 pub use gas_price::fee_history::FeeHistoryCacheConfig;
-use gas_price::gas_oracle::GasPriceOracle;
 pub use gas_price::gas_oracle::GasPriceOracleConfig;
 use jsonrpsee::types::{ErrorObjectOwned, ParamsSequence};
 use jsonrpsee::{PendingSubscriptionSink, RpcModule, SubscriptionMessage};
@@ -19,25 +19,12 @@ use reth_rpc_types::trace::geth::{
     GethDebugTracerType, GethDebugTracingOptions, GethTrace, NoopFrame,
 };
 use reth_rpc_types::{FeeHistory, Index};
-use rustc_version_runtime::version;
-use schnellru::{ByLength, LruMap};
 use sequencer_client::SequencerClient;
 use serde_json::json;
 use sov_modules_api::utils::to_jsonrpsee_error_object;
 use sov_modules_api::{Context, WorkingSet};
 use sov_rollup_interface::services::da::DaService;
-use sov_rollup_interface::CITREA_VERSION;
-use tracing::{error, info, instrument};
-
-const MAX_TRACE_BLOCK: u32 = 1000;
-
-#[derive(Clone)]
-pub struct EthRpcConfig {
-    pub gas_price_oracle_config: GasPriceOracleConfig,
-    pub fee_history_cache_config: FeeHistoryCacheConfig,
-    #[cfg(feature = "local")]
-    pub eth_signer: DevSigner,
-}
+use tracing::{error, info};
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -84,90 +71,6 @@ pub fn get_ethereum_rpc<C: sov_modules_api::Context, Da: DaService>(
     register_rpc_methods(&mut rpc, is_sequencer).expect("Failed to register ethereum RPC methods");
     rpc
 }
-
-pub struct Ethereum<C: sov_modules_api::Context, Da: DaService> {
-    #[allow(dead_code)]
-    da_service: Da,
-    gas_price_oracle: GasPriceOracle<C>,
-    #[cfg(feature = "local")]
-    eth_signer: DevSigner,
-    storage: C::Storage,
-    sequencer_client: Option<SequencerClient>,
-    web3_client_version: String,
-    trace_cache: Mutex<LruMap<u64, Vec<GethTrace>, ByLength>>,
-}
-
-impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
-    fn new(
-        da_service: Da,
-        gas_price_oracle_config: GasPriceOracleConfig,
-        fee_history_cache_config: FeeHistoryCacheConfig,
-        #[cfg(feature = "local")] eth_signer: DevSigner,
-        storage: C::Storage,
-        sequencer_client: Option<SequencerClient>,
-    ) -> Self {
-        let evm = Evm::<C>::default();
-        let gas_price_oracle =
-            GasPriceOracle::new(evm, gas_price_oracle_config, fee_history_cache_config);
-
-        let rollup = "citrea";
-        let arch = std::env::consts::ARCH;
-        let rustc_v = version();
-
-        let current_version = format!("{}/{}/{}/rust-{}", rollup, CITREA_VERSION, arch, rustc_v);
-
-        let trace_cache = Mutex::new(LruMap::new(ByLength::new(MAX_TRACE_BLOCK)));
-
-        Self {
-            da_service,
-            gas_price_oracle,
-            #[cfg(feature = "local")]
-            eth_signer,
-            storage,
-            sequencer_client,
-            web3_client_version: current_version,
-            trace_cache,
-        }
-    }
-}
-
-impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
-    #[instrument(level = "trace", skip_all)]
-    async fn max_fee_per_gas(&self, working_set: &mut WorkingSet<C>) -> (U256, U256) {
-        let suggested_tip = self
-            .gas_price_oracle
-            .suggest_tip_cap(working_set)
-            .await
-            .unwrap();
-
-        let evm = Evm::<C>::default();
-        let base_fee = evm
-            .get_block_by_number(None, None, working_set)
-            .unwrap()
-            .unwrap()
-            .header
-            .base_fee_per_gas
-            .unwrap_or_default();
-
-        (U256::from(base_fee), U256::from(suggested_tip))
-    }
-}
-
-// impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
-//     fn make_raw_tx(
-//         &self,
-//         raw_tx: RlpEvmTransaction,
-//     ) -> Result<(B256, Vec<u8>), jsonrpsee::core::RegisterMethodError> {
-//         let signed_transaction: RethTransactionSignedNoHash = raw_tx.clone().try_into()?;
-
-//         let tx_hash = signed_transaction.hash();
-
-//         let tx = CallMessage { txs: vec![raw_tx] };
-//         let message = <Runtime<C, Da::Spec> as EncodeCall<citrea_evm::Evm<C>>>::encode_call(tx);
-
-//         Ok((B256::from(tx_hash), message))
-//     }
-// }
 
 fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
     rpc: &mut RpcModule<Ethereum<C, Da>>,
@@ -803,40 +706,6 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
 
 //     (call_request, gas_price, max_fee_per_gas)
 // }
-
-pub fn get_latest_git_tag() -> Result<String, ErrorObjectOwned> {
-    let latest_tag_commit = Command::new("git")
-        .args(["rev-list", "--tags", "--max-count=1"])
-        .output()
-        .map_err(|e| to_jsonrpsee_error_object("FULL_NODE_ERROR", e))?;
-
-    if !latest_tag_commit.status.success() {
-        return Err(to_jsonrpsee_error_object(
-            "Failure",
-            "Failed to get version",
-        ));
-    }
-
-    let latest_tag_commit = String::from_utf8_lossy(&latest_tag_commit.stdout)
-        .trim()
-        .to_string();
-
-    let latest_tag = Command::new("git")
-        .args(["describe", "--tags", &latest_tag_commit])
-        .output()
-        .map_err(|e| to_jsonrpsee_error_object("FULL_NODE_ERROR", e))?;
-
-    if !latest_tag.status.success() {
-        return Err(to_jsonrpsee_error_object(
-            "Failure",
-            "Failed to get version",
-        ));
-    }
-
-    Ok(String::from_utf8_lossy(&latest_tag.stdout)
-        .trim()
-        .to_string())
-}
 
 fn apply_call_config(call_frame: CallFrame, call_config: CallConfig) -> CallFrame {
     // let only_top_call = call_config.only_top_call.unwrap_or();
