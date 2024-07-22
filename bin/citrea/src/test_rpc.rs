@@ -20,6 +20,7 @@ use sov_rollup_interface::stf::fuzzing::BatchReceiptStrategyArgs;
 use sov_rollup_interface::stf::{BatchReceipt, Event, SoftBatchReceipt, TransactionReceipt};
 #[cfg(test)]
 use sov_stf_runner::RpcConfig;
+use tokio::sync::broadcast;
 
 struct TestExpect {
     payload: serde_json::Value,
@@ -81,7 +82,7 @@ fn test_helper(
     rt.block_on(async {
         // Initialize the ledger database, which stores blocks, transactions, events, etc.
         let tmpdir = tempfile::tempdir().unwrap();
-        let mut ledger_db = LedgerDB::with_path(tmpdir.path()).unwrap();
+        let mut ledger_db = LedgerDB::with_path(tmpdir.path(), broadcast::channel(1).0).unwrap();
         populate_ledger(&mut ledger_db, slots, soft_batch_receipts);
         let server = jsonrpsee::server::ServerBuilder::default()
             .build("127.0.0.1:0")

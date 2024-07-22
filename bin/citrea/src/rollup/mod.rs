@@ -10,6 +10,7 @@ use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_modules_stf_blueprint::{Runtime as RuntimeTrait, StfBlueprint};
 use sov_state::storage::NativeStorage;
 use sov_stf_runner::{FullNodeConfig, InitVariant, ProverConfig};
+use tokio::sync::broadcast;
 use tracing::instrument;
 mod bitcoin;
 mod mock;
@@ -37,7 +38,8 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         // Maybe whole "prev_root" can be initialized inside runner
         // Getting block here, so prover_service doesn't have to be `Send`
 
-        let ledger_db = self.create_ledger_db(&rollup_config);
+        let (soft_confirmation_tx, _) = broadcast::channel(10);
+        let ledger_db = self.create_ledger_db(&rollup_config, soft_confirmation_tx.clone());
         let genesis_config = self.create_genesis_config(runtime_genesis_paths, &rollup_config)?;
 
         let mut storage_manager = self.create_storage_manager(&rollup_config)?;
@@ -103,7 +105,8 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         // Maybe whole "prev_root" can be initialized inside runner
         // Getting block here, so prover_service doesn't have to be `Send`
 
-        let ledger_db = self.create_ledger_db(&rollup_config);
+        let (soft_confirmation_tx, _) = broadcast::channel(10);
+        let ledger_db = self.create_ledger_db(&rollup_config, soft_confirmation_tx.clone());
         let genesis_config = self.create_genesis_config(runtime_genesis_paths, &rollup_config)?;
 
         let mut storage_manager = self.create_storage_manager(&rollup_config)?;
@@ -181,7 +184,8 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         // Maybe whole "prev_root" can be initialized inside runner
         // Getting block here, so prover_service doesn't have to be `Send`
 
-        let ledger_db = self.create_ledger_db(&rollup_config);
+        let (soft_confirmation_tx, _) = broadcast::channel(10);
+        let ledger_db = self.create_ledger_db(&rollup_config, soft_confirmation_tx.clone());
         let genesis_config = self.create_genesis_config(runtime_genesis_paths, &rollup_config)?;
 
         let mut storage_manager = self.create_storage_manager(&rollup_config)?;

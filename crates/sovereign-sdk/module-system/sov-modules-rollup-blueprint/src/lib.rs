@@ -14,6 +14,7 @@ use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::{Zkvm, ZkvmHost};
 use sov_state::Storage;
 use sov_stf_runner::{FullNodeConfig, ProverConfig, ProverService};
+use tokio::sync::broadcast;
 pub use wallet::*;
 
 /// This trait defines how to crate all the necessary dependencies required by a rollup.
@@ -115,7 +116,12 @@ pub trait RollupBlueprint: Sized + Send + Sync {
     ) -> Result<Self::StorageManager, anyhow::Error>;
 
     /// Creates instance of a LedgerDB.
-    fn create_ledger_db(&self, rollup_config: &FullNodeConfig<Self::DaConfig>) -> LedgerDB {
-        LedgerDB::with_path(&rollup_config.storage.path).expect("Ledger DB failed to open")
+    fn create_ledger_db(
+        &self,
+        rollup_config: &FullNodeConfig<Self::DaConfig>,
+        soft_confirmation_tx: broadcast::Sender<u64>,
+    ) -> LedgerDB {
+        LedgerDB::with_path(&rollup_config.storage.path, soft_confirmation_tx)
+            .expect("Ledger DB failed to open")
     }
 }
