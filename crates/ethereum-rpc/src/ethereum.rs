@@ -11,6 +11,7 @@ use sequencer_client::SequencerClient;
 use sov_modules_api::WorkingSet;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::CITREA_VERSION;
+use tokio::sync::broadcast;
 use tracing::instrument;
 
 use crate::gas_price::fee_history::FeeHistoryCacheConfig;
@@ -36,6 +37,7 @@ pub struct Ethereum<C: sov_modules_api::Context, Da: DaService> {
     pub(crate) sequencer_client: Option<SequencerClient>,
     pub(crate) web3_client_version: String,
     pub(crate) trace_cache: Mutex<LruMap<u64, Vec<GethTrace>, ByLength>>,
+    pub(crate) soft_commitment_tx: broadcast::Sender<u64>,
 }
 
 impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
@@ -46,6 +48,7 @@ impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
         #[cfg(feature = "local")] eth_signer: DevSigner,
         storage: C::Storage,
         sequencer_client: Option<SequencerClient>,
+        soft_commitment_tx: broadcast::Sender<u64>,
     ) -> Self {
         let evm = Evm::<C>::default();
         let gas_price_oracle =
@@ -68,6 +71,7 @@ impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
             sequencer_client,
             web3_client_version: current_version,
             trace_cache,
+            soft_commitment_tx,
         }
     }
 

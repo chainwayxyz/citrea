@@ -46,8 +46,13 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let prover_storage = storage_manager.create_finalized_storage()?;
 
         // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1218)
-        let rpc_methods =
-            self.create_rpc_methods(&prover_storage, &ledger_db, &da_service, None)?;
+        let rpc_methods = self.create_rpc_methods(
+            &prover_storage,
+            &ledger_db,
+            &da_service,
+            None,
+            soft_confirmation_tx,
+        )?;
 
         let native_stf = StfBlueprint::new();
 
@@ -119,6 +124,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             &ledger_db,
             &da_service,
             Some(runner_config.sequencer_client_url.clone()),
+            soft_confirmation_tx,
         )?;
 
         let native_stf = StfBlueprint::new();
@@ -198,6 +204,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             &ledger_db,
             &da_service,
             Some(runner_config.sequencer_client_url.clone()),
+            soft_confirmation_tx,
         )?;
 
         let native_stf = StfBlueprint::new();

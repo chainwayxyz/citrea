@@ -68,6 +68,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         ledger_db: &LedgerDB,
         da_service: &Self::DaService,
         sequencer_client_url: Option<String>,
+        soft_confirmation_tx: broadcast::Sender<u64>,
     ) -> Result<jsonrpsee::RpcModule<()>, anyhow::Error>;
 
     /// Creates GenesisConfig from genesis files.

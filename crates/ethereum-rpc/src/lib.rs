@@ -21,6 +21,7 @@ use serde_json::json;
 use sov_modules_api::utils::to_jsonrpsee_error_object;
 use sov_modules_api::WorkingSet;
 use sov_rollup_interface::services::da::DaService;
+use tokio::sync::broadcast;
 use trace::{debug_trace_by_block_number, handle_debug_trace_chain};
 use tracing::info;
 
@@ -43,6 +44,7 @@ pub fn get_ethereum_rpc<C: sov_modules_api::Context, Da: DaService>(
     eth_rpc_config: EthRpcConfig,
     storage: C::Storage,
     sequencer_client_url: Option<String>,
+    soft_commitment_tx: broadcast::Sender<u64>,
 ) -> RpcModule<Ethereum<C, Da>> {
     // Unpack config
     let EthRpcConfig {
@@ -64,6 +66,7 @@ pub fn get_ethereum_rpc<C: sov_modules_api::Context, Da: DaService>(
         eth_signer,
         storage,
         sequencer_client_url.map(SequencerClient::new),
+        soft_commitment_tx,
     ));
 
     register_rpc_methods(&mut rpc, is_sequencer).expect("Failed to register ethereum RPC methods");
