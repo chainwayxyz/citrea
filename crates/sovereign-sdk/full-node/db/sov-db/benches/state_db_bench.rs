@@ -80,7 +80,7 @@ fn prepare_data(size: usize) -> TestData {
     let version = db.get_next_version() - 1;
     for chunk in raw_data.chunks(2) {
         let key = &chunk[0];
-        let key_hash: JmtNodeKeyHash = (key, version).into();
+        let key_hash = JmtNodeKeyHash::from_vec(key, version);
         let value = chunk[1].clone();
         let res = db
             .get_value_option_by_key(version, &KeyHash(key_hash.hash()))
@@ -88,7 +88,7 @@ fn prepare_data(size: usize) -> TestData {
         assert_eq!(Some(value), res);
     }
 
-    let random_key_hash: JmtNodeKeyHash = (&random_key, version).into();
+    let random_key_hash = JmtNodeKeyHash::from_vec(&random_key, version);
     let random_value = db
         .get_value_option_by_key(version, &KeyHash(random_key_hash.hash()))
         .unwrap();
@@ -111,9 +111,9 @@ fn bench_random_read(g: &mut BenchmarkGroup<WallTime>, size: usize) {
         |b, i| {
             b.iter(|| {
                 let (db, key, version) = i;
-                let hash_key: JmtNodeKeyHash = (key, *version).into();
+                let key_hash = JmtNodeKeyHash::from_vec(key, *version);
                 let result = black_box(
-                    db.get_value_option_by_key(*version, &KeyHash(hash_key.hash()))
+                    db.get_value_option_by_key(*version, &KeyHash(key_hash.hash()))
                         .unwrap(),
                 );
                 assert!(result.is_some());
@@ -136,9 +136,9 @@ fn bench_largest_read(g: &mut BenchmarkGroup<WallTime>, size: usize) {
         |b, i| {
             b.iter(|| {
                 let (db, key, version) = i;
-                let hash_key: JmtNodeKeyHash = (key, *version).into();
+                let key_hash = JmtNodeKeyHash::from_vec(key, *version);
                 let result = black_box(
-                    db.get_value_option_by_key(*version, &KeyHash(hash_key.hash()))
+                    db.get_value_option_by_key(*version, &KeyHash(key_hash.hash()))
                         .unwrap(),
                 );
                 assert!(result.is_some());
@@ -161,9 +161,9 @@ fn bench_not_found_read(g: &mut BenchmarkGroup<WallTime>, size: usize) {
         |b, i| {
             b.iter(|| {
                 let (db, key, version) = i;
-                let hash_key: JmtNodeKeyHash = (key, *version).into();
+                let key_hash = JmtNodeKeyHash::from_vec(key, *version);
                 let result = black_box(
-                    db.get_value_option_by_key(*version, &KeyHash(hash_key.hash()))
+                    db.get_value_option_by_key(*version, &KeyHash(key_hash.hash()))
                         .unwrap(),
                 );
                 assert!(result.is_none());

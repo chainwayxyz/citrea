@@ -125,8 +125,8 @@ impl<Q: QueryManager> TreeReader for StateDB<Q> {
         &self,
         node_key: &jmt::storage::NodeKey,
     ) -> anyhow::Result<Option<jmt::storage::Node>> {
-        let hash_key: JmtNodeKeyHash = node_key.into();
-        self.db.read::<JmtNodes>(&hash_key)
+        let key_hash: JmtNodeKeyHash = node_key.into();
+        self.db.read::<JmtNodes>(&key_hash)
     }
 
     fn get_value_option(
@@ -148,13 +148,13 @@ impl<Q: QueryManager> TreeWriter for StateDB<Q> {
     fn write_node_batch(&self, node_batch: &jmt::storage::NodeBatch) -> anyhow::Result<()> {
         let mut batch = SchemaBatch::new();
         for (node_key, node) in node_batch.nodes() {
-            let hash_key: JmtNodeKeyHash = node_key.into();
-            batch.put::<JmtNodes>(&hash_key, node)?;
+            let key_hash: JmtNodeKeyHash = node_key.into();
+            batch.put::<JmtNodes>(&key_hash, node)?;
         }
 
         for ((version, key_hash), value) in node_batch.values() {
-            let hash_key = JmtNodeKeyHash::new(key_hash.0, *version);
-            batch.put::<JmtValues>(&hash_key, value)?;
+            let key_hash = JmtNodeKeyHash::new(key_hash.0, *version);
+            batch.put::<JmtValues>(&key_hash, value)?;
         }
         self.db.write_many(batch)?;
         Ok(())

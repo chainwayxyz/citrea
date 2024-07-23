@@ -427,6 +427,17 @@ impl JmtNodeKeyHash {
         Self { key, version }
     }
 
+    /// Instantiate from vector of bytes
+    pub fn from_vec(node_key: &Vec<u8>, version: Version) -> Self {
+        let mut out = vec![];
+        let _ = BorshSerialize::serialize(&node_key, &mut out);
+        let key = KeyHash::with::<sha2::Sha256>(out);
+        Self {
+            key: key.0,
+            version,
+        }
+    }
+
     /// Return the version
     pub fn version(&self) -> Version {
         self.version
@@ -442,24 +453,7 @@ impl From<&NodeKey> for JmtNodeKeyHash {
     fn from(node_key: &NodeKey) -> Self {
         let mut out = vec![];
         let _ = BorshSerialize::serialize(&node_key, &mut out);
-        let key = KeyHash::with::<sha2::Sha256>(out);
-        Self {
-            key: key.0,
-            version: node_key.version(),
-        }
-    }
-}
 
-impl From<(&Vec<u8>, Version)> for JmtNodeKeyHash {
-    fn from(data: (&Vec<u8>, Version)) -> Self {
-        let node_key = data.0;
-        let version = data.1;
-        let mut out = vec![];
-        let _ = BorshSerialize::serialize(&node_key, &mut out);
-        let key = KeyHash::with::<sha2::Sha256>(out);
-        Self {
-            key: key.0,
-            version,
-        }
+        Self::from_vec(&out, node_key.version())
     }
 }
