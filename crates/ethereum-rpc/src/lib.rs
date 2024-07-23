@@ -5,7 +5,7 @@ mod trace;
 
 #[cfg(feature = "local")]
 pub use citrea_evm::DevSigner;
-use citrea_evm::Evm;
+use citrea_evm::{Evm, Filter};
 pub use ethereum::{EthRpcConfig, Ethereum};
 pub use gas_price::fee_history::FeeHistoryCacheConfig;
 pub use gas_price::gas_oracle::GasPriceOracleConfig;
@@ -20,7 +20,7 @@ use serde_json::json;
 use sov_modules_api::utils::to_jsonrpsee_error_object;
 use sov_modules_api::WorkingSet;
 use sov_rollup_interface::services::da::DaService;
-use subscription::handle_new_heads_subscription;
+use subscription::{handle_logs_subscription, handle_new_heads_subscription};
 use tokio::sync::broadcast;
 use trace::{debug_trace_by_block_number, handle_debug_trace_chain};
 use tracing::info;
@@ -690,7 +690,32 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                     }
                 };
                 match topic.as_str() {
-                    "newHeads" => handle_new_heads_subscription(pending, ethereum).await,
+                    "newHeads" => {
+                        let subscription = pending.accept().await.unwrap();
+                        let rx = ethereum
+                            .subscription_manager
+                            .as_ref()
+                            .unwrap()
+                            .subscribe_new_heads();
+                        handle_new_heads_subscription(subscription, rx).await
+                    }
+                    "logs" => {
+                        let filter: Filter = match params.next() {
+                            Ok(v) => v,
+                            Err(err) => {
+                                pending.reject(err).await;
+                                return Ok(());
+                            }
+                        };
+                        let subscription = pending.accept().await.unwrap();
+                        let rx = ethereum
+                            .subscription_manager
+                            .as_ref()
+                            .unwrap()
+                            .subscribe_logs(filter)
+                            .await;
+                        handle_logs_subscription(subscription, rx).await
+                    }
                     _ => {
                         pending
                             .reject(EthApiError::Unsupported("Unsupported subscription topic"))
