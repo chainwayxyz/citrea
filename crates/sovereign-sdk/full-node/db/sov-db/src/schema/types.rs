@@ -2,6 +2,8 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 
 use borsh::{BorshDeserialize, BorshSerialize};
+use jmt::storage::NodeKey;
+use jmt::{KeyHash, Version};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::rpc::{
@@ -57,7 +59,6 @@ pub type AccessoryStateValue = Option<Vec<u8>>;
 pub type DbHash = [u8; 32];
 /// The "value" half of a key/value pair from the JMT
 pub type JmtValue = Option<Vec<u8>>;
-pub(crate) type StateKey = Vec<u8>;
 
 /// The on-disk format of a slot. Specifies the batches contained in the slot
 /// and the hash of the da block. TODO(@preston-evans98): add any additional data
@@ -409,6 +410,56 @@ pub mod arbitrary {
                 extra_data: u.arbitrary()?,
                 batches: u.arbitrary()?,
             })
+        }
+    }
+}
+
+/// Defines a wrapper around the key hash and version
+#[derive(Debug, PartialEq, BorshDeserialize, BorshSerialize)]
+pub struct JmtNodeHashKey {
+    key: [u8; 32],
+    version: Version,
+}
+
+impl JmtNodeHashKey {
+    /// Instantiate a new hash key
+    pub fn new(key: [u8; 32], version: Version) -> Self {
+        Self { key, version }
+    }
+
+    /// Return the version
+    pub fn version(&self) -> Version {
+        self.version
+    }
+
+    /// Return the hash
+    pub fn hash(&self) -> [u8; 32] {
+        self.key
+    }
+}
+
+impl From<&NodeKey> for JmtNodeHashKey {
+    fn from(node_key: &NodeKey) -> Self {
+        let mut out = vec![];
+        let _ = BorshSerialize::serialize(&node_key, &mut out);
+        let key = KeyHash::with::<sha2::Sha256>(out);
+        Self {
+            key: key.0,
+            version: node_key.version(),
+        }
+    }
+}
+
+impl From<(&Vec<u8>, Version)> for JmtNodeHashKey {
+    fn from(data: (&Vec<u8>, Version)) -> Self {
+        let node_key = data.0;
+        let version = data.1;
+        let mut out = vec![];
+        let _ = BorshSerialize::serialize(&node_key, &mut out);
+        let key = KeyHash::with::<sha2::Sha256>(out);
+        Self {
+            key: key.0,
+            version,
         }
     }
 }

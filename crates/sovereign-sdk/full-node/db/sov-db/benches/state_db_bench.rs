@@ -10,6 +10,7 @@ use jmt::storage::TreeWriter;
 use jmt::{JellyfishMerkleTree, KeyHash};
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
+use sov_db::schema::types::JmtNodeHashKey;
 use sov_db::state_db::StateDB;
 use sov_schema_db::snapshot::{DbSnapshot, NoopQueryManager, ReadOnlyLock};
 
@@ -73,20 +74,24 @@ fn prepare_data(size: usize) -> TestData {
         .put_value_set_with_proof(batch, 1)
         .expect("JMT update must succeed");
 
-    db.put_preimages(key_preimages).unwrap();
-
     db.write_node_batch(&tree_update.node_batch).unwrap();
 
     // Sanity check:
     let version = db.get_next_version() - 1;
     for chunk in raw_data.chunks(2) {
         let key = &chunk[0];
+        let key_hash: JmtNodeHashKey = (key, version).into();
         let value = chunk[1].clone();
-        let res = db.get_value_option_by_key(version, key).unwrap();
+        let res = db
+            .get_value_option_by_key(version, &KeyHash(key_hash.hash()))
+            .unwrap();
         assert_eq!(Some(value), res);
     }
 
-    let random_value = db.get_value_option_by_key(version, &random_key).unwrap();
+    let random_key_hash: JmtNodeHashKey = (&random_key, version).into();
+    let random_value = db
+        .get_value_option_by_key(version, &KeyHash(random_key_hash.hash()))
+        .unwrap();
     assert!(random_value.is_some());
 
     TestData {
@@ -106,7 +111,11 @@ fn bench_random_read(g: &mut BenchmarkGroup<WallTime>, size: usize) {
         |b, i| {
             b.iter(|| {
                 let (db, key, version) = i;
-                let result = black_box(db.get_value_option_by_key(*version, key).unwrap());
+                let hash_key: JmtNodeHashKey = (key, *version).into();
+                let result = black_box(
+                    db.get_value_option_by_key(*version, &KeyHash(hash_key.hash()))
+                        .unwrap(),
+                );
                 assert!(result.is_some());
                 black_box(result);
             })
@@ -127,7 +136,11 @@ fn bench_largest_read(g: &mut BenchmarkGroup<WallTime>, size: usize) {
         |b, i| {
             b.iter(|| {
                 let (db, key, version) = i;
-                let result = black_box(db.get_value_option_by_key(*version, key).unwrap());
+                let hash_key: JmtNodeHashKey = (key, *version).into();
+                let result = black_box(
+                    db.get_value_option_by_key(*version, &KeyHash(hash_key.hash()))
+                        .unwrap(),
+                );
                 assert!(result.is_some());
                 black_box(result);
             })
@@ -148,7 +161,11 @@ fn bench_not_found_read(g: &mut BenchmarkGroup<WallTime>, size: usize) {
         |b, i| {
             b.iter(|| {
                 let (db, key, version) = i;
-                let result = black_box(db.get_value_option_by_key(*version, key).unwrap());
+                let hash_key: JmtNodeHashKey = (key, *version).into();
+                let result = black_box(
+                    db.get_value_option_by_key(*version, &KeyHash(hash_key.hash()))
+                        .unwrap(),
+                );
                 assert!(result.is_none());
                 black_box(result);
             })

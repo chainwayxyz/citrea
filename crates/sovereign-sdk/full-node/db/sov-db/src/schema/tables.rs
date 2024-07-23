@@ -25,9 +25,10 @@
 //! Module Accessory State Table:
 //! - `(ModuleAddress, Key) -> Value`
 
+use anyhow::anyhow;
 use borsh::{BorshDeserialize, BorshSerialize};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
-use jmt::storage::{NibblePath, Node, NodeKey};
+use jmt::storage::{Node, NodeKey};
 use jmt::Version;
 use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::stf::{Event, EventKey, StateDiff};
@@ -35,18 +36,14 @@ use sov_schema_db::schema::{KeyDecoder, KeyEncoder, ValueCodec};
 use sov_schema_db::{CodecError, SeekKeyEncoder};
 
 use super::types::{
-    AccessoryKey, AccessoryStateValue, BatchNumber, DbHash, EventNumber, JmtValue, L2HeightRange,
-    SlotNumber, StateKey, StoredBatch, StoredProof, StoredSlot, StoredSoftBatch, StoredTransaction,
-    StoredVerifiedProof, TxNumber,
+    AccessoryKey, AccessoryStateValue, BatchNumber, DbHash, EventNumber, JmtNodeHashKey, JmtValue,
+    L2HeightRange, SlotNumber, StoredBatch, StoredProof, StoredSlot, StoredSoftBatch,
+    StoredTransaction, StoredVerifiedProof, TxNumber,
 };
 
 /// A list of all tables used by the StateDB. These tables store rollup state - meaning
 /// account balances, nonces, etc.
-pub const STATE_TABLES: &[&str] = &[
-    KeyHashToKey::table_name(),
-    JmtValues::table_name(),
-    JmtNodes::table_name(),
-];
+pub const STATE_TABLES: &[&str] = &[JmtValues::table_name(), JmtNodes::table_name()];
 
 /// A list of all tables used by the LedgerDB. These tables store rollup "history" - meaning
 /// transaction, events, receipts, etc.
@@ -317,7 +314,7 @@ define_table_with_default_codec!(
 
 define_table_without_codec!(
     /// The source of truth for JMT nodes
-    (JmtNodes) NodeKey => Node
+    (JmtNodes) JmtNodeHashKey => Node
 );
 
 define_table_with_default_codec!(
@@ -341,19 +338,23 @@ impl KeyEncoder<JmtNodes> for NodeKey {
         Ok(output)
     }
 }
-impl KeyDecoder<JmtNodes> for NodeKey {
+
+impl KeyEncoder<JmtNodes> for JmtNodeHashKey {
+    fn encode_key(&self) -> sov_schema_db::schema::Result<Vec<u8>> {
+        let mut output = vec![];
+        BorshSerialize::serialize(self, &mut output)?;
+        Ok(output)
+    }
+}
+impl KeyDecoder<JmtNodes> for JmtNodeHashKey {
     fn decode_key(data: &[u8]) -> sov_schema_db::schema::Result<Self> {
-        if data.len() < 8 {
-            return Err(CodecError::InvalidKeyLength {
-                expected: 9,
-                got: data.len(),
-            });
-        }
-        let mut version = [0u8; 8];
-        version.copy_from_slice(&data[..8]);
-        let version = u64::from_be_bytes(version);
-        let nibble_path = NibblePath::deserialize_reader(&mut &data[8..])?;
-        Ok(Self::new(version, nibble_path))
+        let data = match BorshDeserialize::try_from_slice(data).map_err(CodecError::Io) {
+            Ok(data) => data,
+            Err(_) => {
+                return Err(CodecError::Wrapped(anyhow!("Could not deserialize key")));
+            }
+        };
+        Ok(data)
     }
 }
 
@@ -369,36 +370,24 @@ impl ValueCodec<JmtNodes> for Node {
 
 define_table_without_codec!(
     /// The source of truth for JMT values by version
-    (JmtValues) (StateKey, Version) => JmtValue
+    (JmtValues) JmtNodeHashKey => JmtValue
 );
 
-impl<T: AsRef<[u8]> + PartialEq + core::fmt::Debug> KeyEncoder<JmtValues> for (T, Version) {
+impl KeyEncoder<JmtValues> for JmtNodeHashKey {
     fn encode_key(&self) -> sov_schema_db::schema::Result<Vec<u8>> {
-        let mut out =
-            Vec::with_capacity(self.0.as_ref().len() + std::mem::size_of::<Version>() + 8);
-        self.0
-            .as_ref()
-            .serialize(&mut out)
-            .map_err(CodecError::from)?;
-        // Write the version in big-endian order so that sorting order is based on the most-significant bytes of the key
-        out.write_u64::<BigEndian>(self.1)
-            .expect("serialization to vec is infallible");
-        Ok(out)
+        borsh::to_vec(self).map_err(CodecError::from)
     }
 }
 
-impl<T: AsRef<[u8]> + PartialEq + core::fmt::Debug> SeekKeyEncoder<JmtValues> for (T, Version) {
+impl SeekKeyEncoder<JmtValues> for JmtNodeHashKey {
     fn encode_seek_key(&self) -> sov_schema_db::schema::Result<Vec<u8>> {
-        <(T, Version) as KeyEncoder<JmtValues>>::encode_key(self)
+        <JmtNodeHashKey as KeyEncoder<JmtValues>>::encode_key(self)
     }
 }
 
-impl KeyDecoder<JmtValues> for (StateKey, Version) {
+impl KeyDecoder<JmtValues> for JmtNodeHashKey {
     fn decode_key(data: &[u8]) -> sov_schema_db::schema::Result<Self> {
-        let mut cursor = std::io::Cursor::new(data);
-        let key: Vec<u8> = BorshDeserialize::deserialize_reader(&mut cursor)?;
-        let version = cursor.read_u64::<BigEndian>()?;
-        Ok((key, version))
+        Ok(BorshDeserialize::deserialize_reader(&mut &data[..])?)
     }
 }
 
@@ -411,14 +400,6 @@ impl ValueCodec<JmtValues> for JmtValue {
         Ok(BorshDeserialize::deserialize_reader(&mut &data[..])?)
     }
 }
-
-define_table_with_default_codec!(
-    /// A mapping from key-hashes to their preimages and latest version. Since we store raw
-    /// key-value pairs instead of keyHash->value pairs,
-    /// this table is required to implement the `jmt::TreeReader` trait,
-    /// which requires the ability to fetch values by hash.
-    (KeyHashToKey) [u8;32] => StateKey
-);
 
 define_table_without_codec!(
     /// Non-JMT state stored by a module for JSON-RPC use.

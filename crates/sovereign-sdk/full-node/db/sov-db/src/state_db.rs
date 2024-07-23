@@ -7,8 +7,8 @@ use sov_schema_db::snapshot::{DbSnapshot, QueryManager, ReadOnlyDbSnapshot};
 use sov_schema_db::SchemaBatch;
 
 use crate::rocks_db_config::gen_rocksdb_options;
-use crate::schema::tables::{JmtNodes, JmtValues, KeyHashToKey, STATE_TABLES};
-use crate::schema::types::StateKey;
+use crate::schema::tables::{JmtNodes, JmtValues, STATE_TABLES};
+use crate::schema::types::JmtNodeHashKey;
 
 /// A typed wrapper around the db for storing rollup state. Internally,
 /// this is roughly just an [`Arc<sov_schema_db::DB>`] with pointer to list of non-finalized snapshots
@@ -69,30 +69,18 @@ impl<Q: QueryManager> StateDB<Q> {
         })
     }
 
-    /// Put the preimage of a hashed key into the database. Note that the preimage is not checked for correctness,
-    /// since the DB is unaware of the hash function used by the JMT.
-    pub fn put_preimages<'a>(
-        &self,
-        items: impl IntoIterator<Item = (KeyHash, &'a Vec<u8>)>,
-    ) -> Result<(), anyhow::Error> {
-        let mut batch = SchemaBatch::new();
-        for (key_hash, key) in items.into_iter() {
-            batch.put::<KeyHashToKey>(&key_hash.0, key)?;
-        }
-        self.db.write_many(batch)?;
-        Ok(())
-    }
-
     /// Get an optional value from the database, given a version and a key hash.
     pub fn get_value_option_by_key(
         &self,
         version: Version,
-        key: &StateKey,
+        key: &KeyHash,
     ) -> anyhow::Result<Option<jmt::OwnedValue>> {
-        let found = self.db.get_prev::<JmtValues>(&(&key, version))?;
+        let key_hash = JmtNodeHashKey::new(key.0, version);
+        let found = self.db.get_prev::<JmtValues>(&key_hash)?;
         match found {
-            Some(((found_key, found_version), value)) => {
-                if &found_key == key {
+            Some((found_key, value)) => {
+                if found_key.hash() == key.0 {
+                    let found_version = found_key.version();
                     anyhow::ensure!(found_version <= version, "Bug! iterator isn't returning expected values. expected a version <= {version:} but found {found_version:}");
                     Ok(value)
                 } else {
@@ -137,7 +125,8 @@ impl<Q: QueryManager> TreeReader for StateDB<Q> {
         &self,
         node_key: &jmt::storage::NodeKey,
     ) -> anyhow::Result<Option<jmt::storage::Node>> {
-        self.db.read::<JmtNodes>(node_key)
+        let hash_key: JmtNodeHashKey = node_key.into();
+        self.db.read::<JmtNodes>(&hash_key)
     }
 
     fn get_value_option(
@@ -145,11 +134,7 @@ impl<Q: QueryManager> TreeReader for StateDB<Q> {
         version: Version,
         key_hash: KeyHash,
     ) -> anyhow::Result<Option<jmt::OwnedValue>> {
-        if let Some(key) = self.db.read::<KeyHashToKey>(&key_hash.0)? {
-            self.get_value_option_by_key(version, &key)
-        } else {
-            Ok(None)
-        }
+        self.get_value_option_by_key(version, &key_hash)
     }
 
     fn get_rightmost_leaf(
@@ -163,17 +148,13 @@ impl<Q: QueryManager> TreeWriter for StateDB<Q> {
     fn write_node_batch(&self, node_batch: &jmt::storage::NodeBatch) -> anyhow::Result<()> {
         let mut batch = SchemaBatch::new();
         for (node_key, node) in node_batch.nodes() {
-            batch.put::<JmtNodes>(node_key, node)?;
+            let hash_key: JmtNodeHashKey = node_key.into();
+            batch.put::<JmtNodes>(&hash_key, node)?;
         }
 
         for ((version, key_hash), value) in node_batch.values() {
-            let key_preimage =
-                self.db
-                    .read::<KeyHashToKey>(&key_hash.0)?
-                    .ok_or(anyhow::format_err!(
-                        "Could not find preimage for key hash {key_hash:?}. Has `StateDB::put_preimage` been called for this key?"
-                    ))?;
-            batch.put::<JmtValues>(&(key_preimage, *version), value)?;
+            let hash_key = JmtNodeHashKey::new(key_hash.0, *version);
+            batch.put::<JmtValues>(&hash_key, value)?;
         }
         self.db.write_many(batch)?;
         Ok(())
@@ -182,7 +163,7 @@ impl<Q: QueryManager> TreeWriter for StateDB<Q> {
 
 impl<Q: QueryManager> HasPreimage for StateDB<Q> {
     fn preimage(&self, key_hash: KeyHash) -> anyhow::Result<Option<Vec<u8>>> {
-        self.db.read::<KeyHashToKey>(&key_hash.0)
+        Ok(Some(key_hash.0.to_vec()))
     }
 }
 
@@ -202,10 +183,8 @@ mod state_db_tests {
         let db_snapshot = DbSnapshot::<NoopQueryManager>::new(0, manager);
         let db = StateDB::with_db_snapshot(db_snapshot).unwrap();
         let key_hash = KeyHash([1u8; 32]);
-        let key = vec![2u8; 100];
         let value = [8u8; 150];
 
-        db.put_preimages(vec![(key_hash, &key)]).unwrap();
         let mut batch = NodeBatch::default();
         batch.extend(vec![], vec![((0, key_hash), Some(value.to_vec()))]);
         db.write_node_batch(&batch).unwrap();
@@ -213,7 +192,7 @@ mod state_db_tests {
         let found = db.get_value(0, key_hash).unwrap();
         assert_eq!(found, value);
 
-        let found = db.get_value_option_by_key(0, &key).unwrap().unwrap();
+        let found = db.get_value_option_by_key(0, &key_hash).unwrap().unwrap();
         assert_eq!(found, value);
     }
 }

@@ -1,11 +1,11 @@
 [package]
 name = "sov-db"
-description = "A high-level DB interface for the Sovereign SDK"
-license = "Apache-2.0"                                          # This license is inherited from Aptos 
-edition = { workspace = true }
 authors = { workspace = true }
+edition = { workspace = true }
 homepage = { workspace = true }
+license = "Apache-2.0" # This license is inherited from Aptos
 repository = { workspace = true }
+description = "A high-level DB interface for the Sovereign SDK"
 
 version = { workspace = true }
 readme = "README.md"
@@ -16,44 +16,38 @@ resolver = "2"
 [dependencies]
 # Maintained by sovereign labs
 jmt = { workspace = true }
+sov-rollup-interface = { path = "../../../rollup-interface", features = ["native"] }
 sov-schema-db = { path = "../sov-schema-db" }
-sov-rollup-interface = { path = "../../../rollup-interface", features = [
-    "native",
-] }
 
 # External
 anyhow = { workspace = true, default-features = true }
 arbitrary = { workspace = true, optional = true }
+bincode = { workspace = true }
+borsh = { workspace = true, default-features = true, features = ["bytes", "rc"] }
 byteorder = { workspace = true, default-features = true }
-borsh = { workspace = true, default-features = true, features = [
-    "bytes",
-    "rc",
-] }
+hex = { workspace = true }
 proptest = { workspace = true, optional = true, default-features = true }
 proptest-derive = { workspace = true, optional = true }
-serde = { workspace = true, default-features = true, features = ["rc"] }
-tempfile = { workspace = true, optional = true }
 rocksdb = { workspace = true }
-bincode = { workspace = true }
+serde = { workspace = true, default-features = true, features = ["rc"] }
+sha2 = { workspace = true }
+tempfile = { workspace = true, optional = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
-hex = { workspace = true }
-
 
 [dev-dependencies]
-sov-mock-da = { path = "../../../adapters/mock-da", features = ["native"] }
-tempfile = { workspace = true }
 criterion = "0.5.1"
 rand = { workspace = true }
 sha2 = { workspace = true }
-
+sov-mock-da = { path = "../../../adapters/mock-da", features = ["native"] }
+tempfile = { workspace = true }
 
 [features]
 arbitrary = [
-    "dep:arbitrary",
-    "dep:proptest",
-    "dep:proptest-derive",
-    "dep:tempfile",
+  "dep:arbitrary",
+  "dep:proptest",
+  "dep:proptest-derive",
+  "dep:tempfile",
 ]
 
 [[bench]]

@@ -4,6 +4,7 @@ use std::sync::Arc;
 use jmt::storage::{NodeBatch, TreeWriter};
 use jmt::{JellyfishMerkleTree, KeyHash, Version};
 use sov_db::native_db::NativeDB;
+use sov_db::schema::types::JmtNodeHashKey;
 use sov_db::schema::{QueryManager, ReadOnlyDbSnapshot};
 use sov_db::state_db::StateDB;
 use sov_modules_core::{
@@ -57,9 +58,10 @@ impl<S: MerkleProofSpec, Q> ProverStorage<S, Q> {
 impl<S: MerkleProofSpec, Q: QueryManager> ProverStorage<S, Q> {
     fn read_value(&self, key: &StorageKey, version: Option<Version>) -> Option<StorageValue> {
         let version_to_use = version.unwrap_or_else(|| self.db.get_next_version());
+        let hash_key: JmtNodeHashKey = (key.as_ref(), version_to_use).into();
         match self
             .db
-            .get_value_option_by_key(version_to_use, key.as_ref())
+            .get_value_option_by_key(version_to_use, &KeyHash(hash_key.hash()))
         {
             Ok(value) => value.map(Into::into),
             // It is ok to panic here, we assume the db is available and consistent.
@@ -181,14 +183,6 @@ impl<S: MerkleProofSpec, Q: QueryManager> Storage for ProverStorage<S, Q> {
 
     fn commit(&self, state_update: &Self::StateUpdate, accessory_writes: &OrderedReadsAndWrites) {
         let latest_version = self.db.get_next_version() - 1;
-        self.db
-            .put_preimages(
-                state_update
-                    .key_preimages
-                    .iter()
-                    .map(|(key_hash, key)| (*key_hash, key.key.as_ref())),
-            )
-            .expect("Preimage put must succeed");
 
         self.native_db
             .set_values(
