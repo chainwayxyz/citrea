@@ -37,7 +37,7 @@ pub struct Ethereum<C: sov_modules_api::Context, Da: DaService> {
     pub(crate) sequencer_client: Option<SequencerClient>,
     pub(crate) web3_client_version: String,
     pub(crate) trace_cache: Mutex<LruMap<u64, Vec<GethTrace>, ByLength>>,
-    pub(crate) soft_commitment_tx: Option<broadcast::Sender<u64>>,
+    pub(crate) soft_confirmation_tx: Option<broadcast::Sender<u64>>,
 }
 
 impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
@@ -48,7 +48,7 @@ impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
         #[cfg(feature = "local")] eth_signer: DevSigner,
         storage: C::Storage,
         sequencer_client: Option<SequencerClient>,
-        soft_commitment_tx: Option<broadcast::Sender<u64>>,
+        soft_confirmation_tx: Option<broadcast::Sender<u64>>,
     ) -> Self {
         let evm = Evm::<C>::default();
         let gas_price_oracle =
@@ -71,7 +71,7 @@ impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
             sequencer_client,
             web3_client_version: current_version,
             trace_cache,
-            soft_commitment_tx,
+            soft_confirmation_tx,
         }
     }
 

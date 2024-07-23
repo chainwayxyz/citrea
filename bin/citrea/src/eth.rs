@@ -14,7 +14,7 @@ pub(crate) fn register_ethereum<Da: DaService>(
     storage: ProverStorage<sov_state::DefaultStorageSpec, SnapshotManager>,
     methods: &mut jsonrpsee::RpcModule<()>,
     sequencer_client_url: Option<String>,
-    soft_commitment_tx: Option<broadcast::Sender<u64>>,
+    soft_confirmation_tx: Option<broadcast::Sender<u64>>,
 ) -> Result<(), anyhow::Error> {
     let eth_rpc_config = {
         let eth_signer = eth_dev_signer();
@@ -30,7 +30,7 @@ pub(crate) fn register_ethereum<Da: DaService>(
         eth_rpc_config,
         storage,
         sequencer_client_url,
-        soft_commitment_tx,
+        soft_confirmation_tx,
     );
     methods
         .merge(ethereum_rpc)

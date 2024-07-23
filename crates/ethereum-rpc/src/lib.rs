@@ -44,7 +44,7 @@ pub fn get_ethereum_rpc<C: sov_modules_api::Context, Da: DaService>(
     eth_rpc_config: EthRpcConfig,
     storage: C::Storage,
     sequencer_client_url: Option<String>,
-    soft_commitment_tx: Option<broadcast::Sender<u64>>,
+    soft_confirmation_tx: Option<broadcast::Sender<u64>>,
 ) -> RpcModule<Ethereum<C, Da>> {
     // Unpack config
     let EthRpcConfig {
@@ -56,7 +56,7 @@ pub fn get_ethereum_rpc<C: sov_modules_api::Context, Da: DaService>(
 
     // If the node does not have a sequencer client, then it is the sequencer.
     let is_sequencer = sequencer_client_url.is_none();
-    let enable_subscriptions = soft_commitment_tx.is_some();
+    let enable_subscriptions = soft_confirmation_tx.is_some();
 
     // If the running node is a full node rpc context should also have sequencer client so that it can send txs to sequencer
     let mut rpc = RpcModule::new(Ethereum::new(
@@ -67,7 +67,7 @@ pub fn get_ethereum_rpc<C: sov_modules_api::Context, Da: DaService>(
         eth_signer,
         storage,
         sequencer_client_url.map(SequencerClient::new),
-        soft_commitment_tx,
+        soft_confirmation_tx,
     ));
 
     register_rpc_methods(&mut rpc, is_sequencer, enable_subscriptions)
