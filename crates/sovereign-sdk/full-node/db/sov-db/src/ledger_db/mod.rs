@@ -318,8 +318,7 @@ impl SharedLedgerOps for LedgerDB {
         let mut schema_batch = SchemaBatch::new();
 
         schema_batch
-            .put::<L2RangeByL1Height>(&l1_height, &new_range)
-            .unwrap();
+            .put::<L2RangeByL1Height>(&l1_height, &new_range)?;
         self.db.write_schemas(schema_batch)?;
 
         Ok(())
@@ -379,8 +378,7 @@ impl SharedLedgerOps for LedgerDB {
         let mut schema_batch = SchemaBatch::new();
 
         schema_batch
-            .put::<SoftConfirmationStatus>(&height, &status)
-            .unwrap();
+            .put::<SoftConfirmationStatus>(&height, &status)?;
         self.db.write_schemas(schema_batch)?;
 
         Ok(())
@@ -494,8 +492,7 @@ impl ProverLedgerOps for LedgerDB {
         let mut schema_batch = SchemaBatch::new();
 
         schema_batch
-            .put::<ProverLastScannedSlot>(&(), &l1_height)
-            .unwrap();
+            .put::<ProverLastScannedSlot>(&(), &l1_height)?;
         self.db.write_schemas(schema_batch)?;
 
         Ok(())
