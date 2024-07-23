@@ -680,7 +680,9 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
             "eth_subscription",
             "eth_unsubscribe",
             |parameters, pending, ethereum| async move {
-                let topic: String = match parameters.one() {
+                let mut params = parameters.sequence();
+
+                let topic: String = match params.next() {
                     Ok(v) => v,
                     Err(err) => {
                         pending.reject(err).await;
