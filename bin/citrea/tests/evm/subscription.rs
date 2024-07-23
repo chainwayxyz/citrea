@@ -13,7 +13,7 @@ use crate::{
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_eth_subscriptions() -> Result<(), Box<dyn std::error::Error>> {
-    let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
+    let storage_dir = tempdir_with_children(&["DA", "sequencer"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
     let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
 

@@ -12,7 +12,11 @@ pub async fn handle_new_heads_subscription<C: sov_modules_api::Context, Da: DaSe
     pending: PendingSubscriptionSink,
     ethereum: Arc<Ethereum<C, Da>>,
 ) {
-    let mut rx = ethereum.soft_confirmation_tx.as_ref().unwrap().subscribe();
+    let mut rx = ethereum
+        .soft_confirmation_rx
+        .as_ref()
+        .unwrap()
+        .resubscribe();
     let evm = Evm::<C>::default();
     let subscription = pending.accept().await.unwrap();
     tokio::spawn(async move {
