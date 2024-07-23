@@ -29,7 +29,7 @@ use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::{Proof, Zkvm, ZkvmHost};
 use sov_stf_runner::{InitVariant, RollupPublicKeys, RpcConfig, RunnerConfig};
 use tokio::select;
-use tokio::sync::{mpsc, oneshot, Mutex};
+use tokio::sync::{broadcast, mpsc, oneshot, Mutex};
 use tokio::time::{sleep, Duration};
 use tracing::{debug, error, info, instrument, warn};
 
@@ -65,6 +65,7 @@ where
     accept_public_input_as_proven: bool,
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
     sync_blocks_count: u64,
+    soft_confirmation_tx: broadcast::Sender<u64>,
 }
 
 impl<Stf, Sm, Da, Vm, C> CitreaFullnode<Stf, Sm, Da, Vm, C>
@@ -98,6 +99,7 @@ where
         init_variant: InitVariant<Stf, Vm, Da::Spec>,
         code_commitment: Vm::CodeCommitment,
         sync_blocks_count: u64,
+        soft_confirmation_tx: broadcast::Sender<u64>,
     ) -> Result<Self, anyhow::Error> {
         let (prev_state_root, prev_batch_hash) = match init_variant {
             InitVariant::Initialized((state_root, batch_hash)) => {
@@ -148,6 +150,7 @@ where
                 .unwrap_or(false),
             sync_blocks_count,
             l1_block_cache: Arc::new(Mutex::new(L1BlockCache::new())),
+            soft_confirmation_tx,
         })
     }
 
@@ -465,6 +468,9 @@ where
             SlotNumber(current_l1_block.header().height()),
             BatchNumber(l2_height),
         )?;
+
+        // Only errors when there are no receivers
+        let _ = self.soft_confirmation_tx.send(l2_height);
 
         self.state_root = next_state_root;
         self.batch_hash = soft_batch.hash;

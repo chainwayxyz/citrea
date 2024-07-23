@@ -43,7 +43,7 @@ use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::ZkvmHost;
 use sov_stf_runner::{InitVariant, RollupPublicKeys, RpcConfig};
 use tokio::sync::oneshot::channel as oneshot_channel;
-use tokio::sync::{mpsc, Mutex};
+use tokio::sync::{broadcast, mpsc, Mutex};
 use tokio::time::{sleep, Instant};
 use tower_http::cors::{Any, CorsLayer};
 use tracing::{debug, error, info, instrument, trace, warn};
@@ -91,6 +91,7 @@ where
     rpc_config: RpcConfig,
     soft_confirmation_rule_enforcer: SoftConfirmationRuleEnforcer<C, Da::Spec>,
     last_state_diff: StateDiff,
+    soft_confirmation_tx: broadcast::Sender<u64>,
 }
 
 enum L2BlockMode {
@@ -123,6 +124,7 @@ where
         public_keys: RollupPublicKeys,
         ledger_db: LedgerDB,
         rpc_config: RpcConfig,
+        soft_confirmation_tx: broadcast::Sender<u64>,
     ) -> anyhow::Result<Self> {
         let (l2_force_block_tx, l2_force_block_rx) = unbounded();
 
@@ -180,6 +182,7 @@ where
             rpc_config,
             soft_confirmation_rule_enforcer,
             last_state_diff,
+            soft_confirmation_tx,
         })
     }
 
@@ -526,6 +529,9 @@ where
                     SlotNumber(da_block.header().height()),
                     BatchNumber(l2_height),
                 )?;
+
+                // Only errors when there are no receivers
+                let _ = self.soft_confirmation_tx.send(l2_height);
 
                 let l1_height = da_block.header().height();
                 info!(

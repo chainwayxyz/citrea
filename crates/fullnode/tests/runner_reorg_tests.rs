@@ -19,6 +19,7 @@ use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_state::storage::NativeStorage;
 use sov_state::{ProverStorage, Storage};
+use tokio::sync::broadcast;
 
 type MockInitVariant =
     InitVariant<HashStf<MockValidityCond>, MockZkvm<MockValidityCond>, MockDaSpec>;
@@ -167,6 +168,7 @@ async fn runner_execution(
         init_variant,
         MockCodeCommitment([1u8; 32]),
         10,
+        broadcast::channel(1).0,
     )
     .unwrap();
 

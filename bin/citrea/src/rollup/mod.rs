@@ -82,6 +82,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             rollup_config.public_keys,
             ledger_db,
             rollup_config.rpc,
+            soft_confirmation_tx,
         )
         .unwrap();
 
@@ -158,6 +159,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             init_variant,
             code_commitment,
             rollup_config.sync_blocks_count,
+            soft_confirmation_tx,
         )?;
 
         Ok(FullNode {
