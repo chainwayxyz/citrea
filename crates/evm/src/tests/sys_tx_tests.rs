@@ -715,6 +715,22 @@ fn test_change_upgrade_owner() {
     evm.end_soft_confirmation_hook(&mut working_set);
     evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
 
+    let provided_new_owner = evm
+        .get_call(
+            TransactionRequest {
+                to: Some(TxKind::Call(ProxyAdmin::address())),
+                input: TransactionInput::new(ProxyAdmin::owner()),
+                ..Default::default()
+            },
+            None,
+            None,
+            None,
+            &mut working_set,
+        )
+        .unwrap();
+
+    assert_eq!(provided_new_owner.to_vec()[12..], new_contract_owner.address().to_vec());
+
     let hash = evm
         .get_call(
             TransactionRequest {

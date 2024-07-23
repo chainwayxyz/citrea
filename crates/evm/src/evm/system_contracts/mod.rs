@@ -159,4 +159,9 @@ impl ProxyAdmin {
         .abi_encode()
         .into()
     }
+
+    /// Return data to query the owner.
+    pub fn owner() -> Bytes {
+        ProxyAdminContract::ownerCall {}.abi_encode().into()
+    }
 }
