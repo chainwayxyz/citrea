@@ -729,7 +729,10 @@ fn test_change_upgrade_owner() {
         )
         .unwrap();
 
-    assert_eq!(provided_new_owner.to_vec()[12..], new_contract_owner.address().to_vec());
+    assert_eq!(
+        provided_new_owner.to_vec()[12..],
+        new_contract_owner.address().to_vec()
+    );
 
     let hash = evm
         .get_call(
