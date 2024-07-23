@@ -22,7 +22,7 @@ use bitcoin::{
 };
 use tracing::{instrument, trace, warn};
 
-use super::{TransactionHeader, TransactionType};
+use super::{TransactionHeader, TransactionKind};
 use crate::spec::utxo::UTXO;
 use crate::REVEAL_OUTPUT_AMOUNT;
 
@@ -327,7 +327,7 @@ pub fn create_inscription_transactions(
     rollup_name: &str,
     body: Vec<u8>,
     signature: Vec<u8>,
-    sequencer_public_key: Vec<u8>,
+    signer_public_key: Vec<u8>,
     prev_tx: Option<TxWithId>,
     utxos: Vec<UTXO>,
     recipient: Address,
@@ -342,7 +342,7 @@ pub fn create_inscription_transactions(
         rollup_name.as_bytes(),
         body,
         signature,
-        sequencer_public_key,
+        signer_public_key,
         prev_tx,
         utxos,
         recipient,
@@ -363,7 +363,7 @@ pub fn create_inscription_type_0(
     rollup_name: &[u8],
     body: Vec<u8>,
     signature: Vec<u8>,
-    sequencer_public_key: Vec<u8>,
+    signer_public_key: Vec<u8>,
     prev_tx: Option<TxWithId>,
     utxos: Vec<UTXO>,
     recipient: Address,
@@ -380,19 +380,20 @@ pub fn create_inscription_type_0(
 
     let header = TransactionHeader {
         rollup_name,
-        typ: TransactionType::Inscribed,
+        kind: TransactionKind::Complete,
     };
+    let header_bytes = header.to_bytes();
 
     // start creating inscription content
     let mut reveal_script_builder = script::Builder::new()
-        .push_slice(PushBytesBuf::try_from(header.to_bytes()).expect("Cannot push header"))
+        .push_slice(PushBytesBuf::try_from(header_bytes).expect("Cannot push header"))
         .push_x_only_key(&public_key)
         .push_opcode(OP_CHECKSIG)
         .push_opcode(OP_FALSE)
         .push_opcode(OP_IF)
         .push_slice(PushBytesBuf::try_from(signature).expect("Cannot push signature"))
         .push_slice(
-            PushBytesBuf::try_from(sequencer_public_key).expect("Cannot push sequencer public key"),
+            PushBytesBuf::try_from(signer_public_key).expect("Cannot push sequencer public key"),
         );
     // push body in chunks of 520 bytes
     for chunk in body.chunks(520) {
@@ -405,7 +406,7 @@ pub fn create_inscription_type_0(
     // This envelope is not finished yet. The random number will be added later
 
     // Start loop to find a 'nonce' i.e. random number that makes the reveal tx hash starting with zeros given length
-    let mut nonce: i64 = 16;
+    let mut nonce: i64 = 16; // skip the first digits to avoid OP_PUSHNUM_X
     loop {
         if nonce % 10000 == 0 {
             trace!(nonce, "Trying to find commit & reveal nonce");
@@ -612,7 +613,7 @@ mod tests {
         let rollup_name = "test_rollup";
         let body = vec![100; 1000];
         let signature = vec![100; 64];
-        let sequencer_public_key = vec![100; 33];
+        let signer_public_key = vec![100; 33];
         let address =
             Address::from_str("bc1pp8qru0ve43rw9xffmdd8pvveths3cx6a5t6mcr0xfn9cpxx2k24qf70xq9")
                 .unwrap()
@@ -667,7 +668,7 @@ mod tests {
             rollup_name,
             body,
             signature,
-            sequencer_public_key,
+            signer_public_key,
             address,
             utxos,
         )
@@ -1002,14 +1003,14 @@ mod tests {
     }
     #[test]
     fn create_inscription_transactions() {
-        let (rollup_name, body, signature, sequencer_public_key, address, utxos) = get_mock_data();
+        let (rollup_name, body, signature, signer_public_key, address, utxos) = get_mock_data();
 
         let tx_prefix = &[0u8];
         let (commit, reveal) = super::create_inscription_transactions(
             rollup_name,
             body.clone(),
             signature.clone(),
-            sequencer_public_key.clone(),
+            signer_public_key.clone(),
             None,
             utxos.clone(),
             address.clone(),
@@ -1064,7 +1065,7 @@ mod tests {
             "signature should be correct"
         );
         assert_eq!(
-            inscription.public_key, sequencer_public_key,
+            inscription.public_key, signer_public_key,
             "sequencer public key should be correct"
         );
     }

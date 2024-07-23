@@ -1,3 +1,5 @@
+use core::num::NonZeroU16;
+
 use bitcoin::blockdata::opcodes::all::{OP_ENDIF, OP_IF};
 use bitcoin::blockdata::script::Instruction;
 use bitcoin::hashes::{sha256d, Hash};
@@ -8,7 +10,7 @@ use bitcoin::secp256k1::{ecdsa, Message, Secp256k1};
 use bitcoin::{secp256k1, Opcode, Script, Transaction};
 use thiserror::Error;
 
-use super::{TransactionHeader, TransactionType};
+use super::{TransactionHeader, TransactionKind};
 
 #[derive(Debug, Clone)]
 pub struct ParsedInscription {
@@ -46,8 +48,8 @@ pub enum ParserError {
     InvalidRollupName,
     #[error("Invalid header length")]
     InvalidHeaderLength,
-    #[error("Invalid header type")]
-    InvalidHeaderType,
+    #[error("Invalid header type {0}")]
+    InvalidHeaderType(NonZeroU16),
     #[error("No witness in tapscript")]
     NonTapscriptWitness,
     #[error("Unexpected end of script")]
@@ -71,7 +73,7 @@ pub fn parse_transaction(
     let script = get_script(tx)?;
     let instructions = script.instructions().peekable();
     // Map all Instructions errors into ParserError::ScriptError
-    let mut instructions = instructions.map(|r| r.map_err(|e| ParserError::from(e)));
+    let mut instructions = instructions.map(|r| r.map_err(ParserError::from));
 
     parse_relevant_inscriptions(&mut instructions, rollup_name)
 }
@@ -100,9 +102,9 @@ fn parse_relevant_inscriptions(
     }
 
     // Parse transaction body according to type
-    match header.typ {
-        TransactionType::Inscribed => parse_type_0_body(instructions),
-        TransactionType::Unknown(_) => Err(ParserError::InvalidHeaderType),
+    match header.kind {
+        TransactionKind::Complete => parse_type_0_body(instructions),
+        TransactionKind::Unknown(n) => Err(ParserError::InvalidHeaderType(n)),
     }
 }
 
@@ -162,7 +164,12 @@ fn parse_type_0_body(
     loop {
         let instr = read_instr(instructions)?;
         match instr {
-            PushBytes(chunk) => chunks.push(chunk),
+            PushBytes(chunk) => {
+                if chunk.is_empty() {
+                    return Err(ParserError::UnexpectedOpcode);
+                }
+                chunks.push(chunk)
+            }
             Op(OP_ENDIF) => break,
             Op(_) => return Err(ParserError::UnexpectedOpcode),
         }
@@ -214,16 +221,14 @@ mod tests {
     use bitcoin::opcodes::all::{OP_CHECKSIG, OP_DROP, OP_ENDIF, OP_IF};
     use bitcoin::opcodes::{OP_FALSE, OP_TRUE};
     use bitcoin::script::{self, PushBytesBuf};
-    use bitcoin::Transaction;
 
-    use super::{parse_relevant_inscriptions, TransactionHeader, TransactionType};
-    use crate::helpers::parsers::{parse_transaction, ParserError};
+    use super::{parse_relevant_inscriptions, ParserError, TransactionHeader, TransactionKind};
 
     #[test]
     fn correct() {
         let header = TransactionHeader {
             rollup_name: b"sov-btc",
-            typ: TransactionType::Inscribed,
+            kind: TransactionKind::Complete,
         };
 
         let reveal_script_builder = script::Builder::new()
@@ -243,7 +248,7 @@ mod tests {
         let reveal_script = reveal_script_builder.into_script();
         let mut instructions = reveal_script
             .instructions()
-            .map(|r| r.map_err(|e| ParserError::from(e)));
+            .map(|r| r.map_err(ParserError::from));
 
         let result = parse_relevant_inscriptions(&mut instructions, "sov-btc");
 
@@ -263,7 +268,7 @@ mod tests {
     fn wrong_rollup_tag() {
         let header = TransactionHeader {
             rollup_name: b"not-sov-btc",
-            typ: TransactionType::Inscribed,
+            kind: TransactionKind::Complete,
         };
 
         let reveal_script_builder = script::Builder::new()
@@ -272,7 +277,7 @@ mod tests {
         let reveal_script = reveal_script_builder.into_script();
         let mut instructions = reveal_script
             .instructions()
-            .map(|r| r.map_err(|e| ParserError::from(e)));
+            .map(|r| r.map_err(ParserError::from));
 
         let result = parse_relevant_inscriptions(&mut instructions, "sov-btc");
 
@@ -280,158 +285,11 @@ mod tests {
         assert_eq!(result.unwrap_err(), ParserError::InvalidRollupName);
     }
 
-    // #[test]
-    // fn leave_out_tags() {
-    //     // name
-    //     let reveal_script_builder = script::Builder::new()
-    //         .push_x_only_key(&XOnlyPublicKey::from_slice(&[1; 32]).unwrap())
-    //         .push_opcode(OP_CHECKSIG)
-    //         .push_opcode(OP_FALSE)
-    //         .push_opcode(OP_IF)
-    //         .push_slice(PushBytesBuf::try_from(SIGNATURE_TAG.to_vec()).unwrap())
-    //         .push_slice(PushBytesBuf::try_from(vec![0u8; 64]).unwrap())
-    //         .push_slice(PushBytesBuf::try_from(PUBLICKEY_TAG.to_vec()).unwrap())
-    //         .push_slice(PushBytesBuf::try_from(vec![0u8; 64]).unwrap())
-    //         .push_slice(PushBytesBuf::try_from(RANDOM_TAG.to_vec()).unwrap())
-    //         .push_int(0)
-    //         .push_slice(PushBytesBuf::try_from(BODY_TAG.to_vec()).unwrap())
-    //         .push_slice(PushBytesBuf::try_from(vec![0u8; 128]).unwrap())
-    //         .push_opcode(OP_ENDIF);
-
-    //     let reveal_script = reveal_script_builder.into_script();
-    //     let mut instructions = reveal_script
-    //     .instructions()
-    //     .map(|r| r.map_err(|e| ParserError::from(e)));
-
-    // let result = parse_relevant_inscriptions(&mut instructions, "sov-btc");
-
-    //     assert!(result.is_err(), "Failed to error on no name tag.");
-    //     assert_eq!(result.unwrap_err(), ParserError::EnvelopeHasIncorrectFormat);
-
-    //     // signature
-    //     let reveal_script_builder = script::Builder::new()
-    //         .push_x_only_key(&XOnlyPublicKey::from_slice(&[1; 32]).unwrap())
-    //         .push_opcode(OP_CHECKSIG)
-    //         .push_opcode(OP_FALSE)
-    //         .push_opcode(OP_IF)
-    //         .push_slice(PushBytesBuf::try_from(ROLLUP_NAME_TAG.to_vec()).unwrap())
-    //         .push_slice(PushBytesBuf::try_from("sov-btc".as_bytes().to_vec()).unwrap())
-    //         .push_slice(PushBytesBuf::try_from(PUBLICKEY_TAG.to_vec()).unwrap())
-    //         .push_slice(PushBytesBuf::try_from(vec![0u8; 64]).unwrap())
-    //         .push_slice(PushBytesBuf::try_from(RANDOM_TAG.to_vec()).unwrap())
-    //         .push_int(0)
-    //         .push_slice(PushBytesBuf::try_from(BODY_TAG.to_vec()).unwrap())
-    //         .push_slice(PushBytesBuf::try_from(vec![0u8; 128]).unwrap())
-    //         .push_opcode(OP_ENDIF);
-
-    //     let reveal_script = reveal_script_builder.into_script();
-    //     let mut instructions = reveal_script
-    //     .instructions()
-    //     .map(|r| r.map_err(|e| ParserError::from(e)));
-
-    // let result = parse_relevant_inscriptions(&mut instructions, "sov-btc");
-
-    //     assert!(result.is_err(), "Failed to error on no signature tag.");
-    //     assert_eq!(result.unwrap_err(), ParserError::EnvelopeHasIncorrectFormat);
-
-    //     // publickey
-    //     let reveal_script_builder = script::Builder::new()
-    //         .push_x_only_key(&XOnlyPublicKey::from_slice(&[1; 32]).unwrap())
-    //         .push_opcode(OP_CHECKSIG)
-    //         .push_opcode(OP_FALSE)
-    //         .push_opcode(OP_IF)
-    //         .push_slice(PushBytesBuf::try_from(ROLLUP_NAME_TAG.to_vec()).unwrap())
-    //         .push_slice(PushBytesBuf::try_from("sov-btc".as_bytes().to_vec()).unwrap())
-    //         .push_slice(PushBytesBuf::try_from(SIGNATURE_TAG.to_vec()).unwrap())
-    //         .push_slice(PushBytesBuf::try_from(vec![0u8; 64]).unwrap())
-    //         .push_slice(PushBytesBuf::try_from(RANDOM_TAG.to_vec()).unwrap())
-    //         .push_int(0)
-    //         .push_slice(PushBytesBuf::try_from(BODY_TAG.to_vec()).unwrap())
-    //         .push_slice(PushBytesBuf::try_from(vec![0u8; 128]).unwrap())
-    //         .push_opcode(OP_ENDIF);
-
-    //     let reveal_script = reveal_script_builder.into_script();
-    //     let mut instructions = reveal_script
-    //     .instructions()
-    //     .map(|r| r.map_err(|e| ParserError::from(e)));
-
-    // let result = parse_relevant_inscriptions(&mut instructions, "sov-btc");
-
-    //     assert!(result.is_err(), "Failed to error on no publickey tag.");
-    //     assert_eq!(result.unwrap_err(), ParserError::EnvelopeHasIncorrectFormat);
-
-    //     // body
-    //     let reveal_script_builder = script::Builder::new()
-    //         .push_x_only_key(&XOnlyPublicKey::from_slice(&[1; 32]).unwrap())
-    //         .push_opcode(OP_CHECKSIG)
-    //         .push_opcode(OP_FALSE)
-    //         .push_opcode(OP_IF)
-    //         .push_slice(PushBytesBuf::try_from(ROLLUP_NAME_TAG.to_vec()).unwrap())
-    //         .push_slice(PushBytesBuf::try_from("sov-btc".as_bytes().to_vec()).unwrap())
-    //         .push_slice(PushBytesBuf::try_from(SIGNATURE_TAG.to_vec()).unwrap())
-    //         .push_slice(PushBytesBuf::try_from(vec![0u8; 64]).unwrap())
-    //         .push_slice(PushBytesBuf::try_from(PUBLICKEY_TAG.to_vec()).unwrap())
-    //         .push_slice(PushBytesBuf::try_from(vec![0u8; 64]).unwrap())
-    //         .push_slice(PushBytesBuf::try_from(RANDOM_TAG.to_vec()).unwrap())
-    //         .push_int(0)
-    //         .push_opcode(OP_ENDIF);
-
-    //     let reveal_script = reveal_script_builder.into_script();
-
-    //     let mut instructions = reveal_script
-    //         .instructions()
-    //         .map(|r| r.map_err(|e| ParserError::from(e)));
-
-    //     let result = parse_relevant_inscriptions(&mut instructions, "sov-btc");
-
-    //     assert!(result.is_err(), "Failed to error on no body tag.");
-
-    //     // random
-    //     let reveal_script_builder = script::Builder::new()
-    //         .push_x_only_key(&XOnlyPublicKey::from_slice(&[1; 32]).unwrap())
-    //         .push_opcode(OP_CHECKSIG)
-    //         .push_opcode(OP_FALSE)
-    //         .push_opcode(OP_IF)
-    //         .push_slice(PushBytesBuf::try_from(ROLLUP_NAME_TAG.to_vec()).unwrap())
-    //         .push_slice(PushBytesBuf::try_from("sov-btc".as_bytes().to_vec()).unwrap())
-    //         .push_slice(PushBytesBuf::try_from(SIGNATURE_TAG.to_vec()).unwrap())
-    //         .push_slice(PushBytesBuf::try_from(vec![0u8; 64]).unwrap())
-    //         .push_slice(PushBytesBuf::try_from(PUBLICKEY_TAG.to_vec()).unwrap())
-    //         .push_slice(PushBytesBuf::try_from(vec![0u8; 64]).unwrap())
-    //         .push_slice(PushBytesBuf::try_from(BODY_TAG.to_vec()).unwrap())
-    //         .push_slice(PushBytesBuf::try_from(vec![0u8; 128]).unwrap())
-    //         .push_opcode(OP_ENDIF);
-
-    //     let reveal_script = reveal_script_builder.into_script();
-
-    //     let mut instructions = reveal_script
-    //         .instructions()
-    //         .map(|r| r.map_err(|e| ParserError::from(e)));
-
-    //     let result = parse_relevant_inscriptions(&mut instructions, "sov-btc");
-
-    //     assert!(result.is_err(), "Failed to error on no random tag.");
-    //     assert_eq!(result.unwrap_err(), ParserError::EnvelopeHasIncorrectFormat);
-    // }
-
-    // #[test]
-    // fn non_parseable_tx() {
-    //     let hex_tx = "020000000001013a66019bfcc719ba12586a83ebbb0b3debdc945f563cd64fd44c8044e3d3a1790100000000fdffffff028fa2aa060000000017a9147ba15d4e0d8334de3a68cf3687594e2d1ee5b00d879179e0090000000016001493c93ad222e57d65438545e048822ede2d418a3d0247304402202432e6c422b93705fbc57b350ea43e4ef9441c0907988eff051eaac807fc8cf2022046c92b540b5f04f8da11febb5d2a478aed1b8bc088e769da8b78fffcae8c9a9a012103e2991b47d9c788f55379f9ef519b642d79d7dfe0e7555ec5575ee934b2dca1223f5d0c00";
-
-    //     let tx: Transaction =
-    //         bitcoin::consensus::deserialize(&hex::decode(hex_tx).unwrap()).unwrap();
-
-    //     let result = parse_transaction(&tx, "sov-btc");
-
-    //     assert!(result.is_err(), "Failed to error on non-parseable tx.");
-    //     assert_eq!(result.unwrap_err(), ParserError::EnvelopeHasIncorrectFormat);
-    // }
-
     #[test]
     fn only_checksig() {
         let header = TransactionHeader {
             rollup_name: b"sov-btc",
-            typ: TransactionType::Inscribed,
+            kind: TransactionKind::Complete,
         };
 
         let reveal_script_builder = script::Builder::new()
@@ -443,7 +301,7 @@ mod tests {
 
         let mut instructions = reveal_script
             .instructions()
-            .map(|r| r.map_err(|e| ParserError::from(e)));
+            .map(|r| r.map_err(ParserError::from));
 
         let result = parse_relevant_inscriptions(&mut instructions, "sov-btc");
 
@@ -451,94 +309,86 @@ mod tests {
         assert_eq!(result.unwrap_err(), ParserError::UnexpectedEndOfScript);
     }
 
-    // #[test]
-    // fn complex_envelope() {
-    //     let reveal_script = script::Builder::new()
-    //         .push_x_only_key(&XOnlyPublicKey::from_slice(&[1; 32]).unwrap())
-    //         .push_opcode(OP_CHECKSIG)
-    //         .push_opcode(OP_FALSE)
-    //         .push_opcode(OP_IF)
-    //         .push_slice(PushBytesBuf::try_from(ROLLUP_NAME_TAG.to_vec()).unwrap())
-    //         .push_slice(PushBytesBuf::try_from("sov-btc".as_bytes().to_vec()).unwrap())
-    //         .push_slice(PushBytesBuf::try_from(SIGNATURE_TAG.to_vec()).unwrap())
-    //         .push_slice(PushBytesBuf::try_from(vec![0u8; 64]).unwrap())
-    //         .push_opcode(OP_TRUE)
-    //         .push_opcode(OP_IF)
-    //         .push_x_only_key(&XOnlyPublicKey::from_slice(&[1; 32]).unwrap())
-    //         .push_opcode(OP_CHECKSIG)
-    //         .push_opcode(OP_ENDIF)
-    //         .push_slice(PushBytesBuf::try_from(PUBLICKEY_TAG.to_vec()).unwrap())
-    //         .push_slice(PushBytesBuf::try_from(vec![0u8; 64]).unwrap())
-    //         .push_slice(PushBytesBuf::try_from(RANDOM_TAG.to_vec()).unwrap())
-    //         .push_int(0)
-    //         .push_slice(PushBytesBuf::try_from(BODY_TAG.to_vec()).unwrap())
-    //         .push_slice(PushBytesBuf::try_from(vec![0u8; 128]).unwrap())
-    //         .push_opcode(OP_ENDIF)
-    //         .into_script();
+    #[test]
+    fn complex_envelope() {
+        let header = TransactionHeader {
+            rollup_name: b"sov-btc",
+            kind: TransactionKind::Complete,
+        };
 
-    //         let mut instructions = reveal_script
-    //         .instructions()
-    //         .map(|r| r.map_err(|e| ParserError::from(e)));
+        let reveal_script = script::Builder::new()
+            .push_slice(PushBytesBuf::try_from(header.to_bytes()).expect("Cannot push header"))
+            .push_x_only_key(&XOnlyPublicKey::from_slice(&[1; 32]).unwrap())
+            .push_opcode(OP_CHECKSIG)
+            .push_opcode(OP_FALSE)
+            .push_opcode(OP_IF)
+            .push_slice([2u8; 64]) // signature
+            .push_slice([3u8; 64]) // public key
+            .push_slice(PushBytesBuf::try_from(vec![1u8; 64]).unwrap())
+            .push_opcode(OP_TRUE)
+            .push_opcode(OP_IF)
+            .push_x_only_key(&XOnlyPublicKey::from_slice(&[1; 32]).unwrap())
+            .push_opcode(OP_CHECKSIG)
+            .push_opcode(OP_ENDIF)
+            .push_opcode(OP_ENDIF)
+            .push_slice(42i64.to_le_bytes()) // random
+            .push_opcode(OP_DROP)
+            .into_script();
 
-    //     let result = parse_relevant_inscriptions(&mut instructions, "sov-btc");
+        let mut instructions = reveal_script
+            .instructions()
+            .map(|r| r.map_err(ParserError::from));
 
-    //     assert!(result.is_err());
-    //     assert_eq!(result.unwrap_err(), ParserError::EnvelopeHasNonPushOp);
-    // }
+        let result = parse_relevant_inscriptions(&mut instructions, "sov-btc");
 
-    // #[test]
-    // fn two_envelopes() {
-    //     let reveal_script = script::Builder::new()
-    //         .push_opcode(OP_FALSE)
-    //         .push_opcode(OP_IF)
-    //         .push_slice(PushBytesBuf::try_from(ROLLUP_NAME_TAG.to_vec()).unwrap())
-    //         .push_slice(PushBytesBuf::try_from("sov-btc".as_bytes().to_vec()).unwrap())
-    //         .push_slice(PushBytesBuf::try_from(SIGNATURE_TAG.to_vec()).unwrap())
-    //         .push_slice(PushBytesBuf::try_from(vec![0u8; 64]).unwrap())
-    //         .push_slice(PushBytesBuf::try_from(PUBLICKEY_TAG.to_vec()).unwrap())
-    //         .push_slice(PushBytesBuf::try_from(vec![0u8; 64]).unwrap())
-    //         .push_slice(PushBytesBuf::try_from(RANDOM_TAG.to_vec()).unwrap())
-    //         .push_int(0)
-    //         .push_slice(PushBytesBuf::try_from(BODY_TAG.to_vec()).unwrap())
-    //         .push_slice(PushBytesBuf::try_from(vec![0u8; 128]).unwrap())
-    //         .push_opcode(OP_ENDIF)
-    //         .push_x_only_key(&XOnlyPublicKey::from_slice(&[1; 32]).unwrap())
-    //         .push_opcode(OP_CHECKSIG)
-    //         .push_opcode(OP_FALSE)
-    //         .push_opcode(OP_IF)
-    //         .push_slice(PushBytesBuf::try_from(ROLLUP_NAME_TAG.to_vec()).unwrap())
-    //         .push_slice(PushBytesBuf::try_from("sov-btc".as_bytes().to_vec()).unwrap())
-    //         .push_slice(PushBytesBuf::try_from(SIGNATURE_TAG.to_vec()).unwrap())
-    //         .push_slice(PushBytesBuf::try_from(vec![1u8; 64]).unwrap())
-    //         .push_slice(PushBytesBuf::try_from(PUBLICKEY_TAG.to_vec()).unwrap())
-    //         .push_slice(PushBytesBuf::try_from(vec![1u8; 64]).unwrap())
-    //         .push_slice(PushBytesBuf::try_from(RANDOM_TAG.to_vec()).unwrap())
-    //         .push_int(1)
-    //         .push_slice(PushBytesBuf::try_from(BODY_TAG.to_vec()).unwrap())
-    //         .push_slice(PushBytesBuf::try_from(vec![1u8; 128]).unwrap())
-    //         .push_opcode(OP_ENDIF)
-    //         .into_script();
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), ParserError::UnexpectedOpcode);
+    }
 
-    //         let mut instructions = reveal_script
-    //         .instructions()
-    //         .map(|r| r.map_err(|e| ParserError::from(e)));
+    #[test]
+    fn two_envelopes() {
+        let header = TransactionHeader {
+            rollup_name: b"sov-btc",
+            kind: TransactionKind::Complete,
+        };
 
-    //     let result = parse_relevant_inscriptions(&mut instructions, "sov-btc");
+        let reveal_script = script::Builder::new()
+            .push_slice(PushBytesBuf::try_from(header.to_bytes()).expect("Cannot push header"))
+            .push_x_only_key(&XOnlyPublicKey::from_slice(&[1; 32]).unwrap())
+            .push_opcode(OP_CHECKSIG)
+            .push_opcode(OP_FALSE)
+            .push_opcode(OP_IF)
+            .push_slice([2u8; 64]) // signature
+            .push_slice([3u8; 64]) // public key
+            .push_slice(PushBytesBuf::try_from(vec![0u8; 64]).unwrap())
+            .push_opcode(OP_ENDIF)
+            .push_slice(42i64.to_le_bytes()) // random
+            .push_opcode(OP_DROP)
+            .push_opcode(OP_FALSE)
+            .push_opcode(OP_IF)
+            .push_slice([2u8; 64]) // signature
+            .push_slice([3u8; 64]) // public key
+            .push_slice(PushBytesBuf::try_from(vec![1u8; 64]).unwrap())
+            .push_opcode(OP_ENDIF)
+            .push_slice(42i64.to_le_bytes()) // random
+            .push_opcode(OP_DROP)
+            .into_script();
 
-    //     assert!(result.is_ok());
+        let mut instructions = reveal_script
+            .instructions()
+            .map(|r| r.map_err(ParserError::from));
 
-    //     let result = result.unwrap();
+        let result = parse_relevant_inscriptions(&mut instructions, "sov-btc");
 
-    //     assert_eq!(result.body, vec![0u8; 128]);
-    //     assert_eq!(result.signature, vec![0u8; 64]);
-    //     assert_eq!(result.public_key, vec![0u8; 64]);
-    // }
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), ParserError::UnexpectedOpcode);
+    }
 
     #[test]
     fn big_push() {
         let header = TransactionHeader {
             rollup_name: b"sov-btc",
-            typ: TransactionType::Inscribed,
+            kind: TransactionKind::Complete,
         };
 
         let reveal_script = script::Builder::new()
@@ -562,7 +412,7 @@ mod tests {
 
         let mut instructions = reveal_script
             .instructions()
-            .map(|r| r.map_err(|e| ParserError::from(e)));
+            .map(|r| r.map_err(ParserError::from));
 
         let result = parse_relevant_inscriptions(&mut instructions, "sov-btc");
 
