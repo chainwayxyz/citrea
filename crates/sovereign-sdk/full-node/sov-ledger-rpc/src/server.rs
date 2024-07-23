@@ -25,7 +25,7 @@ const LEDGER_RPC_ERROR: &str = "LEDGER_RPC_ERROR";
 /// /// Creates a new [`LedgerDB`] and starts serving JSON-RPC requests.
 /// async fn rpc_server() -> jsonrpsee::server::ServerHandle {
 ///     let dir = tempdir().unwrap();
-///     let db = LedgerDB::with_path(dir)).unwrap();
+///     let db = LedgerDB::with_path(dir).unwrap();
 ///     let rpc_module = rpc_module::<LedgerDB, u32, u32>(db).unwrap();
 ///
 ///     let server = jsonrpsee::server::ServerBuilder::default()
