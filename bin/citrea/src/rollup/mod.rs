@@ -242,6 +242,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             Some(prover_config),
             code_commitment,
             rollup_config.sync_blocks_count,
+            soft_confirmation_tx,
         )?;
 
         Ok(Prover {
