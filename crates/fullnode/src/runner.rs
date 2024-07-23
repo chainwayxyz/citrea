@@ -14,7 +14,8 @@ use jsonrpsee::RpcModule;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 use sequencer_client::{GetSoftBatchResponse, SequencerClient};
-use sov_db::ledger_db::{LedgerDB, SlotCommit};
+use sov_db::ledger_db::NodeLedgerOps;
+use sov_db::ledger_db::SlotCommit;
 use sov_db::schema::types::{BatchNumber, SlotNumber, StoredSoftBatch, StoredStateTransition};
 use sov_modules_api::Context;
 use sov_modules_stf_blueprint::StfBlueprintTrait;
@@ -36,7 +37,7 @@ use tracing::{debug, error, info, instrument, warn};
 type StateRoot<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::StateRoot;
 
 /// Citrea's own STF runner implementation.
-pub struct CitreaFullnode<Stf, Sm, Da, Vm, C>
+pub struct CitreaFullnode<Stf, Sm, Da, Vm, C, DB>
 where
     Da: DaService,
     Vm: ZkvmHost + Zkvm,
@@ -44,14 +45,14 @@ where
     Stf: StateTransitionFunction<Vm, Da::Spec, Condition = <Da::Spec as DaSpec>::ValidityCondition>
         + StfBlueprintTrait<C, Da::Spec, Vm>,
     C: Context,
+    DB: NodeLedgerOps,
 {
     start_l2_height: u64,
     start_l1_height: u64,
     da_service: Da,
     stf: Stf,
     storage_manager: Sm,
-    /// made pub so that sequencer can clone it
-    pub ledger_db: LedgerDB,
+    ledger_db: DB,
     state_root: StateRoot<Stf, Vm, Da::Spec>,
     batch_hash: SoftConfirmationHash,
     rpc_config: RpcConfig,
@@ -67,7 +68,7 @@ where
     sync_blocks_count: u64,
 }
 
-impl<Stf, Sm, Da, Vm, C> CitreaFullnode<Stf, Sm, Da, Vm, C>
+impl<Stf, Sm, Da, Vm, C, DB> CitreaFullnode<Stf, Sm, Da, Vm, C, DB>
 where
     Da: DaService<Error = anyhow::Error> + Clone + Send + Sync + 'static,
     Vm: ZkvmHost + Zkvm,
@@ -80,6 +81,7 @@ where
             ChangeSet = Sm::NativeChangeSet,
         > + StfBlueprintTrait<C, Da::Spec, Vm>,
     C: Context,
+    DB: NodeLedgerOps,
 {
     /// Creates a new `StateTransitionRunner`.
     ///
@@ -92,7 +94,7 @@ where
         public_keys: RollupPublicKeys,
         rpc_config: RpcConfig,
         da_service: Da,
-        ledger_db: LedgerDB,
+        ledger_db: DB,
         stf: Stf,
         mut storage_manager: Sm,
         init_variant: InitVariant<Stf, Vm, Da::Spec>,

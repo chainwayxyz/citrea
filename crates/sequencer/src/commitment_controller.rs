@@ -4,7 +4,7 @@ use std::ops::RangeInclusive;
 use anyhow::anyhow;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
-use sov_db::ledger_db::LedgerDB;
+use sov_db::ledger_db::SequencerLedgerOps;
 use sov_db::schema::types::BatchNumber;
 use sov_rollup_interface::da::SequencerCommitment;
 use tracing::{debug, instrument};
@@ -20,7 +20,7 @@ pub struct CommitmentInfo {
 /// Returns `CommitmentInfo` if the sequencer should commit
 #[instrument(level = "debug", skip_all, fields(prev_l1_height), err)]
 pub fn get_commitment_info(
-    ledger_db: &LedgerDB,
+    ledger_db: &impl SequencerLedgerOps,
     min_soft_confirmations_per_commitment: u64,
     state_diff_threshold_reached: bool,
 ) -> anyhow::Result<Option<CommitmentInfo>> {

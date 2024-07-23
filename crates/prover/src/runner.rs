@@ -16,7 +16,8 @@ use jsonrpsee::RpcModule;
 use rand::Rng;
 use sequencer_client::{GetSoftBatchResponse, SequencerClient};
 use shared_backup_db::{DbPoolError, PostgresConnector, ProofType};
-use sov_db::ledger_db::{LedgerDB, SlotCommit};
+use sov_db::ledger_db::ProverLedgerOps;
+use sov_db::ledger_db::SlotCommit;
 use sov_db::schema::types::{BatchNumber, SlotNumber, StoredStateTransition};
 use sov_modules_api::storage::HierarchicalStorageManager;
 use sov_modules_api::{BlobReaderTrait, Context, SignedSoftConfirmationBatch, SlotData};
@@ -42,7 +43,7 @@ type CommitmentStateTransitionData<Stf, Vm, Da> = (
     VecDeque<Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader>>,
 );
 
-pub struct CitreaProver<C, Da, Sm, Vm, Stf, Ps>
+pub struct CitreaProver<C, Da, Sm, Vm, Stf, Ps, DB>
 where
     C: Context,
     Da: DaService,
@@ -52,13 +53,13 @@ where
         + StfBlueprintTrait<C, Da::Spec, Vm>,
 
     Ps: ProverService<Vm>,
+    DB: ProverLedgerOps + Clone,
 {
     start_l2_height: u64,
     da_service: Da,
     stf: Stf,
     storage_manager: Sm,
-    /// made pub so that sequencer can clone it
-    pub ledger_db: LedgerDB,
+    ledger_db: DB,
     state_root: StateRoot<Stf, Vm, Da::Spec>,
     batch_hash: SoftConfirmationHash,
     rpc_config: RpcConfig,
@@ -74,7 +75,7 @@ where
     sync_blocks_count: u64,
 }
 
-impl<C, Da, Sm, Vm, Stf, Ps> CitreaProver<C, Da, Sm, Vm, Stf, Ps>
+impl<C, Da, Sm, Vm, Stf, Ps, DB> CitreaProver<C, Da, Sm, Vm, Stf, Ps, DB>
 where
     C: Context,
     Da: DaService<Error = anyhow::Error> + Clone + Send + Sync + 'static,
@@ -88,6 +89,7 @@ where
             ChangeSet = Sm::NativeChangeSet,
         > + StfBlueprintTrait<C, Da::Spec, Vm>,
     Ps: ProverService<Vm, StateRoot = Stf::StateRoot, Witness = Stf::Witness, DaService = Da>,
+    DB: ProverLedgerOps + Clone,
 {
     /// Creates a new `StateTransitionRunner`.
     ///
@@ -100,7 +102,7 @@ where
         public_keys: RollupPublicKeys,
         rpc_config: RpcConfig,
         da_service: Da,
-        ledger_db: LedgerDB,
+        ledger_db: DB,
         stf: Stf,
         mut storage_manager: Sm,
         init_variant: InitVariant<Stf, Vm, Da::Spec>,
