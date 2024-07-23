@@ -25,7 +25,6 @@
 //! Module Accessory State Table:
 //! - `(ModuleAddress, Key) -> Value`
 
-use anyhow::anyhow;
 use borsh::{BorshDeserialize, BorshSerialize};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use jmt::storage::{Node, NodeKey};
@@ -341,20 +340,13 @@ impl KeyEncoder<JmtNodes> for NodeKey {
 
 impl KeyEncoder<JmtNodes> for JmtNodeKeyHash {
     fn encode_key(&self) -> sov_schema_db::schema::Result<Vec<u8>> {
-        let mut output = vec![];
-        BorshSerialize::serialize(self, &mut output)?;
-        Ok(output)
+        borsh::to_vec(self).map_err(CodecError::from)
     }
 }
+
 impl KeyDecoder<JmtNodes> for JmtNodeKeyHash {
     fn decode_key(data: &[u8]) -> sov_schema_db::schema::Result<Self> {
-        let data = match BorshDeserialize::try_from_slice(data).map_err(CodecError::Io) {
-            Ok(data) => data,
-            Err(_) => {
-                return Err(CodecError::Wrapped(anyhow!("Could not deserialize key")));
-            }
-        };
-        Ok(data)
+        Ok(BorshDeserialize::deserialize_reader(&mut &data[..])?)
     }
 }
 
