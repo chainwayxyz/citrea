@@ -1,12 +1,12 @@
-mod eth_subscription;
 mod ethereum;
 mod gas_price;
+mod subscription;
 mod trace;
 
 #[cfg(feature = "local")]
 pub use citrea_evm::DevSigner;
 use citrea_evm::Evm;
-use eth_subscription::handle_new_heads_subscription;
+use subscription::handle_new_heads_subscription;
 pub use ethereum::{EthRpcConfig, Ethereum};
 pub use gas_price::fee_history::FeeHistoryCacheConfig;
 pub use gas_price::gas_oracle::GasPriceOracleConfig;
