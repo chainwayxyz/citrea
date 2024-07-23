@@ -16,6 +16,7 @@ use tracing::instrument;
 
 use crate::gas_price::fee_history::FeeHistoryCacheConfig;
 use crate::gas_price::gas_oracle::{GasPriceOracle, GasPriceOracleConfig};
+use crate::subscription::SubscriptionManager;
 
 const MAX_TRACE_BLOCK: u32 = 1000;
 
@@ -37,7 +38,7 @@ pub struct Ethereum<C: sov_modules_api::Context, Da: DaService> {
     pub(crate) sequencer_client: Option<SequencerClient>,
     pub(crate) web3_client_version: String,
     pub(crate) trace_cache: Mutex<LruMap<u64, Vec<GethTrace>, ByLength>>,
-    pub(crate) soft_confirmation_rx: Option<broadcast::Receiver<u64>>,
+    pub(crate) subscription_manager: Option<SubscriptionManager>,
 }
 
 impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
@@ -62,6 +63,9 @@ impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
 
         let trace_cache = Mutex::new(LruMap::new(ByLength::new(MAX_TRACE_BLOCK)));
 
+        let subscription_manager =
+            soft_confirmation_rx.map(|rx| SubscriptionManager::new::<C>(storage.clone(), rx));
+
         Self {
             da_service,
             gas_price_oracle,
@@ -71,7 +75,7 @@ impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
             sequencer_client,
             web3_client_version: current_version,
             trace_cache,
-            soft_confirmation_rx,
+            subscription_manager,
         }
     }
 

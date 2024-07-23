@@ -6,7 +6,6 @@ mod trace;
 #[cfg(feature = "local")]
 pub use citrea_evm::DevSigner;
 use citrea_evm::Evm;
-use subscription::handle_new_heads_subscription;
 pub use ethereum::{EthRpcConfig, Ethereum};
 pub use gas_price::fee_history::FeeHistoryCacheConfig;
 pub use gas_price::gas_oracle::GasPriceOracleConfig;
@@ -21,6 +20,7 @@ use serde_json::json;
 use sov_modules_api::utils::to_jsonrpsee_error_object;
 use sov_modules_api::WorkingSet;
 use sov_rollup_interface::services::da::DaService;
+use subscription::handle_new_heads_subscription;
 use tokio::sync::broadcast;
 use trace::{debug_trace_by_block_number, handle_debug_trace_chain};
 use tracing::info;
