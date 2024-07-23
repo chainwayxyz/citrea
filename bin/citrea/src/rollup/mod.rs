@@ -38,20 +38,20 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         // Maybe whole "prev_root" can be initialized inside runner
         // Getting block here, so prover_service doesn't have to be `Send`
 
-        let (soft_confirmation_tx, _) = broadcast::channel(10);
-        let ledger_db = self.create_ledger_db(&rollup_config, soft_confirmation_tx.clone());
+        let ledger_db = self.create_ledger_db(&rollup_config);
         let genesis_config = self.create_genesis_config(runtime_genesis_paths, &rollup_config)?;
 
         let mut storage_manager = self.create_storage_manager(&rollup_config)?;
         let prover_storage = storage_manager.create_finalized_storage()?;
 
+        let (soft_confirmation_tx, _) = broadcast::channel(10);
         // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1218)
         let rpc_methods = self.create_rpc_methods(
             &prover_storage,
             &ledger_db,
             &da_service,
             None,
-            soft_confirmation_tx,
+            soft_confirmation_tx.clone(),
         )?;
 
         let native_stf = StfBlueprint::new();
@@ -110,21 +110,21 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         // Maybe whole "prev_root" can be initialized inside runner
         // Getting block here, so prover_service doesn't have to be `Send`
 
-        let (soft_confirmation_tx, _) = broadcast::channel(10);
-        let ledger_db = self.create_ledger_db(&rollup_config, soft_confirmation_tx.clone());
+        let ledger_db = self.create_ledger_db(&rollup_config);
         let genesis_config = self.create_genesis_config(runtime_genesis_paths, &rollup_config)?;
 
         let mut storage_manager = self.create_storage_manager(&rollup_config)?;
         let prover_storage = storage_manager.create_finalized_storage()?;
 
         let runner_config = rollup_config.runner.expect("Runner config is missing");
+        let (soft_confirmation_tx, _) = broadcast::channel(10);
         // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1218)
         let rpc_methods = self.create_rpc_methods(
             &prover_storage,
             &ledger_db,
             &da_service,
             Some(runner_config.sequencer_client_url.clone()),
-            soft_confirmation_tx,
+            soft_confirmation_tx.clone(),
         )?;
 
         let native_stf = StfBlueprint::new();
@@ -190,13 +190,13 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         // Maybe whole "prev_root" can be initialized inside runner
         // Getting block here, so prover_service doesn't have to be `Send`
 
-        let (soft_confirmation_tx, _) = broadcast::channel(10);
-        let ledger_db = self.create_ledger_db(&rollup_config, soft_confirmation_tx.clone());
+        let ledger_db = self.create_ledger_db(&rollup_config);
         let genesis_config = self.create_genesis_config(runtime_genesis_paths, &rollup_config)?;
 
         let mut storage_manager = self.create_storage_manager(&rollup_config)?;
         let prover_storage = storage_manager.create_finalized_storage()?;
 
+        let (soft_confirmation_tx, _) = broadcast::channel(10);
         let runner_config = rollup_config.runner.expect("Runner config is missing");
         // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1218)
         let rpc_methods = self.create_rpc_methods(
@@ -204,7 +204,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             &ledger_db,
             &da_service,
             Some(runner_config.sequencer_client_url.clone()),
-            soft_confirmation_tx,
+            soft_confirmation_tx.clone(),
         )?;
 
         let native_stf = StfBlueprint::new();

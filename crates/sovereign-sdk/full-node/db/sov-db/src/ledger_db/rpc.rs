@@ -624,14 +624,13 @@ impl LedgerDB {
 mod tests {
     use sov_mock_da::{MockBlob, MockBlock};
     use sov_rollup_interface::rpc::LedgerRpcProvider;
-    use tokio::sync::broadcast;
 
     use crate::ledger_db::{LedgerDB, SlotCommit};
     #[test]
     fn test_slot_subscription() {
         let temp_dir = tempfile::tempdir().unwrap();
         let path = temp_dir.path();
-        let db = LedgerDB::with_path(path, broadcast::channel(1).0).unwrap();
+        let db = LedgerDB::with_path(path).unwrap();
 
         let mut rx = db.subscribe_slots().unwrap();
         db.commit_slot(SlotCommit::<_, MockBlob, Vec<u8>>::new(MockBlock::default()))

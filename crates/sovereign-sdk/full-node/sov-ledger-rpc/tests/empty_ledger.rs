@@ -13,11 +13,10 @@ use sov_rollup_interface::rpc::{
     TxResponse,
 };
 use tempfile::tempdir;
-use tokio::sync::broadcast;
 
 async fn rpc_server() -> (jsonrpsee::server::ServerHandle, SocketAddr) {
     let dir = tempdir().unwrap();
-    let db = LedgerDB::with_path(dir, broadcast::channel(1).0).unwrap();
+    let db = LedgerDB::with_path(dir).unwrap();
     let rpc_module = rpc_module::<LedgerDB, u32, u32>(db).unwrap();
 
     let server = jsonrpsee::server::ServerBuilder::default()

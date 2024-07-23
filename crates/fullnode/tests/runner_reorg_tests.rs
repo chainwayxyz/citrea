@@ -19,7 +19,6 @@ use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_state::storage::NativeStorage;
 use sov_state::{ProverStorage, Storage};
-use tokio::sync::broadcast;
 
 type MockInitVariant =
     InitVariant<HashStf<MockValidityCond>, MockZkvm<MockValidityCond>, MockDaSpec>;
@@ -148,8 +147,7 @@ async fn runner_execution(
         sync_blocks_count: 10,
     };
 
-    let ledger_db =
-        LedgerDB::with_path(rollup_storage_path.clone(), broadcast::channel(1).0).unwrap();
+    let ledger_db = LedgerDB::with_path(rollup_storage_path.clone()).unwrap();
 
     let stf = HashStf::<MockValidityCond>::new();
 
@@ -189,7 +187,7 @@ fn get_saved_root_hash(
     let mut storage_manager = ProverStorageManager::<MockDaSpec, S>::new(storage_config).unwrap();
     let finalized_storage = storage_manager.create_finalized_storage()?;
 
-    let ledger_db = LedgerDB::with_path(path, broadcast::channel(1).0).unwrap();
+    let ledger_db = LedgerDB::with_path(path).unwrap();
 
     ledger_db
         .get_head_slot()?

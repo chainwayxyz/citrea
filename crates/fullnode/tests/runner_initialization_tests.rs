@@ -11,7 +11,6 @@ use sov_stf_runner::{
 mod hash_stf;
 
 use hash_stf::HashStf;
-use tokio::sync::broadcast;
 
 type MockInitVariant =
     InitVariant<HashStf<MockValidityCond>, MockZkvm<MockValidityCond>, MockDaSpec>;
@@ -92,8 +91,7 @@ fn initialize_runner(
 
     let da_service = MockDaService::new(address, &da_storage_path);
 
-    let ledger_db =
-        LedgerDB::with_path(rollup_storage_path.clone(), broadcast::channel(1).0).unwrap();
+    let ledger_db = LedgerDB::with_path(rollup_storage_path.clone()).unwrap();
 
     let stf = HashStf::<MockValidityCond>::new();
 

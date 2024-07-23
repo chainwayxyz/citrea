@@ -39,7 +39,6 @@ pub struct LedgerDB {
     db: Arc<DB>,
     next_item_numbers: Arc<Mutex<ItemNumbers>>,
     slot_subscriptions: broadcast::Sender<u64>,
-    soft_confirmation_tx: broadcast::Sender<u64>,
 }
 
 /// A SlotNumber, BatchNumber, TxNumber, and EventNumber which are grouped together, typically representing
@@ -101,10 +100,7 @@ impl LedgerDB {
     /// Open a [`LedgerDB`] (backed by RocksDB) at the specified path.
     /// The returned instance will be at the path `{path}/ledger-db`.
     #[instrument(level = "trace", skip_all, err)]
-    pub fn with_path(
-        path: impl AsRef<Path>,
-        soft_confirmation_tx: broadcast::Sender<u64>,
-    ) -> Result<Self, anyhow::Error> {
+    pub fn with_path(path: impl AsRef<Path>) -> Result<Self, anyhow::Error> {
         let path = path.as_ref().join(LEDGER_DB_PATH_SUFFIX);
         let inner = DB::open(
             path,
@@ -129,7 +125,6 @@ impl LedgerDB {
             db: Arc::new(inner),
             next_item_numbers: Arc::new(Mutex::new(next_item_numbers)),
             slot_subscriptions: broadcast::channel(10).0,
-            soft_confirmation_tx,
         })
     }
 
@@ -358,9 +353,6 @@ impl LedgerDB {
         current_item_numbers.soft_batch_number += 1;
 
         self.db.write_schemas(schema_batch)?;
-
-        // Error can be ignored becaue it only errors when there are no receivers
-        let _ = self.soft_confirmation_tx.send(batch_to_store.l2_height);
 
         Ok(())
     }

@@ -117,12 +117,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
     ) -> Result<Self::StorageManager, anyhow::Error>;
 
     /// Creates instance of a LedgerDB.
-    fn create_ledger_db(
-        &self,
-        rollup_config: &FullNodeConfig<Self::DaConfig>,
-        soft_confirmation_tx: broadcast::Sender<u64>,
-    ) -> LedgerDB {
-        LedgerDB::with_path(&rollup_config.storage.path, soft_confirmation_tx)
-            .expect("Ledger DB failed to open")
+    fn create_ledger_db(&self, rollup_config: &FullNodeConfig<Self::DaConfig>) -> LedgerDB {
+        LedgerDB::with_path(&rollup_config.storage.path).expect("Ledger DB failed to open")
     }
 }
