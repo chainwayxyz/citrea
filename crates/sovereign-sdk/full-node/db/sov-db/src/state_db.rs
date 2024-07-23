@@ -8,7 +8,7 @@ use sov_schema_db::SchemaBatch;
 
 use crate::rocks_db_config::gen_rocksdb_options;
 use crate::schema::tables::{JmtNodes, JmtValues, STATE_TABLES};
-use crate::schema::types::JmtNodeHashKey;
+use crate::schema::types::JmtNodeKeyHash;
 
 /// A typed wrapper around the db for storing rollup state. Internally,
 /// this is roughly just an [`Arc<sov_schema_db::DB>`] with pointer to list of non-finalized snapshots
@@ -75,7 +75,7 @@ impl<Q: QueryManager> StateDB<Q> {
         version: Version,
         key: &KeyHash,
     ) -> anyhow::Result<Option<jmt::OwnedValue>> {
-        let key_hash = JmtNodeHashKey::new(key.0, version);
+        let key_hash = JmtNodeKeyHash::new(key.0, version);
         let found = self.db.get_prev::<JmtValues>(&key_hash)?;
         match found {
             Some((found_key, value)) => {
@@ -125,7 +125,7 @@ impl<Q: QueryManager> TreeReader for StateDB<Q> {
         &self,
         node_key: &jmt::storage::NodeKey,
     ) -> anyhow::Result<Option<jmt::storage::Node>> {
-        let hash_key: JmtNodeHashKey = node_key.into();
+        let hash_key: JmtNodeKeyHash = node_key.into();
         self.db.read::<JmtNodes>(&hash_key)
     }
 
@@ -148,12 +148,12 @@ impl<Q: QueryManager> TreeWriter for StateDB<Q> {
     fn write_node_batch(&self, node_batch: &jmt::storage::NodeBatch) -> anyhow::Result<()> {
         let mut batch = SchemaBatch::new();
         for (node_key, node) in node_batch.nodes() {
-            let hash_key: JmtNodeHashKey = node_key.into();
+            let hash_key: JmtNodeKeyHash = node_key.into();
             batch.put::<JmtNodes>(&hash_key, node)?;
         }
 
         for ((version, key_hash), value) in node_batch.values() {
-            let hash_key = JmtNodeHashKey::new(key_hash.0, *version);
+            let hash_key = JmtNodeKeyHash::new(key_hash.0, *version);
             batch.put::<JmtValues>(&hash_key, value)?;
         }
         self.db.write_many(batch)?;

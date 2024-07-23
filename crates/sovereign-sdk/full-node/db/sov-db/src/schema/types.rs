@@ -416,12 +416,12 @@ pub mod arbitrary {
 
 /// Defines a wrapper around the key hash and version
 #[derive(Debug, PartialEq, BorshDeserialize, BorshSerialize)]
-pub struct JmtNodeHashKey {
+pub struct JmtNodeKeyHash {
     key: [u8; 32],
     version: Version,
 }
 
-impl JmtNodeHashKey {
+impl JmtNodeKeyHash {
     /// Instantiate a new hash key
     pub fn new(key: [u8; 32], version: Version) -> Self {
         Self { key, version }
@@ -438,7 +438,7 @@ impl JmtNodeHashKey {
     }
 }
 
-impl From<&NodeKey> for JmtNodeHashKey {
+impl From<&NodeKey> for JmtNodeKeyHash {
     fn from(node_key: &NodeKey) -> Self {
         let mut out = vec![];
         let _ = BorshSerialize::serialize(&node_key, &mut out);
@@ -450,7 +450,7 @@ impl From<&NodeKey> for JmtNodeHashKey {
     }
 }
 
-impl From<(&Vec<u8>, Version)> for JmtNodeHashKey {
+impl From<(&Vec<u8>, Version)> for JmtNodeKeyHash {
     fn from(data: (&Vec<u8>, Version)) -> Self {
         let node_key = data.0;
         let version = data.1;

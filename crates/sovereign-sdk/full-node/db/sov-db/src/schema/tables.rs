@@ -36,7 +36,7 @@ use sov_schema_db::schema::{KeyDecoder, KeyEncoder, ValueCodec};
 use sov_schema_db::{CodecError, SeekKeyEncoder};
 
 use super::types::{
-    AccessoryKey, AccessoryStateValue, BatchNumber, DbHash, EventNumber, JmtNodeHashKey, JmtValue,
+    AccessoryKey, AccessoryStateValue, BatchNumber, DbHash, EventNumber, JmtNodeKeyHash, JmtValue,
     L2HeightRange, SlotNumber, StoredBatch, StoredProof, StoredSlot, StoredSoftBatch,
     StoredTransaction, StoredVerifiedProof, TxNumber,
 };
@@ -314,7 +314,7 @@ define_table_with_default_codec!(
 
 define_table_without_codec!(
     /// The source of truth for JMT nodes
-    (JmtNodes) JmtNodeHashKey => Node
+    (JmtNodes) JmtNodeKeyHash => Node
 );
 
 define_table_with_default_codec!(
@@ -339,14 +339,14 @@ impl KeyEncoder<JmtNodes> for NodeKey {
     }
 }
 
-impl KeyEncoder<JmtNodes> for JmtNodeHashKey {
+impl KeyEncoder<JmtNodes> for JmtNodeKeyHash {
     fn encode_key(&self) -> sov_schema_db::schema::Result<Vec<u8>> {
         let mut output = vec![];
         BorshSerialize::serialize(self, &mut output)?;
         Ok(output)
     }
 }
-impl KeyDecoder<JmtNodes> for JmtNodeHashKey {
+impl KeyDecoder<JmtNodes> for JmtNodeKeyHash {
     fn decode_key(data: &[u8]) -> sov_schema_db::schema::Result<Self> {
         let data = match BorshDeserialize::try_from_slice(data).map_err(CodecError::Io) {
             Ok(data) => data,
@@ -370,22 +370,22 @@ impl ValueCodec<JmtNodes> for Node {
 
 define_table_without_codec!(
     /// The source of truth for JMT values by version
-    (JmtValues) JmtNodeHashKey => JmtValue
+    (JmtValues) JmtNodeKeyHash => JmtValue
 );
 
-impl KeyEncoder<JmtValues> for JmtNodeHashKey {
+impl KeyEncoder<JmtValues> for JmtNodeKeyHash {
     fn encode_key(&self) -> sov_schema_db::schema::Result<Vec<u8>> {
         borsh::to_vec(self).map_err(CodecError::from)
     }
 }
 
-impl SeekKeyEncoder<JmtValues> for JmtNodeHashKey {
+impl SeekKeyEncoder<JmtValues> for JmtNodeKeyHash {
     fn encode_seek_key(&self) -> sov_schema_db::schema::Result<Vec<u8>> {
-        <JmtNodeHashKey as KeyEncoder<JmtValues>>::encode_key(self)
+        <JmtNodeKeyHash as KeyEncoder<JmtValues>>::encode_key(self)
     }
 }
 
-impl KeyDecoder<JmtValues> for JmtNodeHashKey {
+impl KeyDecoder<JmtValues> for JmtNodeKeyHash {
     fn decode_key(data: &[u8]) -> sov_schema_db::schema::Result<Self> {
         Ok(BorshDeserialize::deserialize_reader(&mut &data[..])?)
     }

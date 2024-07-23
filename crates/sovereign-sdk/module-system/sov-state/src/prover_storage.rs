@@ -4,7 +4,7 @@ use std::sync::Arc;
 use jmt::storage::{NodeBatch, TreeWriter};
 use jmt::{JellyfishMerkleTree, KeyHash, Version};
 use sov_db::native_db::NativeDB;
-use sov_db::schema::types::JmtNodeHashKey;
+use sov_db::schema::types::JmtNodeKeyHash;
 use sov_db::schema::{QueryManager, ReadOnlyDbSnapshot};
 use sov_db::state_db::StateDB;
 use sov_modules_core::{
@@ -58,7 +58,7 @@ impl<S: MerkleProofSpec, Q> ProverStorage<S, Q> {
 impl<S: MerkleProofSpec, Q: QueryManager> ProverStorage<S, Q> {
     fn read_value(&self, key: &StorageKey, version: Option<Version>) -> Option<StorageValue> {
         let version_to_use = version.unwrap_or_else(|| self.db.get_next_version());
-        let hash_key: JmtNodeHashKey = (key.as_ref(), version_to_use).into();
+        let hash_key: JmtNodeKeyHash = (key.as_ref(), version_to_use).into();
         match self
             .db
             .get_value_option_by_key(version_to_use, &KeyHash(hash_key.hash()))

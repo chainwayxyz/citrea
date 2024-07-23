@@ -10,7 +10,7 @@ use jmt::storage::TreeWriter;
 use jmt::{JellyfishMerkleTree, KeyHash};
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
-use sov_db::schema::types::JmtNodeHashKey;
+use sov_db::schema::types::JmtNodeKeyHash;
 use sov_db::state_db::StateDB;
 use sov_schema_db::snapshot::{DbSnapshot, NoopQueryManager, ReadOnlyLock};
 
@@ -80,7 +80,7 @@ fn prepare_data(size: usize) -> TestData {
     let version = db.get_next_version() - 1;
     for chunk in raw_data.chunks(2) {
         let key = &chunk[0];
-        let key_hash: JmtNodeHashKey = (key, version).into();
+        let key_hash: JmtNodeKeyHash = (key, version).into();
         let value = chunk[1].clone();
         let res = db
             .get_value_option_by_key(version, &KeyHash(key_hash.hash()))
@@ -88,7 +88,7 @@ fn prepare_data(size: usize) -> TestData {
         assert_eq!(Some(value), res);
     }
 
-    let random_key_hash: JmtNodeHashKey = (&random_key, version).into();
+    let random_key_hash: JmtNodeKeyHash = (&random_key, version).into();
     let random_value = db
         .get_value_option_by_key(version, &KeyHash(random_key_hash.hash()))
         .unwrap();
@@ -111,7 +111,7 @@ fn bench_random_read(g: &mut BenchmarkGroup<WallTime>, size: usize) {
         |b, i| {
             b.iter(|| {
                 let (db, key, version) = i;
-                let hash_key: JmtNodeHashKey = (key, *version).into();
+                let hash_key: JmtNodeKeyHash = (key, *version).into();
                 let result = black_box(
                     db.get_value_option_by_key(*version, &KeyHash(hash_key.hash()))
                         .unwrap(),
@@ -136,7 +136,7 @@ fn bench_largest_read(g: &mut BenchmarkGroup<WallTime>, size: usize) {
         |b, i| {
             b.iter(|| {
                 let (db, key, version) = i;
-                let hash_key: JmtNodeHashKey = (key, *version).into();
+                let hash_key: JmtNodeKeyHash = (key, *version).into();
                 let result = black_box(
                     db.get_value_option_by_key(*version, &KeyHash(hash_key.hash()))
                         .unwrap(),
@@ -161,7 +161,7 @@ fn bench_not_found_read(g: &mut BenchmarkGroup<WallTime>, size: usize) {
         |b, i| {
             b.iter(|| {
                 let (db, key, version) = i;
-                let hash_key: JmtNodeHashKey = (key, *version).into();
+                let hash_key: JmtNodeKeyHash = (key, *version).into();
                 let result = black_box(
                     db.get_value_option_by_key(*version, &KeyHash(hash_key.hash()))
                         .unwrap(),
