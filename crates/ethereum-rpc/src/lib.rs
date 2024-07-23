@@ -44,7 +44,7 @@ pub fn get_ethereum_rpc<C: sov_modules_api::Context, Da: DaService>(
     eth_rpc_config: EthRpcConfig,
     storage: C::Storage,
     sequencer_client_url: Option<String>,
-    soft_commitment_tx: broadcast::Sender<u64>,
+    soft_commitment_tx: Option<broadcast::Sender<u64>>,
 ) -> RpcModule<Ethereum<C, Da>> {
     // Unpack config
     let EthRpcConfig {
@@ -56,6 +56,7 @@ pub fn get_ethereum_rpc<C: sov_modules_api::Context, Da: DaService>(
 
     // If the node does not have a sequencer client, then it is the sequencer.
     let is_sequencer = sequencer_client_url.is_none();
+    let enable_subscriptions = soft_commitment_tx.is_some();
 
     // If the running node is a full node rpc context should also have sequencer client so that it can send txs to sequencer
     let mut rpc = RpcModule::new(Ethereum::new(
@@ -69,7 +70,8 @@ pub fn get_ethereum_rpc<C: sov_modules_api::Context, Da: DaService>(
         soft_commitment_tx,
     ));
 
-    register_rpc_methods(&mut rpc, is_sequencer).expect("Failed to register ethereum RPC methods");
+    register_rpc_methods(&mut rpc, is_sequencer, enable_subscriptions)
+        .expect("Failed to register ethereum RPC methods");
     rpc
 }
 
@@ -77,6 +79,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
     rpc: &mut RpcModule<Ethereum<C, Da>>,
     // Checks wether the running node is a sequencer or not, if it is not a sequencer it should also have methods like eth_sendRawTransaction here.
     is_sequencer: bool,
+    enable_subscriptions: bool,
 ) -> Result<(), jsonrpsee::core::RegisterMethodError> {
     rpc.register_async_method("web3_clientVersion", |_, ethereum| async move {
         info!("eth module: web3_clientVersion");
@@ -671,31 +674,33 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
         },
     )?;
 
-    rpc.register_subscription(
-        "eth_subscribe",
-        "eth_subscription",
-        "eth_unsubscribe",
-        |parameters, pending, ethereum| async move {
-            let topic: String = match parameters.one() {
-                Ok(v) => v,
-                Err(err) => {
-                    pending.reject(err).await;
-                    return Ok(());
-                }
-            };
-            match topic.as_str() {
-                "newHeads" => handle_new_heads_subscription(pending, ethereum).await,
-                _ => {
-                    pending
-                        .reject(EthApiError::Unsupported("Unsupported subscription topic"))
-                        .await;
-                    return Ok(());
-                }
-            };
+    if enable_subscriptions {
+        rpc.register_subscription(
+            "eth_subscribe",
+            "eth_subscription",
+            "eth_unsubscribe",
+            |parameters, pending, ethereum| async move {
+                let topic: String = match parameters.one() {
+                    Ok(v) => v,
+                    Err(err) => {
+                        pending.reject(err).await;
+                        return Ok(());
+                    }
+                };
+                match topic.as_str() {
+                    "newHeads" => handle_new_heads_subscription(pending, ethereum).await,
+                    _ => {
+                        pending
+                            .reject(EthApiError::Unsupported("Unsupported subscription topic"))
+                            .await;
+                        return Ok(());
+                    }
+                };
 
-            Ok(())
-        },
-    )?;
+                Ok(())
+            },
+        )?;
+    }
 
     Ok(())
 }

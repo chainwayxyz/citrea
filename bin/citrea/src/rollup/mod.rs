@@ -51,7 +51,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             &ledger_db,
             &da_service,
             None,
-            soft_confirmation_tx.clone(),
+            Some(soft_confirmation_tx.clone()),
         )?;
 
         let native_stf = StfBlueprint::new();
@@ -125,7 +125,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             &ledger_db,
             &da_service,
             Some(runner_config.sequencer_client_url.clone()),
-            soft_confirmation_tx.clone(),
+            Some(soft_confirmation_tx.clone()),
         )?;
 
         let native_stf = StfBlueprint::new();
@@ -206,7 +206,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             &ledger_db,
             &da_service,
             Some(runner_config.sequencer_client_url.clone()),
-            soft_confirmation_tx.clone(),
+            Some(soft_confirmation_tx.clone()),
         )?;
 
         let native_stf = StfBlueprint::new();

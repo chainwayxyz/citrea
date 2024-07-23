@@ -62,7 +62,7 @@ impl RollupBlueprint for BitcoinRollup {
         ledger_db: &LedgerDB,
         da_service: &Self::DaService,
         sequencer_client_url: Option<String>,
-        soft_commitment_tx: broadcast::Sender<u64>,
+        soft_commitment_tx: Option<broadcast::Sender<u64>>,
     ) -> Result<jsonrpsee::RpcModule<()>, anyhow::Error> {
         // unused inside register RPC
         let sov_sequencer = Address::new([0; 32]);

@@ -56,7 +56,7 @@ impl RollupBlueprint for MockDemoRollup {
         ledger_db: &LedgerDB,
         da_service: &Self::DaService,
         sequencer_client_url: Option<String>,
-        soft_commitment_tx: broadcast::Sender<u64>,
+        soft_commitment_tx: Option<broadcast::Sender<u64>>,
     ) -> Result<jsonrpsee::RpcModule<()>, anyhow::Error> {
         // TODO set the sequencer address
         let sequencer = Address::new([0; 32]);
