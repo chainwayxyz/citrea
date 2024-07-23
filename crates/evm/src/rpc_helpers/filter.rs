@@ -555,6 +555,13 @@ impl<'de> Deserialize<'de> for Filter {
     }
 }
 
+impl std::hash::Hash for Filter {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        // TODO: find a better way
+        state.write(&serde_json::to_vec(&self).unwrap());
+    }
+}
+
 /// Union type for representing a single value or a vector of values inside a filter
 #[derive(Debug, PartialEq, Eq, Clone, Hash)]
 pub enum ValueOrArray<T> {

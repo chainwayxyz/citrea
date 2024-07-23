@@ -1434,11 +1434,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
             BlockRangeInclusiveIter::new(from_block_number..=to_block_number, max_headers_range)
         {
             for idx in from..=to {
-                let block = match self.blocks.get(
-                    // Index from +1 or just from?
-                    (idx) as usize,
-                    &mut working_set.accessory_state(),
-                ) {
+                let block = match self
+                    .blocks
+                    .get((idx) as usize, &mut working_set.accessory_state())
+                {
                     Some(block) => block,
                     None => {
                         return Err(FilterError::EthAPIError(
