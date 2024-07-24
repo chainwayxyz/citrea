@@ -712,9 +712,9 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                             .subscription_manager
                             .as_ref()
                             .unwrap()
-                            .subscribe_logs(filter)
+                            .subscribe_logs()
                             .await;
-                        handle_logs_subscription(subscription, rx).await
+                        handle_logs_subscription(subscription, rx, filter).await
                     }
                     _ => {
                         pending

@@ -225,7 +225,7 @@ async fn test_eth_subscriptions() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         {
-            // Observe that address1 filtered subscription received only 2 events from contract1
+            // Observe that address1 and topic filtered subscription received only 1 event from contract1
             let logs_by_tx_address2_filter = logs_by_tx_address2_filter.lock().unwrap();
             assert!(logs_by_tx_address2_filter.get(&tx_hash1).is_none());
 

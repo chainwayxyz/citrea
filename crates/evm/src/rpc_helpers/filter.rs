@@ -555,13 +555,6 @@ impl<'de> Deserialize<'de> for Filter {
     }
 }
 
-impl std::hash::Hash for Filter {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        // TODO: find a better way
-        state.write(&serde_json::to_vec(&self).unwrap());
-    }
-}
-
 /// Union type for representing a single value or a vector of values inside a filter
 #[derive(Debug, PartialEq, Eq, Clone, Hash)]
 pub enum ValueOrArray<T> {
@@ -636,7 +629,7 @@ where
 
 // https://github.com/paradigmxyz/reth/blob/main/crates/rpc/rpc/src/eth/logs_utils.rs#L56
 /// Returns true if the log matches the filter and should be included
-pub(crate) fn log_matches_filter(
+pub fn log_matches_filter(
     log: &reth_primitives::Log,
     filter: &Filter,
     topics: &[FilterSet<B256>; 4],

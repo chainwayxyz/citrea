@@ -1408,7 +1408,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     /// Returns an error if:
     ///  - underlying database error
     ///  - amount of matches exceeds configured limit
-    fn get_logs_in_block_range(
+    pub fn get_logs_in_block_range(
         &self,
         working_set: &mut WorkingSet<C>,
         filter: &Filter,

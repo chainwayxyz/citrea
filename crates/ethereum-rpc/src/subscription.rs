@@ -1,15 +1,12 @@
-use std::collections::HashMap;
-use std::sync::Arc;
-
-use citrea_evm::{Evm, Filter, LogResponse};
+use citrea_evm::{log_matches_filter, Evm, Filter, LogResponse};
 use jsonrpsee::{SubscriptionMessage, SubscriptionSink};
 use reth_rpc_types::{BlockNumberOrTag, RichBlock};
 use sov_modules_api::WorkingSet;
-use tokio::sync::{broadcast, Mutex};
+use tokio::sync::broadcast;
 
 pub(crate) struct SubscriptionManager {
     new_heads_tx: broadcast::Sender<RichBlock>,
-    logs_tx_by_filter: Arc<Mutex<HashMap<Filter, broadcast::Sender<Vec<LogResponse>>>>>,
+    logs_tx: broadcast::Sender<Vec<LogResponse>>,
 }
 
 impl SubscriptionManager {
@@ -18,10 +15,10 @@ impl SubscriptionManager {
         soft_confirmation_rx: broadcast::Receiver<u64>,
     ) -> Self {
         let new_heads_tx = broadcast::channel(16).0;
-        let logs_tx_by_filter = Arc::new(Mutex::new(HashMap::new()));
+        let logs_tx = broadcast::channel(16).0;
         let manager = Self {
             new_heads_tx: new_heads_tx.clone(),
-            logs_tx_by_filter: logs_tx_by_filter.clone(),
+            logs_tx: logs_tx.clone(),
         };
 
         let mut soft_confirmation_rx = soft_confirmation_rx;
@@ -34,31 +31,35 @@ impl SubscriptionManager {
                     return;
                 };
 
-                {
-                    let logs_tx_by_filter = logs_tx_by_filter.lock().await;
-                    if new_heads_tx.receiver_count() == 0 && logs_tx_by_filter.is_empty() {
-                        continue;
-                    }
+                let mut working_set = None;
+
+                if new_heads_tx.receiver_count() != 0 {
+                    working_set = Some(WorkingSet::<C>::new(storage.clone()));
+                    let block = evm
+                        .get_block_by_number(
+                            Some(BlockNumberOrTag::Number(height)),
+                            None,
+                            working_set.as_mut().unwrap(),
+                        )
+                        .expect("Error querying block from evm")
+                        .expect("Received signal but evm block is not found");
+
+                    // Only possible error is no receiver
+                    let _ = new_heads_tx.send(block.clone());
                 }
 
-                let block_number = BlockNumberOrTag::Number(height);
+                if logs_tx.receiver_count() != 0 {
+                    let mut working_set =
+                        working_set.unwrap_or_else(|| WorkingSet::<C>::new(storage.clone()));
+                    let logs = evm
+                        .get_logs_in_block_range(
+                            &mut working_set,
+                            &Filter::default(),
+                            height,
+                            height,
+                        )
+                        .expect("Error getting logs in block range");
 
-                let mut working_set = WorkingSet::<C>::new(storage.clone());
-                let block = evm
-                    .get_block_by_number(Some(block_number), None, &mut working_set)
-                    .expect("Error querying block from evm")
-                    .expect("Received signal but evm block is not found");
-
-                // Only possible error is no receiver
-                let _ = new_heads_tx.send(block.clone());
-
-                // Prune filters that have no subscriptions
-                let mut logs_tx_by_filter = logs_tx_by_filter.lock().await;
-                logs_tx_by_filter.retain(|_, tx| tx.receiver_count() != 0);
-                let logs_tx_by_filter = logs_tx_by_filter.clone();
-
-                for (filter, logs_tx) in logs_tx_by_filter.iter() {
-                    let logs = evm.eth_get_logs(filter.clone(), &mut working_set).unwrap();
                     // Only possible error is no receiver
                     let _ = logs_tx.send(logs);
                 }
@@ -72,15 +73,8 @@ impl SubscriptionManager {
         self.new_heads_tx.subscribe()
     }
 
-    pub(crate) async fn subscribe_logs(
-        &self,
-        filter: Filter,
-    ) -> broadcast::Receiver<Vec<LogResponse>> {
-        let mut logs_tx_by_filter = self.logs_tx_by_filter.lock().await;
-        let tx = logs_tx_by_filter
-            .entry(filter)
-            .or_insert_with(|| broadcast::channel(8).0);
-        tx.subscribe()
+    pub(crate) async fn subscribe_logs(&self) -> broadcast::Receiver<Vec<LogResponse>> {
+        self.logs_tx.subscribe()
     }
 }
 
@@ -112,6 +106,7 @@ pub async fn handle_new_heads_subscription(
 pub async fn handle_logs_subscription(
     subscription: SubscriptionSink,
     mut rx: broadcast::Receiver<Vec<LogResponse>>,
+    filter: Filter,
 ) {
     tokio::spawn(async move {
         loop {
@@ -121,16 +116,24 @@ pub async fn handle_logs_subscription(
             };
 
             for log in logs {
-                let msg = SubscriptionMessage::new(
-                    subscription.method_name(),
-                    subscription.subscription_id(),
-                    &log,
-                )
-                .unwrap();
-                let Ok(_) = subscription.send(msg).await else {
-                    // Connection closed
-                    return;
-                };
+                if log_matches_filter(
+                    &log.clone().try_into().unwrap(),
+                    &filter,
+                    &filter.topics,
+                    log.block_hash.as_ref().unwrap(),
+                    &log.block_number.as_ref().unwrap().to::<u64>(),
+                ) {
+                    let msg = SubscriptionMessage::new(
+                        subscription.method_name(),
+                        subscription.subscription_id(),
+                        &log,
+                    )
+                    .unwrap();
+                    let Ok(_) = subscription.send(msg).await else {
+                        // Connection closed
+                        return;
+                    };
+                }
             }
         }
     });
