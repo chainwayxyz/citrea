@@ -15,7 +15,7 @@ pub use caller_contract::CallerContract;
 pub use coinbase_contract::CoinbaseContract;
 pub use hive_contract::HiveContract;
 pub use infinite_loop_contract::InfiniteLoopContract;
-pub use logs_contract::LogsContract;
+pub use logs_contract::{AnotherLogEvent, LogEvent, LogsContract};
 pub use payable_contract::SimplePayableContract;
 pub use self_destructor_contract::SelfDestructorContract;
 pub use simple_storage_contract::SimpleStorageContract;

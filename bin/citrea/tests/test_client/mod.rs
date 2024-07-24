@@ -8,7 +8,7 @@ use alloy::providers::{PendingTransactionBuilder, Provider as AlloyProvider, Pro
 use alloy::rpc::types::eth::{Block, Transaction, TransactionReceipt, TransactionRequest};
 use alloy::signers::wallet::LocalWallet;
 use alloy::transports::http::{Http, HyperClient};
-use citrea_evm::LogResponse;
+use citrea_evm::{Filter, LogResponse};
 use ethereum_rpc::CitreaStatus;
 use jsonrpsee::core::client::{ClientT, SubscriptionClientT};
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
@@ -707,6 +707,30 @@ impl TestClient {
                     return;
                 };
                 tx.send(block).unwrap();
+            }
+        });
+
+        rx
+    }
+
+    pub(crate) async fn subscribe_logs(&self, filter: Filter) -> mpsc::Receiver<LogResponse> {
+        let (tx, rx) = mpsc::channel();
+        let mut subscription = self
+            .ws_client
+            .subscribe(
+                "eth_subscribe",
+                rpc_params!["logs", filter],
+                "eth_unsubscribe",
+            )
+            .await
+            .unwrap();
+
+        tokio::spawn(async move {
+            loop {
+                let Some(Ok(log)) = subscription.next().await else {
+                    return;
+                };
+                tx.send(log).unwrap();
             }
         });
 
