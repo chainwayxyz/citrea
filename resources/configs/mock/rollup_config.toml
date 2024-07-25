@@ -16,7 +16,7 @@ path = "resources/dbs/full-node-db"
 bind_host = "127.0.0.1"
 bind_port = 12346
 enable_subscriptions = true
-max_subscription_connections = 2000
+max_subscriptions_per_connection = 100
 
 [runner]
 include_tx_body = false

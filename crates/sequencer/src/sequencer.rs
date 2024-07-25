@@ -202,6 +202,7 @@ where
         );
 
         let max_connections = self.rpc_config.max_connections;
+        let max_subscriptions_per_connection = self.rpc_config.max_subscriptions_per_connection;
         let max_request_body_size = self.rpc_config.max_request_body_size;
         let max_response_body_size = self.rpc_config.max_response_body_size;
         let batch_requests_limit = self.rpc_config.batch_requests_limit;
@@ -215,6 +216,7 @@ where
         let _handle = tokio::spawn(async move {
             let server = ServerBuilder::default()
                 .max_connections(max_connections)
+                .max_subscriptions_per_connection(max_subscriptions_per_connection)
                 .max_request_body_size(max_request_body_size)
                 .max_response_body_size(max_response_body_size)
                 .set_batch_request_config(BatchRequestConfig::Limit(batch_requests_limit))

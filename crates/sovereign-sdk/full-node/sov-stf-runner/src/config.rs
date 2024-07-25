@@ -43,8 +43,8 @@ pub struct RpcConfig {
     #[serde(default = "default_enable_subscriptions")]
     pub enable_subscriptions: bool,
     /// Maximum number of subscription connections
-    #[serde(default = "default_max_subscription_connections")]
-    pub max_subscription_connections: u32,
+    #[serde(default = "default_max_subscriptions_per_connection")]
+    pub max_subscriptions_per_connection: u32,
 }
 
 #[inline]
@@ -78,7 +78,7 @@ const fn default_enable_subscriptions() -> bool {
 }
 
 #[inline]
-const fn default_max_subscription_connections() -> u32 {
+const fn default_max_subscriptions_per_connection() -> u32 {
     100
 }
 
@@ -187,7 +187,7 @@ mod tests {
             bind_port = 12345
             max_connections = 500
             enable_subscriptions = true
-            max_subscription_connections = 200
+            max_subscriptions_per_connection = 200
 
             [da]
             sender_address = "0000000000000000000000000000000000000000000000000000000000000000"
@@ -227,7 +227,7 @@ mod tests {
                 max_response_body_size: 10 * 1024 * 1024,
                 batch_requests_limit: 50,
                 enable_subscriptions: true,
-                max_subscription_connections: 200,
+                max_subscriptions_per_connection: 200,
             },
             public_keys: RollupPublicKeys {
                 sequencer_public_key: vec![0; 32],

@@ -170,10 +170,12 @@ where
         let listen_address = SocketAddr::new(bind_host, self.rpc_config.bind_port);
 
         let max_connections = self.rpc_config.max_connections;
+        let max_subscriptions_per_connection = self.rpc_config.max_subscriptions_per_connection;
 
         let _handle = tokio::spawn(async move {
             let server = jsonrpsee::server::ServerBuilder::default()
                 .max_connections(max_connections)
+                .max_subscriptions_per_connection(max_subscriptions_per_connection)
                 .build([listen_address].as_ref())
                 .await;
 

@@ -100,7 +100,7 @@ fn test_helper(
             max_response_body_size: 10 * 1024 * 1024,
             batch_requests_limit: 50,
             enable_subscriptions: true,
-            max_subscription_connections: 100,
+            max_subscriptions_per_connection: 100,
         };
 
         queries_test_runner(test_queries, rpc_config).await;
