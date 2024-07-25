@@ -16,7 +16,7 @@ path = "resources/dbs/full-node-db"
 bind_host = "0.0.0.0"
 bind_port = 8545
 disable_subscriptions = false
-max_subscription_connection = 2000
+max_subscription_connections = 2000
 
 [runner]
 sequencer_client_url = "http://0.0.0.0:8545"

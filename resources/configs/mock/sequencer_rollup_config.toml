@@ -17,4 +17,4 @@ bind_host = "127.0.0.1"
 bind_port = 12345
 max_connections = 10000
 disable_subscriptions = false
-max_subscription_connection = 2000
+max_subscription_connections = 2000
