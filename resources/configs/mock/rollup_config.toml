@@ -15,6 +15,8 @@ path = "resources/dbs/full-node-db"
 # the host and port to bind the rpc server for
 bind_host = "127.0.0.1"
 bind_port = 12346
+disable_subscriptions = false
+max_subscription_connection = 2000
 
 [runner]
 include_tx_body = false
