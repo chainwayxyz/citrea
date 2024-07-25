@@ -1772,6 +1772,7 @@ dependencies = [
  "hex",
  "humantime",
  "jsonrpsee",
+ "lazy_static",
  "log",
  "log-panics",
  "proptest",
