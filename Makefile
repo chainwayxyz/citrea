@@ -35,7 +35,7 @@ install-dev-tools:  ## Installs all necessary cargo helpers
 	cargo install cargo-udeps
 	cargo install flaky-finder
 	cargo install cargo-nextest --locked
-	cargo install cargo-binstall
+	cargo install --version 1.6.9 cargo-binstall
 	cargo binstall cargo-risczero
 ifeq ($(shell uname -ms), Darwin x86_64)
 	cargo risczero build-toolchain
@@ -110,3 +110,7 @@ pr:
 # Set genesis from system contract source files
 genesis:
 	$(MAKE) -C crates/evm/src/evm/system_contracts genesis
+
+# Set production genesis from system contract source files
+genesis-prod:
+	$(MAKE) -C crates/evm/src/evm/system_contracts genesis-prod

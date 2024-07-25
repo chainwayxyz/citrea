@@ -423,3 +423,29 @@ jobs:
           cd crates/evm/src/evm/system_contracts
           forge test -vvv
         id: test
+  check_genesis_files:
+    strategy:
+      fail-fast: true
+
+    name: Check Genesis Files
+    runs-on: ubicloud-standard-2
+    if: github.event.pull_request.draft == false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: Run check_genesis.sh
+        run: ./.github/scripts/check_genesis.sh
+        shell: bash
+

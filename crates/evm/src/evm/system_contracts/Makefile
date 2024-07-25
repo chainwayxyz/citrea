@@ -6,3 +6,6 @@ help: ## Display this help message
 # Set genesis from system contract source files
 genesis:
 	forge script script/GenesisGenerator.s.sol:GenesisGenerator --ffi
+
+genesis-prod:
+	forge script script/GenesisGenerator.s.sol:GenesisGenerator --ffi --sig "runProd()"

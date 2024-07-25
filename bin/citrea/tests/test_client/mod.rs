@@ -9,9 +9,10 @@ use alloy::signers::wallet::LocalWallet;
 use alloy::transports::http::{Http, HyperClient};
 use citrea_evm::LogResponse;
 use ethereum_rpc::CitreaStatus;
-use jsonrpsee::core::client::ClientT;
+use jsonrpsee::core::client::{ClientT, SubscriptionClientT};
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use jsonrpsee::rpc_params;
+use jsonrpsee::ws_client::{PingConfig, WsClient, WsClientBuilder};
 use reth_primitives::{Address, BlockId, BlockNumberOrTag, Bytes, TxHash, TxKind, B256, U256, U64};
 // use reth_rpc_types::TransactionReceipt;
 use reth_rpc_types::trace::geth::{GethDebugTracingOptions, GethTrace};
@@ -29,6 +30,7 @@ pub struct TestClient {
     //client: SignerMiddleware<Provider<Http>, LocalWallet>,
     client: Box<dyn AlloyProvider<Http<HyperClient>>>,
     http_client: HttpClient,
+    ws_client: WsClient,
     current_nonce: AtomicU64,
     pub(crate) rpc_addr: std::net::SocketAddr,
 }
@@ -40,24 +42,32 @@ impl TestClient {
         from_addr: Address,
         rpc_addr: std::net::SocketAddr,
     ) -> Self {
-        let host = format!("http://localhost:{}", rpc_addr.port());
+        let http_host = format!("http://localhost:{}", rpc_addr.port());
+        let ws_host = format!("ws://localhost:{}", rpc_addr.port());
 
         let provider = ProviderBuilder::new()
             // .with_recommended_fillers()
             .with_chain_id(chain_id)
             .signer(EthereumSigner::from(key))
-            .on_hyper_http(host.parse().unwrap());
+            .on_hyper_http(http_host.parse().unwrap());
         let client: Box<dyn AlloyProvider<Http<HyperClient>>> = Box::new(provider);
 
         let http_client = HttpClientBuilder::default()
             .request_timeout(Duration::from_secs(120))
-            .build(host)
+            .build(http_host)
+            .unwrap();
+
+        let ws_client = WsClientBuilder::default()
+            .enable_ws_ping(PingConfig::default().inactive_limit(Duration::from_secs(10)))
+            .build(ws_host)
+            .await
             .unwrap();
 
         let client = Self {
             chain_id,
             from_addr,
             client,
+            ws_client,
             http_client,
             current_nonce: AtomicU64::new(0),
             rpc_addr,
@@ -646,6 +656,39 @@ impl TestClient {
             .request("debug_traceBlockByHash", rpc_params![block_hash, opts])
             .await
             .unwrap()
+    }
+
+    pub(crate) async fn debug_trace_chain(
+        &self,
+        start_block: BlockNumberOrTag,
+        end_block: BlockNumberOrTag,
+        opts: Option<GethDebugTracingOptions>,
+    ) -> Vec<GethTrace> {
+        let mut subscription = self
+            .ws_client
+            .subscribe(
+                "debug_subscribe",
+                rpc_params!["traceChain", start_block, end_block, opts],
+                "debug_unsubscribe",
+            )
+            .await
+            .unwrap();
+
+        let BlockNumberOrTag::Number(start_block) = start_block else {
+            panic!("Only numbers for start block");
+        };
+        let end_block = match end_block {
+            BlockNumberOrTag::Number(b) => b,
+            BlockNumberOrTag::Latest => self.eth_block_number().await,
+            _ => panic!("Only number and latest"),
+        };
+        let mut traces: Vec<Vec<GethTrace>> = vec![];
+        for _ in start_block..end_block {
+            let block_traces = subscription.next().await.unwrap().unwrap();
+            traces.push(block_traces);
+        }
+
+        traces.into_iter().flatten().collect()
     }
 
     pub(crate) async fn eth_block_number(&self) -> u64 {

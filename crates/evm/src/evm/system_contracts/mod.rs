@@ -150,4 +150,18 @@ impl ProxyAdmin {
         .abi_encode()
         .into()
     }
+
+    /// Return data to transfer ownership.
+    pub fn transfer_ownership(new_owner: Address) -> Bytes {
+        ProxyAdminContract::transferOwnershipCall {
+            newOwner: new_owner,
+        }
+        .abi_encode()
+        .into()
+    }
+
+    /// Return data to query the owner.
+    pub fn owner() -> Bytes {
+        ProxyAdminContract::ownerCall {}.abi_encode().into()
+    }
 }
