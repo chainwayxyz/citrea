@@ -451,9 +451,16 @@ impl JmtNodeKeyHash {
 
 impl From<&NodeKey> for JmtNodeKeyHash {
     fn from(node_key: &NodeKey) -> Self {
-        let mut out = vec![];
-        let _ = BorshSerialize::serialize(&node_key, &mut out);
+        let nibble_path = borsh::to_vec(node_key.nibble_path()).expect("Should work");
+        let key_hash = KeyHash(
+            nibble_path[8..]
+                .try_into()
+                .expect("Nibble path should be there"),
+        );
 
-        Self::from_vec(&out, node_key.version())
+        Self {
+            key: key_hash.0,
+            version: node_key.version(),
+        }
     }
 }
