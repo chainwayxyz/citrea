@@ -1483,7 +1483,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
         // TAG - true when the log was removed, due to a chain reorganization. false if its a valid log.
         let removed = false;
 
-        let topics = filter.topics.clone();
         let tx_range = block.transactions;
 
         for i in tx_range {
@@ -1498,13 +1497,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             let logs = receipt.receipt.logs;
 
             for log in logs.into_iter() {
-                if log_matches_filter(
-                    &log,
-                    filter,
-                    &topics,
-                    &block.header.hash(),
-                    &block.header.number,
-                ) {
+                if log_matches_filter(&log, filter, &block.header.hash(), &block.header.number) {
                     let log = LogResponse {
                         address: log.address,
                         topics: log.topics().to_vec(),

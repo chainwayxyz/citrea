@@ -632,13 +632,12 @@ where
 pub fn log_matches_filter(
     log: &reth_primitives::Log,
     filter: &Filter,
-    topics: &[FilterSet<B256>; 4],
     block_hash: &BlockHash,
     block_number: &u64,
 ) -> bool {
     if !filter.filter_block_range(block_number)
         || !filter.filter_block_hash(block_hash)
-        || !filter.filter_topics(log, topics)
+        || !filter.filter_topics(log, &filter.topics)
         || !filter.filter_address(log, &filter.address)
     {
         return false;

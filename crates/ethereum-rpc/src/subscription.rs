@@ -119,7 +119,6 @@ pub async fn handle_logs_subscription(
                 if log_matches_filter(
                     &log.clone().try_into().unwrap(),
                     &filter,
-                    &filter.topics,
                     log.block_hash.as_ref().unwrap(),
                     &log.block_number.as_ref().unwrap().to::<u64>(),
                 ) {
