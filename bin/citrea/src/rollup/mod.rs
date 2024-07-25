@@ -46,7 +46,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
 
         let (soft_confirmation_tx, soft_confirmation_rx) = broadcast::channel(10);
         // If subscriptions disabled, pass None
-        let soft_confirmation_rx = if !rollup_config.rpc.disable_subscriptions {
+        let soft_confirmation_rx = if rollup_config.rpc.enable_subscriptions {
             Some(soft_confirmation_rx)
         } else {
             None
@@ -126,7 +126,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let runner_config = rollup_config.runner.expect("Runner config is missing");
         let (soft_confirmation_tx, soft_confirmation_rx) = broadcast::channel(10);
         // If subscriptions disabled, pass None
-        let soft_confirmation_rx = if !rollup_config.rpc.disable_subscriptions {
+        let soft_confirmation_rx = if rollup_config.rpc.enable_subscriptions {
             Some(soft_confirmation_rx)
         } else {
             None
@@ -212,7 +212,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
 
         let (soft_confirmation_tx, soft_confirmation_rx) = broadcast::channel(10);
         // If subscriptions disabled, pass None
-        let soft_confirmation_rx = if !rollup_config.rpc.disable_subscriptions {
+        let soft_confirmation_rx = if rollup_config.rpc.enable_subscriptions {
             Some(soft_confirmation_rx)
         } else {
             None
