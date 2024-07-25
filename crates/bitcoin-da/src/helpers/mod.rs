@@ -17,6 +17,8 @@ impl<'a> TransactionHeader<'a> {
     fn to_bytes(&self) -> Vec<u8> {
         let kind = match self.kind {
             TransactionKind::Complete => 0u16.to_le_bytes(),
+            TransactionKind::Chunked => 1u16.to_le_bytes(),
+            TransactionKind::ChunkedPart => 2u16.to_le_bytes(),
             TransactionKind::Unknown(v) => v.get().to_le_bytes(),
         };
         let mut result = vec![];
@@ -36,6 +38,8 @@ impl<'a> TransactionHeader<'a> {
         kind_bytes.copy_from_slice(kind_slice);
         let kind = match u16::from_le_bytes(kind_bytes) {
             0 => TransactionKind::Complete,
+            1 => TransactionKind::Chunked,
+            2 => TransactionKind::ChunkedPart,
             n => TransactionKind::Unknown(NonZeroU16::new(n).expect("Is not zero")),
         };
         Some(Self { rollup_name, kind })
@@ -47,5 +51,9 @@ impl<'a> TransactionHeader<'a> {
 enum TransactionKind {
     /// This type of transaction includes full body (< 400kb)
     Complete = 0,
+    /// This type of transaction includes txids of chunks (>= 400kb)
+    Chunked = 1,
+    /// This type of transaction includes chunk parts of body (>= 400kb)
+    ChunkedPart = 2,
     Unknown(NonZeroU16),
 }

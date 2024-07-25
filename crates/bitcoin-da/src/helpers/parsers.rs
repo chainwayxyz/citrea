@@ -7,7 +7,7 @@ use bitcoin::opcodes::all::{OP_CHECKSIG, OP_DROP};
 use bitcoin::script::Instruction::{Op, PushBytes};
 use bitcoin::script::{Error as ScriptError, PushBytes as StructPushBytes};
 use bitcoin::secp256k1::{ecdsa, Message, Secp256k1};
-use bitcoin::{secp256k1, Opcode, Script, Transaction};
+use bitcoin::{secp256k1, Opcode, Script, Transaction, Txid};
 use thiserror::Error;
 
 use super::{TransactionHeader, TransactionKind};
@@ -17,6 +17,18 @@ pub struct ParsedInscription {
     pub body: Vec<u8>,
     pub signature: Vec<u8>,
     pub public_key: Vec<u8>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ParsedChunked {
+    pub txids: Vec<Txid>,
+    pub signature: Vec<u8>,
+    pub public_key: Vec<u8>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ParsedChunkedPart {
+    pub body: Vec<u8>,
 }
 
 impl ParsedInscription {
@@ -104,6 +116,14 @@ fn parse_relevant_inscriptions(
     // Parse transaction body according to type
     match header.kind {
         TransactionKind::Complete => parse_type_0_body(instructions),
+        TransactionKind::Chunked => {
+            let _body = parse_type_1_body(instructions)?;
+            Err(ParserError::InvalidHeaderType(NonZeroU16::new(1).unwrap())) // FIXME
+        }
+        TransactionKind::ChunkedPart => {
+            let _body = parse_type_2_body(instructions)?;
+            Err(ParserError::InvalidHeaderType(NonZeroU16::new(2).unwrap())) // FIXME
+        }
         TransactionKind::Unknown(n) => Err(ParserError::InvalidHeaderType(n)),
     }
 }
@@ -199,6 +219,116 @@ fn parse_type_0_body(
         signature,
         public_key,
     })
+}
+
+// Parse transaction body of Type1
+fn parse_type_1_body(
+    instructions: &mut dyn Iterator<Item = Result<Instruction<'_>, ParserError>>,
+) -> Result<ParsedChunked, ParserError> {
+    // PushBytes(XOnlyPublicKey)
+    let _public_key = read_push_bytes(instructions)?;
+    if OP_CHECKSIG != read_opcode(instructions)? {
+        return Err(ParserError::UnexpectedOpcode);
+    }
+
+    let op_false = read_push_bytes(instructions)?;
+    if !op_false.is_empty() {
+        return Err(ParserError::UnexpectedOpcode);
+    }
+
+    if OP_IF != read_opcode(instructions)? {
+        return Err(ParserError::UnexpectedOpcode);
+    }
+
+    let signature = read_push_bytes(instructions)?;
+    let public_key = read_push_bytes(instructions)?;
+
+    let mut txids = vec![];
+
+    loop {
+        let instr = read_instr(instructions)?;
+        match instr {
+            PushBytes(chunk) => match Txid::from_slice(chunk.as_bytes()) {
+                Ok(id) => txids.push(id),
+                Err(_) => return Err(ParserError::UnexpectedOpcode),
+            },
+            Op(OP_ENDIF) => break,
+            Op(_) => return Err(ParserError::UnexpectedOpcode),
+        }
+    }
+
+    // Nonce
+    let _nonce = read_push_bytes(instructions)?;
+    if OP_DROP != read_opcode(instructions)? {
+        return Err(ParserError::UnexpectedOpcode);
+    }
+    // END of transaction
+    if instructions.next().is_some() {
+        return Err(ParserError::UnexpectedOpcode);
+    }
+
+    let signature = signature.as_bytes().to_vec();
+    let public_key = public_key.as_bytes().to_vec();
+
+    Ok(ParsedChunked {
+        txids,
+        signature,
+        public_key,
+    })
+}
+
+// Parse transaction body of Type2
+fn parse_type_2_body(
+    instructions: &mut dyn Iterator<Item = Result<Instruction<'_>, ParserError>>,
+) -> Result<ParsedChunkedPart, ParserError> {
+    // PushBytes(XOnlyPublicKey)
+    let _public_key = read_push_bytes(instructions)?;
+    if OP_CHECKSIG != read_opcode(instructions)? {
+        return Err(ParserError::UnexpectedOpcode);
+    }
+
+    let op_false = read_push_bytes(instructions)?;
+    if !op_false.is_empty() {
+        return Err(ParserError::UnexpectedOpcode);
+    }
+
+    if OP_IF != read_opcode(instructions)? {
+        return Err(ParserError::UnexpectedOpcode);
+    }
+
+    let mut chunks = vec![];
+
+    loop {
+        let instr = read_instr(instructions)?;
+        match instr {
+            PushBytes(chunk) => {
+                if chunk.is_empty() {
+                    return Err(ParserError::UnexpectedOpcode);
+                }
+                chunks.push(chunk)
+            }
+            Op(OP_ENDIF) => break,
+            Op(_) => return Err(ParserError::UnexpectedOpcode),
+        }
+    }
+
+    // Nonce
+    let _nonce = read_push_bytes(instructions)?;
+    if OP_DROP != read_opcode(instructions)? {
+        return Err(ParserError::UnexpectedOpcode);
+    }
+    // END of transaction
+    if instructions.next().is_some() {
+        return Err(ParserError::UnexpectedOpcode);
+    }
+
+    let body_size: usize = chunks.iter().map(|c| c.len()).sum();
+    let mut body = Vec::with_capacity(body_size);
+    for chunk in chunks {
+        body.extend_from_slice(chunk.as_bytes());
+    }
+
+    Ok(ParsedChunkedPart { body })
 }
 
 #[cfg(any(feature = "native", test))]
