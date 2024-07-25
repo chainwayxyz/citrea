@@ -31,15 +31,13 @@ impl SubscriptionManager {
                     return;
                 };
 
-                let mut working_set = None;
-
                 if new_heads_tx.receiver_count() != 0 {
-                    working_set = Some(WorkingSet::<C>::new(storage.clone()));
+                    let mut working_set = WorkingSet::<C>::new(storage.clone());
                     let block = evm
                         .get_block_by_number(
                             Some(BlockNumberOrTag::Number(height)),
                             None,
-                            working_set.as_mut().unwrap(),
+                            &mut working_set,
                         )
                         .expect("Error querying block from evm")
                         .expect("Received signal but evm block is not found");
@@ -49,8 +47,7 @@ impl SubscriptionManager {
                 }
 
                 if logs_tx.receiver_count() != 0 {
-                    let mut working_set =
-                        working_set.unwrap_or_else(|| WorkingSet::<C>::new(storage.clone()));
+                    let mut working_set = WorkingSet::<C>::new(storage.clone());
                     let logs = evm
                         .get_logs_in_block_range(
                             &mut working_set,
