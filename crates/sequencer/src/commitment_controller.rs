@@ -19,8 +19,8 @@ pub struct CommitmentInfo {
 /// Returns none if the commitable L2 block range is shorter than `min_soft_confirmations_per_commitment`
 /// Returns `CommitmentInfo` if the sequencer should commit
 #[instrument(level = "debug", skip_all, fields(prev_l1_height), err)]
-pub fn get_commitment_info(
-    ledger_db: &impl SequencerLedgerOps,
+pub fn get_commitment_info<T: SequencerLedgerOps>(
+    ledger_db: &T,
     min_soft_confirmations_per_commitment: u64,
     state_diff_threshold_reached: bool,
 ) -> anyhow::Result<Option<CommitmentInfo>> {
