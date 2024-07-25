@@ -20,6 +20,8 @@ path = "resources/dbs/full-node-db"
 # the host and port to bind the rpc server for
 bind_host = "0.0.0.0"
 bind_port = 12346
+enable_subscriptions = true
+max_subscriptions_per_connection = 100
 
 [runner]
 sequencer_client_url = "https://rpc.devnet.citrea.xyz"

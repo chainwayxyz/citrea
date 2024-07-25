@@ -1,13 +1,14 @@
-use alloy_sol_types::{sol, SolCall};
+use alloy_sol_types::{sol, SolCall, SolEvent};
 
 use super::TestContract;
 
-// Logs wrapper.
 sol! {
     #[sol(abi)]
     Logs,
     "./src/evm/test_data/Logs.abi"
 }
+
+pub use Logs::{AnotherLog as AnotherLogEvent, Log as LogEvent};
 
 /// Logs wrapper.
 pub struct LogsContract {
@@ -38,5 +39,19 @@ impl LogsContract {
             _senderMessage: message,
         }
         .abi_encode()
+    }
+
+    /// Decode Log event of the Logs smart contract.
+    pub fn decode_log_event(
+        log: &alloy_primitives::Log,
+    ) -> anyhow::Result<alloy_primitives::Log<Logs::Log>> {
+        Ok(Logs::Log::decode_log(log, true)?)
+    }
+
+    /// Decode AnotherLog event of the Logs smart contract.
+    pub fn decode_another_log_event(
+        log: &alloy_primitives::Log,
+    ) -> anyhow::Result<alloy_primitives::Log<Logs::AnotherLog>> {
+        Ok(Logs::AnotherLog::decode_log(log, true)?)
     }
 }

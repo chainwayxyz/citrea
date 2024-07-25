@@ -8,6 +8,7 @@ use sov_rollup_interface::services::da::SlotData;
 use sov_rollup_interface::stf::{BatchReceipt, Event, SoftBatchReceipt, StateDiff};
 use sov_rollup_interface::zk::Proof;
 use sov_schema_db::{Schema, SchemaBatch, SeekKeyEncoder, DB};
+use tokio::sync::broadcast;
 use tracing::instrument;
 
 use crate::rocks_db_config::gen_rocksdb_options;
@@ -37,7 +38,7 @@ pub struct LedgerDB {
     /// requires transactions to be executed before being committed.
     db: Arc<DB>,
     next_item_numbers: Arc<Mutex<ItemNumbers>>,
-    slot_subscriptions: tokio::sync::broadcast::Sender<u64>,
+    slot_subscriptions: broadcast::Sender<u64>,
 }
 
 /// A SlotNumber, BatchNumber, TxNumber, and EventNumber which are grouped together, typically representing
@@ -123,7 +124,7 @@ impl LedgerDB {
         Ok(Self {
             db: Arc::new(inner),
             next_item_numbers: Arc::new(Mutex::new(next_item_numbers)),
-            slot_subscriptions: tokio::sync::broadcast::channel(10).0,
+            slot_subscriptions: broadcast::channel(10).0,
         })
     }
 

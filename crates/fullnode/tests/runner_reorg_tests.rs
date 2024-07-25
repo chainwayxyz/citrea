@@ -19,6 +19,7 @@ use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_state::storage::NativeStorage;
 use sov_state::{ProverStorage, Storage};
+use tokio::sync::broadcast;
 
 type MockInitVariant =
     InitVariant<HashStf<MockValidityCond>, MockZkvm<MockValidityCond>, MockDaSpec>;
@@ -129,6 +130,8 @@ async fn runner_execution(
             max_request_body_size: 10 * 1024 * 1024,
             max_response_body_size: 10 * 1024 * 1024,
             batch_requests_limit: 50,
+            enable_subscriptions: true,
+            max_subscriptions_per_connection: 100,
         },
         runner: Some(RunnerConfig {
             sequencer_client_url: "http://127.0.0.1:4444".to_string(),
@@ -167,6 +170,7 @@ async fn runner_execution(
         init_variant,
         MockCodeCommitment([1u8; 32]),
         10,
+        broadcast::channel(1).0,
     )
     .unwrap();
 
