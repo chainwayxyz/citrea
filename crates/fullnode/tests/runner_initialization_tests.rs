@@ -72,6 +72,8 @@ fn initialize_runner(
             max_request_body_size: 10 * 1024 * 1024,
             max_response_body_size: 10 * 1024 * 1024,
             batch_requests_limit: 50,
+            disable_subscriptions: false,
+            max_subscription_connections: 100,
         },
         runner: Some(RunnerConfig {
             sequencer_client_url: "http://127.0.0.1:4444".to_string(),

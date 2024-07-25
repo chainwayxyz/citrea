@@ -39,6 +39,12 @@ pub struct RpcConfig {
     /// Maximum number of batch requests
     #[serde(default = "default_batch_requests_limit")]
     pub batch_requests_limit: u32,
+    /// Disable subscription RPCs
+    #[serde(default = "default_disable_subscriptions")]
+    pub disable_subscriptions: bool,
+    /// Maximum number of subscription connections
+    #[serde(default = "default_max_subscription_connections")]
+    pub max_subscription_connections: u32,
 }
 
 #[inline]
@@ -64,6 +70,16 @@ const fn default_batch_requests_limit() -> u32 {
 #[inline]
 const fn default_sync_blocks_count() -> u64 {
     10
+}
+
+#[inline]
+const fn default_disable_subscriptions() -> bool {
+    false
+}
+
+#[inline]
+const fn default_max_subscription_connections() -> u32 {
+    100
 }
 
 /// Simple storage configuration
@@ -170,6 +186,8 @@ mod tests {
             bind_host = "127.0.0.1"
             bind_port = 12345
             max_connections = 500
+            disable_subscriptions = false
+            max_subscription_connections = 200
 
             [da]
             sender_address = "0000000000000000000000000000000000000000000000000000000000000000"
@@ -208,6 +226,8 @@ mod tests {
                 max_request_body_size: 10 * 1024 * 1024,
                 max_response_body_size: 10 * 1024 * 1024,
                 batch_requests_limit: 50,
+                disable_subscriptions: false,
+                max_subscription_connections: 200,
             },
             public_keys: RollupPublicKeys {
                 sequencer_public_key: vec![0; 32],
