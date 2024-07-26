@@ -11,7 +11,6 @@ import "bitcoin-spv/solidity/contracts/BTCUtils.sol";
 library WitnessUtils {
     using BytesLib for bytes;
     using BTCUtils for bytes;
-    using SafeMath for uint256;
 
     function calculateWtxId(
         bytes4 version,
@@ -63,9 +62,9 @@ library WitnessUtils {
     /// @return          The length of the witness in bytes
     function determineWitnessLengthAt(bytes memory _witness, uint256 _at) internal pure returns (uint256) {
         uint256 _varIntDataLen;
-        uint256 _nWits;
+        uint256 _nStackItems;
         
-        (_varIntDataLen, _nWits) = BTCUtils.parseVarIntAt(_witness, _at);
+        (_varIntDataLen, _nStackItems) = BTCUtils.parseVarIntAt(_witness, _at);
         if (_varIntDataLen == BTCUtils.ERR_BAD_ARG) {
             return BTCUtils.ERR_BAD_ARG;
         }
@@ -73,8 +72,8 @@ library WitnessUtils {
         uint256 _itemLen;
         uint256 _offset = 1 + _varIntDataLen;
 
-        for (uint256 i = 0; i < _nWits; i++) {
-            (_varIntDataLen, _itemLen) = BTCUtils.parseVarIntAt(_witness, _offset);
+        for (uint256 i = 0; i < _nStackItems; i++) {
+            (_varIntDataLen, _itemLen) = BTCUtils.parseVarIntAt(_witness, _at + _offset);
             if (_itemLen == BTCUtils.ERR_BAD_ARG) {
                 return BTCUtils.ERR_BAD_ARG;
             }

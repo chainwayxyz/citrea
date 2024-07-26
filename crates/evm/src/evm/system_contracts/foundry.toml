@@ -2,6 +2,7 @@
 src = "src"
 out = "out"
 libs = ["lib"]
+ffi = true
 # Following options strips the metadata from contracts, this is done to ensure a more stable compilation
 bytecode_hash = "none"
 cbor_metadata = false
