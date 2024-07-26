@@ -671,8 +671,6 @@ where
             }
         }
 
-        self.ledger_db.get_last_sequencer_commitment_l2_height()?;
-
         Ok(())
     }
 
