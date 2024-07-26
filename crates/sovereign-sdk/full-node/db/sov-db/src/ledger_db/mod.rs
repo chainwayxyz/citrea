@@ -704,6 +704,22 @@ impl SequencerLedgerOps for LedgerDB {
     fn get_last_sequencer_commitment_l2_height(&self) -> anyhow::Result<Option<BatchNumber>> {
         self.db.get::<LastSequencerCommitmentSent>(&())
     }
+
+    /// Get the most recent committed batch
+    /// Returns L1 height.
+    #[instrument(level = "trace", skip(self), err, ret)]
+    fn get_last_sequencer_commitment_l1_height(&self) -> anyhow::Result<Option<SlotNumber>> {
+        let l2_height = self.get_last_sequencer_commitment_l2_height()?;
+        match l2_height {
+            Some(l2_height) => {
+                let soft_confirmation = self
+                    .get_soft_batch_by_number(&l2_height)?
+                    .expect("Expected soft confirmation to exist");
+                Ok(Some(SlotNumber(soft_confirmation.da_slot_height)))
+            }
+            None => Ok(None),
+        }
+    }
 }
 
 impl NodeLedgerOps for LedgerDB {
