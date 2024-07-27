@@ -634,7 +634,7 @@ where
         let last_commitment_l1_height = self
             .ledger_db
             .get_last_sequencer_commitment_l1_height()?
-            .unwrap_or(SlotNumber(0));
+            .unwrap_or(SlotNumber(1));
         let mined_commitments = self
             .get_mined_commitments_from(last_commitment_l1_height)
             .await?;
