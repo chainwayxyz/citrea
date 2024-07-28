@@ -447,7 +447,7 @@ where
             let last_l2_height_of_l1 =
                 sequencer_commitments[sequencer_commitments.len() - 1].l2_end_block_number;
 
-            // If the L2 range does not exist, we break off the local loop getting back to to
+            // If the L2 range does not exist, we break off the local loop getting back to
             // the outer loop / select to make room for other tasks to run.
             // We retry the L1 block there as well.
             if !self.check_l2_range_exists(first_l2_height_of_l1, last_l2_height_of_l1) {
