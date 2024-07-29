@@ -1,5 +1,6 @@
 use core::fmt;
 use core::result::Result::Ok;
+use std::collections::HashSet;
 use std::fs::File;
 use std::io::{BufWriter, Write};
 
@@ -72,11 +73,12 @@ fn get_size(
     tx.vsize()
 }
 
+/// Return (chosen_utxos, sum(chosed.amount), leftover_utxos)
 fn choose_utxos(
     required_utxo: Option<UTXO>,
     utxos: &[UTXO],
     mut amount: u64,
-) -> Result<(Vec<UTXO>, u64), anyhow::Error> {
+) -> Result<(Vec<UTXO>, u64, Vec<UTXO>), anyhow::Error> {
     let mut chosen_utxos = vec![];
     let mut sum = 0;
 
@@ -87,7 +89,7 @@ fn choose_utxos(
         sum += req_amount;
     }
     if sum >= amount {
-        return Ok((chosen_utxos, sum));
+        return Ok((chosen_utxos, sum, utxos.to_vec()));
     } else {
         amount -= sum;
     }
@@ -103,8 +105,6 @@ fn choose_utxos(
         let utxo = bigger_utxos[0];
         sum += utxo.amount;
         chosen_utxos.push(utxo.clone());
-
-        Ok((chosen_utxos, sum))
     } else {
         let mut smaller_utxos: Vec<&UTXO> =
             utxos.iter().filter(|utxo| utxo.amount < amount).collect();
@@ -124,11 +124,17 @@ fn choose_utxos(
         if sum < amount {
             return Err(anyhow!("not enough UTXOs"));
         }
-
-        Ok((chosen_utxos, sum))
     }
+
+    let input_set: HashSet<_> = utxos.iter().collect();
+    let chosed_set: HashSet<_> = chosen_utxos.iter().collect();
+    let leftovers_set = input_set.difference(&chosed_set);
+    let leftovers: Vec<_> = leftovers_set.copied().cloned().collect();
+
+    Ok((chosen_utxos, sum, leftovers))
 }
 
+/// Return (tx, leftover_utxos)
 #[instrument(level = "trace", skip(utxos), err)]
 fn build_commit_transaction(
     prev_tx: Option<TxWithId>, // reuse outputs to add commit tx order
@@ -137,7 +143,7 @@ fn build_commit_transaction(
     change_address: Address,
     output_value: u64,
     fee_rate: f64,
-) -> Result<Transaction, anyhow::Error> {
+) -> Result<(Transaction, Vec<UTXO>), anyhow::Error> {
     // get single input single output transaction size
     let size = get_size(
         &[TxIn {
@@ -179,7 +185,7 @@ fn build_commit_transaction(
     let mut iteration = 0;
     let mut last_size = size;
 
-    let tx = loop {
+    let (leftover_utxos, tx) = loop {
         if iteration % 10 == 0 {
             trace!(iteration, "Trying to find commitment size");
             if iteration > 100 {
@@ -190,7 +196,8 @@ fn build_commit_transaction(
 
         let input_total = output_value + fee;
 
-        let (chosen_utxos, sum) = choose_utxos(required_utxo.clone(), &utxos, input_total)?;
+        let (chosen_utxos, sum, leftover_utxos) =
+            choose_utxos(required_utxo.clone(), &utxos, input_total)?;
         let has_change = (sum - input_total) >= REVEAL_OUTPUT_AMOUNT;
         let direct_return = !has_change;
 
@@ -226,30 +233,36 @@ fn build_commit_transaction(
             .collect();
 
         if direct_return {
-            break Transaction {
-                lock_time: LockTime::ZERO,
-                version: bitcoin::transaction::Version(2),
-                input: inputs,
-                output: outputs,
-            };
+            break (
+                leftover_utxos,
+                Transaction {
+                    lock_time: LockTime::ZERO,
+                    version: bitcoin::transaction::Version(2),
+                    input: inputs,
+                    output: outputs,
+                },
+            );
         }
 
         let size = get_size(&inputs, &outputs, None, None);
 
         if size == last_size {
-            break Transaction {
-                lock_time: LockTime::ZERO,
-                version: bitcoin::transaction::Version(2),
-                input: inputs,
-                output: outputs,
-            };
+            break (
+                leftover_utxos,
+                Transaction {
+                    lock_time: LockTime::ZERO,
+                    version: bitcoin::transaction::Version(2),
+                    input: inputs,
+                    output: outputs,
+                },
+            );
         }
 
         last_size = size;
         iteration += 1;
     };
 
-    Ok(tx)
+    Ok((tx, leftover_utxos))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -469,7 +482,8 @@ pub fn create_inscription_type_0(
             .ceil() as u64;
 
         // build commit tx
-        let unsigned_commit_tx = build_commit_transaction(
+        // we don't need leftover_utxos because they will be requested from bitcoind next call
+        let (unsigned_commit_tx, _leftover_utxos) = build_commit_transaction(
             prev_tx.clone(),
             utxos,
             commit_tx_address.clone(),
@@ -558,8 +572,8 @@ pub fn create_inscription_type_1(
     body: Vec<u8>,
     signature: Vec<u8>,
     signer_public_key: Vec<u8>,
-    prev_tx: Option<TxWithId>,
-    utxos: Vec<UTXO>,
+    mut prev_tx: Option<TxWithId>,
+    mut utxos: Vec<UTXO>,
     recipient: Address,
     reveal_value: u64,
     commit_fee_rate: f64,
@@ -572,7 +586,8 @@ pub fn create_inscription_type_1(
     let key_pair = UntweakedKeypair::new(&secp256k1, &mut rand::thread_rng());
     let (public_key, _parity) = XOnlyPublicKey::from_keypair(&key_pair);
 
-    let mut chunk_txs: Vec<TxWithId> = vec![]; // TODO
+    let mut commit_chunks: Vec<TxWithId> = vec![];
+    let mut reveal_chunks: Vec<TxWithId> = vec![];
 
     for body in body.chunks(400000) {
         let header = TransactionHeader {
@@ -597,8 +612,141 @@ pub fn create_inscription_type_1(
         // push end if
         let reveal_script = reveal_script_builder.push_opcode(OP_ENDIF).into_script();
 
-        // TODO
-        let _ = reveal_script;
+        // create spend info for tapscript
+        let taproot_spend_info = TaprootBuilder::new()
+            .add_leaf(0, reveal_script.clone())
+            .expect("Cannot add reveal script to taptree")
+            .finalize(&secp256k1, public_key)
+            .expect("Cannot finalize taptree");
+
+        // create control block for tapscript
+        let control_block = taproot_spend_info
+            .control_block(&(reveal_script.clone(), LeafVersion::TapScript))
+            .expect("Cannot create control block");
+
+        // create commit tx address
+        let commit_tx_address = Address::p2tr(
+            &secp256k1,
+            public_key,
+            taproot_spend_info.merkle_root(),
+            network,
+        );
+
+        let commit_value = (get_size(
+            &[TxIn {
+                previous_output: OutPoint {
+                    txid: Txid::from_byte_array([0; 32]),
+                    vout: 0,
+                },
+                script_sig: script::Builder::new().into_script(),
+                witness: Witness::new(),
+                sequence: Sequence::ENABLE_RBF_NO_LOCKTIME,
+            }],
+            &[TxOut {
+                script_pubkey: recipient.clone().script_pubkey(),
+                value: Amount::from_sat(reveal_value),
+            }],
+            Some(&reveal_script),
+            Some(&control_block),
+        ) as f64
+            * reveal_fee_rate
+            + reveal_value as f64)
+            .ceil() as u64;
+
+        // build commit tx
+        let (unsigned_commit_tx, leftover_utxos) = build_commit_transaction(
+            prev_tx.clone(),
+            utxos,
+            commit_tx_address.clone(),
+            recipient.clone(),
+            commit_value,
+            commit_fee_rate,
+        )?;
+
+        let output_to_reveal = unsigned_commit_tx.output[0].clone();
+
+        // If commit
+        let commit_change = if unsigned_commit_tx.output.len() > 1 {
+            Some(UTXO {
+                tx_id: unsigned_commit_tx.txid(),
+                vout: 1,
+                address: "ANY".into(),
+                script_pubkey: "ANY".into(),
+                amount: unsigned_commit_tx.output[1].value.to_sat(),
+                confirmations: 0,
+                spendable: true,
+                solvable: true,
+            })
+        } else {
+            None
+        };
+
+        let mut reveal_tx = build_reveal_transaction(
+            output_to_reveal.clone(),
+            unsigned_commit_tx.txid(),
+            0,
+            recipient.clone(),
+            reveal_value,
+            reveal_fee_rate,
+            &reveal_script,
+            &control_block,
+        )?;
+
+        // start signing reveal tx
+        let mut sighash_cache = SighashCache::new(&mut reveal_tx);
+
+        // create data to sign
+        let signature_hash = sighash_cache
+            .taproot_script_spend_signature_hash(
+                0,
+                &Prevouts::All(&[output_to_reveal]),
+                TapLeafHash::from_script(&reveal_script, LeafVersion::TapScript),
+                bitcoin::sighash::TapSighashType::Default,
+            )
+            .expect("Cannot create hash for signature");
+
+        // sign reveal tx data
+        let signature = secp256k1.sign_schnorr_with_rng(
+            &secp256k1::Message::from_digest_slice(signature_hash.as_byte_array())
+                .expect("should be cryptographically secure hash"),
+            &key_pair,
+            &mut rand::thread_rng(),
+        );
+
+        // add signature to witness and finalize reveal tx
+        let witness = sighash_cache.witness_mut(0).unwrap();
+        witness.push(signature.as_ref());
+        witness.push(reveal_script);
+        witness.push(&control_block.serialize());
+
+        // check if inscription locked to the correct address
+        let recovery_key_pair = key_pair.tap_tweak(&secp256k1, taproot_spend_info.merkle_root());
+        let (x_only_pub_key, _parity) = recovery_key_pair.to_inner().x_only_public_key();
+        assert_eq!(
+            Address::p2tr_tweaked(
+                TweakedPublicKey::dangerous_assume_tweaked(x_only_pub_key),
+                network,
+            ),
+            commit_tx_address
+        );
+
+        commit_chunks.push(TxWithId {
+            id: unsigned_commit_tx.txid(),
+            tx: unsigned_commit_tx,
+        });
+        reveal_chunks.push(TxWithId {
+            id: reveal_tx.txid(),
+            tx: reveal_tx,
+        });
+
+        // Replace utxos with leftovers so we don't use prev utxos in next chunks
+        utxos = leftover_utxos;
+        if let Some(change) = commit_change {
+            utxos.push(change);
+        }
+
+        // set prev tx to last reveal tx to chain txs in order
+        prev_tx = reveal_chunks.last().cloned();
     }
 
     let header = TransactionHeader {
@@ -619,7 +767,7 @@ pub fn create_inscription_type_1(
             PushBytesBuf::try_from(signer_public_key).expect("Cannot push sequencer public key"),
         );
     // push txids
-    for txid in &chunk_txs {
+    for txid in &reveal_chunks {
         reveal_script_builder = reveal_script_builder.push_slice(txid.id.as_byte_array());
     }
     // push end if
@@ -691,7 +839,7 @@ pub fn create_inscription_type_1(
             .ceil() as u64;
 
         // build commit tx
-        let unsigned_commit_tx = build_commit_transaction(
+        let (unsigned_commit_tx, _leftover_utxos) = build_commit_transaction(
             prev_tx.clone(),
             utxos,
             commit_tx_address.clone(),
@@ -758,7 +906,12 @@ pub fn create_inscription_type_1(
             );
 
             let mut res = vec![];
-            res.extend(chunk_txs);
+            // Push commit & reveal chunks in the correct order
+            for (commit, reveal) in commit_chunks.into_iter().zip(reveal_chunks) {
+                res.push(commit);
+                res.push(reveal);
+            }
+            // And push aggregated commit & reveal tx
             res.push(TxWithId {
                 id: unsigned_commit_tx.txid(),
                 tx: unsigned_commit_tx,
@@ -905,30 +1058,38 @@ mod tests {
     fn choose_utxos() {
         let (_, _, _, _, _, utxos) = get_mock_data();
 
-        let (chosen_utxos, sum) = super::choose_utxos(None, &utxos, 105_000).unwrap();
+        let (chosen_utxos, sum, leftover_utxos) =
+            super::choose_utxos(None, &utxos, 105_000).unwrap();
 
         assert_eq!(sum, 1_000_000);
         assert_eq!(chosen_utxos.len(), 1);
         assert_eq!(chosen_utxos[0], utxos[0]);
+        assert_eq!(leftover_utxos.len(), 2);
 
-        let (chosen_utxos, sum) = super::choose_utxos(None, &utxos, 1_005_000).unwrap();
+        let (chosen_utxos, sum, leftover_utxos) =
+            super::choose_utxos(None, &utxos, 1_005_000).unwrap();
 
         assert_eq!(sum, 1_100_000);
         assert_eq!(chosen_utxos.len(), 2);
         assert_eq!(chosen_utxos[0], utxos[0]);
         assert_eq!(chosen_utxos[1], utxos[1]);
+        assert_eq!(leftover_utxos.len(), 1);
 
-        let (chosen_utxos, sum) = super::choose_utxos(None, &utxos, 100_000).unwrap();
-
-        assert_eq!(sum, 100_000);
-        assert_eq!(chosen_utxos.len(), 1);
-        assert_eq!(chosen_utxos[0], utxos[1]);
-
-        let (chosen_utxos, sum) = super::choose_utxos(None, &utxos, 90_000).unwrap();
+        let (chosen_utxos, sum, leftover_utxos) =
+            super::choose_utxos(None, &utxos, 100_000).unwrap();
 
         assert_eq!(sum, 100_000);
         assert_eq!(chosen_utxos.len(), 1);
         assert_eq!(chosen_utxos[0], utxos[1]);
+        assert_eq!(leftover_utxos.len(), 2);
+
+        let (chosen_utxos, sum, leftover_utxos) =
+            super::choose_utxos(None, &utxos, 90_000).unwrap();
+
+        assert_eq!(sum, 100_000);
+        assert_eq!(chosen_utxos.len(), 1);
+        assert_eq!(chosen_utxos[0], utxos[1]);
+        assert_eq!(leftover_utxos.len(), 2);
 
         let res = super::choose_utxos(None, &utxos, 100_000_000);
 
@@ -945,7 +1106,7 @@ mod tests {
                 .unwrap()
                 .require_network(bitcoin::Network::Bitcoin)
                 .unwrap();
-        let mut tx = super::build_commit_transaction(
+        let (mut tx, leftover_utxos) = super::build_commit_transaction(
             None,
             utxos.clone(),
             recipient.clone(),
@@ -954,6 +1115,7 @@ mod tests {
             8.0,
         )
         .unwrap();
+        assert_eq!(leftover_utxos.len(), 2);
 
         tx.input[0].witness.push(
             Signature::from_slice(&[0; SCHNORR_SIGNATURE_SIZE])
@@ -973,7 +1135,7 @@ mod tests {
         assert_eq!(tx.output[1].value, Amount::from_sat(3_768));
         assert_eq!(tx.output[1].script_pubkey, address.script_pubkey());
 
-        let mut tx = super::build_commit_transaction(
+        let (mut tx, leftover_utxos) = super::build_commit_transaction(
             None,
             utxos.clone(),
             recipient.clone(),
@@ -982,6 +1144,7 @@ mod tests {
             45.0,
         )
         .unwrap();
+        assert_eq!(leftover_utxos.len(), 2);
 
         tx.input[0].witness.push(
             Signature::from_slice(&[0; SCHNORR_SIGNATURE_SIZE])
@@ -999,7 +1162,7 @@ mod tests {
         assert_eq!(tx.output[0].value, Amount::from_sat(5_000));
         assert_eq!(tx.output[0].script_pubkey, recipient.script_pubkey());
 
-        let mut tx = super::build_commit_transaction(
+        let (mut tx, leftover_utxos) = super::build_commit_transaction(
             None,
             utxos.clone(),
             recipient.clone(),
@@ -1008,6 +1171,7 @@ mod tests {
             32.0,
         )
         .unwrap();
+        assert_eq!(leftover_utxos.len(), 2);
 
         tx.input[0].witness.push(
             Signature::from_slice(&[0; SCHNORR_SIGNATURE_SIZE])
@@ -1030,7 +1194,7 @@ mod tests {
         assert_eq!(tx.output[0].value, Amount::from_sat(5_000));
         assert_eq!(tx.output[0].script_pubkey, recipient.script_pubkey());
 
-        let mut tx = super::build_commit_transaction(
+        let (mut tx, leftover_utxos) = super::build_commit_transaction(
             None,
             utxos.clone(),
             recipient.clone(),
@@ -1039,6 +1203,7 @@ mod tests {
             5.0,
         )
         .unwrap();
+        assert_eq!(leftover_utxos.len(), 1);
 
         tx.input[0].witness.push(
             Signature::from_slice(&[0; SCHNORR_SIGNATURE_SIZE])
@@ -1095,9 +1260,10 @@ mod tests {
                 solvable: true,
             })
             .collect();
-        let prev_utxo = utxos.clone().into_iter().chain(prev_utxos).collect();
+        let prev_utxo: Vec<_> = utxos.clone().into_iter().chain(prev_utxos).collect();
+        assert_eq!(prev_utxo.len(), 5);
 
-        let tx = super::build_commit_transaction(
+        let (tx, leftover_utxos) = super::build_commit_transaction(
             Some(super::TxWithId {
                 id: prev_tx_id,
                 tx: prev_tx,
@@ -1109,6 +1275,7 @@ mod tests {
             32.0,
         )
         .unwrap();
+        assert_eq!(leftover_utxos.len(), 4);
 
         assert_eq!(tx.input.len(), 1);
         assert_eq!(tx.input[0].previous_output.txid, prev_tx_id);
