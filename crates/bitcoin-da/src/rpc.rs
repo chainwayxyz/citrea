@@ -138,8 +138,7 @@ impl BitcoinNode {
 
     // get_block_hash returns the block hash of the block at the given height
     pub async fn get_block_hash(&self, height: u64) -> Result<BlockHash> {
-        self.call("getblockhash", vec![to_value(height)?])
-            .await
+        self.call("getblockhash", vec![to_value(height)?]).await
     }
 
     // get_best_blockhash returns the best blockhash of the chain
@@ -241,10 +240,7 @@ impl BitcoinNode {
     }
 
     // sign_raw_transaction_with_wallet signs a raw transaction with the wallet of bitcoind
-    pub async fn sign_raw_transaction_with_wallet(
-        &self,
-        tx: String,
-    ) -> Result<String> {
+    pub async fn sign_raw_transaction_with_wallet(&self, tx: String) -> Result<String> {
         let result = self
             .call::<Box<RawValue>>("signrawtransactionwithwallet", vec![to_value(tx)?])
             .await?
@@ -257,8 +253,7 @@ impl BitcoinNode {
 
     // send_raw_transaction sends a raw transaction to the network
     pub async fn send_raw_transaction(&self, tx: String) -> Result<Txid> {
-        self.call("sendrawtransaction", vec![to_value(tx)?])
-            .await
+        self.call("sendrawtransaction", vec![to_value(tx)?]).await
     }
 
     pub async fn list_wallets(&self) -> Result<Vec<String>> {
@@ -280,7 +275,6 @@ impl BitcoinNode {
 
     /// Get a raw transaction by its txid
     pub async fn get_raw_transaction(&self, txid: Txid) -> Result<String> {
-        self.call("getrawtransaction", vec![to_value(txid)?])
-            .await
+        self.call("getrawtransaction", vec![to_value(txid)?]).await
     }
 }
