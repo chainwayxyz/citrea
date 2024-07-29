@@ -168,7 +168,7 @@ impl BitcoinNode {
     // get_block returns the block at the given hash
     pub async fn get_block(&self, hash: BlockHash) -> Result<BitcoinBlock> {
         let result = self
-            .call::<Box<RawValue>>("getblock", vec![to_value(hash.clone())?, to_value(3)?])
+            .call::<Box<RawValue>>("getblock", vec![to_value(hash)?, to_value(3)?])
             .await?
             .to_string();
 

@@ -237,7 +237,7 @@ impl BitcoinService {
         let mut scanned_txids = HashSet::new();
 
         for utxo in pending_utxos.iter() {
-            let txid = utxo.txid.clone();
+            let txid = utxo.txid;
             // Check if tx is already in the pending transactions vector
             if scanned_txids.contains(&txid) {
                 continue;
@@ -245,7 +245,7 @@ impl BitcoinService {
 
             let raw_tx = self
                 .client
-                .get_raw_transaction(txid.clone())
+                .get_raw_transaction(txid)
                 .await
                 .expect("Transaction should exist with existing utxo");
             let parsed_tx = parse_hex_transaction(&raw_tx).expect("Rpc tx should be parsable");
