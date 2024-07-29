@@ -95,7 +95,7 @@ contract WitnessUtilsTest is Test {
         assertEq(thirdRandomWitness.length, WitnessUtils.determineWitnessLengthAt(randomWitness, firstRandomWitness.length + secondRandomWitness.length));
     }
     
-    // This is unusual because we are testing the determineWitnessLengthAt function to not work properly with a not proper witness
+    // This is unusual because we are testing the determineWitnessLengthAt function to not work properly with a not proper witness. But we decided to keep it to increase the testing quality.
     function testDetermineWitnessLengthAtError() public view {
         assertNotEq(badWitness1.length, WitnessUtils.determineWitnessLengthAt(badWitness1, 0));
     }
