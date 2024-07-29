@@ -134,30 +134,6 @@ impl LedgerDB {
         self.next_item_numbers.lock().unwrap().clone()
     }
 
-    /// Gets all slots with numbers `range.start` to `range.end`. If `range.end` is outside
-    /// the range of the database, the result will smaller than the requested range.
-    /// Note that this method blindly preallocates for the requested range, so it should not be exposed
-    /// directly via rpc.
-    #[instrument(level = "trace", skip(self), err)]
-    pub(crate) fn _get_slot_range(
-        &self,
-        range: &std::ops::Range<SlotNumber>,
-    ) -> Result<Vec<StoredSlot>, anyhow::Error> {
-        self.get_data_range::<SlotByNumber, _, _>(range)
-    }
-
-    /// Gets all batches with numbers `range.start` to `range.end`. If `range.end` is outside
-    /// the range of the database, the result will smaller than the requested range.
-    /// Note that this method blindly preallocates for the requested range, so it should not be exposed
-    /// directly via rpc.
-    #[instrument(level = "trace", skip(self), err)]
-    pub(crate) fn get_batch_range(
-        &self,
-        range: &std::ops::Range<BatchNumber>,
-    ) -> Result<Vec<StoredBatch>, anyhow::Error> {
-        self.get_data_range::<BatchByNumber, _, _>(range)
-    }
-
     /// Gets all soft confirmations by numbers
     #[instrument(level = "trace", skip(self), err)]
     pub fn get_soft_confirmation_by_number(
@@ -177,18 +153,6 @@ impl LedgerDB {
         range: &std::ops::Range<BatchNumber>,
     ) -> Result<Vec<StoredSoftConfirmation>, anyhow::Error> {
         self.get_data_range::<SoftConfirmationByNumber, _, _>(range)
-    }
-
-    /// Gets all transactions with numbers `range.start` to `range.end`. If `range.end` is outside
-    /// the range of the database, the result will smaller than the requested range.
-    /// Note that this method blindly preallocates for the requested range, so it should not be exposed
-    /// directly via rpc.
-    #[instrument(level = "trace", skip(self), err)]
-    pub(crate) fn get_tx_range(
-        &self,
-        range: &std::ops::Range<TxNumber>,
-    ) -> Result<Vec<StoredTransaction>, anyhow::Error> {
-        self.get_data_range::<TxByNumber, _, _>(range)
     }
 
     /// Gets all data with identifier in `range.start` to `range.end`. If `range.end` is outside
@@ -272,18 +236,16 @@ impl LedgerDB {
     /// Commits a soft confirmation to the database by inserting its transactions and batches before
     pub fn commit_soft_confirmation<B: Serialize, T: Serialize, DS: DaSpec>(
         &self,
-        batch_receipt: SoftConfirmationReceipt<B, T, DS>,
+        mut soft_confirmation_receipt: SoftConfirmationReceipt<B, T, DS>,
         include_tx_body: bool,
     ) -> Result<(), anyhow::Error> {
-        let mut batch_receipt = batch_receipt;
-
         // Create a scope to ensure that the lock is released before we commit to the db
         let mut current_item_numbers = {
             let mut next_item_numbers = self.next_item_numbers.lock().unwrap();
             let item_numbers = next_item_numbers.clone();
-            next_item_numbers.tx_number += batch_receipt.tx_receipts.len() as u64;
+            next_item_numbers.tx_number += soft_confirmation_receipt.tx_receipts.len() as u64;
             next_item_numbers.soft_confirmation_number += 1;
-            next_item_numbers.event_number += batch_receipt
+            next_item_numbers.event_number += soft_confirmation_receipt
                 .tx_receipts
                 .iter()
                 .map(|r| r.events.len() as u64)
@@ -294,12 +256,12 @@ impl LedgerDB {
 
         let mut schema_batch = SchemaBatch::new();
 
-        let mut txs = Vec::with_capacity(batch_receipt.tx_receipts.len());
+        let mut txs = Vec::with_capacity(soft_confirmation_receipt.tx_receipts.len());
 
         let first_tx_number = current_item_numbers.tx_number;
-        let last_tx_number = first_tx_number + batch_receipt.tx_receipts.len() as u64;
-        // Insert transactions and events from each batch before inserting the batch
-        for tx in batch_receipt.tx_receipts.into_iter() {
+        let last_tx_number = first_tx_number + soft_confirmation_receipt.tx_receipts.len() as u64;
+        // Insert transactions and events from each soft confirmation before inserting the soft confirmation
+        for tx in soft_confirmation_receipt.tx_receipts.into_iter() {
             let (mut tx_to_store, events) =
                 split_tx_for_storage(tx, current_item_numbers.event_number);
             for event in events.into_iter() {
@@ -316,7 +278,7 @@ impl LedgerDB {
             // Sequencer full nodes need to store the tx body as they are the only ones that have it
             if !include_tx_body {
                 tx_to_store.body = None;
-                batch_receipt.deposit_data = vec![];
+                soft_confirmation_receipt.deposit_data = vec![];
             }
 
             self.put_transaction(
@@ -328,25 +290,25 @@ impl LedgerDB {
             txs.push(tx_to_store);
         }
 
-        // Insert batch
-        let batch_to_store = StoredSoftConfirmation {
-            da_slot_height: batch_receipt.da_slot_height,
+        // Insert soft confirmation
+        let soft_confirmation_to_store = StoredSoftConfirmation {
+            da_slot_height: soft_confirmation_receipt.da_slot_height,
             l2_height: current_item_numbers.soft_confirmation_number,
-            da_slot_hash: batch_receipt.da_slot_hash.into(),
-            da_slot_txs_commitment: batch_receipt.da_slot_txs_commitment.into(),
-            hash: batch_receipt.hash,
-            prev_hash: batch_receipt.prev_hash,
+            da_slot_hash: soft_confirmation_receipt.da_slot_hash.into(),
+            da_slot_txs_commitment: soft_confirmation_receipt.da_slot_txs_commitment.into(),
+            hash: soft_confirmation_receipt.hash,
+            prev_hash: soft_confirmation_receipt.prev_hash,
             tx_range: TxNumber(first_tx_number)..TxNumber(last_tx_number),
             txs,
-            state_root: batch_receipt.state_root,
-            soft_confirmation_signature: batch_receipt.soft_confirmation_signature,
-            pub_key: batch_receipt.pub_key,
-            deposit_data: batch_receipt.deposit_data,
-            l1_fee_rate: batch_receipt.l1_fee_rate,
-            timestamp: batch_receipt.timestamp,
+            state_root: soft_confirmation_receipt.state_root,
+            soft_confirmation_signature: soft_confirmation_receipt.soft_confirmation_signature,
+            pub_key: soft_confirmation_receipt.pub_key,
+            deposit_data: soft_confirmation_receipt.deposit_data,
+            l1_fee_rate: soft_confirmation_receipt.l1_fee_rate,
+            timestamp: soft_confirmation_receipt.timestamp,
         };
         self.put_soft_confirmation(
-            &batch_to_store,
+            &soft_confirmation_to_store,
             &BatchNumber(current_item_numbers.soft_confirmation_number),
             &mut schema_batch,
         )?;
