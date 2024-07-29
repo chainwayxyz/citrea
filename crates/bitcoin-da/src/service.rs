@@ -55,7 +55,7 @@ pub struct DaServiceConfig {
     pub node_password: String,
 
     // network of the bitcoin node
-    pub network: String,
+    pub network: bitcoin::Network,
 
     // da private key of the sequencer
     pub da_private_key: Option<String>,
@@ -70,9 +70,6 @@ const POLLING_INTERVAL: u64 = 10; // seconds
 impl BitcoinService {
     // Create a new instance of the DA service from the given configuration.
     pub async fn new(config: DaServiceConfig, chain_params: RollupParams, tx: UnboundedSender<BlobWithNotifier<TxidWrapper>>) -> Self {
-        let network =
-            bitcoin::Network::from_str(&config.network).expect("Invalid bitcoin network name");
-
         let client = BitcoinNode::new(config.node_url, config.node_username, config.node_password);
 
         let private_key = config
@@ -82,7 +79,7 @@ impl BitcoinService {
         Self::with_client(
             client,
             chain_params.rollup_name,
-            network,
+            config.network,
             private_key,
             chain_params.reveal_tx_id_prefix,
             tx,
@@ -156,8 +153,7 @@ impl BitcoinService {
 
     #[cfg(test)]
     pub async fn new_without_client(config: DaServiceConfig, chain_params: RollupParams) -> Self {
-        let network =
-            bitcoin::Network::from_str(&config.network).expect("Invalid bitcoin network name");
+        use tokio::sync::mpsc::unbounded_channel;
 
         let client = BitcoinNode::new(config.node_url, config.node_username, config.node_password);
 
@@ -170,7 +166,7 @@ impl BitcoinService {
         Self {
             client,
             rollup_name: chain_params.rollup_name,
-            network,
+            network: config.network,
             da_private_key: private_key,
             reveal_tx_id_prefix: chain_params.reveal_tx_id_prefix,
             inscribes_queue: tx,
@@ -632,7 +628,7 @@ mod tests {
             node_url: "http://localhost:38332".to_string(),
             node_username: "chainway".to_string(),
             node_password: "topsecret".to_string(),
-            network: "regtest".to_string(),
+            network: bitcoin::Network::Regtest,
             da_private_key: Some(
                 "E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67FC233AA33262".to_string(), // Test key, safe to publish
             ),
@@ -748,7 +744,7 @@ mod tests {
             node_url: "http://localhost:38332".to_string(),
             node_username: "chainway".to_string(),
             node_password: "topsecret".to_string(),
-            network: "regtest".to_string(),
+            network: bitcoin::Network::Regtest,
             da_private_key: Some(
                 "E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67FC233AA33261".to_string(), // Test key, safe to publish
             ),
