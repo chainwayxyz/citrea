@@ -4,6 +4,7 @@ use sov_modules_api::Zkvm;
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::{Proof, StateTransitionData};
+use std::sync::Arc;
 use thiserror::Error;
 
 /// The possible configurations of the prover.
@@ -109,6 +110,6 @@ pub trait ProverService<Vm: Zkvm> {
     async fn wait_for_proving_and_send_to_da(
         &self,
         block_header_hash: <<Self::DaService as DaService>::Spec as DaSpec>::SlotHash,
-        da_service: &Self::DaService,
+        da_service: &Arc<Self::DaService>,
     ) -> Result<(<Self::DaService as DaService>::TransactionId, Proof), anyhow::Error>;
 }

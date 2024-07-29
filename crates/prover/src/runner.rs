@@ -55,7 +55,7 @@ where
     DB: ProverLedgerOps + Clone,
 {
     start_l2_height: u64,
-    da_service: Da,
+    da_service: Arc<Da>,
     stf: Stf,
     storage_manager: Sm,
     ledger_db: DB,
@@ -78,7 +78,7 @@ where
 impl<C, Da, Sm, Vm, Stf, Ps, DB> CitreaProver<C, Da, Sm, Vm, Stf, Ps, DB>
 where
     C: Context,
-    Da: DaService<Error = anyhow::Error> + Clone + Send + Sync + 'static,
+    Da: DaService<Error = anyhow::Error> + Send + Sync + 'static,
     Sm: HierarchicalStorageManager<Da::Spec>,
     Vm: ZkvmHost,
     Stf: StateTransitionFunction<
@@ -101,7 +101,7 @@ where
         runner_config: RunnerConfig,
         public_keys: RollupPublicKeys,
         rpc_config: RpcConfig,
-        da_service: Da,
+        da_service: Arc<Da>,
         ledger_db: DB,
         stf: Stf,
         mut storage_manager: Sm,
@@ -580,7 +580,7 @@ where
     async fn get_state_transition_data_from_commitments(
         &self,
         sequencer_commitments: &[SequencerCommitment],
-        da_service: &Da,
+        da_service: &Arc<Da>,
     ) -> Result<CommitmentStateTransitionData<Stf, Vm, Da>, anyhow::Error> {
         let mut state_transition_witnesses: VecDeque<
             Vec<<Stf as StateTransitionFunction<Vm, <Da as DaService>::Spec>>::Witness>,
@@ -800,7 +800,7 @@ where
 
 async fn l1_sync<Da>(
     start_l1_height: u64,
-    da_service: Da,
+    da_service: Arc<Da>,
     sender: mpsc::Sender<Da::FilteredBlock>,
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
 ) where

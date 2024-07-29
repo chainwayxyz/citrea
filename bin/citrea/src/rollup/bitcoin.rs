@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use bitcoin_da::service::{BitcoinService, DaServiceConfig, TxidWrapper};
 use bitcoin_da::spec::{BitcoinSpec, RollupParams};
@@ -62,7 +64,7 @@ impl RollupBlueprint for BitcoinRollup {
         &self,
         storage: &<Self::NativeContext as Spec>::Storage,
         ledger_db: &LedgerDB,
-        da_service: &Self::DaService,
+        da_service: &Arc<Self::DaService>,
         sequencer_client_url: Option<String>,
         soft_confirmation_rx: Option<broadcast::Receiver<u64>>,
     ) -> Result<jsonrpsee::RpcModule<()>, anyhow::Error> {
@@ -107,20 +109,22 @@ impl RollupBlueprint for BitcoinRollup {
     async fn create_da_service(
         &self,
         rollup_config: &FullNodeConfig<Self::DaConfig>,
-    ) -> Self::DaService {
+    ) -> Arc<Self::DaService> {
         let (tx, rx) = unbounded_channel::<BlobWithNotifier<TxidWrapper>>();
 
-        let service = BitcoinService::new(
-            rollup_config.da.clone(),
-            RollupParams {
-                rollup_name: ROLLUP_NAME.to_string(),
-                reveal_tx_id_prefix: DA_TX_ID_LEADING_ZEROS.to_vec(),
-            },
-            tx
-        )
-        .await;
+        let service = Arc::new(
+            BitcoinService::new(
+                rollup_config.da.clone(),
+                RollupParams {
+                    rollup_name: ROLLUP_NAME.to_string(),
+                    reveal_tx_id_prefix: DA_TX_ID_LEADING_ZEROS.to_vec(),
+                },
+                tx,
+            )
+            .await,
+        );
 
-        service.clone().spawn_bg_task(rx);
+        Arc::clone(&service).spawn_bg_task(rx);
 
         service
     }
@@ -130,7 +134,7 @@ impl RollupBlueprint for BitcoinRollup {
         &self,
         prover_config: ProverConfig,
         _rollup_config: &FullNodeConfig<Self::DaConfig>,
-        _da_service: &Self::DaService,
+        _da_service: &Arc<Self::DaService>,
     ) -> Self::ProverService {
         let vm = Risc0BonsaiHost::new(
             citrea_risc0::BITCOIN_DA_ELF,

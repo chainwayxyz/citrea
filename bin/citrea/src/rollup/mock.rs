@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use citrea_prover::prover_service::ParallelProverService;
 use citrea_risc0_bonsai_adapter::host::Risc0BonsaiHost;
@@ -54,7 +56,7 @@ impl RollupBlueprint for MockDemoRollup {
         &self,
         storage: &<Self::NativeContext as Spec>::Storage,
         ledger_db: &LedgerDB,
-        da_service: &Self::DaService,
+        da_service: &Arc<Self::DaService>,
         sequencer_client_url: Option<String>,
         soft_confirmation_rx: Option<broadcast::Receiver<u64>>,
     ) -> Result<jsonrpsee::RpcModule<()>, anyhow::Error> {
@@ -86,15 +88,18 @@ impl RollupBlueprint for MockDemoRollup {
     async fn create_da_service(
         &self,
         rollup_config: &FullNodeConfig<Self::DaConfig>,
-    ) -> Self::DaService {
-        MockDaService::new(rollup_config.da.sender_address, &rollup_config.da.db_path)
+    ) -> Arc<Self::DaService> {
+        Arc::new(MockDaService::new(
+            rollup_config.da.sender_address,
+            &rollup_config.da.db_path,
+        ))
     }
 
     async fn create_prover_service(
         &self,
         prover_config: ProverConfig,
         _rollup_config: &FullNodeConfig<Self::DaConfig>,
-        _da_service: &Self::DaService,
+        _da_service: &Arc<Self::DaService>,
     ) -> Self::ProverService {
         let vm = Risc0BonsaiHost::new(
             citrea_risc0::MOCK_DA_ELF,

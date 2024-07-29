@@ -1,4 +1,5 @@
 use std::collections::VecDeque;
+use std::sync::Arc;
 
 use citrea_prover::prover_service::ParallelProverService;
 use sov_mock_da::{
@@ -18,7 +19,7 @@ use sov_stf_runner::{
 async fn test_successful_prover_execution() -> Result<(), ProverServiceError> {
     let temp = tempfile::tempdir().unwrap();
 
-    let da_service = MockDaService::new(MockAddress::from([0; 32]), temp.path());
+    let da_service = Arc::new(MockDaService::new(MockAddress::from([0; 32]), temp.path()));
 
     let TestProver {
         prover_service, vm, ..
@@ -51,7 +52,7 @@ async fn test_successful_prover_execution() -> Result<(), ProverServiceError> {
 #[tokio::test]
 async fn test_prover_status_busy() -> Result<(), anyhow::Error> {
     let temp = tempfile::tempdir().unwrap();
-    let da_service = MockDaService::new(MockAddress::from([0; 32]), temp.path());
+    let da_service = Arc::new(MockDaService::new(MockAddress::from([0; 32]), temp.path()));
     let TestProver {
         prover_service,
         vm,

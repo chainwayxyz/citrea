@@ -1,4 +1,4 @@
-use std::str::FromStr;
+use std::{str::FromStr, sync::Arc};
 
 use anyhow::Context as _;
 use ethereum_rpc::{EthRpcConfig, FeeHistoryCacheConfig, GasPriceOracleConfig};
@@ -10,7 +10,7 @@ use tokio::sync::broadcast;
 
 // register ethereum methods.
 pub(crate) fn register_ethereum<Da: DaService>(
-    da_service: Da,
+    da_service: Arc<Da>,
     storage: ProverStorage<sov_state::DefaultStorageSpec, SnapshotManager>,
     methods: &mut jsonrpsee::RpcModule<()>,
     sequencer_client_url: Option<String>,

@@ -74,7 +74,7 @@ where
         + StfBlueprintTrait<C, Da::Spec, Vm>,
     DB: SequencerLedgerOps + Send + Clone + 'static,
 {
-    da_service: Da,
+    da_service: Arc<Da>,
     mempool: Arc<CitreaMempool<C>>,
     sov_tx_signer_priv_key: C::PrivateKey,
     l2_force_block_tx: UnboundedSender<()>,
@@ -103,7 +103,7 @@ enum L2BlockMode {
 impl<C, Da, Sm, Vm, Stf, DB> CitreaSequencer<C, Da, Sm, Vm, Stf, DB>
 where
     C: Context,
-    Da: DaService + Clone,
+    Da: DaService,
     Sm: HierarchicalStorageManager<Da::Spec>,
     Vm: ZkvmHost,
     Stf: StateTransitionFunction<
@@ -117,7 +117,7 @@ where
 {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        da_service: Da,
+        da_service: Arc<Da>,
         storage: C::Storage,
         config: SequencerConfig,
         stf: Stf,
@@ -1212,9 +1212,12 @@ where
         .map_err(|e| anyhow::anyhow!("Error reading min max l1 fee rate: {}", e))
 }
 
-async fn da_block_monitor<Da>(da_service: Da, sender: mpsc::Sender<L1Data<Da>>, loop_interval: u64)
-where
-    Da: DaService + Clone,
+async fn da_block_monitor<Da>(
+    da_service: Arc<Da>,
+    sender: mpsc::Sender<L1Data<Da>>,
+    loop_interval: u64,
+) where
+    Da: DaService,
 {
     loop {
         let l1_data = match get_da_block_data(da_service.clone()).await {
@@ -1231,7 +1234,7 @@ where
     }
 }
 
-async fn get_da_block_data<Da>(da_service: Da) -> anyhow::Result<L1Data<Da>>
+async fn get_da_block_data<Da>(da_service: Arc<Da>) -> anyhow::Result<L1Data<Da>>
 where
     Da: DaService,
 {

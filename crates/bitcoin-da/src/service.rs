@@ -5,6 +5,7 @@ use core::result::Result::Ok;
 use core::str::FromStr;
 use core::time::Duration;
 use std::collections::HashSet;
+use std::sync::Arc;
 
 // use std::sync::Arc;
 use async_trait::async_trait;
@@ -16,7 +17,7 @@ use hex::ToHex;
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::services::da::{BlobWithNotifier, DaService};
-use tokio::sync::mpsc::{UnboundedSender, UnboundedReceiver};
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::oneshot::channel as oneshot_channel;
 use tracing::{error, info, instrument, trace};
 
@@ -36,7 +37,7 @@ use crate::verifier::BitcoinVerifier;
 use crate::REVEAL_OUTPUT_AMOUNT;
 
 /// A service that provides data and data availability proofs for Bitcoin
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct BitcoinService {
     client: BitcoinNode,
     rollup_name: String,
@@ -69,7 +70,11 @@ const POLLING_INTERVAL: u64 = 10; // seconds
 
 impl BitcoinService {
     // Create a new instance of the DA service from the given configuration.
-    pub async fn new(config: DaServiceConfig, chain_params: RollupParams, tx: UnboundedSender<BlobWithNotifier<TxidWrapper>>) -> Self {
+    pub async fn new(
+        config: DaServiceConfig,
+        chain_params: RollupParams,
+        tx: UnboundedSender<BlobWithNotifier<TxidWrapper>>,
+    ) -> Self {
         let client = BitcoinNode::new(config.node_url, config.node_username, config.node_password);
 
         let private_key = config
@@ -87,7 +92,10 @@ impl BitcoinService {
         .await
     }
 
-    pub fn spawn_bg_task(self: Self, mut rx: UnboundedReceiver<BlobWithNotifier<TxidWrapper>>) {
+    pub fn spawn_bg_task(
+        self: Arc<Self>,
+        mut rx: UnboundedReceiver<BlobWithNotifier<TxidWrapper>>,
+    ) {
         // This is a queue of inscribe requests
         tokio::task::spawn_blocking(|| {
             tokio::runtime::Handle::current().block_on(async move {
