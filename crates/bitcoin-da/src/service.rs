@@ -16,7 +16,7 @@ use hex::ToHex;
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::services::da::{BlobWithNotifier, DaService};
-use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
+use tokio::sync::mpsc::{UnboundedSender, UnboundedReceiver};
 use tokio::sync::oneshot::channel as oneshot_channel;
 use tracing::{error, info, instrument, trace};
 
@@ -69,7 +69,7 @@ const POLLING_INTERVAL: u64 = 10; // seconds
 
 impl BitcoinService {
     // Create a new instance of the DA service from the given configuration.
-    pub async fn new(config: DaServiceConfig, chain_params: RollupParams) -> Self {
+    pub async fn new(config: DaServiceConfig, chain_params: RollupParams, tx: UnboundedSender<BlobWithNotifier<TxidWrapper>>) -> Self {
         let network =
             bitcoin::Network::from_str(&config.network).expect("Invalid bitcoin network name");
 
@@ -79,9 +79,7 @@ impl BitcoinService {
             .da_private_key
             .map(|pk| SecretKey::from_str(&pk).expect("Invalid private key"));
 
-        let (tx, mut rx) = unbounded_channel::<BlobWithNotifier<TxidWrapper>>();
-
-        let this = Self::with_client(
+        Self::with_client(
             client,
             chain_params.rollup_name,
             network,
@@ -89,17 +87,16 @@ impl BitcoinService {
             chain_params.reveal_tx_id_prefix,
             tx,
         )
-        .await;
+        .await
+    }
 
-        let serv = this.clone();
-
+    pub fn spawn_bg_task(self: Self, mut rx: UnboundedReceiver<BlobWithNotifier<TxidWrapper>>) {
         // This is a queue of inscribe requests
         tokio::task::spawn_blocking(|| {
-            let this = serv;
             tokio::runtime::Handle::current().block_on(async move {
                 // TODO https://github.com/chainwayxyz/citrea/issues/537
                 // TODO find last tx by utxo chain
-                let mut prev_tx = match this.get_pending_transactions().await {
+                let mut prev_tx = match self.get_pending_transactions().await {
                     Ok(pending_txs) => {
                         if !pending_txs.is_empty() {
                             let tx = pending_txs.first().unwrap().clone();
@@ -124,7 +121,7 @@ impl BitcoinService {
                     loop {
                         // Build and send tx with retries:
                         let blob = request.blob.clone();
-                        let fee_sat_per_vbyte = match this.get_fee_rate().await {
+                        let fee_sat_per_vbyte = match self.get_fee_rate().await {
                             Ok(rate) => rate,
                             Err(e) => {
                                 error!(?e, "Failed to call get_fee_rate. Retrying...");
@@ -132,7 +129,7 @@ impl BitcoinService {
                                 continue;
                             }
                         };
-                        match this
+                        match self
                             .send_transaction_with_fee_rate(prev.clone(), blob, fee_sat_per_vbyte)
                             .await
                         {
@@ -155,8 +152,6 @@ impl BitcoinService {
                 error!("BitcoinDA queue stopped");
             });
         });
-
-        this
     }
 
     #[cfg(test)]

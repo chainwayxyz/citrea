@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use bitcoin_da::service::{BitcoinService, DaServiceConfig};
+use bitcoin_da::service::{BitcoinService, DaServiceConfig, TxidWrapper};
 use bitcoin_da::spec::{BitcoinSpec, RollupParams};
 use bitcoin_da::verifier::BitcoinVerifier;
 use citrea_primitives::{DA_TX_ID_LEADING_ZEROS, ROLLUP_NAME};
@@ -15,10 +15,12 @@ use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::da::DaVerifier;
+use sov_rollup_interface::services::da::BlobWithNotifier;
 use sov_rollup_interface::zk::{Zkvm, ZkvmHost};
 use sov_state::{DefaultStorageSpec, Storage, ZkStorage};
 use sov_stf_runner::{FullNodeConfig, ProverConfig};
 use tokio::sync::broadcast;
+use tokio::sync::mpsc::unbounded_channel;
 use tracing::instrument;
 
 use crate::CitreaRollupBlueprint;
@@ -106,14 +108,21 @@ impl RollupBlueprint for BitcoinRollup {
         &self,
         rollup_config: &FullNodeConfig<Self::DaConfig>,
     ) -> Self::DaService {
-        BitcoinService::new(
+        let (tx, rx) = unbounded_channel::<BlobWithNotifier<TxidWrapper>>();
+
+        let service = BitcoinService::new(
             rollup_config.da.clone(),
             RollupParams {
                 rollup_name: ROLLUP_NAME.to_string(),
                 reveal_tx_id_prefix: DA_TX_ID_LEADING_ZEROS.to_vec(),
             },
+            tx
         )
-        .await
+        .await;
+
+        service.clone().spawn_bg_task(rx);
+
+        service
     }
 
     #[instrument(level = "trace", skip_all)]
