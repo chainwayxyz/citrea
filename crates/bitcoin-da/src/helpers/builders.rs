@@ -21,11 +21,12 @@ use bitcoin::{
     Address, Amount, Network, OutPoint, ScriptBuf, Sequence, Transaction, TxIn, TxOut, Txid,
     Witness,
 };
+use serde::Serialize;
 use tracing::{instrument, trace, warn};
 
 use super::{TransactionHeader, TransactionKind};
 use crate::spec::utxo::UTXO;
-use crate::REVEAL_OUTPUT_AMOUNT;
+use crate::{MAX_TXBODY_SIZE, REVEAL_OUTPUT_AMOUNT};
 
 // Signs a message with a private key
 pub fn sign_blob_with_private_key(
@@ -314,7 +315,7 @@ fn build_reveal_transaction(
 }
 
 /// Both transaction and its hash
-#[derive(Clone)]
+#[derive(Clone, Serialize)]
 pub struct TxWithId {
     /// ID (hash)
     pub id: Txid,
@@ -349,27 +350,67 @@ pub fn create_inscription_transactions(
     reveal_fee_rate: f64,
     network: Network,
     reveal_tx_prefix: &[u8],
-) -> Result<(Transaction, TxWithId), anyhow::Error> {
-    // Assume body size < 400kb:
-    create_inscription_type_0(
-        rollup_name.as_bytes(),
-        body,
-        signature,
-        signer_public_key,
-        prev_tx,
-        utxos,
-        recipient,
-        reveal_value,
-        commit_fee_rate,
-        reveal_fee_rate,
-        network,
-        reveal_tx_prefix,
-    )
+) -> Result<InscriptionTxs, anyhow::Error> {
+    if body.len() < MAX_TXBODY_SIZE {
+        create_inscription_type_0(
+            rollup_name.as_bytes(),
+            body,
+            signature,
+            signer_public_key,
+            prev_tx,
+            utxos,
+            recipient,
+            reveal_value,
+            commit_fee_rate,
+            reveal_fee_rate,
+            network,
+            reveal_tx_prefix,
+        )
+    } else {
+        create_inscription_type_1(
+            rollup_name.as_bytes(),
+            body,
+            signature,
+            signer_public_key,
+            prev_tx,
+            utxos,
+            recipient,
+            reveal_value,
+            commit_fee_rate,
+            reveal_fee_rate,
+            network,
+            reveal_tx_prefix,
+        )
+    }
+}
+
+/// This is a list of tx we need to send to DA
+#[derive(Serialize)]
+pub(crate) enum InscriptionTxs {
+    Complete {
+        commit: Transaction, // unsigned
+        reveal: TxWithId,
+    },
+    Chunked {
+        commit_chunks: Vec<Transaction>, // unsigned
+        reveal_chunks: Vec<Transaction>,
+        commit: Transaction, // unsigned
+        reveal: TxWithId,
+    },
+}
+
+impl InscriptionTxs {
+    fn reveal_id(&self) -> Txid {
+        match self {
+            Self::Complete { reveal, .. } => reveal.id,
+            Self::Chunked { reveal, .. } => reveal.id,
+        }
+    }
 }
 
 // TODO: parametrize hardness
 // so tests are easier
-// Creates the inscription transactions (commit and reveal) Type 0
+// Creates the inscription transactions Type 0 - InscriptionTxs::Complete
 #[allow(clippy::too_many_arguments)]
 #[instrument(level = "trace", skip_all, err)]
 pub fn create_inscription_type_0(
@@ -385,7 +426,7 @@ pub fn create_inscription_type_0(
     reveal_fee_rate: f64,
     network: Network,
     reveal_tx_prefix: &[u8],
-) -> Result<(Transaction, TxWithId), anyhow::Error> {
+) -> Result<InscriptionTxs, anyhow::Error> {
     // Create commit key
     let secp256k1 = Secp256k1::new();
     let key_pair = UntweakedKeypair::new(&secp256k1, &mut rand::thread_rng());
@@ -549,13 +590,13 @@ pub fn create_inscription_type_0(
                 commit_tx_address
             );
 
-            return Ok((
-                unsigned_commit_tx,
-                TxWithId {
+            return Ok(InscriptionTxs::Complete {
+                commit: unsigned_commit_tx,
+                reveal: TxWithId {
                     id: reveal_tx_id,
                     tx: reveal_tx,
                 },
-            ));
+            });
         }
 
         nonce += 1;
@@ -564,7 +605,7 @@ pub fn create_inscription_type_0(
 
 // TODO: parametrize hardness
 // so tests are easier
-// Creates the inscription transactions (commit and reveal chunks) Type 1
+// Creates the inscription transactions Type 1 - InscriptionTxs::Chunked
 #[allow(clippy::too_many_arguments)]
 #[instrument(level = "trace", skip_all, err)]
 pub fn create_inscription_type_1(
@@ -580,16 +621,16 @@ pub fn create_inscription_type_1(
     reveal_fee_rate: f64,
     network: Network,
     reveal_tx_prefix: &[u8],
-) -> Result<Vec<TxWithId>, anyhow::Error> {
+) -> Result<InscriptionTxs, anyhow::Error> {
     // Create commit key
     let secp256k1 = Secp256k1::new();
     let key_pair = UntweakedKeypair::new(&secp256k1, &mut rand::thread_rng());
     let (public_key, _parity) = XOnlyPublicKey::from_keypair(&key_pair);
 
-    let mut commit_chunks: Vec<TxWithId> = vec![];
-    let mut reveal_chunks: Vec<TxWithId> = vec![];
+    let mut commit_chunks: Vec<Transaction> = vec![];
+    let mut reveal_chunks: Vec<Transaction> = vec![];
 
-    for body in body.chunks(400000) {
+    for body in body.chunks(MAX_TXBODY_SIZE) {
         let header = TransactionHeader {
             rollup_name,
             kind: TransactionKind::ChunkedPart,
@@ -730,23 +771,20 @@ pub fn create_inscription_type_1(
             commit_tx_address
         );
 
-        commit_chunks.push(TxWithId {
-            id: unsigned_commit_tx.txid(),
-            tx: unsigned_commit_tx,
-        });
-        reveal_chunks.push(TxWithId {
+        // set prev tx to last reveal tx to chain txs in order
+        prev_tx = Some(TxWithId {
             id: reveal_tx.txid(),
-            tx: reveal_tx,
+            tx: reveal_tx.clone(),
         });
+
+        commit_chunks.push(unsigned_commit_tx);
+        reveal_chunks.push(reveal_tx);
 
         // Replace utxos with leftovers so we don't use prev utxos in next chunks
         utxos = leftover_utxos;
         if let Some(change) = commit_change {
             utxos.push(change);
         }
-
-        // set prev tx to last reveal tx to chain txs in order
-        prev_tx = reveal_chunks.last().cloned();
     }
 
     let header = TransactionHeader {
@@ -767,8 +805,8 @@ pub fn create_inscription_type_1(
             PushBytesBuf::try_from(signer_public_key).expect("Cannot push sequencer public key"),
         );
     // push txids
-    for txid in &reveal_chunks {
-        reveal_script_builder = reveal_script_builder.push_slice(txid.id.as_byte_array());
+    for tx in &reveal_chunks {
+        reveal_script_builder = reveal_script_builder.push_slice(tx.txid().as_byte_array());
     }
     // push end if
     reveal_script_builder = reveal_script_builder.push_opcode(OP_ENDIF);
@@ -905,33 +943,26 @@ pub fn create_inscription_type_1(
                 commit_tx_address
             );
 
-            let mut res = vec![];
-            // Push commit & reveal chunks in the correct order
-            for (commit, reveal) in commit_chunks.into_iter().zip(reveal_chunks) {
-                res.push(commit);
-                res.push(reveal);
-            }
-            // And push aggregated commit & reveal tx
-            res.push(TxWithId {
-                id: unsigned_commit_tx.txid(),
-                tx: unsigned_commit_tx,
+            return Ok(InscriptionTxs::Chunked {
+                commit_chunks,
+                reveal_chunks,
+                commit: unsigned_commit_tx,
+                reveal: TxWithId {
+                    id: reveal_tx_id,
+                    tx: reveal_tx,
+                },
             });
-            res.push(TxWithId {
-                id: reveal_tx_id,
-                tx: reveal_tx,
-            });
-
-            return Ok(res);
         }
 
         nonce += 1;
     }
 }
 
-pub fn write_reveal_tx(tx: &[u8], tx_id: String) {
-    let reveal_tx_file = File::create(format!("reveal_{}.tx", tx_id)).unwrap();
+pub(crate) fn write_inscription_txs(txs: &InscriptionTxs) {
+    let reveal_tx_file = File::create(format!("reveal_{}.tx", txs.reveal_id())).unwrap();
+    let j = serde_json::to_string(&txs).unwrap();
     let mut reveal_tx_writer = BufWriter::new(reveal_tx_file);
-    reveal_tx_writer.write_all(tx).unwrap();
+    reveal_tx_writer.write_all(j.as_bytes()).unwrap();
 }
 
 #[cfg(test)]
@@ -944,6 +975,7 @@ mod tests {
     use bitcoin::taproot::ControlBlock;
     use bitcoin::{Address, Amount, ScriptBuf, TxOut, Txid};
 
+    use super::InscriptionTxs;
     use crate::helpers::compression::{compress_blob, decompress_blob};
     use crate::helpers::parsers::parse_transaction;
     use crate::spec::utxo::UTXO;
@@ -972,20 +1004,6 @@ mod tests {
             "compression ratio: {}",
             (blob.len() as f64) / (compressed_blob.len() as f64)
         );
-    }
-
-    #[test]
-    fn write_reveal_tx() {
-        let tx = vec![100, 100, 100];
-        let tx_id = "test_tx".to_string();
-
-        super::write_reveal_tx(tx.as_slice(), tx_id);
-
-        let file = std::fs::read("reveal_test_tx.tx").unwrap();
-
-        assert_eq!(tx, file);
-
-        std::fs::remove_file("reveal_test_tx.tx").unwrap();
     }
 
     #[allow(clippy::type_complexity)]
@@ -1400,7 +1418,7 @@ mod tests {
         let (rollup_name, body, signature, signer_public_key, address, utxos) = get_mock_data();
 
         let tx_prefix = &[0u8];
-        let (commit, reveal) = super::create_inscription_transactions(
+        let InscriptionTxs::Complete { commit, reveal } = super::create_inscription_transactions(
             rollup_name,
             body.clone(),
             signature.clone(),
@@ -1414,7 +1432,9 @@ mod tests {
             bitcoin::Network::Bitcoin,
             tx_prefix,
         )
-        .unwrap();
+        .unwrap() else {
+            panic!("Unexpected tx kind was produced");
+        };
 
         // check pow
         assert!(reveal.id.as_byte_array().starts_with(tx_prefix));

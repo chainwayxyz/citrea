@@ -21,7 +21,8 @@ use tokio::sync::oneshot::channel as oneshot_channel;
 use tracing::{error, info, instrument, trace};
 
 use crate::helpers::builders::{
-    create_inscription_transactions, sign_blob_with_private_key, write_reveal_tx, TxWithId,
+    create_inscription_transactions, sign_blob_with_private_key, write_inscription_txs,
+    InscriptionTxs, TxWithId,
 };
 use crate::helpers::compression::{compress_blob, decompress_blob};
 use crate::helpers::parsers::{parse_hex_transaction, parse_transaction};
@@ -286,7 +287,7 @@ impl BitcoinService {
             sign_blob_with_private_key(&blob, &da_private_key).expect("Sequencer sign the blob");
 
         // create inscribe transactions
-        let (unsigned_commit_tx, reveal_tx) = create_inscription_transactions(
+        let inscription_txs = create_inscription_transactions(
             &rollup_name,
             blob,
             signature,
@@ -301,32 +302,79 @@ impl BitcoinService {
             self.reveal_tx_id_prefix.as_slice(),
         )?;
 
-        // sign inscribe transactions
-        let serialized_unsigned_commit_tx = &encode::serialize(&unsigned_commit_tx);
-        let signed_raw_commit_tx = client
-            .sign_raw_transaction_with_wallet(serialized_unsigned_commit_tx.encode_hex())
-            .await?;
+        // write txs to file, it can be used to continue revealing blob if something goes wrong
+        write_inscription_txs(&inscription_txs);
 
-        // send inscribe transactions
-        client.send_raw_transaction(signed_raw_commit_tx).await?;
+        match inscription_txs {
+            InscriptionTxs::Complete { commit, reveal } => {
+                // sign inscribe transactions
+                let serialized_unsigned_commit_tx = &encode::serialize(&commit);
+                let signed_raw_commit_tx = client
+                    .sign_raw_transaction_with_wallet(serialized_unsigned_commit_tx.encode_hex())
+                    .await?;
 
-        // serialize reveal tx
-        let serialized_reveal_tx = &encode::serialize(&reveal_tx.tx);
+                // send inscribe transactions
+                client.send_raw_transaction(signed_raw_commit_tx).await?;
 
-        // write reveal tx to file, it can be used to continue revealing blob if something goes wrong
-        write_reveal_tx(
-            serialized_reveal_tx,
-            unsigned_commit_tx.txid().to_raw_hash().to_string(),
-        );
+                // serialize reveal tx
+                let serialized_reveal_tx = &encode::serialize(&reveal.tx);
 
-        // send reveal tx
-        let reveal_tx_hash = client
-            .send_raw_transaction(serialized_reveal_tx.encode_hex())
-            .await?;
+                // send reveal tx
+                let reveal_tx_hash = client
+                    .send_raw_transaction(serialized_reveal_tx.encode_hex())
+                    .await?;
 
-        info!("Blob inscribe tx sent. Hash: {}", reveal_tx_hash);
+                info!("Blob inscribe tx sent. Hash: {}", reveal_tx_hash);
+                Ok(reveal)
+            }
+            InscriptionTxs::Chunked {
+                commit_chunks,
+                reveal_chunks,
+                commit,
+                reveal,
+            } => {
+                for (commit, reveal) in commit_chunks.into_iter().zip(reveal_chunks) {
+                    // sign inscribe transactions
+                    let serialized_unsigned_commit_tx = &encode::serialize(&commit);
+                    let signed_raw_commit_tx = client
+                        .sign_raw_transaction_with_wallet(
+                            serialized_unsigned_commit_tx.encode_hex(),
+                        )
+                        .await?;
 
-        Ok(reveal_tx)
+                    // send inscribe transactions
+                    client.send_raw_transaction(signed_raw_commit_tx).await?;
+
+                    // serialize reveal tx
+                    let serialized_reveal_tx = encode::serialize(&reveal);
+
+                    // send reveal tx
+                    let reveal_tx_hash = client
+                        .send_raw_transaction(serialized_reveal_tx.encode_hex())
+                        .await?;
+                    info!("Blob chunk inscribe tx sent. Hash: {}", reveal_tx_hash);
+                }
+
+                // sign inscribe transactions
+                let serialized_unsigned_commit_tx = &encode::serialize(&commit);
+                let signed_raw_commit_tx = client
+                    .sign_raw_transaction_with_wallet(serialized_unsigned_commit_tx.encode_hex())
+                    .await?;
+
+                // send inscribe transactions
+                client.send_raw_transaction(signed_raw_commit_tx).await?;
+
+                // serialize reveal tx
+                let serialized_reveal_tx = encode::serialize(&reveal.tx);
+
+                // send reveal tx
+                let reveal_tx_hash = client
+                    .send_raw_transaction(serialized_reveal_tx.encode_hex())
+                    .await?;
+                info!("Blob chunk aggregate tx sent. Hash: {}", reveal_tx_hash);
+                Ok(reveal)
+            }
+        }
     }
 
     #[instrument(level = "trace", skip_all, ret)]
