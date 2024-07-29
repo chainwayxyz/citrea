@@ -5,7 +5,7 @@ use anyhow::Result;
 use bitcoin::block::{Header, Version};
 use bitcoin::hash_types::{TxMerkleNode, WitnessMerkleNode};
 use bitcoin::hashes::Hash;
-use bitcoin::{merkle_tree, BlockHash, CompactTarget, Wtxid};
+use bitcoin::{merkle_tree, BlockHash, CompactTarget, Txid, Wtxid};
 use reqwest::header::HeaderMap;
 use serde::{Deserialize, Serialize};
 use serde_json::value::RawValue;
@@ -137,14 +137,14 @@ impl BitcoinNode {
     }
 
     // get_block_hash returns the block hash of the block at the given height
-    pub async fn get_block_hash(&self, height: u64) -> Result<String> {
-        self.call::<String>("getblockhash", vec![to_value(height)?])
+    pub async fn get_block_hash(&self, height: u64) -> Result<BlockHash> {
+        self.call::<BlockHash>("getblockhash", vec![to_value(height)?])
             .await
     }
 
     // get_best_blockhash returns the best blockhash of the chain
-    pub async fn get_best_blockhash(&self) -> Result<String> {
-        self.call::<String>("getbestblockhash", vec![]).await
+    pub async fn get_best_blockhash(&self) -> Result<BlockHash> {
+        self.call::<BlockHash>("getbestblockhash", vec![]).await
     }
 
     fn calculate_witness_root(txdata: &[TransactionWrapper]) -> Option<WitnessMerkleNode> {
@@ -160,14 +160,14 @@ impl BitcoinNode {
     }
 
     // get_block_header returns a particular block header with a given hash
-    pub async fn get_block_header(&self, hash: String) -> Result<HeaderWrapper> {
+    pub async fn get_block_header(&self, hash: BlockHash) -> Result<HeaderWrapper> {
         // The full block is requested here because txs_commitment is the witness root
         let full_block = self.get_block(hash).await?;
         Ok(full_block.header)
     }
 
     // get_block returns the block at the given hash
-    pub async fn get_block(&self, hash: String) -> Result<BitcoinBlock> {
+    pub async fn get_block(&self, hash: BlockHash) -> Result<BitcoinBlock> {
         let result = self
             .call::<Box<RawValue>>("getblock", vec![to_value(hash.clone())?, to_value(3)?])
             .await?
@@ -256,8 +256,8 @@ impl BitcoinNode {
     }
 
     // send_raw_transaction sends a raw transaction to the network
-    pub async fn send_raw_transaction(&self, tx: String) -> Result<String> {
-        self.call::<String>("sendrawtransaction", vec![to_value(tx)?])
+    pub async fn send_raw_transaction(&self, tx: String) -> Result<Txid> {
+        self.call("sendrawtransaction", vec![to_value(tx)?])
             .await
     }
 
@@ -279,7 +279,7 @@ impl BitcoinNode {
     }
 
     /// Get a raw transaction by its txid
-    pub async fn get_raw_transaction(&self, txid: String) -> Result<String> {
+    pub async fn get_raw_transaction(&self, txid: Txid) -> Result<String> {
         self.call::<String>("getrawtransaction", vec![to_value(txid)?])
             .await
     }

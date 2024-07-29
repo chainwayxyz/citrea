@@ -555,7 +555,7 @@ impl DaService for BitcoinService {
 
         let hash = BlockHash::from_byte_array(hash);
 
-        let block = self.client.get_block(hash.to_string()).await?;
+        let block = self.client.get_block(hash).await?;
         Ok(block)
     }
 
