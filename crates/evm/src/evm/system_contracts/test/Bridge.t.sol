@@ -226,7 +226,7 @@ contract BridgeTest is Test {
         doDeposit();
     }
 
-    function testBytesEqual() public {
+    function testBytesEqual() public view {
         bytes memory a = hex"1234";
         bytes memory b = hex"1234";
         bytes memory c = hex"1235";
@@ -239,11 +239,8 @@ contract BridgeTest is Test {
         assert(!bridge.isBytesEqual_(d, e));
         assert(bridge.isBytesEqual_(d, f));
 
-        vm.expectRevert();
-        bridge.isBytesEqual_(a, d);
-
-        vm.expectRevert();
-        bridge.isBytesEqual_(a, hex"");
+        assertFalse(bridge.isBytesEqual_(a, d));
+        assertFalse(bridge.isBytesEqual_(a, hex""));
     }
 
     function testBytesEqualFuzz(bytes memory a, bytes memory b) public view {

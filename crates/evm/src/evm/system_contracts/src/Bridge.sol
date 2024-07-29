@@ -171,15 +171,19 @@ contract Bridge is Ownable2StepUpgradeable {
     /// @param a First byte sequence
     /// @param b Second byte sequence
     function isBytesEqual(bytes memory a, bytes memory b) internal pure returns (bool result) {
-        require(a.length == b.length, "Lengths do not match");
+        uint256 len = a.length;
+        if (len != b.length) {
+            return false;
+        }
 
-        uint256 fullChunks = a.length / 32;
-        for (uint256 i = 0; i < fullChunks; i++) {
-            bytes32 chunkA;
-            bytes32 chunkB;
+        uint256 offset = 32;
+        bytes32 chunkA;
+        bytes32 chunkB;
+        while (offset < len) {
             assembly {
-                chunkA := mload(add(a, add(32, mul(i, 32)))) 
-                chunkB := mload(add(b, add(32, mul(i, 32))))
+                chunkA := mload(add(a, offset)) 
+                chunkB := mload(add(b, offset))
+                offset := add(offset, 32)
             }
             if (chunkA != chunkB) {
                 return false;
@@ -187,13 +191,9 @@ contract Bridge is Ownable2StepUpgradeable {
         }
 
         // Check remaining bytes (if any)
-        uint remainingBytes = a.length % 32;
-        if (remainingBytes > 0) {
-            uint start = fullChunks * 32;
-            for (uint i = 0; i < remainingBytes; i++) {
-                if (a[start + i] != b[start + i]) {
-                    return false;
-                }
+        for (uint i = offset - 32; i < len; i++) {
+            if (a[i] != b[i]) {
+                return false;
             }
         }
 
