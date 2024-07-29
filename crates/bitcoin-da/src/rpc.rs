@@ -133,18 +133,18 @@ impl BitcoinNode {
 
     // get_block_count returns the current block height
     pub async fn get_block_count(&self) -> Result<u64> {
-        self.call::<u64>("getblockcount", vec![]).await
+        self.call("getblockcount", vec![]).await
     }
 
     // get_block_hash returns the block hash of the block at the given height
     pub async fn get_block_hash(&self, height: u64) -> Result<BlockHash> {
-        self.call::<BlockHash>("getblockhash", vec![to_value(height)?])
+        self.call("getblockhash", vec![to_value(height)?])
             .await
     }
 
     // get_best_blockhash returns the best blockhash of the chain
     pub async fn get_best_blockhash(&self) -> Result<BlockHash> {
-        self.call::<BlockHash>("getbestblockhash", vec![]).await
+        self.call("getbestblockhash", vec![]).await
     }
 
     fn calculate_witness_root(txdata: &[TransactionWrapper]) -> Option<WitnessMerkleNode> {
@@ -213,7 +213,7 @@ impl BitcoinNode {
     // get_utxos returns all unspent transaction outputs for the wallets of bitcoind
     pub async fn get_utxos(&self) -> Result<Vec<UTXO>> {
         let utxos = self
-            .call::<Vec<UTXO>>("listunspent", vec![to_value(0)?, to_value(9999999)?])
+            .call("listunspent", vec![to_value(0)?, to_value(9999999)?])
             .await?;
 
         Ok(utxos)
@@ -272,7 +272,7 @@ impl BitcoinNode {
     /// Get unconfirmed utxos
     pub async fn get_pending_utxos(&self) -> Result<Vec<ListUnspentEntry>> {
         let utxos = self
-            .call::<Vec<ListUnspentEntry>>("listunspent", vec![to_value(0)?, to_value(0)?])
+            .call("listunspent", vec![to_value(0)?, to_value(0)?])
             .await?;
 
         Ok(utxos)
@@ -280,7 +280,7 @@ impl BitcoinNode {
 
     /// Get a raw transaction by its txid
     pub async fn get_raw_transaction(&self, txid: Txid) -> Result<String> {
-        self.call::<String>("getrawtransaction", vec![to_value(txid)?])
+        self.call("getrawtransaction", vec![to_value(txid)?])
             .await
     }
 }
