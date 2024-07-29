@@ -166,22 +166,38 @@ contract Bridge is Ownable2StepUpgradeable {
         emit OperatorUpdated(operator, _operator);
     }
     
-    /// @notice Checks if two byte sequences are equal
-    /// @dev This is not efficient, and a better approach would be doing a hash based comparison but as this is ran in a zkEVM, hashing is inefficient
+    /// @notice Checks if two byte sequences are equal in chunks of 32 bytes
+    /// @dev This approach compares chunks of 32 bytes using bytes32 equality checks for optimization
     /// @param a First byte sequence
     /// @param b Second byte sequence
     function isBytesEqual(bytes memory a, bytes memory b) internal pure returns (bool result) {
         require(a.length == b.length, "Lengths do not match");
 
-        // Cannot use keccak as its costly in ZK environment
-        uint length = a.length;
-        for (uint i = 0; i < length; i++) {
-            if (a[i] != b[i]) {
-                result = false;
-                return result;
+        uint256 fullChunks = a.length / 32;
+        for (uint256 i = 0; i < fullChunks; i++) {
+            bytes32 chunkA;
+            bytes32 chunkB;
+            assembly {
+                chunkA := mload(add(a, add(32, mul(i, 32)))) 
+                chunkB := mload(add(b, add(32, mul(i, 32))))
+            }
+            if (chunkA != chunkB) {
+                return false;
             }
         }
-        result = true;
+
+        // Check remaining bytes (if any)
+        uint remainingBytes = a.length % 32;
+        if (remainingBytes > 0) {
+            uint start = fullChunks * 32;
+            for (uint i = 0; i < remainingBytes; i++) {
+                if (a[start + i] != b[start + i]) {
+                    return false;
+                }
+            }
+        }
+
+        return true;
     }
 
     function extractRecipientAddress(bytes memory _script) internal view returns (address) {
