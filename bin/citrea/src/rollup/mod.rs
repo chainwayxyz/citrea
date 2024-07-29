@@ -10,6 +10,7 @@ use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_modules_stf_blueprint::{Runtime as RuntimeTrait, StfBlueprint};
 use sov_state::storage::NativeStorage;
 use sov_stf_runner::{FullNodeConfig, InitVariant, ProverConfig};
+use tokio::sync::broadcast;
 use tracing::instrument;
 mod bitcoin;
 mod mock;
@@ -43,9 +44,21 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let mut storage_manager = self.create_storage_manager(&rollup_config)?;
         let prover_storage = storage_manager.create_finalized_storage()?;
 
+        let (soft_confirmation_tx, soft_confirmation_rx) = broadcast::channel(10);
+        // If subscriptions disabled, pass None
+        let soft_confirmation_rx = if rollup_config.rpc.enable_subscriptions {
+            Some(soft_confirmation_rx)
+        } else {
+            None
+        };
         // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1218)
-        let rpc_methods =
-            self.create_rpc_methods(&prover_storage, &ledger_db, &da_service, None)?;
+        let rpc_methods = self.create_rpc_methods(
+            &prover_storage,
+            &ledger_db,
+            &da_service,
+            None,
+            soft_confirmation_rx,
+        )?;
 
         let native_stf = StfBlueprint::new();
 
@@ -76,6 +89,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             rollup_config.public_keys,
             ledger_db,
             rollup_config.rpc,
+            soft_confirmation_tx,
         )
         .unwrap();
 
@@ -111,12 +125,20 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let prover_storage = storage_manager.create_finalized_storage()?;
 
         let runner_config = rollup_config.runner.expect("Runner config is missing");
+        let (soft_confirmation_tx, soft_confirmation_rx) = broadcast::channel(10);
+        // If subscriptions disabled, pass None
+        let soft_confirmation_rx = if rollup_config.rpc.enable_subscriptions {
+            Some(soft_confirmation_rx)
+        } else {
+            None
+        };
         // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1218)
         let rpc_methods = self.create_rpc_methods(
             &prover_storage,
             &ledger_db,
             &da_service,
             Some(runner_config.sequencer_client_url.clone()),
+            soft_confirmation_rx,
         )?;
 
         let native_stf = StfBlueprint::new();
@@ -151,6 +173,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             init_variant,
             code_commitment,
             rollup_config.sync_blocks_count,
+            soft_confirmation_tx,
         )?;
 
         Ok(FullNode {
@@ -189,6 +212,13 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let mut storage_manager = self.create_storage_manager(&rollup_config)?;
         let prover_storage = storage_manager.create_finalized_storage()?;
 
+        let (soft_confirmation_tx, soft_confirmation_rx) = broadcast::channel(10);
+        // If subscriptions disabled, pass None
+        let soft_confirmation_rx = if rollup_config.rpc.enable_subscriptions {
+            Some(soft_confirmation_rx)
+        } else {
+            None
+        };
         let runner_config = rollup_config.runner.expect("Runner config is missing");
         // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1218)
         let rpc_methods = self.create_rpc_methods(
@@ -196,6 +226,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             &ledger_db,
             &da_service,
             Some(runner_config.sequencer_client_url.clone()),
+            soft_confirmation_rx,
         )?;
 
         let native_stf = StfBlueprint::new();
@@ -232,6 +263,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             Some(prover_config),
             code_commitment,
             rollup_config.sync_blocks_count,
+            soft_confirmation_tx,
         )?;
 
         Ok(Prover {

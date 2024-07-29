@@ -18,6 +18,7 @@ use sov_rollup_interface::da::DaVerifier;
 use sov_rollup_interface::zk::{Zkvm, ZkvmHost};
 use sov_state::{DefaultStorageSpec, Storage, ZkStorage};
 use sov_stf_runner::{FullNodeConfig, ProverConfig};
+use tokio::sync::broadcast;
 use tracing::instrument;
 
 use crate::CitreaRollupBlueprint;
@@ -61,6 +62,7 @@ impl RollupBlueprint for BitcoinRollup {
         ledger_db: &LedgerDB,
         da_service: &Self::DaService,
         sequencer_client_url: Option<String>,
+        soft_confirmation_rx: Option<broadcast::Receiver<u64>>,
     ) -> Result<jsonrpsee::RpcModule<()>, anyhow::Error> {
         // unused inside register RPC
         let sov_sequencer = Address::new([0; 32]);
@@ -77,6 +79,7 @@ impl RollupBlueprint for BitcoinRollup {
             storage.clone(),
             &mut rpc_methods,
             sequencer_client_url,
+            soft_confirmation_rx,
         )?;
 
         Ok(rpc_methods)
