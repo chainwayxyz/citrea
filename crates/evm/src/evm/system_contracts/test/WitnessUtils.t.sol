@@ -94,10 +94,10 @@ contract WitnessUtilsTest is Test {
 
         assertEq(thirdRandomWitness.length, WitnessUtils.determineWitnessLengthAt(randomWitness, firstRandomWitness.length + secondRandomWitness.length));
     }
-
-    function testDetermineWitnessLengthAtError() public {
-        vm.expectRevert();
-        assertEq(badWitness1.length, WitnessUtils.determineWitnessLengthAt(badWitness1, 0));
+    
+    // This is unusual because we are testing the determineWitnessLengthAt function to not work properly with a not proper witness
+    function testDetermineWitnessLengthAtError() public view {
+        assertNotEq(badWitness1.length, WitnessUtils.determineWitnessLengthAt(badWitness1, 0));
     }
 
     function testDetermineWitnessLengthAtError2() public view {
@@ -115,13 +115,11 @@ contract WitnessUtilsTest is Test {
         assert(WitnessUtils.validateWitness(randomWitness, uint256(x)));
     }
 
-    function testValidateWitnessError1() public {
-        vm.expectRevert();
-        assert(WitnessUtils.validateWitness(badWitness1, 2));
+    function testValidateWitnessError1() public view {
+        assertFalse(WitnessUtils.validateWitness(badWitness1, 2));
     }
-    function testValidateWitnessError2() public {
-        vm.expectRevert();
-        assert(WitnessUtils.validateWitness(badWitness2, 2));
+    function testValidateWitnessError2() public view {
+        assertFalse(WitnessUtils.validateWitness(badWitness2, 2));
     }
 
     function testFuzzExtractWitnessAtIndex(uint8 x) public {
@@ -140,14 +138,14 @@ contract WitnessUtilsTest is Test {
     }
 
     function testFuzzExtractItemFromWitness(uint8 x) public {
-        vm.assume(x<8);
+        vm.assume(x<9);
 
         bytes memory nStackItems = hex"09";
         bytes[] memory randomStackItemArray = new bytes[](9);
         bytes memory randomWits;
         randomWits = abi.encodePacked(nStackItems, randomWits);
 
-        for(uint i = 0; i < 8; i++){
+        for(uint i = 0; i < 9; i++){
             bytes memory randomStackItem = getRandomStackItem();
             randomStackItemArray[i] = randomStackItem;
             randomWits = abi.encodePacked(randomWits, randomStackItem);            

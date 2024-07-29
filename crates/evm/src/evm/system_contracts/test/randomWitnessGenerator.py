@@ -1,6 +1,8 @@
 import random
 
 def random_hex_byte(l, r):
+    assert(l >= 0)
+    assert(r <= 255)
     # Generate a random integer between l and r
     random_int = random.randint(l, r)
     # Convert the integer to a hexadecimal string and remove the '0x' prefix
