@@ -1,7 +1,4 @@
-use crate::schema::types::{
-    BatchNumber, EventNumber, L2HeightRange, SlotNumber, StoredBatch, StoredSlot, StoredSoftBatch,
-    StoredStateTransition, StoredTransaction, TxNumber,
-};
+use anyhow::Result;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_rollup_interface::da::{DaSpec, SequencerCommitment};
@@ -11,7 +8,10 @@ use sov_rollup_interface::zk::Proof;
 use sov_schema_db::SchemaBatch;
 
 use super::{ItemNumbers, SlotCommit};
-use anyhow::Result;
+use crate::schema::types::{
+    BatchNumber, EventNumber, L2HeightRange, SlotNumber, StoredBatch, StoredSlot, StoredSoftBatch,
+    StoredStateTransition, StoredTransaction, TxNumber,
+};
 
 /// Shared ledger operations
 pub trait SharedLedgerOps {
