@@ -51,6 +51,7 @@ pub const STATE_TABLES: &[&str] = &[
 /// A list of all tables used by the LedgerDB. These tables store rollup "history" - meaning
 /// transaction, events, receipts, etc.
 pub const LEDGER_TABLES: &[&str] = &[
+    ActiveFork::table_name(),
     SlotByNumber::table_name(),
     SlotByHash::table_name(),
     SoftBatchByNumber::table_name(),
@@ -219,6 +220,11 @@ macro_rules! define_table_with_seek_key_codec {
         impl_borsh_value_codec!($table_name, $value);
     };
 }
+
+define_table_with_seek_key_codec!(
+    /// The currently active fork
+    (ActiveFork) () => u32
+);
 
 define_table_with_seek_key_codec!(
     /// The State diff storage

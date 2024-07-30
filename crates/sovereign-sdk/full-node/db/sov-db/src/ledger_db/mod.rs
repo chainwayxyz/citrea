@@ -1,6 +1,7 @@
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
+use citrea_primitives::fork::ForkMigration;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_rollup_interface::da::{DaSpec, SequencerCommitment};
@@ -12,8 +13,8 @@ use tracing::instrument;
 
 use crate::rocks_db_config::gen_rocksdb_options;
 use crate::schema::tables::{
-    BatchByHash, BatchByNumber, CommitmentsByNumber, EventByKey, EventByNumber, L2GenesisStateRoot,
-    L2RangeByL1Height, L2Witness, LastSequencerCommitmentSent, LastStateDiff,
+    ActiveFork, BatchByHash, BatchByNumber, CommitmentsByNumber, EventByKey, EventByNumber,
+    L2GenesisStateRoot, L2RangeByL1Height, L2Witness, LastSequencerCommitmentSent, LastStateDiff,
     PendingSequencerCommitmentL2Range, ProofBySlotNumber, ProverLastScannedSlot, SlotByHash,
     SlotByNumber, SoftBatchByHash, SoftBatchByNumber, SoftConfirmationStatus, TxByHash, TxByNumber,
     VerifiedProofsBySlotNumber, LEDGER_TABLES,
@@ -785,5 +786,23 @@ impl LedgerDB {
         self.db
             .get::<LastStateDiff>(&())
             .map(|diff| diff.unwrap_or_default())
+    }
+
+    /// Gets the currently active fork
+    #[instrument(level = "trace", skip(self), err, ret)]
+    pub fn get_active_fork(&self) -> Result<u32, anyhow::Error> {
+        self.db
+            .get::<ActiveFork>(&())
+            .map(|fork| fork.unwrap_or_default())
+    }
+}
+
+impl ForkMigration for LedgerDB {
+    fn pre_spec_activation(&self, spec_id: citrea_primitives::fork::SpecId) -> anyhow::Result<()> {
+        todo!()
+    }
+
+    fn post_spec_activation(&self, spec_id: citrea_primitives::fork::SpecId) -> anyhow::Result<()> {
+        todo!()
     }
 }
