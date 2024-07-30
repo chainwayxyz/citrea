@@ -11,6 +11,7 @@ use bitcoin::blockdata::opcodes::OP_FALSE;
 use bitcoin::blockdata::script;
 use bitcoin::hashes::{sha256d, Hash};
 use bitcoin::key::{TapTweak, TweakedPublicKey, UntweakedKeypair};
+use bitcoin::opcodes::all::OP_CHECKSIGVERIFY;
 use bitcoin::script::PushBytesBuf;
 use bitcoin::secp256k1::constants::SCHNORR_SIGNATURE_SIZE;
 use bitcoin::secp256k1::schnorr::Signature;
@@ -440,9 +441,9 @@ pub fn create_inscription_type_0(
 
     // start creating inscription content
     let mut reveal_script_builder = script::Builder::new()
-        .push_slice(PushBytesBuf::try_from(header_bytes).expect("Cannot push header"))
         .push_x_only_key(&public_key)
-        .push_opcode(OP_CHECKSIG)
+        .push_opcode(OP_CHECKSIGVERIFY)
+        .push_slice(PushBytesBuf::try_from(header_bytes).expect("Cannot push header"))
         .push_opcode(OP_FALSE)
         .push_opcode(OP_IF)
         .push_slice(PushBytesBuf::try_from(signature).expect("Cannot push signature"))

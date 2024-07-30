@@ -692,7 +692,7 @@ mod tests {
             fee_rates_to_avg: Some(2), // small to speed up tests
         };
 
-        BitcoinService::new_without_client(
+        BitcoinService::new(
             runtime_config,
             RollupParams {
                 rollup_name: "sov-btc".to_string(),
@@ -700,6 +700,24 @@ mod tests {
             },
         )
         .await
+    }
+
+    #[tokio::test]
+    async fn send_transaction() {
+        let da_service = get_service().await;
+
+        let size = 2000;
+
+        // create random bytes with size of size variable
+        let blob = (0..size).map(|_| rand::random::<u8>()).collect::<Vec<u8>>();
+
+        let txid = da_service.send_transaction(&blob).await;
+
+        if txid.is_ok() {
+            println!("Transaction sent successfully");
+        } else {
+            panic!("Failed to send transaction: {:?}", txid.err());
+        }
     }
 
     // #[tokio::test]
