@@ -26,6 +26,9 @@ use crate::schema::types::{
 };
 
 mod rpc;
+mod traits;
+
+pub use traits::*;
 
 const LEDGER_DB_PATH_SUFFIX: &str = "ledger";
 
@@ -128,69 +131,6 @@ impl LedgerDB {
         })
     }
 
-    /// Get the next slot, block, transaction, and event numbers
-    #[instrument(level = "trace", skip(self), ret)]
-    pub fn get_next_items_numbers(&self) -> ItemNumbers {
-        self.next_item_numbers.lock().unwrap().clone()
-    }
-
-    /// Gets all slots with numbers `range.start` to `range.end`. If `range.end` is outside
-    /// the range of the database, the result will smaller than the requested range.
-    /// Note that this method blindly preallocates for the requested range, so it should not be exposed
-    /// directly via rpc.
-    #[instrument(level = "trace", skip(self), err)]
-    pub(crate) fn _get_slot_range(
-        &self,
-        range: &std::ops::Range<SlotNumber>,
-    ) -> Result<Vec<StoredSlot>, anyhow::Error> {
-        self.get_data_range::<SlotByNumber, _, _>(range)
-    }
-
-    /// Gets all batches with numbers `range.start` to `range.end`. If `range.end` is outside
-    /// the range of the database, the result will smaller than the requested range.
-    /// Note that this method blindly preallocates for the requested range, so it should not be exposed
-    /// directly via rpc.
-    #[instrument(level = "trace", skip(self), err)]
-    pub(crate) fn get_batch_range(
-        &self,
-        range: &std::ops::Range<BatchNumber>,
-    ) -> Result<Vec<StoredBatch>, anyhow::Error> {
-        self.get_data_range::<BatchByNumber, _, _>(range)
-    }
-
-    /// Gets all soft confirmations by numbers
-    #[instrument(level = "trace", skip(self), err)]
-    pub fn get_soft_batch_by_number(
-        &self,
-        number: &BatchNumber,
-    ) -> Result<Option<StoredSoftBatch>, anyhow::Error> {
-        self.db.get::<SoftBatchByNumber>(number)
-    }
-
-    /// Gets all soft confirmations with numbers `range.start` to `range.end`. If `range.end` is outside
-    /// the range of the database, the result will smaller than the requested range.
-    /// Note that this method blindly preallocates for the requested range, so it should not be exposed
-    /// directly via rpc.
-    #[instrument(level = "trace", skip(self), err)]
-    pub fn get_soft_batch_range(
-        &self,
-        range: &std::ops::Range<BatchNumber>,
-    ) -> Result<Vec<StoredSoftBatch>, anyhow::Error> {
-        self.get_data_range::<SoftBatchByNumber, _, _>(range)
-    }
-
-    /// Gets all transactions with numbers `range.start` to `range.end`. If `range.end` is outside
-    /// the range of the database, the result will smaller than the requested range.
-    /// Note that this method blindly preallocates for the requested range, so it should not be exposed
-    /// directly via rpc.
-    #[instrument(level = "trace", skip(self), err)]
-    pub(crate) fn get_tx_range(
-        &self,
-        range: &std::ops::Range<TxNumber>,
-    ) -> Result<Vec<StoredTransaction>, anyhow::Error> {
-        self.get_data_range::<TxByNumber, _, _>(range)
-    }
-
     /// Gets all data with identifier in `range.start` to `range.end`. If `range.end` is outside
     /// the range of the database, the result will smaller than the requested range.
     /// Note that this method blindly preallocates for the requested range, so it should not be exposed
@@ -213,17 +153,22 @@ impl LedgerDB {
         Ok(out)
     }
 
-    #[instrument(level = "trace", skip(self, schema_batch), err, ret)]
-    fn put_slot(
-        &self,
-        slot: &StoredSlot,
-        slot_number: &SlotNumber,
-        schema_batch: &mut SchemaBatch,
-    ) -> Result<(), anyhow::Error> {
-        schema_batch.put::<SlotByNumber>(slot_number, slot)?;
-        schema_batch.put::<SlotByHash>(&slot.hash, slot_number)
-    }
+    fn last_version_written<T: Schema<Key = U>, U: Into<u64>>(
+        db: &DB,
+        _schema: T,
+    ) -> anyhow::Result<Option<u64>> {
+        let mut iter = db.iter::<T>()?;
+        iter.seek_to_last();
 
+        match iter.next() {
+            Some(Ok(item)) => Ok(Some(item.key.into())),
+            Some(Err(e)) => Err(e),
+            _ => Ok(None),
+        }
+    }
+}
+
+impl SharedLedgerOps for LedgerDB {
     #[instrument(level = "trace", skip(self, schema_batch), err, ret)]
     fn put_soft_batch(
         &self,
@@ -270,7 +215,7 @@ impl LedgerDB {
     }
 
     /// Commits a soft batch to the database by inserting its transactions and batches before
-    pub fn commit_soft_batch<B: Serialize, T: Serialize, DS: DaSpec>(
+    fn commit_soft_batch<B: Serialize, T: Serialize, DS: DaSpec>(
         &self,
         batch_receipt: SoftBatchReceipt<B, T, DS>,
         include_tx_body: bool,
@@ -357,10 +302,267 @@ impl LedgerDB {
         Ok(())
     }
 
+    /// Records the L2 height that was created as a soft confirmaiton of an L1 height
+    #[instrument(level = "trace", skip(self), err, ret)]
+    fn extend_l2_range_of_l1_slot(
+        &self,
+        l1_height: SlotNumber,
+        l2_height: BatchNumber,
+    ) -> Result<(), anyhow::Error> {
+        let current_range = self.db.get::<L2RangeByL1Height>(&l1_height)?;
+
+        let new_range = match current_range {
+            Some(existing) => (existing.0, l2_height),
+            None => (l2_height, l2_height),
+        };
+
+        let mut schema_batch = SchemaBatch::new();
+
+        schema_batch.put::<L2RangeByL1Height>(&l1_height, &new_range)?;
+        self.db.write_schemas(schema_batch)?;
+
+        Ok(())
+    }
+
+    /// Get the next slot, block, transaction, and event numbers
+    #[instrument(level = "trace", skip(self), ret)]
+    fn get_next_items_numbers(&self) -> ItemNumbers {
+        self.next_item_numbers.lock().unwrap().clone()
+    }
+
+    /// Gets all slots with numbers `range.start` to `range.end`. If `range.end` is outside
+    /// the range of the database, the result will smaller than the requested range.
+    /// Note that this method blindly preallocates for the requested range, so it should not be exposed
+    /// directly via rpc.
+    #[instrument(level = "trace", skip(self), err)]
+    fn _get_slot_range(
+        &self,
+        range: &std::ops::Range<SlotNumber>,
+    ) -> Result<Vec<StoredSlot>, anyhow::Error> {
+        self.get_data_range::<SlotByNumber, _, _>(range)
+    }
+
+    /// Gets all batches with numbers `range.start` to `range.end`. If `range.end` is outside
+    /// the range of the database, the result will smaller than the requested range.
+    /// Note that this method blindly preallocates for the requested range, so it should not be exposed
+    /// directly via rpc.
+    #[instrument(level = "trace", skip(self), err)]
+    fn get_batch_range(
+        &self,
+        range: &std::ops::Range<BatchNumber>,
+    ) -> Result<Vec<StoredBatch>, anyhow::Error> {
+        self.get_data_range::<BatchByNumber, _, _>(range)
+    }
+
+    /// Gets l1 height of l1 hash
+    #[instrument(level = "trace", skip(self), err, ret)]
+    fn get_state_diff(&self) -> Result<StateDiff, anyhow::Error> {
+        self.db
+            .get::<LastStateDiff>(&())
+            .map(|diff| diff.unwrap_or_default())
+    }
+
+    /// Sets l1 height of l1 hash
+    #[instrument(level = "trace", skip(self), err, ret)]
+    fn set_l1_height_of_l1_hash(&self, hash: [u8; 32], height: u64) -> anyhow::Result<()> {
+        self.db.put::<SlotByHash>(&hash, &SlotNumber(height))
+    }
+
+    /// Saves a soft confirmation status for a given L1 height
+    #[instrument(level = "trace", skip(self), err, ret)]
+    fn put_soft_confirmation_status(
+        &self,
+        height: BatchNumber,
+        status: sov_rollup_interface::rpc::SoftConfirmationStatus,
+    ) -> Result<(), anyhow::Error> {
+        let mut schema_batch = SchemaBatch::new();
+
+        schema_batch.put::<SoftConfirmationStatus>(&height, &status)?;
+        self.db.write_schemas(schema_batch)?;
+
+        Ok(())
+    }
+
+    /// Gets the commitments in the da slot with given height if any
+    /// Adds the new coming commitment info
+    #[instrument(level = "trace", skip(self, commitment), err, ret)]
+    fn update_commitments_on_da_slot(
+        &self,
+        height: u64,
+        commitment: SequencerCommitment,
+    ) -> anyhow::Result<()> {
+        // get commitments
+        let commitments = self.db.get::<CommitmentsByNumber>(&SlotNumber(height))?;
+
+        match commitments {
+            // If there were other commitments, upsert
+            Some(mut commitments) => {
+                commitments.push(commitment);
+                self.db
+                    .put::<CommitmentsByNumber>(&SlotNumber(height), &commitments)
+            }
+            // Else insert
+            None => self
+                .db
+                .put::<CommitmentsByNumber>(&SlotNumber(height), &vec![commitment]),
+        }
+    }
+
+    /// Set the genesis state root
+    #[instrument(level = "trace", skip_all, err, ret)]
+    fn set_l2_genesis_state_root<StateRoot: Serialize>(
+        &self,
+        state_root: &StateRoot,
+    ) -> anyhow::Result<()> {
+        let buf = bincode::serialize(state_root)?;
+        let mut schema_batch = SchemaBatch::new();
+        schema_batch.put::<L2GenesisStateRoot>(&(), &buf)?;
+
+        self.db.write_schemas(schema_batch)?;
+
+        Ok(())
+    }
+
+    /// Get the most recent committed soft batch, if any
+    #[instrument(level = "trace", skip(self), err)]
+    fn get_head_soft_batch(&self) -> anyhow::Result<Option<(BatchNumber, StoredSoftBatch)>> {
+        let mut iter = self.db.iter::<SoftBatchByNumber>()?;
+        iter.seek_to_last();
+
+        match iter.next() {
+            Some(Ok(item)) => Ok(Some(item.into_tuple())),
+            Some(Err(e)) => Err(e),
+            _ => Ok(None),
+        }
+    }
+
+    /// Gets all soft confirmations with numbers `range.start` to `range.end`. If `range.end` is outside
+    /// the range of the database, the result will smaller than the requested range.
+    /// Note that this method blindly preallocates for the requested range, so it should not be exposed
+    /// directly via rpc.
+    #[instrument(level = "trace", skip(self), err)]
+    fn get_soft_batch_range(
+        &self,
+        range: &std::ops::Range<BatchNumber>,
+    ) -> Result<Vec<StoredSoftBatch>, anyhow::Error> {
+        self.get_data_range::<SoftBatchByNumber, _, _>(range)
+    }
+
+    /// Gets all soft confirmations by numbers
+    #[instrument(level = "trace", skip(self), err)]
+    fn get_soft_batch_by_number(
+        &self,
+        number: &BatchNumber,
+    ) -> Result<Option<StoredSoftBatch>, anyhow::Error> {
+        self.db.get::<SoftBatchByNumber>(number)
+    }
+}
+
+impl ProverLedgerOps for LedgerDB {
+    /// Get the state root by L2 height
+    #[instrument(level = "trace", skip_all, err)]
+    fn get_l2_state_root<StateRoot: DeserializeOwned>(
+        &self,
+        l2_height: u64,
+    ) -> anyhow::Result<Option<StateRoot>> {
+        if l2_height == 0 {
+            self.db
+                .get::<L2GenesisStateRoot>(&())?
+                .map(|state_root| bincode::deserialize(&state_root).map_err(Into::into))
+                .transpose()
+        } else {
+            self.db
+                .get::<SoftBatchByNumber>(&BatchNumber(l2_height))?
+                .map(|soft_batch| bincode::deserialize(&soft_batch.state_root).map_err(Into::into))
+                .transpose()
+        }
+    }
+
+    /// Get the last scanned slot by the prover
+    #[instrument(level = "trace", skip(self), err, ret)]
+    fn get_prover_last_scanned_l1_height(&self) -> anyhow::Result<Option<SlotNumber>> {
+        self.db.get::<ProverLastScannedSlot>(&())
+    }
+
+    /// Set the last scanned slot by the prover
+    /// Called by the prover.
+    #[instrument(level = "trace", skip(self), err, ret)]
+    fn set_prover_last_scanned_l1_height(&self, l1_height: SlotNumber) -> anyhow::Result<()> {
+        let mut schema_batch = SchemaBatch::new();
+
+        schema_batch.put::<ProverLastScannedSlot>(&(), &l1_height)?;
+        self.db.write_schemas(schema_batch)?;
+
+        Ok(())
+    }
+
+    /// Get the witness by L2 height
+    #[instrument(level = "trace", skip_all, err)]
+    fn get_l2_witness<Witness: DeserializeOwned>(
+        &self,
+        l2_height: u64,
+    ) -> anyhow::Result<Option<Witness>> {
+        let buf = self.db.get::<L2Witness>(&BatchNumber(l2_height))?;
+        if let Some(buf) = buf {
+            let witness = bincode::deserialize(&buf)?;
+            Ok(Some(witness))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Stores proof related data on disk, accessible via l1 slot height
+    #[instrument(level = "trace", skip(self, proof, state_transition), err, ret)]
+    fn put_proof_data(
+        &self,
+        l1_height: u64,
+        l1_tx_id: [u8; 32],
+        proof: Proof,
+        state_transition: StoredStateTransition,
+    ) -> anyhow::Result<()> {
+        let data_to_store = StoredProof {
+            l1_tx_id,
+            proof,
+            state_transition,
+        };
+        self.db
+            .put::<ProofBySlotNumber>(&SlotNumber(l1_height), &data_to_store)
+    }
+
+    /// Set the witness by L2 height
+    #[instrument(level = "trace", skip_all, err, ret)]
+    fn set_l2_witness<Witness: Serialize>(
+        &self,
+        l2_height: u64,
+        witness: &Witness,
+    ) -> anyhow::Result<()> {
+        let buf = bincode::serialize(witness)?;
+        let mut schema_batch = SchemaBatch::new();
+        schema_batch.put::<L2Witness>(&BatchNumber(l2_height), &buf)?;
+
+        self.db.write_schemas(schema_batch)?;
+
+        Ok(())
+    }
+}
+
+impl SequencerLedgerOps for LedgerDB {
+    /// Put slots
+    #[instrument(level = "trace", skip(self, schema_batch), err, ret)]
+    fn put_slot(
+        &self,
+        slot: &StoredSlot,
+        slot_number: &SlotNumber,
+        schema_batch: &mut SchemaBatch,
+    ) -> Result<(), anyhow::Error> {
+        schema_batch.put::<SlotByNumber>(slot_number, slot)?;
+        schema_batch.put::<SlotByHash>(&slot.hash, slot_number)
+    }
+
     /// Commits a slot to the database by inserting its events, transactions, and batches before
     /// inserting the slot metadata.
     #[instrument(level = "trace", skip_all, err, ret)]
-    pub fn commit_slot<S: SlotData, B: Serialize, T: Serialize>(
+    fn commit_slot<S: SlotData, B: Serialize, T: Serialize>(
         &self,
         data_to_commit: SlotCommit<S, B, T>,
     ) -> Result<(), anyhow::Error> {
@@ -441,107 +643,24 @@ impl LedgerDB {
         Ok(())
     }
 
-    /// Records the L2 height that was created as a soft confirmaiton of an L1 height
-    #[instrument(level = "trace", skip(self), err, ret)]
-    pub fn extend_l2_range_of_l1_slot(
-        &self,
-        l1_height: SlotNumber,
-        l2_height: BatchNumber,
-    ) -> Result<(), anyhow::Error> {
-        let current_range = self.db.get::<L2RangeByL1Height>(&l1_height)?;
-
-        let new_range = match current_range {
-            Some(existing) => (existing.0, l2_height),
-            None => (l2_height, l2_height),
-        };
-
-        let mut schema_batch = SchemaBatch::new();
-
-        schema_batch
-            .put::<L2RangeByL1Height>(&l1_height, &new_range)
-            .unwrap();
-        self.db.write_schemas(schema_batch)?;
-
-        Ok(())
-    }
-
     /// Used by the sequencer to record that it has committed to soft confirmations on a given L2 height
     #[instrument(level = "trace", skip(self), err, ret)]
-    pub fn set_last_sequencer_commitment_l2_height(
+    fn set_last_sequencer_commitment_l2_height(
         &self,
         l2_height: BatchNumber,
     ) -> Result<(), anyhow::Error> {
         let mut schema_batch = SchemaBatch::new();
 
-        schema_batch
-            .put::<LastSequencerCommitmentSent>(&(), &l2_height)
-            .unwrap();
+        schema_batch.put::<LastSequencerCommitmentSent>(&(), &l2_height)?;
         self.db.write_schemas(schema_batch)?;
 
         Ok(())
-    }
-
-    /// Saves a soft confirmation status for a given L1 height
-    #[instrument(level = "trace", skip(self), err, ret)]
-    pub fn put_soft_confirmation_status(
-        &self,
-        height: BatchNumber,
-        status: sov_rollup_interface::rpc::SoftConfirmationStatus,
-    ) -> Result<(), anyhow::Error> {
-        let mut schema_batch = SchemaBatch::new();
-
-        schema_batch
-            .put::<SoftConfirmationStatus>(&height, &status)
-            .unwrap();
-        self.db.write_schemas(schema_batch)?;
-
-        Ok(())
-    }
-
-    fn last_version_written<T: Schema<Key = U>, U: Into<u64>>(
-        db: &DB,
-        _schema: T,
-    ) -> anyhow::Result<Option<u64>> {
-        let mut iter = db.iter::<T>()?;
-        iter.seek_to_last();
-
-        match iter.next() {
-            Some(Ok(item)) => Ok(Some(item.key.into())),
-            Some(Err(e)) => Err(e),
-            _ => Ok(None),
-        }
-    }
-
-    /// Get the most recent committed slot, if any
-    #[instrument(level = "trace", skip(self), err)]
-    pub fn get_head_slot(&self) -> anyhow::Result<Option<(SlotNumber, StoredSlot)>> {
-        let mut iter = self.db.iter::<SlotByNumber>()?;
-        iter.seek_to_last();
-
-        match iter.next() {
-            Some(Ok(item)) => Ok(Some(item.into_tuple())),
-            Some(Err(e)) => Err(e),
-            _ => Ok(None),
-        }
-    }
-
-    /// Get the most recent committed soft batch, if any
-    #[instrument(level = "trace", skip(self), err)]
-    pub fn get_head_soft_batch(&self) -> anyhow::Result<Option<(BatchNumber, StoredSoftBatch)>> {
-        let mut iter = self.db.iter::<SoftBatchByNumber>()?;
-        iter.seek_to_last();
-
-        match iter.next() {
-            Some(Ok(item)) => Ok(Some(item.into_tuple())),
-            Some(Err(e)) => Err(e),
-            _ => Ok(None),
-        }
     }
 
     /// Gets all pending commitments' l2 ranges.
     /// Returns start-end L2 heights.
     #[instrument(level = "trace", skip(self), err)]
-    pub fn get_pending_commitments_l2_range(&self) -> anyhow::Result<Vec<L2HeightRange>> {
+    fn get_pending_commitments_l2_range(&self) -> anyhow::Result<Vec<L2HeightRange>> {
         let mut iter = self.db.iter::<PendingSequencerCommitmentL2Range>()?;
         iter.seek_to_first();
 
@@ -556,178 +675,41 @@ impl LedgerDB {
 
     /// Put a pending commitment l2 range
     #[instrument(level = "trace", skip(self), err)]
-    pub fn put_pending_commitment_l2_range(&self, l2_range: &L2HeightRange) -> anyhow::Result<()> {
+    fn put_pending_commitment_l2_range(&self, l2_range: &L2HeightRange) -> anyhow::Result<()> {
         self.db
             .put::<PendingSequencerCommitmentL2Range>(l2_range, &())
     }
 
     /// Delete a pending commitment l2 range
     #[instrument(level = "trace", skip(self), err)]
-    pub fn delete_pending_commitment_l2_range(
-        &self,
-        l2_range: &L2HeightRange,
-    ) -> anyhow::Result<()> {
+    fn delete_pending_commitment_l2_range(&self, l2_range: &L2HeightRange) -> anyhow::Result<()> {
         self.db
             .delete::<PendingSequencerCommitmentL2Range>(l2_range)
+    }
+
+    /// Sets the latest state diff
+    #[instrument(level = "trace", skip(self), err, ret)]
+    fn set_state_diff(&self, state_diff: StateDiff) -> anyhow::Result<()> {
+        let mut schema_batch = SchemaBatch::new();
+        schema_batch.put::<LastStateDiff>(&(), &state_diff)?;
+
+        self.db.write_schemas(schema_batch)?;
+
+        Ok(())
     }
 
     /// Get the most recent committed batch
     /// Returns L2 height.
     #[instrument(level = "trace", skip(self), err, ret)]
-    pub fn get_last_sequencer_commitment_l2_height(&self) -> anyhow::Result<Option<BatchNumber>> {
+    fn get_last_sequencer_commitment_l2_height(&self) -> anyhow::Result<Option<BatchNumber>> {
         self.db.get::<LastSequencerCommitmentSent>(&())
     }
+}
 
-    /// Get L2 height range for a given L1 height.
-    /// This means L2 heights in that range were soft confirmations for L1 height.
-    #[instrument(level = "trace", skip(self), err, ret)]
-    pub fn get_l2_range_by_l1_height(
-        &self,
-        l1_height: SlotNumber,
-    ) -> anyhow::Result<Option<L2HeightRange>> {
-        self.db.get::<L2RangeByL1Height>(&l1_height)
-    }
-
-    /// Get the last scanned slot by the prover
-    #[instrument(level = "trace", skip(self), err, ret)]
-    pub fn get_prover_last_scanned_l1_height(&self) -> anyhow::Result<Option<SlotNumber>> {
-        self.db.get::<ProverLastScannedSlot>(&())
-    }
-
-    /// Set the last scanned slot by the prover
-    /// Called by the prover.
-    #[instrument(level = "trace", skip(self), err, ret)]
-    pub fn set_prover_last_scanned_l1_height(&self, l1_height: SlotNumber) -> anyhow::Result<()> {
-        let mut schema_batch = SchemaBatch::new();
-
-        schema_batch
-            .put::<ProverLastScannedSlot>(&(), &l1_height)
-            .unwrap();
-        self.db.write_schemas(schema_batch)?;
-
-        Ok(())
-    }
-
-    /// Get the witness by L2 height
-    #[instrument(level = "trace", skip_all, err)]
-    pub fn get_l2_witness<Witness: DeserializeOwned>(
-        &self,
-        l2_height: u64,
-    ) -> anyhow::Result<Option<Witness>> {
-        let buf = self.db.get::<L2Witness>(&BatchNumber(l2_height))?;
-        if let Some(buf) = buf {
-            let witness = bincode::deserialize(&buf)?;
-            Ok(Some(witness))
-        } else {
-            Ok(None)
-        }
-    }
-
-    /// Set the witness by L2 height
-    #[instrument(level = "trace", skip_all, err, ret)]
-    pub fn set_l2_witness<Witness: Serialize>(
-        &self,
-        l2_height: u64,
-        witness: &Witness,
-    ) -> anyhow::Result<()> {
-        let buf = bincode::serialize(witness)?;
-        let mut schema_batch = SchemaBatch::new();
-        schema_batch.put::<L2Witness>(&BatchNumber(l2_height), &buf)?;
-
-        self.db.write_schemas(schema_batch)?;
-
-        Ok(())
-    }
-
-    /// Set the genesis state root
-    #[instrument(level = "trace", skip_all, err, ret)]
-    pub fn set_l2_genesis_state_root<StateRoot: Serialize>(
-        &self,
-        state_root: &StateRoot,
-    ) -> anyhow::Result<()> {
-        let buf = bincode::serialize(state_root)?;
-        let mut schema_batch = SchemaBatch::new();
-        schema_batch.put::<L2GenesisStateRoot>(&(), &buf)?;
-
-        self.db.write_schemas(schema_batch)?;
-
-        Ok(())
-    }
-
-    /// Get the state root by L2 height
-    #[instrument(level = "trace", skip_all, err)]
-    pub fn get_l2_state_root<StateRoot: DeserializeOwned>(
-        &self,
-        l2_height: u64,
-    ) -> anyhow::Result<Option<StateRoot>> {
-        if l2_height == 0 {
-            self.db
-                .get::<L2GenesisStateRoot>(&())?
-                .map(|state_root| bincode::deserialize(&state_root).map_err(Into::into))
-                .transpose()
-        } else {
-            self.db
-                .get::<SoftBatchByNumber>(&BatchNumber(l2_height))?
-                .map(|soft_batch| bincode::deserialize(&soft_batch.state_root).map_err(Into::into))
-                .transpose()
-        }
-    }
-
-    /// Gets the commitments in the da slot with given height if any
-    /// Adds the new coming commitment info
-    #[instrument(level = "trace", skip(self, commitment), err, ret)]
-    pub fn update_commitments_on_da_slot(
-        &self,
-        height: u64,
-        commitment: SequencerCommitment,
-    ) -> anyhow::Result<()> {
-        // get commitments
-        let commitments = self.db.get::<CommitmentsByNumber>(&SlotNumber(height))?;
-
-        match commitments {
-            // If there were other commitments, upsert
-            Some(mut commitments) => {
-                commitments.push(commitment);
-                self.db
-                    .put::<CommitmentsByNumber>(&SlotNumber(height), &commitments)
-            }
-            // Else insert
-            None => self
-                .db
-                .put::<CommitmentsByNumber>(&SlotNumber(height), &vec![commitment]),
-        }
-    }
-
-    /// Gets the commitments in the da slot with given height if any
-    #[instrument(level = "trace", skip(self), err)]
-    pub fn get_commitments_on_da_slot(
-        &self,
-        height: u64,
-    ) -> anyhow::Result<Option<Vec<SequencerCommitment>>> {
-        self.db.get::<CommitmentsByNumber>(&SlotNumber(height))
-    }
-
+impl NodeLedgerOps for LedgerDB {
     /// Stores proof related data on disk, accessible via l1 slot height
     #[instrument(level = "trace", skip(self, proof, state_transition), err, ret)]
-    pub fn put_proof_data(
-        &self,
-        l1_height: u64,
-        l1_tx_id: [u8; 32],
-        proof: Proof,
-        state_transition: StoredStateTransition,
-    ) -> anyhow::Result<()> {
-        let data_to_store = StoredProof {
-            l1_tx_id,
-            proof,
-            state_transition,
-        };
-        self.db
-            .put::<ProofBySlotNumber>(&SlotNumber(l1_height), &data_to_store)
-    }
-
-    /// Stores proof related data on disk, accessible via l1 slot height
-    #[instrument(level = "trace", skip(self, proof, state_transition), err, ret)]
-    pub fn update_verified_proof_data(
+    fn update_verified_proof_data(
         &self,
         l1_height: u64,
         proof: Proof,
@@ -757,34 +739,43 @@ impl LedgerDB {
         }
     }
 
-    /// Sets l1 height of l1 hash
-    #[instrument(level = "trace", skip(self), err, ret)]
-    pub fn set_l1_height_of_l1_hash(&self, hash: [u8; 32], height: u64) -> anyhow::Result<()> {
-        self.db.put::<SlotByHash>(&hash, &SlotNumber(height))
+    /// Get the most recent committed slot, if any
+    #[instrument(level = "trace", skip(self), err)]
+    fn get_head_slot(&self) -> anyhow::Result<Option<(SlotNumber, StoredSlot)>> {
+        let mut iter = self.db.iter::<SlotByNumber>()?;
+        iter.seek_to_last();
+
+        match iter.next() {
+            Some(Ok(item)) => Ok(Some(item.into_tuple())),
+            Some(Err(e)) => Err(e),
+            _ => Ok(None),
+        }
+    }
+
+    /// Gets all transactions with numbers `range.start` to `range.end`. If `range.end` is outside
+    /// the range of the database, the result will smaller than the requested range.
+    /// Note that this method blindly preallocates for the requested range, so it should not be exposed
+    /// directly via rpc.
+    #[instrument(level = "trace", skip(self), err)]
+    fn get_tx_range(
+        &self,
+        range: &std::ops::Range<TxNumber>,
+    ) -> Result<Vec<StoredTransaction>, anyhow::Error> {
+        self.get_data_range::<TxByNumber, _, _>(range)
+    }
+
+    /// Gets the commitments in the da slot with given height if any
+    #[instrument(level = "trace", skip(self), err)]
+    fn get_commitments_on_da_slot(
+        &self,
+        height: u64,
+    ) -> anyhow::Result<Option<Vec<SequencerCommitment>>> {
+        self.db.get::<CommitmentsByNumber>(&SlotNumber(height))
     }
 
     /// Gets l1 height of l1 hash
     #[instrument(level = "trace", skip(self), err, ret)]
-    pub fn get_l1_height_of_l1_hash(&self, hash: [u8; 32]) -> Result<Option<u64>, anyhow::Error> {
+    fn get_l1_height_of_l1_hash(&self, hash: [u8; 32]) -> Result<Option<u64>, anyhow::Error> {
         self.db.get::<SlotByHash>(&hash).map(|v| v.map(|a| a.0))
-    }
-
-    /// Sets the latest state diff
-    #[instrument(level = "trace", skip(self), err, ret)]
-    pub fn set_state_diff(&self, state_diff: StateDiff) -> anyhow::Result<()> {
-        let mut schema_batch = SchemaBatch::new();
-        schema_batch.put::<LastStateDiff>(&(), &state_diff)?;
-
-        self.db.write_schemas(schema_batch)?;
-
-        Ok(())
-    }
-
-    /// Gets l1 height of l1 hash
-    #[instrument(level = "trace", skip(self), err, ret)]
-    pub fn get_state_diff(&self) -> Result<StateDiff, anyhow::Error> {
-        self.db
-            .get::<LastStateDiff>(&())
-            .map(|diff| diff.unwrap_or_default())
     }
 }
