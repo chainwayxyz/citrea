@@ -167,9 +167,9 @@ impl LedgerDB {
 
 impl SharedLedgerOps for LedgerDB {
     #[instrument(level = "trace", skip(self, schema_batch), err, ret)]
-    fn put_soft_batch(
+    fn put_soft_confirmation(
         &self,
-        batch: &StoredSoftBatch,
+        batch: &StoredSoftConfirmation,
         batch_number: &BatchNumber,
         schema_batch: &mut SchemaBatch,
     ) -> Result<(), anyhow::Error> {
@@ -200,8 +200,8 @@ impl SharedLedgerOps for LedgerDB {
         schema_batch.put::<EventByKey>(&(event.key().clone(), tx_number, *event_number), &())
     }
 
-    /// Commits a soft batch to the database by inserting its transactions and batches before
-    fn commit_soft_batch<B: Serialize, T: Serialize, DS: DaSpec>(
+    /// Commits a soft confirmation to the database by inserting its transactions and batches before
+    fn commit_soft_confirmation<B: Serialize, T: Serialize, DS: DaSpec>(
         &self,
         mut soft_confirmation_receipt: SoftConfirmationReceipt<B, T, DS>,
         include_tx_body: bool,
@@ -326,18 +326,6 @@ impl SharedLedgerOps for LedgerDB {
         self.get_data_range::<SlotByNumber, _, _>(range)
     }
 
-    /// Gets all batches with numbers `range.start` to `range.end`. If `range.end` is outside
-    /// the range of the database, the result will smaller than the requested range.
-    /// Note that this method blindly preallocates for the requested range, so it should not be exposed
-    /// directly via rpc.
-    #[instrument(level = "trace", skip(self), err)]
-    fn get_batch_range(
-        &self,
-        range: &std::ops::Range<BatchNumber>,
-    ) -> Result<Vec<StoredBatch>, anyhow::Error> {
-        self.get_data_range::<BatchByNumber, _, _>(range)
-    }
-
     /// Gets l1 height of l1 hash
     #[instrument(level = "trace", skip(self), err, ret)]
     fn get_state_diff(&self) -> Result<StateDiff, anyhow::Error> {
@@ -407,10 +395,12 @@ impl SharedLedgerOps for LedgerDB {
         Ok(())
     }
 
-    /// Get the most recent committed soft batch, if any
+    /// Get the most recent committed soft confirmation, if any
     #[instrument(level = "trace", skip(self), err)]
-    fn get_head_soft_batch(&self) -> anyhow::Result<Option<(BatchNumber, StoredSoftBatch)>> {
-        let mut iter = self.db.iter::<SoftBatchByNumber>()?;
+    fn get_head_soft_confirmation(
+        &self,
+    ) -> anyhow::Result<Option<(BatchNumber, StoredSoftConfirmation)>> {
+        let mut iter = self.db.iter::<SoftConfirmationByNumber>()?;
         iter.seek_to_last();
 
         match iter.next() {
@@ -425,20 +415,20 @@ impl SharedLedgerOps for LedgerDB {
     /// Note that this method blindly preallocates for the requested range, so it should not be exposed
     /// directly via rpc.
     #[instrument(level = "trace", skip(self), err)]
-    fn get_soft_batch_range(
+    fn get_soft_confirmation_range(
         &self,
         range: &std::ops::Range<BatchNumber>,
-    ) -> Result<Vec<StoredSoftBatch>, anyhow::Error> {
-        self.get_data_range::<SoftBatchByNumber, _, _>(range)
+    ) -> Result<Vec<StoredSoftConfirmation>, anyhow::Error> {
+        self.get_data_range::<SoftConfirmationByNumber, _, _>(range)
     }
 
     /// Gets all soft confirmations by numbers
     #[instrument(level = "trace", skip(self), err)]
-    fn get_soft_batch_by_number(
+    fn get_soft_confirmation_by_number(
         &self,
         number: &BatchNumber,
-    ) -> Result<Option<StoredSoftBatch>, anyhow::Error> {
-        self.db.get::<SoftBatchByNumber>(number)
+    ) -> Result<Option<StoredSoftConfirmation>, anyhow::Error> {
+        self.db.get::<SoftConfirmationByNumber>(number)
     }
 }
 
@@ -456,8 +446,10 @@ impl ProverLedgerOps for LedgerDB {
                 .transpose()
         } else {
             self.db
-                .get::<SoftBatchByNumber>(&BatchNumber(l2_height))?
-                .map(|soft_batch| bincode::deserialize(&soft_batch.state_root).map_err(Into::into))
+                .get::<SoftConfirmationByNumber>(&BatchNumber(l2_height))?
+                .map(|soft_confirmation| {
+                    bincode::deserialize(&soft_confirmation.state_root).map_err(Into::into)
+                })
                 .transpose()
         }
     }
@@ -541,90 +533,6 @@ impl SequencerLedgerOps for LedgerDB {
     ) -> Result<(), anyhow::Error> {
         schema_batch.put::<SlotByNumber>(slot_number, slot)?;
         schema_batch.put::<SlotByHash>(&slot.hash, slot_number)
-    }
-
-    /// Commits a slot to the database by inserting its events, transactions, and batches before
-    /// inserting the slot metadata.
-    #[instrument(level = "trace", skip_all, err, ret)]
-    fn commit_slot<S: SlotData, B: Serialize, T: Serialize>(
-        &self,
-        data_to_commit: SlotCommit<S, B, T>,
-    ) -> Result<(), anyhow::Error> {
-        // Create a scope to ensure that the lock is released before we commit to the db
-        let mut current_item_numbers = {
-            let mut next_item_numbers = self.next_item_numbers.lock().unwrap();
-            let item_numbers = next_item_numbers.clone();
-            next_item_numbers.slot_number += 1;
-            next_item_numbers.batch_number += data_to_commit.batch_receipts.len() as u64;
-            next_item_numbers.tx_number += data_to_commit.num_txs as u64;
-            next_item_numbers.event_number += data_to_commit.num_events as u64;
-            item_numbers
-            // The lock is released here
-        };
-
-        let mut schema_batch = SchemaBatch::new();
-
-        let first_batch_number = current_item_numbers.batch_number;
-        let last_batch_number = first_batch_number + data_to_commit.batch_receipts.len() as u64;
-        // Insert data from "bottom up" to ensure consistency if the application crashes during insertion
-        for batch_receipt in data_to_commit.batch_receipts.into_iter() {
-            let first_tx_number = current_item_numbers.tx_number;
-            let last_tx_number = first_tx_number + batch_receipt.tx_receipts.len() as u64;
-            // Insert transactions and events from each batch before inserting the batch
-            for tx in batch_receipt.tx_receipts.into_iter() {
-                let (tx_to_store, events) =
-                    split_tx_for_storage(tx, current_item_numbers.event_number);
-                for event in events.into_iter() {
-                    self.put_event(
-                        &event,
-                        &EventNumber(current_item_numbers.event_number),
-                        TxNumber(current_item_numbers.tx_number),
-                        &mut schema_batch,
-                    )?;
-                    current_item_numbers.event_number += 1;
-                }
-                self.put_transaction(
-                    &tx_to_store,
-                    &TxNumber(current_item_numbers.tx_number),
-                    &mut schema_batch,
-                )?;
-                current_item_numbers.tx_number += 1;
-            }
-
-            // Insert batch
-            let batch_to_store = StoredBatch {
-                hash: batch_receipt.hash,
-                txs: TxNumber(first_tx_number)..TxNumber(last_tx_number),
-            };
-            self.put_batch(
-                &batch_to_store,
-                &BatchNumber(current_item_numbers.batch_number),
-                &mut schema_batch,
-            )?;
-            current_item_numbers.batch_number += 1;
-        }
-
-        // Once all batches are inserted, Insert slot
-        let slot_to_store = StoredSlot {
-            hash: data_to_commit.slot_data.hash(),
-            // TODO: Add a method to the slot data trait allowing additional data to be stored
-            extra_data: vec![].into(),
-            batches: BatchNumber(first_batch_number)..BatchNumber(last_batch_number),
-        };
-        self.put_slot(
-            &slot_to_store,
-            &SlotNumber(current_item_numbers.slot_number),
-            &mut schema_batch,
-        )?;
-
-        self.db.write_schemas(schema_batch)?;
-
-        // Notify subscribers. This call returns an error IFF there are no subscribers, so we don't need to check the result
-        let _ = self
-            .slot_subscriptions
-            .send(current_item_numbers.slot_number);
-
-        Ok(())
     }
 
     /// Used by the sequencer to record that it has committed to soft confirmations on a given L2 height
