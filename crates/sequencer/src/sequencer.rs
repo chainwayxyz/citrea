@@ -622,12 +622,14 @@ where
 
     #[instrument(level = "trace", skip(self), err, ret)]
     pub async fn resubmit_pending_commitments(&mut self) -> anyhow::Result<()> {
+        info!("Resubmitting pending commitments");
+
         let pending_db_commitments = self.ledger_db.get_pending_commitments_l2_range()?;
         debug!("Pending db commitments: {:?}", pending_db_commitments);
 
         let pending_mempool_commitments = self.get_pending_mempool_commitments().await;
         debug!(
-            "Pending mempool commitments: {:?}",
+            "Commitments that are already in DA mempool: {:?}",
             pending_mempool_commitments
         );
 
@@ -638,7 +640,10 @@ where
         let mined_commitments = self
             .get_mined_commitments_from(last_commitment_l1_height)
             .await?;
-        debug!("Unsaved mined commitments: {:?}", mined_commitments);
+        debug!(
+            "Commitments that are already mined by DA: {:?}",
+            mined_commitments
+        );
 
         let mut pending_commitments_to_remove = vec![];
         pending_commitments_to_remove.extend(pending_mempool_commitments);
