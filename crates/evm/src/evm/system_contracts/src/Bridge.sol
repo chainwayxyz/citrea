@@ -179,7 +179,7 @@ contract Bridge is Ownable2StepUpgradeable {
         uint256 offset = 32;
         bytes32 chunkA;
         bytes32 chunkB;
-        while (offset < len) {
+        while (offset <= len) {
             assembly {
                 chunkA := mload(add(a, offset)) 
                 chunkB := mload(add(b, offset))
