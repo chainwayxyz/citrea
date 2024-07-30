@@ -6,6 +6,7 @@ use sov_modules_api::default_context::DefaultContext;
 use sov_prover_storage_manager::SnapshotManager;
 use sov_rollup_interface::services::da::DaService;
 use sov_state::ProverStorage;
+use tokio::sync::broadcast;
 
 // register ethereum methods.
 pub(crate) fn register_ethereum<Da: DaService>(
@@ -13,6 +14,7 @@ pub(crate) fn register_ethereum<Da: DaService>(
     storage: ProverStorage<sov_state::DefaultStorageSpec, SnapshotManager>,
     methods: &mut jsonrpsee::RpcModule<()>,
     sequencer_client_url: Option<String>,
+    soft_confirmation_rx: Option<broadcast::Receiver<u64>>,
 ) -> Result<(), anyhow::Error> {
     let eth_rpc_config = {
         let eth_signer = eth_dev_signer();
@@ -28,6 +30,7 @@ pub(crate) fn register_ethereum<Da: DaService>(
         eth_rpc_config,
         storage,
         sequencer_client_url,
+        soft_confirmation_rx,
     );
     methods
         .merge(ethereum_rpc)

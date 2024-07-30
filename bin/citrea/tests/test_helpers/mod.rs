@@ -143,6 +143,8 @@ pub fn create_default_rollup_config(
             max_request_body_size: 10 * 1024 * 1024,
             max_response_body_size: 10 * 1024 * 1024,
             batch_requests_limit: 50,
+            enable_subscriptions: true,
+            max_subscriptions_per_connection: 100,
         },
         runner: match node_mode {
             NodeMode::FullNode(socket_addr) | NodeMode::Prover(socket_addr) => Some(RunnerConfig {

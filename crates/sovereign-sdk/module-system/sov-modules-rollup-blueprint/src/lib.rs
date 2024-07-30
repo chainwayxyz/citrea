@@ -14,6 +14,7 @@ use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::{Zkvm, ZkvmHost};
 use sov_state::Storage;
 use sov_stf_runner::{FullNodeConfig, ProverConfig, ProverService};
+use tokio::sync::broadcast;
 pub use wallet::*;
 
 /// This trait defines how to crate all the necessary dependencies required by a rollup.
@@ -67,6 +68,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         ledger_db: &LedgerDB,
         da_service: &Self::DaService,
         sequencer_client_url: Option<String>,
+        soft_confirmation_rx: Option<broadcast::Receiver<u64>>,
     ) -> Result<jsonrpsee::RpcModule<()>, anyhow::Error>;
 
     /// Creates GenesisConfig from genesis files.

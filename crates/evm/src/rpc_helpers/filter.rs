@@ -629,16 +629,15 @@ where
 
 // https://github.com/paradigmxyz/reth/blob/main/crates/rpc/rpc/src/eth/logs_utils.rs#L56
 /// Returns true if the log matches the filter and should be included
-pub(crate) fn log_matches_filter(
+pub fn log_matches_filter(
     log: &reth_primitives::Log,
     filter: &Filter,
-    topics: &[FilterSet<B256>; 4],
     block_hash: &BlockHash,
     block_number: &u64,
 ) -> bool {
     if !filter.filter_block_range(block_number)
         || !filter.filter_block_hash(block_hash)
-        || !filter.filter_topics(log, topics)
+        || !filter.filter_topics(log, &filter.topics)
         || !filter.filter_address(log, &filter.address)
     {
         return false;

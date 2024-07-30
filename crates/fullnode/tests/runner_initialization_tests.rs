@@ -11,6 +11,7 @@ use sov_stf_runner::{
 mod hash_stf;
 
 use hash_stf::HashStf;
+use tokio::sync::broadcast;
 
 type MockInitVariant =
     InitVariant<HashStf<MockValidityCond>, MockZkvm<MockValidityCond>, MockDaSpec>;
@@ -71,6 +72,8 @@ fn initialize_runner(
             max_request_body_size: 10 * 1024 * 1024,
             max_response_body_size: 10 * 1024 * 1024,
             batch_requests_limit: 50,
+            enable_subscriptions: true,
+            max_subscriptions_per_connection: 100,
         },
         runner: Some(RunnerConfig {
             sequencer_client_url: "http://127.0.0.1:4444".to_string(),
@@ -115,6 +118,7 @@ fn initialize_runner(
         init_variant,
         MockCodeCommitment([1u8; 32]),
         10,
+        broadcast::channel(1).0,
     )
     .unwrap()
 }

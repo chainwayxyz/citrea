@@ -1,7 +1,7 @@
 use std::hash::Hash;
 
 use alloy_primitives::Bytes;
-use reth_primitives::{Address, U256};
+use reth_primitives::{Address, Log, U256};
 use revm::primitives::B256;
 
 /// Ethereum Log emitted by a transaction
@@ -27,4 +27,12 @@ pub struct LogResponse {
     /// Geth Compatibility Field: whether this log was removed
     #[serde(default)]
     pub removed: bool,
+}
+
+impl TryInto<Log> for LogResponse {
+    type Error = &'static str;
+
+    fn try_into(self) -> Result<Log, Self::Error> {
+        Log::new(self.address, self.topics, self.data).ok_or("Invalid LogResponse")
+    }
 }

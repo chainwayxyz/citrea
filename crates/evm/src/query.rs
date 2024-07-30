@@ -1408,7 +1408,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     /// Returns an error if:
     ///  - underlying database error
     ///  - amount of matches exceeds configured limit
-    fn get_logs_in_block_range(
+    pub fn get_logs_in_block_range(
         &self,
         working_set: &mut WorkingSet<C>,
         filter: &Filter,
@@ -1434,11 +1434,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
             BlockRangeInclusiveIter::new(from_block_number..=to_block_number, max_headers_range)
         {
             for idx in from..=to {
-                let block = match self.blocks.get(
-                    // Index from +1 or just from?
-                    (idx) as usize,
-                    &mut working_set.accessory_state(),
-                ) {
+                let block = match self
+                    .blocks
+                    .get((idx) as usize, &mut working_set.accessory_state())
+                {
                     Some(block) => block,
                     None => {
                         return Err(FilterError::EthAPIError(
@@ -1484,7 +1483,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
         // TAG - true when the log was removed, due to a chain reorganization. false if its a valid log.
         let removed = false;
 
-        let topics = filter.topics.clone();
         let tx_range = block.transactions;
 
         for i in tx_range {
@@ -1499,13 +1497,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             let logs = receipt.receipt.logs;
 
             for log in logs.into_iter() {
-                if log_matches_filter(
-                    &log,
-                    filter,
-                    &topics,
-                    &block.header.hash(),
-                    &block.header.number,
-                ) {
+                if log_matches_filter(&log, filter, &block.header.hash(), &block.header.number) {
                     let log = LogResponse {
                         address: log.address,
                         topics: log.topics().to_vec(),

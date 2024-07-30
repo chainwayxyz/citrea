@@ -14,6 +14,7 @@ use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::zk::{Zkvm, ZkvmHost};
 use sov_state::{DefaultStorageSpec, Storage, ZkStorage};
 use sov_stf_runner::{FullNodeConfig, ProverConfig};
+use tokio::sync::broadcast;
 
 use crate::CitreaRollupBlueprint;
 
@@ -55,6 +56,7 @@ impl RollupBlueprint for MockDemoRollup {
         ledger_db: &LedgerDB,
         da_service: &Self::DaService,
         sequencer_client_url: Option<String>,
+        soft_confirmation_rx: Option<broadcast::Receiver<u64>>,
     ) -> Result<jsonrpsee::RpcModule<()>, anyhow::Error> {
         // TODO set the sequencer address
         let sequencer = Address::new([0; 32]);
@@ -71,6 +73,7 @@ impl RollupBlueprint for MockDemoRollup {
             storage.clone(),
             &mut rpc_methods,
             sequencer_client_url,
+            soft_confirmation_rx,
         )?;
 
         Ok(rpc_methods)
