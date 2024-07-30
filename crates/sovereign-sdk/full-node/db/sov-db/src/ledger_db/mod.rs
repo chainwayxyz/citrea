@@ -705,10 +705,9 @@ impl SequencerLedgerOps for LedgerDB {
         self.db.get::<LastSequencerCommitmentSent>(&())
     }
 
-    /// Get the most recent committed batch
-    /// Returns L1 height.
+    /// Get the most recent commitment's l1 height
     #[instrument(level = "trace", skip(self), err, ret)]
-    fn get_last_sequencer_commitment_l1_height(&self) -> anyhow::Result<Option<SlotNumber>> {
+    fn get_l1_height_of_last_commitment(&self) -> anyhow::Result<Option<SlotNumber>> {
         let l2_height = self.get_last_sequencer_commitment_l2_height()?;
         match l2_height {
             Some(l2_height) => {

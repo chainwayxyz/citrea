@@ -215,5 +215,5 @@ pub trait SequencerLedgerOps: SharedLedgerOps {
     fn get_last_sequencer_commitment_l2_height(&self) -> anyhow::Result<Option<BatchNumber>>;
 
     /// Get the most recent commitment's l1 height
-    fn get_last_sequencer_commitment_l1_height(&self) -> anyhow::Result<Option<SlotNumber>>;
+    fn get_l1_height_of_last_commitment(&self) -> anyhow::Result<Option<SlotNumber>>;
 }
