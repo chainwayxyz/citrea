@@ -44,12 +44,8 @@ async fn queries_test_runner(test_queries: Vec<TestExpect>, rpc_config: RpcConfi
 
 fn populate_ledger(
     ledger_db: &mut LedgerDB,
-    slots: Vec<SlotCommit<MockBlock, u32, u32>>,
     soft_confirmation_receipts: Option<Vec<SoftConfirmationReceipt<u64, u32, MockDaSpec>>>,
 ) {
-    for slot in slots {
-        ledger_db.commit_slot(slot).unwrap();
-    }
     if let Some(soft_confirmation_receipts) = soft_confirmation_receipts {
         for soft_confirmation_receipt in soft_confirmation_receipts {
             ledger_db
@@ -61,7 +57,6 @@ fn populate_ledger(
 
 fn test_helper(
     test_queries: Vec<TestExpect>,
-    slots: Vec<SlotCommit<MockBlock, u32, u32>>,
     soft_confirmation_receipts: Option<Vec<SoftConfirmationReceipt<u64, u32, MockDaSpec>>>,
 ) {
     let rt = tokio::runtime::Builder::new_multi_thread()
@@ -74,7 +69,7 @@ fn test_helper(
         // Initialize the ledger database, which stores blocks, transactions, events, etc.
         let tmpdir = tempfile::tempdir().unwrap();
         let mut ledger_db = LedgerDB::with_path(tmpdir.path()).unwrap();
-        populate_ledger(&mut ledger_db, slots, soft_confirmation_receipts);
+        populate_ledger(&mut ledger_db, soft_confirmation_receipts);
         let server = jsonrpsee::server::ServerBuilder::default()
             .build("127.0.0.1:0")
             .await
@@ -111,18 +106,6 @@ fn batch2_tx_receipts() -> Vec<TransactionReceipt<u32>> {
 }
 
 fn regular_test_helper(payload: serde_json::Value, expected: &serde_json::Value) {
-    let mut slots: Vec<SlotCommit<MockBlock, u32, u32>> = vec![SlotCommit::new(MockBlock {
-        header: MockBlockHeader {
-            prev_hash: MockHash(sha2::Sha256::digest(b"prev_header").into()),
-            hash: MockHash(sha2::Sha256::digest(b"slot_data").into()),
-            txs_commitment: MockHash(sha2::Sha256::digest(b"txs_commitment").into()),
-            height: 0,
-            time: Time::now(),
-        },
-        validity_cond: Default::default(),
-        blobs: Default::default(),
-    })];
-
     let soft_confirmation_receipts = vec![
         SoftConfirmationReceipt {
             da_slot_height: 0,
@@ -175,47 +158,11 @@ fn regular_test_helper(payload: serde_json::Value, expected: &serde_json::Value)
         },
     ];
 
-    let batches = vec![
-        BatchReceipt {
-            hash: ::sha2::Sha256::digest(b"batch_receipt").into(),
-            prev_hash: ::sha2::Sha256::digest(b"prev_batch_receipt").into(),
-            tx_receipts: vec![
-                TransactionReceipt::<u32> {
-                    tx_hash: ::sha2::Sha256::digest(b"tx1").into(),
-                    body_to_save: Some(b"tx1 body".to_vec()),
-                    events: vec![],
-                    receipt: 0,
-                },
-                TransactionReceipt::<u32> {
-                    tx_hash: ::sha2::Sha256::digest(b"tx2").into(),
-                    body_to_save: Some(b"tx2 body".to_vec()),
-                    events: vec![
-                        Event::new("event1_key", "event1_value"),
-                        Event::new("event2_key", "event2_value"),
-                    ],
-                    receipt: 1,
-                },
-            ],
-            phantom_data: PhantomData,
-        },
-        BatchReceipt {
-            hash: ::sha2::Sha256::digest(b"batch_receipt2").into(),
-            prev_hash: ::sha2::Sha256::digest(b"prev_batch_receipt2").into(),
-            tx_receipts: batch2_tx_receipts(),
-            phantom_data: PhantomData,
-        },
-    ];
-
-    for batch in batches {
-        slots.get_mut(0).unwrap().add_batch(batch)
-    }
-
     test_helper(
         vec![TestExpect {
             payload,
             expected: expected.clone(),
         }],
-        slots,
         Some(soft_confirmation_receipts),
     )
 }

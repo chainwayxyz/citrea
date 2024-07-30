@@ -8,7 +8,6 @@ use sov_rollup_interface::services::da::SlotData;
 use sov_rollup_interface::stf::{BatchReceipt, Event, SoftConfirmationReceipt, StateDiff};
 use sov_rollup_interface::zk::Proof;
 use sov_schema_db::{Schema, SchemaBatch, SeekKeyEncoder, DB};
-use tokio::sync::broadcast;
 use tracing::instrument;
 
 use crate::rocks_db_config::gen_rocksdb_options;
@@ -38,7 +37,6 @@ pub struct LedgerDB {
     /// requires transactions to be executed before being committed.
     db: Arc<DB>,
     next_item_numbers: Arc<Mutex<ItemNumbers>>,
-    slot_subscriptions: broadcast::Sender<u64>,
 }
 
 /// A SlotNumber, BatchNumber, TxNumber, and EventNumber which are grouped together, typically representing
@@ -124,7 +122,6 @@ impl LedgerDB {
         Ok(Self {
             db: Arc::new(inner),
             next_item_numbers: Arc::new(Mutex::new(next_item_numbers)),
-            slot_subscriptions: broadcast::channel(10).0,
         })
     }
 
@@ -315,90 +312,6 @@ impl LedgerDB {
         current_item_numbers.soft_confirmation_number += 1;
 
         self.db.write_schemas(schema_batch)?;
-
-        Ok(())
-    }
-
-    /// Commits a slot to the database by inserting its events, transactions, and batches before
-    /// inserting the slot metadata.
-    #[instrument(level = "trace", skip_all, err, ret)]
-    pub fn commit_slot<S: SlotData, B: Serialize, T: Serialize>(
-        &self,
-        data_to_commit: SlotCommit<S, B, T>,
-    ) -> Result<(), anyhow::Error> {
-        // Create a scope to ensure that the lock is released before we commit to the db
-        let mut current_item_numbers = {
-            let mut next_item_numbers = self.next_item_numbers.lock().unwrap();
-            let item_numbers = next_item_numbers.clone();
-            next_item_numbers.slot_number += 1;
-            next_item_numbers.batch_number += data_to_commit.batch_receipts.len() as u64;
-            next_item_numbers.tx_number += data_to_commit.num_txs as u64;
-            next_item_numbers.event_number += data_to_commit.num_events as u64;
-            item_numbers
-            // The lock is released here
-        };
-
-        let mut schema_batch = SchemaBatch::new();
-
-        let first_batch_number = current_item_numbers.batch_number;
-        let last_batch_number = first_batch_number + data_to_commit.batch_receipts.len() as u64;
-        // Insert data from "bottom up" to ensure consistency if the application crashes during insertion
-        for batch_receipt in data_to_commit.batch_receipts.into_iter() {
-            let first_tx_number = current_item_numbers.tx_number;
-            let last_tx_number = first_tx_number + batch_receipt.tx_receipts.len() as u64;
-            // Insert transactions and events from each batch before inserting the batch
-            for tx in batch_receipt.tx_receipts.into_iter() {
-                let (tx_to_store, events) =
-                    split_tx_for_storage(tx, current_item_numbers.event_number);
-                for event in events.into_iter() {
-                    self.put_event(
-                        &event,
-                        &EventNumber(current_item_numbers.event_number),
-                        TxNumber(current_item_numbers.tx_number),
-                        &mut schema_batch,
-                    )?;
-                    current_item_numbers.event_number += 1;
-                }
-                self.put_transaction(
-                    &tx_to_store,
-                    &TxNumber(current_item_numbers.tx_number),
-                    &mut schema_batch,
-                )?;
-                current_item_numbers.tx_number += 1;
-            }
-
-            // Insert batch
-            let batch_to_store = StoredBatch {
-                hash: batch_receipt.hash,
-                txs: TxNumber(first_tx_number)..TxNumber(last_tx_number),
-            };
-            self.put_batch(
-                &batch_to_store,
-                &BatchNumber(current_item_numbers.batch_number),
-                &mut schema_batch,
-            )?;
-            current_item_numbers.batch_number += 1;
-        }
-
-        // Once all batches are inserted, Insert slot
-        let slot_to_store = StoredSlot {
-            hash: data_to_commit.slot_data.hash(),
-            // TODO: Add a method to the slot data trait allowing additional data to be stored
-            extra_data: vec![].into(),
-            batches: BatchNumber(first_batch_number)..BatchNumber(last_batch_number),
-        };
-        self.put_slot(
-            &slot_to_store,
-            &SlotNumber(current_item_numbers.slot_number),
-            &mut schema_batch,
-        )?;
-
-        self.db.write_schemas(schema_batch)?;
-
-        // Notify subscribers. This call returns an error IFF there are no subscribers, so we don't need to check the result
-        let _ = self
-            .slot_subscriptions
-            .send(current_item_numbers.slot_number);
 
         Ok(())
     }
