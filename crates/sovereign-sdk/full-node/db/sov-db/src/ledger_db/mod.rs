@@ -12,15 +12,15 @@ use tracing::instrument;
 
 use crate::rocks_db_config::gen_rocksdb_options;
 use crate::schema::tables::{
-    BatchByHash, BatchByNumber, CommitmentsByNumber, EventByKey, EventByNumber, L2GenesisStateRoot,
+    BatchByNumber, CommitmentsByNumber, EventByKey, EventByNumber, L2GenesisStateRoot,
     L2RangeByL1Height, L2Witness, LastSequencerCommitmentSent, LastStateDiff,
     PendingSequencerCommitmentL2Range, ProofBySlotNumber, ProverLastScannedSlot, SlotByHash,
     SlotByNumber, SoftConfirmationByHash, SoftConfirmationByNumber, SoftConfirmationStatus,
     TxByHash, TxByNumber, VerifiedProofsBySlotNumber, LEDGER_TABLES,
 };
 use crate::schema::types::{
-    split_tx_for_storage, BatchNumber, EventNumber, L2HeightRange, SlotNumber, StoredBatch,
-    StoredProof, StoredSlot, StoredSoftConfirmation, StoredStateTransition, StoredTransaction,
+    split_tx_for_storage, BatchNumber, EventNumber, L2HeightRange, SlotNumber, StoredProof,
+    StoredSlot, StoredSoftConfirmation, StoredStateTransition, StoredTransaction,
     StoredVerifiedProof, TxNumber,
 };
 
@@ -175,17 +175,6 @@ impl LedgerDB {
     }
 
     #[instrument(level = "trace", skip(self, schema_batch), err, ret)]
-    fn put_slot(
-        &self,
-        slot: &StoredSlot,
-        slot_number: &SlotNumber,
-        schema_batch: &mut SchemaBatch,
-    ) -> Result<(), anyhow::Error> {
-        schema_batch.put::<SlotByNumber>(slot_number, slot)?;
-        schema_batch.put::<SlotByHash>(&slot.hash, slot_number)
-    }
-
-    #[instrument(level = "trace", skip(self, schema_batch), err, ret)]
     fn put_soft_confirmation(
         &self,
         batch: &StoredSoftConfirmation,
@@ -194,17 +183,6 @@ impl LedgerDB {
     ) -> Result<(), anyhow::Error> {
         schema_batch.put::<SoftConfirmationByNumber>(batch_number, batch)?;
         schema_batch.put::<SoftConfirmationByHash>(&batch.hash, batch_number)
-    }
-
-    #[instrument(level = "trace", skip(self, schema_batch), err, ret)]
-    fn put_batch(
-        &self,
-        batch: &StoredBatch,
-        batch_number: &BatchNumber,
-        schema_batch: &mut SchemaBatch,
-    ) -> Result<(), anyhow::Error> {
-        schema_batch.put::<BatchByNumber>(batch_number, batch)?;
-        schema_batch.put::<BatchByHash>(&batch.hash, batch_number)
     }
 
     #[instrument(level = "trace", skip(self, tx, schema_batch), err, ret)]

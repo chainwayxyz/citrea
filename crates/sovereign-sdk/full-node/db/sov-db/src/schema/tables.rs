@@ -62,7 +62,6 @@ pub const LEDGER_TABLES: &[&str] = &[
     PendingSequencerCommitmentL2Range::table_name(),
     LastSequencerCommitmentSent::table_name(),
     ProverLastScannedSlot::table_name(),
-    BatchByHash::table_name(),
     BatchByNumber::table_name(),
     SoftConfirmationStatus::table_name(),
     TxByHash::table_name(),
@@ -288,11 +287,6 @@ define_table_with_seek_key_codec!(
 define_table_with_default_codec!(
     /// Check whether a block is finalized
     (SoftConfirmationStatus) BatchNumber => sov_rollup_interface::rpc::SoftConfirmationStatus
-);
-
-define_table_with_default_codec!(
-    /// A "secondary index" for batch data by hash
-    (BatchByHash) DbHash => BatchNumber
 );
 
 define_table_with_seek_key_codec!(

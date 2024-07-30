@@ -3,13 +3,11 @@ use std::marker::PhantomData;
 use hex::ToHex;
 use reqwest::header::CONTENT_TYPE;
 use sha2::Digest;
-use sov_db::ledger_db::{LedgerDB, SlotCommit};
+use sov_db::ledger_db::LedgerDB;
 use sov_mock_da::MockDaSpec;
 #[cfg(test)]
-use sov_mock_da::{MockBlock, MockBlockHeader, MockHash};
 use sov_modules_api::DaSpec;
-use sov_rollup_interface::da::Time;
-use sov_rollup_interface::stf::{BatchReceipt, Event, SoftConfirmationReceipt, TransactionReceipt};
+use sov_rollup_interface::stf::{Event, SoftConfirmationReceipt, TransactionReceipt};
 #[cfg(test)]
 use sov_stf_runner::RpcConfig;
 
