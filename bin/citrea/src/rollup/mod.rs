@@ -4,6 +4,7 @@ use citrea_fullnode::{CitreaFullnode, FullNode};
 use citrea_prover::{CitreaProver, Prover};
 use citrea_sequencer::{CitreaSequencer, Sequencer, SequencerConfig};
 pub use mock::*;
+use sov_db::ledger_db::SharedLedgerOps;
 use sov_modules_api::storage::HierarchicalStorageManager;
 use sov_modules_api::Spec;
 use sov_modules_rollup_blueprint::RollupBlueprint;

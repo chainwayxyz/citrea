@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use hex::ToHex;
 use reqwest::header::CONTENT_TYPE;
 use sha2::Digest;
-use sov_db::ledger_db::LedgerDB;
+use sov_db::ledger_db::{LedgerDB, SequencerLedgerOps, SharedLedgerOps, SlotCommit};
 use sov_mock_da::MockDaSpec;
 #[cfg(test)]
 use sov_modules_api::DaSpec;

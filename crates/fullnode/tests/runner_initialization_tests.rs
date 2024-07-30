@@ -49,6 +49,7 @@ fn initialize_runner(
     MockDaService,
     MockZkvm<MockValidityCond>,
     sov_modules_api::default_context::DefaultContext,
+    LedgerDB,
 > {
     let da_storage_path = storage_path.join("da").to_path_buf();
     let rollup_storage_path = storage_path.join("rollup").to_path_buf();
