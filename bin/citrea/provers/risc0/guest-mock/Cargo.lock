@@ -778,6 +778,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "citrea-primitives"
+version = "0.4.0-rc.3"
+dependencies = [
+ "anyhow",
+ "sov-rollup-interface",
+]
+
+[[package]]
 name = "citrea-stf"
 version = "0.4.0-rc.3"
 dependencies = [
@@ -2963,6 +2971,7 @@ version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "borsh",
+ "citrea-primitives",
  "hex",
  "num_cpus",
  "serde",

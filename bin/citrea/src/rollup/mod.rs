@@ -1,9 +1,12 @@
+use anyhow::anyhow;
 use async_trait::async_trait;
 pub use bitcoin::*;
 use citrea_fullnode::{CitreaFullnode, FullNode};
+use citrea_primitives::fork::{ForkManager, SpecId};
 use citrea_prover::{CitreaProver, Prover};
 use citrea_sequencer::{CitreaSequencer, Sequencer, SequencerConfig};
 pub use mock::*;
+use sov_db::schema::types::BatchNumber;
 use sov_modules_api::storage::HierarchicalStorageManager;
 use sov_modules_api::Spec;
 use sov_modules_rollup_blueprint::RollupBlueprint;
@@ -65,6 +68,21 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             },
         };
 
+        let current_l2_height = ledger_db
+            .get_head_soft_batch()
+            .map_err(|e| anyhow!("Failed to get head soft batch: {}", e))?
+            .map(|(l2_height, _)| l2_height)
+            .unwrap_or(BatchNumber(0));
+
+        let active_spec: SpecId = ledger_db.get_active_fork()?.try_into()?;
+
+        let mut fork_manager = ForkManager::new(
+            current_l2_height.into(),
+            active_spec,
+            rollup_config.fork_specs,
+        );
+        fork_manager.register_handler(Box::new(ledger_db.clone()));
+
         let seq = CitreaSequencer::new(
             da_service,
             prover_storage,
@@ -75,6 +93,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             rollup_config.public_keys,
             ledger_db,
             rollup_config.rpc,
+            fork_manager,
         )
         .unwrap();
 

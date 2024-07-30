@@ -2,6 +2,7 @@ use std::fs::File;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
+use citrea_primitives::fork::SpecId;
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
 use shared_backup_db::SharedBackupDbConfig;
@@ -105,6 +106,8 @@ pub struct FullNodeConfig<DaServiceConfig> {
     /// Number of blocks to request during sync
     #[serde(default = "default_sync_blocks_count")]
     pub sync_blocks_count: u64,
+    /// The fork configuration
+    pub fork_specs: Vec<(SpecId, u64)>,
 }
 
 /// Prover configuration
@@ -215,6 +218,7 @@ mod tests {
                 prover_da_pub_key: vec![],
             },
             sync_blocks_count: 10,
+            fork_specs: vec![],
         };
         assert_eq!(config, expected);
     }

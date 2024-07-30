@@ -125,6 +125,7 @@ where
         public_keys: RollupPublicKeys,
         ledger_db: LedgerDB,
         rpc_config: RpcConfig,
+        fork_manager: ForkManager,
     ) -> anyhow::Result<Self> {
         let (l2_force_block_tx, l2_force_block_rx) = unbounded();
 
@@ -182,6 +183,7 @@ where
             rpc_config,
             soft_confirmation_rule_enforcer,
             last_state_diff,
+            fork_manager,
         })
     }
 

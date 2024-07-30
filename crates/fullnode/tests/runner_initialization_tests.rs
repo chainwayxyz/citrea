@@ -87,6 +87,7 @@ fn initialize_runner(
             prover_da_pub_key: vec![],
         },
         sync_blocks_count: 10,
+        fork_specs: vec![],
     };
 
     let da_service = MockDaService::new(address, &da_storage_path);

@@ -351,8 +351,8 @@ where
         if stored_soft_batches.len() < ((end_l2_height - start_l2_height) as usize) {
             return Err(SyncError::MissingL2(
                 "L2 range not synced yet",
-                BatchNumber(start_l2_height),
-                BatchNumber(end_l2_height),
+                start_l2_height,
+                end_l2_height,
             ));
         }
 

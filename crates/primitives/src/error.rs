@@ -1,8 +1,6 @@
-use sov_db::schema::types::BatchNumber;
-
 #[derive(Debug)]
 pub enum SyncError {
-    MissingL2(&'static str, BatchNumber, BatchNumber),
+    MissingL2(&'static str, u64, u64),
     Error(anyhow::Error),
 }
 
