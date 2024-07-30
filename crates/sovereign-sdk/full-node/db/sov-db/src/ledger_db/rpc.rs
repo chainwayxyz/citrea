@@ -625,7 +625,7 @@ mod tests {
     use sov_mock_da::{MockBlob, MockBlock};
     use sov_rollup_interface::rpc::LedgerRpcProvider;
 
-    use crate::ledger_db::{LedgerDB, SlotCommit};
+    use crate::ledger_db::{LedgerDB, SequencerLedgerOps, SlotCommit};
     #[test]
     fn test_slot_subscription() {
         let temp_dir = tempfile::tempdir().unwrap();

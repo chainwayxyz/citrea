@@ -12,7 +12,7 @@ use sov_stf_runner::{
 mod hash_stf;
 
 use hash_stf::{get_result_from_blocks, HashStf, Q, S};
-use sov_db::ledger_db::LedgerDB;
+use sov_db::ledger_db::{LedgerDB, NodeLedgerOps};
 use sov_mock_zkvm::MockCodeCommitment;
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::services::da::DaService;
@@ -156,7 +156,7 @@ async fn runner_execution(
     };
     let storage_manager = ProverStorageManager::new(storage_config).unwrap();
 
-    let mut runner: CitreaFullnode<_, _, _, _, DefaultContext> = CitreaFullnode::new(
+    let mut runner: CitreaFullnode<_, _, _, _, DefaultContext, _> = CitreaFullnode::new(
         rollup_config.runner.unwrap(),
         rollup_config.public_keys,
         rollup_config.rpc,
