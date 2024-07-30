@@ -3,7 +3,7 @@ use core::num::NonZeroU16;
 use bitcoin::blockdata::opcodes::all::{OP_ENDIF, OP_IF};
 use bitcoin::blockdata::script::Instruction;
 use bitcoin::hashes::{sha256d, Hash};
-use bitcoin::opcodes::all::{OP_CHECKSIG, OP_DROP};
+use bitcoin::opcodes::all::{OP_CHECKSIGVERIFY, OP_DROP};
 use bitcoin::script::Instruction::{Op, PushBytes};
 use bitcoin::script::{Error as ScriptError, PushBytes as StructPushBytes};
 use bitcoin::secp256k1::{ecdsa, Message, Secp256k1};
@@ -102,6 +102,12 @@ fn parse_relevant_inscriptions(
     instructions: &mut dyn Iterator<Item = Result<Instruction<'_>, ParserError>>,
     rollup_name: &str,
 ) -> Result<ParsedInscription, ParserError> {
+    // PushBytes(XOnlyPublicKey)
+    let _public_key = read_push_bytes(instructions)?;
+    if OP_CHECKSIGVERIFY != read_opcode(instructions)? {
+        return Err(ParserError::UnexpectedOpcode);
+    }
+
     // Parse header
     let header_slice = read_push_bytes(instructions)?;
     let Some(header) = TransactionHeader::from_bytes(header_slice.as_bytes()) else {
@@ -161,12 +167,6 @@ fn read_opcode(
 fn parse_type_0_body(
     instructions: &mut dyn Iterator<Item = Result<Instruction<'_>, ParserError>>,
 ) -> Result<ParsedInscription, ParserError> {
-    // PushBytes(XOnlyPublicKey)
-    let _public_key = read_push_bytes(instructions)?;
-    if OP_CHECKSIG != read_opcode(instructions)? {
-        return Err(ParserError::UnexpectedOpcode);
-    }
-
     let op_false = read_push_bytes(instructions)?;
     if !op_false.is_empty() {
         return Err(ParserError::UnexpectedOpcode);
@@ -225,12 +225,6 @@ fn parse_type_0_body(
 fn parse_type_1_body(
     instructions: &mut dyn Iterator<Item = Result<Instruction<'_>, ParserError>>,
 ) -> Result<ParsedChunked, ParserError> {
-    // PushBytes(XOnlyPublicKey)
-    let _public_key = read_push_bytes(instructions)?;
-    if OP_CHECKSIG != read_opcode(instructions)? {
-        return Err(ParserError::UnexpectedOpcode);
-    }
-
     let op_false = read_push_bytes(instructions)?;
     if !op_false.is_empty() {
         return Err(ParserError::UnexpectedOpcode);
@@ -281,12 +275,6 @@ fn parse_type_1_body(
 fn parse_type_2_body(
     instructions: &mut dyn Iterator<Item = Result<Instruction<'_>, ParserError>>,
 ) -> Result<ParsedChunkedPart, ParserError> {
-    // PushBytes(XOnlyPublicKey)
-    let _public_key = read_push_bytes(instructions)?;
-    if OP_CHECKSIG != read_opcode(instructions)? {
-        return Err(ParserError::UnexpectedOpcode);
-    }
-
     let op_false = read_push_bytes(instructions)?;
     if !op_false.is_empty() {
         return Err(ParserError::UnexpectedOpcode);
@@ -310,16 +298,6 @@ fn parse_type_2_body(
             Op(OP_ENDIF) => break,
             Op(_) => return Err(ParserError::UnexpectedOpcode),
         }
-    }
-
-    // Nonce
-    let _nonce = read_push_bytes(instructions)?;
-    if OP_DROP != read_opcode(instructions)? {
-        return Err(ParserError::UnexpectedOpcode);
-    }
-    // END of transaction
-    if instructions.next().is_some() {
-        return Err(ParserError::UnexpectedOpcode);
     }
 
     let body_size: usize = chunks.iter().map(|c| c.len()).sum();
@@ -348,7 +326,7 @@ pub fn parse_hex_transaction(
 #[cfg(test)]
 mod tests {
     use bitcoin::key::XOnlyPublicKey;
-    use bitcoin::opcodes::all::{OP_CHECKSIG, OP_DROP, OP_ENDIF, OP_IF};
+    use bitcoin::opcodes::all::{OP_CHECKSIG, OP_CHECKSIGVERIFY, OP_DROP, OP_ENDIF, OP_IF};
     use bitcoin::opcodes::{OP_FALSE, OP_TRUE};
     use bitcoin::script::{self, PushBytesBuf};
 
@@ -362,9 +340,9 @@ mod tests {
         };
 
         let reveal_script_builder = script::Builder::new()
-            .push_slice(PushBytesBuf::try_from(header.to_bytes()).expect("Cannot push header"))
             .push_x_only_key(&XOnlyPublicKey::from_slice(&[1; 32]).unwrap())
-            .push_opcode(OP_CHECKSIG)
+            .push_opcode(OP_CHECKSIGVERIFY)
+            .push_slice(PushBytesBuf::try_from(header.to_bytes()).expect("Cannot push header"))
             .push_opcode(OP_FALSE)
             .push_opcode(OP_IF)
             .push_slice([2u8; 64]) // signature
@@ -402,6 +380,8 @@ mod tests {
         };
 
         let reveal_script_builder = script::Builder::new()
+            .push_x_only_key(&XOnlyPublicKey::from_slice(&[1; 32]).unwrap())
+            .push_opcode(OP_CHECKSIGVERIFY)
             .push_slice(PushBytesBuf::try_from(header.to_bytes()).expect("Cannot push header"));
 
         let reveal_script = reveal_script_builder.into_script();
@@ -423,9 +403,9 @@ mod tests {
         };
 
         let reveal_script_builder = script::Builder::new()
-            .push_slice(PushBytesBuf::try_from(header.to_bytes()).expect("Cannot push header"))
             .push_x_only_key(&XOnlyPublicKey::from_slice(&[1; 32]).unwrap())
-            .push_opcode(OP_CHECKSIG);
+            .push_opcode(OP_CHECKSIGVERIFY)
+            .push_slice(PushBytesBuf::try_from(header.to_bytes()).expect("Cannot push header"));
 
         let reveal_script = reveal_script_builder.into_script();
 
@@ -447,9 +427,9 @@ mod tests {
         };
 
         let reveal_script = script::Builder::new()
-            .push_slice(PushBytesBuf::try_from(header.to_bytes()).expect("Cannot push header"))
             .push_x_only_key(&XOnlyPublicKey::from_slice(&[1; 32]).unwrap())
-            .push_opcode(OP_CHECKSIG)
+            .push_opcode(OP_CHECKSIGVERIFY)
+            .push_slice(PushBytesBuf::try_from(header.to_bytes()).expect("Cannot push header"))
             .push_opcode(OP_FALSE)
             .push_opcode(OP_IF)
             .push_slice([2u8; 64]) // signature
@@ -483,9 +463,9 @@ mod tests {
         };
 
         let reveal_script = script::Builder::new()
-            .push_slice(PushBytesBuf::try_from(header.to_bytes()).expect("Cannot push header"))
             .push_x_only_key(&XOnlyPublicKey::from_slice(&[1; 32]).unwrap())
-            .push_opcode(OP_CHECKSIG)
+            .push_opcode(OP_CHECKSIGVERIFY)
+            .push_slice(PushBytesBuf::try_from(header.to_bytes()).expect("Cannot push header"))
             .push_opcode(OP_FALSE)
             .push_opcode(OP_IF)
             .push_slice([2u8; 64]) // signature
@@ -522,9 +502,9 @@ mod tests {
         };
 
         let reveal_script = script::Builder::new()
-            .push_slice(PushBytesBuf::try_from(header.to_bytes()).expect("Cannot push header"))
             .push_x_only_key(&XOnlyPublicKey::from_slice(&[1; 32]).unwrap())
-            .push_opcode(OP_CHECKSIG)
+            .push_opcode(OP_CHECKSIGVERIFY)
+            .push_slice(PushBytesBuf::try_from(header.to_bytes()).expect("Cannot push header"))
             .push_opcode(OP_FALSE)
             .push_opcode(OP_IF)
             .push_slice([2u8; 64]) // signature

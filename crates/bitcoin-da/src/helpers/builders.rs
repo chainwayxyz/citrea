@@ -6,7 +6,7 @@ use std::io::{BufWriter, Write};
 
 use anyhow::anyhow;
 use bitcoin::absolute::LockTime;
-use bitcoin::blockdata::opcodes::all::{OP_CHECKSIG, OP_DROP, OP_ENDIF, OP_IF};
+use bitcoin::blockdata::opcodes::all::{OP_DROP, OP_ENDIF, OP_IF};
 use bitcoin::blockdata::opcodes::OP_FALSE;
 use bitcoin::blockdata::script;
 use bitcoin::hashes::{sha256d, Hash};
@@ -640,9 +640,9 @@ pub fn create_inscription_type_1(
 
         // start creating inscription content
         let mut reveal_script_builder = script::Builder::new()
-            .push_slice(PushBytesBuf::try_from(header_bytes).expect("Cannot push header"))
             .push_x_only_key(&public_key)
-            .push_opcode(OP_CHECKSIG)
+            .push_opcode(OP_CHECKSIGVERIFY)
+            .push_slice(PushBytesBuf::try_from(header_bytes).expect("Cannot push header"))
             .push_opcode(OP_FALSE)
             .push_opcode(OP_IF);
         // push body in chunks of 520 bytes
@@ -796,9 +796,9 @@ pub fn create_inscription_type_1(
 
     // start creating inscription content
     let mut reveal_script_builder = script::Builder::new()
-        .push_slice(PushBytesBuf::try_from(header_bytes).expect("Cannot push header"))
         .push_x_only_key(&public_key)
-        .push_opcode(OP_CHECKSIG)
+        .push_opcode(OP_CHECKSIGVERIFY)
+        .push_slice(PushBytesBuf::try_from(header_bytes).expect("Cannot push header"))
         .push_opcode(OP_FALSE)
         .push_opcode(OP_IF)
         .push_slice(PushBytesBuf::try_from(signature).expect("Cannot push signature"))
