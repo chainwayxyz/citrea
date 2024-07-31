@@ -131,7 +131,7 @@ jobs:
           RUSTFLAGS: -A warnings
         uses: aig787/cargo-udeps-action@v1
         with:
-          version: "v0.1.49"
+          version: "latest"
           args: "--workspace --all-features --all-targets"
 
   deny:
