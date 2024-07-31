@@ -114,7 +114,7 @@ jobs:
       - name: Toolchain
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: nightly
+          toolchain: nightly-2023-07-27
           override: true
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
@@ -128,10 +128,10 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Run cargo-udeps
         env:
-          RUSTFLAGS: -Z unstable-options -A warnings
+          RUSTFLAGS: -A warnings
         uses: aig787/cargo-udeps-action@v1
         with:
-          version: "latest"
+          version: "v0.1.49"
           args: "--workspace --all-features --all-targets"
 
   deny:
