@@ -131,8 +131,8 @@ jobs:
           RUSTFLAGS: -A warnings
         uses: aig787/cargo-udeps-action@v1
         with:
-          version: 'latest'
-          args: '--workspace --all-features --all-targets'
+          version: "v0.1.49"
+          args: "--workspace --all-features --all-targets"
 
   deny:
     runs-on: ubuntu-latest
@@ -393,7 +393,6 @@ jobs:
           BONSAI_API_URL: ${{ secrets.BONSAI_API_URL }} # TODO: remove this once we don't use the client on tests
           BONSAI_API_KEY: ${{ secrets.BONSAI_API_KEY }} # TODO: remove this once we don't use the client on tests
 
-
   system-contracts:
     strategy:
       fail-fast: true
@@ -443,9 +442,8 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.x'
+          python-version: "3.x"
 
       - name: Run check_genesis.sh
         run: ./.github/scripts/check_genesis.sh
         shell: bash
-
