@@ -269,6 +269,7 @@ where
         l2_block_mode: L2BlockMode,
     ) -> anyhow::Result<(Vec<RlpEvmTransaction>, Vec<TxHash>)> {
         match self.stf.begin_soft_batch(
+            self.fork_manager.active_fork(),
             pub_key,
             &self.state_root,
             prestate.clone(),
@@ -305,9 +306,11 @@ where
 
                             let txs = vec![signed_blob.clone()];
 
-                            let (batch_workspace, _) = self
-                                .stf
-                                .apply_soft_batch_txs(txs.clone(), working_set_to_discard);
+                            let (batch_workspace, _) = self.stf.apply_soft_batch_txs(
+                                self.fork_manager.active_fork(),
+                                txs.clone(),
+                                working_set_to_discard,
+                            );
 
                             working_set_to_discard = batch_workspace;
 
@@ -430,6 +433,7 @@ where
 
         // Execute the selected transactions
         match self.stf.begin_soft_batch(
+            self.fork_manager.active_fork(),
             &pub_key,
             &self.state_root,
             prestate.clone(),
@@ -445,8 +449,11 @@ where
                 let signed_blob = self.make_blob(raw_message, &mut batch_workspace)?;
                 let txs = vec![signed_blob.clone()];
 
-                let (batch_workspace, tx_receipts) =
-                    self.stf.apply_soft_batch_txs(txs.clone(), batch_workspace);
+                let (batch_workspace, tx_receipts) = self.stf.apply_soft_batch_txs(
+                    self.fork_manager.active_fork(),
+                    txs.clone(),
+                    batch_workspace,
+                );
 
                 // create the unsigned batch with the txs then sign th sc
                 let unsigned_batch = UnsignedSoftConfirmationBatch::new(
@@ -463,6 +470,7 @@ where
                     self.sign_soft_confirmation_batch(unsigned_batch, self.batch_hash)?;
 
                 let (batch_receipt, checkpoint) = self.stf.end_soft_batch(
+                    self.fork_manager.active_fork(),
                     self.sequencer_pub_key.as_ref(),
                     &mut signed_soft_batch,
                     tx_receipts,
@@ -471,6 +479,7 @@ where
 
                 // Finalize soft confirmation
                 let slot_result = self.stf.finalize_soft_batch(
+                    self.fork_manager.active_fork(),
                     batch_receipt,
                     checkpoint,
                     prestate,

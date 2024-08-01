@@ -7,6 +7,7 @@ use anyhow::{anyhow, bail};
 use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoffBuilder;
 use borsh::de::BorshDeserialize;
+use citrea_primitives::fork::{Fork, ForkManager};
 use citrea_primitives::types::SoftConfirmationHash;
 use citrea_primitives::{get_da_block_at_height, L1BlockCache, SyncError};
 use jsonrpsee::core::client::Error as JsonrpseeError;
@@ -65,6 +66,7 @@ where
     accept_public_input_as_proven: bool,
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
     sync_blocks_count: u64,
+    fork_manager: ForkManager,
     soft_confirmation_tx: broadcast::Sender<u64>,
 }
 
@@ -99,6 +101,7 @@ where
         init_variant: InitVariant<Stf, Vm, Da::Spec>,
         code_commitment: Vm::CodeCommitment,
         sync_blocks_count: u64,
+        fork_manager: ForkManager,
         soft_confirmation_tx: broadcast::Sender<u64>,
     ) -> Result<Self, anyhow::Error> {
         let (prev_state_root, prev_batch_hash) = match init_variant {
@@ -150,6 +153,7 @@ where
                 .unwrap_or(false),
             sync_blocks_count,
             l1_block_cache: Arc::new(Mutex::new(L1BlockCache::new())),
+            fork_manager,
             soft_confirmation_tx,
         })
     }
@@ -420,6 +424,7 @@ where
             .create_storage_on_l2_height(l2_height)?;
 
         let slot_result = self.stf.apply_soft_batch(
+            self.fork_manager.active_fork(),
             self.sequencer_pub_key.as_slice(),
             // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1247): incorrect pre-state root in case of re-org
             &self.state_root,

@@ -181,6 +181,20 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
 
         let code_commitment = self.get_code_commitment();
 
+        let current_l2_height = ledger_db
+            .get_head_soft_batch()
+            .map_err(|e| anyhow!("Failed to get head soft batch: {}", e))?
+            .map(|(l2_height, _)| l2_height)
+            .unwrap_or(BatchNumber(0));
+
+        let active_spec: SpecId = ledger_db.get_active_fork()?.try_into()?;
+        let mut fork_manager = ForkManager::new(
+            current_l2_height.into(),
+            active_spec,
+            rollup_config.fork_specs,
+        );
+        fork_manager.register_handler(Box::new(ledger_db.clone()));
+
         let runner = CitreaFullnode::new(
             runner_config,
             rollup_config.public_keys,
@@ -192,6 +206,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             init_variant,
             code_commitment,
             rollup_config.sync_blocks_count,
+            fork_manager,
             soft_confirmation_tx,
         )?;
 
@@ -268,6 +283,20 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
 
         let code_commitment = self.get_code_commitment();
 
+        let current_l2_height = ledger_db
+            .get_head_soft_batch()
+            .map_err(|e| anyhow!("Failed to get head soft batch: {}", e))?
+            .map(|(l2_height, _)| l2_height)
+            .unwrap_or(BatchNumber(0));
+
+        let active_spec: SpecId = ledger_db.get_active_fork()?.try_into()?;
+        let mut fork_manager = ForkManager::new(
+            current_l2_height.into(),
+            active_spec,
+            rollup_config.fork_specs,
+        );
+        fork_manager.register_handler(Box::new(ledger_db.clone()));
+
         let runner = CitreaProver::new(
             runner_config,
             rollup_config.public_keys,
@@ -281,6 +310,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             Some(prover_config),
             code_commitment,
             rollup_config.sync_blocks_count,
+            fork_manager,
             soft_confirmation_tx,
         )?;
 
