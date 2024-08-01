@@ -50,19 +50,11 @@ impl Fork for ForkManager {
 
     fn register_block(&mut self, height: u64) -> anyhow::Result<()> {
         if let Some((new_spec, activation_block_height)) = self.specs.front() {
-            if height == *activation_block_height - 1 {
-                for handler in self.migration_handlers.iter() {
-                    handler.pre_spec_activation(self.active_spec)?;
-                }
-            }
             if height == *activation_block_height {
                 self.active_spec = *new_spec;
-            }
-            if height == *activation_block_height + 1 {
                 for handler in self.migration_handlers.iter() {
-                    handler.pre_spec_activation(self.active_spec)?;
+                    handler.spec_activated(self.active_spec)?;
                 }
-                self.specs.pop_front();
             }
         }
         Ok(())
