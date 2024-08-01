@@ -29,7 +29,7 @@ const MAX_TRANSACTIONS_PER_REQUEST: u64 = 100;
 /// The maximum number of events that can be requested in a single RPC range query
 const MAX_EVENTS_PER_REQUEST: u64 = 500;
 
-use super::LedgerDB;
+use super::{LedgerDB, NodeLedgerOps, ProverLedgerOps, SharedLedgerOps};
 
 impl LedgerRpcProvider for LedgerDB {
     fn get_slots<B: DeserializeOwned, T: DeserializeOwned>(
@@ -394,7 +394,7 @@ impl LedgerRpcProvider for LedgerDB {
     }
 
     fn get_prover_last_scanned_l1_height(&self) -> Result<u64, anyhow::Error> {
-        match self.get_prover_last_scanned_l1_height()? {
+        match ProverLedgerOps::get_prover_last_scanned_l1_height(self)? {
             Some(height) => Ok(height.0),
             None => Ok(0),
         }
@@ -625,7 +625,7 @@ mod tests {
     use sov_mock_da::{MockBlob, MockBlock};
     use sov_rollup_interface::rpc::LedgerRpcProvider;
 
-    use crate::ledger_db::{LedgerDB, SlotCommit};
+    use crate::ledger_db::{LedgerDB, SequencerLedgerOps, SlotCommit};
     #[test]
     fn test_slot_subscription() {
         let temp_dir = tempfile::tempdir().unwrap();

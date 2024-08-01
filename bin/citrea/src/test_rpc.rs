@@ -8,7 +8,7 @@ use proptest::{prop_compose, proptest};
 use reqwest::header::CONTENT_TYPE;
 use serde_json::json;
 use sha2::Digest;
-use sov_db::ledger_db::{LedgerDB, SlotCommit};
+use sov_db::ledger_db::{LedgerDB, SequencerLedgerOps, SharedLedgerOps, SlotCommit};
 use sov_mock_da::MockDaSpec;
 #[cfg(test)]
 use sov_mock_da::{MockBlock, MockBlockHeader, MockHash};

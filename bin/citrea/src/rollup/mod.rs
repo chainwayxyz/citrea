@@ -4,6 +4,7 @@ use citrea_fullnode::{CitreaFullnode, FullNode};
 use citrea_primitives::fork::ForkManager;
 use citrea_prover::{CitreaProver, Prover};
 use citrea_sequencer::{CitreaSequencer, Sequencer, SequencerConfig};
+use sov_db::ledger_db::SharedLedgerOps;
 use sov_db::schema::types::BatchNumber;
 use sov_modules_api::storage::HierarchicalStorageManager;
 use sov_modules_api::Spec;

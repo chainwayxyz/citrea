@@ -226,7 +226,7 @@ contract BridgeTest is Test {
         doDeposit();
     }
 
-    function testBytesEqual() public {
+    function testBytesEqual() public view {
         bytes memory a = hex"1234";
         bytes memory b = hex"1234";
         bytes memory c = hex"1235";
@@ -239,11 +239,32 @@ contract BridgeTest is Test {
         assert(!bridge.isBytesEqual_(d, e));
         assert(bridge.isBytesEqual_(d, f));
 
-        vm.expectRevert();
-        bridge.isBytesEqual_(a, d);
+        assertFalse(bridge.isBytesEqual_(a, d));
+        assertFalse(bridge.isBytesEqual_(a, hex""));
+    }
 
-        vm.expectRevert();
-        bridge.isBytesEqual_(a, hex"");
+    function testBytesEqualEdge() public view {
+        bytes memory a31 = hex"689059e65a478c636524643c3141f00fe3c27b802580fc12a3da9bc373596b";
+        bytes memory b31 = hex"689059e65a478c636524643c3141f00fe3c27b802580fc12a3da9bc373596b";
+        bytes memory c31 = hex"689059e65a478c636524643c3141f00fe3c27b802580fc12a3da9bc373596a";
+        assert(bridge.isBytesEqual_(a31, b31));
+        assert(!bridge.isBytesEqual_(a31, c31));
+
+        bytes memory a32 = hex"689059e65a478c636524643c3141f00fe3c27b802580fc12a3da9bc373596b5c";
+        bytes memory b32 = hex"689059e65a478c636524643c3141f00fe3c27b802580fc12a3da9bc373596b5c";
+        bytes memory c32 = hex"689059e65a478c636524643c3141f00fe3c27b802580fc12a3da9bc373596b5a";
+        assert(bridge.isBytesEqual_(a32, b32));
+        assert(!bridge.isBytesEqual_(a32, c32));
+
+        bytes memory a33 = hex"689059e65a478c636524643c3141f00fe3c27b802580fc12a3da9bc373596b5c1f";
+        bytes memory b33 = hex"689059e65a478c636524643c3141f00fe3c27b802580fc12a3da9bc373596b5c1f";
+        bytes memory c33 = hex"689059e65a478c636524643c3141f00fe3c27b802580fc12a3da9bc373596b5c1a";
+        assert(bridge.isBytesEqual_(a33, b33));
+        assert(!bridge.isBytesEqual_(a33, c33));
+
+        assert(!bridge.isBytesEqual_(a31, a32));
+        assert(!bridge.isBytesEqual_(a31, a33));
+        assert(!bridge.isBytesEqual_(a32, a33));
     }
 
     function testBytesEqualFuzz(bytes memory a, bytes memory b) public view {
