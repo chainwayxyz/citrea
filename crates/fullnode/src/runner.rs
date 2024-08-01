@@ -476,6 +476,10 @@ where
             BatchNumber(l2_height),
         )?;
 
+        /// Register this new block with the fork manager to active
+        /// the new fork on the next block.
+        self.fork_manager.register_block(l2_height)?;
+
         // Only errors when there are no receivers
         let _ = self.soft_confirmation_tx.send(l2_height);
 
