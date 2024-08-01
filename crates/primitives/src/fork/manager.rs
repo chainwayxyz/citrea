@@ -1,11 +1,13 @@
-use super::ForkMigration;
 use std::collections::VecDeque;
 
 use sov_rollup_interface::spec::SpecId;
+
+use super::ForkMigration;
+
 /// Defines the interface which a fork manager needs to implement.
-pub trait ForkManagement {
+pub trait Fork {
     /// Returns the currently active fork.
-    fn active_spec(&self) -> SpecId;
+    fn active_fork(&self) -> SpecId;
 
     /// Register a new L2 block with fork manager
     fn register_block(&mut self, height: u64) -> anyhow::Result<()>;
@@ -41,8 +43,8 @@ impl ForkManager {
     }
 }
 
-impl ForkManagement for ForkManager {
-    fn active_spec(&self) -> SpecId {
+impl Fork for ForkManager {
+    fn active_fork(&self) -> SpecId {
         self.active_spec
     }
 

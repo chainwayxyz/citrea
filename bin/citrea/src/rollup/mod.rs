@@ -1,22 +1,24 @@
 use anyhow::anyhow;
 use async_trait::async_trait;
-pub use bitcoin::*;
 use citrea_fullnode::{CitreaFullnode, FullNode};
-use citrea_primitives::fork::{ForkManager, SpecId};
+use citrea_primitives::fork::ForkManager;
 use citrea_prover::{CitreaProver, Prover};
 use citrea_sequencer::{CitreaSequencer, Sequencer, SequencerConfig};
-pub use mock::*;
 use sov_db::schema::types::BatchNumber;
 use sov_modules_api::storage::HierarchicalStorageManager;
 use sov_modules_api::Spec;
 use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_modules_stf_blueprint::{Runtime as RuntimeTrait, StfBlueprint};
+use sov_rollup_interface::spec::SpecId;
 use sov_state::storage::NativeStorage;
 use sov_stf_runner::{FullNodeConfig, InitVariant, ProverConfig};
 use tokio::sync::broadcast;
 use tracing::instrument;
+
 mod bitcoin;
 mod mock;
+pub use bitcoin::*;
+pub use mock::*;
 
 /// Overrides RollupBlueprint methods
 #[async_trait]

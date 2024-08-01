@@ -1,6 +1,8 @@
-use citrea_primitives::fork::SpecId;
 use lazy_static::lazy_static;
+use sov_rollup_interface::spec::SpecId;
 
+/// This defines the list of forks which will be activated
+/// at specific heights.
 lazy_static! {
     static ref FORKS: Vec<(SpecId, u64)> = vec![
         (SpecId::Genesis, 0),
