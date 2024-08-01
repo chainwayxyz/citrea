@@ -9,7 +9,7 @@ use std::vec;
 use anyhow::anyhow;
 use borsh::BorshDeserialize;
 use citrea_evm::{CallMessage, Evm, RlpEvmTransaction, MIN_TRANSACTION_GAS};
-use citrea_primitives::fork::ForkManager;
+use citrea_primitives::fork::{Fork, ForkManager};
 use citrea_primitives::types::SoftConfirmationHash;
 use citrea_stf::runtime::Runtime;
 use digest::Digest;
@@ -535,6 +535,8 @@ where
                     SlotNumber(da_block.header().height()),
                     BatchNumber(l2_height),
                 )?;
+
+                self.fork_manager.register_block(l2_height)?;
 
                 // Only errors when there are no receivers
                 let _ = self.soft_confirmation_tx.send(l2_height);
