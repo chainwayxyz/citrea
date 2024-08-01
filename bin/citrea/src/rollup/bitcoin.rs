@@ -122,11 +122,13 @@ impl RollupBlueprint for BitcoinRollup {
         prover_config: ProverConfig,
         _rollup_config: &FullNodeConfig<Self::DaConfig>,
         _da_service: &Self::DaService,
+        ledger_db: LedgerDB,
     ) -> Self::ProverService {
         let vm = Risc0BonsaiHost::new(
             citrea_risc0::BITCOIN_DA_ELF,
             std::env::var("BONSAI_API_URL").unwrap_or("".to_string()),
             std::env::var("BONSAI_API_KEY").unwrap_or("".to_string()),
+            ledger_db,
         );
         let zk_stf = StfBlueprint::new();
         let zk_storage = ZkStorage::new();

@@ -107,6 +107,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         prover_config: ProverConfig,
         rollup_config: &FullNodeConfig<Self::DaConfig>,
         da_service: &Self::DaService,
+        ledger_db: LedgerDB,
     ) -> Self::ProverService;
 
     /// Creates instance of [`Self::StorageManager`].

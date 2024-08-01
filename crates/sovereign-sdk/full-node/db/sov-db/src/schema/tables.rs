@@ -72,6 +72,8 @@ pub const LEDGER_TABLES: &[&str] = &[
     CommitmentsByNumber::table_name(),
     ProofBySlotNumber::table_name(),
     VerifiedProofsBySlotNumber::table_name(),
+    LatestBonsaiSession::table_name(),
+    LatestBonsaiSnarkSession::table_name(),
 ];
 
 /// A list of all tables used by the NativeDB. These tables store
@@ -328,6 +330,16 @@ define_table_with_default_codec!(
 define_table_with_default_codec!(
     /// Proof data on L1 slot verified by full node
     (VerifiedProofsBySlotNumber) SlotNumber => Vec<StoredVerifiedProof>
+);
+
+define_table_with_default_codec!(
+    /// Prover uses this table to store the latest ongoing bonsai session, the value is the uuid of the session
+    (LatestBonsaiSession) () => String
+);
+
+define_table_with_default_codec!(
+    /// Prover uses this table to store the latest ongoing bonsai snark session, the value is the uuid of the session
+    (LatestBonsaiSnarkSession) () => String
 );
 
 impl KeyEncoder<JmtNodes> for NodeKey {

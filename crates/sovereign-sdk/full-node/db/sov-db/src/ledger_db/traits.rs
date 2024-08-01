@@ -147,7 +147,7 @@ pub trait NodeLedgerOps: SharedLedgerOps {
 }
 
 /// Prover ledger operations
-pub trait ProverLedgerOps: SharedLedgerOps {
+pub trait ProverLedgerOps: SharedLedgerOps + Send + Sync {
     /// Get the state root by L2 height
     fn get_l2_state_root<StateRoot: DeserializeOwned>(
         &self,
@@ -175,6 +175,24 @@ pub trait ProverLedgerOps: SharedLedgerOps {
 
     /// Set the witness by L2 height
     fn set_l2_witness<Witness: Serialize>(&self, l2_height: u64, witness: &Witness) -> Result<()>;
+
+    /// Returns the uuid of the latest bonsai session, if not completed
+    fn get_latest_bonsai_session(&self) -> Result<Option<String>>;
+
+    /// Returns the uuid of the latest bonsai snark session, if not completed
+    fn get_latest_bonsai_snark_session(&self) -> Result<Option<String>>;
+
+    /// Sets the uuid of the latest bonsai session
+    fn set_latest_bonsai_session(&self, session_id: &String) -> anyhow::Result<()>;
+
+    /// Sets the uuid of the latest bonsai snark session
+    fn set_latest_bonsai_snark_session(&self, session_id: &String) -> anyhow::Result<()>;
+
+    /// Clears the uuid of the latest bonsai session
+    fn clear_latest_bonsai_session(&self) -> anyhow::Result<()>;
+
+    /// Clears the uuid of the latest bonsai snark session
+    fn clear_latest_bonsai_snark_session(&self) -> anyhow::Result<()>;
 }
 
 /// Sequencer ledger operations

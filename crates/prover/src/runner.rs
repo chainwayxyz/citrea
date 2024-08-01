@@ -8,6 +8,7 @@ use std::time::Duration;
 use anyhow::{anyhow, bail};
 use backoff::exponential::ExponentialBackoffBuilder;
 use backoff::future::retry as retry_backoff;
+use bonsai_sdk::alpha::{SessionId, SnarkId};
 use borsh::de::BorshDeserialize;
 use citrea_primitives::types::SoftConfirmationHash;
 use citrea_primitives::{get_da_block_at_height, L1BlockCache};
@@ -265,6 +266,28 @@ where
 
         let da_service = self.da_service.clone();
         let l1_block_cache = self.l1_block_cache.clone();
+
+        // TODO:
+        // Check if there is an unfinished proof submission
+        // get session ids
+        // If either of the session ids exist do prover_state.inc_task_count();
+        // check snark session id first, if it exists using the stark session id get the receipt url and download it, after that give it to wait forsnark function
+        // If snark is empty but stark session is ongoing then just call wait for stark session then with proof do the other stuff mentioned above
+        // when proof is done do prover_state.set_to_proved(block_header_hash, proof);
+        // Finally functionalize all this
+        match self.ledger_db.get_latest_bonsai_session()? {
+            Some(session_uuid) => {
+                let session = SessionId::new(session_uuid);
+            }
+            None => {}
+        }
+
+        match self.ledger_db.get_latest_bonsai_snark_session()? {
+            Some(session_uuid) => {
+                let snark_session = SnarkId::new(session_uuid);
+            }
+            None => {}
+        }
 
         let mut pending_l1_blocks: VecDeque<<Da as DaService>::FilteredBlock> =
             VecDeque::<Da::FilteredBlock>::new();

@@ -27,6 +27,7 @@ sov-stf-runner = { path = "../sovereign-sdk/full-node/sov-stf-runner" }
 anyhow = { workspace = true }
 async-trait = { workspace = true }
 backoff = { workspace = true }
+bonsai-sdk = { workspace = true }
 borsh = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true }
