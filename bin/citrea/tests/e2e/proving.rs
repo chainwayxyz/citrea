@@ -150,6 +150,9 @@ async fn test_db_get_proof() {
 #[tokio::test(flavor = "multi_thread")]
 async fn full_node_verify_proof_and_store() {
     // citrea::initialize_logging(tracing::Level::INFO);
+    // !! UPDATE THIS TO ENLARGE THE PROOF SIZE !!
+    // !! FOR REFERENCE, 400 TAKES LONGER THAN 1 HOUR !!
+    let min_soft_confirmations_per_commitment = 4;
 
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "prover", "full-node"]);
     let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
@@ -160,7 +163,7 @@ async fn full_node_verify_proof_and_store() {
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
     let da_db_dir_cloned = da_db_dir.clone();
-    let seq_task = tokio::spawn(async {
+    let seq_task = tokio::spawn(async move {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
@@ -168,7 +171,7 @@ async fn full_node_verify_proof_and_store() {
             NodeMode::SequencerNode,
             sequencer_db_dir,
             da_db_dir_cloned,
-            4,
+            min_soft_confirmations_per_commitment,
             true,
             None,
             None,
@@ -198,7 +201,7 @@ async fn full_node_verify_proof_and_store() {
             NodeMode::Prover(seq_port),
             prover_db_dir,
             da_db_dir_cloned,
-            4,
+            min_soft_confirmations_per_commitment,
             true,
             None,
             None,
@@ -223,7 +226,7 @@ async fn full_node_verify_proof_and_store() {
             NodeMode::FullNode(seq_port),
             fullnode_db_dir,
             da_db_dir_cloned,
-            4,
+            min_soft_confirmations_per_commitment,
             true,
             None,
             None,
@@ -239,26 +242,27 @@ async fn full_node_verify_proof_and_store() {
     da_service.publish_test_block().await.unwrap();
     wait_for_l1_block(&da_service, 2, None).await;
 
-    test_client.send_publish_batch_request().await;
-    test_client.send_publish_batch_request().await;
-    test_client.send_publish_batch_request().await;
-    test_client.send_publish_batch_request().await;
-    wait_for_l2_block(&full_node_test_client, 4, None).await;
+    for _ in 0..min_soft_confirmations_per_commitment {
+        test_client.send_publish_batch_request().await;
+    }
+    wait_for_l2_block(&full_node_test_client, min_soft_confirmations_per_commitment, None).await;
 
     // Commitment submitted
     wait_for_l1_block(&da_service, 3, None).await;
 
     // Full node sync commitment block
     test_client.send_publish_batch_request().await;
-    wait_for_l2_block(&full_node_test_client, 5, None).await;
+    wait_for_l2_block(&full_node_test_client, min_soft_confirmations_per_commitment + 1, None).await;
 
     // wait here until we see from prover's rpc that it finished proving
     wait_for_prover_l1_height(
         &prover_node_test_client,
         4,
-        Some(Duration::from_secs(DEFAULT_PROOF_WAIT_DURATION)),
+        Some(Duration::from_secs(DEFAULT_PROOF_WAIT_DURATION * 20)),
     )
     .await;
+
+    panic!("Intentionally panicking because the rest of the test doesn't matter");
 
     let commitments = prover_node_test_client
         .ledger_get_sequencer_commitments_on_slot_by_number(3)

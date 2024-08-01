@@ -369,7 +369,9 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
         let len = buf.len() as u64;
         let len_buf = &len.to_le_bytes()[..];
         let len_buf: &[u32] = bytemuck::cast_slice(len_buf);
-        self.env.extend_from_slice(len_buf);
+        println!("LEN: {}", len);
+        // !! UNCOMMENT WHEN TESTING WITH VEC ALLOC !!
+        // self.env.extend_from_slice(len_buf);
         // write buf
         self.env.extend_from_slice(buf);
 
@@ -396,12 +398,12 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
 
             let session = executor.run()?;
             // don't delete useful while benchmarking
-            // println!(
-            //     "user cycles: {}\ntotal cycles: {}\nsegments: {}",
-            //     session.user_cycles,
-            //     session.total_cycles,
-            //     session.segments.len()
-            // );
+            println!(
+                "user cycles: {}\ntotal cycles: {}\nsegments: {}",
+                session.user_cycles,
+                session.total_cycles,
+                session.segments.len()
+            );
             let data = bincode::serialize(&session.journal.expect("Journal shouldn't be empty"))?;
 
             Ok(Proof::PublicInput(data))
