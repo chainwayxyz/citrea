@@ -7,6 +7,7 @@ use sov_mock_da::{
 };
 use sov_mock_zkvm::MockZkvm;
 use sov_rollup_interface::da::Time;
+use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::zk::StateTransitionData;
 use sov_stf_runner::mock::MockStf;
 use sov_stf_runner::{
@@ -208,6 +209,7 @@ fn make_transition_data(
     header_hash: MockHash,
 ) -> StateTransitionData<[u8; 0], Vec<u8>, MockDaSpec> {
     StateTransitionData {
+        current_spec: SpecId::Genesis,
         initial_state_root: [],
         final_state_root: [],
         initial_batch_hash: [0; 32],

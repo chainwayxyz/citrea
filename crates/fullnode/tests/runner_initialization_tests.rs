@@ -1,8 +1,10 @@
 use citrea_fullnode::CitreaFullnode;
+use citrea_primitives::fork::ForkManager;
 use sov_db::ledger_db::LedgerDB;
 use sov_mock_da::{MockAddress, MockDaConfig, MockDaService, MockDaSpec, MockValidityCond};
 use sov_mock_zkvm::{MockCodeCommitment, MockZkvm};
 use sov_prover_storage_manager::ProverStorageManager;
+use sov_rollup_interface::spec::SpecId;
 use sov_state::DefaultStorageSpec;
 use sov_stf_runner::{
     FullNodeConfig, InitVariant, RollupPublicKeys, RpcConfig, RunnerConfig, StorageConfig,
@@ -51,6 +53,7 @@ fn initialize_runner(
     sov_modules_api::default_context::DefaultContext,
     LedgerDB,
 > {
+    let specs = vec![(SpecId::Genesis, 0)];
     let da_storage_path = storage_path.join("da").to_path_buf();
     let rollup_storage_path = storage_path.join("rollup").to_path_buf();
 
@@ -91,7 +94,7 @@ fn initialize_runner(
             prover_da_pub_key: vec![],
         },
         sync_blocks_count: 10,
-        fork_specs: vec![],
+        fork_specs: specs.clone(),
     };
 
     let da_service = MockDaService::new(address, &da_storage_path);
@@ -108,6 +111,8 @@ fn initialize_runner(
     // let vm = MockZkvm::new(MockValidityCond::default());
     // let verifier = MockDaVerifier::default();
 
+    let fork_manager = ForkManager::new(0, SpecId::Genesis, specs);
+
     CitreaFullnode::new(
         rollup_config.runner.unwrap(),
         rollup_config.public_keys,
@@ -119,6 +124,7 @@ fn initialize_runner(
         init_variant,
         MockCodeCommitment([1u8; 32]),
         10,
+        fork_manager,
         broadcast::channel(1).0,
     )
     .unwrap()
