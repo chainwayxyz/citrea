@@ -59,6 +59,7 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
 
     fn apply_slot<'a, I>(
         &self,
+        _current_spec: SpecId,
         _pre_state_root: &[u8; 0],
         _base_state: Self::PreState,
         _witness: Self::Witness,
@@ -113,6 +114,7 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
 
     fn apply_soft_batch(
         &self,
+        _current_spec: SpecId,
         _sequencer_public_key: &[u8],
         _pre_state_root: &Self::StateRoot,
         _pre_state: Self::PreState,
@@ -132,6 +134,7 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
 
     fn apply_soft_confirmations_from_sequencer_commitments(
         &self,
+        _current_spec: SpecId,
         _sequencer_public_key: &[u8],
         _sequencer_da_public_key: &[u8],
         _initial_state_root: &Self::StateRoot,

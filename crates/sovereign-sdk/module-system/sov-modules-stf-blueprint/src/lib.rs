@@ -130,6 +130,7 @@ pub trait StfBlueprintTrait<C: Context, Da: DaSpec, Vm: Zkvm>:
     /// Begin a soft batch
     fn begin_soft_batch(
         &self,
+        current_spec: SpecId,
         sequencer_public_key: &[u8],
         pre_state_root: &Self::StateRoot,
         pre_state: Self::PreState,
@@ -141,6 +142,7 @@ pub trait StfBlueprintTrait<C: Context, Da: DaSpec, Vm: Zkvm>:
     /// Apply soft batch transactions
     fn apply_soft_batch_txs(
         &self,
+        current_spec: SpecId,
         txs: Vec<Vec<u8>>,
         batch_workspace: WorkingSet<C>,
     ) -> (WorkingSet<C>, Vec<TransactionReceipt<TxEffect>>);
@@ -148,6 +150,7 @@ pub trait StfBlueprintTrait<C: Context, Da: DaSpec, Vm: Zkvm>:
     /// End a soft batch
     fn end_soft_batch(
         &self,
+        current_spec: SpecId,
         sequencer_public_key: &[u8],
         soft_batch: &mut SignedSoftConfirmationBatch,
         tx_receipts: Vec<TransactionReceipt<TxEffect>>,
@@ -157,6 +160,7 @@ pub trait StfBlueprintTrait<C: Context, Da: DaSpec, Vm: Zkvm>:
     /// Finalizes a soft batch
     fn finalize_soft_batch(
         &self,
+        current_spec: SpecId,
         batch_receipt: BatchReceipt<(), TxEffect>,
         checkpoint: StateCheckpoint<C>,
         pre_state: Self::PreState,
@@ -179,6 +183,7 @@ where
 {
     fn begin_soft_batch(
         &self,
+        _current_spec: SpecId,
         sequencer_public_key: &[u8],
         pre_state_root: &Self::StateRoot,
         pre_state: <C>::Storage,
@@ -216,6 +221,7 @@ where
 
     fn apply_soft_batch_txs(
         &self,
+        _current_spec: SpecId,
         txs: Vec<Vec<u8>>,
         batch_workspace: WorkingSet<C>,
     ) -> (WorkingSet<C>, Vec<TransactionReceipt<TxEffect>>) {
@@ -224,6 +230,7 @@ where
 
     fn end_soft_batch(
         &self,
+        _current_spec: SpecId,
         sequencer_public_key: &[u8],
         soft_batch: &mut SignedSoftConfirmationBatch,
         tx_receipts: Vec<TransactionReceipt<TxEffect>>,
@@ -267,6 +274,7 @@ where
 
     fn finalize_soft_batch(
         &self,
+        _current_spec: SpecId,
         batch_receipt: BatchReceipt<(), TxEffect>,
         checkpoint: StateCheckpoint<C>,
         pre_state: Self::PreState,
@@ -387,6 +395,7 @@ where
 
     fn apply_slot<'a, I>(
         &self,
+        _current_spec: SpecId,
         _pre_state_root: &Self::StateRoot,
         _pre_state: Self::PreState,
         _witness: Self::Witness,
@@ -408,6 +417,7 @@ where
 
     fn apply_soft_batch(
         &self,
+        current_spec: SpecId,
         sequencer_public_key: &[u8],
         pre_state_root: &Self::StateRoot,
         pre_state: Self::PreState,
@@ -423,6 +433,7 @@ where
         Self::Witness,
     > {
         match self.begin_soft_batch(
+            current_spec,
             sequencer_public_key,
             pre_state_root,
             pre_state.clone(),
@@ -432,16 +443,23 @@ where
         ) {
             (Ok(()), batch_workspace) => {
                 let (batch_workspace, tx_receipts) =
-                    self.apply_soft_batch_txs(soft_batch.txs(), batch_workspace);
+                    self.apply_soft_batch_txs(current_spec, soft_batch.txs(), batch_workspace);
 
                 let (batch_receipt, checkpoint) = self.end_soft_batch(
+                    current_spec,
                     sequencer_public_key,
                     soft_batch,
                     tx_receipts,
                     batch_workspace,
                 );
 
-                self.finalize_soft_batch(batch_receipt, checkpoint, pre_state, soft_batch)
+                self.finalize_soft_batch(
+                    current_spec,
+                    batch_receipt,
+                    checkpoint,
+                    pre_state,
+                    soft_batch,
+                )
             }
             (Err(err), batch_workspace) => {
                 native_warn!(
@@ -462,6 +480,7 @@ where
 
     fn apply_soft_confirmations_from_sequencer_commitments(
         &self,
+        current_spec: SpecId,
         sequencer_public_key: &[u8],
         sequencer_da_public_key: &[u8],
         initial_state_root: &Self::StateRoot,
@@ -648,6 +667,7 @@ where
                 }
 
                 let result = self.apply_soft_batch(
+                    current_spec,
                     sequencer_public_key,
                     &current_state_root,
                     pre_state.clone(),

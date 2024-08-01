@@ -167,6 +167,8 @@ pub trait Matches<T> {
 #[serde(bound = "StateRoot: Serialize + DeserializeOwned, Witness: Serialize + DeserializeOwned")]
 /// Data required to verify a state transition.
 pub struct StateTransitionData<StateRoot, Witness, Da: DaSpec> {
+    /// The current spec
+    pub current_spec: SpecId,
     /// The state root before the state transition
     pub initial_state_root: StateRoot,
     /// The state root after the state transition

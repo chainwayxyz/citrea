@@ -200,6 +200,7 @@ pub trait StateTransitionFunction<Vm: Zkvm, Da: DaSpec> {
     #[allow(clippy::type_complexity)]
     fn apply_slot<'a, I>(
         &self,
+        current_spec: SpecId,
         pre_state_root: &Self::StateRoot,
         pre_state: Self::PreState,
         witness: Self::Witness,
@@ -231,6 +232,7 @@ pub trait StateTransitionFunction<Vm: Zkvm, Da: DaSpec> {
     #[allow(clippy::too_many_arguments)]
     fn apply_soft_batch(
         &self,
+        current_spec: SpecId,
         sequencer_public_key: &[u8],
         pre_state_root: &Self::StateRoot,
         pre_state: Self::PreState,
@@ -253,6 +255,7 @@ pub trait StateTransitionFunction<Vm: Zkvm, Da: DaSpec> {
     #[allow(clippy::too_many_arguments)]
     fn apply_soft_confirmations_from_sequencer_commitments(
         &self,
+        current_spec: SpecId,
         sequencer_public_key: &[u8],
         sequencer_da_public_key: &[u8],
         initial_state_root: &Self::StateRoot,
