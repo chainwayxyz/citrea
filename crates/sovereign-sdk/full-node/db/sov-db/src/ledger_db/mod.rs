@@ -800,7 +800,7 @@ impl LedgerDB {
 }
 
 impl ForkMigration for LedgerDB {
-    fn spec_activated(&self, spec_id: SpecId) -> anyhow::Result<()> {
+    fn spec_activated(&self, _spec_id: SpecId) -> anyhow::Result<()> {
         todo!()
     }
 }
