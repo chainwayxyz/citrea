@@ -101,7 +101,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
     async fn create_da_service(
         &self,
         rollup_config: &FullNodeConfig<Self::DaConfig>,
-    ) -> Arc<Self::DaService>;
+    ) -> Result<Arc<Self::DaService>, anyhow::Error>;
 
     /// Creates instance of [`ProverService`].
     async fn create_prover_service(

@@ -109,7 +109,7 @@ impl RollupBlueprint for BitcoinRollup {
     async fn create_da_service(
         &self,
         rollup_config: &FullNodeConfig<Self::DaConfig>,
-    ) -> Arc<Self::DaService> {
+    ) -> Result<Arc<Self::DaService>, anyhow::Error> {
         let (tx, rx) = unbounded_channel::<BlobWithNotifier<TxidWrapper>>();
 
         let service = Arc::new(
@@ -121,12 +121,12 @@ impl RollupBlueprint for BitcoinRollup {
                 },
                 tx,
             )
-            .await,
+            .await?,
         );
 
         Arc::clone(&service).spawn_bg_task(rx);
 
-        service
+        Ok(service)
     }
 
     #[instrument(level = "trace", skip_all)]

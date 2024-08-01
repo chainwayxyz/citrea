@@ -303,6 +303,7 @@ impl DaService for MockDaService {
     type HeaderStream = MockDaBlockHeaderStream;
     type TransactionId = MockHash;
     type Error = anyhow::Error;
+    type BlockHash = [u8; 32];
 
     /// Gets block at given height
     /// If block is not available, waits until it is
@@ -426,7 +427,10 @@ impl DaService for MockDaService {
         Ok(10_u128)
     }
 
-    async fn get_block_by_hash(&self, hash: [u8; 32]) -> Result<Self::FilteredBlock, Self::Error> {
+    async fn get_block_by_hash(
+        &self,
+        hash: Self::BlockHash,
+    ) -> Result<Self::FilteredBlock, Self::Error> {
         self.blocks
             .lock()
             .await

@@ -88,11 +88,11 @@ impl RollupBlueprint for MockDemoRollup {
     async fn create_da_service(
         &self,
         rollup_config: &FullNodeConfig<Self::DaConfig>,
-    ) -> Arc<Self::DaService> {
-        Arc::new(MockDaService::new(
+    ) -> Result<Arc<Self::DaService>, anyhow::Error> {
+        Ok(Arc::new(MockDaService::new(
             rollup_config.da.sender_address,
             &rollup_config.da.db_path,
-        ))
+        )))
     }
 
     async fn create_prover_service(
