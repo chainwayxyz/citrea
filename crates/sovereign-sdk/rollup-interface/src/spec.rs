@@ -1,13 +1,19 @@
 use anyhow::anyhow;
-#[cfg(feature = "native")]
+use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, PartialEq, Default)]
-#[cfg_attr(feature = "native", derive(Serialize, Deserialize))]
+/// Fork specification
+#[derive(
+    Debug, Clone, Copy, PartialEq, Default, BorshDeserialize, BorshSerialize, Serialize, Deserialize,
+)]
+#[borsh(use_discriminant = true)]
 pub enum SpecId {
+    /// Genesis spec
     #[default]
     Genesis = 0,
+    /// First fork
     Fork1 = 1,
+    /// Second fork
     Fork2 = 2,
 }
 

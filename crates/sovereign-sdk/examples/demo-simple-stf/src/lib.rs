@@ -5,6 +5,7 @@ use std::marker::PhantomData;
 use sha2::Digest;
 use sov_rollup_interface::da::{BlobReaderTrait, DaSpec};
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
+use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::stf::{BatchReceipt, SlotResult, StateTransitionFunction};
 use sov_rollup_interface::zk::{CumulativeStateDiff, ValidityCondition, Zkvm};
 

@@ -1,7 +1,7 @@
+use super::ForkMigration;
 use std::collections::VecDeque;
 
-use super::{ForkMigration, SpecId};
-
+use sov_rollup_interface::spec::SpecId;
 /// Defines the interface which a fork manager needs to implement.
 pub trait ForkManagement {
     /// Returns the currently active fork.

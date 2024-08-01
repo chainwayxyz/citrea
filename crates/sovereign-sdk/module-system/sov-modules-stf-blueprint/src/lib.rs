@@ -22,6 +22,7 @@ use sov_modules_api::{
 use sov_rollup_interface::da::{DaData, SequencerCommitment};
 use sov_rollup_interface::digest::Digest;
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
+use sov_rollup_interface::spec::SpecId;
 pub use sov_rollup_interface::stf::{BatchReceipt, TransactionReceipt};
 use sov_rollup_interface::stf::{SlotResult, StateTransitionFunction};
 use sov_rollup_interface::zk::CumulativeStateDiff;

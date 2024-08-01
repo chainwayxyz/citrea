@@ -17,6 +17,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::da::DaSpec;
 use crate::soft_confirmation::SignedSoftConfirmationBatch;
+use crate::spec::SpecId;
 use crate::zk::{CumulativeStateDiff, ValidityCondition, Zkvm};
 
 #[cfg(any(all(test, feature = "sha2"), feature = "fuzzing"))]

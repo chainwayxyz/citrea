@@ -1,4 +1,4 @@
-use super::SpecId;
+use sov_rollup_interface::spec::SpecId;
 
 /// Defines the interface of a migration
 pub trait ForkMigration {

@@ -2,10 +2,10 @@ use std::fs::File;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
-use citrea_primitives::fork::SpecId;
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
 use shared_backup_db::SharedBackupDbConfig;
+use sov_rollup_interface::spec::SpecId;
 
 use crate::ProverGuestRunConfig;
 

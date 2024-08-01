@@ -6,6 +6,7 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_rollup_interface::da::{DaSpec, SequencerCommitment};
 use sov_rollup_interface::services::da::SlotData;
+use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::stf::{BatchReceipt, Event, SoftBatchReceipt, StateDiff};
 use sov_rollup_interface::zk::Proof;
 use sov_schema_db::{Schema, SchemaBatch, SeekKeyEncoder, DB};
