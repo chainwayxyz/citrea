@@ -1,4 +1,5 @@
-use bitcoin::{address::NetworkUnchecked, Address, Txid};
+use bitcoin::address::NetworkUnchecked;
+use bitcoin::{Address, Txid};
 use bitcoincore_rpc::json::ListUnspentResultEntry;
 use serde::{Deserialize, Serialize};
 

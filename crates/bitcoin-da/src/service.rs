@@ -16,6 +16,8 @@ use bitcoin::hash_types::WitnessMerkleNode;
 use bitcoin::hashes::{sha256d, Hash};
 use bitcoin::secp256k1::SecretKey;
 use bitcoin::{merkle_tree, Amount, BlockHash, Transaction, Txid, Wtxid};
+use bitcoincore_rpc::jsonrpc_async::Error as RpcError;
+use bitcoincore_rpc::{Auth, Client, Error, RpcApi};
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::services::da::{BlobWithNotifier, DaService};
@@ -38,8 +40,6 @@ use crate::spec::utxo::UTXO;
 use crate::spec::{BitcoinSpec, RollupParams};
 use crate::verifier::BitcoinVerifier;
 use crate::REVEAL_OUTPUT_AMOUNT;
-
-use bitcoincore_rpc::{jsonrpc_async::Error as RpcError, Auth, Client, Error, RpcApi};
 
 /// A service that provides data and data availability proofs for Bitcoin
 #[derive(Debug)]
@@ -267,7 +267,7 @@ impl BitcoinService {
         let mut scanned_txids = HashSet::new();
 
         for utxo in pending_utxos.iter() {
-            let txid = utxo.txid.clone();
+            let txid = utxo.txid;
             // Check if tx is already in the pending transactions vector
             if scanned_txids.contains(&txid) {
                 continue;
