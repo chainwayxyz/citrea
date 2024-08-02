@@ -31,7 +31,7 @@ impl ForkManager {
         // Filter out specs which have already been activated.
         specs.retain(|(spec, block)| *spec != active_spec && *block > current_l2_height);
         // Make sure the list of specs is sorted by the block number at which they activate.
-        specs.sort_by_key(|(_, block_number)| block_number.clone());
+        specs.sort_by_key(|(_, block_number)| *block_number);
         Self {
             specs: specs.into(),
             active_spec,
