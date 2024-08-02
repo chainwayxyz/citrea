@@ -331,22 +331,15 @@ impl<'a> Risc0BonsaiHost<'a> {
         // Prepare input data and upload it.
         let client = self.client.as_ref().unwrap();
 
-        let mut input_data = vec![];
-        let mut buf = borsh::to_vec(&item).unwrap();
-        // append [0..] alignment
+        let mut buf = borsh::to_vec(&item).expect("Risc0 hint serialization is infallible");
+        // append [0..] alignment to cast &[u8] to &[u32]
         let rem = buf.len() % 4;
         if rem > 0 {
             buf.extend(vec![0; 4 - rem]);
         }
-        let buf_u32: &[u32] = bytemuck::cast_slice(&buf);
-        // write len(u64) in LE
-        let len = buf_u32.len() as u64;
-        input_data.extend(len.to_le_bytes());
-        // write buf
-        input_data.extend(buf);
 
         // handle error
-        let input_id = client.upload_input(input_data);
+        let input_id = client.upload_input(buf);
         tracing::info!("Uploaded input with id: {}", input_id);
         self.last_input_id = Some(input_id);
     }
@@ -365,11 +358,6 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
             buf.extend(vec![0; 4 - rem]);
         }
         let buf: &[u32] = bytemuck::cast_slice(&buf);
-        // write len(u64) in LE
-        let len = buf.len() as u64;
-        let len_buf = &len.to_le_bytes()[..];
-        let len_buf: &[u32] = bytemuck::cast_slice(len_buf);
-        self.env.extend_from_slice(len_buf);
         // write buf
         self.env.extend_from_slice(buf);
 
