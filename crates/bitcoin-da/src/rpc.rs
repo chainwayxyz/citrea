@@ -1,10 +1,11 @@
 use core::fmt::{Debug, Display};
 use core::str::FromStr;
 
+use anyhow::Result;
 use bitcoin::block::{Header, Version};
 use bitcoin::hash_types::{TxMerkleNode, WitnessMerkleNode};
 use bitcoin::hashes::Hash;
-use bitcoin::{merkle_tree, BlockHash, CompactTarget, Wtxid};
+use bitcoin::{merkle_tree, BlockHash, CompactTarget, Txid, Wtxid};
 use reqwest::header::HeaderMap;
 use serde::{Deserialize, Serialize};
 use serde_json::value::RawValue;
@@ -44,6 +45,7 @@ pub struct BitcoinNode {
     url: String,
     client: reqwest::Client,
 }
+
 impl BitcoinNode {
     #[instrument(level = "trace", ret)]
     pub fn new(url: String, username: String, password: String) -> Self {
@@ -105,7 +107,7 @@ impl BitcoinNode {
         &self,
         method: &str,
         params: Vec<serde_json::Value>,
-    ) -> Result<T, anyhow::Error> {
+    ) -> Result<T> {
         let mut attempt = 1;
         loop {
             match self.call_inner(method, &params).await {
@@ -130,19 +132,18 @@ impl BitcoinNode {
     }
 
     // get_block_count returns the current block height
-    pub async fn get_block_count(&self) -> Result<u64, anyhow::Error> {
-        self.call::<u64>("getblockcount", vec![]).await
+    pub async fn get_block_count(&self) -> Result<u64> {
+        self.call("getblockcount", vec![]).await
     }
 
     // get_block_hash returns the block hash of the block at the given height
-    pub async fn get_block_hash(&self, height: u64) -> Result<String, anyhow::Error> {
-        self.call::<String>("getblockhash", vec![to_value(height)?])
-            .await
+    pub async fn get_block_hash(&self, height: u64) -> Result<BlockHash> {
+        self.call("getblockhash", vec![to_value(height)?]).await
     }
 
     // get_best_blockhash returns the best blockhash of the chain
-    pub async fn get_best_blockhash(&self) -> Result<String, anyhow::Error> {
-        self.call::<String>("getbestblockhash", vec![]).await
+    pub async fn get_best_blockhash(&self) -> Result<BlockHash> {
+        self.call("getbestblockhash", vec![]).await
     }
 
     fn calculate_witness_root(txdata: &[TransactionWrapper]) -> Option<WitnessMerkleNode> {
@@ -158,16 +159,16 @@ impl BitcoinNode {
     }
 
     // get_block_header returns a particular block header with a given hash
-    pub async fn get_block_header(&self, hash: String) -> Result<HeaderWrapper, anyhow::Error> {
+    pub async fn get_block_header(&self, hash: BlockHash) -> Result<HeaderWrapper> {
         // The full block is requested here because txs_commitment is the witness root
         let full_block = self.get_block(hash).await?;
         Ok(full_block.header)
     }
 
     // get_block returns the block at the given hash
-    pub async fn get_block(&self, hash: String) -> Result<BitcoinBlock, anyhow::Error> {
+    pub async fn get_block(&self, hash: BlockHash) -> Result<BitcoinBlock> {
         let result = self
-            .call::<Box<RawValue>>("getblock", vec![to_value(hash.clone())?, to_value(3)?])
+            .call::<Box<RawValue>>("getblock", vec![to_value(hash)?, to_value(3)?])
             .await?
             .to_string();
 
@@ -209,9 +210,9 @@ impl BitcoinNode {
     }
 
     // get_utxos returns all unspent transaction outputs for the wallets of bitcoind
-    pub async fn get_utxos(&self) -> Result<Vec<UTXO>, anyhow::Error> {
+    pub async fn get_utxos(&self) -> Result<Vec<UTXO>> {
         let utxos = self
-            .call::<Vec<UTXO>>("listunspent", vec![to_value(0)?, to_value(9999999)?])
+            .call("listunspent", vec![to_value(0)?, to_value(9999999)?])
             .await?;
 
         Ok(utxos)
@@ -219,7 +220,7 @@ impl BitcoinNode {
 
     // estimate_smart_fee estimates the fee to confirm a transaction in the next block
     #[instrument(level = "trace", skip(self), err, ret)]
-    pub async fn estimate_smart_fee(&self) -> Result<f64, anyhow::Error> {
+    pub async fn estimate_smart_fee(&self) -> Result<f64> {
         let result = self
             .call::<Box<RawValue>>("estimatesmartfee", vec![to_value(1)?])
             .await?
@@ -239,10 +240,7 @@ impl BitcoinNode {
     }
 
     // sign_raw_transaction_with_wallet signs a raw transaction with the wallet of bitcoind
-    pub async fn sign_raw_transaction_with_wallet(
-        &self,
-        tx: String,
-    ) -> Result<String, anyhow::Error> {
+    pub async fn sign_raw_transaction_with_wallet(&self, tx: String) -> Result<String> {
         let result = self
             .call::<Box<RawValue>>("signrawtransactionwithwallet", vec![to_value(tx)?])
             .await?
@@ -254,12 +252,11 @@ impl BitcoinNode {
     }
 
     // send_raw_transaction sends a raw transaction to the network
-    pub async fn send_raw_transaction(&self, tx: String) -> Result<String, anyhow::Error> {
-        self.call::<String>("sendrawtransaction", vec![to_value(tx)?])
-            .await
+    pub async fn send_raw_transaction(&self, tx: String) -> Result<Txid> {
+        self.call("sendrawtransaction", vec![to_value(tx)?]).await
     }
 
-    pub async fn list_wallets(&self) -> Result<Vec<String>, anyhow::Error> {
+    pub async fn list_wallets(&self) -> Result<Vec<String>> {
         let res = self.call::<Vec<String>>("listwallets", vec![]).await;
         match res {
             Ok(wallets) => Ok(wallets),
@@ -268,17 +265,16 @@ impl BitcoinNode {
     }
 
     /// Get unconfirmed utxos
-    pub async fn get_pending_utxos(&self) -> Result<Vec<ListUnspentEntry>, anyhow::Error> {
+    pub async fn get_pending_utxos(&self) -> Result<Vec<ListUnspentEntry>> {
         let utxos = self
-            .call::<Vec<ListUnspentEntry>>("listunspent", vec![to_value(0)?, to_value(0)?])
+            .call("listunspent", vec![to_value(0)?, to_value(0)?])
             .await?;
 
         Ok(utxos)
     }
 
     /// Get a raw transaction by its txid
-    pub async fn get_raw_transaction(&self, txid: String) -> Result<String, anyhow::Error> {
-        self.call::<String>("getrawtransaction", vec![to_value(txid)?])
-            .await
+    pub async fn get_raw_transaction(&self, txid: Txid) -> Result<String> {
+        self.call("getrawtransaction", vec![to_value(txid)?]).await
     }
 }
