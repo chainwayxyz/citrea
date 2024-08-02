@@ -807,6 +807,7 @@ impl NodeLedgerOps for LedgerDB {
 
 impl ForkMigration for LedgerDB {
     fn spec_activated(&self, _spec_id: SpecId) -> anyhow::Result<()> {
-        todo!()
+        // TODO: Implement later
+        Ok(())
     }
 }

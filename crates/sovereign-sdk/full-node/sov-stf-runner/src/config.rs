@@ -5,7 +5,6 @@ use std::path::{Path, PathBuf};
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
 use shared_backup_db::SharedBackupDbConfig;
-use sov_rollup_interface::spec::SpecId;
 
 use crate::ProverGuestRunConfig;
 
@@ -106,11 +105,6 @@ pub struct RollupPublicKeys {
     pub prover_da_pub_key: Vec<u8>,
 }
 
-#[inline]
-const fn default_fork_specs() -> Vec<(SpecId, u64)> {
-    vec![]
-}
-
 /// Rollup Configuration
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct FullNodeConfig<DaServiceConfig> {
@@ -127,9 +121,6 @@ pub struct FullNodeConfig<DaServiceConfig> {
     /// Number of blocks to request during sync
     #[serde(default = "default_sync_blocks_count")]
     pub sync_blocks_count: u64,
-    /// The fork configuration
-    #[serde(default = "default_fork_specs")]
-    pub fork_specs: Vec<(SpecId, u64)>,
 }
 
 /// Prover configuration

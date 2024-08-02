@@ -21,6 +21,8 @@ mod mock;
 pub use bitcoin::*;
 pub use mock::*;
 
+use crate::forks::FORKS;
+
 /// Overrides RollupBlueprint methods
 #[async_trait]
 pub trait CitreaRollupBlueprint: RollupBlueprint {
@@ -92,11 +94,8 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
 
         let active_spec: SpecId = ledger_db.get_active_fork()?.try_into()?;
 
-        let mut fork_manager = ForkManager::new(
-            current_l2_height.into(),
-            active_spec,
-            rollup_config.fork_specs,
-        );
+        let mut fork_manager =
+            ForkManager::new(current_l2_height.into(), active_spec, FORKS.clone());
         fork_manager.register_handler(Box::new(ledger_db.clone()));
 
         let seq = CitreaSequencer::new(
@@ -189,11 +188,8 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             .unwrap_or(BatchNumber(0));
 
         let active_spec: SpecId = ledger_db.get_active_fork()?.try_into()?;
-        let mut fork_manager = ForkManager::new(
-            current_l2_height.into(),
-            active_spec,
-            rollup_config.fork_specs,
-        );
+        let mut fork_manager =
+            ForkManager::new(current_l2_height.into(), active_spec, FORKS.clone());
         fork_manager.register_handler(Box::new(ledger_db.clone()));
 
         let runner = CitreaFullnode::new(
@@ -291,11 +287,8 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             .unwrap_or(BatchNumber(0));
 
         let active_spec: SpecId = ledger_db.get_active_fork()?.try_into()?;
-        let mut fork_manager = ForkManager::new(
-            current_l2_height.into(),
-            active_spec,
-            rollup_config.fork_specs,
-        );
+        let mut fork_manager =
+            ForkManager::new(current_l2_height.into(), active_spec, FORKS.clone());
         fork_manager.register_handler(Box::new(ledger_db.clone()));
 
         let runner = CitreaProver::new(
