@@ -198,6 +198,7 @@ pub trait StateTransitionFunction<Vm: Zkvm, Da: DaSpec> {
     ///
     /// Commits state changes to the database
     #[allow(clippy::type_complexity)]
+    #[allow(clippy::too_many_arguments)]
     fn apply_slot<'a, I>(
         &self,
         current_spec: SpecId,
