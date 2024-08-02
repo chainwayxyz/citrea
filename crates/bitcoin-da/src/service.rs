@@ -23,7 +23,7 @@ use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::services::da::{BlobWithNotifier, DaService};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::oneshot::channel as oneshot_channel;
-use tracing::{error, info, instrument, trace};
+use tracing::{debug, error, info, instrument, trace};
 
 use crate::helpers::builders::{
     create_inscription_transactions, sign_blob_with_private_key, write_reveal_tx, TxWithId,
@@ -415,7 +415,7 @@ impl DaService for BitcoinService {
     // If no such block exists, block until one does.
     #[instrument(level = "trace", skip(self), err)]
     async fn get_block_at(&self, height: u64) -> Result<Self::FilteredBlock, Self::Error> {
-        info!("Getting block at height {}", height);
+        debug!("Getting block at height {}", height);
 
         let block_hash;
         loop {
@@ -485,7 +485,7 @@ impl DaService for BitcoinService {
         &self,
         block: &Self::FilteredBlock,
     ) -> Vec<<Self::Spec as sov_rollup_interface::da::DaSpec>::BlobTransaction> {
-        info!(
+        debug!(
             "Extracting relevant txs from block {:?}",
             block.header.block_hash()
         );

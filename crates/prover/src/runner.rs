@@ -12,6 +12,7 @@ use borsh::de::BorshDeserialize;
 use citrea_primitives::types::SoftConfirmationHash;
 use citrea_primitives::{get_da_block_at_height, L1BlockCache};
 use jsonrpsee::core::client::Error as JsonrpseeError;
+use jsonrpsee::server::{BatchRequestConfig, ServerBuilder};
 use jsonrpsee::RpcModule;
 use rand::Rng;
 use sequencer_client::{GetSoftBatchResponse, SequencerClient};
@@ -177,11 +178,17 @@ where
 
         let max_connections = self.rpc_config.max_connections;
         let max_subscriptions_per_connection = self.rpc_config.max_subscriptions_per_connection;
+        let max_request_body_size = self.rpc_config.max_request_body_size;
+        let max_response_body_size = self.rpc_config.max_response_body_size;
+        let batch_requests_limit = self.rpc_config.batch_requests_limit;
 
         let _handle = tokio::spawn(async move {
-            let server = jsonrpsee::server::ServerBuilder::default()
+            let server = ServerBuilder::default()
                 .max_connections(max_connections)
                 .max_subscriptions_per_connection(max_subscriptions_per_connection)
+                .max_request_body_size(max_request_body_size)
+                .max_response_body_size(max_response_body_size)
+                .set_batch_request_config(BatchRequestConfig::Limit(batch_requests_limit))
                 .build([listen_address].as_ref())
                 .await;
 

@@ -622,13 +622,36 @@ where
 
     #[instrument(level = "trace", skip(self), err, ret)]
     pub async fn resubmit_pending_commitments(&mut self) -> anyhow::Result<()> {
+        info!("Resubmitting pending commitments");
+
         let pending_db_commitments = self.ledger_db.get_pending_commitments_l2_range()?;
         debug!("Pending db commitments: {:?}", pending_db_commitments);
-        let pending_da_commitments = self.get_pending_da_commitments().await;
-        debug!("Pending da commitments: {:?}", pending_da_commitments);
+
+        let pending_mempool_commitments = self.get_pending_mempool_commitments().await;
+        debug!(
+            "Commitments that are already in DA mempool: {:?}",
+            pending_mempool_commitments
+        );
+
+        let last_commitment_l1_height = self
+            .ledger_db
+            .get_l1_height_of_last_commitment()?
+            .unwrap_or(SlotNumber(1));
+        let mined_commitments = self
+            .get_mined_commitments_from(last_commitment_l1_height)
+            .await?;
+        debug!(
+            "Commitments that are already mined by DA: {:?}",
+            mined_commitments
+        );
+
+        let mut pending_commitments_to_remove = vec![];
+        pending_commitments_to_remove.extend(pending_mempool_commitments);
+        pending_commitments_to_remove.extend(mined_commitments);
+
         // TODO: also take mined DA blocks into account
         for (l2_start, l2_end) in pending_db_commitments {
-            if pending_da_commitments.iter().any(|commitment| {
+            if pending_commitments_to_remove.iter().any(|commitment| {
                 commitment.l2_start_block_number == l2_start.0
                     && commitment.l2_end_block_number == l2_end.0
             }) {
@@ -763,7 +786,7 @@ where
         Ok(())
     }
 
-    async fn get_pending_da_commitments(&self) -> Vec<SequencerCommitment> {
+    async fn get_pending_mempool_commitments(&self) -> Vec<SequencerCommitment> {
         self.da_service
             .get_relevant_blobs_of_pending_transactions()
             .await
@@ -779,6 +802,42 @@ where
                 }
             })
             .collect()
+    }
+
+    async fn get_mined_commitments_from(
+        &self,
+        da_height: SlotNumber,
+    ) -> anyhow::Result<Vec<SequencerCommitment>> {
+        let head_da_height = self
+            .da_service
+            .get_head_block_header()
+            .await
+            .map_err(|e| anyhow!(e))?
+            .height();
+        let mut mined_commitments = vec![];
+        for height in da_height.0..=head_da_height {
+            let block = self
+                .da_service
+                .get_block_at(height)
+                .await
+                .map_err(|e| anyhow!(e))?;
+            let blobs = self.da_service.extract_relevant_blobs(&block);
+            let iter = blobs.into_iter().filter_map(|mut blob| {
+                match DaData::try_from_slice(blob.full_data()) {
+                    Ok(da_data) => match da_data {
+                        DaData::SequencerCommitment(commitment) => Some(commitment),
+                        _ => None,
+                    },
+                    Err(err) => {
+                        warn!("Pending transaction blob failed to be parsed: {}", err);
+                        None
+                    }
+                }
+            });
+            mined_commitments.extend(iter);
+        }
+
+        Ok(mined_commitments)
     }
 
     #[instrument(level = "trace", skip(self), err, ret)]
