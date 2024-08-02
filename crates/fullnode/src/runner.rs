@@ -217,117 +217,117 @@ where
             l1_block.header().height()
         );
         tracing::debug!("ZK proof: {:?}", proof);
-        let state_transition = match proof.clone() {
-            Proof::Full(proof) => {
-                let code_commitment = self.code_commitment.clone();
+        // let state_transition = match proof.clone() {
+        //     Proof::Full(proof) => {
+        //         let code_commitment = self.code_commitment.clone();
 
-                tracing::warn!(
-                    "using code commitment: {:?}",
-                    serde_json::to_string(&code_commitment).unwrap()
-                );
+        //         tracing::warn!(
+        //             "using code commitment: {:?}",
+        //             serde_json::to_string(&code_commitment).unwrap()
+        //         );
 
-                if let Ok(proof_data) = Vm::verify_and_extract_output::<
-                    <Da as DaService>::Spec,
-                    Stf::StateRoot,
-                >(&proof, &code_commitment)
-                {
-                    if proof_data.sequencer_da_public_key != self.sequencer_da_pub_key
-                        || proof_data.sequencer_public_key != self.sequencer_pub_key
-                    {
-                        return Err(anyhow!(
-                            "Proof verification: Sequencer public key or sequencer da public key mismatch. Skipping proof."
-                        ).into());
-                    }
-                    proof_data
-                } else {
-                    return Err(anyhow!(
-                        "Proof verification: SNARK verification failed. Skipping to next proof.."
-                    )
-                    .into());
-                }
-            }
-            Proof::PublicInput(_) => {
-                if !self.accept_public_input_as_proven {
-                    return Err(anyhow!(
-                        "Found public input in da block number: {:?}, Skipping to next proof..",
-                        l1_block.header().height(),
-                    )
-                    .into());
-                }
-                // public input is accepted only in tests, so ok to expect
-                Vm::extract_output(&proof).expect("Proof should be deserializable")
-            }
-        };
+        //         if let Ok(proof_data) = Vm::verify_and_extract_output::<
+        //             <Da as DaService>::Spec,
+        //             Stf::StateRoot,
+        //         >(&proof, &code_commitment)
+        //         {
+        //             if proof_data.sequencer_da_public_key != self.sequencer_da_pub_key
+        //                 || proof_data.sequencer_public_key != self.sequencer_pub_key
+        //             {
+        //                 return Err(anyhow!(
+        //                     "Proof verification: Sequencer public key or sequencer da public key mismatch. Skipping proof."
+        //                 ).into());
+        //             }
+        //             proof_data
+        //         } else {
+        //             return Err(anyhow!(
+        //                 "Proof verification: SNARK verification failed. Skipping to next proof.."
+        //             )
+        //             .into());
+        //         }
+        //     }
+        //     Proof::PublicInput(_) => {
+        //         if !self.accept_public_input_as_proven {
+        //             return Err(anyhow!(
+        //                 "Found public input in da block number: {:?}, Skipping to next proof..",
+        //                 l1_block.header().height(),
+        //             )
+        //             .into());
+        //         }
+        //         // public input is accepted only in tests, so ok to expect
+        //         Vm::extract_output(&proof).expect("Proof should be deserializable")
+        //     }
+        // };
 
-        let stored_state_transition = StoredStateTransition {
-            initial_state_root: state_transition.initial_state_root.as_ref().to_vec(),
-            final_state_root: state_transition.final_state_root.as_ref().to_vec(),
-            state_diff: state_transition.state_diff,
-            da_slot_hash: state_transition.da_slot_hash.clone().into(),
-            sequencer_commitments_range: state_transition.sequencer_commitments_range,
-            sequencer_public_key: state_transition.sequencer_public_key,
-            sequencer_da_public_key: state_transition.sequencer_da_public_key,
-            validity_condition: borsh::to_vec(&state_transition.validity_condition).unwrap(),
-        };
+        // let stored_state_transition = StoredStateTransition {
+        //     initial_state_root: state_transition.initial_state_root.as_ref().to_vec(),
+        //     final_state_root: state_transition.final_state_root.as_ref().to_vec(),
+        //     state_diff: state_transition.state_diff,
+        //     da_slot_hash: state_transition.da_slot_hash.clone().into(),
+        //     sequencer_commitments_range: state_transition.sequencer_commitments_range,
+        //     sequencer_public_key: state_transition.sequencer_public_key,
+        //     sequencer_da_public_key: state_transition.sequencer_da_public_key,
+        //     validity_condition: borsh::to_vec(&state_transition.validity_condition).unwrap(),
+        // };
 
-        let l1_hash = state_transition.da_slot_hash.into();
+        // let l1_hash = state_transition.da_slot_hash.into();
 
-        // This is the l1 height where the sequencer commitment was read by the prover and proof generated by those commitments
-        // We need to get commitments in this l1 height and set them as proven
-        let l1_height = match self.ledger_db.get_l1_height_of_l1_hash(l1_hash)? {
-            Some(l1_height) => l1_height,
-            None => {
-                return Err(anyhow!(
-                    "Proof verification: L1 height not found for l1 hash: {:?}. Skipping proof.",
-                    l1_hash
-                )
-                .into());
-            }
-        };
+        // // This is the l1 height where the sequencer commitment was read by the prover and proof generated by those commitments
+        // // We need to get commitments in this l1 height and set them as proven
+        // let l1_height = match self.ledger_db.get_l1_height_of_l1_hash(l1_hash)? {
+        //     Some(l1_height) => l1_height,
+        //     None => {
+        //         return Err(anyhow!(
+        //             "Proof verification: L1 height not found for l1 hash: {:?}. Skipping proof.",
+        //             l1_hash
+        //         )
+        //         .into());
+        //     }
+        // };
 
-        let proven_commitments = match self.ledger_db.get_commitments_on_da_slot(l1_height)? {
-            Some(commitments) => commitments,
-            None => {
-                return Err(anyhow!(
-                    "Proof verification: No commitments found for l1 height: {}. Skipping proof.",
-                    l1_height
-                )
-                .into());
-            }
-        };
+        // let proven_commitments = match self.ledger_db.get_commitments_on_da_slot(l1_height)? {
+        //     Some(commitments) => commitments,
+        //     None => {
+        //         return Err(anyhow!(
+        //             "Proof verification: No commitments found for l1 height: {}. Skipping proof.",
+        //             l1_height
+        //         )
+        //         .into());
+        //     }
+        // };
 
-        let l2_height = proven_commitments[0].l2_start_block_number;
-        // Fetch the block prior to the one at l2_height so compare state roots
-        let prior_soft_batch = self
-            .ledger_db
-            .get_soft_batch_by_number(&(BatchNumber(l2_height - 1)))?;
-        if let Some(prior_soft_batch) = prior_soft_batch {
-            if prior_soft_batch.state_root.as_slice()
-                != state_transition.initial_state_root.as_ref()
-            {
-                return Err(anyhow!(
-                    "Proof verification: For a known and verified sequencer commitment. Pre state root mismatch - expected 0x{} but got 0x{}. Skipping proof.",
-                    hex::encode(&prior_soft_batch.state_root),
-                    hex::encode(&state_transition.initial_state_root)
-                ).into());
-            }
-        }
+        // let l2_height = proven_commitments[0].l2_start_block_number;
+        // // Fetch the block prior to the one at l2_height so compare state roots
+        // let prior_soft_batch = self
+        //     .ledger_db
+        //     .get_soft_batch_by_number(&(BatchNumber(l2_height - 1)))?;
+        // if let Some(prior_soft_batch) = prior_soft_batch {
+        //     if prior_soft_batch.state_root.as_slice()
+        //         != state_transition.initial_state_root.as_ref()
+        //     {
+        //         return Err(anyhow!(
+        //             "Proof verification: For a known and verified sequencer commitment. Pre state root mismatch - expected 0x{} but got 0x{}. Skipping proof.",
+        //             hex::encode(&prior_soft_batch.state_root),
+        //             hex::encode(&state_transition.initial_state_root)
+        //         ).into());
+        //     }
+        // }
 
-        for commitment in proven_commitments {
-            // TODO: put_soft_confirmation_status to use L2 range
-            let l2_start_height = commitment.l2_start_block_number;
-            let l2_end_height = commitment.l2_end_block_number;
-            for i in l2_start_height..=l2_end_height {
-                self.ledger_db
-                    .put_soft_confirmation_status(BatchNumber(i), SoftConfirmationStatus::Proven)?;
-            }
-        }
-        // store in ledger db
-        self.ledger_db.update_verified_proof_data(
-            l1_block.header().height(),
-            proof.clone(),
-            stored_state_transition,
-        )?;
+        // for commitment in proven_commitments {
+        //     // TODO: put_soft_confirmation_status to use L2 range
+        //     let l2_start_height = commitment.l2_start_block_number;
+        //     let l2_end_height = commitment.l2_end_block_number;
+        //     for i in l2_start_height..=l2_end_height {
+        //         self.ledger_db
+        //             .put_soft_confirmation_status(BatchNumber(i), SoftConfirmationStatus::Proven)?;
+        //     }
+        // }
+        // // store in ledger db
+        // self.ledger_db.update_verified_proof_data(
+        //     l1_block.header().height(),
+        //     proof.clone(),
+        //     stored_state_transition,
+        // )?;
         Ok(())
     }
 

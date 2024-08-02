@@ -12,6 +12,8 @@ risc0-zkvm-platform = { version = "1.0.0" }
 
 anyhow = "1.0.68"
 bitcoin-da = { path = "../../../../../crates/bitcoin-da", default-features = false }
+borsh = { version = "1.5", default-features = false, features = ["derive", "std"] }
+bytemuck = "1.13.1"
 citrea-primitives = { path = "../../../../../crates/primitives" }
 citrea-stf = { path = "../../../../../crates/citrea-stf" }
 sov-modules-api = { path = "../../../../../crates/sovereign-sdk/module-system/sov-modules-api", default-features = false }

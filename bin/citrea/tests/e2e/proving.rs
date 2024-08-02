@@ -151,8 +151,7 @@ async fn test_db_get_proof() {
 async fn full_node_verify_proof_and_store() {
     // citrea::initialize_logging(tracing::Level::INFO);
     // !! UPDATE THIS TO ENLARGE THE PROOF SIZE !!
-    // !! FOR REFERENCE, 400 TAKES LONGER THAN 1 HOUR !!
-    let min_soft_confirmations_per_commitment = 4;
+    let min_soft_confirmations_per_commitment = 10;
 
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "prover", "full-node"]);
     let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();

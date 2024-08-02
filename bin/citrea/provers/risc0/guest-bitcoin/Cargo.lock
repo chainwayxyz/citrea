@@ -868,6 +868,8 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "bitcoin-da",
+ "borsh",
+ "bytemuck",
  "citrea-primitives",
  "citrea-stf",
  "risc0-zkvm",
