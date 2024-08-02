@@ -2811,6 +2811,8 @@ name = "sov-demo-prover-guest-mock"
 version = "0.3.0"
 dependencies = [
  "anyhow",
+ "borsh",
+ "bytemuck",
  "citrea-stf",
  "risc0-zkvm",
  "risc0-zkvm-platform",
@@ -2818,6 +2820,7 @@ dependencies = [
  "sov-modules-api",
  "sov-modules-stf-blueprint",
  "sov-risc0-adapter",
+ "sov-rollup-interface",
  "sov-state",
 ]
 

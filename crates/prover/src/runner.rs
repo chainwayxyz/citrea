@@ -702,71 +702,71 @@ where
 
         // l1_height => (tx_id, proof, transition_data)
         // save proof along with tx id to db, should be queriable by slot number or slot hash
-        let transition_data: sov_modules_api::StateTransition<
-            <Da as DaService>::Spec,
-            Stf::StateRoot,
-        > = Vm::extract_output(&proof).expect("Proof should be deserializable");
+        // let transition_data: sov_modules_api::StateTransition<
+        //     <Da as DaService>::Spec,
+        //     Stf::StateRoot,
+        // > = Vm::extract_output(&proof).expect("Proof should be deserializable");
 
-        match proof {
-            Proof::PublicInput(_) => {
-                warn!("Proof is public input, skipping");
-            }
-            Proof::Full(ref proof) => {
-                info!("Verifying proof!");
-                let transition_data_from_proof =
-                    Vm::verify_and_extract_output::<<Da as DaService>::Spec, Stf::StateRoot>(
-                        &proof.clone(),
-                        &self.code_commitment,
-                    )
-                    .expect("Proof should be verifiable");
+        // match proof {
+        //     Proof::PublicInput(_) => {
+        //         warn!("Proof is public input, skipping");
+        //     }
+        //     Proof::Full(ref proof) => {
+        //         info!("Verifying proof!");
+        //         let transition_data_from_proof =
+        //             Vm::verify_and_extract_output::<<Da as DaService>::Spec, Stf::StateRoot>(
+        //                 &proof.clone(),
+        //                 &self.code_commitment,
+        //             )
+        //             .expect("Proof should be verifiable");
 
-                info!(
-                    "transition data from proof: {:?}",
-                    transition_data_from_proof
-                );
-            }
-        }
+        //         info!(
+        //             "transition data from proof: {:?}",
+        //             transition_data_from_proof
+        //         );
+        //     }
+        // }
 
-        info!("transition data: {:?}", transition_data);
+        // info!("transition data: {:?}", transition_data);
 
-        let stored_state_transition = StoredStateTransition {
-            initial_state_root: transition_data.initial_state_root.as_ref().to_vec(),
-            final_state_root: transition_data.final_state_root.as_ref().to_vec(),
-            state_diff: transition_data.state_diff,
-            da_slot_hash: transition_data.da_slot_hash.into(),
-            sequencer_commitments_range: transition_data.sequencer_commitments_range,
-            sequencer_public_key: transition_data.sequencer_public_key,
-            sequencer_da_public_key: transition_data.sequencer_da_public_key,
-            validity_condition: borsh::to_vec(&transition_data.validity_condition).unwrap(),
-        };
+        // let stored_state_transition = StoredStateTransition {
+        //     initial_state_root: transition_data.initial_state_root.as_ref().to_vec(),
+        //     final_state_root: transition_data.final_state_root.as_ref().to_vec(),
+        //     state_diff: transition_data.state_diff,
+        //     da_slot_hash: transition_data.da_slot_hash.into(),
+        //     sequencer_commitments_range: transition_data.sequencer_commitments_range,
+        //     sequencer_public_key: transition_data.sequencer_public_key,
+        //     sequencer_da_public_key: transition_data.sequencer_da_public_key,
+        //     validity_condition: borsh::to_vec(&transition_data.validity_condition).unwrap(),
+        // };
 
-        match pg_client.as_ref() {
-            Some(Ok(pool)) => {
-                info!("Inserting proof data into postgres");
-                let (proof_data, proof_type) = match proof.clone() {
-                    Proof::Full(full_proof) => (full_proof, ProofType::Full),
-                    Proof::PublicInput(public_input) => (public_input, ProofType::PublicInput),
-                };
-                pool.insert_proof_data(
-                    tx_id_u8.to_vec(),
-                    proof_data,
-                    stored_state_transition.clone().into(),
-                    proof_type,
-                )
-                .await
-                .unwrap();
-            }
-            _ => {
-                warn!("No postgres client found");
-            }
-        }
+        // match pg_client.as_ref() {
+        //     Some(Ok(pool)) => {
+        //         info!("Inserting proof data into postgres");
+        //         let (proof_data, proof_type) = match proof.clone() {
+        //             Proof::Full(full_proof) => (full_proof, ProofType::Full),
+        //             Proof::PublicInput(public_input) => (public_input, ProofType::PublicInput),
+        //         };
+        //         pool.insert_proof_data(
+        //             tx_id_u8.to_vec(),
+        //             proof_data,
+        //             stored_state_transition.clone().into(),
+        //             proof_type,
+        //         )
+        //         .await
+        //         .unwrap();
+        //     }
+        //     _ => {
+        //         warn!("No postgres client found");
+        //     }
+        // }
 
-        if let Err(e) =
-            self.ledger_db
-                .put_proof_data(l1_height, tx_id_u8, proof, stored_state_transition)
-        {
-            panic!("Failed to put proof data in the ledger db: {}", e);
-        }
+        // if let Err(e) =
+        //     self.ledger_db
+        //         .put_proof_data(l1_height, tx_id_u8, proof, stored_state_transition)
+        // {
+        //     panic!("Failed to put proof data in the ledger db: {}", e);
+        // }
         Ok(())
     }
 

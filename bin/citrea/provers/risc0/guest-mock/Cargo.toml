@@ -11,11 +11,14 @@ risc0-zkvm = { version = "1.0.0", default-features = false }
 risc0-zkvm-platform = { version = "1.0.0" }
 
 anyhow = "1.0"
+borsh = { version = "1.5", default-features = false, features = ["derive", "std"] }
+bytemuck = "1.13.1"
 citrea-stf = { path = "../../../../../crates/citrea-stf" }
 sov-mock-da = { path = "../../../../../crates/sovereign-sdk/adapters/mock-da", default-features = false }
 sov-modules-api = { path = "../../../../../crates/sovereign-sdk/module-system/sov-modules-api", default-features = false }
 sov-modules-stf-blueprint = { path = "../../../../../crates/sovereign-sdk/module-system/sov-modules-stf-blueprint" }
 sov-risc0-adapter = { path = "../../../../../crates/sovereign-sdk/adapters/risc0" }
+sov-rollup-interface = { path = "../../../../../crates/sovereign-sdk/rollup-interface" }
 sov-state = { path = "../../../../../crates/sovereign-sdk/module-system/sov-state" }
 
 [patch.crates-io]
