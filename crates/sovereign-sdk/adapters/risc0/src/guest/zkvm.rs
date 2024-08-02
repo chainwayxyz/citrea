@@ -20,7 +20,8 @@ impl ZkvmGuest for Risc0Guest {
     fn read_from_host<T: BorshDeserialize>(&self) -> T {
         let mut reader = env::stdin();
         // deserialize
-        BorshDeserialize::deserialize_reader(&mut reader).expect("Failed to deserialize input from host")
+        BorshDeserialize::deserialize_reader(&mut reader)
+            .expect("Failed to deserialize input from host")
     }
 
     fn commit<T: BorshSerialize>(&self, item: &T) {
