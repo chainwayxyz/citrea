@@ -39,6 +39,7 @@ name: Checks
 #   so you're not wasting money unless several cores are sitting idle for long.
 
 on:
+  workflow_dispatch:
   merge_group:
     types: ["checks_requested"]
   push:
