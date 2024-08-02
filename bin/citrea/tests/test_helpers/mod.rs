@@ -160,7 +160,6 @@ pub fn create_default_rollup_config(
             db_path: da_path.to_path_buf(),
         },
         sync_blocks_count: 10,
-        fork_specs: vec![(SpecId::Genesis, 0)],
     }
 }
 

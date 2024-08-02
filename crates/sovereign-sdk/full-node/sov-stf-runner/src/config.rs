@@ -235,7 +235,6 @@ mod tests {
                 prover_da_pub_key: vec![],
             },
             sync_blocks_count: 10,
-            fork_specs: vec![],
         };
         assert_eq!(config, expected);
     }
