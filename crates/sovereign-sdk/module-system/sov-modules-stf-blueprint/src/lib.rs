@@ -128,6 +128,7 @@ pub trait StfBlueprintTrait<C: Context, Da: DaSpec, Vm: Zkvm>:
     StateTransitionFunction<Vm, Da>
 {
     /// Begin a soft batch
+    #[allow(clippy::too_many_arguments)]
     fn begin_soft_batch(
         &self,
         current_spec: SpecId,
