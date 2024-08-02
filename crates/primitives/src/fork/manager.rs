@@ -18,7 +18,7 @@ pub type SpecActivationBlockHeight = u64;
 pub struct ForkManager {
     active_spec: SpecId,
     specs: VecDeque<(SpecId, SpecActivationBlockHeight)>,
-    migration_handlers: Vec<Box<dyn ForkMigration>>,
+    migration_handlers: Vec<Box<dyn ForkMigration + Sync + Send>>,
 }
 
 impl ForkManager {
@@ -38,7 +38,7 @@ impl ForkManager {
         }
     }
 
-    pub fn register_handler(&mut self, handler: Box<dyn ForkMigration>) {
+    pub fn register_handler(&mut self, handler: Box<dyn ForkMigration + Sync + Send>) {
         self.migration_handlers.push(handler);
     }
 }
