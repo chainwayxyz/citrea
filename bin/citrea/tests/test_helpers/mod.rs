@@ -10,7 +10,6 @@ use shared_backup_db::PostgresConnector;
 use sov_mock_da::{MockAddress, MockDaConfig, MockDaService};
 use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
 use sov_modules_api::PrivateKey;
-use sov_rollup_interface::spec::SpecId;
 use sov_stf_runner::{
     FullNodeConfig, ProverConfig, RollupPublicKeys, RpcConfig, RunnerConfig, StorageConfig,
 };
