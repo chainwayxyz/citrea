@@ -4,7 +4,7 @@ This is the State Transition Function crate for the Citrea rollup.
 
 The Citrea State Transition Function consists of 3 modules:
 - [EVM](../../evm/README.md): Used for handling EVM functionality.
-- [sov-accounts](../../../sovereign-sdk/module-system/module-implementations/sov-accounts/README.md): Used for checking the sequencer's nonce.
+- [sov-accounts](../../sovereign-sdk/module-system/module-implementations/sov-accounts/README.md): Used for checking the sequencer's nonce.
 - [Soft Confirmation Rule Enforcer](../soft-confirmation-rule-enforcer/README.md): Used for enforcing Citrea's soft confirmation rules.
 
 
