@@ -57,6 +57,7 @@ impl Fork for ForkManager {
                 for handler in self.migration_handlers.iter() {
                     handler.spec_activated(self.active_spec)?;
                 }
+                self.specs.pop_front();
             }
         }
         Ok(())
