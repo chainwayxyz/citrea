@@ -1,6 +1,7 @@
 use std::collections::VecDeque;
 
 use sov_rollup_interface::spec::SpecId;
+use tracing::info;
 
 use super::ForkMigration;
 
@@ -51,6 +52,7 @@ impl Fork for ForkManager {
     fn register_block(&mut self, height: u64) -> anyhow::Result<()> {
         if let Some((new_spec, activation_block_height)) = self.specs.front() {
             if height == *activation_block_height {
+                info!("Activating fork {:?} at height: {}", *new_spec, height);
                 self.active_spec = *new_spec;
                 for handler in self.migration_handlers.iter() {
                     handler.spec_activated(self.active_spec)?;

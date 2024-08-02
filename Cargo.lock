@@ -1892,6 +1892,7 @@ dependencies = [
  "serde",
  "sov-rollup-interface",
  "tokio",
+ "tracing",
 ]
 
 [[package]]
