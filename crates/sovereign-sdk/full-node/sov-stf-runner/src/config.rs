@@ -106,6 +106,11 @@ pub struct RollupPublicKeys {
     pub prover_da_pub_key: Vec<u8>,
 }
 
+#[inline]
+const fn default_fork_specs() -> Vec<(SpecId, u64)> {
+    vec![]
+}
+
 /// Rollup Configuration
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct FullNodeConfig<DaServiceConfig> {
@@ -123,6 +128,7 @@ pub struct FullNodeConfig<DaServiceConfig> {
     #[serde(default = "default_sync_blocks_count")]
     pub sync_blocks_count: u64,
     /// The fork configuration
+    #[serde(default = "default_fork_specs")]
     pub fork_specs: Vec<(SpecId, u64)>,
 }
 
