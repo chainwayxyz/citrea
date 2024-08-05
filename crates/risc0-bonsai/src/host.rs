@@ -325,15 +325,13 @@ impl<'a> Risc0BonsaiHost<'a> {
         }
     }
 
-    fn add_hint_bonsai<T: BorshSerialize>(&mut self, item: T) {
-        // For running in "prove" mode.
-
-        // Prepare input data and upload it.
-        let client = self.client.as_ref().unwrap();
-        let buf = borsh::to_vec(&item).expect("Risc0 hint serialization is infallible");
-
+    fn upload_to_bonsai(&mut self, buf: Vec<u8>) {
         // handle error
-        let input_id = client.upload_input(buf);
+        let input_id = self
+            .client
+            .as_ref()
+            .expect("Bonsai client is not initialized")
+            .upload_input(buf);
         tracing::info!("Uploaded input with id: {}", input_id);
         self.last_input_id = Some(input_id);
     }
@@ -350,7 +348,7 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
         self.env.extend_from_slice(&buf);
 
         if self.client.is_some() {
-            self.add_hint_bonsai(item)
+            self.upload_to_bonsai(buf);
         }
     }
 
