@@ -367,10 +367,13 @@ impl BitcoinService {
             return Ok(2.0);
         }
 
+        self.get_fee_rate_as_sat_vb_ceiled().await
+    }
+
+    #[instrument(level = "trace", skip_all, ret)]
+    pub async fn get_fee_rate_as_sat_vb_ceiled(&self) -> Result<f64, anyhow::Error> {
         let smart_fee = self.client.estimate_smart_fee(1, None).await?;
         let btc_vkb = smart_fee.fee_rate.map_or(0.00001f64, |rate| rate.to_btc());
-
-        // convert to sat/vB and round up
         Ok((btc_vkb * 100_000_000.0 / 1000.0).ceil())
     }
 }
@@ -590,10 +593,7 @@ impl DaService for BitcoinService {
 
     #[instrument(level = "trace", skip(self))]
     async fn get_fee_rate(&self) -> Result<u128, Self::Error> {
-        let smart_fee = self.client.estimate_smart_fee(1, None).await?;
-        let btc_vkb = smart_fee.fee_rate.map_or(0.00001f64, |rate| rate.to_btc());
-
-        let sat_vb_ceil = (btc_vkb * 100_000_000.0 / 1000.0).ceil() as u128;
+        let sat_vb_ceil = self.get_fee_rate_as_sat_vb_ceiled().await? as u128;
 
         // multiply with 10^10/4 = 25*10^8 = 2_500_000_000
         let multiplied_fee = sat_vb_ceil.saturating_mul(2_500_000_000);
