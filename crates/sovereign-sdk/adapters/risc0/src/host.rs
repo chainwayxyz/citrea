@@ -2,8 +2,6 @@
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use risc0_zkvm::{ExecutorEnvBuilder, ExecutorImpl, InnerReceipt, Journal, Receipt, Session};
-use serde::de::DeserializeOwned;
-use serde::Serialize;
 use sov_rollup_interface::zk::{Proof, Zkvm, ZkvmHost};
 
 use crate::guest::Risc0Guest;
@@ -121,15 +119,12 @@ impl<'host> Zkvm for Risc0Host<'host> {
         verify_from_slice(serialized_proof, code_commitment)
     }
 
-    fn verify_and_extract_output<
-        Da: sov_rollup_interface::da::DaSpec,
-        Root: Serialize + DeserializeOwned,
-    >(
+    fn verify_and_extract_output<Da: sov_rollup_interface::da::DaSpec, Root: BorshDeserialize>(
         serialized_proof: &[u8],
         code_commitment: &Self::CodeCommitment,
     ) -> Result<sov_rollup_interface::zk::StateTransition<Da, Root>, Self::Error> {
         let output = Self::verify(serialized_proof, code_commitment)?;
-        Ok(risc0_zkvm::serde::from_slice(output)?)
+        Ok(BorshDeserialize::deserialize(&mut &*output)?)
     }
 }
 
@@ -148,15 +143,12 @@ impl Zkvm for Risc0Verifier {
         verify_from_slice(serialized_proof, code_commitment)
     }
 
-    fn verify_and_extract_output<
-        Da: sov_rollup_interface::da::DaSpec,
-        Root: Serialize + DeserializeOwned,
-    >(
+    fn verify_and_extract_output<Da: sov_rollup_interface::da::DaSpec, Root: BorshDeserialize>(
         serialized_proof: &[u8],
         code_commitment: &Self::CodeCommitment,
     ) -> Result<sov_rollup_interface::zk::StateTransition<Da, Root>, Self::Error> {
         let output = Self::verify(serialized_proof, code_commitment)?;
-        Ok(risc0_zkvm::serde::from_slice(output)?)
+        Ok(BorshDeserialize::deserialize(&mut &*output)?)
     }
 }
 

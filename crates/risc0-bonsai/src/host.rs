@@ -12,8 +12,6 @@ use risc0_zkvm::{
     compute_image_id, ExecutorEnvBuilder, ExecutorImpl, Groth16Receipt, InnerReceipt, Journal,
     Receipt,
 };
-use serde::de::DeserializeOwned;
-use serde::Serialize;
 use sov_risc0_adapter::guest::Risc0Guest;
 use sov_rollup_interface::zk::{Proof, Zkvm, ZkvmHost};
 use tracing::{debug, error, instrument, trace, warn};
@@ -511,10 +509,7 @@ impl<'host> Zkvm for Risc0BonsaiHost<'host> {
         unimplemented!();
     }
 
-    fn verify_and_extract_output<
-        Da: sov_rollup_interface::da::DaSpec,
-        Root: Serialize + DeserializeOwned,
-    >(
+    fn verify_and_extract_output<Da: sov_rollup_interface::da::DaSpec, Root: BorshDeserialize>(
         serialized_proof: &[u8],
         code_commitment: &Self::CodeCommitment,
     ) -> Result<sov_rollup_interface::zk::StateTransition<Da, Root>, Self::Error> {
@@ -523,6 +518,8 @@ impl<'host> Zkvm for Risc0BonsaiHost<'host> {
         #[allow(clippy::clone_on_copy)]
         receipt.verify(code_commitment.clone())?;
 
-        Ok(receipt.journal.decode()?)
+        Ok(BorshDeserialize::deserialize(
+            &mut receipt.journal.bytes.as_slice(),
+        )?)
     }
 }
