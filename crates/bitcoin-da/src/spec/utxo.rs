@@ -49,7 +49,7 @@ impl<'de> serde::Deserialize<'de> for UTXO {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ListUnspentEntry {
-    pub txid: String,
+    pub txid: Txid,
     pub vout: u64,
     pub address: String,
     pub label: Option<String>,
