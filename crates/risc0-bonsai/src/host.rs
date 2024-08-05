@@ -287,7 +287,7 @@ impl BonsaiClient {
 #[derive(Clone)]
 pub struct Risc0BonsaiHost<'a> {
     elf: &'a [u8],
-    env: Vec<u32>,
+    env: Vec<u8>,
     image_id: Digest,
     client: Option<BonsaiClient>,
     last_input_id: Option<String>,
@@ -330,13 +330,7 @@ impl<'a> Risc0BonsaiHost<'a> {
 
         // Prepare input data and upload it.
         let client = self.client.as_ref().unwrap();
-
-        let mut buf = borsh::to_vec(&item).expect("Risc0 hint serialization is infallible");
-        // append [0..] alignment to cast &[u8] to &[u32]
-        let rem = buf.len() % 4;
-        if rem > 0 {
-            buf.extend(vec![0; 4 - rem]);
-        }
+        let buf = borsh::to_vec(&item).expect("Risc0 hint serialization is infallible");
 
         // handle error
         let input_id = client.upload_input(buf);
@@ -351,15 +345,9 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
     fn add_hint<T: BorshSerialize>(&mut self, item: T) {
         // For running in "execute" mode.
 
-        let mut buf = borsh::to_vec(&item).expect("Risc0 hint serialization is infallible");
-        // append [0..] alignment to cast &[u8] to &[u32]
-        let rem = buf.len() % 4;
-        if rem > 0 {
-            buf.extend(vec![0; 4 - rem]);
-        }
-        let buf: &[u32] = bytemuck::cast_slice(&buf);
+        let buf = borsh::to_vec(&item).expect("Risc0 hint serialization is infallible");
         // write buf
-        self.env.extend_from_slice(buf);
+        self.env.extend_from_slice(&buf);
 
         if self.client.is_some() {
             self.add_hint_bonsai(item)
@@ -384,12 +372,12 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
 
             let session = executor.run()?;
             // don't delete useful while benchmarking
-            // println!(
-            //     "user cycles: {}\ntotal cycles: {}\nsegments: {}",
-            //     session.user_cycles,
-            //     session.total_cycles,
-            //     session.segments.len()
-            // );
+            println!(
+                "user cycles: {}\ntotal cycles: {}\nsegments: {}",
+                session.user_cycles,
+                session.total_cycles,
+                session.segments.len()
+            );
             let data = bincode::serialize(&session.journal.expect("Journal shouldn't be empty"))?;
 
             Ok(Proof::PublicInput(data))

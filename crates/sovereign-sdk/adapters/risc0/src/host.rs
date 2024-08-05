@@ -13,7 +13,7 @@ use crate::Risc0MethodId;
 /// provided to its execution.
 #[derive(Clone)]
 pub struct Risc0Host<'a> {
-    env: Vec<u32>,
+    env: Vec<u8>,
     elf: &'a [u8],
 }
 
@@ -71,20 +71,9 @@ impl<'a> ZkvmHost for Risc0Host<'a> {
     type Guest = Risc0Guest;
 
     fn add_hint<T: BorshSerialize>(&mut self, item: T) {
-        let mut buf = borsh::to_vec(&item).expect("Risc0 hint serialization is infallible");
-        // append [0..] alignment to cast &[u8] to &[u32]
-        let rem = buf.len() % 4;
-        if rem > 0 {
-            buf.extend(vec![0; 4 - rem]);
-        }
-        let buf: &[u32] = bytemuck::cast_slice(&buf);
-        // write len(u64) in LE
-        let len = buf.len() as u64;
-        let len_buf = &len.to_le_bytes()[..];
-        let len_buf: &[u32] = bytemuck::cast_slice(len_buf);
-        self.env.extend_from_slice(len_buf);
+        let buf = borsh::to_vec(&item).expect("Risc0 hint serialization is infallible");
         // write buf
-        self.env.extend_from_slice(buf);
+        self.env.extend_from_slice(&buf);
     }
 
     fn simulate_with_hints(&mut self) -> Self::Guest {
