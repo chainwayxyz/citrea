@@ -1,19 +1,19 @@
 //! This module implements the `ZkvmGuest` trait for the RISC0 VM.
 
+use std::io::Cursor;
+
 use borsh::{BorshDeserialize, BorshSerialize};
 use sov_rollup_interface::zk::ZkvmGuest;
 
 #[derive(Default)]
 struct Hints {
-    values: Vec<u32>,
-    position: usize,
+    cursor: Cursor<Vec<u8>>,
 }
 
 impl Hints {
-    pub fn with_hints(hints: Vec<u32>) -> Self {
+    pub fn with_hints(hints: Vec<u8>) -> Self {
         Hints {
-            values: hints,
-            position: 0,
+            cursor: Cursor::new(hints),
         }
     }
 }
@@ -33,7 +33,7 @@ impl Risc0Guest {
     }
 
     /// Constructs a new Risc0 Guest with the provided hints.
-    pub fn with_hints(hints: Vec<u32>) -> Self {
+    pub fn with_hints(hints: Vec<u8>) -> Self {
         Self {
             hints: std::sync::Mutex::new(Hints::with_hints(hints)),
             // commits: Default::default(),
@@ -44,21 +44,9 @@ impl Risc0Guest {
 impl ZkvmGuest for Risc0Guest {
     fn read_from_host<T: BorshDeserialize>(&self) -> T {
         let mut hints = self.hints.lock().unwrap();
-        let hints = &mut *hints;
-        let pos = &mut hints.position;
-        let env = &hints.values;
-        // read len(u64) in LE
-        let len_buf = &env[*pos..*pos + 2];
-        let len_bytes = bytemuck::cast_slice(len_buf);
-        let len_bytes: [u8; 8] = len_bytes.try_into().expect("Exactly 4 bytes");
-        let len = u64::from_le_bytes(len_bytes) as usize;
-        *pos += 2;
-        // read buf
-        let buf = &env[*pos..*pos + len];
-        let buf: &[u8] = bytemuck::cast_slice(buf);
-        *pos += len;
+        let cursor = &mut hints.cursor;
         // deserialize
-        BorshDeserialize::deserialize(&mut &*buf).unwrap()
+        BorshDeserialize::deserialize_reader(&mut *cursor).unwrap()
     }
 
     fn commit<T: BorshSerialize>(&self, _item: &T) {

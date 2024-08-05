@@ -22,6 +22,7 @@ pub fn initialize_logging(level: Level) {
             "hyper=info".to_owned(),
             "alloy_transport_http=info".to_owned(),
             // Limit output as much as possible, use WARN.
+            "[executor]=info".to_owned(), // risc0 guest code stats logging
             "risc0_zkvm=warn".to_owned(),
             "risc0_circuit_rv32im=info".to_owned(),
             "guest_execution=info".to_owned(),
