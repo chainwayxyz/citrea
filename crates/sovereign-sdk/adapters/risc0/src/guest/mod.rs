@@ -3,8 +3,7 @@
 //!  for host(native) and guest(zkvm) part.
 //! The host implementation is used for tests only and brings no real value.
 
-use serde::de::DeserializeOwned;
-use serde::Serialize;
+use borsh::BorshDeserialize;
 use sov_rollup_interface::zk::Zkvm;
 
 use crate::Risc0MethodId;
@@ -37,10 +36,7 @@ impl Zkvm for Risc0Guest {
         todo!("Implement once risc0 supports recursion: https://github.com/Sovereign-Labs/sovereign-sdk/issues/633")
     }
 
-    fn verify_and_extract_output<
-        Da: sov_rollup_interface::da::DaSpec,
-        Root: Serialize + DeserializeOwned,
-    >(
+    fn verify_and_extract_output<Da: sov_rollup_interface::da::DaSpec, Root: BorshDeserialize>(
         _serialized_proof: &[u8],
         _code_commitment: &Self::CodeCommitment,
     ) -> Result<sov_rollup_interface::zk::StateTransition<Da, Root>, Self::Error> {
