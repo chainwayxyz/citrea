@@ -11,37 +11,34 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, PartialEq, Eq, Debug, Hash, Deserialize, Serialize)]
 #[repr(transparent)]
 #[serde(transparent)]
-pub struct TransactionWrapper {
-    tx: Transaction,
-}
+pub struct TransactionWrapper(Transaction);
 
 impl TransactionWrapper {
     pub fn empty() -> Self {
-        let tx = Transaction {
+        Self(Transaction {
             version: bitcoin::transaction::Version(0),
             lock_time: LockTime::Seconds(Time::MIN),
             input: vec![],
             output: vec![],
-        };
-        Self { tx }
+        })
     }
 
     pub fn inner(&self) -> &Transaction {
-        &self.tx
+        &self.0
     }
 }
 
 impl BorshSerialize for TransactionWrapper {
     #[inline]
     fn serialize<W: borsh::io::Write>(&self, writer: &mut W) -> borsh::io::Result<()> {
-        BorshSerialize::serialize(&self.tx.version.0, writer)?;
-        BorshSerialize::serialize(&self.tx.lock_time.to_consensus_u32(), writer)?;
-        BorshSerialize::serialize(&self.tx.input.len(), writer)?;
-        for input in &self.tx.input {
+        BorshSerialize::serialize(&self.0.version.0, writer)?;
+        BorshSerialize::serialize(&self.0.lock_time.to_consensus_u32(), writer)?;
+        BorshSerialize::serialize(&self.0.input.len(), writer)?;
+        for input in &self.0.input {
             serialize_txin(input, writer)?;
         }
-        BorshSerialize::serialize(&self.tx.output.len(), writer)?;
-        for output in &self.tx.output {
+        BorshSerialize::serialize(&self.0.output.len(), writer)?;
+        for output in &self.0.output {
             serialize_txout(output, writer)?;
         }
         Ok(())
@@ -71,7 +68,7 @@ impl BorshDeserialize for TransactionWrapper {
             output,
         };
 
-        Ok(Self { tx })
+        Ok(Self(tx))
     }
 }
 
@@ -116,18 +113,18 @@ fn deserialize_txout<R: borsh::io::Read>(reader: &mut R) -> borsh::io::Result<Tx
 impl Deref for TransactionWrapper {
     type Target = Transaction;
     fn deref(&self) -> &Self::Target {
-        &self.tx
+        &self.0
     }
 }
 
 impl DerefMut for TransactionWrapper {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.tx
+        &mut self.0
     }
 }
 
 impl From<Transaction> for TransactionWrapper {
     fn from(tx: Transaction) -> Self {
-        Self { tx }
+        Self(tx)
     }
 }
