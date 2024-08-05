@@ -73,19 +73,17 @@ impl HeaderWrapper {
 #[derive(Clone, PartialEq, Eq, Debug, Hash, Serialize, Deserialize)]
 #[repr(transparent)]
 #[serde(transparent)]
-pub struct BitcoinHeaderWrapper {
-    header: BitcoinHeader,
-}
+pub struct BitcoinHeaderWrapper(BitcoinHeader);
 
 impl BorshSerialize for BitcoinHeaderWrapper {
     #[inline]
     fn serialize<W: borsh::io::Write>(&self, writer: &mut W) -> borsh::io::Result<()> {
-        BorshSerialize::serialize(&self.header.version.to_consensus(), writer)?;
-        BorshSerialize::serialize(&self.header.prev_blockhash.to_byte_array(), writer)?;
-        BorshSerialize::serialize(&self.header.merkle_root.to_byte_array(), writer)?;
-        BorshSerialize::serialize(&self.header.time, writer)?;
-        BorshSerialize::serialize(&self.header.bits.to_consensus(), writer)?;
-        BorshSerialize::serialize(&self.header.nonce, writer)
+        BorshSerialize::serialize(&self.0.version.to_consensus(), writer)?;
+        BorshSerialize::serialize(&self.0.prev_blockhash.to_byte_array(), writer)?;
+        BorshSerialize::serialize(&self.0.merkle_root.to_byte_array(), writer)?;
+        BorshSerialize::serialize(&self.0.time, writer)?;
+        BorshSerialize::serialize(&self.0.bits.to_consensus(), writer)?;
+        BorshSerialize::serialize(&self.0.nonce, writer)
     }
 }
 
@@ -108,19 +106,19 @@ impl BorshDeserialize for BitcoinHeaderWrapper {
             nonce,
         };
 
-        Ok(Self { header })
+        Ok(Self(header))
     }
 }
 
 impl Deref for BitcoinHeaderWrapper {
     type Target = BitcoinHeader;
     fn deref(&self) -> &Self::Target {
-        &self.header
+        &self.0
     }
 }
 
 impl From<BitcoinHeader> for BitcoinHeaderWrapper {
     fn from(header: BitcoinHeader) -> Self {
-        Self { header }
+        Self(header)
     }
 }
