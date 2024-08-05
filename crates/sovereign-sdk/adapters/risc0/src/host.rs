@@ -73,7 +73,7 @@ impl<'a> ZkvmHost for Risc0Host<'a> {
     fn add_hint<T: BorshSerialize>(&mut self, item: T) {
         let buf = borsh::to_vec(&item).expect("Risc0 hint serialization is infallible");
         // write buf
-        self.env.extend_from_slice(&buf);
+        self.env.extend(buf);
     }
 
     fn simulate_with_hints(&mut self) -> Self::Guest {
