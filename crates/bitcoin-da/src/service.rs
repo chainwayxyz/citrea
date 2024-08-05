@@ -103,7 +103,7 @@ impl BitcoinService {
         .await)
     }
 
-    pub fn spawn_bg_task(
+    pub fn spawn_da_queue(
         self: Arc<Self>,
         mut rx: UnboundedReceiver<BlobWithNotifier<TxidWrapper>>,
     ) {

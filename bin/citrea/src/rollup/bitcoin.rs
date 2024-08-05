@@ -124,7 +124,7 @@ impl RollupBlueprint for BitcoinRollup {
             .await?,
         );
 
-        Arc::clone(&service).spawn_bg_task(rx);
+        Arc::clone(&service).spawn_da_queue(rx);
 
         Ok(service)
     }
