@@ -82,9 +82,9 @@ pub struct BatchReceipt<BatchReceiptContents, TxReceiptContents> {
     pub phantom_data: PhantomData<BatchReceiptContents>,
 }
 
-/// A receipt for a soft batch of transactions. These receipts are stored in the rollup's database
+/// A receipt for a soft confirmation of transactions. These receipts are stored in the rollup's database
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SoftBatchReceipt<BatchReceiptContents, TxReceiptContents, DS: DaSpec> {
+pub struct SoftConfirmationReceipt<BatchReceiptContents, TxReceiptContents, DS: DaSpec> {
     /// DA layer block number
     pub da_slot_height: u64,
     /// DA layer block hash
@@ -228,7 +228,7 @@ pub trait StateTransitionFunction<Vm: Zkvm, Da: DaSpec> {
     /// Commits state changes to the database
     #[allow(clippy::type_complexity)]
     #[allow(clippy::too_many_arguments)]
-    fn apply_soft_batch(
+    fn apply_soft_confirmation(
         &self,
         sequencer_public_key: &[u8],
         pre_state_root: &Self::StateRoot,
@@ -236,7 +236,7 @@ pub trait StateTransitionFunction<Vm: Zkvm, Da: DaSpec> {
         witness: Self::Witness,
         slot_header: &Da::BlockHeader,
         validity_condition: &Da::ValidityCondition,
-        soft_batch: &mut SignedSoftConfirmationBatch,
+        soft_confirmation: &mut SignedSoftConfirmationBatch,
     ) -> SlotResult<
         Self::StateRoot,
         Self::ChangeSet,

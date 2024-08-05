@@ -36,8 +36,8 @@ use sov_schema_db::{CodecError, SeekKeyEncoder};
 
 use super::types::{
     AccessoryKey, AccessoryStateValue, BatchNumber, DbHash, EventNumber, JmtValue, L2HeightRange,
-    SlotNumber, StateKey, StoredBatch, StoredProof, StoredSlot, StoredSoftBatch, StoredTransaction,
-    StoredVerifiedProof, TxNumber,
+    SlotNumber, StateKey, StoredBatch, StoredProof, StoredSlot, StoredSoftConfirmation,
+    StoredTransaction, StoredVerifiedProof, TxNumber,
 };
 
 /// A list of all tables used by the StateDB. These tables store rollup state - meaning
@@ -53,8 +53,8 @@ pub const STATE_TABLES: &[&str] = &[
 pub const LEDGER_TABLES: &[&str] = &[
     SlotByNumber::table_name(),
     SlotByHash::table_name(),
-    SoftBatchByNumber::table_name(),
-    SoftBatchByHash::table_name(),
+    SoftConfirmationByNumber::table_name(),
+    SoftConfirmationByHash::table_name(),
     L2RangeByL1Height::table_name(),
     L2Witness::table_name(),
     L2GenesisStateRoot::table_name(),
@@ -62,7 +62,6 @@ pub const LEDGER_TABLES: &[&str] = &[
     PendingSequencerCommitmentL2Range::table_name(),
     LastSequencerCommitmentSent::table_name(),
     ProverLastScannedSlot::table_name(),
-    BatchByHash::table_name(),
     BatchByNumber::table_name(),
     SoftConfirmationStatus::table_name(),
     TxByHash::table_name(),
@@ -241,13 +240,13 @@ define_table_with_default_codec!(
 );
 
 define_table_with_seek_key_codec!(
-    /// The primary source for soft batch data
-    (SoftBatchByNumber) BatchNumber => StoredSoftBatch
+    /// The primary source for soft confirmation data
+    (SoftConfirmationByNumber) BatchNumber => StoredSoftConfirmation
 );
 
 define_table_with_default_codec!(
-    /// A "secondary index" for soft batch data by hash
-    (SoftBatchByHash) DbHash => BatchNumber
+    /// A "secondary index" for soft confirmation data by hash
+    (SoftConfirmationByHash) DbHash => BatchNumber
 );
 
 define_table_with_default_codec!(
@@ -288,11 +287,6 @@ define_table_with_seek_key_codec!(
 define_table_with_default_codec!(
     /// Check whether a block is finalized
     (SoftConfirmationStatus) BatchNumber => sov_rollup_interface::rpc::SoftConfirmationStatus
-);
-
-define_table_with_default_codec!(
-    /// A "secondary index" for batch data by hash
-    (BatchByHash) DbHash => BatchNumber
 );
 
 define_table_with_seek_key_codec!(
