@@ -27,7 +27,6 @@ pub fn initialize_logging(level: Level) {
             "risc0_circuit_rv32im=info".to_owned(),
             "guest_execution=info".to_owned(),
             "jsonrpsee-server=info".to_owned(),
-            "reqwest=info".to_owned(),
             "sov_schema_db=info".to_owned(),
             "sov_prover_storage_manager=info".to_owned(),
             // Limit output as much as possible, use WARN.

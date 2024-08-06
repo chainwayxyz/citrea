@@ -1,6 +1,4 @@
 mod helpers;
-#[cfg(feature = "native")]
-mod rpc;
 pub mod spec;
 
 #[cfg(feature = "native")]

@@ -3,6 +3,8 @@ mod gas_price;
 mod subscription;
 mod trace;
 
+use std::sync::Arc;
+
 #[cfg(feature = "local")]
 pub use citrea_evm::DevSigner;
 use citrea_evm::{Evm, Filter};
@@ -40,7 +42,7 @@ pub enum CitreaStatus {
 }
 
 pub fn get_ethereum_rpc<C: sov_modules_api::Context, Da: DaService>(
-    da_service: Da,
+    da_service: Arc<Da>,
     eth_rpc_config: EthRpcConfig,
     storage: C::Storage,
     sequencer_client_url: Option<String>,

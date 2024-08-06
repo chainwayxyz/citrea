@@ -13,7 +13,7 @@ pub fn register_rpc<RT, C, Da>(
 where
     RT: RuntimeTrait<C, <Da as DaService>::Spec> + Send + Sync + 'static,
     C: Context,
-    Da: DaService + Clone,
+    Da: DaService,
 {
     // runtime rpc.
     let mut rpc_methods = RT::rpc_methods(storage.clone());
