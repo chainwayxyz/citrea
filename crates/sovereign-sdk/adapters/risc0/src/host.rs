@@ -118,6 +118,22 @@ impl<'a> ZkvmHost for Risc0Host<'a> {
         };
         Ok(BorshDeserialize::deserialize(&mut journal.bytes.as_ref())?)
     }
+
+    fn wait_for_receipt(&self, _session: &String) -> Result<Vec<u8>, anyhow::Error> {
+        unimplemented!()
+    }
+
+    fn create_new_snark_session(&self, _session: &String) -> Result<String, anyhow::Error> {
+        unimplemented!()
+    }
+
+    fn wait_for_stark_to_snark_conversion(
+        &self,
+        _snark_session: &String,
+        _receipt_buf: Vec<u8>,
+    ) -> Result<Proof, anyhow::Error> {
+        unimplemented!()
+    }
 }
 
 impl<'host> Zkvm for Risc0Host<'host> {

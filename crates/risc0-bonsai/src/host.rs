@@ -354,11 +354,12 @@ impl<'a> Risc0BonsaiHost<'a> {
         self.last_input_id = Some(input_id);
     }
 
-    fn wait_for_receipt(
+    fn receipt_loop(
         &self,
-        session: &SessionId,
+        session: &String,
         client: &BonsaiClient,
-    ) -> Result<Receipt, anyhow::Error> {
+    ) -> Result<Vec<u8>, anyhow::Error> {
+        let session = SessionId::new(session.clone());
         loop {
             // handle error
             let res = client.status(&session);
@@ -379,70 +380,13 @@ impl<'a> Risc0BonsaiHost<'a> {
                     .expect("API error, missing receipt on completed session");
 
                 tracing::info!("Receipt URL: {}", receipt_url);
-                let receipt_buf = client.download(receipt_url);
-
-                let receipt: Receipt = bincode::deserialize(&receipt_buf).unwrap();
-
-                break Ok(receipt);
+                break Ok(client.download(receipt_url));
             } else {
                 return Err(anyhow!(
                     "Workflow exited: {} with error message: {}",
                     res.status,
                     res.error_msg.unwrap_or_default()
                 ));
-            }
-        }
-    }
-
-    fn wait_for_stark_to_snark_conversion(
-        &self,
-        snark_session: &SnarkId,
-        client: &BonsaiClient,
-        receipt: Receipt,
-    ) -> Result<Proof, anyhow::Error> {
-        loop {
-            let res = client.snark_status(&snark_session);
-            match res.status.as_str() {
-                "RUNNING" => {
-                    tracing::info!("Current status: {} - continue polling...", res.status,);
-                    std::thread::sleep(Duration::from_secs(15));
-                    continue;
-                }
-                "SUCCEEDED" => {
-                    let snark_receipt = match res.output {
-                        Some(output) => output,
-                        None => {
-                            return Err(anyhow!(
-                                "SNARK session succeeded but no output was provided"
-                            ))
-                        }
-                    };
-                    tracing::info!("Snark proof!: {snark_receipt:?}");
-
-                    // now we convert the snark_receipt to a full receipt
-
-                    use risc0_zkvm::sha::Digestible;
-                    let inner = InnerReceipt::Groth16(Groth16Receipt::new(
-                        snark_receipt.snark.to_vec(),
-                        receipt.claim().expect("stark_2_snark error, receipt claim"),
-                        risc0_zkvm::Groth16ReceiptVerifierParameters::default().digest(),
-                    ));
-
-                    let full_snark_receipt = Receipt::new(inner, snark_receipt.journal);
-
-                    tracing::info!("Full snark proof!: {full_snark_receipt:?}");
-
-                    let full_snark_receipt = bincode::serialize(&full_snark_receipt)?;
-
-                    return Ok(Proof::Full(full_snark_receipt));
-                }
-                _ => {
-                    return Err(anyhow!(
-                        "Workflow exited: {} with error message: {}",
-                        res.status,
-                        res.error_msg.unwrap_or_default()
-                    ));
-                }
             }
         }
     }
@@ -520,20 +464,23 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
             self.ledger_db.set_latest_bonsai_session(&session.uuid)?;
             tracing::info!("Session created: {}", session.uuid);
 
-            let receipt = self.wait_for_receipt(&session, client)?;
+            let receipt = self.wait_for_receipt(&session.uuid)?;
 
             tracing::info!("Creating the SNARK");
 
             let snark_session = client.create_snark(&session);
 
-            // Save snark session id to the ledger
-            self.ledger_db
-                .set_latest_bonsai_snark_session(&snark_session.uuid)?;
-
             tracing::info!("SNARK session created: {}", snark_session.uuid);
 
-            self.wait_for_stark_to_snark_conversion(&snark_session, client, receipt)
+            self.wait_for_stark_to_snark_conversion(&snark_session.uuid, receipt)
         }
+    }
+
+    fn create_new_snark_session(&self, session: &String) -> Result<String, anyhow::Error> {
+        let client = self.client.as_ref().unwrap();
+        let session = SessionId::new(session.clone());
+        let snark_session = client.create_snark(&session);
+        Ok(snark_session.uuid)
     }
 
     fn extract_output<Da: sov_rollup_interface::da::DaSpec, Root: BorshDeserialize>(
@@ -550,6 +497,71 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
             }
         };
         Ok(BorshDeserialize::try_from_slice(&journal.bytes)?)
+    }
+
+    fn wait_for_receipt(&self, session: &String) -> Result<Vec<u8>, anyhow::Error> {
+        let session = SessionId::new(session.clone());
+        let client = self.client.as_ref().unwrap();
+        self.receipt_loop(&session.uuid, client)
+    }
+
+    fn wait_for_stark_to_snark_conversion(
+        &self,
+        snark_session: &String,
+        receipt_buf: Vec<u8>,
+    ) -> Result<Proof, anyhow::Error> {
+        // Save snark session id to the ledger
+        self.ledger_db
+            .set_latest_bonsai_snark_session(&snark_session)?;
+        // let session = SessionId::new(session.clone());
+        let snark_session = SnarkId::new(snark_session.clone());
+        let client = self.client.as_ref().unwrap();
+        let receipt: Receipt = bincode::deserialize(&receipt_buf).unwrap();
+        loop {
+            let res = client.snark_status(&snark_session);
+            match res.status.as_str() {
+                "RUNNING" => {
+                    tracing::info!("Current status: {} - continue polling...", res.status,);
+                    std::thread::sleep(Duration::from_secs(15));
+                    continue;
+                }
+                "SUCCEEDED" => {
+                    let snark_receipt = match res.output {
+                        Some(output) => output,
+                        None => {
+                            return Err(anyhow!(
+                                "SNARK session succeeded but no output was provided"
+                            ))
+                        }
+                    };
+                    tracing::info!("Snark proof!: {snark_receipt:?}");
+
+                    // now we convert the snark_receipt to a full receipt
+
+                    use risc0_zkvm::sha::Digestible;
+                    let inner = InnerReceipt::Groth16(Groth16Receipt::new(
+                        snark_receipt.snark.to_vec(),
+                        receipt.claim().expect("stark_2_snark error, receipt claim"),
+                        risc0_zkvm::Groth16ReceiptVerifierParameters::default().digest(),
+                    ));
+
+                    let full_snark_receipt = Receipt::new(inner, snark_receipt.journal);
+
+                    tracing::info!("Full snark proof!: {full_snark_receipt:?}");
+
+                    let full_snark_receipt = bincode::serialize(&full_snark_receipt)?;
+
+                    return Ok(Proof::Full(full_snark_receipt));
+                }
+                _ => {
+                    return Err(anyhow!(
+                        "Workflow exited: {} with error message: {}",
+                        res.status,
+                        res.error_msg.unwrap_or_default()
+                    ));
+                }
+            }
+        }
     }
 }
 

@@ -83,6 +83,9 @@ pub trait SharedLedgerOps {
     /// Sets l1 height of l1 hash
     fn set_l1_height_of_l1_hash(&self, hash: [u8; 32], height: u64) -> Result<()>;
 
+    /// Gets l1 height of l1 hash
+    fn get_l1_height_of_l1_hash(&self, hash: [u8; 32]) -> Result<Option<u64>>;
+
     /// Saves a soft confirmation status for a given L1 height
     fn put_soft_confirmation_status(
         &self,
@@ -141,9 +144,6 @@ pub trait NodeLedgerOps: SharedLedgerOps {
 
     /// Gets the commitments in the da slot with given height if any
     fn get_commitments_on_da_slot(&self, height: u64) -> Result<Option<Vec<SequencerCommitment>>>;
-
-    /// Gets l1 height of l1 hash
-    fn get_l1_height_of_l1_hash(&self, hash: [u8; 32]) -> Result<Option<u64>>;
 }
 
 /// Prover ledger operations
@@ -177,10 +177,16 @@ pub trait ProverLedgerOps: SharedLedgerOps + Send + Sync {
     fn set_l2_witness<Witness: Serialize>(&self, l2_height: u64, witness: &Witness) -> Result<()>;
 
     /// Returns the uuid of the latest bonsai session, if not completed
+    /// Only returns a value if proof submission is not complete
     fn get_latest_bonsai_session(&self) -> Result<Option<String>>;
 
     /// Returns the uuid of the latest bonsai snark session, if not completed
+    /// Only returns a value if proof submission is not complete
     fn get_latest_bonsai_snark_session(&self) -> Result<Option<String>>;
+
+    /// Get the latest proof l1 hash
+    /// Only returns a value if proof submission is not complete
+    fn get_latest_proof_l1_hash(&self) -> Result<Option<[u8; 32]>>;
 
     /// Sets the uuid of the latest bonsai session
     fn set_latest_bonsai_session(&self, session_id: &String) -> anyhow::Result<()>;
@@ -188,11 +194,17 @@ pub trait ProverLedgerOps: SharedLedgerOps + Send + Sync {
     /// Sets the uuid of the latest bonsai snark session
     fn set_latest_bonsai_snark_session(&self, session_id: &String) -> anyhow::Result<()>;
 
+    /// Sets the latest proof l1 hash
+    fn set_latest_proof_l1_hash(&self, hash: [u8; 32]) -> Result<()>;
+
     /// Clears the uuid of the latest bonsai session
     fn clear_latest_bonsai_session(&self) -> anyhow::Result<()>;
 
     /// Clears the uuid of the latest bonsai snark session
     fn clear_latest_bonsai_snark_session(&self) -> anyhow::Result<()>;
+
+    /// Clears the latest proof l1 hash
+    fn clear_latest_proof_l1_hash(&self) -> anyhow::Result<()>;
 }
 
 /// Sequencer ledger operations

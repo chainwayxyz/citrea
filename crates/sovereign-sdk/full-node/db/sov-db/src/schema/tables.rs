@@ -74,6 +74,7 @@ pub const LEDGER_TABLES: &[&str] = &[
     VerifiedProofsBySlotNumber::table_name(),
     LatestBonsaiSession::table_name(),
     LatestBonsaiSnarkSession::table_name(),
+    LatestProofL1Hash::table_name(),
 ];
 
 /// A list of all tables used by the NativeDB. These tables store
@@ -340,6 +341,11 @@ define_table_with_default_codec!(
 define_table_with_default_codec!(
     /// Prover uses this table to store the latest ongoing bonsai snark session, the value is the uuid of the session
     (LatestBonsaiSnarkSession) () => String
+);
+
+define_table_with_default_codec!(
+    /// Prover uses this table to store the latest ongoing proof l1 hash
+    (LatestProofL1Hash) () => [u8; 32]
 );
 
 impl KeyEncoder<JmtNodes> for NodeKey {

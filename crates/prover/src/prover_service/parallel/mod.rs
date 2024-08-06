@@ -207,4 +207,72 @@ where
             }
         }
     }
+
+    async fn recover_proving_and_send_to_da(
+        &self,
+        stark_id: Option<String>,
+        snark_id: Option<String>,
+        da_service: &Self::DaService,
+    ) -> Result<Option<(<Da as DaService>::TransactionId, Proof)>, anyhow::Error> {
+        let vm = self.vm.clone();
+
+        tracing::info!("Checking if ongoing bonsai session exists");
+
+        match snark_id {
+            Some(snark_id) => {
+                tracing::warn!(
+                    "There is an ongoing stark to snark conversion, waiting for it to complete"
+                );
+                // Stark id is present, prover crashed at an ongoing stark to snark conversion
+                let stark_id = stark_id.expect("Stark id should be present");
+                // Get receipt from stark
+                let receipt_buf = vm.wait_for_receipt(&stark_id.clone())?;
+                // wait for the stark to snark conversion to complete
+                let proof = vm.wait_for_stark_to_snark_conversion(&snark_id, receipt_buf)?;
+                // Send to da
+                let da_data = DaData::ZKProof(proof.clone());
+                let tx_id = da_service
+                    .send_transaction(
+                        borsh::to_vec(&da_data)
+                            .expect("Should serialize")
+                            .as_slice(),
+                    )
+                    .await
+                    .map_err(|e| anyhow::anyhow!(e))?;
+                Ok(Some((tx_id, proof)))
+            }
+            None => {
+                match stark_id {
+                    Some(stark_id) => {
+                        tracing::warn!("There is an ongoing stark proof generation, waiting for it to complete");
+                        // Only stark id is present, prover crashed at receipt generation
+                        // wait for the stark proof generation to complete
+                        let receipt_buf = vm.wait_for_receipt(&stark_id)?;
+                        // Create new snark session
+                        let snark_uuid = vm.create_new_snark_session(&stark_id)?;
+                        // wait for the stark to snark conversion to complete
+                        let proof =
+                            vm.wait_for_stark_to_snark_conversion(&snark_uuid, receipt_buf)?;
+
+                            let da_data = DaData::ZKProof(proof.clone());
+                            // Send to da
+                        let tx_id = da_service
+                            .send_transaction(
+                                borsh::to_vec(&da_data)
+                                    .expect("Should serialize")
+                                    .as_slice(),
+                            )
+                            .await
+                            .map_err(|e| anyhow::anyhow!(e))?;
+                        Ok(Some((tx_id, proof)))
+                    }
+                    None => {
+                        // No stark id, no snark id, prover has not crashed
+                        tracing::info!("Prover has no existing ongoing bonsai session");
+                        Ok(None)
+                    }
+                }
+            }
+        }
+    }
 }

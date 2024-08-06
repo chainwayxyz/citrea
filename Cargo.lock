@@ -1900,7 +1900,6 @@ dependencies = [
  "anyhow",
  "async-trait",
  "backoff",
- "bonsai-sdk",
  "borsh",
  "citrea-primitives",
  "citrea-stf",

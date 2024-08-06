@@ -8,7 +8,6 @@ use std::time::Duration;
 use anyhow::{anyhow, bail};
 use backoff::exponential::ExponentialBackoffBuilder;
 use backoff::future::retry as retry_backoff;
-use bonsai_sdk::alpha::{SessionId, SnarkId};
 use borsh::de::BorshDeserialize;
 use citrea_primitives::types::SoftConfirmationHash;
 use citrea_primitives::{get_da_block_at_height, L1BlockCache};
@@ -213,6 +212,39 @@ where
         });
     }
 
+    async fn recover_ongoing_bonsai_sessions(
+        &self,
+        pg_client: &Option<Result<PostgresConnector, DbPoolError>>,
+    ) -> Result<(), anyhow::Error> {
+        let prover_service = self
+            .prover_service
+            .as_ref()
+            .expect("Prover service should be present");
+
+        let stark_session = self.ledger_db.get_latest_bonsai_session()?;
+        let snark_session = self.ledger_db.get_latest_bonsai_snark_session()?;
+        let proof_l1_hash = self.ledger_db.get_latest_proof_l1_hash()?;
+
+        let Some((tx_id, proof)) = prover_service
+            .recover_proving_and_send_to_da(stark_session, snark_session, &self.da_service)
+            .await?
+        else {
+            // No ongoing session exists
+            return Ok(());
+        };
+
+        // extract proof and store here
+        let l1_height = self
+            .ledger_db
+            .get_l1_height_of_l1_hash(proof_l1_hash.expect("L1 hash should exist"))?
+            .expect("L1 height should exist");
+
+        self.extract_and_store_proof(tx_id, proof, pg_client, l1_height)
+            .await?;
+
+        Ok(())
+    }
+
     /// Runs the rollup.
     #[instrument(level = "trace", skip_all, err)]
     pub async fn run(&mut self) -> Result<(), anyhow::Error> {
@@ -266,28 +298,6 @@ where
 
         let da_service = self.da_service.clone();
         let l1_block_cache = self.l1_block_cache.clone();
-
-        // TODO:
-        // Check if there is an unfinished proof submission
-        // get session ids
-        // If either of the session ids exist do prover_state.inc_task_count();
-        // check snark session id first, if it exists using the stark session id get the receipt url and download it, after that give it to wait forsnark function
-        // If snark is empty but stark session is ongoing then just call wait for stark session then with proof do the other stuff mentioned above
-        // when proof is done do prover_state.set_to_proved(block_header_hash, proof);
-        // Finally functionalize all this
-        match self.ledger_db.get_latest_bonsai_session()? {
-            Some(session_uuid) => {
-                let session = SessionId::new(session_uuid);
-            }
-            None => {}
-        }
-
-        match self.ledger_db.get_latest_bonsai_snark_session()? {
-            Some(session_uuid) => {
-                let snark_session = SnarkId::new(session_uuid);
-            }
-            None => {}
-        }
 
         let mut pending_l1_blocks: VecDeque<<Da as DaService>::FilteredBlock> =
             VecDeque::<Da::FilteredBlock>::new();
@@ -438,7 +448,8 @@ where
                 )
                 .unwrap();
 
-            let mut da_data = self.da_service.extract_relevant_blobs(l1_block);
+            let mut da_data: Vec<<<Da as DaService>::Spec as DaSpec>::BlobTransaction> =
+                self.da_service.extract_relevant_blobs(l1_block);
             // if we don't do this, the zk circuit can't read the sequencer commitments
             da_data.iter_mut().for_each(|blob| {
                 blob.full_data();
@@ -478,83 +489,38 @@ where
                 break;
             }
 
-            let (
-                state_transition_witnesses,
-                soft_confirmations,
-                da_block_headers_of_soft_confirmations,
-            ) = self
-                .get_state_transition_data_from_commitments(
-                    &sequencer_commitments,
-                    &self.da_service,
-                )
-                .await?;
-
-            let da_block_header_of_commitments = l1_block.header().clone();
+            let da_block_header_of_commitments: <<Da as DaService>::Spec as DaSpec>::BlockHeader =
+                l1_block.header().clone();
 
             let hash = da_block_header_of_commitments.hash();
-            let initial_state_root = self
-                .ledger_db
-                .get_l2_state_root::<Stf::StateRoot>(first_l2_height_of_l1 - 1)?
-                .expect("There should be a state root");
-            let initial_batch_hash = self
-                .ledger_db
-                .get_soft_batch_by_number(&BatchNumber(first_l2_height_of_l1))?
-                .ok_or(anyhow!(
-                    "Could not find soft batch at height {}",
-                    first_l2_height_of_l1
-                ))?
-                .prev_hash;
-
-            let final_state_root = self
-                .ledger_db
-                .get_l2_state_root::<Stf::StateRoot>(last_l2_height_of_l1)?
-                .expect("There should be a state root");
-
-            let (inclusion_proof, completeness_proof) = self
-                .da_service
-                .get_extraction_proof(l1_block, &da_data)
-                .await;
-
-            let transition_data: StateTransitionData<Stf::StateRoot, Stf::Witness, Da::Spec> =
-                StateTransitionData {
-                    initial_state_root,
-                    final_state_root,
-                    initial_batch_hash,
-                    da_data,
-                    da_block_header_of_commitments,
-                    inclusion_proof,
-                    completeness_proof,
-                    soft_confirmations,
-                    state_transition_witnesses,
-                    da_block_headers_of_soft_confirmations,
-                    sequencer_commitments_range: (
-                        0,
-                        (sequencer_commitments.len() - 1)
-                            .try_into()
-                            .expect("cant be more than 4 billion commitments in a da block; qed"),
-                    ), // for now process all commitments
-                    sequencer_public_key: self.sequencer_pub_key.clone(),
-                    sequencer_da_public_key: self.sequencer_da_pub_key.clone(),
-                };
-
-            let should_prove: bool = {
-                let mut rng = rand::thread_rng();
-                // if proof_sampling_number is 0, then we always prove and submit
-                // otherwise we submit and prove with a probability of 1/proof_sampling_number
-                if prover_config.proof_sampling_number == 0 {
-                    true
-                } else {
-                    rng.gen_range(0..prover_config.proof_sampling_number) == 0
-                }
-            };
-
-            // Skip submission until l1 height
-            if l1_height >= skip_submission_until_l1 && should_prove {
-                self.generate_and_submit_proof(transition_data, pg_client, l1_height, hash)
-                    .await?;
+            if self.ledger_db.get_latest_proof_l1_hash()? == Some(hash.clone().into()) {
+                warn!(
+                    "Detected ongoing proving session for l1 block {}",
+                    l1_height
+                );
+                self.recover_ongoing_bonsai_sessions(pg_client).await?;
             } else {
-                info!("Skipping proving for l1 height {}", l1_height);
+                // There is no ongoing bonsai session to recover
+                let transition_data: StateTransitionData<Stf::StateRoot, Stf::Witness, Da::Spec> =
+                    self.create_state_transition_data(
+                        &sequencer_commitments,
+                        da_block_header_of_commitments,
+                        da_data,
+                        l1_block,
+                    )
+                    .await?;
+
+                self.prove_state_transition(
+                    transition_data,
+                    prover_config,
+                    skip_submission_until_l1,
+                    l1_height,
+                    pg_client,
+                    hash,
+                )
+                .await?;
             }
+
             self.save_commitments(sequencer_commitments, l1_height);
 
             if let Err(e) = self
@@ -568,8 +534,108 @@ where
             }
 
             pending_l1_blocks.pop_front();
+
+            self.ledger_db.clear_latest_bonsai_session()?;
+            self.ledger_db.clear_latest_bonsai_snark_session()?;
+            self.ledger_db.clear_latest_proof_l1_hash()?;
         }
         Ok(())
+    }
+
+    async fn prove_state_transition(
+        &self,
+        transition_data: StateTransitionData<Stf::StateRoot, Stf::Witness, Da::Spec>,
+        prover_config: &ProverConfig,
+        skip_submission_until_l1: u64,
+        l1_height: u64,
+        pg_client: &Option<Result<PostgresConnector, DbPoolError>>,
+        hash: <<Da as DaService>::Spec as DaSpec>::SlotHash,
+    ) -> Result<(), anyhow::Error> {
+        let should_prove: bool = {
+            let mut rng = rand::thread_rng();
+            // if proof_sampling_number is 0, then we always prove and submit
+            // otherwise we submit and prove with a probability of 1/proof_sampling_number
+            if prover_config.proof_sampling_number == 0 {
+                true
+            } else {
+                rng.gen_range(0..prover_config.proof_sampling_number) == 0
+            }
+        };
+
+        // Skip submission until l1 height
+        if l1_height >= skip_submission_until_l1 && should_prove {
+            self.ledger_db
+                .set_latest_proof_l1_hash(hash.clone().into())?;
+            self.generate_and_submit_proof(transition_data, pg_client, l1_height, hash)
+                .await?;
+        } else {
+            info!("Skipping proving for l1 height {}", l1_height);
+        }
+        Ok(())
+    }
+
+    async fn create_state_transition_data(
+        &self,
+        sequencer_commitments: &[SequencerCommitment],
+        da_block_header_of_commitments: <<Da as DaService>::Spec as DaSpec>::BlockHeader,
+        da_data: Vec<<<Da as DaService>::Spec as DaSpec>::BlobTransaction>,
+        l1_block: &Da::FilteredBlock,
+    ) -> Result<StateTransitionData<Stf::StateRoot, Stf::Witness, Da::Spec>, anyhow::Error> {
+        let first_l2_height_of_l1 = sequencer_commitments[0].l2_start_block_number;
+        let last_l2_height_of_l1 =
+            sequencer_commitments[sequencer_commitments.len() - 1].l2_end_block_number;
+        let (
+            state_transition_witnesses,
+            soft_confirmations,
+            da_block_headers_of_soft_confirmations,
+        ) = self
+            .get_state_transition_data_from_commitments(&sequencer_commitments, &self.da_service)
+            .await?;
+        let initial_state_root = self
+            .ledger_db
+            .get_l2_state_root::<Stf::StateRoot>(first_l2_height_of_l1 - 1)?
+            .expect("There should be a state root");
+        let initial_batch_hash = self
+            .ledger_db
+            .get_soft_batch_by_number(&BatchNumber(first_l2_height_of_l1))?
+            .ok_or(anyhow!(
+                "Could not find soft batch at height {}",
+                first_l2_height_of_l1
+            ))?
+            .prev_hash;
+
+        let final_state_root = self
+            .ledger_db
+            .get_l2_state_root::<Stf::StateRoot>(last_l2_height_of_l1)?
+            .expect("There should be a state root");
+
+        let (inclusion_proof, completeness_proof) = self
+            .da_service
+            .get_extraction_proof(l1_block, &da_data)
+            .await;
+
+        let transition_data: StateTransitionData<Stf::StateRoot, Stf::Witness, Da::Spec> =
+            StateTransitionData {
+                initial_state_root,
+                final_state_root,
+                initial_batch_hash,
+                da_data,
+                da_block_header_of_commitments,
+                inclusion_proof,
+                completeness_proof,
+                soft_confirmations,
+                state_transition_witnesses,
+                da_block_headers_of_soft_confirmations,
+                sequencer_commitments_range: (
+                    0,
+                    (sequencer_commitments.len() - 1)
+                        .try_into()
+                        .expect("cant be more than 4 billion commitments in a da block; qed"),
+                ), // for now process all commitments
+                sequencer_public_key: self.sequencer_pub_key.clone(),
+                sequencer_da_public_key: self.sequencer_da_pub_key.clone(),
+            };
+        Ok(transition_data)
     }
 
     fn extract_sequencer_commitments(
@@ -721,6 +787,17 @@ where
             }
         };
 
+        self.extract_and_store_proof(tx_id, proof, pg_client, l1_height)
+            .await
+    }
+
+    async fn extract_and_store_proof(
+        &self,
+        tx_id: <Da as DaService>::TransactionId,
+        proof: Proof,
+        pg_client: &Option<Result<PostgresConnector, DbPoolError>>,
+        l1_height: u64,
+    ) -> Result<(), anyhow::Error> {
         let tx_id_u8 = tx_id.into();
 
         // l1_height => (tx_id, proof, transition_data)
