@@ -922,30 +922,15 @@ where
         let mut missed_da_blocks_count = 0;
 
         loop {
-            // We try to produce the next block based on how long the previous block took in terms
-            // of execution time. If last block takes more than target block time (2 secs),
-            // we just reset the interval to 2 secs.
-            let mut interval = if parent_block_exec_time > target_block_time {
-                tokio::time::interval(
-                    target_block_time
-                        .checked_sub(
-                            parent_block_exec_time
-                                .checked_sub(target_block_time)
-                                .unwrap_or_default(),
-                        )
-                        .unwrap_or_default(),
-                )
-            } else {
-                tokio::time::interval(
-                    target_block_time
-                        + (target_block_time
-                            .checked_sub(parent_block_exec_time)
-                            .unwrap_or_default()),
-                )
-            };
-            // The first ticket completes immediately.
-            // See: https://docs.rs/tokio/latest/tokio/time/struct.Interval.html#method.tick
-            interval.tick().await;
+            let block_production_tick = tokio::time::sleep(
+                target_block_time
+                    .checked_sub(
+                        parent_block_exec_time
+                            .checked_sub(target_block_time)
+                            .unwrap_or_default(),
+                    )
+                    .unwrap_or_default(),
+            );
 
             tokio::select! {
                 // Run the DA monitor worker
@@ -1025,7 +1010,7 @@ where
                     }
                 },
                 // If sequencer is in production mode, it will build a block every 2 seconds
-                _ = interval.tick(), if !self.config.test_mode => {
+                _ = block_production_tick, if !self.config.test_mode => {
                     // By default, we produce a non-empty block IFF we were caught up all the way to
                     // last_finalized_block. If there are missed DA blocks, we start producing
                     // empty blocks at ~2 second rate, 1 L2 block per respective missed DA block
