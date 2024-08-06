@@ -924,10 +924,15 @@ where
         let mut missed_da_blocks_count = 0;
 
         loop {
-            let mut interval = tokio::time::interval(target_block_time - parent_block_exec_time);
-            // The first ticket completes immediately.
-            // See: https://docs.rs/tokio/latest/tokio/time/struct.Interval.html#method.tick
-            interval.tick().await;
+            let block_production_tick = tokio::time::sleep(
+                target_block_time
+                    .checked_sub(
+                        parent_block_exec_time
+                            .checked_sub(target_block_time)
+                            .unwrap_or_default(),
+                    )
+                    .unwrap_or_default(),
+            );
 
             tokio::select! {
                 // Run the DA monitor worker
@@ -1007,7 +1012,7 @@ where
                     }
                 },
                 // If sequencer is in production mode, it will build a block every 2 seconds
-                _ = interval.tick(), if !self.config.test_mode => {
+                _ = block_production_tick, if !self.config.test_mode => {
                     // By default, we produce a non-empty block IFF we were caught up all the way to
                     // last_finalized_block. If there are missed DA blocks, we start producing
                     // empty blocks at ~2 second rate, 1 L2 block per respective missed DA block
