@@ -926,9 +926,22 @@ where
             // of execution time. If last block takes more than target block time (2 secs),
             // we just reset the interval to 2 secs.
             let mut interval = if parent_block_exec_time > target_block_time {
-                tokio::time::interval(target_block_time)
+                tokio::time::interval(
+                    target_block_time
+                        .checked_sub(
+                            parent_block_exec_time
+                                .checked_sub(target_block_time)
+                                .unwrap_or_default(),
+                        )
+                        .unwrap_or_default(),
+                )
             } else {
-                tokio::time::interval(target_block_time - parent_block_exec_time)
+                tokio::time::interval(
+                    target_block_time
+                        + (target_block_time
+                            .checked_sub(parent_block_exec_time)
+                            .unwrap_or_default()),
+                )
             };
             // The first ticket completes immediately.
             // See: https://docs.rs/tokio/latest/tokio/time/struct.Interval.html#method.tick
