@@ -606,7 +606,7 @@ impl DaService for BitcoinService {
         &self,
         hash: Self::BlockHash,
     ) -> Result<Self::FilteredBlock, Self::Error> {
-        info!("Getting block with hash {:?}", hash);
+        debug!("Getting block with hash {:?}", hash);
 
         let block = self.client.get_block_verbose(&hash).await?;
 
