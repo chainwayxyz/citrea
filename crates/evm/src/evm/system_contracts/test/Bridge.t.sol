@@ -105,12 +105,15 @@ contract BridgeTest is Test {
 
         // Assert if receiver can withdraw
         vm.startPrank(receiver);
-        bytes32 bitcoin_address = hex"1234"; // Dummy Bitcoin address
+        bytes32 txId = hex"1234"; // Dummy txId
+        uint32 outputId = 2; // Dummy outputId
         uint256 withdrawalCount = bridge.getWithdrawalCount();
-        bridge.withdraw{value: DEPOSIT_AMOUNT}(bitcoin_address);
+        bridge.withdraw{value: DEPOSIT_AMOUNT}(txId, outputId);
 
         // Assert if withdrawal address is stored properly
-        assertEq(bridge.withdrawalAddrs(withdrawalCount), bitcoin_address);
+        (bytes32 _txId, uint32 _outputId) = bridge.withdrawalUTXOs(withdrawalCount);
+        assertEq(_txId, txId);
+        assertEq(_outputId, outputId);
         
         // Assert if tokens are burned from receiver
         assertEq(receiver.balance, 0);
@@ -123,15 +126,19 @@ contract BridgeTest is Test {
         vm.startPrank(user);
         vm.deal(address(user), 0.1 ether);
         bytes32[] memory btc_addresses = new bytes32[](10);
+        uint32[] memory output_ids = new uint32[](10);
         for (uint i = 0; i < 10; i++) {
             btc_addresses[i] = bytes32(abi.encodePacked(i));
+            output_ids[i] = uint32(i);
         }
         
-        bridge.batchWithdraw{value: 0.1 ether}(btc_addresses);
+        bridge.batchWithdraw{value: 0.1 ether}(btc_addresses, output_ids);
         
 
         for (uint i = 0; i < 10; i++) {
-            assertEq(bridge.withdrawalAddrs(i), btc_addresses[i]);
+            (bytes32 _txId, uint32 _outputId) = bridge.withdrawalUTXOs(i);
+            assertEq(_txId, btc_addresses[i]);
+            assertEq(_outputId, output_ids[i]);
         }
         
         assertEq(user.balance, 0);
@@ -141,11 +148,13 @@ contract BridgeTest is Test {
         vm.startPrank(user);
         vm.deal(address(user), 10 ether);
         bytes32[] memory btc_addresses = new bytes32[](10);
+        uint32[] memory output_ids = new uint32[](10);
         for (uint i = 0; i < 10; i++) {
             btc_addresses[i] = bytes32(abi.encodePacked(i));
+            output_ids[i] = uint32(i);
         }
         vm.expectRevert("Invalid withdraw amount");
-        bridge.batchWithdraw{value: 9 ether}(btc_addresses);
+        bridge.batchWithdraw{value: 9 ether}(btc_addresses, output_ids);
     }
 
     function testCannotDoubleDepositWithSameTx() public {
@@ -170,7 +179,7 @@ contract BridgeTest is Test {
         
         vm.expectRevert("Invalid deposit script");
         // Incremented 1 block, that's why `doDeposit` is not used
-        Bridge.DepositParams memory depositParams = Bridge.DepositParams(version, flag, vin, vout, witness, locktime, intermediate_nodes, INITIAL_BLOCK_NUMBER + 1, index);
+        Bridge.TransactionParams memory depositParams = Bridge.TransactionParams(version, flag, vin, vout, witness, locktime, intermediate_nodes, INITIAL_BLOCK_NUMBER + 1, index);
         bridge.deposit(depositParams);
         vm.stopPrank();
     }
@@ -182,7 +191,7 @@ contract BridgeTest is Test {
         bitcoinLightClient.setBlockInfo(keccak256("CITREA_TEST_2"), witnessRoot);
 
         vm.expectRevert("Transaction is not in block");
-        Bridge.DepositParams memory depositParams = Bridge.DepositParams(version, flag, vin, vout, witness, locktime, intermediate_nodes, INITIAL_BLOCK_NUMBER + 1, index);
+        Bridge.TransactionParams memory depositParams = Bridge.TransactionParams(version, flag, vin, vout, witness, locktime, intermediate_nodes, INITIAL_BLOCK_NUMBER + 1, index);
         bridge.deposit(depositParams);
     }
 
@@ -196,13 +205,13 @@ contract BridgeTest is Test {
         // Assert if receiver cannot withdraw with invalid amount
         vm.startPrank(receiver);
         vm.expectRevert("Invalid withdraw amount");
-        bridge.withdraw{value: DEPOSIT_AMOUNT - 1}(hex"1234");
+        bridge.withdraw{value: DEPOSIT_AMOUNT - 1}(hex"1234", 2);
         vm.stopPrank();
     }
 
     function testNonOperatorCannotDeposit() public {
         vm.expectRevert("caller is not the operator");
-        Bridge.DepositParams memory depositParams = Bridge.DepositParams(version, flag, vin, vout, witness, locktime, intermediate_nodes, INITIAL_BLOCK_NUMBER, index);
+        Bridge.TransactionParams memory depositParams = Bridge.TransactionParams(version, flag, vin, vout, witness, locktime, intermediate_nodes, INITIAL_BLOCK_NUMBER, index);
         bridge.deposit(depositParams);
     }
 
@@ -315,7 +324,7 @@ contract BridgeTest is Test {
 
     function doDeposit() public {
         vm.startPrank(operator);
-        Bridge.DepositParams memory depositParams = Bridge.DepositParams(version, flag, vin, vout, witness, locktime, intermediate_nodes, INITIAL_BLOCK_NUMBER, index);
+        Bridge.TransactionParams memory depositParams = Bridge.TransactionParams(version, flag, vin, vout, witness, locktime, intermediate_nodes, INITIAL_BLOCK_NUMBER, index);
         bridge.deposit(depositParams);
         vm.stopPrank();
     }

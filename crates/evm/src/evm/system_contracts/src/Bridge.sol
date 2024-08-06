@@ -14,7 +14,7 @@ contract Bridge is Ownable2StepUpgradeable {
     using BTCUtils for bytes;
     using BytesLib for bytes;
 
-    struct DepositParams {
+    struct TransactionParams {
         bytes4 version;
         bytes2 flag;
         bytes vin;
@@ -24,6 +24,11 @@ contract Bridge is Ownable2StepUpgradeable {
         bytes intermediate_nodes;
         uint256 block_height;
         uint256 index;
+    }
+
+    struct UTXO {
+        bytes32 txId;
+        uint32 outputId;
     }
 
     BitcoinLightClient public constant LIGHT_CLIENT = BitcoinLightClient(address(0x3100000000000000000000000000000000000001));
@@ -37,10 +42,14 @@ contract Bridge is Ownable2StepUpgradeable {
     bytes public scriptSuffix;
     
     mapping(bytes32 => bool) public spentWtxIds;
-    bytes32[] public withdrawalAddrs;
+    bool[1000] public isOperatorMalicious;
+    UTXO[] public withdrawalUTXOs;
+    bytes32[] public kickoffRoots;
+    mapping(uint256 => bytes32) public withdrawFillers;
+    mapping(uint256 => bytes32) public operatorAddresses;
     
     event Deposit(bytes32 wtxId, address recipient, uint256 timestamp);
-    event Withdrawal(bytes32 bitcoin_address, uint256 index, uint256 timestamp);
+    event Withdrawal(UTXO utxo, uint256 index, uint256 timestamp);
     event DepositScriptUpdate(bytes depositScript, bytes scriptSuffix, uint256 requiredSigsCount);
     event OperatorUpdated(address oldOperator, address newOperator);
 
@@ -92,29 +101,29 @@ contract Bridge is Ownable2StepUpgradeable {
     }
 
     /// @notice Checks if the deposit amount is sent to the bridge multisig on Bitcoin, and if so, sends the deposit amount to the receiver
-    /// @param p The deposit parameters that contains the info of the deposit transaction on Bitcoin
+    /// @param tp The deposit parameters that contains the info of the deposit transaction on Bitcoin
     function deposit(
-        DepositParams calldata p
+        TransactionParams calldata tp
     ) external onlyOperator {
         // We don't need to check if the contract is initialized, as without an `initialize` call and `deposit` calls afterwards,
         // only the system caller can execute a transaction on Citrea, as no addresses have any balance. Thus there's no risk of 
         // `deposit` being called before `initialize` maliciously.
         
-        bytes32 wtxId = WitnessUtils.calculateWtxId(p.version, p.flag, p.vin, p.vout, p.witness, p.locktime);
+        bytes32 wtxId = WitnessUtils.calculateWtxId(tp.version, tp.flag, tp.vin, tp.vout, tp.witness, tp.locktime);
         require(!spentWtxIds[wtxId], "wtxId already spent");
         spentWtxIds[wtxId] = true;
 
-        require(BTCUtils.validateVin(p.vin), "Vin is not properly formatted");
-        require(BTCUtils.validateVout(p.vout), "Vout is not properly formatted");
+        require(BTCUtils.validateVin(tp.vin), "Vin is not properly formatted");
+        require(BTCUtils.validateVout(tp.vout), "Vout is not properly formatted");
         
-        (, uint256 _nIns) = BTCUtils.parseVarInt(p.vin);
+        (, uint256 _nIns) = BTCUtils.parseVarInt(tp.vin);
         require(_nIns == 1, "Only one input allowed");
         // Number of inputs == number of witnesses
-        require(WitnessUtils.validateWitness(p.witness, _nIns), "Witness is not properly formatted");
+        require(WitnessUtils.validateWitness(tp.witness, _nIns), "Witness is not properly formatted");
 
-        require(LIGHT_CLIENT.verifyInclusion(p.block_height, wtxId, p.intermediate_nodes, p.index), "Transaction is not in block");
+        require(LIGHT_CLIENT.verifyInclusion(tp.block_height, wtxId, tp.intermediate_nodes, tp.index), "Transaction is not in block");
 
-        bytes memory witness0 = WitnessUtils.extractWitnessAtIndex(p.witness, 0);
+        bytes memory witness0 = WitnessUtils.extractWitnessAtIndex(tp.witness, 0);
         (, uint256 _nItems) = BTCUtils.parseVarInt(witness0);
         require(_nItems == requiredSigsCount + 2, "Invalid witness items"); // verifier sigs + deposit script + witness script
 
@@ -134,29 +143,39 @@ contract Bridge is Ownable2StepUpgradeable {
     }
 
     /// @notice Accepts 1 cBTC from the sender and inserts this withdrawal request of 1 BTC on Bitcoin into the withdrawals array so that later on can be processed by the operator 
-    /// @param bitcoin_address The Bitcoin address of the receiver
-    function withdraw(bytes32 bitcoin_address) external payable {
+    /// @param txId The txId of the withdrawal transaction on Bitcoin
+    /// @param outputId The outputId of the output in the withdrawal transaction
+    function withdraw(bytes32 txId, uint32 outputId) external payable {
         require(msg.value == DEPOSIT_AMOUNT, "Invalid withdraw amount");
-        uint256 index = withdrawalAddrs.length;
-        withdrawalAddrs.push(bitcoin_address);
-        emit Withdrawal(bitcoin_address, index, block.timestamp);
+        UTXO memory utxo = UTXO({
+            txId: txId,
+         outputId: outputId
+        });
+        uint256 index = withdrawalUTXOs.length;
+        withdrawalUTXOs.push(utxo);
+        emit Withdrawal(utxo, index, block.timestamp);
     }
     
     /// @notice Batch version of `withdraw` that can accept multiple cBTC
     /// @dev Takes in multiple Bitcoin addresses as recipient addresses should be unique
-    /// @param bitcoin_addresses The Bitcoin addresses of the receivers
-    function batchWithdraw(bytes32[] calldata bitcoin_addresses) external payable {
-        require(msg.value == DEPOSIT_AMOUNT * bitcoin_addresses.length, "Invalid withdraw amount");
-        uint256 index = withdrawalAddrs.length;
-        for (uint i = 0; i < bitcoin_addresses.length; i++) {
-            withdrawalAddrs.push(bitcoin_addresses[i]);
-            emit Withdrawal(bitcoin_addresses[i], index + i, block.timestamp);
+    /// @param txIds the txIds of the withdrawal transactions on Bitcoin
+    /// @param outputIds the outputIds of the outputs in the withdrawal transactions
+    function batchWithdraw(bytes32[] calldata txIds, uint32[] calldata outputIds) external payable {
+        require(msg.value == DEPOSIT_AMOUNT * txIds.length && msg.value == DEPOSIT_AMOUNT * outputIds.length, "Invalid withdraw amount");
+        uint256 index = withdrawalUTXOs.length;
+        for (uint i = 0; i < txIds.length; i++) {
+            UTXO memory utxo = UTXO({
+                txId: txIds[i],
+                outputId: outputIds[i]
+            });
+            withdrawalUTXOs.push(utxo);
+            emit Withdrawal(utxo, index + i, block.timestamp);
         }
     }
 
     /// @return The count of withdrawals happened so far
     function getWithdrawalCount() external view returns (uint256) {
-        return withdrawalAddrs.length;
+        return withdrawalUTXOs.length;
     }
     
     /// @notice Sets the operator address that can process user deposits
@@ -165,6 +184,46 @@ contract Bridge is Ownable2StepUpgradeable {
         operator = _operator;
         emit OperatorUpdated(operator, _operator);
     }
+
+    function declareWithdrawFiller(TransactionParams calldata tp, uint256 inputIndex, uint256 outputIndex, uint256 withdrawId) public {
+        bytes32 wtxId = WitnessUtils.calculateWtxId(tp.version, tp.flag, tp.vin, tp.vout, tp.witness, tp.locktime);
+        require(BTCUtils.validateVin(tp.vin), "Vin is not properly formatted");
+        require(BTCUtils.validateVout(tp.vout), "Vout is not properly formatted");
+        
+        (, uint256 _nIns) = BTCUtils.parseVarInt(tp.vin);
+        require(_nIns == 1, "Only one input allowed");
+        // Number of inputs == number of witnesses
+        require(WitnessUtils.validateWitness(tp.witness, _nIns), "Witness is not properly formatted");
+
+        require(LIGHT_CLIENT.verifyInclusion(tp.block_height, wtxId, tp.intermediate_nodes, tp.index), "Transaction is not in block");
+
+        require(bytesToBytes32(BTCUtils.extractInputAtIndex(tp.vin, inputIndex)) == withdrawalUTXOs[withdrawId].txId);
+
+        bytes memory _output = BTCUtils.extractOutputAtIndex(tp.vout, outputIndex);//do we have to take output index is there a constant val for it
+        bytes32 withdrawFillerAddress = bytesToBytes32(BTCUtils.extractOpReturnData(_output));
+        withdrawFillers[withdrawId] = withdrawFillerAddress;
+    }
+
+    function markMaliciousOperator(bytes memory proofToKickoffRoot, TransactionParams calldata tp, uint256 inputIndex, uint256 depositId, uint256 operatorId) public {
+        bytes32 wtxId = WitnessUtils.calculateWtxId(tp.version, tp.flag, tp.vin, tp.vout, tp.witness, tp.locktime);
+        require(BTCUtils.validateVin(tp.vin), "Vin is not properly formatted");
+        require(BTCUtils.validateVout(tp.vout), "Vout is not properly formatted");
+        
+        (, uint256 _nIns) = BTCUtils.parseVarInt(tp.vin);
+        require(_nIns == 1, "Only one input allowed");
+        // Number of inputs == number of witnesses
+        require(WitnessUtils.validateWitness(tp.witness, _nIns), "Witness is not properly formatted");
+
+        require(LIGHT_CLIENT.verifyInclusion(tp.block_height, wtxId, tp.intermediate_nodes, tp.index), "Transaction is not in block");
+
+        bytes32 _txId = bytesToBytes32(BTCUtils.extractInputAtIndex(tp.vin, inputIndex));
+        bytes32 root = kickoffRoots[depositId];
+        require(ValidateSPV.prove(_txId, root, proofToKickoffRoot, operatorId), "Invalid proof");
+        if(withdrawFillers[depositId] == bytes32(0) || withdrawFillers[depositId] != operatorAddresses[operatorId]){
+            isOperatorMalicious[operatorId] = true;
+        }
+    } 
+
     
     /// @notice Checks if two byte sequences are equal in chunks of 32 bytes
     /// @dev This approach compares chunks of 32 bytes using bytes32 equality checks for optimization
@@ -204,5 +263,14 @@ contract Bridge is Ownable2StepUpgradeable {
         uint256 offset = depositScript.length;
         bytes20 _addr = bytes20(_script.slice(offset, 20));
         return address(uint160(_addr));
+    }
+
+    function bytesToBytes32(bytes memory source) private pure returns (bytes32 result) {
+        if (source.length == 0) {
+            return 0x0;
+        }
+        assembly {
+            result := mload(add(source, 32))
+        }
     }
 }
