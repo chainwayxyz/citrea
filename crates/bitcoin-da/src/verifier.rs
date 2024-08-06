@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::BTreeSet;
 
 use bitcoin::hashes::{sha256d, Hash};
 use bitcoin::{merkle_tree, Txid};
@@ -96,10 +96,13 @@ impl DaVerifier for BitcoinVerifier {
 
         // check that wtxid's of transactions in completeness proof are included in the InclusionMultiProof
         // and are in the same order as in the completeness proof
-        let mut iter = inclusion_proof.wtxids.iter();
-        completeness_proof
-            .iter()
-            .all(|tx| iter.any(|&y| y == tx.wtxid().to_byte_array()));
+        completeness_proof.iter().all(|tx| {
+            let wtxid = tx.wtxid();
+            inclusion_proof
+                .wtxids
+                .iter()
+                .any(|y| y == wtxid.as_byte_array())
+        });
 
         // verify that one of the outputs of the coinbase transaction has script pub key starting with 0x6a24aa21a9ed,
         // and the rest of the script pub key is the commitment of witness data.
@@ -111,7 +114,7 @@ impl DaVerifier for BitcoinVerifier {
             let commitment_idx = coinbase_tx.output.iter().rev().position(|output| {
                 output
                     .script_pubkey
-                    .to_bytes()
+                    .as_bytes()
                     .starts_with(&[0x6a, 0x24, 0xaa, 0x21, 0xa9, 0xed])
             });
             match commitment_idx {
@@ -136,14 +139,13 @@ impl DaVerifier for BitcoinVerifier {
                     let wtxids = inclusion_proof
                         .wtxids
                         .iter()
-                        .copied()
-                        .map(Txid::from_byte_array);
+                        .map(|wtxid| Txid::from_slice(wtxid).unwrap());
 
                     let merkle_root = merkle_tree::calculate_root(wtxids).unwrap();
 
                     let input_witness_value = coinbase_tx.input[0].witness.iter().next().unwrap();
 
-                    let mut vec_merkle = merkle_root.to_byte_array().to_vec();
+                    let mut vec_merkle = merkle_root.as_byte_array().to_vec();
 
                     vec_merkle.extend_from_slice(input_witness_value);
 
@@ -154,7 +156,7 @@ impl DaVerifier for BitcoinVerifier {
                     // on signet there is an additional commitment after the segwit commitment
                     // so we check only the first 32 bytes after commitment header (bytes [2, 5])
                     commitment_idx = coinbase_tx.output.len() - commitment_idx - 1; // The index is reversed
-                    let script_pubkey = coinbase_tx.output[commitment_idx].script_pubkey.to_bytes();
+                    let script_pubkey = coinbase_tx.output[commitment_idx].script_pubkey.as_bytes();
                     if script_pubkey[6..38] != *commitment.as_byte_array() {
                         return Err(ValidationError::NonMatchingScript);
                     }
@@ -169,7 +171,7 @@ impl DaVerifier for BitcoinVerifier {
 
         let prefix = self.reveal_tx_id_prefix.as_slice();
         // Check starting bytes tx that parsed correctly is in blobs
-        let mut completeness_tx_hashes = HashSet::new();
+        let mut completeness_tx_hashes = BTreeSet::new();
 
         for (index_completeness, tx) in completeness_proof.iter().enumerate() {
             let txid = tx.txid().to_byte_array();
@@ -252,10 +254,9 @@ impl DaVerifier for BitcoinVerifier {
         let tx_hashes = inclusion_proof
             .txids
             .iter()
-            .map(|tx| Txid::from_slice(tx).unwrap())
-            .collect::<Vec<_>>();
+            .map(|txid| Txid::from_slice(txid).unwrap());
 
-        if let Some(root_from_inclusion) = merkle_tree::calculate_root(tx_hashes.into_iter()) {
+        if let Some(root_from_inclusion) = merkle_tree::calculate_root(tx_hashes) {
             let root_from_inclusion = root_from_inclusion.to_raw_hash().to_byte_array();
 
             // Check that the tx root in the block header matches the tx root in the inclusion proof.
