@@ -49,7 +49,7 @@ where
 {
     start_l2_height: u64,
     start_l1_height: u64,
-    da_service: Da,
+    da_service: Arc<Da>,
     stf: Stf,
     storage_manager: Sm,
     ledger_db: DB,
@@ -71,7 +71,7 @@ where
 
 impl<Stf, Sm, Da, Vm, C, DB> CitreaFullnode<Stf, Sm, Da, Vm, C, DB>
 where
-    Da: DaService<Error = anyhow::Error> + Clone + Send + Sync + 'static,
+    Da: DaService<Error = anyhow::Error> + Send + Sync + 'static,
     Vm: ZkvmHost + Zkvm,
     Sm: HierarchicalStorageManager<Da::Spec>,
     Stf: StateTransitionFunction<
@@ -94,7 +94,7 @@ where
         runner_config: RunnerConfig,
         public_keys: RollupPublicKeys,
         rpc_config: RpcConfig,
-        da_service: Da,
+        da_service: Arc<Da>,
         ledger_db: DB,
         stf: Stf,
         mut storage_manager: Sm,
@@ -652,7 +652,7 @@ where
 
 async fn l1_sync<Da>(
     start_l1_height: u64,
-    da_service: Da,
+    da_service: Arc<Da>,
     sender: mpsc::Sender<Da::FilteredBlock>,
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
 ) where

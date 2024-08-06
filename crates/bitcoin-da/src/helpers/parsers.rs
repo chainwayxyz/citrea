@@ -183,7 +183,7 @@ fn parse_relevant_inscriptions(
     })
 }
 
-#[cfg(any(feature = "native", test))]
+#[cfg(test)]
 pub fn parse_hex_transaction(
     tx_hex: &str,
 ) -> Result<Transaction, bitcoin::consensus::encode::Error> {

@@ -18,12 +18,10 @@ tokio = { workspace = true, features = ["full"], optional = true }
 
 anyhow = { workspace = true }
 async-trait = { workspace = true }
-base64 = { workspace = true }
 borsh = { workspace = true }
 hex = { workspace = true, features = ["serde"] }
 pin-project = { workspace = true, optional = true, features = [] }
 rand = { workspace = true }
-reqwest = { workspace = true, optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true, features = ["raw_value"] }
 thiserror = { workspace = true }
@@ -33,11 +31,12 @@ bitcoin = { workspace = true }
 brotli = { workspace = true }
 futures.workspace = true
 
+bitcoincore-rpc.workspace = true
+
 [features]
 default = []
 native = [
   "dep:tokio",
-  "dep:reqwest",
   "dep:pin-project",
   "dep:tracing",
   "sov-rollup-interface/native",
