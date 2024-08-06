@@ -15,7 +15,8 @@ use bitcoin::consensus::{encode, Decodable};
 use bitcoin::hash_types::WitnessMerkleNode;
 use bitcoin::hashes::{sha256d, Hash};
 use bitcoin::secp256k1::SecretKey;
-use bitcoin::{merkle_tree, Amount, BlockHash, Transaction, Txid, Wtxid};
+use bitcoin::string::FromHexStr;
+use bitcoin::{merkle_tree, Amount, BlockHash, CompactTarget, Transaction, Txid, Wtxid};
 use bitcoincore_rpc::jsonrpc_async::Error as RpcError;
 use bitcoincore_rpc::{Auth, Client, Error, RpcApi};
 use serde::{Deserialize, Serialize};
@@ -443,7 +444,7 @@ impl DaService for BitcoinService {
 
             break;
         }
-        // block_hash.as_raw_hash().to_byte_array()
+
         let block = self.get_block_by_hash(block_hash).await?;
 
         Ok(block)
@@ -610,7 +611,7 @@ impl DaService for BitcoinService {
         let block = self.client.get_block_verbose(&hash).await?;
 
         let header: Header = Header {
-            bits: block.bits,
+            bits: CompactTarget::from_hex_str_no_prefix(block.bits)?,
             merkle_root: block.merkleroot,
             nonce: block.nonce,
             prev_blockhash: block.previousblockhash.unwrap_or_else(BlockHash::all_zeros),
