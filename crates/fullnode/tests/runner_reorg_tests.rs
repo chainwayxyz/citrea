@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use citrea_fullnode::CitreaFullnode;
 use sov_mock_da::{
     MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaConfig, MockDaService, MockDaSpec,
@@ -68,7 +70,7 @@ async fn test_simple_reorg_case() {
 
     let init_variant: MockInitVariant = InitVariant::Genesis(genesis_params);
 
-    let (before, after) = runner_execution(tmpdir.path(), init_variant, da_service).await;
+    let (before, after) = runner_execution(tmpdir.path(), init_variant, Arc::new(da_service)).await;
     assert_ne!(before, after);
     assert_eq!(expected_state_root, after);
 
@@ -104,7 +106,7 @@ async fn test_instant_finality_data_stored() {
 
     let init_variant: MockInitVariant = InitVariant::Genesis(genesis_params);
 
-    let (before, after) = runner_execution(tmpdir.path(), init_variant, da_service).await;
+    let (before, after) = runner_execution(tmpdir.path(), init_variant, Arc::new(da_service)).await;
     assert_ne!(before, after);
     assert_eq!(expected_state_root, after);
 
@@ -116,7 +118,7 @@ async fn test_instant_finality_data_stored() {
 async fn runner_execution(
     storage_path: &std::path::Path,
     init_variant: MockInitVariant,
-    da_service: MockDaService,
+    da_service: Arc<MockDaService>,
 ) -> ([u8; 32], [u8; 32]) {
     let rollup_storage_path = storage_path.join("rollup").to_path_buf();
     let rollup_config = FullNodeConfig::<MockDaConfig> {

@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use citrea_fullnode::CitreaFullnode;
 use sov_db::ledger_db::LedgerDB;
 use sov_mock_da::{MockAddress, MockDaConfig, MockDaService, MockDaSpec, MockValidityCond};
@@ -111,7 +113,7 @@ fn initialize_runner(
         rollup_config.runner.unwrap(),
         rollup_config.public_keys,
         rollup_config.rpc,
-        da_service,
+        Arc::new(da_service),
         ledger_db,
         stf,
         storage_manager,

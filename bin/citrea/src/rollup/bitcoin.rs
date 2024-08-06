@@ -1,5 +1,7 @@
+use std::sync::Arc;
+
 use async_trait::async_trait;
-use bitcoin_da::service::{BitcoinService, DaServiceConfig};
+use bitcoin_da::service::{BitcoinService, DaServiceConfig, TxidWrapper};
 use bitcoin_da::spec::{BitcoinSpec, RollupParams};
 use bitcoin_da::verifier::BitcoinVerifier;
 use citrea_primitives::{DA_TX_ID_LEADING_ZEROS, ROLLUP_NAME};
@@ -15,10 +17,12 @@ use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::da::DaVerifier;
+use sov_rollup_interface::services::da::BlobWithNotifier;
 use sov_rollup_interface::zk::{Zkvm, ZkvmHost};
 use sov_state::{DefaultStorageSpec, Storage, ZkStorage};
 use sov_stf_runner::{FullNodeConfig, ProverConfig};
 use tokio::sync::broadcast;
+use tokio::sync::mpsc::unbounded_channel;
 use tracing::instrument;
 
 use crate::CitreaRollupBlueprint;
@@ -60,7 +64,7 @@ impl RollupBlueprint for BitcoinRollup {
         &self,
         storage: &<Self::NativeContext as Spec>::Storage,
         ledger_db: &LedgerDB,
-        da_service: &Self::DaService,
+        da_service: &Arc<Self::DaService>,
         sequencer_client_url: Option<String>,
         soft_confirmation_rx: Option<broadcast::Receiver<u64>>,
     ) -> Result<jsonrpsee::RpcModule<()>, anyhow::Error> {
@@ -105,15 +109,24 @@ impl RollupBlueprint for BitcoinRollup {
     async fn create_da_service(
         &self,
         rollup_config: &FullNodeConfig<Self::DaConfig>,
-    ) -> Self::DaService {
-        BitcoinService::new(
-            rollup_config.da.clone(),
-            RollupParams {
-                rollup_name: ROLLUP_NAME.to_string(),
-                reveal_tx_id_prefix: DA_TX_ID_LEADING_ZEROS.to_vec(),
-            },
-        )
-        .await
+    ) -> Result<Arc<Self::DaService>, anyhow::Error> {
+        let (tx, rx) = unbounded_channel::<BlobWithNotifier<TxidWrapper>>();
+
+        let service = Arc::new(
+            BitcoinService::new(
+                rollup_config.da.clone(),
+                RollupParams {
+                    rollup_name: ROLLUP_NAME.to_string(),
+                    reveal_tx_id_prefix: DA_TX_ID_LEADING_ZEROS.to_vec(),
+                },
+                tx,
+            )
+            .await?,
+        );
+
+        Arc::clone(&service).spawn_da_queue(rx);
+
+        Ok(service)
     }
 
     #[instrument(level = "trace", skip_all)]
@@ -121,7 +134,7 @@ impl RollupBlueprint for BitcoinRollup {
         &self,
         prover_config: ProverConfig,
         _rollup_config: &FullNodeConfig<Self::DaConfig>,
-        _da_service: &Self::DaService,
+        _da_service: &Arc<Self::DaService>,
         ledger_db: LedgerDB,
     ) -> Self::ProverService {
         let vm = Risc0BonsaiHost::new(

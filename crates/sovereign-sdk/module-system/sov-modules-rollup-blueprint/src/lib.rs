@@ -4,6 +4,8 @@
 mod runtime_rpc;
 mod wallet;
 
+use std::sync::Arc;
+
 use async_trait::async_trait;
 pub use runtime_rpc::*;
 use sov_db::ledger_db::LedgerDB;
@@ -21,7 +23,7 @@ pub use wallet::*;
 #[async_trait]
 pub trait RollupBlueprint: Sized + Send + Sync {
     /// Data Availability service.
-    type DaService: DaService<Spec = Self::DaSpec, Error = anyhow::Error> + Clone + Send + Sync;
+    type DaService: DaService<Spec = Self::DaSpec, Error = anyhow::Error> + Send + Sync;
     /// A specification for the types used by a DA layer.
     type DaSpec: DaSpec + Send + Sync;
     /// Data Availability config.
@@ -66,7 +68,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         &self,
         storage: &<Self::NativeContext as Spec>::Storage,
         ledger_db: &LedgerDB,
-        da_service: &Self::DaService,
+        da_service: &Arc<Self::DaService>,
         sequencer_client_url: Option<String>,
         soft_confirmation_rx: Option<broadcast::Receiver<u64>>,
     ) -> Result<jsonrpsee::RpcModule<()>, anyhow::Error>;
@@ -99,14 +101,14 @@ pub trait RollupBlueprint: Sized + Send + Sync {
     async fn create_da_service(
         &self,
         rollup_config: &FullNodeConfig<Self::DaConfig>,
-    ) -> Self::DaService;
+    ) -> Result<Arc<Self::DaService>, anyhow::Error>;
 
     /// Creates instance of [`ProverService`].
     async fn create_prover_service(
         &self,
         prover_config: ProverConfig,
         rollup_config: &FullNodeConfig<Self::DaConfig>,
-        da_service: &Self::DaService,
+        da_service: &Arc<Self::DaService>,
         ledger_db: LedgerDB,
     ) -> Self::ProverService;
 

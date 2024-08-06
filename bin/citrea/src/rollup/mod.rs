@@ -33,7 +33,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
     where
         <Self::NativeContext as Spec>::Storage: NativeStorage,
     {
-        let da_service = self.create_da_service(&rollup_config).await;
+        let da_service = self.create_da_service(&rollup_config).await?;
 
         // TODO: Double check what kind of storage needed here.
         // Maybe whole "prev_root" can be initialized inside runner
@@ -112,7 +112,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
     where
         <Self::NativeContext as Spec>::Storage: NativeStorage,
     {
-        let da_service = self.create_da_service(&rollup_config).await;
+        let da_service = self.create_da_service(&rollup_config).await?;
 
         // TODO: Double check what kind of storage needed here.
         // Maybe whole "prev_root" can be initialized inside runner
@@ -195,7 +195,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
     where
         <Self::NativeContext as Spec>::Storage: NativeStorage,
     {
-        let da_service = self.create_da_service(&rollup_config).await;
+        let da_service = self.create_da_service(&rollup_config).await?;
 
         let ledger_db = self.create_ledger_db(&rollup_config);
 
