@@ -842,8 +842,10 @@ where
 
     #[instrument(level = "trace", skip(self), err, ret)]
     pub async fn run(&mut self) -> Result<(), anyhow::Error> {
-        // Resubmit if there were pending commitments on restart
-        self.resubmit_pending_commitments().await?;
+        if self.batch_hash != [0; 32] {
+            // Resubmit if there were pending commitments on restart, skip it on first init
+            self.resubmit_pending_commitments().await?;
+        }
 
         // TODO: hotfix for mock da
         self.da_service
