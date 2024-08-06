@@ -412,6 +412,15 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
                         .expect("API error, missing receipt on completed session");
 
                     tracing::info!("Receipt URL: {}", receipt_url);
+                    if let Some(stats) = res.stats {
+                        tracing::info!(
+                            "User cycles: {} - Total cycles: {} - Segments: {}",
+                            stats.cycles,
+                            stats.total_cycles,
+                            stats.segments,
+                        );
+                    }
+
                     let receipt_buf = client.download(receipt_url);
 
                     let receipt: Receipt = bincode::deserialize(&receipt_buf).unwrap();
