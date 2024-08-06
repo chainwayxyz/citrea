@@ -924,11 +924,7 @@ where
         loop {
             let block_production_tick = tokio::time::sleep(
                 target_block_time
-                    .checked_sub(
-                        parent_block_exec_time
-                            .checked_sub(target_block_time)
-                            .unwrap_or_default(),
-                    )
+                    .checked_sub(parent_block_exec_time)
                     .unwrap_or_default(),
             );
 
