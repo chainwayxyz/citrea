@@ -37,6 +37,7 @@ where
         zkvm: Zk,
         pre_state: Stf::PreState,
     ) -> Result<(), Da::Error> {
+        // don't delete useful for debugging
         // println!("Running sequencer commitments in DA slot");
         let data: StateTransitionData<Stf::StateRoot, _, Da::Spec> = zkvm.read_from_host();
         let validity_condition = self.da_verifier.verify_relevant_tx_list(
@@ -46,6 +47,7 @@ where
             data.completeness_proof,
         )?;
 
+        // don't delete useful for debugging
         // println!("going into apply_soft_confirmations_from_sequencer_commitments");
         let (final_state_root, state_diff) = self
             .app
@@ -63,6 +65,7 @@ where
                 data.soft_confirmations,
             );
 
+        // don't delete useful for debugging
         // println!("out of apply_soft_confirmations_from_sequencer_commitments");
         assert_eq!(
             final_state_root.as_ref(),
