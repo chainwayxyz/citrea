@@ -48,6 +48,7 @@ endif
 
 lint:  ## cargo check and clippy. Skip clippy on guest code since it's not supported by risc0
 	## fmt first, because it's the cheapest
+	dprint check
 	cargo +nightly fmt --all --check
 	cargo check --all-targets --all-features
 	$(MAKE) check-fuzz
