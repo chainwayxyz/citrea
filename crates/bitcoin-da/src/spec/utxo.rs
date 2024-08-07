@@ -1,5 +1,6 @@
 use bitcoin::address::NetworkUnchecked;
 use bitcoin::{Address, Txid};
+#[cfg(feature = "native")]
 use bitcoincore_rpc::json::ListUnspentResultEntry;
 use serde::{Deserialize, Serialize};
 
@@ -15,6 +16,7 @@ pub struct UTXO {
     pub solvable: bool,
 }
 
+#[cfg(feature = "native")]
 impl From<ListUnspentResultEntry> for UTXO {
     fn from(v: ListUnspentResultEntry) -> Self {
         Self {
