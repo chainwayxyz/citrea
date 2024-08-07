@@ -139,7 +139,7 @@ impl DaVerifier for BitcoinVerifier {
                     let wtxids = inclusion_proof
                         .wtxids
                         .iter()
-                        .map(|wtxid| Txid::from_slice(wtxid).unwrap());
+                        .map(|wtxid| Txid::from_byte_array(*wtxid));
 
                     let merkle_root = merkle_tree::calculate_root(wtxids).unwrap();
 
@@ -254,7 +254,7 @@ impl DaVerifier for BitcoinVerifier {
         let tx_hashes = inclusion_proof
             .txids
             .iter()
-            .map(|txid| Txid::from_slice(txid).unwrap());
+            .map(|txid| Txid::from_byte_array(*txid));
 
         if let Some(root_from_inclusion) = merkle_tree::calculate_root(tx_hashes) {
             let root_from_inclusion = root_from_inclusion.to_raw_hash().to_byte_array();
