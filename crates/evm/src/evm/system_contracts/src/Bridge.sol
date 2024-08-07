@@ -111,19 +111,9 @@ contract Bridge is Ownable2StepUpgradeable {
         // only the system caller can execute a transaction on Citrea, as no addresses have any balance. Thus there's no risk of 
         // `deposit` being called before `initialize` maliciously.
         
-        bytes32 wtxId = WitnessUtils.calculateWtxId(tp.version, tp.flag, tp.vin, tp.vout, tp.witness, tp.locktime);
+        bytes32 wtxId = validateAndCheckInclusion(tp);
         require(!spentWtxIds[wtxId], "wtxId already spent");
         spentWtxIds[wtxId] = true;
-
-        require(BTCUtils.validateVin(tp.vin), "Vin is not properly formatted");
-        require(BTCUtils.validateVout(tp.vout), "Vout is not properly formatted");
-        
-        (, uint256 _nIns) = BTCUtils.parseVarInt(tp.vin);
-        require(_nIns == 1, "Only one input allowed");
-        // Number of inputs == number of witnesses
-        require(WitnessUtils.validateWitness(tp.witness, _nIns), "Witness is not properly formatted");
-
-        require(LIGHT_CLIENT.verifyInclusion(tp.block_height, wtxId, tp.intermediate_nodes, tp.index), "Transaction is not in block");
 
         bytes memory witness0 = WitnessUtils.extractWitnessAtIndex(tp.witness, 0);
         (, uint256 _nItems) = BTCUtils.parseVarInt(witness0);
@@ -188,28 +178,17 @@ contract Bridge is Ownable2StepUpgradeable {
         emit OperatorUpdated(operator, _operator);
     }
 
-    function declareWithdrawFiller(TransactionParams calldata tp, uint256 inputIndex, uint256 outputIndex, uint256 withdrawId) public {
-        bytes32 wtxId = WitnessUtils.calculateWtxId(tp.version, tp.flag, tp.vin, tp.vout, tp.witness, tp.locktime);
-        require(BTCUtils.validateVin(tp.vin), "Vin is not properly formatted");
-        require(BTCUtils.validateVout(tp.vout), "Vout is not properly formatted");
-
-        require(LIGHT_CLIENT.verifyInclusion(tp.block_height, wtxId, tp.intermediate_nodes, tp.index), "Transaction is not in block");
-
+    function declareWithdrawFiller(TransactionParams calldata tp, uint256 inputIndex, uint256 outputIndex, uint256 withdrawId) external {
+        validateAndCheckInclusion(tp);
         require(bytesToBytes32(BTCUtils.extractInputAtIndex(tp.vin, inputIndex)) == withdrawalUTXOs[withdrawId].txId);
-
         bytes memory _output = BTCUtils.extractOutputAtIndex(tp.vout, outputIndex);//do we have to take output index is there a constant val for it
         bytes32 withdrawFillerAddress = bytesToBytes32(BTCUtils.extractOpReturnData(_output));
         withdrawFillers[withdrawId] = withdrawFillerAddress;
         emit WithdrawFillerDeclared(withdrawId, withdrawFillerAddress);
     }
 
-    function markMaliciousOperator(bytes memory proofToKickoffRoot, TransactionParams calldata tp, uint256 inputIndex, uint256 depositId, uint256 operatorId) public {
-        bytes32 wtxId = WitnessUtils.calculateWtxId(tp.version, tp.flag, tp.vin, tp.vout, tp.witness, tp.locktime);
-        require(BTCUtils.validateVin(tp.vin), "Vin is not properly formatted");
-        require(BTCUtils.validateVout(tp.vout), "Vout is not properly formatted");
-
-        require(LIGHT_CLIENT.verifyInclusion(tp.block_height, wtxId, tp.intermediate_nodes, tp.index), "Transaction is not in block");
-
+    function markMaliciousOperator(bytes memory proofToKickoffRoot, TransactionParams calldata tp, uint256 inputIndex, uint256 depositId, uint256 operatorId) external {
+        validateAndCheckInclusion(tp);
         bytes32 _txId = bytesToBytes32(BTCUtils.extractInputAtIndex(tp.vin, inputIndex));
         bytes32 root = kickoffRoots[depositId];
         require(ValidateSPV.prove(_txId, root, proofToKickoffRoot, operatorId), "Invalid proof");
@@ -252,6 +231,22 @@ contract Bridge is Ownable2StepUpgradeable {
         }
 
         return true;
+    }
+
+    // TODO: Consider not validating witness for non-deposit functions
+    function validateAndCheckInclusion(TransactionParams calldata tp) internal view returns (bytes32) {
+        bytes32 wtxId = WitnessUtils.calculateWtxId(tp.version, tp.flag, tp.vin, tp.vout, tp.witness, tp.locktime);
+
+        require(BTCUtils.validateVin(tp.vin), "Vin is not properly formatted");
+        require(BTCUtils.validateVout(tp.vout), "Vout is not properly formatted");
+        
+        (, uint256 _nIns) = BTCUtils.parseVarInt(tp.vin);
+        require(_nIns == 1, "Only one input allowed");
+        // Number of inputs == number of witnesses
+        require(WitnessUtils.validateWitness(tp.witness, _nIns), "Witness is not properly formatted");
+
+        require(LIGHT_CLIENT.verifyInclusion(tp.block_height, wtxId, tp.intermediate_nodes, tp.index), "Transaction is not in block");
+        return wtxId;
     }
 
     function extractRecipientAddress(bytes memory _script) internal view returns (address) {
