@@ -46,7 +46,6 @@ borsh = { workspace = true, features = ["bytes"] }
 clap = { workspace = true }
 hex = { workspace = true, optional = true }
 jsonrpsee = { workspace = true, features = ["http-client", "server"] }
-lazy_static = { workspace = true }
 log-panics = { workspace = true }
 reth-primitives = { workspace = true }
 reth-rpc-types = { workspace = true }

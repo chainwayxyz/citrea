@@ -1,6 +1,7 @@
 use std::collections::VecDeque;
 
 use sov_rollup_interface::spec::SpecId;
+#[cfg(feature = "native")]
 use tracing::info;
 
 use super::ForkMigration;
@@ -52,7 +53,9 @@ impl Fork for ForkManager {
     fn register_block(&mut self, height: u64) -> anyhow::Result<()> {
         if let Some((new_spec, activation_block_height)) = self.specs.front() {
             if height == *activation_block_height {
+                #[cfg(feature = "native")]
                 info!("Activating fork {:?} at height: {}", *new_spec, height);
+
                 self.active_spec = *new_spec;
                 for handler in self.migration_handlers.iter() {
                     handler.spec_activated(self.active_spec)?;
@@ -62,4 +65,19 @@ impl Fork for ForkManager {
         }
         Ok(())
     }
+}
+
+/// Simple search for the fork to which a specific block number blongs.
+/// This assumes that the list of forks is sorted by block number in ascending fashion.
+pub fn fork_from_block_number(forks: &[(SpecId, u64)], block_number: u64) -> SpecId {
+    let mut fork = forks[0].0;
+    if forks.len() == 1 {
+        return fork;
+    }
+    for (spec_id, activation_block) in &forks[1..] {
+        if block_number >= *activation_block {
+            fork = *spec_id;
+        }
+    }
+    fork
 }

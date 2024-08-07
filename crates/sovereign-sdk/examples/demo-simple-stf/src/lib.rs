@@ -134,7 +134,6 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
 
     fn apply_soft_confirmations_from_sequencer_commitments(
         &self,
-        _current_spec: SpecId,
         _sequencer_public_key: &[u8],
         _sequencer_da_public_key: &[u8],
         _initial_state_root: &Self::StateRoot,
@@ -146,6 +145,7 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
         _slot_headers: std::collections::VecDeque<Vec<<Da as DaSpec>::BlockHeader>>,
         _validity_condition: &<Da as DaSpec>::ValidityCondition,
         _soft_batch: std::collections::VecDeque<Vec<SignedSoftConfirmationBatch>>,
+        _forks: Vec<(SpecId, u64)>,
     ) -> (Self::StateRoot, CumulativeStateDiff) {
         todo!()
     }

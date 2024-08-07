@@ -1,12 +1,8 @@
 #![deny(missing_docs)]
 #![doc = include_str!("../README.md")]
 
-mod batch;
-mod stf_blueprint;
-mod tx_verifier;
-
-pub use batch::Batch;
 use borsh::BorshDeserialize;
+use citrea_primitives::fork::{fork_from_block_number, Fork, ForkManager};
 use itertools::Itertools;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
@@ -27,6 +23,12 @@ pub use sov_rollup_interface::stf::{BatchReceipt, TransactionReceipt};
 use sov_rollup_interface::stf::{SlotResult, StateTransitionFunction};
 use sov_rollup_interface::zk::CumulativeStateDiff;
 use sov_state::Storage;
+
+mod batch;
+mod stf_blueprint;
+mod tx_verifier;
+
+pub use batch::Batch;
 pub use stf_blueprint::StfBlueprint;
 pub use tx_verifier::RawTx;
 
@@ -481,7 +483,6 @@ where
 
     fn apply_soft_confirmations_from_sequencer_commitments(
         &self,
-        current_spec: SpecId,
         sequencer_public_key: &[u8],
         sequencer_da_public_key: &[u8],
         initial_state_root: &Self::StateRoot,
@@ -493,6 +494,7 @@ where
         slot_headers: std::collections::VecDeque<Vec<<Da as DaSpec>::BlockHeader>>,
         validity_condition: &<Da as DaSpec>::ValidityCondition,
         soft_confirmations: std::collections::VecDeque<Vec<SignedSoftConfirmationBatch>>,
+        forks: Vec<(SpecId, u64)>,
     ) -> (Self::StateRoot, CumulativeStateDiff) {
         let mut state_diff = CumulativeStateDiff::default();
 
@@ -659,6 +661,10 @@ where
             let mut da_block_headers_iter = da_block_headers.into_iter().peekable();
             let mut da_block_header = da_block_headers_iter.next().unwrap();
 
+            let mut l2_height = sequencer_commitment.l2_start_block_number;
+            let mut current_spec = fork_from_block_number(&forks, l2_height);
+            let mut fork_manager = ForkManager::new(l2_height, current_spec, forks.clone());
+
             // now that we verified the claimed root, we can apply the soft confirmations
             // should panic if the number of witnesses and soft confirmations don't match
             for (mut soft_confirmation, witness) in soft_confirmations.into_iter().zip_eq(witnesses)
@@ -680,7 +686,18 @@ where
 
                 current_state_root = result.state_root;
                 state_diff.extend(result.state_diff);
+
+                // Notify fork manager about the block so that the next spec / fork
+                // is transitioned into if criteria is met.
+                if let Err(e) = fork_manager.register_block(l2_height) {
+                    panic!("Fork transition failed {}", e);
+                }
+                l2_height += 1;
+
+                // Update current spec for the next iteration
+                current_spec = fork_manager.active_fork();
             }
+            assert_eq!(l2_height, sequencer_commitment.l2_end_block_number);
         }
 
         (current_state_root, state_diff)

@@ -1772,7 +1772,6 @@ dependencies = [
  "hex",
  "humantime",
  "jsonrpsee",
- "lazy_static",
  "log",
  "log-panics",
  "proptest",
@@ -1888,6 +1887,7 @@ version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "backoff",
+ "lazy_static",
  "lru",
  "serde",
  "sov-rollup-interface",
@@ -2009,6 +2009,7 @@ dependencies = [
  "anyhow",
  "borsh",
  "citrea-evm",
+ "citrea-primitives",
  "clap",
  "hex",
  "jsonrpsee",
@@ -8714,6 +8715,7 @@ version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "borsh",
+ "citrea-primitives",
  "hex",
  "itertools 0.13.0",
  "jmt",

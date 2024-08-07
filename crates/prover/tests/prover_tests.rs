@@ -209,7 +209,6 @@ fn make_transition_data(
     header_hash: MockHash,
 ) -> StateTransitionData<[u8; 0], Vec<u8>, MockDaSpec> {
     StateTransitionData {
-        current_spec: SpecId::Genesis,
         initial_state_root: [],
         final_state_root: [],
         initial_batch_hash: [0; 32],

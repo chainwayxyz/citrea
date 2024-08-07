@@ -13,6 +13,7 @@ sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
 # 3rd-party deps
 anyhow = { workspace = true }
 backoff = { workspace = true, optional = true }
+lazy_static = { workspace = true }
 lru = { workspace = true, optional = true }
 serde = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true }

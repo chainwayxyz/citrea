@@ -1,11 +1,11 @@
 [package]
 name = "sov-modules-stf-blueprint"
-description = "Defines a generic state transition function for use with the Sovereign SDK module system"
 authors = { workspace = true }
 edition = { workspace = true }
 homepage = { workspace = true }
 license = { workspace = true }
 repository = { workspace = true }
+description = "Defines a generic state transition function for use with the Sovereign SDK module system"
 
 version = { workspace = true }
 readme = "README.md"
@@ -33,6 +33,9 @@ sov-rollup-interface = { path = "../../rollup-interface" }
 sov-state = { path = "../sov-state" }
 sov-zk-cycle-macros = { path = "../../utils/zk-cycle-macros", optional = true }
 sov-zk-cycle-utils = { path = "../../utils/zk-cycle-utils", optional = true }
+
+# Citrea Deps
+citrea-primitives = { path = "../../../primitives" }
 
 [features]
 bench = ["sov-zk-cycle-macros", "risc0-zkvm", "risc0-zkvm-platform"]

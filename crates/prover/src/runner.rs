@@ -503,7 +503,6 @@ where
 
             let transition_data: StateTransitionData<Stf::StateRoot, Stf::Witness, Da::Spec> =
                 StateTransitionData {
-                    current_spec: self.fork_manager.active_fork(),
                     initial_state_root,
                     final_state_root,
                     initial_batch_hash,
