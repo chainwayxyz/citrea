@@ -697,7 +697,7 @@ where
                 // Update current spec for the next iteration
                 current_spec = fork_manager.active_fork();
             }
-            assert_eq!(l2_height, sequencer_commitment.l2_end_block_number);
+            assert_eq!(sequencer_commitment.l2_end_block_number, l2_height - 1);
         }
 
         (current_state_root, state_diff)
