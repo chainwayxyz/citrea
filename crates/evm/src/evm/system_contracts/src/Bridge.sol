@@ -52,6 +52,8 @@ contract Bridge is Ownable2StepUpgradeable {
     event Withdrawal(UTXO utxo, uint256 index, uint256 timestamp);
     event DepositScriptUpdate(bytes depositScript, bytes scriptSuffix, uint256 requiredSigsCount);
     event OperatorUpdated(address oldOperator, address newOperator);
+    event WithdrawFillerDeclared(uint256 withdrawId, bytes32 withdrawFillerAddress);
+    event MaliciousOperatorMarked(uint256 operatorId);
 
     modifier onlySystem() {
         require(msg.sender == SYSTEM_CALLER, "caller is not the system caller");
@@ -161,7 +163,8 @@ contract Bridge is Ownable2StepUpgradeable {
     /// @param txIds the txIds of the withdrawal transactions on Bitcoin
     /// @param outputIds the outputIds of the outputs in the withdrawal transactions
     function batchWithdraw(bytes32[] calldata txIds, uint32[] calldata outputIds) external payable {
-        require(msg.value == DEPOSIT_AMOUNT * txIds.length && msg.value == DEPOSIT_AMOUNT * outputIds.length, "Invalid withdraw amount");
+        require(txIds.length == outputIds.length, "Length mismatch");
+        require(msg.value == DEPOSIT_AMOUNT * txIds.length, "Invalid withdraw amount");
         uint256 index = withdrawalUTXOs.length;
         for (uint i = 0; i < txIds.length; i++) {
             UTXO memory utxo = UTXO({
@@ -189,11 +192,6 @@ contract Bridge is Ownable2StepUpgradeable {
         bytes32 wtxId = WitnessUtils.calculateWtxId(tp.version, tp.flag, tp.vin, tp.vout, tp.witness, tp.locktime);
         require(BTCUtils.validateVin(tp.vin), "Vin is not properly formatted");
         require(BTCUtils.validateVout(tp.vout), "Vout is not properly formatted");
-        
-        (, uint256 _nIns) = BTCUtils.parseVarInt(tp.vin);
-        require(_nIns == 1, "Only one input allowed");
-        // Number of inputs == number of witnesses
-        require(WitnessUtils.validateWitness(tp.witness, _nIns), "Witness is not properly formatted");
 
         require(LIGHT_CLIENT.verifyInclusion(tp.block_height, wtxId, tp.intermediate_nodes, tp.index), "Transaction is not in block");
 
@@ -202,17 +200,13 @@ contract Bridge is Ownable2StepUpgradeable {
         bytes memory _output = BTCUtils.extractOutputAtIndex(tp.vout, outputIndex);//do we have to take output index is there a constant val for it
         bytes32 withdrawFillerAddress = bytesToBytes32(BTCUtils.extractOpReturnData(_output));
         withdrawFillers[withdrawId] = withdrawFillerAddress;
+        emit WithdrawFillerDeclared(withdrawId, withdrawFillerAddress);
     }
 
     function markMaliciousOperator(bytes memory proofToKickoffRoot, TransactionParams calldata tp, uint256 inputIndex, uint256 depositId, uint256 operatorId) public {
         bytes32 wtxId = WitnessUtils.calculateWtxId(tp.version, tp.flag, tp.vin, tp.vout, tp.witness, tp.locktime);
         require(BTCUtils.validateVin(tp.vin), "Vin is not properly formatted");
         require(BTCUtils.validateVout(tp.vout), "Vout is not properly formatted");
-        
-        (, uint256 _nIns) = BTCUtils.parseVarInt(tp.vin);
-        require(_nIns == 1, "Only one input allowed");
-        // Number of inputs == number of witnesses
-        require(WitnessUtils.validateWitness(tp.witness, _nIns), "Witness is not properly formatted");
 
         require(LIGHT_CLIENT.verifyInclusion(tp.block_height, wtxId, tp.intermediate_nodes, tp.index), "Transaction is not in block");
 
@@ -222,7 +216,8 @@ contract Bridge is Ownable2StepUpgradeable {
         if(withdrawFillers[depositId] == bytes32(0) || withdrawFillers[depositId] != operatorAddresses[operatorId]){
             isOperatorMalicious[operatorId] = true;
         }
-    } 
+        emit MaliciousOperatorMarked(operatorId);
+    }
 
     
     /// @notice Checks if two byte sequences are equal in chunks of 32 bytes
@@ -265,10 +260,8 @@ contract Bridge is Ownable2StepUpgradeable {
         return address(uint160(_addr));
     }
 
-    function bytesToBytes32(bytes memory source) private pure returns (bytes32 result) {
-        if (source.length == 0) {
-            return 0x0;
-        }
+    function bytesToBytes32(bytes memory source) internal pure returns (bytes32 result) {
+        require(source.length > 0 && source.length <= 32, "Invalid source length");
         assembly {
             result := mload(add(source, 32))
         }
