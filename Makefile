@@ -53,7 +53,8 @@ lint:  ## cargo check and clippy. Skip clippy on guest code since it's not suppo
 	$(MAKE) check-fuzz
 	SKIP_GUEST_BUILD=1 cargo clippy --all-targets --all-features
 
-lint-fix:  ## cargo fmt, fix and clippy. Skip clippy on guest code since it's not supported by risc0
+lint-fix:  ## dprint fmt, cargo fmt, fix and clippy. Skip clippy on guest code since it's not supported by risc0
+	dprint fmt
 	cargo +nightly fmt --all
 	cargo fix --allow-dirty
 	SKIP_GUEST_BUILD=1 cargo clippy --fix --allow-dirty
