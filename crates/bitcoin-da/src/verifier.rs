@@ -97,10 +97,13 @@ impl DaVerifier for BitcoinVerifier {
         // check that wtxid's of transactions in completeness proof are included in the InclusionMultiProof
         // and are in the same order as in the completeness proof
         let mut iter = inclusion_proof.wtxids.iter();
-        completeness_proof.iter().all(|tx| {
+        let is_wtxs_found_in_proof = completeness_proof.iter().all(|tx| {
             let wtxid = tx.wtxid();
             iter.any(|y| y == wtxid.as_byte_array())
         });
+        if !is_wtxs_found_in_proof {
+            return Err(ValidationError::IncorrectInclusionProof);
+        }
 
         // verify that one of the outputs of the coinbase transaction has script pub key starting with 0x6a24aa21a9ed,
         // and the rest of the script pub key is the commitment of witness data.
