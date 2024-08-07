@@ -96,12 +96,10 @@ impl DaVerifier for BitcoinVerifier {
 
         // check that wtxid's of transactions in completeness proof are included in the InclusionMultiProof
         // and are in the same order as in the completeness proof
+        let mut iter = inclusion_proof.wtxids.iter();
         completeness_proof.iter().all(|tx| {
             let wtxid = tx.wtxid();
-            inclusion_proof
-                .wtxids
-                .iter()
-                .any(|y| y == wtxid.as_byte_array())
+            iter.any(|y| y == wtxid.as_byte_array())
         });
 
         // verify that one of the outputs of the coinbase transaction has script pub key starting with 0x6a24aa21a9ed,
