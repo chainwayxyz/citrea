@@ -40,5 +40,5 @@ native = [
   "dep:pin-project",
   "dep:tracing",
   "sov-rollup-interface/native",
-  "dep:bitcoincore-rpc"
+  "dep:bitcoincore-rpc",
 ]
