@@ -4,7 +4,6 @@ use std::path::{Path, PathBuf};
 
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
-use shared_backup_db::SharedBackupDbConfig;
 
 use crate::ProverGuestRunConfig;
 
@@ -130,8 +129,6 @@ pub struct ProverConfig {
     pub proving_mode: ProverGuestRunConfig,
     /// Average number of commitments to prove
     pub proof_sampling_number: usize,
-    /// Offchain db config
-    pub db_config: Option<SharedBackupDbConfig>,
 }
 
 impl Default for ProverConfig {
@@ -139,7 +136,6 @@ impl Default for ProverConfig {
         Self {
             proving_mode: ProverGuestRunConfig::Execute,
             proof_sampling_number: 0,
-            db_config: None,
         }
     }
 }
@@ -252,7 +248,6 @@ mod tests {
         let expected = ProverConfig {
             proving_mode: ProverGuestRunConfig::Skip,
             proof_sampling_number: 500,
-            db_config: Some(SharedBackupDbConfig::default()),
         };
         assert_eq!(config, expected);
     }

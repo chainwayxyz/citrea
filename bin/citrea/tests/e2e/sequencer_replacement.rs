@@ -36,12 +36,6 @@ async fn test_sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Erro
     let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
     let fullnode_db_dir = storage_dir.path().join("full-node").to_path_buf();
 
-    let psql_db_name = "sequencer_crash_and_replace_full_node".to_owned();
-
-    let db_test_client = PostgresConnector::new_test_client(psql_db_name.clone())
-        .await
-        .unwrap();
-
     let mut sequencer_config = create_default_sequencer_config(4, Some(true), 10);
 
     sequencer_config.db_config = Some(SharedBackupDbConfig::default().set_db_name(psql_db_name));
