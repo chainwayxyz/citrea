@@ -254,8 +254,8 @@ impl DaVerifier for BitcoinVerifier {
         // Inclusion proof is all the txs in the block.
         let tx_hashes = inclusion_proof
             .txids
-            .iter()
-            .map(|txid| Txid::from_byte_array(*txid));
+            .into_iter()
+            .map(Txid::from_byte_array);
 
         if let Some(root_from_inclusion) = merkle_tree::calculate_root(tx_hashes) {
             let root_from_inclusion = root_from_inclusion.to_raw_hash().to_byte_array();
