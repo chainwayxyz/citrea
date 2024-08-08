@@ -52,7 +52,7 @@ contract Bridge is Ownable2StepUpgradeable {
     event Withdrawal(UTXO utxo, uint256 index, uint256 timestamp);
     event DepositScriptUpdate(bytes depositScript, bytes scriptSuffix, uint256 requiredSigsCount);
     event OperatorUpdated(address oldOperator, address newOperator);
-    event WithdrawFillerDeclared(uint256 withdrawId, bytes32 withdrawFillerAddress);
+    event WithdrawFillerDeclared(uint256 withdrawId, uint256 withdrawFillerId);
     event MaliciousOperatorMarked(uint256 operatorId);
 
     modifier onlySystem() {
@@ -182,13 +182,17 @@ contract Bridge is Ownable2StepUpgradeable {
         validateAndCheckInclusion(tp);
         require(bytesToBytes32(BTCUtils.extractInputAtIndex(tp.vin, inputIndex)) == withdrawalUTXOs[withdrawId].txId);
         bytes memory _output = BTCUtils.extractOutputAtIndex(tp.vout, outputIndex);//do we have to take output index is there a constant val for it
-        bytes32 withdrawFillerAddress = bytesToBytes32(BTCUtils.extractOpReturnData(_output));
-        withdrawFillers[withdrawId] = withdrawFillerAddress;
-        emit WithdrawFillerDeclared(withdrawId, withdrawFillerAddress);
+        uint256 withdrawFillerId = uint256(bytesToBytes32(BTCUtils.extractOpReturnData(_output)));
+        withdrawFillers[withdrawId] = operatorAddresses[withdrawFillerId];
+        emit WithdrawFillerDeclared(withdrawId, withdrawFillerId);
     }
 
     function markMaliciousOperator(bytes memory proofToKickoffRoot, TransactionParams calldata tp, uint256 inputIndex, uint256 depositId, uint256 operatorId) external {
         validateAndCheckInclusion(tp);
+
+        bytes memory scriptPubkey = BTCUtils.extractHash(BTCUtils.extractOutputAtIndex(tp.vout, 0));
+        require(bytesToBytes32(scriptPubkey) == calculateKickoff2Address(operatorId), "Invalid kickoff2Address");
+
         bytes32 _txId = bytesToBytes32(BTCUtils.extractInputAtIndex(tp.vin, inputIndex));
         bytes32 root = kickoffRoots[depositId];
         require(ValidateSPV.prove(_txId, root, proofToKickoffRoot, operatorId), "Invalid proof");
@@ -196,6 +200,10 @@ contract Bridge is Ownable2StepUpgradeable {
             isOperatorMalicious[operatorId] = true;
         }
         emit MaliciousOperatorMarked(operatorId);
+    }
+
+    function calculateKickoff2Address(uint256 operatorId) internal view returns (bytes32) {
+        
     }
 
     
