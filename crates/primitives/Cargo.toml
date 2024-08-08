@@ -19,6 +19,10 @@ serde = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true }
 tracing = { workspace = true, optional = true }
 
+[dev-dependencies]
+# Sov SDK deps
+sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface", features = ["testing"] }
+
 [features]
 native = [
   "dep:backoff",
