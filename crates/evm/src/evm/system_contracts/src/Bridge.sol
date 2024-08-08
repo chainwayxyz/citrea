@@ -47,6 +47,7 @@ contract Bridge is Ownable2StepUpgradeable {
     bytes32[] public kickoffRoots;
     mapping(uint256 => bytes32) public withdrawFillers;
     mapping(uint256 => bytes32) public operatorAddresses;
+    mapping(uint256 => bytes32) public kickoff2Addresses;
     
     event Deposit(bytes32 wtxId, address recipient, uint256 timestamp);
     event Withdrawal(UTXO utxo, uint256 index, uint256 timestamp);
@@ -191,7 +192,7 @@ contract Bridge is Ownable2StepUpgradeable {
         validateAndCheckInclusion(tp);
 
         bytes memory scriptPubkey = BTCUtils.extractHash(BTCUtils.extractOutputAtIndex(tp.vout, 0));
-        require(bytesToBytes32(scriptPubkey) == calculateKickoff2Address(operatorId), "Invalid kickoff2Address");
+        require(bytesToBytes32(scriptPubkey) == kickoff2Addresses[operatorId], "Invalid kickoff2Address");
 
         bytes32 _txId = bytesToBytes32(BTCUtils.extractInputAtIndex(tp.vin, inputIndex));
         bytes32 root = kickoffRoots[depositId];
@@ -200,10 +201,6 @@ contract Bridge is Ownable2StepUpgradeable {
             isOperatorMalicious[operatorId] = true;
         }
         emit MaliciousOperatorMarked(operatorId);
-    }
-
-    function calculateKickoff2Address(uint256 operatorId) internal view returns (bytes32) {
-        
     }
 
     
