@@ -5,7 +5,7 @@ use std::io::{BufWriter, Write};
 
 use anyhow::anyhow;
 use bitcoin::absolute::LockTime;
-use bitcoin::blockdata::opcodes::all::{OP_CHECKSIG, OP_ENDIF, OP_IF};
+use bitcoin::blockdata::opcodes::all::{OP_CHECKSIG, OP_DROP, OP_ENDIF, OP_IF};
 use bitcoin::blockdata::opcodes::OP_FALSE;
 use bitcoin::blockdata::script;
 use bitcoin::hashes::{sha256d, Hash};
@@ -22,7 +22,7 @@ use bitcoin::{
 };
 use tracing::{instrument, trace, warn};
 
-use crate::helpers::{BODY_TAG, PUBLICKEY_TAG, RANDOM_TAG, ROLLUP_NAME_TAG, SIGNATURE_TAG};
+use super::{TransactionHeader, TransactionKind};
 use crate::spec::utxo::UTXO;
 use crate::REVEAL_OUTPUT_AMOUNT;
 
@@ -327,7 +327,43 @@ pub fn create_inscription_transactions(
     rollup_name: &str,
     body: Vec<u8>,
     signature: Vec<u8>,
-    sequencer_public_key: Vec<u8>,
+    signer_public_key: Vec<u8>,
+    prev_tx: Option<TxWithId>,
+    utxos: Vec<UTXO>,
+    recipient: Address,
+    reveal_value: u64,
+    commit_fee_rate: f64,
+    reveal_fee_rate: f64,
+    network: Network,
+    reveal_tx_prefix: &[u8],
+) -> Result<(Transaction, TxWithId), anyhow::Error> {
+    // Assume body size < 400kb:
+    create_inscription_type_0(
+        rollup_name.as_bytes(),
+        body,
+        signature,
+        signer_public_key,
+        prev_tx,
+        utxos,
+        recipient,
+        reveal_value,
+        commit_fee_rate,
+        reveal_fee_rate,
+        network,
+        reveal_tx_prefix,
+    )
+}
+
+// TODO: parametrize hardness
+// so tests are easier
+// Creates the inscription transactions (commit and reveal) Type 0
+#[allow(clippy::too_many_arguments)]
+#[instrument(level = "trace", skip_all, err)]
+pub fn create_inscription_type_0(
+    rollup_name: &[u8],
+    body: Vec<u8>,
+    signature: Vec<u8>,
+    signer_public_key: Vec<u8>,
     prev_tx: Option<TxWithId>,
     utxos: Vec<UTXO>,
     recipient: Address,
@@ -342,28 +378,35 @@ pub fn create_inscription_transactions(
     let key_pair = UntweakedKeypair::new(&secp256k1, &mut rand::thread_rng());
     let (public_key, _parity) = XOnlyPublicKey::from_keypair(&key_pair);
 
+    let header = TransactionHeader {
+        rollup_name,
+        kind: TransactionKind::Complete,
+    };
+    let header_bytes = header.to_bytes();
+
     // start creating inscription content
-    let reveal_script_builder = script::Builder::new()
+    let mut reveal_script_builder = script::Builder::new()
+        .push_slice(PushBytesBuf::try_from(header_bytes).expect("Cannot push header"))
         .push_x_only_key(&public_key)
         .push_opcode(OP_CHECKSIG)
         .push_opcode(OP_FALSE)
         .push_opcode(OP_IF)
-        .push_slice(PushBytesBuf::from(ROLLUP_NAME_TAG))
-        .push_slice(
-            PushBytesBuf::try_from(rollup_name.as_bytes().to_vec())
-                .expect("Cannot push rollup name"),
-        )
-        .push_slice(PushBytesBuf::from(SIGNATURE_TAG))
         .push_slice(PushBytesBuf::try_from(signature).expect("Cannot push signature"))
-        .push_slice(PushBytesBuf::from(PUBLICKEY_TAG))
         .push_slice(
-            PushBytesBuf::try_from(sequencer_public_key).expect("Cannot push sequencer public key"),
-        )
-        .push_slice(PushBytesBuf::from(RANDOM_TAG));
-    // This envelope is not finished yet. The random number will be added later and followed by the body
+            PushBytesBuf::try_from(signer_public_key).expect("Cannot push sequencer public key"),
+        );
+    // push body in chunks of 520 bytes
+    for chunk in body.chunks(520) {
+        reveal_script_builder = reveal_script_builder
+            .push_slice(PushBytesBuf::try_from(chunk.to_vec()).expect("Cannot push body chunk"));
+    }
+    // push end if
+    reveal_script_builder = reveal_script_builder.push_opcode(OP_ENDIF);
+
+    // This envelope is not finished yet. The random number will be added later
 
     // Start loop to find a 'nonce' i.e. random number that makes the reveal tx hash starting with zeros given length
-    let mut nonce: i64 = 0;
+    let mut nonce: i64 = 16; // skip the first digits to avoid OP_PUSHNUM_X
     loop {
         if nonce % 10000 == 0 {
             trace!(nonce, "Trying to find commit & reveal nonce");
@@ -378,17 +421,8 @@ pub fn create_inscription_transactions(
 
         // push first random number and body tag
         reveal_script_builder = reveal_script_builder
-            .push_int(nonce)
-            .push_slice(PushBytesBuf::from(BODY_TAG));
-
-        // push body in chunks of 520 bytes
-        for chunk in body.chunks(520) {
-            reveal_script_builder = reveal_script_builder.push_slice(
-                PushBytesBuf::try_from(chunk.to_vec()).expect("Cannot push body chunk"),
-            );
-        }
-        // push end if
-        reveal_script_builder = reveal_script_builder.push_opcode(OP_ENDIF);
+            .push_slice(nonce.to_le_bytes())
+            .push_opcode(OP_DROP);
 
         // finalize reveal script
         let reveal_script = reveal_script_builder.into_script();
@@ -579,7 +613,7 @@ mod tests {
         let rollup_name = "test_rollup";
         let body = vec![100; 1000];
         let signature = vec![100; 64];
-        let sequencer_public_key = vec![100; 33];
+        let signer_public_key = vec![100; 33];
         let address =
             Address::from_str("bc1pp8qru0ve43rw9xffmdd8pvveths3cx6a5t6mcr0xfn9cpxx2k24qf70xq9")
                 .unwrap()
@@ -646,7 +680,7 @@ mod tests {
             rollup_name,
             body,
             signature,
-            sequencer_public_key,
+            signer_public_key,
             address,
             utxos,
         )
@@ -985,14 +1019,14 @@ mod tests {
     }
     #[test]
     fn create_inscription_transactions() {
-        let (rollup_name, body, signature, sequencer_public_key, address, utxos) = get_mock_data();
+        let (rollup_name, body, signature, signer_public_key, address, utxos) = get_mock_data();
 
         let tx_prefix = &[0u8];
         let (commit, reveal) = super::create_inscription_transactions(
             rollup_name,
             body.clone(),
             signature.clone(),
-            sequencer_public_key.clone(),
+            signer_public_key.clone(),
             None,
             utxos.clone(),
             address.clone(),
@@ -1047,7 +1081,7 @@ mod tests {
             "signature should be correct"
         );
         assert_eq!(
-            inscription.public_key, sequencer_public_key,
+            inscription.public_key, signer_public_key,
             "sequencer public key should be correct"
         );
     }
