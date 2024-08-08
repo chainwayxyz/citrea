@@ -57,7 +57,7 @@ fn test_fork_manager_callbacks() {
     let mut fork_manager = ForkManager::new(0, SpecId::Genesis, forks);
     fork_manager.register_handler(handler);
     let result = fork_manager.register_block(100);
-    assert!(matches!(result, Err(_)));
+    assert!(result.is_err());
     if let Err(msg) = result {
         assert_eq!(msg.to_string(), "Called");
     }
