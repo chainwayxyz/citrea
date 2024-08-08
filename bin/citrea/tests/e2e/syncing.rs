@@ -5,7 +5,6 @@ use std::time::Duration;
 use citrea_stf::genesis_config::GenesisPaths;
 use ethereum_rpc::CitreaStatus;
 use reth_primitives::{Address, BlockNumberOrTag};
-use shared_backup_db::SharedBackupDbConfig;
 use sov_mock_da::{MockAddress, MockDaService, MockDaSpec, MockHash};
 use sov_rollup_interface::da::{DaData, DaSpec};
 use sov_rollup_interface::services::da::DaService;
@@ -304,7 +303,6 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
             Some(ProverConfig {
                 proving_mode: sov_stf_runner::ProverGuestRunConfig::Execute,
-                db_config: Some(SharedBackupDbConfig::default()),
                 proof_sampling_number: 0,
             }),
             NodeMode::Prover(seq_port),

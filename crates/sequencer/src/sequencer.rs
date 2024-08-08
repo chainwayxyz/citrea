@@ -17,13 +17,12 @@ use futures::StreamExt;
 use hyper::Method;
 use jsonrpsee::server::{BatchRequestConfig, ServerBuilder};
 use jsonrpsee::RpcModule;
-use reth_primitives::{Address, FromRecoveredPooledTransaction, IntoRecoveredTransaction, TxHash};
+use reth_primitives::{Address, IntoRecoveredTransaction, TxHash};
 use reth_provider::{AccountReader, BlockReaderIdExt};
 use reth_transaction_pool::{
     BestTransactions, BestTransactionsAttributes, ChangedAccount, EthPooledTransaction,
     ValidPoolTransaction,
 };
-use shared_backup_db::{CommitmentStatus, PostgresConnector};
 use soft_confirmation_rule_enforcer::SoftConfirmationRuleEnforcer;
 use sov_accounts::Accounts;
 use sov_accounts::Response::{AccountEmpty, AccountExists};
@@ -54,7 +53,6 @@ use crate::db_provider::DbProvider;
 use crate::deposit_data_mempool::DepositDataMempool;
 use crate::mempool::CitreaMempool;
 use crate::rpc::{create_rpc_module, RpcContext};
-use crate::utils::recover_raw_transaction;
 
 const MAX_STATEDIFF_SIZE_COMMITMENT_THRESHOLD: u64 = 300 * 1024;
 
@@ -354,7 +352,6 @@ where
         da_block: <Da as DaService>::FilteredBlock,
         l1_fee_rate: u128,
         l2_block_mode: L2BlockMode,
-        pg_pool: &Option<PostgresConnector>,
         last_used_l1_height: u64,
     ) -> anyhow::Result<(u64, bool)> {
         let da_height = da_block.header().height();
@@ -574,19 +571,6 @@ where
                         .set_state_diff(self.last_state_diff.clone())?;
                 }
 
-                if let Some(pg_pool) = pg_pool.clone() {
-                    // TODO: Is this okay? I'm not sure because we have a loop in this and I can't do async in spawn_blocking
-                    tokio::spawn(async move {
-                        let txs = txs_to_remove
-                            .iter()
-                            .map(|tx_hash| tx_hash.to_vec())
-                            .collect::<Vec<Vec<u8>>>();
-                        if let Err(e) = pg_pool.delete_txs_by_tx_hashes(txs).await {
-                            warn!("Failed to remove txs from mempool: {:?}", e);
-                        }
-                    });
-                }
-
                 Ok((da_block.header().height(), state_diff_threshold_reached))
             }
             (Err(err), batch_workspace) => {
@@ -721,10 +705,9 @@ where
         );
 
         let ledger_db = self.ledger_db.clone();
-        let db_config = self.config.db_config.clone();
         let handle_da_response = async move {
             let result: anyhow::Result<()> = async move {
-                let tx_id = rx
+                let _tx_id = rx
                     .await
                     .map_err(|_| anyhow!("DA service is dead!"))?
                     .map_err(|_| anyhow!("Send transaction cannot fail"))?;
@@ -734,28 +717,6 @@ where
                     .map_err(|_| {
                         anyhow!("Sequencer: Failed to set last sequencer commitment L2 height")
                     })?;
-
-                if let Some(db_config) = db_config {
-                    match PostgresConnector::new(db_config).await {
-                        Ok(pg_connector) => {
-                            pg_connector
-                                .insert_sequencer_commitment(
-                                    Into::<[u8; 32]>::into(tx_id).to_vec(),
-                                    l2_start.0 as u32,
-                                    l2_end.0 as u32,
-                                    commitment.merkle_root.to_vec(),
-                                    CommitmentStatus::Mempool,
-                                )
-                                .await
-                                .map_err(|_| {
-                                    anyhow!("Sequencer: Failed to insert sequencer commitment")
-                                })?;
-                        }
-                        Err(e) => {
-                            warn!("Failed to connect to postgres: {:?}", e);
-                        }
-                    }
-                }
 
                 ledger_db.delete_pending_commitment_l2_range(&(l2_start, l2_end))?;
 
@@ -852,32 +813,6 @@ where
             .get_block_at(1)
             .await
             .map_err(|e| anyhow!(e))?;
-
-        // If connected to offchain db first check if the commitments are in sync
-        let mut pg_pool = None;
-        if let Some(db_config) = self.config.db_config.clone() {
-            pg_pool = match PostgresConnector::new(db_config).await {
-                Ok(pg_connector) => {
-                    match self.sync_commitments_from_db(pg_connector.clone()).await {
-                        Ok(()) => debug!("Sequencer: Commitments are in sync"),
-                        Err(e) => {
-                            warn!("Sequencer: Offchain db error: {:?}", e);
-                        }
-                    }
-                    match self.restore_mempool(pg_connector.clone()).await {
-                        Ok(()) => debug!("Sequencer: Mempool restored"),
-                        Err(e) => {
-                            warn!("Sequencer: Mempool restore error: {:?}", e);
-                        }
-                    }
-                    Some(pg_connector)
-                }
-                Err(e) => {
-                    warn!("Failed to connect to postgres: {:?}", e);
-                    None
-                }
-            };
-        }
 
         // Initialize our knowledge of the state of the DA-layer
         let fee_rate_range = get_l1_fee_rate_range::<C, Da>(
@@ -978,7 +913,7 @@ where
                                 .map_err(|e| anyhow!(e))?;
 
                             debug!("Created an empty L2 for L1={}", needed_da_block_height);
-                            if let Err(e) = self.produce_l2_block(da_block, l1_fee_rate, L2BlockMode::Empty, &pg_pool, last_used_l1_height).await {
+                            if let Err(e) = self.produce_l2_block(da_block, l1_fee_rate, L2BlockMode::Empty, last_used_l1_height).await {
                                 error!("Sequencer error: {}", e);
                             }
                         }
@@ -994,7 +929,7 @@ where
                             }
                         };
                     let l1_fee_rate = l1_fee_rate.clamp(*l1_fee_rate_range.start(), *l1_fee_rate_range.end());
-                    match self.produce_l2_block(last_finalized_block.clone(), l1_fee_rate, L2BlockMode::NotEmpty, &pg_pool, last_used_l1_height).await {
+                    match self.produce_l2_block(last_finalized_block.clone(), l1_fee_rate, L2BlockMode::NotEmpty, last_used_l1_height).await {
                         Ok((l1_block_number, state_diff_threshold_reached)) => {
                             last_used_l1_height = l1_block_number;
 
@@ -1026,7 +961,7 @@ where
                                 .map_err(|e| anyhow!(e))?;
 
                             debug!("Created an empty L2 for L1={}", needed_da_block_height);
-                            if let Err(e) = self.produce_l2_block(da_block, l1_fee_rate, L2BlockMode::Empty, &pg_pool, last_used_l1_height).await {
+                            if let Err(e) = self.produce_l2_block(da_block, l1_fee_rate, L2BlockMode::Empty, last_used_l1_height).await {
                                 error!("Sequencer error: {}", e);
                             }
                         }
@@ -1044,7 +979,7 @@ where
                     let l1_fee_rate = l1_fee_rate.clamp(*l1_fee_rate_range.start(), *l1_fee_rate_range.end());
 
                     let instant = Instant::now();
-                    match self.produce_l2_block(da_block, l1_fee_rate, L2BlockMode::NotEmpty, &pg_pool, last_used_l1_height).await {
+                    match self.produce_l2_block(da_block, l1_fee_rate, L2BlockMode::NotEmpty, last_used_l1_height).await {
                         Ok((l1_block_number, state_diff_threshold_reached)) => {
                             // Set the next iteration's wait time to produce a block based on the
                             // previous block's execution time.
@@ -1152,23 +1087,13 @@ where
     /// Creates a shared RpcContext with all required data.
     async fn create_rpc_context(&self) -> RpcContext<C> {
         let l2_force_block_tx = self.l2_force_block_tx.clone();
-        let mut pg_pool = None;
-        if let Some(pg_config) = self.config.db_config.clone() {
-            pg_pool = match PostgresConnector::new(pg_config).await {
-                Ok(pg_connector) => Some(Arc::new(pg_connector)),
-                Err(e) => {
-                    warn!("Failed to connect to postgres: {:?}", e);
-                    None
-                }
-            };
-        }
+
         RpcContext {
             mempool: self.mempool.clone(),
             deposit_mempool: self.deposit_mempool.clone(),
             l2_force_block_tx,
             storage: self.storage.clone(),
             test_mode: self.config.test_mode,
-            pg_pool,
         }
     }
 
@@ -1181,44 +1106,6 @@ where
         let rpc = create_rpc_module(rpc_context)?;
         rpc_methods.merge(rpc)?;
         Ok(rpc_methods)
-    }
-
-    pub async fn restore_mempool(
-        &self,
-        pg_connector: PostgresConnector,
-    ) -> Result<(), anyhow::Error> {
-        let mempool_txs = pg_connector.get_all_txs().await?;
-        for tx in mempool_txs {
-            let recovered =
-                recover_raw_transaction(reth_primitives::Bytes::from(tx.tx.as_slice().to_vec()))?;
-            let pooled_tx = EthPooledTransaction::from_recovered_pooled_transaction(recovered);
-
-            let _ = self.mempool.add_external_transaction(pooled_tx).await?;
-        }
-        Ok(())
-    }
-
-    pub async fn sync_commitments_from_db(
-        &self,
-        pg_connector: PostgresConnector,
-    ) -> Result<(), anyhow::Error> {
-        let db_commitment = match pg_connector.get_last_commitment().await? {
-            Some(comm) => comm,
-            // ignore if postgres is out of sync
-            None => return Ok(()),
-        };
-        let ledger_commitment_l2_height = self
-            .ledger_db
-            .get_last_sequencer_commitment_l2_height()?
-            .unwrap_or_default();
-        if ledger_commitment_l2_height.0 >= db_commitment.l2_end_height {
-            return Ok(());
-        }
-
-        self.ledger_db
-            .set_last_sequencer_commitment_l2_height(BatchNumber(db_commitment.l2_end_height))?;
-
-        Ok(())
     }
 
     fn get_account_updates(&self) -> Result<Vec<ChangedAccount>, anyhow::Error> {

@@ -1,5 +1,4 @@
 use serde::Deserialize;
-use shared_backup_db::SharedBackupDbConfig;
 
 /// Rollup Configuration
 #[derive(Debug, Clone, PartialEq, Deserialize)]
@@ -14,8 +13,6 @@ pub struct SequencerConfig {
     pub deposit_mempool_fetch_limit: usize,
     /// Sequencer specific mempool config
     pub mempool_conf: SequencerMempoolConfig,
-    /// Offchain db config
-    pub db_config: Option<SharedBackupDbConfig>,
     /// DA layer update loop interval in ms
     pub da_update_interval_ms: u64,
     /// Block production interval in ms
@@ -88,12 +85,6 @@ mod tests {
             base_fee_tx_limit = 100000
             base_fee_tx_size = 200
             max_account_slots = 16
-            [db_config]
-            db_host = "localhost"
-            db_port = 5432
-            db_user = "postgres"
-            db_password = "postgres"
-            db_name = "postgres"
         "#;
 
         let config_file = create_config_from(config);
@@ -115,7 +106,6 @@ mod tests {
                 base_fee_tx_size: 200,
                 max_account_slots: 16,
             },
-            db_config: Some(SharedBackupDbConfig::default()),
             da_update_interval_ms: 1000,
             block_production_interval_ms: 1000,
         };

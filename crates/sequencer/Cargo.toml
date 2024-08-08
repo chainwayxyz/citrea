@@ -19,7 +19,6 @@ anyhow = { workspace = true }
 bincode = { workspace = true }
 borsh = { workspace = true }
 chrono = { workspace = true }
-deadpool-postgres = { workspace = true }
 digest = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true }
@@ -61,7 +60,6 @@ sov-stf-runner = { path = "../sovereign-sdk/full-node/sov-stf-runner" }
 citrea-evm = { path = "../evm", features = ["native"] }
 citrea-primitives = { path = "../primitives" }
 citrea-stf = { path = "../citrea-stf", features = ["native"] }
-shared-backup-db = { path = "../shared-backup-db" }
 
 [dev-dependencies]
 tempfile = { workspace = true }

@@ -17,7 +17,6 @@ clean: ## Cleans compiled
 	@cargo clean
 
 clean-node: ## Cleans local dbs needed for sequencer and nodes
-	sudo rm -rf resources/dbs/postgres
 	rm -rf resources/dbs/sequencer-db
 	rm -rf resources/dbs/prover-db
 	rm -rf resources/dbs/full-node-db

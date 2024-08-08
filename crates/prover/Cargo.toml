@@ -13,7 +13,6 @@ repository.workspace = true
 citrea-primitives = { path = "../primitives", features = ["native"] }
 citrea-stf = { path = "../citrea-stf" }
 sequencer-client = { path = "../sequencer-client" }
-shared-backup-db = { path = "../shared-backup-db" }
 
 # Sov SDK deps
 sov-db = { path = "../sovereign-sdk/full-node/db/sov-db" }
