@@ -100,19 +100,21 @@ impl BitcoinService {
             tokio::runtime::Handle::current().block_on(async move {
                 // TODO https://github.com/chainwayxyz/citrea/issues/537
                 // TODO find last tx by utxo chain
-                let mut prev_tx = match this.get_pending_transactions().await {
-                    Ok(pending_txs) => {
-                        if !pending_txs.is_empty() {
-                            let tx = pending_txs.first().unwrap().clone();
-                            let txid = tx.txid();
-                            Some(TxWithId { tx, id: txid })
-                        } else {
-                            None
-                        }
+                let (mut prev_tx, mut vout) = match this.get_prev_tx_with_vout().await {
+                    Ok(Some(prev_tx_with_vout)) => (
+                        Some(TxWithId {
+                            tx: prev_tx_with_vout.0.clone(),
+                            id: prev_tx_with_vout.0.txid(),
+                        }),
+                        Some(prev_tx_with_vout.1),
+                    ),
+                    Ok(None) => {
+                        info!("No pending transactions found");
+                        (None, None)
                     }
                     Err(e) => {
                         error!(?e, "Failed to get pending transactions");
-                        None
+                        (None, None)
                     }
                 };
 
@@ -122,6 +124,7 @@ impl BitcoinService {
                 while let Some(request) = rx.recv().await {
                     trace!("A new request is received");
                     let prev = prev_tx.take();
+                    let prev_vout = vout.take();
                     loop {
                         // Build and send tx with retries:
                         let blob = request.blob.clone();
@@ -134,7 +137,12 @@ impl BitcoinService {
                             }
                         };
                         match this
-                            .send_transaction_with_fee_rate(prev.clone(), blob, fee_sat_per_vbyte)
+                            .send_transaction_with_fee_rate(
+                                prev.clone(),
+                                prev_vout,
+                                blob,
+                                fee_sat_per_vbyte,
+                            )
                             .await
                         {
                             Ok(tx) => {
@@ -229,6 +237,27 @@ impl BitcoinService {
     }
 
     #[instrument(level = "trace", skip_all, ret)]
+    async fn get_prev_tx_with_vout(&self) -> Result<Option<(Transaction, u32)>, anyhow::Error> {
+        let mut pending_utxos = self.client.get_pending_utxos().await?;
+        // Sorted by ancestor count, the tx with the most ancestors is the latest tx
+        pending_utxos.sort_unstable_by_key(|utxo| -(utxo.ancestor_count.unwrap_or(0) as i64));
+
+        if !pending_utxos.is_empty() {
+            let utxo = pending_utxos.first().unwrap();
+            let txid = utxo.txid.clone();
+            let raw_tx = self
+                .client
+                .get_raw_transaction(txid.clone())
+                .await
+                .expect("Transaction should exist with existing utxo");
+            let parsed_tx = parse_hex_transaction(&raw_tx).expect("Rpc tx should be parsable");
+            Ok(Some((parsed_tx, utxo.vout.try_into().unwrap())))
+        } else {
+            Ok(None)
+        }
+    }
+
+    #[instrument(level = "trace", skip_all, ret)]
     async fn get_pending_transactions(&self) -> Result<Vec<Transaction>, anyhow::Error> {
         let mut pending_utxos = self.client.get_pending_utxos().await?;
         // Sorted by ancestor count, the tx with the most ancestors is the latest tx
@@ -261,6 +290,7 @@ impl BitcoinService {
     pub async fn send_transaction_with_fee_rate(
         &self,
         prev_tx: Option<TxWithId>,
+        prev_vout: Option<u32>,
         blob: Vec<u8>,
         fee_sat_per_vbyte: f64,
     ) -> Result<TxWithId, anyhow::Error> {
@@ -293,6 +323,7 @@ impl BitcoinService {
             signature,
             public_key,
             prev_tx,
+            prev_vout,
             utxos,
             address,
             REVEAL_OUTPUT_AMOUNT,

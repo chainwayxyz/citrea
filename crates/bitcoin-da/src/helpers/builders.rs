@@ -140,6 +140,7 @@ fn choose_utxos(
 #[instrument(level = "trace", skip(utxos), err)]
 fn build_commit_transaction(
     prev_tx: Option<TxWithId>, // reuse outputs to add commit tx order
+    prev_vout: Option<u32>,    // Use the unused output from the previous tx
     mut utxos: Vec<UTXO>,
     recipient: Address,
     change_address: Address,
@@ -168,7 +169,7 @@ fn build_commit_transaction(
     // fields other then tx_id, vout, script_pubkey and amount are not really important.
     let required_utxo = prev_tx.map(|tx| UTXO {
         tx_id: tx.id,
-        vout: 0,
+        vout: prev_vout.unwrap_or(0),
         script_pubkey: tx.tx.output[0].script_pubkey.to_hex_string(),
         address: "ANY".into(),
         amount: tx.tx.output[0].value.to_sat(),
@@ -344,6 +345,7 @@ pub fn create_inscription_transactions(
     signature: Vec<u8>,
     signer_public_key: Vec<u8>,
     prev_tx: Option<TxWithId>,
+    prev_vout: Option<u32>,
     utxos: Vec<UTXO>,
     recipient: Address,
     reveal_value: u64,
@@ -359,6 +361,7 @@ pub fn create_inscription_transactions(
             signature,
             signer_public_key,
             prev_tx,
+            prev_vout,
             utxos,
             recipient,
             reveal_value,
@@ -374,6 +377,7 @@ pub fn create_inscription_transactions(
             signature,
             signer_public_key,
             prev_tx,
+            prev_vout,
             utxos,
             recipient,
             reveal_value,
@@ -420,6 +424,7 @@ pub fn create_inscription_type_0(
     signature: Vec<u8>,
     signer_public_key: Vec<u8>,
     prev_tx: Option<TxWithId>,
+    prev_vout: Option<u32>,
     utxos: Vec<UTXO>,
     recipient: Address,
     reveal_value: u64,
@@ -527,6 +532,7 @@ pub fn create_inscription_type_0(
         // we don't need leftover_utxos because they will be requested from bitcoind next call
         let (unsigned_commit_tx, _leftover_utxos) = build_commit_transaction(
             prev_tx.clone(),
+            prev_vout,
             utxos,
             commit_tx_address.clone(),
             recipient.clone(),
@@ -615,6 +621,7 @@ pub fn create_inscription_type_1(
     signature: Vec<u8>,
     signer_public_key: Vec<u8>,
     mut prev_tx: Option<TxWithId>,
+    prev_vout: Option<u32>,
     mut utxos: Vec<UTXO>,
     recipient: Address,
     reveal_value: u64,
@@ -698,6 +705,7 @@ pub fn create_inscription_type_1(
         // build commit tx
         let (unsigned_commit_tx, leftover_utxos) = build_commit_transaction(
             prev_tx.clone(),
+            prev_vout,
             utxos,
             commit_tx_address.clone(),
             recipient.clone(),
@@ -880,6 +888,7 @@ pub fn create_inscription_type_1(
         // build commit tx
         let (unsigned_commit_tx, _leftover_utxos) = build_commit_transaction(
             prev_tx.clone(),
+            prev_vout,
             utxos,
             commit_tx_address.clone(),
             recipient.clone(),
@@ -1127,6 +1136,7 @@ mod tests {
                 .unwrap();
         let (mut tx, leftover_utxos) = super::build_commit_transaction(
             None,
+            None,
             utxos.clone(),
             recipient.clone(),
             address.clone(),
@@ -1156,6 +1166,7 @@ mod tests {
 
         let (mut tx, leftover_utxos) = super::build_commit_transaction(
             None,
+            None,
             utxos.clone(),
             recipient.clone(),
             address.clone(),
@@ -1182,6 +1193,7 @@ mod tests {
         assert_eq!(tx.output[0].script_pubkey, recipient.script_pubkey());
 
         let (mut tx, leftover_utxos) = super::build_commit_transaction(
+            None,
             None,
             utxos.clone(),
             recipient.clone(),
@@ -1214,6 +1226,7 @@ mod tests {
         assert_eq!(tx.output[0].script_pubkey, recipient.script_pubkey());
 
         let (mut tx, leftover_utxos) = super::build_commit_transaction(
+            None,
             None,
             utxos.clone(),
             recipient.clone(),
@@ -1254,6 +1267,7 @@ mod tests {
                 id: prev_tx_id,
                 tx: prev_tx.clone(),
             }),
+            None,
             utxos.clone(),
             recipient.clone(),
             address.clone(),
@@ -1287,6 +1301,7 @@ mod tests {
                 id: prev_tx_id,
                 tx: prev_tx,
             }),
+            None,
             prev_utxo,
             recipient.clone(),
             address.clone(),
@@ -1301,6 +1316,7 @@ mod tests {
 
         let tx = super::build_commit_transaction(
             None,
+            None,
             utxos.clone(),
             recipient.clone(),
             address.clone(),
@@ -1312,6 +1328,7 @@ mod tests {
         assert_eq!(format!("{}", tx.unwrap_err()), "not enough UTXOs");
 
         let tx = super::build_commit_transaction(
+            None,
             None,
             vec![UTXO {
                 tx_id: Txid::from_str(
@@ -1424,6 +1441,7 @@ mod tests {
             body.clone(),
             signature.clone(),
             signer_public_key.clone(),
+            None,
             None,
             utxos.clone(),
             address.clone(),
