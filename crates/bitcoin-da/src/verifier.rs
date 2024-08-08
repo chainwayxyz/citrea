@@ -13,6 +13,8 @@ use crate::helpers::compression::decompress_blob;
 use crate::helpers::parsers::parse_transaction;
 use crate::spec::BitcoinSpec;
 
+pub const WITNESS_COMMITMENT_PREFIX: &[u8] = &[0x6a, 0x24, 0xaa, 0x21, 0xa9, 0xed];
+
 pub struct BitcoinVerifier {
     rollup_name: String,
     reveal_tx_id_prefix: Vec<u8>,
@@ -188,7 +190,7 @@ impl DaVerifier for BitcoinVerifier {
                 output
                     .script_pubkey
                     .as_bytes()
-                    .starts_with(&[0x6a, 0x24, 0xaa, 0x21, 0xa9, 0xed])
+                    .starts_with(WITNESS_COMMITMENT_PREFIX)
             });
             match commitment_idx {
                 // If commitmet does not exist
@@ -284,7 +286,7 @@ mod tests {
     use crate::spec::proof::InclusionMultiProof;
     use crate::spec::transaction::TransactionWrapper;
     use crate::spec::RollupParams;
-    use crate::verifier::{ChainValidityCondition, ValidationError};
+    use crate::verifier::{ChainValidityCondition, ValidationError, WITNESS_COMMITMENT_PREFIX};
 
     #[test]
     fn correct() {
@@ -342,7 +344,7 @@ mod tests {
             output
                 .script_pubkey
                 .to_bytes()
-                .starts_with(&[0x6a, 0x24, 0xaa, 0x21, 0xa9, 0xed])
+                .starts_with(WITNESS_COMMITMENT_PREFIX)
         });
         assert!(idx.is_none());
 
@@ -500,7 +502,7 @@ mod tests {
                 output
                     .script_pubkey
                     .to_bytes()
-                    .starts_with(&[0x6a, 0x24, 0xaa, 0x21, 0xa9, 0xed])
+                    .starts_with(WITNESS_COMMITMENT_PREFIX)
             })
             .unwrap();
 
