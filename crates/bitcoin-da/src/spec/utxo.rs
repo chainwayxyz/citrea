@@ -39,7 +39,7 @@ impl<'de> serde::Deserialize<'de> for UTXO {
             vout: raw_utxo.vout,
             address: raw_utxo.address,
             script_pubkey: raw_utxo.script_pub_key,
-            amount: (raw_utxo.amount * 100_000_000.0) as u64, // satoshis to bitcoin
+            amount: btc_to_satoshi(raw_utxo.amount),
             confirmations: raw_utxo.confirmations,
             spendable: raw_utxo.spendable,
             solvable: raw_utxo.solvable,
@@ -68,4 +68,23 @@ pub struct ListUnspentEntry {
     pub desc: String,
     pub parent_descs: Option<Vec<String>>,
     pub safe: bool,
+}
+
+impl From<ListUnspentEntry> for UTXO {
+    fn from(entry: ListUnspentEntry) -> UTXO {
+        UTXO {
+            tx_id: entry.txid.parse().unwrap(),
+            vout: entry.vout as u32,
+            address: entry.address,
+            script_pubkey: entry.script_pub_key,
+            amount: btc_to_satoshi(entry.amount),
+            confirmations: entry.confirmations,
+            spendable: entry.spendable,
+            solvable: entry.solvable,
+        }
+    }
+}
+
+pub fn btc_to_satoshi(btc: f64) -> u64 {
+    (btc * 100_000_000.0) as u64
 }

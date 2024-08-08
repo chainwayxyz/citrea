@@ -269,9 +269,11 @@ impl BitcoinNode {
 
     /// Get unconfirmed utxos
     pub async fn get_pending_utxos(&self) -> Result<Vec<ListUnspentEntry>, anyhow::Error> {
-        let utxos = self
+        let mut utxos = self
             .call::<Vec<ListUnspentEntry>>("listunspent", vec![to_value(0)?, to_value(0)?])
             .await?;
+
+        utxos.retain(|u| u.spendable && u.solvable);
 
         Ok(utxos)
     }
