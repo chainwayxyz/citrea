@@ -31,10 +31,10 @@ use crate::spec::blob::BlobWithSender;
 use crate::spec::block::BitcoinBlock;
 use crate::spec::header_stream::BitcoinHeaderStream;
 use crate::spec::proof::InclusionMultiProof;
-use crate::spec::utxo::UTXO;
+use crate::spec::utxo::{btc_to_satoshi, UTXO};
 use crate::spec::{BitcoinSpec, RollupParams};
 use crate::verifier::BitcoinVerifier;
-use crate::REVEAL_OUTPUT_AMOUNT;
+use crate::{MIN_INPUT_AMOUNT, REVEAL_OUTPUT_AMOUNT};
 
 /// A service that provides data and data availability proofs for Bitcoin
 #[derive(Debug, Clone)]
@@ -100,15 +100,11 @@ impl BitcoinService {
             tokio::runtime::Handle::current().block_on(async move {
                 // TODO https://github.com/chainwayxyz/citrea/issues/537
                 // TODO find last tx by utxo chain
-                let mut prev_tx = match this.get_pending_transactions().await {
-                    Ok(pending_txs) => {
-                        if !pending_txs.is_empty() {
-                            let tx = pending_txs.first().unwrap().clone();
-                            let txid = tx.txid();
-                            Some(TxWithId { tx, id: txid })
-                        } else {
-                            None
-                        }
+                let mut prev_utxo = match this.get_prev_utxo().await {
+                    Ok(Some(prev_utxo)) => Some(prev_utxo),
+                    Ok(None) => {
+                        info!("No pending transactions found");
+                        None
                     }
                     Err(e) => {
                         error!(?e, "Failed to get pending transactions");
@@ -121,7 +117,7 @@ impl BitcoinService {
                 // We execute commit and reveal txs one by one to chain them
                 while let Some(request) = rx.recv().await {
                     trace!("A new request is received");
-                    let prev = prev_tx.take();
+                    let prev = prev_utxo.take();
                     loop {
                         // Build and send tx with retries:
                         let blob = request.blob.clone();
@@ -140,7 +136,17 @@ impl BitcoinService {
                             Ok(tx) => {
                                 let tx_id = TxidWrapper(tx.id);
                                 info!(%tx.id, "Sent tx to BitcoinDA");
-                                prev_tx = Some(tx);
+                                prev_utxo = Some(UTXO {
+                                    tx_id: tx.id,
+                                    vout: 0,
+                                    script_pubkey: tx.tx.output[0].script_pubkey.to_hex_string(),
+                                    address: "ANY".into(),
+                                    amount: tx.tx.output[0].value.to_sat(),
+                                    confirmations: 0,
+                                    spendable: true,
+                                    solvable: true,
+                                });
+
                                 let _ = request.notify.send(Ok(tx_id));
                             }
                             Err(e) => {
@@ -229,6 +235,18 @@ impl BitcoinService {
     }
 
     #[instrument(level = "trace", skip_all, ret)]
+    async fn get_prev_utxo(&self) -> Result<Option<UTXO>, anyhow::Error> {
+        let mut pending_utxos = self.client.get_pending_utxos().await?;
+        // Sorted by ancestor count, the tx with the most ancestors is the latest tx
+        pending_utxos.sort_unstable_by_key(|utxo| -(utxo.ancestor_count.unwrap_or(0) as i64));
+
+        Ok(pending_utxos
+            .into_iter()
+            .find(|u| btc_to_satoshi(u.amount) >= MIN_INPUT_AMOUNT)
+            .map(|u| u.into()))
+    }
+
+    #[instrument(level = "trace", skip_all, ret)]
     async fn get_pending_transactions(&self) -> Result<Vec<Transaction>, anyhow::Error> {
         let mut pending_utxos = self.client.get_pending_utxos().await?;
         // Sorted by ancestor count, the tx with the most ancestors is the latest tx
@@ -257,10 +275,10 @@ impl BitcoinService {
         Ok(pending_transactions)
     }
 
-    #[instrument(level = "trace", fields(prev_tx), ret, err)]
+    #[instrument(level = "trace", fields(prev_utxo), ret, err)]
     pub async fn send_transaction_with_fee_rate(
         &self,
-        prev_tx: Option<TxWithId>,
+        prev_utxo: Option<UTXO>,
         blob: Vec<u8>,
         fee_sat_per_vbyte: f64,
     ) -> Result<TxWithId, anyhow::Error> {
@@ -292,7 +310,7 @@ impl BitcoinService {
             blob,
             signature,
             public_key,
-            prev_tx,
+            prev_utxo,
             utxos,
             address,
             REVEAL_OUTPUT_AMOUNT,

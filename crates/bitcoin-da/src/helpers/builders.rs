@@ -139,7 +139,7 @@ fn choose_utxos(
 /// Return (tx, leftover_utxos)
 #[instrument(level = "trace", skip(utxos), err)]
 fn build_commit_transaction(
-    prev_tx: Option<TxWithId>, // reuse outputs to add commit tx order
+    prev_utxo: Option<UTXO>, // reuse outputs to add commit tx order
     mut utxos: Vec<UTXO>,
     recipient: Address,
     change_address: Address,
@@ -165,19 +165,7 @@ fn build_commit_transaction(
         None,
     );
 
-    // fields other then tx_id, vout, script_pubkey and amount are not really important.
-    let required_utxo = prev_tx.map(|tx| UTXO {
-        tx_id: tx.id,
-        vout: 0,
-        script_pubkey: tx.tx.output[0].script_pubkey.to_hex_string(),
-        address: "ANY".into(),
-        amount: tx.tx.output[0].value.to_sat(),
-        confirmations: 0,
-        spendable: true,
-        solvable: true,
-    });
-
-    if let Some(req_utxo) = &required_utxo {
+    if let Some(req_utxo) = &prev_utxo {
         // if we don't do this, then we might end up using the required utxo twice
         // which would yield an invalid transaction
         // however using a different txo from the same tx is fine.
@@ -199,7 +187,7 @@ fn build_commit_transaction(
         let input_total = output_value + fee;
 
         let (chosen_utxos, sum, leftover_utxos) =
-            choose_utxos(required_utxo.clone(), &utxos, input_total)?;
+            choose_utxos(prev_utxo.clone(), &utxos, input_total)?;
         let has_change = (sum - input_total) >= REVEAL_OUTPUT_AMOUNT;
         let direct_return = !has_change;
 
@@ -343,7 +331,7 @@ pub fn create_inscription_transactions(
     body: Vec<u8>,
     signature: Vec<u8>,
     signer_public_key: Vec<u8>,
-    prev_tx: Option<TxWithId>,
+    prev_utxo: Option<UTXO>,
     utxos: Vec<UTXO>,
     recipient: Address,
     reveal_value: u64,
@@ -358,7 +346,7 @@ pub fn create_inscription_transactions(
             body,
             signature,
             signer_public_key,
-            prev_tx,
+            prev_utxo,
             utxos,
             recipient,
             reveal_value,
@@ -373,7 +361,7 @@ pub fn create_inscription_transactions(
             body,
             signature,
             signer_public_key,
-            prev_tx,
+            prev_utxo,
             utxos,
             recipient,
             reveal_value,
@@ -419,7 +407,7 @@ pub fn create_inscription_type_0(
     body: Vec<u8>,
     signature: Vec<u8>,
     signer_public_key: Vec<u8>,
-    prev_tx: Option<TxWithId>,
+    prev_utxo: Option<UTXO>,
     utxos: Vec<UTXO>,
     recipient: Address,
     reveal_value: u64,
@@ -526,7 +514,7 @@ pub fn create_inscription_type_0(
         // build commit tx
         // we don't need leftover_utxos because they will be requested from bitcoind next call
         let (unsigned_commit_tx, _leftover_utxos) = build_commit_transaction(
-            prev_tx.clone(),
+            prev_utxo.clone(),
             utxos,
             commit_tx_address.clone(),
             recipient.clone(),
@@ -614,7 +602,7 @@ pub fn create_inscription_type_1(
     body: Vec<u8>,
     signature: Vec<u8>,
     signer_public_key: Vec<u8>,
-    mut prev_tx: Option<TxWithId>,
+    mut prev_utxo: Option<UTXO>,
     mut utxos: Vec<UTXO>,
     recipient: Address,
     reveal_value: u64,
@@ -697,7 +685,7 @@ pub fn create_inscription_type_1(
 
         // build commit tx
         let (unsigned_commit_tx, leftover_utxos) = build_commit_transaction(
-            prev_tx.clone(),
+            prev_utxo.clone(),
             utxos,
             commit_tx_address.clone(),
             recipient.clone(),
@@ -773,9 +761,15 @@ pub fn create_inscription_type_1(
         );
 
         // set prev tx to last reveal tx to chain txs in order
-        prev_tx = Some(TxWithId {
-            id: reveal_tx.txid(),
-            tx: reveal_tx.clone(),
+        prev_utxo = Some(UTXO {
+            tx_id: reveal_tx.txid(),
+            vout: 0,
+            script_pubkey: reveal_tx.output[0].script_pubkey.to_hex_string(),
+            address: "ANY".into(),
+            amount: reveal_tx.output[0].value.to_sat(),
+            confirmations: 0,
+            spendable: true,
+            solvable: true,
         });
 
         commit_chunks.push(unsigned_commit_tx);
@@ -879,7 +873,7 @@ pub fn create_inscription_type_1(
 
         // build commit tx
         let (unsigned_commit_tx, _leftover_utxos) = build_commit_transaction(
-            prev_tx.clone(),
+            prev_utxo.clone(),
             utxos,
             commit_tx_address.clone(),
             recipient.clone(),
@@ -1250,9 +1244,15 @@ mod tests {
         let prev_tx = tx;
         let prev_tx_id = prev_tx.txid();
         let tx = super::build_commit_transaction(
-            Some(super::TxWithId {
-                id: prev_tx_id,
-                tx: prev_tx.clone(),
+            Some(UTXO {
+                tx_id: prev_tx_id,
+                vout: 0,
+                script_pubkey: prev_tx.output[0].script_pubkey.to_hex_string(),
+                address: "ANY".into(),
+                amount: prev_tx.output[0].value.to_sat(),
+                confirmations: 0,
+                spendable: true,
+                solvable: true,
             }),
             utxos.clone(),
             recipient.clone(),
@@ -1283,9 +1283,15 @@ mod tests {
         assert_eq!(prev_utxo.len(), 5);
 
         let (tx, leftover_utxos) = super::build_commit_transaction(
-            Some(super::TxWithId {
-                id: prev_tx_id,
-                tx: prev_tx,
+            Some(UTXO {
+                tx_id: prev_tx_id,
+                vout: 0,
+                script_pubkey: prev_tx.output[0].script_pubkey.to_hex_string(),
+                address: "ANY".into(),
+                amount: prev_tx.output[0].value.to_sat(),
+                confirmations: 0,
+                spendable: true,
+                solvable: true,
             }),
             prev_utxo,
             recipient.clone(),
